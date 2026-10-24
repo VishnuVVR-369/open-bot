@@ -1,0 +1,1 @@
+ALTER TABLE "messages" ADD COLUMN "steered_run_id" uuid;

@@ -1,0 +1,9 @@
+pnpm-lock.yaml
+**/.next
+**/dist
+**/out
+**/drizzle/meta
+**/playwright-report
+**/test-results
+docs
+packages/agent/src/protocol

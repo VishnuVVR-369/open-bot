@@ -1,0 +1,14 @@
+{
+  "DownloadDirectory": "/home/bot/shared/downloads",
+  "PromptForDownloadLocation": false,
+  "DefaultBrowserSettingEnabled": false,
+  "MetricsReportingEnabled": false,
+  "BrowserSignin": 0,
+  "SyncDisabled": true,
+  "RestoreOnStartup": 1,
+  "BackgroundModeEnabled": false,
+  "TranslateEnabled": false,
+  "PromotionsEnabled": false,
+  "HideWebStoreIcon": true,
+  "CommandLineFlagSecurityWarningsEnabled": false
+}

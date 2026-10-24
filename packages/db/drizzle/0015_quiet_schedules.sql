@@ -1,0 +1,1 @@
+ALTER TABLE "schedules" ADD COLUMN "quiet" boolean DEFAULT false NOT NULL;

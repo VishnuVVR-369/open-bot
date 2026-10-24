@@ -1,0 +1,23 @@
+{
+  "name": "@open-bot/agent",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "generate:protocol": "rm -rf src/protocol && codex app-server generate-ts --experimental --out src/protocol",
+    "typecheck": "tsc -p .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/ws": "^8.18.2",
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.4"
+  }
+}

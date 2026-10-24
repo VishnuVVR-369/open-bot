@@ -1,0 +1,42 @@
+# Local development infrastructure: Postgres and the shared computer.
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: openbot
+      POSTGRES_PASSWORD: openbot
+      POSTGRES_DB: openbot
+    ports:
+      - "127.0.0.1:54329:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openbot"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  computer:
+    build:
+      context: .
+      dockerfile: images/computer/Dockerfile
+    image: open-bot-computer:dev
+    environment:
+      BOTD_TOKEN: ${BOTD_TOKEN:-dev-botd-token-change-me}
+    # Locally the worker runs on the host, so botd is published on localhost only.
+    # On Railway it is reachable only over private networking.
+    ports:
+      - "127.0.0.1:7070:7000"
+    # Every bot's screen runs its own browser.
+    shm_size: "2gb"
+    # Time for every screen's browser to save its tabs.
+    stop_grace_period: 20s
+    security_opt:
+      # Chromium's sandbox needs user namespaces, which the default seccomp profile blocks.
+      - seccomp=unconfined
+    volumes:
+      - computer-home:/home
+
+volumes:
+  postgres-data:
+  computer-home:

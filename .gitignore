@@ -1,0 +1,14 @@
+node_modules
+.next
+dist
+out
+.turbo
+.env
+.env.local
+*.log
+.DS_Store
+playwright-report
+test-results
+next-env.d.ts
+*.tsbuildinfo
+e2e/.auth
