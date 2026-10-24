@@ -23,6 +23,8 @@ services:
     image: open-bot-computer:dev
     environment:
       BOTD_TOKEN: ${BOTD_TOKEN:-dev-botd-token-change-me}
+      # The e2e tests' stand-in job portal runs on this Mac; the apply guard covers it like a real portal.
+      APPLY_GUARD_EXTRA_DOMAINS: ${APPLY_GUARD_EXTRA_DOMAINS:-host.docker.internal}
     # Locally the worker runs on the host, so botd is published on localhost only.
     # On Railway it is reachable only over private networking.
     ports:

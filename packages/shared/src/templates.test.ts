@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { describeCron, nextCronRun } from "./schedule";
-import { isNothingToReport, pickStarters, TEAMMATE_TEMPLATES } from "./templates";
+import { skillInputSchema } from "./skills";
+import { isNothingToReport, pickStarters, TEAMMATE_TEMPLATES, templateSkills } from "./templates";
 
 describe("TEAMMATE_TEMPLATES", () => {
   it("has unique ids, and starters that run and read well", () => {
@@ -50,6 +51,32 @@ describe("starters", () => {
       expect(ids, template.id).toContain("check-in");
       expect(ids, template.id).toContain("weekly-retro");
       expect(template.starters.find((starter) => starter.id === "check-in")?.quiet).toBe(true);
+    }
+  });
+});
+
+describe("template skills", () => {
+  it("are valid skills, and only the template's own", () => {
+    for (const template of TEAMMATE_TEMPLATES) {
+      for (const skill of template.skills ?? []) {
+        expect(skillInputSchema.safeParse({ ...skill, botId: null }).success, skill.name).toBe(
+          true,
+        );
+      }
+    }
+    expect(templateSkills("job-scout").map((skill) => skill.name)).toEqual([
+      "collect-linkedin-jobs",
+      "collect-naukri-jobs",
+    ]);
+    expect(templateSkills("researcher")).toEqual([]);
+    expect(templateSkills(null)).toEqual([]);
+  });
+
+  it("keep the Job Scout read-only on the portals", () => {
+    for (const skill of templateSkills("job-scout")) {
+      expect(skill.instructions).toContain("Never click Apply");
+      expect(skill.instructions).toContain("request_takeover");
+      expect(skill.instructions).toContain("at most 25 new postings");
     }
   });
 });

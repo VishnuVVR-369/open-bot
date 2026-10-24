@@ -38,6 +38,8 @@ describe("schedules", () => {
     expect(validateCron("99 8 * * *", "UTC")).not.toBeNull();
     expect(describeCron("0 8 * * 1-5")).toBe("Weekdays at 8:00 AM");
     expect(describeCron("30 18 * * *")).toBe("Every day at 6:30 PM");
+    expect(describeCron("0 10,18 * * *")).toBe("Every day at 10:00 AM and 6:00 PM");
+    expect(describeCron("0 8,12,17 * * 1-5")).toBe("Weekdays at 8:00 AM, 12:00 PM and 5:00 PM");
     expect(describeCron("*/15 * * * *")).toBe("Every 15 minutes");
     expect(describeCron("0 9 * * 1")).toBe("Every Monday at 9:00 AM");
   });

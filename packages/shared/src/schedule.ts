@@ -167,7 +167,8 @@ export function describeCron(cron: string): string {
     string,
     string,
   ];
-  const simpleTime = /^\d+$/.test(minute) && /^\d+$/.test(hour);
+  // One time a day, or a few listed hours ("10,18").
+  const simpleTime = /^\d+$/.test(minute) && /^\d+(?:,\d+)*$/.test(hour);
   if (
     minute.startsWith("*/") &&
     hour === "*" &&
@@ -187,7 +188,8 @@ export function describeCron(cron: string): string {
     return `Every hour at :${minute.padStart(2, "0")}`;
   }
   if (!simpleTime || month !== "*") return cron;
-  const at = time(hour, minute);
+  const times = hour.split(",").map((part) => time(part, minute));
+  const at = times.length > 1 ? `${times.slice(0, -1).join(", ")} and ${times.at(-1)}` : times[0]!;
   if (dayOfMonth === "*" && dayOfWeek === "*") return `Every day at ${at}`;
   if (dayOfMonth === "*" && dayOfWeek === "1-5") return `Weekdays at ${at}`;
   if (dayOfMonth === "*" && (dayOfWeek === "0,6" || dayOfWeek === "6,0"))

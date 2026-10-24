@@ -12,6 +12,7 @@ import {
   type ComputerFillRequest,
   type ComputerFillResult,
   type ComputerHealth,
+  type ComputerReadResult,
   type RunIdentity,
 } from "@open-bot/shared";
 import { WebSocket, WebSocketServer } from "ws";
@@ -146,11 +147,48 @@ export function createServer(deps: ServerDeps): {
       // Taking over during the action means the bot must not see the screen anymore.
       if (lease.holder?.kind === "user") throw new ActionAbortedError();
       const [image, cursor] = await Promise.all([desktop.screenshot(), desktop.cursor()]);
-      return { ok: true, screenshot: image.toString("base64"), cursor };
+      const blocked = screen.takeBlocked();
+      return {
+        ok: true,
+        screenshot: image.toString("base64"),
+        cursor,
+        ...(blocked.length && { blocked }),
+      };
     } catch (error) {
       if (error instanceof ActionAbortedError || lease.holder?.kind === "user") {
         return { ok: false, code: "user_has_control", message: USER_HAS_CONTROL_MESSAGE };
       }
+      return {
+        ok: false,
+        code: "failed",
+        message: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  /** The readable content of the page in front on the run's screen. */
+  async function performRead(body: unknown): Promise<ComputerReadResult | ComputerActionError> {
+    const { run, selector } = body as { run?: RunIdentity; selector?: unknown };
+    if (!run?.runId || !isScreenId(run.botId)) {
+      return { ok: false, code: "invalid_action", message: "Missing run identity" };
+    }
+    if (
+      selector !== undefined &&
+      (typeof selector !== "string" || !selector || selector.length > 500)
+    ) {
+      return { ok: false, code: "invalid_action", message: "selector must be a CSS selector" };
+    }
+    const screen = await screenForRun(run);
+    if (!("lease" in screen)) return screen;
+    try {
+      const page = await screen.readPage(selector);
+      if (screen.lease.holder?.kind === "user") {
+        return { ok: false, code: "user_has_control", message: USER_HAS_CONTROL_MESSAGE };
+      }
+      if ("error" in page) return { ok: false, code: "failed", message: page.error };
+      const blocked = screen.takeBlocked();
+      return { ok: true, ...page, ...(blocked.length && { blocked }) };
+    } catch (error) {
       return {
         ok: false,
         code: "failed",
@@ -232,6 +270,9 @@ export function createServer(deps: ServerDeps): {
           return;
         case "POST /computer/fill":
           send(response, 200, await performFill(await readJson(request)));
+          return;
+        case "POST /computer/read":
+          send(response, 200, await performRead(await readJson(request)));
           return;
         case "POST /screens/start": {
           const { screenId } = (await readJson(request)) as { screenId?: unknown };

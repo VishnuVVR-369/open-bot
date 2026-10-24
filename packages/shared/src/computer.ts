@@ -86,6 +86,24 @@ export interface ComputerActionResult {
   screenshot: string;
   /** Pointer position after the action. */
   cursor: { x: number; y: number };
+  /** Job portals where the apply guard stopped a submission during the action. */
+  blocked?: string[];
+}
+
+/** The readable content of the page in front of a bot's browser. */
+export interface PageContent {
+  url: string;
+  title: string;
+  text: string;
+  /** The text was longer and was cut. */
+  truncated: boolean;
+  links: { text: string; href: string }[];
+}
+
+export interface ComputerReadResult extends PageContent {
+  ok: true;
+  /** Job portals where the apply guard stopped a submission since the last action. */
+  blocked?: string[];
 }
 
 export interface ComputerActionError {

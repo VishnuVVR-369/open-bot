@@ -95,7 +95,11 @@ export function BotForm({
         return;
       }
       const started = starterIds.length - result.data.startersFailed;
-      if (result.data.startersFailed > 0)
+      if (result.data.skillsFailed > 0)
+        toast.warning(`${values.name} is ready, without some of its skills`, {
+          description: "Add them in Skills whenever you like.",
+        });
+      else if (result.data.startersFailed > 0)
         toast.warning(`${values.name} is ready, without some starter automations`, {
           description: "Add them in Automations whenever you like.",
         });

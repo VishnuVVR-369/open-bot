@@ -4,8 +4,14 @@ import { EventEmitter } from "node:events";
 import { access, chmod, chown, mkdir, rm, writeFile } from "node:fs/promises";
 import net from "node:net";
 import type { Readable, Writable } from "node:stream";
-import { SCREEN, type ScreenStatus } from "@open-bot/shared";
-import { CdpPipe } from "./cdp";
+import {
+  APPLY_GUARD_URL_PATTERNS,
+  blockedApplication,
+  SCREEN,
+  type PageContent,
+  type ScreenStatus,
+} from "@open-bot/shared";
+import { CdpPipe, type CdpEvent } from "./cdp";
 import { devtoolsCookieStore, type CookieSync } from "./cookies";
 import { Desktop } from "./desktop";
 import { DesktopLease, type LeaseChange } from "./lease";
@@ -25,8 +31,14 @@ export interface ScreenDeps {
   socksPort: number;
   /** A profile from before screens existed. New screens start from a copy of it. */
   legacyProfile: string;
+  /** Sites the apply guard covers besides the job portals. */
+  applyGuardExtraDomains?: string[];
   log: (message: string) => void;
 }
+
+/** The most of a page `readPage` returns, so one page can't flood a bot's context. */
+const MAX_PAGE_TEXT = 120_000;
+const MAX_PAGE_LINKS = 300;
 
 export interface ScreenManagerOptions {
   /** Screens running at once. Starting another stops the one unused the longest. */
@@ -84,6 +96,8 @@ export class Screen {
   viewers = 0;
   lastUsedAt: number;
   private cdp: CdpPipe | null = null;
+  /** Portals where the apply guard stopped a submission since a bot last asked. */
+  private blocked: string[] = [];
   private readonly xauthority: string;
   private readonly dir: string;
   private readonly profile: string;
@@ -283,12 +297,63 @@ export class Screen {
           "the browser",
         );
         const pipe = cdp!;
+        await this.guardApplications(pipe);
         await cookies.attach(
           this.id,
           devtoolsCookieStore((method, params) => pipe.send(method, params)),
         );
       },
     });
+  }
+
+  /**
+   * The apply guard: a bot's browser can't submit a job application. Requests whose address mentions
+   * "apply" pause here, browser-wide (every tab and frame), and the ones that would submit to a job
+   * portal fail unless you hold the screen.
+   */
+  private async guardApplications(pipe: CdpPipe) {
+    pipe.on("event", (event) => void this.onBrowserEvent(pipe, event));
+    await pipe.send("Fetch.enable", {
+      patterns: APPLY_GUARD_URL_PATTERNS.map((urlPattern) => ({
+        urlPattern,
+        requestStage: "Request",
+      })),
+    });
+  }
+
+  private async onBrowserEvent(pipe: CdpPipe, event: CdpEvent) {
+    if (event.method !== "Fetch.requestPaused") return;
+    const { requestId, request } = event.params as {
+      requestId: string;
+      request: { url: string; method: string };
+    };
+    const site = blockedApplication(request.url, request.method, this.deps.applyGuardExtraDomains);
+    const blocked = site !== null && this.lease.holder?.kind !== "user";
+    try {
+      if (blocked) {
+        this.blocked.push(site.label);
+        this.deps.log(
+          `[guard] blocked ${request.method} ${new URL(request.url).origin} on screen ${this.id}`,
+        );
+        await pipe.send(
+          "Fetch.failRequest",
+          { requestId, errorReason: "BlockedByClient" },
+          10_000,
+          event.sessionId,
+        );
+      } else {
+        await pipe.send("Fetch.continueRequest", { requestId }, 10_000, event.sessionId);
+      }
+    } catch {
+      // The tab may have closed meanwhile; its request went with it.
+    }
+  }
+
+  /** Portals the guard stopped a submission on since the last call, and forget them. */
+  takeBlocked(): string[] {
+    const blocked = this.blocked;
+    this.blocked = [];
+    return blocked;
   }
 
   /** Open a page in a new tab, starting the browser if you closed it. */
@@ -332,6 +397,53 @@ export class Screen {
       }
     }
     return visible;
+  }
+
+  /**
+   * The readable content of the tab in front: its address, title, visible text and links. With a
+   * selector, only that part of the page.
+   */
+  async readPage(selector?: string): Promise<PageContent | { error: string }> {
+    const cdp = this.cdp;
+    if (this.browserState !== "running" || !cdp?.isOpen)
+      return { error: "The browser isn't open." };
+    const { targetInfos } = await cdp.send<{
+      targetInfos: { targetId: string; type: string; url: string }[];
+    }>("Target.getTargets");
+    for (const page of targetInfos.filter((target) => target.type === "page")) {
+      const { sessionId } = await cdp.send<{ sessionId: string }>("Target.attachToTarget", {
+        targetId: page.targetId,
+        flatten: true,
+      });
+      try {
+        const { result } = await cdp.send<{ result: { value?: unknown } }>(
+          "Runtime.evaluate",
+          { expression: readPageScript(selector), returnByValue: true },
+          10_000,
+          sessionId,
+        );
+        const value = result.value as
+          (PageContent & { visible: boolean; missing?: boolean }) | undefined;
+        if (!value?.visible) continue;
+        if (value.missing)
+          return {
+            error: `Nothing on the page matches ${selector}, or it isn't a valid CSS selector.`,
+          };
+        const truncated = value.text.length > MAX_PAGE_TEXT;
+        return {
+          url: value.url,
+          title: value.title,
+          text: truncated ? value.text.slice(0, MAX_PAGE_TEXT) : value.text,
+          truncated,
+          links: value.links.slice(0, MAX_PAGE_LINKS),
+        };
+      } catch {
+        // A page that doesn't answer isn't the one in front.
+      } finally {
+        await cdp.send("Target.detachFromTarget", { sessionId }).catch(() => {});
+      }
+    }
+    return { error: "No page is showing in the browser." };
   }
 
   /** Delete the screen's browser profile. Sign-ins stay in the shared cookie jar. */
@@ -505,4 +617,28 @@ export class ScreenManager extends EventEmitter<{
   async stopAll(): Promise<void> {
     await Promise.all([...this.screens.values()].map((screen) => this.stopScreen(screen)));
   }
+}
+
+/** Runs in the page: what a person sees on it, as text, and its links. */
+function readPageScript(selector?: string): string {
+  return `(() => {
+    if (document.visibilityState !== "visible") return { visible: false };
+    let root;
+    try {
+      root = ${selector ? `document.querySelector(${JSON.stringify(selector)})` : "document.body"};
+    } catch {
+      root = null;
+    }
+    if (!root) return { visible: true, missing: true };
+    const seen = new Set();
+    const links = [];
+    for (const a of root.querySelectorAll("a[href]")) {
+      const href = a.href;
+      if (!/^https?:/.test(href) || seen.has(href)) continue;
+      seen.add(href);
+      links.push({ text: (a.innerText || a.getAttribute("aria-label") || "").replace(/\\s+/g, " ").trim().slice(0, 200), href });
+    }
+    const text = (root.innerText || "").replace(/[ \\t]+\\n/g, "\\n").replace(/\\n{3,}/g, "\\n\\n").trim();
+    return { visible: true, url: location.href, title: document.title, text, links };
+  })()`;
 }

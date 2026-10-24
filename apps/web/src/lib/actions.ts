@@ -30,6 +30,7 @@ import {
   BOT_COLORS,
   DAILY_CHECK_IN,
   pickStarters,
+  templateSkills,
   slugify,
   teammateBundleSchema,
   cardHint,
@@ -152,7 +153,16 @@ export async function createBot(
         }).catch(() => (startersFailed += 1));
       }
     }
-    return { botId: bot!.id, chatId: chat!.id, startersFailed };
+    // A template's skills become the teammate's own, so you can edit them.
+    const skills = templateSkills(starters.templateId);
+    let skillsFailed = 0;
+    for (const skill of skills) {
+      await worker("POST", "/internal/skills", { id: null, ...skill, botId: bot!.id }).catch(
+        () => (skillsFailed += 1),
+      );
+    }
+    if (skills.length) await publish("skills");
+    return { botId: bot!.id, chatId: chat!.id, startersFailed, skillsFailed };
   });
 }
 

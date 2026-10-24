@@ -7,12 +7,19 @@ interface Pending {
   timer: NodeJS.Timeout;
 }
 
+/** An event the browser sent, such as a paused request. `sessionId` is set for page sessions. */
+export interface CdpEvent {
+  method: string;
+  params: Record<string, unknown>;
+  sessionId?: string;
+}
+
 /**
  * The Chrome DevTools Protocol over `--remote-debugging-pipe`: JSON messages separated by NUL bytes,
  * written to the browser's fd 3 and read from its fd 4. Only botd holds the pipe, so no other
  * process on the computer can drive the browser or read its cookies through it.
  */
-export class CdpPipe extends EventEmitter<{ close: [] }> {
+export class CdpPipe extends EventEmitter<{ close: []; event: [CdpEvent] }> {
   private nextId = 0;
   private buffer = "";
   private closed = false;
@@ -40,13 +47,28 @@ export class CdpPipe extends EventEmitter<{ close: [] }> {
     while ((end = this.buffer.indexOf("\0")) >= 0) {
       const raw = this.buffer.slice(0, end);
       this.buffer = this.buffer.slice(end + 1);
-      let message: { id?: number; result?: unknown; error?: { message: string } };
+      let message: {
+        id?: number;
+        result?: unknown;
+        error?: { message: string };
+        method?: string;
+        params?: Record<string, unknown>;
+        sessionId?: string;
+      };
       try {
         message = JSON.parse(raw) as typeof message;
       } catch {
         continue;
       }
-      if (message.id === undefined) continue;
+      if (message.id === undefined) {
+        if (message.method)
+          this.emit("event", {
+            method: message.method,
+            params: message.params ?? {},
+            ...(message.sessionId && { sessionId: message.sessionId }),
+          });
+        continue;
+      }
       const pending = this.pending.get(message.id);
       if (!pending) continue;
       this.pending.delete(message.id);

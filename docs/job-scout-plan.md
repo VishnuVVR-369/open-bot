@@ -4,6 +4,18 @@ This plan connects open-bot to [application-tracker](../../application-tracker).
 Jobs your LinkedIn and Naukri accounts recommend are collected into the tracker, the best base resume is picked for each, and suggested resume edits are waiting for the good matches.
 It covers the changes in both projects.
 
+## Status
+
+Built on 2026-10-24, on the `job-scout` branch of both repositories.
+
+- **Done and verified:** phases 1 to 3 in code. The tracker's 35 unit tests cover the MCP endpoint, collecting, duplicates, extraction, the pipeline and the inbox. open-bot's e2e suite covers the apply guard, `browser_read_page` and the Job Scout template, and `@agent` tests run a real bot against a stand-in portal with a stand-in tracker and with the real tracker deployment.
+- **Waiting for you:** the supervised run against your real LinkedIn and Naukri accounts, which needs you to sign in on the Scout's screen. After that, turn on the schedules.
+- **Differences from the plan below:**
+  - There is no `mark_closed` tool. The Scout skips closed postings, and extraction recognizes any that slip through.
+  - The apply guard is one browser-wide rule rather than a list of exact endpoints (see [The apply guard](#the-apply-guard)).
+  - Tokens can also be issued from the command line for a headless setup: `npx convex run apiTokens:issue '{"userId": "...", "name": "Job Scout"}'`.
+  - The tracker's settings (follow-up timing, fit threshold and API tokens) moved to a Settings page.
+
 ## What the tracker does today
 
 Checked in the code on 2026-10-24, because the plan builds on it.
@@ -115,7 +127,6 @@ The code paths the pipeline needs are split into helpers that take `(ctx, userId
 |---|---|---|
 | `report_feed` | `jobs:write` | Takes a portal, the feed read (`recommended`, `saved_search`, `alert`) and up to 100 posting ids. Updates `lastSeenAt` on known ones and returns the ids never seen, so the Scout opens only new postings. |
 | `save_postings` | `jobs:write` | Takes up to 10 postings: portal, posting id, URL, feed, page text (up to 100 KB each) and the card's signals. Stores them and queues extraction. |
-| `mark_closed` | `jobs:write` | Marks a posting closed when its page says it no longer takes applications. |
 | `job_digest` | `jobs:read` | Since a time: jobs collected, how many met the threshold, how many have suggestions ready, and the top five with scores, the picked resume and links into the tracker. |
 | `list_jobs` | `jobs:read` | Inbox jobs by minimum score, for questions in chat like "what are my best matches this week?". |
 
@@ -131,7 +142,7 @@ Errors come back as MCP tool errors with a sentence the model can act on ("The p
 | Table | Fields | Indexes |
 |---|---|---|
 | `apiTokens` | `userId`, `name`, `tokenHash`, `scopes`, `createdAt`, `lastUsedAt`, `revokedAt` | `by_hash`, `by_user` |
-| `jobPostings` | `userId`, `portal` (`linkedin`, `naukri`), `postingId`, `url`, `applicationId`, `feeds`, `signals` (promoted, applicant count, actively recruiting, easy apply, the portal's skill match), `pageText`, `pageTextHash`, `extraction` (`pending`, `done`, `failed`), `error`, `firstSeenAt`, `lastSeenAt`, `closedAt` | `by_user_portal_posting`, `by_application`, `by_user_extraction` |
+| `jobPostings` | `userId`, `portal` (`linkedin`, `naukri`), `postingId`, `url`, `applicationId`, `feeds`, `signals` (promoted, applicant count, actively recruiting, easy apply, the portal's skill match), `pageText`, `pageTextHash`, `extraction` (`pending`, `done`, `failed`), `error`, `attempts`, `firstSeenAt`, `lastSeenAt` | `by_user_portal_posting`, `by_application`, `by_user_first_seen` |
 
 A posting is one portal's listing; an application is the role.
 One application can carry both its LinkedIn and its Naukri posting, and `report_feed` finds a posting id with one index read.
@@ -239,10 +250,13 @@ It is a general tool for every teammate.
 
 open-bot's browser must not be able to submit a job application, even if a page tricks a bot into trying.
 
-1. `botd` enables the DevTools `Fetch` domain on every screen's browser with the request patterns of each portal's apply endpoints, kept in a list in `packages/shared`. Phase 0 records the exact ones for LinkedIn Easy Apply and Naukri.
-2. A matching request fails with `Fetch.failRequest` unless you hold the screen's lease (a takeover), so you can still apply by hand from a bot's screen.
-3. Every blocked request is logged to the run's events and shown in the run.
-4. Unit tests cover the patterns; an e2e test checks that a fake portal's apply call fails on a bot's screen and works during a takeover.
+1. `botd` enables the DevTools `Fetch` domain once per browser, at the browser level, so every tab and frame is covered (a spike confirmed this intercepts requests from new tabs and cross-origin iframes alike).
+2. Only requests whose address contains "apply" pause, so ordinary browsing never waits on the guard.
+3. The portals' apply endpoints aren't documented, so the rule is deliberately broad: on a guarded site (`APPLY_GUARD_SITES` in `packages/shared/src/apply-guard.ts`), any request other than GET, HEAD or OPTIONS with "apply" in its address fails with `Fetch.failRequest`. Reading postings only needs GET requests.
+4. Everything goes through while you hold the screen's lease (a takeover), so you can still apply by hand from a bot's screen.
+5. A block is reported on the bot's next desktop action or page read: the bot is told not to try again, the run shows a pinned line, and you get a notification. `botd` logs each one (`[guard] blocked ...`).
+6. `APPLY_GUARD_EXTRA_DOMAINS` adds sites to guard; the development `docker-compose.yml` sets it to `host.docker.internal`, so the e2e suite's stand-in portal is guarded like a real one.
+7. Unit tests cover the rule; an e2e test checks that a page's apply calls fail on a bot's screen and go through during a takeover.
 
 When permissioned applying arrives, a grant for one job opens the guard for that one submission.
 
@@ -290,8 +304,8 @@ For each portal:
 2. Read the page. On a login page or a checkpoint, ask for a takeover and skip this portal.
 3. Collect posting ids from the links (LinkedIn's `/jobs/view/<id>`, the number at the end of a Naukri job URL), scrolling until 50 cards or the end.
 4. `report_feed` with the ids, and get the new ones back.
-5. For each new id, up to the cap: open the posting, wait, read it, note whether it's closed, close the tab.
-6. `save_postings` in batches of 10, and `mark_closed` for closed ones.
+5. For each new id, up to the cap: open the posting, wait, read it, skip it if it no longer accepts applications, close the tab.
+6. `save_postings` in batches of 10. A closed posting that slips through is recognized during extraction and recorded without a job, so it isn't collected again.
 7. Reply "Nothing to report." unless a portal needed you or a call failed.
 
 Everything after that happens in the tracker.
@@ -317,7 +331,7 @@ Everything after that happens in the tracker.
 
 ### Phase 1 - The connection and the inbox
 
-- Tracker: API tokens and their Settings section, `/mcp`, `jobPostings`, the `discovered` and `dismissed` statuses, the board filter, `report_feed`, `save_postings`, `mark_closed`, extraction, duplicates, the Inbox with Shortlist and Dismiss.
+- Tracker: API tokens and their Settings section, `/mcp`, `jobPostings`, the `discovered` and `dismissed` statuses, the board filter, `report_feed`, `save_postings`, extraction, duplicates, the Inbox with Shortlist and Dismiss.
 - open-bot: `browser_read_page`, the apply guard, the Job Scout template with its skills, the fake portal e2e suite.
 - Done when: asking the Scout "collect jobs now" puts real LinkedIn and Naukri jobs in the inbox, once each, and the guard blocks the fake portal's apply call in e2e.
 
@@ -328,7 +342,7 @@ Everything after that happens in the tracker.
 
 ### Phase 3 - Running on its own
 
-- The starter schedules, `job_digest` and the evening digest, `list_jobs`, closed postings, then the supervised run against the real portals before turning the schedule on.
+- The starter schedules, `job_digest` and the evening digest, `list_jobs`, then the supervised run against the real portals before turning the schedule on.
 - Done when: a week of scheduled runs fills the inbox with no duplicates and no portal challenges.
 
 ## Later: permissioned applying

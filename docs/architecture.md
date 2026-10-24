@@ -405,6 +405,13 @@ The worker finds the teammate by the address's handle, saves attachments with yo
 `send_email` writes to the outbox: unless the teammate works fully on its own, the email waits for an email approval and sends the moment you approve it, even after the run ended, threaded under the email it answers.
 Long waits inside a tool don't work well, since Codex lets the model stop waiting on a script after a while, so anything that can wait on you for long should be decided outside the run like this.
 
+### Reading pages and the apply guard
+
+`browser_read_page` returns the text and links of the page in front of a bot's browser, read by `botd` over the DevTools pipe, and marked as data from outside.
+Every screen's browser also runs the apply guard: requests that would submit a job application on LinkedIn or Naukri fail unless you hold the screen.
+The bot hears about a block on its next action, the run shows it, and you're notified.
+The Job Scout template and its integration with application-tracker are described in [job-scout-plan.md](job-scout-plan.md).
+
 ### Duplicating a teammate
 
 Duplicating copies a teammate's job, instructions, carefulness, its own skills, its always-allowed actions, its schedules and its page watches (paused, so nothing runs twice).

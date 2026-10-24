@@ -70,6 +70,11 @@ const screens = new ScreenManager(
     desktopUser,
     socksPort: PORTS.socks,
     legacyProfile: `${desktopUser.home}/.config/chromium`,
+    // Extra sites the apply guard covers, besides the job portals: the e2e tests' stand-in portal.
+    applyGuardExtraDomains: (process.env.APPLY_GUARD_EXTRA_DOMAINS ?? "")
+      .split(",")
+      .map((domain) => domain.trim())
+      .filter(Boolean),
     log,
   },
   {

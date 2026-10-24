@@ -7,6 +7,7 @@ import type {
   ComputerFillRequest,
   ComputerFillResult,
   ComputerHealth,
+  ComputerReadResult,
   LeaseChangeReason,
   LeaseHolder,
   RunIdentity,
@@ -140,6 +141,11 @@ export class ComputerClient extends EventEmitter<{
   ): Promise<ComputerActionResult | ComputerActionError> {
     // Waiting for the lease can take up to 30 seconds, and typing long text takes a while.
     return this.call("POST", "/computer/action", { run, action }, 120_000);
+  }
+
+  /** The readable content of the page in front on a bot's screen. */
+  read(run: RunIdentity, selector?: string): Promise<ComputerReadResult | ComputerActionError> {
+    return this.call("POST", "/computer/read", { run, ...(selector && { selector }) }, 60_000);
   }
 
   /** Type a vault secret on a bot's screen. botd checks the site first, for logins. */
