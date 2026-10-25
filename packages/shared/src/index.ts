@@ -14,3 +14,4 @@ export * from "./vault";
 export * from "./connections";
 export * from "./email";
 export * from "./apply-guard";
+export * from "./memory";

@@ -29,6 +29,7 @@ export const CHANNELS = {
 } as const;
 
 export type AppEvent =
+  | { type: "memory" }
   | { type: "lease" }
   | { type: "computer" }
   | { type: "notification"; id: string }

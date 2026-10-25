@@ -1,33 +1,18 @@
-import {
-  bots,
-  botThreads,
-  chatMembers,
-  chats,
-  lessons,
-  messages,
-  runs,
-  settings,
-} from "@open-bot/db";
-import { COMPUTER_PATHS, emailAddress, MAX_LESSONS } from "@open-bot/shared";
+import { bots, chatMembers, chats, messages, runs, settings } from "@open-bot/db";
+import { COMPUTER_PATHS, emailAddress } from "@open-bot/shared";
 import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { appendRunEvent, enqueueRun, publishApp, type Context } from "../context";
-import {
-  agentsMarkdown,
-  allowedList,
-  INITIAL_MEMORY,
-  lessonsList,
-  redoPrompt,
-} from "../instructions";
+import { agentsMarkdown, allowedList, redoPrompt } from "../instructions";
 import { errorMessage } from "../logger";
 import type { ApprovalService } from "../services/approvals";
 import type { SessionRegistry } from "../services/registry";
 import type { ConnectionService } from "../services/connections";
 import { emailSettingsRow } from "../services/email";
 import type { SkillService } from "../services/skills";
+import type { MemoryCoordinator } from "../services/memory";
 import type { ModelAccess } from "../services/model-access";
 import type { TakeoverService } from "../services/takeovers";
 import type { ToolHandlers } from "../tools/handlers";
-import { TOOLS_VERSION } from "../tools/definitions";
 import { RunSession, type Bot, type Run } from "./session";
 
 /** Claims queued runs and executes them, one at a time per bot per chat. */
@@ -44,6 +29,7 @@ export class RunExecutor {
     private readonly model: ModelAccess,
     private readonly skills: SkillService,
     private readonly connections: ConnectionService,
+    private readonly memory: MemoryCoordinator,
   ) {}
 
   /** Runs that were executing when the worker stopped can't resume their turn. */
@@ -142,6 +128,8 @@ export class RunExecutor {
         skillInputs: (text, botId) => this.skills.inputsFor(text, botId),
         connections: (botId) => this.connections.forBot(botId),
         model: this.model,
+        memory: this.memory,
+        prepareWorkspace: () => this.syncWorkspace(bot),
       },
       run,
       bot,
@@ -151,9 +139,6 @@ export class RunExecutor {
     this.ctx.events.emit("runStarted", run);
     void (async () => {
       try {
-        await this.syncWorkspace(bot).catch((error: unknown) =>
-          this.ctx.log.warn("could not sync the bot's workspace", { error: errorMessage(error) }),
-        );
         await session.execute();
       } finally {
         this.sessions.remove(run.id);
@@ -172,8 +157,7 @@ export class RunExecutor {
     const client = await this.ctx.codex.ready();
     const workspace = COMPUTER_PATHS.workspace(bot.slug);
     const rules = await this.approvals.rulesFor(bot.id);
-    const { aboutMe } = await this.profile();
-    const learned = await this.lessons(bot.id);
+
     const teammates = await this.ctx.db
       .select({ name: bots.name, role: bots.role })
       .from(bots)
@@ -186,81 +170,11 @@ export class RunExecutor {
     await client.request("fs/writeFile", {
       path: `${workspace}/AGENTS.md`,
       dataBase64: Buffer.from(
-        agentsMarkdown(bot, rules, aboutMe, learned, teammates, services, address),
+        agentsMarkdown(bot, rules, "", [], teammates, services, address),
       ).toString("base64"),
     });
-    const memoryPath = `${workspace}/MEMORY.md`;
-    const hasMemory = await client.request("fs/getMetadata", { path: memoryPath }).then(
-      () => true,
-      () => false,
-    );
-    if (!hasMemory) {
-      await client.request("fs/writeFile", {
-        path: memoryPath,
-        dataBase64: Buffer.from(INITIAL_MEMORY).toString("base64"),
-      });
-    }
+    await this.memory.prepare(bot);
     await this.skills.syncBot(bot);
-  }
-
-  /** The user's profile, which every teammate reads. */
-  private async profile(): Promise<{ aboutMe: string; updatedAt: Date | null }> {
-    const [row] = await this.ctx.db
-      .select({ aboutMe: settings.aboutMe, updatedAt: settings.aboutMeUpdatedAt })
-      .from(settings)
-      .where(eq(settings.id, 1));
-    return row ?? { aboutMe: "", updatedAt: null };
-  }
-
-  /**
-   * The profile, when it changed after this chat's thread last saw it. A new thread reads the
-   * current one in AGENTS.md; an existing one gets it once, with its next message.
-   */
-  private async profileUpdate(run: Run, botId: string): Promise<string | null> {
-    const { aboutMe, updatedAt } = await this.profile();
-    if (!updatedAt) return null;
-    const where = and(eq(botThreads.chatId, run.chatId), eq(botThreads.botId, botId));
-    const [thread] = await this.ctx.db
-      .select({ seenAt: botThreads.profileSeenAt, toolsVersion: botThreads.toolsVersion })
-      .from(botThreads)
-      .where(where);
-    if (!thread || thread.toolsVersion !== TOOLS_VERSION || thread.seenAt >= updatedAt) return null;
-    await this.ctx.db.update(botThreads).set({ profileSeenAt: new Date() }).where(where);
-    return aboutMe.trim()
-      ? `[The user's profile changed since this chat started. It now says:]\n${aboutMe.trim()}`
-      : "[The user cleared their profile since this chat started.]";
-  }
-
-  /** The bot's newest lessons from your feedback, oldest first. */
-  private async lessons(botId: string): Promise<string[]> {
-    const rows = await this.ctx.db
-      .select({ text: lessons.text })
-      .from(lessons)
-      .where(eq(lessons.botId, botId))
-      .orderBy(desc(lessons.createdAt))
-      .limit(MAX_LESSONS);
-    return rows.map((row) => row.text).reverse();
-  }
-
-  /** The bot's lessons, when one was added or removed after this chat's thread last saw them. */
-  private async lessonsUpdate(run: Run, botId: string): Promise<string | null> {
-    const [bot] = await this.ctx.db
-      .select({ changedAt: bots.lessonsChangedAt })
-      .from(bots)
-      .where(eq(bots.id, botId));
-    if (!bot?.changedAt) return null;
-    const where = and(eq(botThreads.chatId, run.chatId), eq(botThreads.botId, botId));
-    const [thread] = await this.ctx.db
-      .select({ seenAt: botThreads.lessonsSeenAt, toolsVersion: botThreads.toolsVersion })
-      .from(botThreads)
-      .where(where);
-    if (!thread || thread.toolsVersion !== TOOLS_VERSION || thread.seenAt >= bot.changedAt)
-      return null;
-    await this.ctx.db.update(botThreads).set({ lessonsSeenAt: new Date() }).where(where);
-    const learned = await this.lessons(botId);
-    return learned.length
-      ? `[The user gave you feedback. Your lessons from it now are:]\n${lessonsList(learned)}`
-      : "[The user removed your lessons from their feedback. Ignore any you were following.]";
   }
 
   private async userTimeZone(): Promise<string> {
@@ -299,10 +213,8 @@ export class RunExecutor {
       if (recent) lines.push(`[Since you last spoke in this chat:]\n${recent}`);
     }
 
-    const profile = await this.profileUpdate(run, bot.id);
-    if (profile) lines.push(profile);
-    const learned = await this.lessonsUpdate(run, bot.id);
-    if (learned) lines.push(learned);
+    const memory = await this.memory.context(session);
+    if (memory) lines.push(memory);
 
     // Rules you add mid-conversation reach a thread that already read its AGENTS.md.
     const allowed = allowedList(await this.approvals.rulesFor(bot.id));

@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { BotDangerZone } from "@/components/bots/bot-danger-zone";
 import { BotForm } from "@/components/bots/bot-form";
 import { InstructionsProposal } from "@/components/bots/instructions-proposal";
-import { LessonsList } from "@/components/bots/lessons-list";
 import { MemoryEditor } from "@/components/bots/memory-editor";
 import { Spending } from "@/components/bots/spending";
 import { AutomationsView } from "@/components/automations/automations-view";
@@ -131,16 +130,7 @@ export default async function BotPage({ params, searchParams }: PageProps<"/bots
           <BotDangerZone botId={bot.id} name={bot.name} isPrimary={bot.isPrimary} />
         </TabsContent>
         <TabsContent value="memory" className="flex flex-col gap-8">
-          <LessonsList botId={bot.id} name={bot.name} />
-          <section className="flex flex-col gap-4 border-t pt-8">
-            <div className="flex flex-col gap-0.5">
-              <span className="text-[14px] font-medium">Notes</span>
-              <span className="text-[13px] text-muted-foreground">
-                What {bot.name} keeps in MEMORY.md on the computer. You can edit it too.
-              </span>
-            </div>
-            <MemoryEditor slug={bot.slug} name={bot.name} />
-          </section>
+          <MemoryEditor botId={bot.id} name={bot.name} />
         </TabsContent>
         <TabsContent value="skills">
           <SkillsList botId={bot.id} />

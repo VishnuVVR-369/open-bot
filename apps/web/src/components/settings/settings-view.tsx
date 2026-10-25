@@ -746,7 +746,7 @@ export function SettingsView() {
       <Section
         id="about"
         title="About you"
-        description="Every teammate reads this, so you don't repeat yourself. They add what they learn too, like your sizes or favorite airline."
+        description="Shared facts and preferences, with source history and control over what your teammates remember."
       >
         <ProfileEditor />
       </Section>

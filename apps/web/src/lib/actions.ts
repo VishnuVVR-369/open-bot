@@ -12,7 +12,6 @@ import {
   schedules,
   credentials,
   instructionProposals,
-  lessons,
   settings,
   triggers,
   vaultItems,
@@ -21,9 +20,7 @@ import {
   type Attachment,
 } from "@open-bot/db";
 import {
-  COMPUTER_PATHS,
   isValidTimeZone,
-  MAX_ABOUT_ME_CHARS,
   MAX_LESSON_CHARS,
   MAX_UPLOAD_BYTES,
   MAX_UPLOAD_LABEL,
@@ -50,6 +47,8 @@ import {
 import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
 import { decryptSecret, encryptSecret, secretHint } from "@open-bot/shared/secrets";
+import { memoryInputSchema, memoryEditSchema, memoryReferenceSchema } from "@open-bot/shared";
+import { memoryReady } from "./server/memory";
 import { db, pool } from "./server/db";
 import { serverEnv } from "./server/env";
 import { requireUser } from "./server/session";
@@ -113,6 +112,7 @@ async function userTimeZone(): Promise<string> {
 }
 
 async function syncBot(botId: string) {
+  await (await memoryReady()).importLegacy();
   // The workspace is written again before the bot's next run, so a stopped computer isn't fatal here.
   await worker("POST", `/internal/bots/${botId}/sync`).catch(() => {});
 }
@@ -249,12 +249,15 @@ export async function duplicateBot(botId: string, input: { name: string; copyMem
       return { botId: bot!.id, chatId: chat!.id };
     });
 
-    // The workspace exists once it's synced, so the memory goes in after.
     await syncBot(created.botId);
     let memoryCopied = !input.copyMemory;
     if (input.copyMemory) {
-      const memory = await readMemory(source.slug);
-      memoryCopied = memory.ok && (await saveMemory(slug, memory.data)).ok;
+      try {
+        await (await memoryReady()).copyBot(source.id, created.botId);
+        memoryCopied = true;
+      } catch {
+        memoryCopied = false;
+      }
     }
     await Promise.all([
       publish("bots"),
@@ -367,25 +370,6 @@ export async function archiveBot(botId: string) {
     // Their screen stops and its browser history goes; sign-ins stay shared with the other screens.
     await worker("POST", `/internal/screens/${botId}/forget`).catch(() => {});
     await publish("bots");
-  });
-}
-
-export async function readMemory(slug: string) {
-  return guarded(async () => {
-    const { dataBase64 } = await worker<{ dataBase64: string }>(
-      "GET",
-      `/internal/files/read?path=${encodeURIComponent(`${COMPUTER_PATHS.workspace(slug)}/MEMORY.md`)}`,
-    );
-    return Buffer.from(dataBase64, "base64").toString("utf8");
-  });
-}
-
-export async function saveMemory(slug: string, text: string) {
-  return guarded(async () => {
-    await worker("POST", "/internal/files/write", {
-      path: `${COMPUTER_PATHS.workspace(slug)}/MEMORY.md`,
-      dataBase64: Buffer.from(text).toString("base64"),
-    });
   });
 }
 
@@ -569,13 +553,22 @@ export async function giveFeedback(input: {
       .innerJoin(bots, eq(bots.id, runs.botId))
       .where(eq(runs.id, runId.parse(input.runId)));
     if (!run) throw new Error("That reply is gone.");
-    await db.transaction(async (tx) => {
-      await tx.update(runs).set({ rating: "down" }).where(eq(runs.id, run.id));
-      if (!input.remember) return;
-      await tx.insert(lessons).values({ botId: run.botId, runId: run.id, text });
-      await tx.update(bots).set({ lessonsChangedAt: new Date() }).where(eq(bots.id, run.botId));
-    });
-    if (input.remember) await publish("lessons");
+    await db.update(runs).set({ rating: "down" }).where(eq(runs.id, run.id));
+    if (input.remember)
+      await (
+        await memoryReady()
+      ).save(
+        {
+          botId: run.botId,
+          kind: "lesson",
+          content: text,
+          key: null,
+          pinned: true,
+          expiresAt: null,
+        },
+        { kind: "user" },
+        { source: { type: "feedback", runId: run.id } },
+      );
     if (!input.redo) return;
     const [chat] = await db
       .select({ kind: chats.kind })
@@ -599,13 +592,12 @@ export async function giveFeedback(input: {
 
 export async function deleteLesson(id: string) {
   return guarded(async () => {
-    const [lesson] = await db
-      .delete(lessons)
-      .where(eq(lessons.id, z.string().uuid().parse(id)))
-      .returning({ botId: lessons.botId });
-    if (!lesson) return;
-    await db.update(bots).set({ lessonsChangedAt: new Date() }).where(eq(bots.id, lesson.botId));
-    await publish("lessons");
+    const store = await memoryReady();
+    const { rows } = await pool.query<{ revision: number }>(
+      "select revision from memory_items where id=$1 and state<>'deleted'",
+      [z.string().uuid().parse(id)],
+    );
+    if (rows[0]) await store.forget({ id, expectedRevision: rows[0].revision }, { kind: "user" });
   });
 }
 
@@ -1171,23 +1163,6 @@ export async function testWebhook(triggerId: string) {
   });
 }
 
-/* ------------------------------------------------------------------ Your profile */
-
-/** Save what every teammate knows about you. */
-export async function saveProfile(text: string) {
-  return guarded(async () => {
-    const aboutMe = z
-      .string()
-      .max(MAX_ABOUT_ME_CHARS, `Keep it under ${MAX_ABOUT_ME_CHARS} characters.`)
-      .parse(text.replace(/\s+$/, ""));
-    await db
-      .update(settings)
-      .set({ aboutMe, aboutMeUpdatedAt: new Date() })
-      .where(eq(settings.id, 1));
-    await publish("profile");
-  });
-}
-
 /* ------------------------------------------------------------------ Telegram */
 
 export async function connectTelegram(token: string) {
@@ -1341,3 +1316,35 @@ export async function setMonthlyCap(dollars: number) {
 
 /** Tokens per teammate since the start of this month. */
 export type { Autonomy };
+
+/* ------------------------------------------------------------------ Versioned memory */
+export async function createMemoryItem(input: unknown) {
+  return guarded(async () =>
+    (await memoryReady()).save(memoryInputSchema.parse(input), { kind: "user" }),
+  );
+}
+export async function editMemoryItem(input: unknown) {
+  return guarded(async () =>
+    (await memoryReady()).update(memoryEditSchema.parse(input), { kind: "user" }),
+  );
+}
+export async function forgetMemoryItem(input: unknown) {
+  return guarded(async () =>
+    (await memoryReady()).forget(memoryReferenceSchema.parse(input), { kind: "user" }),
+  );
+}
+export async function confirmMemoryItem(input: unknown) {
+  return guarded(async () => (await memoryReady()).approve(memoryReferenceSchema.parse(input)));
+}
+export async function restoreMemoryItem(input: {
+  id: string;
+  expectedRevision: number;
+  revision: number;
+}) {
+  return guarded(async () => {
+    const data = memoryReferenceSchema
+      .extend({ revision: z.number().int().positive() })
+      .parse(input);
+    return (await memoryReady()).restore(data);
+  });
+}

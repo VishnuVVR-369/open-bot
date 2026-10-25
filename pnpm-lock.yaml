@@ -111,6 +111,9 @@ importers:
       '@open-bot/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@open-bot/memory':
+        specifier: workspace:*
+        version: link:../../packages/memory
       '@open-bot/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -226,6 +229,9 @@ importers:
       '@open-bot/egress':
         specifier: workspace:*
         version: link:../../packages/egress
+      '@open-bot/memory':
+        specifier: workspace:*
+        version: link:../../packages/memory
       '@open-bot/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -325,6 +331,37 @@ importers:
       '@types/node':
         specifier: ^24.19.2
         version: 24.19.2
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^5.0.4
+        version: 5.0.4(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
+
+  packages/memory:
+    dependencies:
+      '@open-bot/db':
+        specifier: workspace:*
+        version: link:../db
+      '@open-bot/shared':
+        specifier: workspace:*
+        version: link:../shared
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@types/node':
+        specifier: ^24.19.2
+        version: 24.19.2
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
+      drizzle-orm:
+        specifier: ^0.45.4
+        version: 0.45.4(@types/pg@8.23.1)(kysely@0.29.6)(pg@8.23.1)
       typescript:
         specifier: ~6.0.3
         version: 6.0.3

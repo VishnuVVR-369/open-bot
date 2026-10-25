@@ -2,20 +2,17 @@ import type { v2 } from "@open-bot/agent";
 import {
   artifacts,
   bots,
-  botThreads,
   chatMembers,
   instructionProposals,
   chats,
   messages,
   runs,
   schedules,
-  settings,
 } from "@open-bot/db";
 import {
   applyBlockedMessage,
   computerActionSchema,
   describeInterval,
-  MAX_ABOUT_ME_CHARS,
   formatMoney,
   MAX_SWARM_TASKS,
   type ComputerAction,
@@ -26,6 +23,9 @@ import { z } from "zod";
 import { createNotification, enqueueRun, publishApp, type Context } from "../context";
 import { errorMessage } from "../logger";
 import type { RunSession } from "../runs/session";
+import type { MemoryCoordinator } from "../services/memory";
+import { memoryInputSchema, memoryReferenceSchema, hasMemoryForgetIntent } from "@open-bot/shared";
+import { MemoryError } from "@open-bot/memory";
 import type { ApprovalService } from "../services/approvals";
 import type { ScheduleService } from "../services/schedules";
 import { SkillError, type SkillService } from "../services/skills";
@@ -136,11 +136,23 @@ export class ToolHandlers {
     private readonly vault: VaultService,
     private readonly swarms: SwarmService,
     private readonly email: EmailService,
+    private readonly memory: MemoryCoordinator,
   ) {}
 
   async handle(session: RunSession, params: v2.DynamicToolCallParams): Promise<Response> {
     const args = (params.arguments ?? {}) as Record<string, unknown>;
     try {
+      if (
+        session.memoryGeneration &&
+        (await this.memory.store.generation(session.bot.id)) !== session.memoryGeneration
+      ) {
+        // A memory tool may have just changed this run's memory. Recalled context must be rebuilt before further effects.
+        await session.interrupt();
+        return text(
+          "Saved memory changed. This task stopped so it cannot use stale memory; retry with current memory.",
+          false,
+        );
+      }
       // A helper does its one part; it doesn't reach out to the user or the team.
       if (session.isHelper && HELPER_FORBIDDEN.has(params.tool))
         return text(
@@ -184,7 +196,16 @@ export class ToolHandlers {
         case "update_task":
           return await this.updateTask(session, params.callId, args);
         case "remember_about_user":
-          return await this.rememberAboutUser(session, params.callId, args);
+          return await this.memoryTool(session, params.callId, "remember_memory", {
+            ...args,
+            content: args.fact,
+            shared: true,
+          });
+        case "remember_memory":
+        case "recall_memory":
+        case "update_memory":
+        case "forget_memory":
+          return await this.memoryTool(session, params.callId, params.tool, args);
         case "search_history":
           return await this.searchHistory(session, params.callId, args);
         case "vault_list":
@@ -631,63 +652,93 @@ export class ToolHandlers {
     return text(`Cancelled "${title}".`);
   }
 
-  private async rememberAboutUser(
+  private async memoryTool(
     session: RunSession,
     callId: string,
+    name: string,
     args: Record<string, unknown>,
   ): Promise<Response> {
-    const fact = String(args.fact ?? "")
-      .replace(/\s+/g, " ")
-      .replace(/^[-*]\s*/, "")
-      .trim();
-    if (fact.length < 3) return text("Write the fact as one short line.", false);
     const startedAt = session.now();
-    const outcome = await this.ctx.db.transaction(async (tx) => {
-      const [row] = await tx
-        .select({ aboutMe: settings.aboutMe })
-        .from(settings)
-        .where(eq(settings.id, 1))
-        .for("update");
-      const current = row?.aboutMe.trimEnd() ?? "";
-      if (current.toLowerCase().includes(fact.toLowerCase())) return "known" as const;
-      const next = current ? `${current}\n- ${fact}` : `- ${fact}`;
-      if (next.length > MAX_ABOUT_ME_CHARS) return "full" as const;
-      await tx
-        .update(settings)
-        .set({ aboutMe: next, aboutMeUpdatedAt: new Date() })
-        .where(eq(settings.id, 1));
-      return "added" as const;
-    });
-    if (outcome === "full")
-      return text(
-        "The profile is full. Tell the user what you wanted to add, so they can make room in Settings.",
-        false,
+    if (name === "recall_memory") {
+      const query = z.string().min(2).max(500).parse(args.query);
+      const items = await this.memory.recall(session.bot.id, query);
+      session.putItem({
+        ...this.toolItem(session, callId, name, `Recalled ${items.length} memories`, {}, startedAt),
+        status: "completed",
+        completedAt: session.now(),
+        result: items.map((x) => `${x.id}@${x.revision}`).join(", "),
+      });
+      await this.ctx.pool.query(
+        `update memory_contexts set refs=(select coalesce(jsonb_agg(distinct value),'[]'::jsonb)
+        from jsonb_array_elements(refs || $2::jsonb)) where run_id=$1`,
+        [
+          session.run.id,
+          JSON.stringify(items.map((item) => ({ id: item.id, revision: item.revision }))),
+        ],
       );
-    if (outcome === "added") {
-      // This chat already knows what it added.
-      await this.ctx.db
-        .update(botThreads)
-        .set({ profileSeenAt: new Date() })
-        .where(and(eq(botThreads.chatId, session.chat.id), eq(botThreads.botId, session.bot.id)));
-      await publishApp(this.ctx, { type: "profile" });
+      return text(
+        JSON.stringify(items.map((item) => ({ ...item, content: item.content.slice(0, 2000) }))),
+      );
     }
+    const content = String(args.content ?? "");
+    const actor = await this.memory.actor(session, content, args.shared === true);
+    let saved;
+    if (name === "remember_memory") {
+      const data = memoryInputSchema.parse({
+        botId: args.shared === true ? null : session.bot.id,
+        content,
+        kind: args.kind ?? "fact",
+        key: args.key ?? null,
+        expiresAt: args.expires_at ?? null,
+      });
+      saved = await this.memory.store.save(data, actor);
+    } else {
+      const reference = memoryReferenceSchema.parse({
+        id: args.id,
+        expectedRevision: args.expected_revision,
+      });
+      const current = await this.memory.store.get(reference.id, actor);
+      if (name === "forget_memory") {
+        // Forgetting needs an explicit request in this run, not an instruction in retrieved text.
+        const evidence = session.run.messageId
+          ? await this.ctx.pool.query<{ text: string }>(
+              "select text from messages where id=$1 and role='user'",
+              [session.run.messageId],
+            )
+          : { rows: [] };
+        if (!hasMemoryForgetIntent(evidence.rows[0]?.text ?? ""))
+          throw new MemoryError(403, "Only forget memory when the user explicitly asks.");
+        await this.memory.store.forget(reference, { ...actor, verified: true });
+      } else
+        saved = await this.memory.store.update(
+          { ...current, ...reference, content },
+          await this.memory.actor(session, content, current.botId === null),
+        );
+    }
+    // This run knows the change it just made. Other active runs were invalidated transactionally.
+    session.memoryGeneration = await this.memory.store.generation(session.bot.id);
+    if (name === "forget_memory") setTimeout(() => void session.interrupt(), 0);
     session.putItem({
       ...this.toolItem(
         session,
         callId,
-        "remember_about_user",
-        outcome === "added" ? "Added to your profile" : "Already in your profile",
-        args,
+        name,
+        saved?.state === "candidate"
+          ? "Suggested a memory"
+          : name === "forget_memory"
+            ? "Forgot a memory"
+            : "Saved a memory",
+        {},
         startedAt,
       ),
       status: "completed",
       completedAt: session.now(),
-      result: fact,
+      result: saved ? `${saved.id}@${saved.revision}` : "Forgotten",
     });
     return text(
-      outcome === "added"
-        ? "Added. Every teammate sees it from their next task."
-        : "That's already in the profile.",
+      saved
+        ? JSON.stringify(saved)
+        : "Forgotten from saved memory. Do not reuse it. Original conversations have not been erased.",
     );
   }
 

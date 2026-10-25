@@ -40,6 +40,7 @@ import { retryRun } from "@/lib/actions";
 import { readAloud, readingNow, stopReading, useReadAloud } from "@/lib/client/read-aloud";
 import type { BotSummary, RunView } from "@/lib/types";
 import { cn, compactNumber, formatDuration, REVEAL_ON_RUN_HOVER } from "@/lib/utils";
+import { RunMemory } from "@/components/memory/run-memory";
 import { SwarmCard } from "./swarm-card";
 import { DesktopStrip } from "./desktop-strip";
 import {
@@ -549,6 +550,7 @@ export function RunBlock({
         </div>
 
         {active && <WorkingLine run={run} />}
+        <RunMemory runId={run.id} />
         {run.timeline.status === "interrupted" && (
           <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
             <Square className="size-3" />

@@ -22,6 +22,7 @@ import { createNotification, enqueueRun, publishApp, type Context } from "../con
 import { DEVELOPER_INSTRUCTIONS } from "../instructions";
 import { errorMessage } from "../logger";
 import { TOOLS_VERSION, toolsFor } from "../tools/definitions";
+import type { MemoryCoordinator } from "../services/memory";
 import type { ToolHandlers } from "../tools/handlers";
 import { ModelAccess, providerFor } from "../services/model-access";
 import { RunEventWriter } from "./events";
@@ -56,6 +57,8 @@ export interface SessionServices {
     botId: string,
   ) => Promise<{ key: string; config: NonNullable<v2.ThreadStartParams["config"]> }>;
   model: ModelAccess;
+  memory: MemoryCoordinator;
+  prepareWorkspace: () => Promise<void>;
 }
 
 interface Outcome {
@@ -73,6 +76,7 @@ function approvalPolicy(bot: Bot): ApprovalPolicy {
 export class RunSession {
   readonly writer: RunEventWriter;
   readonly items = new Map<string, TimelineItem>();
+  memoryGeneration = "";
   threadId: string | null = null;
   turnId: string | null = null;
   private client: CodexClient | null = null;
@@ -159,6 +163,7 @@ export class RunSession {
     try {
       await ctx.db.update(runs).set({ startedAt: new Date() }).where(eq(runs.id, run.id));
       await this.setStatus("starting");
+      await this.services.prepareWorkspace();
       this.client = await ctx.codex.ready();
       const onDisconnect = () =>
         this.finish?.({ status: "failed", error: "Lost the connection to the computer." });
@@ -205,6 +210,11 @@ export class RunSession {
       this.cleanup = [];
     }
     await this.complete(outcome);
+    if (outcome.status === "completed" && this.services.memory.ai.config.extractionUrl) {
+      await this.services.memory.store
+        .queueExtraction(run.id)
+        .catch(() => ctx.log.warn("Could not queue memory extraction."));
+    }
   }
 
   /** One turn on the plan or on the API key. */
@@ -241,6 +251,22 @@ export class RunSession {
       this.cleanup.push(() => this.unregisterThread?.());
     }
     const completion = new Promise<Outcome>((resolve) => (this.finish = resolve));
+    const currentGeneration = await this.services.memory.store.generation(this.bot.id);
+    const [latestRun] = await ctx.db
+      .select({ cancelRequestedAt: runs.cancelRequestedAt })
+      .from(runs)
+      .where(eq(runs.id, run.id));
+    if (
+      currentGeneration !== this.memoryGeneration ||
+      !latestRun ||
+      latestRun.cancelRequestedAt ||
+      this.cancelled
+    ) {
+      return {
+        status: "interrupted",
+        error: "Memory changed while this task was starting. Retry with current memory.",
+      };
+    }
     const { turn } = await client.request("turn/start", {
       threadId,
       input,
@@ -284,16 +310,17 @@ export class RunSession {
           botId: bot.id,
           codexThreadId: threadId,
           toolsVersion: TOOLS_VERSION,
+          memoryGeneration: this.memoryGeneration,
           authMode: mode,
           connectionsKey: connected.key,
         })
         .onConflictDoUpdate({
           target: [botThreads.chatId, botThreads.botId],
-          // A new thread reads the current profile and lessons in AGENTS.md; a fork keeps what it
-          // had seen.
+          // Memory generations fence old context; a fork is only allowed within the same generation.
           set: {
             codexThreadId: threadId,
             toolsVersion: TOOLS_VERSION,
+            memoryGeneration: this.memoryGeneration,
             authMode: mode,
             connectionsKey: connected.key,
             ...(fresh ? { profileSeenAt: new Date(), lessonsSeenAt: new Date() } : {}),
@@ -306,7 +333,11 @@ export class RunSession {
       .select()
       .from(botThreads)
       .where(and(eq(botThreads.chatId, run.chatId), eq(botThreads.botId, bot.id)));
-    if (existing && existing.toolsVersion === TOOLS_VERSION) {
+    if (
+      existing &&
+      existing.toolsVersion === TOOLS_VERSION &&
+      existing.memoryGeneration === this.memoryGeneration
+    ) {
       try {
         if (existing.authMode !== mode || existing.connectionsKey !== connected.key) {
           // A thread keeps its provider and its connections, so switching between the plan and

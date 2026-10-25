@@ -1,0 +1,27 @@
+{
+  "name": "@open-bot/memory",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./jobs": "./src/jobs.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@open-bot/db": "workspace:*",
+    "@open-bot/shared": "workspace:*",
+    "pg": "^8.23.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/pg": "^8.23.1",
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.4",
+    "drizzle-orm": "^0.45.4"
+  }
+}

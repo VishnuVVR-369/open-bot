@@ -25,7 +25,7 @@ Reference: [code-with-antonio/ai-teammates](https://github.com/code-with-antonio
 | Auth | Better Auth with passkey, restricted to the owner's email. |
 | Notifications | Desktop notifications now, Telegram later. |
 | Approvals | In-app only. |
-| Memory | `MEMORY.md` per bot now, then database memory and a knowledge base. |
+| Memory | Versioned, scoped Postgres memory with optional pgvector recall. See [memory architecture](memory.md). |
 | Integrations | Later: OAuth integrations, plus manual login through the live desktop. |
 
 ## Signing in to ChatGPT
@@ -129,7 +129,7 @@ flowchart LR
 
 | Path | Contents |
 |---|---|
-| `/home/bot/bots/<bot-slug>/` | The bot's workspace: its `AGENTS.md` (persona, responsibilities, memory rules), `MEMORY.md` and working files. |
+| `/home/bot/bots/<bot-slug>/` | The bot's workspace: its `AGENTS.md` (persona, responsibilities, memory rules), a generated `MEMORY.md` pointer, and working files. |
 | `/home/bot/shared/` | Files that every bot can use, including the browser's downloads folder. |
 | `/home/bot/.codex/` | Codex state and, when the computer signs in itself, the ChatGPT login. |
 | `/home/desktop/screens/<bot-id>/` | The bot's Chromium profile: its tabs and history. |
@@ -188,7 +188,7 @@ flowchart LR
 | `connections` | services teammates use through MCP: an address with headers, or a command on the computer with variables (secrets encrypted), and who may use each |
 | `email_settings`, `emails` | the domain teammates' addresses are on and the inbound webhook's secret (one row), and every email teammates got or wrote, including the outbox waiting for approval |
 
-Later tables: `memories` (with embeddings), `documents` and `chunks` for the knowledge base, and `integrations` for OAuth accounts.
+Memory is implemented in `memory_items`, `memory_revisions`, `memory_generations`, `memory_jobs`, `memory_embeddings`, `memory_contexts`, `memory_imports` and `memory_usage`. Later tables include `documents` and `chunks` for the knowledge base, and `integrations` for OAuth accounts.
 
 ## Key flows
 
@@ -226,16 +226,13 @@ The token is the credential; a new URL can be issued at any time, and the old on
 
 ### About you
 
-1. The profile is Markdown in `settings.about_me`, edited on the Settings page.
-2. It's written into every teammate's `AGENTS.md`, so a new chat reads the current one.
-3. A chat that started before a change gets the new profile once, with its next message (`bot_threads.profile_seen_at`).
-4. Teammates add durable facts with `remember_about_user`; facts only one job needs go in that teammate's `MEMORY.md` instead.
+Shared facts live in versioned Postgres memory and are managed in Settings. `settings.about_me` is a compatibility projection. Every run receives a bounded packet of pinned and relevant shared/bot memory, with source IDs and revisions. Bots use scoped memory tools instead of editing files. Memory generations replace stale Codex threads after corrections, deletion or expiry. See [memory architecture](memory.md) for storage, migration, deletion guarantees, and optional AI configuration.
 
 ### Feedback and lessons
 
 1. Every reply has a thumbs up and down (`runs.rating`).
 2. A thumbs down asks what to do differently.
-Kept as a lesson, the note goes into the teammate's `AGENTS.md` (the newest 40), and a chat that's already going gets the current list once, with its next message (`bots.lessons_changed_at`, `bot_threads.lessons_seen_at`).
+Kept as a lesson, the note becomes pinned, versioned memory belonging to the teammate. It is supplied in task context and has the same history, restore and forget controls as other memory. The legacy `lessons` table is maintained as a compatibility projection.
 3. "Try again with this" also sends the note to the chat, marked as a redo (`messages.redo_of_run_id`), so the teammate does the task again instead of just acknowledging it.
 4. Lessons are listed, linked to their reply, and removable on the teammate's Memory tab; duplicating a teammate with its memory copies them.
 
@@ -527,5 +524,5 @@ You can take over the desktop and hand it back, and the browser reaches websites
 1. **Multiple bots:** bots with specific responsibilities, group chats and handoffs between bots, all sharing the one computer, each on its own screen.
 2. **Integrations:** OAuth accounts (Google, GitHub, Notion and so on) exposed to bots as MCP tools.
 3. **Mac access:** the Electron local node with allowlisted folders and per-call approval.
-4. **Memory and knowledge base:** database memories with pgvector retrieval, then document upload and search.
+4. **Knowledge base:** versioned memory and optional pgvector retrieval are implemented; document upload and search remain future work.
 5. **Claude Code harness:** a second agent runtime behind the same interface.

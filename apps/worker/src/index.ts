@@ -17,6 +17,7 @@ import { ApprovalService } from "./services/approvals";
 import { ModelAccess } from "./services/model-access";
 import { SessionRegistry } from "./services/registry";
 import { ScheduleService } from "./services/schedules";
+import { MemoryCoordinator } from "./services/memory";
 import { SkillService } from "./services/skills";
 import { TakeoverService } from "./services/takeovers";
 import { TelegramService } from "./services/telegram";
@@ -54,6 +55,8 @@ const codex = new CodexManager(
 const ctx: Context = { env, db, pool, computer, codex, log, events: new EventEmitter() };
 
 const sessions = new SessionRegistry();
+const memory = new MemoryCoordinator(ctx);
+await memory.start();
 const approvals = new ApprovalService(ctx, sessions);
 const takeovers = new TakeoverService(ctx, sessions);
 const schedules = new ScheduleService(ctx);
@@ -75,6 +78,7 @@ const tools = new ToolHandlers(
   vault,
   swarms,
   email,
+  memory,
 );
 const model = new ModelAccess(ctx);
 const connections = new ConnectionService(ctx);
@@ -87,6 +91,7 @@ const executor = new RunExecutor(
   model,
   skills,
   connections,
+  memory,
 );
 const egress = new EgressRelay(ctx);
 const telegram = new TelegramService(ctx, executor, approvals);
@@ -144,7 +149,10 @@ listener.on("notification", (message) => {
   }
 });
 // Catch anything queued while no one was listening.
-setInterval(() => executor.pump(), 15_000).unref();
+setInterval(() => {
+  executor.pump();
+  void executor.processCancellations();
+}, 15_000).unref();
 
 const server = createHttpServer({
   ctx,
@@ -153,6 +161,7 @@ const server = createHttpServer({
   takeovers,
   schedules,
   skills,
+  memory,
   triggers,
   tasks,
   push,
@@ -167,6 +176,7 @@ server.listen(env.WORKER_PORT, () => log.info(`worker listening on :${env.WORKER
 async function shutdown(signal: string) {
   log.info(`received ${signal}, shutting down`);
   server.close();
+  await memory.stop();
   schedules.stop();
   triggers.stop();
   telegram.stop();

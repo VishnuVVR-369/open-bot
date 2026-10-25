@@ -12,6 +12,7 @@ import { errorMessage } from "./logger";
 import { sanitizeFileName, saveUpload } from "./uploads";
 import type { RunExecutor } from "./runs/executor";
 import type { ApprovalService } from "./services/approvals";
+import type { MemoryCoordinator } from "./services/memory";
 import type { ScheduleService } from "./services/schedules";
 import { SkillError, type SkillService } from "./services/skills";
 import type { TakeoverService } from "./services/takeovers";
@@ -30,6 +31,7 @@ export interface HttpDeps {
   takeovers: TakeoverService;
   schedules: ScheduleService;
   skills: SkillService;
+  memory: MemoryCoordinator;
   triggers: TriggerService;
   tasks: TaskService;
   push: PushService;

@@ -132,6 +132,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       if (event.type === "telegram")
         void queryClient.invalidateQueries({ queryKey: queryKeys.telegram });
       if (event.type === "tasks") void queryClient.invalidateQueries({ queryKey: queryKeys.tasks });
+      if (event.type === "memory") void queryClient.invalidateQueries({ queryKey: ["memory"] });
       if (event.type === "lessons") void queryClient.invalidateQueries({ queryKey: ["lessons"] });
       if (event.type === "vault") void queryClient.invalidateQueries({ queryKey: queryKeys.vault });
       if (event.type === "email") void queryClient.invalidateQueries({ queryKey: queryKeys.email });

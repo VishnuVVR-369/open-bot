@@ -14,7 +14,7 @@ test("create, edit and archive a teammate", async ({ page }) => {
   await expect(page.getByText("Saved", { exact: true })).toBeVisible();
 
   await page.getByRole("tab", { name: "Memory" }).click();
-  await expect(page.getByRole("textbox", { name: `${name}'s memory` })).toContainText("# Memory");
+  await expect(page.getByTestId("memory-manager")).toBeVisible();
 
   await page.getByRole("tab", { name: "Profile" }).click();
   await page.getByRole("button", { name: "Archive", exact: true }).click();
@@ -51,12 +51,9 @@ test("duplicate a teammate with their skills and memory", async ({ page }) => {
   });
   await page.goto(`/bots/${id}`);
   await page.getByRole("tab", { name: "Memory" }).click();
-  const memory = page.getByRole("textbox", { name: `${name}'s memory` });
-  await expect(memory).toContainText("# Memory");
-  await memory.click();
-  await page.keyboard.press("ControlOrMeta+End");
-  await page.keyboard.type("\n- Likes short answers.");
-  await page.getByRole("button", { name: "Save memory" }).click();
+  await page.getByRole("button", { name: "Add memory" }).click();
+  await page.getByRole("textbox", { name: "Memory", exact: true }).fill("Likes short answers.");
+  await page.getByRole("button", { name: "Save memory", exact: true }).click();
   await expect(page.getByText("Memory saved")).toBeVisible();
 
   await page.getByTestId("duplicate-bot").click();
@@ -69,9 +66,9 @@ test("duplicate a teammate with their skills and memory", async ({ page }) => {
   await page.goto(`/bots/${copyId}`);
   await expect(page.getByLabel("Job")).toHaveValue("qa assistant");
   await page.getByRole("tab", { name: "Memory" }).click();
-  await expect(page.getByRole("textbox", { name: `${name} 2's memory` })).toContainText(
-    "Likes short answers.",
-  );
+  await expect(
+    page.getByTestId("memory-item").filter({ hasText: "Likes short answers." }),
+  ).toBeVisible();
   await page.getByRole("tab", { name: "Skills" }).click();
   await expect(page.getByTestId("skill").filter({ hasText: `/${skill}` })).toContainText(
     `Only ${name} 2`,

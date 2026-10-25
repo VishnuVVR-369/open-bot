@@ -8,7 +8,7 @@ You watch them work live, take over the computer at any moment, and hand it back
 
 ## What it does
 
-- **Teammates with jobs.** Each bot has a name, a job, instructions, its own memory (`MEMORY.md`) and a rule for when to ask you first.
+- **Teammates with jobs.** Each bot has a name, a job, instructions, its own versioned memory and a rule for when to ask you first.
 - **One shared computer.** XFCE, Chromium, a shell and a filesystem, with logged-in browser sessions shared by every bot.
 - **A screen per teammate.** Every bot gets its own screen on the computer, so several can browse at once, and a sign-in on one screen works on all of them.
 - **Live screens and takeover.** Screens stream into the app. Press Take over and that bot stops using its screen until you hand it back.
@@ -16,7 +16,8 @@ You watch them work live, take over the computer at any moment, and hand it back
 - **Approvals.** Sending, publishing, buying and deleting wait for your decision, inline and in the Approvals inbox. "Always allow" stops a bot asking about the same thing again.
 - **Skills.** Save the steps for a task once and run it with `/name` in any chat. Bots save skills too.
 - **Automations.** Routines and reminders on a schedule, page watches that wake a teammate when a page changes ("tell me when it's back in stock"), and webhooks that let other services start one. You or the bots set them up, they run while your laptop is closed, and you see how each run went.
-- **About you.** One profile every teammate reads: where you live, what you eat, how you travel. They add what they learn.
+- **About you.** Shared facts and preferences every teammate can recall, with source history, revisions, expiry, and control over what is remembered.
+- **Memory you control.** Add, search, correct, pin, export, restore or forget facts and lessons. Bots recall relevant memory before each task; inferred facts wait for confirmation. Optional semantic search and extraction use your own endpoints. See [memory setup and architecture](docs/memory.md).
 - **Teach them.** Thumbs down a reply, say what to change, and the teammate tries again and keeps the lesson for every future task.
 - **While you were away.** Come back to Home and see what each teammate finished or got stuck on.
 - **Templates.** Start a chief of staff, researcher, inbox helper and more, with starter automations like a weekday morning briefing.
@@ -84,6 +85,7 @@ pnpm --filter @open-bot/desktop dev
 
 ```sh
 pnpm lint && pnpm typecheck && pnpm test         # static checks and unit tests
+pnpm test:memory -- --e2e                       # isolated memory database and browser tests
 E2E_EMAIL=you@example.com E2E_PASSWORD=... pnpm e2e --grep-invert @agent   # fast end-to-end tests
 E2E_EMAIL=you@example.com E2E_PASSWORD=... pnpm e2e --grep @agent          # real bots at work (slow, uses your plan)
 ```

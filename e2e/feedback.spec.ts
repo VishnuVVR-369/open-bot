@@ -16,10 +16,10 @@ test("a teammate's Memory tab explains lessons before there are any", async ({ p
   const botId = await botIdOf(page, name);
   await page.goto(`/bots/${botId}?tab=memory`);
   await expect(page.getByRole("tab", { name: "Memory" })).toHaveAttribute("data-state", "active");
-  await expect(page.getByTestId("lessons")).toContainText(
-    `${name} keeps it as a lesson and reads it before every task.`,
+  await expect(page.getByTestId("memory-manager")).toContainText(
+    `${name}'s saved facts and lessons.`,
   );
-  await expect(page.getByLabel(`${name}'s memory`)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add memory" })).toBeVisible();
 });
 
 test("@agent rate a reply, teach a lesson, and see it used in a new chat", async ({ page }) => {
@@ -63,13 +63,15 @@ test("@agent rate a reply, teach a lesson, and see it used in a new chat", async
   // The lesson is on the teammate's page, and a brand new chat follows it.
   await page.getByRole("button", { name: "See lessons" }).click();
   await page.waitForURL(/\?tab=memory/);
-  const lesson = page.getByTestId("lesson");
+  const lesson = page.getByTestId("memory-item").filter({ hasText: LESSON });
   await expect(lesson).toHaveCount(1);
   await expect(lesson).toContainText(LESSON);
-  await expect(lesson.getByRole("link", { name: "See the reply" })).toHaveAttribute(
+  await lesson.getByRole("button", { name: "History", exact: true }).click();
+  await expect(page.getByRole("link", { name: "See source conversation" }).first()).toHaveAttribute(
     "href",
     /\/chats\/.+#run-/,
   );
+  await page.keyboard.press("Escape");
 
   const botId = await botIdOf(page, name);
   const state = (await (await page.request.get("/api/state")).json()) as {
@@ -84,12 +86,16 @@ test("@agent rate a reply, teach a lesson, and see it used in a new chat", async
   const agents = await workerApi<{ dataBase64: string }>(
     `/internal/files/read?path=/home/bot/bots/${slug}/AGENTS.md`,
   );
-  expect(Buffer.from(agents.dataBase64, "base64").toString()).toContain(`- ${LESSON}`);
+  expect(Buffer.from(agents.dataBase64, "base64").toString()).not.toContain(LESSON);
   await expect(page.getByTestId("run").last()).toContainText("PINEAPPLE");
 
   // Forgetting it takes it off the list.
   await page.goto(`/bots/${botId}?tab=memory`);
-  await page.getByRole("button", { name: "Forget this lesson" }).click();
-  await expect(page.getByTestId("lesson")).toHaveCount(0);
-  await expect(page.getByTestId("lessons")).toContainText("Nothing yet.");
+  await page
+    .getByTestId("memory-item")
+    .filter({ hasText: LESSON })
+    .getByRole("button", { name: "Forget", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Forget memory", exact: true }).click();
+  await expect(page.getByTestId("memory-item").filter({ hasText: LESSON })).toHaveCount(0);
 });
