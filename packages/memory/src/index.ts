@@ -31,6 +31,9 @@ export type MemoryActor =
       verified?: boolean;
       allowShared?: boolean;
     };
+export type MemorySaveResult = MemoryItem & {
+  saveOutcome: "created" | "confirmed" | "unchanged";
+};
 interface Row {
   id: string;
   bot_id: string | null;
@@ -197,7 +200,7 @@ export class MemoryService {
     input: MemoryInput,
     actor: MemoryActor,
     options: { source?: MemorySource; legacyKey?: string; id?: string } = {},
-  ): Promise<MemoryItem> {
+  ): Promise<MemorySaveResult> {
     const data = validate(memoryInputSchema, input);
     if (!canWrite(actor, data.botId))
       throw new MemoryError(
@@ -230,10 +233,10 @@ export class MemoryService {
       const known = existing.rows[0];
       if (known && known.state !== "deleted") {
         if (known.state === "candidate" && (actor.kind !== "bot" || actor.verified)) {
-          if (known.key) {
+          if (data.key) {
             const conflict = await client.query(
               "select id from memory_items where bot_id is not distinct from $1 and key=$2 and state='active' and id<>$3",
-              [known.bot_id, known.key, known.id],
+              [known.bot_id, data.key, known.id],
             );
             if (conflict.rowCount)
               throw new MemoryError(
@@ -242,14 +245,23 @@ export class MemoryService {
               );
           }
           const { rows } = await client.query<Row>(
-            "update memory_items set state='active',revision=revision+1,source=$2,updated_at=now() where id=$1 returning *",
-            [known.id, options.source ?? sourceOf(actor)],
+            `update memory_items set state='active',revision=revision+1,source=$2,updated_at=now(),
+              content=$3,kind=$4,key=$5,pinned=$6,expires_at=$7 where id=$1 returning *`,
+            [
+              known.id,
+              options.source ?? sourceOf(actor),
+              data.content,
+              data.kind,
+              data.key,
+              actor.kind === "bot" ? false : data.pinned,
+              data.expiresAt,
+            ],
           );
           await this.revision(client, rows[0]!);
           await this.changed(client, known.bot_id, actor, true);
-          return itemView(rows[0]!);
+          return { ...itemView(rows[0]!), saveOutcome: "confirmed" };
         }
-        return itemView(known);
+        return { ...itemView(known), saveOutcome: "unchanged" };
       }
       if (known && actor.kind === "bot" && !actor.verified)
         throw new MemoryError(
@@ -288,7 +300,7 @@ export class MemoryService {
       const row = rows[0]!;
       await this.revision(client, row);
       await this.changed(client, data.botId, actor, state === "active");
-      return itemView(row);
+      return { ...itemView(row), saveOutcome: "created" };
     });
   }
 

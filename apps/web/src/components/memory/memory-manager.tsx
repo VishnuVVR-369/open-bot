@@ -257,24 +257,30 @@ export function MemoryManager({ botId, name }: { botId: string | null; name: str
                   const previous = draft.item;
                   setDraft(null);
                   await refresh();
-                  toast("Memory saved", {
+                  const created =
+                    "saveOutcome" in result.data && result.data.saveOutcome === "created";
+                  const unchanged =
+                    "saveOutcome" in result.data && result.data.saveOutcome === "unchanged";
+                  toast(unchanged ? "Memory already saved" : "Memory saved", {
                     action: previous
                       ? {
                           label: "Undo",
                           onClick: () => void restore(result.data, previous.revision, false),
                         }
-                      : {
-                          label: "Undo",
-                          onClick: () => {
-                            void forgetMemoryItem({
-                              id: result.data.id,
-                              expectedRevision: result.data.revision,
-                            }).then(async (undo) => {
-                              if (!undo.ok) toast.error(undo.error);
-                              else await refresh();
-                            });
-                          },
-                        },
+                      : created
+                        ? {
+                            label: "Undo",
+                            onClick: () => {
+                              void forgetMemoryItem({
+                                id: result.data.id,
+                                expectedRevision: result.data.revision,
+                              }).then(async (undo) => {
+                                if (!undo.ok) toast.error(undo.error);
+                                else await refresh();
+                              });
+                            },
+                          }
+                        : undefined,
                   });
                 });
               }}

@@ -716,7 +716,7 @@ export class ToolHandlers {
         );
     }
     // This run knows the change it just made. Other active runs were invalidated transactionally.
-    session.memoryGeneration = await this.memory.store.generation(session.bot.id);
+    await this.memory.refreshAfterWrite(session);
     if (name === "forget_memory") setTimeout(() => void session.interrupt(), 0);
     session.putItem({
       ...this.toolItem(

@@ -94,6 +94,20 @@ export class MemoryCoordinator {
     });
   }
 
+  async refreshAfterWrite(session: RunSession): Promise<void> {
+    const generation = await this.store.generation(session.bot.id);
+    // Read cancellation after generation: never adopt a concurrent user's correction as our own.
+    const { rows } = await this.ctx.pool.query<{ cancel_requested_at: Date | null }>(
+      "select cancel_requested_at from runs where id=$1",
+      [session.run.id],
+    );
+    if (!rows[0] || rows[0].cancel_requested_at) {
+      await session.interrupt();
+      return;
+    }
+    session.memoryGeneration = generation;
+  }
+
   async context(session: RunSession): Promise<string> {
     for (let attempt = 0; attempt < 3; attempt++) {
       const before = await this.store.generation(session.bot.id);

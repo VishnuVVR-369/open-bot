@@ -12,6 +12,8 @@ Saved memory belongs to Postgres. `packages/memory` owns scope checks, revisions
 
 A correction uses an expected revision. An editor with stale content receives a conflict and keeps its unsaved text. Restore creates a new revision and restores saved content and metadata. Undo after a save uses the same revision check.
 
+Saving an existing confirmed fact is a no-op and does not offer a destructive Undo. An explicit save of a matching suggestion confirms it with the submitted type, topic key, pin and expiry; the separate Confirm button retains its existing metadata. Newly created entries can be undone, and edits can be undone by restoring the preceding revision.
+
 Forget removes content from current memory, all saved revisions and search vectors, and cancels pending item indexing. It leaves a content-free tombstone and hashes for duplicate suppression. When source message IDs are known, automatic extraction from those messages is suppressed too. Forgetting a saved memory does not erase its original conversation, earlier model outputs, provider logs or backups. Imported legacy notes may not have message-level provenance. Bot-scoped retrieval is a logical boundary; the existing shared computer is not a separate security boundary for each bot.
 
 ## Upgrade and legacy data
@@ -32,7 +34,7 @@ Keyword search uses Postgres full-text search with English stemming and OR-match
 
 Each run records the IDs and revisions supplied in `memory_contexts`, without duplicating memory bodies. “Memory context” under a reply shows the current unchanged facts or indicates that an entry changed or was forgotten. It does not claim the model relied on every retrieved fact.
 
-Each scope has a generation counter. Active memory changes mark affected running turns for interruption. A thread with an older memory generation is replaced with a fresh Codex thread, never forked with stale facts. Expiry also changes the generation used for thread selection. The current request and newly retrieved context start the replacement thread; previous model replies are not replayed. The bot may explicitly search original history when continuity requires it, and the original history has not been erased. Memory operations performed by a bot update its current view; a forget also interrupts that turn. New threads may lose conversational detail that existed only in the prior model context.
+Each scope has a generation counter. Active memory changes mark affected running turns for interruption. A thread with an older memory generation is replaced with a fresh Codex thread, never forked with stale facts. Expiry also changes the generation used for thread selection. The current request and newly retrieved context start the replacement thread; previous model replies are not replayed. The bot may explicitly search original history when continuity requires it, and the original history has not been erased. Memory operations performed by a bot update its current view only after checking durable cancellation, so they cannot absorb a concurrent user's correction; a forget also interrupts that turn. New threads may lose conversational detail that existed only in the prior model context.
 
 ## Optional embeddings and extraction
 

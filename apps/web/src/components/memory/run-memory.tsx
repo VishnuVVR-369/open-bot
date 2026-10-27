@@ -39,7 +39,7 @@ export function RunMemory({ runId }: { runId: string }) {
           ) : (
             <ul className="flex flex-col gap-2">
               {data.map((ref) => (
-                <li key={ref.id} className="break-words">
+                <li key={`${ref.id}@${ref.revision}`} className="break-words">
                   {ref.forgotten
                     ? "Forgotten memory"
                     : ref.changed

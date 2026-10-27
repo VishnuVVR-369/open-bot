@@ -97,6 +97,45 @@ test.describe("versioned memory in an isolated database", () => {
     expect(revisions.rowCount).toBe(0);
   });
 
+  test("duplicate saves cannot offer a destructive Undo; new entries can be undone", async ({
+    page,
+  }) => {
+    const memory = new MemoryService(pool);
+    const saved = await memory.save(
+      {
+        botId,
+        content: "An existing memory must survive a duplicate save.",
+        kind: "fact",
+        key: null,
+        pinned: false,
+        expiresAt: null,
+      },
+      { kind: "user" },
+    );
+    await page.goto(`/bots/${botId}?tab=memory`);
+    await page.getByRole("button", { name: "Add memory" }).click();
+    await page.getByRole("textbox", { name: "Memory", exact: true }).fill(saved.content);
+    await page.getByRole("button", { name: "Save memory", exact: true }).click();
+    const duplicateToast = page
+      .locator("[data-sonner-toast]")
+      .filter({ hasText: "Memory already saved" });
+    await expect(duplicateToast).toBeVisible();
+    await expect(duplicateToast.getByRole("button", { name: "Undo" })).toHaveCount(0);
+    expect((await memory.get(saved.id, { kind: "user" })).revision).toBe(1);
+    await page.getByRole("button", { name: "Add memory" }).click();
+    await page
+      .getByRole("textbox", { name: "Memory", exact: true })
+      .fill("A newly saved memory that can be undone.");
+    await page.getByRole("button", { name: "Save memory", exact: true }).click();
+    await page.locator("[data-sonner-toast]").getByRole("button", { name: "Undo" }).click();
+    await expect(
+      page
+        .getByTestId("memory-item")
+        .filter({ hasText: "A newly saved memory that can be undone." }),
+    ).toHaveCount(0);
+    await expect(page.getByTestId("memory-item").filter({ hasText: saved.content })).toBeVisible();
+  });
+
   test("a stale browser edit cannot overwrite a newer revision", async ({ page, context }) => {
     await page.goto(`/bots/${botId}?tab=memory`);
     await page.getByRole("button", { name: "Add memory" }).click();
@@ -186,6 +225,15 @@ test.describe("versioned memory in an isolated database", () => {
       },
       { kind: "user" },
     );
+    const revised = await memory.update(
+      { ...item, content: "E2E inspector: prefers hybrid roles", expectedRevision: item.revision },
+      { kind: "user" },
+    );
+    const duplicateKeyErrors: string[] = [];
+    page.on("console", (message) => {
+      if (message.type() === "error" && message.text().includes("same key"))
+        duplicateKeyErrors.push(message.text());
+    });
     const chat = randomUUID(),
       run = randomUUID(),
       message = randomUUID();
@@ -203,14 +251,25 @@ test.describe("versioned memory in an isolated database", () => {
     );
     await pool.query(
       "insert into memory_contexts(run_id,bot_id,generation,refs) values($1,$2,'1:0:0',$3)",
-      [run, botId, JSON.stringify([{ id: item.id, revision: item.revision }])],
+      [
+        run,
+        botId,
+        JSON.stringify([
+          { id: item.id, revision: item.revision },
+          { id: revised.id, revision: revised.revision },
+        ]),
+      ],
     );
     await page.goto(`/chats/${chat}`);
     await page.getByRole("button", { name: "Memory context", exact: true }).click();
-    await expect(page.getByRole("listitem").filter({ hasText: item.content })).toBeVisible();
-    await memory.forget({ id: item.id, expectedRevision: item.revision }, { kind: "user" });
-    await expect(page.getByRole("listitem").filter({ hasText: "Forgotten memory" })).toBeVisible();
-    await expect(page.getByRole("listitem").filter({ hasText: item.content })).toHaveCount(0);
+    await expect(page.getByRole("listitem").filter({ hasText: revised.content })).toBeVisible();
+    await expect(
+      page.getByRole("listitem").filter({ hasText: "Memory changed since this task" }),
+    ).toBeVisible();
+    expect(duplicateKeyErrors).toEqual([]);
+    await memory.forget({ id: item.id, expectedRevision: revised.revision }, { kind: "user" });
+    await expect(page.getByRole("listitem").filter({ hasText: "Forgotten memory" })).toHaveCount(2);
+    await expect(page.getByRole("listitem").filter({ hasText: revised.content })).toHaveCount(0);
   });
 
   test("memory endpoints require the owner's session", async ({ playwright, baseURL }) => {

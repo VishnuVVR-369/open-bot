@@ -71,6 +71,26 @@ describe("memory and Codex thread continuity", () => {
   });
 });
 describe("memory source and workspace boundaries", () => {
+  it("does not absorb a concurrent correction after its own memory write", async () => {
+    const f = fixture();
+    const memory = new MemoryCoordinator(f.ctx);
+    vi.spyOn(memory.store, "generation").mockResolvedValue("2:1:0");
+    f.pool.query.mockResolvedValue({ rows: [{ cancel_requested_at: new Date() }] } as never);
+    const interrupt = vi.spyOn(f.session, "interrupt").mockResolvedValue();
+    await memory.refreshAfterWrite(f.session);
+    expect(interrupt).toHaveBeenCalledOnce();
+    expect(f.session.memoryGeneration).toBe("1:0:0");
+  });
+  it("advances its own memory view only while the run is still current", async () => {
+    const f = fixture();
+    const memory = new MemoryCoordinator(f.ctx);
+    vi.spyOn(memory.store, "generation").mockResolvedValue("1:1:0");
+    f.pool.query.mockResolvedValue({ rows: [{ cancel_requested_at: null }] } as never);
+    const interrupt = vi.spyOn(f.session, "interrupt").mockResolvedValue();
+    await memory.refreshAfterWrite(f.session);
+    expect(interrupt).not.toHaveBeenCalled();
+    expect(f.session.memoryGeneration).toBe("1:1:0");
+  });
   it("does not treat a bot's paraphrase as a verified user statement", async () => {
     const f = fixture();
     f.pool.query.mockResolvedValue({

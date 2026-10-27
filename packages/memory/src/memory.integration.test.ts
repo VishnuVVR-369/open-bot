@@ -106,6 +106,8 @@ suite("memory with real Postgres", () => {
       Array.from({ length: 5 }, () => memory.save(input("Prefers remote roles"), user)),
     );
     expect(new Set(items.map((i) => i.id)).size).toBe(1);
+    expect(items.filter((i) => i.saveOutcome === "created")).toHaveLength(1);
+    expect(items.filter((i) => i.saveOutcome === "unchanged")).toHaveLength(4);
     expect(await memory.list({ botId: bot }, user)).toHaveLength(1);
   });
   it("rejects one of two competing edits and preserves the winning revision", async () => {
@@ -178,6 +180,47 @@ suite("memory with real Postgres", () => {
     expect(saved.id).toBe(candidate.id);
     expect(saved.state).toBe("active");
     expect(saved.revision).toBe(2);
+    expect(saved.saveOutcome).toBe("confirmed");
+  });
+  it("uses the explicit save metadata when confirming an expired suggestion", async () => {
+    const candidate = await memory.save(
+      { ...input("Prefers remote roles"), key: "old.topic" },
+      { kind: "bot", botId: bot, runId: run },
+    );
+    await pool.query("update memory_items set expires_at=now()-interval '1 second' where id=$1", [
+      candidate.id,
+    ]);
+    const saved = await memory.save(
+      {
+        ...input("Prefers remote roles"),
+        kind: "preference",
+        key: "career.location",
+        pinned: true,
+      },
+      user,
+    );
+    expect(saved).toMatchObject({
+      id: candidate.id,
+      state: "active",
+      revision: 2,
+      kind: "preference",
+      key: "career.location",
+      pinned: true,
+      expiresAt: null,
+    });
+    expect(await memory.recall(bot, "remote")).toHaveLength(1);
+  });
+  it("checks the submitted topic key before confirming a duplicate suggestion", async () => {
+    await memory.save({ ...input("Prefers local roles"), key: "career.location" }, user);
+    const candidate = await memory.save(input("Prefers remote roles"), {
+      kind: "bot",
+      botId: bot,
+      runId: run,
+    });
+    await expect(
+      memory.save({ ...input("Prefers remote roles"), key: "career.location" }, user),
+    ).rejects.toMatchObject({ status: 409 });
+    expect((await memory.get(candidate.id, user)).state).toBe("candidate");
   });
   it("requires verified user intent even for forgetting the bot's own memory", async () => {
     const saved = await memory.save(input("Prefers remote roles"), user);
