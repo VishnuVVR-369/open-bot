@@ -3,13 +3,15 @@
   <property name="configver" type="int" value="2"/>
   <property name="panels" type="array">
     <value type="int" value="1"/>
+    <value type="int" value="2"/>
     <property name="dark-mode" type="bool" value="true"/>
+    <!-- The bar along the bottom: the applications menu and the clock. -->
     <property name="panel-1" type="empty">
-      <property name="position" type="string" value="p=8;x=640;y=785"/>
+      <property name="position" type="string" value="p=8;x=640;y=778"/>
       <property name="length" type="uint" value="100"/>
       <property name="position-locked" type="bool" value="true"/>
-      <property name="size" type="uint" value="32"/>
-      <property name="icon-size" type="uint" value="16"/>
+      <property name="size" type="uint" value="44"/>
+      <property name="icon-size" type="uint" value="20"/>
       <property name="background-style" type="uint" value="1"/>
       <property name="background-rgba" type="array">
         <value type="double" value="0.07"/>
@@ -22,6 +24,23 @@
         <value type="int" value="2"/>
         <value type="int" value="3"/>
         <value type="int" value="4"/>
+      </property>
+    </property>
+    <!-- The dock, on top of the bar and sized to its icons, so it sits in the middle of the screen. -->
+    <property name="panel-2" type="empty">
+      <property name="position" type="string" value="p=12;x=640;y=778"/>
+      <property name="length" type="uint" value="1"/>
+      <property name="length-adjust" type="bool" value="true"/>
+      <property name="position-locked" type="bool" value="true"/>
+      <property name="size" type="uint" value="44"/>
+      <property name="background-style" type="uint" value="1"/>
+      <property name="background-rgba" type="array">
+        <value type="double" value="0.07"/>
+        <value type="double" value="0.075"/>
+        <value type="double" value="0.09"/>
+        <value type="double" value="1"/>
+      </property>
+      <property name="plugin-ids" type="array">
         <value type="int" value="5"/>
       </property>
     </property>
@@ -31,22 +50,19 @@
       <property name="show-button-title" type="bool" value="false"/>
       <property name="button-icon" type="string" value="org.xfce.panel.applicationsmenu"/>
     </property>
-    <property name="plugin-2" type="string" value="tasklist">
-      <property name="flat-buttons" type="bool" value="true"/>
-      <property name="show-handle" type="bool" value="false"/>
-      <property name="grouping" type="uint" value="0"/>
-    </property>
-    <property name="plugin-3" type="string" value="separator">
+    <property name="plugin-2" type="string" value="separator">
       <property name="expand" type="bool" value="true"/>
       <property name="style" type="uint" value="0"/>
     </property>
-    <property name="plugin-4" type="string" value="clock">
+    <property name="plugin-3" type="string" value="clock">
       <property name="mode" type="uint" value="2"/>
       <property name="digital-layout" type="uint" value="3"/>
       <property name="digital-time-format" type="string" value="%a %d %b  %H:%M"/>
     </property>
-    <property name="plugin-5" type="string" value="separator">
+    <property name="plugin-4" type="string" value="separator">
       <property name="style" type="uint" value="0"/>
     </property>
+    <!-- Pinned apps and open windows, one icon each. botd copies its pins (panel/docklike-5.rc) to the user. -->
+    <property name="plugin-5" type="string" value="docklike"/>
   </property>
 </channel>

@@ -25,6 +25,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl git jq less locales nano procps python3 python3-venv ripgrep tini unzip util-linux wget zip \
       xvfb xauth x11-utils x11-xserver-utils x11vnc xdotool scrot \
       dbus-x11 xfce4-session xfwm4 xfce4-panel xfdesktop4 xfce4-settings xfconf xfce4-terminal thunar mousepad \
+      xfce4-docklike-plugin \
       adwaita-icon-theme gnome-themes-extra \
       chromium fonts-inter fonts-noto-core fonts-noto-cjk fonts-noto-color-emoji fonts-dejavu-core \
     && sed -i 's/# en_US.UTF-8/en_US.UTF-8/' /etc/locale.gen && locale-gen \
@@ -46,7 +47,11 @@ RUN mkdir -p /usr/share/backgrounds \
     && rm /tmp/make-wallpaper.py \
     # The bot's shell can't use the display, so remove the desktop entries that don't belong on a shared machine.
     && rm -f /etc/xdg/autostart/xscreensaver.desktop /etc/xdg/autostart/light-locker.desktop \
-       /etc/xdg/autostart/xfce4-power-manager.desktop /etc/xdg/autostart/xiccd.desktop
+       /etc/xdg/autostart/xfce4-power-manager.desktop /etc/xdg/autostart/xiccd.desktop \
+    # The dock's file manager is "Files" with a folder icon. Same desktop id, so its windows group with the pin.
+    && mkdir -p /usr/local/share/applications \
+    && sed -e 's/^Name=Thunar File Manager$/Name=Files/' -e 's/^Icon=org.xfce.thunar$/Icon=folder/' \
+       /usr/share/applications/thunar.desktop > /usr/local/share/applications/thunar.desktop
 
 COPY --from=build /src/apps/botd/dist/botd.mjs /opt/botd/botd.mjs
 

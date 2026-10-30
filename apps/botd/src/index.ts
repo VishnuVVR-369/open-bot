@@ -1,4 +1,4 @@
-import { chmod, chown, mkdir, writeFile } from "node:fs/promises";
+import { access, chmod, chown, mkdir, writeFile } from "node:fs/promises";
 import { COMPUTER_PATHS, type ComputerHealth } from "@open-bot/shared";
 import { CookieSync } from "./cookies";
 import { EgressRouter } from "./egress";
@@ -6,11 +6,13 @@ import { browserSandboxAvailable } from "./sandbox";
 import { ScreenManager } from "./screens";
 import { createServer } from "./server";
 import { Supervisor, waitFor } from "./supervisor";
-import { lookupUser } from "./users";
+import { lookupUser, runAs } from "./users";
 
 const PORTS = { botd: 7000, codex: 4500, socks: 1080 } as const;
 /** botd's own state, which no bot can read: the shared cookie jar. */
 const STATE_DIR = "/home/.botd";
+/** The dock's pins and look, named for its plugin id in xfce4-panel.xml. */
+const DOCK_PINS = "docklike-5.rc";
 
 function log(message: string) {
   process.stdout.write(`${new Date().toISOString()} ${message}\n`);
@@ -58,6 +60,22 @@ async function prepareFilesystem() {
   await chown(`${COMPUTER_PATHS.codexHome}/config.toml`, botUser.uid, botUser.gid);
   await ensureDir(desktopUser.home, { uid: desktopUser.uid, gid: desktopUser.gid }, 0o750);
   await ensureDir(STATE_DIR, { uid: 0, gid: 0 }, 0o700);
+  await seedDock();
+}
+
+/**
+ * The dock on every screen reads its pinned apps only from the user's own config, not the image's
+ * defaults, so copy them there. Pins you change in the dock stay.
+ */
+async function seedDock() {
+  const pins = `${desktopUser.home}/.config/xfce4/panel/${DOCK_PINS}`;
+  const seeded = await access(pins).then(
+    () => true,
+    () => false,
+  );
+  if (seeded) return;
+  const defaults = `/etc/xdg/xfce4/panel/${DOCK_PINS}`;
+  await runAs(desktopUser, "install", ["-D", "-m", "644", defaults, pins]);
 }
 
 const browserSandbox = await browserSandboxAvailable(desktopUser);

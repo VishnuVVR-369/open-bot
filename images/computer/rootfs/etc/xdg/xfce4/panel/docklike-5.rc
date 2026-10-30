@@ -1,0 +1,12 @@
+[user]
+pinned=chromium;xfce4-terminal;thunar;org.xfce.mousepad;
+iconSize=28
+forceIconSize=true
+showPreviews=false
+noWindowsListIfSingle=true
+indicatorOrientation=0
+indicatorStyle=4
+inactiveIndicatorStyle=4
+indicatorColorFromTheme=false
+indicatorColor=rgba(255,255,255,0.9)
+inactiveColor=rgba(255,255,255,0.4)

@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 
 export interface SystemUser {
@@ -48,4 +49,21 @@ export function asUser(
       ...args,
     ],
   ];
+}
+
+/** Run `command` as `user` and wait for it. Rejects unless it exits 0. */
+export function runAs(
+  user: SystemUser,
+  command: string,
+  args: string[],
+  env: Record<string, string> = {},
+): Promise<void> {
+  const [cmd, argv] = asUser(user, command, args, env);
+  return new Promise<void>((resolve, reject) => {
+    const child = spawn(cmd, argv, { stdio: "ignore" });
+    child.on("exit", (code) =>
+      code === 0 ? resolve() : reject(new Error(`${command} exited ${code}`)),
+    );
+    child.on("error", reject);
+  });
 }

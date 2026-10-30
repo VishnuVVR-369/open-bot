@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { access, chmod, chown, mkdir, readFile, readlink, rm, writeFile } from "node:fs/promises";
@@ -17,7 +16,7 @@ import { devtoolsCookieStore, type CookieSync } from "./cookies";
 import { Desktop } from "./desktop";
 import { DesktopLease, type LeaseChange } from "./lease";
 import { waitFor, type ProcessSpec, type Supervisor } from "./supervisor";
-import { asUser, type SystemUser } from "./users";
+import { runAs, type SystemUser } from "./users";
 
 /** Display numbers start here, so a screen's display never collides with anything else. */
 const FIRST_DISPLAY = 10;
@@ -59,22 +58,6 @@ function portOpen(port: number): Promise<boolean> {
       resolve(true);
     });
     socket.once("error", () => resolve(false));
-  });
-}
-
-function runAs(
-  user: SystemUser,
-  command: string,
-  args: string[],
-  env: Record<string, string> = {},
-) {
-  const [cmd, argv] = asUser(user, command, args, env);
-  return new Promise<void>((resolve, reject) => {
-    const child = spawn(cmd, argv, { stdio: "ignore" });
-    child.on("exit", (code) =>
-      code === 0 ? resolve() : reject(new Error(`${command} exited ${code}`)),
-    );
-    child.on("error", reject);
   });
 }
 
