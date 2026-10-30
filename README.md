@@ -17,7 +17,7 @@ You watch them work live, take over the computer at any moment, and hand it back
 - **Skills.** Save the steps for a task once and run it with `/name` in any chat. Bots save skills too.
 - **Automations.** Routines and reminders on a schedule, page watches that wake a teammate when a page changes ("tell me when it's back in stock"), and webhooks that let other services start one. You or the bots set them up, they run while your laptop is closed, and you see how each run went.
 - **About you.** Shared facts and preferences every teammate can recall, with source history, revisions, expiry, and control over what is remembered.
-- **Memory you control.** Add, search, correct, pin, export, restore or forget facts and lessons. Bots recall relevant memory before each task; inferred facts wait for confirmation. Optional semantic search and extraction use your own endpoints. See [memory setup and architecture](docs/memory.md).
+- **Memory you control.** Add, search, correct, pin, export, restore or forget facts and lessons. Bots recall relevant memory before each task; inferred facts wait for confirmation. Optional semantic search and extraction use your own endpoints.
 - **Teach them.** Thumbs down a reply, say what to change, and the teammate tries again and keeps the lesson for every future task.
 - **While you were away.** Come back to Home and see what each teammate finished or got stuck on.
 - **Templates.** Start a chief of staff, researcher, inbox helper and more, with starter automations like a weekday morning briefing.
@@ -29,8 +29,7 @@ You watch them work live, take over the computer at any moment, and hand it back
 - **Check-ins that only speak up for news.** Every template checks in each morning and stays quiet when there's nothing; any schedule can be set to "only tell me when there's news".
 - **Swarms.** A teammate splits a big job, like comparing many shops, across helpers that work at the same time on screens of their own, and merges their results. You can watch each helper live.
 - **Connections.** Give teammates services like GitHub, Notion or your own API through MCP, so they use the service's tools instead of its website.
-- **Job Scout.** A template that collects the jobs LinkedIn and Naukri recommend to your signed-in accounts into [application-tracker](docs/job-scout-plan.md), which scores them against your resumes and prepares suggested edits. It only reads; the browser itself blocks job applications unless you're the one at the screen.
-- **Reads pages as text.** Teammates read long pages (articles, listings, job descriptions) as text and links instead of from screenshots.
+- **Reads pages as text.** Teammates read long pages (articles, listings, documentation) as text and links instead of from screenshots.
 - **Email.** Every teammate gets an address on your domain through Postmark. Emails start them in their Email chat, and what they write waits for your approval, then sends by itself.
 - **Steer and stop.** Message a bot while it works to add to its task, or stop it.
 - **Search everything.** ⌘K jumps to any teammate, chat or page, and searches every message and reply.
@@ -57,8 +56,6 @@ Desktop app (Electron) ── egress ─────┘            └─ x11vnc
 - `apps/desktop`: the Electron app and its egress agent.
 - `packages/*`: database schema, the typed Codex client, the egress tunnel and shared types.
 - `images/computer`: the computer's Docker image.
-
-The design and its reasons are in [docs/architecture.md](docs/architecture.md).
 
 ## Run it locally
 
@@ -91,12 +88,6 @@ E2E_EMAIL=you@example.com E2E_PASSWORD=... pnpm e2e --grep @agent          # rea
 ```
 
 The end-to-end tests run against the local stack, so start it first.
-
-To run the Job Scout against a real Application tracker (a test user's token, issued with `npx convex run apiTokens:issue` in the tracker), set its MCP address and token:
-
-```sh
-E2E_TRACKER_MCP_URL=https://<deployment>.convex.site/mcp E2E_TRACKER_TOKEN=at_... E2E_EMAIL=you@example.com E2E_PASSWORD=... pnpm e2e --grep "real Application tracker"
-```
 
 To test Telegram without a real bot, start the worker pointed at the tests' stand-in for the Bot API, then run the Telegram tests:
 
