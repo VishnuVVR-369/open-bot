@@ -1,47 +1,77 @@
 # open-bot
 
-Your AI teammates and the computer they share.
+AI teammates that do real work on their own computer.
 
-open-bot is a personal, open-source take on Grok Bot.
-You create teammates with jobs, and they do real work on one persistent cloud computer: a Linux desktop with a browser, a shell and files.
-You watch them work live, take over the computer at any moment, and hand it back with a note.
+open-bot is similar to Grok Bot, OpenAI Dots and Meta Muse.
+It is personal and open source.
 
-## What it does
+You create teammates and give each one a job.
+They work on a shared cloud computer that has a Linux desktop, a browser, a shell and files.
+You can watch them work live, take over the computer at any time, and hand it back when you are done.
 
-- **Teammates with jobs.** Each bot has a name, a job, instructions, its own versioned memory and a rule for when to ask you first.
-- **One shared computer.** XFCE, Chromium, a shell and a filesystem, with logged-in browser sessions shared by every bot.
-- **A screen per teammate.** Every bot gets its own screen on the computer, so several can browse at once, and a sign-in on one screen works on all of them.
-- **Live screens and takeover.** Screens stream into the app. Press Take over and that bot stops using its screen until you hand it back.
-- **Bots ask for you.** For passwords, 2FA and CAPTCHAs a bot asks you to take over, then continues from your note.
-- **Approvals.** Sending, publishing, buying and deleting wait for your decision, inline and in the Approvals inbox. "Always allow" stops a bot asking about the same thing again.
-- **Skills.** Save the steps for a task once and run it with `/name` in any chat. Bots save skills too.
-- **Automations.** Routines and reminders on a schedule, page watches that wake a teammate when a page changes ("tell me when it's back in stock"), and webhooks that let other services start one. You or the bots set them up, they run while your laptop is closed, and you see how each run went.
-- **About you.** Shared facts and preferences every teammate can recall, with source history, revisions, expiry, and control over what is remembered.
-- **Memory you control.** Add, search, correct, pin, export, restore or forget facts and lessons. Bots recall relevant memory before each task; inferred facts wait for confirmation. Optional semantic search and extraction use your own endpoints.
-- **Teach them.** Thumbs down a reply, say what to change, and the teammate tries again and keeps the lesson for every future task.
-- **While you were away.** Come back to Home and see what each teammate finished or got stuck on.
-- **Templates.** Start a chief of staff, researcher, inbox helper and more, with starter automations like a weekday morning briefing.
-- **Telegram.** Approve with a button, get told when a teammate needs you, and message your teammates from your phone.
-- **Group chats with handoffs.** Put teammates in one room; the lead answers and hands work to whoever's job fits.
-- **A team that works together.** Teammates ask each other questions from any chat, and share a task board with you: give a task to a teammate and ask them to start, or hand a goal to your chief of staff to split up.
-- **They get better.** A teammate can suggest a rewrite of its own instructions, and every template reviews its week on Friday; you see the change as a diff and decide.
-- **A vault and a budget.** Save logins and cards; teammates fill them in on the computer without ever reading them, a login only on its own site. Each teammate pays only within a monthly budget you set, and larger purchases ask you first.
-- **Check-ins that only speak up for news.** Every template checks in each morning and stays quiet when there's nothing; any schedule can be set to "only tell me when there's news".
-- **Swarms.** A teammate splits a big job, like comparing many shops, across helpers that work at the same time on screens of their own, and merges their results. You can watch each helper live.
-- **Connections.** Give teammates services like GitHub, Notion or your own API through MCP, so they use the service's tools instead of its website.
-- **Reads pages as text.** Teammates read long pages (articles, listings, documentation) as text and links instead of from screenshots.
-- **Email.** Every teammate gets an address on your domain through Postmark. Emails start them in their Email chat, and what they write waits for your approval, then sends by itself.
-- **Steer and stop.** Message a bot while it works to add to its task, or stop it.
-- **Search everything.** ⌘K jumps to any teammate, chat or page, and searches every message and reply.
-- **Duplicate, export and import.** Start a new bot from one that already works the way you like, or share it as a file.
-- **Files.** Browse, upload, download and delete what's on the computer, and attach files of up to 40 MB to a message. Files mentioned in replies open in the app: images, PDFs, Markdown, tables and text.
-- **Replay.** Watch what a teammate did on its screen, frame by frame.
-- **Voice.** Speak a message instead of typing it, and have replies read aloud.
-- **Push notifications.** Install open-bot on your phone or computer and get approvals and replies even when it's closed.
-- **When your plan runs out.** Teammates switch to your OpenAI API key until the plan resets, up to a monthly cap you set.
-- **Desktop app.** Native notifications, a menu bar icon, and browsing through your home connection so websites don't see a cloud IP.
+## What you can do
 
-## How it fits together
+### Create teammates
+
+- Give each teammate a name, a job and instructions.
+- Start fast from templates like a chief of staff, a researcher or an inbox helper.
+- Copy a teammate you like, or export it to a file and share it.
+
+### Watch and take over
+
+- Every teammate gets its own screen, so several can work at once.
+- Watch any screen live in the app, or replay what a teammate did.
+- Press **Take over** to use the computer yourself, then hand it back with a note.
+- When a teammate hits a password, 2FA code or CAPTCHA, it asks you to take over.
+
+### Stay in control
+
+- Sending, publishing, buying and deleting wait for your approval.
+- Choose **Always allow** so a teammate stops asking about the same thing.
+- Save logins and cards in a vault. Teammates can use them but never see them.
+- Set a monthly budget for each teammate. Bigger purchases ask you first.
+- Message a teammate while it works to change its task, or stop it.
+
+### Memory and learning
+
+- Teammates remember facts about you and lessons from past work.
+- You can see, search, fix, pin, export or delete anything they remember.
+- Give a reply a thumbs down and say what to change. The teammate tries again and remembers the lesson.
+- Teammates can suggest better instructions for themselves. You review the change and decide.
+
+### Automations
+
+- Run tasks on a schedule, like a morning briefing every weekday.
+- Watch a page and wake a teammate when it changes, like "tell me when it's back in stock".
+- Start a teammate from another service with a webhook.
+- Check-ins stay quiet when there is nothing new.
+- Automations keep running when your laptop is closed.
+
+### Teamwork
+
+- Put teammates in a group chat. The lead answers and hands work to the right teammate.
+- Teammates can ask each other questions.
+- Share a task board with your teammates.
+- Split a big job across helpers that work at the same time, then combine the results.
+
+### Tools and connections
+
+- **Skills:** save the steps for a task once, then run it with `/name` in any chat.
+- **Connections:** give teammates access to GitHub, Notion or your own API through MCP.
+- **Email:** each teammate gets an email address on your domain through Postmark.
+- **Telegram:** approve actions, get alerts and chat with teammates from your phone.
+- **Files:** browse, upload and download files on the computer, and attach files up to 40 MB.
+- **Voice:** speak your messages and hear replies read aloud.
+- **Search:** press ⌘K to find any teammate, chat or message.
+
+### Apps and notifications
+
+- Come back to **Home** to see what each teammate finished or got stuck on.
+- Install open-bot on your phone or computer to get push notifications.
+- The desktop app adds native notifications, a menu bar icon, and browsing through your home internet so websites don't see a cloud IP.
+- If your ChatGPT plan runs out, teammates switch to your OpenAI API key, up to a monthly limit you set.
+
+## How it works
 
 ```
 Web app (Next.js) ──► Postgres ◄── Worker ──► botd (in the computer container)
@@ -50,29 +80,38 @@ Web app (Next.js) ──► Postgres ◄── Worker ──► botd (in the com
 Desktop app (Electron) ── egress ─────┘            └─ x11vnc            (the live view)
 ```
 
-- `apps/web`: the app, auth (Better Auth, locked to one email), server actions and a realtime event stream.
-- `apps/worker`: runs bot turns through the Codex app-server, serves the bots' tools, schedules, approvals, takeovers, the VNC proxy and the egress relay.
-- `apps/botd`: the daemon inside the computer: process supervision, the desktop lease, desktop actions and the bridges.
-- `apps/desktop`: the Electron app and its egress agent.
-- `packages/*`: database schema, the typed Codex client, the egress tunnel and shared types.
-- `images/computer`: the computer's Docker image.
+- `apps/web`: the web app you use.
+- `apps/worker`: runs the teammates, their tools, schedules and approvals.
+- `apps/botd`: a helper that runs inside the computer and controls the desktop.
+- `apps/desktop`: the desktop app.
+- `packages/*`: shared code like the database schema and types.
+- `images/computer`: the Docker image for the computer.
 
 ## Run it locally
 
-You need Node 24, pnpm 10, Docker, and the Codex CLI signed in to ChatGPT on this Mac (`codex login`).
+You need:
+
+- Node 24
+- pnpm 10
+- Docker
+- The Codex CLI, signed in to ChatGPT (`codex login`)
+
+Then run:
 
 ```sh
 pnpm install
 cp .env.example .env            # set OWNER_EMAIL to your email
-pnpm infra:up                   # Postgres and the computer (the first build takes a few minutes)
+pnpm infra:up                   # starts Postgres and the computer (first build takes a few minutes)
 pnpm db:migrate
 pnpm dev                        # web on http://localhost:3000, worker on :4001
 ```
 
 Open http://localhost:3000, create your account, and create your first teammate.
-In development the computer borrows this Mac's Codex login, read-only; Settings can switch it to its own ChatGPT login.
 
-Desktop app:
+In development, the computer uses your Mac's Codex login in read-only mode.
+You can switch it to its own ChatGPT login in Settings.
+
+To run the desktop app:
 
 ```sh
 pnpm --filter @open-bot/desktop dev
@@ -80,23 +119,27 @@ pnpm --filter @open-bot/desktop dev
 
 ## Tests
 
+Start the local stack first, then run:
+
 ```sh
-pnpm lint && pnpm typecheck && pnpm test         # static checks and unit tests
-pnpm test:memory -- --e2e                       # isolated memory database and browser tests
+pnpm lint && pnpm typecheck && pnpm test         # checks and unit tests
+pnpm test:memory -- --e2e                       # memory database and browser tests
 E2E_EMAIL=you@example.com E2E_PASSWORD=... pnpm e2e --grep-invert @agent   # fast end-to-end tests
-E2E_EMAIL=you@example.com E2E_PASSWORD=... pnpm e2e --grep @agent          # real bots at work (slow, uses your plan)
+E2E_EMAIL=you@example.com E2E_PASSWORD=... pnpm e2e --grep @agent          # real teammates at work (slow, uses your plan)
 ```
 
-The end-to-end tests run against the local stack, so start it first.
+### Telegram tests
 
-To test Telegram without a real bot, start the worker pointed at the tests' stand-in for the Bot API, then run the Telegram tests:
+These use a fake Telegram server, so you don't need a real bot:
 
 ```sh
 TELEGRAM_API_BASE_URL=http://127.0.0.1:4797 pnpm --filter @open-bot/worker dev
 E2E_TELEGRAM=1 E2E_EMAIL=you@example.com E2E_PASSWORD=... pnpm e2e --grep Telegram
 ```
 
-To rehearse the plan running out (the fallback to your API key) without exhausting your plan, start the worker with the plan and API endpoints pointed at the test's mock server, then run the rehearsal:
+### Plan fallback tests
+
+These pretend your plan ran out, so you can test the switch to your API key without using up your plan:
 
 ```sh
 OPEN_BOT_PLAN_BASE_URL=http://host.docker.internal:4799/plan OPENAI_API_BASE_URL=http://host.docker.internal:4799/api pnpm --filter @open-bot/worker dev
