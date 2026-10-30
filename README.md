@@ -84,6 +84,7 @@ Desktop app (Electron) ── egress ─────┘            └─ x11vnc
 - `apps/worker`: runs the teammates, their tools, schedules and approvals.
 - `apps/botd`: a helper that runs inside the computer and controls the desktop.
 - `apps/desktop`: the desktop app.
+- `apps/site`: the public landing page with the launch tour.
 - `packages/*`: shared code like the database schema and types.
 - `images/computer`: the Docker image for the computer.
 

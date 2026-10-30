@@ -1,0 +1,11 @@
+// Deploys the static export in out/ as a Cloudflare Worker with static assets (no Worker script).
+// Cloudflare applies out/_headers, written by `pnpm build`, and serves out/404.html for unknown paths.
+{
+  "name": "open-bot",
+  "compatibility_date": "2026-10-30",
+  "assets": {
+    "directory": "./out",
+    "not_found_handling": "404-page",
+    "html_handling": "auto-trailing-slash",
+  },
+}

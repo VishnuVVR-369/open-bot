@@ -8,6 +8,8 @@ export default tseslint.config(
     ignores: [
       "**/node_modules/**",
       "**/.next/**",
+      "apps/site/out/**",
+      "apps/site/.media/**",
       "**/dist/**",
       "**/release/**",
       "**/drizzle/**",
@@ -31,7 +33,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["apps/web/**/*.tsx", "apps/web/**/*.ts"],
+    files: ["apps/web/**/*.tsx", "apps/web/**/*.ts", "apps/site/**/*.tsx", "apps/site/**/*.ts"],
     plugins: { "react-hooks": reactHooks },
     rules: {
       "react-hooks/rules-of-hooks": "error",
