@@ -5,6 +5,6 @@
 .git
 e2e
 docs
-apps/web
-apps/desktop
-apps/worker
+playwright-report
+test-results
+.env

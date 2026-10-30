@@ -52,7 +52,6 @@ COPY --from=build /src/apps/botd/dist/botd.mjs /opt/botd/botd.mjs
 
 ENV BOTS_GID=1100
 EXPOSE 7000
-VOLUME ["/home"]
 HEALTHCHECK --interval=10s --timeout=3s --start-period=60s --retries=3 \
   CMD curl -fsS http://127.0.0.1:7000/healthz || exit 1
 ENTRYPOINT ["tini", "--", "node", "/opt/botd/botd.mjs"]
