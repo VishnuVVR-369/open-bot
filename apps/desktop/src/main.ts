@@ -14,7 +14,7 @@ import {
 } from "electron";
 
 /** Where the web app lives. Locally the Next.js dev server; in production the deployed app. */
-const APP_URL = process.env.OPEN_BOT_URL ?? "http://localhost:3000";
+const APP_URL = process.env.OPEN_BOT_URL ?? "https://openbot.up.railway.app";
 const APP_ORIGIN = new URL(APP_URL).origin;
 const QUICK_CAPTURE_SHORTCUT = "CommandOrControl+Shift+Space";
 

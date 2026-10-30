@@ -1,8 +1,9 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { EventEmitter } from "node:events";
-import { access, chmod, chown, mkdir, rm, writeFile } from "node:fs/promises";
+import { access, chmod, chown, mkdir, readFile, readlink, rm, writeFile } from "node:fs/promises";
 import net from "node:net";
+import { hostname } from "node:os";
 import type { Readable, Writable } from "node:stream";
 import {
   APPLY_GUARD_URL_PATTERNS,
@@ -27,6 +28,8 @@ export interface ScreenDeps {
   supervisor: Supervisor;
   cookies: CookieSync;
   desktopUser: SystemUser;
+  /** Whether Chromium's sandbox works here. Without it, every browser runs with `--no-sandbox`. */
+  browserSandbox: boolean;
   /** Where every browser sends its traffic (botd's egress SOCKS proxy). */
   socksPort: number;
   /** A profile from before screens existed. New screens start from a copy of it. */
@@ -73,6 +76,17 @@ function runAs(
     );
     child.on("error", reject);
   });
+}
+
+/** Whether `pid` is a Chromium that is still running, not one that exited and awaits reaping. */
+async function browserRunning(pid: number): Promise<boolean> {
+  const stat = await readFile(`/proc/${pid}/stat`, "utf8").catch(() => null);
+  return stat !== null && /^\d+ \(chromium\) [^Z]/.test(stat);
+}
+
+/** `args` as one string a POSIX shell reads back as the same arguments. */
+export function shellQuote(args: string[]): string {
+  return args.map((arg) => `'${arg.replaceAll("'", `'\\''`)}'`).join(" ");
 }
 
 async function exists(path: string): Promise<boolean> {
@@ -155,6 +169,9 @@ export class Screen {
       "--start-maximized",
       `--window-size=${SCREEN.width},${SCREEN.height}`,
       `--user-data-dir=${this.profile}`,
+      // On hosts that refuse user namespaces the sandboxed browser crashes on start, so it runs
+      // without one. The container is then the browser's only boundary.
+      ...(this.deps.browserSandbox ? [] : ["--no-sandbox"]),
     ];
   }
 
@@ -226,8 +243,11 @@ export class Screen {
         ...this.env,
         XDG_CURRENT_DESKTOP: "XFCE",
         XDG_SESSION_TYPE: "x11",
-        // Chromium started from the desktop's menu uses this screen's profile and the egress proxy.
-        CHROMIUM_FLAGS: this.chromiumArgs.filter((arg) => !arg.startsWith("--window")).join(" "),
+        // Chromium started from the desktop's menu or a link uses this screen's profile and the egress
+        // proxy. /etc/chromium.d/open-bot adds these to its arguments.
+        OPEN_BOT_CHROMIUM_ARGS: shellQuote(
+          this.chromiumArgs.filter((arg) => !arg.startsWith("--window")),
+        ),
       },
       restart: "always",
       ready: () => new Promise((resolve) => setTimeout(resolve, 1_500)),
@@ -264,8 +284,29 @@ export class Screen {
     this.state = "running";
   }
 
+  /**
+   * A browser opened from this screen's desktop while botd's was closed holds the profile, and a new
+   * launch would only hand its page to that browser, outside botd's control and the apply guard.
+   * Close it first. Its tabs come back in the new one.
+   */
+  private async reclaimProfile(): Promise<void> {
+    const lock = await readlink(`${this.profile}/SingletonLock`).catch(() => null);
+    const holder = lock?.match(/^(.+)-(\d+)$/);
+    if (!holder || holder[1] !== hostname()) return;
+    const pid = Number(holder[2]);
+    if (!(await browserRunning(pid))) return;
+    this.deps.log(`[screens] ${this.id.slice(0, 8)}: closing the browser opened from the desktop`);
+    process.kill(pid, "SIGTERM");
+    await waitFor(
+      async () => !(await browserRunning(pid)),
+      10_000,
+      "the desktop's browser to close",
+    ).catch(() => process.kill(pid, "SIGKILL"));
+  }
+
   private async startBrowser(url?: string): Promise<void> {
     const { supervisor, desktopUser, cookies } = this.deps;
+    await this.reclaimProfile();
     let cdp: CdpPipe | null = null;
     await supervisor.start({
       name: this.names.browser,
@@ -302,8 +343,34 @@ export class Screen {
           this.id,
           devtoolsCookieStore((method, params) => pipe.send(method, params)),
         );
+        await this.maximizeWindows(pipe).catch(() => {});
       },
     });
+  }
+
+  /**
+   * Fill the screen. A browser that opens again restores its windows' last bounds instead of
+   * honoring --start-maximized, which leaves the desktop showing around it.
+   */
+  private async maximizeWindows(pipe: CdpPipe) {
+    const { targetInfos } = await pipe.send<{ targetInfos: { targetId: string; type: string }[] }>(
+      "Target.getTargets",
+      {},
+    );
+    const windows = new Set<number>();
+    for (const { targetId, type } of targetInfos) {
+      if (type !== "page") continue;
+      const { windowId } = await pipe.send<{ windowId: number }>("Browser.getWindowForTarget", {
+        targetId,
+      });
+      windows.add(windowId);
+    }
+    for (const windowId of windows) {
+      await pipe.send("Browser.setWindowBounds", {
+        windowId,
+        bounds: { windowState: "maximized" },
+      });
+    }
   }
 
   /**

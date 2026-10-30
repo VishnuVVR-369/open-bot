@@ -1,0 +1,9 @@
+#
+# Xfce's Preferred Applications on the shared computer. Replaces the xfce4-helpers default, whose
+# browser (debian-sensible-browser) isn't usable here, so opening a link asked you to pick one.
+#
+
+WebBrowser=chromium
+MailReader=thunderbird
+TerminalEmulator=debian-x-terminal-emulator
+FileManager=thunar

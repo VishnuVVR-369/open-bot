@@ -2,6 +2,7 @@ import { chmod, chown, mkdir, writeFile } from "node:fs/promises";
 import { COMPUTER_PATHS, type ComputerHealth } from "@open-bot/shared";
 import { CookieSync } from "./cookies";
 import { EgressRouter } from "./egress";
+import { browserSandboxAvailable } from "./sandbox";
 import { ScreenManager } from "./screens";
 import { createServer } from "./server";
 import { Supervisor, waitFor } from "./supervisor";
@@ -59,6 +60,13 @@ async function prepareFilesystem() {
   await ensureDir(STATE_DIR, { uid: 0, gid: 0 }, 0o700);
 }
 
+const browserSandbox = await browserSandboxAvailable(desktopUser);
+if (!browserSandbox) {
+  log(
+    "WARNING: this host refuses the user namespaces Chromium's sandbox needs, so browsers run with --no-sandbox",
+  );
+}
+
 const supervisor = new Supervisor(log);
 let broadcastHealth = () => {};
 const egress = new EgressRouter(log, () => broadcastHealth());
@@ -68,6 +76,7 @@ const screens = new ScreenManager(
     supervisor,
     cookies,
     desktopUser,
+    browserSandbox,
     socksPort: PORTS.socks,
     legacyProfile: `${desktopUser.home}/.config/chromium`,
     // Extra sites the apply guard covers, besides the job portals: the e2e tests' stand-in portal.

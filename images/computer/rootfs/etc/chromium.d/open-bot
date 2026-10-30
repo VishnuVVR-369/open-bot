@@ -1,0 +1,7 @@
+# Sourced by /usr/bin/chromium. Chromium started from a screen's desktop (a menu or a link) gets that
+# screen's flags from botd: its profile, the egress proxy, and --no-sandbox on hosts where the sandbox
+# can't run. botd shell-quotes them, and they join the arguments rather than CHROMIUM_FLAGS, which the
+# wrapper clears and expands unquoted: a flag with spaces or a `*` would be split and globbed.
+if [ -n "$OPEN_BOT_CHROMIUM_ARGS" ]; then
+  eval "set -- $OPEN_BOT_CHROMIUM_ARGS \"\$@\""
+fi

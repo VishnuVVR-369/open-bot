@@ -13,3 +13,4 @@ next-env.d.ts
 *.tsbuildinfo
 e2e/.auth
 docs/
+/apps/desktop/release/
