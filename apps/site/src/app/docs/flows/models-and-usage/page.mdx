@@ -1,0 +1,147 @@
+import { docMetadata } from "@/lib/docs";
+
+export const metadata = docMetadata("/docs/flows/models-and-usage");
+
+# Models and usage
+
+Teammates run on `gpt-6.1-sol` through a ChatGPT subscription.
+When the subscription's usage limit runs out, they can switch to your OpenAI API key automatically, up to a monthly cap you set, and switch back when the limit resets.
+
+## Signing in to ChatGPT
+
+The computer's Codex needs a ChatGPT login.
+There are two sources, chosen in Settings and stored in `settings.chatgpt_auth_source`.
+
+### Borrowing your Mac's login (`host`, the default for development)
+
+The worker reads the Codex login of the machine it runs on, from `~/.codex/auth.json` (`HOST_CODEX_AUTH_FILE`), and passes only the **access token** and account id to the computer:
+
+```ts title="apps/worker/src/codex.ts"
+await client.request("account/login/start", {
+  type: "chatgptAuthTokens",
+  accessToken: tokens.accessToken,
+  chatgptAccountId: tokens.accountId,
+});
+```
+
+The computer never sees the refresh token, and never refreshes the login itself.
+That matters: a refresh rotates the refresh token, which would sign your own Codex out.
+
+When the access token has less than a day left, or the computer's Codex reports it was rejected (`account/chatgptAuthTokens/refresh`), the worker starts a short-lived `codex app-server` **on your machine**, with your own `CODEX_HOME`, and lets it refresh your login exactly as it does when you use Codex.
+Then it reads the new token from the same file.
+Refreshes happen one at a time, at most every 5 minutes.
+
+### Signing the computer in (`device`, for the cloud)
+
+In the cloud there is no Mac next to the worker.
+**Sign in on the computer** starts a device-code login (`account/login/start` with `chatgptDeviceCode`).
+Settings shows a URL and a code, you approve it in your browser, and Codex stores and refreshes the login itself in `/home/bot/.codex` on the volume, so it survives restarts.
+
+### Plan limits in Settings
+
+`GET /internal/codex/rate-limits` reads the plan's usage windows (`account/rateLimits/read`), with how much of each is used and when it resets.
+
+## Choosing plan or key for a run
+
+<Figure caption="decideAuthMode() in @open-bot/shared. It is pure, so it is unit tested without a database. The plan is always the default.">
+  <ModelAccessDiagram />
+</Figure>
+
+`ModelAccess.decide()` reads `settings.plan_limited_until`, whether an API key is saved, the cap, and this month's API spend, and asks `decideAuthMode()`.
+The plan is used unless it is currently limited.
+
+## The automatic fallback
+
+<Figure
+  minWidth={620}
+  caption="The run that hit the limit retries once on the key. Later runs go straight to the key until the plan resets, then back to the plan on their own."
+>
+  <Sequence
+    actors={[
+      { id: "session", label: "RunSession" },
+      { id: "codex", label: "Codex" },
+      { id: "openai", label: "OpenAI" },
+      { id: "pg", label: "Postgres" },
+    ]}
+    steps={[
+      { from: "session", to: "codex", label: "turn/start on the plan" },
+      { from: "codex", to: "openai", label: "ChatGPT backend" },
+      { from: "openai", to: "codex", label: "usage limit reached", reply: true },
+      { from: "codex", to: "session", label: "turn failed: usageLimitExceeded", reply: true },
+      { from: "session", to: "codex", label: "account/rateLimits/read" },
+      { from: "session", to: "pg", label: "plan_limited_until = latest reset" },
+      { self: "session", label: "decide again: api_key" },
+      { from: "session", to: "codex", label: "thread/fork with the key provider, turn/start" },
+      { from: "codex", to: "openai", label: "Responses API, your key" },
+    ]}
+  />
+</Figure>
+
+1. A turn on the plan fails with `codexErrorInfo` of `usageLimitExceeded`.
+2. `markPlanLimited()` reads the plan's windows and stores the latest reset time among the exhausted ones as `plan_limited_until`. If it can't read them, it assumes one hour.
+3. The run decides again. If it may use the key, it adds a "continues on your OpenAI API key" note to the timeline and retries the turn once.
+4. If there is no key, or the cap is reached, the run fails with a message that says which, and the cap case also sends a notification.
+
+### The key is a per-thread provider
+
+The API key is never installed as the computer's login, which would replace the ChatGPT login.
+It is passed as a model provider in the thread's config:
+
+```ts title="providerFor() in apps/worker/src/services/model-access.ts"
+{
+  modelProvider: "openai-api",
+  config: {
+    "model_providers.openai-api": {
+      name: "OpenAI API",
+      base_url: env.OPENAI_API_BASE_URL,   // https://api.openai.com/v1
+      wire_api: "responses",
+      experimental_bearer_token: apiKey,
+    },
+  },
+}
+```
+
+A Codex thread keeps the provider it was created or resumed with.
+So a chat moving between the plan and the key **forks** its thread with the other provider, and the whole conversation carries over (see [Choosing a thread](/docs/architecture/agent-runtime#choosing-a-thread)).
+
+The key is stored encrypted in `credentials` (AES-256-GCM with `ENCRYPTION_KEY`), and decrypted in the worker only when a run needs it.
+A key Codex reports as unauthorized fails the run with "Your OpenAI API key was rejected. Check it in Settings."
+
+## The monthly cap
+
+You set a monthly cap in dollars, stored in millionths of a dollar (`settings.monthly_cap_micros`).
+This month's spend is the sum of `usage_entries.cost_micros` for API key usage since the first of the month (UTC).
+
+Usage is counted from Codex's `thread/tokenUsage/updated` notifications, per run and per access mode, and written once when the run ends.
+Plan usage costs 0, because the plan is a flat subscription.
+API key usage is priced at the model's list prices:
+
+| Token type   | Price per million tokens |
+| ------------ | ------------------------ |
+| Input        | $2.00                    |
+| Cached input | $0.10                    |
+| Output       | $10.00                   |
+
+```ts title="costMicros() in packages/shared/src/model-access.ts"
+// $1 per million tokens is exactly one millionth of a dollar per token.
+const cached = Math.min(usage.cachedInputTokens, usage.inputTokens);
+return Math.round((usage.inputTokens - cached) * 2 + cached * 0.1 + usage.outputTokens * 10);
+```
+
+The cap is checked before each run, not during one, so a single long run can go slightly over it.
+Every reply shows its time, tokens and cost, and Settings shows usage per teammate.
+
+## Rehearsing the fallback
+
+You can test the whole fallback without exhausting your plan.
+`OPEN_BOT_PLAN_BASE_URL` sends plan traffic to a Responses-compatible URL instead of ChatGPT, and `OPENAI_API_BASE_URL` does the same for the key:
+
+```sh title="Terminal"
+OPEN_BOT_PLAN_BASE_URL=http://host.docker.internal:4799/plan \
+OPENAI_API_BASE_URL=http://host.docker.internal:4799/api \
+  pnpm --filter @open-bot/worker dev
+
+E2E_PLAN_REHEARSAL=1 pnpm e2e --grep rehearsal
+```
+
+The test's mock answers like an exhausted ChatGPT plan, and everything else is real: the worker, Codex on the computer, the thread fork and the ledger.

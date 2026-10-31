@@ -1,0 +1,141 @@
+import { docMetadata } from "@/lib/docs";
+
+export const metadata = docMetadata("/docs/concepts");
+
+# Core concepts
+
+A small set of words comes up on every page.
+This page defines each one and shows how they fit together.
+
+<Figure caption="The main records. A run is the unit of work: one turn of one teammate in one chat. Everything a run does is written to its event log.">
+  <ConceptsDiagram />
+</Figure>
+
+## Teammate
+
+A teammate is an AI worker with a job.
+In the code and the database it is called a **bot** (the `bots` table).
+
+Each teammate has:
+
+- a **name** and a URL-safe **slug**, which names its workspace folder on the computer;
+- a **role** ("chief of staff") and free-form **instructions** (its job description);
+- an **autonomy** level: `full`, `risky` or `everything`, which decides what needs your approval (see [Approvals](/docs/flows/approvals));
+- a **model** and a **reasoning effort**, passed to Codex on every turn;
+- an optional **monthly budget** and **auto-approve amount** for purchases.
+
+One teammate can be marked **primary**.
+It leads group chats when you don't mention anyone.
+
+## Chat
+
+A chat is a conversation, stored in `chats` with its `messages`.
+Its `kind` is one of five values:
+
+- `direct`: a chat with one teammate.
+- `group`: a chat with several teammates (`chat_members`). The lead answers, and can hand work to the others.
+- `scheduled`: the teammate's Scheduled chat, where its automations run.
+- `inbox`: the teammate's Email chat, where incoming mail arrives.
+- `helper`: a hidden chat for one swarm helper.
+
+The last three are created on demand, one per teammate.
+
+## Run
+
+A run is one turn of one teammate in one chat, stored in `runs`.
+It is the unit of work everywhere in open-bot.
+
+A run starts because something happened.
+That reason is its **trigger**:
+
+| Trigger                   | What started it                                                            |
+| ------------------------- | -------------------------------------------------------------------------- |
+| `user`                    | You sent a message.                                                        |
+| `schedule`                | A schedule or reminder came due.                                           |
+| `watch`                   | A watched web page changed.                                                |
+| `webhook`                 | Something called the teammate's webhook URL.                               |
+| `hand_back`               | You handed a screen back after a takeover.                                 |
+| `approval`                | You decided on an approval after the run that asked had ended.             |
+| `handoff`                 | Another teammate handed a request over in a group chat.                    |
+| `question` / `answer`     | A teammate asked this one a question, or the answer came back.             |
+| `task`                    | You or a teammate asked it to start a task from the board.                 |
+| `swarm` / `swarm_results` | A helper's part of a swarm, or the merged results coming back to the lead. |
+| `email`                   | An email arrived at the teammate's address.                                |
+
+A run moves through a small set of states, described in [Data and events](/docs/architecture/data#run-states).
+At most one run per teammate per chat executes at a time.
+Others for the same pair wait in the queue.
+
+## Thread and turn
+
+Teammates are powered by **Codex**, OpenAI's coding agent, running as an app-server on the computer.
+A Codex **thread** is a conversation with its full history.
+open-bot keeps one thread per teammate per chat, recorded in `bot_threads`.
+
+A Codex **turn** is one request on a thread: input in, then a stream of reasoning, messages, commands and tool calls, then a final status.
+Every open-bot run is exactly one Codex turn.
+You can add to a turn while it runs (this is called **steering**) or interrupt it.
+
+## Run events
+
+Everything a run does becomes a row in `run_events`, in order.
+A row is either a timeline **item** (a message, a command, a desktop action, an approval), a **delta** (more streamed text for an item), a **status** change, or the final **usage**.
+
+The chat view, live streaming, page refreshes and replays all read this one log.
+See [Data and events](/docs/architecture/data#the-event-log).
+
+## The computer, screens and leases
+
+The **computer** is one Docker container with a Linux desktop that every teammate shares.
+A small daemon inside it, **botd**, is the only way to control it.
+
+Each teammate gets its own **screen** on the computer: an X display with an XFCE desktop and its own Chromium browser.
+Screens start when needed and stop when idle.
+
+Each screen has a **lease**: at any moment it is free, held by one run of its teammate, or held by you.
+Desktop actions need the lease.
+When you **take over** a screen, you get its lease at once, and the teammate can't use the screen until you **hand it back**.
+See [Screens and takeover](/docs/flows/screens-and-takeover).
+
+## Workspace
+
+Each teammate has a folder on the computer, `/home/bot/bots/<slug>`.
+It is the working directory of all its Codex threads, and holds:
+
+- `AGENTS.md`, its instructions, generated from the database;
+- `MEMORY.md`, a generated pointer to the memory tools;
+- `.agents/skills/`, its own saved skills;
+- any files it creates while working.
+
+`/home/bot/shared` is shared by every teammate, and the browser downloads into `/home/bot/shared/downloads`.
+
+## Tools
+
+Codex has built-in tools: a shell, file edits and web search.
+open-bot adds about forty **dynamic tools** of its own, like `desktop_click`, `request_approval`, `schedule_task` and `remember_memory`.
+When the model calls one, Codex sends the call to the worker, which does the work and returns the result.
+See [Teammate tools](/docs/reference/tools).
+
+## Approvals
+
+An approval is a pending decision for you, stored in `approvals`.
+It comes from Codex itself (before a shell command or a file change, for the most careful teammates), or from a teammate's own `request_approval`, `start_purchase` or `send_email` call.
+**Always allow** turns a decision into a saved rule.
+
+## Automations
+
+Automations wake a teammate without you:
+
+- **Schedules**: a recurring cron routine or a one-time reminder.
+- **Page watches**: a web page checked on an interval, firing when it changes.
+- **Webhooks**: a secret URL that other services can call.
+
+All three start runs in the teammate's Scheduled chat.
+See [Automations](/docs/flows/automations).
+
+## Memory
+
+Memory is what teammates know about you and their work, stored as versioned items in Postgres.
+It is either **shared** by every teammate or belongs to one.
+A bounded packet of relevant memory goes into every run.
+See [Memory](/docs/flows/memory).

@@ -1,0 +1,96 @@
+import { docMetadata } from "@/lib/docs";
+
+export const metadata = docMetadata("/docs/flows/vault-and-payments");
+
+# Vault and payments
+
+Teammates need to sign in to sites and sometimes pay for things.
+The vault lets them use your logins and cards without ever reading them, and budgets decide how much they may spend.
+
+## The vault
+
+A vault item (`vault_items`) is a **login** or a **card**:
+
+| Kind  | Fields                                   | Also stored                               |
+| ----- | ---------------------------------------- | ----------------------------------------- |
+| login | `username`, `password`                   | The site it belongs to, like `github.com` |
+| card  | `number`, `expiry`, `cvc`, `name`, `zip` | A hint, like "Visa •• 4242"               |
+
+The fields are stored as one JSON object, encrypted with AES-256-GCM using `ENCRYPTION_KEY`.
+Each item lists the teammates allowed to use it.
+
+`vault_list` shows a teammate the items it may use, by name, kind, site and hint, and its spending budget.
+It never returns a secret.
+
+## Filling a field
+
+The teammate clicks the field on its screen, then calls `vault_fill` with an item and a field name.
+It never sees the value.
+
+<Figure
+  minWidth={620}
+  caption="The secret exists in plain text only inside the worker's memory and on xdotool's stdin. It is never part of a tool result, a log line or a run event."
+>
+  <Sequence
+    actors={[
+      { id: "bot", label: "Teammate", sub: "Codex" },
+      { id: "worker", label: "Worker", sub: "VaultService" },
+      { id: "botd", label: "botd" },
+      { id: "screen", label: "Its screen" },
+    ]}
+    steps={[
+      { from: "bot", to: "worker", label: "vault_fill(item, password)" },
+      { self: "worker", label: "may it use the item? card: approved purchase?" },
+      { self: "worker", label: "decrypt the field" },
+      { from: "worker", to: "botd", label: "POST /computer/fill: secret, site" },
+      { from: "botd", to: "screen", label: "DevTools: which pages are visible?" },
+      { self: "botd", label: "every page on the login's site?" },
+      { from: "botd", to: "screen", label: "xdotool type --file - (stdin)" },
+      { from: "botd", to: "worker", label: "ok", reply: true },
+      { from: "worker", to: "bot", label: "Filled the password", reply: true },
+    ]}
+  />
+</Figure>
+
+The checks, in order:
+
+1. **Access.** The item must exist and allow this teammate.
+2. **Field.** The field must belong to the item's kind.
+3. **Purchase (cards).** A card fills only while an approved purchase for that card is open. An approval opens it for 30 minutes (`PURCHASE_WINDOW_MS`).
+4. **Lease.** botd takes the screen's lease for the run, as for any desktop action. If you hold the screen, the fill fails.
+5. **Site (logins).** botd lists every visible page over the DevTools pipe. If any of them isn't on the login's site or one of its subdomains, it refuses: "The browser is showing evil.example, not github.com, so it wasn't filled." A misleading page can't collect a password this way.
+6. **Typing.** botd types the value into whatever has keyboard focus with `xdotool type --file -`, reading the secret from **stdin**, not from the arguments, because any process on the computer can list another process's arguments.
+
+The item's `last_used_at` is updated, and the timeline shows "Filled the GitHub password", never the value.
+
+<Callout kind="warning">
+  A page can still show what was typed. A card number on a checkout page, for example, can appear in
+  the next screenshot the teammate takes. The vault keeps secrets out of tool results, logs and
+  chats, not off the screen.
+</Callout>
+
+## Budgets
+
+Each teammate can have a monthly budget (`bots.monthly_budget_cents`) and an auto-approve amount (`bots.auto_approve_cents`).
+Without a budget, it can't pay for anything.
+
+Spending is the sum of the teammate's purchases this month (from the first of the month, UTC) that weren't denied or called off.
+
+## A purchase
+
+The developer instructions tell every teammate to pay only with a vault card, and only through this flow:
+
+1. **`start_purchase`** with the exact total, the shop, what it is, and the card.
+2. `budgetDecision()` checks it:
+   - over what's left of the budget: refused, and the teammate is told not to buy it;
+   - at or under the auto-approve amount: approved at once;
+   - otherwise: a `purchase` approval goes to you.
+3. Once approved, the card fills for 30 minutes. The teammate fills it with `vault_fill` and places the order.
+4. **`finish_purchase`** records the order number, or `paid: false` if it didn't go through. A purchase that didn't go through stops counting against the budget.
+
+A purchase approval can't be covered by an Always allow rule.
+The only way to let small payments through without asking is the auto-approve amount.
+
+If you approve after the teammate stopped waiting, a new run tells it the purchase was approved, that the card fills for the next 30 minutes, and to call `finish_purchase` when it's done.
+
+Each teammate's page shows its spending this month, with every purchase and its status.

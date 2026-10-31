@@ -141,6 +141,12 @@ export default function Home() {
               Run it yourself
             </a>
             <a
+              href="/docs"
+              className="rounded-full px-3 py-2 font-medium text-ink/75 hover:text-ink"
+            >
+              Docs
+            </a>
+            <a
               href={site.github}
               className="ml-2 inline-flex h-10 items-center gap-2 rounded-full bg-ink px-4 font-medium text-white transition-colors hover:bg-ink/85"
             >

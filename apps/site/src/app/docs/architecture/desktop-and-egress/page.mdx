@@ -1,0 +1,110 @@
+import { docMetadata } from "@/lib/docs";
+
+export const metadata = docMetadata("/docs/architecture/desktop-and-egress");
+
+# Desktop app and egress
+
+The desktop app is a thin Electron shell around the web app, with one important extra: an **egress agent**.
+It carries the computer's browser traffic out through your own internet connection, so websites see your home IP instead of a datacenter's.
+
+## Why egress exists
+
+Many websites block or challenge traffic from cloud providers' IP ranges, with CAPTCHAs, extra sign-in checks, or outright refusals.
+A teammate browsing from a cloud computer would hit those walls all day.
+Routing the browser through your Mac makes it look like you, browsing from home.
+
+Only browser traffic takes this path.
+Codex's model traffic, package installs and anything else the shell does go straight out from the computer, to stay fast.
+
+## The path of one connection
+
+<Figure caption="One TCP connection from a teammate's browser. The worker doesn't look inside the frames; it pairs the computer's socket with your Mac's, and tells each side when the other comes and goes.">
+  <EgressDiagram />
+</Figure>
+
+1. Chromium sends every connection to botd's SOCKS5 server on `127.0.0.1:1080`, with the hostname unresolved (the browser's resolver rule refuses to resolve names locally).
+2. botd's `EgressRouter` decides the route. If your Mac's agent is online and the mode allows it, it opens a stream on the tunnel. Otherwise it connects directly, or refuses.
+3. botd keeps one websocket to the worker's `/egress` endpoint, opened by the worker. The worker's `EgressRelay` forwards binary frames between that socket and the agent's socket unchanged.
+4. The agent on your Mac receives an `Open` frame with the host and port. It resolves the name on your network, refuses private addresses, and opens a real TCP connection.
+5. Bytes flow both ways as `Data` frames until either side ends or resets the stream.
+
+## The tunnel protocol
+
+`@open-bot/egress` is shared by botd, the worker and the desktop app.
+One websocket carries many TCP streams.
+Each binary message is one frame:
+
+<Figure>
+  <FrameDiagram />
+</Figure>
+
+- **Streams.** The computer side opens streams with odd ids, so ids never collide.
+- **Opening.** `Open` carries JSON `{ host, port }`. The agent answers `OpenOk`, or `OpenFail` with a reason. An open that gets no answer in 20 seconds fails.
+- **Data.** Payloads are split into frames of at most 64 KiB.
+- **Closing.** `End` is a half close (this side is done writing). `Reset` aborts the stream in both directions.
+- **Flow control.** Each side may send 1 MiB on a stream before the receiver grants more. The receiver sends `Window` frames with the number of bytes it consumed. When a stream's window is exhausted, the sender pauses its TCP socket, so a slow website or a slow Mac never makes either side buffer without limit.
+- **Control.** Text messages on the same socket carry JSON control messages: the worker sends `config` (the mode, and whether the agent is online) to botd, and `peer-up` and `peer-down` to the agent. A side that hears its peer went away resets every stream at once.
+
+The framing, the multiplexer and the SOCKS server are covered by contract tests in `packages/egress/src/egress.test.ts`.
+
+## Egress modes
+
+The mode is set in Settings and stored in `computers.egress_mode`.
+The worker sends it to botd as a `config` message whenever it changes or the tunnel reconnects.
+
+| Mode                         | Your Mac online  | Your Mac offline             |
+| ---------------------------- | ---------------- | ---------------------------- |
+| **Off**                      | Direct           | Direct                       |
+| **Prefer desktop** (default) | Through your Mac | Direct, until it reconnects  |
+| **Require desktop**          | Through your Mac | New browser connections fail |
+
+Some sites challenge a session when its IP address changes.
+If your teammates use such sites, choose **Require desktop**, so the browser never silently switches to the computer's own address.
+The computer panel shows which path is in use.
+
+## The egress agent
+
+`EgressAgent` (`packages/egress/src/agent.ts`) runs in Electron's main process.
+
+### Signing in without pairing
+
+The agent needs no setup.
+To connect, it calls the web app's `GET /api/desktop/egress-token` with Electron's own session, so the request carries the cookie you signed in with.
+The web app returns the worker's websocket URL and an HMAC token for the `egress` purpose that expires in 120 seconds.
+The agent connects to `wss://<worker>/egress/agent?token=...`, and the worker verifies the token with `WORKER_SECRET`.
+
+If you aren't signed in, the token request returns 401, and the agent waits and retries.
+Signing in inside the window triggers an immediate retry.
+
+### Reconnecting
+
+On any disconnect, the agent resets its streams and reconnects with exponential backoff, from 1 second up to 30 seconds.
+While connected, it reports stream and byte counts every 5 seconds, which the computer panel shows.
+
+### Protecting your home network
+
+A teammate could try to reach your router, your NAS or other devices at home through the tunnel.
+The agent refuses that:
+
+- `resolvePublicAddress()` resolves the hostname and refuses the **whole name** if **any** of its addresses is private, loopback, link-local, carrier-grade NAT, multicast or reserved, in IPv4 or IPv6, including IPv4-mapped IPv6.
+- It then connects to the resolved address, not the name, so a DNS answer can't change between the check and the connection (DNS rebinding).
+- Ports must be integers from 1 to 65535.
+
+## The Electron shell
+
+`apps/desktop/src/main.ts` keeps the shell small:
+
+- **The window** loads the web app (`OPEN_BOT_URL`, or `http://localhost:3000` in development) with `contextIsolation`, `sandbox` and no Node integration. The preload script exposes one value, `openBotDesktop.platform`, so the web app knows it runs inside the desktop app.
+- **Navigation** stays inside the app's origin. Any other link opens in your default browser.
+- **Permissions** are granted only to the app's own origin, and only for notifications, the clipboard and fullscreen.
+- **The tray** shows whether browsing goes through this Mac, with Reconnect, Open the computer, and Open at login.
+- **Closing the window** hides it and keeps the app in the menu bar, so egress keeps working. Quitting stops the agent.
+- **Shortcuts and links.** `Cmd+Shift+Space` brings the window forward from anywhere. `openbot://chats/<id>` links open that chat. A single-instance lock routes a second launch to the first.
+
+Notifications in the desktop app are the web app's own notifications, which Electron shows natively.
+
+## Limits
+
+- Egress works only while the desktop app runs and your Mac is awake and online. The tray keeps it running with the window closed. Sleep stops it.
+- With **Require desktop**, teammates can't browse at all while your Mac is offline.
+- The egress proxy is a browser setting, not a network rule. A process on the computer that ignores the proxy settings goes out directly. See [Security model](/docs/security#known-risks).

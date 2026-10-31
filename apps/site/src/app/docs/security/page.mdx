@@ -1,0 +1,138 @@
+import { docMetadata } from "@/lib/docs";
+
+export const metadata = docMetadata("/docs/security");
+
+# Security model
+
+open-bot gives AI agents a real computer, your sign-ins, and sometimes your card.
+This page describes what protects what, the credential on every connection, and the risks that remain.
+The known risks were reproduced in the `computer` image, not inferred from reading code.
+
+## Assumptions
+
+- **One owner.** Every teammate works for the same person, and the app has exactly one account.
+- **Teammates are trusted, but not blindly.** They follow instructions, but the pages and emails they read may try to steer them. Consequential actions go through approvals that the teammate can't skip.
+- **The computer is the sandbox.** Codex's own sandbox is off. The container, the Linux users inside it, and botd's checks are the boundaries.
+
+## Trust boundaries
+
+<Figure caption="Each arrow is labeled with the credential it carries. Postgres and the computer are never exposed publicly.">
+  <TrustDiagram />
+</Figure>
+
+| Connection                            | Credential                                                    | Lifetime                 |
+| ------------------------------------- | ------------------------------------------------------------- | ------------------------ |
+| Browser to web app                    | Better Auth session cookie, owner only                        | 30 days, refreshed daily |
+| Browser to worker `/vnc`              | HMAC-SHA256 token, purpose `vnc`, signed with `WORKER_SECRET` | 60 seconds               |
+| Desktop app to worker `/egress/agent` | HMAC token, purpose `egress`                                  | 120 seconds              |
+| Web app to worker `/internal/*`       | `x-worker-secret` header, compared in constant time           | Static secret            |
+| Worker to botd                        | `Bearer BOTD_TOKEN` (header or query)                         | Static secret            |
+| Anyone to a webhook                   | The random token in the URL                                   | Until you rotate it      |
+| Postmark to inbound email             | The random secret in the URL                                  | Until you change it      |
+
+Tokens for websockets exist because a websocket from the browser can't carry the session cookie to the worker's different origin.
+The web app issues them only to a signed-in session, and they say what they're for, so a VNC token can't open the egress tunnel.
+
+## Authentication
+
+- `OWNER_EMAIL` is the only email that can create an account, and only one account can exist. Both are enforced in a database hook, before the user row is written.
+- Passwords are at least 10 characters. Passkeys are supported.
+- Every page, server action and read route checks the session on the server. The middleware redirect is only a convenience.
+
+## Secrets at rest
+
+`ENCRYPTION_KEY` (32 random bytes, base64) encrypts every secret in Postgres with AES-256-GCM, with a random IV per value and an authentication tag that detects tampering:
+
+- the OpenAI API key, the Telegram bot token and the VAPID private key (`credentials`);
+- vault logins and cards (`vault_items`);
+- MCP connection headers and environment variables (`connections`).
+
+The web app encrypts when you save, and the worker decrypts only at the moment of use.
+Losing `ENCRYPTION_KEY` makes these unreadable, so back it up with the database.
+
+The ChatGPT login is not in Postgres.
+In development, only a short-lived access token is passed to the computer, and the refresh token stays on your machine.
+In the cloud, Codex keeps its login in `/home/bot/.codex` on the computer's volume, readable only by the `bot` user.
+
+## Inside the computer
+
+| Protection                                 | How                                                                                                                                             |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Teammates can't drive the desktop directly | Codex and its shell run as `bot`, which can't read any display's X auth cookie. Desktop actions go through botd.                                |
+| You always win the screen                  | botd's lease: taking over preempts the run and kills its in-flight input. While you hold it, the teammate's desktop tools and screenshots fail. |
+| Only botd can drive a browser              | Chromium uses `--remote-debugging-pipe`. No DevTools port is open.                                                                              |
+| Sign-ins are guarded                       | The shared cookie jar is in `/home/.botd`, readable only by root.                                                                               |
+| Vault secrets don't leak through processes | botd types them through `xdotool`'s stdin, and a login only fills on its own site.                                                              |
+| No job applications                        | The apply guard fails submissions to job portals unless you hold the screen.                                                                    |
+| The computer isn't on the internet         | botd listens on port 7000 on the private network only. VNC and Codex listen on localhost.                                                       |
+
+## Outside the computer
+
+- **Page watches** fetch from the worker and refuse private, loopback and metadata addresses in production (`WATCH_ALLOW_PRIVATE_URLS=false`), at every redirect.
+- **The egress agent** refuses any destination whose name resolves to a private or local address, and connects to the checked address to defeat DNS rebinding. A teammate can't reach your home network.
+- **Webhooks** are rate limited to 30 runs an hour each, and bodies to 256 KB.
+- **Prompt injection.** Watched pages, webhook payloads, emails and `browser_read_page` results are wrapped in notes that mark them as outside data. That reduces the risk but can't remove it, which is why approvals and budgets don't depend on the model's judgment.
+
+## Known risks
+
+These are open, with the planned mitigation for each.
+They matter most when the computer runs in the cloud.
+
+### 1. On Railway, the browser runs without its sandbox
+
+Chromium's sandbox needs user namespaces, which Railway's container runtime refuses.
+botd detects this at startup (`apps/botd/src/sandbox.ts`) and starts browsers with `--no-sandbox`, with a warning in its log.
+Locally, Docker Compose runs the computer with `seccomp=unconfined`, and the sandbox stays on.
+
+Without the sandbox, a renderer exploit runs as the `desktop` user, with access to every screen's browser profile and display, the shared folders, and the local services below.
+
+**Mitigation:** run the computer on a host that allows user namespaces (a Firecracker-based host or a small VM with Docker), show the sandbox state in the app, and add a setting that refuses to start browsers without it.
+
+### 2. VNC servers accept local connections without a password
+
+Each screen runs `x11vnc -localhost -nopw`.
+`-localhost` keeps it off the network, but any process in the container can connect, including the `bot` user's shell, which could take control of a screen and bypass the lease and the apply guard.
+
+**Mitigation:** serve VNC over Unix sockets that only root can open, with botd bridging them, or give each server a random password only botd knows.
+
+### 3. Codex app-server listens on localhost without authentication
+
+`codex app-server --listen ws://127.0.0.1:4500` has no credential, and Codex runs with full access and no approvals of its own.
+A process that reaches it, such as an unsandboxed browser exploit, could drive a teammate.
+
+**Mitigation:** a Unix socket only root can open, a token on the listener, or a separate network namespace for Codex.
+
+### 4. Egress is a browser setting, not a network rule
+
+Browsers use the SOCKS proxy because of their flags.
+A process that ignores them leaves from the computer's own address.
+
+**Mitigation:** block outbound traffic for the `desktop` user except to the proxy (needs `CAP_NET_ADMIN`), or give browsers a network namespace whose only route is the proxy.
+
+### 5. The browser updates only when the image is rebuilt
+
+Chromium comes from Debian's packages at build time.
+
+**Mitigation:** rebuild the image on a schedule and after Chromium security updates, and show the Chromium version in the app.
+
+### 6. Teammates share a Linux user
+
+Every screen's browser runs as `desktop`, and every teammate's shell as `bot`.
+The lease and the apply guard are enforced by botd, not by the operating system, and memory scopes are a database boundary, not a file one.
+
+**Mitigation:** a Linux user per screen, and longer term, a container or microVM per teammate.
+
+### Suggested order
+
+1. Move the computer to a host with user namespaces (risk 1, and it unblocks 4).
+2. Put VNC and Codex behind root-only sockets or credentials (risks 2 and 3). These matter even with the sandbox on.
+3. Show the sandbox state and browser version in the app, and rebuild on a schedule (risks 1 and 5).
+4. Enforce egress at the network layer (risk 4).
+5. Separate users, then machines (risk 6).
+
+## Operational advice
+
+- Generate `BETTER_AUTH_SECRET`, `WORKER_SECRET` and `BOTD_TOKEN` with `openssl rand -hex 32`, and `ENCRYPTION_KEY` with `openssl rand -base64 32`. Never deploy the development defaults.
+- Keep Postgres and the computer private. Only the web app and the worker's websocket endpoints need public addresses.
+- Back up Postgres, `ENCRYPTION_KEY`, and the computer's `/home` volume together.
+- Rotate a webhook's URL if it leaks.

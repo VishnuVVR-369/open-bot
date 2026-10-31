@@ -1,0 +1,114 @@
+import { docMetadata } from "@/lib/docs";
+
+export const metadata = docMetadata("/docs/reference/configuration");
+
+# Configuration
+
+open-bot is configured with environment variables.
+In development, the web app and the worker both read the repository's root `.env`, copied from `.env.example`.
+Every value has a development default except `OWNER_EMAIL`.
+
+<Callout kind="warning">
+  The defaults for `BETTER_AUTH_SECRET`, `WORKER_SECRET`, `BOTD_TOKEN` and `ENCRYPTION_KEY` are
+  public. Replace every one of them in any deployment. See [Deployment](/docs/deployment#1-secrets).
+</Callout>
+
+## Shared secrets
+
+| Variable         | Web | Worker | Computer | Notes                                                                                 |
+| ---------------- | --- | ------ | -------- | ------------------------------------------------------------------------------------- |
+| `DATABASE_URL`   | yes | yes    |          | Default `postgres://openbot:openbot@127.0.0.1:54329/openbot`                          |
+| `WORKER_SECRET`  | yes | yes    |          | At least 16 characters. Authenticates internal calls and signs VNC and egress tokens. |
+| `ENCRYPTION_KEY` | yes | yes    |          | 32 bytes, base64. Encrypts every stored secret with AES-256-GCM.                      |
+| `BOTD_TOKEN`     |     | yes    | yes      | At least 16 characters. botd refuses to start without it.                             |
+
+## Web app
+
+| Variable                    | Default                 | Purpose                                                                                  |
+| --------------------------- | ----------------------- | ---------------------------------------------------------------------------------------- |
+| `OWNER_EMAIL`               | none                    | The only email that can create the account                                               |
+| `BETTER_AUTH_SECRET`        | none                    | Signs sessions                                                                           |
+| `BETTER_AUTH_URL`           | `http://localhost:3000` | The app's public URL. Also the passkey relying party.                                    |
+| `WORKER_URL`                | `http://127.0.0.1:4001` | Where the web server reaches the worker                                                  |
+| `NEXT_PUBLIC_WORKER_WS_URL` | `ws://localhost:4001`   | Where browsers and the desktop app reach the worker's websockets. Built into the client. |
+
+## Worker
+
+Parsed with zod in `apps/worker/src/env.ts`.
+
+| Variable                   | Default                                       | Purpose                                                             |
+| -------------------------- | --------------------------------------------- | ------------------------------------------------------------------- |
+| `WORKER_PORT`              | `4001`                                        | HTTP and websocket port                                             |
+| `BOTD_URL`                 | `http://127.0.0.1:7070`                       | Where botd listens. Locally, Compose maps it from port 7000.        |
+| `APP_URL`                  | `BETTER_AUTH_URL`, or `http://localhost:3000` | Webhook URLs start with it                                          |
+| `MAX_CONCURRENT_RUNS`      | `4`                                           | Runs executing at once, across all teammates                        |
+| `WATCH_ALLOW_PRIVATE_URLS` | `false` in production, `true` otherwise       | Let page watches fetch private and local addresses                  |
+| `HOST_CODEX_AUTH_FILE`     | `~/.codex/auth.json`                          | Development: the login the computer borrows                         |
+| `HOST_CODEX_BIN`           | `codex`                                       | Development: the Codex CLI used to refresh that login               |
+| `OPENAI_API_BASE_URL`      | `https://api.openai.com/v1`                   | Where API key traffic goes                                          |
+| `TELEGRAM_API_BASE_URL`    | `https://api.telegram.org`                    | The Telegram Bot API. Tests point it at a stand-in.                 |
+| `OPEN_BOT_PLAN_BASE_URL`   | unset                                         | Testing only: send plan traffic to a mock, to rehearse the fallback |
+
+### Memory AI
+
+Optional, and off unless the URLs are set.
+See [Memory](/docs/flows/memory#optional-ai).
+
+| Variable                        | Default | Purpose                                                  |
+| ------------------------------- | ------- | -------------------------------------------------------- |
+| `MEMORY_EMBEDDING_URL`          | empty   | An OpenAI-compatible `/embeddings` URL                   |
+| `MEMORY_EMBEDDING_MODEL`        | empty   | The embedding model                                      |
+| `MEMORY_EMBEDDING_DIMENSIONS`   | `768`   | Vector size, 1 to 4096                                   |
+| `MEMORY_SEMANTIC_MAX_DISTANCE`  | `0.4`   | The cosine-distance cutoff for semantic matches          |
+| `MEMORY_EXTRACTION_URL`         | empty   | An OpenAI-compatible `/chat/completions` URL             |
+| `MEMORY_EXTRACTION_MODEL`       | empty   | The extraction model                                     |
+| `MEMORY_AI_API_KEY`             | empty   | A bearer token for those two endpoints only              |
+| `MEMORY_AI_DAILY_REQUEST_LIMIT` | `100`   | All memory AI requests per day. `0` turns memory AI off. |
+
+## The computer (botd)
+
+| Variable                    | Default | Purpose                                                                                               |
+| --------------------------- | ------- | ----------------------------------------------------------------------------------------------------- |
+| `BOTD_TOKEN`                | none    | Required                                                                                              |
+| `MAX_SCREENS`               | `4`     | Screens running at once                                                                               |
+| `SCREEN_IDLE_MINUTES`       | `20`    | A screen nobody used for this long stops                                                              |
+| `APPLY_GUARD_EXTRA_DOMAINS` | empty   | Comma-separated extra domains for the apply guard. Compose sets `host.docker.internal` for the tests. |
+| `BOTS_GID`                  | `1100`  | The shared `bots` group, set in the image                                                             |
+
+botd's own ports are fixed: 7000 for its API, 4500 for Codex (localhost) and 1080 for SOCKS (localhost).
+The Codex version is the image's `CODEX_VERSION` build argument.
+
+## Desktop app
+
+| Variable       | Default          | Purpose                                                          |
+| -------------- | ---------------- | ---------------------------------------------------------------- |
+| `OPEN_BOT_URL` | the deployed app | The web app to load. Use `http://localhost:3000` in development. |
+
+The shell's environment may carry `ELECTRON_RUN_AS_NODE=1` when launched from some tools, which stops Electron from opening a window.
+Unset it to run the desktop app.
+
+## Settings in the app
+
+Some configuration lives in the database, changed in Settings rather than in the environment:
+
+| Setting                                                           | Stored in                                                 |
+| ----------------------------------------------------------------- | --------------------------------------------------------- |
+| ChatGPT sign-in source (borrow the host's, or the computer's own) | `settings.chatgpt_auth_source`                            |
+| OpenAI API key                                                    | `credentials`, encrypted                                  |
+| Monthly API cap                                                   | `settings.monthly_cap_micros`                             |
+| Your time zone                                                    | `settings.timezone`, set from your browser on first visit |
+| Egress mode                                                       | `computers.egress_mode`                                   |
+| Telegram bot token and linked chat                                | `credentials` and `telegram`                              |
+| Email domain and Postmark token                                   | `email_settings`                                          |
+| Push devices                                                      | `push_subscriptions`                                      |
+| Connections                                                       | `connections`, secrets encrypted                          |
+
+## Tests
+
+| Variable                    | Used by                                                          |
+| --------------------------- | ---------------------------------------------------------------- |
+| `E2E_EMAIL`, `E2E_PASSWORD` | Playwright: the owner account to sign in with                    |
+| `E2E_BASE_URL`              | Playwright: the web app, default `http://localhost:3000`         |
+| `E2E_TELEGRAM=1`            | Run the Telegram tests (with the worker pointed at the stand-in) |
+| `E2E_PLAN_REHEARSAL=1`      | Run the plan fallback rehearsal                                  |
+| `MEMORY_TEST_DATABASE_URL`  | The memory suite's isolated database                             |

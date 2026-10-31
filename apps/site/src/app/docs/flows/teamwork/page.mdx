@@ -1,0 +1,134 @@
+import { docMetadata } from "@/lib/docs";
+
+export const metadata = docMetadata("/docs/flows/teamwork");
+
+# Teamwork and swarms
+
+Teammates work together in four ways: they share group chats, hand requests to each other, ask each other questions, and share a task board with you.
+A single teammate can also split a big job across helpers that work in parallel.
+
+Every one of these is built from the same primitive: queueing a run, with a link to the run that caused it (`runs.parent_run_id`).
+
+## Knowing each other
+
+Every teammate's `AGENTS.md` lists the others with their roles, under "Your teammates".
+That is how Milo knows that Penny is the personal shopper.
+The list is rewritten before every run, so a new teammate is known everywhere on the next turn.
+
+## Group chats
+
+A group chat has members (`chat_members`), and one of them leads.
+
+- A message goes to the teammates you @-mention, or else to the primary teammate if it is a member, or else to the first member.
+- Each answering teammate gets a prompt that says who else is in the chat, with their jobs, and what you and the others said since it last spoke there.
+- Each teammate keeps its own Codex thread for the group chat, so their conversations don't mix.
+
+### Handoffs
+
+In a group chat, a teammate can pass a request on with `handoff_to_bot`.
+The other teammate gets a run in the **same** chat with trigger `handoff`, and its reply appears there.
+
+## Asking a question
+
+`ask_teammate` works from any chat, without handing the whole request over:
+
+<Figure
+  minWidth={620}
+  caption="The asker ends its turn after asking. The answer comes back as a new run in the original chat, so the asker can finish the task with it."
+>
+  <Sequence
+    actors={[
+      { id: "milo", label: "Milo", sub: "in your chat" },
+      { id: "worker", label: "Worker" },
+      { id: "penny", label: "Penny", sub: "in her own chat" },
+    ]}
+    steps={[
+      { from: "milo", to: "worker", label: "ask_teammate(Penny, question)" },
+      { from: "worker", to: "penny", label: "queue a question run in her latest direct chat" },
+      { from: "worker", to: "milo", label: "asked; end your turn", reply: true },
+      { self: "penny", label: "answers the question" },
+      { from: "penny", to: "worker", label: "run finished with the answer" },
+      { from: "worker", to: "milo", label: "queue an answer run in your chat" },
+      { self: "milo", label: "finishes the task" },
+    ]}
+  />
+</Figure>
+
+The answer comes back as `[Penny answered your question:] ...`.
+If Penny's run fails or you stop it, Milo hears that too and is told to carry on without it.
+Penny answers in her own chat, so you can see what she did.
+
+### Loops are impossible
+
+`chainOf()` walks `parent_run_id` links back from the current run, collecting every teammate involved.
+
+- A request is never passed or asked back to a teammate already in its chain: "Penny already handled this request. Finish it yourself or ask the user."
+- A chain can be at most 6 links deep: "This request has gone through too many teammates. Finish it yourself."
+
+Together these guarantee that teammates can't ping-pong a request forever.
+
+## The task board
+
+The board (`tasks`) is shared by you and every teammate.
+A task has a title, notes, a status (`todo`, `doing`, `done`), an owner, a due day and a position.
+
+| Tool          | What it does                                                                |
+| ------------- | --------------------------------------------------------------------------- |
+| `list_tasks`  | Open tasks with their ids, owners and due dates, and recently finished ones |
+| `add_task`    | Adds a task. With `start`, it also gets the owner going.                    |
+| `update_task` | Moves, reassigns or edits a task. Teammates mark their own tasks done.      |
+
+**Ask to start** (in the app, or `add_task` with `start`) queues a run for the owner in its most recent direct chat, with trigger `task`, and moves the task to Doing:
+
+```text title="The run's prompt"
+[The user asked you to work on a task from the team's board (task id …). When it's
+finished, mark it done with update_task, and say what you did.]
+Task: Book the Lisbon hotel
+Due: 2026-11-06
+```
+
+## Swarms
+
+Some jobs are many independent pieces: checking a price at six shops, researching four vendors, reading a list of pages.
+`start_swarm` splits such a job across **helpers** that work at the same time, each on a screen of its own.
+
+<Figure caption="Each helper is a run of the same teammate, in a hidden helper chat, on its own screen. Sign-ins are shared because cookies are synced across every screen.">
+  <SwarmDiagram />
+</Figure>
+
+### Starting
+
+The lead calls `start_swarm` with a title and 2 to 6 parts, each with a title and self-contained instructions.
+`SwarmService` (`apps/worker/src/services/swarms.ts`):
+
+1. refuses if a helper tries to start a swarm, or the teammate already has one running;
+2. inserts a `swarms` row and a `swarm_tasks` row per part;
+3. creates a hidden `helper` chat per part and queues a run with trigger `swarm` and `runs.screen_id` set to the part's id;
+4. adds a `swarm` card to the lead's timeline, which shows every helper's live screen;
+5. tells the lead to end its turn.
+
+botd uses `screen_id` instead of the teammate's id for the helper's desktop actions, so each helper gets its own display and browser.
+
+### Helpers
+
+A helper's prompt explains its part and the rules: don't contact the user, don't start swarms, don't ask teammates, don't schedule anything, and if a sign-in or code is needed, stop and say so in the result.
+The worker enforces the same rules: a helper calling `notify_user`, `request_approval`, `request_takeover`, `start_purchase`, `ask_teammate`, `schedule_task` or any other outward tool gets "Helpers can't do that."
+Helpers don't notify you when they finish or fail.
+
+Because helpers are ordinary runs, they count toward `MAX_CONCURRENT_RUNS` and screens count toward `MAX_SCREENS`.
+Extra helpers simply wait in the queue.
+
+### Finishing
+
+The service listens for `runStarted` and `runFinished` events of `swarm` runs and records each part's status and result (cut at 12,000 characters).
+A helper's screen is removed, with its browser profile, as soon as its part is done.
+When the last part is done, the lead gets one `swarm_results` run in its original chat, with every result, to merge into one answer.
+
+Stopping the swarm from its card cancels every helper that is still queued or running.
+
+## Teammates improving themselves
+
+A teammate can suggest a rewrite of its own instructions with `propose_instructions`, with a reason.
+The suggestion waits in `instruction_proposals`, and a newer one replaces one you haven't looked at.
+Home lists it under "Needs you", and the teammate's page shows a line-by-line diff to accept or dismiss.
+Every template includes a weekly retro routine that reviews the week, including lessons from your feedback, and may suggest changes this way.

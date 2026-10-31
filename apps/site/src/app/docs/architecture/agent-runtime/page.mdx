@@ -1,0 +1,197 @@
+import { docMetadata } from "@/lib/docs";
+
+export const metadata = docMetadata("/docs/architecture/agent-runtime");
+
+# Agent runtime
+
+Teammates are powered by Codex, OpenAI's coding agent.
+One `codex app-server` process on the computer serves every teammate's conversations.
+The worker drives it remotely over JSON-RPC, adds open-bot's own tools, and turns its stream of events into the chat timeline.
+
+## Why Codex, and why on the computer
+
+The teammates use `gpt-6.1-sol` on a ChatGPT subscription.
+On a subscription, the model is only reachable through Codex, not through an API key.
+Codex's shell and file tools act on the machine Codex runs on, so that machine has to be the computer.
+
+This also gives teammates a capable agent loop for free: planning, a shell with streaming output, file patches, web search and context compaction.
+open-bot adds what Codex doesn't have: a desktop, approvals, schedules, memory, teamwork and the rest, as **dynamic tools**.
+
+## The connection
+
+```text
+worker ── ws://botd:7000/codex?token=… ──▶ botd ── ws://127.0.0.1:4500 ──▶ codex app-server
+```
+
+`CodexManager` (`apps/worker/src/codex.ts`) keeps one connection for the whole worker.
+botd bridges it byte for byte to the app-server, which only listens on localhost.
+
+`@open-bot/agent` holds the client:
+
+- `CodexClient` speaks JSON-RPC 2.0 over the websocket. It sends `initialize` (with `experimentalApi: true`) and `initialized`, then matches responses to requests by id, with a 120-second timeout per request.
+- Messages with a method and an id are **server requests**, which Codex sends when it needs an answer: a tool call, an approval, a token refresh. The client passes them to a handler and sends back its result or a JSON-RPC error.
+- Messages with only a method are **notifications**, like streamed text.
+- `src/protocol/` holds the protocol types, generated from the pinned Codex version with `pnpm --filter @open-bot/agent generate:protocol` (`codex app-server generate-ts`). The `Methods` map in `client.ts` types the methods open-bot calls, so a protocol change shows up as a type error.
+
+`CodexManager` then:
+
+- reconnects 3 seconds after a drop, and fails every run in flight with "Lost the connection to the computer";
+- signs in on every connection (see [Models and usage](/docs/flows/models-and-usage#signing-in-to-chatgpt));
+- routes notifications and server requests to the session that owns the thread, by `threadId`;
+- tracks which threads are loaded in the app-server since the last reconnect;
+- declines approvals and tool calls for threads no session owns, so a stray request never hangs.
+
+## Methods open-bot uses
+
+| Method                                                                                                 | Used for                                                                         |
+| ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| `account/read`, `account/login/start`, `account/logout`                                                | ChatGPT sign-in, both borrowed tokens and device codes                           |
+| `account/rateLimits/read`                                                                              | The plan's usage windows, shown in Settings and used to find when a limit resets |
+| `thread/start`, `thread/resume`, `thread/fork`                                                         | Getting the thread for a run                                                     |
+| `turn/start`, `turn/steer`, `turn/interrupt`                                                           | Running, steering and stopping a turn                                            |
+| `fs/readFile`, `fs/writeFile`, `fs/readDirectory`, `fs/createDirectory`, `fs/getMetadata`, `fs/remove` | Writing workspaces and skills, and the Files page                                |
+| `skills/list`, `mcpServerStatus/list`                                                                  | Checking skills and testing MCP connections                                      |
+
+The worker never runs shell commands on the computer itself.
+File access for the UI goes through Codex's `fs/*` methods, which run as the `bot` user.
+
+## Threads
+
+open-bot keeps one Codex thread per teammate per chat, recorded in `bot_threads`:
+
+| Column              | Meaning                                                     |
+| ------------------- | ----------------------------------------------------------- |
+| `chat_id`, `bot_id` | The pair the thread belongs to (unique)                     |
+| `codex_thread_id`   | Codex's id for the thread                                   |
+| `tools_version`     | The `TOOLS_VERSION` the thread was started with             |
+| `memory_generation` | The teammate's memory generation when the thread was made   |
+| `auth_mode`         | `plan` or `api_key`: the model provider it was created with |
+| `connections_key`   | A hash of the MCP servers it was given                      |
+
+A thread is started with:
+
+- `cwd` set to the teammate's workspace, so Codex loads that teammate's `AGENTS.md`;
+- `developerInstructions` set to the rules every teammate follows (`DEVELOPER_INSTRUCTIONS` in `apps/worker/src/instructions.ts`);
+- `dynamicTools` set to every open-bot tool;
+- `sandbox: "danger-full-access"` (the container is the boundary);
+- `approvalPolicy` of `untrusted` for teammates that ask before everything, or `never` otherwise;
+- the model provider and MCP servers as config (see below).
+
+### Choosing a thread
+
+A thread keeps the instructions, tools, provider and MCP servers it was created with.
+So the session checks each of those before using an existing thread:
+
+<Figure caption="If forking or resuming fails, the session logs a warning and falls back to thread/start. A fresh thread is always correct, just without earlier conversation.">
+  <ThreadDecisionDiagram />
+</Figure>
+
+- **A new tool set or new instructions** (`TOOLS_VERSION` was bumped) start fresh threads, because a thread can't be given new tools.
+- **A new memory generation** starts a fresh thread too. A thread's history may contain facts you have since corrected or deleted, and forking it would carry them over. See [Memory](/docs/flows/memory#generations-and-stale-threads).
+- **A different provider or MCP set** forks the thread with `thread/fork`. The fork keeps the whole conversation and gets the new provider or servers. This is how a chat moves between your ChatGPT plan and your API key mid-conversation.
+- **Otherwise**, a thread that is loaded is reused, and one that isn't is resumed from Codex's state on the volume with `thread/resume`.
+
+## Instructions
+
+A teammate's instructions come from three places, from most general to most specific:
+
+1. **Developer instructions**, set once per thread. They are the same for every teammate: how the shared computer works, how to use the desktop safely, never to type passwords, how payments and emails are approved, when to use automations, swarms and teammates, how to use memory. Changing them means bumping `TOOLS_VERSION`.
+2. **`AGENTS.md`** in the teammate's workspace, which Codex reads because it is the working directory. The worker regenerates it from the database at the start of every run. It holds the teammate's name, role and job, its approval rules by autonomy level, its Always allow rules, its email address, its connected services, and its teammates with their jobs.
+3. **The prompt** of each run, built fresh (below).
+
+```md title="/home/bot/bots/milo/AGENTS.md (abridged)"
+# Milo
+
+You are Milo, the user's travel planner.
+
+## Your job
+
+Find and compare flights and hotels. Prefer nonstop flights...
+
+## Approvals
+
+Before any consequential action, call request_approval and wait: sending or replying
+to messages, posting or publishing, deleting data, and changing settings...
+
+## Your teammates
+
+Ask them with ask_teammate when a question falls in their job:
+
+- Penny, personal shopper
+
+## Memory
+
+Saved memory is provided with each task. Use the memory tools to recall or change it.
+MEMORY.md is a generated export; file edits are not saved.
+```
+
+## The prompt
+
+Each run's text input is assembled by `RunExecutor.buildPrompt()`, in this order:
+
+1. `[Now: Fri 31 Oct 2026, 09:14 (Europe/Lisbon)]`, in your time zone from Settings.
+2. In a group chat: who else is in the chat with their jobs, and what you and the other teammates said since this teammate last spoke (up to 10 of each, 1,500 characters per line).
+3. The memory packet: pinned and relevant memories, with their ids and revisions (see [Memory](/docs/flows/memory#what-a-run-sees)).
+4. Your Always allow rules, so rules you add mid-conversation reach a thread that already read its `AGENTS.md`.
+5. The request itself: your message, or the text the trigger produced.
+6. A list of attached files with their paths, types and sizes.
+
+Image attachments are also passed as `localImage` inputs, so the model sees them.
+A `/name` in the request adds a `skill` input with the path of that skill's `SKILL.md`, so Codex loads it explicitly.
+
+## Turns
+
+A run is one turn.
+The session calls `turn/start` with the input, the teammate's model and reasoning effort, the approval policy and the trigger.
+
+### From Codex events to the timeline
+
+The session maps Codex notifications to timeline items (`apps/worker/src/runs/mapper.ts`):
+
+| Codex                      | Timeline item                                                                                 |
+| -------------------------- | --------------------------------------------------------------------------------------------- |
+| `agentMessage`             | `message`, with phase `commentary` or `final`                                                 |
+| `reasoning` (summary only) | `reasoning`, streamed by `summaryTextDelta`                                                   |
+| `commandExecution`         | `command`, with streamed output (the last 20,000 characters are kept), exit code and duration |
+| `fileChange`               | `file_change`, with each path, kind and diff                                                  |
+| `turn/plan/updated`        | `plan`, with each step's status                                                               |
+| `webSearch`                | `web_search`                                                                                  |
+| `mcpToolCall`              | `tool`, named `server.tool`                                                                   |
+| a dynamic tool call        | recorded by the tool handler itself, with richer detail (a screenshot, an approval card)      |
+
+Text deltas are appended to their item and coalesced by `RunEventWriter`.
+`thread/tokenUsage/updated` adds to the run's token counts, kept separately for the plan and the API key.
+
+The turn ends with `turn/completed`, whose status is `completed`, `interrupted` or `failed`.
+A failure carries `codexErrorInfo`, which is how the session knows the plan's usage limit was reached (`usageLimitExceeded`) or the API key was rejected (`unauthorized` or HTTP 401).
+
+The reply you see is the last `final` message of the turn, or the last message if none is final.
+
+### Server requests during a turn
+
+| Request                                 | Answered by                                                                    |
+| --------------------------------------- | ------------------------------------------------------------------------------ |
+| `item/tool/call`                        | `ToolHandlers`: the result of an open-bot tool                                 |
+| `item/commandExecution/requestApproval` | The approval service, after Always allow rules. Returns `accept` or `decline`. |
+| `item/fileChange/requestApproval`       | The same, for file changes                                                     |
+| `item/tool/requestUserInput`            | Empty answers: teammates ask through their own tools instead                   |
+| `mcpServer/elicitation/request`         | Declined                                                                       |
+| `account/chatgptAuthTokens/refresh`     | `CodexManager`, with a fresh token from the host's login                       |
+
+### Steering and interrupting
+
+A message you send while the teammate is working joins the running turn with `turn/steer`, which takes the expected turn id so it can't land on the wrong turn.
+Your hand-back notes after a takeover use the same path.
+If the turn has already ended, a new run is queued instead.
+
+Stopping a run calls `turn/interrupt`.
+
+### Long waits inside tools
+
+Codex runs dynamic tools inside a code cell that hands control back to the model after about 30 seconds, even while a tool is still waiting.
+The model may then poll, or end its turn.
+So open-bot never relies on a tool blocking for long:
+
+- Approvals and takeovers wait in the tool for up to 10 minutes, and the run shows as `waiting`. A quick answer goes straight back into the turn.
+- If the turn ends first, the waiter is released, and your later decision or hand-back starts a **new run** in the same chat that says what you decided.
+- Emails don't wait at all: they go to an outbox and send when you approve.

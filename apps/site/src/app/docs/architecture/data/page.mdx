@@ -1,0 +1,244 @@
+import { docMetadata } from "@/lib/docs";
+
+export const metadata = docMetadata("/docs/architecture/data");
+
+# Data and events
+
+Postgres is the system of record, the job queue, the event log and the message bus.
+This page covers the schema, how runs are queued, how events are stored and streamed, and the three `NOTIFY` channels.
+
+## The schema
+
+The schema is one file, `packages/db/src/schema.ts`, written with Drizzle ORM.
+It has about 45 tables.
+Here they are grouped by what they're for:
+
+<SchemaMap
+  groups={[
+    {
+      title: "Teammates and chats",
+      tables: [
+        {
+          name: "bots",
+          note: "Name, slug, role, instructions, autonomy, model, budget, primary flag",
+        },
+        {
+          name: "chats",
+          note: "direct, group, scheduled, inbox or helper; the teammate of a direct chat",
+        },
+        { name: "chat_members", note: "Which teammates are in a group chat" },
+        {
+          name: "messages",
+          note: "What you wrote: text, attachments, mentions, steering and redo links",
+        },
+      ],
+    },
+    {
+      title: "Runs and the event log",
+      tables: [
+        {
+          name: "runs",
+          note: "One turn: trigger, prompt, status, thread and turn ids, final reply, rating",
+        },
+        { name: "run_events", note: "The ordered log of everything a run did, as jsonb payloads" },
+        {
+          name: "bot_threads",
+          note: "The Codex thread for each teammate and chat, with what it was made with",
+        },
+        { name: "artifacts", note: "Screenshots and uploads, as bytes" },
+        {
+          name: "usage_entries",
+          note: "An append-only ledger of tokens and cost, per run and auth mode",
+        },
+      ],
+    },
+    {
+      title: "Control",
+      tables: [
+        { name: "approvals", note: "Pending and decided approvals: kind, title, detail, payload" },
+        {
+          name: "approval_rules",
+          note: "Always allow rules: a command prefix, an action, or file changes",
+        },
+        {
+          name: "desktop_takeovers",
+          note: "Takeovers and bot requests for help, with hand-back notes",
+        },
+        { name: "notifications", note: "What you were told, with read state" },
+      ],
+    },
+    {
+      title: "Automations and teamwork",
+      tables: [
+        {
+          name: "schedules",
+          note: "Cron routines and one-time reminders, with their next run time",
+        },
+        {
+          name: "triggers",
+          note: "Page watches (URL, interval, last text) and webhooks (secret token)",
+        },
+        { name: "tasks", note: "The shared task board" },
+        {
+          name: "swarms, swarm_tasks",
+          note: "A job split across helpers, and each helper's part and result",
+        },
+        {
+          name: "instruction_proposals",
+          note: "A teammate's suggested rewrite of its own instructions",
+        },
+        { name: "skills", note: "Saved procedures, shared or for one teammate" },
+      ],
+    },
+    {
+      title: "Memory",
+      tables: [
+        {
+          name: "memory_items, memory_revisions",
+          note: "Current memories, and every revision of each",
+        },
+        { name: "memory_embeddings", note: "Optional pgvector embeddings, per revision and model" },
+        { name: "memory_generations", note: "A counter per scope that fences stale threads" },
+        { name: "memory_jobs", note: "Durable background jobs: embedding and extraction" },
+        { name: "memory_contexts", note: "Which memory ids and revisions each run was given" },
+        {
+          name: "memory_imports, memory_usage",
+          note: "Import markers, and the daily AI request budget",
+        },
+        { name: "lessons", note: "A compatibility projection of feedback lessons" },
+      ],
+    },
+    {
+      title: "Secrets, money and channels",
+      tables: [
+        {
+          name: "credentials",
+          note: "The OpenAI API key, Telegram token and VAPID keys, encrypted",
+        },
+        {
+          name: "vault_items",
+          note: "Logins and cards, encrypted, with the teammates that may use each",
+        },
+        {
+          name: "purchases",
+          note: "Payments a teammate made or asked to make, against its budget",
+        },
+        { name: "connections", note: "MCP servers, with encrypted headers or environment" },
+        {
+          name: "telegram, telegram_messages",
+          note: "The linked bot and chat, and message-to-chat links",
+        },
+        {
+          name: "email_settings, emails",
+          note: "Your domain and inbound secret; every email in and out",
+        },
+        { name: "push_subscriptions", note: "Browsers and phones that get push notifications" },
+      ],
+    },
+    {
+      title: "App state and auth",
+      tables: [
+        {
+          name: "settings",
+          note: "One row: monthly cap, time zone, ChatGPT auth source, plan limit",
+        },
+        { name: "computers", note: "One row: the computer and its egress mode" },
+        { name: "user, session, account, verification, passkey", note: "Better Auth" },
+      ],
+    },
+  ]}
+/>
+
+### Conventions
+
+- Primary keys are random UUIDs, except `run_events.id`, which is a `bigserial` so events have a global order.
+- Timestamps are `timestamptz`.
+- Structured values (attachments, timeline payloads, approval payloads) are `jsonb` with a TypeScript type attached with `$type<>()`.
+- Deleting a teammate archives it (`bots.archived_at`). Rows that belong to it cascade or set null as each foreign key says.
+- Secrets are never stored in plain text. `encryptSecret()` in `@open-bot/shared` uses AES-256-GCM with a random 12-byte IV, and stores `iv.tag.ciphertext` in base64url.
+
+### Migrations
+
+Migrations are generated SQL files in `packages/db/drizzle/`, from `0000_init.sql` to `0020_versioned_memory.sql`.
+
+```sh title="Terminal"
+pnpm db:generate   # write a new migration from changes to schema.ts
+pnpm db:migrate    # apply pending migrations
+```
+
+`0020` runs `CREATE EXTENSION IF NOT EXISTS vector`, so the database must have pgvector available.
+The local Compose file uses the `pgvector/pgvector:pg17` image.
+
+## The run queue
+
+A queued run is a row in `runs` with `status = 'queued'`.
+Anything that wants a teammate to work calls `enqueueRun()` (`apps/worker/src/context.ts`), which:
+
+1. inserts the run with its trigger, prompt and links (the message, schedule, trigger or parent run that caused it);
+2. appends a first `status: queued` event, so the chat shows it right away;
+3. sends `NOTIFY openbot_worker, 'runs'`.
+
+The worker claims runs with `UPDATE ... FOR UPDATE SKIP LOCKED`, at most one per teammate per chat, oldest first.
+The query is on the [Worker](/docs/architecture/worker#claiming-work) page.
+
+### Run states
+
+<Figure caption="A run is active while it is starting, running or waiting. When the worker restarts, every active run becomes interrupted, because a Codex turn can't be resumed without the session that drove it.">
+  <RunStatusDiagram />
+</Figure>
+
+`runs.waiting_for` says what a waiting run waits for: `approval` or `takeover`.
+`runs.cancel_requested_at` marks a run you stopped, until the worker processes it.
+
+## The event log
+
+`run_events` is append-only.
+Each row has the run id, the chat id (so a chat's events are one index scan), and a jsonb `payload` of one of four types:
+
+```ts title="RunEventPayload (packages/shared/src/timeline.ts)"
+type RunEventPayload =
+  | { type: "status"; status: RunStatus; error?: string; waitingFor?: "approval" | "takeover" }
+  | { type: "item"; item: TimelineItem } // insert or replace an item by id
+  | { type: "delta"; itemId: string; delta: string } // append text to an item
+  | { type: "usage"; inputTokens: number; cachedInputTokens: number; outputTokens: number };
+```
+
+A `TimelineItem` is one thing the run did, with an `id`, a `status` (`running`, `completed` or `failed`) and timestamps.
+There are fourteen kinds: `message`, `reasoning`, `command`, `file_change`, `plan`, `web_search`, `tool`, `computer` (a desktop action with its screenshot), `approval`, `takeover_request`, `handoff`, `user_message` (steering and hand-back notes), `swarm` and `error`.
+
+Items are written whole whenever they change, and the reducer replaces them by id.
+Deltas only append text.
+This keeps the reducer simple and makes the log easy to read in SQL.
+
+`applyRunEvent(state, payload)` in `@open-bot/shared` folds events into a run's timeline.
+It is pure and shared: the web app uses it on the server to build a chat's first snapshot, and in the browser to apply live events.
+
+### Why a log
+
+- **Streaming.** The stream route reads rows after a cursor, so streaming is just a query.
+- **Resuming.** A tab that reconnects sends its last id and gets exactly what it missed.
+- **Replay.** Every desktop action points to its screenshot in `artifacts`, so you can step through what a teammate did, frame by frame, at any later time.
+- **Late updates.** An approval decided after its run ended still appends an event to that run (`appendRunEvent`), so the card in the chat updates.
+
+## Notification channels
+
+`packages/db/src/index.ts` defines three channels:
+
+| Channel          | Payload                                        | Sent by                              | Listened to by            |
+| ---------------- | ---------------------------------------------- | ------------------------------------ | ------------------------- |
+| `openbot_worker` | `runs`, `schedules`, `triggers` or `cancel`    | the web app and the worker           | the worker                |
+| `openbot_chat`   | a chat id                                      | the worker, after storing run events | the web app's SSE streams |
+| `openbot_app`    | a JSON `AppEvent`, like `{"type":"approvals"}` | the web app and the worker           | the web app's SSE streams |
+
+`AppEvent` has about twenty types, one per area of the UI: `bots`, `chats`, `approvals`, `takeovers`, `lease`, `computer`, `notification`, `schedules`, `triggers`, `tasks`, `memory`, `vault`, `purchases`, `connections`, `email`, `telegram`, `skills`, `profile`, `lessons` and `auth`.
+Each one tells open tabs which cached queries to refetch.
+
+Notifications are hints, not data.
+Every listener reads the rows itself, and the worker sweeps for queued runs and cancellations every 15 seconds, so a dropped notification only delays something.
+
+## Usage ledger
+
+`usage_entries` records tokens per run and auth mode, with an idempotency key of `run:<id>:<mode>` so a retry can't count twice.
+Plan usage costs nothing per token, so its `cost_micros` is 0.
+API key usage is priced at the model's list prices, in millionths of a dollar.
+See [Models and usage](/docs/flows/models-and-usage#the-monthly-cap).

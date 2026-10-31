@@ -1,0 +1,139 @@
+import { docMetadata } from "@/lib/docs";
+
+export const metadata = docMetadata("/docs/architecture/web-app");
+
+# Web app
+
+`apps/web` is a Next.js 16 app with the App Router, React 19 and Tailwind 4.
+It is the only UI, and it has a simple rule: it reads Postgres directly, and asks the worker to do anything that acts.
+
+<Figure caption="Four ways in. Pages and reads are plain database queries. Writes are server actions, which save rows and then call the worker when something has to happen. The live screen bypasses the web server entirely.">
+  <WebAppDiagram />
+</Figure>
+
+## What talks to what
+
+- **Pages** (`src/app/(app)/*`) are server components. They check the session and render the first view from Postgres, so a page is useful before any client code runs.
+- **Server actions** (`src/lib/actions.ts`) handle every write: create a teammate, send a message, decide an approval, save a vault item. Each one validates its input with zod, writes rows, and calls the worker's internal API when the change needs work done.
+- **Read routes** (`src/app/api/*/route.ts`) are `GET` handlers that client components query through TanStack Query. They exist because Next.js runs server actions one at a time per client, so reads done as actions queued behind each other and made pages slow.
+- **The event stream** (`GET /api/stream`) is one server-sent events connection per tab. It tells the tab when anything changes, and streams the run events of the chat on screen.
+
+The browser never talks to Codex or botd.
+The only connection outside the web server is the live screen, which goes from the browser straight to the worker's `/vnc` websocket.
+
+## Authentication
+
+open-bot belongs to one person, and the web app enforces it.
+
+- **Better Auth** stores users, sessions, accounts and passkeys in Postgres through its Drizzle adapter.
+- **Email and password** (at least 10 characters) and **passkeys** are both supported. A passkey's relying party is the host of `BETTER_AUTH_URL`.
+- **One owner.** A database hook runs before any user is created. It refuses an email that isn't `OWNER_EMAIL`, and refuses any second account.
+- **Sessions** last 30 days and are refreshed daily. The Electron app's `app://open-bot` origin is trusted alongside the web origin.
+
+Every protected surface checks the session itself:
+
+| Surface                                            | Check                                                                                                  |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Middleware (`src/proxy.ts`)                        | Redirects to `/login` when there is no session cookie. It's an optimistic check only.                  |
+| Pages                                              | `requireUser()` verifies the session and redirects to `/login`, or to `/setup` if no owner exists yet. |
+| Server actions                                     | `guarded()` calls `requireUser()` first, then turns errors into `{ ok: false, error }`.                |
+| Read routes                                        | `authed()` returns `401` without a session, and maps worker errors to their status.                    |
+| `/api/hooks/[token]`, `/api/inbound/email/[token]` | Public on purpose. The secret token in the URL is the credential.                                      |
+
+## Calling the worker
+
+`src/lib/server/worker.ts` is a small `fetch` wrapper.
+It sends the shared `WORKER_SECRET` in an `x-worker-secret` header, times out after 30 seconds by default, and throws a `WorkerError` with the worker's status and message.
+If the worker can't be reached at all, the error is a 503 that says to start it.
+
+Sending a message shows the split between writing and acting:
+
+```ts title="apps/web/src/lib/actions.ts (simplified)"
+export async function sendMessage(input) {
+  return guarded(async () => {
+    const [row] = await db
+      .insert(messages)
+      .values({
+        chatId: input.chatId,
+        role: "user",
+        text: input.text,
+        attachments: input.attachments,
+      })
+      .returning();
+    // The worker decides who answers, and whether this joins a running turn.
+    await worker("POST", `/internal/messages/${row.id}/dispatch`);
+    return toView(row);
+  });
+}
+```
+
+The web app saves your message, so it is never lost even if the worker is down.
+The worker decides what happens next.
+
+## Live updates
+
+### On the server
+
+`src/lib/server/realtime.ts` holds **one** Postgres connection per server process, listening on two channels:
+
+- `openbot_chat`, whose payload is a chat id: something in that chat changed.
+- `openbot_app`, whose payload is a small JSON event like `{"type":"approvals"}`: something app-wide changed.
+
+It fans each notification out to every open SSE stream in that process with an `EventEmitter`.
+A stream never holds its own database connection.
+
+### The stream route
+
+`GET /api/stream?chat=<id>&after=<cursor>` sends three kinds of events:
+
+| Event   | Data                                                     | Sent when                                  |
+| ------- | -------------------------------------------------------- | ------------------------------------------ |
+| `ready` | `{ cursor }`                                             | The stream opens.                          |
+| `app`   | an `AppEvent`, like `{"type":"notification","id":"..."}` | Any `openbot_app` notification.            |
+| `run`   | `{ id, runId, payload }`, a row of `run_events`          | A new event in the watched chat, in order. |
+
+For the watched chat, the route keeps a cursor.
+On every `openbot_chat` notification for that chat, it selects rows with `id > cursor` in pages of 500, sends them, and advances the cursor.
+The work is serialized through a promise chain, so a burst of notifications can never send an event twice or out of order.
+It also catches up once right after opening, which covers anything written between the page load and the connection.
+A comment line every 20 seconds keeps proxies from closing the connection.
+
+### In the browser
+
+`RealtimeProvider` (`src/lib/client/realtime.tsx`) owns the tab's single `EventSource`:
+
+- An `app` event invalidates the matching TanStack Query keys, debounced by 120 ms for the app state. Pages refetch through the read routes.
+- A `ready` event invalidates everything, because anything could have changed while disconnected.
+- A `notification` event fetches the notification and shows a toast, and an OS notification when allowed and the chat isn't already open.
+- `run` events go to the chat that is watching. The provider remembers the last event id per chat and drops anything older, so a reconnect never applies an event twice.
+
+`useChat` then folds events into the chat view with `applyRunEvent` from `@open-bot/shared`.
+It's a pure reducer shared by the server (to build the first snapshot) and the client (to apply live events), so both always agree.
+Events that arrive before the snapshot loads are buffered and applied after it, skipping any already included in the snapshot's cursor.
+
+## The live screen
+
+The computer panel embeds noVNC.
+To connect, the browser asks `GET /api/desktop/token` for the worker's websocket URL and a token signed with `WORKER_SECRET` that expires in 60 seconds.
+It then opens `wss://<worker>/vnc?screen=<id>&mode=view|control&token=...`.
+
+The worker checks the token, and only allows `mode=control` while you hold that screen's lease.
+See [Screens and takeover](/docs/flows/screens-and-takeover).
+
+## Pages
+
+| Route                        | What it shows                                                                                |
+| ---------------------------- | -------------------------------------------------------------------------------------------- |
+| `/`                          | Home: what each teammate finished or got stuck on, and what needs you.                       |
+| `/chats/[chatId]`            | A chat, with the live timeline and the teammate's screen beside it.                          |
+| `/bots/new`, `/bots/[botId]` | Creating and editing a teammate: job, memory, lessons, rules, automations, spending.         |
+| `/computer`                  | Every screen, live, with takeover.                                                           |
+| `/approvals`                 | The approvals inbox.                                                                         |
+| `/automations`               | Schedules, page watches and webhooks, with their run history.                                |
+| `/tasks`                     | The shared task board.                                                                       |
+| `/skills`                    | Saved skills.                                                                                |
+| `/vault`                     | Logins and cards.                                                                            |
+| `/files`                     | A file browser for the computer's `/home/bot`.                                               |
+| `/settings`                  | ChatGPT sign-in, the API key and cap, egress, Telegram, email, push, connections, About you. |
+
+The app is installable: `manifest.ts` provides the web manifest, and `public/sw.js` is the service worker for push notifications.

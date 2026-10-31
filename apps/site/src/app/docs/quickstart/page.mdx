@@ -1,0 +1,85 @@
+import { docMetadata } from "@/lib/docs";
+
+export const metadata = docMetadata("/docs/quickstart");
+
+# Run it locally
+
+The whole system runs on one Mac or Linux machine.
+Postgres and the computer run in Docker, and the web app and the worker run from source.
+
+## Requirements
+
+- **Node 24** and **pnpm 10** (the repository pins `pnpm@10.24.0`).
+- **Docker**, with about 4 GB of memory for the computer.
+- **The Codex CLI**, signed in to ChatGPT with `codex login`. In development, the computer borrows this login (see [Models and usage](/docs/flows/models-and-usage#signing-in-to-chatgpt)).
+
+## Start everything
+
+```sh title="Terminal"
+git clone https://github.com/VishnuVVR-369/open-bot.git
+cd open-bot
+pnpm install
+cp .env.example .env    # set OWNER_EMAIL to your email
+pnpm infra:up           # Postgres and the computer (the first build takes a few minutes)
+pnpm db:migrate
+pnpm dev                # the web app and the worker
+```
+
+Open `http://localhost:3000`.
+The first visit goes to `/setup`, where you create the one owner account with the email you put in `OWNER_EMAIL`.
+Any other email is refused, and so is a second account.
+
+## What is running
+
+| Process                  | Where        | Port                                      | Started by                            |
+| ------------------------ | ------------ | ----------------------------------------- | ------------------------------------- |
+| Web app                  | your machine | `3000`                                    | `pnpm dev`                            |
+| Worker                   | your machine | `4001`                                    | `pnpm dev`                            |
+| Postgres (with pgvector) | Docker       | `127.0.0.1:54329`                         | `pnpm infra:up`                       |
+| The computer (botd)      | Docker       | `127.0.0.1:7070`, mapped to `7000` inside | `pnpm infra:up`                       |
+| Desktop app (optional)   | your Mac     | none                                      | `pnpm --filter @open-bot/desktop dev` |
+
+Both Docker services publish their ports on `127.0.0.1` only.
+In the cloud, Postgres and the computer have no public address at all (see [Deployment](/docs/deployment)).
+
+`pnpm dev` runs Turborepo with `--parallel` for the two apps.
+The worker runs through `tsx watch`, and the web app through `next dev`, so both reload when you edit them.
+Both read the root `.env`.
+
+## Your first teammate
+
+1. Open **New teammate** and pick a template, or write a job yourself.
+2. Send it a message, like "Find the opening hours of the nearest library".
+3. Watch the reply stream in. When it uses the browser, its screen appears next to the chat.
+4. Press **Take over** on the screen to use it yourself, then **Hand back**.
+
+Teammates that use the desktop start a screen the first time they need one, which takes a few seconds.
+
+## The desktop app
+
+```sh title="Terminal"
+pnpm --filter @open-bot/desktop dev
+```
+
+It opens `http://localhost:3000` by default.
+Set `OPEN_BOT_URL` to point it at a deployed web app.
+Sign in inside its window, and its egress agent starts carrying the computer's browser traffic through your machine.
+
+## Rebuilding the computer
+
+The computer image contains botd.
+After changing anything in `apps/botd`, `packages/egress` or `images/computer`, rebuild and restart it:
+
+```sh title="Terminal"
+pnpm computer:build
+docker compose up -d --wait computer
+```
+
+The `/home` volume keeps workspaces, browser profiles and the Codex login across rebuilds.
+
+## Troubleshooting
+
+- **"The worker isn't running."** The web app couldn't reach `WORKER_URL`. Check the worker's output from `pnpm dev`.
+- **"Codex is not signed in to ChatGPT."** Run `codex login` on your machine, or switch Settings → ChatGPT to sign in on the computer itself.
+- **Runs stay queued.** The worker only claims runs once it is connected to botd and Codex is signed in. Settings shows both.
+- **A screen won't start locally.** The Compose file runs the computer with `seccomp=unconfined` and 2 GB of shared memory, which Chromium's sandbox and several browsers need. Keep those settings.

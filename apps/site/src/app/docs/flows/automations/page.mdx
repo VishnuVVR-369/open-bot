@@ -1,0 +1,160 @@
+import { docMetadata } from "@/lib/docs";
+
+export const metadata = docMetadata("/docs/flows/automations");
+
+# Automations
+
+Automations wake a teammate without you.
+There are three kinds: **schedules** fire at a time, **page watches** fire when a web page changes, and **webhooks** fire when another service calls a URL.
+All three end the same way: a queued run in the teammate's Scheduled chat.
+
+## Where automations run
+
+Each teammate has one Scheduled chat (`chats.kind = 'scheduled'`), created the first time it is needed.
+Every automation's run goes there, so your direct chats stay about what you asked, and the history of what a teammate did on its own is in one place.
+
+Because runs are just rows, automations keep working with your laptop closed.
+They need the worker and the computer to be running, not the web app or a browser.
+
+## Who creates them
+
+You create automations on the Automations page, or on a teammate's Automations tab.
+Teammates create them too, with their own tools:
+
+| Tool                | Creates                                                  |
+| ------------------- | -------------------------------------------------------- |
+| `schedule_task`     | A cron routine or a one-time reminder                    |
+| `watch_page`        | A page watch                                             |
+| `create_webhook`    | A webhook URL                                            |
+| `list_automations`  | Lists its schedules, watches and webhooks with their ids |
+| `update_automation` | Pauses, resumes, renames or changes one of its own       |
+| `cancel_automation` | Deletes one of its own                                   |
+
+A teammate can only see and change its own automations.
+
+## Schedules
+
+A schedule is a row in `schedules`:
+
+- `kind`: `cron` for a recurring routine, `at` for a one-time reminder;
+- `cron` and `timezone`, or a single time;
+- `prompt`, the instructions the teammate gets;
+- `next_run_at`, computed when the schedule is saved and after every run;
+- `enabled`, and `quiet` (below).
+
+### The scheduler
+
+`ScheduleService` (`apps/worker/src/services/schedules.ts`) ticks every 10 seconds, and right away when a schedule is created or changed (the web app sends `NOTIFY openbot_worker, 'schedules'`).
+
+Each tick runs in one transaction:
+
+```sql title="Claiming due schedules"
+select * from schedules
+where enabled = true and next_run_at <= now()
+for update skip locked
+```
+
+For each due row, it computes the next run time with `cron-parser` in the schedule's time zone (a reminder gets none and is disabled), saves it, and then queues a run:
+
+```text title="The run's prompt"
+[Scheduled task: "Morning briefing"]
+
+Check my calendar and inbox, and tell me what needs me today.
+```
+
+Computing the next time before queueing means a crash between the two can skip one occurrence, but can never fire one twice.
+If the worker was down for a while, a schedule fires once when it comes back, not once per missed occurrence.
+
+Each schedule's recent runs are listed under it, and **Run now** fires it without changing its next run time.
+A paused routine stays paused when you edit it, and a finished reminder moved to a new time runs again.
+
+## Quiet routines and check-ins
+
+A schedule can be **quiet**.
+Its prompt gets one more line:
+
+> Only tell the user about things worth their attention. If there's nothing, reply with exactly: Nothing to report.
+
+When a quiet routine's run replies exactly that, it sends no notification, stays out of the briefing on Home, and shows as one muted line in the chat.
+Every template starts with a quiet daily check-in, and a teammate's Automations tab can turn one on.
+
+## Page watches
+
+A page watch checks a URL on an interval, from 5 minutes to a week, and wakes the teammate when the page changes.
+It is a row in `triggers` with `kind = 'watch'`, the URL, the interval, optional text to look for, and the page's last text.
+
+<Figure
+  minWidth={620}
+  caption="The first check only learns the page. After that, the teammate gets your instructions plus the lines that appeared and disappeared, marked as outside data."
+>
+  <Sequence
+    actors={[
+      { id: "worker", label: "Worker", sub: "TriggerService" },
+      { id: "site", label: "The website" },
+      { id: "pg", label: "Postgres" },
+      { id: "bot", label: "Teammate", sub: "a new run" },
+    ]}
+    steps={[
+      { self: "worker", label: "tick: watches due for a check" },
+      { from: "worker", to: "site", label: "GET, as a signed-out visitor" },
+      { from: "site", to: "worker", label: "HTML", reply: true },
+      { self: "worker", label: "page text, one block per line" },
+      { from: "worker", to: "pg", label: "compare with the last text, save the new one" },
+      { section: "Only if it changed" },
+      { from: "worker", to: "bot", label: "queue a watch run with the added and removed lines" },
+    ]}
+  />
+</Figure>
+
+### Checking
+
+`TriggerService` (`apps/worker/src/services/triggers.ts`) ticks every 30 seconds and checks up to 4 watches at a time.
+A check:
+
+- fetches from the worker, without a browser, cookies or sign-ins, with a 20-second timeout;
+- follows at most 5 redirects, checking each one;
+- reads at most 3 MB;
+- refuses private, loopback, link-local and metadata addresses when `WATCH_ALLOW_PRIVATE_URLS` is false (the default in production), so a watch can't be used to probe the services next to the worker.
+
+### Comparing
+
+`pageText()` reduces HTML to readable text: comments, scripts, styles, SVGs and iframes are dropped, block-level tags become line breaks, entities are decoded, whitespace is collapsed, and the result is capped at 200,000 characters.
+One block per line makes two versions easy to compare.
+
+`watchChange()` then decides whether to fire:
+
+- The **first** check never fires. It only learns what the page looks like.
+- A watch **without** text to look for fires on any added or removed line. Lines are compared as multisets, so moving content around without changing it doesn't fire.
+- A watch **with** text to look for (like "In stock") fires only on the check where that text **appears**, not again while it stays.
+
+The run's prompt has your instructions, then up to 40 added and 40 removed lines (each cut at 300 characters), introduced as data from outside, not instructions.
+
+## Webhooks
+
+A webhook is a private URL that starts a teammate when anything calls it:
+
+```text
+https://<your-app>/api/hooks/<token>
+```
+
+- The token (20 to 64 URL-safe characters) is the only credential. Anyone who knows the URL can start the teammate, so treat it like a password.
+- `GET`, `POST` and `PUT` are accepted, with a body of at most 256 KB.
+- Each call queues a run with the method, the query and the body (JSON is pretty-printed, and the payload is cut at 20,000 characters), introduced as outside data.
+- Each webhook starts at most **30 runs an hour**. Calls over the limit get an error.
+- **New URL** rotates the token, and the old URL stops working at once.
+
+The public route is in the web app, which checks the size and forwards the request to the worker's `POST /internal/hooks/:token`.
+The response is `202 Accepted` with the run id.
+
+```sh title="Calling a webhook"
+curl -X POST https://<your-app>/api/hooks/<token> \
+  -H 'content-type: application/json' \
+  -d '{"event":"deploy_failed","service":"api"}'
+```
+
+## Prompt injection
+
+Watched pages and webhook payloads come from outside, and may contain text that looks like instructions.
+Both are wrapped in a note that says to treat them as data (`PAGE_TEXT_NOTE` and `WEBHOOK_PAYLOAD_NOTE`), and the developer instructions repeat the rule.
+This lowers the risk, but can't remove it.
+Teammates still need your approval for consequential actions according to their autonomy level, and that is the real safeguard.

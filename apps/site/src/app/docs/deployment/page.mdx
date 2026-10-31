@@ -1,0 +1,160 @@
+import { docMetadata } from "@/lib/docs";
+
+export const metadata = docMetadata("/docs/deployment");
+
+# Deployment
+
+To keep teammates working while your laptop is closed, run open-bot in the cloud.
+This page describes the shape of a deployment and walks through it on Railway, which the project was built against.
+The same shape works on any host that runs containers with a private network and a persistent volume.
+
+<Figure caption="Only the web app and the worker's websocket endpoints are public. The desktop app runs on your Mac and connects out to the worker, so no ports open at home.">
+  <DeploymentDiagram />
+</Figure>
+
+## Services
+
+| Service    | Source                        | Network                                    | Storage           | Replicas  |
+| ---------- | ----------------------------- | ------------------------------------------ | ----------------- | --------- |
+| `postgres` | Postgres 17 **with pgvector** | Private                                    | Database volume   | 1         |
+| `computer` | `images/computer/Dockerfile`  | Private, port 7000                         | Volume at `/home` | 1         |
+| `worker`   | This repository, Node 24      | Private, plus public HTTPS and WSS on 4001 | None              | 1         |
+| `web`      | This repository, Node 24      | Public HTTPS on 3000                       | None              | 1 or more |
+
+The three services built from the repository use its root as their root directory, because they need the shared workspace packages and the root lockfile.
+
+<Callout kind="warning" title="One worker, one computer">
+  The worker keeps in-memory state: run sessions, approval waiters, timers, Telegram long polling
+  and websockets. It is not designed to run as more than one replica. The computer holds every
+  teammate's screen and must also be a single replica.
+</Callout>
+
+## 1. Secrets
+
+Generate each secret separately:
+
+```sh title="Terminal"
+openssl rand -hex 32      # BETTER_AUTH_SECRET, WORKER_SECRET, BOTD_TOKEN (one each)
+openssl rand -base64 32   # ENCRYPTION_KEY: exactly 32 bytes, base64
+```
+
+| Secret               | Set on                        |
+| -------------------- | ----------------------------- |
+| `BETTER_AUTH_SECRET` | web                           |
+| `WORKER_SECRET`      | web, worker (same value)      |
+| `ENCRYPTION_KEY`     | web, worker (same value)      |
+| `BOTD_TOKEN`         | worker, computer (same value) |
+
+Back up `ENCRYPTION_KEY`.
+Every stored API key, vault item and connection secret depends on it.
+
+## 2. Postgres
+
+The `0020` migration runs `CREATE EXTENSION IF NOT EXISTS vector`, so the database must have the pgvector extension available.
+Use a Postgres image or template that includes it, such as `pgvector/pgvector:pg17`, which is what local development uses.
+
+## 3. The computer
+
+- Build from `images/computer/Dockerfile` (on Railway, set `RAILWAY_DOCKERFILE_PATH=images/computer/Dockerfile`), and use the image's own entrypoint.
+- Mount a persistent volume at `/home`. A Dockerfile `VOLUME` is not enough.
+- Give it no public address. botd listens on port 7000.
+- Health check `/healthz`, with up to 300 seconds to start.
+
+```dotenv title="computer variables"
+BOTD_TOKEN=<same as the worker>
+MAX_SCREENS=2                  # start low, measure memory, then raise
+RAILWAY_RUN_UID=0              # botd must start as root to manage its users
+RAILWAY_DEPLOYMENT_DRAINING_SECONDS=30
+RAILWAY_SHM_SIZE_BYTES=2147483648   # 2 GB of shared memory for the browsers
+```
+
+Budget memory for the desktop, Codex, and each running screen.
+Measured locally, an idle computer uses about 370 MB, and each blank screen about 330 MB more.
+
+<Callout kind="risk">
+  Railway refuses user namespaces, so Chromium's sandbox can't run there, and botd starts browsers
+  with `--no-sandbox`. `/healthz` being green doesn't prove a browser can start: after deploying,
+  open a screen, load a page, and check botd's log. Read [Security
+  model](/docs/security#known-risks) before choosing a host.
+</Callout>
+
+## 4. The worker
+
+```sh title="Build and start"
+pnpm --filter @open-bot/worker build    # esbuild bundles the worker and its workspace packages
+pnpm --filter @open-bot/worker start    # node dist/worker.mjs
+```
+
+Run migrations before the worker starts, as a pre-deploy step on the worker only:
+
+```sh title="Pre-deploy command"
+pnpm db:migrate
+```
+
+The migration script runs through `tsx`, so keep development dependencies installed (`RAILPACK_PRUNE_DEPS=false` on Railway).
+
+```dotenv title="worker variables"
+NODE_ENV=production
+WORKER_PORT=4001
+DATABASE_URL=<private Postgres URL>
+BOTD_URL=http://<computer private host>:7000
+BOTD_TOKEN=<same as the computer>
+WORKER_SECRET=<same as web>
+ENCRYPTION_KEY=<same as web>
+APP_URL=https://<web domain>            # webhook URLs start with it
+WATCH_ALLOW_PRIVATE_URLS=false
+MAX_CONCURRENT_RUNS=2
+ELECTRON_SKIP_BINARY_DOWNLOAD=1          # the workspace includes the desktop app
+```
+
+Give the worker a public domain on port 4001.
+Browsers connect to its `/vnc` endpoint and the desktop app to `/egress/agent` directly, with short-lived signed tokens.
+Every other route needs `WORKER_SECRET`.
+
+Turn off any "sleep when idle" feature for the worker and the computer, so schedules, polling and sessions keep running.
+
+## 5. The web app
+
+```sh title="Build and start"
+pnpm --filter @open-bot/web build
+pnpm --filter @open-bot/web start       # next start on port 3000
+```
+
+```dotenv title="web variables"
+NODE_ENV=production
+OWNER_EMAIL=<your email>
+DATABASE_URL=<private Postgres URL>
+BETTER_AUTH_SECRET=<random>
+BETTER_AUTH_URL=https://<web domain>
+WORKER_URL=http://<worker private host>:4001
+WORKER_SECRET=<same as worker>
+ENCRYPTION_KEY=<same as worker>
+NEXT_PUBLIC_WORKER_WS_URL=wss://<worker domain>
+ELECTRON_SKIP_BINARY_DOWNLOAD=1
+```
+
+`NEXT_PUBLIC_WORKER_WS_URL` is built into the client, so rebuild after changing it.
+Use the targeted build commands above rather than the root `pnpm build`, which also builds the desktop app.
+
+## 6. First sign-in and smoke test
+
+1. Deploy Postgres and the computer, then the worker (with migrations), then the web app.
+2. Open the web app and create the owner account with `OWNER_EMAIL`.
+3. In Settings → ChatGPT, choose **Sign in on the computer**, then complete the device-code login. The login is saved on the computer's volume.
+4. Optionally add an OpenAI API key and a monthly cap.
+5. Create a teammate. Open its screen, load a page, take over, hand back, and send a message.
+6. Restart the computer and check that files, the ChatGPT login and browser sign-ins survived.
+7. Run the desktop app against the deployment with `OPEN_BOT_URL=https://<web domain>`, sign in inside it, and check that the computer panel shows browsing through your Mac.
+
+## Backups
+
+| What                          | Why                                                                      |
+| ----------------------------- | ------------------------------------------------------------------------ |
+| Postgres                      | Everything: teammates, chats, memory, the event log, encrypted secrets   |
+| `ENCRYPTION_KEY`              | Without it, the encrypted secrets in Postgres are unreadable             |
+| The computer's `/home` volume | Workspaces, shared files, browser profiles and sign-ins, the Codex login |
+
+## Not built yet
+
+- There is no provider integration that creates the computer for you. You deploy the image as a service.
+- The desktop app has no signed macOS build. `pnpm --filter @open-bot/desktop package` builds an unsigned one.

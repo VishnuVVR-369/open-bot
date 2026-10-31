@@ -1,0 +1,114 @@
+import { docMetadata } from "@/lib/docs";
+
+export const metadata = docMetadata("/docs/reference/tools");
+
+# Teammate tools
+
+Besides Codex's built-in shell, file and web search tools, every teammate has the 41 dynamic tools below.
+They are defined in `apps/worker/src/tools/definitions.ts` and handled in `apps/worker/src/tools/handlers.ts`.
+
+## How tools are served
+
+- Every thread gets every tool, so a teammate behaves the same in any chat.
+- The worker validates arguments against each tool's JSON schema, and returns readable errors the model can act on.
+- Each call becomes a timeline item, recorded by the handler with more detail than Codex's generic item.
+- Before every call, the handler checks that the teammate's memory hasn't changed since the run started. If it has, the turn is interrupted.
+- Tool definitions and the developer instructions are versioned together with `TOOLS_VERSION` (currently 13). Changing either requires a bump, which starts fresh threads.
+
+Arguments marked with `?` are optional.
+**Helpers** are swarm helper runs, which can't use the tools marked "no".
+
+## Desktop
+
+Every desktop tool acts on the teammate's own screen (or a helper's own screen), takes the screen's lease, and returns a JPEG screenshot taken after the action.
+Coordinates are in pixels on the 1280x800 screen.
+They all fail with `user_has_control` while you hold the screen.
+
+| Tool                 | Arguments                        | Does                                                                                       | Helpers |
+| -------------------- | -------------------------------- | ------------------------------------------------------------------------------------------ | ------- |
+| `desktop_screenshot` |                                  | Looks at the screen                                                                        | yes     |
+| `desktop_click`      | `x`, `y`, `button?`, `clicks?`   | Clicks at a point (left, right or middle, up to a triple click)                            | yes     |
+| `desktop_move`       | `x`, `y`                         | Moves the pointer, for hover menus                                                         | yes     |
+| `desktop_drag`       | `fromX`, `fromY`, `toX`, `toY`   | Drags with the left button                                                                 | yes     |
+| `desktop_scroll`     | `x`, `y`, `direction`, `amount?` | Scrolls over a point                                                                       | yes     |
+| `desktop_type`       | `text`                           | Types into whatever has keyboard focus                                                     | yes     |
+| `desktop_key`        | `keys`                           | Presses keys or shortcuts, like `ctrl+l` or `Tab Tab Enter`                                | yes     |
+| `desktop_open_url`   | `url`                            | Opens a URL in a new browser tab, starting the browser if needed                           | yes     |
+| `desktop_wait`       | `seconds`                        | Waits for the screen to settle                                                             | yes     |
+| `browser_read_page`  | `selector?`                      | Returns the front page's address, title, visible text and up to 300 links, as outside data | yes     |
+
+## Working with you
+
+| Tool                   | Arguments                | Does                                                                                         | Helpers |
+| ---------------------- | ------------------------ | -------------------------------------------------------------------------------------------- | ------- |
+| `notify_user`          | `title`, `message`       | Sends you a notification                                                                     | no      |
+| `request_approval`     | `action`, `details`      | Asks you to approve a consequential action, and waits up to 10 minutes                       | no      |
+| `request_takeover`     | `reason`                 | Asks you to take over the screen for a password, code or CAPTCHA, and waits up to 10 minutes | no      |
+| `propose_instructions` | `instructions`, `reason` | Suggests a rewrite of its own instructions for you to accept                                 | no      |
+
+## Automations
+
+| Tool                | Arguments                                                                                                              | Does                                               | Helpers |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- | ------- |
+| `schedule_task`     | `title`, `prompt`, `cron?`, `at?`, `timezone?`, `quiet?`                                                               | Creates a cron routine or a one-time reminder      | no      |
+| `watch_page`        | `title`, `url`, `prompt`, `every_minutes?`, `look_for?`                                                                | Watches a page for changes, or for text to appear  | no      |
+| `create_webhook`    | `title`, `prompt`                                                                                                      | Creates a webhook URL                              | no      |
+| `list_automations`  |                                                                                                                        | Lists its schedules, watches and webhooks with ids | yes     |
+| `update_automation` | `id`, `enabled?`, `title?`, `prompt?`, `cron?`, `at?`, `timezone?`, `url?`, `interval_minutes?`, `look_for?`, `quiet?` | Pauses, resumes or changes one of its own          | no      |
+| `cancel_automation` | `id`                                                                                                                   | Deletes one of its own                             | no      |
+
+## Teamwork
+
+| Tool             | Arguments                                              | Does                                                      | Helpers |
+| ---------------- | ------------------------------------------------------ | --------------------------------------------------------- | ------- |
+| `ask_teammate`   | `bot`, `question`                                      | Asks another teammate; the answer comes back as a new run | no      |
+| `handoff_to_bot` | `bot`, `message`                                       | In a group chat, passes a request to another teammate     | no      |
+| `list_tasks`     |                                                        | Reads the task board                                      | yes     |
+| `add_task`       | `title`, `notes?`, `owner?`, `due?`, `start?`          | Adds a task, and optionally starts its owner on it        | no      |
+| `update_task`    | `id`, `status?`, `title?`, `notes?`, `owner?`, `due?`  | Moves, reassigns or edits a task                          | no      |
+| `start_swarm`    | `title`, `tasks` (2 to 6 of `{ title, instructions }`) | Splits a job across parallel helpers                      | no      |
+
+## Memory and history
+
+| Tool                  | Arguments                                            | Does                                                                        | Helpers |
+| --------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------- | ------- |
+| `remember_memory`     | `content`, `kind?`, `shared?`, `key?`, `expires_at?` | Saves a fact or preference, as a candidate unless your message asked for it | yes     |
+| `remember_about_user` | `fact`                                               | Saves a shared fact about you                                               | yes     |
+| `recall_memory`       | `query`                                              | Finds relevant shared and own memories, with ids and revisions              | yes     |
+| `update_memory`       | `id`, `expected_revision`, `content`                 | Corrects a memory, failing on a stale revision                              | yes     |
+| `forget_memory`       | `id`, `expected_revision`                            | Forgets a memory                                                            | yes     |
+| `search_history`      | `query`                                              | Searches past conversations it was part of, newest first                    | yes     |
+
+## Skills
+
+| Tool         | Arguments                                              | Does                                                   | Helpers |
+| ------------ | ------------------------------------------------------ | ------------------------------------------------------ | ------- |
+| `save_skill` | `name`, `description`, `instructions`, `for_everyone?` | Saves a reusable procedure, invoked later with `/name` | no      |
+
+## Vault and payments
+
+| Tool              | Arguments                                      | Does                                                      | Helpers |
+| ----------------- | ---------------------------------------------- | --------------------------------------------------------- | ------- |
+| `vault_list`      |                                                | Lists the logins and cards it may use, and its budget     | yes     |
+| `vault_fill`      | `item_id`, `field`                             | Types one field into the focused input, without seeing it | yes     |
+| `start_purchase`  | `card_id`, `amount`, `merchant`, `description` | Checks the budget, and approves or asks you               | no      |
+| `finish_purchase` | `purchase_id`, `paid`, `note?`                 | Records whether the purchase went through                 | yes     |
+
+## Email
+
+| Tool          | Arguments                            | Does                                                                     | Helpers |
+| ------------- | ------------------------------------ | ------------------------------------------------------------------------ | ------- |
+| `send_email`  | `to`, `subject`, `body`, `reply_to?` | Sends from its own address, through the outbox unless it is on Full auto | no      |
+| `list_emails` |                                      | Lists recent emails in and out, with ids                                 | yes     |
+
+## Codex's built-in tools
+
+Codex also gives every teammate:
+
+- a **shell**, running as the `bot` user in its workspace, with streamed output;
+- **file edits** as patches;
+- **web search**;
+- **plans**, which show as a checklist in the timeline;
+- **MCP tools** from the teammate's [connections](/docs/flows/skills-and-connections#connections).
+
+For teammates on "Ask before every command", the shell and file edits need your approval through Codex's own approval requests.
