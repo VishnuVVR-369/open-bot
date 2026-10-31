@@ -1,0 +1,104 @@
+import { docMetadata } from "@/lib/docs";
+
+export const metadata = docMetadata("/docs/flows/channels");
+
+# Notifications and channels
+
+Teammates work while you're away, so open-bot has to reach you, and let you reply, wherever you are.
+This page covers in-app and push notifications, Telegram, and the email address each teammate gets.
+
+## Notifications
+
+Every notification starts with `createNotification()` in the worker.
+It has a kind:
+
+| Kind               | When                                                                                          |
+| ------------------ | --------------------------------------------------------------------------------------------- |
+| `run_finished`     | A teammate replied, finished a scheduled task, handled a webhook or looked into a page change |
+| `run_failed`       | A run couldn't finish, with the error                                                         |
+| `approval`         | A teammate needs your approval                                                                |
+| `takeover_request` | A teammate asked you to take over its screen                                                  |
+| `bot_message`      | A teammate used `notify_user`                                                                 |
+| `cap_reached`      | The month's API key spend reached your cap                                                    |
+
+Some runs don't notify you: swarm helpers (their results go to the lead), answers to a teammate's question, and quiet routines that had nothing to report.
+
+<Figure caption="One call, every channel. Each channel decides for itself whether the notification is for it.">
+  <NotificationDiagram />
+</Figure>
+
+`createNotification()` does two things:
+
+1. It inserts a `notifications` row and sends `NOTIFY openbot_app` with `{"type":"notification","id":...}`. Every open tab refetches the inbox, shows a toast, and shows an OS notification if you allowed them and aren't already looking at that chat. In the desktop app, these are native macOS notifications.
+2. It emits a `notification` event inside the worker, which the push and Telegram services listen to.
+
+## Push notifications
+
+Settings turns on push notifications per device: a browser, or the installed app on a phone.
+
+- **Keys.** The worker generates a VAPID key pair once and stores it encrypted in `credentials`. The web app gets the public key to subscribe.
+- **Subscribing.** The browser registers the service worker `/sw.js`, subscribes with the browser's push service, and the subscription is saved in `push_subscriptions`.
+- **Sending.** For each notification, the worker builds an encrypted request per device with `web-push`'s `generateRequestDetails()` (TTL one hour, urgency high), and sends it with `fetch`. A device the push service reports as gone (`404` or `410`) is forgotten.
+- **Showing.** The service worker skips the notification if open-bot is open, focused and visible, since the app already shows it. Tapping one opens the right chat, or Approvals.
+
+The app is installable from its web manifest, which is what makes push work on phones.
+
+## Telegram
+
+Telegram lets you approve, get alerts and chat with teammates from your phone, without a public URL.
+
+### Connecting
+
+1. Create a bot with @BotFather and paste its token in Settings. It is stored encrypted.
+2. The worker reads updates by **long polling** (`getUpdates` with a 25-second timeout), so Telegram never needs to reach your server.
+3. Settings shows a one-time link code, valid for 15 minutes. You send it to your bot, which links that Telegram chat.
+4. From then on, the bot answers only that chat. Messages from anyone else are ignored.
+
+### What arrives
+
+| Notification                  | On Telegram                                                                                                                |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Approval                      | The request, with **Approve** and **Deny** buttons. When it's decided anywhere, the buttons are replaced with the outcome. |
+| Takeover request              | The reason, with a link that opens the screen                                                                              |
+| Run failed                    | Always                                                                                                                     |
+| Run finished                  | Only for what you started from Telegram (as a reply to your message), and for automations                                  |
+| Teammate message, cap reached | Always                                                                                                                     |
+
+Replies to what you started in the app stay in the app.
+
+### Talking to teammates
+
+A message you send to the bot goes to:
+
+1. the chat of the Telegram message you're replying to, if you reply to one;
+2. otherwise, the teammate you name at the start: `Rex: what's on today?`, `Rex, ...` or `@Rex ...` (longer names are matched first);
+3. otherwise, the chat you last talked in;
+4. otherwise, the lead teammate.
+
+Photos and files up to 20 MB (Telegram's limit for bots) come along as attachments.
+The message is saved with `via = 'telegram'`, dispatched like any other, and the teammate's reply comes back as a reply to your message, with its Markdown converted to Telegram's HTML subset.
+`telegram_messages` remembers which Telegram message belongs to which chat or approval, so replies and buttons find their way.
+
+## Email
+
+Each teammate can have an email address on your domain, `<slug>@<your-domain>`, through Postmark.
+
+### Receiving
+
+1. In Settings, you set the domain and Postmark's server token. open-bot generates a secret inbound URL: `https://<your-app>/api/inbound/email/<secret>`.
+2. You point Postmark's inbound webhook at it. The web app forwards each delivery to the worker.
+3. The worker finds the teammate from the recipient's handle (the part before `@`), saves attachments up to 15 MB with your uploads, and stores the email in `emails`.
+4. A run with trigger `email` starts in the teammate's Email chat (`chats.kind = 'inbox'`), with the sender, the subject and up to 20,000 characters of the body, marked as outside data.
+
+### Sending
+
+Teammates write with `send_email`, and can thread a reply under an email they received with `reply_to`.
+
+- A teammate on **Full auto** sends at once.
+- Any other teammate's email goes to an **outbox** and waits for an `email` approval. It doesn't block the run.
+- The moment you approve, the worker sends it through Postmark, threaded with `In-Reply-To` when it answers an email, even if the run ended long ago. A denial is reported back to the teammate.
+
+The outbox exists because waiting inside a tool doesn't work for long waits (see [Long waits inside tools](/docs/architecture/agent-runtime#long-waits-inside-tools)).
+Deciding outside the run means an email can wait hours for you, and still go out correctly.
+
+`list_emails` shows a teammate the emails it got and sent recently, with their ids.

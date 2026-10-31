@@ -13,6 +13,31 @@ It is separate from `apps/web`, which is the private app behind your login.
 - `public/media/` holds the small files served with the site: the hero loop, its poster, captions, scrub thumbnails and screenshots.
 - The tour stream itself is too big for the site host, so it lives in a Cloudflare R2 bucket.
 
+## The documentation
+
+The technical documentation lives under `/docs`, as MDX pages in `src/app/docs/**/page.mdx`.
+
+- `src/lib/docs.ts` lists every page in reading order, with its title and description.
+  The sidebar, previous and next links, page metadata and the sitemap all come from that list.
+- `src/app/docs/layout.tsx` is the frame: the header, the sidebar, the menu on phones and "On this page".
+- `src/mdx-components.tsx` maps Markdown to components, and makes the diagram components available in every page without imports.
+- `src/components/docs/diagrams.tsx` holds the architecture and state diagrams, drawn as SVG with the helpers in `svg.tsx`.
+  They are laid out for the 744px article column, so their text renders at its real size on desktop, and they scroll sideways on phones.
+- `src/components/docs/sequence.tsx` draws sequence diagrams from data, in HTML, so their labels wrap like normal text.
+- Code blocks are highlighted at build time by `rehype-pretty-code`, so pages ship no highlighter.
+
+To add a page, add its entry to `src/lib/docs.ts`, then create `src/app/docs/<path>/page.mdx` starting with:
+
+```mdx
+import { docMetadata } from "@/lib/docs";
+
+export const metadata = docMetadata("/docs/<path>");
+
+# Title
+```
+
+`e2e/docs.spec.ts` loads every page in every browser, and checks that every link between pages lands on a page and a heading that exist.
+
 ## Run it locally
 
 ```sh

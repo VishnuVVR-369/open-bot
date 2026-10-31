@@ -1,0 +1,263 @@
+import { docMetadata } from "@/lib/docs";
+
+export const metadata = docMetadata("/docs/architecture/computer");
+
+# The computer and botd
+
+The computer is one Docker container that every teammate works on.
+It has a real Linux desktop, a browser per teammate, a shell and files.
+A small Node daemon inside it, **botd**, starts every process, owns every screen, and is the only way in.
+
+<Figure caption="Three Linux users separate three kinds of work. botd (root) is the only process that both the worker can reach and that can reach the displays. Codex and its shell run as bot, which can't touch any display.">
+  <ComputerDiagram />
+</Figure>
+
+## The image
+
+`images/computer/Dockerfile` builds in two stages:
+
+1. A build stage installs only botd's workspace dependencies (`@open-bot/botd...`) and bundles botd into a single file, `dist/botd.mjs`.
+2. The runtime stage starts from `node:24-trixie-slim` (Debian) and installs:
+   - the desktop: `xvfb`, `xfce4-session`, `xfwm4`, `xfce4-panel`, `xfdesktop4`, Thunar, a terminal and an editor;
+   - the tools botd drives it with: `xdotool`, `scrot`, `x11vnc`, `xauth`;
+   - `chromium`, with fonts for Latin, CJK and emoji;
+   - everyday command-line tools for the teammates: `git`, `jq`, `ripgrep`, `python3`, `curl`, `zip`;
+   - the Codex CLI from npm, pinned with `CODEX_VERSION`.
+
+`images/computer/rootfs/` is copied over `/` and sets the defaults that make the desktop behave:
+
+- Chromium policies (`/etc/chromium/policies/managed/open-bot.json`): downloads go to `/home/bot/shared/downloads` without a prompt, sign-in and sync are off, tabs are restored on start, and the warning bar about command-line flags is hidden.
+- `/etc/chromium.d/open-bot` passes a screen's flags to Chromium when you start it from that screen's menu or a link (see [The browser](#the-browser)).
+- XFCE settings for the panel, the dock, the wallpaper and window manager, and `helpers.rc`, which makes Chromium the default web browser.
+
+The entrypoint is `tini -s -- node /opt/botd/botd.mjs`.
+`tini` reaps orphaned processes, and `-s` lets it do that even on hosts that run their own init.
+The `HEALTHCHECK` curls `/healthz` on port 7000.
+
+## Three users
+
+| User      | uid  | Runs                                               | Can read                                            |
+| --------- | ---- | -------------------------------------------------- | --------------------------------------------------- |
+| `root`    | 0    | botd                                               | Everything, including `/home/.botd` (mode `0700`)   |
+| `desktop` | 1001 | Xvfb, XFCE, x11vnc and Chromium for every screen   | Its home, the screens' profiles, the shared folders |
+| `bot`     | 1000 | `codex app-server` and every shell command it runs | Its home, the workspaces, the shared folders        |
+
+`desktop` and `bot` are both in the `bots` group (gid 1100), which owns `/home/bot/shared`.
+The shared folders are setgid (`2775`) and botd runs with `umask 002`, so files that either user creates stay writable by the other.
+
+botd starts processes as other users with `setpriv --reuid --regid --init-groups --reset-env`.
+Node can set a child's uid and gid, but not its supplementary groups, which the shared folders depend on.
+
+### Why the split matters
+
+Each screen's X display is protected by an auth cookie in `/home/desktop/.Xauthority-<slot>`, mode `0600`, regenerated every time the screen starts.
+The `bot` user can't read it, so nothing in a teammate's shell can connect to a display, run `xdotool`, or take a screenshot.
+Every desktop action has to go through a dynamic tool, the worker, and botd, which checks the lease first.
+
+<Callout kind="risk">
+  The split protects the displays, not everything. Each screen's VNC servers and the Codex
+  app-server listen on localhost without a password, and any process in the container can connect to
+  them. See [Security model](/docs/security#known-risks) for what that exposes and the planned fix.
+</Callout>
+
+## botd
+
+`apps/botd/src/index.ts` runs as root and does this on start:
+
+1. Refuses to start unless `BOTD_TOKEN` is at least 16 characters.
+2. Prepares the filesystem: the workspaces root, the shared and downloads folders, `/home/bot/.codex` (mode `0700`) and `/home/.botd` (root only). It writes Codex's `config.toml` every time, so the computer's Codex settings can't drift.
+3. Tests whether Chromium's sandbox can work here, by running `unshare --user --pid --net` as `desktop`. If it can't, every browser starts with `--no-sandbox`, and a warning is logged.
+4. Loads the shared cookie jar.
+5. Starts `codex app-server --listen ws://127.0.0.1:4500` as `bot`, with `restart: "always"`, and waits for its `/readyz`.
+6. Starts the SOCKS5 egress proxy on `127.0.0.1:1080`.
+7. Listens on `0.0.0.0:7000`.
+8. Sweeps screens every 5 seconds (idle leases, idle screens) and syncs cookies every 2 seconds.
+
+The Codex config it writes:
+
+```toml title="/home/bot/.codex/config.toml"
+# Managed by botd. Edits are overwritten on start.
+model = "gpt-6.1-sol"
+model_reasoning_effort = "medium"
+sandbox_mode = "danger-full-access"
+approval_policy = "never"
+
+[features]
+memories = false
+```
+
+These are only defaults.
+The worker sets the model, the approval policy and the sandbox per thread and per turn.
+Codex's own sandbox is off because the container is the boundary, and approvals are handled by open-bot (see [Approvals](/docs/flows/approvals)).
+
+### The supervisor
+
+`Supervisor` (`src/supervisor.ts`) starts each process as its user, in its own process group, and tracks its state: `starting`, `running`, `crashed` or `stopped`.
+
+- A process can declare a `ready()` check. It is `running` only once the check passes.
+- With `restart: "always"`, a crash restarts it after a backoff of 500 ms, doubling up to 15 s. The backoff resets once it stays up for a minute.
+- Browsers use `restart: "never"`, so closing Chromium on the desktop leaves it closed until something needs it.
+- Stopping sends `SIGTERM` to the whole group, and `SIGKILL` after 3 seconds.
+
+Every state change is broadcast to the worker as a health event.
+
+### The API
+
+The worker reaches botd on port 7000 with `Authorization: Bearer <BOTD_TOKEN>` (or `?token=` for websockets).
+The HTTP routes are listed in [Internal APIs](/docs/reference/http-api#botd).
+There are four websocket endpoints:
+
+| Path                 | Purpose                                                                                                        |
+| -------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `/events`            | botd pushes `lease` and `health` events. On connect it sends every screen's current lease and the full health. |
+| `/codex`             | A transparent bridge to the Codex app-server on `127.0.0.1:4500`.                                              |
+| `/egress`            | The computer end of the egress tunnel (see [Desktop app and egress](/docs/architecture/desktop-and-egress)).   |
+| `/vnc?screen=&mode=` | A bridge to one screen's watch or control VNC server. `mode=control` is refused unless you hold the screen.    |
+
+## Screens
+
+A screen is one teammate's desktop.
+Its id is the teammate's id, or a swarm task's id for a helper.
+
+| Part    | Details                                                                                                                   |
+| ------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Display | `Xvfb :<10 + slot>`, 1280x800, 24-bit, `-nolisten tcp`, with its own auth cookie                                          |
+| Desktop | `dbus-launch --exit-with-session xfce4-session`                                                                           |
+| VNC     | Two `x11vnc` servers: a view-only one on port `5910 + 2 * slot` and a control one on `5911 + 2 * slot`, both on localhost |
+| Browser | Chromium with its own profile at `/home/desktop/screens/<id>/chromium`, controlled through a DevTools pipe                |
+| Lease   | A `DesktopLease` object in botd (see [Screens and takeover](/docs/flows/screens-and-takeover#the-lease))                  |
+
+### Lifecycle
+
+- **Start.** `ScreenManager.ensure(id)` starts a screen the first time its teammate acts on the desktop, or when you take it over or wake it from the app. Watching never starts a screen, so an open tab doesn't keep one running. Concurrent starts of the same screen share one promise.
+- **Slots.** A screen takes the lowest free slot (0 to 31), which fixes its display number and VNC ports.
+- **Making room.** At most `MAX_SCREENS` (default 4) run at once. Starting another stops idle screens first: those nobody holds, preferring ones nobody watches, then the least recently used. A screen a run or you hold is never stopped.
+- **Idle stop.** A screen nobody has used for `SCREEN_IDLE_MINUTES` (default 20) stops.
+- **Stop.** The browser stops first, so it saves its tabs. Then everything that draws on the display.
+- **Forget.** Removing a teammate stops its screen and deletes its profile directory.
+
+Because the profile lives on the `/home` volume, a screen's tabs and history come back the next time it starts.
+
+### The browser
+
+botd starts Chromium with `--remote-debugging-pipe` and two extra file descriptors.
+Only botd holds the other end of that pipe.
+No DevTools TCP port is opened, so nothing in the container can attach to the browser.
+
+The key flags:
+
+```text title="Chromium flags (abridged)"
+--proxy-server=socks5://127.0.0.1:1080
+--host-resolver-rules=MAP * ~NOTFOUND , EXCLUDE 127.0.0.1
+--user-data-dir=/home/desktop/screens/<id>/chromium
+--window-size=1280,800 --start-maximized
+--password-store=basic --disable-dev-shm-usage
+--no-sandbox          # only on hosts that refuse user namespaces
+```
+
+The resolver rule makes Chromium resolve no names itself.
+Every hostname goes to the SOCKS proxy unresolved, so DNS happens where the connection leaves (on your Mac, through egress).
+
+Over the DevTools pipe, botd also:
+
+- maximizes the browser's windows once it is ready, so a restored window never leaves a gap of desktop;
+- reads the page in front for `browser_read_page` (its text and links, capped at 120,000 characters and 300 links);
+- lists the visible pages' addresses, so a vault login only fills on its own site;
+- runs the **apply guard** (below);
+- reads and writes cookies for the shared jar.
+
+If you start Chromium from a screen's own menu, Debian's `/usr/bin/chromium` wrapper sources `/etc/chromium.d/open-bot`, which adds that screen's flags from `OPEN_BOT_CHROMIUM_ARGS`.
+botd shell-quotes them, because the wrapper would otherwise split and glob the `*` in the resolver rule.
+If that browser holds the profile when the teammate next needs its browser, botd closes it first (its tabs come back) and starts its own.
+
+### Shared sign-ins
+
+Two Chromium processes can't share one profile, so each screen has its own, and botd keeps their cookies in step.
+`CookieSync` (`src/cookies.ts`) runs every 2 seconds:
+
+1. Read every running browser's cookies over the DevTools pipe.
+2. Compare each cookie's fingerprint (value, expiry, flags) with what that browser held at the last sync, to find what changed in each browser.
+3. Merge the changes into one jar. A sign-in anywhere wins over a stale copy disappearing elsewhere. A cookie removed while the jar still holds the same value is a sign-out, and is copied as a deletion.
+4. Write the changes into every other browser.
+5. Persist the jar to `/home/.botd/cookies.json` (root only, written atomically), so a screen that starts later begins with every sign-in.
+
+Only cookies are shared.
+A site that keeps its login in local storage needs signing in on each screen.
+
+### The apply guard
+
+Teammates must never submit a job application.
+On every browser, botd enables the DevTools `Fetch` domain for request URLs matching `*apply*` (in three spellings, because the patterns are case-sensitive), so only those requests pause.
+For each paused request, `blockedApplication()` in `@open-bot/shared` applies a deliberately broad rule:
+
+- `GET`, `HEAD` and `OPTIONS` always pass, so reading job postings works.
+- Any other method passes unless the path or query mentions "apply" and the host is a guarded portal: `linkedin.com`, `naukri.com` or their subdomains, plus any domain in `APPLY_GUARD_EXTRA_DOMAINS`.
+
+A request that would submit fails with `BlockedByClient`, unless **you** hold the screen, in which case everything passes.
+botd remembers the block, and the teammate's next desktop result reports it, the run shows it, and you're notified.
+
+## Desktop actions
+
+`Desktop` (`src/desktop.ts`) performs the nine actions of `computerActionSchema` with `xdotool`, as the `desktop` user, on the screen's display:
+
+| Action       | Arguments                                                   |
+| ------------ | ----------------------------------------------------------- |
+| `screenshot` | none                                                        |
+| `click`      | `x`, `y`, `button` (left, right, middle), `clicks` (1 to 3) |
+| `move`       | `x`, `y`                                                    |
+| `drag`       | `fromX`, `fromY`, `toX`, `toY`                              |
+| `scroll`     | `x`, `y`, `direction`, `amount` (1 to 25)                   |
+| `type`       | `text`, up to 5,000 characters                              |
+| `key`        | `keys`, like `ctrl+l Enter`                                 |
+| `open_url`   | `url`, opened in a new tab (starting the browser if needed) |
+| `wait`       | `seconds`, 0.1 to 30                                        |
+
+After an action, botd waits for the screen to settle (450 ms, 500 ms after opening a URL, none for screenshots, moves and waits), then takes a JPEG screenshot with `scrot --pointer --quality 72` and reads the pointer position.
+Coordinates are screen pixels, and screenshots are the same size as the screen, so what the model sees maps 1:1 to where it clicks.
+
+Every input command belongs to a **generation**.
+When you take over, the lease emits `preempted`, and `abortAll()` bumps the generation and kills every in-flight input command with `SIGKILL`.
+An action that was in progress fails with `user_has_control`, and if the lease changed hands during the settle time, the screenshot is not returned.
+The teammate never sees a frame of a screen you control.
+
+Vault secrets are typed with `xdotool type --file -`, reading from stdin rather than the arguments, so no process can see the secret in `ps`.
+
+## Health
+
+`GET /health` returns a `ComputerHealth` object, which botd also pushes on `/events` whenever it changes:
+
+```ts title="ComputerHealth"
+{
+  ok: boolean; // true when Codex is running
+  bootedAt: string;
+  agent: "starting" | "running" | "crashed" | "stopped";
+  screens: {
+    id;
+    state;
+    browser;
+    lease;
+  }
+  [];
+  egress: {
+    mode;
+    agentOnline;
+    tunnelConnected;
+  }
+}
+```
+
+`GET /healthz` is unauthenticated and only says that botd is up.
+It doesn't prove that a browser can start, which is checked separately by starting a screen.
+
+## The volume
+
+Everything that must survive a restart lives under `/home`, which is a volume:
+
+| Path                          | Contents                                                                        |
+| ----------------------------- | ------------------------------------------------------------------------------- |
+| `/home/bot/bots/<slug>/`      | A teammate's workspace: `AGENTS.md`, `MEMORY.md`, `.agents/skills/`, its files  |
+| `/home/bot/shared/`           | Shared by every teammate. Browser downloads land in `shared/downloads`.         |
+| `/home/bot/.agents/skills/`   | Skills shared by every teammate                                                 |
+| `/home/bot/.codex/`           | Codex's state: threads, and the ChatGPT login when the computer signs in itself |
+| `/home/desktop/screens/<id>/` | A screen's Chromium profile                                                     |
+| `/home/.botd/cookies.json`    | The shared cookie jar, readable only by root                                    |

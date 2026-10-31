@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { preconnect } from "react-dom";
 import { CopyButton } from "@/components/copy-button";
 import { GitHubMark, Logo } from "@/components/icons";
 import { ChapterRail, Monitor, PlayChapter, TourProvider } from "@/components/tour";
@@ -123,6 +124,9 @@ function Chapter({
 }
 
 export default function Home() {
+  // The tour streams from the media bucket: open the connection before anyone presses play.
+  // Only this page plays it, so the docs don't connect to the bucket.
+  preconnect(tour.mediaOrigin, { crossOrigin: "anonymous" });
   return (
     <TourProvider>
       <div className="mx-auto max-w-[1248px] px-5 sm:px-8">
@@ -153,6 +157,12 @@ export default function Home() {
               className="hidden rounded-full px-3 py-2 font-medium text-ink/75 hover:text-ink md:block"
             >
               Run it yourself
+            </a>
+            <a
+              href="/docs"
+              className="rounded-full px-3 py-2 font-medium text-ink/75 hover:text-ink"
+            >
+              Docs
             </a>
             <a
               href={site.github}
@@ -289,7 +299,7 @@ export default function Home() {
                 Codex CLI signed in to ChatGPT.
               </p>
               <a
-                href={`${site.github}#run-it-locally`}
+                href="/docs/quickstart"
                 className="inline-block font-medium underline decoration-rule decoration-2 underline-offset-4 hover:decoration-ink"
               >
                 Read the setup guide
@@ -324,6 +334,9 @@ export default function Home() {
             <p className="text-graphite">Open source, self-hosted, and yours.</p>
           </div>
           <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-2 font-medium">
+            <a href="/docs" className="hover:underline hover:underline-offset-4">
+              Documentation
+            </a>
             <a href={site.github} className="hover:underline hover:underline-offset-4">
               GitHub
             </a>

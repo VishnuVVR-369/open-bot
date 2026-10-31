@@ -1,0 +1,128 @@
+import { docMetadata } from "@/lib/docs";
+
+export const metadata = docMetadata("/docs/flows/approvals");
+
+# Approvals
+
+Teammates do real things: they send, publish, buy and delete.
+Approvals put you in the loop for the consequential ones, without making you approve every step.
+
+## Autonomy levels
+
+Each teammate has one of three autonomy levels (`bots.autonomy`).
+It controls two things: Codex's own approval policy, and the approval rules written into the teammate's `AGENTS.md`.
+
+| Level        | Label in the app         | Codex policy | The teammate is told to                                                                                                                                                                                      |
+| ------------ | ------------------------ | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `full`       | Full auto                | `never`      | Work without asking, except before deleting important data.                                                                                                                                                  |
+| `risky`      | Ask before risky actions | `never`      | Call `request_approval` before sending messages, posting or publishing, deleting data, and changing settings, permissions or anything in production. Reading, research, drafting and preparing need nothing. |
+| `everything` | Ask before every command | `untrusted`  | Expect an approval prompt before every shell command and file change, and call `request_approval` before consequential desktop actions.                                                                      |
+
+Payments and emails don't depend on these instructions.
+`start_purchase` and `send_email` ask you themselves (an email from a `full` teammate sends right away).
+
+## Kinds of approval
+
+| Kind          | Created by                                        | How long the tool waits   | Can be Always allowed  |
+| ------------- | ------------------------------------------------- | ------------------------- | ---------------------- |
+| `command`     | Codex, before a shell command (`everything` only) | As long as the turn lives | Yes, by command prefix |
+| `file_change` | Codex, before a file edit (`everything` only)     | As long as the turn lives | Yes, all file changes  |
+| `action`      | The teammate's `request_approval` tool            | Up to 10 minutes          | Yes, by exact wording  |
+| `purchase`    | `start_purchase`, above the auto-approve amount   | Up to 10 minutes          | No                     |
+| `email`       | `send_email`, unless the teammate is `full`       | Doesn't wait              | No                     |
+
+## The flow
+
+<Figure
+  minWidth={660}
+  caption="A quick answer goes straight back into the running turn. A late answer starts a new run that tells the teammate what you decided."
+>
+  <Sequence
+    actors={[
+      { id: "codex", label: "Codex" },
+      { id: "worker", label: "Worker" },
+      { id: "pg", label: "Postgres" },
+      { id: "you", label: "You", sub: "app or Telegram" },
+    ]}
+    steps={[
+      { from: "codex", to: "worker", label: "tool call: request_approval" },
+      { self: "worker", label: "check Always allow rules" },
+      { from: "worker", to: "pg", label: "insert approval, timeline card" },
+      { from: "worker", to: "you", label: "notification with Approve and Deny" },
+      { self: "worker", label: "run status: waiting" },
+      { section: "You answer within 10 minutes" },
+      { from: "you", to: "worker", label: "decide: approved" },
+      { from: "worker", to: "codex", label: "tool result: approved", reply: true },
+      { section: "Or later, after the turn ended" },
+      { from: "you", to: "worker", label: "decide: approved" },
+      { from: "worker", to: "pg", label: "queue a run with trigger approval" },
+    ]}
+  />
+</Figure>
+
+### Creating an approval
+
+`ApprovalService` (`apps/worker/src/services/approvals.ts`) first checks the teammate's Always allow rules.
+If a rule covers the request, it is approved on the spot and nothing is shown.
+
+Otherwise it:
+
+1. inserts an `approvals` row with the run, the teammate, the chat, a title, the detail and a payload;
+2. adds an `approval` item to the run's timeline, which renders as a card with **Approve**, **Deny** and **Always allow**;
+3. creates a notification, which reaches open tabs, push and Telegram (with buttons);
+4. publishes an `approvals` app event, so the Approvals inbox updates;
+5. waits, with the run's status set to `waiting` for `approval`.
+
+For a shell command, the title is the script itself.
+Codex sends commands wrapped in a shell, like `/bin/bash -lc 'npm install'`, so `shellScript()` unwraps them for display and for matching.
+
+### Deciding
+
+You decide in the chat, the Approvals inbox, or on Telegram.
+All three call `ApprovalService.decide()`, which:
+
+1. updates the row only if it is still `pending`, so a double click or two devices can't decide twice;
+2. saves an Always allow rule if you asked for one;
+3. replaces the timeline card with the decision (through the live session, or by appending an event to the finished run);
+4. emits `approvalDecided`, which updates the Telegram message's buttons to show the outcome;
+5. hands the decision to the waiting tool call, if there is one.
+
+If no tool call is waiting anymore, because the turn ended or the 10 minutes passed, an `action` or `purchase` decision queues a new run in the same chat with trigger `approval`:
+
+> [Approval] The user approved: "Post the weekly update to the team channel". Go ahead and do it now, then report back.
+
+A denial says "Don't do it. Briefly acknowledge, and continue with anything else that is left."
+
+### Expiry
+
+Codex's own command and file approvals can't outlive their turn.
+When a run ends, its pending `command` and `file_change` approvals become `expired`.
+`action`, `purchase` and `email` approvals stay answerable after the run ends.
+
+## Always allow
+
+**Always allow** approves the request and saves a rule in `approval_rules`, so the teammate stops asking about requests like it.
+Rules are listed on the teammate's page, where you can remove them.
+They are also written into `AGENTS.md` and into every prompt, so the teammate knows it doesn't need `request_approval` for them.
+
+Matching (`rulesCover()` in `packages/shared/src/approval-rules.ts`) depends on the kind:
+
+- **file_change**: one rule covers every file change.
+- **action**: the rule matches an action with the same wording, ignoring case and spacing.
+- **command**: the rule is a command prefix, like `npm install` or `git status`. A script is covered only if **every** command it chains with `;`, `&&`, `||`, `|`, `&` or a new line starts with an allowed prefix, on a word boundary.
+
+Some scripts can never be covered:
+
+- Scripts that redirect (`<`, `>`) or substitute (`` ` ``, `$(...)`) always ask, because a prefix can't say what they do.
+- A pattern must be a single simple command.
+- A pattern that would allow everything, like `bash -lc` or `sh`, is refused.
+- Purchases and emails can't be Always allowed at all.
+
+When you press Always allow, the app suggests a rule: the first command's program and subcommand (`git push` for `git push origin main`), or the action's wording.
+
+```text title="Examples, with a rule for npm install"
+npm install                    covered
+npm install && npm test        asks: npm test isn't allowed
+npm installer                  asks: not on a word boundary
+npm install > log.txt          asks: redirects always ask
+```

@@ -1,0 +1,80 @@
+import { docMetadata } from "@/lib/docs";
+
+export const metadata = docMetadata("/docs");
+
+# open-bot documentation
+
+open-bot gives you AI teammates that do real work on a real computer.
+These docs explain how it is built and how every part works, for engineers who want to run it, change it or learn from it.
+
+## What open-bot is
+
+You create teammates and give each one a job, like "chief of staff" or "researcher".
+They work on one shared Linux computer with a desktop, a browser, a shell and files.
+Each teammate has its own screen on that computer, so several can browse at the same time.
+
+You talk to them in chats, and they also wake up on their own: on a schedule, when a web page changes, or when another service calls a webhook.
+You can watch any screen live, take it over at any moment, and hand it back with a note.
+Anything risky, like sending an email or paying for something, waits for your approval.
+
+open-bot is a single-user, self-hosted app.
+It is locked to one owner account, and every teammate works for that one person.
+
+## The big picture
+
+There are five moving parts.
+Four of them are processes you run, and the fifth is an optional desktop app on your Mac.
+
+<Figure caption="The worker is the hub. The web app never talks to the computer directly, and the computer never talks to Postgres. One-headed arrows point away from the side that connects. Two-headed arrows are connections where both sides push data, like websockets and LISTEN/NOTIFY.">
+  <SystemDiagram />
+</Figure>
+
+- **The web app** (`apps/web`) is the UI you use. It is a Next.js app that reads and writes Postgres and asks the worker to do things.
+- **The worker** (`apps/worker`) runs the teammates. It claims queued work from Postgres, drives the agent, serves the agent's tools, and runs schedules, approvals and integrations.
+- **Postgres** stores everything, and is also the job queue, the event log and the pub/sub bus.
+- **The computer** (`images/computer`) is a Docker container with a Linux desktop. Inside it, a small daemon called **botd** (`apps/botd`) starts every process, owns the screens, and is the only way in.
+- **The desktop app** (`apps/desktop`) wraps the web UI in Electron and adds an egress agent, so the computer's browser reaches websites through your home internet.
+
+## Five decisions that shape everything
+
+Most of the design follows from a few choices.
+Each one is explained in detail in the architecture pages.
+
+1. **The agent runs inside the computer.**
+   Teammates use `gpt-6.1-sol` through a ChatGPT subscription, which is only reachable through the Codex CLI.
+   Codex's shell and file tools act on the machine Codex runs on, so Codex has to run on the computer, and the worker drives it remotely.
+   See [Agent runtime](/docs/architecture/agent-runtime).
+2. **Postgres is the only backbone.**
+   There is no Redis, no queue library and no workflow vendor.
+   Queued runs are claimed with `FOR UPDATE SKIP LOCKED`, every streamed event is a row, and `LISTEN/NOTIFY` wakes the worker and every open browser tab.
+   See [Data and events](/docs/architecture/data).
+3. **One shared computer, one screen per teammate.**
+   A sign-in on any screen reaches every teammate's browser, and teammates hand work to each other through shared folders.
+   The cost is weaker isolation between teammates, which is acceptable when they all work for the same person.
+   See [The computer and botd](/docs/architecture/computer).
+4. **botd is the only door to the desktop.**
+   The agent's shell runs as a Linux user that can't reach the display, so every click and keystroke goes through botd, which checks who holds the screen first.
+   That is what makes "take over" safe: when you hold a screen, the teammate can't even take a screenshot of it.
+5. **The event log is the source of truth for the UI.**
+   Everything a run does is appended to `run_events` in order.
+   The live chat view, a page refresh, a reconnect and the replay view all read the same log, so nothing is lost and nothing is shown twice.
+
+## How these docs are organized
+
+<SectionCards section="Getting started" />
+
+The **Architecture** section takes each process apart: what it owns, how it starts, and what it talks to.
+The **How it works** section follows real features end to end, across every process, usually with a sequence diagram.
+The **Reference** section lists every tool, endpoint and setting.
+
+<SectionCards section="Architecture" />
+
+## What is built and what is not
+
+Everything described in these docs is implemented and covered by unit and end-to-end tests, unless a page says otherwise.
+A few things are deliberately not built yet:
+
+- A cloud provider integration that creates the computer for you. Today you run the computer image yourself (Docker locally, or as a service in the cloud).
+- A signed macOS build of the desktop app. `pnpm --filter @open-bot/desktop package` builds an unsigned one.
+- Phone calls, teammates using folders on your Mac, and models other than Codex's.
+- OAuth sign-in for MCP connections. A connection takes a token as a header or an environment variable.

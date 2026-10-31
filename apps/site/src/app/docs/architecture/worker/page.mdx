@@ -1,0 +1,174 @@
+import { docMetadata } from "@/lib/docs";
+
+export const metadata = docMetadata("/docs/architecture/worker");
+
+# Worker
+
+`apps/worker` is an always-on Node 24 service.
+It runs every teammate turn, serves every tool call, and owns every timer and long-lived connection in the system.
+
+<Figure caption="The executor claims runs from Postgres and gives each one a RunSession. Sessions talk to Codex through one shared socket, and their tool calls reach the computer through ComputerClient. All three connections to botd go to the same port.">
+  <WorkerDiagram />
+</Figure>
+
+## Startup
+
+`src/index.ts` wires everything together in a fixed order:
+
+1. Parse the environment with zod (`src/env.ts`). Every value has a development default.
+2. Open a Postgres pool and insert the single-row tables (`settings`, `computers`) if missing.
+3. Build `ComputerClient` (botd), `CodexManager` (Codex through botd) and a shared `Context`: the env, the database, the logger, and a typed `EventEmitter` for in-process events.
+4. Start the memory coordinator, which imports legacy memory once and starts its background jobs.
+5. Build every service, then `ToolHandlers`, then the `RunExecutor`.
+6. **Recover**: mark every run still in `starting`, `running` or `waiting` as `interrupted`, with the error "The worker restarted while this was running". A Codex turn can't be resumed after its driver went away, so this is honest rather than optimistic.
+7. Connect to botd's `/events` socket. When it opens, connect to Codex and start claiming runs. When Codex first reports a connection, write every saved skill to the computer.
+8. Start the egress relay, the scheduler, page watches, push and Telegram.
+9. `LISTEN openbot_worker` on a dedicated connection, and start the HTTP server on `WORKER_PORT` (4001).
+
+On `SIGTERM` or `SIGINT` it closes the server, stops every timer and socket, and drains the pool.
+
+## Waking up
+
+The worker reacts to three kinds of input:
+
+| Input                   | Examples                                                                      | Handled by                     |
+| ----------------------- | ----------------------------------------------------------------------------- | ------------------------------ |
+| HTTP from the web app   | `POST /internal/messages/:id/dispatch`, `POST /internal/approvals/:id/decide` | `src/http.ts`                  |
+| `NOTIFY openbot_worker` | `runs`, `schedules`, `triggers`, `cancel`                                     | the listener in `src/index.ts` |
+| Timers                  | the scheduler every 10 s, page watches every 30 s, a safety sweep every 15 s  | each service                   |
+
+The 15-second sweep calls `executor.pump()` and `processCancellations()`.
+It catches anything that was queued while no one was listening, so a lost notification costs at most 15 seconds.
+
+## The run executor
+
+`RunExecutor` (`src/runs/executor.ts`) turns queued rows into running sessions.
+
+### Claiming work
+
+`pump()` is safe to call from anywhere, any number of times.
+If a pump is already in progress, it sets a flag and runs one more pass when the current one finishes.
+Each pass claims runs while there is spare capacity:
+
+```sql title="The claim query"
+update runs set status = 'starting'
+where id = (
+  select r.id from runs r
+  where r.status = 'queued'
+    and not exists (
+      select 1 from runs a
+      where a.chat_id = r.chat_id and a.bot_id = r.bot_id
+        and a.status in ('starting', 'running', 'waiting')
+    )
+  order by r.created_at
+  limit 1
+  for update skip locked
+)
+returning id
+```
+
+Three properties come from this one statement:
+
+- **Oldest first.** Runs start in the order they were queued.
+- **One per teammate per chat.** A run waits while another run of the same teammate in the same chat is active, so a conversation is never processed out of order.
+- **No double claims.** `FOR UPDATE SKIP LOCKED` makes concurrent claims skip a row another transaction holds.
+
+The pass stops when `MAX_CONCURRENT_RUNS` sessions are executing.
+When a session ends, it calls `pump()` again.
+
+### Routing a message
+
+`dispatchMessage(messageId)` decides who answers a message you sent:
+
+- In a direct chat, the chat's teammate.
+- In a group chat, the teammates you @-mentioned, or else the primary teammate, or else the first member.
+
+For each target, if that teammate already has a session running in this chat and the message has no attachments, the message is **steered** into the running turn with Codex's `turn/steer`.
+Otherwise a new run is queued with trigger `user`.
+
+### Cancelling
+
+Stopping a run sets `runs.cancel_requested_at` and sends `NOTIFY openbot_worker, 'cancel'`.
+`processCancellations()` interrupts executing sessions with `turn/interrupt`, and marks queued runs `interrupted` directly.
+
+## RunSession
+
+A `RunSession` (`src/runs/session.ts`) executes one run.
+It is covered step by step in [Life of a message](/docs/flows/chat-turn).
+In short, it:
+
+1. writes the teammate's workspace (`AGENTS.md`, skills, the memory pointer);
+2. builds the prompt: the time, group chat context, memory, Always allow rules, the request and attachments;
+3. picks the plan or the API key (see [Models and usage](/docs/flows/models-and-usage));
+4. finds or creates the Codex thread (see [Agent runtime](/docs/architecture/agent-runtime#choosing-a-thread));
+5. starts a turn, and maps every Codex notification to timeline items in `run_events`;
+6. answers Codex's requests: dynamic tool calls, and approvals for commands and file changes;
+7. on completion, writes the final status and reply, the usage ledger and notifications.
+
+The `SessionRegistry` keeps executing sessions by run id and by chat and teammate.
+Steering, approvals and takeovers use it to find a live session to deliver to.
+
+### Writing events efficiently
+
+`RunEventWriter` (`src/runs/events.ts`) is the only way a session writes events.
+
+- Inserts go through a promise chain, so events are stored in the order they were written.
+- Streamed text arrives as many small deltas. They are coalesced per item for up to **120 ms** and stored as one `delta` event, so a long answer becomes a handful of rows, not thousands.
+- A non-delta event flushes pending deltas first, so order is preserved across types.
+- After an insert, a `NOTIFY openbot_chat` is scheduled within **30 ms**, so bursts of events cause one notification.
+- `drain()` waits for everything to be stored. The session calls it before writing the final run row, so a client that sees "completed" can read every event before it.
+
+## Tool calls
+
+When the model calls a dynamic tool, Codex sends an `item/tool/call` request.
+`CodexManager` routes it by thread id to the session that owns the thread, which hands it to `ToolHandlers.handle()`.
+
+The handler:
+
+1. Checks that the teammate's **memory generation** hasn't changed since the run started. If it has, it interrupts the turn, so a teammate never acts on facts you just corrected.
+2. Refuses tools a **swarm helper** may not use, like `notify_user` or `request_approval`.
+3. Dispatches by name: desktop tools go to botd, everything else to a service.
+4. Records a rich timeline item itself (for example a desktop action with its screenshot), because the generic Codex item has less detail.
+5. Returns `{ success, contentItems }`: text, or an image for desktop tools.
+
+Desktop screenshots are stored as `artifacts` rows (JPEG bytes in Postgres), and the timeline item points to the artifact.
+That is what makes frame-by-frame replay possible after the fact.
+
+## Services
+
+Each service is a class built with the shared `Context`.
+Services talk to each other through constructor injection and the typed `ctx.events` emitter (`runStarted`, `runFinished`, `approvalDecided`, `notification`).
+
+| Service      | File                       | Responsibility                                                                           |
+| ------------ | -------------------------- | ---------------------------------------------------------------------------------------- |
+| Approvals    | `services/approvals.ts`    | Creating approvals, waiting for decisions, Always allow rules, expiring native approvals |
+| Takeovers    | `services/takeovers.ts`    | Recording takeovers, bot requests for help, delivering hand-back notes                   |
+| Schedules    | `services/schedules.ts`    | Cron routines and reminders, the 10 s scheduler tick                                     |
+| Triggers     | `services/triggers.ts`     | Page watches (fetch, diff, fire) and webhooks (rate limit, fire)                         |
+| Skills       | `services/skills.ts`       | Writing skills to the computer as `SKILL.md`, expanding `/name`                          |
+| Tasks        | `services/tasks.ts`        | The shared task board                                                                    |
+| Memory       | `services/memory.ts`       | Preparing workspaces, recall, the memory packet, generations                             |
+| Vault        | `services/vault.ts`        | Filling secrets, budgets, purchases                                                      |
+| Swarms       | `services/swarms.ts`       | Starting helpers, collecting results, merging back                                       |
+| Connections  | `services/connections.ts`  | MCP server config per teammate, connection tests                                         |
+| Email        | `services/email.ts`        | Inbound mail from Postmark, the outbox, sending                                          |
+| Telegram     | `services/telegram.ts`     | Long polling, linking, routing messages, approval buttons                                |
+| Push         | `services/push.ts`         | VAPID keys, Web Push delivery                                                            |
+| Model access | `services/model-access.ts` | Plan or API key, the cap, plan limits                                                    |
+
+## The internal HTTP API
+
+`src/http.ts` is a plain `node:http` server with a small route table.
+
+- `GET /healthz` is open and returns `{ ok: true }`.
+- Every other request needs the `x-worker-secret` header, compared in constant time.
+- Route handlers return JSON. An `HttpError` sets the status, and anything else is a 500 with the message.
+- Websocket upgrades on `/vnc` and `/egress/agent` check a signed token from the query string instead.
+
+The full list is in [Internal APIs](/docs/reference/http-api#the-worker).
+
+## Logging
+
+`src/logger.ts` writes one JSON object per line, with `time`, `level`, `scope` and `message`, plus fields.
+Scopes nest, like `worker:computer` or `worker:run`.
+An unhandled promise rejection is logged and doesn't crash the process, so one failing task can't take down every running teammate.

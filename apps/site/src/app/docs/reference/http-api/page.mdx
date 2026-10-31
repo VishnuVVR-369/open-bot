@@ -1,0 +1,162 @@
+import { docMetadata } from "@/lib/docs";
+
+export const metadata = docMetadata("/docs/reference/http-api");
+
+# Internal APIs
+
+open-bot's processes talk over a few small HTTP and websocket APIs.
+None of them is a public, stable API: they change together with the code.
+This page lists them, so you can find where any request is handled.
+
+## The web app
+
+### Public endpoints
+
+| Method and path                          | Auth        | Purpose                                                                 |
+| ---------------------------------------- | ----------- | ----------------------------------------------------------------------- |
+| `GET`, `POST`, `PUT` `/api/hooks/:token` | The token   | A teammate's webhook. Body up to 256 KB. Returns `202` with the run id. |
+| `POST /api/inbound/email/:token`         | The token   | Postmark's inbound email webhook                                        |
+| `/api/auth/*`                            | Better Auth | Sign-in, sign-up (owner only), passkeys, sessions                       |
+
+### Read routes
+
+Every other route under `/api` needs the owner's session, and returns JSON.
+They back the client's TanStack Query cache:
+
+| Path                                                                            | Returns                                                                       |
+| ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `GET /api/state`                                                                | The app shell's state: teammates, chats, the computer, sign-in status, counts |
+| `GET /api/stream?chat=&after=`                                                  | Server-sent events (see [Web app](/docs/architecture/web-app#live-updates))   |
+| `GET /api/chats/:chatId`                                                        | A chat's messages and runs, with its event cursor                             |
+| `GET /api/runs/:runId`                                                          | One run with its timeline                                                     |
+| `GET /api/artifacts/:id`                                                        | A screenshot or upload                                                        |
+| `GET /api/activity`, `/api/briefing`                                            | Home's activity and "While you were away"                                     |
+| `GET /api/approvals`, `/api/notifications`                                      | The inbox and notifications                                                   |
+| `GET /api/schedules`, `/api/schedules/:id/runs`                                 | Schedules and their recent runs                                               |
+| `GET /api/triggers`, `/api/triggers/:id/runs`                                   | Watches and webhooks, and their recent runs                                   |
+| `GET /api/tasks`, `/api/skills`, `/api/vault`, `/api/connections`, `/api/email` | Each page's data                                                              |
+| `GET /api/bots/:id/lessons`, `/api/bots/:id/spending`, `/api/bots/:id/export`   | A teammate's lessons, spending, and an export file                            |
+| `GET /api/memory`                                                               | Memory items, history and export                                              |
+| `GET /api/profile`, `/api/usage`, `/api/model-access`, `/api/rate-limits`       | About you, usage, plan or key, and plan limits                                |
+| `GET /api/telegram`, `/api/push`                                                | Telegram and push status                                                      |
+| `GET /api/search?q=`                                                            | ⌘K search across teammates, chats and messages                                |
+| `GET /api/files/list`, `/api/files/download`                                    | The computer's files under `/home/bot`                                        |
+| `GET /api/desktop/token`                                                        | A 60-second VNC token and the worker's websocket URL                          |
+| `GET /api/desktop/egress-token`                                                 | A 120-second egress token and URL, for the desktop app                        |
+
+Writes are server actions in `apps/web/src/lib/actions.ts`, not routes.
+
+## The worker
+
+Base URL `WORKER_URL` (port 4001).
+Every route except `/healthz` requires `x-worker-secret: <WORKER_SECRET>`.
+Bodies and responses are JSON.
+
+### Runs and messages
+
+| Route                                  | Purpose                                                    |
+| -------------------------------------- | ---------------------------------------------------------- |
+| `GET /healthz`                         | Liveness, unauthenticated                                  |
+| `GET /internal/status`                 | Computer, Codex and egress status                          |
+| `POST /internal/messages/:id/dispatch` | Route a saved message: steer a running turn, or queue runs |
+| `POST /internal/runs/:id/retry`        | Queue a failed or stopped request again                    |
+| `POST /internal/runs/cancel`           | Process cancellations now                                  |
+| `POST /internal/bots/:id/sync`         | Rewrite a teammate's workspace after an edit               |
+
+### Approvals and screens
+
+| Route                                      | Purpose                                                  |
+| ------------------------------------------ | -------------------------------------------------------- |
+| `POST /internal/approvals/:id/decide`      | Approve or deny, optionally with an Always allow pattern |
+| `POST /internal/approval-rules/:id/delete` | Remove an Always allow rule                              |
+| `POST /internal/screens/:id/wake`          | Start a screen to watch it                               |
+| `POST /internal/screens/:id/take`          | Take over a screen                                       |
+| `POST /internal/screens/:id/hand-back`     | Hand it back, with an optional note                      |
+| `POST /internal/screens/:id/touch`         | Report your input, to keep control from timing out       |
+| `POST /internal/screens/:id/forget`        | Stop a screen and delete its profile                     |
+| `POST /internal/takeover/:id/dismiss`      | Dismiss a teammate's request to take over                |
+
+### Automations, tasks and skills
+
+| Route                                                                 | Purpose                                               |
+| --------------------------------------------------------------------- | ----------------------------------------------------- |
+| `POST /internal/schedules`, `/internal/schedules/:id`                 | Create or update a schedule                           |
+| `POST /internal/schedules/:id/enabled`, `/internal/schedules/:id/run` | Pause or resume; run now                              |
+| `POST /internal/triggers`, `/internal/triggers/:id`                   | Create or update a watch or webhook                   |
+| `POST /internal/triggers/:id/enabled`, `/delete`, `/check`, `/rotate` | Pause, delete, check now, new webhook URL             |
+| `POST /internal/hooks/:token`                                         | Fire a webhook (called by the web app's public route) |
+| `POST /internal/tasks`, `/internal/tasks/:id`, `/delete`, `/start`    | The task board                                        |
+| `POST /internal/skills`, `/internal/skills/:id/delete`                | Save or delete a skill                                |
+| `POST /internal/swarms/:id/stop`                                      | Stop a swarm's helpers                                |
+
+### Files
+
+| Route                                                      | Purpose                                                                                   |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `GET /internal/files/list`, `/internal/files/read`         | Browse and read files under `/home/bot`                                                   |
+| `POST /internal/files/write`, `/upload`, `/put`, `/remove` | Write, upload and delete. Folders the computer needs and active workspaces are protected. |
+
+### Integrations and settings
+
+| Route                                                                                                        | Purpose                                                          |
+| ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| `POST /internal/codex/device-login`                                                                          | Start a device-code ChatGPT login on the computer                |
+| `POST /internal/codex/auth-source`                                                                           | Switch between borrowing the host's login and the computer's own |
+| `POST /internal/codex/logout`                                                                                | Sign the computer out                                            |
+| `GET /internal/codex/rate-limits`                                                                            | The plan's usage windows                                         |
+| `POST /internal/egress/mode`                                                                                 | Set the egress mode                                              |
+| `POST /internal/connections/:id/test`                                                                        | Test an MCP connection                                           |
+| `POST /internal/email/inbound/:token`                                                                        | Receive an email (called by the web app)                         |
+| `GET /internal/telegram`, `POST /internal/telegram/connect`, `/link-code`, `/test`, `/unlink`, `/disconnect` | Telegram                                                         |
+| `GET /internal/push`, `POST /internal/push/subscribe`, `/unsubscribe`, `/test`                               | Push notifications                                               |
+
+### Websockets
+
+| Path                                     | Auth         | Purpose                                                                |
+| ---------------------------------------- | ------------ | ---------------------------------------------------------------------- |
+| `/vnc?screen=&mode=view\|control&token=` | VNC token    | Proxies to botd's `/vnc`. `control` requires that you hold the screen. |
+| `/egress/agent?token=`                   | Egress token | The desktop app's end of the egress tunnel                             |
+
+## botd
+
+Base URL `BOTD_URL` (port 7000, private).
+Every route except `/healthz` requires `Authorization: Bearer <BOTD_TOKEN>`, or `?token=` on websockets.
+
+| Route                       | Purpose                                                                                                      |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `GET /healthz`              | Liveness, unauthenticated                                                                                    |
+| `GET /health`               | `ComputerHealth`: Codex state, screens with leases, egress                                                   |
+| `POST /computer/action`     | `{ run, action }`: perform a desktop action and return a screenshot, the pointer, and any apply guard blocks |
+| `POST /computer/read`       | `{ run, selector? }`: the front page's text and links                                                        |
+| `POST /computer/fill`       | `{ run, secret, site }`: type a vault secret, after checking the site                                        |
+| `POST /computer/screenshot` | A screenshot without an action                                                                               |
+| `POST /screens/start`       | Start a screen without using it                                                                              |
+| `POST /screens/forget`      | Stop a screen and delete its profile                                                                         |
+| `POST /lease/run/release`   | Release a run's lease when it ends                                                                           |
+| `POST /lease/user/take`     | Give you a screen's lease, preempting a run                                                                  |
+| `POST /lease/user/release`  | Release your lease (`handed_back`, `user_idle`, `user_disconnected`)                                         |
+| `POST /lease/user/touch`    | Record your input                                                                                            |
+
+| Websocket            | Purpose                                                |
+| -------------------- | ------------------------------------------------------ |
+| `/events`            | `lease` and `health` events, pushed to the worker      |
+| `/codex`             | A bridge to `codex app-server` on `127.0.0.1:4500`     |
+| `/egress`            | The computer's end of the egress tunnel                |
+| `/vnc?screen=&mode=` | A bridge to a screen's view-only or control VNC server |
+
+### Action errors
+
+`/computer/*` routes return `{ ok: false, code, message }` on failure, and the message goes to the model as the tool's result:
+
+| Code               | Meaning                                                               |
+| ------------------ | --------------------------------------------------------------------- |
+| `user_has_control` | You hold the screen, or took it during the action                     |
+| `desktop_busy`     | Another run of the same teammate holds the screen, after waiting 30 s |
+| `invalid_action`   | The action or identity failed validation                              |
+| `wrong_site`       | A vault login didn't match every visible page                         |
+| `failed`           | Anything else, like a screen that couldn't start                      |
+
+## Codex app-server
+
+The worker speaks JSON-RPC 2.0 to Codex through botd's `/codex` bridge.
+The methods and server requests open-bot uses are listed on [Agent runtime](/docs/architecture/agent-runtime#methods-open-bot-uses).

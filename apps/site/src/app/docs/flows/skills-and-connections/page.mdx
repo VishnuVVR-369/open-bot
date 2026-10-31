@@ -1,0 +1,117 @@
+import { docMetadata } from "@/lib/docs";
+
+export const metadata = docMetadata("/docs/flows/skills-and-connections");
+
+# Skills and connections
+
+Two features extend what teammates know and can do.
+**Skills** are saved procedures: the steps for a task, written once and reused.
+**Connections** give teammates outside services as tools, through the Model Context Protocol (MCP).
+Both are built on features Codex already has, so the work in open-bot is storage, access control, and getting them onto the computer.
+
+## Skills
+
+### What a skill is
+
+A skill (`skills`) has:
+
+- a **name**, lowercase with dashes, like `weekly-report`. It is what you type after `/`.
+- a **description**: when to use it, up to 300 characters;
+- **instructions**: the steps, checks and output format, in Markdown, up to 20,000 characters;
+- an owner: one teammate, or every teammate (`bot_id` is null).
+
+A name is unique among the skills one teammate can see.
+A shared skill takes its name for everyone, and two teammates can each have their own `/standup`.
+
+### Skills as Codex skills
+
+Postgres is the source of truth.
+`SkillService` writes each skill to the computer as a Codex skill, a folder with a `SKILL.md`:
+
+```md title="/home/bot/bots/milo/.agents/skills/weekly-report/SKILL.md"
+---
+name: weekly-report
+description: "When the user asks for the weekly travel report"
+---
+
+1. List every trip booked this week from the Trips folder.
+2. ...
+```
+
+| Owner          | Written to                                             |
+| -------------- | ------------------------------------------------------ |
+| Every teammate | `/home/bot/.agents/skills/<name>/SKILL.md`             |
+| One teammate   | `/home/bot/bots/<slug>/.agents/skills/<name>/SKILL.md` |
+
+Codex discovers skills in those folders and shows the model each one's name and description, so a teammate can follow a skill on its own when a request fits.
+The worker rewrites a teammate's skills before each of its runs, and writes every skill once when it first connects to Codex, so the computer is right even after a rebuild.
+
+### Invoking a skill
+
+Typing `/weekly-report` in a message invokes it explicitly.
+`invokedSkillNames()` finds `/name` tokens in the text, and for each skill the teammate can use, the turn gets an extra input:
+
+```ts
+{ type: "skill", name: "weekly-report", path: "/home/bot/bots/milo/.agents/skills/weekly-report/SKILL.md" }
+```
+
+The composer suggests the skills the teammate can use as you type `/`.
+
+### Teammates save skills
+
+`save_skill` lets a teammate save what worked, usually after you say "save that as a skill".
+The developer instructions tell teammates to offer this after a task that is likely to come up again.
+
+## Connections
+
+A connection (`connections`) is an MCP server that teammates use as a set of tools, so they work with a service's API instead of clicking through its website.
+
+| Transport | You give                                     | Secrets                                                 |
+| --------- | -------------------------------------------- | ------------------------------------------------------- |
+| `http`    | A URL                                        | Headers, like `Authorization: Bearer ...`, one per line |
+| `stdio`   | A command and arguments, run on the computer | Environment variables                                   |
+
+Secrets (headers and environment) are encrypted with `ENCRYPTION_KEY`.
+Each connection can be turned off, and limited to some teammates (`bot_ids`), or left open to all.
+
+### How a teammate gets them
+
+`ConnectionService.forBot()` returns the enabled connections a teammate may use, as Codex's `mcp_servers` config:
+
+```toml title="The equivalent Codex config"
+[mcp_servers.github]
+url = "https://api.githubcopilot.com/mcp/"
+http_headers = { Authorization = "Bearer ghp_..." }
+startup_timeout_sec = 20
+tool_timeout_sec = 120
+
+[mcp_servers.notes]
+command = "npx"
+args = ["-y", "@acme/notes-mcp"]
+env = { NOTES_TOKEN = "..." }
+startup_timeout_sec = 60
+tool_timeout_sec = 120
+```
+
+It is passed in the thread's config when the thread starts, so the secrets are never written to a file on the computer.
+It also returns:
+
+- a **connections key**, a hash of the connections' ids and update times, saved on the thread in `bot_threads.connections_key`;
+- **labels**, listed in the teammate's `AGENTS.md` under "Connected services", with a note to prefer them over websites.
+
+A thread keeps the MCP servers it started with.
+When the key changes (you added, edited or removed a connection), the next run **forks** the thread with the new set, so the conversation carries over and the new tools appear.
+
+MCP tool calls show in the timeline as `server.tool`, like "Used create issue".
+
+### Testing a connection
+
+**Test** starts an ephemeral Codex thread with only that server, under a fresh random name so Codex can't answer from its tools cache, then asks for its status with `mcpServerStatus/list`.
+You see whether it connected and the tools it offers, or a readable error: unreachable, the token was refused, the command didn't run, or it needs a sign-in.
+
+Testing runs on the computer, so it checks the real path: the computer's network for `http`, and the computer's installed tools for `stdio`.
+
+### Limits
+
+- OAuth sign-in for MCP servers isn't supported yet. A connection takes a token as a header or an environment variable.
+- `stdio` servers run as the `bot` user on the computer, with access to everything that user can read.

@@ -1,0 +1,216 @@
+import { docMetadata } from "@/lib/docs";
+
+export const metadata = docMetadata("/docs/flows/chat-turn");
+
+# Life of a message
+
+This page follows one message from the composer to the teammate's reply, through every process.
+Most other features are variations of this flow with a different trigger.
+
+The example: you ask Milo, your travel planner, "Find me a nonstop flight to Lisbon next Friday".
+
+<Figure
+  minWidth={700}
+  caption="The whole turn. Steps 9 to 12 repeat for every streamed item, and steps 13 to 17 for every desktop action. Dashed arrows are replies."
+>
+  <Sequence
+    actors={[
+      { id: "you", label: "You", sub: "browser tab" },
+      { id: "web", label: "Web app", sub: "Next.js" },
+      { id: "pg", label: "Postgres" },
+      { id: "worker", label: "Worker" },
+      { id: "botd", label: "botd" },
+      { id: "codex", label: "Codex", sub: "reached via botd" },
+    ]}
+    steps={[
+      { section: "Save and queue" },
+      { from: "you", to: "web", label: "sendMessage() action" },
+      { from: "web", to: "pg", label: "insert message" },
+      { from: "web", to: "worker", label: "POST dispatch" },
+      { from: "worker", to: "pg", label: "insert queued run, NOTIFY runs" },
+      { section: "Prepare the run" },
+      { self: "worker", label: "claim it: FOR UPDATE SKIP LOCKED" },
+      { from: "worker", to: "codex", label: "write AGENTS.md, skills, MEMORY.md (fs/*)" },
+      { from: "worker", to: "pg", label: "recall memory, build the prompt" },
+      { from: "worker", to: "codex", label: "thread/resume, then turn/start" },
+      { section: "Stream the turn" },
+      { from: "codex", to: "worker", label: "item and delta notifications", reply: true },
+      { from: "worker", to: "pg", label: "append run_events, NOTIFY chat" },
+      { from: "pg", to: "web", label: "notification", reply: true },
+      { from: "web", to: "you", label: "SSE run events", reply: true },
+      { section: "A desktop tool call" },
+      { from: "codex", to: "worker", label: "item/tool/call desktop_open_url" },
+      { from: "worker", to: "botd", label: "POST /computer/action" },
+      { self: "botd", label: "lease, open the tab, screenshot" },
+      { from: "botd", to: "worker", label: "JPEG screenshot", reply: true },
+      { from: "worker", to: "codex", label: "tool result: the image", reply: true },
+      { section: "Finish" },
+      { from: "codex", to: "worker", label: "turn/completed", reply: true },
+      { from: "worker", to: "pg", label: "status, reply, usage, notification" },
+      { from: "web", to: "you", label: "final events, toast", reply: true },
+    ]}
+  />
+</Figure>
+
+## Saving the message
+
+The composer calls the `sendMessage` server action with the text, any attachments you uploaded, and the teammates you @-mentioned.
+The action checks your session, inserts a `messages` row, and calls the worker:
+
+```http
+POST /internal/messages/<messageId>/dispatch
+x-worker-secret: <WORKER_SECRET>
+```
+
+Your message is saved before the worker is involved, so it is never lost.
+The action returns the new message right away, and the composer shows it.
+
+Attachments are uploaded first, by a separate action, to `/home/bot/shared/uploads` on the computer through Codex's `fs/writeFile`.
+The message only stores their paths, types and sizes.
+
+## Dispatching
+
+`RunExecutor.dispatchMessage()` decides who should answer.
+In a direct chat that is Milo.
+In a group chat it is whoever you mentioned, or the lead.
+
+If Milo were already working in this chat, your message would join his running turn through `turn/steer` instead, and appear in the timeline as a message you sent mid-turn.
+He isn't, so the worker calls `enqueueRun()`: it inserts a run with trigger `user`, appends a `status: queued` event, and sends `NOTIFY openbot_worker, 'runs'`.
+
+## Claiming
+
+The `NOTIFY` wakes the executor, which runs its claim query.
+The run moves to `starting` only if no other run of Milo's is active in this chat and fewer than `MAX_CONCURRENT_RUNS` are executing.
+A `RunSession` is created and registered.
+
+## Preparing the workspace
+
+Before every run, the session rewrites the teammate's workspace on the computer, through Codex's `fs/*` methods:
+
+- `AGENTS.md`, generated from Milo's row, his Always allow rules, the other teammates, his connected services and his email address;
+- `MEMORY.md`, a generated pointer to the memory tools (a one-time import of an older hand-written file happens here too);
+- his skills, as `SKILL.md` files.
+
+Doing this every run means an edit to Milo in the app always reaches his next turn.
+
+## Building the prompt
+
+The prompt starts with the current time in your time zone, then any group chat context, the memory packet, your Always allow rules, your message and the list of attachments.
+The exact format is on the [Agent runtime](/docs/architecture/agent-runtime#the-prompt) page.
+
+The memory packet is fetched with the teammate's current **memory generation**.
+If the generation changes before the turn starts, the run stops with "Memory changed while this task was starting", so a turn never begins with facts you just corrected.
+
+## Choosing the model and thread
+
+`ModelAccess.decide()` picks the ChatGPT plan, the API key, or neither (see [Models and usage](/docs/flows/models-and-usage)).
+
+Then the session gets the thread for Milo in this chat:
+
+- If one exists with the same tools version, memory generation, provider and connections, it is reused or resumed.
+- If the provider or connections changed, it is forked, keeping the conversation.
+- Otherwise a new thread starts.
+
+See [Choosing a thread](/docs/architecture/agent-runtime#choosing-a-thread).
+
+## Starting the turn
+
+```ts title="apps/worker/src/runs/session.ts"
+const { turn } = await client.request("turn/start", {
+  threadId,
+  input, // the prompt, plus skill and image inputs
+  approvalPolicy, // "untrusted" or "never"
+  model: bot.model,
+  effort: bot.reasoningEffort,
+  turnTrigger: run.trigger,
+});
+```
+
+The run's thread id, turn id and auth mode are saved, and its status becomes `running`.
+
+## Streaming
+
+Codex streams notifications: items starting and completing, text deltas, command output, plan updates and token usage.
+The session maps each one to a timeline item and hands it to the `RunEventWriter`, which stores it in `run_events`.
+
+Text deltas are coalesced for up to 120 ms, so a long answer is a few dozen rows, not thousands.
+After each insert, a `NOTIFY openbot_chat, '<chatId>'` follows within 30 ms.
+
+In the web app, the realtime listener receives the notification, and the SSE route for your tab reads every row after its cursor and sends them as `run` events.
+Your browser applies them with the same reducer the server used to render the page, and Milo's reply appears word by word.
+
+## A tool call
+
+Milo decides to open Google Flights.
+Codex sends a server request:
+
+```json
+{
+  "id": 42,
+  "method": "item/tool/call",
+  "params": {
+    "threadId": "…",
+    "callId": "call_7",
+    "tool": "desktop_open_url",
+    "arguments": { "url": "https://www.google.com/travel/flights" }
+  }
+}
+```
+
+`CodexManager` routes it to Milo's session, and `ToolHandlers` turns it into a desktop action.
+It records a `computer` item as `running`, then calls botd:
+
+```http
+POST /computer/action
+Authorization: Bearer <BOTD_TOKEN>
+
+{ "run": { "runId": "…", "botId": "…", "botName": "Milo" },
+  "action": { "action": "open_url", "url": "https://www.google.com/travel/flights" } }
+```
+
+botd starts Milo's screen if it isn't running, takes the screen's lease for this run (or waits, or refuses if you hold it), opens a tab, waits 500 ms for the page to settle, and returns a screenshot.
+
+The worker stores the screenshot as an `artifacts` row, updates the `computer` item with its id, and answers Codex with the image:
+
+```json
+{
+  "id": 42,
+  "result": {
+    "success": true,
+    "contentItems": [{ "type": "inputImage", "imageUrl": "data:image/jpeg;base64,…" }]
+  }
+}
+```
+
+The model looks at the screenshot and decides the next click.
+You see the same screenshot in the timeline, and the live screen next to the chat shows the browser as it changes.
+
+## Finishing
+
+Codex sends `turn/completed`.
+The session then, in order:
+
+1. picks the reply: the last message in the `final` phase;
+2. marks anything still `running` as finished, so no spinner is ever left behind;
+3. releases the screen's lease for this run;
+4. updates the run row with its status, error, reply and completion time;
+5. writes the `usage` and final `status` events, and waits until every event is stored;
+6. writes the usage ledger entries;
+7. emits `runFinished` for other services (swarms, Telegram, email);
+8. creates a notification: "Milo replied", unless the run was a quiet check-in with nothing to report, a helper's part, or an answer to a teammate.
+
+The notification shows as a toast in the app, and goes to push and Telegram if you set them up.
+Back in the executor, the session is removed and `pump()` claims the next queued run.
+
+## When things go wrong
+
+| What happened                                 | What you see                                                                                            |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| The worker isn't running                      | The action fails with "The worker isn't running". The message is saved.                                 |
+| Codex isn't signed in                         | The run fails with "Codex is not signed in to ChatGPT. Sign in on the Settings page."                   |
+| The connection to the computer drops mid-turn | The run fails with "Lost the connection to the computer."                                               |
+| The worker restarts mid-turn                  | On start, the run is marked `interrupted`: "The worker restarted while this was running."               |
+| The ChatGPT plan's limit is hit               | The run retries once on your API key, if allowed. See [Models and usage](/docs/flows/models-and-usage). |
+| You press Stop                                | `turn/interrupt`, and the run ends `interrupted`.                                                       |
+
+A failed run creates a "couldn't finish" notification with the error, and the reply has a **Try again** button that queues the same request again.

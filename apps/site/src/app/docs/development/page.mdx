@@ -1,0 +1,121 @@
+import { docMetadata } from "@/lib/docs";
+
+export const metadata = docMetadata("/docs/development");
+
+# Development
+
+open-bot is a pnpm and Turborepo monorepo in strict TypeScript.
+This page maps the repository, lists the checks and test suites, and collects the conventions that keep the parts consistent.
+
+## Repository layout
+
+```text
+open-bot/
+├── apps/
+│   ├── web/          Next.js app: pages, server actions, read routes, the SSE stream
+│   ├── worker/       Node service: runs, tools, services, the internal API
+│   ├── botd/         The daemon inside the computer, bundled into the image
+│   ├── desktop/      Electron shell and egress agent
+│   └── site/         This site: the landing page, the tour and these docs
+├── packages/
+│   ├── db/           Drizzle schema, migrations, NOTIFY channels
+│   ├── shared/       Types and pure logic shared by every app
+│   ├── agent/        Codex app-server client and generated protocol types
+│   ├── egress/       Tunnel framing, multiplexer, SOCKS server, agent
+│   └── memory/       The memory service and its background jobs
+├── images/computer/  The computer's Dockerfile and its filesystem overlay
+├── e2e/              Playwright end-to-end tests for the whole stack
+├── scripts/          The memory test harness
+└── docker-compose.yml  Postgres and the computer for local development
+```
+
+Workspace packages export TypeScript source, not built JavaScript.
+The web app compiles them through Next.js, the worker and botd bundle them with esbuild, and tests run them directly.
+
+## Commands
+
+| Command                               | What it does                                                     |
+| ------------------------------------- | ---------------------------------------------------------------- |
+| `pnpm dev`                            | The web app and the worker, with reload                          |
+| `pnpm infra:up`                       | Postgres and the computer in Docker, waiting until healthy       |
+| `pnpm computer:build`                 | Rebuilds the computer image (after changing botd or the image)   |
+| `pnpm db:migrate`, `pnpm db:generate` | Apply migrations, or generate one from the schema                |
+| `pnpm lint`                           | ESLint over the repository, with no warnings allowed             |
+| `pnpm format`, `pnpm format:check`    | Prettier                                                         |
+| `pnpm typecheck`                      | `tsc` in every package (and `next typegen` for the Next.js apps) |
+| `pnpm test`                           | Vitest unit tests in every package                               |
+| `pnpm e2e`                            | Playwright against the running stack                             |
+| `pnpm test:memory -- --e2e`           | The isolated memory suite                                        |
+
+## Tests
+
+### Unit tests
+
+Vitest, next to the code they test (`*.test.ts`).
+The pure logic in `@open-bot/shared` is covered most: approval rules, schedules, page diffing, the timeline reducer, templates, vault and budgets, connections, email parsing, Telegram formatting, model access and pricing.
+The worker and botd test their trickiest parts directly: the lease, the cookie jar's merge rules, the Codex client, the event mapper, instructions and push payloads.
+`packages/egress` has contract tests for the framing, flow control and SOCKS.
+
+### End-to-end tests
+
+Playwright drives the real stack: start it with `pnpm infra:up` and `pnpm dev`, then:
+
+```sh title="Terminal"
+E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e --grep-invert @agent   # fast
+E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e --grep @agent          # real teammates at work
+```
+
+- A `setup` project signs in once and saves the session to `e2e/.auth/owner.json`.
+- Tests tagged `@agent` run real turns on the computer, take minutes, and use your ChatGPT plan.
+- Tests run serially (`workers: 1`), because they share one computer and one database.
+- `e2e/global-teardown.ts` deletes test teammates by a name pattern. New test name prefixes must be added to it.
+
+Stand-ins replace outside services, so no test needs a real account:
+
+| Stand-in                            | Replaces                                                     | Used with                                                               |
+| ----------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| `e2e/telegram-mock.ts` (port 4797)  | The Telegram Bot API                                         | `TELEGRAM_API_BASE_URL`, `E2E_TELEGRAM=1`                               |
+| The plan rehearsal mock (port 4799) | ChatGPT and the OpenAI API, answering like an exhausted plan | `OPEN_BOT_PLAN_BASE_URL`, `OPENAI_API_BASE_URL`, `E2E_PLAN_REHEARSAL=1` |
+| `e2e/mcp-stand-in.ts`               | An MCP server                                                | Connection tests                                                        |
+| `e2e/job-scout-stand-ins.ts`        | Job portals and a tracker                                    | Job Scout and the apply guard                                           |
+| A plain-HTTP push service           | Web Push endpoints                                           | Push tests                                                              |
+
+### The memory suite
+
+`pnpm test:memory -- --e2e` creates its own pgvector container, applies every migration, runs database and provider tests against a deterministic local HTTP server, smoke-tests the compiled worker, and exercises the memory UI at desktop and phone widths.
+It removes only its own container.
+
+### This site
+
+```sh title="Terminal"
+pnpm --filter @open-bot/site dev        # http://localhost:3200
+pnpm --filter @open-bot/site test:e2e   # builds and serves it the way it is deployed
+```
+
+## Conventions
+
+These are easy to miss and cost time when forgotten.
+
+### Agent and protocol
+
+- **Bump `TOOLS_VERSION`** (`apps/worker/src/tools/definitions.ts`) whenever you change a tool or `DEVELOPER_INSTRUCTIONS`. Threads keep the tools they started with, and the bump makes the next run of every chat start a fresh thread.
+- **Regenerate the protocol** after changing `CODEX_VERSION` in the image: `pnpm --filter @open-bot/agent generate:protocol`, then fix any type errors in the `Methods` map.
+- **Never block a tool for long.** Codex hands control back to the model after about 30 seconds. Anything that waits on the user must be decidable after the run ends (see the email outbox).
+- **Unwrap shell commands** with `shellScript()` before showing or matching them. Codex wraps every command in `/bin/bash -lc '...'`.
+
+### Data and events
+
+- **Write run events through `RunEventWriter`** or `appendRunEvent()`, never with a raw insert, so ordering and notifications stay correct.
+- **Publish an `AppEvent`** after any change the UI shows, so open tabs refetch.
+- **Treat `NOTIFY` as a hint.** Read the rows, and make sure a periodic sweep would eventually catch up.
+- **Memory goes through `@open-bot/memory`.** Never write `settings.about_me` or `lessons` directly; they are projections.
+
+### Web app
+
+- **Reads are `GET` routes, writes are server actions.** Next.js runs server actions one at a time per client, so reads done as actions queue behind each other.
+- **Hydration errors fail tests.** E2E specs import `test` from `e2e/fixtures.ts`, which fails any test whose page logs a hydration error. Relative times from server data use the `TimeAgo` component.
+
+### The computer
+
+- **Rebuild the image after changing botd**, `packages/egress` or `images/computer`: `pnpm computer:build && docker compose up -d --wait computer`.
+- **Keep the user split.** Anything that touches a display runs as `desktop` through botd. Nothing in the `bot` user's reach may get display access.

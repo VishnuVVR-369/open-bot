@@ -1,0 +1,135 @@
+import { docMetadata } from "@/lib/docs";
+
+export const metadata = docMetadata("/docs/architecture");
+
+# System overview
+
+open-bot is five processes around one Postgres database.
+This page shows what each one owns, every connection between them, and the reasons for the shape.
+
+<Figure caption="One-headed arrows point away from the side that connects. Two-headed arrows are connections where both sides push data, like websockets and LISTEN/NOTIFY.">
+  <SystemDiagram />
+</Figure>
+
+## The processes
+
+| Process     | Code                              | Owns                                                                                                                       | Never does                            |
+| ----------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| Web app     | `apps/web`                        | Sign-in, every page, every write you make, the live event stream to your tabs                                              | Talk to the computer or run the agent |
+| Worker      | `apps/worker`                     | Running teammates, their tools, schedules, watches, approvals, takeovers, integrations, the VNC proxy and the egress relay | Render UI                             |
+| Postgres    | `pgvector/pgvector:pg17`          | All state, the run queue, the event log, the pub/sub channels                                                              | Run application logic                 |
+| botd        | `apps/botd`, in `images/computer` | Every process on the computer, the screens, their leases, the shared cookie jar, the browser's SOCKS proxy                 | Touch Postgres                        |
+| Desktop app | `apps/desktop`                    | A native window for the web UI, notifications, and the egress agent                                                        | Store any data of its own             |
+
+The shared code lives in `packages/*`:
+
+| Package            | Used by               | What it holds                                                                                                    |
+| ------------------ | --------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `@open-bot/db`     | web, worker           | The Drizzle schema, migrations, `CHANNELS` and `notify()`                                                        |
+| `@open-bot/shared` | everyone              | Types and pure logic: timeline items, approval rules, schedules, page diffing, vault, templates, tokens, secrets |
+| `@open-bot/agent`  | worker                | A typed JSON-RPC client for Codex app-server, with the protocol types generated from Codex                       |
+| `@open-bot/egress` | worker, botd, desktop | The tunnel's framing, multiplexer, SOCKS server and agent                                                        |
+| `@open-bot/memory` | web, worker           | The memory service: scopes, revisions, search and background jobs                                                |
+
+## Every connection
+
+| From        | To                     | Transport                     | Authenticated by                                              | Carries                                                                        |
+| ----------- | ---------------------- | ----------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Browser     | Web app                | HTTPS                         | Better Auth session cookie                                    | Pages, server actions, reads, the SSE stream                                   |
+| Browser     | Worker `/vnc`          | WebSocket                     | HMAC token from the web app, valid 60 s                       | The live screen (RFB, the VNC protocol)                                        |
+| Desktop app | Web app                | HTTPS                         | Session cookie                                                | The same UI as the browser                                                     |
+| Desktop app | Worker `/egress/agent` | WebSocket                     | HMAC token, valid 120 s                                       | The multiplexed egress tunnel                                                  |
+| Web app     | Postgres               | TCP                           | Database credentials                                          | Queries, and `LISTEN` for live updates                                         |
+| Web app     | Worker `/internal/*`   | HTTP                          | `x-worker-secret` header                                      | Anything that acts: dispatch a message, decide an approval, take over a screen |
+| Worker      | Postgres               | TCP                           | Database credentials                                          | Queries, `LISTEN openbot_worker`, `NOTIFY`                                     |
+| Worker      | botd                   | HTTP and WebSocket            | `Bearer BOTD_TOKEN`                                           | Desktop actions, lease changes, `/events`, `/codex`, `/egress`, `/vnc`         |
+| botd        | Codex app-server       | WebSocket on `127.0.0.1:4500` | None (local only, see [Security](/docs/security#known-risks)) | JSON-RPC, bridged from the worker                                              |
+| Codex       | OpenAI                 | HTTPS                         | ChatGPT login or API key                                      | Model traffic, sent directly                                                   |
+| Chromium    | botd SOCKS5            | TCP on `127.0.0.1:1080`       | None (local only)                                             | Every browser connection                                                       |
+
+Two rules fall out of this table.
+The worker is the only process that reaches the computer, and botd is the only process the worker reaches inside it.
+
+## Design decisions
+
+### The agent runs inside the computer
+
+The teammates use `gpt-6.1-sol` through a ChatGPT subscription.
+A subscription is not an API key: on a ChatGPT plan, the model is only reachable through the Codex CLI.
+Codex's built-in shell and file tools act on the machine Codex runs on.
+So Codex must run on the computer, and the worker drives it remotely over the app-server's JSON-RPC protocol.
+
+The OpenAI API key fallback uses the exact same path with a different model provider on the thread.
+There is only one agent runtime to build, test and reason about.
+See [Agent runtime](/docs/architecture/agent-runtime).
+
+### Postgres does the plumbing
+
+Three jobs that often need extra infrastructure are plain Postgres here:
+
+- **The job queue.** A queued run is a row with `status = 'queued'`. The worker claims one with `UPDATE ... WHERE id = (SELECT ... FOR UPDATE SKIP LOCKED)`.
+- **The event stream.** Every streamed event is a row in `run_events` with a global, increasing `id`. A client that reconnects asks for everything after the last id it saw.
+- **Pub/sub.** `NOTIFY` on three channels wakes the worker and every open tab. A missed notification only delays an update, because the rows are the truth and periodic sweeps catch up.
+
+There is no Redis, no queue library and no workflow engine to deploy, back up or keep consistent with the database.
+See [Data and events](/docs/architecture/data).
+
+### One computer, shared by every teammate
+
+Every teammate shares one container, with its own screen, browser profile and workspace folder on it.
+A sign-in on any screen reaches every browser through botd's cookie sync.
+Teammates hand work to each other through shared folders.
+There is one machine to provision, monitor and pay for.
+
+The cost is isolation.
+Teammates run as the same Linux user and can read each other's files.
+That is acceptable for a single-user app where every teammate works for the same person, and the [Security model](/docs/security) is explicit about it.
+
+### botd is the only way into the desktop
+
+The computer has three Linux users.
+botd runs as `root`, the desktop and every browser run as `desktop`, and Codex and its shell run as `bot`.
+The `bot` user has no access to any X display, because each display's auth cookie is readable only by `desktop`.
+
+So a teammate can't run `xdotool` from its shell to click around.
+Every desktop action goes through a dynamic tool, to the worker, to botd, which checks the screen's lease first.
+This is what makes takeover dependable: while you hold a screen, the teammate can't act on it or even see it.
+
+### The event log is the source of truth for the UI
+
+The worker never pushes UI state directly to a browser.
+It appends events to `run_events` and sends a `NOTIFY` with the chat id.
+The web app's SSE route reads new rows after the client's cursor and forwards them.
+
+Live view, refresh, reconnect, a second tab and replay all use the same code path, so they can't disagree.
+
+### Waiting for you never blocks the agent for long
+
+Codex runs dynamic tools inside a code cell that hands control back to the model after about 30 seconds, even if a tool is still waiting.
+So anything that waits on you is designed to finish outside the run when needed:
+
+- An approval answered quickly goes straight back into the running turn.
+- Otherwise the turn ends saying what it waits for, and your later decision starts a new run in the same chat with the answer.
+- Emails wait in an outbox and send the moment you approve, even long after the run ended.
+
+## Startup order
+
+Nothing has to start in a particular order.
+Each process retries its connections:
+
+1. **Postgres** starts. The web app and the worker fail fast without it, so it comes first in practice.
+2. **The worker** creates the single-row tables if missing, marks runs that were executing before a restart as `interrupted`, then connects to botd's `/events` socket and retries with backoff (1 s up to 10 s).
+3. **botd** prepares the filesystem, loads the cookie jar, starts `codex app-server` and waits for its `/readyz`, then listens on port 7000.
+4. When the worker's `/events` socket opens, it connects to Codex through `/codex`, signs in, writes the saved skills to the computer, and starts claiming queued runs.
+5. **The web app** can start any time. Without the worker, actions fail with "The worker isn't running" and pages still load.
+
+Screens don't start with the computer.
+botd starts one the first time its teammate uses the desktop, or when you take it over or wake it from the app.
+
+## Scaling limits
+
+open-bot is built for one person, and runs as single replicas:
+
+- **One worker.** Run executors, schedule and watch timers, Telegram long polling, in-memory approval waiters and websockets all assume one worker process.
+- **One computer.** All teammates share it. At most `MAX_SCREENS` screens (default 4) run at once, and the least recently used idle screen stops to make room.
+- **Concurrency.** The worker executes up to `MAX_CONCURRENT_RUNS` runs at once (default 4), and at most one per teammate per chat.

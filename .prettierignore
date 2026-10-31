@@ -5,5 +5,5 @@ pnpm-lock.yaml
 **/drizzle/meta
 **/playwright-report
 **/test-results
-docs
+/docs
 packages/agent/src/protocol

@@ -1,0 +1,161 @@
+import { docMetadata } from "@/lib/docs";
+
+export const metadata = docMetadata("/docs/flows/memory");
+
+# Memory
+
+Teammates remember facts about you, your preferences, and lessons from your feedback.
+Memory lives in Postgres as versioned, scoped items, owned by one package, `@open-bot/memory`, which the web app and the worker both use.
+It needs no extra service, and works fully without any AI, with optional embeddings and extraction on top.
+
+## The model
+
+A memory item (`memory_items`) has:
+
+| Field        | Meaning                                                                                          |
+| ------------ | ------------------------------------------------------------------------------------------------ |
+| `bot_id`     | The teammate it belongs to, or `null` for **shared** memory every teammate can use               |
+| `kind`       | `fact`, `preference`, `lesson` or `note`                                                         |
+| `content`    | The text                                                                                         |
+| `key`        | An optional topic key, like `home-airport`, also searched                                        |
+| `pinned`     | Pinned items always go into a run's context first                                                |
+| `expires_at` | An optional expiry                                                                               |
+| `state`      | `active`, `candidate` (a suggestion waiting for you) or `deleted` (a tombstone)                  |
+| `revision`   | Increases with every change. Each one is kept in `memory_revisions`.                             |
+| source       | Where it came from: you, feedback, a teammate, an import or extraction, with message and run ids |
+
+### Scopes
+
+Every operation runs in a scope: shared, or one teammate.
+A teammate's memory tools get their scope from the running session, never from an argument, so one teammate can't read or change another's memory.
+Shared memory is changed by a teammate only when your message explicitly says it is for every teammate.
+
+Scope isolation is a logical boundary in the database.
+On the computer, teammates are the same Linux user, so it is not a security boundary between them.
+
+## Writing memory
+
+You manage memory on a teammate's Memory tab, and shared memory under Settings → About you.
+Teammates use four tools:
+
+| Tool              | Does                                                                        |
+| ----------------- | --------------------------------------------------------------------------- |
+| `remember_memory` | Saves one durable fact or preference. Defaults to the teammate's own scope. |
+| `recall_memory`   | Finds shared and own memories for a question, with ids and revisions        |
+| `update_memory`   | Corrects a memory, given its current id and revision                        |
+| `forget_memory`   | Forgets a memory when you ask                                               |
+
+`remember_about_user` is a shortcut for a shared fact about you.
+
+### Confirmed facts and suggestions
+
+What a teammate saves only becomes a confirmed fact when your actual message asked for it.
+`MemoryCoordinator.actor()` checks the run's user message:
+
+- It must express an intent to save ("remember", "save", "keep", "update", "correct"), and not a negated one ("don't remember").
+- The saved content must appear in your message.
+- For shared memory, your message must say it is for everyone ("all", "every", "teammates", "profile").
+
+Anything else is saved as a **candidate**.
+Candidates are shown as suggestions you confirm or dismiss, and are never given to a run.
+An inference can't replace a fact you confirmed.
+
+### Revisions and conflicts
+
+Every change writes a new revision, in a transaction that locks the scope.
+An edit or correction carries the revision it was based on.
+If someone changed the item since, the write fails with a conflict, and the editor in the app keeps your unsaved text.
+**Restore** brings back an earlier revision as a new one, and Undo after a save uses the same check.
+
+### Forgetting
+
+Forgetting is meant to be real:
+
+- the content is removed from the current item, every saved revision and every embedding;
+- pending indexing jobs for it are cancelled, and a vector writer rechecks the item's state before committing, so a late result can't bring it back;
+- a content-free tombstone and hashes stay, so the same text isn't saved again by accident;
+- when the source messages are known, automatic extraction from them is suppressed.
+
+Forgetting doesn't erase the original conversation, earlier model outputs, provider logs or backups.
+
+## What a run sees
+
+Before each turn, the worker builds a bounded **memory packet** for the prompt.
+
+<Figure caption="Pinned items always come first. Without an embedding endpoint, only full-text search runs, and recall still works.">
+  <MemoryRecallDiagram />
+</Figure>
+
+1. **Full-text search** (`to_tsvector('english', content || key)`) matches the request's words with OR, ranked by `ts_rank_cd`. Pinned items always match. Top 30.
+2. **Vector search**, when embeddings are configured, embeds the request and finds the nearest items by cosine distance in pgvector, under `MEMORY_SEMANTIC_MAX_DISTANCE` (default 0.4). Top 30. Only embeddings of the item's current revision and the configured model count.
+3. **Fusion.** The two lists are merged with reciprocal rank fusion (each list adds `1 / (60 + rank)`), pinned items first. Top 12.
+4. **The packet** is cut at 6,000 characters. Each entry has a header with its id, revision, scope and kind, like `[memory:<id>@3; shared; preference]`.
+
+Recall never pads an empty result with unrelated recent facts.
+
+The ids and revisions given to each run are saved in `memory_contexts`.
+**Memory context** under a reply shows which facts were provided, and whether each one has changed or been forgotten since.
+It shows what was given, not what the model actually relied on.
+
+Original conversations are not part of memory.
+Teammates search them with `search_history` when they need earlier detail.
+
+## Generations and stale threads
+
+A Codex thread remembers its conversation.
+If you correct a fact, an old thread may still "know" the old one from earlier turns.
+**Memory generations** prevent that.
+
+Each scope has a counter in `memory_generations`, bumped by every change to active memory.
+A teammate's generation combines the shared counter, its own counter, and the number of its expired items: `shared:own:expired`.
+
+- `bot_threads` records the generation each thread was made with. A run whose generation differs starts a **fresh** thread, and never forks the old one, which would carry the stale facts over.
+- If the generation changes while a run starts, the run stops: "Memory changed while this task was starting."
+- Before every tool call, the handler checks the generation again. If it changed mid-turn, it interrupts the turn, so the teammate can't act on facts you just corrected.
+- When a teammate changes its own memory, it adopts the new generation only after checking that you haven't cancelled the run, so it can't absorb a correction you made at the same moment.
+
+The cost is that a new thread loses conversational detail that existed only in the old thread's context.
+The teammate can recover it with `search_history`.
+
+## MEMORY.md
+
+Earlier versions kept memory in a `MEMORY.md` file in each workspace.
+On a teammate's first run after the upgrade, that file is imported once, as a pinned note, and the import is recorded so it never happens twice.
+If the file can't be read, preparation fails rather than overwriting it.
+
+After that, `MEMORY.md` is only a generated pointer to the memory tools.
+Edits to it are never read, and memory bodies are never written back to the computer, so forgotten facts don't linger in files.
+
+## Feedback and lessons
+
+Every reply has a thumbs up and down (`runs.rating`).
+A thumbs down asks what to do differently:
+
+- **Keep as a lesson** saves your note as a pinned memory of kind `lesson` for that teammate. It goes into every future run.
+- **Try again with this** also sends the note to the chat as a redo (`messages.redo_of_run_id`), with a prompt that asks for the complete new answer.
+
+Lessons appear on the teammate's Memory tab, linked to the reply that prompted them.
+The `lessons` table and `settings.about_me` are compatibility projections kept up to date by the memory service.
+
+## Optional AI
+
+Two features are off by default, and need an OpenAI-compatible endpoint you configure:
+
+- **Embeddings** (`MEMORY_EMBEDDING_URL`, `_MODEL`, `_DIMENSIONS`) add vector search. New and edited memories are embedded by background jobs. Changing the model re-embeds active memories.
+- **Extraction** (`MEMORY_EXTRACTION_URL`, `_MODEL`) reads the user message of each completed run you started, and proposes up to five candidates. Each must quote evidence that appears in your message, or it is dropped. Candidates still wait for you.
+
+Jobs are rows in `memory_jobs`, claimed with leases and `SKIP LOCKED`, retried with backoff up to five times.
+`MEMORY_AI_DAILY_REQUEST_LIMIT` (default 100) caps all memory AI requests per day, reserved atomically before each request.
+Setting it to 0 turns memory AI off.
+
+Configuring an endpoint means memory text (for embeddings) or your messages (for extraction) are sent there.
+The key, `MEMORY_AI_API_KEY`, is separate from your ChatGPT login and your fallback API key.
+
+## Testing
+
+```sh title="Terminal"
+pnpm test:memory -- --e2e
+```
+
+This starts an isolated pgvector container, applies every migration, runs the database and provider tests, smoke-tests the compiled worker, starts a dedicated web server and exercises the memory UI at desktop and phone widths.
+It never touches your normal database.

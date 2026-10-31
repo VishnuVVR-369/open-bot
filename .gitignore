@@ -12,5 +12,5 @@ test-results
 next-env.d.ts
 *.tsbuildinfo
 e2e/.auth
-docs/
+/docs/
 /apps/desktop/release/

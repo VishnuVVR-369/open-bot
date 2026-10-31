@@ -1,0 +1,147 @@
+import { docMetadata } from "@/lib/docs";
+
+export const metadata = docMetadata("/docs/flows/screens-and-takeover");
+
+# Screens and takeover
+
+Every teammate has its own screen on the shared computer.
+You can watch any screen live, take it over at any moment, and hand it back with a note.
+This page explains the lease that makes this safe, and the path of each action.
+
+## Screens in one paragraph
+
+A screen is an X display with an XFCE desktop, its own Chromium profile, and two VNC servers: one view-only, one with input.
+botd starts a screen the first time its teammate uses the desktop, or when you take it over or wake it, and stops it after 20 idle minutes or when it needs room for another.
+Its browser profile is on the volume, so tabs come back when it restarts.
+The details are on [The computer and botd](/docs/architecture/computer#screens).
+
+## The lease
+
+Each screen has one lease, owned by botd (`apps/botd/src/lease.ts`).
+At any moment it is in one of three states:
+
+<Figure caption="You always win. Taking over preempts a run immediately, and botd kills its in-flight input commands. The lease is in botd's memory, so a computer restart frees every screen.">
+  <LeaseDiagram />
+</Figure>
+
+| Rule                                   | Value                                                                                   |
+| -------------------------------------- | --------------------------------------------------------------------------------------- |
+| A run takes the lease                  | on its first desktop action                                                             |
+| A run keeps it                         | until the run ends, or 2 minutes pass without a desktop action                          |
+| Another run of the same teammate waits | up to 30 seconds, then gets `desktop_busy`                                              |
+| You take it                            | at once, even from a run (`preempted`)                                                  |
+| You lose it automatically              | after 10 minutes without input, or 90 seconds after your last control connection closed |
+
+Most of the time only one run uses a screen, because each teammate has its own.
+`desktop_busy` happens when the same teammate works in two chats at once.
+The tool tells it: "You're using your screen in another chat right now. Do other work and try the desktop again later."
+
+### What a teammate sees while you hold its screen
+
+Every desktop tool, including `desktop_screenshot` and `browser_read_page`, fails with:
+
+> The user has control of your screen. Do not use desktop tools until they hand it back.
+
+The developer instructions tell every teammate to stop using the desktop when it sees this, and continue with other work or end its turn.
+Because screenshots fail too, a teammate never sees what you type, like a password.
+
+## Watching a screen
+
+The live view is noVNC in the browser, proxied twice so the computer never needs a public address:
+
+```text
+browser ── wss://worker/vnc?screen=…&mode=view&token=… ──▶ worker
+worker ── ws://botd:7000/vnc?screen=…&mode=view&token=BOTD_TOKEN ──▶ botd
+botd ── TCP 127.0.0.1:5910+2·slot ──▶ x11vnc (view-only)
+```
+
+1. The browser fetches `GET /api/desktop/token`, which returns the worker's websocket URL and a token signed with `WORKER_SECRET`, valid for 60 seconds.
+2. The worker checks the token and the screen id, then opens a websocket to botd and pipes bytes both ways.
+3. botd bridges the websocket to the screen's VNC server over TCP.
+
+The browser asks for `mode=control` only while you hold the lease, and **both** the worker and botd refuse a control connection otherwise.
+View-only is enforced on the server by connecting to the view-only VNC server, not by trusting the client to ignore input.
+
+Watching never starts a screen.
+A screen that isn't running shows a **Wake** button, which calls `POST /internal/screens/:id/wake`.
+
+## Taking over
+
+<Figure
+  minWidth={660}
+  caption="Taking over is immediate. The teammate's run doesn't stop: it is told on its next desktop action, and usually carries on with other work or ends its turn."
+>
+  <Sequence
+    actors={[
+      { id: "you", label: "You" },
+      { id: "web", label: "Web app" },
+      { id: "worker", label: "Worker" },
+      { id: "botd", label: "botd" },
+      { id: "run", label: "Milo's run", sub: "in the worker" },
+    ]}
+    steps={[
+      { from: "you", to: "web", label: "Take over" },
+      { from: "web", to: "worker", label: "POST /screens/:id/take" },
+      { from: "worker", to: "botd", label: "POST /lease/user/take" },
+      { self: "botd", label: "preempt: abort in-flight input" },
+      { from: "botd", to: "worker", label: "previous holder: Milo's run", reply: true },
+      { self: "worker", label: "record the takeover, publish lease" },
+      { from: "you", to: "worker", label: "VNC with mode=control" },
+      { from: "run", to: "botd", label: "desktop_click (via worker)" },
+      { from: "botd", to: "run", label: "user_has_control", reply: true },
+      { section: "Later" },
+      { from: "you", to: "web", label: "Hand back, with a note" },
+      { from: "web", to: "worker", label: "POST /screens/:id/hand-back" },
+      { from: "worker", to: "botd", label: "POST /lease/user/release" },
+      {
+        from: "worker",
+        to: "run",
+        label: "steer the note into the turn, or queue a hand_back run",
+      },
+    ]}
+  />
+</Figure>
+
+When you take over, the worker's `TakeoverService`:
+
+1. calls botd, which moves the lease to you and, if a run held it, emits `preempted` and kills that screen's in-flight `xdotool` commands;
+2. updates its own copy of the lease right away, so your control connection is accepted without waiting for botd's event;
+3. records a `desktop_takeovers` row with the run it interrupted, or marks a pending request from the teammate as `active`;
+4. publishes `takeovers` and `lease` app events, so every tab updates.
+
+While you have control, the panel turns amber, and your input is reported with `POST /internal/screens/:id/touch`, which keeps the 10-minute idle timer from expiring.
+
+## Handing back
+
+**Hand back** takes an optional note, like "Logged in. Only nonstop flights, window seat."
+The worker releases the lease, ends the takeover, and delivers the note:
+
+- To a teammate that **asked** you to take over and is still waiting in its tool call, the note is the tool's result.
+- To a run you **interrupted** that is still going, the note is steered into its turn with `turn/steer` and appears as a hand-back message in the timeline.
+- If that run has ended, a new run with trigger `hand_back` is queued in the same chat: "The user handed your screen back. Their note: ... Take a screenshot to see what changed, then continue the task you were doing."
+
+If control comes back on its own (10 minutes idle, or your connection gone for 90 seconds), the same delivery happens, with a note that says why.
+
+## When a teammate asks for you
+
+Some steps need a human: a password, a 2FA code, a CAPTCHA, a passkey, a payment confirmation.
+The developer instructions tell teammates never to type those themselves, and to call `request_takeover` with a reason instead.
+
+1. The worker records a `requested` takeover and shows it inline in the chat, with **Take over** and **Dismiss** buttons.
+2. You get a notification: "Milo needs you to take over".
+3. The tool waits up to 10 minutes, and the run shows as `waiting` for a takeover.
+4. You take over, do the step, and hand back. The note returns as the tool's result, and Milo continues.
+
+If the turn ends before you hand back (Codex lets the model stop waiting after about 30 seconds), handing back later starts a `hand_back` run that quotes the original request.
+If you already hold the screen when a teammate asks, the request joins your current takeover.
+
+## Saved logins instead of takeovers
+
+For sites you sign in to often, save the login in the vault.
+The teammate fills it with `vault_fill` without ever seeing it, and doesn't need you.
+See [Vault and payments](/docs/flows/vault-and-payments).
+
+## Replay
+
+Every desktop action stores its screenshot as an artifact and points to it from the timeline.
+**Replay** on a run steps through those screenshots in order, with each action's arguments, so you can see exactly what a teammate did, at any later time.
