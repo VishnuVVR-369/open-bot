@@ -90,8 +90,45 @@
     0 0 22px 4px rgb(229 72 77 / 0.45);
 }
 
+/*
+ * The signal light on the story's screen and its status line, in the app's own colors:
+ * dark when idle, red while a teammate works, amber while you have control.
+ */
+.signal {
+  background: #3a2326;
+  transition:
+    background-color 300ms,
+    box-shadow 300ms;
+}
+figcaption .signal[data-state="off"] {
+  background: var(--color-rule);
+}
+.signal[data-state="live"] {
+  background: var(--color-live);
+  animation: var(--animate-tally);
+}
+.signal[data-state="manual"] {
+  background: var(--color-manual);
+}
+.signal-glow[data-state="manual"] {
+  box-shadow:
+    0 0 6px 1px rgb(245 165 36 / 0.85),
+    0 0 18px 3px rgb(245 165 36 / 0.4);
+}
+
+/* Beside the story's screen, only the chapter on screen keeps its red dot lit. */
+@media (min-width: 1024px) {
+  .story-chapter .dot {
+    transition: background-color 300ms;
+  }
+  .story-chapter[data-active="false"] .dot {
+    background: var(--color-rule);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .tally[data-state="live"] {
+  .tally[data-state="live"],
+  .signal[data-state="live"] {
     animation: none;
   }
 }
