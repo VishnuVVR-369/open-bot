@@ -1,7 +1,7 @@
-import type { ReactNode } from "react";
-import { preconnect } from "react-dom";
 import { CopyButton } from "@/components/copy-button";
+import { Heading } from "@/components/heading";
 import { GitHubMark, Logo } from "@/components/icons";
+import { Story, type StoryChapter } from "@/components/story";
 import { ChapterRail, Monitor, PlayChapter, TourProvider } from "@/components/tour";
 import { site } from "@/lib/site";
 import { tour } from "@/lib/tour";
@@ -56,77 +56,68 @@ const more = [
   },
 ];
 
-function Heading({ children, as: Tag = "h2" }: { children: ReactNode; as?: "h1" | "h2" }) {
-  return (
-    <Tag
-      className={
-        Tag === "h1"
-          ? "font-display text-[clamp(2.75rem,7.4vw,5.75rem)] leading-[0.96] font-semibold tracking-[-0.035em] text-balance"
-          : "font-display text-[clamp(2.125rem,4.6vw,3.5rem)] leading-[1.02] font-semibold tracking-[-0.03em] text-balance"
-      }
-    >
-      {children}
-      <span className="dot" aria-hidden />
-    </Tag>
-  );
-}
+const story: StoryChapter[] = [
+  {
+    id: "job",
+    title: "Give them a job",
+    body: "Start from a template like chief of staff, researcher or shopper, or write your own. Every teammate has a name, a job, its own memory, and a rule for when to ask you first.",
+    signal: "off",
+    status: "Setting up Juno, a social media manager",
+    shot: {
+      name: "job",
+      alt: "The New teammate form with templates, a job description, starter automations and the rule for when to ask first.",
+    },
+  },
+  {
+    id: "watch",
+    title: "Watch them work",
+    body: "Each teammate gets its own screen on one shared Linux computer, with a real browser, a shell and files. Ask Milo for flights to Lisbon and watch every click as it happens.",
+    signal: "live",
+    status: "Milo is comparing flights to Lisbon",
+    shot: {
+      name: "watch",
+      alt: "A chat with Milo next to his live screen, where he is comparing flights to Lisbon on Google Flights.",
+    },
+  },
+  {
+    id: "takeover",
+    title: "Take the wheel. Anytime",
+    body: "Press Take over and that teammate stops using its screen right away. Sign in, fix something, then hand it back with a note, and it carries on from there.",
+    signal: "manual",
+    status: "You have control of Milo\u2019s screen",
+    shot: {
+      name: "takeover",
+      alt: "Milo's screen under your control, with a note to hand it back: window seat, and only nonstop flights.",
+    },
+  },
+  {
+    id: "approval",
+    title: "Nothing ships without your OK",
+    body: "Sending, publishing, buying and deleting wait for your decision, in the app or from your phone. Choose Always allow, and a teammate stops asking about the same thing.",
+    signal: "live",
+    status: "Penny is waiting for your OK to pay $45",
+    shot: {
+      name: "approval",
+      alt: "Penny asking to pay $45 at Onyx Coffee Lab, with Approve and Deny buttons.",
+    },
+  },
+  {
+    id: "swarm",
+    title: "Many hands at once",
+    body: "Give a teammate a big job, like checking a price at four shops. It splits the work across helpers, each on a screen of its own, and brings back one answer.",
+    signal: "live",
+    status: "Four helpers are checking kettle prices",
+    shot: {
+      name: "swarm",
+      alt: "Penny's helpers checking a kettle's price at four shops, each on a screen of its own.",
+    },
+  },
+];
 
-function Shot({ name, alt }: { name: string; alt: string }) {
-  return (
-    <picture className="block overflow-hidden rounded-xl bg-sheet ring-1 ring-rule sm:rounded-2xl md:col-span-2">
-      <source
-        type="image/avif"
-        srcSet={`/media/shots/${name}-1280.avif 1280w, /media/shots/${name}-2240.avif 2240w`}
-        sizes="(min-width: 1280px) 1200px, 100vw"
-      />
-      <img
-        src={`/media/shots/${name}-1280.webp`}
-        alt={alt}
-        width={2880}
-        height={1800}
-        loading="lazy"
-        decoding="async"
-        className="block h-auto w-full"
-      />
-    </picture>
-  );
-}
-
-function Chapter({
-  id,
-  title,
-  children,
-  shot,
-}: {
-  id: string;
-  title: string;
-  children: ReactNode;
-  shot: { name: string; alt: string };
-}) {
-  return (
-    <section
-      id={id}
-      aria-labelledby={`${id}-title`}
-      className="mt-32 grid scroll-mt-10 items-baseline gap-x-14 gap-y-6 sm:mt-44 md:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]"
-    >
-      <div id={`${id}-title`}>
-        <Heading>{title}</Heading>
-      </div>
-      <div className="max-w-[34rem] space-y-6">
-        <p className="text-lg text-graphite">{children}</p>
-        <PlayChapter id={id} />
-      </div>
-      <div className="mt-6 md:col-span-2 md:mt-10">
-        <Shot {...shot} />
-      </div>
-    </section>
-  );
-}
+const navLink =
+  "hidden rounded-full px-3 py-2 font-medium text-ink/75 transition-colors hover:text-ink md:block";
 
 export default function Home() {
-  // The tour streams from the media bucket: open the connection before anyone presses play.
-  // Only this page plays it, so the docs don't connect to the bucket.
-  preconnect(tour.mediaOrigin, { crossOrigin: "anonymous" });
   return (
     <TourProvider>
       <div className="mx-auto max-w-[1248px] px-5 sm:px-8">
@@ -140,22 +131,13 @@ export default function Home() {
             <span className="font-display text-xl font-semibold tracking-[-0.02em]">open-bot</span>
           </a>
           <nav aria-label="Sections" className="flex items-center gap-1 sm:gap-2">
-            <a
-              href="#tour"
-              className="hidden rounded-full px-3 py-2 font-medium text-ink/75 hover:text-ink md:block"
-            >
+            <a href="#tour" className={navLink}>
               Tour
             </a>
-            <a
-              href="#job"
-              className="hidden rounded-full px-3 py-2 font-medium text-ink/75 hover:text-ink md:block"
-            >
+            <a href="#how" className={navLink}>
               How it works
             </a>
-            <a
-              href="#run"
-              className="hidden rounded-full px-3 py-2 font-medium text-ink/75 hover:text-ink md:block"
-            >
+            <a href="#run" className={navLink}>
               Run it yourself
             </a>
             <a
@@ -177,21 +159,21 @@ export default function Home() {
         <main id="top">
           <section aria-labelledby="hero-title" className="pt-8 sm:pt-14">
             <div id="hero-title">
-              <Heading as="h1">
+              <Heading as="h1" size="hero">
                 Your AI teammates, <br className="hidden lg:block" />
                 and the computer they share
               </Heading>
             </div>
-            <div className="mt-7 grid items-baseline gap-x-14 gap-y-5 sm:mt-9 md:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
-              <p className="max-w-[34rem] text-lg text-graphite md:order-2">
+            <div className="mt-7 flex flex-col gap-x-14 gap-y-5 sm:mt-9 md:flex-row md:items-end md:justify-between">
+              <p className="max-w-[36rem] text-lg text-graphite">
                 Give each teammate a job. They do real work on one computer with a browser, a shell
                 and files. You watch live, take over at any moment, and approve anything risky.
               </p>
-              <p className="text-graphite md:order-1">
+              <p className="shrink-0 text-lg text-graphite">
                 Open source and self-hosted.{" "}
                 <a
                   href={site.github}
-                  className="font-medium text-ink underline decoration-rule decoration-2 underline-offset-4 hover:decoration-ink"
+                  className="font-medium text-ink underline decoration-rule decoration-2 underline-offset-4 transition-colors hover:decoration-ink"
                 >
                   Get the code
                 </a>
@@ -204,78 +186,26 @@ export default function Home() {
             </div>
           </section>
 
-          <Chapter
-            id="job"
-            title="Give them a job"
-            shot={{
-              name: "job",
-              alt: "The New teammate form with templates, a job description, starter automations and the rule for when to ask first.",
-            }}
-          >
-            Start from a template like chief of staff, researcher or shopper, or write your own.
-            Every teammate has a name, a job, its own memory, and a rule for when to ask you first.
-          </Chapter>
+          <div id="how" className="mt-16 scroll-mt-0 sm:mt-24 lg:mt-12">
+            <Story chapters={story} />
+          </div>
 
-          <Chapter
-            id="watch"
-            title="Watch them work"
-            shot={{
-              name: "watch",
-              alt: "A chat with Milo next to his live screen, where he is comparing flights to Lisbon on Google Flights.",
-            }}
+          <section
+            id="more"
+            aria-labelledby="more-title"
+            className="mt-16 scroll-mt-10 border-t border-rule pt-16 sm:mt-24 sm:pt-24 lg:mt-12"
           >
-            Each teammate gets its own screen on one shared Linux computer, with a real browser, a
-            shell and files. Ask Milo for flights to Lisbon and watch every click as it happens.
-          </Chapter>
-
-          <Chapter
-            id="takeover"
-            title="Take the wheel. Anytime"
-            shot={{
-              name: "takeover",
-              alt: "Milo's screen under your control, with a note to hand it back: window seat, and only nonstop flights.",
-            }}
-          >
-            Press Take over and that teammate stops using its screen right away. Sign in, fix
-            something, then hand it back with a note, and it carries on from there.
-          </Chapter>
-
-          <Chapter
-            id="approval"
-            title="Nothing ships without your OK"
-            shot={{
-              name: "approval",
-              alt: "Penny asking to pay $45 at Onyx Coffee Lab, with Approve and Deny buttons.",
-            }}
-          >
-            Sending, publishing, buying and deleting wait for your decision, in the app or from your
-            phone. Choose Always allow, and a teammate stops asking about the same thing.
-          </Chapter>
-
-          <Chapter
-            id="swarm"
-            title="Many hands at once"
-            shot={{
-              name: "swarm",
-              alt: "Penny's helpers checking a kettle's price at four shops, each on a screen of its own.",
-            }}
-          >
-            Give a teammate a big job, like checking a price at four shops. It splits the work
-            across helpers, each on a screen of its own, and brings back one answer.
-          </Chapter>
-
-          <section id="more" aria-labelledby="more-title" className="mt-32 scroll-mt-10 sm:mt-44">
-            <div className="grid items-baseline gap-x-14 gap-y-6 md:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+            <div className="flex flex-col gap-x-14 gap-y-6 sm:flex-row sm:items-end sm:justify-between">
               <div id="more-title">
                 <Heading>And the rest</Heading>
               </div>
-              <div className="max-w-[34rem]">
+              <div className="sm:pb-1">
                 <PlayChapter id="more" />
               </div>
             </div>
-            <dl className="mt-12 grid gap-x-14 gap-y-10 sm:grid-cols-2 lg:grid-cols-4">
+            <dl className="mt-12 grid gap-x-10 gap-y-10 sm:mt-16 sm:grid-cols-2 lg:grid-cols-4 lg:gap-y-14">
               {more.map((item) => (
-                <div key={item.term} className="border-t border-rule pt-5">
+                <div key={item.term}>
                   <dt className="font-display text-xl font-semibold tracking-[-0.015em]">
                     {item.term}
                   </dt>
@@ -284,30 +214,35 @@ export default function Home() {
               ))}
             </dl>
           </section>
+        </main>
+      </div>
 
+      {/* The page ends the way the tour does: on black, with only the tally light. */}
+      <div className="mt-28 bg-bezel text-white sm:mt-40">
+        <div className="mx-auto max-w-[1248px] px-5 sm:px-8">
           <section
             id="run"
             aria-labelledby="run-title"
-            className="mt-32 grid scroll-mt-10 gap-x-14 gap-y-10 sm:mt-44 md:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]"
+            className="grid scroll-mt-0 gap-x-14 gap-y-10 py-20 sm:py-28 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-center"
           >
-            <div className="space-y-6">
+            <div>
               <div id="run-title">
                 <Heading>Run it yourself</Heading>
               </div>
-              <p className="max-w-[30rem] text-lg text-graphite">
+              <p className="mt-6 max-w-[30rem] text-lg text-white/65">
                 open-bot runs on your own Mac or server. You need Node 24, pnpm 10, Docker, and the
                 Codex CLI signed in to ChatGPT.
               </p>
               <a
-                href="/docs/quickstart"
-                className="inline-block font-medium underline decoration-rule decoration-2 underline-offset-4 hover:decoration-ink"
+                href={`${site.github}#run-it-locally`}
+                className="mt-6 inline-block font-medium underline decoration-white/25 decoration-2 underline-offset-4 transition-colors hover:decoration-white"
               >
                 Read the setup guide
               </a>
             </div>
-            <figure className="overflow-hidden rounded-2xl bg-bezel text-white ring-1 ring-black/5">
+            <figure className="overflow-hidden rounded-2xl bg-white/[0.04] ring-1 ring-white/10">
               <figcaption className="flex items-center justify-between border-b border-white/10 py-2.5 pr-3 pl-5">
-                <span className="text-sm text-white/60">Terminal</span>
+                <span className="text-sm text-white/55">Terminal</span>
                 <CopyButton text={quickstart} />
               </figcaption>
               <pre className="overflow-x-auto px-5 py-5 font-mono text-[0.875rem] leading-[1.8]">
@@ -316,9 +251,9 @@ export default function Home() {
                     const [command, comment] = line.split(/(?=#)/);
                     return (
                       <span key={line} className="block">
-                        <span className="text-white/35 select-none">$ </span>
+                        <span className="text-white/30 select-none">$ </span>
                         {command}
-                        {comment && <span className="text-white/45">{comment}</span>}
+                        {comment && <span className="text-white/40">{comment}</span>}
                       </span>
                     );
                   })}
@@ -326,25 +261,22 @@ export default function Home() {
               </pre>
             </figure>
           </section>
-        </main>
 
-        <footer className="mt-36 flex flex-col gap-6 border-t border-rule py-10 sm:mt-48 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <Logo className="size-7" />
-            <p className="text-graphite">Open source, self-hosted, and yours.</p>
-          </div>
-          <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-2 font-medium">
-            <a href="/docs" className="hover:underline hover:underline-offset-4">
-              Documentation
-            </a>
-            <a href={site.github} className="hover:underline hover:underline-offset-4">
-              GitHub
-            </a>
-            <a href={tour.download} download className="hover:underline hover:underline-offset-4">
-              Download the tour
-            </a>
-          </nav>
-        </footer>
+          <footer className="flex flex-col gap-6 border-t border-white/10 py-10 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <Logo className="size-7" />
+              <p className="text-white/60">Open source, self-hosted, and yours.</p>
+            </div>
+            <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-2 font-medium">
+              <a href={site.github} className="hover:underline hover:underline-offset-4">
+                GitHub
+              </a>
+              <a href={tour.download} download className="hover:underline hover:underline-offset-4">
+                Download the tour
+              </a>
+            </nav>
+          </footer>
+        </div>
       </div>
     </TourProvider>
   );

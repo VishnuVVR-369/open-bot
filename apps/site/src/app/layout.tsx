@@ -32,6 +32,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${onest.variable} ${familjen.variable} ${jetbrains.variable}`}>
+      <head>
+        {/* The tour streams from the media bucket: open the connection before anyone presses play. */}
+        <link rel="preconnect" href={tour.mediaOrigin} crossOrigin="anonymous" />
+      </head>
       <body>{children}</body>
     </html>
   );

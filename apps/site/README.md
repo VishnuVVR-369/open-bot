@@ -5,6 +5,8 @@ It is separate from `apps/web`, which is the private app behind your login.
 
 - `src/app/page.tsx` is the page.
   Each section is a chapter of the tour, and its play button plays that chapter on the monitor.
+- `src/components/story.tsx` is "How it works": the chapter text scrolls beside a pinned screen that shows each chapter's moment, with its signal light in the app's colors.
+  On narrow screens each chapter carries its own screen.
 - `src/components/tour.tsx` holds the monitor, the silent hero loop, the chapter rail and the playback state.
 - `src/components/tour-player.tsx` is the player: media-chrome controls on an adaptive HLS stream through hls.js.
   It loads after the page settles and fetches nothing until someone presses play.
