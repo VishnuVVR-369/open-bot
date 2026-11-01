@@ -1,7 +1,14 @@
 import { timingSafeEqual } from "node:crypto";
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
 import { bots, runs, settings } from "@open-bot/db";
-import { COMPUTER_PATHS, isRunActive, isScreenId, undeletablePath } from "@open-bot/shared";
+import {
+  botProfileChangesSchema,
+  COMPUTER_PATHS,
+  createBotSchema,
+  isRunActive,
+  isScreenId,
+  undeletablePath,
+} from "@open-bot/shared";
 import { verifyToken } from "@open-bot/shared/tokens";
 import { eq, isNull } from "drizzle-orm";
 import WebSocket, { WebSocketServer } from "ws";
@@ -23,8 +30,10 @@ import { EmailError, type EmailService } from "./services/email";
 import type { SwarmService } from "./services/swarms";
 import { TaskError, type TaskService } from "./services/tasks";
 import { TriggerError, type TriggerService } from "./services/triggers";
+import { BotError, type BotService } from "./services/bots";
 
 export interface HttpDeps {
+  bots: BotService;
   ctx: Context;
   executor: RunExecutor;
   approvals: ApprovalService;
@@ -66,6 +75,12 @@ async function readJson<T>(request: IncomingMessage, schema: z.ZodType<T>): Prom
   if (!parsed.success)
     throw new HttpError(400, parsed.error.issues.map((i) => i.message).join("; "));
   return parsed.data;
+}
+
+/** A path parameter that must be an id. */
+function uuid(value: string | undefined): string {
+  if (!value || !z.string().uuid().safeParse(value).success) throw new HttpError(404, "Not found");
+  return value;
 }
 
 function send(response: ServerResponse, status: number, body: unknown) {
@@ -162,6 +177,19 @@ export function createHttpServer(deps: HttpDeps): http.Server {
     string,
     (request: IncomingMessage, params: Record<string, string>, url: URL) => Promise<unknown>
   > = {
+    // The web app creates and edits teammates through the same service as the teammates' tools.
+    "POST /internal/bots": async (request) =>
+      deps.bots.create(await readJson(request, createBotSchema)),
+    "POST /internal/bots/:id": async (request, params) => {
+      const body = await readJson(
+        request,
+        z.object({
+          changes: botProfileChangesSchema,
+          expected_revision: z.string().min(1).max(128),
+        }),
+      );
+      return deps.bots.update(uuid(params.id), body.changes, body.expected_revision);
+    },
     "GET /internal/status": async () => ({
       computer: {
         online: ctx.computer.online,
@@ -619,7 +647,7 @@ export function createHttpServer(deps: HttpDeps): http.Server {
       try {
         send(response, 200, await route.handler(request, params, url));
       } catch (error) {
-        const status = error instanceof HttpError ? error.status : 500;
+        const status = error instanceof HttpError || error instanceof BotError ? error.status : 500;
         if (status >= 500)
           ctx.log.error("request failed", { path: url.pathname, error: errorMessage(error) });
         send(response, status, { error: errorMessage(error) });

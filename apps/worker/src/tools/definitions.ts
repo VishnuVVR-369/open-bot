@@ -5,10 +5,36 @@ import { MAX_SWARM_TASKS, SCREEN } from "@open-bot/shared";
  * Bump when the tool set or the developer instructions change.
  * Codex threads keep the tools they started with, so a new version starts fresh threads.
  */
-export const TOOLS_VERSION = 13;
+export const TOOLS_VERSION = 14;
 
 const SCREENSHOT_NOTE =
   "Returns a JPEG screenshot taken after the action, as a data URL string. In exec, pass it to image() to look at it, for example `image(await tools.desktop_click({x: 10, y: 20}))`.";
+
+const targetBot = {
+  type: "string",
+  format: "uuid",
+  description:
+    "A teammate's id from list_bots. Where optional, leave it out for yourself. Changing another teammate's setup may ask the user first.",
+} as const;
+
+const profileProperties: Record<string, JsonSchema> = {
+  name: { type: "string", minLength: 1, maxLength: 40 },
+  role: { type: "string", minLength: 1, maxLength: 80 },
+  instructions: {
+    type: "string",
+    maxLength: 20000,
+    description:
+      "Their brief, in Markdown: the outcome they own, where their material is, what needs the user's approval, how they work, and how to deliver results.",
+  },
+  color: { type: "string", pattern: "^#[0-9a-fA-F]{6}$" },
+  emoji: { type: "string", maxLength: 8 },
+  autonomy: {
+    type: "string",
+    enum: ["risky", "full", "everything"],
+    description:
+      "risky (the default) asks before consequential actions; full works without asking; everything asks before every command. Anything but risky asks the user every time.",
+  },
+};
 
 const point: Record<"x" | "y", JsonSchema> = {
   x: {
@@ -136,6 +162,100 @@ export const DESKTOP_TOOLS: v2.DynamicToolSpec[] = [
 
 export const CONTROL_TOOLS: v2.DynamicToolSpec[] = [
   tool(
+    "list_bots",
+    "List the user's teammates (you included) with their ids, names, jobs, autonomy and chat links. Check it before creating a teammate, so you adjust one that already does the job instead of adding a second.",
+    {},
+  ),
+  tool(
+    "get_bot",
+    "Read a teammate's whole setup: profile, instructions, skills, schedules, page watches, webhooks, the connections it can use, and its revision for update_bot.",
+    { bot_id: targetBot },
+    ["bot_id"],
+  ),
+  tool(
+    "list_bot_templates",
+    "Discover teammate templates, including their instructions, skills and optional starter automations and IDs.",
+    {},
+  ),
+  tool(
+    "create_bot",
+    `Create a permanent teammate with its own chat. Give a name and role, or a template_id from list_bot_templates (fields you give override it). Include the skills and schedules it should start with, so the user approves the whole teammate at once. The template's skills come along; its starter automations only with starter_ids. Returns its id and chat link, and anything that couldn't be set up: add those with save_skill or schedule_task and its bot_id, never by creating it again.`,
+    {
+      ...profileProperties,
+      template_id: { type: "string" },
+      starter_ids: {
+        type: "array",
+        items: { type: "string" },
+        maxItems: 20,
+        description: "Starter automations to keep from the template, by id.",
+      },
+      skills: {
+        type: "array",
+        maxItems: 10,
+        description: "Skills it starts with, like save_skill's.",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string", pattern: "^[a-z0-9]+(-[a-z0-9]+)*$", maxLength: 48 },
+            description: { type: "string", maxLength: 300 },
+            instructions: { type: "string", maxLength: 20000 },
+          },
+          required: ["name", "description", "instructions"],
+          additionalProperties: false,
+        },
+      },
+      schedules: {
+        type: "array",
+        maxItems: 10,
+        description:
+          "Routines (cron) and one-time reminders (at) it starts with, like schedule_task's, in the user's timezone. Each runs in its Scheduled chat.",
+        items: {
+          type: "object",
+          properties: {
+            title: { type: "string", maxLength: 80 },
+            prompt: { type: "string", maxLength: 4000 },
+            cron: { type: "string" },
+            at: { type: "string" },
+            quiet: { type: "boolean" },
+          },
+          required: ["title", "prompt"],
+          additionalProperties: false,
+        },
+      },
+    },
+  ),
+  tool(
+    "update_bot",
+    "Change a teammate's profile or instructions when the user asks. get_bot first, then send only the changed fields and its revision as expected_revision; a stale revision is refused. Changes apply from the teammate's next message, not a reply already under way. For improvements to yourself that the user didn't ask for, use propose_instructions.",
+    {
+      bot_id: targetBot,
+      expected_revision: { type: "string", minLength: 1, maxLength: 128 },
+      changes: {
+        type: "object",
+        properties: profileProperties,
+        additionalProperties: false,
+        minProperties: 1,
+      },
+    },
+    ["bot_id", "expected_revision", "changes"],
+  ),
+  tool(
+    "list_bot_connections",
+    "List the user's connected services (MCP servers) by id, label, whether they're on, which teammates may use them (botIds null: every teammate) and revision. Never includes credentials.",
+    {},
+  ),
+  tool(
+    "set_bot_connection",
+    "Let a teammate use one of the user's connections, or stop it. Always asks the user. Use the revision from list_bot_connections as expected_revision. It can't add connections or turn one on, and a connection shared with every teammate is limited in Settings by the user. Applies from the teammate's next message.",
+    {
+      bot_id: targetBot,
+      connection_id: { type: "string", format: "uuid" },
+      assigned: { type: "boolean" },
+      expected_revision: { type: "string", minLength: 1, maxLength: 128 },
+    },
+    ["bot_id", "connection_id", "assigned", "expected_revision"],
+  ),
+  tool(
     "notify_user",
     "Send the user a notification (desktop notification and the app's inbox). Use it for results they asked to hear about, or when you're blocked. Keep it short.",
     {
@@ -177,9 +297,10 @@ export const CONTROL_TOOLS: v2.DynamicToolSpec[] = [
   ),
   tool(
     "schedule_task",
-    "Schedule work for yourself: a recurring routine (cron) or a one-time reminder (at). Each run starts in your Scheduled chat with the prompt you give here, so write the prompt so it makes sense on its own.",
+    "Schedule work for yourself or a specified teammate: a recurring routine (cron) or a one-time reminder (at). Each run starts in that teammate's Scheduled chat with the prompt you give here, so write the prompt so it makes sense on its own.",
     {
       title: { type: "string", minLength: 1, maxLength: 80 },
+      bot_id: targetBot,
       prompt: {
         type: "string",
         minLength: 1,
@@ -210,8 +331,15 @@ export const CONTROL_TOOLS: v2.DynamicToolSpec[] = [
   ),
   tool(
     "save_skill",
-    "Save a reusable skill: step-by-step instructions for a task that worked, so you (or every teammate) can do it the same way next time. The user can run it by typing /name in a chat, and you'll see it among your skills. Save one when the user asks, or offer to after finishing a task that will come up again. Saving with the name of a skill you saved before updates it.",
+    "Save a reusable skill for yourself, a specified teammate (bot_id), or everyone (for_everyone): step-by-step instructions for a task. The user can run it with /name. Save when the user asks, or offer after finishing recurring work. The name of a skill you previously saved in this scope updates it; use skill_id from get_bot to edit another existing skill.",
     {
+      bot_id: targetBot,
+      skill_id: {
+        type: "string",
+        format: "uuid",
+        description:
+          "Optional existing skill ID from get_bot, to edit it in the same scope. Otherwise create a skill, or update one you previously saved with that name in this scope.",
+      },
       name: {
         type: "string",
         pattern: "^[a-z0-9]+(-[a-z0-9]+)*$",
@@ -234,15 +362,17 @@ export const CONTROL_TOOLS: v2.DynamicToolSpec[] = [
       for_everyone: {
         type: "boolean",
         default: false,
-        description: "True to share it with every teammate; false to keep it for yourself.",
+        description:
+          "True to share it with every teammate; cannot be combined with bot_id. Otherwise save for bot_id or yourself.",
       },
     },
     ["name", "description", "instructions"],
   ),
   tool(
     "watch_page",
-    "Watch a web page and get a run in your Scheduled chat when it changes, for example a price, a stock status, a job board or a status page. The check runs on a server without a browser session, so it only sees what a signed-out visitor sees. The first check just learns the page.",
+    "Watch a web page for yourself or a specified teammate (bot_id). Changes start a run in that teammate's Scheduled chat, for example for prices, stock, job boards or status pages. Checks run without a browser session and only see what a signed-out visitor sees. The first check just learns the page.",
     {
+      bot_id: targetBot,
       title: { type: "string", minLength: 1, maxLength: 80 },
       url: { type: "string", description: "The page's absolute http or https URL." },
       prompt: {
@@ -270,8 +400,9 @@ export const CONTROL_TOOLS: v2.DynamicToolSpec[] = [
   ),
   tool(
     "create_webhook",
-    "Create a webhook URL that starts a run in your Scheduled chat whenever something calls it, with the request it received. Use it to connect services that send webhooks (GitHub, Stripe, Zapier, a form, a script). Returns the URL to give to that service.",
+    "Create a webhook URL for yourself or a specified teammate (bot_id). Calls start a run in that teammate's Scheduled chat with the request it received. Use it to connect services that send webhooks (GitHub, Stripe, Zapier, a form, a script). Returns the URL to give to that service.",
     {
+      bot_id: targetBot,
       title: { type: "string", minLength: 1, maxLength: 80 },
       prompt: {
         type: "string",
@@ -284,19 +415,20 @@ export const CONTROL_TOOLS: v2.DynamicToolSpec[] = [
   ),
   tool(
     "list_automations",
-    "List your schedules, reminders, page watches and webhooks, with their ids.",
-    {},
+    "List your or a specified teammate's schedules, reminders, page watches and webhooks, with their ids.",
+    { bot_id: targetBot },
   ),
   tool(
     "cancel_automation",
-    "Delete one of your schedules, reminders, page watches or webhooks by id.",
-    { id: { type: "string" } },
+    "Delete a schedule, reminder, page watch or webhook by id, from yourself or the teammate specified by bot_id. The automation must belong to that teammate.",
+    { id: { type: "string" }, bot_id: targetBot },
     ["id"],
   ),
   tool(
     "update_automation",
-    "Change one of your schedules, reminders, page watches or webhooks by id (see list_automations): pause or resume it, rename it, or change its instructions, timing, page or the text it waits for. Leave out what stays the same.",
+    "Change a schedule, reminder, page watch or webhook by id (see list_automations), yours or the teammate's given by bot_id: pause or resume it, rename it, or change its instructions, timing, page or the text it waits for. Leave out what stays the same.",
     {
+      bot_id: targetBot,
       id: { type: "string" },
       enabled: { type: "boolean", description: "false pauses it, true resumes it." },
       title: { type: "string", minLength: 1, maxLength: 80 },

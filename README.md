@@ -15,6 +15,7 @@ You can watch them work live, take over the computer at any time, and hand it ba
 
 - Give each teammate a name, a job and instructions.
 - Start fast from templates like a chief of staff, a researcher or an inbox helper.
+- Ask a teammate, like a chief of staff, to build your team: it creates teammates with their instructions, skills and routines, and you approve each one.
 - Copy a teammate you like, or export it to a file and share it.
 
 ### Watch and take over
@@ -125,6 +126,7 @@ Start the local stack first, then run:
 ```sh
 pnpm lint && pnpm typecheck && pnpm test         # checks and unit tests
 pnpm test:memory -- --e2e                       # memory database and browser tests
+pnpm test:bots                                 # bot management integration tests in disposable Postgres
 E2E_EMAIL=you@example.com E2E_PASSWORD=... pnpm e2e --grep-invert @agent   # fast end-to-end tests
 E2E_EMAIL=you@example.com E2E_PASSWORD=... pnpm e2e --grep @agent          # real teammates at work (slow, uses your plan)
 ```

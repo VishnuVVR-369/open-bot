@@ -35,6 +35,8 @@ import { TriggerError, type TriggerService } from "../services/triggers";
 import { EmailError, type EmailService } from "../services/email";
 import { SwarmError, type SwarmService } from "../services/swarms";
 import { VaultError, type VaultService } from "../services/vault";
+import { BotError, type BotService } from "../services/bots";
+import { BOT_TOOL_NAMES, BotTools } from "./bots";
 
 type Response = v2.DynamicToolCallResponse;
 
@@ -75,6 +77,9 @@ const HELPER_FORBIDDEN = new Set([
   "save_skill",
   "start_swarm",
   "send_email",
+  "create_bot",
+  "update_bot",
+  "set_bot_connection",
 ]);
 
 const emailArgs = z.object({
@@ -101,6 +106,7 @@ const swarmArgs = z.object({
 });
 
 const updateArgs = z.object({
+  bot_id: z.string().uuid().optional(),
   id: z.string().uuid("No automation with that id."),
   enabled: z.boolean().optional(),
   title: z.string().min(1).max(80).optional(),
@@ -115,6 +121,7 @@ const updateArgs = z.object({
 });
 
 const scheduleArgs = z.object({
+  bot_id: z.string().uuid().optional(),
   title: z.string().min(1).max(80),
   prompt: z.string().min(1).max(4000),
   cron: z.string().optional(),
@@ -125,6 +132,7 @@ const scheduleArgs = z.object({
 
 /** Runs the dynamic tools that Codex calls back into the worker for. */
 export class ToolHandlers {
+  private readonly botTools: BotTools;
   constructor(
     private readonly ctx: Context,
     private readonly approvals: ApprovalService,
@@ -137,7 +145,10 @@ export class ToolHandlers {
     private readonly swarms: SwarmService,
     private readonly email: EmailService,
     private readonly memory: MemoryCoordinator,
-  ) {}
+    bots: BotService,
+  ) {
+    this.botTools = new BotTools(ctx, bots, approvals);
+  }
 
   async handle(session: RunSession, params: v2.DynamicToolCallParams): Promise<Response> {
     const args = (params.arguments ?? {}) as Record<string, unknown>;
@@ -159,6 +170,7 @@ export class ToolHandlers {
           "Helpers can't do that. Finish your part, and say in your result what's needed.",
           false,
         );
+      if (BOT_TOOL_NAMES.has(params.tool)) return await this.teammateTool(session, params);
       const desktopAction = DESKTOP_ACTIONS[params.tool];
       if (desktopAction)
         return await this.desktop(session, params.callId, { ...args, action: desktopAction });
@@ -180,7 +192,7 @@ export class ToolHandlers {
         case "create_webhook":
           return await this.createWebhook(session, params.callId, args);
         case "list_automations":
-          return text(await this.listAutomations(session.bot.id));
+          return text(await this.listAutomations((await this.botTools.target(session, args)).id));
         case "cancel_automation":
           return await this.cancelAutomation(session, params.callId, args);
         case "update_automation":
@@ -228,6 +240,17 @@ export class ToolHandlers {
           return text(`Unknown tool ${params.tool}`, false);
       }
     } catch (error) {
+      // Problems the bot can fix itself, said plainly.
+      if (error instanceof BotError) return text(error.message, false);
+      if (error instanceof z.ZodError)
+        return text(
+          error.issues
+            .map(
+              (issue) => `${issue.path.length ? `${issue.path.join(".")}: ` : ""}${issue.message}`,
+            )
+            .join("; "),
+          false,
+        );
       this.ctx.log.error("tool failed", { tool: params.tool, error: errorMessage(error) });
       return text(`The tool failed: ${errorMessage(error)}`, false);
     }
@@ -464,8 +487,9 @@ export class ToolHandlers {
     if (!parsed.success)
       return text(parsed.error.issues.map((issue) => issue.message).join("; "), false);
     const startedAt = session.now();
+    const target = await this.botTools.setupTarget(session, callId, "schedule_task", args);
     const schedule = await this.schedules.create({
-      botId: session.bot.id,
+      botId: target.id,
       title: parsed.data.title,
       prompt: parsed.data.prompt,
       cron: parsed.data.cron ?? null,
@@ -481,7 +505,9 @@ export class ToolHandlers {
         session,
         callId,
         "schedule_task",
-        `Scheduled “${schedule.title}”`,
+        target.id === session.bot.id
+          ? `Scheduled “${schedule.title}”`
+          : `Scheduled “${schedule.title}” for ${target.name}`,
         args,
         startedAt,
       ),
@@ -493,7 +519,7 @@ export class ToolHandlers {
           : `Runs once at ${when}`,
     });
     return text(
-      `Scheduled "${schedule.title}" (id ${schedule.id}). Next run: ${when} (${schedule.timezone}).`,
+      `Scheduled "${schedule.title}" (id ${schedule.id})${target.id === session.bot.id ? "" : ` for ${target.name}; it runs in their Scheduled chat`}. Next run: ${when} (${schedule.timezone}).`,
     );
   }
 
@@ -504,6 +530,29 @@ export class ToolHandlers {
   ): Promise<Response> {
     const startedAt = session.now();
     const shared = args.for_everyone === true;
+    if (shared && args.bot_id !== undefined)
+      return text("Choose bot_id or for_everyone, not both.", false);
+    const target = await this.botTools.setupTarget(session, callId, "save_skill", args);
+    const skillId =
+      args.skill_id === undefined
+        ? undefined
+        : z.string().uuid("Use a skill id from get_bot.").parse(args.skill_id);
+    if (skillId) {
+      const existing = (await this.skills.forBot(target.id)).find((skill) => skill.id === skillId);
+      if (!existing || existing.botId !== (shared ? null : target.id))
+        return text(
+          "That skill isn't in the selected scope. Get the teammate's skills first.",
+          false,
+        );
+      // Rewriting a skill you didn't write is a change to the user's setup, so it asks like one.
+      if (target.id === session.bot.id && existing.createdByBotId !== session.bot.id)
+        await this.botTools.authorize(session, callId, {
+          tool: "save_skill",
+          args,
+          title: `Rewrite the /${existing.name} skill`,
+          detail: `${String(args.description ?? "")}\n\n${String(args.instructions ?? "")}`.trim(),
+        });
+    }
     let skill;
     try {
       skill = await this.skills.save(
@@ -511,9 +560,10 @@ export class ToolHandlers {
           name: String(args.name ?? ""),
           description: String(args.description ?? ""),
           instructions: String(args.instructions ?? ""),
-          botId: shared ? null : session.bot.id,
+          botId: shared ? null : target.id,
         },
         { kind: "bot", botId: session.bot.id },
+        skillId,
       );
     } catch (error) {
       if (error instanceof SkillError) return text(error.message, false);
@@ -533,7 +583,7 @@ export class ToolHandlers {
       result: skill.description,
     });
     return text(
-      `Saved /${skill.name}${shared ? " for every teammate" : ""}. The user can run it by typing /${skill.name} in a chat.`,
+      `Saved /${skill.name}${shared ? " for every teammate" : target.id === session.bot.id ? "" : ` for ${target.name}`}. The user can run it by typing /${skill.name} in a chat.`,
     );
   }
 
@@ -543,11 +593,12 @@ export class ToolHandlers {
     args: Record<string, unknown>,
   ): Promise<Response> {
     const startedAt = session.now();
+    const target = await this.botTools.setupTarget(session, callId, "watch_page", args);
     let watch;
     try {
       watch = await this.triggers.create(
         {
-          botId: session.bot.id,
+          botId: target.id,
           kind: "watch",
           title: String(args.title ?? ""),
           prompt: String(args.prompt ?? ""),
@@ -569,7 +620,7 @@ export class ToolHandlers {
       result: `${watch.url}, ${every}${watch.lookFor ? `, waiting for “${watch.lookFor}”` : ""}`,
     });
     return text(
-      `Watching ${watch.url} ${every} (id ${watch.id}).${watch.lookFor ? ` It fires when "${watch.lookFor}" appears.` : " It fires on any change."} You'll get a run in your Scheduled chat when it fires.`,
+      `Watching ${watch.url} ${every} (id ${watch.id})${target.id === session.bot.id ? "" : ` for ${target.name}`}.${watch.lookFor ? ` It fires when "${watch.lookFor}" appears.` : " It fires on any change."} ${target.id === session.bot.id ? "You'll get a run in your Scheduled chat when it fires." : `${target.name} gets a run in their Scheduled chat when it fires.`}`,
     );
   }
 
@@ -579,11 +630,12 @@ export class ToolHandlers {
     args: Record<string, unknown>,
   ): Promise<Response> {
     const startedAt = session.now();
+    const target = await this.botTools.setupTarget(session, callId, "create_webhook", args);
     let hook;
     try {
       hook = await this.triggers.create(
         {
-          botId: session.bot.id,
+          botId: target.id,
           kind: "webhook",
           title: String(args.title ?? ""),
           prompt: String(args.prompt ?? ""),
@@ -609,7 +661,7 @@ export class ToolHandlers {
       result: url,
     });
     return text(
-      `Created the webhook "${hook.title}" (id ${hook.id}). URL: ${url}\nIt accepts GET and POST. Each call starts a run in your Scheduled chat, up to 30 an hour.`,
+      `Created the webhook "${hook.title}" (id ${hook.id})${target.id === session.bot.id ? "" : ` for ${target.name}`}. URL: ${url}\nIt accepts GET and POST. Each call starts a run in ${target.id === session.bot.id ? "your" : `${target.name}'s`} Scheduled chat, up to 30 an hour.`,
     );
   }
 
@@ -630,10 +682,11 @@ export class ToolHandlers {
   ): Promise<Response> {
     const id = String(args.id ?? "");
     if (!/^[0-9a-f-]{36}$/i.test(id)) return text(`No automation with id ${id}.`, false);
-    const schedule = await this.schedules.cancelForBot(session.bot.id, id);
+    const botId = (await this.botTools.setupTarget(session, callId, "cancel_automation", args)).id;
+    const schedule = await this.schedules.cancelForBot(botId, id);
     const trigger = schedule
       ? null
-      : (await this.triggers.forBot(session.bot.id)).find((row) => row.id === id);
+      : (await this.triggers.forBot(botId)).find((row) => row.id === id);
     if (trigger) await this.triggers.remove(trigger.id);
     const title = schedule?.title ?? trigger?.title;
     if (!title) return text(`No automation with id ${id}.`, false);
@@ -831,14 +884,15 @@ export class ToolHandlers {
     if (!parsed.success)
       return text(parsed.error.issues.map((issue) => issue.message).join("; "), false);
     const change = parsed.data;
+    const botId = (await this.botTools.setupTarget(session, callId, "update_automation", args)).id;
     const startedAt = session.now();
     const [schedule] = await this.ctx.db
       .select()
       .from(schedules)
-      .where(and(eq(schedules.id, change.id), eq(schedules.botId, session.bot.id)));
+      .where(and(eq(schedules.id, change.id), eq(schedules.botId, botId)));
     const trigger = schedule
       ? undefined
-      : (await this.triggers.forBot(session.bot.id)).find((row) => row.id === change.id);
+      : (await this.triggers.forBot(botId)).find((row) => row.id === change.id);
     if (!schedule && !trigger) return text(`No automation with id ${change.id}.`, false);
 
     let summary: string;
@@ -858,7 +912,7 @@ export class ToolHandlers {
           const cron = newTiming ? (change.cron ?? null) : schedule.cron;
           const at = newTiming ? (change.at ?? null) : (schedule.runAt?.toISOString() ?? null);
           await this.schedules.update(schedule.id, {
-            botId: session.bot.id,
+            botId,
             title: change.title ?? schedule.title,
             prompt: change.prompt ?? schedule.prompt,
             cron,
@@ -881,7 +935,7 @@ export class ToolHandlers {
         ];
         if (edits.some((value) => value !== undefined)) {
           await this.triggers.update(row.id, {
-            botId: session.bot.id,
+            botId,
             kind: row.kind,
             title: change.title ?? row.title,
             prompt: change.prompt ?? row.prompt,
@@ -913,7 +967,30 @@ export class ToolHandlers {
       status: "completed",
       completedAt: session.now(),
     });
-    return text(`${summary} ${await this.listAutomations(session.bot.id)}`);
+    return text(`${summary} ${await this.listAutomations(botId)}`);
+  }
+
+  /** Creating and configuring teammates (see BotTools). */
+  private async teammateTool(
+    session: RunSession,
+    params: v2.DynamicToolCallParams,
+  ): Promise<Response> {
+    const startedAt = session.now();
+    const { result, label } = await this.botTools.handle(session, params);
+    if (label)
+      session.putItem({
+        ...this.toolItem(
+          session,
+          params.callId,
+          params.tool,
+          label,
+          (params.arguments ?? {}) as Record<string, unknown>,
+          startedAt,
+        ),
+        status: "completed",
+        completedAt: session.now(),
+      });
+    return text(JSON.stringify(result));
   }
 
   private async proposeInstructions(

@@ -1,4 +1,4 @@
-import { approvalRules, bots, chats } from "@open-bot/db";
+import { approvalRules, bots, chats, configurationRevision } from "@open-bot/db";
 import { Copy, Download } from "lucide-react";
 import { and, asc, desc, eq, isNull, ne } from "drizzle-orm";
 import type { Metadata } from "next";
@@ -115,7 +115,7 @@ export default async function BotPage({ params, searchParams }: PageProps<"/bots
           <BotForm
             // Accepting a suggestion changes the instructions under the form.
             key={bot.updatedAt.toISOString()}
-            botId={bot.id}
+            editing={{ botId: bot.id, revision: configurationRevision(bot) }}
             submitLabel="Save changes"
             initial={{
               name: bot.name,

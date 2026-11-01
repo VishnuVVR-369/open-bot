@@ -141,6 +141,7 @@ Services talk to each other through constructor injection and the typed `ctx.eve
 
 | Service      | File                       | Responsibility                                                                           |
 | ------------ | -------------------------- | ---------------------------------------------------------------------------------------- |
+| Teammates    | `services/bots.ts`         | Creating and editing teammates, with revisions, for the web app and teammates' tools     |
 | Approvals    | `services/approvals.ts`    | Creating approvals, waiting for decisions, Always allow rules, expiring native approvals |
 | Takeovers    | `services/takeovers.ts`    | Recording takeovers, bot requests for help, delivering hand-back notes                   |
 | Schedules    | `services/schedules.ts`    | Cron routines and reminders, the 10 s scheduler tick                                     |

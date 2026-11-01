@@ -23,13 +23,13 @@ Payments and emails don't depend on these instructions.
 
 ## Kinds of approval
 
-| Kind          | Created by                                        | How long the tool waits   | Can be Always allowed  |
-| ------------- | ------------------------------------------------- | ------------------------- | ---------------------- |
-| `command`     | Codex, before a shell command (`everything` only) | As long as the turn lives | Yes, by command prefix |
-| `file_change` | Codex, before a file edit (`everything` only)     | As long as the turn lives | Yes, all file changes  |
-| `action`      | The teammate's `request_approval` tool            | Up to 10 minutes          | Yes, by exact wording  |
-| `purchase`    | `start_purchase`, above the auto-approve amount   | Up to 10 minutes          | No                     |
-| `email`       | `send_email`, unless the teammate is `full`       | Doesn't wait              | No                     |
+| Kind          | Created by                                                           | How long the tool waits   | Can be Always allowed                                        |
+| ------------- | -------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------ |
+| `command`     | Codex, before a shell command (`everything` only)                    | As long as the turn lives | Yes, by command prefix                                       |
+| `file_change` | Codex, before a file edit (`everything` only)                        | As long as the turn lives | Yes, all file changes                                        |
+| `action`      | `request_approval`, and the tools that create or configure teammates | Up to 10 minutes          | Yes, by exact wording, except autonomy and connection access |
+| `purchase`    | `start_purchase`, above the auto-approve amount                      | Up to 10 minutes          | No                                                           |
+| `email`       | `send_email`, unless the teammate is `full`                          | Doesn't wait              | No                                                           |
 
 ## The flow
 
@@ -93,6 +93,9 @@ If no tool call is waiting anymore, because the turn ended or the 10 minutes pas
 
 A denial says "Don't do it. Briefly acknowledge, and continue with anything else that is left."
 
+A teammate tool's approval (see [Building the team](/docs/flows/teamwork#what-asks-you)) is tied to its exact tool call, saved in the payload as the call and a canonical hash of it.
+The new run is told to make that call again, and the call goes through once without asking, only in that run.
+
 ### Expiry
 
 Codex's own command and file approvals can't outlive their turn.
@@ -108,7 +111,7 @@ They are also written into `AGENTS.md` and into every prompt, so the teammate kn
 Matching (`rulesCover()` in `packages/shared/src/approval-rules.ts`) depends on the kind:
 
 - **file_change**: one rule covers every file change.
-- **action**: the rule matches an action with the same wording, ignoring case and spacing.
+- **action**: the rule matches an action with the same wording, ignoring case and spacing. Teammate tools give a kind of change as the wording to match, like "Create teammates", so one rule covers every teammate. Changes to autonomy and connection access are asked every time, and their cards have no Always allow.
 - **command**: the rule is a command prefix, like `npm install` or `git status`. A script is covered only if **every** command it chains with `;`, `&&`, `||`, `|`, `&` or a new line starts with an allowed prefix, on a word boundary.
 
 Some scripts can never be covered:

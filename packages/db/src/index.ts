@@ -3,6 +3,7 @@ import pg from "pg";
 import * as schema from "./schema";
 
 export * from "./schema";
+export { configurationRevision } from "./configuration";
 export { schema };
 
 export type Db = NodePgDatabase<typeof schema>;

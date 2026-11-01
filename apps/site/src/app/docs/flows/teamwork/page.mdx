@@ -5,6 +5,7 @@ export const metadata = docMetadata("/docs/flows/teamwork");
 # Teamwork and swarms
 
 Teammates work together in four ways: they share group chats, hand requests to each other, ask each other questions, and share a task board with you.
+A teammate can also build the team itself, creating and setting up other teammates when you ask.
 A single teammate can also split a big job across helpers that work in parallel.
 
 Every one of these is built from the same primitive: queueing a run, with a link to the run that caused it (`runs.parent_run_id`).
@@ -125,6 +126,97 @@ A helper's screen is removed, with its browser profile, as soon as its part is d
 When the last part is done, the lead gets one `swarm_results` run in its original chat, with every result, to merge into one answer.
 
 Stopping the swarm from its card cancels every helper that is still queued or running.
+
+## Building the team
+
+You can ask a teammate, typically a chief of staff, to create the teammates you need: "Set me up with a researcher and an inbox helper, and have the researcher brief me every Monday."
+It works like a manager staffing a team: one clear job per teammate, a brief for each, and careful autonomy until the work is trusted.
+
+<Figure
+  minWidth={660}
+  caption="One approval per new teammate, showing everything it starts with. A teammate on Full auto skips the approval, except for more autonomy or a connection."
+>
+  <Sequence
+    actors={[
+      { id: "you", label: "You" },
+      { id: "chief", label: "Chief of staff" },
+      { id: "worker", label: "Worker" },
+    ]}
+    steps={[
+      { from: "you", to: "chief", label: "set me up with a researcher" },
+      { from: "chief", to: "worker", label: "list_bots, list_bot_templates" },
+      { from: "chief", to: "worker", label: "create_bot(profile, skills, schedules)" },
+      { from: "worker", to: "you", label: "approval card: the whole teammate" },
+      { from: "you", to: "worker", label: "Approve", reply: true },
+      { self: "worker", label: "create bot, chat, skills, schedules; write AGENTS.md" },
+      { from: "worker", to: "chief", label: "id, chat link, anything that failed", reply: true },
+      { from: "chief", to: "you", label: "your new teammates, with links", reply: true },
+    ]}
+  />
+</Figure>
+
+The developer instructions tell every teammate how to do it well:
+
+1. Check `list_bots` first, and adjust a teammate that already does the job instead of creating a second one.
+2. Start from a template from `list_bot_templates` when one fits.
+3. Write each teammate's instructions as a brief: the outcome it owns, where its material is, what needs your approval, how it works, and how it delivers.
+4. If the request is too vague for that, propose the roster in one message and ask first.
+5. Create each teammate with `create_bot`, including its skills and schedules, so you review the whole teammate in one approval card.
+6. Reply with each teammate's chat link, its job and what runs when, and offer to start it on a first task.
+
+### Creating
+
+`create_bot` takes the profile fields (`name`, `role`, `instructions`, `emoji`, `color`, `autonomy`), a `template_id`, the template `starter_ids` to keep, and up to 10 `skills` and 10 `schedules` of its own.
+Fields you give override the template's, and a skill of its own replaces a template skill with the same name.
+A new teammate asks before risky actions unless you asked for more, whatever its template says.
+
+`BotService` (`apps/worker/src/services/bots.ts`) does the work, for the web app's New teammate form and for teammates alike:
+
+1. resolves the request into a plan, with the least used color when none is given;
+2. checks every schedule's timing, so you are never asked to approve one that can't be saved;
+3. in one transaction, under an advisory lock, picks a unique slug and creates the `bots` row and its direct chat (the first teammate becomes the primary one);
+4. saves the skills and schedules, in your timezone, and reports any that failed by name, so the caller adds them later instead of creating the teammate twice;
+5. writes the teammate's workspace, or leaves that to its first run if the computer is away.
+
+Every teammate's `AGENTS.md` lists the new one on its next run.
+
+### Changing a teammate
+
+`get_bot` returns a teammate's whole setup: profile, instructions, skills, schedules, page watches, webhooks, the connections it can use, and a **revision**.
+The revision is a hash of the teammate's saved row (`configurationRevision()` in `packages/db/src/configuration.ts`).
+
+`update_bot` takes only the fields that change, with the revision as `expected_revision`.
+`BotService.update()` locks the row and refuses the change if the revision moved, so neither you nor a teammate overwrites a change made since it was read.
+The web app's form sends the revision it loaded, the same way.
+
+Later setup goes through the usual tools with a `bot_id`: `save_skill`, `schedule_task`, `watch_page`, `create_webhook`, `list_automations`, `update_automation` and `cancel_automation`.
+Without a `bot_id`, they act on the caller, as before.
+`save_skill` also takes a `skill_id` from `get_bot`, to edit a skill in place.
+
+A changed profile reaches the teammate's ongoing chats on their next message: see [Choosing a thread](/docs/architecture/agent-runtime#choosing-a-thread).
+
+### What asks you
+
+| Change                                                        | Asks you                          | Always allow covers                              |
+| ------------------------------------------------------------- | --------------------------------- | ------------------------------------------------ |
+| Create a teammate                                             | Unless the caller is on Full auto | "Create teammates"                               |
+| Edit a profile (itself included)                              | Unless the caller is on Full auto | "Edit teammates' profiles"                       |
+| Set up another teammate's skills or automations               | Unless the caller is on Full auto | "Set up other teammates' skills and automations" |
+| Give a teammate more autonomy than "ask before risky actions" | Always                            | Nothing                                          |
+| Let a teammate use a connection, or stop it                   | Always                            | Nothing                                          |
+
+The card's title names the teammate, like `Create the teammate Iris` or `Schedule "Morning brief" for Iris`, and its detail shows what will be saved, instructions included.
+An Always allow rule saved from one card covers the whole kind of change, not just that teammate.
+
+The checks hold beyond the model's good behavior:
+
+- the caller's autonomy is read fresh from the database, so lowering it takes effect mid-run;
+- after an approval, the worker checks that the run wasn't stopped and that the caller and the target still exist;
+- swarm helpers can't create or configure teammates;
+- `set_bot_connection` can't create a connection, turn one on, or reveal its credentials, and a connection shared with every teammate is only limited in Settings.
+
+When you decide after the tool stopped waiting, the follow-up run tells the teammate to make the exact same call again.
+The approval is stored with a canonical hash of the call, and the retry in that follow-up run uses it once without asking again.
 
 ## Teammates improving themselves
 

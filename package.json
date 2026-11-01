@@ -18,7 +18,8 @@
     "db:generate": "pnpm --filter @open-bot/db generate",
     "computer:build": "docker compose build computer",
     "infra:up": "docker compose up -d --wait postgres computer",
-    "test:memory": "bash scripts/test-memory.sh"
+    "test:memory": "bash scripts/test-memory.sh",
+    "test:bots": "bash scripts/test-bots.sh"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -401,15 +401,18 @@ export function ApprovalCard({ item, botName }: { item: ApprovalItem; botName: s
         >
           Deny
         </Button>
-        {item.approvalKind && item.approvalKind !== "purchase" && item.approvalKind !== "email" && (
-          <AlwaysAllowButton
-            kind={item.approvalKind}
-            subject={item.subject ?? item.title}
-            botName={botName}
-            disabled={pending}
-            onConfirm={async (pattern) => decide("approved", pattern)}
-          />
-        )}
+        {item.approvalKind &&
+          item.approvalKind !== "purchase" &&
+          item.approvalKind !== "email" &&
+          !item.askEveryTime && (
+            <AlwaysAllowButton
+              kind={item.approvalKind}
+              subject={item.subject ?? item.title}
+              botName={botName}
+              disabled={pending}
+              onConfirm={async (pattern) => decide("approved", pattern)}
+            />
+          )}
       </div>
     </div>
   );

@@ -4,8 +4,8 @@ export const metadata = docMetadata("/docs/reference/tools");
 
 # Teammate tools
 
-Besides Codex's built-in shell, file and web search tools, every teammate has the 41 dynamic tools below.
-They are defined in `apps/worker/src/tools/definitions.ts` and handled in `apps/worker/src/tools/handlers.ts`.
+Besides Codex's built-in shell, file and web search tools, every teammate has the 46 dynamic tools below.
+They are defined in `apps/worker/src/tools/definitions.ts` and handled in `apps/worker/src/tools/handlers.ts`, with the teammate tools in `apps/worker/src/tools/bots.ts`.
 
 ## How tools are served
 
@@ -13,7 +13,7 @@ They are defined in `apps/worker/src/tools/definitions.ts` and handled in `apps/
 - The worker validates arguments against each tool's JSON schema, and returns readable errors the model can act on.
 - Each call becomes a timeline item, recorded by the handler with more detail than Codex's generic item.
 - Before every call, the handler checks that the teammate's memory hasn't changed since the run started. If it has, the turn is interrupted.
-- Tool definitions and the developer instructions are versioned together with `TOOLS_VERSION` (currently 13). Changing either requires a bump, which starts fresh threads.
+- Tool definitions and the developer instructions are versioned together with `TOOLS_VERSION` (currently 14). Changing either requires a bump, which starts fresh threads.
 
 Arguments marked with `?` are optional.
 **Helpers** are swarm helper runs, which can't use the tools marked "no".
@@ -48,14 +48,31 @@ They all fail with `user_has_control` while you hold the screen.
 
 ## Automations
 
-| Tool                | Arguments                                                                                                              | Does                                               | Helpers |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- | ------- |
-| `schedule_task`     | `title`, `prompt`, `cron?`, `at?`, `timezone?`, `quiet?`                                                               | Creates a cron routine or a one-time reminder      | no      |
-| `watch_page`        | `title`, `url`, `prompt`, `every_minutes?`, `look_for?`                                                                | Watches a page for changes, or for text to appear  | no      |
-| `create_webhook`    | `title`, `prompt`                                                                                                      | Creates a webhook URL                              | no      |
-| `list_automations`  |                                                                                                                        | Lists its schedules, watches and webhooks with ids | yes     |
-| `update_automation` | `id`, `enabled?`, `title?`, `prompt?`, `cron?`, `at?`, `timezone?`, `url?`, `interval_minutes?`, `look_for?`, `quiet?` | Pauses, resumes or changes one of its own          | no      |
-| `cancel_automation` | `id`                                                                                                                   | Deletes one of its own                             | no      |
+Each of these acts on the caller, or on the teammate given by `bot_id`.
+Acting on another teammate may ask you first: see [Building the team](/docs/flows/teamwork#what-asks-you).
+
+| Tool                | Arguments                                                                                                                         | Does                                              | Helpers |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | ------- |
+| `schedule_task`     | `bot_id?`, `title`, `prompt`, `cron?`, `at?`, `timezone?`, `quiet?`                                                               | Creates a cron routine or a one-time reminder     | no      |
+| `watch_page`        | `bot_id?`, `title`, `url`, `prompt`, `every_minutes?`, `look_for?`                                                                | Watches a page for changes, or for text to appear | no      |
+| `create_webhook`    | `bot_id?`, `title`, `prompt`                                                                                                      | Creates a webhook URL                             | no      |
+| `list_automations`  | `bot_id?`                                                                                                                         | Lists schedules, watches and webhooks with ids    | yes     |
+| `update_automation` | `bot_id?`, `id`, `enabled?`, `title?`, `prompt?`, `cron?`, `at?`, `timezone?`, `url?`, `interval_minutes?`, `look_for?`, `quiet?` | Pauses, resumes or changes one                    | no      |
+| `cancel_automation` | `bot_id?`, `id`                                                                                                                   | Deletes one                                       | no      |
+
+## Teammates
+
+These create and configure permanent teammates. See [Building the team](/docs/flows/teamwork#building-the-team).
+
+| Tool                   | Arguments                                                                                                                   | Does                                                              | Helpers |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ------- |
+| `list_bots`            |                                                                                                                             | Lists teammates with ids, jobs, autonomy and chat links           | yes     |
+| `get_bot`              | `bot_id`                                                                                                                    | Reads a teammate's whole setup and its revision                   | yes     |
+| `list_bot_templates`   |                                                                                                                             | Lists the templates, with their skills and starter automations    | yes     |
+| `create_bot`           | `name?`, `role?`, `instructions?`, `emoji?`, `color?`, `autonomy?`, `template_id?`, `starter_ids?`, `skills?`, `schedules?` | Creates a teammate with its chat, skills and schedules            | no      |
+| `update_bot`           | `bot_id`, `expected_revision`, `changes`                                                                                    | Changes profile fields, failing on a stale revision               | no      |
+| `list_bot_connections` |                                                                                                                             | Lists connections and who may use them, without credentials       | yes     |
+| `set_bot_connection`   | `bot_id`, `connection_id`, `assigned`, `expected_revision`                                                                  | Gives a teammate a connection or takes it away, always asking you | no      |
 
 ## Teamwork
 
@@ -81,9 +98,9 @@ They all fail with `user_has_control` while you hold the screen.
 
 ## Skills
 
-| Tool         | Arguments                                              | Does                                                   | Helpers |
-| ------------ | ------------------------------------------------------ | ------------------------------------------------------ | ------- |
-| `save_skill` | `name`, `description`, `instructions`, `for_everyone?` | Saves a reusable procedure, invoked later with `/name` | no      |
+| Tool         | Arguments                                                                      | Does                                                                                             | Helpers |
+| ------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ | ------- |
+| `save_skill` | `bot_id?`, `skill_id?`, `name`, `description`, `instructions`, `for_everyone?` | Saves a reusable procedure, invoked later with `/name`, for itself, another teammate or everyone | no      |
 
 ## Vault and payments
 

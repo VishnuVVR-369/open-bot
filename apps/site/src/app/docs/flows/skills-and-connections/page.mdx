@@ -96,7 +96,7 @@ tool_timeout_sec = 120
 It is passed in the thread's config when the thread starts, so the secrets are never written to a file on the computer.
 It also returns:
 
-- a **connections key**, a hash of the connections' ids and update times, saved on the thread in `bot_threads.connections_key`;
+- a **connections key**, a hash of the connections' ids and update times, which goes into the thread's `bot_threads.configuration_key` with its `AGENTS.md`;
 - **labels**, listed in the teammate's `AGENTS.md` under "Connected services", with a note to prefer them over websites.
 
 A thread keeps the MCP servers it started with.

@@ -62,6 +62,11 @@ export class ScheduleService {
     return { kind: "once" as const, cron: null, runAt: nextRunAt, nextRunAt, timezone };
   }
 
+  /** Throws what `create` would reject about the timing, without saving anything. */
+  async check(input: { cron: string | null; at: string | null; timezone: string | null }) {
+    await this.timing(input);
+  }
+
   async create(input: {
     botId: string;
     title: string;

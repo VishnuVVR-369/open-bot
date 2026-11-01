@@ -148,6 +148,13 @@
       "when": 1792958839018,
       "tag": "0020_versioned_memory",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793547157113,
+      "tag": "0021_thread_configuration_key",
+      "breakpoints": true
     }
   ]
 }

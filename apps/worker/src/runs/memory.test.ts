@@ -4,11 +4,13 @@ import type { Context } from "../context";
 import { RunSession, type SessionServices, type Bot, type Run, type Chat } from "./session";
 import { TOOLS_VERSION } from "../tools/definitions";
 import { MemoryCoordinator } from "../services/memory";
+import { configurationRevision } from "@open-bot/db";
 
 const botId = "00000000-0000-4000-8000-000000000001";
 const runId = "00000000-0000-4000-8000-000000000002";
 const messageId = "00000000-0000-4000-8000-000000000003";
-function fixture(generation = "1:0:0") {
+/** A thread that last saw `seen` as its AGENTS.md; this run wrote `written`. */
+function fixture(generation = "1:0:0", agents = { seen: "# Test", written: "# Test" }) {
   const request = vi.fn(async (method: string) => ({
     thread: { id: method === "thread/fork" ? "forked" : "fresh" },
   }));
@@ -20,7 +22,7 @@ function fixture(generation = "1:0:0") {
           toolsVersion: TOOLS_VERSION,
           memoryGeneration: generation,
           authMode: "plan",
-          connectionsKey: "",
+          configurationKey: configurationRevision({ connections: "", agents: agents.seen }),
         },
       ],
     }),
@@ -45,6 +47,7 @@ function fixture(generation = "1:0:0") {
     { id: "chat" } as Chat,
   );
   session.memoryGeneration = "1:0:0";
+  (session as unknown as { agentsFile: string }).agentsFile = agents.written;
   const ensure = () =>
     (session as unknown as { ensureThread(client: CodexClient): Promise<string> }).ensureThread({
       request,
@@ -68,6 +71,26 @@ describe("memory and Codex thread continuity", () => {
     f.session.memoryGeneration = "1:0:1";
     await f.ensure();
     expect(f.request.mock.calls[0]![0]).toBe("thread/start");
+  });
+  it("forks a continued conversation onto new instructions, keeping its history", async () => {
+    // Codex reads AGENTS.md when a thread starts or forks; a loaded thread keeps the old one.
+    const f = fixture("1:0:0", { seen: "# Test", written: "# Test\n\nAlways reply in French." });
+    expect(await f.ensure()).toBe("forked");
+    expect(f.request).toHaveBeenCalledWith(
+      "thread/fork",
+      expect.objectContaining({ threadId: "old", cwd: expect.any(String) }),
+    );
+    // Codex ignores developer instructions on a fork, so none are sent.
+    const [, params] = f.request.mock.calls[0] as unknown as [string, object];
+    expect(params).not.toHaveProperty("developerInstructions");
+  });
+  it("clears MCP servers on a fork, so removed connections don't carry over", async () => {
+    const f = fixture("1:0:0", { seen: "# Old", written: "# New" });
+    await f.ensure();
+    expect(f.request).toHaveBeenCalledWith(
+      "thread/fork",
+      expect.objectContaining({ config: expect.objectContaining({ mcp_servers: {} }) }),
+    );
   });
 });
 describe("memory source and workspace boundaries", () => {

@@ -153,7 +153,7 @@ export class RunExecutor {
   /** Write the bot's AGENTS.md and skills, and a starter MEMORY.md if it has none. */
   async syncWorkspace(
     bot: Pick<Bot, "id" | "slug" | "name" | "role" | "instructions" | "autonomy">,
-  ): Promise<void> {
+  ): Promise<string> {
     const client = await this.ctx.codex.ready();
     const workspace = COMPUTER_PATHS.workspace(bot.slug);
     const rules = await this.approvals.rulesFor(bot.id);
@@ -167,14 +167,14 @@ export class RunExecutor {
     const { domain } = await emailSettingsRow(this.ctx);
     const address = domain ? emailAddress(bot.slug, domain) : null;
     await client.request("fs/createDirectory", { path: workspace, recursive: true });
+    const instructions = agentsMarkdown(bot, rules, "", [], teammates, services, address);
     await client.request("fs/writeFile", {
       path: `${workspace}/AGENTS.md`,
-      dataBase64: Buffer.from(
-        agentsMarkdown(bot, rules, "", [], teammates, services, address),
-      ).toString("base64"),
+      dataBase64: Buffer.from(instructions).toString("base64"),
     });
     await this.memory.prepare(bot);
     await this.skills.syncBot(bot);
+    return instructions;
   }
 
   private async userTimeZone(): Promise<string> {

@@ -6,6 +6,7 @@ import {
   runs,
   schedules,
   usageEntries,
+  configurationRevision,
   type Attachment,
   type schema,
 } from "@open-bot/db";
@@ -58,7 +59,8 @@ export interface SessionServices {
   ) => Promise<{ key: string; config: NonNullable<v2.ThreadStartParams["config"]> }>;
   model: ModelAccess;
   memory: MemoryCoordinator;
-  prepareWorkspace: () => Promise<void>;
+  /** Writes the bot's workspace; returns the AGENTS.md it wrote. */
+  prepareWorkspace: () => Promise<string>;
 }
 
 interface Outcome {
@@ -92,6 +94,8 @@ export class RunSession {
   /** How this run reaches the model. */
   authMode: "plan" | "api_key" = "plan";
   private apiKey: string | null = null;
+  /** The AGENTS.md written for this run. */
+  private agentsFile = "";
 
   constructor(
     private readonly ctx: Context,
@@ -163,7 +167,7 @@ export class RunSession {
     try {
       await ctx.db.update(runs).set({ startedAt: new Date() }).where(eq(runs.id, run.id));
       await this.setStatus("starting");
-      await this.services.prepareWorkspace();
+      this.agentsFile = await this.services.prepareWorkspace();
       this.client = await ctx.codex.ready();
       const onDisconnect = () =>
         this.finish?.({ status: "failed", error: "Lost the connection to the computer." });
@@ -295,9 +299,16 @@ export class RunSession {
     const mode = this.authMode;
     // The services it may use through MCP come with the thread's config.
     const connected = await this.services.connections(bot.id);
+    // Codex reads AGENTS.md when a thread starts or forks, and a loaded thread keeps what it read.
+    // So a new profile, approval rule or teammate forks the thread, like a change in connections.
+    const configurationKey = configurationRevision({
+      connections: connected.key,
+      agents: this.agentsFile,
+    });
     const access = providerFor(mode, this.apiKey, ctx.env);
-    // Both add to the thread's config: the API key's provider, and the MCP servers.
-    const config = { ...access.config, ...(connected.key ? connected.config : {}) };
+    // Both add to the thread's config: the API key's provider, and the MCP servers. An empty set
+    // is given too, so a fork after the last connection is removed doesn't keep its servers.
+    const config = { ...access.config, mcp_servers: {}, ...connected.config };
     const provider = {
       ...access,
       ...(Object.keys(config).length ? { config } : {}),
@@ -312,7 +323,7 @@ export class RunSession {
           toolsVersion: TOOLS_VERSION,
           memoryGeneration: this.memoryGeneration,
           authMode: mode,
-          connectionsKey: connected.key,
+          configurationKey,
         })
         .onConflictDoUpdate({
           target: [botThreads.chatId, botThreads.botId],
@@ -322,7 +333,7 @@ export class RunSession {
             toolsVersion: TOOLS_VERSION,
             memoryGeneration: this.memoryGeneration,
             authMode: mode,
-            connectionsKey: connected.key,
+            configurationKey,
             ...(fresh ? { profileSeenAt: new Date(), lessonsSeenAt: new Date() } : {}),
           },
         });
@@ -339,9 +350,9 @@ export class RunSession {
       existing.memoryGeneration === this.memoryGeneration
     ) {
       try {
-        if (existing.authMode !== mode || existing.connectionsKey !== connected.key) {
-          // A thread keeps its provider and its connections, so switching between the plan and
-          // the API key, or a change in connections, forks it, carrying the conversation over.
+        if (existing.authMode !== mode || existing.configurationKey !== configurationKey) {
+          // A thread keeps its provider, connections and AGENTS.md, so switching between the plan
+          // and the API key, or a change in them, forks it, carrying the conversation over.
           const fork = await client.request("thread/fork", {
             threadId: existing.codexThreadId,
             cwd: this.workspace,
