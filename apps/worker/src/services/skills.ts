@@ -72,6 +72,14 @@ export class SkillService {
     const parsed = skillInputSchema.safeParse(input);
     if (!parsed.success) throw new SkillError(parsed.error.issues[0]!.message);
     const data = parsed.data;
+    // You can move a skill between teammates; a teammate edits one only where it is.
+    if (id && by.kind === "bot") {
+      const [existing] = await this.ctx.db.select().from(skills).where(eq(skills.id, id));
+      if (!existing || existing.botId !== data.botId)
+        throw new SkillError(
+          "That skill isn't in the selected scope. Get the teammate's skills first.",
+        );
+    }
     const visible = data.botId ? or(isNull(skills.botId), eq(skills.botId, data.botId)) : undefined;
     const clashes = await this.ctx.db
       .select({ id: skills.id, botId: skills.botId, createdByBotId: skills.createdByBotId })
@@ -79,8 +87,14 @@ export class SkillService {
       .where(and(eq(skills.name, data.name), visible));
     for (const clash of clashes) {
       if (clash.id === id) continue;
-      // A bot saving a skill it wrote before updates it; any other clash is an error.
-      if (!id && by.kind === "bot" && clash.createdByBotId === by.botId) {
+      // A bot saving a skill it wrote before in the same scope updates it; any other clash is an
+      // error, so a teammate's skill never replaces a shared one or another teammate's.
+      if (
+        !id &&
+        by.kind === "bot" &&
+        clash.createdByBotId === by.botId &&
+        clash.botId === data.botId
+      ) {
         id = clash.id;
         continue;
       }

@@ -23,6 +23,7 @@ import { TakeoverService } from "./services/takeovers";
 import { TelegramService } from "./services/telegram";
 import { TriggerService } from "./services/triggers";
 import { ToolHandlers } from "./tools/handlers";
+import { BotService } from "./services/bots";
 import { eq } from "drizzle-orm";
 import { EventEmitter } from "node:events";
 
@@ -67,6 +68,10 @@ const push = new PushService(ctx);
 const vault = new VaultService(ctx, approvals);
 const swarms = new SwarmService(ctx, sessions);
 const email = new EmailService(ctx, approvals, sessions);
+const botService = new BotService(ctx, schedules, skills, async (bot) => {
+  await memory.store.importLegacy();
+  await executor.syncWorkspace(bot);
+});
 const tools = new ToolHandlers(
   ctx,
   approvals,
@@ -79,6 +84,7 @@ const tools = new ToolHandlers(
   swarms,
   email,
   memory,
+  botService,
 );
 const model = new ModelAccess(ctx);
 const connections = new ConnectionService(ctx);
@@ -156,6 +162,7 @@ setInterval(() => {
 
 const server = createHttpServer({
   ctx,
+  bots: botService,
   executor,
   approvals,
   takeovers,

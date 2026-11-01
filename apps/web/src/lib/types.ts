@@ -206,8 +206,10 @@ export interface ApprovalView {
   botId: string;
   chatId: string;
   kind: ApprovalKind;
-  /** The raw command, for command approvals. */
+  /** What "always allow" matches: the raw command, or a kind of action like "Create teammates". */
   subject: string | null;
+  /** Asked about every time, like giving a teammate access; no "always allow". */
+  askEveryTime: boolean;
   title: string;
   detail: string;
   status: "pending" | "approved" | "denied" | "expired";

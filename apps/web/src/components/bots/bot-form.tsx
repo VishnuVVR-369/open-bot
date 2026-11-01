@@ -32,11 +32,12 @@ export interface BotFormValues {
 }
 
 export function BotForm({
-  botId,
+  editing,
   initial,
   submitLabel,
 }: {
-  botId?: string;
+  /** The teammate being edited, at the revision the form loaded; none for a new one. */
+  editing?: { botId: string; revision: string };
   initial: BotFormValues;
   submitLabel: string;
 }) {
@@ -76,8 +77,8 @@ export function BotForm({
 
   function submit() {
     startTransition(async () => {
-      if (botId) {
-        const result = await updateBot(botId, values);
+      if (editing) {
+        const result = await updateBot(editing.botId, values, editing.revision);
         if (!result.ok) {
           toast.error(result.error);
           return;
@@ -94,12 +95,14 @@ export function BotForm({
         toast.error(result.error);
         return;
       }
-      const started = starterIds.length - result.data.startersFailed;
-      if (result.data.skillsFailed > 0)
+      const failed = (kind: "skill" | "schedule") =>
+        result.data.failed.filter((entry) => entry.kind === kind).length;
+      const started = result.data.schedules;
+      if (failed("skill") > 0)
         toast.warning(`${values.name} is ready, without some of its skills`, {
           description: "Add them in Skills whenever you like.",
         });
-      else if (result.data.startersFailed > 0)
+      else if (failed("schedule") > 0)
         toast.warning(`${values.name} is ready, without some starter automations`, {
           description: "Add them in Automations whenever you like.",
         });
@@ -124,7 +127,7 @@ export function BotForm({
       }}
     >
       <div className="flex flex-col gap-7">
-        {!botId && (
+        {!editing && (
           <div className="flex flex-col gap-2.5">
             <span className="text-[13px] font-medium text-muted-foreground">Start from</span>
             <div className="flex flex-wrap gap-2">

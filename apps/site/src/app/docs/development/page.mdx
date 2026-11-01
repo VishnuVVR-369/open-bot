@@ -46,6 +46,7 @@ The web app compiles them through Next.js, the worker and botd bundle them with 
 | `pnpm test`                           | Vitest unit tests in every package                               |
 | `pnpm e2e`                            | Playwright against the running stack                             |
 | `pnpm test:memory -- --e2e`           | The isolated memory suite                                        |
+| `pnpm test:bots`                      | Teammate management against a disposable Postgres                |
 
 ## Tests
 
@@ -84,6 +85,12 @@ Stand-ins replace outside services, so no test needs a real account:
 
 `pnpm test:memory -- --e2e` creates its own pgvector container, applies every migration, runs database and provider tests against a deterministic local HTTP server, smoke-tests the compiled worker, and exercises the memory UI at desktop and phone widths.
 It removes only its own container.
+
+### Teammate management
+
+`pnpm test:bots` starts its own throwaway pgvector container, applies every migration, and runs `apps/worker/src/tools/bots.integration.test.ts` against it.
+It covers creating and editing teammates through their tools and the web app's routes: concurrent creates, stale edits, approvals and Always allow, late approvals, connection access, and swarm helpers.
+It refuses any database but its own, and removes the container when it finishes.
 
 ### This site
 

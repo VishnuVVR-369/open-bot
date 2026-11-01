@@ -19,7 +19,7 @@ They need the worker and the computer to be running, not the web app or a browse
 ## Who creates them
 
 You create automations on the Automations page, or on a teammate's Automations tab.
-Teammates create them too, with their own tools:
+Teammates create them too, with their own tools, for themselves or, with `bot_id`, for another teammate:
 
 | Tool                | Creates                                                  |
 | ------------------- | -------------------------------------------------------- |
@@ -27,10 +27,11 @@ Teammates create them too, with their own tools:
 | `watch_page`        | A page watch                                             |
 | `create_webhook`    | A webhook URL                                            |
 | `list_automations`  | Lists its schedules, watches and webhooks with their ids |
-| `update_automation` | Pauses, resumes, renames or changes one of its own       |
-| `cancel_automation` | Deletes one of its own                                   |
+| `update_automation` | Pauses, resumes, renames or changes one                  |
+| `cancel_automation` | Deletes one                                              |
 
-A teammate can only see and change its own automations.
+Without `bot_id`, a teammate sees and changes only its own automations.
+With it, the automation must belong to that teammate, and setting it up may ask you first: see [Building the team](/docs/flows/teamwork#what-asks-you).
 
 ## Schedules
 

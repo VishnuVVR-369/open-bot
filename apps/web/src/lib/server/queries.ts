@@ -581,6 +581,7 @@ export async function listApprovals(): Promise<ApprovalView[]> {
     chatId: row.chatId,
     kind: row.kind,
     subject: typeof row.payload.subject === "string" ? row.payload.subject : null,
+    askEveryTime: row.payload.askEveryTime === true,
     title: row.title,
     detail: row.detail,
     status: row.status,

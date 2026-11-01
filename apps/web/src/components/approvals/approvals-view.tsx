@@ -84,15 +84,17 @@ function ApprovalRow({ approval }: { approval: ApprovalView }) {
             <Button size="sm" variant="outline" onClick={() => decide("denied")} disabled={pending}>
               Deny
             </Button>
-            {approval.kind !== "purchase" && approval.kind !== "email" && (
-              <AlwaysAllowButton
-                kind={approval.kind}
-                subject={approval.subject ?? approval.title}
-                botName={bot?.name ?? "your teammate"}
-                disabled={pending}
-                onConfirm={async (pattern) => decide("approved", pattern)}
-              />
-            )}
+            {approval.kind !== "purchase" &&
+              approval.kind !== "email" &&
+              !approval.askEveryTime && (
+                <AlwaysAllowButton
+                  kind={approval.kind}
+                  subject={approval.subject ?? approval.title}
+                  botName={bot?.name ?? "your teammate"}
+                  disabled={pending}
+                  onConfirm={async (pattern) => decide("approved", pattern)}
+                />
+              )}
           </div>
         ) : (
           <span className="flex items-center gap-1.5 text-[13px] text-muted-foreground">

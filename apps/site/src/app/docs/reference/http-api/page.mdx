@@ -54,14 +54,16 @@ Bodies and responses are JSON.
 
 ### Runs and messages
 
-| Route                                  | Purpose                                                    |
-| -------------------------------------- | ---------------------------------------------------------- |
-| `GET /healthz`                         | Liveness, unauthenticated                                  |
-| `GET /internal/status`                 | Computer, Codex and egress status                          |
-| `POST /internal/messages/:id/dispatch` | Route a saved message: steer a running turn, or queue runs |
-| `POST /internal/runs/:id/retry`        | Queue a failed or stopped request again                    |
-| `POST /internal/runs/cancel`           | Process cancellations now                                  |
-| `POST /internal/bots/:id/sync`         | Rewrite a teammate's workspace after an edit               |
+| Route                                  | Purpose                                                          |
+| -------------------------------------- | ---------------------------------------------------------------- |
+| `GET /healthz`                         | Liveness, unauthenticated                                        |
+| `GET /internal/status`                 | Computer, Codex and egress status                                |
+| `POST /internal/messages/:id/dispatch` | Route a saved message: steer a running turn, or queue runs       |
+| `POST /internal/runs/:id/retry`        | Queue a failed or stopped request again                          |
+| `POST /internal/runs/cancel`           | Process cancellations now                                        |
+| `POST /internal/bots`                  | Create a teammate with its chat, skills and starter automations  |
+| `POST /internal/bots/:id`              | Change profile fields, with `expected_revision` (409 when stale) |
+| `POST /internal/bots/:id/sync`         | Rewrite a teammate's workspace after an edit                     |
 
 ### Approvals and screens
 

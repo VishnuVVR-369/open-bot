@@ -25,9 +25,9 @@ import {
   MAX_UPLOAD_BYTES,
   MAX_UPLOAD_LABEL,
   BOT_COLORS,
+  botProfileSchema,
+  type CreatedBot,
   DAILY_CHECK_IN,
-  pickStarters,
-  templateSkills,
   slugify,
   teammateBundleSchema,
   cardHint,
@@ -76,19 +76,6 @@ async function publish(type: string) {
 
 /* ------------------------------------------------------------------ Bots */
 
-const botInput = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, "Give your teammate a name.")
-    .max(40, "Keep the name under 40 characters."),
-  role: z.string().trim().min(1, "Describe their job in a few words.").max(80),
-  instructions: z.string().max(8000).default(""),
-  color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
-  emoji: z.string().max(8).default(""),
-  autonomy: z.enum(["full", "risky", "everything"]),
-});
-
 async function uniqueSlug(name: string, excludeId?: string): Promise<string> {
   const base = slugify(name);
   const taken = new Set(
@@ -117,65 +104,38 @@ async function syncBot(botId: string) {
   await worker("POST", `/internal/bots/${botId}/sync`).catch(() => {});
 }
 
-/** Creates a teammate, with the starter automations you kept from its template. */
+/**
+ * Creates a teammate, with its template's skills and the starter automations you kept. The worker
+ * does it, the same way as when a teammate creates one.
+ */
 export async function createBot(
-  input: z.input<typeof botInput>,
+  input: z.input<typeof botProfileSchema>,
   starters: { templateId: string | null; ids: string[] } = { templateId: null, ids: [] },
 ) {
   return guarded(async () => {
-    const data = botInput.parse(input);
-    const slug = await uniqueSlug(data.name);
-    const existing = await db.select({ id: bots.id }).from(bots).where(isNull(bots.archivedAt));
-    const [bot] = await db
-      .insert(bots)
-      .values({ ...data, slug, isPrimary: existing.length === 0 })
-      .returning({ id: bots.id });
-    const [chat] = await db
-      .insert(chats)
-      .values({ kind: "direct", title: data.name, botId: bot!.id })
-      .returning({ id: chats.id });
-    await syncBot(bot!.id);
-    await publish("bots");
-    const picked = pickStarters(starters.templateId, starters.ids);
-    let startersFailed = 0;
-    if (picked.length > 0) {
-      const timezone = await userTimeZone();
-      for (const starter of picked) {
-        // The teammate exists either way; a starter that didn't take can be added later.
-        await worker("POST", "/internal/schedules", {
-          botId: bot!.id,
-          title: starter.title,
-          prompt: starter.prompt,
-          cron: starter.cron,
-          at: null,
-          timezone,
-          quiet: starter.quiet ?? false,
-        }).catch(() => (startersFailed += 1));
-      }
-    }
-    // A template's skills become the teammate's own, so you can edit them.
-    const skills = templateSkills(starters.templateId);
-    let skillsFailed = 0;
-    for (const skill of skills) {
-      await worker("POST", "/internal/skills", { id: null, ...skill, botId: bot!.id }).catch(
-        () => (skillsFailed += 1),
-      );
-    }
-    if (skills.length) await publish("skills");
-    return { botId: bot!.id, chatId: chat!.id, startersFailed, skillsFailed };
+    const profile = botProfileSchema.parse(input);
+    return worker<CreatedBot>("POST", "/internal/bots", {
+      ...profile,
+      template_id: starters.templateId ?? undefined,
+      starter_ids: starters.ids,
+    });
   });
 }
 
-export async function updateBot(botId: string, input: z.input<typeof botInput>) {
+/**
+ * Saves the form. `revision` is the teammate as the form loaded it, so a change made since (by
+ * you elsewhere, or by a teammate) isn't silently overwritten.
+ */
+export async function updateBot(
+  botId: string,
+  input: z.input<typeof botProfileSchema>,
+  revision: string,
+) {
   return guarded(async () => {
-    const data = botInput.parse(input);
-    await db.update(bots).set(data).where(eq(bots.id, botId));
-    await db
-      .update(chats)
-      .set({ title: data.name })
-      .where(and(eq(chats.botId, botId), eq(chats.kind, "direct")));
-    await syncBot(botId);
-    await publish("bots");
+    await worker("POST", `/internal/bots/${z.string().uuid().parse(botId)}`, {
+      changes: botProfileSchema.parse(input),
+      expected_revision: z.string().min(1).max(128).parse(revision),
+    });
   });
 }
 
@@ -187,7 +147,7 @@ export async function updateBot(botId: string, input: z.input<typeof botInput>) 
  */
 export async function duplicateBot(botId: string, input: { name: string; copyMemory: boolean }) {
   return guarded(async () => {
-    const name = botInput.shape.name.parse(input.name);
+    const name = botProfileSchema.shape.name.parse(input.name);
     const [source] = await db
       .select()
       .from(bots)

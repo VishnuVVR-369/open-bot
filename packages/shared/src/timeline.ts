@@ -73,8 +73,13 @@ export interface ApprovalItem extends BaseItem {
   approvalId: string;
   /** What is being approved: a shell command, a file change, or an action the bot describes. */
   approvalKind?: "command" | "file_change" | "action" | "purchase" | "email";
-  /** The raw command for command approvals, which "always allow" rules match by prefix. */
+  /**
+   * What an "always allow" rule matches: the raw command for command approvals (by prefix), or
+   * a kind of action, like "Create teammates", when the title names one instance of it.
+   */
   subject?: string;
+  /** Asked about every time, like giving a teammate access; no "always allow". */
+  askEveryTime?: boolean;
   title: string;
   detail: string;
   decision: "pending" | "approved" | "denied" | "expired";

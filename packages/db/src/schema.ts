@@ -201,8 +201,11 @@ export const botThreads = pgTable(
     toolsVersion: integer("tools_version").notNull(),
     /** Whether the thread talks to the model through the ChatGPT plan or the API key. */
     authMode: text("auth_mode").$type<"plan" | "api_key">().notNull().default("plan"),
-    /** Which connections the thread was given, so a change carries the conversation to a new one. */
-    connectionsKey: text("connections_key").notNull().default(""),
+    /**
+     * The connections and AGENTS.md the thread was given. Codex keeps both for a thread's life, so
+     * a change forks the conversation into a thread that has the new ones.
+     */
+    configurationKey: text("configuration_key").notNull().default(""),
     /** When the thread last saw your profile: in AGENTS.md when it started, or in a message since. */
     profileSeenAt: timestamp("profile_seen_at", { withTimezone: true }).notNull().defaultNow(),
     /** When the thread last saw the bot's lessons, the same way. */

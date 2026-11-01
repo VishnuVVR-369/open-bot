@@ -66,7 +66,7 @@ open-bot keeps one Codex thread per teammate per chat, recorded in `bot_threads`
 | `tools_version`     | The `TOOLS_VERSION` the thread was started with             |
 | `memory_generation` | The teammate's memory generation when the thread was made   |
 | `auth_mode`         | `plan` or `api_key`: the model provider it was created with |
-| `connections_key`   | A hash of the MCP servers it was given                      |
+| `configuration_key` | A hash of the MCP servers and the `AGENTS.md` it was given  |
 
 A thread is started with:
 
@@ -88,7 +88,7 @@ So the session checks each of those before using an existing thread:
 
 - **A new tool set or new instructions** (`TOOLS_VERSION` was bumped) start fresh threads, because a thread can't be given new tools.
 - **A new memory generation** starts a fresh thread too. A thread's history may contain facts you have since corrected or deleted, and forking it would carry them over. See [Memory](/docs/flows/memory#generations-and-stale-threads).
-- **A different provider or MCP set** forks the thread with `thread/fork`. The fork keeps the whole conversation and gets the new provider or servers. This is how a chat moves between your ChatGPT plan and your API key mid-conversation.
+- **A different provider, MCP set or `AGENTS.md`** forks the thread with `thread/fork`. The fork keeps the whole conversation and gets the new provider, servers or instructions. This is how a chat moves between your ChatGPT plan and your API key mid-conversation, and how an edited profile, a new Always allow rule or a new teammate reaches chats already going.
 - **Otherwise**, a thread that is loaded is reused, and one that isn't is resumed from Codex's state on the volume with `thread/resume`.
 
 ## Instructions
@@ -97,6 +97,8 @@ A teammate's instructions come from three places, from most general to most spec
 
 1. **Developer instructions**, set once per thread. They are the same for every teammate: how the shared computer works, how to use the desktop safely, never to type passwords, how payments and emails are approved, when to use automations, swarms and teammates, how to use memory. Changing them means bumping `TOOLS_VERSION`.
 2. **`AGENTS.md`** in the teammate's workspace, which Codex reads because it is the working directory. The worker regenerates it from the database at the start of every run. It holds the teammate's name, role and job, its approval rules by autonomy level, its Always allow rules, its email address, its connected services, and its teammates with their jobs.
+   Codex reads it when a thread starts, forks or is resumed from disk, never again while the thread is loaded, and ignores new developer instructions on a resume or fork.
+   So the session hashes the file into the thread's `configuration_key`, and a change forks the thread.
 3. **The prompt** of each run, built fresh (below).
 
 ```md title="/home/bot/bots/milo/AGENTS.md (abridged)"

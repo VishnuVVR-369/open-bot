@@ -1,6 +1,7 @@
 export * from "./computer";
 export * from "./timeline";
 export * from "./bots";
+export * from "./bot-management";
 export * from "./schedule";
 export * from "./model-access";
 export * from "./skills";
