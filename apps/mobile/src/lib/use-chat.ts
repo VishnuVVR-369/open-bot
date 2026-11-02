@@ -9,6 +9,8 @@ import {
 } from "@open-bot/api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AppState } from "react-native";
+import { clearChatNotifications } from "@/push/notifications";
 import { api } from "./api";
 import { queryKeys } from "./query";
 import { useRealtime, visibleChat } from "./realtime";
@@ -41,7 +43,13 @@ export function useChat(chatId: string) {
     buffer.current = [];
     setLive(null);
     setSent([]);
+    const clear = () => void clearChatNotifications(chatId).catch(() => {});
+    clear();
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") clear();
+    });
     return () => {
+      subscription.remove();
       visibleChat.set(null);
       if (refetchTimer.current) clearTimeout(refetchTimer.current);
     };

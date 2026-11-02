@@ -2,10 +2,13 @@
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-/** 14:05 */
-export function clock(iso: string): string {
+/** 14:05, or 2:05 PM on a phone set to the 12-hour clock. */
+export function clock(iso: string, twelveHour = false): string {
   const date = new Date(iso);
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  const hours = date.getHours();
+  const minutes = pad(date.getMinutes());
+  if (!twelveHour) return `${pad(hours)}:${minutes}`;
+  return `${hours % 12 || 12}:${minutes} ${hours < 12 ? "AM" : "PM"}`;
 }
 
 /** "now", "5m", "3h", "Yesterday", "Mon", "12 Oct", for lists. */

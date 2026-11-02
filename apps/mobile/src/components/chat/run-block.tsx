@@ -30,7 +30,8 @@ import { BotAvatar } from "@/components/bot-avatar";
 import { Markdown } from "@/components/markdown";
 import { Text } from "@/components/text";
 import { diffStats } from "@/lib/format";
-import { clock, elapsed } from "@/lib/time";
+import { phoneClock } from "@/lib/phone-clock";
+import { elapsed } from "@/lib/time";
 import { radius, space, useColors } from "@/theme";
 import { mix } from "@/theme/mix";
 import { ApprovalCard } from "./approval-card";
@@ -426,7 +427,7 @@ export const RunBlock = memo(function RunBlock({
             {name}
           </Text>
           {"  "}
-          {trigger?.text} · Nothing to report · {clock(run.createdAt)}
+          {trigger?.text} · Nothing to report · {phoneClock(run.createdAt)}
         </Text>
       </View>
     );
@@ -448,7 +449,7 @@ export const RunBlock = memo(function RunBlock({
           </View>
         )}
         <Text variant="caption" muted style={{ marginLeft: "auto" }}>
-          {clock(run.createdAt)}
+          {phoneClock(run.createdAt)}
         </Text>
       </View>
 

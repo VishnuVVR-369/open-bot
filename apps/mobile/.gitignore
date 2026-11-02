@@ -3,6 +3,8 @@
 /ios
 .expo/
 expo-env.d.ts
+# Generated output from local Expo modules (the Kotlin source is committed).
+/modules/*/android/build/
 # Firebase config and signing keys are never committed (the repo is public).
 google-services.json
 *.jks

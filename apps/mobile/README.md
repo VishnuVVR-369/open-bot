@@ -94,6 +94,19 @@ Set that value (`AB:CD:...`) as `ANDROID_CERT_SHA256` on the `web` service.
 Several fingerprints can be given, comma-separated, for example a debug key's while developing.
 `https://<your-app>/.well-known/assetlinks.json` then lists the app, and passkey sign-in accepts it.
 
+In the signed app, open Settings → Add a passkey and confirm with your fingerprint.
+After signing out, Use a passkey on the sign-in screen opens Android's Credential Manager.
+Both the options and verification requests use Better Auth's Expo cookie jar, which carries the challenge cookie and stores the resulting session in SecureStore.
+The Android binding is a local Expo module in `modules/passkey`; regenerate the native project after adding or changing its native dependencies.
+Debug builds use password sign-in unless their signing certificate is explicitly allowed by the development server.
+
+### Background connection experiment
+
+Phase 0's native FCM and foreground-service experiment lives in [`spikes/egress`](spikes/egress/README.md).
+It is included only when `OPENBOT_EGRESS_SPIKE=1` during prebuild.
+Normal builds contain the passkey module and notifications, without the experiment's services or token logging.
+Run a clean prebuild without that variable before installing a normal build again.
+
 ## How it fits together
 
 - `src/app`: the screens, with Expo Router (sign-in, Teammates, Chats, Approvals, a chat, an approval, Settings).

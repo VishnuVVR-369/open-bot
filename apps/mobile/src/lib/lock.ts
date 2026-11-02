@@ -12,9 +12,14 @@ export function shouldRelock(backgroundedAt: number | null, now: number): boolea
 /**
  * Asks for your fingerprint (or the phone's PIN) when the app opens, and when it comes back after
  * five minutes away. The session itself lasts 30 days; this guards the phone, not the account.
- * Phones without a screen lock can't do this, so they aren't locked.
+ * Phones without a screen lock can't do this, so they aren't locked. Signing in with your
+ * password proves it's you already, so that doesn't lock either.
  */
-export function useAppLock(signedIn: boolean) {
+export function useAppLock(session: "pending" | "signedIn" | "signedOut") {
+  const signedIn = session === "signedIn";
+  // Signed out at some point since the app opened: the next sign-in was with your password.
+  const signedOutSinceOpen = useRef(false);
+  if (session === "signedOut") signedOutSinceOpen.current = true;
   const [locked, setLockedState] = useState(false);
   const [checking, setChecking] = useState(true);
   const lockedNow = useRef(false);
@@ -51,15 +56,18 @@ export function useAppLock(signedIn: boolean) {
   }, [setLocked]);
 
   useEffect(() => {
+    if (session === "pending") return;
     if (!signedIn) {
       setLocked(false);
       setChecking(false);
       return;
     }
+    if (signedOutSinceOpen.current) setChecking(false);
     // The lock screen is up (behind the prompt) before the splash screen goes.
-    void lockIfSecured()
-      .finally(() => setChecking(false))
-      .then((secured) => (secured ? unlock() : undefined));
+    else
+      void lockIfSecured()
+        .finally(() => setChecking(false))
+        .then((secured) => (secured ? unlock() : undefined));
     const subscription = AppState.addEventListener("change", (state) => {
       if (state === "background") backgroundedAt.current = Date.now();
       if (state === "active") {
@@ -70,7 +78,7 @@ export function useAppLock(signedIn: boolean) {
       }
     });
     return () => subscription.remove();
-  }, [signedIn, setLocked, lockIfSecured, unlock]);
+  }, [session, signedIn, setLocked, lockIfSecured, unlock]);
 
   return { locked, checking, unlock };
 }

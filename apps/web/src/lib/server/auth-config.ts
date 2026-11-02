@@ -45,3 +45,12 @@ export function passkeyOrigins(fingerprints: string[] = androidCertFingerprints(
     ),
   ];
 }
+
+/** The passkey plugin's settings: one relying party, the website, for the web and the phone. */
+export function passkeyConfig(fingerprints: string[] = androidCertFingerprints()) {
+  return {
+    rpName: "open-bot",
+    rpID: new URL(BASE_URL).hostname,
+    origin: passkeyOrigins(fingerprints),
+  };
+}

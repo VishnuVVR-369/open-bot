@@ -54,6 +54,8 @@ export function useDecideApproval() {
       } finally {
         setDeciding(null);
         void queryClient.invalidateQueries({ queryKey: queryKeys.approvals });
+        // A teammate shows "Needs your approval" until this is decided.
+        void queryClient.invalidateQueries({ queryKey: queryKeys.teammates });
         void queryClient.invalidateQueries({ queryKey: queryKeys.approval(approval.id) });
         if (approval.chatId)
           void queryClient.invalidateQueries({ queryKey: queryKeys.chat(approval.chatId) });

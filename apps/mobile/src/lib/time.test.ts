@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ago, elapsed } from "./time";
+import { ago, clock, elapsed } from "./time";
 
 describe("times in lists", () => {
   const now = new Date(2026, 10, 2, 15, 0, 0).getTime();
@@ -13,6 +13,14 @@ describe("times in lists", () => {
     expect(ago(at(2026, 10, 1, 23, 0), now)).toBe("Yesterday");
     expect(ago(at(2026, 9, 12, 9, 0), now)).toBe("12 Oct");
     expect(ago(at(2025, 9, 12, 9, 0), now)).toBe("12 Oct 2025");
+  });
+
+  it("follows the phone's clock setting", () => {
+    expect(clock(at(2026, 10, 2, 17, 5))).toBe("17:05");
+    expect(clock(at(2026, 10, 2, 17, 5), true)).toBe("5:05 PM");
+    expect(clock(at(2026, 10, 2, 0, 30), true)).toBe("12:30 AM");
+    expect(clock(at(2026, 10, 2, 12, 0), true)).toBe("12:00 PM");
+    expect(clock(at(2026, 10, 2, 9, 0))).toBe("09:00");
   });
 
   it("counts running time", () => {
