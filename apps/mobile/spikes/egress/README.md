@@ -10,7 +10,8 @@ The results are in [`docs/mobile-plan.md`](../../../../docs/mobile-plan.md#06-ba
   For a data message with `type: "egress-spike"`, it starts the foreground service natively, with no JavaScript involved.
 - `android/EgressSpikeService.kt` is a `specialUse` foreground service.
   It opens one websocket to `wss://echo.websocket.org`, checks that its exact message comes back, holds the connection for 60 seconds under a partial wake lock, then stops.
-  Each attempt has a 90-second overall deadline, including connection and echo time. A replacement push cancels the previous attempt; failure, early closure, timeout and service destruction cancel its socket and timers.
+  Each attempt has a 90-second overall deadline, including connection and echo time.
+  A replacement push cancels the previous attempt; failure, early closure, timeout and service destruction cancel its socket and timers.
 - `android/SpikeLog.kt` writes one JSON line per event to logcat (tag `EgressSpike`) and to `egress-spike.log` in the app's external files directory, so the log survives the phone being unplugged.
   Each push also records the device state: screen, Doze, battery saver, the battery optimization exemption and the app standby bucket.
 - `with-egress-spike.js` is the config plugin that adds all of this.
@@ -38,6 +39,8 @@ adb shell cat /sdcard/Android/data/dev.openbot.mobile/files/egress-spike.log
 A case passes when the log shows `push`, `fgs-started`, `ws-open`, `ws-echo` and `ws-held`.
 `fgs-start-refused` (with `ForegroundServiceStartNotAllowedException`), `ws-failed`, `ws-closed-early`, `ws-timeout` or no `push` line at all is a failure.
 
-The callback isolation and deadline changes require a fresh device run; earlier spike evidence does not validate these lifecycle cases. The owner-waived 35-minute real-Doze experiment remains untested.
+The callback isolation and deadline changes require a fresh device run; earlier spike evidence does not validate these lifecycle cases.
+The owner accepted this remaining native evidence gap on 2026-11-02.
+The owner-waived 35-minute real-Doze experiment remains untested.
 
 Build without `OPENBOT_EGRESS_SPIKE` (and with `npx expo prebuild --clean`) to go back to the normal app.

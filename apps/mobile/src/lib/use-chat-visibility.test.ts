@@ -28,7 +28,7 @@ vi.mock("./realtime", () => ({
 
 import { useChatVisibility } from "./use-chat-visibility";
 
-function focus(chatId: string) {
+function useFocusedChat(chatId: string) {
   useChatVisibility(chatId);
   return state.effects.at(-1)!();
 }
@@ -61,9 +61,9 @@ describe("chat notification focus", () => {
   });
 
   it("clears only the focused chat on resume while earlier chats stay mounted", () => {
-    const blurA = focus("a");
+    const blurA = useFocusedChat("a");
     blurA();
-    const blurB = focus("b");
+    const blurB = useFocusedChat("b");
     state.clear.mockClear();
 
     appState("background");
@@ -78,10 +78,10 @@ describe("chat notification focus", () => {
   });
 
   it("restores visibility and clearing when returning to a mounted chat", () => {
-    const blurA = focus("a");
+    const blurA = useFocusedChat("a");
     const focusA = state.effects[0]!;
     blurA();
-    const blurB = focus("b");
+    const blurB = useFocusedChat("b");
     blurB();
     state.clear.mockClear();
     const cleanup = focusA();
@@ -92,7 +92,7 @@ describe("chat notification focus", () => {
   });
 
   it("checks navigation focus even before effect cleanup", () => {
-    const cleanup = focus("a");
+    const cleanup = useFocusedChat("a");
     const isVisible = state.clear.mock.calls[0]![1];
     state.navigation.isFocused.mockReturnValue(false);
     state.clear.mockClear();
@@ -104,7 +104,7 @@ describe("chat notification focus", () => {
   });
 
   it("invalidates pending clears on blur and backgrounding", () => {
-    const cleanup = focus("a");
+    const cleanup = useFocusedChat("a");
     const isVisible = state.clear.mock.calls[0]![1];
     expect(isVisible()).toBe(true);
     appState("background");
@@ -116,7 +116,7 @@ describe("chat notification focus", () => {
 
   it("waits for the app to be active before clearing", () => {
     appState("background");
-    const cleanup = focus("a");
+    const cleanup = useFocusedChat("a");
     expect(state.clear).not.toHaveBeenCalled();
     appState("active");
     expect(state.clear).toHaveBeenCalledTimes(1);
@@ -124,8 +124,8 @@ describe("chat notification focus", () => {
   });
 
   it("does not erase a newer chat's visibility during cleanup", () => {
-    const blurA = focus("a");
-    const blurB = focus("b");
+    const blurA = useFocusedChat("a");
+    const blurB = useFocusedChat("b");
     blurA();
     expect(state.visible).toBe("b");
     blurB();
