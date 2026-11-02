@@ -1,8 +1,9 @@
 import { createHash, randomBytes } from "node:crypto";
 import net, { type AddressInfo, type Socket } from "node:net";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { isPublicAddress, resolvePublicAddress } from "./ip-policy";
-import { Mux } from "./mux";
+import { decodeFrame, FrameType } from "./frames";
+import { INITIAL_WINDOW, Mux } from "./mux";
 import { createSocksServer, socksReply, SocksReply } from "./socks";
 
 const servers: net.Server[] = [];
@@ -54,15 +55,25 @@ function socksConnect(proxyPort: number, host: string, port: number): Promise<So
 }
 
 /** Wire a computer-side and an agent-side mux together, as the worker relay does. */
-function linkedMuxes(connect: (host: string, port: number) => Promise<Socket>) {
+function linkedMuxes(
+  connect: (host: string, port: number) => Promise<Socket>,
+  /** Sees every frame either side sends. */
+  onFrame: (frame: Buffer) => void = () => {},
+) {
   let agent: Mux | null = null;
   const computer = new Mux({
     role: "computer",
-    send: (frame) => setImmediate(() => agent!.handleFrame(frame)),
+    send: (frame) => {
+      onFrame(frame);
+      setImmediate(() => agent!.handleFrame(frame));
+    },
   });
   agent = new Mux({
     role: "agent",
-    send: (frame) => setImmediate(() => computer.handleFrame(frame)),
+    send: (frame) => {
+      onFrame(frame);
+      setImmediate(() => computer.handleFrame(frame));
+    },
     connect,
   });
   return { computer, agent };
@@ -146,6 +157,59 @@ describe("egress tunnel", () => {
     expect(createHash("sha256").update(body).digest("hex")).toBe(
       createHash("sha256").update(payload).digest("hex"),
     );
+  });
+
+  it("finishes a stream without a reset when the server closes right after sending", async () => {
+    // A reset aborts the other side at once, dropping whatever it hasn't written to its client
+    // yet, so a clean close (like an HTTP server's after its response) must only send End.
+    const payload = randomBytes(INITIAL_WINDOW / 2);
+    const targetPort = await listen(
+      net.createServer((socket) => socket.once("data", () => socket.end(payload))),
+    );
+    const sent: FrameType[] = [];
+    const { computer } = linkedMuxes(connectLocal, (frame) => sent.push(decodeFrame(frame).type));
+    const proxyPort = await listen(
+      createSocksServer(async (host, port, client) => {
+        const streamId = await computer.open(host, port);
+        client.write(socksReply(SocksReply.succeeded));
+        computer.attach(streamId, client);
+      }),
+    );
+
+    const socket = await socksConnect(proxyPort, "127.0.0.1", targetPort);
+    const received: Buffer[] = [];
+    socket.on("data", (chunk) => received.push(chunk));
+    socket.write("GET");
+    await new Promise((resolve) => socket.once("close", resolve));
+    await vi.waitFor(() => expect(computer.stats.openStreams).toBe(0));
+
+    expect(Buffer.concat(received).equals(payload)).toBe(true);
+    expect(sent).toContain(FrameType.End);
+    expect(sent).not.toContain(FrameType.Reset);
+  });
+
+  it("tells a client still sending that the server closed", async () => {
+    const targetPort = await listen(
+      net.createServer((socket) => socket.once("data", () => socket.end("413 Too Large"))),
+    );
+    const { computer } = linkedMuxes(connectLocal);
+    const proxyPort = await listen(
+      createSocksServer(async (host, port, client) => {
+        const streamId = await computer.open(host, port);
+        client.write(socksReply(SocksReply.succeeded));
+        computer.attach(streamId, client);
+      }),
+    );
+
+    const socket = await socksConnect(proxyPort, "127.0.0.1", targetPort);
+    // Keeps sending after the response ends, like an upload the server turned down early.
+    socket.allowHalfOpen = true;
+    socket.on("error", () => {});
+    socket.resume();
+    const upload = setInterval(() => socket.write(randomBytes(256 * 1024)), 5);
+    await new Promise((resolve) => socket.once("close", resolve));
+    clearInterval(upload);
+    await vi.waitFor(() => expect(computer.stats.openStreams).toBe(0));
   });
 
   it("reports a refused destination to the SOCKS client", async () => {
