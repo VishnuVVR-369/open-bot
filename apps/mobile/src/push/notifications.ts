@@ -84,8 +84,12 @@ export async function handlePushData(data: PushData): Promise<void> {
 /**
  * Clear what was said in a chat once you're looking at it. Approvals stay: they still need you.
  */
-export async function clearChatNotifications(chatId: string): Promise<void> {
+export async function clearChatNotifications(
+  chatId: string,
+  isVisible: () => boolean,
+): Promise<void> {
   const shown = await notifee.getDisplayedNotifications();
+  if (!isVisible()) return;
   await Promise.all(
     shown
       .filter(({ id, notification }) => id && notification.data?.chatId === chatId)

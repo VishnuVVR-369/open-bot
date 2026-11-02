@@ -11,6 +11,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
+import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import dev.openbot.mobile.R
@@ -28,12 +29,20 @@ import okhttp3.WebSocketListener
 class EgressSpikeService : Service() {
   private val client = OkHttpClient.Builder().pingInterval(15, TimeUnit.SECONDS).build()
   private val main = Handler(Looper.getMainLooper())
-  private var socket: WebSocket? = null
-  private var wakeLock: PowerManager.WakeLock? = null
+  private class Run(val startId: Int) {
+    var socket: WebSocket? = null
+    var wakeLock: PowerManager.WakeLock? = null
+    var echoed = false
+  }
+
+  private var activeRun: Run? = null
 
   override fun onBind(intent: Intent?): IBinder? = null
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+    cancelRun()
+    val run = Run(startId)
+    activeRun = run
     val case = intent?.getStringExtra("case") ?: "unlabelled"
     val receivedAt = intent?.getLongExtra("receivedAt", 0L) ?: 0L
     val since = { System.currentTimeMillis() - receivedAt }
@@ -51,84 +60,136 @@ class EgressSpikeService : Service() {
         "fgs-start-failed",
         mapOf("case" to case, "error" to error.javaClass.name, "message" to error.message),
       )
-      stopSelf()
+      finish(run)
       return START_NOT_STICKY
     }
-    socket?.cancel()
-    wakeLock?.takeIf { it.isHeld }?.release()
-    wakeLock =
-      (getSystemService(Context.POWER_SERVICE) as PowerManager)
-        .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "openbot:egress-spike")
-        .apply { acquire(HOLD_MS + 30_000) }
+    dispatch(run, ATTEMPT_MS) {
+      SpikeLog.write(
+        this,
+        "ws-timeout",
+        mapOf("case" to case, "echoed" to run.echoed, "sincePushMs" to since()),
+      )
+      finish(run)
+    }
     val dialedAt = System.currentTimeMillis()
-    socket =
-      client.newWebSocket(
-        Request.Builder().url(ECHO_URL).build(),
-        object : WebSocketListener() {
-          private var echoed = false
-
-          override fun onOpen(webSocket: WebSocket, response: Response) {
-            SpikeLog.write(
-              this@EgressSpikeService,
-              "ws-open",
-              mapOf(
-                "case" to case,
-                "connectMs" to System.currentTimeMillis() - dialedAt,
-                "sincePushMs" to since(),
-              ),
-            )
-            webSocket.send("egress-spike $case $dialedAt")
-          }
-
-          override fun onMessage(webSocket: WebSocket, text: String) {
-            if (echoed || !text.startsWith("egress-spike")) return
-            echoed = true
-            SpikeLog.write(
-              this@EgressSpikeService,
-              "ws-echo",
-              mapOf("case" to case, "sincePushMs" to since()),
-            )
-            main.postDelayed(
-              {
-                webSocket.close(1000, "done")
+    val payload = "egress-spike $case $dialedAt"
+    try {
+      run.wakeLock =
+        (getSystemService(Context.POWER_SERVICE) as PowerManager)
+          .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "openbot:egress-spike")
+          .apply { acquire(ATTEMPT_MS) }
+      run.socket =
+        client.newWebSocket(
+          Request.Builder().url(ECHO_URL).build(),
+          object : WebSocketListener() {
+            override fun onOpen(webSocket: WebSocket, response: Response) {
+              dispatch(run) {
                 SpikeLog.write(
                   this@EgressSpikeService,
-                  "ws-held",
-                  mapOf("case" to case, "heldMs" to HOLD_MS, "sincePushMs" to since()),
+                  "ws-open",
+                  mapOf(
+                    "case" to case,
+                    "connectMs" to System.currentTimeMillis() - dialedAt,
+                    "sincePushMs" to since(),
+                  ),
                 )
-                finish()
-              },
-              HOLD_MS,
-            )
-          }
+                webSocket.send(payload)
+              }
+            }
 
-          override fun onFailure(webSocket: WebSocket, error: Throwable, response: Response?) {
-            SpikeLog.write(
-              this@EgressSpikeService,
-              "ws-failed",
-              mapOf(
-                "case" to case,
-                "error" to error.javaClass.name,
-                "message" to error.message,
-                "sincePushMs" to since(),
-              ),
-            )
-            main.post { finish() }
-          }
-        },
+            override fun onMessage(webSocket: WebSocket, text: String) {
+              dispatch(run) {
+                if (run.echoed || text != payload) return@dispatch
+                run.echoed = true
+                SpikeLog.write(
+                  this@EgressSpikeService,
+                  "ws-echo",
+                  mapOf("case" to case, "sincePushMs" to since()),
+                )
+                dispatch(run, HOLD_MS) {
+                  SpikeLog.write(
+                    this@EgressSpikeService,
+                    "ws-held",
+                    mapOf("case" to case, "heldMs" to HOLD_MS, "sincePushMs" to since()),
+                  )
+                  webSocket.close(1000, "done")
+                  finish(run)
+                }
+              }
+            }
+
+            override fun onFailure(webSocket: WebSocket, error: Throwable, response: Response?) {
+              dispatch(run) {
+                SpikeLog.write(
+                  this@EgressSpikeService,
+                  "ws-failed",
+                  mapOf(
+                    "case" to case,
+                    "error" to error.javaClass.name,
+                    "message" to error.message,
+                    "sincePushMs" to since(),
+                  ),
+                )
+                finish(run)
+              }
+            }
+
+            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+              closed(code, reason)
+            }
+
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+              closed(code, reason)
+            }
+
+            private fun closed(code: Int, reason: String) {
+              dispatch(run) {
+                SpikeLog.write(
+                  this@EgressSpikeService,
+                  "ws-closed-early",
+                  mapOf("case" to case, "code" to code, "reason" to reason, "sincePushMs" to since()),
+                )
+                finish(run)
+              }
+            }
+          },
+        )
+    } catch (error: Exception) {
+      SpikeLog.write(
+        this,
+        "ws-failed",
+        mapOf("case" to case, "error" to error.javaClass.name, "message" to error.message),
       )
+      finish(run)
+    }
     return START_NOT_STICKY
   }
 
-  private fun finish() {
-    wakeLock?.takeIf { it.isHeld }?.release()
+  private fun dispatch(run: Run, delayMs: Long = 0, action: () -> Unit) {
+    main.postAtTime(
+      { if (activeRun === run) action() },
+      run,
+      SystemClock.uptimeMillis() + delayMs,
+    )
+  }
+
+  private fun cancelRun() {
+    val run = activeRun ?: return
+    activeRun = null
+    main.removeCallbacksAndMessages(run)
+    run.socket?.cancel()
+    run.wakeLock?.takeIf { it.isHeld }?.release()
+  }
+
+  private fun finish(run: Run) {
+    if (activeRun !== run) return
+    cancelRun()
     ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
-    stopSelf()
+    stopSelf(run.startId)
   }
 
   override fun onDestroy() {
-    socket?.cancel()
-    wakeLock?.takeIf { it.isHeld }?.release()
+    cancelRun()
     super.onDestroy()
   }
 
@@ -150,6 +211,7 @@ class EgressSpikeService : Service() {
     private const val CHANNEL = "connection"
     private const val NOTIFICATION_ID = 4210
     private const val HOLD_MS = 60_000L
+    private const val ATTEMPT_MS = HOLD_MS + 30_000L
     private const val ECHO_URL = "wss://echo.websocket.org"
   }
 }
