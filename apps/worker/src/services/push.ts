@@ -16,7 +16,7 @@ export interface PushPayload {
 }
 
 /** Markdown, as the short plain text a phone shows. */
-function plain(markdown: string): string {
+export function plainText(markdown: string): string {
   return markdown
     .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
     .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
@@ -26,7 +26,7 @@ function plain(markdown: string): string {
 }
 
 export function pushPayload(event: NotificationEvent): PushPayload {
-  const body = plain(event.body);
+  const body = plainText(event.body);
   const url =
     event.kind === "approval"
       ? "/approvals"

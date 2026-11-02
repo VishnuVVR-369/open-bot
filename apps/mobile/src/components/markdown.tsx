@@ -1,0 +1,132 @@
+import { Fragment, useMemo, type ReactNode } from "react";
+import { Text, useColorScheme, View, type TextStyle, type ViewStyle } from "react-native";
+import { Renderer, useMarkdown, type MarkedStyles } from "react-native-marked";
+import { fonts, radius, space, useColors } from "@/theme";
+
+/**
+ * Lists drawn like the web's: a round bullet (or the number) centered on the item's first line,
+ * and items as close together as lines of text.
+ */
+class AppRenderer extends Renderer {
+  constructor(
+    private readonly marker: string,
+    private readonly lineHeight: number,
+  ) {
+    super();
+  }
+
+  override list(
+    ordered: boolean,
+    li: ReactNode[],
+    listStyle?: ViewStyle,
+    textStyle?: TextStyle,
+    startIndex = 1,
+  ): ReactNode {
+    const digits = String(startIndex + li.length - 1).length;
+    return (
+      <View key={this.getKey()} style={[listStyle, { gap: space(1) }]}>
+        {li.map((item, index) => (
+          <View key={index} style={{ flexDirection: "row" }}>
+            <View
+              style={{
+                width: ordered ? 10 + digits * 9 : 18,
+                height: this.lineHeight,
+                justifyContent: "center",
+              }}
+            >
+              {ordered ? (
+                <Text style={[textStyle, { color: this.marker, fontVariant: ["tabular-nums"] }]}>
+                  {startIndex + index}.
+                </Text>
+              ) : (
+                <View
+                  style={{
+                    width: 5,
+                    height: 5,
+                    borderRadius: 2.5,
+                    marginLeft: 3,
+                    backgroundColor: this.marker,
+                  }}
+                />
+              )}
+            </View>
+            <View style={{ flex: 1 }}>{item}</View>
+          </View>
+        ))}
+      </View>
+    );
+  }
+}
+
+/**
+ * A teammate's reply, in Markdown, in the app's type. `muted` is for progress notes and thinking,
+ * smaller and grey, as on the web.
+ */
+export function Markdown({ text, tone = "default" }: { text: string; tone?: "default" | "muted" }) {
+  const colors = useColors();
+  const scheme = useColorScheme();
+  const ink = tone === "muted" ? colors.mutedForeground : colors.foreground;
+  const styles = useMemo<MarkedStyles>(() => {
+    const body = {
+      fontFamily: fonts.sans,
+      fontSize: tone === "muted" ? 14 : 15,
+      lineHeight: tone === "muted" ? 20 : 22,
+      color: ink,
+    };
+    const heading = { fontFamily: fonts.heading, fontWeight: "600" as const, color: ink };
+    return {
+      text: body,
+      paragraph: { marginVertical: space(1), padding: 0 },
+      strong: { ...body, fontWeight: "600" },
+      em: { ...body, fontStyle: "italic" },
+      link: { ...body, fontStyle: "normal", textDecorationLine: "underline" },
+      h1: { ...heading, fontSize: 20, lineHeight: 26, marginTop: space(2) },
+      h2: { ...heading, fontSize: 18, lineHeight: 24, marginTop: space(2) },
+      h3: { ...heading, fontSize: 16, lineHeight: 22, marginTop: space(1) },
+      h4: { ...heading, fontSize: 15, lineHeight: 22 },
+      codespan: {
+        fontFamily: fonts.mono,
+        fontStyle: "normal",
+        fontSize: 13,
+        color: colors.foreground,
+        backgroundColor: colors.muted,
+      },
+      code: {
+        backgroundColor: colors.muted,
+        borderRadius: radius.md,
+        padding: space(3),
+        marginVertical: space(1),
+      },
+      codeText: { fontFamily: fonts.mono, fontSize: 13, lineHeight: 19, color: colors.foreground },
+      blockquote: { borderLeftWidth: 3, borderLeftColor: colors.border, paddingLeft: space(3) },
+      hr: { backgroundColor: colors.border, height: 1, marginVertical: space(3) },
+      li: body,
+      list: { marginVertical: space(1) },
+      tableCell: { padding: space(2) },
+      tableRow: { borderColor: colors.border },
+      table: { borderColor: colors.border, borderWidth: 1, borderRadius: radius.md },
+    };
+  }, [colors, ink, tone]);
+  const lineHeight = tone === "muted" ? 20 : 22;
+  const renderer = useMemo(() => new AppRenderer(ink, lineHeight), [ink, lineHeight]);
+  const elements = useMarkdown(text, {
+    colorScheme: scheme ?? undefined,
+    styles,
+    renderer,
+    theme: {
+      colors: {
+        text: ink,
+        link: ink,
+        border: colors.border,
+        code: colors.muted,
+      },
+    },
+  });
+  return (
+    <View>
+      {elements.map((element, index) => (
+        <Fragment key={index}>{element}</Fragment>
+      ))}
+    </View>
+  );
+}

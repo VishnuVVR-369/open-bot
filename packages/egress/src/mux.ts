@@ -86,7 +86,12 @@ export class Mux {
       this.maybeFinish(stream);
     });
     socket.on("error", () => this.destroy(stream, true));
-    socket.on("close", () => this.destroy(stream, !(stream.localEnded && stream.remoteEnded)));
+    socket.on("close", (hadError: boolean) => {
+      // After a clean end (a server closing once it has responded) the End frame already tells
+      // the other side, which still has to write what it received. A reset would drop that.
+      if (stream.localEnded && !hadError) this.forget(stream);
+      else this.destroy(stream, !(stream.localEnded && stream.remoteEnded));
+    });
     for (const chunk of stream.pending) this.writeLocal(stream, chunk);
     stream.pending = [];
     if (stream.remoteEnded) socket.end();
@@ -116,6 +121,8 @@ export class Mux {
         if (stream) this.destroy(stream, false);
         return;
       case FrameType.Data:
+        // Like TCP, data for a connection that's gone is refused, so the sender stops waiting.
+        if (!stream) this.options.send(encodeFrame(FrameType.Reset, frame.streamId));
         if (!stream || stream.closed) return;
         this.bytesIn += frame.payload.length;
         if (stream.socket) this.writeLocal(stream, frame.payload);
@@ -224,6 +231,12 @@ export class Mux {
       stream.closed = true;
       this.streams.delete(stream.id);
     }
+  }
+
+  /** Stop tracking a stream whose socket is gone, leaving the other side to finish on its own. */
+  private forget(stream: Stream): void {
+    stream.closed = true;
+    this.streams.delete(stream.id);
   }
 
   private destroy(stream: Stream, notifyRemote: boolean): void {

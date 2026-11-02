@@ -1,7 +1,15 @@
-import { bots, chatMembers, chats, messages, runs, settings } from "@open-bot/db";
+import {
+  bots,
+  chatMembers,
+  chats,
+  messageDispatches,
+  messages,
+  runs,
+  settings,
+} from "@open-bot/db";
 import { COMPUTER_PATHS, emailAddress } from "@open-bot/shared";
-import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
-import { appendRunEvent, enqueueRun, publishApp, type Context } from "../context";
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, ne, sql } from "drizzle-orm";
+import { announceRun, appendRunEvent, insertRun, publishApp, type Context } from "../context";
 import { agentsMarkdown, allowedList, redoPrompt } from "../instructions";
 import { errorMessage } from "../logger";
 import type { ApprovalService } from "../services/approvals";
@@ -14,6 +22,9 @@ import type { ModelAccess } from "../services/model-access";
 import type { TakeoverService } from "../services/takeovers";
 import type { ToolHandlers } from "../tools/handlers";
 import { RunSession, type Bot, type Run } from "./session";
+
+/** How long a saved message may wait for its dispatch before the worker dispatches it itself. */
+export const DISPATCH_GRACE_MS = 15_000;
 
 /** Claims queued runs and executes them, one at a time per bot per chat. */
 export class RunExecutor {
@@ -280,10 +291,18 @@ export class RunExecutor {
     return entries.map((entry) => entry.line.slice(0, 1500)).join("\n");
   }
 
-  /** Route a message you sent: join a bot's running turn, or start a run. */
+  /**
+   * Route a message you sent: join a bot's running turn, or start a run. Safe to call more than
+   * once for the same message: each teammate is claimed in `message_dispatches` before it gets the
+   * message, so it gets it once.
+   */
   async dispatchMessage(messageId: string): Promise<void> {
     const [message] = await this.ctx.db.select().from(messages).where(eq(messages.id, messageId));
-    if (!message || message.role !== "user") return;
+    if (!message) return;
+    if (message.role !== "user") {
+      await this.markDispatched(message.id);
+      return;
+    }
     const [chat] = await this.ctx.db.select().from(chats).where(eq(chats.id, message.chatId));
     if (!chat) return;
 
@@ -304,33 +323,155 @@ export class RunExecutor {
     }
     const prompt = message.redoOfRunId ? redoPrompt(message.text) : message.text;
 
+    let delivered = false;
     for (const botId of targets) {
       const session = this.sessions.find(chat.id, botId);
       if (session && message.attachments.length === 0) {
-        const steered = await session.steer(message.id, prompt);
-        if (steered) {
+        // Claim the teammate before steering: a steer can't be undone or repeated safely.
+        const [claimed] = await this.ctx.db
+          .insert(messageDispatches)
+          .values({ messageId: message.id, botId, kind: "steer", status: "sending" })
+          .onConflictDoNothing()
+          .returning({ botId: messageDispatches.botId });
+        if (!claimed) continue;
+        if (await session.steer(message.id, prompt)) {
           await this.ctx.db
             .update(messages)
             .set({ steeredRunId: session.run.id })
             .where(eq(messages.id, message.id));
+          await this.ctx.db
+            .update(messageDispatches)
+            .set({ status: "done", runId: session.run.id })
+            .where(
+              and(eq(messageDispatches.messageId, message.id), eq(messageDispatches.botId, botId)),
+            );
+          delivered = true;
           continue;
         }
+        // The turn ended or refused the steer: it becomes a run of its own.
+        await this.queueRun(message, botId, prompt, { claimed: true });
+        delivered = true;
+        continue;
       }
-      await enqueueRun(this.ctx, {
-        chatId: chat.id,
+      if (await this.queueRun(message, botId, prompt, { claimed: false })) delivered = true;
+    }
+    const first = await this.markDispatched(message.id);
+    if (delivered || first) {
+      await this.ctx.db
+        .update(chats)
+        .set({ lastActivityAt: new Date() })
+        .where(eq(chats.id, chat.id));
+      await publishApp(this.ctx, { type: "chats" });
+    }
+    this.pump();
+  }
+
+  /**
+   * Queue the run that answers a message, in the same transaction as its dispatch record, so the
+   * run exists if and only if the record does. False when another dispatch got there first.
+   */
+  private async queueRun(
+    message: typeof messages.$inferSelect,
+    botId: string,
+    prompt: string,
+    { claimed }: { claimed: boolean },
+  ): Promise<boolean> {
+    const runId = await this.ctx.db.transaction(async (tx) => {
+      if (claimed) {
+        const [row] = await tx
+          .update(messageDispatches)
+          .set({ kind: "run", status: "done" })
+          .where(
+            and(
+              eq(messageDispatches.messageId, message.id),
+              eq(messageDispatches.botId, botId),
+              eq(messageDispatches.status, "sending"),
+            ),
+          )
+          .returning({ botId: messageDispatches.botId });
+        if (!row) return null;
+      } else {
+        const [row] = await tx
+          .insert(messageDispatches)
+          .values({ messageId: message.id, botId, kind: "run", status: "done" })
+          .onConflictDoNothing()
+          .returning({ botId: messageDispatches.botId });
+        if (!row) return null;
+      }
+      const id = await insertRun(tx, {
+        chatId: message.chatId,
         botId,
         trigger: "user",
         prompt,
         attachments: message.attachments,
         messageId: message.id,
       });
+      await tx
+        .update(messageDispatches)
+        .set({ runId: id })
+        .where(
+          and(eq(messageDispatches.messageId, message.id), eq(messageDispatches.botId, botId)),
+        );
+      return id;
+    });
+    if (!runId) return false;
+    await announceRun(this.ctx, message.chatId);
+    return true;
+  }
+
+  /** True the first time, when the message was still pending. */
+  private async markDispatched(messageId: string): Promise<boolean> {
+    const rows = await this.ctx.db
+      .update(messages)
+      .set({ dispatchStatus: "dispatched" })
+      .where(and(eq(messages.id, messageId), eq(messages.dispatchStatus, "pending")))
+      .returning({ id: messages.id });
+    return rows.length > 0;
+  }
+
+  /**
+   * Steers that were being delivered when the worker stopped. The turn they joined ended with
+   * that worker, so the message can't have been answered: it becomes a run of its own.
+   * Call on startup, before anything can steer.
+   */
+  async recoverSteers(): Promise<void> {
+    const rows = await this.ctx.db
+      .select({ message: messages, botId: messageDispatches.botId })
+      .from(messageDispatches)
+      .innerJoin(messages, eq(messages.id, messageDispatches.messageId))
+      .where(and(eq(messageDispatches.kind, "steer"), eq(messageDispatches.status, "sending")));
+    for (const { message, botId } of rows) {
+      const prompt = message.redoOfRunId ? redoPrompt(message.text) : message.text;
+      await this.queueRun(message, botId, prompt, { claimed: true });
     }
-    await this.ctx.db
-      .update(chats)
-      .set({ lastActivityAt: new Date() })
-      .where(eq(chats.id, chat.id));
-    await publishApp(this.ctx, { type: "chats" });
-    this.pump();
+    if (rows.length)
+      this.ctx.log.warn(`queued ${rows.length} messages whose steer the restart interrupted`);
+  }
+
+  /** Dispatch messages that were saved but never dispatched, like after a crash in between. */
+  async reconcileDispatches(olderThanMs = DISPATCH_GRACE_MS): Promise<void> {
+    const stale = await this.ctx.db
+      .select({ id: messages.id })
+      .from(messages)
+      .where(
+        and(
+          eq(messages.dispatchStatus, "pending"),
+          lt(messages.createdAt, new Date(Date.now() - olderThanMs)),
+        ),
+      )
+      .orderBy(asc(messages.createdAt))
+      .limit(100);
+    for (const { id } of stale) {
+      try {
+        await this.dispatchMessage(id);
+      } catch (error) {
+        this.ctx.log.error("dispatching a pending message failed", {
+          messageId: id,
+          error: errorMessage(error),
+        });
+      }
+    }
+    if (stale.length) this.ctx.log.warn(`dispatched ${stale.length} pending messages`);
   }
 
   /** Stop runs you cancelled: interrupt executing turns and drop queued ones. */

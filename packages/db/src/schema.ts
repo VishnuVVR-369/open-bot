@@ -242,9 +242,51 @@ export const messages = pgTable(
     steeredRunId: uuid("steered_run_id"),
     /** Set when the message is your feedback on a reply, asking the bot to do it again. */
     redoOfRunId: uuid("redo_of_run_id"),
+    /** The sender's id for this message, so a retried send never saves it twice. */
+    clientId: uuid("client_id"),
+    /**
+     * `pending` until every teammate it's for got it (a run or a steer). The worker dispatches
+     * pending messages again, so a crash between saving and dispatching loses nothing.
+     */
+    dispatchStatus: text("dispatch_status")
+      .$type<MessageDispatchStatus>()
+      .notNull()
+      .default("pending"),
     createdAt: createdAt(),
   },
-  (table) => [index("messages_chat_idx").on(table.chatId, table.createdAt)],
+  (table) => [
+    index("messages_chat_idx").on(table.chatId, table.createdAt),
+    uniqueIndex("messages_client_id_unique").on(table.clientId),
+    index("messages_pending_dispatch_idx")
+      .on(table.createdAt)
+      .where(sql`${table.dispatchStatus} = 'pending'`),
+  ],
+);
+
+export type MessageDispatchStatus = "pending" | "dispatched";
+
+/**
+ * Delivering one message to one teammate. The row is claimed before the delivery, so a message
+ * dispatched twice still reaches each teammate once.
+ */
+export const messageDispatches = pgTable(
+  "message_dispatches",
+  {
+    messageId: uuid("message_id")
+      .notNull()
+      .references(() => messages.id, { onDelete: "cascade" }),
+    botId: uuid("bot_id")
+      .notNull()
+      .references(() => bots.id, { onDelete: "cascade" }),
+    /** A new run, or joining the teammate's running turn. */
+    kind: text("kind").$type<"run" | "steer">().notNull(),
+    /** A steer is `sending` while it's being delivered; a run is `done` as soon as it's queued. */
+    status: text("status").$type<"sending" | "done" | "failed">().notNull(),
+    runId: uuid("run_id"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [primaryKey({ columns: [table.messageId, table.botId] })],
 );
 
 export type RunTrigger =
@@ -310,6 +352,10 @@ export const runs = pgTable(
     index("runs_status_idx").on(table.status),
     index("runs_bot_idx").on(table.botId, table.createdAt),
     index("runs_trigger_idx").on(table.triggerId, table.createdAt),
+    // A message you sent starts at most one run per teammate.
+    uniqueIndex("runs_user_message_unique")
+      .on(table.messageId, table.botId)
+      .where(sql`${table.trigger} = 'user' and ${table.messageId} is not null`),
   ],
 );
 
@@ -708,6 +754,16 @@ export const instructionProposals = pgTable(
 );
 
 /** Browsers and phones that get push notifications. */
+/** Phones that get notifications through Firebase Cloud Messaging, by their FCM token. */
+export const nativePushDevices = pgTable("native_push_devices", {
+  token: text("token").primaryKey(),
+  platform: text("platform").$type<"android">().notNull(),
+  /** Which device, in words, like "Pixel 9". */
+  device: text("device").notNull().default(""),
+  lastSentAt: timestamp("last_sent_at", { withTimezone: true }),
+  createdAt: createdAt(),
+});
+
 export const pushSubscriptions = pgTable("push_subscriptions", {
   endpoint: text("endpoint").primaryKey(),
   p256dh: text("p256dh").notNull(),

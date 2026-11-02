@@ -2,7 +2,8 @@ import createMDX from "@next/mdx";
 import type { NextConfig } from "next";
 
 // The site and media URLs are baked into the static files, so a deploy build must not fall back to localhost.
-if (process.env.CI || process.env.CF_PAGES) {
+// Only Cloudflare's builds deploy: other CI (typecheck, tests) loads this config too, without the URLs.
+if (process.env.WORKERS_CI || process.env.CF_PAGES) {
   for (const name of ["NEXT_PUBLIC_SITE_URL", "NEXT_PUBLIC_MEDIA_URL"]) {
     if (!process.env[name])
       throw new Error(`${name} must be set for a deploy build (see apps/site/README.md)`);

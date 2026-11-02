@@ -1,40 +1,16 @@
 "use client";
 
-import { applyRunEvent } from "@open-bot/shared";
+import { applyLiveEvent, endsRun, liveChatFromSnapshot, type LiveChat } from "@open-bot/api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getJson } from "@/lib/client/api";
 import { queryKeys } from "@/lib/client/queries";
 import { setVisibleChat, useRealtime } from "@/lib/client/realtime";
-import type { ChatData, ChatEntry, MessageView, RunView, StreamRunEvent } from "@/lib/types";
+import type { ChatData, ChatEntry, MessageView, StreamRunEvent } from "@/lib/types";
 
-interface ChatState {
-  entries: ChatEntry[];
-  runs: Record<string, RunView>;
-  cursor: number;
-}
+type ChatState = LiveChat;
 
 const BUFFER = 2_000;
-
-function fromSnapshot(
-  data: ChatData,
-  buffered: StreamRunEvent[],
-): { state: ChatState; unknownRun: boolean } {
-  const runs: Record<string, RunView> = {};
-  for (const entry of data.entries) if (entry.type === "run") runs[entry.run.id] = entry.run;
-  let unknownRun = false;
-  // Events that arrived after the snapshot was taken still need applying.
-  for (const event of buffered) {
-    if (event.id <= data.cursor) continue;
-    const run = runs[event.runId];
-    if (!run) {
-      unknownRun = true;
-      continue;
-    }
-    runs[event.runId] = { ...run, timeline: applyRunEvent(run.timeline, event.payload) };
-  }
-  return { state: { entries: data.entries, runs, cursor: data.cursor }, unknownRun };
-}
 
 /** A chat's messages and runs, kept live with the realtime stream. */
 export function useChat(chatId: string) {
@@ -71,7 +47,7 @@ export function useChat(chatId: string) {
   // Rebuild from each snapshot.
   useEffect(() => {
     if (!query.data) return;
-    const { state: next, unknownRun } = fromSnapshot(query.data, buffer.current);
+    const { chat: next, unknownRun } = liveChatFromSnapshot(query.data, buffer.current);
     setState(next);
     setOptimistic((current) =>
       current.filter(
@@ -93,26 +69,10 @@ export function useChat(chatId: string) {
       if (buffer.current.length > BUFFER) buffer.current.splice(0, buffer.current.length - BUFFER);
       setState((current) => {
         if (!current) return current;
-        const run = current.runs[event.runId];
-        if (!run) {
-          refetchSoon();
-          return current;
-        }
-        if (
-          event.payload.type === "status" &&
-          ["completed", "failed", "interrupted"].includes(event.payload.status)
-        ) {
-          // Pick up the final row state (completion time, final text).
-          refetchSoon();
-        }
-        return {
-          ...current,
-          cursor: Math.max(current.cursor, event.id),
-          runs: {
-            ...current.runs,
-            [event.runId]: { ...run, timeline: applyRunEvent(run.timeline, event.payload) },
-          },
-        };
+        const { chat: next, unknownRun } = applyLiveEvent(current, event);
+        // Pick up the final row state (completion time, final text), or a run that just started.
+        if (unknownRun || endsRun(event)) refetchSoon();
+        return next;
       });
     });
   }, [chatId, cursor, watchChat, refetchSoon]);

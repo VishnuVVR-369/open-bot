@@ -1,0 +1,93 @@
+import { describe, expect, it } from "vitest";
+import { isOnScreen, outcomeText, parsePushData, planNotification } from "./payload";
+
+const approval = {
+  type: "notification",
+  kind: "approval",
+  title: "Rex needs your approval",
+  body: "Delete the build folder",
+  tag: "a1",
+  url: "/approvals/a1",
+  chatId: "c1",
+  approvalId: "a1",
+  approvalNeedsBiometric: "false",
+};
+
+describe("phone notifications", () => {
+  it("gives approvals Approve and Deny on the approvals channel", () => {
+    const plan = planNotification(parsePushData(approval)!);
+    expect(plan).toEqual({
+      id: "a1",
+      channel: "approvals",
+      title: "Rex needs your approval",
+      body: "Delete the build folder",
+      url: "/approvals/a1",
+      approvalId: "a1",
+      actions: [
+        { id: "approve", title: "Approve", opensApp: false },
+        { id: "deny", title: "Deny", opensApp: false },
+      ],
+    });
+  });
+
+  it("makes you open the app to approve a purchase", () => {
+    const plan = planNotification(parsePushData({ ...approval, approvalNeedsBiometric: "true" })!);
+    expect(plan?.actions).toEqual([{ id: "review", title: "Review", opensApp: true }]);
+  });
+
+  it("puts takeover requests and replies on their channels, without buttons", () => {
+    const asking = planNotification(
+      parsePushData({
+        type: "notification",
+        kind: "takeover_request",
+        title: "Rex needs you",
+        tag: "t1",
+      })!,
+    );
+    expect(asking).toMatchObject({ channel: "asking", actions: [], url: "/" });
+    const reply = planNotification(
+      parsePushData({
+        type: "notification",
+        kind: "run_finished",
+        title: "Rex replied",
+        tag: "r1",
+      })!,
+    );
+    expect(reply?.channel).toBe("messages");
+  });
+
+  it("ignores malformed messages", () => {
+    expect(parsePushData(undefined)).toBeNull();
+    expect(parsePushData({ type: "notification" })).toBeNull();
+    expect(parsePushData({ type: "nonsense", tag: "x" })).toBeNull();
+    expect(planNotification(parsePushData({ type: "dismiss", tag: "a1" })!)).toBeNull();
+  });
+
+  it("stays quiet about the chat on screen, but never about approvals", () => {
+    const reply = parsePushData({
+      type: "notification",
+      kind: "run_finished",
+      title: "x",
+      tag: "r",
+      chatId: "c1",
+    })!;
+    expect(isOnScreen(reply, "c1", true)).toBe(true);
+    expect(isOnScreen(reply, "c1", false)).toBe(false);
+    expect(isOnScreen(reply, "c2", true)).toBe(false);
+    expect(isOnScreen(parsePushData(approval)!, "c1", true)).toBe(false);
+  });
+
+  it("says what happened after a button press", () => {
+    expect(outcomeText({ kind: "decided", status: "approved" }).title).toBe("Approved");
+    expect(outcomeText({ kind: "already", status: "denied" }).title).toBe(
+      "Already denied elsewhere",
+    );
+    expect(outcomeText({ kind: "already", status: "expired" }).title).toBe(
+      "This expired before it was decided",
+    );
+    expect(outcomeText({ kind: "unreachable" })).toEqual({
+      title: "Couldn't reach open-bot",
+      body: "Open to decide.",
+    });
+  });
+});

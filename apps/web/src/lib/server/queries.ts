@@ -68,7 +68,6 @@ import type {
   ProposalView,
   TaskView,
   ComputerView,
-  MessageView,
   ModelAccessView,
   NotificationView,
   RunView,
@@ -83,6 +82,7 @@ import type {
   UsageView,
   VaultItemView,
 } from "../types";
+import { toApprovalView, toMessageView } from "./views";
 import { db } from "./db";
 import { worker } from "./worker";
 import { plainText } from "../utils";
@@ -279,19 +279,6 @@ export async function getAppState(user: { name: string; email: string }): Promis
         : [],
     ),
     unreadNotifications: unread?.value ?? 0,
-  };
-}
-
-function toMessageView(row: typeof messages.$inferSelect): MessageView {
-  return {
-    id: row.id,
-    role: row.role,
-    text: row.text,
-    attachments: row.attachments,
-    mentions: row.mentions,
-    steeredRunId: row.steeredRunId,
-    redoOfRunId: row.redoOfRunId,
-    createdAt: row.createdAt.toISOString(),
   };
 }
 
@@ -574,20 +561,7 @@ export async function listApprovals(): Promise<ApprovalView[]> {
       desc(approvals.createdAt),
     )
     .limit(100);
-  return rows.map((row) => ({
-    id: row.id,
-    runId: row.runId,
-    botId: row.botId,
-    chatId: row.chatId,
-    kind: row.kind,
-    subject: typeof row.payload.subject === "string" ? row.payload.subject : null,
-    askEveryTime: row.payload.askEveryTime === true,
-    title: row.title,
-    detail: row.detail,
-    status: row.status,
-    createdAt: row.createdAt.toISOString(),
-    decidedAt: row.decidedAt?.toISOString() ?? null,
-  }));
+  return rows.map(toApprovalView);
 }
 
 export async function listSchedules(): Promise<ScheduleView[]> {

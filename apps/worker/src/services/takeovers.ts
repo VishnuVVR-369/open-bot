@@ -126,6 +126,7 @@ export class TakeoverService {
       botId: session.bot.id,
       chatId: session.chat.id,
       runId: session.run.id,
+      takeoverId: row!.id,
     });
     await publishApp(this.ctx, { type: "takeovers" });
 

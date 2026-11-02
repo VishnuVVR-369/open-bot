@@ -98,6 +98,7 @@ export class ApprovalService {
       chatId: session.chat.id,
       runId: session.run.id,
       approvalId,
+      approvalKind: input.kind,
     });
     await publishApp(this.ctx, { type: "approvals" });
     return approvalId;

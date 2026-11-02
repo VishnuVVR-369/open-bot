@@ -1,46 +1,21 @@
-import type {
-  ApprovalKind,
-  Autonomy,
-  ComputerHealth,
-  EgressModeSetting,
-  RunEventPayload,
-  RunStatus,
-  RunTimelineState,
-  SwarmTaskState,
-} from "@open-bot/shared";
+import type { ComputerHealth, EgressModeSetting, RunStatus } from "@open-bot/shared";
 
-import type { ChatKind, RunTrigger } from "@open-bot/db";
+import type { ChatKind } from "@open-bot/db";
 
 /** What the UI reads; shared by route handlers and client components. */
 
-export interface BotSummary {
-  id: string;
-  name: string;
-  slug: string;
-  role: string;
-  color: string;
-  emoji: string;
-  autonomy: Autonomy;
-  isPrimary: boolean;
-  /** The bot's direct chat. */
-  directChatId: string | null;
-  activeRun: {
-    id: string;
-    chatId: string;
-    status: RunStatus;
-    waitingFor: "approval" | "takeover" | null;
-  } | null;
-}
-
-export interface ChatSummary {
-  id: string;
-  kind: ChatKind;
-  title: string;
-  botId: string | null;
-  memberIds: string[];
-  lastActivityAt: string;
-  active: boolean;
-}
+// The views the API serves too are defined by its contract, so the web and the phone agree.
+export type {
+  ApprovalView,
+  BotSummary,
+  ChatData,
+  ChatEntry,
+  ChatSummary,
+  MessageView,
+  RunView,
+  StreamRunEvent,
+} from "@open-bot/api";
+import type { BotSummary, ChatSummary, RunView } from "@open-bot/api";
 
 export interface TakeoverRequestSummary {
   id: string;
@@ -115,43 +90,6 @@ export interface ProposalView {
   createdAt: string;
 }
 
-export interface MessageView {
-  id: string;
-  role: "user" | "system";
-  text: string;
-  attachments: { name: string; path: string; mime: string; size: number }[];
-  mentions: string[];
-  steeredRunId: string | null;
-  /** Your feedback on this reply, asking the teammate to do it again. */
-  redoOfRunId: string | null;
-  createdAt: string;
-}
-
-export interface RunView {
-  id: string;
-  botId: string;
-  trigger: RunTrigger;
-  messageId: string | null;
-  parentRunId: string | null;
-  /** For handoffs, questions and answers: the teammate this run came from. */
-  fromBotId: string | null;
-  /** How the run reached the model; null before it started. */
-  authMode: "plan" | "api_key" | null;
-  scheduleTitle: string | null;
-  /** The watch or webhook that started the run. */
-  triggerTitle: string | null;
-  /** For runs an automation started: what the teammate was given. */
-  automationPrompt: string | null;
-  /** Your thumbs up or down on the reply. */
-  rating: "up" | "down" | null;
-  /** Tokens and cost of the run, once the model reported them. */
-  usage: { tokens: number; costMicros: number } | null;
-  createdAt: string;
-  startedAt: string | null;
-  completedAt: string | null;
-  timeline: RunTimelineState;
-}
-
 /** Something a teammate learned from your feedback. */
 export interface LessonView {
   id: string;
@@ -160,32 +98,6 @@ export interface LessonView {
   /** The reply it was about, to jump back to it. */
   runId: string | null;
   chatId: string | null;
-}
-
-export type ChatEntry =
-  { type: "message"; at: string; message: MessageView } | { type: "run"; at: string; run: RunView };
-
-export interface ChatData {
-  chat: ChatSummary;
-  members: BotSummary[];
-  entries: ChatEntry[];
-  /** The id of the last run event included. Stream from here. */
-  cursor: number;
-  hasMore: boolean;
-  /** For a swarm helper's chat: the screen it works on and the swarm it's part of. */
-  helper: {
-    screenId: string;
-    state: SwarmTaskState;
-    swarmTitle: string;
-    swarmChatId: string;
-    swarmRunId: string;
-  } | null;
-}
-
-export interface StreamRunEvent {
-  id: number;
-  runId: string;
-  payload: RunEventPayload;
 }
 
 export interface NotificationView {
@@ -198,23 +110,6 @@ export interface NotificationView {
   runId: string | null;
   readAt: string | null;
   createdAt: string;
-}
-
-export interface ApprovalView {
-  id: string;
-  runId: string;
-  botId: string;
-  chatId: string;
-  kind: ApprovalKind;
-  /** What "always allow" matches: the raw command, or a kind of action like "Create teammates". */
-  subject: string | null;
-  /** Asked about every time, like giving a teammate access; no "always allow". */
-  askEveryTime: boolean;
-  title: string;
-  detail: string;
-  status: "pending" | "approved" | "denied" | "expired";
-  createdAt: string;
-  decidedAt: string | null;
 }
 
 export interface ScheduleView {

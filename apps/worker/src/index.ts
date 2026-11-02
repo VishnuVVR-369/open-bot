@@ -6,6 +6,7 @@ import { EgressRelay } from "./egress-relay";
 import { env } from "./env";
 import { createHttpServer } from "./http";
 import { PushService } from "./services/push";
+import { FcmService } from "./services/fcm";
 import { TaskService } from "./services/tasks";
 import { ConnectionService } from "./services/connections";
 import { EmailService } from "./services/email";
@@ -65,6 +66,7 @@ const skills = new SkillService(ctx);
 const triggers = new TriggerService(ctx);
 const tasks = new TaskService(ctx);
 const push = new PushService(ctx);
+const fcm = new FcmService(ctx);
 const vault = new VaultService(ctx, approvals);
 const swarms = new SwarmService(ctx, sessions);
 const email = new EmailService(ctx, approvals, sessions);
@@ -103,6 +105,7 @@ const egress = new EgressRelay(ctx);
 const telegram = new TelegramService(ctx, executor, approvals);
 
 await executor.recover();
+await executor.recoverSteers();
 
 computer.on("health", () => void publishApp(ctx, { type: "computer" }));
 computer.on("connected", () => {
@@ -129,6 +132,7 @@ await egress.start();
 schedules.start();
 triggers.start();
 push.start();
+fcm.start();
 void telegram
   .start()
   .catch((error: unknown) => log.error("Telegram didn't start", { error: errorMessage(error) }));
@@ -159,6 +163,15 @@ setInterval(() => {
   executor.pump();
   void executor.processCancellations();
 }, 15_000).unref();
+// Messages saved but never dispatched, like when the worker was down or crashed in between.
+const reconcileDispatches = () =>
+  void executor
+    .reconcileDispatches()
+    .catch((error: unknown) =>
+      log.error("reconciling dispatches failed", { error: errorMessage(error) }),
+    );
+reconcileDispatches();
+setInterval(reconcileDispatches, 30_000).unref();
 
 const server = createHttpServer({
   ctx,
@@ -172,6 +185,7 @@ const server = createHttpServer({
   triggers,
   tasks,
   push,
+  fcm,
   swarms,
   connections,
   email,
