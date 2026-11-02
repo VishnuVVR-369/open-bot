@@ -8,6 +8,7 @@ pnpm-lock.yaml
 /docs
 packages/agent/src/protocol
 apps/mobile/android
+apps/mobile/modules/*/android/build
 apps/mobile/ios
 apps/mobile/.expo
 apps/mobile/expo-env.d.ts

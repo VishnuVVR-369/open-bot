@@ -52,7 +52,7 @@ export default tseslint.config(
   },
   {
     // Expo config plugins run in Node as CommonJS.
-    files: ["apps/mobile/plugins/**/*.js"],
+    files: ["apps/mobile/plugins/**/*.js", "apps/mobile/spikes/**/*.js"],
     languageOptions: { sourceType: "commonjs" },
     rules: { "@typescript-eslint/no-require-imports": "off" },
   },

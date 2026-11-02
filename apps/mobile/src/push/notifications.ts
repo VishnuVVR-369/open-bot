@@ -57,10 +57,17 @@ export async function handlePushData(data: PushData): Promise<void> {
     id: plan.id,
     title: plan.title,
     body: plan.body,
-    data: { url: plan.url, ...(plan.approvalId ? { approvalId: plan.approvalId } : {}) },
+    data: {
+      url: plan.url,
+      ...(data.chatId ? { chatId: data.chatId } : {}),
+      ...(plan.approvalId ? { approvalId: plan.approvalId } : {}),
+    },
     android: {
       channelId: plan.channel,
+      // Its own group per channel: bundled with replies, an approval's buttons are hidden.
+      groupId: plan.channel,
       smallIcon: "ic_notification",
+      showTimestamp: true,
       color: palette.light.foreground,
       style: plan.body ? { type: AndroidStyle.BIGTEXT, text: plan.body } : undefined,
       pressAction: { id: "default", launchActivity: "default" },
@@ -72,6 +79,23 @@ export async function handlePushData(data: PushData): Promise<void> {
       })),
     },
   });
+}
+
+/**
+ * Clear what was said in a chat once you're looking at it. Approvals stay: they still need you.
+ */
+export async function clearChatNotifications(
+  chatId: string,
+  isVisible: () => boolean,
+): Promise<void> {
+  const shown = await notifee.getDisplayedNotifications();
+  if (!isVisible()) return;
+  await Promise.all(
+    shown
+      .filter(({ id, notification }) => id && notification.data?.chatId === chatId)
+      .filter(({ notification }) => !notification.data?.approvalId)
+      .map(({ id }) => notifee.cancelDisplayedNotification(id!)),
+  );
 }
 
 async function decide(approvalId: string, decision: "approved" | "denied"): Promise<DecideOutcome> {
@@ -106,7 +130,9 @@ export async function handleNotificationEvent({ type, detail }: Event): Promise<
     data: notification.data,
     android: {
       channelId: "approvals",
+      groupId: "approvals",
       smallIcon: "ic_notification",
+      showTimestamp: true,
       color: palette.light.foreground,
       pressAction: { id: "default", launchActivity: "default" },
       onlyAlertOnce: true,

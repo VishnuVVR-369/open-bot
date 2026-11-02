@@ -11,12 +11,14 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api";
 import { queryKeys } from "./query";
-import { useRealtime, visibleChat } from "./realtime";
+import { useRealtime } from "./realtime";
+import { useChatVisibility } from "./use-chat-visibility";
 
 const BUFFER = 2_000;
 
 /** A chat's messages and runs, kept live with the stream (the same logic as the web's). */
 export function useChat(chatId: string) {
+  useChatVisibility(chatId);
   const queryClient = useQueryClient();
   const { watchChat } = useRealtime();
   const query = useQuery({
@@ -37,12 +39,10 @@ export function useChat(chatId: string) {
   }, [chatId, queryClient]);
 
   useEffect(() => {
-    visibleChat.set(chatId);
     buffer.current = [];
     setLive(null);
     setSent([]);
     return () => {
-      visibleChat.set(null);
       if (refetchTimer.current) clearTimeout(refetchTimer.current);
     };
   }, [chatId]);

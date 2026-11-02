@@ -1,6 +1,6 @@
 import { safe } from "@orpc/client";
 import Constants from "expo-constants";
-import { BellRing, LogOut } from "lucide-react-native";
+import { BellRing, KeyRound, LogOut } from "lucide-react-native";
 import { useState } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
 import { Button } from "@/components/button";
@@ -9,6 +9,7 @@ import { api } from "@/lib/api";
 import { authClient } from "@/lib/auth";
 import { APP_URL } from "@/lib/config";
 import { errorMessage } from "@/lib/errors";
+import { addPasskey } from "@/lib/passkey";
 import { signOut } from "@/lib/session";
 import { hasFirebase } from "@/push/firebase";
 import { radius, space, useColors } from "@/theme";
@@ -33,6 +34,18 @@ export default function Settings() {
   const { data: session } = authClient.useSession();
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [passkeyResult, setPasskeyResult] = useState<string | null>(null);
+
+  async function add() {
+    setAdding(true);
+    setPasskeyResult(null);
+    const result = await addPasskey();
+    setAdding(false);
+    setPasskeyResult(
+      result.ok ? "Passkey added. Use it the next time you sign in." : result.message,
+    );
+  }
 
   async function sendTest() {
     setTesting(true);
@@ -84,6 +97,24 @@ export default function Settings() {
         {testResult && (
           <Text variant="small" muted>
             {testResult}
+          </Text>
+        )}
+      </Section>
+      <Section title="Passkeys">
+        <Text variant="small" muted>
+          Sign in with your fingerprint instead of your password. The passkey also works on the web.
+        </Text>
+        <Button
+          title="Add a passkey"
+          variant="outline"
+          icon={<KeyRound size={16} color={colors.foreground} />}
+          busy={adding}
+          onPress={() => void add()}
+          testID="add-passkey"
+        />
+        {passkeyResult && (
+          <Text variant="small" muted>
+            {passkeyResult}
           </Text>
         )}
       </Section>

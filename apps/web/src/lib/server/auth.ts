@@ -7,7 +7,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
 import { count } from "drizzle-orm";
-import { BASE_URL, passkeyOrigins, TRUSTED_ORIGINS } from "./auth-config";
+import { BASE_URL, passkeyConfig, TRUSTED_ORIGINS } from "./auth-config";
 import { db } from "./db";
 import { serverEnv } from "./env";
 
@@ -27,7 +27,7 @@ export const auth = betterAuth({
   session: { expiresIn: 60 * 60 * 24 * 30, updateAge: 60 * 60 * 24 },
   trustedOrigins: TRUSTED_ORIGINS,
   plugins: [
-    passkey({ rpName: "open-bot", rpID: new URL(BASE_URL).hostname, origin: passkeyOrigins() }),
+    passkey(passkeyConfig()),
     // The phone app: its requests carry their origin in `expo-origin`.
     expo(),
     nextCookies(),

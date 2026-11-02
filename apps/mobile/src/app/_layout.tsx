@@ -40,7 +40,7 @@ function App() {
   const scheme = useColorScheme();
   const { data: session, isPending } = authClient.useSession();
   const signedIn = Boolean(session);
-  const lock = useAppLock(signedIn);
+  const lock = useAppLock(isPending ? "pending" : signedIn ? "signedIn" : "signedOut");
   usePushNotifications(signedIn);
 
   // Signed out elsewhere, or the session expired: back to sign-in, with nothing left behind.
@@ -65,7 +65,8 @@ function App() {
     };
   }, [scheme, colors]);
 
-  if (isPending) return null;
+  // Keep the navigator mounted while auth refreshes after sign-out or a passkey prompt.
+  // The splash screen already covers the initial session and lock checks.
   return (
     <ThemeProvider value={theme}>
       <RealtimeProvider enabled={signedIn} onSignedOut={() => void signOut()}>

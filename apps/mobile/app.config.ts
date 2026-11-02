@@ -43,6 +43,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       backgroundColor: "#14161B",
     },
     predictiveBackGestureEnabled: false,
+    // Expo adds these by default; the app never draws over other apps or reads shared storage.
+    blockedPermissions: [
+      "android.permission.SYSTEM_ALERT_WINDOW",
+      "android.permission.READ_EXTERNAL_STORAGE",
+      "android.permission.WRITE_EXTERNAL_STORAGE",
+    ],
     ...(hasFirebase ? { googleServicesFile: googleServices } : {}),
   },
   plugins: [
@@ -108,6 +114,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "./plugins/with-release-signing",
     "./plugins/with-notification-icon",
     ["./plugins/with-android-theme", palette],
+    // The phase 0.6 background egress spike, only in a build made for it (spikes/egress).
+    ...(process.env.OPENBOT_EGRESS_SPIKE === "1" ? ["./spikes/egress/with-egress-spike"] : []),
   ],
   experiments: { typedRoutes: true },
   extra: { firebase: hasFirebase },

@@ -234,7 +234,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   timeline: { paddingHorizontal: space(4), paddingVertical: space(4) },
-  // The list is inverted, so its empty state is too: flip it back.
-  empty: { flex: 1, transform: [{ scaleY: -1 }] },
+  // No transform: the inverted list already flips its empty state back (both axes on Android),
+  // and a transform here would replace that flip and leave the text mirrored.
+  empty: { flex: 1 },
   composer: { paddingHorizontal: space(3), paddingTop: space(2) },
 });

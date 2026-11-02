@@ -15,6 +15,12 @@ function messaging(): MessagingModule | null {
   return hasFirebase ? (require("@react-native-firebase/messaging") as MessagingModule) : null;
 }
 
+/**
+ * The notification that opened the app stays the "initial" one for as long as the app runs, so
+ * remember it was handled: signing out and in again mustn't open it a second time.
+ */
+const openedInitial = new Set<string>();
+
 function open(url: unknown) {
   if (typeof url === "string" && url.startsWith("/")) router.push(url as Href);
 }
@@ -39,7 +45,11 @@ export function usePushNotifications(signedIn: boolean) {
       await ensureChannels();
       await notifee.requestPermission();
       const initial = await notifee.getInitialNotification();
-      if (initial) open(initial.notification.data?.url);
+      const id = initial?.notification.id;
+      if (initial && id && !openedInitial.has(id)) {
+        openedInitial.add(id);
+        open(initial.notification.data?.url);
+      }
     })();
 
     cleanups.push(
