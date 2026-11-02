@@ -19,11 +19,14 @@
     "computer:build": "docker compose build computer",
     "infra:up": "docker compose up -d --wait postgres computer",
     "test:memory": "bash scripts/test-memory.sh",
-    "test:bots": "bash scripts/test-bots.sh"
+    "test:bots": "bash scripts/test-bots.sh",
+    "test:mobile-api": "bash scripts/test-mobile-api.sh"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@modelcontextprotocol/sdk": "1.32.1",
+    "@open-bot/api": "workspace:*",
+    "@orpc/client": "^1.16.1",
     "@playwright/test": "^1.64.0",
     "@types/node": "^24.19.2",
     "@types/pg": "^8.23.1",

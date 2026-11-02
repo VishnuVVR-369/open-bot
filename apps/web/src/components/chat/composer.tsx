@@ -67,6 +67,7 @@ export function Composer({
   const [stopping, startStopping] = useTransition();
   const textarea = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const failedSend = useRef<{ key: string; clientId: string } | null>(null);
   const dictation = useDictation({
     onText: setText,
     onError: (message) => toast.error("Couldn't dictate", { description: message }),
@@ -224,16 +225,28 @@ export function Composer({
           .map((member) => member.id)
       : [];
     const draft = text;
+    // Sending the same message again after a failure reuses its id, so it's never saved twice.
+    const key = JSON.stringify([chat.id, draft, attachments, mentions]);
+    const clientId =
+      failedSend.current?.key === key ? failedSend.current.clientId : crypto.randomUUID();
     dictation.cancel();
     setText("");
     setUploads([]);
     startSending(async () => {
-      const result = await sendMessage({ chatId: chat.id, text: draft, attachments, mentions });
+      const result = await sendMessage({
+        clientId,
+        chatId: chat.id,
+        text: draft,
+        attachments,
+        mentions,
+      });
       if (!result.ok) {
+        failedSend.current = { key, clientId };
         toast.error("Couldn't send", { description: result.error });
         setText(draft);
         return;
       }
+      failedSend.current = null;
       onSent(result.data);
     });
   }

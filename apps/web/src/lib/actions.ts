@@ -48,7 +48,10 @@ import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
 import { decryptSecret, encryptSecret, secretHint } from "@open-bot/shared/secrets";
 import { memoryInputSchema, memoryEditSchema, memoryReferenceSchema } from "@open-bot/shared";
+import { decideApprovalInputSchema, sendMessageInputSchema, type ApiInputs } from "@open-bot/api";
+import * as api from "./server/api/services";
 import { memoryReady } from "./server/memory";
+import { publish } from "./server/publish";
 import { db, pool } from "./server/db";
 import { serverEnv } from "./server/env";
 import { requireUser } from "./server/session";
@@ -68,10 +71,6 @@ async function guarded<T>(fn: () => Promise<T>): Promise<ActionResult<T>> {
       return { ok: false, error: error.issues.map((i) => i.message).join(". ") };
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
-}
-
-async function publish(type: string) {
-  await notify(pool, CHANNELS.app, JSON.stringify({ type }));
 }
 
 /* ------------------------------------------------------------------ Bots */
@@ -336,16 +335,7 @@ export async function archiveBot(botId: string) {
 /* ------------------------------------------------------------------ Chats and messages */
 
 export async function newDirectChat(botId: string) {
-  return guarded(async () => {
-    const [bot] = await db.select({ name: bots.name }).from(bots).where(eq(bots.id, botId));
-    if (!bot) throw new Error("That teammate no longer exists.");
-    const [chat] = await db
-      .insert(chats)
-      .values({ kind: "direct", title: bot.name, botId })
-      .returning({ id: chats.id });
-    await publish("chats");
-    return { chatId: chat!.id };
-  });
+  return guarded(() => api.newDirectChat({ botId: z.string().uuid().parse(botId) }));
 }
 
 export async function createGroupChat(input: { title: string; botIds: string[] }) {
@@ -381,37 +371,10 @@ export async function archiveChat(chatId: string) {
   });
 }
 
-export async function sendMessage(input: {
-  chatId: string;
-  text: string;
-  attachments: Attachment[];
-  mentions: string[];
-}): Promise<ActionResult<MessageView>> {
-  return guarded(async () => {
-    const text = input.text.trim();
-    if (!text && input.attachments.length === 0) throw new Error("Write a message first.");
-    const [row] = await db
-      .insert(messages)
-      .values({
-        chatId: input.chatId,
-        role: "user",
-        text: text || "(See the attached files.)",
-        attachments: input.attachments,
-        mentions: input.mentions,
-      })
-      .returning();
-    await worker("POST", `/internal/messages/${row!.id}/dispatch`);
-    return {
-      id: row!.id,
-      role: "user",
-      text: row!.text,
-      attachments: row!.attachments,
-      mentions: row!.mentions,
-      steeredRunId: null,
-      redoOfRunId: null,
-      createdAt: row!.createdAt.toISOString(),
-    };
-  });
+export async function sendMessage(
+  input: ApiInputs["chats"]["send"],
+): Promise<ActionResult<MessageView>> {
+  return guarded(() => api.sendMessage(sendMessageInputSchema.parse(input)));
 }
 
 export async function uploadAttachment(form: FormData): Promise<ActionResult<Attachment>> {
@@ -652,12 +615,9 @@ export async function decideApproval(
   alwaysAllow: { pattern: string } | null = null,
 ) {
   return guarded(async () => {
-    const result = await worker<{ decided: boolean }>(
-      "POST",
-      `/internal/approvals/${approvalId}/decide`,
-      { decision, alwaysAllow },
+    await api.decideApproval(
+      decideApprovalInputSchema.parse({ approvalId, decision, alwaysAllow }),
     );
-    if (!result.decided) throw new Error("This was already decided.");
   });
 }
 

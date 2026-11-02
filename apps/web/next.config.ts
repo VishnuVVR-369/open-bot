@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@open-bot/db", "@open-bot/shared", "@open-bot/memory"],
+  transpilePackages: ["@open-bot/api", "@open-bot/db", "@open-bot/shared", "@open-bot/memory"],
   serverExternalPackages: ["pg"],
   devIndicators: false,
   async headers() {

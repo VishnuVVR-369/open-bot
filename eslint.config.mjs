@@ -18,6 +18,9 @@ export default tseslint.config(
       "apps/web/src/components/ui/**",
       "playwright-report/**",
       "test-results/**",
+      "apps/mobile/android/**",
+      "apps/mobile/ios/**",
+      "apps/mobile/.expo/**",
     ],
   },
   js.configs.recommended,
@@ -33,11 +36,24 @@ export default tseslint.config(
     },
   },
   {
-    files: ["apps/web/**/*.tsx", "apps/web/**/*.ts", "apps/site/**/*.tsx", "apps/site/**/*.ts"],
+    files: [
+      "apps/web/**/*.tsx",
+      "apps/web/**/*.ts",
+      "apps/site/**/*.tsx",
+      "apps/site/**/*.ts",
+      "apps/mobile/**/*.tsx",
+      "apps/mobile/**/*.ts",
+    ],
     plugins: { "react-hooks": reactHooks },
     rules: {
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn",
     },
+  },
+  {
+    // Expo config plugins run in Node as CommonJS.
+    files: ["apps/mobile/plugins/**/*.js"],
+    languageOptions: { sourceType: "commonjs" },
+    rules: { "@typescript-eslint/no-require-imports": "off" },
   },
 );

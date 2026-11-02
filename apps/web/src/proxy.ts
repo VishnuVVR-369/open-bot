@@ -11,8 +11,9 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // The installable app's manifest, icons and service worker load before you sign in.
+  // The installable app's manifest, icons and service worker load before you sign in, and
+  // `.well-known` files (like the Android app's domain association) are public.
   matcher: [
-    "/((?!api|_next|login|setup|icon.svg|favicon.ico|manifest.webmanifest|sw.js|icons/).*)",
+    "/((?!api|_next|login|setup|icon.svg|favicon.ico|manifest.webmanifest|sw.js|icons/|\\.well-known/).*)",
   ],
 };

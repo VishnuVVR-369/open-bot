@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
-import { bots, runs, settings } from "@open-bot/db";
+import { approvals as approvalsTable, bots, runs, settings } from "@open-bot/db";
 import {
   botProfileChangesSchema,
   COMPUTER_PATHS,
@@ -25,6 +25,7 @@ import { SkillError, type SkillService } from "./services/skills";
 import type { TakeoverService } from "./services/takeovers";
 import { TelegramError, type TelegramService } from "./services/telegram";
 import type { PushService } from "./services/push";
+import type { FcmService } from "./services/fcm";
 import type { ConnectionService } from "./services/connections";
 import { EmailError, type EmailService } from "./services/email";
 import type { SwarmService } from "./services/swarms";
@@ -44,6 +45,7 @@ export interface HttpDeps {
   triggers: TriggerService;
   tasks: TaskService;
   push: PushService;
+  fcm: FcmService;
   swarms: SwarmService;
   connections: ConnectionService;
   email: EmailService;
@@ -157,6 +159,7 @@ export function createHttpServer(deps: HttpDeps): http.Server {
     triggers,
     tasks,
     push,
+    fcm,
     swarms,
     connections,
     email,
@@ -239,7 +242,14 @@ export function createHttpServer(deps: HttpDeps): http.Server {
         const problem = await approvals.invalidRule(params.id!, alwaysAllow.pattern);
         if (problem) throw new HttpError(400, problem);
       }
-      return { decided: await approvals.decide(params.id!, decision, alwaysAllow ?? undefined) };
+      const decided = await approvals.decide(uuid(params.id), decision, alwaysAllow ?? undefined);
+      // Decided here, or already decided elsewhere (or expired): say how it ended.
+      const [row] = await ctx.db
+        .select({ status: approvalsTable.status })
+        .from(approvalsTable)
+        .where(eq(approvalsTable.id, uuid(params.id)));
+      if (!row) throw new HttpError(404, "That approval is gone.");
+      return { decided, status: row.status };
     },
     "POST /internal/approval-rules/:id/delete": async (_request, params) => {
       await approvals.removeRule(params.id!);
@@ -432,14 +442,45 @@ export function createHttpServer(deps: HttpDeps): http.Server {
       await push.unsubscribe(body.endpoint);
       return ok;
     },
-    "POST /internal/push/test": async () => ({
-      sent: await push.sendAll({
-        title: "open-bot",
-        body: "Notifications work on this device.",
-        url: "/settings#notifications",
-        tag: "push-test",
-      }),
-    }),
+    "POST /internal/push/test": async () => {
+      const [browsers, phones] = await Promise.all([
+        push.sendAll({
+          title: "open-bot",
+          body: "Notifications work on this device.",
+          url: "/settings#notifications",
+          tag: "push-test",
+        }),
+        fcm.sendAll({
+          data: {
+            type: "notification",
+            kind: "test",
+            title: "open-bot",
+            body: "Notifications work on this phone.",
+            tag: "push-test",
+            url: "/",
+          },
+          priority: "normal",
+        }),
+      ]);
+      return { sent: browsers + phones };
+    },
+    "POST /internal/push/native/register": async (request) => {
+      const body = await readJson(
+        request,
+        z.object({
+          token: z.string().min(1).max(4096),
+          platform: z.literal("android"),
+          device: z.string().max(200).default(""),
+        }),
+      );
+      await fcm.register(body);
+      return ok;
+    },
+    "POST /internal/push/native/unregister": async (request) => {
+      const body = await readJson(request, z.object({ token: z.string().min(1).max(4096) }));
+      await fcm.unregister(body.token);
+      return ok;
+    },
     "POST /internal/tasks": async (request) => {
       const body = await readJson(
         request,

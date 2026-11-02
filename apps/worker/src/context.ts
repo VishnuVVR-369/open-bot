@@ -6,13 +6,14 @@ import {
   runs,
   type AppEvent,
   type Db,
+  type Queryable,
   type NotificationKind,
   type RunTrigger,
   type WorkerSignal,
 } from "@open-bot/db";
 import type { Attachment } from "@open-bot/db";
 import type { EventEmitter } from "node:events";
-import type { RunEventPayload } from "@open-bot/shared";
+import type { ApprovalKind, RunEventPayload } from "@open-bot/shared";
 import type pg from "pg";
 import type { CodexManager } from "./codex";
 import type { ComputerClient } from "./computer";
@@ -30,6 +31,10 @@ export interface NotificationEvent {
   runId: string | null;
   /** For approvals: the approval, so it can be decided from the notification. */
   approvalId?: string;
+  /** For approvals: what kind, since some (purchases) need more care to approve. */
+  approvalKind?: ApprovalKind;
+  /** For takeover requests: the request. */
+  takeoverId?: string;
 }
 
 /** Things that happen in the worker that other parts react to. */
@@ -92,6 +97,8 @@ export async function createNotification(
     chatId?: string | null;
     runId?: string | null;
     approvalId?: string;
+    approvalKind?: ApprovalKind;
+    takeoverId?: string;
   },
 ): Promise<void> {
   const [row] = await ctx.db
@@ -115,27 +122,31 @@ export async function createNotification(
     chatId: input.chatId ?? null,
     runId: input.runId ?? null,
     ...(input.approvalId ? { approvalId: input.approvalId } : {}),
+    ...(input.approvalKind ? { approvalKind: input.approvalKind } : {}),
+    ...(input.takeoverId ? { takeoverId: input.takeoverId } : {}),
   });
 }
 
-/** Queue a run and wake the executor. */
-export async function enqueueRun(
-  ctx: Pick<Context, "db" | "pool">,
-  input: {
-    chatId: string;
-    botId: string;
-    trigger: RunTrigger;
-    prompt: string;
-    attachments?: Attachment[];
-    messageId?: string | null;
-    scheduleId?: string | null;
-    triggerId?: string | null;
-    parentRunId?: string | null;
-    /** A screen of its own, for a swarm helper. */
-    screenId?: string | null;
-  },
-): Promise<string> {
-  const [row] = await ctx.db
+export interface RunInput {
+  chatId: string;
+  botId: string;
+  trigger: RunTrigger;
+  prompt: string;
+  attachments?: Attachment[];
+  messageId?: string | null;
+  scheduleId?: string | null;
+  triggerId?: string | null;
+  parentRunId?: string | null;
+  /** A screen of its own, for a swarm helper. */
+  screenId?: string | null;
+}
+
+/**
+ * Save a queued run and its first event, without telling anyone yet. Takes a transaction, so the
+ * run can be saved together with what caused it; call `announceRun` once it's committed.
+ */
+export async function insertRun(db: Queryable, input: RunInput): Promise<string> {
+  const [row] = await db
     .insert(runs)
     .values({
       chatId: input.chatId,
@@ -150,7 +161,26 @@ export async function enqueueRun(
       screenId: input.screenId ?? null,
     })
     .returning({ id: runs.id });
-  await appendRunEvent(ctx, row!.id, input.chatId, { type: "status", status: "queued" });
-  await signalWorker(ctx, "runs");
+  await db.insert(runEvents).values({
+    runId: row!.id,
+    chatId: input.chatId,
+    payload: { type: "status", status: "queued" },
+  });
   return row!.id;
+}
+
+/** Tell open chats about a saved run, and wake the executor. */
+export async function announceRun(ctx: Pick<Context, "pool">, chatId: string): Promise<void> {
+  await notify(ctx.pool, CHANNELS.chat, chatId);
+  await signalWorker(ctx, "runs");
+}
+
+/** Queue a run and wake the executor. */
+export async function enqueueRun(
+  ctx: Pick<Context, "db" | "pool">,
+  input: RunInput,
+): Promise<string> {
+  const id = await insertRun(ctx.db, input);
+  await announceRun(ctx, input.chatId);
+  return id;
 }

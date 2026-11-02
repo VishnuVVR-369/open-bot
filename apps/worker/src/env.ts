@@ -31,6 +31,13 @@ const schema = z.object({
     .transform((value) => value === "true"),
   /** The Telegram Bot API. Tests point it at a stand-in. */
   TELEGRAM_API_BASE_URL: z.string().url().default("https://api.telegram.org"),
+  /**
+   * The Firebase service account JSON (one line) the worker sends phone notifications with,
+   * through Firebase Cloud Messaging. Without it, phones get no notifications.
+   */
+  FCM_SERVICE_ACCOUNT_JSON: z.string().optional(),
+  /** Firebase Cloud Messaging's API. Tests point it at a stand-in. */
+  FCM_API_BASE_URL: z.string().url().default("https://fcm.googleapis.com"),
   MAX_CONCURRENT_RUNS: z.coerce.number().default(4),
   /** Where API key traffic goes (the OpenAI API, or a compatible proxy). */
   OPENAI_API_BASE_URL: z.string().url().default("https://api.openai.com/v1"),

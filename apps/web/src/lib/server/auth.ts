@@ -1,4 +1,5 @@
 import "server-only";
+import { expo } from "@better-auth/expo";
 import { passkey } from "@better-auth/passkey";
 import { schema } from "@open-bot/db";
 import { betterAuth } from "better-auth";
@@ -6,13 +7,12 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
 import { count } from "drizzle-orm";
+import { BASE_URL, passkeyOrigins, TRUSTED_ORIGINS } from "./auth-config";
 import { db } from "./db";
 import { serverEnv } from "./env";
 
-const baseUrl = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
-
 export const auth = betterAuth({
-  baseURL: baseUrl,
+  baseURL: BASE_URL,
   database: drizzleAdapter(db, {
     provider: "pg",
     schema: {
@@ -25,9 +25,11 @@ export const auth = betterAuth({
   }),
   emailAndPassword: { enabled: true, minPasswordLength: 10 },
   session: { expiresIn: 60 * 60 * 24 * 30, updateAge: 60 * 60 * 24 },
-  trustedOrigins: [baseUrl, "app://open-bot"],
+  trustedOrigins: TRUSTED_ORIGINS,
   plugins: [
-    passkey({ rpName: "open-bot", rpID: new URL(baseUrl).hostname, origin: baseUrl }),
+    passkey({ rpName: "open-bot", rpID: new URL(BASE_URL).hostname, origin: passkeyOrigins() }),
+    // The phone app: its requests carry their origin in `expo-origin`.
+    expo(),
     nextCookies(),
   ],
   databaseHooks: {
