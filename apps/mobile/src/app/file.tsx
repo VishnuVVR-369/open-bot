@@ -53,34 +53,36 @@ function Table({ rows }: { rows: string[][] }) {
   const colors = useColors();
   const width = Math.max(...rows.map((row) => row.length));
   return (
-    <ScrollView horizontal contentContainerStyle={{ padding: space(4) }}>
-      <View style={[styles.table, { borderColor: colors.border }]}>
-        {rows.map((row, index) => (
-          <View
-            key={index}
-            style={[
-              styles.tableRow,
-              { borderColor: colors.border },
-              index === 0 && { backgroundColor: colors.subtle },
-            ]}
-          >
-            {Array.from({ length: width }, (_, column) => (
-              <Text
-                key={column}
-                variant="small"
-                numberOfLines={3}
-                style={[
-                  styles.cell,
-                  { borderColor: colors.border, color: colors.foreground },
-                  index === 0 && { fontWeight: "600" },
-                ]}
-              >
-                {row[column] ?? ""}
-              </Text>
-            ))}
-          </View>
-        ))}
-      </View>
+    <ScrollView>
+      <ScrollView horizontal contentContainerStyle={{ padding: space(4) }}>
+        <View style={[styles.table, { borderColor: colors.border }]}>
+          {rows.map((row, index) => (
+            <View
+              key={index}
+              style={[
+                styles.tableRow,
+                { borderColor: colors.border },
+                index === 0 && { backgroundColor: colors.subtle },
+              ]}
+            >
+              {Array.from({ length: width }, (_, column) => (
+                <Text
+                  key={column}
+                  variant="small"
+                  numberOfLines={3}
+                  style={[
+                    styles.cell,
+                    { borderColor: colors.border, color: colors.foreground },
+                    index === 0 && { fontWeight: "600" },
+                  ]}
+                >
+                  {row[column] ?? ""}
+                </Text>
+              ))}
+            </View>
+          ))}
+        </View>
+      </ScrollView>
     </ScrollView>
   );
 }

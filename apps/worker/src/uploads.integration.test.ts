@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { chats, createDb, createPool, messages, uploads } from "@open-bot/db";
+import { chats, createDb, createPool, messages, uploads, lockUploads, type Db } from "@open-bot/db";
 import {
   INCOMPLETE_TTL_MS,
   UNUSED_TTL_MS,
@@ -11,6 +11,25 @@ import {
   UploadService,
   type UploadFiles,
 } from "./uploads";
+
+const fixture = vi.hoisted(() => ({ db: null as Db | null }));
+vi.mock("../../web/node_modules/server-only/index.js", () => ({}));
+vi.mock("../../web/src/lib/server/db", () => ({
+  get db() {
+    return fixture.db;
+  },
+}));
+vi.mock("../../web/src/lib/server/worker", () => ({ worker: vi.fn(async () => ({})) }));
+vi.mock("../../web/src/lib/server/publish", () => ({ publish: vi.fn() }));
+import { sendMessage } from "../../web/src/lib/server/api/chats";
+
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
 
 const url = process.env.MOBILE_API_TEST_DATABASE_URL;
 
@@ -77,6 +96,7 @@ describe.skipIf(!url)("uploads with Postgres", () => {
   });
   beforeEach(async () => {
     await pool.query("truncate uploads, chats restart identity cascade");
+    fixture.db = db;
     files = memoryFiles();
     service = new UploadService(db, files.api, { warn: vi.fn() });
   });
@@ -181,5 +201,71 @@ describe.skipIf(!url)("uploads with Postgres", () => {
       .set({ updatedAt: new Date(Date.now() - INCOMPLETE_TTL_MS + 60_000) })
       .where(eq(uploads.id, recent.id));
     expect(await service.cleanup()).toBe(0);
+  });
+
+  it("rejects attachment acceptance once cleanup has claimed the file", async () => {
+    const [chat] = await db.insert(chats).values({ kind: "group", title: "Trip" }).returning();
+    const uploaded = await service.put(file("aged draft"));
+    await db
+      .update(uploads)
+      .set({ updatedAt: new Date(Date.now() - UNUSED_TTL_MS - 60_000) })
+      .where(eq(uploads.id, uploaded.id));
+    const removing = deferred();
+    const release = deferred();
+    const remove = files.api.remove;
+    files.api.remove = async (path) => {
+      removing.resolve();
+      await release.promise;
+      await remove(path);
+    };
+    const cleanup = service.cleanup();
+    await removing.promise;
+    const send = sendMessage({
+      clientId: randomUUID(),
+      chatId: chat!.id,
+      text: "Here",
+      attachments: [uploaded.attachment!],
+      mentions: [],
+    });
+    const rejected = expect(send).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    release.resolve();
+    expect(await cleanup).toBe(1);
+    await rejected;
+    expect(await db.select().from(messages)).toHaveLength(0);
+  });
+
+  it("rechecks stale candidates after a sender commits under the upload lock", async () => {
+    const [chat] = await db.insert(chats).values({ kind: "group", title: "Trip" }).returning();
+    const uploaded = await service.put(file("accepted aged draft"));
+    await db
+      .update(uploads)
+      .set({ updatedAt: new Date(Date.now() - UNUSED_TTL_MS - 60_000) })
+      .where(eq(uploads.id, uploaded.id));
+    const locked = deferred();
+    const release = deferred();
+    const accepting = db.transaction(async (tx) => {
+      await lockUploads(tx, [uploaded.attachment!.path]);
+      locked.resolve();
+      await release.promise;
+      await tx.insert(messages).values({
+        chatId: chat!.id,
+        role: "user",
+        text: "Here",
+        attachments: [uploaded.attachment!],
+      });
+    });
+    await locked.promise;
+    const cleanup = service.cleanup();
+    await vi.waitFor(async () => {
+      const { rows } = await pool.query(
+        "select 1 from pg_locks where locktype = 'advisory' and not granted",
+      );
+      expect(rows.length).toBeGreaterThan(0);
+    });
+    release.resolve();
+    await accepting;
+    expect(await cleanup).toBe(0);
+    expect(files.files.has(uploaded.attachment!.path)).toBe(true);
+    expect((await service.status(uploaded.id))?.status).toBe("complete");
   });
 });

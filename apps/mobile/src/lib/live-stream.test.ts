@@ -133,3 +133,20 @@ describe("the live stream", () => {
     expect(next.urls[0]).toBe("https://bot.test/api/stream?chat=c1&after=9");
   });
 });
+
+it("replays from a retained view's cursor when a subscriber resets its checkpoint", async () => {
+  const cursors = new Map([["c1", 70]]);
+  const { stream, seen, urls } = setup(
+    () => ({
+      status: 200,
+      chunks: [ready, run(65)],
+      hang: true,
+    }),
+    { cursors },
+  );
+  current = stream;
+  cursors.set("c1", 60);
+  stream.watch({ chatId: "c1", cursor: 60 });
+  await vi.waitFor(() => expect(seen.run).toEqual([65]));
+  expect(urls[0]).toBe("https://bot.test/api/stream?chat=c1&after=60");
+});

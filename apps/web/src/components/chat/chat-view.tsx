@@ -47,6 +47,7 @@ import { RenameChatDialog } from "./rename-chat";
 import { RunBlock } from "./run-block";
 import { HelperScreen } from "./helper-screen";
 import { useChat } from "./use-chat";
+import { completedRepliesKey } from "./read-marker";
 
 const PANEL_KEY = "open-bot:computer-panel";
 
@@ -209,12 +210,7 @@ export function ChatView({ chatId }: { chatId: string }) {
   }, [runs, allBots]);
 
   // Seen here means read everywhere: the phone doesn't list this chat as unread anymore.
-  const finished = useMemo(
-    () =>
-      Object.values(runs).filter((run) => !isRunActive(run.timeline.status) && run.completedAt)
-        .length,
-    [runs],
-  );
+  const finished = useMemo(() => completedRepliesKey(runs), [runs]);
   useEffect(() => {
     if (loading || error) return;
     const mark = () => {

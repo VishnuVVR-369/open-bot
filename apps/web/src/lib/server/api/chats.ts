@@ -1,6 +1,15 @@
 import "server-only";
 import type { ApiInputs, MessageView } from "@open-bot/api";
-import { bots, chatMembers, chats, messages, runs, uploads } from "@open-bot/db";
+import {
+  bots,
+  chatMembers,
+  chats,
+  messages,
+  runs,
+  uploads,
+  lockUploads,
+  type Tx,
+} from "@open-bot/db";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "../db";
 import { publish } from "../publish";
@@ -83,9 +92,13 @@ export async function markChatRead({ chatId }: Inputs["markRead"]) {
 }
 
 /** Attachments must be uploads that finished, so a teammate never gets half a file. */
-async function checkAttachments(attachments: Inputs["send"]["attachments"]) {
+async function checkAttachments(tx: Tx, attachments: Inputs["send"]["attachments"]) {
   if (attachments.length === 0) return;
-  const rows = await db
+  await lockUploads(
+    tx,
+    attachments.map((attachment) => attachment.path),
+  );
+  const rows = await tx
     .select()
     .from(uploads)
     .where(
@@ -137,24 +150,31 @@ export async function sendMessage(input: Inputs["send"]): Promise<MessageView> {
     sameJson(row.attachments, values.attachments) &&
     sameJson(row.mentions, values.mentions);
 
-  // A retry: the message is saved already.
-  let [row] = await db.select().from(messages).where(eq(messages.clientId, input.clientId));
-  if (row && !same(row)) throw conflict();
-  if (!row) {
-    const [chat] = await db.select({ id: chats.id }).from(chats).where(eq(chats.id, input.chatId));
-    if (!chat) throw new ApiError("NOT_FOUND", "That chat no longer exists.");
-    await checkAttachments(values.attachments);
-    [row] = await db
-      .insert(messages)
-      .values(values)
-      .onConflictDoNothing({ target: messages.clientId })
-      .returning();
-    // The same send, arriving twice at once: the other one saved it.
+  const row = await db.transaction(async (tx) => {
+    // A retry: the message is saved already.
+    let [row] = await tx.select().from(messages).where(eq(messages.clientId, input.clientId));
+    if (row && !same(row)) throw conflict();
     if (!row) {
-      [row] = await db.select().from(messages).where(eq(messages.clientId, input.clientId));
-      if (!row || !same(row)) throw conflict();
+      const [chat] = await tx
+        .select({ id: chats.id })
+        .from(chats)
+        .where(eq(chats.id, input.chatId));
+      if (!chat) throw new ApiError("NOT_FOUND", "That chat no longer exists.");
+      await checkAttachments(tx, values.attachments);
+      [row] = await tx
+        .insert(messages)
+        .values(values)
+        .onConflictDoNothing({ target: messages.clientId })
+        .returning();
+      // The same send, arriving twice at once: the other one saved it.
+      if (!row) {
+        [row] = await tx.select().from(messages).where(eq(messages.clientId, input.clientId));
+        if (!row || !same(row)) throw conflict();
+      }
     }
-  }
+
+    return row;
+  });
 
   if (row.dispatchStatus === "pending") {
     await worker("POST", `/internal/messages/${row.id}/dispatch`).catch((error: unknown) => {

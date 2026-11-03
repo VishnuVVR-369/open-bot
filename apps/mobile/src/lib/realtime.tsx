@@ -126,10 +126,8 @@ export function RealtimeProvider({
     set.add(listener);
     listeners.current.set(chatId, set);
     const changed = target.current?.chatId !== chatId;
-    target.current = {
-      chatId,
-      cursor: Math.max(cursor, stream.current?.cursorOf(chatId) ?? 0),
-    };
+    if (changed) cursors.current.set(chatId, cursor);
+    target.current = { chatId, cursor };
     if (changed) stream.current?.watch(target.current);
     return () => {
       set.delete(listener);

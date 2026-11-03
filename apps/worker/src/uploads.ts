@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { messages, uploads, type Db } from "@open-bot/db";
+import { messages, uploads, lockUploads, type Db, type Tx } from "@open-bot/db";
 import { COMPUTER_PATHS, MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from "@open-bot/shared";
 import { and, eq, inArray, lt, notExists, sql } from "drizzle-orm";
 import type { Context } from "./context";
@@ -129,8 +129,21 @@ export class UploadService {
   }
 
   private async write(input: UploadInput): Promise<UploadView> {
+    const result = await this.db.transaction(async (tx) => {
+      await lockUploads(tx, [UploadService.pathFor(input.id, input.name)]);
+      try {
+        return { value: await this.writeLocked(tx, input) };
+      } catch (error) {
+        return { error };
+      }
+    });
+    if ("error" in result) throw result.error;
+    return result.value;
+  }
+
+  private async writeLocked(tx: Tx, input: UploadInput): Promise<UploadView> {
     const path = UploadService.pathFor(input.id, input.name);
-    const [existing] = await this.db.select().from(uploads).where(eq(uploads.id, input.id));
+    const [existing] = await tx.select().from(uploads).where(eq(uploads.id, input.id));
     if (existing) {
       const same =
         existing.name === input.name &&
@@ -138,12 +151,12 @@ export class UploadService {
         existing.sha256 === input.sha256;
       if (!same) throw new UploadError(409, "That upload id was already used for another file.");
       if (existing.status === "complete") return view(existing);
-      await this.db
+      await tx
         .update(uploads)
         .set({ status: "writing", mime: input.mime, updatedAt: new Date() })
         .where(eq(uploads.id, input.id));
     } else {
-      const [inserted] = await this.db
+      const [inserted] = await tx
         .insert(uploads)
         .values({
           id: input.id,
@@ -157,7 +170,7 @@ export class UploadService {
         .onConflictDoNothing({ target: uploads.id })
         .returning();
       // Another worker took the same id at the same moment: let it finish, then ask again.
-      if (!inserted) return this.write(input);
+      if (!inserted) return this.writeLocked(tx, input);
     }
 
     try {
@@ -166,14 +179,14 @@ export class UploadService {
       if (written.length !== input.size || sha256(written) !== input.sha256)
         throw new Error("the file on the computer doesn't match what was sent");
     } catch (error) {
-      await this.db
+      await tx
         .update(uploads)
         .set({ status: "failed", updatedAt: new Date() })
         .where(eq(uploads.id, input.id));
       this.log.warn("upload failed", { uploadId: input.id, error: errorMessage(error) });
       throw error;
     }
-    const [done] = await this.db
+    const [done] = await tx
       .update(uploads)
       .set({ status: "complete", updatedAt: new Date() })
       .where(eq(uploads.id, input.id))
@@ -196,30 +209,37 @@ export class UploadService {
       .where(
         sql`${messages.attachments} @> jsonb_build_array(jsonb_build_object('path', ${uploads.path}))`,
       );
+    const eligible = sql`(${and(inArray(uploads.status, ["writing", "failed"]), lt(uploads.updatedAt, incomplete))}) or (${and(eq(uploads.status, "complete"), lt(uploads.updatedAt, unused), notExists(referenced))})`;
     const stale = await this.db
       .select({ id: uploads.id, path: uploads.path })
       .from(uploads)
-      .where(
-        sql`(${and(inArray(uploads.status, ["writing", "failed"]), lt(uploads.updatedAt, incomplete))}) or (${and(eq(uploads.status, "complete"), lt(uploads.updatedAt, unused), notExists(referenced))})`,
-      )
+      .where(eligible)
       .limit(200);
     let removed = 0;
     for (const upload of stale) {
       if (this.inFlight.has(upload.id)) continue;
-      try {
-        await this.files.remove(upload.path);
-      } catch (error) {
-        // Already gone is fine; anything else is tried again next time.
-        if (!/no such file|not found/i.test(errorMessage(error))) {
-          this.log.warn("couldn't remove an old upload", {
-            uploadId: upload.id,
-            error: errorMessage(error),
-          });
-          continue;
+      const deleted = await this.db.transaction(async (tx) => {
+        await lockUploads(tx, [upload.path]);
+        const [candidate] = await tx
+          .select({ id: uploads.id })
+          .from(uploads)
+          .where(and(eq(uploads.id, upload.id), eligible));
+        if (!candidate) return false;
+        try {
+          await this.files.remove(upload.path);
+        } catch (error) {
+          if (!/no such file|not found/i.test(errorMessage(error))) {
+            this.log.warn("couldn't remove an old upload", {
+              uploadId: upload.id,
+              error: errorMessage(error),
+            });
+            return false;
+          }
         }
-      }
-      await this.db.delete(uploads).where(eq(uploads.id, upload.id));
-      removed += 1;
+        await tx.delete(uploads).where(eq(uploads.id, upload.id));
+        return true;
+      });
+      if (deleted) removed += 1;
     }
     return removed;
   }
