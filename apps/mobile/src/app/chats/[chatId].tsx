@@ -22,6 +22,7 @@ import { errorMessage, isGone } from "@/lib/errors";
 import { queryKeys } from "@/lib/query";
 import { useNewDirectChat, useTeammates } from "@/lib/queries";
 import { useChat } from "@/lib/use-chat";
+import { useChatRunTarget } from "@/lib/use-chat-run-target";
 import { useKeyboardHeight } from "@/lib/use-keyboard";
 import { space, useColors } from "@/theme";
 
@@ -42,6 +43,7 @@ export default function ChatScreen() {
     addSent,
     hasMore,
     loadingOlder,
+    olderError,
     loadOlder,
   } = useChat(chatId);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -51,6 +53,14 @@ export default function ChatScreen() {
   const newChat = useNewDirectChat();
   const allBots = teammates ?? members;
   const list = useRef<FlatList<ChatEntry>>(null);
+  const scrollRetry = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrollAttempts = useRef(0);
+  useEffect(
+    () => () => {
+      if (scrollRetry.current) clearTimeout(scrollRetry.current);
+    },
+    [chatId, runParam],
+  );
 
   const isGroup = chat?.kind === "group";
   const bot = !isGroup ? members[0] : undefined;
@@ -112,17 +122,22 @@ export default function ChatScreen() {
     return result;
   }, [entries]);
 
-  // Opened at one run, like from a notification: scroll to it once.
-  const jumped = useRef<string | null>(null);
-  useEffect(() => {
-    if (!runParam || jumped.current === runParam || data.length === 0) return;
-    const index = data.findIndex((entry) => entry.type === "run" && entry.run.id === runParam);
-    if (index <= 0) return;
-    jumped.current = runParam;
+  const scrollToRun = useCallback((index: number) => {
+    scrollAttempts.current = 0;
     requestAnimationFrame(() =>
       list.current?.scrollToIndex({ index, viewPosition: 1, animated: false }),
     );
-  }, [runParam, data]);
+  }, []);
+  useChatRunTarget({
+    chatId,
+    runId: runParam,
+    items: data,
+    oldest: entries[0]?.at,
+    hasMore,
+    loading: loading || loadingOlder || Boolean(error),
+    loadOlder,
+    scrollToIndex: scrollToRun,
+  });
 
   const renderItem = useCallback(
     ({ item: entry }: { item: ChatEntry }) =>
@@ -193,6 +208,14 @@ export default function ChatScreen() {
             ) : null,
         }}
       />
+      {Boolean(olderError) && (
+        <View style={{ padding: space(3), gap: space(2) }}>
+          <Text variant="small" style={{ color: colors.destructive }}>
+            Couldn't load earlier messages.
+          </Text>
+          <Button title="Retry" variant="outline" onPress={() => void loadOlder()} />
+        </View>
+      )}
       {loading ? (
         <Loading />
       ) : gone ? (
@@ -224,9 +247,16 @@ export default function ChatScreen() {
           contentContainerStyle={[styles.timeline, data.length === 0 && { flex: 1 }]}
           keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="handled"
-          onScrollToIndexFailed={({ index }) =>
-            setTimeout(() => list.current?.scrollToIndex({ index, viewPosition: 1 }), 200)
-          }
+          onScrollToIndexFailed={({ index, averageItemLength }) => {
+            // Move the render window toward an unmeasured row before trying its exact index.
+            list.current?.scrollToOffset({ offset: averageItemLength * index, animated: false });
+            if (scrollRetry.current) clearTimeout(scrollRetry.current);
+            if (scrollAttempts.current++ >= 8) return;
+            scrollRetry.current = setTimeout(() => {
+              scrollRetry.current = null;
+              list.current?.scrollToIndex({ index, viewPosition: 1, animated: false });
+            }, 200);
+          }}
           ListEmptyComponent={
             <View style={styles.empty}>
               <Empty

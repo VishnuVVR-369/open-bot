@@ -92,3 +92,10 @@ It uses the actual Notifee rendering, Android notification buttons, background h
 It does not establish Firebase delivery to the new release build.
 Production deployment, a real FCM delivery/reply check and the final signed-app check against production remain a separate rollout step.
 No commit, push, PR, merge or deployment was performed during this completion pass.
+
+## Review follow-up
+
+The follow-up fixes isolate native dictation events to the composer that started recognition, preserve loaded chat history when the latest snapshot advances, and load older history before scrolling to a linked reply.
+Regression tests mount real React hooks and cover multiple mounted composers, delayed microphone permission, overlapping history pages, live updates to older runs, stale requests after switching chats, multi-page reply links, and explicit retry after a history request fails.
+The mobile suite now has 90 passing tests, and mobile typechecking passes.
+The signed APK and phone evidence above predate these review fixes; the follow-up does not rebuild or reinstall the app or repeat the skipped device checks.
