@@ -2,6 +2,7 @@
 /android
 /ios
 .expo/
+.maestro-results/
 expo-env.d.ts
 # Generated output from local Expo modules (the Kotlin source is committed).
 /modules/*/android/build/

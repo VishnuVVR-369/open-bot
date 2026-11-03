@@ -3,12 +3,17 @@ import { API_ERRORS, contract } from "@open-bot/api";
 import { implement, ORPCError } from "@orpc/server";
 import { z } from "zod";
 import { auth } from "../auth";
-import { listBots, listChats, getChatData, listApprovals } from "../queries";
+import {
+  getChatData,
+  listApprovals,
+  listBots,
+  listChats,
+  listNotifications,
+  searchMessages,
+} from "../queries";
 import { WorkerError } from "../worker";
-import { decideApproval, getApproval } from "./approvals";
-import { newDirectChat, sendMessage } from "./chats";
 import { ApiError } from "./errors";
-import { registerPushDevice, sendTestPush, unregisterPushDevice } from "./push";
+import * as api from "./services";
 
 export interface RpcContext {
   headers: Headers;
@@ -63,6 +68,9 @@ const os = implement(contract)
   });
 
 export const router = os.router({
+  home: {
+    get: os.home.get.handler(({ input, context }) => api.getHome(context.user, input)),
+  },
   teammates: {
     list: os.teammates.list.handler(() => listBots()),
   },
@@ -73,17 +81,44 @@ export const router = os.router({
       if (!data) throw new ApiError("NOT_FOUND", "That chat no longer exists.");
       return data;
     }),
-    newDirect: os.chats.newDirect.handler(({ input }) => newDirectChat(input)),
-    send: os.chats.send.handler(({ input }) => sendMessage(input)),
+    newDirect: os.chats.newDirect.handler(({ input }) => api.newDirectChat(input)),
+    createGroup: os.chats.createGroup.handler(({ input }) => api.createGroupChat(input)),
+    rename: os.chats.rename.handler(({ input }) => api.renameChat(input)),
+    archive: os.chats.archive.handler(({ input }) => api.archiveChat(input)),
+    markRead: os.chats.markRead.handler(({ input }) => api.markChatRead(input)),
+    send: os.chats.send.handler(({ input }) => api.sendMessage(input)),
+  },
+  runs: {
+    retry: os.runs.retry.handler(({ input }) => api.retryRun(input)),
+    cancel: os.runs.cancel.handler(({ input }) => api.cancelRun(input)),
+    rate: os.runs.rate.handler(({ input }) => api.rateRun(input)),
+    feedback: os.runs.feedback.handler(({ input }) => api.giveFeedback(input)),
+  },
+  swarms: {
+    stop: os.swarms.stop.handler(({ input }) => api.stopSwarm(input)),
+  },
+  uploads: {
+    status: os.uploads.status.handler(({ input }) => api.uploadStatus(input.uploadId)),
+  },
+  notifications: {
+    list: os.notifications.list.handler(() => listNotifications()),
+    markRead: os.notifications.markRead.handler(({ input }) => api.markNotificationsRead(input)),
+  },
+  search: {
+    messages: os.search.messages.handler(({ input }) => searchMessages(input.query)),
   },
   approvals: {
     list: os.approvals.list.handler(() => listApprovals()),
-    get: os.approvals.get.handler(({ input }) => getApproval(input.approvalId)),
-    decide: os.approvals.decide.handler(({ input }) => decideApproval(input)),
+    get: os.approvals.get.handler(({ input }) => api.getApproval(input.approvalId)),
+    decide: os.approvals.decide.handler(({ input }) => api.decideApproval(input)),
+    rules: os.approvals.rules.handler(() => api.listApprovalRules()),
+    removeRule: os.approvals.removeRule.handler(({ input }) => api.removeApprovalRule(input)),
   },
   push: {
-    registerDevice: os.push.registerDevice.handler(({ input }) => registerPushDevice(input)),
-    unregisterDevice: os.push.unregisterDevice.handler(({ input }) => unregisterPushDevice(input)),
-    test: os.push.test.handler(() => sendTestPush()),
+    registerDevice: os.push.registerDevice.handler(({ input }) => api.registerPushDevice(input)),
+    unregisterDevice: os.push.unregisterDevice.handler(({ input }) =>
+      api.unregisterPushDevice(input),
+    ),
+    test: os.push.test.handler(() => api.sendTestPush()),
   },
 });

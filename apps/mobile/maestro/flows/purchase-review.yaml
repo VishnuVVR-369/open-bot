@@ -1,0 +1,21 @@
+appId: dev.openbot.mobile.dev
+---
+# Sensitive approvals expose Review alone. The real fingerprint check is completed manually.
+- runFlow:
+    file: open-link.yaml
+    env:
+      LINK: ${SENSITIVE_PUSH_LINK}
+- pressKey: Home
+- swipe:
+    start: 25%, 0%
+    end: 25%, 85%
+    duration: 500
+- assertVisible: E2E purchase review
+- assertVisible: Review
+- assertNotVisible: Approve
+- tapOn:
+    text: Review
+    below: E2E purchase review
+- assertVisible: E2E purchase approval
+- assertVisible:
+    id: approve

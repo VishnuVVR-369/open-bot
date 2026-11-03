@@ -163,6 +163,8 @@ export const chats = pgTable(
     botId: uuid("bot_id").references(() => bots.id, { onDelete: "cascade" }),
     createdAt: createdAt(),
     lastActivityAt: timestamp("last_activity_at", { withTimezone: true }).notNull().defaultNow(),
+    /** When you last looked at the chat, on any device. Replies after this are unread. */
+    readAt: timestamp("read_at", { withTimezone: true }).notNull().defaultNow(),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
   },
   (table) => [
@@ -242,6 +244,8 @@ export const messages = pgTable(
     steeredRunId: uuid("steered_run_id"),
     /** Set when the message is your feedback on a reply, asking the bot to do it again. */
     redoOfRunId: uuid("redo_of_run_id"),
+    /** Original feedback request, for exact retry validation and durable lesson saving. */
+    feedbackRequest: jsonb("feedback_request").$type<{ text: string; remember: boolean }>(),
     /** The sender's id for this message, so a retried send never saves it twice. */
     clientId: uuid("client_id"),
     /**
@@ -763,6 +767,33 @@ export const nativePushDevices = pgTable("native_push_devices", {
   lastSentAt: timestamp("last_sent_at", { withTimezone: true }),
   createdAt: createdAt(),
 });
+
+export type UploadStatus = "writing" | "complete" | "failed";
+
+/**
+ * Files you attach to messages, written to the computer. The id comes from the sender and the
+ * path from the id, so a retried upload writes the same file again instead of a second one, and
+ * a message can only reference an upload that's `complete` (its size and SHA-256 checked).
+ */
+export const uploads = pgTable(
+  "uploads",
+  {
+    id: uuid("id").primaryKey(),
+    path: text("path").notNull(),
+    name: text("name").notNull(),
+    mime: text("mime").notNull(),
+    size: bigint("size", { mode: "number" }).notNull(),
+    /** Hex SHA-256 of the file, as the sender computed it. */
+    sha256: text("sha256").notNull(),
+    status: text("status").$type<UploadStatus>().notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("uploads_path_unique").on(table.path),
+    index("uploads_status_idx").on(table.status, table.updatedAt),
+  ],
+);
 
 export const pushSubscriptions = pgTable("push_subscriptions", {
   endpoint: text("endpoint").primaryKey(),

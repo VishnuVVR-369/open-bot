@@ -1,0 +1,5 @@
+appId: dev.openbot.mobile.dev
+name: Notification actions and inline reply
+---
+- runFlow: flows/notification-actions.yaml
+- runFlow: flows/inline-reply.yaml

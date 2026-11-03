@@ -3,10 +3,7 @@
 import {
   bots,
   CHANNELS,
-  chatMembers,
   chats,
-  messages,
-  notifications,
   notify,
   runs,
   schedules,
@@ -21,7 +18,6 @@ import {
 } from "@open-bot/db";
 import {
   isValidTimeZone,
-  MAX_LESSON_CHARS,
   MAX_UPLOAD_BYTES,
   MAX_UPLOAD_LABEL,
   BOT_COLORS,
@@ -48,7 +44,13 @@ import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
 import { decryptSecret, encryptSecret, secretHint } from "@open-bot/shared/secrets";
 import { memoryInputSchema, memoryEditSchema, memoryReferenceSchema } from "@open-bot/shared";
-import { decideApprovalInputSchema, sendMessageInputSchema, type ApiInputs } from "@open-bot/api";
+import {
+  decideApprovalInputSchema,
+  feedbackInputSchema,
+  sendMessageInputSchema,
+  type ApiInputs,
+} from "@open-bot/api";
+import { randomUUID } from "node:crypto";
 import * as api from "./server/api/services";
 import { memoryReady } from "./server/memory";
 import { publish } from "./server/publish";
@@ -339,35 +341,37 @@ export async function newDirectChat(botId: string) {
 }
 
 export async function createGroupChat(input: { title: string; botIds: string[] }) {
-  return guarded(async () => {
-    const data = z
-      .object({
-        title: z.string().trim().min(1, "Name the group.").max(60),
-        botIds: z.array(z.string().uuid()).min(2, "Pick at least two teammates."),
-      })
-      .parse(input);
-    const [chat] = await db
-      .insert(chats)
-      .values({ kind: "group", title: data.title })
-      .returning({ id: chats.id });
-    await db.insert(chatMembers).values(data.botIds.map((botId) => ({ chatId: chat!.id, botId })));
-    await publish("chats");
-    return { chatId: chat!.id };
-  });
+  return guarded(() =>
+    api.createGroupChat(
+      z
+        .object({
+          title: z.string().trim().min(1, "Name the group.").max(60),
+          botIds: z.array(z.string().uuid()).min(2, "Pick at least two teammates."),
+        })
+        .parse(input),
+    ),
+  );
 }
 
 export async function renameChat(chatId: string, title: string) {
   return guarded(async () => {
-    const value = z.string().trim().min(1).max(60).parse(title);
-    await db.update(chats).set({ title: value }).where(eq(chats.id, chatId));
-    await publish("chats");
+    await api.renameChat({
+      chatId: z.string().uuid().parse(chatId),
+      title: z.string().trim().min(1).max(60).parse(title),
+    });
   });
 }
 
 export async function archiveChat(chatId: string) {
   return guarded(async () => {
-    await db.update(chats).set({ archivedAt: new Date() }).where(eq(chats.id, chatId));
-    await publish("chats");
+    await api.archiveChat({ chatId: z.string().uuid().parse(chatId) });
+  });
+}
+
+/** You're looking at the chat: its replies aren't unread anymore, here or on the phone. */
+export async function markChatRead(chatId: string) {
+  return guarded(async () => {
+    await api.markChatRead({ chatId: z.string().uuid().parse(chatId) });
   });
 }
 
@@ -382,14 +386,9 @@ export async function uploadAttachment(form: FormData): Promise<ActionResult<Att
     const file = form.get("file");
     if (!(file instanceof File)) throw new Error("No file was attached.");
     if (file.size > MAX_UPLOAD_BYTES) throw new Error(`Files can be up to ${MAX_UPLOAD_LABEL}.`);
-    const dataBase64 = Buffer.from(await file.arrayBuffer()).toString("base64");
-    const { path, size } = await worker<{ path: string; size: number }>(
-      "POST",
-      "/internal/files/upload",
-      { name: file.name, mime: file.type || "application/octet-stream", dataBase64 },
-      120_000,
-    );
-    return { name: file.name, path, mime: file.type || "application/octet-stream", size };
+    const upload = await api.uploadFormFile(file);
+    if (!upload.attachment) throw new Error("The upload didn't finish. Try again.");
+    return upload.attachment;
   });
 }
 
@@ -419,24 +418,21 @@ export async function removeFile(path: string) {
   });
 }
 
-/** Run a failed or stopped request again. */
 export async function retryRun(runId: string) {
   return guarded(async () => {
-    await worker("POST", `/internal/runs/${runId}/retry`);
+    await api.retryRun({ runId: z.string().uuid().parse(runId) });
   });
 }
 
-/** Stop every helper in a swarm. The teammate doesn't get their results. */
 export async function stopSwarm(swarmId: string) {
   return guarded(async () => {
-    await worker("POST", `/internal/swarms/${z.string().uuid().parse(swarmId)}/stop`);
+    await api.stopSwarm({ swarmId: z.string().uuid().parse(swarmId) });
   });
 }
 
 export async function cancelRun(runId: string) {
   return guarded(async () => {
-    await db.update(runs).set({ cancelRequestedAt: new Date() }).where(eq(runs.id, runId));
-    await worker("POST", "/internal/runs/cancel");
+    await api.cancelRun({ runId: z.string().uuid().parse(runId) });
   });
 }
 
@@ -446,17 +442,13 @@ const runId = z.string().uuid("That reply is gone.");
 
 export async function rateRun(id: string, rating: "up" | "down" | null) {
   return guarded(async () => {
-    await db
-      .update(runs)
-      .set({ rating: z.enum(["up", "down"]).nullable().parse(rating) })
-      .where(eq(runs.id, runId.parse(id)));
+    await api.rateRun({
+      runId: runId.parse(id),
+      rating: z.enum(["up", "down"]).nullable().parse(rating),
+    });
   });
 }
 
-/**
- * A thumbs down with what to change. Saved as a lesson, the teammate reads it before every task;
- * with `redo`, it's also sent to the chat so the teammate tries again now.
- */
 export async function giveFeedback(input: {
   runId: string;
   text: string;
@@ -464,52 +456,14 @@ export async function giveFeedback(input: {
   redo: boolean;
 }) {
   return guarded(async () => {
-    const text = z
-      .string()
-      .trim()
-      .min(1, "Say what to do differently.")
-      .max(MAX_LESSON_CHARS, `Keep it under ${MAX_LESSON_CHARS} characters.`)
-      .parse(input.text);
-    const [run] = await db
-      .select({ id: runs.id, botId: runs.botId, chatId: runs.chatId, botName: bots.name })
-      .from(runs)
-      .innerJoin(bots, eq(bots.id, runs.botId))
-      .where(eq(runs.id, runId.parse(input.runId)));
-    if (!run) throw new Error("That reply is gone.");
-    await db.update(runs).set({ rating: "down" }).where(eq(runs.id, run.id));
-    if (input.remember)
-      await (
-        await memoryReady()
-      ).save(
-        {
-          botId: run.botId,
-          kind: "lesson",
-          content: text,
-          key: null,
-          pinned: true,
-          expiresAt: null,
-        },
-        { kind: "user" },
-        { source: { type: "feedback", runId: run.id } },
-      );
-    if (!input.redo) return;
-    const [chat] = await db
-      .select({ kind: chats.kind })
-      .from(chats)
-      .where(eq(chats.id, run.chatId));
-    const group = chat?.kind === "group";
-    const [message] = await db
-      .insert(messages)
-      .values({
-        chatId: run.chatId,
-        role: "user",
-        // In a group, the message goes to the teammate who replied.
-        text: group ? `@${run.botName} ${text}` : text,
-        mentions: group ? [run.botId] : [],
-        redoOfRunId: run.id,
-      })
-      .returning({ id: messages.id });
-    await worker("POST", `/internal/messages/${message!.id}/dispatch`);
+    await api.giveFeedback(
+      feedbackInputSchema.parse({
+        runId: runId.parse(input.runId),
+        text: input.text,
+        remember: input.remember,
+        redo: input.redo ? { clientId: randomUUID() } : null,
+      }),
+    );
   });
 }
 
@@ -623,7 +577,7 @@ export async function decideApproval(
 
 export async function removeApprovalRule(ruleId: string) {
   return guarded(async () => {
-    await worker("POST", `/internal/approval-rules/${ruleId}/delete`);
+    await api.removeApprovalRule({ ruleId: z.string().uuid().parse(ruleId) });
   });
 }
 
@@ -1143,13 +1097,7 @@ export async function sendPushTest() {
 
 export async function markNotificationsRead(ids?: string[]) {
   return guarded(async () => {
-    await db
-      .update(notifications)
-      .set({ readAt: new Date() })
-      .where(
-        and(isNull(notifications.readAt), ids?.length ? inArray(notifications.id, ids) : undefined),
-      );
-    await publish("notification");
+    await api.markNotificationsRead({ ids: z.array(z.string().uuid()).optional().parse(ids) });
   });
 }
 

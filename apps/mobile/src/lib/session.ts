@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { unregisterPushNotifications } from "@/push/register";
 import { authClient } from "./auth";
+import { clearPresence } from "./presence";
 import { queryClient } from "./query";
 
 /**
@@ -11,6 +12,7 @@ export async function signOut(): Promise<void> {
   await unregisterPushNotifications().catch(() => {});
   await authClient.signOut().catch(() => {});
   queryClient.clear();
+  await clearPresence();
 }
 
 export function useSignOut() {

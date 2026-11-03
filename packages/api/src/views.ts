@@ -52,6 +52,10 @@ export const chatSummarySchema = z.object({
   memberIds: z.array(z.string()),
   lastActivityAt: isoDate,
   active: z.boolean(),
+  /** A teammate replied since you last looked at the chat, here or on another device. */
+  unread: z.boolean(),
+  /** The latest thing said in the chat, on one line: by a teammate, or by you (`botId` null). */
+  preview: z.object({ text: z.string(), botId: z.string().nullable() }).nullable(),
 });
 export type ChatSummary = z.infer<typeof chatSummarySchema>;
 
@@ -181,3 +185,103 @@ export const approvalViewSchema = z.object({
   decidedAt: isoDate.nullable(),
 });
 export type ApprovalView = z.infer<typeof approvalViewSchema>;
+
+export const approvalRuleKindSchema = z.enum(["command", "file_change", "action"]);
+
+/** Something a teammate may do without asking, from "Always allow" on an approval. */
+export const approvalRuleSchema = z.object({
+  id: z.string(),
+  botId: z.string(),
+  kind: approvalRuleKindSchema,
+  /** The start of a command, or an action in plain words. Empty for file changes. */
+  pattern: z.string(),
+  createdAt: isoDate,
+});
+export type ApprovalRule = z.infer<typeof approvalRuleSchema>;
+
+export const notificationViewSchema = z.object({
+  id: z.string(),
+  kind: z.string(),
+  title: z.string(),
+  body: z.string(),
+  botId: z.string().nullable(),
+  chatId: z.string().nullable(),
+  runId: z.string().nullable(),
+  readAt: isoDate.nullable(),
+  createdAt: isoDate,
+});
+export type NotificationView = z.infer<typeof notificationViewSchema>;
+
+/** A teammate's turn, as Home lists it. */
+export const activityItemSchema = z.object({
+  runId: z.string(),
+  chatId: z.string(),
+  chatKind: chatKindSchema,
+  chatTitle: z.string(),
+  botId: z.string(),
+  trigger: runTriggerSchema,
+  status: runStatusSchema,
+  /** The reply, or why it failed, in Markdown. */
+  preview: z.string().nullable(),
+  createdAt: isoDate,
+});
+export type ActivityItem = z.infer<typeof activityItemSchema>;
+
+/** Something a teammate finished while you were away. */
+export const briefingItemSchema = activityItemSchema.extend({
+  completedAt: isoDate,
+  /** The schedule, watch or webhook that started it. */
+  automationTitle: z.string().nullable(),
+});
+export type BriefingItem = z.infer<typeof briefingItemSchema>;
+
+export const takeoverRequestSchema = z.object({
+  id: z.string(),
+  /** The screen to take over: the requesting teammate's. */
+  screenId: z.string(),
+  botId: z.string().nullable(),
+  botName: z.string(),
+  reason: z.string(),
+  chatId: z.string().nullable(),
+  createdAt: isoDate,
+});
+export type TakeoverRequest = z.infer<typeof takeoverRequestSchema>;
+
+/** Home: what needs you, what happened while you were away, and recent work. */
+export const homeSchema = z.object({
+  user: z.object({ name: z.string() }),
+  pendingApprovals: z.number().int().nonnegative(),
+  takeoverRequests: z.array(takeoverRequestSchema),
+  /** Teammates that suggested new instructions, waiting for you on the web. */
+  proposals: z.array(z.object({ id: z.string(), botId: z.string() })),
+  unreadNotifications: z.number().int().nonnegative(),
+  /** Finished since `awaySince`, newest first; empty without it. */
+  briefing: z.array(briefingItemSchema),
+  activity: z.array(activityItemSchema),
+});
+export type Home = z.infer<typeof homeSchema>;
+
+/** A message or a teammate's reply that matched a search. */
+export const searchResultSchema = z.object({
+  id: z.string(),
+  /** "you" for your messages, "bot" for a teammate's reply. */
+  from: z.enum(["you", "bot"]),
+  chatId: z.string(),
+  runId: z.string().nullable(),
+  botId: z.string().nullable(),
+  /** The part of the text around the match. */
+  excerpt: z.string(),
+  createdAt: isoDate,
+});
+export type SearchResult = z.infer<typeof searchResultSchema>;
+
+export const uploadStatusSchema = z.enum(["writing", "complete", "failed"]);
+
+/** An attachment being uploaded with `PUT /api/uploads/<id>`, or one that finished. */
+export const uploadViewSchema = z.object({
+  id: z.string(),
+  status: uploadStatusSchema,
+  /** Once complete: what to attach to a message. */
+  attachment: attachmentSchema.nullable(),
+});
+export type UploadView = z.infer<typeof uploadViewSchema>;

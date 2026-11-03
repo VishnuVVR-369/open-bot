@@ -46,6 +46,7 @@ import {
   gte,
   ilike,
   inArray,
+  isNotNull,
   isNull,
   lt,
   max,
@@ -76,6 +77,7 @@ import type {
   ScheduleView,
   SkillView,
   ProfileView,
+  TakeoverRequestSummary,
   PurchaseView,
   SpendingView,
   TriggerView,
@@ -144,7 +146,10 @@ export async function listBots(): Promise<BotSummary[]> {
   });
 }
 
-export async function listChats({ helpers = false } = {}): Promise<ChatSummary[]> {
+/** Your chats, newest first. `previews` adds what was said last in each, for lists. */
+export async function listChats({ helpers = false, previews: withPreviews = true } = {}): Promise<
+  ChatSummary[]
+> {
   const rows = await db
     .select()
     .from(chats)
@@ -157,6 +162,14 @@ export async function listChats({ helpers = false } = {}): Promise<ChatSummary[]
     .from(runs)
     .where(inArray(runs.status, [...ACTIVE_RUN_STATUSES]));
   const activeSet = new Set(activeChats.map((row) => row.chatId));
+  // When a teammate last finished replying in each chat, for unread.
+  const replies = await db
+    .select({ chatId: runs.chatId, at: max(runs.completedAt) })
+    .from(runs)
+    .where(inArray(runs.status, ["completed", "failed"]))
+    .groupBy(runs.chatId);
+  const lastReply = new Map(replies.map((row) => [row.chatId, row.at]));
+  const previews = withPreviews ? await chatPreviews() : new Map();
   return rows.map((chat) => ({
     id: chat.id,
     kind: chat.kind,
@@ -170,7 +183,57 @@ export async function listChats({ helpers = false } = {}): Promise<ChatSummary[]
           : [],
     lastActivityAt: chat.lastActivityAt.toISOString(),
     active: activeSet.has(chat.id),
+    unread: (lastReply.get(chat.id)?.getTime() ?? 0) > chat.readAt.getTime(),
+    preview: previews.get(chat.id) ?? null,
   }));
+}
+
+/** How long a chat's preview gets: more than a list row shows, so each app can cut it to fit. */
+const PREVIEW_LENGTH = 160;
+
+/** The latest thing said in each chat: your last message or a teammate's last reply. */
+async function chatPreviews(): Promise<Map<string, NonNullable<ChatSummary["preview"]>>> {
+  const [sent, replied] = await Promise.all([
+    db
+      .selectDistinctOn([messages.chatId], {
+        chatId: messages.chatId,
+        text: messages.text,
+        attachments: messages.attachments,
+        at: messages.createdAt,
+      })
+      .from(messages)
+      .where(eq(messages.role, "user"))
+      .orderBy(messages.chatId, desc(messages.createdAt)),
+    db
+      .selectDistinctOn([runs.chatId], {
+        chatId: runs.chatId,
+        botId: runs.botId,
+        text: runs.finalText,
+        at: runs.createdAt,
+        completedAt: runs.completedAt,
+      })
+      .from(runs)
+      .where(isNotNull(runs.finalText))
+      .orderBy(runs.chatId, desc(runs.createdAt)),
+  ]);
+  const previews = new Map<string, { text: string; botId: string | null; at: Date }>();
+  for (const message of sent) {
+    const text = plainText(message.text) || message.attachments[0]?.name || "";
+    if (text) previews.set(message.chatId, { text, botId: null, at: message.at });
+  }
+  for (const reply of replied) {
+    const text = plainText(reply.text ?? "");
+    const at = reply.completedAt ?? reply.at;
+    const mine = previews.get(reply.chatId);
+    if (text && (!mine || at >= mine.at))
+      previews.set(reply.chatId, { text, botId: reply.botId, at });
+  }
+  return new Map(
+    [...previews].map(([chatId, { text, botId }]) => [
+      chatId,
+      { text: text.slice(0, PREVIEW_LENGTH), botId },
+    ]),
+  );
 }
 
 export async function listSkills(): Promise<SkillView[]> {
@@ -187,6 +250,40 @@ export async function listSkills(): Promise<SkillView[]> {
   }));
 }
 
+/** Teammates waiting for you to take over their screen, newest first. */
+export async function listTakeoverRequests(): Promise<TakeoverRequestSummary[]> {
+  const rows = await db
+    .select({
+      id: desktopTakeovers.id,
+      screenId: desktopTakeovers.screenId,
+      botId: desktopTakeovers.requestedByBotId,
+      botName: bots.name,
+      reason: desktopTakeovers.reason,
+      chatId: runs.chatId,
+      createdAt: desktopTakeovers.createdAt,
+    })
+    .from(desktopTakeovers)
+    .leftJoin(bots, eq(bots.id, desktopTakeovers.requestedByBotId))
+    .leftJoin(runs, eq(runs.id, desktopTakeovers.requestedByRunId))
+    .where(eq(desktopTakeovers.status, "requested"))
+    .orderBy(desc(desktopTakeovers.createdAt));
+  return rows.flatMap((row) => {
+    const screenId = row.screenId ?? row.botId;
+    if (!screenId) return [];
+    return [
+      {
+        id: row.id,
+        screenId,
+        botId: row.botId,
+        botName: row.botName ?? "A bot",
+        reason: row.reason ?? "",
+        chatId: row.chatId,
+        createdAt: row.createdAt.toISOString(),
+      },
+    ];
+  });
+}
+
 export async function getAppState(user: { name: string; email: string }): Promise<AppState> {
   const [
     botList,
@@ -201,24 +298,10 @@ export async function getAppState(user: { name: string; email: string }): Promis
     proposals,
   ] = await Promise.all([
     listBots(),
-    listChats(),
+    listChats({ previews: false }),
     workerStatus(),
     db.select({ value: count() }).from(approvals).where(eq(approvals.status, "pending")),
-    db
-      .select({
-        id: desktopTakeovers.id,
-        screenId: desktopTakeovers.screenId,
-        botId: desktopTakeovers.requestedByBotId,
-        botName: bots.name,
-        reason: desktopTakeovers.reason,
-        chatId: runs.chatId,
-        createdAt: desktopTakeovers.createdAt,
-      })
-      .from(desktopTakeovers)
-      .leftJoin(bots, eq(bots.id, desktopTakeovers.requestedByBotId))
-      .leftJoin(runs, eq(runs.id, desktopTakeovers.requestedByRunId))
-      .where(eq(desktopTakeovers.status, "requested"))
-      .orderBy(desc(desktopTakeovers.createdAt)),
+    listTakeoverRequests(),
     db
       .select({
         id: desktopTakeovers.id,
@@ -258,21 +341,7 @@ export async function getAppState(user: { name: string; email: string }): Promis
     codex: status?.codex ?? null,
     pendingApprovals: approvalCount?.value ?? 0,
     proposals,
-    takeoverRequests: requests.flatMap((row) => {
-      const screenId = row.screenId ?? row.botId;
-      if (!screenId) return [];
-      return [
-        {
-          id: row.id,
-          screenId,
-          botId: row.botId,
-          botName: row.botName ?? "A bot",
-          reason: row.reason ?? "",
-          chatId: row.chatId,
-          createdAt: row.createdAt.toISOString(),
-        },
-      ];
-    }),
+    takeoverRequests: requests,
     activeTakeovers: activeTakeovers.flatMap((row) =>
       row.screenId
         ? [{ id: row.id, screenId: row.screenId, startedAt: row.startedAt?.toISOString() ?? null }]
@@ -285,7 +354,7 @@ export async function getAppState(user: { name: string; email: string }): Promis
 const PAGE = 30;
 
 export async function getChatData(chatId: string, before?: string): Promise<ChatData | null> {
-  const chatList = await listChats({ helpers: true });
+  const chatList = await listChats({ helpers: true, previews: false });
   const chat = chatList.find((entry) => entry.id === chatId);
   if (!chat) return null;
   const helper = chat.kind === "helper" ? await helperOf(chatId) : null;
@@ -293,7 +362,7 @@ export async function getChatData(chatId: string, before?: string): Promise<Chat
   const members = allBots.filter((bot) => chat.memberIds.includes(bot.id));
   const beforeDate = before ? new Date(before) : null;
 
-  const [messageRows, runRows] = await Promise.all([
+  const [allMessageRows, allRunRows] = await Promise.all([
     db
       .select()
       .from(messages)
@@ -314,6 +383,21 @@ export async function getChatData(chatId: string, before?: string): Promise<Chat
       .orderBy(desc(runs.createdAt))
       .limit(PAGE),
   ]);
+  // Messages and runs are paged separately, so a full page of one can reach further back than
+  // the other. Stop both at the later of their cutoffs, so the next page (before that) has no gap.
+  const cutoffs = [
+    allMessageRows.length === PAGE ? allMessageRows.at(-1)!.createdAt.getTime() : null,
+    allRunRows.length === PAGE ? allRunRows.at(-1)!.run.createdAt.getTime() : null,
+  ].filter((value): value is number => value !== null);
+  const cutoff = cutoffs.length ? Math.max(...cutoffs) : null;
+  const messageRows =
+    cutoff === null
+      ? allMessageRows
+      : allMessageRows.filter((row) => row.createdAt.getTime() >= cutoff);
+  const runRows =
+    cutoff === null
+      ? allRunRows
+      : allRunRows.filter((row) => row.run.createdAt.getTime() >= cutoff);
 
   const runIds = runRows.map((row) => row.run.id);
   const events = runIds.length
@@ -382,7 +466,7 @@ export async function getChatData(chatId: string, before?: string): Promise<Chat
     members,
     entries,
     cursor: Number(cursorRow?.value ?? 0),
-    hasMore: messageRows.length === PAGE || runRows.length === PAGE,
+    hasMore: cutoff !== null,
     helper,
   };
 }

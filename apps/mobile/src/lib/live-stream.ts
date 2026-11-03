@@ -23,6 +23,8 @@ export interface LiveStreamOptions {
   onConnected: (connected: boolean) => void;
   /** The session is gone (401): stop, and let the app sign you in again. */
   onUnauthorized: () => void;
+  /** Kept by the session so foregrounding can replace the connection without losing its cursor. */
+  cursors?: Map<string, number>;
   /** No data for this long means the connection is dead (the server sends one every 20 s). */
   stallMs?: number;
   backoffMs?: { initial: number; max: number };
@@ -39,7 +41,7 @@ export interface LiveStream {
 export function createLiveStream(options: LiveStreamOptions): LiveStream {
   const stallMs = options.stallMs ?? 45_000;
   const backoff = options.backoffMs ?? { initial: 1_000, max: 15_000 };
-  const cursors = new Map<string, number>();
+  const cursors = options.cursors ?? new Map<string, number>();
   let target: { chatId: string } | null = null;
   let closed = false;
   let controller: AbortController | null = null;

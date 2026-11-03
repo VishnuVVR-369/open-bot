@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isOnScreen, outcomeText, parsePushData, planNotification } from "./payload";
+import { isOnScreen, outcomeText, parsePushData, planNotification, replyText } from "./payload";
 
 const approval = {
   type: "notification",
@@ -54,6 +54,53 @@ describe("phone notifications", () => {
       })!,
     );
     expect(reply?.channel).toBe("messages");
+    // Without a chat, there's nowhere to reply.
+    expect(reply?.actions).toEqual([]);
+  });
+
+  it("lets you reply to a teammate's reply, right from the notification", () => {
+    const plan = planNotification(
+      parsePushData({
+        type: "notification",
+        kind: "run_finished",
+        title: "Rex replied",
+        tag: "r1",
+        chatId: "c1",
+        botId: "b1",
+        url: "/chats/c1?run=r1",
+      })!,
+    );
+    expect(plan?.actions).toEqual([
+      { id: "reply", title: "Reply", opensApp: false, input: { placeholder: "Reply" } },
+    ]);
+    expect(plan?.reply).toEqual({ chatId: "c1", botId: "b1" });
+    const failed = planNotification(
+      parsePushData({
+        type: "notification",
+        kind: "run_failed",
+        title: "x",
+        tag: "f",
+        chatId: "c1",
+      })!,
+    );
+    expect(failed?.reply).toEqual({ chatId: "c1", botId: null });
+    // Approvals and takeovers are decided, not replied to.
+    expect(planNotification(parsePushData(approval)!)?.reply).toBeUndefined();
+    const asking = planNotification(
+      parsePushData({
+        type: "notification",
+        kind: "takeover_request",
+        title: "x",
+        tag: "t",
+        chatId: "c1",
+      })!,
+    );
+    expect(asking?.actions).toEqual([]);
+  });
+
+  it("says whether a reply from a notification was sent", () => {
+    expect(replyText(true).title).toBe("Reply sent");
+    expect(replyText(false)).toEqual({ title: "Couldn't send your reply", body: "Open to reply." });
   });
 
   it("ignores malformed messages", () => {

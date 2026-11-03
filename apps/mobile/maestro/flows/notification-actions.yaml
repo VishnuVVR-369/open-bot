@@ -1,0 +1,44 @@
+appId: dev.openbot.mobile.dev
+---
+- runFlow:
+    file: open-link.yaml
+    env:
+      LINK: ${APPROVE_PUSH_LINK}
+- pressKey: Home
+- swipe:
+    start: 25%, 0%
+    end: 25%, 85%
+    duration: 500
+- extendedWaitUntil:
+    visible: E2E shade approval
+    timeout: 15000
+- tapOn:
+    text: Approve
+    below: E2E shade approval
+    waitToSettleTimeoutMs: 0
+- runScript: ../verify.js
+- assertTrue: ${output.state.shade === 'approved'}
+- pressKey: Back
+# The push was shown while pending, then denied elsewhere before its Approve button was tapped.
+- runFlow:
+    file: open-link.yaml
+    env:
+      LINK: ${STALE_PUSH_LINK}
+- pressKey: Home
+- swipe:
+    start: 25%, 0%
+    end: 25%, 85%
+    duration: 500
+- assertVisible: E2E stale approval
+- runScript:
+    file: ../decide.js
+    env:
+      APPROVAL: stale
+- tapOn:
+    text: Approve
+    below: E2E stale approval
+    waitToSettleTimeoutMs: 0
+- runScript: ../verify.js
+- assertTrue: ${output.state.stale === 'denied'}
+- pressKey: Back
+- runFlow: purchase-review.yaml

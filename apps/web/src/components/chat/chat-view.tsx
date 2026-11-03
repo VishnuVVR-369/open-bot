@@ -35,7 +35,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { DuplicateBotDialog } from "@/components/bots/duplicate-bot";
 import { FileIcon } from "@/components/files/file-chip";
 import { FilePreview } from "@/components/files/file-preview";
-import { archiveChat, newDirectChat } from "@/lib/actions";
+import { archiveChat, markChatRead, newDirectChat } from "@/lib/actions";
 import { useAppState } from "@/lib/client/queries";
 import { fileKind, fileUrl } from "@/lib/files";
 import { botActivity } from "@/lib/status";
@@ -207,6 +207,23 @@ export function ChatView({ chatId }: { chatId: string }) {
       botName: allBots.find((bot) => bot.id === active.botId)?.name ?? "Your teammate",
     };
   }, [runs, allBots]);
+
+  // Seen here means read everywhere: the phone doesn't list this chat as unread anymore.
+  const finished = useMemo(
+    () =>
+      Object.values(runs).filter((run) => !isRunActive(run.timeline.status) && run.completedAt)
+        .length,
+    [runs],
+  );
+  useEffect(() => {
+    if (loading || error) return;
+    const mark = () => {
+      if (document.visibilityState === "visible") void markChatRead(chatId);
+    };
+    mark();
+    document.addEventListener("visibilitychange", mark);
+    return () => document.removeEventListener("visibilitychange", mark);
+  }, [chatId, finished, loading, error]);
 
   // Stick to the bottom while new content streams in, unless you scrolled up to read.
   useLayoutEffect(() => {

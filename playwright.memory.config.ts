@@ -27,6 +27,7 @@ export default defineConfig({
       BETTER_AUTH_URL: url,
       BETTER_AUTH_SECRET: "memory-e2e-only-secret-for-isolated-tests",
       WORKER_URL: "http://127.0.0.1:49998",
+      OPENBOT_NEXT_DIST_DIR: ".next/memory-e2e",
     },
   },
 });

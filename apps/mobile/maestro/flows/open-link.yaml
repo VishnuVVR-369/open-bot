@@ -1,0 +1,15 @@
+appId: dev.openbot.mobile.dev
+---
+- openLink: ${LINK}
+# Both the daily app and dev client own the auth scheme; keep the daily default unchanged.
+- runFlow:
+    when:
+      visible: Open with
+    commands:
+      - tapOn: open-bot dev
+      - tapOn: Just once
+- runFlow:
+    when:
+      visible: Go home
+    commands:
+      - tapOn: Close

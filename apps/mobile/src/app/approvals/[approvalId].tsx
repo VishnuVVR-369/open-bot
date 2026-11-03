@@ -1,17 +1,27 @@
 import { useQuery } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
-import { Check, CircleDashed, Fingerprint, MessagesSquare, X } from "lucide-react-native";
+import {
+  Check,
+  CircleDashed,
+  Fingerprint,
+  MessagesSquare,
+  ShieldCheck,
+  WifiOff,
+  X,
+} from "lucide-react-native";
 import { useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { AlwaysAllowSheet } from "@/components/always-allow-sheet";
 import { ApprovalIcon } from "@/components/approval-icon";
 import { BotAvatar } from "@/components/bot-avatar";
 import { Button } from "@/components/button";
 import { LoadError, Loading } from "@/components/states";
 import { Text } from "@/components/text";
 import { api } from "@/lib/api";
-import { useDecideApproval, type Decision } from "@/lib/approvals";
+import { canAlwaysAllow, useDecideApproval, type Decision } from "@/lib/approvals";
 import { approvalDetail } from "@/lib/format";
+import { useOnline } from "@/lib/network";
 import { useTeammates } from "@/lib/queries";
 import { queryKeys } from "@/lib/query";
 import { ago } from "@/lib/time";
@@ -38,6 +48,8 @@ export default function ApprovalScreen() {
   const { data: bots = [] } = useTeammates();
   const { decide, deciding } = useDecideApproval();
   const [message, setMessage] = useState<string | null>(null);
+  const [allowing, setAllowing] = useState(false);
+  const online = useOnline();
 
   if (query.isLoading) return <Loading />;
   if (!query.data) return <LoadError error={query.error} onRetry={() => void query.refetch()} />;
@@ -45,9 +57,10 @@ export default function ApprovalScreen() {
   const bot = bots.find((candidate) => candidate.id === approval.botId);
   const pending = approval.status === "pending";
 
-  const onDecide = async (decision: Decision) => {
+  const onDecide = async (decision: Decision, alwaysAllow: string | null = null) => {
     setMessage(null);
-    const result = await decide(approval, decision);
+    const result = await decide(approval, decision, alwaysAllow);
+    setAllowing(false);
     if (result.ok) router.back();
     // Decided elsewhere first: the screen now shows how it ended, which says it all.
     else if (!result.settled) setMessage(result.message);
@@ -124,6 +137,17 @@ export default function ApprovalScreen() {
             {message}
           </Text>
         )}
+        {pending && canAlwaysAllow(approval) && (
+          <Button
+            title="Always allow…"
+            variant="outline"
+            icon={<ShieldCheck size={16} color={colors.foreground} />}
+            disabled={deciding !== null || !online}
+            onPress={() => setAllowing(true)}
+            style={{ alignSelf: "flex-start" }}
+            testID="always-allow"
+          />
+        )}
         <Button
           title="Open the chat"
           variant="ghost"
@@ -132,6 +156,24 @@ export default function ApprovalScreen() {
           style={{ alignSelf: "flex-start", paddingHorizontal: space(2) }}
         />
       </ScrollView>
+      {pending && canAlwaysAllow(approval) && (
+        <AlwaysAllowSheet
+          open={allowing}
+          onClose={() => setAllowing(false)}
+          kind={approval.kind}
+          subject={approval.subject ?? ""}
+          botName={bot?.name ?? "This teammate"}
+          onConfirm={(pattern) => onDecide("approved", pattern)}
+        />
+      )}
+      {pending && !online && (
+        <View style={[styles.offline, { backgroundColor: colors.subtle }]}>
+          <WifiOff size={14} color={colors.mutedForeground} />
+          <Text variant="small" muted>
+            You&apos;re offline
+          </Text>
+        </View>
+      )}
       {pending && (
         <View
           style={[
@@ -147,7 +189,7 @@ export default function ApprovalScreen() {
             title="Deny"
             variant="outline"
             busy={deciding === "denied"}
-            disabled={deciding !== null}
+            disabled={deciding !== null || !online}
             onPress={() => void onDecide("denied")}
             style={styles.action}
             testID="deny"
@@ -162,7 +204,7 @@ export default function ApprovalScreen() {
               )
             }
             busy={deciding === "approved"}
-            disabled={deciding !== null}
+            disabled={deciding !== null || !online}
             onPress={() => void onDecide("approved")}
             style={styles.action}
             testID="approve"
@@ -187,4 +229,11 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   action: { flex: 1, minHeight: 48 },
+  offline: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: space(2),
+    paddingVertical: space(2),
+  },
 });

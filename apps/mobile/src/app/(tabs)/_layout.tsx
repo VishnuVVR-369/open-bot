@@ -1,13 +1,20 @@
-import { router, Tabs } from "expo-router";
-import { MessagesSquare, Settings, ShieldCheck, Users } from "lucide-react-native";
-import { Pressable } from "react-native";
-import { useApprovals } from "@/lib/queries";
-import { fonts, space, useColors } from "@/theme";
+import { Tabs } from "expo-router";
+import { House, MessagesSquare, ShieldCheck } from "lucide-react-native";
+import { HeaderActions } from "@/components/header-actions";
+import { useApprovals, useChats } from "@/lib/queries";
+import { fonts, useColors } from "@/theme";
 
 export default function TabsLayout() {
   const colors = useColors();
   const { data: approvals } = useApprovals();
+  const { data: chats } = useChats();
   const pending = approvals?.filter((approval) => approval.status === "pending").length ?? 0;
+  const unread = chats?.filter((chat) => chat.unread).length ?? 0;
+  const badgeStyle = {
+    color: "#FFFFFF",
+    fontFamily: fonts.sans,
+    fontSize: 11,
+  };
   return (
     <Tabs
       screenOptions={{
@@ -20,24 +27,15 @@ export default function TabsLayout() {
         tabBarActiveTintColor: colors.foreground,
         tabBarInactiveTintColor: colors.mutedForeground,
         tabBarLabelStyle: { fontFamily: fonts.sans, fontSize: 12, fontWeight: "500" },
-        headerRight: () => (
-          <Pressable
-            onPress={() => router.push("/settings")}
-            accessibilityRole="button"
-            accessibilityLabel="Settings"
-            hitSlop={8}
-            style={{ marginRight: space(4) }}
-          >
-            <Settings size={22} color={colors.foreground} />
-          </Pressable>
-        ),
+        headerRight: () => <HeaderActions />,
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: "Teammates",
-          tabBarIcon: ({ color, size }) => <Users color={color} size={size - 2} />,
+          title: "Home",
+          tabBarIcon: ({ color, size }) => <House color={color} size={size - 2} />,
+          tabBarButtonTestID: "tab-home",
         }}
       />
       <Tabs.Screen
@@ -45,6 +43,9 @@ export default function TabsLayout() {
         options={{
           title: "Chats",
           tabBarIcon: ({ color, size }) => <MessagesSquare color={color} size={size - 2} />,
+          tabBarBadge: unread > 0 ? unread : undefined,
+          tabBarBadgeStyle: { ...badgeStyle, backgroundColor: colors.live },
+          tabBarButtonTestID: "tab-chats",
         }}
       />
       <Tabs.Screen
@@ -53,12 +54,8 @@ export default function TabsLayout() {
           title: "Approvals",
           tabBarIcon: ({ color, size }) => <ShieldCheck color={color} size={size - 2} />,
           tabBarBadge: pending > 0 ? pending : undefined,
-          tabBarBadgeStyle: {
-            backgroundColor: colors.waiting,
-            color: "#FFFFFF",
-            fontFamily: fonts.sans,
-            fontSize: 11,
-          },
+          tabBarBadgeStyle: { ...badgeStyle, backgroundColor: colors.waiting },
+          tabBarButtonTestID: "tab-approvals",
         }}
       />
     </Tabs>

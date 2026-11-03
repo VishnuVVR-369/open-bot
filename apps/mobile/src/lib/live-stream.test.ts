@@ -112,4 +112,24 @@ describe("the live stream", () => {
     expect(urls.at(-1)).toBe("https://bot.test/api/stream?chat=c2&after=2");
     expect(stream.cursorOf("c1")).toBe(9);
   });
+
+  it("resumes from the latest event after the foreground replaces the connection", async () => {
+    const cursors = new Map<string, number>();
+    const first = setup(() => ({ status: 200, chunks: [ready, run(9)], hang: true }), {
+      cursors,
+    });
+    current = first.stream;
+    first.stream.watch({ chatId: "c1", cursor: 5 });
+    await vi.waitFor(() => expect(first.seen.run).toEqual([9]));
+    first.stream.close();
+
+    const next = setup(() => ({ status: 200, chunks: [ready, run(10)], hang: true }), {
+      cursors,
+    });
+    current = next.stream;
+    // The screen's last snapshot predates the live events received before backgrounding.
+    next.stream.watch({ chatId: "c1", cursor: 5 });
+    await vi.waitFor(() => expect(next.seen.run).toEqual([10]));
+    expect(next.urls[0]).toBe("https://bot.test/api/stream?chat=c1&after=9");
+  });
 });

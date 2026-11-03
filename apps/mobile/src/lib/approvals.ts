@@ -1,3 +1,4 @@
+import type { RuleKind } from "@open-bot/shared";
 import { safe, isDefinedError } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
 import * as LocalAuthentication from "expo-local-authentication";
@@ -25,6 +26,8 @@ export function useDecideApproval() {
     async (
       approval: { id: string; kind: string; chatId?: string },
       decision: Decision,
+      /** Approve, and stop asking about what this pattern matches. */
+      alwaysAllow: string | null = null,
     ): Promise<DecideResult> => {
       if (decision === "approved" && approval.kind === "purchase") {
         const level = await LocalAuthentication.getEnrolledLevelAsync();
@@ -44,7 +47,12 @@ export function useDecideApproval() {
       setDeciding(decision);
       try {
         const result = await safe(
-          api.approvals.decide({ approvalId: approval.id, decision, alwaysAllow: null }),
+          api.approvals.decide({
+            approvalId: approval.id,
+            decision,
+            alwaysAllow:
+              decision === "approved" && alwaysAllow !== null ? { pattern: alwaysAllow } : null,
+          }),
         );
         if (result.error) {
           const settled = isDefinedError(result.error) && result.error.code === "ALREADY_DECIDED";
@@ -54,6 +62,9 @@ export function useDecideApproval() {
       } finally {
         setDeciding(null);
         void queryClient.invalidateQueries({ queryKey: queryKeys.approvals });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.home });
+        if (alwaysAllow !== null)
+          void queryClient.invalidateQueries({ queryKey: queryKeys.approvalRules });
         // A teammate shows "Needs your approval" until this is decided.
         void queryClient.invalidateQueries({ queryKey: queryKeys.teammates });
         void queryClient.invalidateQueries({ queryKey: queryKeys.approval(approval.id) });
@@ -65,4 +76,15 @@ export function useDecideApproval() {
   );
 
   return { decide, deciding };
+}
+
+/** Whether "Always allow" fits a request: not for purchases, emails, or what always asks. */
+export function canAlwaysAllow(approval: {
+  kind?: string;
+  subject?: string | null;
+  askEveryTime?: boolean;
+}): approval is { kind: RuleKind; subject?: string | null; askEveryTime?: boolean } {
+  if (approval.askEveryTime) return false;
+  if (approval.kind === "file_change") return true;
+  return (approval.kind === "command" || approval.kind === "action") && Boolean(approval.subject);
 }

@@ -1,6 +1,6 @@
 # open-bot for Android
 
-Your teammates on your phone: their chats, live replies, and approvals you can decide from the lock screen.
+Your teammates on your phone: a home briefing, chats with live replies and attachments, search, and approvals you can decide from the notification shade.
 It's an Expo app (React Native) that talks to your open-bot deployment through the same API the web app uses (`packages/api`).
 It's installed over USB; there's no Play Store listing.
 
@@ -18,10 +18,12 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools   # or ~/Librar
 
 ## Configuration
 
-| Variable               | What it's for                                                                          |
-| ---------------------- | -------------------------------------------------------------------------------------- |
-| `EXPO_PUBLIC_APP_URL`  | The open-bot web app the phone talks to. Defaults to `https://openbot.up.railway.app`. |
-| `GOOGLE_SERVICES_JSON` | Path to the Firebase config, if it isn't `apps/mobile/google-services.json`.           |
+| Variable                        | What it's for                                                                                            |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `EXPO_PUBLIC_APP_URL`           | The open-bot web app the phone talks to. Defaults to `https://openbot.up.railway.app`.                   |
+| `GOOGLE_SERVICES_JSON`          | Path to the Firebase config, if it isn't `apps/mobile/google-services.json`.                             |
+| `APP_VARIANT`                   | `development` builds `dev.openbot.mobile.dev` alongside the signed daily app. Leave unset for a release. |
+| `EXPO_PUBLIC_E2E_NOTIFICATIONS` | Set to `1` only in the local Metro session used by the Maestro notification tests.                       |
 
 `EXPO_PUBLIC_*` values are built into the JavaScript bundle, so set them before `pnpm start` or a release build.
 
@@ -31,15 +33,60 @@ Run the web app and the worker as usual (`pnpm dev`), then:
 
 ```sh
 cd apps/mobile
-pnpm prebuild                       # generates android/ (it's not committed)
+APP_VARIANT=development pnpm prebuild --clean
 adb reverse tcp:3000 tcp:3000       # the phone's localhost:3000 is your computer's
 adb reverse tcp:8081 tcp:8081       # Metro
-EXPO_PUBLIC_APP_URL=http://localhost:3000 pnpm start
-pnpm android                        # builds and installs the development build
+APP_VARIANT=development EXPO_PUBLIC_APP_URL=http://localhost:3000 pnpm start
+# In a second terminal, also in apps/mobile:
+APP_VARIANT=development EXPO_PUBLIC_APP_URL=http://localhost:3000 pnpm android --no-bundler
 ```
 
-Run `pnpm prebuild` again whenever `app.config.ts`, a config plugin, or a native dependency changes.
+Run prebuild again whenever `app.config.ts`, a config plugin, or a native dependency changes.
+The development variant has its own app data and no Firebase configuration; it uses password sign-in against the local server.
+Both apps own the `openbot` auth scheme, so select `open-bot dev` and `Just once` when Android asks which app should open a development link.
 Unit tests are `pnpm test` (Node, for the platform-free logic) and `pnpm typecheck`.
+
+## Pocket inbox tests
+
+From the repository root, `pnpm test:mobile-api` checks durable dispatch, FCM fan-out and retry-safe uploads against disposable Postgres.
+The normal database is not contacted by that command.
+`pnpm e2e --grep-invert @agent` checks the web and RPC regression against the running local stack.
+
+Install Maestro locally and keep the local web, worker and Metro running.
+Start Metro with the development variant and the notification-test flag:
+
+```sh
+cd apps/mobile
+APP_VARIANT=development EXPO_PUBLIC_APP_URL=http://localhost:3000 \
+  EXPO_PUBLIC_E2E_NOTIFICATIONS=1 pnpm start
+```
+
+Then, from the repository root, with the local owner's credentials in your environment:
+
+```sh
+export E2E_EMAIL=your-local-owner@example.com
+export E2E_PASSWORD=your-local-owner-password
+MOBILE_E2E_DEVICE=your-adb-device-id pnpm test:mobile-ui
+```
+
+`MAESTRO_BIN` can point to a Maestro executable outside `PATH`.
+On MIUI, accept the USB-install prompts for Maestro's two helper APKs.
+`MAESTRO_NO_REINSTALL=1` reuses those helpers on later runs with the same Maestro version.
+`MOBILE_E2E_FLOW=flows/inline-reply.yaml` selects a focused flow instead of the complete suite.
+`MOBILE_E2E_MANUAL=1` holds fixtures after the flow for fingerprint/background checks or failure diagnosis; POST `/finish` to the local fixture URL printed by the runner to clean them up afterward.
+Failed flows still exit unsuccessfully after that cleanup.
+The suite clears only the development app's data, creates its own teammate and approvals, and removes its database fixtures afterward.
+It covers password sign-in, sending and streaming a reply, deciding in the app, a live decision from another device, notification approval, a stale notification action, purchase Review, and Android inline Reply.
+
+The notification tests inject an FCM-shaped payload into the development app, then use the actual Notifee notification, Android action and authenticated RPC implementation.
+Replyable messages use Android MessagingStyle so MIUI exposes the native inline editor.
+The flow waits for that editor before entering text and sending.
+On MIUI it enters text through ADB because the clipboard helper is blocked in SystemUI.
+This phone can also ignore injected Send taps, so the flow allows 60 seconds for the owner to tap the native Send button before checking delivery.
+It exercises Android RemoteInput and the background handler without calling the application handler or send RPC directly.
+Injection requires both a development build and `EXPO_PUBLIC_E2E_NOTIFICATIONS=1`; it is excluded from release bundles and provides no authentication bypass.
+Firebase delivery, the purchase fingerprint check and returning after 10 minutes in the background also need the real-device checks recorded in [TESTING.md](TESTING.md).
+Screenshots and logs are local in `.maestro-results/`, which is ignored by Git.
 
 ## Push notifications (Firebase)
 
@@ -75,8 +122,10 @@ Without them a release build fails instead of falling back to the debug key.
 Then build and install:
 
 ```sh
-pnpm prebuild
-pnpm android:release
+APP_VARIANT=production EXPO_PUBLIC_APP_URL=https://openbot.up.railway.app \
+  EXPO_PUBLIC_E2E_NOTIFICATIONS=0 pnpm prebuild --clean
+APP_VARIANT=production EXPO_PUBLIC_APP_URL=https://openbot.up.railway.app \
+  EXPO_PUBLIC_E2E_NOTIFICATIONS=0 pnpm android:release
 ```
 
 Keep the keystore backed up: an update signed with a different key can't be installed over the app.
@@ -109,9 +158,9 @@ Run a clean prebuild without that variable before installing a normal build agai
 
 ## How it fits together
 
-- `src/app`: the screens, with Expo Router (sign-in, Teammates, Chats, Approvals, a chat, an approval, Settings).
+- `src/app`: Expo Router screens for sign-in, Home, Chats, Approvals, new direct/group chats, notifications, search, file previews, approval rules and Settings.
 - `src/lib/api.ts`: the typed API client; the session cookie lives in SecureStore (`src/lib/auth.ts`).
 - `src/lib/realtime.tsx` and `src/lib/live-stream.ts`: the live stream while the app is open, which resumes the open chat from its last event after a reconnect.
 - `src/lib/lock.ts`: asks for your fingerprint on open and after five minutes away.
-- `src/push`: notification channels, rendering pushes (also while the app is closed, in `background.ts`), and the Approve and Deny buttons.
+- `src/push`: notification channels, rendering pushes (also while the app is closed, in `background.ts`), Approve and Deny, purchase Review and inline Reply.
 - `plugins/`: config plugins for release signing, the status bar icon, and the native theme (alerts and the text cursor use the app's palette and fonts).

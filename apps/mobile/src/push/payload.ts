@@ -53,7 +53,10 @@ export function parsePushData(raw: Record<string, unknown> | undefined): PushDat
   };
 }
 
-export type ActionId = "approve" | "deny" | "review";
+export type ActionId = "approve" | "deny" | "review" | "reply";
+
+/** Replies and results you can answer from the notification, with Reply. */
+const REPLYABLE_KINDS = new Set(["run_finished", "run_failed", "bot_message"]);
 
 export interface NotificationPlan {
   /** Replaces any notification with the same id. */
@@ -63,9 +66,14 @@ export interface NotificationPlan {
   body: string;
   /** Where tapping it goes, in the app. */
   url: string;
-  /** Buttons. Approve and Deny work without opening the app; Review opens it. */
-  actions: { id: ActionId; title: string; opensApp: boolean }[];
+  /**
+   * Buttons. Approve, Deny and Reply work without opening the app; Review opens it. Reply takes
+   * what you type right in the notification.
+   */
+  actions: { id: ActionId; title: string; opensApp: boolean; input?: { placeholder: string } }[];
   approvalId?: string;
+  /** Where a Reply goes, and who it's for (they're mentioned, so in a group they get it). */
+  reply?: { chatId: string; botId: string | null };
 }
 
 /**
@@ -80,6 +88,10 @@ export function planNotification(data: PushData): NotificationPlan | null {
     : data.kind === "takeover_request"
       ? "asking"
       : "messages";
+  const reply =
+    !isApproval && data.chatId && data.kind && REPLYABLE_KINDS.has(data.kind)
+      ? { chatId: data.chatId, botId: data.botId ?? null }
+      : null;
   return {
     id: data.tag,
     channel,
@@ -87,7 +99,9 @@ export function planNotification(data: PushData): NotificationPlan | null {
     body: data.body ?? "",
     url: data.url ?? "/",
     actions: !isApproval
-      ? []
+      ? reply
+        ? [{ id: "reply", title: "Reply", opensApp: false, input: { placeholder: "Reply" } }]
+        : []
       : data.approvalNeedsBiometric
         ? [{ id: "review", title: "Review", opensApp: true }]
         : [
@@ -95,7 +109,15 @@ export function planNotification(data: PushData): NotificationPlan | null {
             { id: "deny", title: "Deny", opensApp: false },
           ],
     ...(isApproval ? { approvalId: data.approvalId } : {}),
+    ...(reply ? { reply } : {}),
   };
+}
+
+/** What a replied-to notification says once the reply was sent, or wasn't. */
+export function replyText(sent: boolean): { title: string; body: string } {
+  return sent
+    ? { title: "Reply sent", body: "" }
+    : { title: "Couldn't send your reply", body: "Open to reply." };
 }
 
 /** Don't show a notification about the chat you're looking at; it's on screen already. */

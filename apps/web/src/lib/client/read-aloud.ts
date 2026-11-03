@@ -1,7 +1,9 @@
 "use client";
 
+import { speakable } from "@open-bot/shared";
 import { useSyncExternalStore } from "react";
-import { plainText } from "@/lib/utils";
+
+export { speakable };
 
 /** Reads replies aloud with the browser's own voices. One reply at a time, across the app. */
 
@@ -19,16 +21,6 @@ function subscribe(listener: () => void) {
 }
 
 const supported = () => typeof window !== "undefined" && "speechSynthesis" in window;
-
-/** Markdown as something to say: each line its own sentence, so lists get their pauses. */
-export function speakable(markdown: string): string {
-  return markdown
-    .split(/\n+/)
-    .map((line) => plainText(line))
-    .filter(Boolean)
-    .map((line) => (/[.!?:;]$/.test(line) ? line : `${line}.`))
-    .join(" ");
-}
 
 /** The reply being read, if any. */
 export function readingNow(): string | null {

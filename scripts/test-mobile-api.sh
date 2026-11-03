@@ -12,4 +12,4 @@ for ((i=0;i<60;i++)); do
 done
 port="$(docker port "$container" 5432/tcp | head -1 | sed 's/.*://')"
 export MOBILE_API_TEST_DATABASE_URL="postgres://postgres:mobile-api-test-only@127.0.0.1:${port}/openbot_mobile_api_test"
-pnpm --filter @open-bot/worker exec vitest run --no-file-parallelism src/runs/dispatch.integration.test.ts src/services/fcm.integration.test.ts
+pnpm --filter @open-bot/worker exec vitest run --no-file-parallelism src/runs/dispatch.integration.test.ts src/services/fcm.integration.test.ts src/uploads.integration.test.ts

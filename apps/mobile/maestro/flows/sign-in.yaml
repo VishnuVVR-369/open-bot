@@ -1,0 +1,33 @@
+appId: dev.openbot.mobile.dev
+---
+- launchApp:
+    clearState: true
+- runFlow:
+    file: open-link.yaml
+    env:
+      LINK: ${DEV_CLIENT_URL}
+- tapOn:
+    text: Continue
+    optional: true
+- runFlow:
+    when:
+      visible: Go home
+    commands:
+      - tapOn: Close
+- extendedWaitUntil:
+    visible:
+      id: email
+    timeout: 60000
+- tapOn:
+    id: email
+- inputText: ${E2E_EMAIL}
+- tapOn:
+    id: password
+- inputText: ${E2E_PASSWORD}
+- hideKeyboard
+- tapOn:
+    id: sign-in
+- extendedWaitUntil:
+    visible:
+      id: tab-home
+    timeout: 30000

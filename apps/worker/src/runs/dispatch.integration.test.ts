@@ -14,6 +14,7 @@ import {
   runs,
 } from "@open-bot/db";
 import type { Context } from "../context";
+import { MemoryService } from "@open-bot/memory";
 import { SessionRegistry } from "../services/registry";
 import { RunExecutor } from "./executor";
 import type { RunSession } from "./session";
@@ -34,7 +35,8 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
   } as unknown as Context;
   const sessions = new SessionRegistry();
   // Dispatching only uses the database and the running sessions.
-  const unused = [{}, {}, {}, {}, {}, {}, {}];
+  const memory = new MemoryService(pool);
+  const unused = [{}, {}, {}, {}, {}, {}, { store: memory }];
   const executor = new RunExecutor(
     ...([ctx, sessions, ...unused] as unknown as ConstructorParameters<typeof RunExecutor>),
   );
@@ -217,5 +219,47 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
     };
     await db.insert(runs).values(values);
     await expect(db.insert(runs).values(values)).rejects.toThrow();
+  });
+
+  it("recovers a redo's lesson before dispatch, without duplicating or restoring it on retries", async () => {
+    const { chat, teammate } = await directChat();
+    const [source] = await db
+      .insert(runs)
+      .values({
+        chatId: chat.id,
+        botId: teammate.id,
+        trigger: "user",
+        prompt: "Original request",
+        status: "completed",
+      })
+      .returning();
+    const sent = await message(chat.id, {
+      text: "Include sources",
+      redoOfRunId: source!.id,
+      feedbackRequest: { text: "Include sources", remember: true },
+      createdAt: new Date(0),
+    });
+    // The app accepted the redo, but its first attempt to save the lesson was interrupted.
+    const save = vi.spyOn(memory, "save").mockRejectedValueOnce(new Error("interrupted"));
+    await expect(executor.dispatchMessage(sent.id)).rejects.toThrow("interrupted");
+    expect(await runsFor(sent.id)).toHaveLength(0);
+    expect(
+      (await db.select().from(messages).where(eq(messages.id, sent.id)))[0]!.dispatchStatus,
+    ).toBe("pending");
+    save.mockRestore();
+
+    await executor.reconcileDispatches(0);
+    await Promise.all([executor.dispatchMessage(sent.id), executor.dispatchMessage(sent.id)]);
+    expect(await runsFor(sent.id)).toHaveLength(1);
+    const lessons = await memory.list({ botId: teammate.id }, { kind: "user" });
+    expect(lessons).toHaveLength(1);
+    expect(lessons[0]).toMatchObject({ kind: "lesson", content: "Include sources", revision: 1 });
+
+    await memory.forget(
+      { id: lessons[0]!.id, expectedRevision: lessons[0]!.revision },
+      { kind: "user" },
+    );
+    await executor.dispatchMessage(sent.id);
+    expect(await memory.list({ botId: teammate.id }, { kind: "user" })).toHaveLength(0);
   });
 });

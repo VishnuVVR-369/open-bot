@@ -10,13 +10,31 @@ const state = vi.hoisted(() => ({
   listeners: new Set<(state: string) => void>(),
   clear: vi.fn<(_chatId: string, _isVisible: () => boolean) => Promise<void>>(),
   visible: null as string | null,
+  markRead: vi.fn(() => Promise.resolve({ ok: true })),
+  setQueryData: vi.fn(),
+  // useRef, kept across renders by call order, like React does.
+  refs: [] as { current: unknown }[],
+  refIndex: 0,
 }));
 
 vi.mock("expo-router", () => ({
   useFocusEffect: (effect: () => () => void) => state.effects.push(effect),
   useNavigation: () => state.navigation,
 }));
-vi.mock("react", () => ({ useCallback: (callback: unknown) => callback }));
+vi.mock("react", () => ({
+  useCallback: (callback: unknown) => callback,
+  useEffect: (effect: () => void) => effect(),
+  useRef: (initial: unknown) => {
+    const index = state.refIndex++;
+    state.refs[index] ??= { current: initial };
+    return state.refs[index];
+  },
+}));
+vi.mock("@tanstack/react-query", () => ({
+  useQueryClient: () => ({ setQueryData: state.setQueryData }),
+}));
+vi.mock("./api", () => ({ api: { chats: { markRead: state.markRead } } }));
+vi.mock("./query", () => ({ queryKeys: { chats: ["chats"] } }));
 vi.mock("react-native", () => ({ AppState: state.app }));
 vi.mock("../push/notifications", () => ({ clearChatNotifications: state.clear }));
 vi.mock("./realtime", () => ({
@@ -28,8 +46,15 @@ vi.mock("./realtime", () => ({
 
 import { useChatVisibility } from "./use-chat-visibility";
 
+/** Renders the hook as one mounted chat screen would, again and again. */
+function useRendered(chatId: string, finished = 0) {
+  state.refIndex = 0;
+  useChatVisibility(chatId, finished);
+}
+
 function useFocusedChat(chatId: string) {
-  useChatVisibility(chatId);
+  state.refs = [];
+  useRendered(chatId);
   return state.effects.at(-1)!();
 }
 
@@ -43,6 +68,7 @@ beforeEach(() => {
   state.effects = [];
   state.listeners.clear();
   state.visible = null;
+  state.refs = [];
   state.app.currentState = "active";
   state.navigation.isFocused.mockReturnValue(true);
   state.clear.mockResolvedValue(undefined);
@@ -54,7 +80,7 @@ beforeEach(() => {
 
 describe("chat notification focus", () => {
   it("does not clear notifications just because a chat mounts", () => {
-    useChatVisibility("a");
+    useRendered("a");
     expect(state.clear).not.toHaveBeenCalled();
     expect(state.listeners.size).toBe(0);
     expect(state.visible).toBeNull();
@@ -129,5 +155,32 @@ describe("chat notification focus", () => {
     blurA();
     expect(state.visible).toBe("b");
     blurB();
+  });
+});
+
+describe("reading a chat", () => {
+  it("marks it read when you look at it, and when a reply finishes while you do", () => {
+    const cleanup = useFocusedChat("a");
+    expect(state.markRead).toHaveBeenCalledTimes(1);
+    expect(state.markRead).toHaveBeenLastCalledWith({ chatId: "a" });
+
+    useRendered("a", 1);
+    expect(state.markRead).toHaveBeenCalledTimes(2);
+
+    // A reply that finishes while you're elsewhere stays unread.
+    appState("background");
+    useRendered("a", 2);
+    expect(state.markRead).toHaveBeenCalledTimes(2);
+    appState("active");
+    expect(state.markRead).toHaveBeenCalledTimes(3);
+
+    cleanup();
+    useRendered("a", 3);
+    expect(state.markRead).toHaveBeenCalledTimes(3);
+  });
+
+  it("isn't marked read just because the screen mounts", () => {
+    useRendered("a");
+    expect(state.markRead).not.toHaveBeenCalled();
   });
 });

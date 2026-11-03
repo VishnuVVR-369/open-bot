@@ -1,5 +1,11 @@
 import type { BotSummary, RunView } from "@open-bot/api";
-import { isNothingToReport, isRunActive, shellScript, type TimelineItem } from "@open-bot/shared";
+import {
+  isNothingToReport,
+  isRunActive,
+  shellScript,
+  splitComputerPaths,
+  type TimelineItem,
+} from "@open-bot/shared";
 import {
   AlertTriangle,
   ArrowRightLeft,
@@ -34,8 +40,11 @@ import { phoneClock } from "@/lib/phone-clock";
 import { elapsed } from "@/lib/time";
 import { radius, space, useColors } from "@/theme";
 import { mix } from "@/theme/mix";
+import { FileChip } from "@/components/file-chip";
 import { ApprovalCard } from "./approval-card";
+import { RetryRun, RunActions } from "./run-actions";
 import { CodeBlock, Step, type StepIcon } from "./step";
+import { SwarmCard } from "./swarm-card";
 
 /** Items that stay visible when the steps are collapsed. */
 function isPinned(item: TimelineItem): boolean {
@@ -167,7 +176,10 @@ function ItemView({
   switch (item.kind) {
     case "message":
       return item.phase === "final" ? (
-        <Markdown text={item.text} />
+        <View style={{ gap: space(2) }}>
+          <Markdown text={item.text} />
+          <MentionedFiles text={item.text} />
+        </View>
       ) : (
         <Markdown text={item.text} tone="muted" />
       );
@@ -280,7 +292,7 @@ function ItemView({
         </View>
       );
     case "approval":
-      return <ApprovalCard item={item} chatId={chatId} />;
+      return <ApprovalCard item={item} chatId={chatId} botName={botName} />;
     case "takeover_request":
       return (
         <View
@@ -342,34 +354,7 @@ function ItemView({
         </View>
       );
     case "swarm":
-      return (
-        <View
-          style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
-        >
-          <View style={styles.row}>
-            <Network size={16} color={colors.mutedForeground} />
-            <Text variant="label" style={{ flex: 1 }}>
-              {item.title}
-            </Text>
-          </View>
-          {item.tasks.map((task) => (
-            <View key={task.id} style={styles.row}>
-              {task.state === "running" ? (
-                <ActivityIndicator size={12} color={colors.foreground} />
-              ) : task.state === "completed" ? (
-                <CircleCheck size={14} color={colors.done} />
-              ) : task.state === "failed" ? (
-                <AlertTriangle size={14} color={colors.destructive} />
-              ) : (
-                <CircleDashed size={14} color={colors.mutedForeground} />
-              )}
-              <Text variant="small" style={{ flex: 1 }} numberOfLines={1}>
-                {task.title}
-              </Text>
-            </View>
-          ))}
-        </View>
-      );
+      return <SwarmCard item={item} botName={botName} />;
     case "error":
       return (
         <View
@@ -389,17 +374,42 @@ function ItemView({
   }
 }
 
+/** Files on the computer a reply mentions, as chips that open them. */
+function MentionedFiles({ text }: { text: string }) {
+  const paths = useMemo(
+    () => [
+      ...new Set(
+        splitComputerPaths(text)
+          .filter((part) => part.path)
+          .map((part) => part.text),
+      ),
+    ],
+    [text],
+  );
+  if (paths.length === 0) return null;
+  return (
+    <View style={styles.files}>
+      {paths.map((path) => (
+        <FileChip key={path} path={path} />
+      ))}
+    </View>
+  );
+}
+
 /** A teammate's turn: who, when, what they did (folded once done), and their reply. */
 export const RunBlock = memo(function RunBlock({
   run,
   chatId,
   bot,
   bots,
+  superseded = false,
 }: {
   run: RunView;
   chatId: string;
   bot: BotSummary | undefined;
   bots: BotSummary[];
+  /** The same teammate ran again after this, so there's nothing to retry. */
+  superseded?: boolean;
 }) {
   const colors = useColors();
   const active = isRunActive(run.timeline.status);
@@ -508,6 +518,13 @@ export const RunBlock = memo(function RunBlock({
             </Text>
           </View>
         )}
+        {!superseded &&
+          (run.timeline.status === "failed" || run.timeline.status === "interrupted") && (
+            <RetryRun runId={run.id} chatId={chatId} />
+          )}
+        {!active && (reply || run.timeline.status === "completed") && (
+          <RunActions run={run} chatId={chatId} botName={name} reply={reply} />
+        )}
       </View>
     </View>
   );
@@ -545,6 +562,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space(3.5),
     paddingVertical: space(2),
   },
+  files: { flexDirection: "row", flexWrap: "wrap", gap: space(1.5) },
   error: {
     flexDirection: "row",
     gap: space(2),
