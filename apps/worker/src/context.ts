@@ -39,6 +39,7 @@ export interface NotificationEvent {
 
 /** Things that happen in the worker that other parts react to. */
 export type WorkerEvents = {
+  takeoverEnded: [takeoverId: string];
   notification: [NotificationEvent];
   /** An approval was approved, denied or expired. */
   approvalDecided: [approvalId: string];
@@ -128,6 +129,8 @@ export async function createNotification(
 }
 
 export interface RunInput {
+  /** Stable id for durable continuation delivery. */
+  id?: string;
   chatId: string;
   botId: string;
   trigger: RunTrigger;
@@ -149,6 +152,7 @@ export async function insertRun(db: Queryable, input: RunInput): Promise<string>
   const [row] = await db
     .insert(runs)
     .values({
+      ...(input.id ? { id: input.id } : {}),
       chatId: input.chatId,
       botId: input.botId,
       trigger: input.trigger,
@@ -160,7 +164,9 @@ export async function insertRun(db: Queryable, input: RunInput): Promise<string>
       parentRunId: input.parentRunId ?? null,
       screenId: input.screenId ?? null,
     })
+    .onConflictDoNothing({ target: runs.id })
     .returning({ id: runs.id });
+  if (!row && input.id) return input.id;
   await db.insert(runEvents).values({
     runId: row!.id,
     chatId: input.chatId,

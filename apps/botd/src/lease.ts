@@ -1,5 +1,14 @@
 import { EventEmitter } from "node:events";
-import type { LeaseHolder, RunIdentity } from "@open-bot/shared";
+import { isOwnerLease, type LeaseHolder, type RunIdentity } from "@open-bot/shared";
+
+/**
+ * Decides whether a code-protected screen may be released: true only once the code is gone.
+ * `clear` asks it to clear the code first; `reason` says whether you asked or a timeout did.
+ */
+export type ReleaseGuard = (
+  clear: boolean,
+  reason: "handed_back" | "user_idle" | "user_disconnected",
+) => Promise<boolean>;
 
 export type LeaseReleaseReason =
   "handed_back" | "user_idle" | "user_disconnected" | "run_finished" | "run_idle" | "preempted";
@@ -40,6 +49,8 @@ export class DesktopLease extends EventEmitter<{
   private readonly userDisconnectMs: number;
   private readonly userConnections = new Set<string>();
   private userDisconnectedAt: number | null = null;
+  private releaseGuard: ReleaseGuard | null = null;
+  private releasing = false;
 
   constructor(options: LeaseOptions = {}) {
     super();
@@ -53,6 +64,9 @@ export class DesktopLease extends EventEmitter<{
   get holder(): LeaseHolder {
     return this.current;
   }
+  get inputBlocked(): boolean {
+    return this.releasing;
+  }
 
   private iso(): string {
     return new Date(this.now()).toISOString();
@@ -61,7 +75,7 @@ export class DesktopLease extends EventEmitter<{
   private set(holder: LeaseHolder, reason: LeaseChange["reason"]) {
     const previous = this.current;
     // Control connections belong to one takeover, so they don't carry over to the next one.
-    if (previous?.kind === "user" && holder?.kind !== "user") this.userConnections.clear();
+    if (isOwnerLease(previous) && !isOwnerLease(holder)) this.userConnections.clear();
     this.current = holder;
     this.emit("change", { holder, previous, reason });
   }
@@ -69,7 +83,7 @@ export class DesktopLease extends EventEmitter<{
   /** Try to take the lease right now, without waiting. */
   private tryAcquire(run: RunIdentity): AcquireResult {
     const holder = this.current;
-    if (holder?.kind === "user") return "user_has_control";
+    if (isOwnerLease(holder)) return "user_has_control";
     if (holder?.kind === "run" && holder.runId === run.runId) {
       this.current = { ...holder, lastActionAt: this.iso() };
       return "ok";
@@ -104,7 +118,11 @@ export class DesktopLease extends EventEmitter<{
   /** You take control. Any run that held the lease is preempted. */
   takeByUser(): LeaseHolder {
     const previous = this.current;
-    if (previous?.kind === "user") return previous;
+    if (isOwnerLease(previous)) {
+      if (previous.kind === "user-code")
+        this.set({ ...previous, kind: "user", pausedForSafety: true }, "acquired");
+      return previous;
+    }
     if (previous?.kind === "run") {
       this.emit("preempted", {
         runId: previous.runId,
@@ -121,15 +139,49 @@ export class DesktopLease extends EventEmitter<{
   releaseByUser(
     reason: "handed_back" | "user_idle" | "user_disconnected" = "handed_back",
   ): boolean {
-    if (this.current?.kind !== "user") return false;
+    if (!isOwnerLease(this.current) || this.releaseGuard) return false;
     this.set(null, reason);
     return true;
   }
 
   /** Record input from your control connection. */
   touchUser(): void {
-    if (this.current?.kind === "user") {
+    if (isOwnerLease(this.current)) {
       this.current = { ...this.current, lastInputAt: this.iso() };
+    }
+  }
+
+  /** Every release path, including ordinary user timeouts, respects code protection. */
+  protectCode(guard: ReleaseGuard, recovered = false): void {
+    this.takeByUser();
+    this.releaseGuard = guard;
+    const holder = this.current;
+    if (isOwnerLease(holder))
+      this.set({ ...holder, kind: "user-code", pausedForSafety: recovered }, "acquired");
+  }
+
+  async releaseSafely(
+    reason: "handed_back" | "user_idle" | "user_disconnected" = "handed_back",
+    clear = false,
+  ): Promise<boolean> {
+    if (!isOwnerLease(this.current) || this.releasing) return false;
+    if (!this.releaseGuard) return this.releaseByUser(reason);
+    this.releasing = true;
+    this.emit("change", { holder: this.current, previous: this.current, reason: "acquired" });
+    try {
+      if (!(await this.releaseGuard(clear, reason))) {
+        if (isOwnerLease(this.current) && !this.current.pausedForSafety)
+          this.set({ ...this.current, pausedForSafety: true }, "acquired");
+        return false;
+      }
+      this.releaseGuard = null;
+      return this.releaseByUser(reason);
+    } catch {
+      if (isOwnerLease(this.current))
+        this.set({ ...this.current, pausedForSafety: true }, "acquired");
+      return false;
+    } finally {
+      this.releasing = false;
     }
   }
 
@@ -149,14 +201,17 @@ export class DesktopLease extends EventEmitter<{
     const now = this.now();
     if (holder?.kind === "run" && now - Date.parse(holder.lastActionAt) >= this.runIdleMs) {
       this.set(null, "run_idle");
-    } else if (holder?.kind === "user") {
+    } else if (isOwnerLease(holder)) {
       if (
+        holder.kind !== "user-code" &&
         this.userDisconnectedAt !== null &&
         now - this.userDisconnectedAt >= this.userDisconnectMs
       ) {
-        this.set(null, "user_disconnected");
+        if (this.releaseGuard) void this.releaseSafely("user_disconnected", true);
+        else this.set(null, "user_disconnected");
       } else if (now - Date.parse(holder.lastInputAt) >= this.userIdleMs) {
-        this.set(null, "user_idle");
+        if (this.releaseGuard) void this.releaseSafely("user_idle", true);
+        else this.set(null, "user_idle");
       }
     }
   }

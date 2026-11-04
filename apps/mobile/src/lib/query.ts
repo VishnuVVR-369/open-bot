@@ -24,6 +24,7 @@ export const queryClient = new QueryClient({
 });
 
 export const queryKeys = {
+  screens: ["screens"] as const,
   home: ["home"] as const,
   teammates: ["teammates"] as const,
   chats: ["chats"] as const,
@@ -61,7 +62,9 @@ export function keysForAppEvent(type: string): (readonly unknown[])[] {
       return [queryKeys.teammates, queryKeys.chats, queryKeys.home, queryKeys.approvalRules];
     case "takeovers":
     case "screens":
-      return [queryKeys.home, queryKeys.teammates];
+    case "lease":
+    case "computer":
+      return [queryKeys.screens, queryKeys.home, queryKeys.teammates];
     default:
       return [queryKeys.home];
   }
@@ -74,7 +77,7 @@ export function keysForPush(data: {
   chatId?: string;
 }): (readonly unknown[])[] {
   const keys: (readonly unknown[])[] = [queryKeys.home];
-  if (data.type === "notification") keys.push(queryKeys.notifications);
+  if (data.type === "notification") keys.push(queryKeys.notifications, queryKeys.screens);
   if (data.approvalId) keys.push(queryKeys.approvals, queryKeys.approval(data.approvalId));
   if (data.chatId) keys.push(queryKeys.chats, queryKeys.chat(data.chatId), queryKeys.teammates);
   return keys;

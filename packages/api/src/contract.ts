@@ -5,6 +5,7 @@ import {
 } from "@orpc/contract";
 import { MAX_LESSON_CHARS } from "@open-bot/shared";
 import { z } from "zod";
+import { screenViewSchema, screenOperationSchema, typeOnScreenSchema } from "./screens";
 import {
   approvalRuleSchema,
   approvalStatusSchema,
@@ -96,6 +97,32 @@ export const UPLOAD_HEADERS = {
 } as const;
 
 export const contract = {
+  screens: {
+    list: base.output(z.array(screenViewSchema)),
+    takeOver: base.input(z.object({ screenId: id })).output(ok),
+    handBack: base
+      .input(
+        z.object({
+          screenId: id,
+          note: z.string().max(2000).nullable(),
+          clearCode: z.boolean().optional(),
+        }),
+      )
+      .output(ok),
+    wake: base.input(z.object({ screenId: id })).output(ok),
+    activity: base.input(z.object({ screenId: id })).output(ok),
+  },
+  takeovers: {
+    dismiss: base.input(z.object({ takeoverId: id })).output(ok),
+    codeContext: base
+      .input(z.object({ takeoverId: id }))
+      .output(z.object({ screenId: id, site: z.string().nullable() })),
+  },
+  screenOperations: {
+    type: base.input(typeOnScreenSchema).output(screenOperationSchema),
+    get: base.input(z.object({ operationId: id })).output(screenOperationSchema.nullable()),
+    cancel: base.input(z.object({ operationId: id })).output(screenOperationSchema),
+  },
   home: {
     /**
      * What needs you, recent work, and (with `awaySince`, when you were last here) what

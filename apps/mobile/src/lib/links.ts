@@ -7,9 +7,12 @@ export const chatHref = (chatId: string, runId?: string | null): Href =>
 /** Where a notification goes in the app, like its push does. */
 export function notificationHref(notification: {
   kind: string;
+  botId?: string | null;
   chatId: string | null;
   runId: string | null;
 }): Href {
+  if (notification.kind === "takeover_request" && notification.botId)
+    return `/screens/${encodeURIComponent(notification.botId)}`;
   if (notification.kind === "approval") return "/approvals";
   if (notification.chatId) return chatHref(notification.chatId, notification.runId);
   return "/";

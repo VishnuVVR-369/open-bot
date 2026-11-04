@@ -27,10 +27,16 @@ function open(url: unknown) {
   if (typeof url === "string" && url.startsWith("/")) router.push(url as Href);
 }
 
+function actionUrl(url: unknown, action: unknown): unknown {
+  return action === "type-code" && typeof url === "string" && url.startsWith("/screens/")
+    ? `${url}${url.includes("?") ? "&" : "?"}code=1`
+    : url;
+}
+
 async function openInitialNotification() {
   const initial = await notifee.getInitialNotification();
   const id = initial?.notification.id;
-  const url = initial?.notification.data?.url;
+  const url = actionUrl(initial?.notification.data?.url, initial?.pressAction?.id);
   const key = id ? notificationKey(id, url) : null;
   if (initial && key && !openedInitial.has(key)) {
     openedInitial.add(key);
@@ -77,12 +83,12 @@ export function usePushNotifications(signedIn: boolean) {
           open(event.detail.notification?.data?.url);
         }
         if (event.type === EventType.ACTION_PRESS) {
-          if (event.detail.pressAction?.id === "review") {
+          if (["review", "take-over", "type-code"].includes(event.detail.pressAction?.id ?? "")) {
             if (event.detail.notification?.id)
               openedInitial.add(
                 notificationKey(event.detail.notification.id, event.detail.notification.data?.url),
               );
-            open(event.detail.notification?.data?.url);
+            open(actionUrl(event.detail.notification?.data?.url, event.detail.pressAction?.id));
           } else await handleNotificationEvent(event);
           void queryClient.invalidateQueries({ queryKey: queryKeys.approvals });
           void queryClient.invalidateQueries({ queryKey: queryKeys.home });

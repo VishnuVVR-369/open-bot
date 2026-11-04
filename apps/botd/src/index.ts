@@ -1,5 +1,6 @@
 import { access, chmod, chown, mkdir, writeFile } from "node:fs/promises";
-import { COMPUTER_PATHS, type ComputerHealth } from "@open-bot/shared";
+import { COMPUTER_PATHS, isOwnerLease, type ComputerHealth } from "@open-bot/shared";
+import { CodeScreens } from "./code-screens";
 import { CookieSync } from "./cookies";
 import { EgressRouter } from "./egress";
 import { browserSandboxAvailable } from "./sandbox";
@@ -89,10 +90,12 @@ const supervisor = new Supervisor(log);
 let broadcastHealth = () => {};
 const egress = new EgressRouter(log, () => broadcastHealth());
 const cookies = new CookieSync(`${STATE_DIR}/cookies.json`, log);
+const codeScreens = new CodeScreens(`${STATE_DIR}/code-screens`);
 const screens = new ScreenManager(
   {
     supervisor,
     cookies,
+    codeScreens,
     desktopUser,
     browserSandbox,
     socksPort: PORTS.socks,
@@ -126,6 +129,7 @@ async function main() {
   // Files the bots and the browser create stay writable by the whole `bots` group, so shared folders stay shared.
   process.umask(0o002);
   await prepareFilesystem();
+  await codeScreens.load();
   await cookies.load();
 
   await supervisor.start({
@@ -161,7 +165,7 @@ async function main() {
   setInterval(() => void cookies.sync(), 2_000).unref();
   screens.on("lease", (screenId, { holder, reason }) =>
     log(
-      `[lease] ${screenId.slice(0, 8)}: ${holder ? (holder.kind === "user" ? "you" : holder.botName) : "free"} (${reason})`,
+      `[lease] ${screenId.slice(0, 8)}: ${holder ? (isOwnerLease(holder) ? "you" : holder.botName) : "free"} (${reason})`,
     ),
   );
   supervisor.on("state", (name, state) => {

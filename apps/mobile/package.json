@@ -10,7 +10,9 @@
     "prebuild": "expo prebuild --platform android",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "doctor": "expo-doctor"
+    "doctor": "expo-doctor",
+    "build:viewer": "node scripts/build-viewer.mjs",
+    "check:viewer": "node scripts/build-viewer.mjs --check"
   },
   "dependencies": {
     "@better-auth/expo": "1.7.7",
@@ -18,6 +20,7 @@
     "@expo-google-fonts/jetbrains-mono": "^0.4.1",
     "@expo-google-fonts/onest": "^0.4.2",
     "@notifee/react-native": "^9.1.8",
+    "@novnc/novnc": "1.7.0",
     "@open-bot/api": "workspace:*",
     "@open-bot/shared": "workspace:*",
     "@orpc/client": "^1.16.1",
@@ -44,6 +47,7 @@
     "expo-localization": "~58.0.5",
     "expo-network": "~58.0.4",
     "expo-router": "~58.0.29",
+    "expo-screen-orientation": "~58.0.4",
     "expo-secure-store": "~58.0.2",
     "expo-speech": "~58.0.3",
     "expo-speech-recognition": "^58.0.1",
@@ -59,6 +63,7 @@
     "react-native-safe-area-context": "~5.10.1",
     "react-native-screens": "~4.30.1",
     "react-native-svg": "15.16.0",
+    "react-native-webview": "14.0.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
@@ -67,6 +72,7 @@
     "@types/react": "~19.3.0",
     "@types/react-test-renderer": "^19.3.0",
     "babel-preset-expo": "~58.0.23",
+    "esbuild": "^0.28.2",
     "react-test-renderer": "19.3.0",
     "typescript": "~6.0.3",
     "vitest": "^5.0.4"

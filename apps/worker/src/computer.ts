@@ -1,5 +1,6 @@
 import { EventEmitter } from "node:events";
 import type {
+  CodeEntryResult,
   ComputerAction,
   ComputerActionError,
   ComputerActionResult,
@@ -11,6 +12,7 @@ import type {
   LeaseChangeReason,
   LeaseHolder,
   RunIdentity,
+  TypeOnScreen,
 } from "@open-bot/shared";
 import WebSocket from "ws";
 import type { Logger } from "./logger";
@@ -195,8 +197,21 @@ export class ComputerClient extends EventEmitter<{
     this.emit("lease", screenId, holder, previous, reason);
   }
 
-  releaseByUser(screenId: string, reason: LeaseReleaseReason): Promise<{ released: boolean }> {
-    return this.call("POST", "/lease/user/release", { screenId, reason });
+  releaseByUser(
+    screenId: string,
+    reason: LeaseReleaseReason,
+    clearCode = false,
+  ): Promise<{ released: boolean }> {
+    return this.call("POST", "/lease/user/release", { screenId, reason, clearCode });
+  }
+
+  codeContext(screenId: string): Promise<{ site: string | null }> {
+    return this.call("POST", "/computer/code-context", { screenId });
+  }
+
+  typeOnScreen(screenId: string, input: TypeOnScreen): Promise<CodeEntryResult> {
+    // Never retry this request. Unknown outcomes are resolved by the durable operation id.
+    return this.call("POST", "/computer/type", { screenId, ...input }, 45_000);
   }
 
   touchUser(screenId: string): Promise<unknown> {

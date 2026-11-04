@@ -582,33 +582,23 @@ export async function removeApprovalRule(ruleId: string) {
 }
 
 export async function takeOverScreen(screenId: string) {
-  return guarded(async () => {
-    await worker("POST", `/internal/screens/${screenId}/take`);
-  });
+  return guarded(() => api.takeOverScreen({ screenId: z.string().uuid().parse(screenId) }));
 }
-
-export async function handBackScreen(screenId: string, note: string | null) {
-  return guarded(async () => {
-    await worker("POST", `/internal/screens/${screenId}/hand-back`, { note });
-  });
+export async function handBackScreen(screenId: string, note: string | null, clearCode = false) {
+  return guarded(() =>
+    api.handBackScreen({ screenId: z.string().uuid().parse(screenId), note, clearCode }),
+  );
 }
-
 export async function wakeScreen(screenId: string) {
-  return guarded(async () => {
-    await worker("POST", `/internal/screens/${screenId}/wake`, undefined, 60_000);
-  });
+  return guarded(() => api.wakeScreen({ screenId: z.string().uuid().parse(screenId) }));
 }
-
 export async function dismissTakeoverRequest(takeoverId: string) {
-  return guarded(async () => {
-    await worker("POST", `/internal/takeover/${takeoverId}/dismiss`);
-  });
+  return guarded(() =>
+    api.dismissTakeoverRequest({ takeoverId: z.string().uuid().parse(takeoverId) }),
+  );
 }
-
 export async function reportScreenActivity(screenId: string) {
-  return guarded(async () => {
-    await worker("POST", `/internal/screens/${screenId}/touch`);
-  });
+  return guarded(() => api.reportScreenActivity({ screenId: z.string().uuid().parse(screenId) }));
 }
 
 /* ------------------------------------------------------------------ Vault */

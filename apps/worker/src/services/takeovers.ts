@@ -1,6 +1,19 @@
-import { desktopTakeovers, runs, type TakeoverEndReason } from "@open-bot/db";
-import { isRunActive, type TakeoverRequestItem } from "@open-bot/shared";
-import { and, desc, eq } from "drizzle-orm";
+import { createHash, randomUUID } from "node:crypto";
+import {
+  bots,
+  desktopTakeovers,
+  runs,
+  screenOperations,
+  takeoverDeliveries,
+  type TakeoverEndReason,
+} from "@open-bot/db";
+import {
+  isOwnerLease,
+  isRunActive,
+  type LeaseHolder,
+  type TakeoverRequestItem,
+} from "@open-bot/shared";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import {
   appendRunEvent,
   createNotification,
@@ -11,8 +24,21 @@ import {
 import { errorMessage } from "../logger";
 import type { RunSession } from "../runs/session";
 import type { SessionRegistry } from "./registry";
+import { ScreenBusy, withScreenLock } from "./screen-operations";
 
 const REQUEST_WAIT_MS = 10 * 60_000;
+
+/** The note a bot gets after "Type the code" submitted the code and the screen was verified safe. */
+export const CODE_HANDED_BACK_NOTE = "Entered the code you sent and submitted it.";
+
+/** One continuation per interrupted run within the same return, even with several requests. */
+function continuationId(returnId: string, runId: string): string {
+  const bytes = createHash("sha256").update(`${returnId}:${runId}`).digest().subarray(0, 16);
+  bytes[6] = (bytes[6]! & 15) | 80;
+  bytes[8] = (bytes[8]! & 63) | 128;
+  const hex = bytes.toString("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
 
 export type TakeoverWaitResult =
   { status: "handed_back"; note: string | null } | { status: "dismissed" } | { status: "pending" };
@@ -43,7 +69,7 @@ export class TakeoverService {
   ) {
     ctx.computer.on("lease", (screenId, holder, previous, reason) => {
       // Control can come back without you pressing "Hand back": after inactivity or a lost connection.
-      if (previous?.kind === "user" && holder?.kind !== "user" && !this.handingBack.has(screenId)) {
+      if (isOwnerLease(previous) && !isOwnerLease(holder) && !this.handingBack.has(screenId)) {
         const endReason: TakeoverEndReason =
           reason === "user_idle" || reason === "user_disconnected" ? reason : "handed_back";
         void this.finishActive(screenId, null, endReason).catch((error: unknown) =>
@@ -110,7 +136,7 @@ export class TakeoverService {
       })
       .returning();
     // If you already have control of this screen, the request joins your current takeover.
-    if (this.ctx.computer.lease(screenId)?.kind === "user") {
+    if (isOwnerLease(this.ctx.computer.lease(screenId))) {
       await this.ctx.db
         .update(desktopTakeovers)
         .set({ status: "active", startedAt: new Date() })
@@ -159,6 +185,11 @@ export class TakeoverService {
   /** You take control of a bot's screen. That bot stops using it until you hand it back. */
   async take(screenId: string): Promise<void> {
     const { previous } = await this.ctx.computer.takeByUser(screenId);
+    await this.recordTake(screenId, previous);
+  }
+
+  /** Records that you hold the screen: its requests become active and an interrupted run is noted. */
+  async recordTake(screenId: string, previous: LeaseHolder): Promise<void> {
     const now = new Date();
     const onScreen = eq(desktopTakeovers.screenId, screenId);
     const pending = await this.ctx.db
@@ -189,24 +220,52 @@ export class TakeoverService {
   }
 
   /** You hand a screen back, optionally with a note for its bot. */
-  async handBack(screenId: string, note: string | null): Promise<void> {
+  async handBack(screenId: string, note: string | null, clearCode = false): Promise<void> {
     this.handingBack.add(screenId);
     try {
-      await this.ctx.computer.releaseByUser(screenId, "handed_back");
+      await this.ctx.db
+        .update(desktopTakeovers)
+        .set({ note: note?.trim() || null, endReason: "handed_back" })
+        .where(and(eq(desktopTakeovers.status, "active"), eq(desktopTakeovers.screenId, screenId)));
+      const { released } = await this.ctx.computer.releaseByUser(
+        screenId,
+        "handed_back",
+        clearCode,
+      );
+      if (
+        !released &&
+        isOwnerLease(
+          (await this.ctx.computer.fetchHealth()).screens.find((s) => s.id === screenId)?.lease ??
+            null,
+        )
+      )
+        throw new ScreenBusy("The code may still be visible. Clear the code before handing back.");
       await this.finishActive(screenId, note?.trim() || null, "handed_back");
     } finally {
       this.handingBack.delete(screenId);
     }
   }
 
-  /** Dismiss a bot's request without taking over. */
+  /** Dismiss a bot's request without taking over. Waits for no code entry on that screen. */
   async dismiss(takeoverId: string): Promise<void> {
+    const [request] = await this.ctx.db
+      .select({ screenId: desktopTakeovers.screenId })
+      .from(desktopTakeovers)
+      .where(eq(desktopTakeovers.id, takeoverId));
+    if (!request) return;
+    if (request.screenId)
+      await withScreenLock(this.ctx, request.screenId, () => this.dismissNow(takeoverId));
+    else await this.dismissNow(takeoverId);
+  }
+
+  private async dismissNow(takeoverId: string): Promise<void> {
     const [row] = await this.ctx.db
       .update(desktopTakeovers)
       .set({ status: "dismissed", endedAt: new Date() })
       .where(and(eq(desktopTakeovers.id, takeoverId), eq(desktopTakeovers.status, "requested")))
       .returning();
     if (!row) return;
+    this.ctx.events.emit("takeoverEnded", row.id);
     await this.writeRequestItem(row, this.requestItem(row, "dismissed"));
     this.waiters.get(row.id)?.resolve({ status: "dismissed" });
     await publishApp(this.ctx, { type: "takeovers" });
@@ -217,11 +276,168 @@ export class TakeoverService {
     note: string | null,
     reason: TakeoverEndReason,
   ): Promise<void> {
-    const ended = await this.ctx.db
-      .update(desktopTakeovers)
-      .set({ status: "ended", endedAt: new Date(), note, endReason: reason })
-      .where(and(eq(desktopTakeovers.status, "active"), eq(desktopTakeovers.screenId, screenId)))
-      .returning();
+    await this.ctx.db.transaction(async (tx) => {
+      // Every takeover ended together shares one return, so each bot hears about it once.
+      const continuationRunId = randomUUID();
+      const ended = await tx
+        .update(desktopTakeovers)
+        .set({ status: "ended", endedAt: new Date(), note, endReason: reason })
+        .where(and(eq(desktopTakeovers.status, "active"), eq(desktopTakeovers.screenId, screenId)))
+        .returning();
+      for (const row of ended)
+        await tx
+          .insert(takeoverDeliveries)
+          .values({ id: row.id, continuationRunId })
+          .onConflictDoNothing();
+    });
+    await this.deliverReturns();
+  }
+
+  /**
+   * Finishes what a worker restart or a partly failed hand-back left behind: an active takeover
+   * whose screen you no longer hold, a code verified safe but not yet handed back, and screens
+   * paused because a code may still be visible. Runs on startup and every 30 seconds.
+   */
+  async reconcile(): Promise<void> {
+    if (this.ctx.computer.online) {
+      const active = await this.ctx.db
+        .select()
+        .from(desktopTakeovers)
+        .where(eq(desktopTakeovers.status, "active"));
+      for (const row of active) {
+        const screenId = row.screenId;
+        if (!screenId) continue;
+        try {
+          await withScreenLock(this.ctx, screenId, async () => {
+            const health = await this.ctx.computer.fetchHealth();
+            if (!isOwnerLease(health.screens.find((s) => s.id === screenId)?.lease ?? null)) {
+              await this.finishActive(screenId, row.note, row.endReason ?? "handed_back");
+              return;
+            }
+            const [operation] = await this.ctx.db
+              .select()
+              .from(screenOperations)
+              .where(
+                and(eq(screenOperations.takeoverId, row.id), eq(screenOperations.status, "safe")),
+              );
+            if (!operation) return;
+            try {
+              await this.handBack(screenId, row.note ?? CODE_HANDED_BACK_NOTE);
+            } catch (error) {
+              if (!(error instanceof ScreenBusy)) throw error;
+              await this.ctx.db
+                .update(screenOperations)
+                .set({ status: "needs_owner", reason: error.message, updatedAt: new Date() })
+                .where(eq(screenOperations.id, operation.id));
+            }
+          });
+        } catch (error) {
+          if (!(error instanceof ScreenBusy)) throw error;
+        }
+      }
+      await this.notifyPausedScreens();
+    }
+    // Once a takeover ended, its screen passed the safety check on the way back.
+    await this.ctx.db
+      .update(screenOperations)
+      .set({ status: "handed_back", reason: null, updatedAt: new Date() })
+      .where(
+        and(
+          inArray(screenOperations.status, ["safe", "needs_owner", "unknown"]),
+          sql`${screenOperations.takeoverId} in (select id from desktop_takeovers where status = 'ended')`,
+        ),
+      );
+    await this.deliverReturns();
+  }
+
+  /** Screens paused because your code may still be visible. You hear about each pause once. */
+  private readonly pausedScreens = new Set<string>();
+
+  private async notifyPausedScreens(): Promise<void> {
+    const health = await this.ctx.computer.fetchHealth();
+    const paused = new Set(
+      health.screens
+        .filter((s) => isOwnerLease(s.lease) && s.lease.pausedForSafety)
+        .map((s) => s.id),
+    );
+    for (const id of this.pausedScreens) if (!paused.has(id)) this.pausedScreens.delete(id);
+    for (const id of paused) {
+      if (this.pausedScreens.has(id)) continue;
+      const [bot] = await this.ctx.db.select({ name: bots.name }).from(bots).where(eq(bots.id, id));
+      await createNotification(this.ctx, {
+        kind: "takeover_request",
+        title: `${bot?.name ?? "Your teammate"}'s screen is paused`,
+        body: "Your code may still be visible. Open the computer to check.",
+        botId: id,
+        chatId: null,
+        runId: null,
+      });
+      this.pausedScreens.add(id);
+    }
+  }
+
+  private delivering = false;
+  private deliverAgain = false;
+
+  /** Tells bots about every ended takeover not yet delivered. Safe to call from anywhere. */
+  private async deliverReturns(): Promise<void> {
+    if (this.delivering) {
+      this.deliverAgain = true;
+      return;
+    }
+    this.delivering = true;
+    try {
+      do {
+        this.deliverAgain = false;
+        await this.deliverPendingReturns();
+      } while (this.deliverAgain);
+    } finally {
+      this.delivering = false;
+    }
+  }
+
+  private async deliverPendingReturns(): Promise<void> {
+    const pending = await this.ctx.db
+      .selectDistinct({ continuationRunId: takeoverDeliveries.continuationRunId })
+      .from(takeoverDeliveries)
+      .where(isNull(takeoverDeliveries.deliveredAt));
+    for (const { continuationRunId } of pending) {
+      try {
+        // Another worker process may be delivering the same return.
+        await withScreenLock(this.ctx, `return:${continuationRunId}`, async () => {
+          const ended = (
+            await this.ctx.db
+              .select({ takeover: desktopTakeovers })
+              .from(takeoverDeliveries)
+              .innerJoin(desktopTakeovers, eq(desktopTakeovers.id, takeoverDeliveries.id))
+              .where(
+                and(
+                  eq(takeoverDeliveries.continuationRunId, continuationRunId),
+                  isNull(takeoverDeliveries.deliveredAt),
+                ),
+              )
+          ).map((row) => row.takeover);
+          if (!ended.length) return;
+          await this.deliverReturn(ended, continuationRunId);
+          for (const row of ended) this.ctx.events.emit("takeoverEnded", row.id);
+          await this.ctx.db
+            .update(takeoverDeliveries)
+            .set({ deliveredAt: new Date() })
+            .where(eq(takeoverDeliveries.continuationRunId, continuationRunId));
+        });
+      } catch (error) {
+        if (!(error instanceof ScreenBusy)) throw error;
+      }
+    }
+  }
+
+  private async deliverReturn(
+    ended: (typeof desktopTakeovers.$inferSelect)[],
+    continuationRunId: string,
+  ): Promise<void> {
+    // Rows ended together share the same note and reason.
+    const note = ended[0]!.note;
+    const reason = ended[0]!.endReason ?? "handed_back";
     const effectiveNote = reason === "handed_back" ? note : AUTO_NOTES[reason];
     const delivered = new Set<string>();
 
@@ -239,6 +455,7 @@ export class TakeoverService {
           .where(eq(runs.id, row.requestedByRunId!));
         if (run && !this.sessions.find(run.chatId, run.botId)) {
           await enqueueRun(this.ctx, {
+            id: continuationId(continuationRunId, run.id),
             chatId: run.chatId,
             botId: run.botId,
             trigger: "hand_back",
@@ -259,7 +476,7 @@ export class TakeoverService {
       const message = `[The user handed your screen back.]${effectiveNote ? ` Their note: "${effectiveNote}".` : ""} You may use the desktop again. Take a screenshot to see what changed, then continue.`;
       const session = this.sessions.get(runId);
       if (session) {
-        const steered = await session.steer(`handback-${Date.now()}`, message, {
+        const steered = await session.steer(`handback-${continuationRunId}`, message, {
           text: effectiveNote ?? "",
           variant: "hand_back",
         });
@@ -268,6 +485,7 @@ export class TakeoverService {
       const [run] = await this.ctx.db.select().from(runs).where(eq(runs.id, runId));
       if (run && !isRunActive(run.status) && !this.sessions.find(run.chatId, run.botId)) {
         await enqueueRun(this.ctx, {
+          id: continuationId(continuationRunId, run.id),
           chatId: run.chatId,
           botId: run.botId,
           trigger: "hand_back",

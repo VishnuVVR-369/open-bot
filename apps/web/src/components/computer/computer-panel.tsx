@@ -1,6 +1,6 @@
 "use client";
 
-import type { LeaseHolder, ScreenStatus } from "@open-bot/shared";
+import { isOwnerLease, type LeaseHolder, type ScreenStatus } from "@open-bot/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   ChevronDown,
@@ -58,7 +58,7 @@ function releaseScreen(state: AppState, screenId: string): AppState {
       health: health && {
         ...health,
         screens: health.screens.map((screen) =>
-          screen.id === screenId && screen.lease?.kind === "user"
+          screen.id === screenId && isOwnerLease(screen.lease)
             ? { ...screen, lease: null }
             : screen,
         ),
@@ -82,7 +82,7 @@ export function useComputer(initial?: AppState) {
     const lease = status?.lease ?? null;
     const activity: ScreenActivity = !online
       ? "offline"
-      : lease?.kind === "user"
+      : isOwnerLease(lease)
         ? "you"
         : lease?.kind === "run"
           ? "working"
@@ -99,7 +99,7 @@ export function useComputer(initial?: AppState) {
   }
 
   const controlled = screens
-    .filter((s) => s.lease?.kind === "user")
+    .filter((s) => isOwnerLease(s.lease))
     .map((s) => s.id)
     .filter((id) => state?.bots.some((bot) => bot.id === id));
 
@@ -446,15 +446,19 @@ function HandBackButton({
   const [note, setNote] = useState("");
   const [pending, startTransition] = useTransition();
   const queryClient = useQueryClient();
+  const { screen } = useComputer();
+  const lease = screen(screenId)?.lease ?? null;
+  const protectedCode =
+    isOwnerLease(lease) && (lease.kind === "user-code" || lease.pausedForSafety);
 
-  function submit() {
+  function submit(clearCode = false) {
     startTransition(async () => {
       // Let go here first, so the screen stops taking your input and its connection closes cleanly.
       await queryClient.cancelQueries({ queryKey: queryKeys.state });
       queryClient.setQueryData<AppState>(queryKeys.state, (state) =>
         state ? releaseScreen(state, screenId) : state,
       );
-      const result = await handBackScreen(screenId, note.trim() || null);
+      const result = await handBackScreen(screenId, note.trim() || null, clearCode);
       if (!result.ok) {
         toast.error(result.error);
         await queryClient.invalidateQueries({ queryKey: queryKeys.state });
@@ -511,6 +515,23 @@ function HandBackButton({
             {pending && <Loader2 className="animate-spin" />}
             Hand back
           </Button>
+          {protectedCode && (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending}
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "Clear the code and hand back? If the computer restarted, its browser pages will be discarded to keep the forgotten code private.",
+                  )
+                )
+                  submit(true);
+              }}
+            >
+              Clear the code and hand back
+            </Button>
+          )}
         </form>
       </PopoverContent>
     </Popover>

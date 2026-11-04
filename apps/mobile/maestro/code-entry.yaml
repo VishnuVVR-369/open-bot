@@ -1,0 +1,57 @@
+appId: dev.openbot.mobile.dev
+---
+- runFlow:
+    when:
+      visible: Development Build
+    commands:
+      - tapOn:
+          text: http://.*:8081
+          index: 0
+      - tapOn:
+          text: Continue
+          optional: true
+      - extendedWaitUntil:
+          visible:
+            id: tab-home
+          timeout: 30000
+- runFlow:
+    file: flows/open-link.yaml
+    env:
+      LINK: openbot:///screens/${SCREEN_ID}?takeover=${TAKEOVER_ID}&code=1
+- extendedWaitUntil:
+    visible:
+      id: code-sheet
+    timeout: 30000
+- assertVisible: "Focused site: host.docker.internal"
+- tapOn:
+    id: code-input
+- inputText: "582913"
+- hideKeyboard
+- tapOn:
+    id: send-code
+- extendedWaitUntil:
+    visible: Code submitted. Your teammate can continue.
+    timeout: 30000
+- tapOn:
+    id: code-sheet-close
+- tapOn:
+    id: take-over
+- extendedWaitUntil:
+    notVisible: Connecting
+    timeout: 30000
+- tapOn:
+    id: remote-keyboard
+- inputText: "314159"
+- hideKeyboard
+- runScript: verify.js
+- assertTrue: ${output.state.typed === '314159'}
+- tapOn:
+    id: computer-webview
+- longPressOn:
+    id: computer-webview
+- runScript: verify.js
+- assertTrue: ${output.state.buttons.indexOf(0) >= 0 && output.state.buttons.indexOf(2) >= 0}
+- tapOn:
+    id: hand-back
+- tapOn:
+    id: hand-back-confirm

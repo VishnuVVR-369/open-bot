@@ -62,6 +62,8 @@ export async function handlePushData(data: PushData): Promise<void> {
     body: plan.body,
     data: {
       url: plan.url,
+      ...(data.takeoverId ? { takeoverId: data.takeoverId } : {}),
+      ...(data.botId ? { screenId: data.botId } : {}),
       ...(data.chatId ? { chatId: data.chatId } : {}),
       ...(plan.approvalId ? { approvalId: plan.approvalId } : {}),
       ...(plan.reply ? { replyChatId: plan.reply.chatId } : {}),

@@ -47,6 +47,16 @@ afterEach(() => {
 });
 
 describe("notification navigation", () => {
+  it("restores a cold Type the code action into its code sheet", async () => {
+    native.initial.mockResolvedValue({
+      notification: { id: "takeover-cold", data: { url: "/screens/b1?takeover=t1" } },
+      pressAction: { id: "type-code" },
+    });
+    usePushNotifications(true);
+    await vi.waitFor(() =>
+      expect(native.push).toHaveBeenCalledWith("/screens/b1?takeover=t1&code=1"),
+    );
+  });
   it("opens a Review received after sign-in when an already mounted app resumes", async () => {
     native.initial.mockResolvedValue(null);
     usePushNotifications(true);

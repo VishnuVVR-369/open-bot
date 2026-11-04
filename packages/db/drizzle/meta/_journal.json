@@ -176,6 +176,13 @@
       "when": 1793643633091,
       "tag": "0024_feedback_retry",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793771834526,
+      "tag": "0025_screen_operations",
+      "breakpoints": true
     }
   ]
 }

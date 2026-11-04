@@ -13,6 +13,7 @@ import { useColorScheme } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { LockScreen } from "@/components/lock-screen";
+import { ComputerAccess } from "@/lib/computer-access";
 import { authClient } from "@/lib/auth";
 import { useAppLock } from "@/lib/lock";
 import { useTrackPresence } from "@/lib/presence";
@@ -75,30 +76,33 @@ function App() {
   return (
     <ThemeProvider value={theme}>
       <RealtimeProvider enabled={signedIn} onSignedOut={() => void signOut()}>
-        <Stack
-          screenOptions={{
-            headerStyle: { backgroundColor: colors.surface },
-            headerTitleStyle: { fontFamily: fonts.heading, fontWeight: "600", fontSize: 18 },
-            headerTintColor: colors.foreground,
-            headerShadowVisible: false,
-            contentStyle: { backgroundColor: colors.background },
-          }}
-        >
-          <Stack.Protected guard={signedIn}>
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="chats/[chatId]" options={{ title: "" }} />
-            <Stack.Screen name="approvals/[approvalId]" options={{ title: "Approval" }} />
-            <Stack.Screen name="settings" options={{ title: "Settings" }} />
-            <Stack.Screen name="new-chat" options={{ title: "New chat" }} />
-            <Stack.Screen name="notifications" options={{ title: "Notifications" }} />
-            <Stack.Screen name="search" options={{ title: "Search", animation: "fade" }} />
-            <Stack.Screen name="file" options={{ title: "" }} />
-            <Stack.Screen name="approval-rules" options={{ title: "Always allowed" }} />
-          </Stack.Protected>
-          <Stack.Protected guard={!signedIn}>
-            <Stack.Screen name="sign-in" options={{ headerShown: false }} />
-          </Stack.Protected>
-        </Stack>
+        <ComputerAccess.Provider value={!lock.locked && !lock.checking}>
+          <Stack
+            screenOptions={{
+              headerStyle: { backgroundColor: colors.surface },
+              headerTitleStyle: { fontFamily: fonts.heading, fontWeight: "600", fontSize: 18 },
+              headerTintColor: colors.foreground,
+              headerShadowVisible: false,
+              contentStyle: { backgroundColor: colors.background },
+            }}
+          >
+            <Stack.Protected guard={signedIn}>
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="chats/[chatId]" options={{ title: "" }} />
+              <Stack.Screen name="approvals/[approvalId]" options={{ title: "Approval" }} />
+              <Stack.Screen name="screens/[screenId]" options={{ title: "Computer" }} />
+              <Stack.Screen name="settings" options={{ title: "Settings" }} />
+              <Stack.Screen name="new-chat" options={{ title: "New chat" }} />
+              <Stack.Screen name="notifications" options={{ title: "Notifications" }} />
+              <Stack.Screen name="search" options={{ title: "Search", animation: "fade" }} />
+              <Stack.Screen name="file" options={{ title: "" }} />
+              <Stack.Screen name="approval-rules" options={{ title: "Always allowed" }} />
+            </Stack.Protected>
+            <Stack.Protected guard={!signedIn}>
+              <Stack.Screen name="sign-in" options={{ headerShown: false }} />
+            </Stack.Protected>
+          </Stack>
+        </ComputerAccess.Provider>
         {signedIn && lock.locked && <LockScreen onUnlock={() => void lock.unlock()} />}
       </RealtimeProvider>
       <StatusBar style={scheme === "dark" ? "light" : "dark"} />
