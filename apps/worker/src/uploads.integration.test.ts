@@ -234,13 +234,18 @@ describe.skipIf(!url)("uploads with Postgres", () => {
     expect(await db.select().from(messages)).toHaveLength(0);
   });
 
-  it("rechecks stale candidates after a sender commits under the upload lock", async () => {
+  it("rechecks each stale candidate after a sender commits under the upload lock", async () => {
     const [chat] = await db.insert(chats).values({ kind: "group", title: "Trip" }).returning();
     const uploaded = await service.put(file("accepted aged draft"));
+    const unrelated = await service.put(file("unused aged draft", "unused.jpg"));
     await db
       .update(uploads)
       .set({ updatedAt: new Date(Date.now() - UNUSED_TTL_MS - 60_000) })
       .where(eq(uploads.id, uploaded.id));
+    await db
+      .update(uploads)
+      .set({ updatedAt: new Date(Date.now() - UNUSED_TTL_MS - 60_000) })
+      .where(eq(uploads.id, unrelated.id));
     const locked = deferred();
     const release = deferred();
     const accepting = db.transaction(async (tx) => {
@@ -264,8 +269,10 @@ describe.skipIf(!url)("uploads with Postgres", () => {
     });
     release.resolve();
     await accepting;
-    expect(await cleanup).toBe(0);
+    expect(await cleanup).toBe(1);
     expect(files.files.has(uploaded.attachment!.path)).toBe(true);
     expect((await service.status(uploaded.id))?.status).toBe("complete");
+    expect(files.files.has(unrelated.attachment!.path)).toBe(false);
+    expect(await service.status(unrelated.id)).toBeNull();
   });
 });

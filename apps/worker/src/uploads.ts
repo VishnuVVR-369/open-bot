@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { messages, uploads, lockUploads, type Db, type Tx } from "@open-bot/db";
 import { COMPUTER_PATHS, MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from "@open-bot/shared";
-import { and, eq, inArray, lt, notExists, sql } from "drizzle-orm";
+import { and, eq, inArray, lt, notExists, or, sql } from "drizzle-orm";
 import type { Context } from "./context";
 import { errorMessage } from "./logger";
 
@@ -209,7 +209,10 @@ export class UploadService {
       .where(
         sql`${messages.attachments} @> jsonb_build_array(jsonb_build_object('path', ${uploads.path}))`,
       );
-    const eligible = sql`(${and(inArray(uploads.status, ["writing", "failed"]), lt(uploads.updatedAt, incomplete))}) or (${and(eq(uploads.status, "complete"), lt(uploads.updatedAt, unused), notExists(referenced))})`;
+    const eligible = or(
+      and(inArray(uploads.status, ["writing", "failed"]), lt(uploads.updatedAt, incomplete)),
+      and(eq(uploads.status, "complete"), lt(uploads.updatedAt, unused), notExists(referenced)),
+    );
     const stale = await this.db
       .select({ id: uploads.id, path: uploads.path })
       .from(uploads)
