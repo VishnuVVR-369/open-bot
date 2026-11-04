@@ -1,7 +1,16 @@
 import "server-only";
 import type { ApiInputs, MessageView } from "@open-bot/api";
-import { bots, chats, messages } from "@open-bot/db";
-import { eq } from "drizzle-orm";
+import {
+  bots,
+  chatMembers,
+  chats,
+  messages,
+  runs,
+  uploads,
+  lockUploads,
+  type Tx,
+} from "@open-bot/db";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "../db";
 import { publish } from "../publish";
 import { worker } from "../worker";
@@ -19,6 +28,95 @@ export async function newDirectChat({ botId }: Inputs["newDirect"]): Promise<{ c
     .returning({ id: chats.id });
   await publish("chats");
   return { chatId: chat!.id };
+}
+
+export async function createGroupChat({ title, botIds }: Inputs["createGroup"]) {
+  const unique = [...new Set(botIds)];
+  if (unique.length < 2) throw new ApiError("BAD_REQUEST", "Pick at least two teammates.");
+  const found = await db
+    .select({ id: bots.id })
+    .from(bots)
+    .where(and(inArray(bots.id, unique), isNull(bots.archivedAt)));
+  if (found.length !== unique.length)
+    throw new ApiError("NOT_FOUND", "One of those teammates no longer exists.");
+  const chatId = await db.transaction(async (tx) => {
+    const [chat] = await tx
+      .insert(chats)
+      .values({ kind: "group", title })
+      .returning({ id: chats.id });
+    await tx.insert(chatMembers).values(unique.map((botId) => ({ chatId: chat!.id, botId })));
+    return chat!.id;
+  });
+  await publish("chats");
+  return { chatId };
+}
+
+async function updateChat(chatId: string, values: Partial<typeof chats.$inferInsert>) {
+  const [chat] = await db
+    .update(chats)
+    .set(values)
+    .where(eq(chats.id, chatId))
+    .returning({ id: chats.id });
+  if (!chat) throw new ApiError("NOT_FOUND", "That chat no longer exists.");
+}
+
+export async function renameChat({ chatId, title }: Inputs["rename"]) {
+  await updateChat(chatId, { title });
+  await publish("chats");
+  return { ok: true as const };
+}
+
+export async function archiveChat({ chatId }: Inputs["archive"]) {
+  await updateChat(chatId, { archivedAt: new Date() });
+  await publish("chats");
+  return { ok: true as const };
+}
+
+/** You've seen the chat: what teammates said in it isn't unread anymore, on any device. */
+export async function markChatRead({ chatId }: Inputs["markRead"]) {
+  const [before] = await db
+    .select({
+      readAt: chats.readAt,
+      lastReply:
+        sql<Date | null>`(select max(${runs.completedAt}) from ${runs} where ${runs.chatId} = ${chats.id} and ${runs.status} in ('completed', 'failed'))`.mapWith(
+          (value: string | Date | null) => (value === null ? null : new Date(value)),
+        ),
+    })
+    .from(chats)
+    .where(eq(chats.id, chatId));
+  if (!before) throw new ApiError("NOT_FOUND", "That chat no longer exists.");
+  await updateChat(chatId, { readAt: new Date() });
+  // Only lists that showed it as unread need to change.
+  if (before.lastReply && before.lastReply > before.readAt) await publish("chats");
+  return { ok: true as const };
+}
+
+/** Attachments must be uploads that finished, so a teammate never gets half a file. */
+async function checkAttachments(tx: Tx, attachments: Inputs["send"]["attachments"]) {
+  if (attachments.length === 0) return;
+  await lockUploads(
+    tx,
+    attachments.map((attachment) => attachment.path),
+  );
+  const rows = await tx
+    .select()
+    .from(uploads)
+    .where(
+      inArray(
+        uploads.path,
+        attachments.map((attachment) => attachment.path),
+      ),
+    );
+  for (const attachment of attachments) {
+    const upload = rows.find((row) => row.path === attachment.path);
+    if (!upload || upload.status !== "complete")
+      throw new ApiError(
+        "BAD_REQUEST",
+        `${attachment.name} didn't finish uploading. Attach it again.`,
+      );
+    if (upload.size !== attachment.size || upload.name !== attachment.name)
+      throw new ApiError("BAD_REQUEST", `${attachment.name} doesn't match what was uploaded.`);
+  }
 }
 
 function sameJson(a: unknown, b: unknown): boolean {
@@ -52,23 +150,31 @@ export async function sendMessage(input: Inputs["send"]): Promise<MessageView> {
     sameJson(row.attachments, values.attachments) &&
     sameJson(row.mentions, values.mentions);
 
-  // A retry: the message is saved already.
-  let [row] = await db.select().from(messages).where(eq(messages.clientId, input.clientId));
-  if (row && !same(row)) throw conflict();
-  if (!row) {
-    const [chat] = await db.select({ id: chats.id }).from(chats).where(eq(chats.id, input.chatId));
-    if (!chat) throw new ApiError("NOT_FOUND", "That chat no longer exists.");
-    [row] = await db
-      .insert(messages)
-      .values(values)
-      .onConflictDoNothing({ target: messages.clientId })
-      .returning();
-    // The same send, arriving twice at once: the other one saved it.
+  const row = await db.transaction(async (tx) => {
+    // A retry: the message is saved already.
+    let [row] = await tx.select().from(messages).where(eq(messages.clientId, input.clientId));
+    if (row && !same(row)) throw conflict();
     if (!row) {
-      [row] = await db.select().from(messages).where(eq(messages.clientId, input.clientId));
-      if (!row || !same(row)) throw conflict();
+      const [chat] = await tx
+        .select({ id: chats.id })
+        .from(chats)
+        .where(eq(chats.id, input.chatId));
+      if (!chat) throw new ApiError("NOT_FOUND", "That chat no longer exists.");
+      await checkAttachments(tx, values.attachments);
+      [row] = await tx
+        .insert(messages)
+        .values(values)
+        .onConflictDoNothing({ target: messages.clientId })
+        .returning();
+      // The same send, arriving twice at once: the other one saved it.
+      if (!row) {
+        [row] = await tx.select().from(messages).where(eq(messages.clientId, input.clientId));
+        if (!row || !same(row)) throw conflict();
+      }
     }
-  }
+
+    return row;
+  });
 
   if (row.dispatchStatus === "pending") {
     await worker("POST", `/internal/messages/${row.id}/dispatch`).catch((error: unknown) => {

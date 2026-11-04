@@ -11,6 +11,16 @@ export function clock(iso: string, twelveHour = false): string {
   return `${hours % 12 || 12}:${minutes} ${hours < 12 ? "AM" : "PM"}`;
 }
 
+/** 14:05 today, "Mon 14:05" earlier: when something in a list happened. */
+export function dayClock(iso: string, twelveHour = false, now = Date.now()): string {
+  const date = new Date(iso);
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  const time = clock(iso, twelveHour);
+  if (date.getTime() >= today.getTime()) return time;
+  return `${date.toLocaleDateString("en-GB", { weekday: "short" })} ${time}`;
+}
+
 /** "now", "5m", "3h", "Yesterday", "Mon", "12 Oct", for lists. */
 export function ago(iso: string, now = Date.now()): string {
   const then = new Date(iso);

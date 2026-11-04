@@ -1,6 +1,6 @@
 import { createApiClient } from "@open-bot/api";
 import { describe, expect, it } from "vitest";
-import { errorMessage, isRetryable, isUnauthorized } from "./errors";
+import { errorMessage, FileError, isGone, isRetryable, isUnauthorized } from "./errors";
 
 /** What the real client throws when the server answers with `response`. */
 async function failure(response: () => Response): Promise<unknown> {
@@ -21,6 +21,8 @@ describe("call errors", () => {
     );
     expect(errorMessage(error)).toMatch(/out of date/);
     expect(isRetryable(error)).toBe(false);
+    // Not the chat that's missing: the whole API.
+    expect(isGone(error)).toBe(false);
   });
 
   it("uses the server's words for its own errors, and doesn't retry them", async () => {
@@ -36,6 +38,7 @@ describe("call errors", () => {
     );
     expect(errorMessage(error)).toBe("That chat no longer exists.");
     expect(isRetryable(error)).toBe(false);
+    expect(isGone(error)).toBe(true);
   });
 
   it("spots a lost session", async () => {
@@ -56,5 +59,20 @@ describe("call errors", () => {
     const offline = new TypeError("Network request failed");
     expect(isRetryable(offline)).toBe(true);
     expect(errorMessage(offline)).toMatch(/Couldn't reach open-bot/);
+  });
+});
+
+describe("file errors", () => {
+  it("says why a file couldn't be opened, and doesn't ask again for a missing one", () => {
+    const missing = new FileError(404, "That file isn't there anymore.");
+    expect(errorMessage(missing)).toBe("That file isn't there anymore.");
+    expect(isRetryable(missing)).toBe(false);
+  });
+
+  it("spots a lost session, and retries when the server failed", () => {
+    expect(isUnauthorized(new FileError(401, "Sign in first."))).toBe(true);
+    const failed = new FileError(503, "The worker isn't running.");
+    expect(isRetryable(failed)).toBe(true);
+    expect(errorMessage(failed)).toBe("Something went wrong.");
   });
 });

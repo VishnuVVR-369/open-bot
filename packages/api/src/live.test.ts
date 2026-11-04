@@ -75,6 +75,8 @@ const snapshot: ChatData = {
     memberIds: ["b"],
     lastActivityAt: "2026-11-02T00:00:00.000Z",
     active: true,
+    unread: false,
+    preview: null,
   },
   members: [],
   entries: [{ type: "run", at: "2026-11-02T00:00:00.000Z", run: run("r1", "Hel") }],

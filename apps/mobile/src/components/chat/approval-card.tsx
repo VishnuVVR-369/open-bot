@@ -1,19 +1,39 @@
 import { approvalDetail } from "@/lib/format";
 import type { ApprovalItem } from "@open-bot/shared";
-import { Check, CircleDashed, CreditCard, Mail, ShieldAlert, X } from "lucide-react-native";
+import {
+  Check,
+  CircleDashed,
+  CreditCard,
+  Mail,
+  ShieldAlert,
+  WifiOff,
+  X,
+} from "lucide-react-native";
 import { useState } from "react";
 import { StyleSheet, View } from "react-native";
+import { AlwaysAllowSheet } from "@/components/always-allow-sheet";
 import { Button } from "@/components/button";
 import { Text } from "@/components/text";
-import { useDecideApproval, type Decision } from "@/lib/approvals";
+import { canAlwaysAllow, useDecideApproval, type Decision } from "@/lib/approvals";
+import { useOnline } from "@/lib/network";
 import { radius, space, useColors } from "@/theme";
 import { mix } from "@/theme/mix";
 
 /** An approval in the chat: decide it here, or see how it was decided. */
-export function ApprovalCard({ item, chatId }: { item: ApprovalItem; chatId: string }) {
+export function ApprovalCard({
+  item,
+  chatId,
+  botName,
+}: {
+  item: ApprovalItem;
+  chatId: string;
+  botName: string;
+}) {
   const colors = useColors();
   const { decide, deciding } = useDecideApproval();
   const [error, setError] = useState<string | null>(null);
+  const [allowing, setAllowing] = useState(false);
+  const online = useOnline();
 
   if (item.decision !== "pending") {
     const Icon =
@@ -45,14 +65,18 @@ export function ApprovalCard({ item, chatId }: { item: ApprovalItem; chatId: str
       : item.approvalKind === "email"
         ? Mail
         : ShieldAlert;
-  const onDecide = async (decision: Decision) => {
+  const onDecide = async (decision: Decision, alwaysAllow: string | null = null) => {
     setError(null);
     const result = await decide(
       { id: item.approvalId, kind: item.approvalKind ?? "action", chatId },
       decision,
+      alwaysAllow,
     );
+    setAllowing(false);
     if (!result.ok && !result.settled) setError(result.message);
   };
+  const rule = { kind: item.approvalKind, subject: item.subject, askEveryTime: item.askEveryTime };
+  const busy = deciding !== null || !online;
   return (
     <View
       style={[
@@ -85,7 +109,7 @@ export function ApprovalCard({ item, chatId }: { item: ApprovalItem; chatId: str
           title="Approve"
           icon={<Check size={16} color={colors.primaryForeground} />}
           busy={deciding === "approved"}
-          disabled={deciding !== null}
+          disabled={busy}
           onPress={() => void onDecide("approved")}
           style={styles.action}
           testID="approve"
@@ -94,12 +118,41 @@ export function ApprovalCard({ item, chatId }: { item: ApprovalItem; chatId: str
           title="Deny"
           variant="outline"
           busy={deciding === "denied"}
-          disabled={deciding !== null}
+          disabled={busy}
           onPress={() => void onDecide("denied")}
           style={styles.action}
           testID="deny"
         />
       </View>
+      {canAlwaysAllow(rule) && (
+        // Its own line, lined up with the buttons, so it fits however wide the screen is.
+        <Button
+          title="Always allow…"
+          variant="ghost"
+          disabled={busy}
+          onPress={() => setAllowing(true)}
+          style={styles.allow}
+          testID="always-allow"
+        />
+      )}
+      {!online && (
+        <View style={[styles.offline, { marginLeft: space(6) }]}>
+          <WifiOff size={13} color={colors.mutedForeground} />
+          <Text variant="caption" muted>
+            You&apos;re offline
+          </Text>
+        </View>
+      )}
+      {canAlwaysAllow(rule) && (
+        <AlwaysAllowSheet
+          open={allowing}
+          onClose={() => setAllowing(false)}
+          kind={rule.kind}
+          subject={item.subject ?? ""}
+          botName={botName}
+          onConfirm={(pattern) => onDecide("approved", pattern)}
+        />
+      )}
     </View>
   );
 }
@@ -110,4 +163,12 @@ const styles = StyleSheet.create({
   head: { flexDirection: "row", gap: space(2.5) },
   actions: { flexDirection: "row", gap: space(2), marginLeft: space(6) },
   action: { minHeight: 38, paddingHorizontal: space(3.5) },
+  allow: {
+    alignSelf: "flex-start",
+    minHeight: 32,
+    marginLeft: space(6),
+    marginVertical: -space(1.5),
+    paddingHorizontal: 0,
+  },
+  offline: { flexDirection: "row", alignItems: "center", gap: space(1.5) },
 });

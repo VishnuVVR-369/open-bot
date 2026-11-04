@@ -1,32 +1,24 @@
 import type { ComputerHealth, EgressModeSetting, RunStatus } from "@open-bot/shared";
 
-import type { ChatKind } from "@open-bot/db";
-
 /** What the UI reads; shared by route handlers and client components. */
 
 // The views the API serves too are defined by its contract, so the web and the phone agree.
 export type {
+  ActivityItem as ActivityView,
   ApprovalView,
   BotSummary,
+  BriefingItem,
   ChatData,
   ChatEntry,
   ChatSummary,
   MessageView,
+  NotificationView,
   RunView,
+  SearchResult as SearchResultView,
   StreamRunEvent,
+  TakeoverRequest as TakeoverRequestSummary,
 } from "@open-bot/api";
-import type { BotSummary, ChatSummary, RunView } from "@open-bot/api";
-
-export interface TakeoverRequestSummary {
-  id: string;
-  /** The screen to take over: the requesting bot's. */
-  screenId: string;
-  botId: string | null;
-  botName: string;
-  reason: string;
-  chatId: string | null;
-  createdAt: string;
-}
+import type { BotSummary, ChatSummary, RunView, TakeoverRequest } from "@open-bot/api";
 
 export interface CodexStatusView {
   connected: boolean;
@@ -73,7 +65,7 @@ export interface AppState {
   computer: ComputerView;
   codex: CodexStatusView | null;
   pendingApprovals: number;
-  takeoverRequests: TakeoverRequestSummary[];
+  takeoverRequests: TakeoverRequest[];
   /** Screens you have control of right now. */
   activeTakeovers: { id: string; screenId: string; startedAt: string | null }[];
   unreadNotifications: number;
@@ -98,18 +90,6 @@ export interface LessonView {
   /** The reply it was about, to jump back to it. */
   runId: string | null;
   chatId: string | null;
-}
-
-export interface NotificationView {
-  id: string;
-  kind: string;
-  title: string;
-  body: string;
-  botId: string | null;
-  chatId: string | null;
-  runId: string | null;
-  readAt: string | null;
-  createdAt: string;
 }
 
 export interface ScheduleView {
@@ -168,19 +148,6 @@ export interface TriggerView {
   lastRun: { id: string; status: RunStatus; chatId: string } | null;
 }
 
-/** A message or a teammate's reply that matched a search. */
-export interface SearchResultView {
-  id: string;
-  /** "you" for your messages, "bot" for a teammate's reply. */
-  from: "you" | "bot";
-  chatId: string;
-  runId: string | null;
-  botId: string | null;
-  /** The part of the text around the match. */
-  excerpt: string;
-  createdAt: string;
-}
-
 /** One time a schedule, watch or webhook ran. */
 export interface ScheduleRunView {
   id: string;
@@ -190,25 +157,6 @@ export interface ScheduleRunView {
   preview: string | null;
   createdAt: string;
   completedAt: string | null;
-}
-
-export interface ActivityView {
-  runId: string;
-  chatId: string;
-  chatKind: ChatKind;
-  chatTitle: string;
-  botId: string;
-  trigger: RunView["trigger"];
-  status: RunStatus;
-  preview: string | null;
-  createdAt: string;
-}
-
-/** Something a teammate finished while you were away. */
-export interface BriefingItem extends ActivityView {
-  completedAt: string;
-  /** The schedule, watch or webhook that started it. */
-  automationTitle: string | null;
 }
 
 /** The API key fallback, for Settings. */

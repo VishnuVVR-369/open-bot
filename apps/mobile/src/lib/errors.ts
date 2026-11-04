@@ -22,6 +22,12 @@ export function errorMessage(error: unknown, fallback = "Something went wrong.")
   return fallback;
 }
 
+/** The server said what you asked for isn't there (archived, or deleted): asking again won't help. */
+export function isGone(error: unknown): boolean {
+  const call = callError(error);
+  return call?.code === "NOT_FOUND" && call.defined === true;
+}
+
 export function isUnauthorized(error: unknown): boolean {
   return callError(error)?.code === "UNAUTHORIZED";
 }
@@ -33,4 +39,21 @@ export function isUnauthorized(error: unknown): boolean {
 export function isRetryable(error: unknown): boolean {
   const status = callError(error)?.status;
   return typeof status !== "number" || status >= 500;
+}
+
+/**
+ * A file request that failed, shaped like the API's own errors: the server's words show, a
+ * missing file isn't asked for again, and a lost session signs you out.
+ */
+export class FileError extends Error {
+  readonly defined = true;
+  readonly code: string;
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.code =
+      status === 401 ? "UNAUTHORIZED" : status >= 500 ? "INTERNAL_SERVER_ERROR" : "FILE_ERROR";
+  }
 }

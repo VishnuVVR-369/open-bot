@@ -15,6 +15,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { LockScreen } from "@/components/lock-screen";
 import { authClient } from "@/lib/auth";
 import { useAppLock } from "@/lib/lock";
+import { useTrackPresence } from "@/lib/presence";
 import { queryClient, setUnauthorizedHandler } from "@/lib/query";
 import { RealtimeProvider } from "@/lib/realtime";
 import { signOut } from "@/lib/session";
@@ -22,6 +23,9 @@ import { usePushNotifications } from "@/push/register";
 import { fonts, useColors } from "@/theme";
 
 void SplashScreen.preventAutoHideAsync();
+
+// A screen opened straight from a link or a notification still has the tabs behind it to go back to.
+export const unstable_settings = { anchor: "(tabs)" };
 
 export default function RootLayout() {
   return (
@@ -42,6 +46,7 @@ function App() {
   const signedIn = Boolean(session);
   const lock = useAppLock(isPending ? "pending" : signedIn ? "signedIn" : "signedOut");
   usePushNotifications(signedIn);
+  useTrackPresence(signedIn);
 
   // Signed out elsewhere, or the session expired: back to sign-in, with nothing left behind.
   useEffect(() => setUnauthorizedHandler(() => void signOut()), []);
@@ -84,6 +89,11 @@ function App() {
             <Stack.Screen name="chats/[chatId]" options={{ title: "" }} />
             <Stack.Screen name="approvals/[approvalId]" options={{ title: "Approval" }} />
             <Stack.Screen name="settings" options={{ title: "Settings" }} />
+            <Stack.Screen name="new-chat" options={{ title: "New chat" }} />
+            <Stack.Screen name="notifications" options={{ title: "Notifications" }} />
+            <Stack.Screen name="search" options={{ title: "Search", animation: "fade" }} />
+            <Stack.Screen name="file" options={{ title: "" }} />
+            <Stack.Screen name="approval-rules" options={{ title: "Always allowed" }} />
           </Stack.Protected>
           <Stack.Protected guard={!signedIn}>
             <Stack.Screen name="sign-in" options={{ headerShown: false }} />

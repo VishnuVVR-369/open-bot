@@ -11,4 +11,6 @@ apps/mobile/android
 apps/mobile/modules/*/android/build
 apps/mobile/ios
 apps/mobile/.expo
+apps/mobile/.maestro-results
 apps/mobile/expo-env.d.ts
+.claude

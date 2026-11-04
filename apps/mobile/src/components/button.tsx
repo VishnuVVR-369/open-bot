@@ -1,5 +1,12 @@
 import type { ReactNode } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, View, type ViewStyle } from "react-native";
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native";
 import { radius, space, useColors } from "@/theme";
 import { Text } from "./text";
 
@@ -22,7 +29,7 @@ export function Button({
   disabled?: boolean;
   busy?: boolean;
   icon?: ReactNode;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   testID?: string;
 }) {
   const colors = useColors();

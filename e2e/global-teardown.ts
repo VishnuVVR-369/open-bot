@@ -1,8 +1,12 @@
 import pg from "pg";
 
 const TEST_BOT_NAMES = /^(Tess|Ava|Ben|Ivy|Ora|Sol|Scr|Held|Free|Ann|Bob|Alw)[a-z0-9]{4}( \d+)?$/;
-/** Attachments the tests upload are named e2e-…, behind the 8-character prefix uploads get. */
-const TEST_UPLOADS = /^[0-9a-f]{8}-e2e-/;
+/**
+ * Attachments the tests upload are named e2e-…, behind the prefix uploads get: 8 characters for
+ * ones saved from email or Telegram, the upload id for ones the apps upload.
+ */
+const TEST_UPLOADS =
+  /^(?:[0-9a-f]{8}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-e2e-/;
 
 const workerUrl = process.env.WORKER_URL ?? "http://127.0.0.1:4001";
 const botdUrl = process.env.BOTD_URL ?? "http://127.0.0.1:7070";
@@ -39,6 +43,8 @@ export default async function globalTeardown() {
   try {
     await pool.query("delete from chats where kind = 'group' and title = 'E2E group'");
     await pool.query("delete from skills where name like 'e2e-%'");
+    await pool.query("delete from notifications where title like 'E2E %'");
+    await pool.query("delete from uploads where name like 'e2e-%'");
     await pool.query("delete from vault_items where name like 'E2E %'");
     await pool.query("delete from connections where label like 'E2E %'");
     // Helpers' screens go when their part is done; these are from runs that were cut short.

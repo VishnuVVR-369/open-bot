@@ -1,0 +1,49 @@
+appId: dev.openbot.mobile.dev
+---
+- runFlow:
+    file: open-link.yaml
+    env:
+      LINK: ${REPLY_PUSH_LINK}
+- pressKey: Home
+- swipe:
+    start: 25%, 0%
+    end: 25%, 85%
+    duration: 500
+- extendedWaitUntil:
+    visible: E2E teammate reply
+    timeout: 10000
+- tapOn:
+    text: (?i)reply
+    below: E2E teammate reply
+- extendedWaitUntil:
+    visible:
+      id: .*remote_input_text
+    timeout: 10000
+- runScript: ../type-reply.js
+- extendedWaitUntil:
+    visible:
+      id: .*remote_input_text
+      text: Reply with just MOBILE_INLINE_OK
+    timeout: 10000
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    id: .*remote_input_send
+# MIUI can ignore injected Send taps. The owner may tap the native button during this wait.
+- extendedWaitUntil:
+    notVisible:
+      id: .*remote_input_text
+    timeout: 60000
+- retry:
+    maxRetries: 5
+    commands:
+      - runScript: ../verify.js
+      - assertTrue: ${output.state.inlineReplies === 1}
+- pressKey: Back
+- runFlow:
+    file: open-link.yaml
+    env:
+      LINK: ${CHAT_LINK}
+- extendedWaitUntil:
+    visible: MOBILE_INLINE_OK
+    timeout: 120000

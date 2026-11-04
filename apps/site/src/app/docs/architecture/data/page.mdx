@@ -159,7 +159,7 @@ Here they are grouped by what they're for:
 
 ### Migrations
 
-Migrations are generated SQL files in `packages/db/drizzle/`, from `0000_init.sql` to `0020_versioned_memory.sql`.
+Migrations are generated SQL files in `packages/db/drizzle/`; `meta/_journal.json` records their authoritative order.
 
 ```sh title="Terminal"
 pnpm db:generate   # write a new migration from changes to schema.ts

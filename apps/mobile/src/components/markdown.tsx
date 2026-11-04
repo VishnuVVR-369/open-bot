@@ -1,11 +1,20 @@
 import { Fragment, useMemo, type ReactNode } from "react";
-import { Text, useColorScheme, View, type TextStyle, type ViewStyle } from "react-native";
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  useColorScheme,
+  View,
+  type TextStyle,
+  type ViewStyle,
+} from "react-native";
 import { Renderer, useMarkdown, type MarkedStyles } from "react-native-marked";
 import { fonts, radius, space, useColors } from "@/theme";
 
 /**
  * Lists drawn like the web's: a round bullet (or the number) centered on the item's first line,
- * and items as close together as lines of text.
+ * and items as close together as lines of text. Code blocks keep their box still while long
+ * lines scroll inside it.
  */
 class AppRenderer extends Renderer {
   constructor(
@@ -13,6 +22,30 @@ class AppRenderer extends Renderer {
     private readonly lineHeight: number,
   ) {
     super();
+  }
+
+  override code(
+    text: string,
+    _language?: string,
+    containerStyle?: ViewStyle,
+    textStyle?: TextStyle,
+  ): ReactNode {
+    const { padding, ...box } = StyleSheet.flatten(containerStyle) ?? {};
+    return (
+      <View key={this.getKey()} style={[box, { overflow: "hidden" }]}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ padding }}
+        >
+          <View>
+            <Text selectable style={textStyle}>
+              {text}
+            </Text>
+          </View>
+        </ScrollView>
+      </View>
+    );
   }
 
   override list(

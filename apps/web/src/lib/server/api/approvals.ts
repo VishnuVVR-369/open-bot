@@ -1,7 +1,7 @@
 import "server-only";
-import type { ApiInputs, ApprovalStatus, ApprovalView } from "@open-bot/api";
-import { approvals } from "@open-bot/db";
-import { eq } from "drizzle-orm";
+import type { ApiInputs, ApprovalRule, ApprovalStatus, ApprovalView } from "@open-bot/api";
+import { approvalRules, approvals, bots } from "@open-bot/db";
+import { asc, eq, isNull } from "drizzle-orm";
 import { db } from "../db";
 import { toApprovalView } from "../views";
 import { worker } from "../worker";
@@ -34,4 +34,26 @@ export async function decideApproval(
   if (status === input.decision) return { status };
   if (status === "pending") throw new Error("The approval couldn't be decided. Try again.");
   throw new ApiError("ALREADY_DECIDED", OUTCOME[status], { status });
+}
+
+/** What each teammate may do without asking, oldest first. */
+export async function listApprovalRules(): Promise<ApprovalRule[]> {
+  const rows = await db
+    .select({ rule: approvalRules })
+    .from(approvalRules)
+    .innerJoin(bots, eq(bots.id, approvalRules.botId))
+    .where(isNull(bots.archivedAt))
+    .orderBy(asc(approvalRules.createdAt));
+  return rows.map(({ rule }) => ({
+    id: rule.id,
+    botId: rule.botId,
+    kind: rule.kind,
+    pattern: rule.pattern,
+    createdAt: rule.createdAt.toISOString(),
+  }));
+}
+
+export async function removeApprovalRule({ ruleId }: ApiInputs["approvals"]["removeRule"]) {
+  await worker("POST", `/internal/approval-rules/${ruleId}/delete`);
+  return { ok: true as const };
 }

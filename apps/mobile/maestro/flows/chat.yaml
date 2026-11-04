@@ -1,0 +1,26 @@
+appId: dev.openbot.mobile.dev
+---
+- runFlow:
+    file: open-link.yaml
+    env:
+      LINK: ${CHAT_LINK}
+- extendedWaitUntil:
+    visible:
+      id: composer-input
+    timeout: 15000
+- tapOn:
+    id: composer-input
+- inputText: Count from 1 to 40, one number per line. Finish with the uppercase words mobile stream done joined by underscores.
+- tapOn:
+    id: send
+    waitToSettleTimeoutMs: 0
+- extendedWaitUntil:
+    visible:
+      id: working
+    timeout: 30000
+- extendedWaitUntil:
+    visible: .*MOBILE_STREAM_DONE.*
+    timeout: 120000
+- assertVisible:
+    id: run-actions
+- hideKeyboard

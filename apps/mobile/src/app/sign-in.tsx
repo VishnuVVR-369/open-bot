@@ -92,6 +92,7 @@ export default function SignIn() {
               onChangeText={setEmail}
               autoCapitalize="none"
               autoComplete="email"
+              autoCorrect={false}
               keyboardType="email-address"
               textContentType="emailAddress"
               returnKeyType="next"

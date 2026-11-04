@@ -5,6 +5,7 @@ import { publishApp, type Context } from "./context";
 import { EgressRelay } from "./egress-relay";
 import { env } from "./env";
 import { createHttpServer } from "./http";
+import { computerFiles, UploadService } from "./uploads";
 import { PushService } from "./services/push";
 import { FcmService } from "./services/fcm";
 import { TaskService } from "./services/tasks";
@@ -172,6 +173,17 @@ const reconcileDispatches = () =>
     );
 reconcileDispatches();
 setInterval(reconcileDispatches, 30_000).unref();
+// Attachments that never finished uploading, or that no message ended up using.
+const uploads = new UploadService(db, computerFiles(ctx), log.child("uploads"));
+setInterval(
+  () =>
+    void uploads
+      .cleanup()
+      .catch((error: unknown) =>
+        log.warn("cleaning up uploads failed", { error: errorMessage(error) }),
+      ),
+  10 * 60_000,
+).unref();
 
 const server = createHttpServer({
   ctx,
@@ -191,6 +203,7 @@ const server = createHttpServer({
   email,
   telegram,
   egress,
+  uploads,
 });
 server.listen(env.WORKER_PORT, () => log.info(`worker listening on :${env.WORKER_PORT}`));
 

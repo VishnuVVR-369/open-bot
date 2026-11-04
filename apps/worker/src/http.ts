@@ -7,16 +7,17 @@ import {
   createBotSchema,
   isRunActive,
   isScreenId,
+  MAX_UPLOAD_BYTES,
   undeletablePath,
 } from "@open-bot/shared";
 import { verifyToken } from "@open-bot/shared/tokens";
-import { eq, isNull } from "drizzle-orm";
+import { and, asc, eq, gt, isNull, sql } from "drizzle-orm";
 import WebSocket, { WebSocketServer } from "ws";
 import { z } from "zod";
 import { enqueueRun, publishApp, type Context } from "./context";
 import type { EgressRelay } from "./egress-relay";
 import { errorMessage } from "./logger";
-import { sanitizeFileName, saveUpload } from "./uploads";
+import { sanitizeFileName, UploadError, type UploadService } from "./uploads";
 import type { RunExecutor } from "./runs/executor";
 import type { ApprovalService } from "./services/approvals";
 import type { MemoryCoordinator } from "./services/memory";
@@ -51,6 +52,7 @@ export interface HttpDeps {
   email: EmailService;
   telegram: TelegramService;
   egress: EgressRelay;
+  uploads: UploadService;
 }
 
 class HttpError extends Error {
@@ -63,6 +65,18 @@ class HttpError extends Error {
 }
 
 const MAX_BODY = 60 * 1024 * 1024;
+
+/** A raw request body, like a file being uploaded. */
+async function readBody(request: IncomingMessage, limit: number): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of request) {
+    size += (chunk as Buffer).length;
+    if (size > limit) throw new HttpError(413, "Request too large");
+    chunks.push(chunk as Buffer);
+  }
+  return Buffer.concat(chunks);
+}
 
 async function readJson<T>(request: IncomingMessage, schema: z.ZodType<T>): Promise<T> {
   const chunks: Buffer[] = [];
@@ -149,6 +163,8 @@ async function telegramCall<T>(call: () => Promise<T>): Promise<T> {
 }
 
 export function createHttpServer(deps: HttpDeps): http.Server {
+  /** Retries in progress, by the run being retried. */
+  const retrying = new Map<string, Promise<void>>();
   const {
     ctx,
     executor,
@@ -211,17 +227,45 @@ export function createHttpServer(deps: HttpDeps): http.Server {
       if (isRunActive(run.status)) throw new HttpError(409, "That run is still going.");
       const [bot] = await ctx.db.select().from(bots).where(eq(bots.id, run.botId));
       if (!bot || bot.archivedAt) throw new HttpError(409, "That teammate is archived.");
-      // The same request again, in the same chat; the bot's thread still has what happened.
-      const runId = await enqueueRun(ctx, {
-        chatId: run.chatId,
-        botId: run.botId,
-        trigger: run.trigger,
-        prompt: run.prompt,
-        attachments: run.attachments,
-        scheduleId: run.scheduleId,
+      // One retry at a time per run, so a repeated tap or request finds the first one's run.
+      const previous = retrying.get(run.id) ?? Promise.resolve();
+      const next = previous.then(async () => {
+        // Asked again after it already ran again: that's the retry, don't start another.
+        // Compared in Postgres, which keeps microseconds that a JavaScript date drops.
+        const [later] = await ctx.db
+          .select({ id: runs.id })
+          .from(runs)
+          .where(
+            and(
+              eq(runs.chatId, run.chatId),
+              eq(runs.botId, run.botId),
+              gt(runs.createdAt, sql`(select created_at from runs where id = ${run.id})`),
+            ),
+          )
+          .orderBy(asc(runs.createdAt))
+          .limit(1);
+        if (later) return { runId: later.id };
+        // The same request again, in the same chat; the bot's thread still has what happened.
+        const runId = await enqueueRun(ctx, {
+          chatId: run.chatId,
+          botId: run.botId,
+          trigger: run.trigger,
+          prompt: run.prompt,
+          attachments: run.attachments,
+          scheduleId: run.scheduleId,
+        });
+        await publishApp(ctx, { type: "chats" });
+        return { runId };
       });
-      await publishApp(ctx, { type: "chats" });
-      return { runId };
+      const settled = next.then(
+        () => {},
+        () => {},
+      );
+      retrying.set(run.id, settled);
+      void settled.then(() => {
+        if (retrying.get(run.id) === settled) retrying.delete(run.id);
+      });
+      return next;
     },
     "POST /internal/runs/cancel": async () => {
       await executor.processCancellations();
@@ -329,12 +373,39 @@ export function createHttpServer(deps: HttpDeps): http.Server {
       await client.request("fs/writeFile", { path, dataBase64: body.dataBase64 });
       return ok;
     },
-    "POST /internal/files/upload": async (request) => {
-      const body = await readJson(
-        request,
-        z.object({ name: z.string().min(1), mime: z.string(), dataBase64: z.string() }),
-      );
-      return saveUpload(ctx, body.name, body.dataBase64);
+    // An attachment for a message, as raw bytes; see UploadService. Retries reuse the id.
+    "PUT /internal/uploads/:id": async (request, params) => {
+      const header = (name: string) => {
+        const value = request.headers[name];
+        return typeof value === "string" ? decodeURIComponent(value) : "";
+      };
+      const meta = z
+        .object({
+          name: z.string().trim().min(1, "The file needs a name.").max(255),
+          mime: z.string().max(255),
+          size: z.coerce.number().int().nonnegative(),
+          sha256: z.string(),
+        })
+        .safeParse({
+          name: header("x-upload-name"),
+          mime: header("x-upload-mime") || "application/octet-stream",
+          size: header("x-upload-size"),
+          sha256: header("x-upload-sha256").toLowerCase(),
+        });
+      if (!meta.success)
+        throw new HttpError(400, meta.error.issues.map((i) => i.message).join("; "));
+      const data = await readBody(request, MAX_UPLOAD_BYTES + 1024);
+      try {
+        return await deps.uploads.put({ id: uuid(params.id), ...meta.data, data });
+      } catch (error) {
+        if (error instanceof UploadError) throw new HttpError(error.status, error.message);
+        throw error;
+      }
+    },
+    "GET /internal/uploads/:id": async (_request, params) => {
+      const upload = await deps.uploads.status(uuid(params.id));
+      if (!upload) throw new HttpError(404, "That upload isn't here.");
+      return upload;
     },
     "POST /internal/files/put": async (request) => {
       const body = await readJson(

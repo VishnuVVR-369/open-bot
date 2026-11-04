@@ -69,6 +69,7 @@ You can watch them work live, take over the computer at any time, and hand it ba
 
 - Come back to **Home** to see what each teammate finished or got stuck on.
 - Install open-bot on your phone or computer to get push notifications.
+- The [Android app](apps/mobile/README.md) brings Home, chats, attachments, search and approval decisions to your phone, with inline replies from notifications.
 - The desktop app adds native notifications, a menu bar icon, and browsing through your home internet so websites don't see a cloud IP.
 - If your ChatGPT plan runs out, teammates switch to your OpenAI API key, up to a monthly limit you set.
 

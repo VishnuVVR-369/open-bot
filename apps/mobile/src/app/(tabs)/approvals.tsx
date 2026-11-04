@@ -1,6 +1,6 @@
 import type { ApprovalView } from "@open-bot/api";
 import { router } from "expo-router";
-import { Check, CircleDashed, ShieldCheck, X } from "lucide-react-native";
+import { Check, ChevronRight, CircleDashed, ShieldCheck, WifiOff, X } from "lucide-react-native";
 import { useCallback, useMemo, useState } from "react";
 import { RefreshControl, SectionList, StyleSheet, View } from "react-native";
 import { ApprovalIcon } from "@/components/approval-icon";
@@ -8,7 +8,8 @@ import { ConnectionNotice } from "@/components/connection-notice";
 import { ListRow, Separator } from "@/components/list-row";
 import { Empty, LoadError, Loading } from "@/components/states";
 import { Text } from "@/components/text";
-import { useApprovals, useTeammates } from "@/lib/queries";
+import { useOnline } from "@/lib/network";
+import { useApprovalRules, useApprovals, useTeammates } from "@/lib/queries";
 import { ago } from "@/lib/time";
 import { space, useColors } from "@/theme";
 import { mix } from "@/theme/mix";
@@ -42,6 +43,8 @@ export default function Approvals() {
   const colors = useColors();
   const approvals = useApprovals();
   const { data: bots = [] } = useTeammates();
+  const { data: rules = [] } = useApprovalRules();
+  const online = useOnline();
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -65,7 +68,38 @@ export default function Approvals() {
     <SectionList
       sections={sections}
       keyExtractor={(approval) => approval.id}
-      ListHeaderComponent={ConnectionNotice}
+      ListHeaderComponent={
+        <View>
+          <ConnectionNotice />
+          {!online && sections[0]?.title === "Waiting for you" && (
+            <View style={[styles.offline, { backgroundColor: colors.subtle }]}>
+              <WifiOff size={14} color={colors.mutedForeground} />
+              <Text variant="small" muted>
+                You&apos;re offline. Decide when you&apos;re back online.
+              </Text>
+            </View>
+          )}
+          {rules.length > 0 && (
+            <ListRow
+              onPress={() => router.push("/approval-rules")}
+              leading={
+                <View
+                  style={[
+                    styles.icon,
+                    { backgroundColor: mix(colors.done, colors.background, 0.12) },
+                  ]}
+                >
+                  <ShieldCheck size={20} color={colors.done} />
+                </View>
+              }
+              title="Always allowed"
+              subtitle={`${rules.length} ${rules.length === 1 ? "rule" : "rules"} · teammates don't ask about these`}
+              aside={<ChevronRight size={18} color={colors.mutedForeground} />}
+              testID="approval-rules"
+            />
+          )}
+        </View>
+      }
       ItemSeparatorComponent={Separator}
       stickySectionHeadersEnabled={false}
       contentContainerStyle={{ flexGrow: 1, paddingBottom: space(4) }}
@@ -134,4 +168,11 @@ const styles = StyleSheet.create({
   },
   icon: { width: 48, height: 48, borderRadius: 13, alignItems: "center", justifyContent: "center" },
   status: { flexDirection: "row", alignItems: "center", gap: space(1) },
+  offline: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space(2),
+    paddingHorizontal: space(4),
+    paddingVertical: space(2.5),
+  },
 });

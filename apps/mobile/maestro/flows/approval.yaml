@@ -1,0 +1,31 @@
+appId: dev.openbot.mobile.dev
+---
+- runFlow:
+    file: open-link.yaml
+    env:
+      LINK: ${APPROVAL_LINK}
+- assertVisible: E2E in-app approval
+- tapOn:
+    id: approve
+- extendedWaitUntil:
+    notVisible:
+      id: approve
+    timeout: 15000
+- runScript: ../verify.js
+- assertTrue: ${output.state.inApp === 'approved'}
+# Keep the detail open while the other device decides it; no reconnect or button press.
+- runFlow:
+    file: open-link.yaml
+    env:
+      LINK: ${LIVE_APPROVAL_LINK}
+- assertVisible:
+    id: approve
+- runScript:
+    file: ../decide.js
+    env:
+      APPROVAL: live
+- extendedWaitUntil:
+    visible: You denied this.
+    timeout: 10000
+- assertNotVisible:
+    id: approve

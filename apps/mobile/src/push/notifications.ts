@@ -1,11 +1,13 @@
 import notifee, {
   AndroidImportance,
+  AndroidCategory,
   AndroidStyle,
   EventType,
   type Event,
   type Notification,
 } from "@notifee/react-native";
 import { isDefinedError, safe } from "@orpc/client";
+import * as Crypto from "expo-crypto";
 import { AppState } from "react-native";
 import { api } from "@/lib/api";
 import { visibleChat } from "@/lib/realtime";
@@ -15,6 +17,7 @@ import {
   isOnScreen,
   outcomeText,
   planNotification,
+  replyText,
   type ActionId,
   type DecideOutcome,
   type PushData,
@@ -61,6 +64,8 @@ export async function handlePushData(data: PushData): Promise<void> {
       url: plan.url,
       ...(data.chatId ? { chatId: data.chatId } : {}),
       ...(plan.approvalId ? { approvalId: plan.approvalId } : {}),
+      ...(plan.reply ? { replyChatId: plan.reply.chatId } : {}),
+      ...(plan.reply?.botId ? { replyBotId: plan.reply.botId } : {}),
     },
     android: {
       channelId: plan.channel,
@@ -69,13 +74,32 @@ export async function handlePushData(data: PushData): Promise<void> {
       smallIcon: "ic_notification",
       showTimestamp: true,
       color: palette.light.foreground,
-      style: plan.body ? { type: AndroidStyle.BIGTEXT, text: plan.body } : undefined,
+      category: plan.reply ? AndroidCategory.MESSAGE : undefined,
+      style: plan.reply
+        ? {
+            type: AndroidStyle.MESSAGING,
+            person: { name: "You" },
+            title: plan.title,
+            messages: [
+              {
+                text: plan.body,
+                timestamp: Date.now(),
+                person: { name: plan.title, id: data.botId, bot: true },
+              },
+            ],
+          }
+        : plan.body
+          ? { type: AndroidStyle.BIGTEXT, text: plan.body }
+          : undefined,
       pressAction: { id: "default", launchActivity: "default" },
       actions: plan.actions.map((action) => ({
         title: action.title,
         pressAction: action.opensApp
           ? { id: action.id, launchActivity: "default" }
           : { id: action.id },
+        ...(action.input
+          ? { input: { placeholder: action.input.placeholder, allowFreeFormInput: true } }
+          : {}),
       })),
     },
   });
@@ -109,14 +133,54 @@ async function decide(approvalId: string, decision: "approved" | "denied"): Prom
   return { kind: "unreachable" };
 }
 
+/** Send what was typed into a notification's Reply, to the teammate the notification is from. */
+async function sendReply(notification: Notification, text: string): Promise<void> {
+  const chatId = notification.data?.replyChatId;
+  const botId = notification.data?.replyBotId;
+  // Nothing typed: the notification stays as it was.
+  if (!notification.id || typeof chatId !== "string" || !text.trim()) return;
+  const result = await safe(
+    api.chats.send({
+      clientId: Crypto.randomUUID(),
+      chatId,
+      text,
+      attachments: [],
+      mentions: typeof botId === "string" ? [botId] : [],
+    }),
+  );
+  const sent = !result.error;
+  const outcome = replyText(sent);
+  await notifee.displayNotification({
+    id: notification.id,
+    title: outcome.title,
+    body: sent ? text : outcome.body,
+    // Without the reply fields: this one is about the reply, so it has no Reply of its own.
+    data: { url: notification.data?.url ?? "/", chatId },
+    android: {
+      channelId: "messages",
+      groupId: "messages",
+      smallIcon: "ic_notification",
+      showTimestamp: true,
+      color: palette.light.foreground,
+      pressAction: { id: "default", launchActivity: "default" },
+      onlyAlertOnce: true,
+      ...(sent ? { timeoutAfter: 4_000 } : {}),
+    },
+  });
+}
+
 /**
  * A button on a notification was pressed. Approve and Deny decide right here, without opening
- * the app, then the notification says how it went.
+ * the app, and Reply sends what you typed; then the notification says how it went.
  */
 export async function handleNotificationEvent({ type, detail }: Event): Promise<void> {
   if (type !== EventType.ACTION_PRESS) return;
   const action = detail.pressAction?.id as ActionId | undefined;
   const notification = detail.notification;
+  if (action === "reply" && notification) {
+    await sendReply(notification, detail.input ?? "");
+    return;
+  }
   const approvalId = notification?.data?.approvalId;
   if (!notification?.id || typeof approvalId !== "string") return;
   if (action !== "approve" && action !== "deny") return;

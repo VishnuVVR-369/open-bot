@@ -11,11 +11,12 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { addNetworkStateListener } from "expo-network";
 import { AppState } from "react-native";
 import { sessionCookie } from "./auth";
 import { APP_URL } from "./config";
 import { createLiveStream, type LiveStream } from "./live-stream";
-import { queryKeys } from "./query";
+import { keysForAppEvent, queryKeys } from "./query";
 
 type RunListener = (event: StreamRunEvent) => void;
 
@@ -37,8 +38,9 @@ export const visibleChat = {
 
 /**
  * Live updates while the app is in front. App-wide events can't be replayed, so every
- * (re)connection refreshes everything; the open chat resumes from its last run event. In the
- * background the stream is closed and push notifications take over.
+ * (re)connection refreshes everything; the open chat resumes from its last run event. Coming back
+ * to the app or back online reconnects at once. In the background the stream is closed and push
+ * notifications take over.
  */
 export function RealtimeProvider({
   children,
@@ -51,18 +53,24 @@ export function RealtimeProvider({
   onSignedOut: () => void;
 }) {
   const queryClient = useQueryClient();
-  const [connected, setConnected] = useState(true);
+  const [connected, setConnected] = useState(false);
   const stream = useRef<LiveStream | null>(null);
+  const cursors = useRef(new Map<string, number>());
   const target = useRef<{ chatId: string; cursor: number } | null>(null);
   const listeners = useRef(new Map<string, Set<RunListener>>());
   const signedOut = useRef(onSignedOut);
   signedOut.current = onSignedOut;
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      cursors.current.clear();
+      return;
+    }
     const open = () => {
       stream.current?.close();
+      setConnected(false);
       stream.current = createLiveStream({
+        cursors: cursors.current,
         appUrl: APP_URL,
         headers: async () => {
           const cookie = await sessionCookie();
@@ -74,12 +82,8 @@ export function RealtimeProvider({
         // Anything could have changed while disconnected.
         onReady: () => void queryClient.invalidateQueries(),
         onApp: (event) => {
-          if (event.type === "approvals" || event.type === "notification")
-            void queryClient.invalidateQueries({ queryKey: queryKeys.approvals });
-          if (event.type === "chats" || event.type === "bots") {
-            void queryClient.invalidateQueries({ queryKey: queryKeys.chats });
-            void queryClient.invalidateQueries({ queryKey: queryKeys.teammates });
-          }
+          for (const queryKey of keysForAppEvent(event.type))
+            void queryClient.invalidateQueries({ queryKey });
         },
         onRun: (event) => {
           const chatId = target.current?.chatId;
@@ -99,10 +103,19 @@ export function RealtimeProvider({
       else if (state === "background") {
         stream.current?.close();
         stream.current = null;
+        setConnected(false);
       }
+    });
+    // Back online: reconnect now instead of waiting out the backoff.
+    let online = true;
+    const network = addNetworkStateListener(({ isConnected, isInternetReachable }) => {
+      const now = isConnected !== false && isInternetReachable !== false;
+      if (now && !online && AppState.currentState === "active") open();
+      online = now;
     });
     return () => {
       subscription.remove();
+      network.remove();
       stream.current?.close();
       stream.current = null;
     };
@@ -113,10 +126,8 @@ export function RealtimeProvider({
     set.add(listener);
     listeners.current.set(chatId, set);
     const changed = target.current?.chatId !== chatId;
-    target.current = {
-      chatId,
-      cursor: Math.max(cursor, stream.current?.cursorOf(chatId) ?? 0),
-    };
+    if (changed) cursors.current.set(chatId, cursor);
+    target.current = { chatId, cursor };
     if (changed) stream.current?.watch(target.current);
     return () => {
       set.delete(listener);

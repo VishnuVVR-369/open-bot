@@ -2,8 +2,9 @@ import notifee, { EventType } from "@notifee/react-native";
 import * as Device from "expo-device";
 import { router, type Href } from "expo-router";
 import { useEffect } from "react";
+import { AppState } from "react-native";
 import { api } from "@/lib/api";
-import { queryClient, queryKeys } from "@/lib/query";
+import { keysForPush, queryClient, queryKeys } from "@/lib/query";
 import { hasFirebase } from "./firebase";
 import { ensureChannels, handleNotificationEvent, handlePushData } from "./notifications";
 import { parsePushData } from "./payload";
@@ -20,9 +21,21 @@ function messaging(): MessagingModule | null {
  * remember it was handled: signing out and in again mustn't open it a second time.
  */
 const openedInitial = new Set<string>();
+const notificationKey = (id: string, url: unknown) => JSON.stringify([id, url]);
 
 function open(url: unknown) {
   if (typeof url === "string" && url.startsWith("/")) router.push(url as Href);
+}
+
+async function openInitialNotification() {
+  const initial = await notifee.getInitialNotification();
+  const id = initial?.notification.id;
+  const url = initial?.notification.data?.url;
+  const key = id ? notificationKey(id, url) : null;
+  if (initial && key && !openedInitial.has(key)) {
+    openedInitial.add(key);
+    open(url);
+  }
 }
 
 async function register(token: string) {
@@ -44,21 +57,35 @@ export function usePushNotifications(signedIn: boolean) {
     void (async () => {
       await ensureChannels();
       await notifee.requestPermission();
-      const initial = await notifee.getInitialNotification();
-      const id = initial?.notification.id;
-      if (initial && id && !openedInitial.has(id)) {
-        openedInitial.add(id);
-        open(initial.notification.data?.url);
-      }
+      await openInitialNotification();
     })();
+
+    // A Review/body press can launch an already mounted app. Its background event does not
+    // reach onForegroundEvent, so consume the Android launch intent on resume as well.
+    const appState = AppState.addEventListener("change", (state) => {
+      if (state === "active") void openInitialNotification();
+    });
+    cleanups.push(() => appState.remove());
 
     cleanups.push(
       notifee.onForegroundEvent(async (event) => {
-        if (event.type === EventType.PRESS) open(event.detail.notification?.data?.url);
+        if (event.type === EventType.PRESS) {
+          if (event.detail.notification?.id)
+            openedInitial.add(
+              notificationKey(event.detail.notification.id, event.detail.notification.data?.url),
+            );
+          open(event.detail.notification?.data?.url);
+        }
         if (event.type === EventType.ACTION_PRESS) {
-          if (event.detail.pressAction?.id === "review") open(event.detail.notification?.data?.url);
-          else await handleNotificationEvent(event);
+          if (event.detail.pressAction?.id === "review") {
+            if (event.detail.notification?.id)
+              openedInitial.add(
+                notificationKey(event.detail.notification.id, event.detail.notification.data?.url),
+              );
+            open(event.detail.notification?.data?.url);
+          } else await handleNotificationEvent(event);
           void queryClient.invalidateQueries({ queryKey: queryKeys.approvals });
+          void queryClient.invalidateQueries({ queryKey: queryKeys.home });
         }
       }),
     );
@@ -76,9 +103,8 @@ export function usePushNotifications(signedIn: boolean) {
           const data = parsePushData(message.data);
           if (!data) return;
           // A push about something means it changed: refresh what shows it.
-          if (data.approvalId)
-            void queryClient.invalidateQueries({ queryKey: queryKeys.approvals });
-          if (data.chatId) void queryClient.invalidateQueries({ queryKey: queryKeys.chats });
+          for (const queryKey of keysForPush(data))
+            void queryClient.invalidateQueries({ queryKey });
           await handlePushData(data);
         }),
       );

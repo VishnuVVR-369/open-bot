@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View, type TextStyle } from "react-native";
 import { Text } from "@/components/text";
 import { space, useColors } from "@/theme";
 
@@ -7,6 +7,7 @@ import { space, useColors } from "@/theme";
 export function ListRow({
   leading,
   title,
+  titleStyle,
   subtitle,
   aside,
   onPress,
@@ -14,6 +15,7 @@ export function ListRow({
 }: {
   leading: ReactNode;
   title: string;
+  titleStyle?: TextStyle;
   subtitle?: ReactNode;
   aside?: ReactNode;
   onPress: () => void;
@@ -30,7 +32,7 @@ export function ListRow({
     >
       {leading}
       <View style={styles.text}>
-        <Text variant="label" numberOfLines={1}>
+        <Text variant="label" numberOfLines={1} style={titleStyle}>
           {title}
         </Text>
         {subtitle ? (

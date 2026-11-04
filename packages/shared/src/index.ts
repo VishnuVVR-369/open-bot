@@ -16,3 +16,5 @@ export * from "./connections";
 export * from "./email";
 export * from "./apply-guard";
 export * from "./memory";
+export * from "./text";
+export * from "./files";

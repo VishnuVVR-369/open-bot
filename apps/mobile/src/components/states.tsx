@@ -32,7 +32,18 @@ export function LoadError({ error, onRetry }: { error: unknown; onRetry: () => v
   );
 }
 
-export function Empty({ icon, title, body }: { icon: ReactNode; title: string; body: string }) {
+/** Nothing to show, and why; `action` is what you can do about it. */
+export function Empty({
+  icon,
+  title,
+  body,
+  action,
+}: {
+  icon: ReactNode;
+  title: string;
+  body: string;
+  action?: ReactNode;
+}) {
   return (
     <View style={styles.center}>
       {icon}
@@ -42,6 +53,7 @@ export function Empty({ icon, title, body }: { icon: ReactNode; title: string; b
       <Text muted style={styles.body}>
         {body}
       </Text>
+      {action && <View style={{ marginTop: space(2) }}>{action}</View>}
     </View>
   );
 }

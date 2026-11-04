@@ -306,6 +306,32 @@ export class RunExecutor {
     const [chat] = await this.ctx.db.select().from(chats).where(eq(chats.id, message.chatId));
     if (!chat) return;
 
+    if (
+      message.dispatchStatus === "pending" &&
+      message.feedbackRequest?.remember &&
+      message.redoOfRunId
+    ) {
+      const [source] = await this.ctx.db
+        .select({ botId: runs.botId })
+        .from(runs)
+        .where(eq(runs.id, message.redoOfRunId));
+      if (!source) throw new Error("The reply this feedback belongs to is gone.");
+      // Memory saving deduplicates the content in Postgres, including concurrent dispatches.
+      // Keep the message pending until this succeeds so the reconciler can recover a crash.
+      await this.memory.store.save(
+        {
+          botId: source.botId,
+          kind: "lesson",
+          content: message.feedbackRequest.text,
+          key: null,
+          pinned: true,
+          expiresAt: null,
+        },
+        { kind: "user" },
+        { source: { type: "feedback", runId: message.redoOfRunId } },
+      );
+    }
+
     let targets: string[];
     if (chat.kind === "group") {
       const members = await this.ctx.db

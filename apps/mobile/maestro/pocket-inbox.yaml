@@ -1,0 +1,8 @@
+appId: dev.openbot.mobile.dev
+name: Pocket inbox on Android
+---
+- runFlow: flows/sign-in.yaml
+- runFlow: flows/chat.yaml
+- runFlow: flows/approval.yaml
+- runFlow: flows/notification-actions.yaml
+- runFlow: flows/inline-reply.yaml

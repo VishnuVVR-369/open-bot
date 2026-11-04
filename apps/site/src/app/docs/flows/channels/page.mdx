@@ -34,14 +34,14 @@ Some runs don't notify you: swarm helpers (their results go to the lead), answer
 
 ## Push notifications
 
-Settings turns on push notifications per device: a browser, or the installed app on a phone.
+For browsers and web-manifest installs, Settings turns on Web Push per device.
 
 - **Keys.** The worker generates a VAPID key pair once and stores it encrypted in `credentials`. The web app gets the public key to subscribe.
 - **Subscribing.** The browser registers the service worker `/sw.js`, subscribes with the browser's push service, and the subscription is saved in `push_subscriptions`.
 - **Sending.** For each notification, the worker builds an encrypted request per device with `web-push`'s `generateRequestDetails()` (TTL one hour, urgency high), and sends it with `fetch`. A device the push service reports as gone (`404` or `410`) is forgotten.
 - **Showing.** The service worker skips the notification if open-bot is open, focused and visible, since the app already shows it. Tapping one opens the right chat, or Approvals.
 
-The app is installable from its web manifest, which is what makes push work on phones.
+The native Android app uses FCM instead; setup and notification actions are documented in `apps/mobile/README.md`.
 
 ## Telegram
 
