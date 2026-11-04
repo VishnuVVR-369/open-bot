@@ -10,6 +10,7 @@ const state = vi.hoisted(() => ({
   clear: vi.fn<(_chatId: string, _isVisible: () => boolean) => Promise<void>>(),
   visible: null as string | null,
   markRead: vi.fn(() => Promise.resolve({ ok: true })),
+  refresh: vi.fn<() => Promise<number>>(),
   client: { setQueryData: vi.fn() },
 }));
 
@@ -40,7 +41,7 @@ import { useChatVisibility } from "./use-chat-visibility";
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let root: ReactTestRenderer | null;
 function Probe({ chatId, finished, ready }: { chatId: string; finished: number; ready: boolean }) {
-  useChatVisibility(chatId, finished, ready);
+  useChatVisibility(chatId, finished, ready ? 1 : null, state.refresh);
   return null;
 }
 async function render(chatId = "a", finished = 0, ready = true) {
@@ -50,9 +51,11 @@ async function render(chatId = "a", finished = 0, ready = true) {
     else root = create(tree);
   });
 }
-function appState(value: string) {
-  state.app.currentState = value;
-  for (const listener of state.listeners) listener(value);
+async function appState(value: string) {
+  await act(async () => {
+    state.app.currentState = value;
+    for (const listener of state.listeners) listener(value);
+  });
 }
 
 beforeEach(() => {
@@ -64,6 +67,7 @@ beforeEach(() => {
   state.app.currentState = "active";
   state.navigation.isFocused.mockReturnValue(true);
   state.clear.mockResolvedValue(undefined);
+  state.refresh.mockReset().mockResolvedValue(1);
   state.app.addEventListener.mockImplementation((_event, listener) => {
     state.listeners.add(listener);
     return { remove: () => state.listeners.delete(listener) };
@@ -91,8 +95,8 @@ describe("chat notification focus", () => {
     state.focused = true;
     await render("b");
     state.clear.mockClear();
-    appState("background");
-    appState("active");
+    await appState("background");
+    await appState("active");
     expect(state.clear.mock.calls.map(([chatId]) => chatId)).toEqual(["b"]);
     expect(state.listeners.size).toBe(1);
     expect(state.visible).toBe("b");
@@ -117,7 +121,7 @@ describe("chat notification focus", () => {
     state.navigation.isFocused.mockReturnValue(false);
     state.clear.mockClear();
     state.markRead.mockClear();
-    appState("active");
+    await appState("active");
     expect(state.clear).not.toHaveBeenCalled();
     expect(state.markRead).not.toHaveBeenCalled();
     expect(isVisible()).toBe(false);
@@ -127,20 +131,20 @@ describe("chat notification focus", () => {
     await render();
     const isVisible = state.clear.mock.calls[0]![1];
     expect(isVisible()).toBe(true);
-    appState("background");
+    await appState("background");
     expect(isVisible()).toBe(false);
-    appState("active");
+    await appState("active");
     state.focused = false;
     await render();
     expect(isVisible()).toBe(false);
   });
 
   it("waits for the app to be active before clearing", async () => {
-    appState("background");
+    await appState("background");
     await render();
     expect(state.clear).not.toHaveBeenCalled();
     expect(state.markRead).not.toHaveBeenCalled();
-    appState("active");
+    await appState("active");
     expect(state.clear).toHaveBeenCalledTimes(1);
     expect(state.markRead).toHaveBeenCalledTimes(1);
   });
@@ -160,10 +164,10 @@ describe("reading a chat", () => {
     expect(state.markRead).toHaveBeenCalledExactlyOnceWith({ chatId: "a" });
     await render("a", 1);
     expect(state.markRead).toHaveBeenCalledTimes(2);
-    appState("background");
+    await appState("background");
     await render("a", 2);
     expect(state.markRead).toHaveBeenCalledTimes(2);
-    appState("active");
+    await appState("active");
     expect(state.markRead).toHaveBeenCalledTimes(3);
     state.focused = false;
     await render("a", 3);
@@ -172,8 +176,8 @@ describe("reading a chat", () => {
 
   it("waits for successful history before reading or clearing on focus and resume", async () => {
     await render("a", 0, false);
-    appState("background");
-    appState("active");
+    await appState("background");
+    await appState("active");
     await render("a", 1, false);
     expect(state.markRead).not.toHaveBeenCalled();
     expect(state.client.setQueryData).not.toHaveBeenCalled();
@@ -189,8 +193,8 @@ describe("reading a chat", () => {
     state.markRead.mockClear();
     state.clear.mockClear();
     await render("a", 0, false);
-    appState("background");
-    appState("active");
+    await appState("background");
+    await appState("active");
     await render("a", 1, false);
     expect(state.markRead).not.toHaveBeenCalled();
     expect(state.clear).not.toHaveBeenCalled();

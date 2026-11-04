@@ -24,7 +24,19 @@ vi.mock("expo-router", async () => {
 vi.mock("./api", () => ({ api: { chats: { get: state.get } } }));
 vi.mock("./query", () => ({ queryKeys: { chat: (id: string) => ["chat", id] } }));
 vi.mock("./realtime", () => ({ useRealtime: () => ({ watchChat: state.watch }) }));
-vi.mock("./use-chat-visibility", () => ({ useChatVisibility: vi.fn() }));
+vi.mock("./use-chat-visibility", () => ({
+  useChatVisibility: vi.fn(
+    (
+      _chatId: string,
+      _finished: number,
+      _historyVersion: number | null,
+      refresh: () => Promise<number>,
+    ) =>
+      async () => {
+        await refresh();
+      },
+  ),
+}));
 
 import { useChat } from "./use-chat";
 import { useChatVisibility } from "./use-chat-visibility";
@@ -415,7 +427,7 @@ describe("retained run watermarks", () => {
 });
 
 describe("history read eligibility", () => {
-  const ready = () => vi.mocked(useChatVisibility).mock.calls.at(-1)?.[2];
+  const ready = () => (vi.mocked(useChatVisibility).mock.calls.at(-1)?.[2] ?? null) !== null;
 
   it("waits for initial history and keeps failed requests unread until retry succeeds", async () => {
     client.removeQueries({ queryKey: ["chat", "a"] });

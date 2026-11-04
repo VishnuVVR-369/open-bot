@@ -1,7 +1,7 @@
 import type { ChatSummary } from "@open-bot/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { useFocusEffect, useNavigation } from "expo-router";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState } from "react-native";
 import { clearChatNotifications } from "../push/notifications";
 import { api } from "./api";
@@ -13,10 +13,19 @@ import { visibleChat } from "./realtime";
  * (on every device), including replies that finish while it's open. `finished` counts the replies
  * that are done, so a new one marks it read again.
  */
-export function useChatVisibility(chatId: string, finished: number, historyReady: boolean) {
+export function useChatVisibility(
+  chatId: string,
+  finished: number,
+  historyVersion: number | null,
+  refreshHistory: () => Promise<number>,
+) {
   const navigation = useNavigation();
   const queryClient = useQueryClient();
-  const visible = useRef<() => boolean>(() => false);
+  const refresh = useRef<(() => Promise<void>) | null>(null);
+  const [caughtUp, setCaughtUp] = useState<{
+    version: number;
+    isCurrent: () => boolean;
+  } | null>(null);
 
   const markRead = useCallback(() => {
     // Shown as read right away; the server tells every other device.
@@ -28,34 +37,61 @@ export function useChatVisibility(chatId: string, finished: number, historyReady
 
   useFocusEffect(
     useCallback(() => {
-      if (!historyReady) return;
       let focused = true;
+      let generation = 0;
+      let appState = AppState.currentState;
       const isVisible = () =>
         focused && navigation.isFocused() && AppState.currentState === "active";
-      visible.current = isVisible;
-      visibleChat.set(chatId);
-      const seen = () => {
-        if (!isVisible()) return;
-        void clearChatNotifications(chatId, isVisible).catch(() => {});
-        markRead();
+      const invalidate = () => {
+        generation += 1;
+        setCaughtUp(null);
+        if (visibleChat.get() === chatId) visibleChat.set(null);
       };
-      seen();
+      const catchUp = async () => {
+        invalidate();
+        const started = generation;
+        try {
+          const version = await refreshHistory();
+          const isCurrent = () => started === generation && isVisible();
+          if (isCurrent()) setCaughtUp({ version, isCurrent });
+        } catch {
+          return;
+        }
+      };
+      refresh.current = catchUp;
+      if (isVisible()) void catchUp();
       const subscription = AppState.addEventListener("change", (state) => {
-        if (state === "active") seen();
+        if (state === appState) return;
+        appState = state;
+        if (state === "active" && isVisible()) void catchUp();
+        else invalidate();
       });
       return () => {
         focused = false;
-        visible.current = () => false;
+        invalidate();
+        refresh.current = null;
         subscription.remove();
-        if (visibleChat.get() === chatId) visibleChat.set(null);
       };
-    }, [chatId, navigation, markRead, historyReady]),
+    }, [chatId, navigation, refreshHistory]),
   );
 
-  const previous = useRef({ chatId, finished });
   useEffect(() => {
-    const changed = previous.current.chatId === chatId && previous.current.finished !== finished;
-    previous.current = { chatId, finished };
-    if (changed && historyReady && visible.current()) markRead();
-  }, [chatId, finished, historyReady, markRead]);
+    if (!caughtUp || historyVersion === null || historyVersion < caughtUp.version) return;
+    let eligible = true;
+    const isVisible = () => eligible && caughtUp.isCurrent();
+    if (isVisible()) {
+      visibleChat.set(chatId);
+      void clearChatNotifications(chatId, isVisible).catch(() => {});
+      markRead();
+    }
+    return () => {
+      eligible = false;
+      if (visibleChat.get() === chatId) visibleChat.set(null);
+    };
+  }, [chatId, finished, historyVersion, caughtUp, markRead]);
+
+  return useCallback(async () => {
+    if (refresh.current) await refresh.current();
+    else await refreshHistory();
+  }, [refreshHistory]);
 }

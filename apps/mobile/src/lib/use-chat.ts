@@ -26,7 +26,10 @@ export function useChat(chatId: string) {
   });
   const [live, setLive] = useState<ChatHistory | null>(null);
   const liveRef = useRef<ChatHistory | null>(null);
-  const [loadedSnapshot, setLoadedSnapshot] = useState<ChatData | null>(null);
+  const [loadedSnapshot, setLoadedSnapshot] = useState<{
+    data: ChatData;
+    updatedAt: number;
+  } | null>(null);
   const [streamVersion, setStreamVersion] = useState<number | null>(null);
   const [refreshingHistory, setRefreshingHistory] = useState(false);
   const [historyError, setHistoryError] = useState<unknown>(null);
@@ -79,6 +82,7 @@ export function useChat(chatId: string) {
   useEffect(() => {
     if (!query.data) return;
     const latest = query.data;
+    const updatedAt = query.dataUpdatedAt;
     let cancelled = false;
     const boundary = liveRef.current?.entries.at(-1)?.at;
     const refresh = async () => {
@@ -101,7 +105,7 @@ export function useChat(chatId: string) {
       for (const snapshot of pages)
         next = mergeSnapshot(next, snapshot, buffer.current, bufferedAfter.current);
       updateLive(next);
-      setLoadedSnapshot(latest);
+      setLoadedSnapshot({ data: latest, updatedAt });
     };
     void refresh()
       .catch((error: unknown) => {
@@ -167,10 +171,23 @@ export function useChat(chatId: string) {
       ).length,
     [live],
   );
-  useChatVisibility(
+  const refreshHistory = useCallback(async () => {
+    await queryClient.cancelQueries({ queryKey: queryKeys.chat(chatId), exact: true });
+    const result = await query.refetch({ throwOnError: true });
+    if (!result.isSuccess) throw result.error;
+    return result.dataUpdatedAt;
+  }, [chatId, queryClient, query.refetch]);
+  const refetch = useChatVisibility(
     chatId,
     finished,
-    live !== null && loadedSnapshot === query.data && !query.error && !historyError,
+    live !== null &&
+      loadedSnapshot !== null &&
+      loadedSnapshot.data === query.data &&
+      !query.error &&
+      !historyError
+      ? loadedSnapshot.updatedAt
+      : null,
+    refreshHistory,
   );
 
   const hasMore = hasOlder ?? query.data?.hasMore ?? false;
@@ -205,7 +222,7 @@ export function useChat(chatId: string) {
     runs: live?.runs ?? {},
     loading: query.isLoading || refreshingHistory,
     error: query.error ?? historyError,
-    refetch: query.refetch,
+    refetch,
     addSent,
     hasMore,
     loadingOlder,
