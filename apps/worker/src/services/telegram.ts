@@ -16,7 +16,7 @@ import { and, asc, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { publishApp, type Context, type NotificationEvent } from "../context";
 import { errorMessage } from "../logger";
 import type { RunExecutor } from "../runs/executor";
-import { saveUpload } from "../uploads";
+import type { UploadService } from "../uploads";
 import type { ApprovalService } from "./approvals";
 
 const POLL_SECONDS = 25;
@@ -102,6 +102,7 @@ export class TelegramService {
     private readonly ctx: Context,
     private readonly executor: RunExecutor,
     private readonly approvalService: ApprovalService,
+    private readonly uploads: Pick<UploadService, "save">,
   ) {
     ctx.events.on("notification", (event) => {
       void this.onNotification(event).catch((error: unknown) =>
@@ -151,7 +152,7 @@ export class TelegramService {
     return data.result as T;
   }
 
-  private async download(fileId: string): Promise<{ path: string; dataBase64: string }> {
+  private async download(fileId: string): Promise<Buffer> {
     const file = await this.call<{ file_path?: string; file_size?: number }>("getFile", {
       file_id: fileId,
     });
@@ -161,8 +162,7 @@ export class TelegramService {
       signal: AbortSignal.timeout(60_000),
     });
     if (!response.ok) throw new TelegramError("Couldn't download the file from Telegram.");
-    const bytes = Buffer.from(await response.arrayBuffer());
-    return { path: file.file_path, dataBase64: bytes.toString("base64") };
+    return Buffer.from(await response.arrayBuffer());
   }
 
   /** Send HTML, split to fit; falls back to plain text if Telegram can't parse the HTML. */
@@ -594,23 +594,24 @@ export class TelegramService {
       const photo = message.photo?.at(-1);
       if (photo) {
         if ((photo.file_size ?? 0) > MAX_FILE_BYTES) throw new TelegramError("too large");
-        const file = await this.download(photo.file_id);
-        const name = `photo-${message.message_id}.jpg`;
-        const saved = await saveUpload(this.ctx, name, file.dataBase64);
-        attachments.push({ name, path: saved.path, mime: "image/jpeg", size: saved.size });
+        attachments.push(
+          await this.uploads.save({
+            name: `photo-${message.message_id}.jpg`,
+            mime: "image/jpeg",
+            data: await this.download(photo.file_id),
+          }),
+        );
       }
       if (message.document) {
         if ((message.document.file_size ?? 0) > MAX_FILE_BYTES)
           throw new TelegramError("too large");
-        const file = await this.download(message.document.file_id);
-        const name = message.document.file_name ?? `file-${message.message_id}`;
-        const saved = await saveUpload(this.ctx, name, file.dataBase64);
-        attachments.push({
-          name,
-          path: saved.path,
-          mime: message.document.mime_type ?? "application/octet-stream",
-          size: saved.size,
-        });
+        attachments.push(
+          await this.uploads.save({
+            name: message.document.file_name ?? `file-${message.message_id}`,
+            mime: message.document.mime_type ?? "application/octet-stream",
+            data: await this.download(message.document.file_id),
+          }),
+        );
       }
     } catch (error) {
       await this.send(

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import pg from "pg";
@@ -167,6 +168,81 @@ test("@agent a teammate answers an email from its own address, after you approve
     });
   } finally {
     postmark.close();
+    await restore();
+  }
+});
+
+/** A 1×1 PNG, small enough to send in a test and a real image to the model. */
+const PIXEL = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  "base64",
+);
+
+test("an email's attachments reach the teammate as files open-bot keeps track of", async ({
+  page,
+}) => {
+  const restore = await keepEmailSettings();
+  try {
+    const name = uniqueName("Ann");
+    await createTeammate(page, name);
+    const botId = await botIdOf(page, name);
+    const section = await setUpEmail(page, "mail.e2e.test");
+    const path = new URL((await section.getByTestId("inbound-url").textContent())!).pathname;
+    const notes = Buffer.from("Gate B12, boarding at 09:10\n");
+    const delivered = await page.request.post(path, {
+      data: {
+        ...postmarkEmail(`${name.toLowerCase()}@mail.e2e.test`, {
+          subject: "Boarding pass",
+          text: "Here's my boarding pass and the gate.",
+          id: `boarding-${Date.now()}`,
+        }),
+        Attachments: [
+          {
+            Name: "boarding pass.png",
+            ContentType: "image/png",
+            Content: PIXEL.toString("base64"),
+          },
+          { Name: "notes.txt", ContentType: "text/plain", Content: notes.toString("base64") },
+        ],
+      },
+    });
+    expect(await delivered.json()).toEqual({ ok: true, delivered: true });
+
+    // The run carries them as attachments, so the teammate sees the picture, not just a path.
+    const { rows: runs } = await pool.query<{ prompt: string; attachments: { path: string }[] }>(
+      "select prompt, attachments from runs where bot_id = $1 and trigger = 'email'",
+      [botId],
+    );
+    expect(runs).toHaveLength(1);
+    const uploaded = (file: string) =>
+      expect.stringMatching(new RegExp(`^/home/bot/shared/uploads/[0-9a-f-]{36}-${file}$`));
+    expect(runs[0]!.attachments).toEqual([
+      {
+        name: "boarding pass.png",
+        path: uploaded("boarding pass\\.png"),
+        mime: "image/png",
+        size: PIXEL.length,
+      },
+      { name: "notes.txt", path: uploaded("notes\\.txt"), mime: "text/plain", size: notes.length },
+    ]);
+    expect(runs[0]!.prompt).toContain("Attachments: boarding pass.png, notes.txt");
+
+    // Each is an upload, checked like one and cleaned up like one once nothing uses it.
+    const paths = runs[0]!.attachments.map((attachment) => attachment.path);
+    const { rows: tracked } = await pool.query(
+      "select path, status, sha256 from uploads where path = any($1) order by name",
+      [paths],
+    );
+    const sha256 = (data: Buffer) => createHash("sha256").update(data).digest("hex");
+    expect(tracked).toEqual([
+      { path: paths[0], status: "complete", sha256: sha256(PIXEL) },
+      { path: paths[1], status: "complete", sha256: sha256(notes) },
+    ]);
+    const download = await page.request.get(
+      `/api/files/download?path=${encodeURIComponent(paths[1]!)}`,
+    );
+    expect(await download.text()).toBe(notes.toString());
+  } finally {
     await restore();
   }
 });

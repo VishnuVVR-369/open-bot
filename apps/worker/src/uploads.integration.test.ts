@@ -1,9 +1,19 @@
 import { createHash, randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { chats, createDb, createPool, messages, uploads, lockUploads, type Db } from "@open-bot/db";
+import {
+  bots,
+  chats,
+  createDb,
+  createPool,
+  messages,
+  runs,
+  uploads,
+  lockUploads,
+  type Db,
+} from "@open-bot/db";
 import {
   INCOMPLETE_TTL_MS,
   UNUSED_TTL_MS,
@@ -95,7 +105,7 @@ describe.skipIf(!url)("uploads with Postgres", () => {
     });
   });
   beforeEach(async () => {
-    await pool.query("truncate uploads, chats restart identity cascade");
+    await pool.query("truncate uploads, chats, bots restart identity cascade");
     fixture.db = db;
     files = memoryFiles();
     service = new UploadService(db, files.api, { warn: vi.fn() });
@@ -201,6 +211,65 @@ describe.skipIf(!url)("uploads with Postgres", () => {
       .set({ updatedAt: new Date(Date.now() - INCOMPLETE_TTL_MS + 60_000) })
       .where(eq(uploads.id, recent.id));
     expect(await service.cleanup()).toBe(0);
+  });
+
+  it("keeps a file that arrived by email or Telegram as a checked upload under a new id", async () => {
+    const data = Buffer.from("Gate B12, boarding at 09:10");
+    const saved = await service.save({ name: "notes?.txt", mime: "text/plain", data });
+    expect(saved).toEqual({
+      name: "notes?.txt",
+      path: expect.stringMatching(/^\/home\/bot\/shared\/uploads\/[0-9a-f-]{36}-notes_\.txt$/),
+      mime: "text/plain",
+      size: data.length,
+    });
+    expect(files.files.get(saved.path)).toEqual(data);
+    const [row] = await db.select().from(uploads).where(eq(uploads.path, saved.path));
+    expect(row).toMatchObject({
+      status: "complete",
+      sha256: createHash("sha256").update(data).digest("hex"),
+    });
+    // The same file arriving again (a second email) is a second upload, not a clash.
+    const again = await service.save({ name: "notes?.txt", mime: "text/plain", data });
+    expect(again.path).not.toBe(saved.path);
+    // A write the computer garbled isn't kept as complete.
+    files.state.corruptNextRead = true;
+    await expect(service.save({ name: "bad.txt", mime: "text/plain", data })).rejects.toThrow(
+      "doesn't match",
+    );
+  });
+
+  it("keeps a file a run uses, like an email's, and removes one nothing used", async () => {
+    const [chat] = await db.insert(chats).values({ kind: "inbox", title: "Email" }).returning();
+    const [bot] = await db
+      .insert(bots)
+      .values({ name: "Iris", slug: "iris", role: "assistant", color: "violet" })
+      .returning();
+    const emailed = await service.save({
+      name: "itinerary.pdf",
+      mime: "application/pdf",
+      data: Buffer.from("%PDF-1.7"),
+    });
+    // Saved, but the message that would have used it never was (Telegram, before a crash).
+    const orphan = await service.save({
+      name: "photo-12.jpg",
+      mime: "image/jpeg",
+      data: Buffer.from("jpeg"),
+    });
+    await db.insert(runs).values({
+      chatId: chat!.id,
+      botId: bot!.id,
+      trigger: "email",
+      prompt: "An email",
+      attachments: [emailed],
+    });
+    await db
+      .update(uploads)
+      .set({ updatedAt: new Date(Date.now() - UNUSED_TTL_MS - 60_000) })
+      .where(inArray(uploads.path, [emailed.path, orphan.path]));
+
+    expect(await service.cleanup()).toBe(1);
+    expect([...files.files.keys()]).toEqual([emailed.path]);
+    expect(await db.select({ path: uploads.path }).from(uploads)).toEqual([{ path: emailed.path }]);
   });
 
   it("rejects attachment acceptance once cleanup has claimed the file", async () => {

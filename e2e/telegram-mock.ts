@@ -22,6 +22,8 @@ export class TelegramMock {
   private nextMessage = 1000;
   private waiting: (() => void)[] = [];
   readonly sent: SentMessage[] = [];
+  /** Files the user sent, by the path getFile gives for them. */
+  private readonly files = new Map<string, Buffer>();
 
   async start(port: number) {
     this.server = http.createServer((request, response) => void this.serve(request, response));
@@ -58,6 +60,24 @@ export class TelegramMock {
     return id;
   }
 
+  /** The user sends the bot a photo, with a caption. Returns its message id. */
+  sayPhoto(caption: string, data: Buffer) {
+    const id = this.nextMessage++;
+    const fileId = `photo${id}`;
+    this.files.set(`photos/${fileId}.jpg`, data);
+    this.push({
+      message: {
+        message_id: id,
+        chat: { id: USER.id, type: "private" },
+        from: USER,
+        caption,
+        photo: [{ file_id: fileId, file_size: data.length, width: 1, height: 1 }],
+        date: Math.floor(Date.now() / 1000),
+      },
+    });
+    return id;
+  }
+
   press(data: string, messageId: number) {
     this.push({
       callback_query: {
@@ -82,17 +102,39 @@ export class TelegramMock {
     const params = chunks.length
       ? (JSON.parse(Buffer.concat(chunks).toString()) as Record<string, unknown>)
       : {};
-    const match = /^\/bot([^/]+)\/(\w+)$/.exec(request.url ?? "");
     const reply = (status: number, body: unknown) => {
       response.writeHead(status, { "content-type": "application/json" });
       response.end(JSON.stringify(body));
     };
+    // Downloads come from /file/bot<token>/<file_path>, as getFile said.
+    const download = /^\/file\/bot([^/]+)\/(.+)$/.exec(request.url ?? "");
+    if (download) {
+      const data = download[1] === MOCK_TOKEN ? this.files.get(download[2]!) : undefined;
+      if (!data) return reply(404, { ok: false, error_code: 404, description: "Not Found" });
+      response.writeHead(200, { "content-type": "application/octet-stream" });
+      return response.end(data);
+    }
+    const match = /^\/bot([^/]+)\/(\w+)$/.exec(request.url ?? "");
     if (!match) return reply(404, { ok: false, error_code: 404, description: "Not Found" });
     const [, token, method] = match;
     if (token !== MOCK_TOKEN)
       return reply(401, { ok: false, error_code: 401, description: "Unauthorized" });
 
     switch (method) {
+      case "getFile": {
+        const path = `photos/${String(params.file_id)}.jpg`;
+        const data = this.files.get(path);
+        if (!data)
+          return reply(400, {
+            ok: false,
+            error_code: 400,
+            description: "Bad Request: invalid file_id",
+          });
+        return reply(200, {
+          ok: true,
+          result: { file_id: params.file_id, file_size: data.length, file_path: path },
+        });
+      }
       case "getMe":
         return reply(200, {
           ok: true,

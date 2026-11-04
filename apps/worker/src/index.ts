@@ -73,7 +73,9 @@ const push = new PushService(ctx);
 const fcm = new FcmService(ctx);
 const vault = new VaultService(ctx, approvals);
 const swarms = new SwarmService(ctx, sessions);
-const email = new EmailService(ctx, approvals, sessions);
+// Files you attach, and files that arrive by email or Telegram.
+const uploads = new UploadService(db, computerFiles(ctx), log.child("uploads"));
+const email = new EmailService(ctx, approvals, sessions, uploads);
 const botService = new BotService(ctx, schedules, skills, async (bot) => {
   await memory.store.importLegacy();
   await executor.syncWorkspace(bot);
@@ -106,7 +108,7 @@ const executor = new RunExecutor(
   memory,
 );
 const egress = new EgressRelay(ctx);
-const telegram = new TelegramService(ctx, executor, approvals);
+const telegram = new TelegramService(ctx, executor, approvals, uploads);
 
 await executor.recover();
 await executor.recoverSteers();
@@ -185,8 +187,7 @@ const reconcileDispatches = () =>
     );
 reconcileDispatches();
 setInterval(reconcileDispatches, 30_000).unref();
-// Attachments that never finished uploading, or that no message ended up using.
-const uploads = new UploadService(db, computerFiles(ctx), log.child("uploads"));
+// Attachments that never finished uploading, or that nothing ended up using.
 setInterval(
   () =>
     void uploads
