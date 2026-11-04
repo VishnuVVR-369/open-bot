@@ -11,6 +11,7 @@ import {
 } from "@open-bot/db";
 import {
   applyBlockedMessage,
+  chatTitleText,
   computerActionSchema,
   describeInterval,
   formatMoney,
@@ -179,6 +180,8 @@ export class ToolHandlers {
           return await this.readPage(session, params.callId, args);
         case "notify_user":
           return await this.notifyUser(session, params.callId, args);
+        case "set_chat_title":
+          return await this.setChatTitle(session, args);
         case "request_approval":
           return await this.requestApproval(session, params.callId, args);
         case "request_takeover":
@@ -426,6 +429,28 @@ export class ToolHandlers {
     });
     session.putItem({ ...item, status: "completed", completedAt: session.now(), result: message });
     return text("Notification sent.");
+  }
+
+  /**
+   * Names an untitled direct chat after its topic. Quiet: no step in the chat, since the new
+   * title shows in the chat list and header. Never replaces a title the user gave.
+   */
+  private async setChatTitle(
+    session: RunSession,
+    args: Record<string, unknown>,
+  ): Promise<Response> {
+    if (session.chat.kind !== "direct")
+      return text("Only a direct chat can be titled this way; this one keeps its name.", false);
+    const title = chatTitleText(String(args.title ?? ""));
+    if (!title) return text("title is required", false);
+    const [updated] = await this.ctx.db
+      .update(chats)
+      .set({ title, titled: true })
+      .where(and(eq(chats.id, session.chat.id), eq(chats.titled, false)))
+      .returning({ id: chats.id });
+    if (!updated) return text("This chat already has a title, so it stays as it is.");
+    await publishApp(this.ctx, { type: "chats" });
+    return text(`Titled this chat "${title}".`);
   }
 
   private async requestApproval(

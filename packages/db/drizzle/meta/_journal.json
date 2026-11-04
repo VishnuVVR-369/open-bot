@@ -183,6 +183,13 @@
       "when": 1793771834526,
       "tag": "0025_screen_operations",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1793810017201,
+      "tag": "0026_chat_titles",
+      "breakpoints": true
     }
   ]
 }

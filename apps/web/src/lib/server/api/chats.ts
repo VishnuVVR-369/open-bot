@@ -42,7 +42,7 @@ export async function createGroupChat({ title, botIds }: Inputs["createGroup"]) 
   const chatId = await db.transaction(async (tx) => {
     const [chat] = await tx
       .insert(chats)
-      .values({ kind: "group", title })
+      .values({ kind: "group", title, titled: true })
       .returning({ id: chats.id });
     await tx.insert(chatMembers).values(unique.map((botId) => ({ chatId: chat!.id, botId })));
     return chat!.id;
@@ -61,7 +61,7 @@ async function updateChat(chatId: string, values: Partial<typeof chats.$inferIns
 }
 
 export async function renameChat({ chatId, title }: Inputs["rename"]) {
-  await updateChat(chatId, { title });
+  await updateChat(chatId, { title, titled: true });
   await publish("chats");
   return { ok: true as const };
 }

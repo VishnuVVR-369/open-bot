@@ -224,6 +224,12 @@ export class RunExecutor {
       if (recent) lines.push(`[Since you last spoke in this chat:]\n${recent}`);
     }
 
+    // Read now, not from the run's start: an earlier turn may have titled it since.
+    if (chat.kind === "direct" && !session.isHelper && !(await this.titled(chat.id)))
+      lines.push(
+        "[This chat has no title yet. Once its topic is clear, call set_chat_title with a short title, then carry on. Wait while it's only a greeting.]",
+      );
+
     const memory = await this.memory.context(session);
     if (memory) lines.push(memory);
 
@@ -239,6 +245,14 @@ export class RunExecutor {
       );
     }
     return lines.join("\n\n");
+  }
+
+  private async titled(chatId: string): Promise<boolean> {
+    const [row] = await this.ctx.db
+      .select({ titled: chats.titled })
+      .from(chats)
+      .where(eq(chats.id, chatId));
+    return row?.titled ?? true;
   }
 
   /** What the user and other bots said in a group chat since this bot's last run. */

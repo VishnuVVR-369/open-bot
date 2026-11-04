@@ -5,7 +5,7 @@ import { MAX_SWARM_TASKS, SCREEN } from "@open-bot/shared";
  * Bump when the tool set or the developer instructions change.
  * Codex threads keep the tools they started with, so a new version starts fresh threads.
  */
-export const TOOLS_VERSION = 14;
+export const TOOLS_VERSION = 15;
 
 const SCREENSHOT_NOTE =
   "Returns a JPEG screenshot taken after the action, as a data URL string. In exec, pass it to image() to look at it, for example `image(await tools.desktop_click({x: 10, y: 20}))`.";
@@ -254,6 +254,14 @@ export const CONTROL_TOOLS: v2.DynamicToolSpec[] = [
       expected_revision: { type: "string", minLength: 1, maxLength: 128 },
     },
     ["bot_id", "connection_id", "assigned", "expected_revision"],
+  ),
+  tool(
+    "set_chat_title",
+    "Name this chat after what it's about, once you know: 2 to 6 words, like 'Fix the login redirect' or 'Lisbon trip ideas'. Only for a direct chat that has no title yet; the user's own title is never replaced. No quotes, emoji or trailing period.",
+    {
+      title: { type: "string", minLength: 1, maxLength: 60 },
+    },
+    ["title"],
   ),
   tool(
     "notify_user",

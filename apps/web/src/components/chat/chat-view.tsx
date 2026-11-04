@@ -323,7 +323,10 @@ export function ChatView({ chatId }: { chatId: string }) {
                     ? `${bot?.name ?? "A teammate"}'s helper in ${helper.swarmTitle}`
                     : isGroup
                       ? members.map((member) => member.name).join(", ")
-                      : bot?.role}
+                      : chat.kind === "direct" && bot && chat.title !== bot.name
+                        ? // Titled after its topic, so say who it's with.
+                          `${bot.name} · ${bot.role}`
+                        : bot?.role}
                 </span>
               </div>
               <span className="flex-1" />

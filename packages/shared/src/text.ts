@@ -44,3 +44,28 @@ export function formatDuration(ms: number): string {
   const hours = Math.floor(minutes / 60);
   return minutes % 60 ? `${hours}h ${minutes % 60}m` : `${hours}h`;
 }
+
+/** The most characters in a chat title a teammate gives. */
+export const CHAT_TITLE_MAX = 60;
+
+/**
+ * A teammate's chat title, tidied: one line, without wrapping quotes, Markdown or a trailing
+ * period, cut on a word to fit. Empty when nothing is left.
+ */
+export function chatTitleText(raw: string): string {
+  let title = raw
+    .replace(/\s+/g, " ")
+    .replace(/[*_`#]/g, "")
+    .trim()
+    .replace(/^["'“”‘’«]+|["'“”‘’»]+$/g, "")
+    .replace(/[.。]+$/, "")
+    .trim();
+  if (title.length > CHAT_TITLE_MAX) {
+    const cut = title.slice(0, CHAT_TITLE_MAX + 1);
+    const space = cut.lastIndexOf(" ");
+    title = (
+      space > CHAT_TITLE_MAX / 2 ? cut.slice(0, space) : cut.slice(0, CHAT_TITLE_MAX)
+    ).trim();
+  }
+  return title;
+}
