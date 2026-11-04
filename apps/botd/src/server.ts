@@ -4,7 +4,9 @@ import net from "node:net";
 import {
   computerActionSchema,
   domainMatches,
+  isOwnerLease,
   isScreenId,
+  typeOnScreenSchema,
   USER_HAS_CONTROL_MESSAGE,
   type ComputerActionError,
   type ComputerActionResult,
@@ -82,7 +84,7 @@ export function createServer(deps: ServerDeps): {
   screens.on("lease", (screenId, { holder, reason }) => {
     broadcast({ type: "lease", screenId, holder, reason });
     // Control connections only live while you hold the screen.
-    if (holder?.kind !== "user") {
+    if (!isOwnerLease(holder) || screens.get(screenId)?.lease.inputBlocked) {
       for (const bridge of controlBridges.get(screenId) ?? [])
         bridge.close(4001, "Control returned to the bot");
       controlBridges.delete(screenId);
@@ -145,8 +147,9 @@ export function createServer(deps: ServerDeps): {
       const settle = Desktop.settleMs(action);
       if (settle) await new Promise((resolve) => setTimeout(resolve, settle));
       // Taking over during the action means the bot must not see the screen anymore.
-      if (lease.holder?.kind === "user") throw new ActionAbortedError();
+      if (isOwnerLease(lease.holder)) throw new ActionAbortedError();
       const [image, cursor] = await Promise.all([desktop.screenshot(), desktop.cursor()]);
+      if (isOwnerLease(lease.holder)) throw new ActionAbortedError();
       const blocked = screen.takeBlocked();
       return {
         ok: true,
@@ -155,7 +158,7 @@ export function createServer(deps: ServerDeps): {
         ...(blocked.length && { blocked }),
       };
     } catch (error) {
-      if (error instanceof ActionAbortedError || lease.holder?.kind === "user") {
+      if (error instanceof ActionAbortedError || isOwnerLease(lease.holder)) {
         return { ok: false, code: "user_has_control", message: USER_HAS_CONTROL_MESSAGE };
       }
       return {
@@ -182,7 +185,7 @@ export function createServer(deps: ServerDeps): {
     if (!("lease" in screen)) return screen;
     try {
       const page = await screen.readPage(selector);
-      if (screen.lease.holder?.kind === "user") {
+      if (isOwnerLease(screen.lease.holder)) {
         return { ok: false, code: "user_has_control", message: USER_HAS_CONTROL_MESSAGE };
       }
       if ("error" in page) return { ok: false, code: "failed", message: page.error };
@@ -238,10 +241,10 @@ export function createServer(deps: ServerDeps): {
     }
     try {
       await screen.desktop.typeSecret(secret);
-      if (screen.lease.holder?.kind === "user") throw new ActionAbortedError();
+      if (isOwnerLease(screen.lease.holder)) throw new ActionAbortedError();
       return { ok: true, pages };
     } catch (error) {
-      if (error instanceof ActionAbortedError || screen.lease.holder?.kind === "user") {
+      if (error instanceof ActionAbortedError || isOwnerLease(screen.lease.holder)) {
         return { ok: false, code: "user_has_control", message: USER_HAS_CONTROL_MESSAGE };
       }
       return { ok: false, code: "failed", message: "Typing it on the screen failed." };
@@ -274,6 +277,19 @@ export function createServer(deps: ServerDeps): {
         case "POST /computer/read":
           send(response, 200, await performRead(await readJson(request)));
           return;
+        case "POST /computer/code-context": {
+          const { screenId } = (await readJson(request)) as { screenId?: unknown };
+          const screen = screens.get(screenIdOf(screenId));
+          send(response, 200, { site: screen ? await screen.codeSite() : null });
+          return;
+        }
+        case "POST /computer/type": {
+          const body = (await readJson(request)) as Record<string, unknown>;
+          const input = typeOnScreenSchema.safeParse(body);
+          if (!input.success) throw new BadRequest("Invalid code request");
+          send(response, 200, await screens.typeCode(screenIdOf(body.screenId), input.data));
+          return;
+        }
         case "POST /screens/start": {
           const { screenId } = (await readJson(request)) as { screenId?: unknown };
           const screen = await screens.ensure(screenIdOf(screenId));
@@ -301,17 +317,24 @@ export function createServer(deps: ServerDeps): {
         case "POST /lease/user/take": {
           const { screenId } = (await readJson(request)) as { screenId?: unknown };
           const screen = await screens.ensure(screenIdOf(screenId));
+          if (!screens.codeAvailable(screen.id)) {
+            send(response, 409, { error: "Code entry is in progress." });
+            return;
+          }
           send(response, 200, { previous: screen.lease.takeByUser(), holder: screen.lease.holder });
           return;
         }
         case "POST /lease/user/release": {
-          const { screenId, reason } = (await readJson(request)) as {
+          const { screenId, reason, clearCode } = (await readJson(request)) as {
             screenId?: unknown;
             reason?: "handed_back" | "user_idle" | "user_disconnected";
+            clearCode?: boolean;
           };
           const screen = screens.get(screenIdOf(screenId));
           send(response, 200, {
-            released: screen?.lease.releaseByUser(reason ?? "handed_back") ?? false,
+            released: screen
+              ? await screen.lease.releaseSafely(reason ?? "handed_back", clearCode === true)
+              : !screens.list().some((s) => s.id === screenId && isOwnerLease(s.lease)),
           });
           return;
         }
@@ -326,6 +349,10 @@ export function createServer(deps: ServerDeps): {
           send(response, 404, { error: "not found" });
       }
     } catch (error) {
+      if (url.pathname === "/computer/type") {
+        send(response, 500, { error: "Code entry outcome unknown. Check the screen." });
+        return;
+      }
       if (error instanceof BadRequest) {
         send(response, 400, { error: error.message });
         return;
@@ -398,7 +425,7 @@ export function createServer(deps: ServerDeps): {
       socket.end("HTTP/1.1 404 Not Found\r\n\r\n");
       return;
     }
-    if (control && screen.lease.holder?.kind !== "user") {
+    if (control && (!isOwnerLease(screen.lease.holder) || screen.lease.inputBlocked)) {
       socket.end("HTTP/1.1 403 Forbidden\r\n\r\n");
       return;
     }

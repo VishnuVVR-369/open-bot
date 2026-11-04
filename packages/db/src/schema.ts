@@ -1,3 +1,4 @@
+import type { ScreenOperationStatus } from "@open-bot/shared";
 import type {
   ApprovalKind,
   RuleKind,
@@ -473,6 +474,31 @@ export const desktopTakeovers = pgTable(
   },
   (table) => [index("takeovers_status_idx").on(table.status, table.screenId)],
 );
+
+/** A cancellation can exist before its screen/request is known. Never stores the code. */
+export const screenOperations = pgTable(
+  "screen_operations",
+  {
+    id: uuid("id").primaryKey(),
+    takeoverId: uuid("takeover_id").references(() => desktopTakeovers.id, { onDelete: "set null" }),
+    screenId: uuid("screen_id").references(() => bots.id, { onDelete: "set null" }),
+    status: text("status").$type<ScreenOperationStatus>().notNull(),
+    reason: text("reason"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [index("screen_operations_status_idx").on(table.status)],
+);
+
+/** Durable delivery of a returned screen, even if the worker stopped after releasing it. */
+export const takeoverDeliveries = pgTable("takeover_deliveries", {
+  id: uuid("id")
+    .primaryKey()
+    .references(() => desktopTakeovers.id, { onDelete: "cascade" }),
+  continuationRunId: uuid("continuation_run_id").notNull().defaultRandom(),
+  deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+  createdAt: createdAt(),
+});
 
 /* ---------------------------------------------------------------- Skills */
 

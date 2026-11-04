@@ -122,6 +122,11 @@ export class FcmService {
         this.ctx.log.warn("native dismiss failed", { error: errorMessage(error) }),
       );
     });
+    this.ctx.events.on("takeoverEnded", (id) => {
+      void this.sendAll(nativeDismiss(id)).catch(() =>
+        this.ctx.log.warn("native takeover dismiss deferred"),
+      );
+    });
   }
 
   async register(input: { token: string; platform: "android"; device: string }): Promise<void> {

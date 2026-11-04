@@ -1,0 +1,204 @@
+import { desktopTakeovers, screenOperations } from "@open-bot/db";
+import {
+  isOwnerLease,
+  type ScreenOperation,
+  type ScreenOperationStatus,
+  type TypeOnScreen,
+} from "@open-bot/shared";
+import { eq, inArray } from "drizzle-orm";
+import { publishApp, type Context } from "../context";
+import { CODE_HANDED_BACK_NOTE, type TakeoverService } from "./takeovers";
+
+export class ScreenBusy extends Error {
+  constructor(message = "The screen is busy. Check it before trying again.") {
+    super(message);
+  }
+}
+
+/** A session lock spans botd calls without holding a database transaction open. */
+export async function withScreenLock<T>(
+  ctx: Pick<Context, "pool">,
+  id: string,
+  action: () => Promise<T>,
+): Promise<T> {
+  const client = await ctx.pool.connect();
+  let locked = false;
+  try {
+    const result = await client.query<{ locked: boolean }>(
+      "select pg_try_advisory_lock(hashtextextended($1, 0)) as locked",
+      [`screen:${id}`],
+    );
+    locked = result.rows[0]!.locked;
+    if (!locked) throw new ScreenBusy();
+    return await action();
+  } finally {
+    try {
+      if (locked)
+        await client.query("select pg_advisory_unlock(hashtextextended($1, 0))", [`screen:${id}`]);
+    } finally {
+      client.release();
+    }
+  }
+}
+
+export class ScreenOperationService {
+  constructor(
+    private readonly ctx: Context,
+    private readonly takeovers: TakeoverService,
+  ) {}
+
+  async recover(): Promise<void> {
+    await this.ctx.db
+      .update(screenOperations)
+      .set({
+        status: "unknown",
+        reason: "The worker restarted. Check the screen before sending again.",
+        updatedAt: new Date(),
+      })
+      .where(inArray(screenOperations.status, ["received", "typing", "typed", "verifying"]));
+  }
+
+  async get(id: string): Promise<ScreenOperation | null> {
+    const [row] = await this.ctx.db
+      .select()
+      .from(screenOperations)
+      .where(eq(screenOperations.id, id));
+    return row ?? null;
+  }
+
+  async cancel(id: string): Promise<ScreenOperation> {
+    await this.ctx.db
+      .insert(screenOperations)
+      .values({ id, status: "cancelled" })
+      .onConflictDoNothing();
+    return (await this.get(id))!;
+  }
+
+  private async set(
+    id: string,
+    status: ScreenOperationStatus,
+    reason: string | null = null,
+  ): Promise<ScreenOperation> {
+    await this.ctx.db
+      .update(screenOperations)
+      .set({ status, reason, updatedAt: new Date() })
+      .where(eq(screenOperations.id, id));
+    await publishApp(this.ctx, { type: "takeovers" });
+    return (await this.get(id))!;
+  }
+
+  async context(takeoverId: string): Promise<{ screenId: string; site: string | null }> {
+    const [request] = await this.ctx.db
+      .select()
+      .from(desktopTakeovers)
+      .where(eq(desktopTakeovers.id, takeoverId));
+    if (
+      !request?.screenId ||
+      request.status !== "requested" ||
+      Date.now() - request.createdAt.getTime() >= 600_000
+    )
+      throw new ScreenBusy("This takeover request ended or expired.");
+    return {
+      screenId: request.screenId,
+      ...(await this.ctx.computer.codeContext(request.screenId)),
+    };
+  }
+
+  async type(input: TypeOnScreen): Promise<ScreenOperation> {
+    // This insert is deliberately the first effect. A cancelled tombstone always wins.
+    const [inserted] = await this.ctx.db
+      .insert(screenOperations)
+      .values({ id: input.operationId, status: "received" })
+      .onConflictDoNothing()
+      .returning();
+    if (!inserted) return (await this.get(input.operationId))!;
+    try {
+      const [request] = await this.ctx.db
+        .select()
+        .from(desktopTakeovers)
+        .where(eq(desktopTakeovers.id, input.takeoverId));
+      if (!request?.screenId)
+        return this.set(input.operationId, "failed", "That takeover request is gone.");
+      const screenId = request.screenId;
+      await this.ctx.db
+        .update(screenOperations)
+        .set({ takeoverId: request.id, screenId })
+        .where(eq(screenOperations.id, input.operationId));
+      return await withScreenLock(this.ctx, screenId, async () => {
+        const [current] = await this.ctx.db
+          .select()
+          .from(desktopTakeovers)
+          .where(eq(desktopTakeovers.id, request.id));
+        if (
+          !current ||
+          current.status !== "requested" ||
+          Date.now() - current.createdAt.getTime() >= 600_000
+        )
+          return this.set(
+            input.operationId,
+            "failed",
+            "The request ended or expired. Nothing was typed.",
+          );
+        const health = await this.ctx.computer.fetchHealth();
+        const previous = health.screens.find((s) => s.id === screenId)?.lease ?? null;
+        if (isOwnerLease(previous))
+          return this.set(
+            input.operationId,
+            "failed",
+            "You already hold this screen. Nothing was typed.",
+          );
+        const { site } = await this.ctx.computer.codeContext(screenId);
+        if (!site || site !== input.expectedSite.toLowerCase())
+          return this.set(
+            input.operationId,
+            "failed",
+            "The site or focused field changed. Nothing was typed.",
+          );
+        await this.set(input.operationId, "typing");
+        let result: Awaited<ReturnType<Context["computer"]["typeOnScreen"]>>;
+        try {
+          result = await this.ctx.computer.typeOnScreen(screenId, input);
+        } catch {
+          // botd may hold the screen for you now. Record the takeover so handing back reaches
+          // the bot; if you don't hold it, the reconciler ends it.
+          await this.takeovers.recordTake(screenId, previous);
+          return this.set(
+            input.operationId,
+            "unknown",
+            "Outcome unknown. Check the screen before sending again.",
+          );
+        }
+        // Refused: botd released anything it took and nothing was typed, so the request stays open.
+        if (result.status === "failed") return this.set(input.operationId, "failed", result.reason);
+        await this.takeovers.recordTake(screenId, result.previous ?? previous);
+        await this.set(input.operationId, "typed");
+        await this.set(input.operationId, "verifying");
+        await this.set(input.operationId, result.status, result.reason);
+        if (result.status === "safe") {
+          try {
+            await this.takeovers.handBack(screenId, CODE_HANDED_BACK_NOTE);
+            return this.set(input.operationId, "handed_back");
+          } catch (error) {
+            if (error instanceof ScreenBusy)
+              return this.set(input.operationId, "needs_owner", error.message);
+            return this.set(
+              input.operationId,
+              "safe",
+              "Control returned or is being checked; letting your teammate know.",
+            );
+          }
+        }
+        return (await this.get(input.operationId))!;
+      });
+    } catch (error) {
+      // Never serialize an upstream error: it could contain the secret request body.
+      return this.set(
+        input.operationId,
+        error instanceof ScreenBusy ? "failed" : "unknown",
+        error instanceof ScreenBusy
+          ? error.message
+          : "Outcome unknown. Check the screen before sending again.",
+      );
+    }
+  }
+}

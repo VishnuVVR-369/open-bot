@@ -6,6 +6,17 @@ appId: dev.openbot.mobile.dev
     file: open-link.yaml
     env:
       LINK: ${DEV_CLIENT_URL}
+# A cold Metro can miss the first link and leave the dev launcher open; open it once more.
+- extendedWaitUntil:
+    notVisible: Development Build
+    timeout: 20000
+    optional: true
+- runFlow:
+    when:
+      visible: Development Build
+    file: open-link.yaml
+    env:
+      LINK: ${DEV_CLIENT_URL}
 - tapOn:
     text: Continue
     optional: true

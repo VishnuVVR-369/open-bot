@@ -7,7 +7,7 @@ It's installed over USB; there's no Play Store listing.
 ## Using the pocket inbox
 
 Home shows what needs you, recent activity, teammates and a briefing of work finished while you were away.
-Use the web app to take over the computer or review suggested instructions.
+Use Computer to watch or take over a teammate's screen; suggested instructions are still reviewed on the web.
 Chats shows unread badges and previews; use New chat for a direct conversation or a group, and @-mention teammates to choose who answers.
 The chat menu lets you rename or archive a conversation; archiving keeps its history.
 
@@ -28,6 +28,34 @@ A chat becomes read across devices after fresh history has loaded while it is vi
 Approvals supports Approve, Deny and Always allow, with saved rules available from its menu.
 Notification approvals can be decided without opening the app; purchases use Review and require the phone's authentication check before approval.
 Reply on a message notification sends directly to its teammate, including in a group chat.
+
+## The computer on your phone
+
+Computer lists every teammate's screen, including sleeping screens, its current holder, and requests for you.
+Watching a sleeping screen does not start it; use Wake or Take over.
+The live viewer is noVNC bundled inside the app, with a fresh short-lived VNC token for every connection.
+Your session cookie stays on the React Native side and is never passed to the WebView.
+
+Tap to click, hold for a right click, and drag with two fingers to scroll.
+Pinch zooms the local screen; Fit resets it.
+Use Trackpad for relative cursor movement and precise taps.
+The keyboard bar provides Esc, Tab, Ctrl, Alt, arrows, Enter, and Paste from phone.
+In portrait the screen fits the width; in landscape it fills the height beside the controls.
+Rotating during takeover locks landscape until you hand back or leave the screen.
+Back opens the hand-back sheet, where you can leave an optional note or stay in control.
+
+Takeover requests open the screen from Home, chat, or a notification.
+The notification offers Take over and Type the code.
+Type the code is for a 4-to-8-digit one-time code, with a live preview and the focused site's name.
+The app can request Android's consent to fill a code from one incoming SMS; it never requests SMS-reading permissions or sends the code without your tap.
+Manual entry remains available if consent is denied, Play services is unavailable, or the SMS is ambiguous.
+
+Code entry blocks the teammate's desktop tools, including screenshots, until botd verifies the code is gone from the browser's fields and page text.
+If it is still visible, you keep control and can clear it before handing back.
+An uncertain response is recovered by its operation id; the app never blindly repeats typing.
+After a computer restart, affected screens stay paused; explicit recovery discards their browser pages before returning control.
+The submitted code is not stored in operation records, logs, or botd state.
+See [COMPUTER-TESTING.md](COMPUTER-TESTING.md) for tests and the remaining real-phone acceptance checks.
 
 ## What you need
 
@@ -184,6 +212,10 @@ Run a clean prebuild without that variable before installing a normal build agai
 ## How it fits together
 
 - `src/app`: Expo Router screens for sign-in, Home, Chats, Approvals, new direct/group chats, notifications, search, file previews, approval rules and Settings.
+- `src/app/(tabs)/computer.tsx` and `src/app/screens/[screenId].tsx`: screens list, live view, touch takeover, keyboard and hand-back.
+- `src/computer/viewer.ts`: the browser client; `pnpm build:viewer` bundles noVNC into the generated local HTML module, and `pnpm check:viewer` checks it is current.
+- `src/components/computer`: WebView lifecycle and token handling, plus the code sheet and operation recovery.
+- `modules/sms-consent`: Android's SMS User Consent receiver and activity-result handling; only an unambiguous code reaches JavaScript.
 - `src/lib/api.ts`: the typed API client; the session cookie lives in SecureStore (`src/lib/auth.ts`).
 - `src/lib/realtime.tsx` and `src/lib/live-stream.ts`: the live stream while the app is open, which resumes the open chat from its last event after a reconnect.
 - `src/lib/lock.ts`: asks for your fingerprint on open and after five minutes away.

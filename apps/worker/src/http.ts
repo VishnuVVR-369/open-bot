@@ -5,9 +5,11 @@ import {
   botProfileChangesSchema,
   COMPUTER_PATHS,
   createBotSchema,
+  isOwnerLease,
   isRunActive,
   isScreenId,
   MAX_UPLOAD_BYTES,
+  typeOnScreenSchema,
   undeletablePath,
 } from "@open-bot/shared";
 import { verifyToken } from "@open-bot/shared/tokens";
@@ -22,6 +24,11 @@ import type { RunExecutor } from "./runs/executor";
 import type { ApprovalService } from "./services/approvals";
 import type { MemoryCoordinator } from "./services/memory";
 import type { ScheduleService } from "./services/schedules";
+import {
+  ScreenBusy,
+  withScreenLock,
+  type ScreenOperationService,
+} from "./services/screen-operations";
 import { SkillError, type SkillService } from "./services/skills";
 import type { TakeoverService } from "./services/takeovers";
 import { TelegramError, type TelegramService } from "./services/telegram";
@@ -40,6 +47,7 @@ export interface HttpDeps {
   executor: RunExecutor;
   approvals: ApprovalService;
   takeovers: TakeoverService;
+  screenOperations: ScreenOperationService;
   schedules: ScheduleService;
   skills: SkillService;
   memory: MemoryCoordinator;
@@ -170,6 +178,7 @@ export function createHttpServer(deps: HttpDeps): http.Server {
     executor,
     approvals,
     takeovers,
+    screenOperations,
     schedules,
     skills,
     triggers,
@@ -308,21 +317,34 @@ export function createHttpServer(deps: HttpDeps): http.Server {
       return ok;
     },
     "POST /internal/screens/:id/take": async (_request, params) => {
-      await takeovers.take(await screenOf(params.id!));
+      const id = await screenOf(params.id!);
+      await withScreenLock(ctx, id, () => takeovers.take(id));
       return ok;
     },
     "POST /internal/screens/:id/hand-back": async (request, params) => {
-      const { note } = await readJson(
+      const { note, clearCode } = await readJson(
         request,
-        z.object({ note: z.string().max(2000).nullable().optional() }),
+        z.object({
+          note: z.string().max(2000).nullable().optional(),
+          clearCode: z.boolean().optional(),
+        }),
       );
-      await takeovers.handBack(await screenOf(params.id!), note ?? null);
+      const id = await screenOf(params.id!);
+      await withScreenLock(ctx, id, () => takeovers.handBack(id, note ?? null, clearCode));
       return ok;
     },
     "POST /internal/screens/:id/touch": async (_request, params) => {
       await ctx.computer.touchUser(await screenOf(params.id!));
       return ok;
     },
+    "POST /internal/screens/code": async (request) =>
+      screenOperations.type(await readJson(request, typeOnScreenSchema)),
+    "GET /internal/screen-operations/:id": async (_request, params) =>
+      screenOperations.get(uuid(params.id)),
+    "POST /internal/screen-operations/:id/cancel": async (_request, params) =>
+      screenOperations.cancel(uuid(params.id)),
+    "GET /internal/takeover/:id/code-context": async (_request, params) =>
+      screenOperations.context(uuid(params.id)),
     "POST /internal/takeover/:id/dismiss": async (_request, params) => {
       await takeovers.dismiss(params.id!);
       return ok;
@@ -759,7 +781,19 @@ export function createHttpServer(deps: HttpDeps): http.Server {
       try {
         send(response, 200, await route.handler(request, params, url));
       } catch (error) {
-        const status = error instanceof HttpError || error instanceof BotError ? error.status : 500;
+        // Never echo an error from code entry: it could carry the code from the request body.
+        if (url.pathname === "/internal/screens/code") {
+          if (error instanceof HttpError && error.status === 400)
+            send(response, 400, { error: "That code request is invalid. Nothing was typed." });
+          else send(response, 500, { error: "Code entry outcome unknown. Check the screen." });
+          return;
+        }
+        const status =
+          error instanceof ScreenBusy
+            ? 409
+            : error instanceof HttpError || error instanceof BotError
+              ? error.status
+              : 500;
         if (status >= 500)
           ctx.log.error("request failed", { path: url.pathname, error: errorMessage(error) });
         send(response, status, { error: errorMessage(error) });
@@ -789,7 +823,7 @@ export function createHttpServer(deps: HttpDeps): http.Server {
         socket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
         return;
       }
-      if (mode === "control" && ctx.computer.lease(screen)?.kind !== "user") {
+      if (mode === "control" && !isOwnerLease(ctx.computer.lease(screen))) {
         socket.end("HTTP/1.1 403 Forbidden\r\n\r\n");
         return;
       }

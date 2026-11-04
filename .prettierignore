@@ -13,4 +13,5 @@ apps/mobile/ios
 apps/mobile/.expo
 apps/mobile/.maestro-results
 apps/mobile/expo-env.d.ts
+apps/mobile/src/computer/viewer-html.ts
 .claude

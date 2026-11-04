@@ -14,6 +14,26 @@ const approval = {
 };
 
 describe("phone notifications", () => {
+  it("opens a screen for takeover actions and keeps code submission in the foreground", () => {
+    const asking = planNotification(
+      parsePushData({
+        type: "notification",
+        kind: "takeover_request",
+        title: "Rex needs you",
+        tag: "t1",
+        botId: "b1",
+        takeoverId: "t1",
+      })!,
+    );
+    expect(asking).toMatchObject({
+      channel: "asking",
+      url: "/screens/b1?takeover=t1",
+      actions: [
+        { id: "take-over", title: "Take over", opensApp: true },
+        { id: "type-code", title: "Type the code", opensApp: true },
+      ],
+    });
+  });
   it("gives approvals Approve and Deny on the approvals channel", () => {
     const plan = planNotification(parsePushData(approval)!);
     expect(plan).toEqual({

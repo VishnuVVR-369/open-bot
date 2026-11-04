@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { House, MessagesSquare, ShieldCheck } from "lucide-react-native";
+import { House, MessagesSquare, Monitor, ShieldCheck } from "lucide-react-native";
 import { HeaderActions } from "@/components/header-actions";
 import { useApprovals, useChats } from "@/lib/queries";
 import { fonts, useColors } from "@/theme";
@@ -56,6 +56,14 @@ export default function TabsLayout() {
           tabBarBadge: pending > 0 ? pending : undefined,
           tabBarBadgeStyle: { ...badgeStyle, backgroundColor: colors.waiting },
           tabBarButtonTestID: "tab-approvals",
+        }}
+      />
+      <Tabs.Screen
+        name="computer"
+        options={{
+          title: "Computer",
+          tabBarIcon: ({ color, size }) => <Monitor color={color} size={size - 2} />,
+          tabBarButtonTestID: "tab-computer",
         }}
       />
     </Tabs>

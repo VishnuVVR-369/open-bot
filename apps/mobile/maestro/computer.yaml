@@ -1,0 +1,52 @@
+appId: dev.openbot.mobile.dev
+---
+- runFlow: flows/sign-in.yaml
+- tapOn:
+    id: tab-computer
+- extendedWaitUntil:
+    visible:
+      id: screens-list
+    timeout: 30000
+- tapOn:
+    id: screen-${SCREEN_ID}
+- assertVisible: Asleep
+# Watching an asleep screen must not wake it.
+- assertVisible:
+    id: wake-screen
+- tapOn:
+    id: wake-screen
+- extendedWaitUntil:
+    visible:
+      id: computer-webview
+    timeout: 60000
+- tapOn:
+    id: take-over
+- extendedWaitUntil:
+    visible:
+      id: hand-back
+    timeout: 30000
+- tapOn:
+    id: trackpad
+- assertVisible: Touch mode
+- tapOn:
+    id: trackpad
+- assertVisible: Trackpad
+- tapOn:
+    id: remote-keyboard
+- inputText: Phone takeover test
+- hideKeyboard
+- back
+- assertVisible: Hand the screen back
+- tapOn: Stay in control
+- tapOn:
+    id: hand-back
+- tapOn:
+    id: hand-back-note
+- inputText: Checked from Android
+- hideKeyboard
+- tapOn:
+    id: hand-back-confirm
+- extendedWaitUntil:
+    visible:
+      id: take-over
+    timeout: 30000

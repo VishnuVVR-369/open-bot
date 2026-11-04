@@ -53,7 +53,7 @@ export function parsePushData(raw: Record<string, unknown> | undefined): PushDat
   };
 }
 
-export type ActionId = "approve" | "deny" | "review" | "reply";
+export type ActionId = "approve" | "deny" | "review" | "reply" | "take-over" | "type-code";
 
 /** Replies and results you can answer from the notification, with Reply. */
 const REPLYABLE_KINDS = new Set(["run_finished", "run_failed", "bot_message"]);
@@ -97,17 +97,26 @@ export function planNotification(data: PushData): NotificationPlan | null {
     channel,
     title: data.title,
     body: data.body ?? "",
-    url: data.url ?? "/",
-    actions: !isApproval
-      ? reply
-        ? [{ id: "reply", title: "Reply", opensApp: false, input: { placeholder: "Reply" } }]
-        : []
-      : data.approvalNeedsBiometric
-        ? [{ id: "review", title: "Review", opensApp: true }]
-        : [
-            { id: "approve", title: "Approve", opensApp: false },
-            { id: "deny", title: "Deny", opensApp: false },
-          ],
+    url:
+      data.kind === "takeover_request" && data.botId
+        ? `/screens/${encodeURIComponent(data.botId)}${data.takeoverId ? `?takeover=${encodeURIComponent(data.takeoverId)}` : ""}`
+        : (data.url ?? "/"),
+    actions:
+      data.kind === "takeover_request" && data.botId && data.takeoverId
+        ? [
+            { id: "take-over", title: "Take over", opensApp: true },
+            { id: "type-code", title: "Type the code", opensApp: true },
+          ]
+        : !isApproval
+          ? reply
+            ? [{ id: "reply", title: "Reply", opensApp: false, input: { placeholder: "Reply" } }]
+            : []
+          : data.approvalNeedsBiometric
+            ? [{ id: "review", title: "Review", opensApp: true }]
+            : [
+                { id: "approve", title: "Approve", opensApp: false },
+                { id: "deny", title: "Deny", opensApp: false },
+              ],
     ...(isApproval ? { approvalId: data.approvalId } : {}),
     ...(reply ? { reply } : {}),
   };

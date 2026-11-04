@@ -1,0 +1,8 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+group = 'dev.openbot'
+version = '0.1.0'
+android { namespace "dev.openbot.sms" }
+dependencies { implementation "com.google.android.gms:play-services-auth-api-phone:18.3.0" }

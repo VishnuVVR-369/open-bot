@@ -68,6 +68,22 @@ const os = implement(contract)
   });
 
 export const router = os.router({
+  screens: {
+    list: os.screens.list.handler(() => api.listScreens()),
+    takeOver: os.screens.takeOver.handler(({ input }) => api.takeOverScreen(input)),
+    handBack: os.screens.handBack.handler(({ input }) => api.handBackScreen(input)),
+    wake: os.screens.wake.handler(({ input }) => api.wakeScreen(input)),
+    activity: os.screens.activity.handler(({ input }) => api.reportScreenActivity(input)),
+  },
+  takeovers: {
+    dismiss: os.takeovers.dismiss.handler(({ input }) => api.dismissTakeoverRequest(input)),
+    codeContext: os.takeovers.codeContext.handler(({ input }) => api.codeContext(input)),
+  },
+  screenOperations: {
+    type: os.screenOperations.type.handler(({ input }) => api.typeOnScreen(input)),
+    get: os.screenOperations.get.handler(({ input }) => api.getScreenOperation(input)),
+    cancel: os.screenOperations.cancel.handler(({ input }) => api.cancelScreenOperation(input)),
+  },
   home: {
     get: os.home.get.handler(({ input, context }) => api.getHome(context.user, input)),
   },

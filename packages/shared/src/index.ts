@@ -18,3 +18,4 @@ export * from "./apply-guard";
 export * from "./memory";
 export * from "./text";
 export * from "./files";
+export * from "./screen-operations";

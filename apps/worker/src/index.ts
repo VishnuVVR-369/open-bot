@@ -19,6 +19,7 @@ import { ApprovalService } from "./services/approvals";
 import { ModelAccess } from "./services/model-access";
 import { SessionRegistry } from "./services/registry";
 import { ScheduleService } from "./services/schedules";
+import { ScreenOperationService } from "./services/screen-operations";
 import { MemoryCoordinator } from "./services/memory";
 import { SkillService } from "./services/skills";
 import { TakeoverService } from "./services/takeovers";
@@ -62,6 +63,8 @@ const memory = new MemoryCoordinator(ctx);
 await memory.start();
 const approvals = new ApprovalService(ctx, sessions);
 const takeovers = new TakeoverService(ctx, sessions);
+const screenOperations = new ScreenOperationService(ctx, takeovers);
+await screenOperations.recover();
 const schedules = new ScheduleService(ctx);
 const skills = new SkillService(ctx);
 const triggers = new TriggerService(ctx);
@@ -129,6 +132,15 @@ codex.on("status", (status) => {
 });
 
 computer.start();
+// Finishes takeovers a restart or a partly failed hand-back left behind.
+const reconcileTakeovers = () =>
+  void takeovers
+    .reconcile()
+    .catch((error: unknown) =>
+      log.warn("takeover reconciliation deferred", { error: errorMessage(error) }),
+    );
+reconcileTakeovers();
+setInterval(reconcileTakeovers, 30_000).unref();
 await egress.start();
 schedules.start();
 triggers.start();
@@ -191,6 +203,7 @@ const server = createHttpServer({
   executor,
   approvals,
   takeovers,
+  screenOperations,
   schedules,
   skills,
   memory,

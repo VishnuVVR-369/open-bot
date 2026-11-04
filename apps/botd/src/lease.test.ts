@@ -8,6 +8,21 @@ describe("DesktopLease", () => {
   beforeEach(() => vi.useFakeTimers({ now: new Date("2026-10-13T10:00:00Z") }));
   afterEach(() => vi.useRealTimers());
 
+  it("does not disconnect a code lease without a viewer; idle release uses its safety guard", async () => {
+    const guard = vi.fn(async () => false);
+    const lease = new DesktopLease({ userIdleMs: 600_000, userDisconnectMs: 90_000 });
+    lease.protectCode(guard);
+    vi.advanceTimersByTime(91_000);
+    lease.sweep();
+    expect(guard).not.toHaveBeenCalled();
+    expect(lease.holder?.kind).toBe("user-code");
+    vi.advanceTimersByTime(510_000);
+    lease.sweep();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(guard).toHaveBeenCalledWith(true, "user_idle");
+    expect(lease.holder).toMatchObject({ pausedForSafety: true });
+  });
+
   it("gives a free desktop to the first run and keeps it for that run", async () => {
     const lease = new DesktopLease();
     expect(await lease.acquireForRun(nova)).toBe("ok");

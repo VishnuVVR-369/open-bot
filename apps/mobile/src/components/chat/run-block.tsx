@@ -30,13 +30,16 @@ import {
   Webhook,
   Wrench,
 } from "lucide-react-native";
+import { router } from "expo-router";
 import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 import { BotAvatar } from "@/components/bot-avatar";
+import { Button } from "@/components/button";
 import { Markdown } from "@/components/markdown";
 import { Text } from "@/components/text";
 import { diffStats } from "@/lib/format";
 import { phoneClock } from "@/lib/phone-clock";
+import { screenHref } from "@/lib/screens";
 import { elapsed } from "@/lib/time";
 import { radius, space, useColors } from "@/theme";
 import { mix } from "@/theme/mix";
@@ -164,10 +167,12 @@ function WorkingLine({ run }: { run: RunView }) {
 }
 
 function ItemView({
+  botId,
   item,
   chatId,
   botName,
 }: {
+  botId: string;
   item: TimelineItem;
   chatId: string;
   botName: string;
@@ -320,9 +325,11 @@ function ItemView({
             {item.reason}
           </Text>
           {item.resolution === "pending" && (
-            <Text variant="caption" muted>
-              Take over from open-bot on a computer.
-            </Text>
+            <Button
+              title="Open the screen"
+              variant="outline"
+              onPress={() => router.push(screenHref(botId, item.takeoverRequestId))}
+            />
           )}
         </View>
       );
@@ -505,7 +512,7 @@ export const RunBlock = memo(function RunBlock({
           ].includes(part.item.kind);
           return (
             <View key={part.id} style={spaced && styles.spaced}>
-              <ItemView item={part.item} chatId={chatId} botName={name} />
+              <ItemView botId={run.botId} item={part.item} chatId={chatId} botName={name} />
             </View>
           );
         })}

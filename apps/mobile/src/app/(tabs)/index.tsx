@@ -25,6 +25,7 @@ import { Text } from "@/components/text";
 import { usePresence } from "@/lib/presence";
 import { useHome, useNewDirectChat, useTeammates } from "@/lib/queries";
 import { phoneDayClock } from "@/lib/phone-clock";
+import { screenHref } from "@/lib/screens";
 import { ago } from "@/lib/time";
 import { radius, space, useColors } from "@/theme";
 import { mix } from "@/theme/mix";
@@ -129,7 +130,7 @@ function NeedsYou({ home, bots }: { home: Home; bots: BotSummary[] }) {
             key={request.id}
             icon={<Hand size={16} color={colors.manualInk} />}
             tint={colors.manual}
-            onPress={request.chatId ? () => router.push(chatHref(request.chatId!)) : undefined}
+            onPress={() => router.push(screenHref(request.screenId, request.id))}
             testID="takeover-request"
           >
             <Text variant="small" style={{ fontSize: 14 }}>

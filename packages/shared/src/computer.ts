@@ -43,7 +43,7 @@ export type ComputerActionName = ComputerAction["action"];
 
 /** Who currently holds a screen. `null` means it is free. */
 export type LeaseHolder =
-  | { kind: "user"; since: string; lastInputAt: string }
+  | { kind: "user" | "user-code"; since: string; lastInputAt: string; pausedForSafety?: boolean }
   | {
       kind: "run";
       runId: string;
@@ -53,6 +53,12 @@ export type LeaseHolder =
       lastActionAt: string;
     }
   | null;
+
+export function isOwnerLease(
+  holder: LeaseHolder,
+): holder is Extract<NonNullable<LeaseHolder>, { lastInputAt: string }> {
+  return holder?.kind === "user" || holder?.kind === "user-code";
+}
 
 export interface RunIdentity {
   runId: string;
@@ -125,7 +131,7 @@ export type ProcessState = "running" | "starting" | "stopped" | "crashed";
 export interface ScreenStatus {
   /** The bot the screen belongs to. */
   id: string;
-  state: "starting" | "running" | "stopping";
+  state: "starting" | "running" | "stopping" | "paused";
   browser: ProcessState;
   lease: LeaseHolder;
 }
