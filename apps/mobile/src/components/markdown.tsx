@@ -1,6 +1,5 @@
 import { Fragment, useMemo, type ReactNode } from "react";
 import {
-  ScrollView,
   StyleSheet,
   Text,
   useColorScheme,
@@ -9,12 +8,13 @@ import {
   type ViewStyle,
 } from "react-native";
 import { Renderer, useMarkdown, type MarkedStyles } from "react-native-marked";
+import { CodeScroll } from "@/components/code-scroll";
 import { fonts, radius, space, useColors } from "@/theme";
 
 /**
  * Lists drawn like the web's: a round bullet (or the number) centered on the item's first line,
  * and items as close together as lines of text. Code blocks keep their box still while long
- * lines scroll inside it.
+ * lines scroll inside it, with a fade at the edge and a copy button.
  */
 class AppRenderer extends Renderer {
   constructor(
@@ -30,21 +30,19 @@ class AppRenderer extends Renderer {
     containerStyle?: ViewStyle,
     textStyle?: TextStyle,
   ): ReactNode {
-    const { padding, ...box } = StyleSheet.flatten(containerStyle) ?? {};
+    const { padding, backgroundColor, ...box } = StyleSheet.flatten(containerStyle) ?? {};
     return (
-      <View key={this.getKey()} style={[box, { overflow: "hidden" }]}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ padding }}
-        >
-          <View>
-            <Text selectable style={textStyle}>
-              {text}
-            </Text>
-          </View>
-        </ScrollView>
-      </View>
+      <CodeScroll
+        key={this.getKey()}
+        copyText={text.replace(/\n$/, "")}
+        background={typeof backgroundColor === "string" ? backgroundColor : undefined}
+        padding={typeof padding === "number" ? padding : space(3)}
+        style={box}
+      >
+        <Text selectable style={textStyle}>
+          {text}
+        </Text>
+      </CodeScroll>
     );
   }
 
@@ -126,7 +124,7 @@ export function Markdown({ text, tone = "default" }: { text: string; tone?: "def
       },
       code: {
         backgroundColor: colors.muted,
-        borderRadius: radius.md,
+        borderRadius: radius.lg,
         padding: space(3),
         marginVertical: space(1),
       },

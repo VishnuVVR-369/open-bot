@@ -3,11 +3,18 @@ import { isRunActive } from "@open-bot/shared";
 import { safe } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { router, Stack, useLocalSearchParams } from "expo-router";
-import { Archive, EllipsisVertical, Pencil, SquarePen, Users } from "lucide-react-native";
+import {
+  Archive,
+  ArrowDown,
+  EllipsisVertical,
+  Pencil,
+  SquarePen,
+  Users,
+} from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { BotAvatar, botActivity } from "@/components/bot-avatar";
+import { BotAvatar, botActivity, botStatusText, GroupAvatar } from "@/components/bot-avatar";
 import { Composer } from "@/components/chat/composer";
 import { RunBlock } from "@/components/chat/run-block";
 import { UserMessage } from "@/components/chat/user-message";
@@ -19,11 +26,15 @@ import { Text } from "@/components/text";
 import { TextField } from "@/components/text-field";
 import { api } from "@/lib/api";
 import { errorMessage, isGone } from "@/lib/errors";
+import { haptics } from "@/lib/haptics";
 import { queryKeys } from "@/lib/query";
 import { useNewDirectChat, useTeammates } from "@/lib/queries";
+import { namedForTopic } from "@/lib/chats";
+import { lastActive } from "@/lib/time";
 import { useChat } from "@/lib/use-chat";
 import { useChatRunTarget } from "@/lib/use-chat-run-target";
 import { useKeyboardHeight } from "@/lib/use-keyboard";
+import { phoneClock } from "@/lib/phone-clock";
 import { space, useColors } from "@/theme";
 
 /** A conversation with a teammate (or a group), live while you're looking at it. */
@@ -53,6 +64,7 @@ export default function ChatScreen() {
   const newChat = useNewDirectChat();
   const allBots = teammates ?? members;
   const list = useRef<FlatList<ChatEntry>>(null);
+  const [scrolledUp, setScrolledUp] = useState(false);
   const scrollRetry = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollAttempts = useRef(0);
   useEffect(
@@ -139,20 +151,34 @@ export default function ChatScreen() {
     scrollToIndex: scrollToRun,
   });
 
+  // The newest turn shows its reply actions; older ones open them with a long press.
+  const latestRunId = useMemo(() => data.find((entry) => entry.type === "run")?.run.id, [data]);
+
   const renderItem = useCallback(
-    ({ item: entry }: { item: ChatEntry }) =>
-      entry.type === "message" ? (
-        <UserMessage message={entry.message} />
-      ) : (
-        <RunBlock
-          run={runs[entry.run.id] ?? entry.run}
-          chatId={chatId}
-          bot={allBots.find((candidate) => candidate.id === entry.run.botId)}
-          bots={allBots}
-          superseded={superseded.has(entry.run.id)}
-        />
-      ),
-    [runs, chatId, allBots, superseded],
+    ({ item: entry, index }: { item: ChatEntry; index: number }) => {
+      // The list runs newest first, so the entry before this one in time is the next one.
+      const older = data[index + 1];
+      const stamp = timeStamp(entry.at, older?.at);
+      return (
+        <View>
+          {stamp && <TimeStamp text={stamp} />}
+          {entry.type === "message" ? (
+            <UserMessage message={entry.message} />
+          ) : (
+            <RunBlock
+              run={runs[entry.run.id] ?? entry.run}
+              chatId={chatId}
+              bot={allBots.find((candidate) => candidate.id === entry.run.botId)}
+              bots={allBots}
+              superseded={superseded.has(entry.run.id)}
+              isGroup={isGroup}
+              latest={entry.type === "run" && entry.run.id === latestRunId}
+            />
+          )}
+        </View>
+      );
+    },
+    [runs, chatId, allBots, superseded, data, isGroup, latestRunId],
   );
 
   return (
@@ -164,18 +190,23 @@ export default function ChatScreen() {
             !chat || gone
               ? ""
               : () => (
-                  <View style={styles.headerTitle}>
+                  <Pressable
+                    style={styles.headerTitle}
+                    disabled={!liveBot}
+                    onPress={() => liveBot && router.push(`/teammates/${liveBot.id}`)}
+                    accessibilityRole={liveBot ? "button" : undefined}
+                    accessibilityHint={liveBot ? `Opens ${liveBot.name}'s profile` : undefined}
+                    testID="chat-header"
+                  >
                     {isGroup ? (
-                      <View style={[styles.groupMark, { backgroundColor: colors.subtle }]}>
-                        <Users size={16} color={colors.mutedForeground} />
-                      </View>
+                      <GroupAvatar members={members} size="md" ring={colors.surface} />
                     ) : (
                       liveBot && (
                         <BotAvatar
                           name={liveBot.name}
                           color={liveBot.color}
                           emoji={liveBot.emoji}
-                          size="sm"
+                          size="md"
                           activity={botActivity(liveBot)}
                         />
                       )
@@ -188,11 +219,33 @@ export default function ChatScreen() {
                       >
                         {title}
                       </Text>
-                      <Text variant="caption" muted numberOfLines={1}>
-                        {isGroup ? members.map((member) => member.name).join(", ") : bot?.role}
+                      <Text
+                        variant="caption"
+                        numberOfLines={1}
+                        muted={!liveBot?.activeRun}
+                        style={
+                          liveBot?.activeRun
+                            ? {
+                                color:
+                                  liveBot.activeRun.status === "waiting"
+                                    ? colors.attentionInk
+                                    : colors.working,
+                              }
+                            : undefined
+                        }
+                      >
+                        {isGroup
+                          ? members.map((member) => member.name).join(", ")
+                          : `${chat && namedForTopic(chat, liveBot) ? `${liveBot!.name} · ` : ""}${
+                              liveBot?.activeRun
+                                ? botStatusText(liveBot)
+                                : liveBot?.lastActiveAt
+                                  ? lastActive(liveBot.lastActiveAt)
+                                  : (bot?.role ?? "")
+                            }`}
                       </Text>
                     </View>
-                  </View>
+                  </Pressable>
                 ),
           headerRight: () =>
             chat && !gone && (chat.kind === "direct" || chat.kind === "group") ? (
@@ -200,7 +253,8 @@ export default function ChatScreen() {
                 onPress={() => setMenuOpen(true)}
                 accessibilityRole="button"
                 accessibilityLabel="Chat options"
-                hitSlop={10}
+                android_ripple={{ color: colors.muted, borderless: true, radius: 22 }}
+                style={styles.menuButton}
                 testID="chat-menu"
               >
                 <EllipsisVertical size={22} color={colors.foreground} />
@@ -216,70 +270,104 @@ export default function ChatScreen() {
           <Button title="Retry" variant="outline" onPress={() => void loadOlder()} />
         </View>
       )}
-      {loading ? (
-        <Loading />
-      ) : gone ? (
-        <Empty
-          icon={<Archive size={28} color={colors.mutedForeground} />}
-          title="This chat isn't available"
-          body="It may have been archived."
-          action={<Button title="Go back" variant="outline" onPress={goBack} />}
-        />
-      ) : error || !chat ? (
-        <LoadError error={error} onRetry={() => void refetch()} />
-      ) : (
-        <FlatList
-          ref={list}
-          data={data}
-          inverted
-          keyExtractor={(entry) => (entry.type === "message" ? entry.message.id : entry.run.id)}
-          renderItem={renderItem}
-          ItemSeparatorComponent={Gap}
-          ListFooterComponent={
-            <View style={styles.older}>
-              {loadingOlder && <ActivityIndicator size="small" color={colors.mutedForeground} />}
-            </View>
-          }
-          onEndReached={() => {
-            if (hasMore) void loadOlder();
-          }}
-          onEndReachedThreshold={0.4}
-          contentContainerStyle={[styles.timeline, data.length === 0 && { flex: 1 }]}
-          keyboardDismissMode="interactive"
-          keyboardShouldPersistTaps="handled"
-          onScrollToIndexFailed={({ index, averageItemLength }) => {
-            // Move the render window toward an unmeasured row before trying its exact index.
-            list.current?.scrollToOffset({ offset: averageItemLength * index, animated: false });
-            if (scrollRetry.current) clearTimeout(scrollRetry.current);
-            if (scrollAttempts.current++ >= 8) return;
-            scrollRetry.current = setTimeout(() => {
-              scrollRetry.current = null;
-              list.current?.scrollToIndex({ index, viewPosition: 1, animated: false });
-            }, 200);
-          }}
-          ListEmptyComponent={
-            <View style={styles.empty}>
-              <Empty
-                icon={
-                  bot ? (
-                    <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="lg" />
-                  ) : (
-                    <Users size={28} color={colors.mutedForeground} />
-                  )
-                }
-                title={
-                  isGroup ? "Start the conversation" : `Give ${bot?.name ?? "them"} something to do`
-                }
-                body={
-                  isGroup
-                    ? "Your message goes to the lead teammate. They pass work to each other."
-                    : `${bot?.name ?? "Your teammate"} works on the shared computer while you're away.`
-                }
-              />
-            </View>
-          }
-        />
-      )}
+      <View style={{ flex: 1 }}>
+        {loading ? (
+          <Loading />
+        ) : gone ? (
+          <Empty
+            icon={<Archive size={28} color={colors.mutedForeground} />}
+            title="This chat isn't available"
+            body="It may have been archived."
+            action={<Button title="Go back" variant="outline" onPress={goBack} />}
+          />
+        ) : error || !chat ? (
+          <LoadError error={error} onRetry={() => void refetch()} />
+        ) : (
+          <FlatList
+            ref={list}
+            data={data}
+            inverted
+            keyExtractor={(entry) => (entry.type === "message" ? entry.message.id : entry.run.id)}
+            renderItem={renderItem}
+            ItemSeparatorComponent={Gap}
+            ListFooterComponent={
+              <View style={styles.older}>
+                {loadingOlder && <ActivityIndicator size="small" color={colors.mutedForeground} />}
+              </View>
+            }
+            onEndReached={() => {
+              if (hasMore) void loadOlder();
+            }}
+            onEndReachedThreshold={0.4}
+            contentContainerStyle={[styles.timeline, data.length === 0 && { flex: 1 }]}
+            onScroll={(event) => {
+              // Inverted: the offset grows as you scroll back in time.
+              const up = event.nativeEvent.contentOffset.y > 600;
+              if (up !== scrolledUp) setScrolledUp(up);
+            }}
+            scrollEventThrottle={100}
+            keyboardDismissMode="interactive"
+            keyboardShouldPersistTaps="handled"
+            onScrollToIndexFailed={({ index, averageItemLength }) => {
+              // Move the render window toward an unmeasured row before trying its exact index.
+              list.current?.scrollToOffset({ offset: averageItemLength * index, animated: false });
+              if (scrollRetry.current) clearTimeout(scrollRetry.current);
+              if (scrollAttempts.current++ >= 8) return;
+              scrollRetry.current = setTimeout(() => {
+                scrollRetry.current = null;
+                list.current?.scrollToIndex({ index, viewPosition: 1, animated: false });
+              }, 200);
+            }}
+            ListEmptyComponent={
+              <View style={styles.empty}>
+                <Empty
+                  icon={
+                    bot ? (
+                      <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="lg" />
+                    ) : (
+                      <Users size={28} color={colors.mutedForeground} />
+                    )
+                  }
+                  title={
+                    isGroup
+                      ? "Start the conversation"
+                      : `Give ${bot?.name ?? "them"} something to do`
+                  }
+                  body={
+                    isGroup
+                      ? "Your message goes to the lead teammate. They pass work to each other."
+                      : `${bot?.name ?? "Your teammate"} works on the shared computer while you're away.`
+                  }
+                />
+              </View>
+            }
+          />
+        )}
+        {scrolledUp && !loading && !gone && (
+          <View style={styles.latestWrap} pointerEvents="box-none">
+            <Pressable
+              onPress={() => {
+                haptics.tap();
+                list.current?.scrollToOffset({ offset: 0, animated: true });
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Jump to the latest message"
+              android_ripple={{ color: colors.muted, borderless: true, radius: 22 }}
+              style={[
+                styles.latest,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  shadowColor: "#000",
+                },
+              ]}
+              testID="jump-to-latest"
+            >
+              <ArrowDown size={20} color={colors.foreground} />
+            </Pressable>
+          </View>
+        )}
+      </View>
       {chat && !gone && (
         <View
           style={[
@@ -457,17 +545,72 @@ function goBack() {
 }
 
 function Gap() {
-  return <View style={{ height: space(6) }} />;
+  return <View style={{ height: space(5) }} />;
+}
+
+/** A pause this long between two turns earns a time stamp, as in a messaging app. */
+const STAMP_GAP_MS = 60 * 60_000;
+
+/**
+ * The time stamp above an entry, when it's the first one or comes a while after the one before:
+ * "Today 10:29 PM", "Yesterday 9:03 AM", "Mon 2 Nov, 10:29 PM".
+ */
+function timeStamp(at: string, before: string | undefined): string | null {
+  const when = new Date(at);
+  if (before && when.getTime() - new Date(before).getTime() < STAMP_GAP_MS) {
+    const previous = new Date(before);
+    if (previous.toDateString() === when.toDateString()) return null;
+  }
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const day = new Date(when);
+  day.setHours(0, 0, 0, 0);
+  const days = Math.round((today.getTime() - day.getTime()) / 86_400_000);
+  const time = phoneClock(at);
+  if (days === 0) return `Today ${time}`;
+  if (days === 1) return `Yesterday ${time}`;
+  const date = when.toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    ...(when.getFullYear() !== today.getFullYear() ? { year: "numeric" } : {}),
+  });
+  return `${date}, ${time}`;
+}
+
+function TimeStamp({ text }: { text: string }) {
+  return (
+    <Text
+      variant="caption"
+      muted
+      style={{ textAlign: "center", marginBottom: space(4), fontWeight: "500" }}
+    >
+      {text}
+    </Text>
+  );
 }
 
 const styles = StyleSheet.create({
-  headerTitle: { flexDirection: "row", alignItems: "center", gap: space(2.5), maxWidth: 260 },
-  groupMark: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
+  headerTitle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space(3),
+    maxWidth: 260,
+    minHeight: 48,
+  },
+  menuButton: { width: 48, height: 48, alignItems: "center", justifyContent: "center" },
+  latestWrap: { position: "absolute", right: space(4), bottom: space(3) },
+  latest: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: StyleSheet.hairlineWidth,
     alignItems: "center",
     justifyContent: "center",
+    elevation: 4,
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
   },
   timeline: { paddingHorizontal: space(4), paddingVertical: space(4) },
   // No transform: the inverted list already flips its empty state back (both axes on Android),

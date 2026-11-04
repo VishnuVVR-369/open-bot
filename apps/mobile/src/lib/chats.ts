@@ -12,7 +12,9 @@ export function chatSubtitle(
   const { preview } = chat;
   if (preview) {
     if (!preview.botId) return `You: ${preview.text}`;
-    if (chat.kind !== "group") return preview.text;
+    if (chat.kind !== "group")
+      // A chat titled after its topic says whose reply it is, as its title no longer does.
+      return bot && namedForTopic(chat, bot) ? `${bot.name}: ${preview.text}` : preview.text;
     const speaker = bots.find((member) => member.id === preview.botId)?.name;
     return speaker ? `${speaker}: ${preview.text}` : preview.text;
   }
@@ -32,6 +34,14 @@ export function chatSubtitle(
 }
 
 /** What a chat is called in lists. */
+/** A direct chat titled after what it's about, not named after its teammate. */
+export function namedForTopic(
+  chat: Pick<ChatSummary, "kind" | "title">,
+  bot: Pick<BotSummary, "name"> | undefined,
+): boolean {
+  return chat.kind === "direct" && Boolean(bot) && chat.title !== bot!.name;
+}
+
 export function chatTitle(chat: ChatSummary, bot: BotSummary | undefined): string {
   if (chat.kind === "scheduled") return `${bot?.name ?? ""} · Scheduled`;
   if (chat.kind === "inbox") return `${bot?.name ?? ""} · Email`;

@@ -1,11 +1,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { ScreenOperation } from "@open-bot/shared";
 import { useContext, useEffect, useState } from "react";
-import { Switch, View } from "react-native";
+import { View } from "react-native";
 import * as Crypto from "expo-crypto";
 import SmsConsent from "../../../modules/sms-consent";
 import { Button } from "@/components/button";
 import { Sheet } from "@/components/sheet";
+import { Toggle } from "@/components/toggle";
 import { Text } from "@/components/text";
 import { TextField } from "@/components/text-field";
 import { api } from "@/lib/api";
@@ -13,7 +14,6 @@ import { ComputerAccess } from "@/lib/computer-access";
 import { errorMessage } from "@/lib/errors";
 import { queryClient, queryKeys } from "@/lib/query";
 import { recoverCodeOperation } from "@/lib/screens";
-import { useColors } from "@/theme";
 import { DESKTOP_ASPECT_RATIO, DesktopView } from "./desktop-view";
 
 const terminal = new Set(["handed_back", "cancelled", "failed", "needs_owner", "unknown"]);
@@ -36,7 +36,6 @@ export function CodeSheet({
   onClose: () => void;
 }) {
   const access = useContext(ComputerAccess);
-  const colors = useColors();
   const [text, setText] = useState("");
   const [pressEnter, setPressEnter] = useState(true);
   const [site, setSite] = useState<string | null>(null);
@@ -209,11 +208,9 @@ export function CodeSheet({
               }}
             >
               <Text variant="small">Submit after typing</Text>
-              <Switch
+              <Toggle
                 value={pressEnter}
                 onValueChange={setPressEnter}
-                trackColor={{ false: colors.input, true: colors.primary }}
-                thumbColor={colors.surface}
                 accessibilityLabel="Submit after typing"
               />
             </View>

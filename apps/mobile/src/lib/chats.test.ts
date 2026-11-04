@@ -22,6 +22,17 @@ function chat(overrides: Partial<ChatSummary>): ChatSummary {
 }
 
 describe("chat subtitles", () => {
+  it("says whose reply it is once a direct chat is titled after its topic", () => {
+    const titled = chat({
+      title: "Fix the login redirect",
+      preview: { text: "Done.", botId: "rex" },
+    });
+    expect(chatSubtitle(titled, rex, bots)).toBe("Rex: Done.");
+    expect(chatSubtitle({ ...titled, preview: { text: "Thanks", botId: null } }, rex, bots)).toBe(
+      "You: Thanks",
+    );
+  });
+
   it("shows what was said last, and says when you said it", () => {
     expect(chatSubtitle(chat({ preview: { text: "Done.", botId: "rex" } }), rex, bots)).toBe(
       "Done.",

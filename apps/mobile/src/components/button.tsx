@@ -53,30 +53,29 @@ export function Button({
         {
           backgroundColor: look.bg,
           borderColor: look.border,
-          opacity: inactive ? 0.5 : pressed ? 0.85 : 1,
+          // Busy is still at work, so only an unavailable button fades.
+          opacity: disabled && !busy ? 0.5 : pressed ? 0.85 : 1,
         },
         style,
       ]}
     >
-      {busy ? (
-        <ActivityIndicator size="small" color={look.fg} />
-      ) : (
-        <View style={styles.content}>
-          {icon}
-          <Text variant="label" style={{ color: look.fg }}>
-            {title}
-          </Text>
-        </View>
-      )}
+      {/* The label keeps its place under the spinner, so the button doesn't change size. */}
+      <View style={[styles.content, busy && { opacity: 0 }]}>
+        {icon}
+        <Text variant="label" style={{ color: look.fg }}>
+          {title}
+        </Text>
+      </View>
+      {busy && <ActivityIndicator size="small" color={look.fg} style={StyleSheet.absoluteFill} />}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   button: {
-    minHeight: 44,
+    minHeight: 48,
     paddingHorizontal: space(4),
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
     borderWidth: StyleSheet.hairlineWidth * 2,
     alignItems: "center",
     justifyContent: "center",

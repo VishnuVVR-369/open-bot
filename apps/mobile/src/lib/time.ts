@@ -40,6 +40,17 @@ export function ago(iso: string, now = Date.now()): string {
   });
 }
 
+/**
+ * When a teammate last worked, as a phrase: "Active just now", "Active 5m ago", "Active 3h ago",
+ * "Active yesterday", "Active Mon", "Active 12 Oct".
+ */
+export function lastActive(iso: string, now = Date.now()): string {
+  const when = ago(iso, now);
+  if (when === "now") return "Active just now";
+  if (/^\d+[mh]$/.test(when)) return `Active ${when} ago`;
+  return `Active ${when === "Yesterday" ? "yesterday" : when}`;
+}
+
 /** 42s, 3m 05s */
 export function elapsed(ms: number): string {
   const seconds = Math.max(0, Math.floor(ms / 1000));

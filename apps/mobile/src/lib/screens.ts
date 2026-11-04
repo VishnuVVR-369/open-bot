@@ -1,14 +1,57 @@
 import type { ScreenView } from "@open-bot/api";
 import { isOwnerLease } from "@open-bot/shared";
 
-export function screenStatus(screen: ScreenView): string {
+/**
+ * What a screen is doing, from your side: what to say about it and which action comes first.
+ * `using` means a teammate is driving it; `awake` means it's on and nobody is.
+ */
+export type ScreenState =
+  | { kind: "controlling"; paused: boolean }
+  | { kind: "offline" }
+  | { kind: "needs-you"; reason: string | null; requestId: string }
+  | { kind: "asleep" }
+  | { kind: "using"; botName: string }
+  | { kind: "awake" };
+
+export function screenState(screen: ScreenView): ScreenState {
   if (isOwnerLease(screen.lease))
-    return screen.lease.pausedForSafety ? "Paused for safety" : "You have control";
-  if (!screen.online) return "Computer offline";
-  if (screen.requests.length) return "Needs you to take over";
-  if (!screen.running) return "Asleep";
-  if (screen.lease?.kind === "run") return `${screen.lease.botName} is working`;
-  return "Idle";
+    return { kind: "controlling", paused: screen.lease.pausedForSafety === true };
+  if (!screen.online) return { kind: "offline" };
+  const request = screen.requests[0];
+  if (request) return { kind: "needs-you", reason: request.reason, requestId: request.id };
+  if (!screen.running) return { kind: "asleep" };
+  if (screen.lease?.kind === "run") return { kind: "using", botName: screen.lease.botName };
+  return { kind: "awake" };
+}
+
+export function screenStatus(screen: ScreenView): string {
+  const state = screenState(screen);
+  switch (state.kind) {
+    case "controlling":
+      return state.paused ? "Paused for safety" : "You're in control";
+    case "offline":
+      return "Computer offline";
+    case "needs-you":
+      return "Needs you to take over";
+    case "asleep":
+      return "Asleep";
+    case "using":
+      return `${state.botName} is using it`;
+    case "awake":
+      return "Awake";
+  }
+}
+
+/** Screens that need you first, then the one you hold, then the rest in their usual order. */
+export function sortScreens(screens: readonly ScreenView[]): ScreenView[] {
+  const rank = (screen: ScreenView) => {
+    const kind = screenState(screen).kind;
+    return kind === "needs-you" ? 0 : kind === "controlling" ? 1 : 2;
+  };
+  return screens
+    .map((screen, index) => ({ screen, index }))
+    .sort((a, b) => rank(a.screen) - rank(b.screen) || a.index - b.index)
+    .map(({ screen }) => screen);
 }
 
 export const screenHref = (id: string, takeoverId?: string, code = false) =>

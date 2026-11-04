@@ -1,4 +1,4 @@
-import type { NotificationView } from "@open-bot/api";
+import type { BotSummary, NotificationView } from "@open-bot/api";
 import { plainText } from "@open-bot/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { router, Stack, useFocusEffect } from "expo-router";
@@ -11,17 +11,22 @@ import {
   ShieldAlert,
   type LucideIcon,
 } from "lucide-react-native";
-import { useCallback, useRef, useState } from "react";
-import { FlatList, Pressable, RefreshControl, StyleSheet, View } from "react-native";
-import { BotAvatar } from "@/components/bot-avatar";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { Pressable, RefreshControl, SectionList, StyleSheet, View } from "react-native";
+import { AvatarBadge, ON_ATTENTION } from "@/components/approval-parts";
+import { BotAvatar, botActivity } from "@/components/bot-avatar";
+import { Separator } from "@/components/list-row";
 import { Empty, LoadError, Loading } from "@/components/states";
 import { Text } from "@/components/text";
 import { api } from "@/lib/api";
+import { groupByDay } from "@/lib/day-groups";
+import { haptics } from "@/lib/haptics";
 import { notificationHref } from "@/lib/links";
+import { collapseRepeats } from "@/lib/notification-groups";
 import { useHome, useNotifications, useTeammates } from "@/lib/queries";
 import { queryKeys } from "@/lib/query";
 import { ago } from "@/lib/time";
-import { space, useColors } from "@/theme";
+import { radius, space, useColors } from "@/theme";
 import { mix } from "@/theme/mix";
 
 const ICONS: Record<string, LucideIcon> = {
@@ -32,6 +37,55 @@ const ICONS: Record<string, LucideIcon> = {
   bot_message: MessageSquare,
   run_finished: MessageSquare,
 };
+
+/** Kinds that need you, which get an amber mark, and failures, which get a red one. */
+const NEEDS_YOU = new Set(["approval", "takeover_request", "cap_reached"]);
+const FAILED = new Set(["run_failed"]);
+
+const AVATAR = 40;
+
+/** Who it's from: the teammate's face (with what they're up to), or a tile for the app itself. */
+function Leading({ notification, bot }: { notification: NotificationView; bot?: BotSummary }) {
+  const colors = useColors();
+  const Icon = ICONS[notification.kind] ?? Bell;
+  const signal = NEEDS_YOU.has(notification.kind)
+    ? { fill: colors.attention, ink: colors.attentionInk }
+    : FAILED.has(notification.kind)
+      ? { fill: colors.destructive, ink: colors.destructive }
+      : null;
+  if (!bot)
+    return (
+      <View
+        style={[
+          styles.tile,
+          { backgroundColor: signal ? mix(signal.fill, colors.surface, 0.14) : colors.subtle },
+        ]}
+      >
+        <Icon size={20} color={signal ? signal.ink : colors.foreground} />
+      </View>
+    );
+  const avatar = (
+    <BotAvatar
+      name={bot.name}
+      color={bot.color}
+      emoji={bot.emoji}
+      size="md"
+      activity={botActivity(bot)}
+    />
+  );
+  if (!signal) return avatar;
+  return (
+    <AvatarBadge
+      tint={signal.fill}
+      ink={colors.background}
+      badge={
+        <Icon size={11} color={signal.fill === colors.attention ? ON_ATTENTION : colors.surface} />
+      }
+    >
+      {avatar}
+    </AvatarBadge>
+  );
+}
 
 /** What teammates told you, newest first, as the bell on the web shows it. */
 export default function Notifications() {
@@ -45,6 +99,10 @@ export default function Notifications() {
   const { data: home } = useHome();
   // What the bell counts can include ones too old for the list.
   const anyUnread = unread.length > 0 || (home?.unreadNotifications ?? 0) > 0;
+  const sections = useMemo(
+    () => groupByDay(collapseRepeats(query.data ?? []), (row) => row.items[0]!.createdAt),
+    [query.data],
+  );
   const seen = useRef({ newest: notifications[0]?.id, anyUnread });
   seen.current = { newest: notifications[0]?.id, anyUnread };
 
@@ -90,8 +148,12 @@ export default function Notifications() {
           headerRight: () =>
             anyUnread ? (
               <Pressable
-                onPress={() => markRead()}
-                hitSlop={10}
+                onPress={() => {
+                  haptics.tap();
+                  markRead();
+                }}
+                hitSlop={4}
+                style={styles.headerAction}
                 accessibilityRole="button"
                 testID="mark-all-read"
               >
@@ -100,9 +162,10 @@ export default function Notifications() {
             ) : null,
         }}
       />
-      <FlatList
-        data={notifications}
-        keyExtractor={(notification) => notification.id}
+      <SectionList
+        sections={sections}
+        keyExtractor={(row) => row.key}
+        stickySectionHeadersEnabled={false}
         contentContainerStyle={{ flexGrow: 1, paddingBottom: space(6) }}
         refreshControl={
           <RefreshControl
@@ -116,9 +179,12 @@ export default function Notifications() {
             progressBackgroundColor={colors.surface}
           />
         }
-        ItemSeparatorComponent={() => (
-          <View style={[styles.separator, { backgroundColor: colors.border }]} />
+        renderSectionHeader={({ section }) => (
+          <Text variant="caption" muted style={styles.section} accessibilityRole="header">
+            {section.title.toUpperCase()}
+          </Text>
         )}
+        ItemSeparatorComponent={() => <Separator inset={space(4) + AVATAR + space(3)} />}
         ListEmptyComponent={
           <Empty
             icon={<Bell size={28} color={colors.mutedForeground} />}
@@ -126,57 +192,75 @@ export default function Notifications() {
             body="When a teammate finishes something or needs you, it shows up here."
           />
         }
-        renderItem={({ item: notification }) => {
+        renderItem={({ item: row }) => {
+          const notification = row.items[0]!;
           const bot = bots.find((candidate) => candidate.id === notification.botId);
-          const isUnread = !notification.readAt;
-          const Icon = ICONS[notification.kind] ?? Bell;
+          const unreadIds = row.items.filter((item) => !item.readAt).map((item) => item.id);
+          const isUnread = unreadIds.length > 0;
           const body = plainText(notification.body);
+          const count = row.items.length;
           return (
             <Pressable
               onPress={() => {
-                if (isUnread) markRead([notification.id]);
+                if (isUnread) markRead(unreadIds);
                 router.push(notificationHref(notification));
               }}
               android_ripple={{ color: colors.muted }}
               style={[
                 styles.row,
-                isUnread && { backgroundColor: mix(colors.foreground, colors.background, 0.025) },
+                isUnread && { backgroundColor: mix(colors.foreground, colors.background, 0.035) },
               ]}
               accessibilityRole="button"
+              accessibilityLabel={[
+                isUnread ? "Unread" : null,
+                notification.title,
+                count > 1 ? `${count} times` : null,
+                body,
+                ago(notification.createdAt),
+              ]
+                .filter(Boolean)
+                .join(", ")}
               testID="notification"
             >
-              {bot ? (
-                <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="md" />
-              ) : (
-                <View style={[styles.icon, { backgroundColor: colors.subtle }]}>
-                  <Icon size={18} color={colors.mutedForeground} />
-                </View>
-              )}
+              <Leading notification={notification} bot={bot} />
               <View style={{ flex: 1, gap: 2 }}>
                 <View style={styles.titleRow}>
                   <Text
                     variant="label"
                     numberOfLines={2}
-                    style={[{ flex: 1 }, !isUnread && { fontWeight: "400" }]}
+                    style={[styles.title, { fontWeight: isUnread ? "600" : "400" }]}
                   >
                     {notification.title}
                   </Text>
-                  <Text variant="caption" muted>
-                    {ago(notification.createdAt)}
-                  </Text>
+                  {count > 1 && (
+                    <View style={[styles.count, { backgroundColor: colors.subtle }]}>
+                      <Text variant="caption" style={{ fontWeight: "600" }}>
+                        ×{count}
+                      </Text>
+                    </View>
+                  )}
+                  <View style={styles.when}>
+                    <Text
+                      variant="caption"
+                      muted={!isUnread}
+                      style={isUnread ? { fontWeight: "600" } : undefined}
+                    >
+                      {ago(notification.createdAt)}
+                    </Text>
+                    <View
+                      style={[
+                        styles.dot,
+                        { backgroundColor: isUnread ? colors.foreground : "transparent" },
+                      ]}
+                    />
+                  </View>
                 </View>
                 {body ? (
-                  <Text variant="small" muted numberOfLines={3}>
+                  <Text variant="small" muted numberOfLines={2}>
                     {body}
                   </Text>
                 ) : null}
               </View>
-              <View
-                style={[
-                  styles.dot,
-                  { backgroundColor: isUnread ? colors.foreground : "transparent" },
-                ]}
-              />
             </Pressable>
           );
         }}
@@ -186,15 +270,38 @@ export default function Notifications() {
 }
 
 const styles = StyleSheet.create({
+  section: {
+    letterSpacing: 0.6,
+    fontWeight: "500",
+    paddingHorizontal: space(4),
+    paddingTop: space(5),
+    paddingBottom: space(2),
+  },
   row: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: space(3),
     paddingHorizontal: space(4),
-    paddingVertical: space(3.5),
+    paddingVertical: space(3),
+    minHeight: 64,
   },
   titleRow: { flexDirection: "row", alignItems: "flex-start", gap: space(2) },
-  icon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  dot: { width: 8, height: 8, borderRadius: 4, marginTop: 7 },
-  separator: { height: StyleSheet.hairlineWidth, marginLeft: space(4) + 36 + space(3) },
+  title: { flex: 1 },
+  // The time and the unread dot share the title's first line.
+  when: { flexDirection: "row", alignItems: "center", gap: space(1.5), height: 20 },
+  dot: { width: 8, height: 8, borderRadius: radius.full },
+  count: {
+    borderRadius: radius.full,
+    paddingHorizontal: space(1.5),
+    height: 20,
+    justifyContent: "center",
+  },
+  tile: {
+    width: AVATAR,
+    height: AVATAR,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerAction: { minHeight: 48, justifyContent: "center", paddingHorizontal: space(2) },
 });

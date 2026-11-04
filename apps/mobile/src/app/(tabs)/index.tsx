@@ -1,11 +1,11 @@
-import type { ActivityItem, BotSummary, BriefingItem, Home } from "@open-bot/api";
+import type { ActivityItem, BotSummary, BriefingItem, ChatSummary, Home } from "@open-bot/api";
 import { isRunActive, plainText } from "@open-bot/shared";
 import { router, type Href } from "expo-router";
 import {
   AlertCircle,
-  ArrowRight,
   CalendarClock,
   ChevronRight,
+  Crown,
   Eye,
   Hand,
   History,
@@ -15,15 +15,17 @@ import {
   Webhook,
   X,
 } from "lucide-react-native";
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
-import { BotAvatar, botActivity, botStatusText } from "@/components/bot-avatar";
+import { BotAvatar, botActivity, GroupAvatar } from "@/components/bot-avatar";
 import { ConnectionNotice } from "@/components/connection-notice";
 import { Card, Section } from "@/components/section";
 import { Empty, LoadError, Loading } from "@/components/states";
 import { Text } from "@/components/text";
+import { haptics } from "@/lib/haptics";
+import { animateLayout } from "@/lib/motion";
 import { usePresence } from "@/lib/presence";
-import { useHome, useNewDirectChat, useTeammates } from "@/lib/queries";
+import { useChats, useHome, useNewDirectChat, useTeammates } from "@/lib/queries";
 import { phoneDayClock } from "@/lib/phone-clock";
 import { screenHref } from "@/lib/screens";
 import { ago } from "@/lib/time";
@@ -49,67 +51,58 @@ const plural = (count: number, one: string, many = `${one}s`) =>
 const chatHref = (chatId: string, runId?: string | null): Href =>
   runId ? `/chats/${chatId}?run=${runId}` : `/chats/${chatId}`;
 
-/** A tappable row inside a card. */
-function Row({
-  onPress,
-  children,
-  testID,
-  divider = true,
-}: {
-  onPress?: () => void;
-  children: ReactNode;
-  testID?: string;
-  divider?: boolean;
-}) {
-  const colors = useColors();
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={!onPress}
-      android_ripple={{ color: colors.muted }}
-      style={[
-        styles.row,
-        divider && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
-      ]}
-      testID={testID}
-    >
-      {children}
-    </Pressable>
-  );
+/** How many recent turns from groups and automations Home shows. */
+const RECENT = 4;
+
+/** The line under the greeting: what's going on, in a few words. */
+function statusLine(home: Home, bots: BotSummary[]): string {
+  const needs = home.pendingApprovals + home.takeoverRequests.length;
+  const working = bots.filter((bot) => botActivity(bot) === "working");
+  if (needs > 0) return `${plural(needs, "thing")} ${needs === 1 ? "needs" : "need"} you.`;
+  if (working.length === 1) return `${working[0]!.name} is working on something.`;
+  if (working.length > 1) return `${plural(working.length, "teammate")} are working right now.`;
+  return "All quiet. Your teammates are ready when you are.";
 }
 
-/** Something that needs you, in a tinted card of its own. */
+/** Something that needs you, in a tinted card of its own, with who's asking. */
 function Callout({
-  icon,
-  tint,
+  leading,
   onPress,
   children,
+  action,
   testID,
 }: {
-  icon: ReactNode;
-  tint: string;
-  onPress?: () => void;
+  leading: ReactNode;
+  onPress: () => void;
   children: ReactNode;
+  action: string;
   testID?: string;
 }) {
   const colors = useColors();
   return (
     <Pressable
-      onPress={onPress}
-      disabled={!onPress}
-      android_ripple={{ color: mix(tint, colors.surface, 0.12) }}
+      onPress={() => {
+        haptics.tap();
+        onPress();
+      }}
+      accessibilityRole="button"
+      android_ripple={{ color: mix(colors.attention, colors.surface, 0.18) }}
       style={[
         styles.callout,
         {
-          borderColor: mix(tint, colors.surface, 0.4),
-          backgroundColor: mix(tint, colors.background, 0.07),
+          borderColor: mix(colors.attention, colors.surface, 0.5),
+          backgroundColor: mix(colors.attention, colors.surface, 0.09),
         },
       ]}
       testID={testID}
     >
-      {icon}
-      <View style={{ flex: 1 }}>{children}</View>
-      {onPress && <ArrowRight size={16} color={colors.mutedForeground} />}
+      {leading}
+      <View style={{ flex: 1, gap: 2 }}>{children}</View>
+      <View style={[styles.calloutAction, { backgroundColor: colors.attention }]}>
+        <Text variant="small" style={{ color: "#1A1200", fontWeight: "600" }}>
+          {action}
+        </Text>
+      </View>
     </Pressable>
   );
 }
@@ -120,56 +113,89 @@ function NeedsYou({ home, bots }: { home: Home; bots: BotSummary[] }) {
     const bot = bots.find((entry) => entry.id === proposal.botId);
     return bot ? [{ ...proposal, bot }] : [];
   });
+  // Who is waiting on an approval, from the teammates' live state.
+  const asking = bots.filter(
+    (bot) => bot.activeRun?.status === "waiting" && bot.activeRun.waitingFor === "approval",
+  );
   if (home.pendingApprovals === 0 && home.takeoverRequests.length === 0 && proposals.length === 0)
     return null;
   return (
     <Section title="Needs you">
       <View style={{ gap: space(2) }}>
-        {home.takeoverRequests.map((request) => (
-          <Callout
-            key={request.id}
-            icon={<Hand size={16} color={colors.manualInk} />}
-            tint={colors.manual}
-            onPress={() => router.push(screenHref(request.screenId, request.id))}
-            testID="takeover-request"
-          >
-            <Text variant="small" style={{ fontSize: 14 }}>
-              <Text variant="small" style={{ fontSize: 14, fontWeight: "500" }}>
-                {request.botName} needs you to take over:
-              </Text>{" "}
-              <Text variant="small" muted style={{ fontSize: 14 }}>
+        {home.takeoverRequests.map((request) => {
+          const bot = bots.find((entry) => entry.id === request.botId);
+          return (
+            <Callout
+              key={request.id}
+              leading={
+                bot ? (
+                  <BotAvatar {...bot} size="md" />
+                ) : (
+                  <Hand size={20} color={colors.attentionInk} />
+                )
+              }
+              onPress={() => router.push(screenHref(request.screenId, request.id))}
+              action="Open"
+              testID="takeover-request"
+            >
+              <Text variant="label">{request.botName} needs you to take over</Text>
+              <Text variant="small" muted numberOfLines={2}>
                 {request.reason}
               </Text>
-            </Text>
-          </Callout>
-        ))}
+            </Callout>
+          );
+        })}
         {home.pendingApprovals > 0 && (
           <Callout
-            icon={<ShieldAlert size={16} color={colors.waiting} />}
-            tint={colors.waiting}
+            leading={
+              asking.length === 1 ? (
+                <BotAvatar {...asking[0]!} size="md" />
+              ) : asking.length > 1 ? (
+                <GroupAvatar
+                  members={asking}
+                  size="md"
+                  ring={mix(colors.attention, colors.surface, 0.09)}
+                />
+              ) : (
+                <View
+                  style={[
+                    styles.mark,
+                    { backgroundColor: mix(colors.attention, colors.surface, 0.22) },
+                  ]}
+                >
+                  <ShieldAlert size={20} color={colors.attentionInk} />
+                </View>
+              )
+            }
             onPress={() => router.navigate("/approvals")}
+            action="Review"
             testID="pending-approvals"
           >
-            <Text variant="label" style={{ fontSize: 14 }}>
+            <Text variant="label">
               {home.pendingApprovals === 1
-                ? "1 action is waiting for your approval"
-                : `${home.pendingApprovals} actions are waiting for your approval`}
+                ? "1 action waiting for your OK"
+                : `${home.pendingApprovals} actions waiting for your OK`}
             </Text>
+            {asking.length > 0 && (
+              <Text variant="small" muted numberOfLines={1}>
+                From {asking.map((bot) => bot.name).join(", ")}
+              </Text>
+            )}
           </Callout>
         )}
         {proposals.map((proposal) => (
-          <Callout
+          <View
             key={proposal.id}
-            icon={<Sparkles size={16} color={colors.waiting} />}
-            tint={colors.border}
+            style={[styles.note, { backgroundColor: colors.surface, borderColor: colors.border }]}
           >
-            <Text variant="label" style={{ fontSize: 14 }}>
-              {proposal.bot.name} suggests new instructions
-            </Text>
-            <Text variant="caption" muted>
-              Review them in open-bot on a computer.
-            </Text>
-          </Callout>
+            <Sparkles size={18} color={colors.mutedForeground} />
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text variant="label">{proposal.bot.name} suggests new instructions</Text>
+              <Text variant="small" muted>
+                Review them in open-bot on a computer.
+              </Text>
+            </View>
+          </View>
         ))}
       </View>
     </Section>
@@ -208,12 +234,10 @@ function Briefing({
     >
       <View style={styles.briefingHead}>
         <View style={[styles.mark, { backgroundColor: colors.subtle }]}>
-          <History size={16} color={colors.mutedForeground} />
+          <History size={18} color={colors.foreground} />
         </View>
         <View style={{ flex: 1, gap: 2 }}>
-          <Text variant="label" style={{ fontSize: 14 }}>
-            While you were away
-          </Text>
+          <Text variant="heading">While you were away</Text>
           <Text variant="small" muted>
             {[done > 0 && `${plural(done, "task")} done`, failed > 0 && `${failed} failed`]
               .filter(Boolean)
@@ -222,10 +246,13 @@ function Briefing({
           </Text>
         </View>
         <Pressable
-          onPress={dismiss}
-          hitSlop={10}
+          onPress={() => {
+            animateLayout();
+            dismiss();
+          }}
           accessibilityRole="button"
           accessibilityLabel="Dismiss the briefing"
+          android_ripple={{ color: colors.muted, borderless: true, radius: 20 }}
           style={styles.dismiss}
         >
           <X size={18} color={colors.mutedForeground} />
@@ -244,10 +271,10 @@ function Briefing({
             />
             <View style={{ flex: 1 }}>
               <View style={styles.briefingName}>
-                <Text variant="small" style={{ fontWeight: "500", fontSize: 14 }}>
+                <Text variant="label" style={{ fontSize: 14 }}>
                   {bot?.name ?? "Former teammate"}
                 </Text>
-                <Text variant="small" muted style={{ fontSize: 14 }}>
+                <Text variant="small" muted>
                   · {plural(botItems.length, "task")}
                 </Text>
               </View>
@@ -262,10 +289,10 @@ function Briefing({
                   <Pressable
                     key={item.runId}
                     onPress={() => router.push(chatHref(item.chatId, item.runId))}
+                    accessibilityRole="button"
                     style={styles.briefingItem}
-                    hitSlop={4}
                   >
-                    <View style={{ width: 14, paddingTop: 2 }}>
+                    <View style={{ width: 14, paddingTop: 3 }}>
                       {Icon && (
                         <Icon
                           size={13}
@@ -277,14 +304,14 @@ function Briefing({
                     </View>
                     <Text
                       variant="small"
-                      numberOfLines={1}
+                      numberOfLines={2}
                       style={[
-                        { flex: 1, fontSize: 13.5 },
+                        { flex: 1, fontSize: 14, lineHeight: 19 },
                         item.status === "failed" && { color: colors.destructive },
                       ]}
                     >
                       {item.automationTitle && (
-                        <Text variant="small" style={{ fontWeight: "500", fontSize: 13.5 }}>
+                        <Text variant="small" style={{ fontWeight: "600", fontSize: 14 }}>
                           {item.automationTitle}:{" "}
                         </Text>
                       )}
@@ -297,7 +324,7 @@ function Briefing({
                 );
               })}
               {extra > 0 && (
-                <Text variant="caption" muted style={{ paddingLeft: space(5), paddingTop: 2 }}>
+                <Text variant="caption" muted style={{ paddingLeft: space(5.5), paddingTop: 2 }}>
                   and {extra} more
                 </Text>
               )}
@@ -309,54 +336,151 @@ function Briefing({
   );
 }
 
-function Teammates({ bots }: { bots: BotSummary[] }) {
+/** A teammate's latest conversation with you, for the roster's preview. */
+function latestChat(bot: BotSummary, chats: ChatSummary[]): ChatSummary | undefined {
+  const direct = chats.filter((chat) => chat.kind === "direct" && chat.botId === bot.id);
+  return (
+    direct.find((chat) => chat.id === bot.directChatId) ??
+    [...direct].sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt))[0]
+  );
+}
+
+/** One teammate: their face and state, and the last thing said between you. */
+function TeammateRow({
+  bot,
+  chat,
+  first,
+  onPress,
+}: {
+  bot: BotSummary;
+  chat: ChatSummary | undefined;
+  first: boolean;
+  onPress: () => void;
+}) {
   const colors = useColors();
+  const activity = botActivity(bot);
+  const unread = Boolean(chat?.unread);
+  const state =
+    activity === "waiting"
+      ? bot.activeRun?.waitingFor === "takeover"
+        ? "Needs you to take over"
+        : "Waiting for your OK"
+      : activity === "working"
+        ? "Working on it…"
+        : activity === "queued"
+          ? "Up next"
+          : null;
+  const preview = chat?.preview
+    ? `${chat.preview.botId ? "" : "You: "}${chat.preview.text}`
+    : `Say hi to ${bot.name}, your ${bot.role}.`;
+  return (
+    <Pressable
+      onPress={onPress}
+      onLongPress={() => {
+        haptics.press();
+        router.push(`/teammates/${bot.id}`);
+      }}
+      accessibilityRole="button"
+      accessibilityHint={`Hold to see ${bot.name}'s profile`}
+      accessibilityLabel={[
+        bot.name,
+        bot.isPrimary ? "lead" : null,
+        state,
+        unread ? "unread" : null,
+        preview,
+      ]
+        .filter(Boolean)
+        .join(", ")}
+      android_ripple={{ color: colors.muted }}
+      style={[
+        styles.teammate,
+        !first && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+      ]}
+      testID="teammate"
+    >
+      <BotAvatar {...bot} size="lg" activity={activity} />
+      <View style={{ flex: 1, gap: 2 }}>
+        <View style={styles.nameRow}>
+          <Text
+            variant="label"
+            numberOfLines={1}
+            style={[{ flexShrink: 1, fontSize: 16 }, unread && { fontWeight: "700" }]}
+          >
+            {bot.name}
+          </Text>
+          {bot.isPrimary && <Crown size={13} color={colors.mutedForeground} />}
+          <Text variant="small" muted numberOfLines={1} style={{ flexShrink: 1 }}>
+            {bot.role}
+          </Text>
+          {chat && (
+            <Text
+              variant="caption"
+              muted={!unread}
+              style={[{ marginLeft: "auto" }, unread && { fontWeight: "600" }]}
+            >
+              {ago(chat.lastActivityAt)}
+            </Text>
+          )}
+        </View>
+        <View style={styles.previewRow}>
+          {state ? (
+            <Text
+              variant="small"
+              numberOfLines={1}
+              style={{
+                flex: 1,
+                fontSize: 14,
+                fontWeight: "500",
+                color: activity === "waiting" ? colors.attentionInk : colors.working,
+              }}
+            >
+              {state}
+            </Text>
+          ) : (
+            <Text
+              variant="small"
+              numberOfLines={2}
+              muted={!unread}
+              style={{ flex: 1, fontSize: 14, lineHeight: 19 }}
+            >
+              {plainText(preview)}
+            </Text>
+          )}
+          {unread && <View style={[styles.unread, { backgroundColor: colors.foreground }]} />}
+        </View>
+      </View>
+    </Pressable>
+  );
+}
+
+function Teammates({ bots, chats }: { bots: BotSummary[]; chats: ChatSummary[] }) {
   const newChat = useNewDirectChat();
   const open = (bot: BotSummary) => {
-    const chatId = bot.activeRun?.chatId ?? bot.directChatId;
+    haptics.tap();
+    const chatId = bot.activeRun?.chatId ?? latestChat(bot, chats)?.id ?? bot.directChatId;
     if (chatId) router.push(`/chats/${chatId}`);
     else newChat.mutate(bot.id);
   };
+  // Who needs you first, then who's working, then everyone by their latest conversation.
+  const rank = { waiting: 0, working: 1, queued: 2, idle: 3 } as const;
+  const sorted = [...bots].sort((a, b) => {
+    const byState = rank[botActivity(a)] - rank[botActivity(b)];
+    if (byState) return byState;
+    const at = (bot: BotSummary) => latestChat(bot, chats)?.lastActivityAt ?? "";
+    return at(b).localeCompare(at(a));
+  });
   return (
     <Section title="Teammates">
       <Card>
-        {bots.map((bot, index) => {
-          const activity = botActivity(bot);
-          return (
-            <Row key={bot.id} onPress={() => open(bot)} divider={index > 0} testID="teammate">
-              <BotAvatar
-                name={bot.name}
-                color={bot.color}
-                emoji={bot.emoji}
-                size="md"
-                activity={activity}
-              />
-              <View style={{ flex: 1, gap: 1 }}>
-                <View style={styles.nameRow}>
-                  <Text variant="label" numberOfLines={1} style={{ flexShrink: 1 }}>
-                    {bot.name}
-                  </Text>
-                  {bot.isPrimary && (
-                    <View style={[styles.lead, { backgroundColor: colors.subtle }]}>
-                      <Text variant="caption" muted style={{ fontSize: 11, lineHeight: 14 }}>
-                        lead
-                      </Text>
-                    </View>
-                  )}
-                </View>
-                <Text
-                  variant="small"
-                  numberOfLines={1}
-                  muted={activity !== "waiting" && activity !== "working"}
-                  style={activity === "waiting" ? { color: colors.waiting } : undefined}
-                >
-                  {botStatusText(bot)}
-                </Text>
-              </View>
-              <ChevronRight size={18} color={colors.mutedForeground} />
-            </Row>
-          );
-        })}
+        {sorted.map((bot, index) => (
+          <TeammateRow
+            key={bot.id}
+            bot={bot}
+            chat={latestChat(bot, chats)}
+            first={index === 0}
+            onPress={() => open(bot)}
+          />
+        ))}
       </Card>
     </Section>
   );
@@ -373,54 +497,63 @@ function ActivityRow({
 }) {
   const colors = useColors();
   const active = isRunActive(item.status);
+  const Icon =
+    item.chatKind === "group"
+      ? Users
+      : item.trigger in TRIGGER_ICONS
+        ? TRIGGER_ICONS[item.trigger as keyof typeof TRIGGER_ICONS]
+        : null;
+  const where =
+    item.chatKind === "group"
+      ? item.chatTitle
+      : item.trigger === "schedule"
+        ? "Scheduled"
+        : item.trigger === "watch"
+          ? "Page changed"
+          : item.trigger === "webhook"
+            ? "Webhook"
+            : null;
   return (
-    <Row onPress={() => router.push(chatHref(item.chatId, item.runId))} divider={!first}>
-      <View style={{ alignSelf: "flex-start", paddingTop: 2 }}>
-        <BotAvatar
-          name={bot?.name ?? "?"}
-          color={bot?.color ?? "#888888"}
-          emoji={bot?.emoji}
-          size="sm"
-        />
-      </View>
+    <Pressable
+      onPress={() => router.push(chatHref(item.chatId, item.runId))}
+      accessibilityRole="button"
+      android_ripple={{ color: colors.muted }}
+      style={[
+        styles.activity,
+        !first && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+      ]}
+    >
+      <BotAvatar
+        name={bot?.name ?? "?"}
+        color={bot?.color ?? "#888888"}
+        emoji={bot?.emoji}
+        size="sm"
+      />
       <View style={{ flex: 1, gap: 2 }}>
         <View style={styles.activityMeta}>
-          <Text variant="caption" style={{ fontWeight: "500", fontSize: 13 }} numberOfLines={1}>
+          <Text variant="small" style={{ fontWeight: "600" }} numberOfLines={1}>
             {bot?.name ?? "Former teammate"}
           </Text>
-          {item.chatKind === "group" && (
-            <>
-              <Users size={11} color={colors.mutedForeground} />
-              <Text variant="caption" muted numberOfLines={1} style={{ flexShrink: 1 }}>
-                {item.chatTitle}
-              </Text>
-            </>
-          )}
-          {item.trigger in TRIGGER_ICONS && (
-            <Text variant="caption" muted>
-              {item.trigger === "schedule"
-                ? "scheduled"
-                : item.trigger === "watch"
-                  ? "page changed"
-                  : "webhook"}
+          {Icon && <Icon size={12} color={colors.mutedForeground} />}
+          {where && (
+            <Text variant="small" muted numberOfLines={1} style={{ flexShrink: 1 }}>
+              {where}
             </Text>
           )}
-          <Text variant="caption" muted>
-            · {ago(item.createdAt)}
+          <Text variant="caption" muted style={{ marginLeft: "auto" }}>
+            {ago(item.createdAt)}
           </Text>
         </View>
         {active ? (
-          <View style={styles.activeLine}>
-            <View
-              style={[
-                styles.dot,
-                { backgroundColor: item.status === "waiting" ? colors.waiting : colors.live },
-              ]}
-            />
-            <Text variant="small" muted style={{ fontSize: 14 }}>
-              {item.status === "waiting" ? "Waiting for you" : "Working on it"}
-            </Text>
-          </View>
+          <Text
+            variant="small"
+            style={{
+              fontSize: 14,
+              color: item.status === "waiting" ? colors.attentionInk : colors.working,
+            }}
+          >
+            {item.status === "waiting" ? "Waiting for you" : "Working on it…"}
+          </Text>
         ) : (
           <Text
             variant="small"
@@ -434,22 +567,28 @@ function ActivityRow({
           </Text>
         )}
       </View>
-    </Row>
+    </Pressable>
   );
 }
 
-/** Home: what needs you, what you missed, your teammates and what they did lately. */
+/** Home: what needs you, what you missed, and your teammates with where you left off. */
 export default function HomeScreen() {
   const colors = useColors();
   const home = useHome();
   const teammates = useTeammates();
+  const chats = useChats();
   const { awaySince } = usePresence();
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([home.refetch(), teammates.refetch()]);
+    await Promise.all([home.refetch(), teammates.refetch(), chats.refetch()]);
     setRefreshing(false);
-  }, [home, teammates]);
+  }, [home, teammates, chats]);
+  // Direct chats already show on the roster; this is what happened elsewhere.
+  const recent = useMemo(
+    () => (home.data?.activity ?? []).filter((item) => item.chatKind !== "direct").slice(0, RECENT),
+    [home.data],
+  );
 
   if (home.isLoading || teammates.isLoading) return <Loading />;
   const error = home.error ?? teammates.error;
@@ -465,7 +604,6 @@ export default function HomeScreen() {
     );
   const data = home.data!;
   const bots = teammates.data ?? [];
-  const working = bots.filter((bot) => bot.activeRun && bot.activeRun.status !== "queued").length;
 
   return (
     <ScrollView
@@ -482,13 +620,11 @@ export default function HomeScreen() {
     >
       <ConnectionNotice />
       <View style={{ gap: space(1) }}>
-        <Text variant="title" style={{ fontSize: 26, lineHeight: 32 }}>
+        <Text variant="title" style={{ fontSize: 30, lineHeight: 36 }}>
           {greeting(data.user.name)}
         </Text>
-        <Text muted>
-          {working > 0
-            ? `${plural(working, "teammate")} ${working === 1 ? "is" : "are"} working right now.`
-            : "Your teammates are ready when you are."}
+        <Text muted style={{ fontSize: 16, lineHeight: 22 }}>
+          {statusLine(data, bots)}
         </Text>
       </View>
       <NeedsYou home={data} bots={bots} />
@@ -501,17 +637,26 @@ export default function HomeScreen() {
         />
       ) : (
         <>
-          <Teammates bots={bots} />
-          <Section title="Recent activity">
-            {data.activity.length === 0 ? (
-              <View style={[styles.nothing, { borderColor: colors.border }]}>
-                <Text variant="small" muted style={{ textAlign: "center" }}>
-                  Nothing yet. Message a teammate to get them working.
-                </Text>
-              </View>
-            ) : (
+          <Teammates bots={bots} chats={chats.data ?? []} />
+          {recent.length > 0 && (
+            <Section
+              title="Elsewhere"
+              action={
+                <Pressable
+                  onPress={() => router.navigate("/chats")}
+                  accessibilityRole="button"
+                  hitSlop={12}
+                  style={styles.seeAll}
+                >
+                  <Text variant="small" muted style={{ fontWeight: "500" }}>
+                    All chats
+                  </Text>
+                  <ChevronRight size={14} color={colors.mutedForeground} />
+                </Pressable>
+              }
+            >
               <Card>
-                {data.activity.map((item, index) => (
+                {recent.map((item, index) => (
                   <ActivityRow
                     key={item.runId}
                     item={item}
@@ -520,8 +665,8 @@ export default function HomeScreen() {
                   />
                 ))}
               </Card>
-            )}
-          </Section>
+            </Section>
+          )}
         </>
       )}
     </ScrollView>
@@ -529,54 +674,77 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: space(4), paddingTop: space(5), gap: space(7), paddingBottom: space(10) },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space(3),
-    paddingHorizontal: space(3.5),
-    paddingVertical: space(3),
-    minHeight: 60,
-  },
+  content: { padding: space(4), paddingTop: space(1), gap: space(7), paddingBottom: space(10) },
   callout: {
     flexDirection: "row",
     alignItems: "center",
     gap: space(3),
     borderWidth: 1,
     borderRadius: radius.xl,
-    paddingHorizontal: space(4),
+    paddingLeft: space(3.5),
+    paddingRight: space(3),
     paddingVertical: space(3),
     overflow: "hidden",
+  },
+  calloutAction: {
+    borderRadius: radius.full,
+    paddingHorizontal: space(3.5),
+    minHeight: 36,
+    justifyContent: "center",
+  },
+  note: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space(3),
+    borderWidth: 1,
+    borderRadius: radius.xl,
+    padding: space(3.5),
   },
   briefing: {
     borderWidth: 1,
     borderRadius: radius.xl,
     paddingHorizontal: space(4),
-    paddingTop: space(3.5),
+    paddingTop: space(4),
     paddingBottom: space(3),
-    gap: space(3.5),
+    gap: space(4),
   },
-  briefingHead: { flexDirection: "row", alignItems: "flex-start", gap: space(3) },
-  mark: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  dismiss: { width: 28, height: 28, alignItems: "center", justifyContent: "center", marginTop: -2 },
+  briefingHead: { flexDirection: "row", alignItems: "center", gap: space(3) },
+  mark: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  dismiss: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: -space(2),
+  },
   briefingBot: { flexDirection: "row", gap: space(3) },
   briefingName: { flexDirection: "row", alignItems: "center", gap: space(1.5), height: 28 },
   briefingItem: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: space(2),
-    paddingVertical: 3,
+    paddingVertical: space(1.5),
+    minHeight: 32,
+  },
+  teammate: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space(3.5),
+    paddingHorizontal: space(4),
+    paddingVertical: space(3.5),
+    minHeight: 80,
   },
   nameRow: { flexDirection: "row", alignItems: "center", gap: space(1.5) },
-  lead: { borderRadius: radius.full, paddingHorizontal: space(1.5), paddingVertical: 1 },
-  activityMeta: { flexDirection: "row", alignItems: "center", gap: space(1.5) },
-  activeLine: { flexDirection: "row", alignItems: "center", gap: space(1.5) },
-  dot: { width: 6, height: 6, borderRadius: 3 },
-  nothing: {
-    borderWidth: 1,
-    borderStyle: "dashed",
-    borderRadius: radius.xl,
+  previewRow: { flexDirection: "row", alignItems: "center", gap: space(2) },
+  unread: { width: 9, height: 9, borderRadius: 5 },
+  activity: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: space(3),
     paddingHorizontal: space(4),
-    paddingVertical: space(6),
+    paddingVertical: space(3),
+    minHeight: 64,
   },
+  activityMeta: { flexDirection: "row", alignItems: "center", gap: space(1.5), minHeight: 28 },
+  seeAll: { flexDirection: "row", alignItems: "center", gap: 2, minHeight: 32 },
 });

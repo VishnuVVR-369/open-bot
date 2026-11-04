@@ -1,6 +1,7 @@
 import { Tabs } from "expo-router";
 import { House, MessagesSquare, Monitor, ShieldCheck } from "lucide-react-native";
 import { HeaderActions } from "@/components/header-actions";
+import { haptics } from "@/lib/haptics";
 import { useApprovals, useChats } from "@/lib/queries";
 import { fonts, useColors } from "@/theme";
 
@@ -11,15 +12,16 @@ export default function TabsLayout() {
   const pending = approvals?.filter((approval) => approval.status === "pending").length ?? 0;
   const unread = chats?.filter((chat) => chat.unread).length ?? 0;
   const badgeStyle = {
-    color: "#FFFFFF",
     fontFamily: fonts.sans,
     fontSize: 11,
+    fontWeight: "600" as const,
   };
   return (
     <Tabs
+      screenListeners={{ tabPress: () => haptics.tap() }}
       screenOptions={{
-        headerStyle: { backgroundColor: colors.surface },
-        headerTitleStyle: { fontFamily: fonts.heading, fontWeight: "600", fontSize: 20 },
+        headerStyle: { backgroundColor: colors.background },
+        headerTitleStyle: { fontFamily: fonts.heading, fontWeight: "600", fontSize: 22 },
         headerTintColor: colors.foreground,
         headerShadowVisible: false,
         sceneStyle: { backgroundColor: colors.background },
@@ -34,7 +36,12 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: "Home",
-          tabBarIcon: ({ color, size }) => <House color={color} size={size - 2} />,
+          // The greeting is the page's title; the bar only holds the actions.
+          headerTitle: "",
+          headerRight: () => <HeaderActions profile />,
+          tabBarIcon: ({ color, size, focused }) => (
+            <House color={color} size={size - 2} strokeWidth={focused ? 2.4 : 2} />
+          ),
           tabBarButtonTestID: "tab-home",
         }}
       />
@@ -42,9 +49,16 @@ export default function TabsLayout() {
         name="chats"
         options={{
           title: "Chats",
-          tabBarIcon: ({ color, size }) => <MessagesSquare color={color} size={size - 2} />,
+          tabBarIcon: ({ color, size, focused }) => (
+            <MessagesSquare color={color} size={size - 2} strokeWidth={focused ? 2.4 : 2} />
+          ),
           tabBarBadge: unread > 0 ? unread : undefined,
-          tabBarBadgeStyle: { ...badgeStyle, backgroundColor: colors.live },
+          tabBarBadgeStyle: {
+            ...badgeStyle,
+            color: colors.primaryForeground,
+            backgroundColor: colors.primary,
+          },
+          tabBarAccessibilityLabel: unread > 0 ? `Chats, ${unread} unread` : "Chats",
           tabBarButtonTestID: "tab-chats",
         }}
       />
@@ -52,9 +66,12 @@ export default function TabsLayout() {
         name="approvals"
         options={{
           title: "Approvals",
-          tabBarIcon: ({ color, size }) => <ShieldCheck color={color} size={size - 2} />,
+          tabBarIcon: ({ color, size, focused }) => (
+            <ShieldCheck color={color} size={size - 2} strokeWidth={focused ? 2.4 : 2} />
+          ),
           tabBarBadge: pending > 0 ? pending : undefined,
-          tabBarBadgeStyle: { ...badgeStyle, backgroundColor: colors.waiting },
+          tabBarBadgeStyle: { ...badgeStyle, color: "#1A1200", backgroundColor: colors.attention },
+          tabBarAccessibilityLabel: pending > 0 ? `Approvals, ${pending} waiting` : "Approvals",
           tabBarButtonTestID: "tab-approvals",
         }}
       />
@@ -62,7 +79,9 @@ export default function TabsLayout() {
         name="computer"
         options={{
           title: "Computer",
-          tabBarIcon: ({ color, size }) => <Monitor color={color} size={size - 2} />,
+          tabBarIcon: ({ color, size, focused }) => (
+            <Monitor color={color} size={size - 2} strokeWidth={focused ? 2.4 : 2} />
+          ),
           tabBarButtonTestID: "tab-computer",
         }}
       />

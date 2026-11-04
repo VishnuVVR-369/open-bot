@@ -1,6 +1,6 @@
-import { approvalDetail } from "@/lib/format";
 import type { ApprovalItem } from "@open-bot/shared";
 import {
+  AlertTriangle,
   Check,
   CircleDashed,
   CreditCard,
@@ -12,11 +12,17 @@ import {
 import { useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { AlwaysAllowSheet } from "@/components/always-allow-sheet";
+import { ApprovalTitle } from "@/components/approval-parts";
 import { Button } from "@/components/button";
+import { CodeScroll } from "@/components/code-scroll";
 import { Text } from "@/components/text";
+import { approvalRisk } from "@/lib/approval-text";
 import { canAlwaysAllow, useDecideApproval, type Decision } from "@/lib/approvals";
+import { approvalDetail } from "@/lib/format";
+import { haptics } from "@/lib/haptics";
+import { animateLayout } from "@/lib/motion";
 import { useOnline } from "@/lib/network";
-import { radius, space, useColors } from "@/theme";
+import { fonts, radius, space, useColors } from "@/theme";
 import { mix } from "@/theme/mix";
 
 /** An approval in the chat: decide it here, or see how it was decided. */
@@ -47,14 +53,20 @@ export function ApprovalCard({
     return (
       <View style={styles.settled}>
         <Icon size={14} color={tint} />
-        <Text variant="small" muted numberOfLines={1} style={{ flex: 1 }}>
+        <Text variant="small" style={{ color: tint, fontWeight: "500" }}>
           {item.decision === "approved"
-            ? "You approved"
+            ? "Approved"
             : item.decision === "denied"
-              ? "You denied"
+              ? "Denied"
               : "Expired"}
-          : {item.title}
         </Text>
+        <ApprovalTitle
+          title={item.title}
+          variant="small"
+          muted
+          numberOfLines={1}
+          style={{ flex: 1 }}
+        />
       </View>
     );
   }
@@ -65,15 +77,31 @@ export function ApprovalCard({
       : item.approvalKind === "email"
         ? Mail
         : ShieldAlert;
+  const detail = item.detail ? approvalDetail(item.detail) : "";
+  const isCode = detail.startsWith("$ ") || item.approvalKind === "file_change";
+  const risk = approvalRisk({
+    kind: item.approvalKind ?? "action",
+    title: item.title,
+    detail: item.detail ?? "",
+    subject: item.subject,
+  });
   const onDecide = async (decision: Decision, alwaysAllow: string | null = null) => {
     setError(null);
+    if (decision === "approved") haptics.press();
     const result = await decide(
       { id: item.approvalId, kind: item.approvalKind ?? "action", chatId },
       decision,
       alwaysAllow,
     );
     setAllowing(false);
-    if (!result.ok && !result.settled) setError(result.message);
+    if (result.ok) {
+      if (result.status === "approved") haptics.success();
+      else haptics.warning();
+      animateLayout();
+    } else if (!result.settled) {
+      haptics.error();
+      setError(result.message);
+    }
   };
   const rule = { kind: item.approvalKind, subject: item.subject, askEveryTime: item.askEveryTime };
   const busy = deciding !== null || !online;
@@ -82,38 +110,87 @@ export function ApprovalCard({
       style={[
         styles.card,
         {
-          borderColor: mix(colors.waiting, colors.surface, 0.35),
-          backgroundColor: mix(colors.waiting, colors.surface, 0.06),
+          borderColor: mix(colors.attention, colors.surface, 0.55),
+          backgroundColor: mix(colors.attention, colors.surface, 0.08),
         },
       ]}
       testID="approval-card"
+      accessibilityLiveRegion="polite"
     >
       <View style={styles.head}>
-        <Icon size={16} color={colors.waiting} style={{ marginTop: 3 }} />
-        <View style={{ flex: 1, gap: space(1) }}>
-          <Text variant="label">Approve: {item.title}</Text>
-          {item.detail ? (
-            <Text variant="small" muted numberOfLines={12} selectable>
-              {approvalDetail(item.detail)}
-            </Text>
-          ) : null}
+        <View
+          style={[styles.icon, { backgroundColor: mix(colors.attention, colors.surface, 0.24) }]}
+        >
+          <Icon size={17} color={colors.attentionInk} />
+        </View>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text variant="small" style={{ color: colors.attentionInk, fontWeight: "600" }}>
+            {botName} needs your OK
+          </Text>
+          <ApprovalTitle title={item.title} style={{ fontSize: 16, lineHeight: 22 }} />
         </View>
       </View>
+      {detail ? (
+        isCode ? (
+          <CodeScroll background={colors.surface}>
+            <Text
+              selectable
+              numberOfLines={12}
+              style={{
+                fontFamily: fonts.mono,
+                fontSize: 12.5,
+                lineHeight: 18,
+                color: colors.foreground,
+              }}
+            >
+              {detail}
+            </Text>
+          </CodeScroll>
+        ) : (
+          <Text
+            variant="small"
+            muted
+            numberOfLines={12}
+            selectable
+            style={{ fontSize: 14, lineHeight: 20 }}
+          >
+            {detail}
+          </Text>
+        )
+      ) : null}
+      {risk && (
+        <View
+          style={[
+            styles.risk,
+            {
+              backgroundColor:
+                risk.tone === "destructive"
+                  ? mix(colors.destructive, colors.surface, 0.1)
+                  : mix(colors.attention, colors.surface, 0.18),
+            },
+          ]}
+        >
+          <AlertTriangle
+            size={13}
+            color={risk.tone === "destructive" ? colors.destructive : colors.attentionInk}
+          />
+          <Text
+            variant="caption"
+            style={{
+              fontWeight: "600",
+              color: risk.tone === "destructive" ? colors.destructive : colors.attentionInk,
+            }}
+          >
+            {risk.label}
+          </Text>
+        </View>
+      )}
       {error && (
-        <Text variant="small" style={{ color: colors.destructive, marginLeft: space(6) }}>
+        <Text variant="small" style={{ color: colors.destructive }}>
           {error}
         </Text>
       )}
       <View style={styles.actions}>
-        <Button
-          title="Approve"
-          icon={<Check size={16} color={colors.primaryForeground} />}
-          busy={deciding === "approved"}
-          disabled={busy}
-          onPress={() => void onDecide("approved")}
-          style={styles.action}
-          testID="approve"
-        />
         <Button
           title="Deny"
           variant="outline"
@@ -123,9 +200,17 @@ export function ApprovalCard({
           style={styles.action}
           testID="deny"
         />
+        <Button
+          title="Approve"
+          icon={<Check size={17} color={colors.primaryForeground} />}
+          busy={deciding === "approved"}
+          disabled={busy}
+          onPress={() => void onDecide("approved")}
+          style={styles.action}
+          testID="approve"
+        />
       </View>
       {canAlwaysAllow(rule) && (
-        // Its own line, lined up with the buttons, so it fits however wide the screen is.
         <Button
           title="Always allow…"
           variant="ghost"
@@ -136,10 +221,10 @@ export function ApprovalCard({
         />
       )}
       {!online && (
-        <View style={[styles.offline, { marginLeft: space(6) }]}>
+        <View style={styles.offline}>
           <WifiOff size={13} color={colors.mutedForeground} />
           <Text variant="caption" muted>
-            You&apos;re offline
+            You&apos;re offline. Decide when you&apos;re back online.
           </Text>
         </View>
       )}
@@ -158,17 +243,21 @@ export function ApprovalCard({
 }
 
 const styles = StyleSheet.create({
-  settled: { flexDirection: "row", alignItems: "center", gap: space(2), minHeight: 24 },
-  card: { borderWidth: 1, borderRadius: radius.xl, padding: space(4), gap: space(3) },
-  head: { flexDirection: "row", gap: space(2.5) },
-  actions: { flexDirection: "row", gap: space(2), marginLeft: space(6) },
-  action: { minHeight: 38, paddingHorizontal: space(3.5) },
-  allow: {
+  settled: { flexDirection: "row", alignItems: "center", gap: space(1.5), minHeight: 28 },
+  card: { borderWidth: 1, borderRadius: radius.xl + 2, padding: space(4), gap: space(3) },
+  head: { flexDirection: "row", alignItems: "flex-start", gap: space(3) },
+  icon: { width: 36, height: 36, borderRadius: 11, alignItems: "center", justifyContent: "center" },
+  risk: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space(1.5),
     alignSelf: "flex-start",
-    minHeight: 32,
-    marginLeft: space(6),
-    marginVertical: -space(1.5),
-    paddingHorizontal: 0,
+    borderRadius: radius.full,
+    paddingHorizontal: space(2.5),
+    paddingVertical: space(1),
   },
+  actions: { flexDirection: "row", gap: space(2.5) },
+  action: { flex: 1 },
+  allow: { minHeight: 44, marginTop: -space(1), marginBottom: -space(2) },
   offline: { flexDirection: "row", alignItems: "center", gap: space(1.5) },
 });

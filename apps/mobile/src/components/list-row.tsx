@@ -50,11 +50,16 @@ export function ListRow({
   );
 }
 
-export function Separator() {
+/** The line between rows, starting where the text does: after a 48 wide leading item by default. */
+export function Separator({ inset = space(4) + 48 + space(3) }: { inset?: number }) {
   const colors = useColors();
   return (
     <View
-      style={{ height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginLeft: 68 }}
+      style={{
+        height: StyleSheet.hairlineWidth,
+        backgroundColor: colors.border,
+        marginLeft: inset,
+      }}
     />
   );
 }

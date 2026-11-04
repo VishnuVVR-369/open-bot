@@ -1,7 +1,8 @@
-import { useEffect, useRef, type ReactNode, type RefObject } from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Animated, Easing, Modal, Pressable, StyleSheet, useColorScheme, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Text } from "@/components/text";
+import { durations, useReducedMotion } from "@/lib/motion";
 import { useKeyboardHeight } from "@/lib/use-keyboard";
 import { radius, space, useColors } from "@/theme";
 
@@ -32,21 +33,35 @@ export function Sheet({
   const keyboard = useKeyboardHeight();
   const scheme = useColorScheme();
   const progress = useRef(new Animated.Value(0)).current;
+  const reduced = useReducedMotion();
+  // Stays up after `open` turns false, until the sheet has slid away.
+  const [shown, setShown] = useState(open);
 
   useEffect(() => {
-    if (!open) return;
-    progress.setValue(0);
+    if (open) {
+      setShown(true);
+      progress.setValue(0);
+      Animated.timing(progress, {
+        toValue: 1,
+        duration: reduced ? 0 : durations.sheet,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
+      return;
+    }
     Animated.timing(progress, {
-      toValue: 1,
-      duration: 220,
-      easing: Easing.out(Easing.cubic),
+      toValue: 0,
+      duration: reduced ? 0 : durations.micro,
+      easing: Easing.in(Easing.cubic),
       useNativeDriver: true,
-    }).start();
-  }, [open, progress]);
+    }).start(({ finished }) => {
+      if (finished) setShown(false);
+    });
+  }, [open, progress, reduced]);
 
   return (
     <Modal
-      visible={open}
+      visible={shown}
       transparent
       animationType="none"
       statusBarTranslucent
@@ -76,7 +91,7 @@ export function Sheet({
               borderColor: colors.border,
               paddingBottom: keyboard > 0 ? space(4) : insets.bottom + space(4),
               transform: [
-                { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [60, 0] }) },
+                { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [80, 0] }) },
               ],
               opacity: progress,
             },
