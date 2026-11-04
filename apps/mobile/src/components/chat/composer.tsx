@@ -315,7 +315,8 @@ export function Composer({
     failedSend.current = null;
     setText("");
     setCaret(0);
-    setFiles([]);
+    const submitted = new Set(ready.map((pending) => pending.key));
+    setFiles((current) => current.filter((pending) => !submitted.has(pending.key)));
     onSent(result.data);
   }
 

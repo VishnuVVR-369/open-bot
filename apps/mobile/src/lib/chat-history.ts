@@ -13,18 +13,31 @@ export interface ChatHistory extends LiveChat {
 const key = (entry: ChatEntry) =>
   entry.type === "message" ? `m:${entry.message.id}` : `r:${entry.run.id}`;
 
-export function applyHistoryEvent(history: ChatHistory, event: StreamRunEvent) {
+export function applyHistoryEvent(
+  history: ChatHistory,
+  event: StreamRunEvent,
+  after = history.cursor,
+) {
   const watermark = history.watermarks[event.runId];
   const result = applyLiveEvent({ ...history, cursor: watermark ?? history.cursor }, event);
-  if (result.unknownRun || watermark === undefined || event.id <= watermark)
-    return { chat: history, unknownRun: result.unknownRun };
+  const applied =
+    !result.unknownRun && watermark !== undefined && watermark >= after && event.id > watermark;
+  const advanceCheckpoint = history.cursor >= after;
+  const cursor = advanceCheckpoint ? Math.max(history.cursor, event.id) : history.cursor;
+  const watermarks = { ...history.watermarks };
+  if (advanceCheckpoint) {
+    for (const runId of Object.keys(watermarks))
+      watermarks[runId] = Math.max(watermarks[runId]!, cursor);
+  } else if (applied) {
+    watermarks[event.runId] = event.id;
+  }
   return {
-    chat: {
-      ...result.chat,
-      cursor: history.cursor,
-      watermarks: { ...history.watermarks, [event.runId]: event.id },
-    },
-    unknownRun: false,
+    chat:
+      applied || cursor !== history.cursor
+        ? { ...(applied ? result.chat : history), cursor, watermarks }
+        : history,
+    unknownRun: result.unknownRun,
+    applied,
   };
 }
 
@@ -32,6 +45,7 @@ export function mergeSnapshot(
   previous: ChatHistory | null,
   page: ChatData,
   buffered: readonly StreamRunEvent[],
+  bufferedAfter = Infinity,
 ): ChatHistory {
   const entries = new Map((previous?.entries ?? []).map((entry) => [key(entry), entry]));
   const runs = { ...previous?.runs };
@@ -50,6 +64,10 @@ export function mergeSnapshot(
     watermarks,
     cursor: Math.min(page.cursor, ...Object.values(watermarks)),
   };
-  for (const event of buffered) history = applyHistoryEvent(history, event).chat;
+  let after = bufferedAfter;
+  for (const event of buffered) {
+    history = applyHistoryEvent(history, event, after).chat;
+    after = Math.max(after, event.id);
+  }
   return history;
 }

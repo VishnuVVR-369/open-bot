@@ -1,4 +1,10 @@
-import { endsRun, type ChatEntry, type MessageView, type StreamRunEvent } from "@open-bot/api";
+import {
+  endsRun,
+  type ChatData,
+  type ChatEntry,
+  type MessageView,
+  type StreamRunEvent,
+} from "@open-bot/api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -20,9 +26,14 @@ export function useChat(chatId: string) {
   });
   const [live, setLive] = useState<ChatHistory | null>(null);
   const liveRef = useRef<ChatHistory | null>(null);
+  const [loadedSnapshot, setLoadedSnapshot] = useState<ChatData | null>(null);
+  const [streamVersion, setStreamVersion] = useState<number | null>(null);
   const [refreshingHistory, setRefreshingHistory] = useState(false);
   const [historyError, setHistoryError] = useState<unknown>(null);
   const updateLive = useCallback((next: ChatHistory | null) => {
+    if (!next) setStreamVersion(null);
+    else if (!liveRef.current || next.cursor < liveRef.current.cursor)
+      setStreamVersion((version) => (version ?? 0) + 1);
     liveRef.current = next;
     setLive(next);
   }, []);
@@ -34,6 +45,7 @@ export function useChat(chatId: string) {
   const loadingRef = useRef(false);
   const generation = useRef(0);
   const buffer = useRef<StreamRunEvent[]>([]);
+  const bufferedAfter = useRef(Infinity);
   const refetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refetchSoon = useCallback(() => {
@@ -47,7 +59,9 @@ export function useChat(chatId: string) {
   useEffect(() => {
     generation.current += 1;
     buffer.current = [];
+    bufferedAfter.current = Infinity;
     updateLive(null);
+    setLoadedSnapshot(null);
     setRefreshingHistory(false);
     setHistoryError(null);
     setSent([]);
@@ -84,8 +98,10 @@ export function useChat(chatId: string) {
       }
       if (cancelled) return;
       let next = liveRef.current;
-      for (const snapshot of pages) next = mergeSnapshot(next, snapshot, buffer.current);
+      for (const snapshot of pages)
+        next = mergeSnapshot(next, snapshot, buffer.current, bufferedAfter.current);
       updateLive(next);
+      setLoadedSnapshot(latest);
     };
     void refresh()
       .catch((error: unknown) => {
@@ -99,21 +115,29 @@ export function useChat(chatId: string) {
     };
   }, [chatId, query.data, query.dataUpdatedAt, updateLive]);
 
-  const cursor = live?.cursor;
   useFocusEffect(
     useCallback(() => {
-      if (cursor === undefined) return;
-      return watchChat(chatId, cursor, (event) => {
-        buffer.current.push(event);
-        if (buffer.current.length > BUFFER)
-          buffer.current.splice(0, buffer.current.length - BUFFER);
+      if (streamVersion === null || !liveRef.current) return;
+      let after = liveRef.current.cursor;
+      if (after < bufferedAfter.current || after > (buffer.current.at(-1)?.id ?? -1)) {
+        buffer.current = [];
+        bufferedAfter.current = after;
+      }
+      return watchChat(chatId, after, (event) => {
+        if (event.id > (buffer.current.at(-1)?.id ?? bufferedAfter.current))
+          buffer.current.push(event);
+        if (buffer.current.length > BUFFER) {
+          const removed = buffer.current.splice(0, buffer.current.length - BUFFER);
+          bufferedAfter.current = removed.at(-1)!.id;
+        }
         const current = liveRef.current;
         if (!current) return;
-        const { chat, unknownRun } = applyHistoryEvent(current, event);
-        if (unknownRun || endsRun(event)) refetchSoon();
+        const { chat, unknownRun, applied } = applyHistoryEvent(current, event, after);
+        after = Math.max(after, event.id);
+        if (unknownRun || (applied && endsRun(event))) refetchSoon();
         updateLive(chat);
       });
-    }, [chatId, cursor, watchChat, refetchSoon, updateLive]),
+    }, [chatId, streamVersion, watchChat, refetchSoon, updateLive]),
   );
 
   /** Show a message you just sent, before the next snapshot has it. */
@@ -143,7 +167,11 @@ export function useChat(chatId: string) {
       ).length,
     [live],
   );
-  useChatVisibility(chatId, finished);
+  useChatVisibility(
+    chatId,
+    finished,
+    live !== null && loadedSnapshot === query.data && !query.error && !historyError,
+  );
 
   const hasMore = hasOlder ?? query.data?.hasMore ?? false;
 
@@ -158,7 +186,7 @@ export function useChat(chatId: string) {
     try {
       const page = await api.chats.get({ chatId, before: oldest });
       if (started !== generation.current) return;
-      updateLive(mergeSnapshot(liveRef.current, page, buffer.current));
+      updateLive(mergeSnapshot(liveRef.current, page, buffer.current, bufferedAfter.current));
       setHasOlder(page.hasMore && page.entries.length > 0);
     } catch (error) {
       if (started === generation.current) setOlderError(error);

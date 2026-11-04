@@ -13,7 +13,7 @@ import { visibleChat } from "./realtime";
  * (on every device), including replies that finish while it's open. `finished` counts the replies
  * that are done, so a new one marks it read again.
  */
-export function useChatVisibility(chatId: string, finished: number) {
+export function useChatVisibility(chatId: string, finished: number, historyReady: boolean) {
   const navigation = useNavigation();
   const queryClient = useQueryClient();
   const visible = useRef<() => boolean>(() => false);
@@ -28,6 +28,7 @@ export function useChatVisibility(chatId: string, finished: number) {
 
   useFocusEffect(
     useCallback(() => {
+      if (!historyReady) return;
       let focused = true;
       const isVisible = () =>
         focused && navigation.isFocused() && AppState.currentState === "active";
@@ -48,16 +49,13 @@ export function useChatVisibility(chatId: string, finished: number) {
         subscription.remove();
         if (visibleChat.get() === chatId) visibleChat.set(null);
       };
-    }, [chatId, navigation, markRead]),
+    }, [chatId, navigation, markRead, historyReady]),
   );
 
-  const first = useRef(true);
+  const previous = useRef({ chatId, finished });
   useEffect(() => {
-    // The first count is the one focusing already marked.
-    if (first.current) {
-      first.current = false;
-      return;
-    }
-    if (visible.current()) markRead();
-  }, [finished, markRead]);
+    const changed = previous.current.chatId === chatId && previous.current.finished !== finished;
+    previous.current = { chatId, finished };
+    if (changed && historyReady && visible.current()) markRead();
+  }, [chatId, finished, historyReady, markRead]);
 }

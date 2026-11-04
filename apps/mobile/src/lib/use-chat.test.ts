@@ -27,6 +27,7 @@ vi.mock("./realtime", () => ({ useRealtime: () => ({ watchChat: state.watch }) }
 vi.mock("./use-chat-visibility", () => ({ useChatVisibility: vi.fn() }));
 
 import { useChat } from "./use-chat";
+import { useChatVisibility } from "./use-chat-visibility";
 import { useChatRunTarget } from "./use-chat-run-target";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -411,4 +412,224 @@ describe("retained run watermarks", () => {
     });
     expect(hook.runs.r1!.timeline.items[0]).toMatchObject({ text: "Hello!" });
   });
+});
+
+describe("history read eligibility", () => {
+  const ready = () => vi.mocked(useChatVisibility).mock.calls.at(-1)?.[2];
+
+  it("waits for initial history and keeps failed requests unread until retry succeeds", async () => {
+    client.removeQueries({ queryKey: ["chat", "a"] });
+    let reject!: (error: Error) => void;
+    state.get.mockReturnValueOnce(
+      new Promise((_resolve, fail) => {
+        reject = fail;
+      }),
+    );
+    await render();
+    expect(ready()).toBe(false);
+    await act(async () => {
+      reject(new Error("offline"));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(ready()).toBe(false);
+    state.get.mockResolvedValueOnce(page(31, 60));
+    await act(async () => {
+      await hook.refetch();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(ready()).toBe(true);
+  });
+
+  it("waits for a disjoint refresh to fill its gap, including after a failed attempt", async () => {
+    await render();
+    expect(ready()).toBe(true);
+    let reject!: (error: Error) => void;
+    state.get.mockReturnValueOnce(
+      new Promise((_resolve, fail) => {
+        reject = fail;
+      }),
+    );
+    await refresh(page(92, 121));
+    expect(ready()).toBe(false);
+    await act(async () => reject(new Error("offline")));
+    expect(ready()).toBe(false);
+    state.get.mockResolvedValueOnce(page(62, 91)).mockResolvedValueOnce(page(32, 61));
+    await refresh(page(92, 121));
+    expect(ready()).toBe(true);
+  });
+});
+
+describe("processed stream checkpoints", () => {
+  it("resumes at the processed checkpoint without reconnecting for every event", async () => {
+    await render();
+    await refresh({ ...page(32, 61), cursor: 70 });
+    const watches = state.watch.mock.calls.length;
+    await act(async () => {
+      const listener = state.watch.mock.calls.at(-1)![2];
+      listener({ id: 65, runId: "r31", payload: { type: "status", status: "running" } });
+      listener({ id: 71, runId: "r60", payload: { type: "status", status: "running" } });
+    });
+    expect(hook.runs.r31!.timeline.status).toBe("running");
+    expect(state.watch).toHaveBeenCalledTimes(watches);
+    state.focused = false;
+    await render();
+    state.focused = true;
+    await render();
+    expect(state.watch).toHaveBeenLastCalledWith("a", 71, expect.any(Function));
+    await refresh({ ...page(33, 62), cursor: 75 });
+    state.focused = false;
+    await render();
+    state.focused = true;
+    await render();
+    expect(state.watch).toHaveBeenLastCalledWith("a", 71, expect.any(Function));
+  });
+
+  it("rewinds for older history outside the buffer and applies replayed deltas once in order", async () => {
+    await render();
+    await act(async () => {
+      state.watch.mock.calls.at(-1)![2]({
+        id: 80,
+        runId: "r31",
+        payload: { type: "status", status: "running" },
+      });
+    });
+    const older = { ...page(1, 30, false), cursor: 30 };
+    const row = older.entries[0]!;
+    if (row.type !== "run") throw new Error("expected run");
+    row.run.timeline = {
+      status: "running",
+      items: [
+        {
+          id: "m",
+          kind: "message",
+          phase: "final",
+          text: "A",
+          status: "running",
+          startedAt: row.at,
+        },
+      ],
+    };
+    state.get.mockResolvedValueOnce(older);
+    await act(async () => {
+      await hook.loadOlder();
+    });
+    expect(state.watch).toHaveBeenLastCalledWith("a", 30, expect.any(Function));
+    await act(async () => {
+      const listener = state.watch.mock.calls.at(-1)![2];
+      listener({ id: 40, runId: "r1", payload: { type: "delta", itemId: "m", delta: "B" } });
+      listener({ id: 85, runId: "r1", payload: { type: "delta", itemId: "m", delta: "C" } });
+    });
+    expect(hook.runs.r1!.timeline.items[0]).toMatchObject({ text: "ABC" });
+    await refresh({ ...page(32, 61), cursor: 90 });
+    expect(hook.runs.r1!.timeline.items[0]).toMatchObject({ text: "ABC" });
+    state.focused = false;
+    await render();
+    state.focused = true;
+    await render();
+    expect(state.watch).toHaveBeenLastCalledWith("a", 85, expect.any(Function));
+  });
+});
+
+describe("buffer coverage", () => {
+  it("does not skip missing deltas when an older snapshot predates the replay buffer", async () => {
+    await render();
+    await act(async () => {
+      state.watch.mock.calls.at(-1)![2]({
+        id: 80,
+        runId: "r1",
+        payload: { type: "delta", itemId: "m", delta: "C" },
+      });
+    });
+    const older = { ...page(1, 30, false), cursor: 30 };
+    const row = older.entries[0]!;
+    if (row.type !== "run") throw new Error("expected run");
+    row.run.timeline = {
+      status: "running",
+      items: [
+        {
+          id: "m",
+          kind: "message",
+          phase: "final",
+          text: "A",
+          status: "running",
+          startedAt: row.at,
+        },
+      ],
+    };
+    state.get.mockResolvedValueOnce(older);
+    await act(async () => {
+      await hook.loadOlder();
+    });
+    expect(hook.runs.r1!.timeline.items[0]).toMatchObject({ text: "A" });
+    expect(state.watch).toHaveBeenLastCalledWith("a", 30, expect.any(Function));
+    await act(async () => {
+      const listener = state.watch.mock.calls.at(-1)![2];
+      listener({ id: 40, runId: "r1", payload: { type: "delta", itemId: "m", delta: "B" } });
+      listener({ id: 80, runId: "r1", payload: { type: "delta", itemId: "m", delta: "C" } });
+      listener({ id: 80, runId: "r1", payload: { type: "delta", itemId: "m", delta: "C" } });
+    });
+    expect(hook.runs.r1!.timeline.items[0]).toMatchObject({ text: "ABC" });
+  });
+
+  it("does not refresh again for replayed completion events already applied", async () => {
+    state.get.mockResolvedValueOnce(page(31, 60));
+    await render();
+    await act(async () => {
+      const listener = state.watch.mock.calls.at(-1)![2];
+      listener({ id: 61, runId: "r31", payload: { type: "status", status: "completed" } });
+      await new Promise((resolve) => setTimeout(resolve, 170));
+    });
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    await act(async () => {
+      state.watch.mock.calls.at(-1)![2]({
+        id: 61,
+        runId: "r31",
+        payload: { type: "status", status: "completed" },
+      });
+      await new Promise((resolve) => setTimeout(resolve, 170));
+    });
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+});
+
+it("uses buffered coverage when newly loaded history starts at the original subscription cursor", async () => {
+  await render();
+  await act(async () => {
+    state.watch.mock.calls.at(-1)![2]({
+      id: 80,
+      runId: "r31",
+      payload: { type: "status", status: "running" },
+    });
+  });
+  const watches = state.watch.mock.calls.length;
+  state.get.mockResolvedValueOnce({ ...page(1, 30, false), cursor: 60 });
+  await act(async () => {
+    await hook.loadOlder();
+  });
+  expect(hook.runs.r1).toBeDefined();
+  expect(state.watch).toHaveBeenCalledTimes(watches);
+});
+
+it("rewinds to the original subscription cursor when older history exceeds buffer coverage", async () => {
+  await render();
+  await act(async () => {
+    const listener = state.watch.mock.calls.at(-1)![2];
+    for (let id = 61; id <= 2061; id++)
+      listener({ id, runId: "r31", payload: { type: "status", status: "running" } });
+  });
+  const watches = state.watch.mock.calls.length;
+  state.get.mockResolvedValueOnce({ ...page(1, 30, false), cursor: 60 });
+  await act(async () => {
+    await hook.loadOlder();
+  });
+  expect(state.watch).toHaveBeenCalledTimes(watches + 1);
+  expect(state.watch).toHaveBeenLastCalledWith("a", 60, expect.any(Function));
+  await act(async () => {
+    state.watch.mock.calls.at(-1)![2]({
+      id: 61,
+      runId: "r1",
+      payload: { type: "status", status: "running" },
+    });
+  });
+  expect(hook.runs.r1!.timeline.status).toBe("running");
 });
