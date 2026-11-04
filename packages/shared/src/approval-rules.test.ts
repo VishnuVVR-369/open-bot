@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  approvalQuotes,
   invalidRulePattern,
   rulesCover,
   shellScript,
@@ -81,5 +82,30 @@ describe("always-allow rules", () => {
     expect(invalidRulePattern("command", "ls && rm")).not.toBeNull();
     expect(invalidRulePattern("action", "Send the report")).toBeNull();
     expect(invalidRulePattern("file_change", "")).toBeNull();
+  });
+});
+
+describe("approvals that quote a command", () => {
+  const approved =
+    "Delete /home/bot/shared/ux-check2.txt\nRun rm -f -- /home/bot/shared/ux-check2.txt to delete the file if it exists.";
+
+  it("cover that exact command, however Codex wraps it", () => {
+    expect(approvalQuotes(approved, "rm -f -- /home/bot/shared/ux-check2.txt")).toBe(true);
+    expect(
+      approvalQuotes(approved, "/bin/bash -lc 'rm -f -- /home/bot/shared/ux-check2.txt'"),
+    ).toBe(true);
+    expect(approvalQuotes("Run `rm -rf build`.", "rm -rf build")).toBe(true);
+    expect(approvalQuotes("Clean up: rm -rf build", "rm  -rf\nbuild")).toBe(true);
+  });
+
+  it("don't cover a different or longer command", () => {
+    expect(approvalQuotes(approved, "rm -f -- /home/bot/shared/ux-check2")).toBe(false);
+    expect(approvalQuotes(approved, "rm -f -- /home/bot/shared")).toBe(false);
+    expect(approvalQuotes(approved, "rm -f -- /home/bot/shared/ux-check2.txt; rm -rf ~")).toBe(
+      false,
+    );
+    expect(approvalQuotes("Delete old-notes.txt", "rm -f old-notes.txt")).toBe(false);
+    expect(approvalQuotes("anything", "")).toBe(false);
+    expect(approvalQuotes("Run xrm -f a", "rm -f a")).toBe(false);
   });
 });

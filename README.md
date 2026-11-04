@@ -28,6 +28,7 @@ You can watch them work live, take over the computer at any time, and hand it ba
 ### Stay in control
 
 - Sending, publishing, buying and deleting wait for your approval.
+- Even a teammate that works on its own asks before a dangerous command, like deleting files, and asks only once for something you just approved.
 - Choose **Always allow** so a teammate stops asking about the same thing.
 - Save logins and cards in a vault. Teammates can use them but never see them.
 - Set a monthly budget for each teammate. Bigger purchases ask you first.

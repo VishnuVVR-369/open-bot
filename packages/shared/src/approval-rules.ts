@@ -74,6 +74,19 @@ export function rulesCover(rules: ApprovalRule[], kind: ApprovalKind, text: stri
   }
 }
 
+/**
+ * Whether an approval you gave quotes this exact command, so asking about running it would ask
+ * you the same thing twice. The whole script must appear on its own, not inside a longer word or
+ * path: approving `rm -f a.txt` doesn't cover `rm -f a`.
+ */
+export function approvalQuotes(approved: string, command: string): boolean {
+  const script = shellScript(command).replace(/\s+/g, " ").trim();
+  if (!script) return false;
+  const text = approved.replace(/\s+/g, " ");
+  const escaped = script.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?:^|[\\s\`'"(])${escaped}(?=$|[\\s\`'",;:)]|\\.(?:\\s|$))`).test(text);
+}
+
 /** A sensible rule for a request: the first command's program and subcommand, or the action. */
 export function suggestedRule(kind: ApprovalKind, subject: string): string {
   if (kind === "file_change" || kind === "purchase" || kind === "email") return "";

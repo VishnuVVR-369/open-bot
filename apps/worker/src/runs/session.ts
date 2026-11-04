@@ -70,8 +70,13 @@ interface Outcome {
   unauthorized?: boolean;
 }
 
-function approvalPolicy(bot: Bot): ApprovalPolicy {
-  return bot.autonomy === "everything" ? "untrusted" : "never";
+/**
+ * When Codex itself asks before a command. "everything" asks about each one. The others ask only
+ * when Codex judges a command dangerous (like `rm -f`); with "never" it would refuse those
+ * outright, even after you approved them through request_approval.
+ */
+export function approvalPolicy(bot: Pick<Bot, "autonomy">): ApprovalPolicy {
+  return bot.autonomy === "everything" ? "untrusted" : "on-request";
 }
 
 /** Executes one run: a single Codex turn for one bot in one chat. */
