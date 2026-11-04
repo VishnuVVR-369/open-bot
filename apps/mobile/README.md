@@ -55,7 +55,6 @@ If it is still visible, you keep control and can clear it before handing back.
 An uncertain response is recovered by its operation id; the app never blindly repeats typing.
 After a computer restart, affected screens stay paused; explicit recovery discards their browser pages before returning control.
 The submitted code is not stored in operation records, logs, or botd state.
-See [COMPUTER-TESTING.md](COMPUTER-TESTING.md) for tests and the remaining real-phone acceptance checks.
 
 ## What you need
 
