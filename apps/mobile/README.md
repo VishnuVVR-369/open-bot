@@ -137,7 +137,6 @@ On MIUI it enters text through ADB because the clipboard helper is blocked in Sy
 This phone can also ignore injected Send taps, so the flow allows 60 seconds for the owner to tap the native Send button before checking delivery.
 It exercises Android RemoteInput and the background handler without calling the application handler or send RPC directly.
 Injection requires both a development build and `EXPO_PUBLIC_E2E_NOTIFICATIONS=1`; it is excluded from release bundles and provides no authentication bypass.
-See [TESTING.md](TESTING.md) for recorded device evidence and the checks still deferred.
 Screenshots and logs are local in `.maestro-results/`, which is ignored by Git.
 
 ## Push notifications (Firebase)
