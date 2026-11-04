@@ -5,16 +5,17 @@ export const metadata = docMetadata("/docs/architecture/web-app");
 # Web app
 
 `apps/web` is a Next.js 16 app with the App Router, React 19 and Tailwind 4.
-It is the only UI, and it has a simple rule: it reads Postgres directly, and asks the worker to do anything that acts.
+It serves the browser UI and the Android app's API: it reads Postgres directly, and asks the worker to do anything that acts.
 
-<Figure caption="Four ways in. Pages and reads are plain database queries. Writes are server actions, which save rows and then call the worker when something has to happen. The live screen bypasses the web server entirely.">
+<Figure caption="The browser's entry points. Pages and reads are plain database queries. Server actions save rows and then call the worker when something has to happen. The live screen bypasses the web server entirely.">
   <WebAppDiagram />
 </Figure>
 
 ## What talks to what
 
 - **Pages** (`src/app/(app)/*`) are server components. They check the session and render the first view from Postgres, so a page is useful before any client code runs.
-- **Server actions** (`src/lib/actions.ts`) handle every write: create a teammate, send a message, decide an approval, save a vault item. Each one validates its input with zod, writes rows, and calls the worker's internal API when the change needs work done.
+- **Server actions** (`src/lib/actions.ts`) handle browser writes: create a teammate, send a message, decide an approval, save a vault item. Shared operations delegate to services in `src/lib/server/api/`.
+- **RPC and uploads** serve the Android app through those services. See [Internal APIs](/docs/reference/http-api#writes-and-the-phone-api) for their entry points and authoritative contract.
 - **Read routes** (`src/app/api/*/route.ts`) are `GET` handlers that client components query through TanStack Query. They exist because Next.js runs server actions one at a time per client, so reads done as actions queued behind each other and made pages slow.
 - **The event stream** (`GET /api/stream`) is one server-sent events connection per tab. It tells the tab when anything changes, and streams the run events of the chat on screen.
 
@@ -37,7 +38,8 @@ Every protected surface checks the session itself:
 | Middleware (`src/proxy.ts`)                        | Redirects to `/login` when there is no session cookie. It's an optimistic check only.                  |
 | Pages                                              | `requireUser()` verifies the session and redirects to `/login`, or to `/setup` if no owner exists yet. |
 | Server actions                                     | `guarded()` calls `requireUser()` first, then turns errors into `{ ok: false, error }`.                |
-| Read routes                                        | `authed()` returns `401` without a session, and maps worker errors to their status.                    |
+| Read and upload routes                             | `authed()` returns `401` without a session, and maps worker errors to their status.                    |
+| RPC handler                                        | Its middleware verifies the session before invoking a procedure.                                       |
 | `/api/hooks/[token]`, `/api/inbound/email/[token]` | Public on purpose. The secret token in the URL is the credential.                                      |
 
 ## Calling the worker
@@ -46,29 +48,7 @@ Every protected surface checks the session itself:
 It sends the shared `WORKER_SECRET` in an `x-worker-secret` header, times out after 30 seconds by default, and throws a `WorkerError` with the worker's status and message.
 If the worker can't be reached at all, the error is a 503 that says to start it.
 
-Sending a message shows the split between writing and acting:
-
-```ts title="apps/web/src/lib/actions.ts (simplified)"
-export async function sendMessage(input) {
-  return guarded(async () => {
-    const [row] = await db
-      .insert(messages)
-      .values({
-        chatId: input.chatId,
-        role: "user",
-        text: input.text,
-        attachments: input.attachments,
-      })
-      .returning();
-    // The worker decides who answers, and whether this joins a running turn.
-    await worker("POST", `/internal/messages/${row.id}/dispatch`);
-    return toView(row);
-  });
-}
-```
-
-The web app saves your message, so it is never lost even if the worker is down.
-The worker decides what happens next.
+Message persistence and dispatch retries are described in [Saving the message](/docs/flows/chat-turn#saving-the-message), with the shared implementation in `src/lib/server/api/chats.ts`.
 
 ## Live updates
 

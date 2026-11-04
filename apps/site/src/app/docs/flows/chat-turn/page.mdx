@@ -54,19 +54,24 @@ The example: you ask Milo, your travel planner, "Find me a nonstop flight to Lis
 
 ## Saving the message
 
-The composer calls the `sendMessage` server action with the text, any attachments you uploaded, and the teammates you @-mentioned.
-The action checks your session, inserts a `messages` row, and calls the worker:
+The web composer calls the `sendMessage` server action; the phone calls `chats.send` through RPC.
+Both check your session and use `apps/web/src/lib/server/api/chats.ts` to save the text, uploaded attachments and teammates you @-mentioned.
+The client-generated message id makes retries safe: the same request returns the saved message, while reusing its id for different content is a conflict.
+After saving, the service asks the worker to dispatch it:
 
 ```http
 POST /internal/messages/<messageId>/dispatch
 x-worker-secret: <WORKER_SECRET>
 ```
 
-Your message is saved before the worker is involved, so it is never lost.
-The action returns the new message right away, and the composer shows it.
+The service returns the saved message even if dispatch is temporarily unavailable.
+The worker's reconciler picks up pending messages when it can, so retrying after a lost response does not send the message twice.
 
-Attachments are uploaded first, by a separate action, to `/home/bot/shared/uploads` on the computer through Codex's `fs/writeFile`.
-The message only stores their paths, types and sizes.
+Attachments are uploaded first through the worker's `UploadService` (`apps/worker/src/uploads.ts`), which writes them to `/home/bot/shared/uploads` through Codex's file API and verifies the stored bytes before accepting them.
+The browser's upload action and the phone's raw upload route share this service; the transport contract is on [Internal APIs](/docs/reference/http-api#writes-and-the-phone-api).
+Message acceptance checks completed upload records in the same transaction that saves the message.
+The locking invariant shared with upload writes and cleanup is documented on `lockUploads` in `packages/db/src/upload-locks.ts`, with race regressions in `apps/worker/src/uploads.integration.test.ts`.
+The message stores attachment metadata and paths, not file bytes.
 
 ## Dispatching
 

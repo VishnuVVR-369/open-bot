@@ -4,6 +4,31 @@ Your teammates on your phone: a home briefing, chats with live replies and attac
 It's an Expo app (React Native) that talks to your open-bot deployment through the same API the web app uses (`packages/api`).
 It's installed over USB; there's no Play Store listing.
 
+## Using the pocket inbox
+
+Home shows what needs you, recent activity, teammates and a briefing of work finished while you were away.
+Use the web app to take over the computer or review suggested instructions.
+Chats shows unread badges and previews; use New chat for a direct conversation or a group, and @-mention teammates to choose who answers.
+The chat menu lets you rename or archive a conversation; archiving keeps its history.
+
+Attach a photo, take one with the camera, or pick a file from the composer.
+Failed uploads can be retried or removed before sending.
+Images, Markdown, text and CSV/TSV files open in the app; tables scroll in both directions.
+PDFs and other formats open in a compatible app on the phone.
+The microphone adds dictation to the current draft; leaving that composer cancels recognition.
+Replies offer copy, read aloud, ratings and feedback, with an option to remember a lesson or try again.
+You can steer a working teammate with another message, stop it, or retry a failed or stopped turn.
+
+Use the header's search and notification buttons to find earlier work.
+Search finds teammates, chats, messages and pages; links to a teammate's reply load older history before scrolling to it.
+If loading history fails, use Retry to continue.
+Loaded history stays in place when newer replies arrive.
+A chat becomes read across devices after fresh history has loaded while it is visible; failed refreshes keep it unread.
+
+Approvals supports Approve, Deny and Always allow, with saved rules available from its menu.
+Notification approvals can be decided without opening the app; purchases use Review and require the phone's authentication check before approval.
+Reply on a message notification sends directly to its teammate, including in a group chat.
+
 ## What you need
 
 - Node and pnpm, as for the rest of the repo (`pnpm install` at the root).
@@ -44,7 +69,7 @@ APP_VARIANT=development EXPO_PUBLIC_APP_URL=http://localhost:3000 pnpm android -
 Run prebuild again whenever `app.config.ts`, a config plugin, or a native dependency changes.
 The development variant has its own app data and no Firebase configuration; it uses password sign-in against the local server.
 Both apps own the `openbot` auth scheme, so select `open-bot dev` and `Just once` when Android asks which app should open a development link.
-Unit tests are `pnpm test` (Node, for the platform-free logic) and `pnpm typecheck`.
+Run `pnpm test` for platform-free logic and mounted React hook regressions, and `pnpm typecheck` for TypeScript checks.
 
 ## Pocket inbox tests
 
@@ -85,7 +110,7 @@ On MIUI it enters text through ADB because the clipboard helper is blocked in Sy
 This phone can also ignore injected Send taps, so the flow allows 60 seconds for the owner to tap the native Send button before checking delivery.
 It exercises Android RemoteInput and the background handler without calling the application handler or send RPC directly.
 Injection requires both a development build and `EXPO_PUBLIC_E2E_NOTIFICATIONS=1`; it is excluded from release bundles and provides no authentication bypass.
-Firebase delivery, the purchase fingerprint check and returning after 10 minutes in the background also need the real-device checks recorded in [TESTING.md](TESTING.md).
+See [TESTING.md](TESTING.md) for recorded device evidence and the checks still deferred.
 Screenshots and logs are local in `.maestro-results/`, which is ignored by Git.
 
 ## Push notifications (Firebase)

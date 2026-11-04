@@ -147,7 +147,10 @@ export const chatDataSchema = z.object({
   chat: chatSummarySchema,
   members: z.array(botSummarySchema),
   entries: z.array(chatEntrySchema),
-  /** The id of the last run event included. Stream from here. */
+  /**
+   * This page's chat-wide event checkpoint. Runs retained from other pages may still need replay
+   * from their earlier checkpoints.
+   */
   cursor: z.number().int().nonnegative(),
   hasMore: z.boolean(),
   /** For a swarm helper's chat: the screen it works on and the swarm it's part of. */

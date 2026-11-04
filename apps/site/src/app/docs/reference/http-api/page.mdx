@@ -20,8 +20,8 @@ This page lists them, so you can find where any request is handled.
 
 ### Read routes
 
-Every other route under `/api` needs the owner's session, and returns JSON.
-They back the client's TanStack Query cache:
+The remaining routes need the owner's session.
+These read routes back the web client's TanStack Query cache; the stream sends SSE and file routes can return bytes:
 
 | Path                                                                            | Returns                                                                       |
 | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
@@ -44,13 +44,20 @@ They back the client's TanStack Query cache:
 | `GET /api/desktop/token`                                                        | A 60-second VNC token and the worker's websocket URL                          |
 | `GET /api/desktop/egress-token`                                                 | A 120-second egress token and URL, for the desktop app                        |
 
-Writes are server actions in `apps/web/src/lib/actions.ts`, not routes.
+### Writes and the phone API
+
+The browser uses server actions in `apps/web/src/lib/actions.ts`.
+The Android app calls the authenticated RPC handler at `/api/rpc/*`; its authoritative procedures, inputs, outputs and errors are the schemas in `packages/api/src/contract.ts` and `views.ts`.
+Both entry points use services in `apps/web/src/lib/server/api/`.
+
+`PUT /api/uploads/:uploadId` accepts raw attachment bytes with the owner's session and an allowed origin (or no Origin header for native clients).
+The upload metadata headers are defined by `UPLOAD_HEADERS` in the API contract; see [Saving the message](/docs/flows/chat-turn#saving-the-message) for attachment acceptance and cleanup.
 
 ## The worker
 
 Base URL `WORKER_URL` (port 4001).
 Every route except `/healthz` requires `x-worker-secret: <WORKER_SECRET>`.
-Bodies and responses are JSON.
+Bodies and responses are JSON, except upload request bodies, which are raw bytes.
 
 ### Runs and messages
 
@@ -97,6 +104,8 @@ Bodies and responses are JSON.
 | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | `GET /internal/files/list`, `/internal/files/read`         | Browse and read files under `/home/bot`                                                   |
 | `POST /internal/files/write`, `/upload`, `/put`, `/remove` | Write, upload and delete. Folders the computer needs and active workspaces are protected. |
+
+Retryable attachments use `PUT /internal/uploads/:id` and `GET /internal/uploads/:id` for status, implemented in `apps/worker/src/uploads.ts`.
 
 ### Integrations and settings
 

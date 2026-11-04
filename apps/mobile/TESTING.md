@@ -7,20 +7,24 @@ The daily signed app and its production data are separate.
 
 ## Automated checks
 
-| Check                                                   | Result                               |
-| ------------------------------------------------------- | ------------------------------------ |
-| Repository lint                                         | Passed, no warnings                  |
-| Repository typecheck                                    | Passed, all 12 tasks                 |
-| Unit tests                                              | Passed, all 9 tasks; 73 mobile tests |
-| Disposable database mobile API suite                    | 20 passed                            |
-| Disposable database bot management suite                | 18 passed                            |
-| Isolated memory integration tests and worker smoke test | 40 passed; smoke passed              |
-| Isolated memory browser regression                      | 6 passed                             |
-| Web regression excluding real-model `@agent` scenarios  | 54 passed, 8 skipped                 |
-| Android Maestro suite                                   | Staged checks; see limits below      |
-| Web production build                                    | Passed                               |
-| Worker production build                                 | Passed                               |
-| Signed Android release build and signature verification | Passed                               |
+These results record prior local runs reported by the author, not checks rerun by this documentation pass.
+Repository lint, all 21 combined test/typecheck tasks and the 22 disposable mobile API tests passed in the review follow-up.
+Other rows record the earlier completion pass; device and build evidence predates the review fixes.
+
+| Check                                                   | Result                          |
+| ------------------------------------------------------- | ------------------------------- |
+| Repository lint                                         | Passed, no warnings             |
+| Repository typecheck                                    | Passed in review follow-up      |
+| Unit tests                                              | Passed in review follow-up      |
+| Disposable database mobile API suite                    | Passed in review follow-up      |
+| Disposable database bot management suite                | 18 passed                       |
+| Isolated memory integration tests and worker smoke test | 40 passed; smoke passed         |
+| Isolated memory browser regression                      | 6 passed                        |
+| Web regression excluding real-model `@agent` scenarios  | 54 passed, 8 skipped            |
+| Android Maestro suite                                   | Staged checks; see limits below |
+| Web production build                                    | Passed                          |
+| Worker production build                                 | Passed                          |
+| Signed Android release build and signature verification | Passed                          |
 
 The normal unit command skips integration tests that require disposable databases.
 The dedicated commands above run those relevant integration suites explicitly.
@@ -34,7 +38,6 @@ The full real-model `@agent` web suite is excluded; the phone suite sends real m
   The stale approval was reproduced on the phone before fixing it.
 - Foreground reconnection preserves the latest live event cursor rather than falling back to an older snapshot cursor.
 - Only the focused chat subscribes to the shared stream, so refreshing a mounted screen behind it cannot replace its subscription.
-- Dictation cancellation stays current when the chat loses focus, even when cleanup was registered before listening started.
 - An unreadable picked file becomes a failed attachment with a useful message.
   Cancelling while upload headers load prevents the transfer from starting, and the native upload task receives the abort signal.
 - Feedback redo IDs now retain the original text and remember choice, so changing either under the same ID returns `CONFLICT`.
@@ -49,8 +52,6 @@ The full real-model `@agent` web suite is excluded; the phone suite sends real m
 - The Maestro suite handles MIUI's app chooser and Expo's developer menu, waits for approval decisions to complete, and checks streaming before the UI settles.
   Its fixtures are removed by ID, and its artifacts live outside Playwright's output directory.
   Every run has unique native notification IDs, so Android cannot carry an unsent draft from a failed test into the next run.
-  The inline flow waits for the exact text, taps Android's Send control, then allows 60 seconds for a manual native Send on phones that ignore the injected tap.
-  This MIUI phone required the owner to tap Send; the owner confirmed it works.
 
 ## Phone evidence
 
@@ -68,7 +69,7 @@ Light Home, chat and approval screens were inspected, and dark Home/chat checks 
 The combined Maestro run passed sign-in, streamed completion, in-app approval, a live denial while its detail stayed open, background Approve, the stale notification action, and background purchase Review.
 Its automated inline Send did not complete on MIUI; the owner tapped Send successfully during the native check.
 Do not treat this as an unattended all-green Maestro run.
-The flow now waits for native input, checks the exact entered text, and allows 60 seconds for an owner Send when the injected tap is ignored.
+Runner setup and MIUI workarounds are documented in [README.md](README.md#pocket-inbox-tests).
 
 At the owner's request, the controlled 10-minute background/unlock check and further time-consuming reruns were skipped.
 File picker, spoken transcription, steer/stop and reconnect-indicator walkthroughs were not independently completed in this pass.
@@ -87,15 +88,19 @@ Pulling the installed APK back from the phone confirmed its SHA-256 matches the 
 The quick production launch reached Home but showed the explicit server-out-of-date message.
 The latest app is installed; production backend rollout is required to use its new Home and other Phase 1 endpoints.
 
-Local notification automation injects only the incoming FCM-shaped data.
-It uses the actual Notifee rendering, Android notification buttons, background handler and authenticated RPC calls.
-It does not establish Firebase delivery to the new release build.
+The [notification test setup](README.md#pocket-inbox-tests) uses injected payloads, so it does not establish Firebase delivery to the release build.
 Production deployment, a real FCM delivery/reply check and the final signed-app check against production remain a separate rollout step.
 No commit, push, PR, merge or deployment was performed during this completion pass.
 
 ## Review follow-up
 
-The follow-up fixes isolate native dictation events to the composer that started recognition, preserve loaded chat history when the latest snapshot advances, and load older history before scrolling to a linked reply.
-Regression tests mount real React hooks and cover multiple mounted composers, delayed microphone permission, overlapping history pages, live updates to older runs, stale requests after switching chats, multi-page reply links, and explicit retry after a history request fails.
-The mobile suite now has 90 passing tests, and mobile typechecking passes.
+Regression coverage is owned by the tests next to the implementation:
+
+- `src/lib/dictation.test.ts` covers composer ownership, delayed permission and native teardown.
+- `src/lib/use-chat.test.ts` covers overlapping and disjoint latest-page refreshes, retained-run event replay and checkpoints, stale requests after switching chats, multi-page reply links and explicit retry after a history request fails.
+- `src/lib/use-chat-reading.test.ts` and `src/lib/use-chat-visibility.test.ts` cover fresh, visible history before read markers or notification dismissal, including failed catch-up and foreground transitions.
+- `../worker/src/uploads.integration.test.ts` covers cleanup racing with attachment acceptance and candidate-specific eligibility when several stale uploads exist.
+- `../web/src/components/chat/read-marker.test.ts` covers replacement replies in bounded pages with unchanged reply counts.
+
+CSV/TSV previews now have vertical as well as horizontal scrolling; that device walkthrough remains unverified by the checks above.
 The signed APK and phone evidence above predate these review fixes; the follow-up does not rebuild or reinstall the app or repeat the skipped device checks.

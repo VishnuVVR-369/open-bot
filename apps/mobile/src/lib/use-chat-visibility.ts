@@ -9,9 +9,9 @@ import { queryKeys } from "./query";
 import { visibleChat } from "./realtime";
 
 /**
- * While you're looking at a chat: notifications about it are cleared and not shown, and it's read
- * (on every device), including replies that finish while it's open. `finished` counts the replies
- * that are done, so a new one marks it read again.
+ * Require a fresh snapshot merged into visible history after each focus/foreground transition
+ * before marking the chat read or suppressing its notifications. A failed or stale catch-up must
+ * leave unread state intact. `finished` triggers another read marker for replies completed here.
  */
 export function useChatVisibility(
   chatId: string,

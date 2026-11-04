@@ -7,6 +7,7 @@ import {
 } from "@open-bot/api";
 
 export interface ChatHistory extends LiveChat {
+  /** A newer bounded snapshot cannot advance the replay checkpoint of a run it omits. */
   watermarks: Record<string, number>;
 }
 

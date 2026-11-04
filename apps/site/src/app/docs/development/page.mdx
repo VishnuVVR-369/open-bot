@@ -16,10 +16,12 @@ open-bot/
 │   ├── worker/       Node service: runs, tools, services, the internal API
 │   ├── botd/         The daemon inside the computer, bundled into the image
 │   ├── desktop/      Electron shell and egress agent
+│   ├── mobile/       Expo Android app; setup and UI tests in apps/mobile/README.md
 │   └── site/         This site: the landing page, the tour and these docs
 ├── packages/
 │   ├── db/           Drizzle schema, migrations, NOTIFY channels
 │   ├── shared/       Types and pure logic shared by every app
+│   ├── api/          Shared web/phone RPC contract and serializable views
 │   ├── agent/        Codex app-server client and generated protocol types
 │   ├── egress/       Tunnel framing, multiplexer, SOCKS server, agent
 │   └── memory/       The memory service and its background jobs
@@ -47,6 +49,8 @@ The web app compiles them through Next.js, the worker and botd bundle them with 
 | `pnpm e2e`                            | Playwright against the running stack                             |
 | `pnpm test:memory -- --e2e`           | The isolated memory suite                                        |
 | `pnpm test:bots`                      | Teammate management against a disposable Postgres                |
+| `pnpm test:mobile-api`                | Mobile API integration tests against disposable Postgres         |
+| `pnpm test:mobile-ui`                 | Android Maestro flows; see `apps/mobile/README.md`               |
 
 ## Tests
 
@@ -119,7 +123,7 @@ These are easy to miss and cost time when forgotten.
 
 ### Web app
 
-- **Reads are `GET` routes, writes are server actions.** Next.js runs server actions one at a time per client, so reads done as actions queue behind each other.
+- **Browser reads use `GET` routes.** Next.js runs server actions one at a time per client, so reads done as actions queue behind each other. The phone's RPC and upload entry points are documented in [Internal APIs](/docs/reference/http-api#writes-and-the-phone-api).
 - **Hydration errors fail tests.** E2E specs import `test` from `e2e/fixtures.ts`, which fails any test whose page logs a hydration error. Relative times from server data use the `TimeAgo` component.
 
 ### The computer

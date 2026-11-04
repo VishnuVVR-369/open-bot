@@ -16,7 +16,7 @@ import { useChatVisibility } from "./use-chat-visibility";
 
 const BUFFER = 2_000;
 
-/** A chat's messages and runs, kept live with the stream (the same logic as the web's). */
+/** A chat's loaded history, kept continuous across snapshots and live events. */
 export function useChat(chatId: string) {
   const queryClient = useQueryClient();
   const { watchChat } = useRealtime();
@@ -24,6 +24,7 @@ export function useChat(chatId: string) {
     queryKey: queryKeys.chat(chatId),
     queryFn: () => api.chats.get({ chatId }),
   });
+  const { refetch: refetchQuery } = query;
   const [live, setLive] = useState<ChatHistory | null>(null);
   const liveRef = useRef<ChatHistory | null>(null);
   const [loadedSnapshot, setLoadedSnapshot] = useState<{
@@ -173,10 +174,10 @@ export function useChat(chatId: string) {
   );
   const refreshHistory = useCallback(async () => {
     await queryClient.cancelQueries({ queryKey: queryKeys.chat(chatId), exact: true });
-    const result = await query.refetch({ throwOnError: true });
+    const result = await refetchQuery({ throwOnError: true });
     if (!result.isSuccess) throw result.error;
     return result.dataUpdatedAt;
-  }, [chatId, queryClient, query.refetch]);
+  }, [chatId, queryClient, refetchQuery]);
   const refetch = useChatVisibility(
     chatId,
     finished,
