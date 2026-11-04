@@ -31,6 +31,8 @@ export const botSummarySchema = z.object({
   isPrimary: z.boolean(),
   /** The bot's direct chat. */
   directChatId: z.string().nullable(),
+  /** When they last worked: their latest run's finish, or its start while it's still going. Null if they never have. */
+  lastActiveAt: isoDate.nullable(),
   activeRun: z
     .object({
       id: z.string(),

@@ -125,6 +125,16 @@ export async function listBots(): Promise<BotSummary[]> {
     .from(runs)
     .where(inArray(runs.status, [...ACTIVE_RUN_STATUSES]))
     .orderBy(desc(runs.createdAt));
+  // Each teammate's newest run, read through runs_bot_idx: when it finished, or when it began.
+  const latest = await db
+    .selectDistinctOn([runs.botId], {
+      botId: runs.botId,
+      at: sql<Date>`coalesce(${runs.completedAt}, ${runs.startedAt}, ${runs.createdAt})`.mapWith(
+        runs.createdAt,
+      ),
+    })
+    .from(runs)
+    .orderBy(runs.botId, desc(runs.createdAt));
   return rows.map((bot) => {
     const run =
       active.find((r) => r.botId === bot.id && r.status !== "queued") ??
@@ -139,6 +149,7 @@ export async function listBots(): Promise<BotSummary[]> {
       autonomy: bot.autonomy,
       isPrimary: bot.isPrimary,
       directChatId: directChats.find((chat) => chat.botId === bot.id)?.id ?? null,
+      lastActiveAt: latest.find((entry) => entry.botId === bot.id)?.at.toISOString() ?? null,
       activeRun: run
         ? { id: run.id, chatId: run.chatId, status: run.status, waitingFor: run.waitingFor ?? null }
         : null,
