@@ -190,6 +190,13 @@
       "when": 1793810017201,
       "tag": "0026_chat_titles",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1793814131405,
+      "tag": "0027_attachment_indexes",
+      "breakpoints": true
     }
   ]
 }

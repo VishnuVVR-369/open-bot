@@ -1,5 +1,13 @@
 import { randomBytes } from "node:crypto";
-import { approvals, bots, chats, credentials, emails, emailSettings } from "@open-bot/db";
+import {
+  approvals,
+  bots,
+  chats,
+  credentials,
+  emails,
+  emailSettings,
+  type Attachment,
+} from "@open-bot/db";
 import {
   emailAddress,
   parseInboundEmail,
@@ -18,7 +26,7 @@ import {
 } from "../context";
 import { errorMessage } from "../logger";
 import type { RunSession } from "../runs/session";
-import { saveUpload } from "../uploads";
+import type { UploadService } from "../uploads";
 import type { ApprovalService } from "./approvals";
 import type { SessionRegistry } from "./registry";
 
@@ -58,14 +66,18 @@ async function inboxFor(ctx: Context, botId: string): Promise<string> {
   return created!.id;
 }
 
-function prompt(email: InboundEmail, id: string, address: string, saved: string[]): string {
+/**
+ * The email, as the teammate reads it. Saved attachments reach the run as attachments, with their
+ * paths; this names every one, including those that couldn't be saved.
+ */
+function prompt(email: InboundEmail, id: string, address: string, attachments: string[]): string {
   const from = email.from.name ? `${email.from.name} <${email.from.email}>` : email.from.email;
   const text = email.text.length > MAX_TEXT ? `${email.text.slice(0, MAX_TEXT)}\n[…]` : email.text;
   return `[Email to you at ${address} (email id ${id})]
 From: ${from}
 To: ${email.to.join(", ")}${email.cc.length ? `\nCc: ${email.cc.join(", ")}` : ""}
 Subject: ${email.subject || "(no subject)"}
-${saved.length ? `Attachments, saved on the computer: ${saved.join(", ")}\n` : ""}
+${attachments.length ? `Attachments: ${attachments.join(", ")}\n` : ""}
 ${text || "(no text)"}
 
 ---
@@ -81,6 +93,7 @@ export class EmailService {
     private readonly ctx: Context,
     private readonly approvals: ApprovalService,
     private readonly sessions: SessionRegistry,
+    private readonly uploads: Pick<UploadService, "save">,
   ) {
     ctx.events.on("approvalDecided", (approvalId) => {
       void this.decided(approvalId).catch((error: unknown) =>
@@ -105,16 +118,25 @@ export class EmailService {
     if (!bot) return { botId: null };
     const address = emailAddress(bot.slug, settings.domain);
 
-    // Attachments go where your uploads go, so the teammate can open them.
-    const saved: string[] = [];
+    // Attachments are uploads, like the files you attach, so the teammate gets them the same way.
+    const saved: Attachment[] = [];
+    const listed: string[] = [];
     for (const attachment of email.attachments.slice(0, 10)) {
       if (Buffer.byteLength(attachment.base64, "base64") > MAX_ATTACHMENT_BYTES) {
-        saved.push(`${attachment.name} (too big to save)`);
+        listed.push(`${attachment.name} (too big to save)`);
         continue;
       }
       try {
-        saved.push((await saveUpload(this.ctx, attachment.name, attachment.base64)).path);
+        saved.push(
+          await this.uploads.save({
+            name: attachment.name,
+            mime: attachment.contentType,
+            data: Buffer.from(attachment.base64, "base64"),
+          }),
+        );
+        listed.push(attachment.name);
       } catch (error) {
+        listed.push(`${attachment.name} (couldn't be saved)`);
         this.ctx.log.warn("could not save an email attachment", { error: errorMessage(error) });
       }
     }
@@ -137,7 +159,8 @@ export class EmailService {
       chatId,
       botId: bot.id,
       trigger: "email",
-      prompt: prompt(email, row!.id, address, saved),
+      prompt: prompt(email, row!.id, address, listed),
+      attachments: saved,
     });
     await this.ctx.db.update(emails).set({ runId }).where(eq(emails.id, row!.id));
     await this.ctx.db

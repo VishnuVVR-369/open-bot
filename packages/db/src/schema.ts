@@ -266,6 +266,8 @@ export const messages = pgTable(
   },
   (table) => [
     index("messages_chat_idx").on(table.chatId, table.createdAt),
+    // Upload cleanup asks which messages carry a file.
+    index("messages_attachments_idx").using("gin", table.attachments.op("jsonb_path_ops")),
     uniqueIndex("messages_client_id_unique").on(table.clientId),
     index("messages_pending_dispatch_idx")
       .on(table.createdAt)
@@ -362,6 +364,8 @@ export const runs = pgTable(
     index("runs_status_idx").on(table.status),
     index("runs_bot_idx").on(table.botId, table.createdAt),
     index("runs_trigger_idx").on(table.triggerId, table.createdAt),
+    // Upload cleanup asks which runs carry a file.
+    index("runs_attachments_idx").using("gin", table.attachments.op("jsonb_path_ops")),
     // A message you sent starts at most one run per teammate.
     uniqueIndex("runs_user_message_unique")
       .on(table.messageId, table.botId)

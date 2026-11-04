@@ -1,0 +1,2 @@
+CREATE INDEX "messages_attachments_idx" ON "messages" USING gin ("attachments" jsonb_path_ops);--> statement-breakpoint
+CREATE INDEX "runs_attachments_idx" ON "runs" USING gin ("attachments" jsonb_path_ops);

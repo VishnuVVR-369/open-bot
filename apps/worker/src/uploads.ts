@@ -1,11 +1,19 @@
 import { createHash, randomUUID } from "node:crypto";
-import { messages, uploads, lockUploads, type Db, type Tx } from "@open-bot/db";
+import {
+  messages,
+  runs,
+  uploads,
+  lockUploads,
+  type Attachment,
+  type Db,
+  type Tx,
+} from "@open-bot/db";
 import { COMPUTER_PATHS, MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from "@open-bot/shared";
 import { and, eq, inArray, lt, notExists, or, sql } from "drizzle-orm";
 import type { Context } from "./context";
 import { errorMessage } from "./logger";
 
-/** Where files you attach to messages go on the computer. */
+/** Where files you attach to messages, and files that arrive by email or Telegram, go on the computer. */
 export const UPLOAD_DIR = `${COMPUTER_PATHS.shared}/uploads`;
 
 export function sanitizeFileName(name: string): string {
@@ -15,22 +23,6 @@ export function sanitizeFileName(name: string): string {
       .replace(/^\.+/, "")
       .slice(0, 120) || "file"
   );
-}
-
-/**
- * Save a file that arrived some other way (an email, Telegram) on the computer, under a name that
- * can't clash with another one. These aren't retried by a sender, so they need no upload record.
- */
-export async function saveUpload(
-  ctx: Pick<Context, "codex">,
-  name: string,
-  dataBase64: string,
-): Promise<{ path: string; size: number }> {
-  const client = await ctx.codex.ready();
-  await client.request("fs/createDirectory", { path: UPLOAD_DIR, recursive: true });
-  const path = `${UPLOAD_DIR}/${randomUUID().slice(0, 8)}-${sanitizeFileName(name)}`;
-  await client.request("fs/writeFile", { path, dataBase64 });
-  return { path, size: Buffer.byteLength(dataBase64, "base64") };
 }
 
 /** Files on the computer, as uploads need them. The Codex file API in production. */
@@ -194,24 +186,51 @@ export class UploadService {
     return view(done!);
   }
 
+  /**
+   * Keep a file that arrived some other way (an email, Telegram) as an upload under a new id, so
+   * it's checked and cleaned up like one. Nothing retries these with the same id; the caller saves
+   * what refers to it right away, long before cleanup would count it as unused.
+   */
+  async save(file: { name: string; mime: string; data: Buffer }): Promise<Attachment> {
+    const { attachment } = await this.put({
+      id: randomUUID(),
+      name: file.name,
+      mime: file.mime,
+      size: file.data.length,
+      sha256: sha256(file.data),
+      data: file.data,
+    });
+    if (!attachment) throw new Error(`${file.name} wasn't saved.`);
+    return attachment;
+  }
+
   async status(id: string): Promise<UploadView | null> {
     const [row] = await this.db.select().from(uploads).where(eq(uploads.id, id));
     return row ? view(row) : null;
   }
 
-  /** Removes uploads that never finished, and finished ones no message uses. */
+  /** Removes uploads that never finished, and finished ones no message or run uses. */
   async cleanup(now = Date.now()): Promise<number> {
     const incomplete = new Date(now - INCOMPLETE_TTL_MS);
     const unused = new Date(now - UNUSED_TTL_MS);
-    const referenced = this.db
+    const attached = sql`jsonb_build_array(jsonb_build_object('path', ${uploads.path}))`;
+    // A message you sent, or a run that started without one (an email).
+    const inMessage = this.db
       .select({ one: sql`1` })
       .from(messages)
-      .where(
-        sql`${messages.attachments} @> jsonb_build_array(jsonb_build_object('path', ${uploads.path}))`,
-      );
+      .where(sql`${messages.attachments} @> ${attached}`);
+    const inRun = this.db
+      .select({ one: sql`1` })
+      .from(runs)
+      .where(sql`${runs.attachments} @> ${attached}`);
     const eligible = or(
       and(inArray(uploads.status, ["writing", "failed"]), lt(uploads.updatedAt, incomplete)),
-      and(eq(uploads.status, "complete"), lt(uploads.updatedAt, unused), notExists(referenced)),
+      and(
+        eq(uploads.status, "complete"),
+        lt(uploads.updatedAt, unused),
+        notExists(inMessage),
+        notExists(inRun),
+      ),
     );
     const stale = await this.db
       .select({ id: uploads.id, path: uploads.path })

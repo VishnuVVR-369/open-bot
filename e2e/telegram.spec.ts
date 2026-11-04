@@ -1,8 +1,22 @@
+import { createHash } from "node:crypto";
+import pg from "pg";
 import { expect, test, type Page } from "./fixtures";
 import { createTeammate, uniqueName, waitForLastRun, workerApi } from "./helpers";
 import { MOCK_BOT, MOCK_TOKEN, TelegramMock, USER } from "./telegram-mock";
 
 const MOCK_PORT = 4797;
+const db = new pg.Pool({
+  connectionString:
+    process.env.DATABASE_URL ?? "postgres://openbot:openbot@127.0.0.1:54329/openbot",
+  max: 2,
+});
+test.afterAll(() => db.end());
+
+/** A 1×1 PNG, standing in for a photo. */
+const PIXEL = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  "base64",
+);
 
 /** Wait until `find` returns something, and return it. */
 async function eventually<T>(find: () => T | undefined, timeout = 240_000): Promise<T> {
@@ -76,6 +90,37 @@ test.describe("Telegram, against a stand-in", () => {
     await expect.poll(() => telegram.texts().join("\n")).toContain("open-bot is connected");
     telegram.say("/team");
     await expect.poll(() => telegram.texts().at(-1)).toMatch(/·/);
+  });
+
+  test("a photo you send becomes a file open-bot keeps track of", async () => {
+    const name = uniqueName("Tess");
+    await createTeammate(page, name);
+    const caption = `${name}: What's in this picture? ${Date.now()}`;
+    telegram.sayPhoto(caption, PIXEL);
+    const text = caption.slice(name.length + 2);
+    await expect(page.getByText(text)).toBeVisible();
+
+    const { rows } = await db.query<{ attachments: { path: string }[] }>(
+      "select attachments from messages where via = 'telegram' and text = $1",
+      [text],
+    );
+    expect(rows).toHaveLength(1);
+    const [attachment] = rows[0]!.attachments;
+    expect(rows[0]!.attachments).toEqual([
+      {
+        name: expect.stringMatching(/^photo-\d+\.jpg$/),
+        path: expect.stringMatching(/^\/home\/bot\/shared\/uploads\/[0-9a-f-]{36}-photo-\d+\.jpg$/),
+        mime: "image/jpeg",
+        size: PIXEL.length,
+      },
+    ]);
+    // It's an upload, checked like one and cleaned up like one once nothing uses it.
+    const { rows: tracked } = await db.query("select status, sha256 from uploads where path = $1", [
+      attachment!.path,
+    ]);
+    expect(tracked).toEqual([
+      { status: "complete", sha256: createHash("sha256").update(PIXEL).digest("hex") },
+    ]);
   });
 
   test("@agent message a teammate by name and get the reply in Telegram", async () => {
