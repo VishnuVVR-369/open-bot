@@ -7,13 +7,14 @@ import {
 } from "@open-bot/db";
 import type { RuleKind } from "@open-bot/shared";
 import {
+  approvalQuotes,
   formatMoney,
   invalidRulePattern,
   PURCHASE_WINDOW_MS,
   rulesCover,
   type ApprovalItem,
 } from "@open-bot/shared";
-import { and, eq, notInArray, sql } from "drizzle-orm";
+import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 import {
   appendRunEvent,
   createNotification,
@@ -154,11 +155,40 @@ export class ApprovalService {
   ): Promise<boolean> {
     if (await this.allowedByRule(session.bot.id, input.kind, input.subject ?? input.title))
       return true;
+    if (
+      input.kind === "command" &&
+      input.subject &&
+      (await this.approvedInRun(session, input.subject))
+    )
+      return true;
     const approvalId = await this.create(session, input);
     const decision = await session.whileWaiting("approval", () =>
       this.wait(session.run.id, approvalId),
     );
     return decision === "approved";
+  }
+
+  /**
+   * Whether you already approved this exact command, quoted in a request_approval from this run
+   * (or the run it started, for a decision that came late). Codex asking again about the command
+   * you just approved would ask you the same thing twice.
+   */
+  private async approvedInRun(session: RunSession, command: string): Promise<boolean> {
+    const { run } = session;
+    const runIds = [run.id];
+    if (run.trigger === "approval" && run.parentRunId) runIds.push(run.parentRunId);
+    const approved = await this.ctx.db
+      .select({ title: approvals.title, detail: approvals.detail })
+      .from(approvals)
+      .where(
+        and(
+          inArray(approvals.runId, runIds),
+          eq(approvals.botId, session.bot.id),
+          eq(approvals.kind, "action"),
+          eq(approvals.status, "approved"),
+        ),
+      );
+    return approved.some((row) => approvalQuotes(`${row.title}\n${row.detail}`, command));
   }
 
   /**

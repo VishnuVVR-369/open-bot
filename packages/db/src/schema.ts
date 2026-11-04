@@ -160,6 +160,11 @@ export const chats = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     kind: text("kind").$type<ChatKind>().notNull(),
     title: text("title").notNull(),
+    /**
+     * Whether the title says what the chat is about: you named it, or its teammate did with
+     * set_chat_title. A direct chat starts out named after its teammate, untitled.
+     */
+    titled: boolean("titled").notNull().default(false),
     /** The bot of a direct or scheduled chat. */
     botId: uuid("bot_id").references(() => bots.id, { onDelete: "cascade" }),
     createdAt: createdAt(),

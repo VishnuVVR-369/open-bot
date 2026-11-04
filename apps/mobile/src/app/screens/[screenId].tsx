@@ -3,7 +3,8 @@ import { isOwnerLease } from "@open-bot/shared";
 import * as Clipboard from "expo-clipboard";
 import * as Orientation from "expo-screen-orientation";
 import { Stack, useLocalSearchParams, usePreventRemove } from "expo-router";
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { CloudOff, Eye, Moon, MousePointer2, Scan } from "lucide-react-native";
+import { useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Alert,
   BackHandler,
@@ -22,6 +23,8 @@ import {
   DesktopView,
   type DesktopHandle,
 } from "@/components/computer/desktop-view";
+import { ControlNotice, ScreenTitle, TakeoverNotice } from "@/components/computer/screen-notice";
+import { ScreenMessage, useScreenSurface } from "@/components/computer/screen-surface";
 import { Sheet } from "@/components/sheet";
 import { Loading, LoadError } from "@/components/states";
 import { Text } from "@/components/text";
@@ -29,10 +32,11 @@ import { TextField } from "@/components/text-field";
 import { api } from "@/lib/api";
 import { ComputerAccess } from "@/lib/computer-access";
 import { errorMessage } from "@/lib/errors";
+import { haptics } from "@/lib/haptics";
 import { queryKeys } from "@/lib/query";
-import { screenStatus } from "@/lib/screens";
+import { screenState } from "@/lib/screens";
 import { useKeyboardHeight } from "@/lib/use-keyboard";
-import { useColors } from "@/theme";
+import { radius, space, useColors } from "@/theme";
 
 const keys = [
   ["Esc", 0xff1b, "Escape"],
@@ -47,6 +51,17 @@ const keys = [
 ] as const;
 
 const LANDSCAPE_CONTROLS_WIDTH = 220;
+const GUTTER = space(4);
+
+type Pending = "wake" | "take-over" | "hand-back";
+
+interface Action {
+  title: string;
+  onPress: () => void;
+  primary: boolean;
+  busy: boolean;
+  testID: string;
+}
 
 export default function ScreenPage() {
   const { screenId, takeover, code } = useLocalSearchParams<{
@@ -55,12 +70,13 @@ export default function ScreenPage() {
     code?: string;
   }>();
   const colors = useColors();
+  const surface = useScreenSurface();
   const access = useContext(ComputerAccess);
   const screens = useQuery({ queryKey: queryKeys.screens, queryFn: () => api.screens.list() });
   const screen = screens.data?.find((item) => item.id === screenId);
   const owner = isOwnerLease(screen?.lease ?? null);
   const desktop = useRef<DesktopHandle | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState<Pending | null>(null);
   const [connected, setConnected] = useState(false);
   const [handBack, setHandBack] = useState(false);
   const [showCode, setShowCode] = useState(code === "1");
@@ -117,23 +133,31 @@ export default function ScreenPage() {
     return () => sub.remove();
   }, [confirmBack]);
 
-  async function act(action: () => Promise<unknown>) {
-    setBusy(true);
+  async function act(kind: Pending, action: () => Promise<unknown>): Promise<boolean> {
+    setPending(kind);
     try {
       await action();
       await screens.refetch();
+      return true;
     } catch (e) {
+      haptics.error();
       Alert.alert("Couldn't change the screen", errorMessage(e));
+      return false;
     } finally {
-      setBusy(false);
+      setPending(null);
     }
   }
+  function takeOver() {
+    haptics.press();
+    void act("take-over", () => api.screens.takeOver({ screenId }));
+  }
   async function returnScreen(clearCode = false) {
-    await act(async () => {
+    const done = await act("hand-back", async () => {
       await api.screens.handBack({ screenId, note: note.trim() || null, clearCode });
       setHandBack(false);
       setNote("");
     });
+    if (done) haptics.success();
   }
   function key(sym: number, code: string, modifier = false) {
     if (!connected) return;
@@ -160,184 +184,197 @@ export default function ScreenPage() {
         onRetry={() => void screens.refetch()}
       />
     );
-  // In landscape the desktop takes the full height beside a controls column at least this wide.
-  const top = landscape ? insets.top + 8 : 8;
-  const bottom = Math.max(insets.bottom, keyboard) + 8;
-  const left = Math.max(insets.left, 12);
-  const right = Math.max(insets.right, 12);
-  const desktopWidth = Math.min(
-    (height - top - bottom) * DESKTOP_ASPECT_RATIO,
-    width - left - right - 10 - LANDSCAPE_CONTROLS_WIDTH,
+
+  const state = screenState(screen);
+  const name = screen.bot.name;
+  const live = screen.running && screen.online;
+  // The software keyboard needs the room, and you're typing, not reaching for actions.
+  const typing = keyboard > 0;
+  const busy = pending !== null;
+
+  // One main action, on the right where the thumb is, with at most one quieter one beside it.
+  const actions: Action[] = owner
+    ? [
+        {
+          title: "Hand back",
+          onPress: () => {
+            Keyboard.dismiss();
+            setHandBack(true);
+          },
+          primary: true,
+          busy: pending === "hand-back",
+          testID: "hand-back",
+        },
+      ]
+    : state.kind === "offline"
+      ? [
+          {
+            title: "Try again",
+            onPress: () => void screens.refetch(),
+            primary: true,
+            busy: screens.isRefetching,
+            testID: "retry-screen",
+          },
+        ]
+      : state.kind === "asleep"
+        ? [
+            {
+              title: "Take over",
+              onPress: takeOver,
+              primary: false,
+              busy: pending === "take-over",
+              testID: "take-over",
+            },
+            {
+              title: "Wake screen",
+              onPress: () => void act("wake", () => api.screens.wake({ screenId })),
+              primary: true,
+              busy: pending === "wake",
+              testID: "wake-screen",
+            },
+          ]
+        : [
+            {
+              title: "Take over",
+              onPress: takeOver,
+              primary: true,
+              busy: pending === "take-over",
+              testID: "take-over",
+            },
+          ];
+
+  // What the screen shows while there's no stream to show.
+  const placeholder = !screen.online ? (
+    <ScreenMessage
+      icon={<CloudOff size={26} color={surface.ink} />}
+      title="Can't reach the computer"
+      body="It may be restarting. Try again in a moment."
+    />
+  ) : pending === "wake" || pending === "take-over" ? (
+    <ScreenMessage spinner title="Waking the screen" />
+  ) : (
+    <ScreenMessage
+      icon={<Moon size={26} color={surface.ink} />}
+      body="Wake it to watch, or take over to use it yourself."
+    />
   );
-  const landscapeDesktop = { width: desktopWidth, height: desktopWidth / DESKTOP_ASPECT_RATIO };
-  const controls = (
+
+  const notice = owner ? (
+    <ControlNotice name={name} paused={state.kind === "controlling" && state.paused} />
+  ) : request ? (
+    <TakeoverNotice
+      name={name}
+      reason={request.reason}
+      onTypeCode={() => {
+        setCodeTakeover(request.id);
+        setShowCode(true);
+      }}
+    />
+  ) : null;
+
+  const fit = connected && (
+    <Button
+      title="Fit"
+      variant="outline"
+      icon={<Scan size={16} color={colors.foreground} />}
+      onPress={() => desktop.current?.send({ type: "fit" })}
+      testID="fit-screen"
+    />
+  );
+
+  const tools = owner ? (
     <>
-      {!owner && request && (
-        <View style={{ gap: 8 }}>
-          <Text variant="small">{request.reason ?? "Your teammate needs you."}</Text>
-          <Button
-            title="Type the code"
-            variant="outline"
-            onPress={() => {
-              setCodeTakeover(request.id);
-              setShowCode(true);
-            }}
-            testID="type-code"
-          />
-        </View>
-      )}
       <View style={styles.row}>
-        {owner ? (
-          <>
-            <Button
-              title="Hand back"
-              onPress={() => {
-                Keyboard.dismiss();
-                setHandBack(true);
-              }}
-              busy={busy}
-              testID="hand-back"
-            />
-            <Button
-              title={trackpad ? "Touch mode" : "Trackpad"}
-              variant="outline"
-              onPress={() => {
-                setTrackpad(!trackpad);
-                desktop.current?.send({ type: "pointerMode", trackpad: !trackpad });
-              }}
-              testID="trackpad"
-              disabled={!connected}
-            />
-          </>
-        ) : (
-          <>
-            <Button
-              title="Take over"
-              onPress={() => void act(() => api.screens.takeOver({ screenId }))}
-              disabled={!screen.online}
-              busy={busy}
-              testID="take-over"
-            />
-            {!screen.running && (
-              <Button
-                title="Wake"
-                variant="outline"
-                onPress={() => void act(() => api.screens.wake({ screenId }))}
-                disabled={!screen.online}
-                busy={busy}
-                testID="wake-screen"
-              />
-            )}
-          </>
-        )}
         <Button
-          title="Fit"
+          title={trackpad ? "Touch mode" : "Trackpad"}
           variant="outline"
-          onPress={() => desktop.current?.send({ type: "fit" })}
+          icon={<MousePointer2 size={16} color={colors.foreground} />}
+          onPress={() => {
+            setTrackpad(!trackpad);
+            desktop.current?.send({ type: "pointerMode", trackpad: !trackpad });
+          }}
+          testID="trackpad"
           disabled={!connected}
         />
+        {fit}
       </View>
-      {owner && (
-        <>
-          <View style={[styles.row, { gap: 6 }]}>
-            {keys.map(([label, sym, code]) => (
-              <Pressable
-                key={code}
-                accessibilityRole="button"
-                accessibilityLabel={label}
-                onPress={() => key(sym, code, label === "Ctrl" || label === "Alt")}
-                disabled={!connected}
-                style={[
-                  styles.key,
-                  {
-                    backgroundColor: held.includes(code) ? colors.input : colors.surface,
-                    borderColor: colors.border,
-                  },
-                ]}
-              >
-                <Text variant="small">{label}</Text>
-              </Pressable>
-            ))}
-            <Pressable
-              accessibilityRole="button"
-              disabled={!connected}
-              style={[styles.key, { backgroundColor: colors.surface, borderColor: colors.border }]}
-              onPress={() =>
-                void Clipboard.getStringAsync().then((text) =>
-                  desktop.current?.send({ type: "text", text: text.slice(0, 5000) }),
-                )
-              }
-            >
-              <Text variant="small">Paste from phone</Text>
-            </Pressable>
-          </View>
-          <TextField
-            value={draft}
-            editable={connected}
-            onChangeText={type}
-            placeholder="Keyboard"
-            autoCorrect={false}
-            autoCapitalize="none"
-            onSubmitEditing={() => {
-              key(0xff0d, "Enter");
-              setDraft("");
-            }}
-            onKeyPress={(event) => {
-              if (event.nativeEvent.key === "Backspace" && !draft) key(0xff08, "Backspace");
-            }}
-            testID="remote-keyboard"
+      <View style={[styles.row, { gap: space(1.5) }]}>
+        {keys.map(([label, sym, code]) => (
+          <Key
+            key={code}
+            label={label}
+            held={held.includes(code)}
+            disabled={!connected}
+            onPress={() => key(sym, code, label === "Ctrl" || label === "Alt")}
           />
-        </>
-      )}
-    </>
-  );
-  return (
-    <View
-      style={{
-        flex: 1,
-        // Landscape hides the header, so keep clear of the status bar and any cutout.
-        paddingTop: top,
-        paddingLeft: left,
-        paddingRight: right,
-        paddingBottom: bottom,
-        gap: 10,
-        flexDirection: landscape ? "row" : "column",
-      }}
-    >
-      <Stack.Screen options={{ title: `${screen.bot.name}'s screen`, headerShown: !landscape }} />
-      {!landscape && (
-        <Text muted variant="small" testID="screen-status">
-          {screenStatus(screen)}
-        </Text>
-      )}
-      <DesktopView
-        screenId={screenId}
-        enabled={screen.running && screen.online}
-        mode={owner ? "control" : "view"}
-        handleRef={desktop}
-        onConnectedChange={setConnected}
-        // Fit to width in portrait; full height beside the controls in landscape.
-        style={landscape ? landscapeDesktop : { aspectRatio: DESKTOP_ASPECT_RATIO }}
+        ))}
+        <Key
+          label="Paste from phone"
+          disabled={!connected}
+          onPress={() =>
+            void Clipboard.getStringAsync().then((text) =>
+              desktop.current?.send({ type: "text", text: text.slice(0, 5000) }),
+            )
+          }
+        />
+      </View>
+      <TextField
+        value={draft}
+        editable={connected}
+        onChangeText={type}
+        placeholder="Keyboard"
+        autoCorrect={false}
+        autoCapitalize="none"
+        onSubmitEditing={() => {
+          key(0xff0d, "Enter");
+          setDraft("");
+        }}
+        onKeyPress={(event) => {
+          if (event.nativeEvent.key === "Backspace" && !draft) key(0xff08, "Backspace");
+        }}
+        testID="remote-keyboard"
       />
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ gap: 10 }}
-        keyboardShouldPersistTaps="always"
-      >
-        {landscape && (
-          <Text muted variant="small" testID="screen-status">
-            {screenStatus(screen)}
+      <Text variant="caption" muted>
+        {trackpad
+          ? "Drag to move the pointer, tap to click where it is."
+          : "Tap to click, hold for a right click, and drag with two fingers to scroll."}
+      </Text>
+    </>
+  ) : (
+    connected && (
+      <View style={[styles.row, { alignItems: "center" }]}>
+        <View style={styles.hint}>
+          <Eye size={16} color={colors.mutedForeground} />
+          <Text variant="small" muted style={{ flex: 1 }}>
+            {`Watching doesn't interrupt ${name}. Pinch to zoom.`}
           </Text>
-        )}
-        {controls}
-      </ScrollView>
+        </View>
+        {fit}
+      </View>
+    )
+  );
+
+  const desktopView = (style: object) => (
+    <DesktopView
+      screenId={screenId}
+      enabled={live}
+      mode={owner ? "control" : "view"}
+      handleRef={desktop}
+      onConnectedChange={setConnected}
+      placeholder={placeholder}
+      style={style}
+    />
+  );
+
+  const sheets = (
+    <>
       <Sheet
         open={handBack && access}
         onClose={() => setHandBack(false)}
         title="Hand the screen back"
         description="Your teammate will take a screenshot and continue."
       >
-        <View style={{ paddingHorizontal: 20, gap: 12 }}>
+        <View style={styles.sheetBody}>
           <TextField
             value={note}
             onChangeText={setNote}
@@ -349,7 +386,7 @@ export default function ScreenPage() {
           <Button
             title="Hand back"
             onPress={() => void returnScreen()}
-            busy={busy}
+            busy={pending === "hand-back"}
             testID="hand-back-confirm"
           />
           {isOwnerLease(screen.lease) &&
@@ -357,7 +394,7 @@ export default function ScreenPage() {
               <Button
                 title="Clear the code and hand back"
                 variant="outline"
-                busy={busy}
+                busy={pending === "hand-back"}
                 onPress={() =>
                   Alert.alert(
                     "Clear code and hand back?",
@@ -386,18 +423,164 @@ export default function ScreenPage() {
           }}
         />
       )}
+    </>
+  );
+
+  const buttons = (layout: "row" | "column") =>
+    actions.map((action) => (
+      <Button
+        key={action.testID}
+        title={action.title}
+        variant={action.primary ? "primary" : "outline"}
+        onPress={action.onPress}
+        busy={action.busy}
+        disabled={busy && !action.busy}
+        testID={action.testID}
+        style={layout === "row" ? { flex: 1 } : undefined}
+      />
+    ));
+
+  if (landscape) {
+    // The header is hidden, so keep clear of the status bar and any cutout, and give the desktop
+    // the full height beside a controls column at least this wide.
+    const top = insets.top + space(2);
+    const bottom = Math.max(insets.bottom, keyboard) + space(2);
+    const left = Math.max(insets.left, GUTTER);
+    const right = Math.max(insets.right, GUTTER);
+    const desktopWidth = Math.min(
+      (height - top - bottom) * DESKTOP_ASPECT_RATIO,
+      width - left - right - space(3) - LANDSCAPE_CONTROLS_WIDTH,
+    );
+    return (
+      <View
+        style={[
+          styles.landscape,
+          { paddingTop: top, paddingBottom: bottom, paddingLeft: left, paddingRight: right },
+        ]}
+      >
+        <Stack.Screen options={{ title: `${name}'s screen`, headerShown: false }} />
+        {desktopView({ width: desktopWidth, height: desktopWidth / DESKTOP_ASPECT_RATIO })}
+        <View style={{ flex: 1, gap: space(3) }}>
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={styles.stack}
+            keyboardShouldPersistTaps="always"
+          >
+            <ScreenTitle screen={screen} />
+            {notice}
+            {tools}
+          </ScrollView>
+          {!typing && <View style={styles.stack}>{buttons("column")}</View>}
+        </View>
+        {sheets}
+      </View>
+    );
+  }
+
+  const left = Math.max(insets.left, GUTTER);
+  const right = Math.max(insets.right, GUTTER);
+  return (
+    <View style={{ flex: 1, paddingBottom: typing ? keyboard : 0 }}>
+      <Stack.Screen
+        options={{
+          title: `${name}'s screen`,
+          headerShown: true,
+          headerTitle: () => <ScreenTitle screen={screen} />,
+        }}
+      />
+      {/* The desktop stays outside the scroll view so its drags and pinches reach the remote screen. */}
+      <View
+        style={[styles.stack, { paddingTop: space(3), paddingLeft: left, paddingRight: right }]}
+      >
+        {notice}
+        {desktopView({ aspectRatio: DESKTOP_ASPECT_RATIO })}
+      </View>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={[
+          styles.stack,
+          { paddingTop: space(3), paddingBottom: space(4), paddingLeft: left, paddingRight: right },
+        ]}
+        keyboardShouldPersistTaps="always"
+      >
+        {tools}
+      </ScrollView>
+      {!typing && (
+        <View
+          style={[
+            styles.bar,
+            {
+              borderTopColor: colors.border,
+              backgroundColor: colors.surface,
+              paddingLeft: left,
+              paddingRight: right,
+              paddingBottom: insets.bottom + space(3),
+            },
+          ]}
+        >
+          {buttons("row")}
+        </View>
+      )}
+      {sheets}
     </View>
   );
 }
+
+/** A key on the keyboard bar; Ctrl and Alt stay down until pressed again. */
+function Key({
+  label,
+  held,
+  disabled,
+  onPress,
+}: {
+  label: string;
+  held?: boolean;
+  disabled: boolean;
+  onPress: () => void;
+}): ReactNode {
+  const colors = useColors();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled, selected: held }}
+      onPress={onPress}
+      disabled={disabled}
+      android_ripple={{ color: colors.muted, borderless: false }}
+      style={[
+        styles.key,
+        {
+          backgroundColor: held ? colors.input : colors.surface,
+          borderColor: held ? colors.foreground : colors.border,
+          opacity: disabled ? 0.5 : 1,
+        },
+      ]}
+    >
+      <Text variant="small">{label}</Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
-  row: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  landscape: { flex: 1, flexDirection: "row", gap: space(3) },
+  stack: { gap: space(3) },
+  row: { flexDirection: "row", flexWrap: "wrap", gap: space(2) },
+  hint: { flex: 1, flexDirection: "row", alignItems: "center", gap: space(2) },
+  bar: {
+    flexDirection: "row",
+    gap: space(3),
+    paddingTop: space(3),
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  sheetBody: { paddingHorizontal: space(5), gap: space(3) },
   key: {
-    minHeight: 42,
-    minWidth: 42,
-    paddingHorizontal: 12,
+    minHeight: 48,
+    minWidth: 48,
+    paddingHorizontal: space(3),
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: radius.md,
     justifyContent: "center",
     alignItems: "center",
+    overflow: "hidden",
   },
 });

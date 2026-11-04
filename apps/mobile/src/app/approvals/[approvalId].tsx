@@ -2,8 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import {
   Check,
-  CircleDashed,
+  ChevronRight,
   Fingerprint,
+  FolderOpen,
   MessagesSquare,
   ShieldCheck,
   WifiOff,
@@ -13,28 +14,105 @@ import { useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AlwaysAllowSheet } from "@/components/always-allow-sheet";
-import { ApprovalIcon } from "@/components/approval-icon";
-import { BotAvatar } from "@/components/bot-avatar";
+import {
+  ApprovalAvatar,
+  ApprovalStatusChip,
+  ApprovalTitle,
+  RiskNote,
+} from "@/components/approval-parts";
+import { botActivity } from "@/components/bot-avatar";
 import { Button } from "@/components/button";
+import { CodeScroll } from "@/components/code-scroll";
+import { ListRow } from "@/components/list-row";
+import { Card } from "@/components/section";
 import { LoadError, Loading } from "@/components/states";
 import { Text } from "@/components/text";
 import { api } from "@/lib/api";
+import { approvalRisk, commandParts } from "@/lib/approval-text";
 import { canAlwaysAllow, useDecideApproval, type Decision } from "@/lib/approvals";
+import { recently } from "@/lib/day-groups";
 import { approvalDetail } from "@/lib/format";
+import { haptics } from "@/lib/haptics";
 import { useOnline } from "@/lib/network";
+import { phoneDayClock } from "@/lib/phone-clock";
 import { useTeammates } from "@/lib/queries";
 import { queryKeys } from "@/lib/query";
-import { ago } from "@/lib/time";
 import { radius, space, useColors } from "@/theme";
-import { mix } from "@/theme/mix";
 
 const KIND_LABEL = {
-  command: "Run a command",
-  file_change: "Change files",
-  action: "Take an action",
-  purchase: "Make a purchase",
-  email: "Send an email",
+  command: "run a command",
+  file_change: "change files",
+  action: "take an action",
+  purchase: "make a purchase",
+  email: "send an email",
 } as const;
+
+/** A small label over a part of the request. */
+function Overline({ children }: { children: string }) {
+  return (
+    <Text variant="caption" muted style={styles.overline}>
+      {children.toUpperCase()}
+    </Text>
+  );
+}
+
+/** What exactly would happen: the command, the diff, or the words of the email or purchase. */
+function Detail({ kind, detail }: { kind: string; detail: string }) {
+  const colors = useColors();
+  if (!detail) return null;
+  if (kind === "command") {
+    const { reason, command, cwd } = commandParts(detail);
+    return (
+      <>
+        {reason && (
+          <Text selectable style={{ color: colors.foreground }}>
+            {reason}
+          </Text>
+        )}
+        {command && (
+          <View style={{ gap: space(2) }}>
+            <Overline>Command</Overline>
+            <CodeScroll copyText={command} background={colors.surface} style={styles.code}>
+              <Text variant="mono" selectable>
+                <Text variant="mono" muted>
+                  ${" "}
+                </Text>
+                {command}
+              </Text>
+            </CodeScroll>
+            {cwd && (
+              <View style={styles.cwd}>
+                <FolderOpen size={14} color={colors.mutedForeground} />
+                <Text variant="caption" muted selectable style={{ flex: 1 }}>
+                  in {cwd}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+      </>
+    );
+  }
+  if (kind === "file_change")
+    return (
+      <View style={{ gap: space(2) }}>
+        <Overline>Changes</Overline>
+        <CodeScroll copyText={detail} background={colors.surface} style={styles.code}>
+          <Text variant="mono" selectable>
+            {approvalDetail(detail)}
+          </Text>
+        </CodeScroll>
+      </View>
+    );
+  return (
+    <View style={{ gap: space(2) }}>
+      <Overline>{kind === "email" ? "Message" : "Details"}</Overline>
+      <View style={[styles.prose, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Text selectable>{approvalDetail(detail)}</Text>
+      </View>
+    </View>
+  );
+}
 
 /** One approval, opened from the list or a notification: what exactly, and your decision. */
 export default function ApprovalScreen() {
@@ -55,81 +133,76 @@ export default function ApprovalScreen() {
   if (!query.data) return <LoadError error={query.error} onRetry={() => void query.refetch()} />;
   const approval = query.data;
   const bot = bots.find((candidate) => candidate.id === approval.botId);
+  const botName = bot?.name ?? "A former teammate";
   const pending = approval.status === "pending";
+  const risk = pending ? approvalRisk(approval) : null;
+  const allowable = pending && canAlwaysAllow(approval);
+  const busy = deciding !== null || !online;
 
   const onDecide = async (decision: Decision, alwaysAllow: string | null = null) => {
     setMessage(null);
     const result = await decide(approval, decision, alwaysAllow);
     setAllowing(false);
-    if (result.ok) router.back();
+    if (result.ok) {
+      if (decision === "approved") haptics.success();
+      else haptics.warning();
+      router.back();
+      return;
+    }
     // Decided elsewhere first: the screen now shows how it ended, which says it all.
-    else if (!result.settled) setMessage(result.message);
+    if (!result.settled) {
+      haptics.error();
+      setMessage(result.message);
+    }
   };
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.who}>
-          <BotAvatar
-            name={bot?.name ?? "?"}
-            color={bot?.color ?? "#888888"}
-            emoji={bot?.emoji}
-            size="md"
+          <ApprovalAvatar
+            bot={bot}
+            kind={approval.kind}
+            pending={pending}
+            activity={pending && bot ? botActivity(bot) : "idle"}
+            behind={colors.background}
           />
-          <View style={{ flex: 1 }}>
-            <Text variant="label">{bot?.name ?? "Former teammate"} asks to</Text>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text variant="label" numberOfLines={1}>
+              {botName} {pending ? "wants to" : "asked to"} {KIND_LABEL[approval.kind]}
+            </Text>
             <Text variant="small" muted>
-              {KIND_LABEL[approval.kind]} · {ago(approval.createdAt)}
+              Asked {recently(approval.createdAt) ?? phoneDayClock(approval.createdAt)}
             </Text>
           </View>
+          {!pending && <ApprovalStatusChip status={approval.status} />}
         </View>
 
-        <View
-          style={[
-            styles.card,
-            pending
-              ? {
-                  borderColor: mix(colors.waiting, colors.surface, 0.35),
-                  backgroundColor: mix(colors.waiting, colors.surface, 0.06),
-                }
-              : { borderColor: colors.border, backgroundColor: colors.surface },
-          ]}
-        >
-          <View style={styles.title}>
-            <ApprovalIcon
-              kind={approval.kind}
-              size={18}
-              color={pending ? colors.waiting : colors.mutedForeground}
-            />
-            <Text
-              variant={approval.kind === "command" ? "mono" : "heading"}
-              style={{ flex: 1 }}
-              selectable
-            >
-              {approval.title}
-            </Text>
-          </View>
-          {approval.detail ? (
-            <Text variant="small" muted selectable style={{ fontSize: 14, lineHeight: 20 }}>
-              {approvalDetail(approval.detail)}
-            </Text>
-          ) : null}
-        </View>
+        <ApprovalTitle title={approval.title} variant="title" selectable />
+
+        {risk && <RiskNote risk={risk} />}
+
+        <Detail kind={approval.kind} detail={approval.detail} />
 
         {!pending && (
-          <View style={styles.settled}>
+          <View style={[styles.settled, { backgroundColor: colors.subtle }]}>
             {approval.status === "approved" ? (
-              <Check size={16} color={colors.done} />
+              <Check size={18} color={colors.done} strokeWidth={2.5} />
             ) : approval.status === "denied" ? (
-              <X size={16} color={colors.destructive} />
-            ) : (
-              <CircleDashed size={16} color={colors.mutedForeground} />
-            )}
-            <Text muted>
-              {approval.status === "expired"
-                ? "This expired before it was decided."
-                : `You ${approval.status} this.`}
-            </Text>
+              <X size={18} color={colors.destructive} strokeWidth={2.5} />
+            ) : null}
+            <View style={{ flex: 1 }}>
+              <Text>
+                {approval.status === "expired"
+                  ? "This expired before it was decided."
+                  : `You ${approval.status} this.`}
+              </Text>
+              {approval.decidedAt && approval.status !== "expired" && (
+                <Text variant="caption" muted>
+                  {phoneDayClock(approval.decidedAt)}
+                </Text>
+              )}
+            </View>
           </View>
         )}
         {message && (
@@ -137,26 +210,23 @@ export default function ApprovalScreen() {
             {message}
           </Text>
         )}
-        {pending && canAlwaysAllow(approval) && (
-          <Button
-            title="Always allow…"
-            variant="outline"
-            icon={<ShieldCheck size={16} color={colors.foreground} />}
-            disabled={deciding !== null || !online}
-            onPress={() => setAllowing(true)}
-            style={{ alignSelf: "flex-start" }}
-            testID="always-allow"
+
+        <Card>
+          <ListRow
+            onPress={() => router.push(`/chats/${approval.chatId}`)}
+            leading={
+              <View style={[styles.tile, { backgroundColor: colors.subtle }]}>
+                <MessagesSquare size={20} color={colors.foreground} />
+              </View>
+            }
+            title="Open the chat"
+            subtitle={`See what ${bot?.name ?? "they"} ${pending ? "is" : "was"} working on`}
+            aside={<ChevronRight size={18} color={colors.mutedForeground} />}
+            testID="open-chat"
           />
-        )}
-        <Button
-          title="Open the chat"
-          variant="ghost"
-          icon={<MessagesSquare size={16} color={colors.foreground} />}
-          onPress={() => router.push(`/chats/${approval.chatId}`)}
-          style={{ alignSelf: "flex-start", paddingHorizontal: space(2) }}
-        />
+        </Card>
       </ScrollView>
-      {pending && canAlwaysAllow(approval) && (
+      {allowable && (
         <AlwaysAllowSheet
           open={allowing}
           onClose={() => setAllowing(false)}
@@ -165,14 +235,6 @@ export default function ApprovalScreen() {
           botName={bot?.name ?? "This teammate"}
           onConfirm={(pattern) => onDecide("approved", pattern)}
         />
-      )}
-      {pending && !online && (
-        <View style={[styles.offline, { backgroundColor: colors.subtle }]}>
-          <WifiOff size={14} color={colors.mutedForeground} />
-          <Text variant="small" muted>
-            You&apos;re offline
-          </Text>
-        </View>
       )}
       {pending && (
         <View
@@ -185,30 +247,54 @@ export default function ApprovalScreen() {
             },
           ]}
         >
-          <Button
-            title="Deny"
-            variant="outline"
-            busy={deciding === "denied"}
-            disabled={deciding !== null || !online}
-            onPress={() => void onDecide("denied")}
-            style={styles.action}
-            testID="deny"
-          />
-          <Button
-            title="Approve"
-            icon={
-              approval.kind === "purchase" ? (
-                <Fingerprint size={18} color={colors.primaryForeground} />
-              ) : (
-                <Check size={18} color={colors.primaryForeground} />
-              )
-            }
-            busy={deciding === "approved"}
-            disabled={deciding !== null || !online}
-            onPress={() => void onDecide("approved")}
-            style={styles.action}
-            testID="approve"
-          />
+          {!online && (
+            <View style={styles.offline}>
+              <WifiOff size={14} color={colors.mutedForeground} />
+              <Text variant="small" muted>
+                You&apos;re offline. Decide when you&apos;re back.
+              </Text>
+            </View>
+          )}
+          <View style={styles.decide}>
+            <Button
+              title="Deny"
+              variant="outline"
+              icon={<X size={18} color={colors.foreground} />}
+              busy={deciding === "denied"}
+              disabled={busy}
+              onPress={() => void onDecide("denied")}
+              style={styles.action}
+              testID="deny"
+            />
+            <Button
+              title="Approve"
+              icon={
+                approval.kind === "purchase" ? (
+                  <Fingerprint size={18} color={colors.primaryForeground} />
+                ) : (
+                  <Check size={18} color={colors.primaryForeground} />
+                )
+              }
+              busy={deciding === "approved"}
+              disabled={busy}
+              onPress={() => void onDecide("approved")}
+              style={styles.action}
+              testID="approve"
+            />
+          </View>
+          {allowable && (
+            <Button
+              title="Always allow…"
+              variant="ghost"
+              icon={<ShieldCheck size={16} color={colors.foreground} />}
+              disabled={busy}
+              onPress={() => {
+                haptics.tap();
+                setAllowing(true);
+              }}
+              testID="always-allow"
+            />
+          )}
         </View>
       )}
     </View>
@@ -216,24 +302,34 @@ export default function ApprovalScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: space(4), gap: space(4) },
-  who: { flexDirection: "row", alignItems: "center", gap: space(3) },
-  card: { borderWidth: 1, borderRadius: radius.xl, padding: space(4), gap: space(3) },
-  title: { flexDirection: "row", gap: space(2.5), alignItems: "flex-start" },
-  settled: { flexDirection: "row", alignItems: "center", gap: space(2) },
-  actions: {
+  content: { padding: space(4), paddingTop: space(5), gap: space(5), paddingBottom: space(8) },
+  who: { flexDirection: "row", alignItems: "center", gap: space(3.5) },
+  overline: { letterSpacing: 0.6, fontWeight: "500", paddingHorizontal: space(1) },
+  code: { borderRadius: radius.xl },
+  cwd: { flexDirection: "row", alignItems: "center", gap: space(1.5), paddingHorizontal: space(1) },
+  prose: { borderWidth: 1, borderRadius: radius.xl, padding: space(4) },
+  settled: {
     flexDirection: "row",
+    alignItems: "center",
     gap: space(3),
+    borderRadius: radius.xl,
+    paddingHorizontal: space(4),
+    paddingVertical: space(3),
+  },
+  tile: {
+    width: 48,
+    height: 48,
+    borderRadius: radius.xl,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  actions: {
+    gap: space(2),
     paddingHorizontal: space(4),
     paddingTop: space(3),
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  action: { flex: 1, minHeight: 48 },
-  offline: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: space(2),
-    paddingVertical: space(2),
-  },
+  decide: { flexDirection: "row", gap: space(3) },
+  action: { flex: 1 },
+  offline: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: space(2) },
 });

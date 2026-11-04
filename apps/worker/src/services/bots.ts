@@ -287,7 +287,8 @@ export class BotService {
         await tx
           .update(chats)
           .set({ title: patch.name })
-          .where(and(eq(chats.botId, id), eq(chats.kind, "direct")));
+          // Only chats still named after them; a chat with a real title keeps it.
+          .where(and(eq(chats.botId, id), eq(chats.kind, "direct"), eq(chats.titled, false)));
       return bot!;
     });
     const workspaceSynced = await this.sync(updated);

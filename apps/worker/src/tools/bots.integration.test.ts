@@ -696,4 +696,51 @@ describe.skipIf(!url)("bot management with Postgres", () => {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
   });
+  it("titles a direct chat once, and never over a title the user gave", async () => {
+    const { session, created } = await fixture();
+    const titled = await call(session, "set_chat_title", { title: '"Plan the launch week."' });
+    expect(titled.response.success).toBe(true);
+    const [chat] = await db.select().from(chats).where(eq(chats.id, created.chatId));
+    expect(chat).toMatchObject({ title: "Plan the launch week", titled: true });
+
+    const again = await call(session, "set_chat_title", { title: "Something else" });
+    expect(again.text).toContain("already has a title");
+    const [kept] = await db.select().from(chats).where(eq(chats.id, created.chatId));
+    expect(kept!.title).toBe("Plan the launch week");
+
+    // Renaming the teammate renames only their chats still named after them.
+    const other = await service.create({ name: "Ada", role: "researcher" });
+    await service.update(session.bot.id, { name: "Leader" });
+    await service.update(other.botId, { name: "Ada Lovelace" });
+    const [topic] = await db.select().from(chats).where(eq(chats.id, created.chatId));
+    const [named] = await db.select().from(chats).where(eq(chats.id, other.chatId));
+    expect(topic!.title).toBe("Plan the launch week");
+    expect(named!.title).toBe("Ada Lovelace");
+  });
+
+  it("doesn't ask twice about a command the user just approved in this run", async () => {
+    const { session } = await fixture("full");
+    await db.insert(approvalRows).values({
+      runId: session.run.id,
+      botId: session.bot.id,
+      chatId: session.chat.id,
+      kind: "action",
+      title: "Delete /tmp/old.txt",
+      detail: "Run rm -f -- /tmp/old.txt to delete it.",
+      status: "approved",
+      itemId: "approval-item",
+    });
+    const asked = await approvalService.requestNative(session, {
+      kind: "command",
+      subject: "/bin/bash -lc 'rm -f -- /tmp/old.txt'",
+      title: "Run `rm -f -- /tmp/old.txt`",
+      detail: "$ rm -f -- /tmp/old.txt",
+      itemId: "native-item",
+    });
+    expect(asked).toBe(true);
+    // No second request was made.
+    expect(
+      await db.select().from(approvalRows).where(eq(approvalRows.runId, session.run.id)),
+    ).toHaveLength(1);
+  });
 });

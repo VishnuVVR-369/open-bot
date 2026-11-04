@@ -46,7 +46,17 @@ vi.mock("@/lib/api", () => ({ api: { chats: { send: state.send } } }));
 vi.mock("@/lib/dictation", () => ({
   useDictation: () => ({ listening: false, cancel: state.cancel }),
 }));
+vi.mock("@/lib/drafts", () => ({ readDraft: async () => "", writeDraft: () => {} }));
 vi.mock("@/lib/errors", () => ({ errorMessage: () => "Couldn't send. Try again." }));
+vi.mock("@/lib/haptics", () => ({
+  haptics: {
+    tap: () => {},
+    press: () => {},
+    success: () => {},
+    warning: () => {},
+    error: () => {},
+  },
+}));
 vi.mock("@/lib/mentions", () => ({ mentionQuery: () => null }));
 vi.mock("@/lib/upload-protocol", () => ({ cantAttach: () => null }));
 vi.mock("@/lib/uploads", () => ({ uploadAttachment: state.upload }));

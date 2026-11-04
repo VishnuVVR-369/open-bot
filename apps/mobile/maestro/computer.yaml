@@ -25,6 +25,11 @@ appId: dev.openbot.mobile.dev
     visible:
       id: hand-back
     timeout: 30000
+# The controls stay disabled until the stream connects, and Fit appears only then.
+- extendedWaitUntil:
+    visible:
+      id: fit-screen
+    timeout: 30000
 - tapOn:
     id: trackpad
 - assertVisible: Touch mode

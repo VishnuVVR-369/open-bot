@@ -16,6 +16,7 @@ import { LockScreen } from "@/components/lock-screen";
 import { ComputerAccess } from "@/lib/computer-access";
 import { authClient } from "@/lib/auth";
 import { useAppLock } from "@/lib/lock";
+import { loadPreferences } from "@/lib/preferences";
 import { useTrackPresence } from "@/lib/presence";
 import { queryClient, setUnauthorizedHandler } from "@/lib/query";
 import { RealtimeProvider } from "@/lib/realtime";
@@ -24,6 +25,8 @@ import { usePushNotifications } from "@/push/register";
 import { fonts, useColors } from "@/theme";
 
 void SplashScreen.preventAutoHideAsync();
+// The saved theme applies before the splash screen hides, so the app never flashes the other one.
+void loadPreferences();
 
 // A screen opened straight from a link or a notification still has the tabs behind it to go back to.
 export const unstable_settings = { anchor: "(tabs)" };
@@ -79,7 +82,7 @@ function App() {
         <ComputerAccess.Provider value={!lock.locked && !lock.checking}>
           <Stack
             screenOptions={{
-              headerStyle: { backgroundColor: colors.surface },
+              headerStyle: { backgroundColor: colors.background },
               headerTitleStyle: { fontFamily: fonts.heading, fontWeight: "600", fontSize: 18 },
               headerTintColor: colors.foreground,
               headerShadowVisible: false,
@@ -89,6 +92,7 @@ function App() {
             <Stack.Protected guard={signedIn}>
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
               <Stack.Screen name="chats/[chatId]" options={{ title: "" }} />
+              <Stack.Screen name="teammates/[botId]" options={{ title: "" }} />
               <Stack.Screen name="approvals/[approvalId]" options={{ title: "Approval" }} />
               <Stack.Screen name="screens/[screenId]" options={{ title: "Computer" }} />
               <Stack.Screen name="settings" options={{ title: "Settings" }} />

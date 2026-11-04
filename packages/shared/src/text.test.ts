@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { splitComputerPaths } from "./files";
-import { compactNumber, formatDuration, plainText, speakable } from "./text";
+import { chatTitleText, compactNumber, formatDuration, plainText, speakable } from "./text";
 
 describe("text", () => {
   it("flattens Markdown for previews", () => {
@@ -36,5 +36,23 @@ describe("splitComputerPaths", () => {
   });
   it("leaves text without paths alone", () => {
     expect(splitComputerPaths("nothing here")).toEqual([{ text: "nothing here", path: false }]);
+  });
+});
+
+describe("chat titles", () => {
+  it("tidies what a teammate gives", () => {
+    expect(chatTitleText("  Fix the login redirect  ")).toBe("Fix the login redirect");
+    expect(chatTitleText('"Lisbon trip ideas."')).toBe("Lisbon trip ideas");
+    expect(chatTitleText("“Quarterly **report**”")).toBe("Quarterly report");
+    expect(chatTitleText("Two\nlines")).toBe("Two lines");
+    expect(chatTitleText(" ... ")).toBe("");
+  });
+
+  it("cuts long titles on a word", () => {
+    const long = "Compare the three apartment listings near the river and pick the best one";
+    const title = chatTitleText(long);
+    expect(title.length).toBeLessThanOrEqual(60);
+    expect(long.startsWith(title)).toBe(true);
+    expect(long[title.length]).toBe(" ");
   });
 });

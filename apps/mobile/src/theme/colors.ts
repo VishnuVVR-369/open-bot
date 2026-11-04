@@ -1,6 +1,15 @@
 /**
- * The web app's palette (apps/web/src/app/globals.css): porcelain and ink. The interface is
- * monochrome; color only ever means someone (a teammate's color) or a signal light.
+ * Porcelain and ink, from the web app's palette (apps/web/src/app/globals.css). The interface is
+ * monochrome; color only ever means someone (a teammate's color) or a signal:
+ *
+ * - `working`: a teammate is busy. Calm, never alarming.
+ * - `attention`: something needs you (an approval, a takeover). `attentionInk` is its text color.
+ * - `destructive`: something failed or will be destroyed. Nothing else is red.
+ * - `done`: finished or approved.
+ * - `live`: a microphone or a screen that is live right now.
+ *
+ * Dark mode steps up in lightness from the page to cards to what sits on cards, so layers stay
+ * apart without borders doing all the work.
  */
 export const palette = {
   light: {
@@ -11,32 +20,36 @@ export const palette = {
     primary: "#14161B",
     primaryForeground: "#FFFFFF",
     muted: "#ECEEF1",
-    mutedForeground: "#646A75",
+    mutedForeground: "#5F6570",
     destructive: "#D93F45",
     border: "#E1E4E9",
     input: "#D9DCE2",
+    bubble: "#14161B",
+    bubbleForeground: "#FFFFFF",
     live: "#E5484D",
-    manual: "#F5A524",
-    manualInk: "#9A5D00",
-    waiting: "#3E7BFA",
+    working: "#3E7BFA",
+    attention: "#F5A524",
+    attentionInk: "#8F5600",
     done: "#2A9D63",
   },
   dark: {
-    background: "#0E0F12",
-    surface: "#15171B",
-    subtle: "#1B1D22",
+    background: "#0B0C0F",
+    surface: "#16181D",
+    subtle: "#1F2228",
     foreground: "#ECEEF1",
     primary: "#ECEEF1",
-    primaryForeground: "#0E0F12",
-    muted: "#1F2227",
-    mutedForeground: "#8D929C",
+    primaryForeground: "#0B0C0F",
+    muted: "#22252B",
+    mutedForeground: "#9298A2",
     destructive: "#F0585D",
-    border: "#25282E",
-    input: "#2D3037",
+    border: "#272A31",
+    input: "#33373F",
+    bubble: "#2B2F37",
+    bubbleForeground: "#ECEEF1",
     live: "#F0585D",
-    manual: "#F5B03C",
-    manualInk: "#F5B03C",
-    waiting: "#5B8FFF",
+    working: "#6B9BFF",
+    attention: "#F5B03C",
+    attentionInk: "#F5B03C",
     done: "#3CB878",
   },
 } as const;

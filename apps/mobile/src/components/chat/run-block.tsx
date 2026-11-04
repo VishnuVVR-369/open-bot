@@ -38,6 +38,8 @@ import { Button } from "@/components/button";
 import { Markdown } from "@/components/markdown";
 import { Text } from "@/components/text";
 import { diffStats } from "@/lib/format";
+import { haptics } from "@/lib/haptics";
+import { animateLayout } from "@/lib/motion";
 import { phoneClock } from "@/lib/phone-clock";
 import { screenHref } from "@/lib/screens";
 import { elapsed } from "@/lib/time";
@@ -125,11 +127,47 @@ function Elapsed({ since }: { since: string }) {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
+  const ms = now - new Date(since).getTime();
+  // A quick reply doesn't need a stopwatch.
+  if (ms < 10_000) return null;
   return (
-    <Text variant="mono" muted style={{ fontSize: 12, fontVariant: ["tabular-nums"] }}>
-      {elapsed(now - new Date(since).getTime())}
+    <Text
+      variant="mono"
+      muted
+      style={{ fontSize: 12, fontVariant: ["tabular-nums"] }}
+      accessibilityElementsHidden
+      importantForAccessibility="no"
+    >
+      {elapsed(ms)}
     </Text>
   );
+}
+
+/** What the teammate is doing right now, in a few words, from their latest step. */
+function currentActivity(items: TimelineItem[]): string | null {
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index]!;
+    switch (item.kind) {
+      case "command":
+        return `Running ${shellScript(item.command).split("\n")[0]}`;
+      case "file_change":
+        return `Editing ${item.changes.map((c) => c.path.split("/").pop()).join(", ")}`;
+      case "web_search":
+        return item.query ? `Searching for “${item.query}”` : "Searching the web";
+      case "computer":
+        return "Using the computer";
+      case "tool":
+        return item.label;
+      case "reasoning":
+        return "Thinking";
+      case "message":
+        if (item.phase !== "final") return null;
+        return "Writing";
+      default:
+        continue;
+    }
+  }
+  return null;
 }
 
 function WorkingLine({ run }: { run: RunView }) {
@@ -137,29 +175,37 @@ function WorkingLine({ run }: { run: RunView }) {
   const { status, waitingFor } = run.timeline;
   if (status === "waiting") {
     return (
-      <View style={styles.working}>
-        <View style={[styles.dot, { backgroundColor: colors.waiting }]} />
-        <Text variant="small" style={{ color: colors.waiting }}>
-          {waitingFor === "takeover" ? "Waiting for you to take over" : "Waiting for your approval"}
+      <View style={styles.working} accessibilityLiveRegion="polite">
+        <View style={[styles.dot, { backgroundColor: colors.attention }]} />
+        <Text variant="small" style={{ color: colors.attentionInk, fontWeight: "500" }}>
+          {waitingFor === "takeover" ? "Waiting for you to take over" : "Waiting for your OK"}
         </Text>
       </View>
     );
   }
+  const doing = status === "running" ? currentActivity(run.timeline.items) : null;
   return (
-    <View style={styles.working} testID="working">
-      <View
-        style={[
-          styles.dot,
-          {
-            backgroundColor:
-              status === "queued"
-                ? mix(colors.mutedForeground, colors.background, 0.5)
-                : colors.live,
-          },
-        ]}
-      />
-      <Text variant="small" muted>
-        {status === "queued" ? "Up next" : status === "starting" ? "Getting ready" : "Working"}
+    <View style={styles.working} testID="working" accessibilityLiveRegion="polite">
+      {status === "queued" ? (
+        <View
+          style={[
+            styles.dot,
+            { backgroundColor: mix(colors.mutedForeground, colors.background, 0.5) },
+          ]}
+        />
+      ) : (
+        <ActivityIndicator size={14} color={colors.working} />
+      )}
+      <Text
+        variant="small"
+        numberOfLines={1}
+        style={{ flexShrink: 1, color: colors.mutedForeground }}
+      >
+        {status === "queued"
+          ? "Up next"
+          : status === "starting"
+            ? "Getting ready…"
+            : `${doing ?? "Working"}…`}
       </Text>
       {status !== "queued" && <Elapsed since={run.createdAt} />}
     </View>
@@ -304,13 +350,13 @@ function ItemView({
           style={[
             styles.card,
             {
-              borderColor: mix(colors.manual, colors.surface, 0.4),
-              backgroundColor: mix(colors.manual, colors.surface, 0.08),
+              borderColor: mix(colors.attention, colors.surface, 0.4),
+              backgroundColor: mix(colors.attention, colors.surface, 0.08),
             },
           ]}
         >
           <View style={styles.row}>
-            <Hand size={16} color={colors.manualInk} />
+            <Hand size={16} color={colors.attentionInk} />
             <Text variant="label" style={{ flex: 1 }}>
               {item.resolution === "pending"
                 ? `${botName} needs you to take over`
@@ -327,7 +373,6 @@ function ItemView({
           {item.resolution === "pending" && (
             <Button
               title="Open the screen"
-              variant="outline"
               onPress={() => router.push(screenHref(botId, item.takeoverRequestId))}
             />
           )}
@@ -341,10 +386,13 @@ function ItemView({
       if (item.variant === "hand_back")
         return (
           <View
-            style={[styles.pill, { backgroundColor: mix(colors.manual, colors.background, 0.12) }]}
+            style={[
+              styles.pill,
+              { backgroundColor: mix(colors.attention, colors.background, 0.12) },
+            ]}
           >
-            <Undo2 size={14} color={colors.manualInk} />
-            <Text variant="small" style={{ color: colors.manualInk }}>
+            <Undo2 size={14} color={colors.attentionInk} />
+            <Text variant="small" style={{ color: colors.attentionInk }}>
               {item.text
                 ? `You handed the screen back: “${item.text}”`
                 : "You handed the screen back"}
@@ -403,13 +451,25 @@ function MentionedFiles({ text }: { text: string }) {
   );
 }
 
-/** A teammate's turn: who, when, what they did (folded once done), and their reply. */
+/** How long a finished run took, like "21s" or "2m 05s". */
+function took(run: RunView): string | null {
+  if (!run.startedAt || !run.completedAt) return null;
+  return elapsed(new Date(run.completedAt).getTime() - new Date(run.startedAt).getTime());
+}
+
+/**
+ * A teammate's turn: what they did (folded away unless you ask, so the chat reads like a
+ * conversation and not a log) and their reply. In a group, who answered heads the turn; in a
+ * direct chat the header already says who it is.
+ */
 export const RunBlock = memo(function RunBlock({
   run,
   chatId,
   bot,
   bots,
   superseded = false,
+  isGroup = false,
+  latest = false,
 }: {
   run: RunView;
   chatId: string;
@@ -417,6 +477,9 @@ export const RunBlock = memo(function RunBlock({
   bots: BotSummary[];
   /** The same teammate ran again after this, so there's nothing to retry. */
   superseded?: boolean;
+  isGroup?: boolean;
+  /** The newest turn in the chat: its reply actions show without a long press. */
+  latest?: boolean;
 }) {
   const colors = useColors();
   const active = isRunActive(run.timeline.status);
@@ -425,25 +488,39 @@ export const RunBlock = memo(function RunBlock({
   const stepCount = segments.filter(
     (part) => part.kind === "computer" || !isPinned(part.item),
   ).length;
-  const collapsible = !active && stepCount > 3;
+  const failed = run.timeline.status === "failed";
   const [expanded, setExpanded] = useState(false);
-  const showSteps = !collapsible || expanded;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const showSteps = expanded || stepCount === 0;
   const name = bot?.name ?? "Former teammate";
   const trigger = triggerLabel(run, bots);
   const reply = items
-    .filter((item) => item.kind === "message")
-    .map((item) => item.text.trim())
+    .flatMap((item) =>
+      item.kind === "message" && item.phase === "final" ? [item.text.trim()] : [],
+    )
     .join("\n\n");
+  const finished = !active && (reply || run.timeline.status === "completed");
+  // A pending approval or takeover card already says what they're waiting for.
+  const waitingOnCard =
+    run.timeline.status === "waiting" &&
+    items.some(
+      (item) =>
+        (item.kind === "approval" && item.decision === "pending") ||
+        (item.kind === "takeover_request" && item.resolution === "pending"),
+    );
+  const duration = !active ? took(run) : null;
 
   if (!active && run.trigger === "schedule" && isNothingToReport(reply)) {
     return (
       <View style={styles.quiet} testID="run">
-        <BotAvatar name={name} color={bot?.color ?? "#888888"} emoji={bot?.emoji} size="sm" />
+        <BotAvatar name={name} color={bot?.color ?? "#888888"} emoji={bot?.emoji} size="xs" />
         <Text variant="small" muted style={{ flex: 1 }} numberOfLines={1}>
-          <Text variant="small" style={{ fontWeight: "500" }}>
-            {name}
-          </Text>
-          {"  "}
+          {isGroup && (
+            <Text variant="small" style={{ fontWeight: "500" }}>
+              {name}
+              {"  "}
+            </Text>
+          )}
           {trigger?.text} · Nothing to report · {phoneClock(run.createdAt)}
         </Text>
       </View>
@@ -451,41 +528,75 @@ export const RunBlock = memo(function RunBlock({
   }
 
   return (
-    <View style={styles.run} testID="run">
-      <View style={styles.header}>
-        <BotAvatar name={name} color={bot?.color ?? "#888888"} emoji={bot?.emoji} size="sm" />
-        <Text variant="heading" style={{ fontSize: 15 }} numberOfLines={1}>
-          {name}
-        </Text>
-        {trigger && (
-          <View style={[styles.row, { flexShrink: 1, gap: space(1) }]}>
-            <trigger.icon size={13} color={colors.mutedForeground} />
-            <Text variant="caption" muted numberOfLines={1} style={{ flexShrink: 1 }}>
-              {trigger.text}
-            </Text>
-          </View>
-        )}
-        <Text variant="caption" muted style={{ marginLeft: "auto" }}>
-          {phoneClock(run.createdAt)}
-        </Text>
-      </View>
+    <Pressable
+      testID="run"
+      style={styles.run}
+      // A long press anywhere on the turn opens what you can do with its reply.
+      onLongPress={
+        finished
+          ? () => {
+              haptics.press();
+              setMenuOpen(true);
+            }
+          : undefined
+      }
+      delayLongPress={350}
+    >
+      {(isGroup || trigger) && (
+        <View style={styles.header}>
+          {isGroup && (
+            <>
+              <BotAvatar
+                name={name}
+                color={bot?.color ?? "#888888"}
+                emoji={bot?.emoji}
+                size="sm"
+                activity={
+                  active ? (run.timeline.status === "waiting" ? "waiting" : "working") : "idle"
+                }
+              />
+              <Text variant="heading" style={{ fontSize: 15 }} numberOfLines={1}>
+                {name}
+              </Text>
+            </>
+          )}
+          {trigger && (
+            <View style={[styles.row, { flexShrink: 1, gap: space(1.5) }]}>
+              <trigger.icon size={13} color={colors.mutedForeground} />
+              <Text variant="small" muted numberOfLines={1} style={{ flexShrink: 1 }}>
+                {trigger.text}
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
 
       <View style={styles.body}>
-        {collapsible && (
+        {stepCount > 0 && (
           <Pressable
-            onPress={() => setExpanded((value) => !value)}
+            onPress={() => {
+              haptics.tap();
+              animateLayout();
+              setExpanded((value) => !value);
+            }}
             accessibilityRole="button"
             accessibilityState={{ expanded }}
-            style={styles.toggle}
-            hitSlop={6}
+            accessibilityLabel={`${expanded ? "Hide" : "Show"} ${stepCount} ${stepCount === 1 ? "step" : "steps"}`}
+            style={[styles.toggle, { backgroundColor: expanded ? colors.subtle : "transparent" }]}
+            hitSlop={{ top: 6, bottom: 6 }}
           >
             <ChevronDown
-              size={14}
+              size={15}
               color={colors.mutedForeground}
               style={{ transform: [{ rotate: expanded ? "0deg" : "-90deg" }] }}
             />
             <Text variant="small" muted>
-              {expanded ? "Hide" : "Show"} {stepCount} {stepCount === 1 ? "step" : "steps"}
+              {[
+                active ? null : duration ? `Worked for ${duration}` : "Worked",
+                `${stepCount} ${stepCount === 1 ? "step" : "steps"}`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
             </Text>
           </Pressable>
         )}
@@ -516,7 +627,7 @@ export const RunBlock = memo(function RunBlock({
             </View>
           );
         })}
-        {active && <WorkingLine run={run} />}
+        {active && !waitingOnCard && <WorkingLine run={run} />}
         {run.timeline.status === "interrupted" && (
           <View style={styles.row}>
             <Square size={12} color={colors.mutedForeground} />
@@ -525,25 +636,42 @@ export const RunBlock = memo(function RunBlock({
             </Text>
           </View>
         )}
-        {!superseded &&
-          (run.timeline.status === "failed" || run.timeline.status === "interrupted") && (
-            <RetryRun runId={run.id} chatId={chatId} />
-          )}
-        {!active && (reply || run.timeline.status === "completed") && (
-          <RunActions run={run} chatId={chatId} botName={name} reply={reply} />
+        {!superseded && (failed || run.timeline.status === "interrupted") && (
+          <RetryRun runId={run.id} chatId={chatId} />
+        )}
+        {finished && (
+          <RunActions
+            run={run}
+            chatId={chatId}
+            botName={name}
+            reply={reply}
+            showRow={latest}
+            menuOpen={menuOpen}
+            onMenuChange={setMenuOpen}
+          />
         )}
       </View>
-    </View>
+    </Pressable>
   );
 });
 
 const styles = StyleSheet.create({
-  run: { gap: space(2) },
+  run: { gap: space(1.5) },
   header: { flexDirection: "row", alignItems: "center", gap: space(2), minHeight: 28 },
-  body: { gap: space(1), paddingLeft: 0 },
+  body: { gap: space(1) },
   quiet: { flexDirection: "row", alignItems: "center", gap: space(2.5) },
   row: { flexDirection: "row", alignItems: "center", gap: space(2) },
-  toggle: { flexDirection: "row", alignItems: "center", gap: space(1.5), minHeight: 28 },
+  toggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space(1.5),
+    minHeight: 32,
+    alignSelf: "flex-start",
+    borderRadius: radius.full,
+    paddingLeft: space(1.5),
+    paddingRight: space(3),
+    marginLeft: -space(1.5),
+  },
   spaced: { marginVertical: space(1) },
   working: { flexDirection: "row", alignItems: "center", gap: space(2), minHeight: 24 },
   dot: { width: 8, height: 8, borderRadius: 4 },

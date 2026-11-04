@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ago, clock, dayClock, elapsed } from "./time";
+import { ago, clock, dayClock, elapsed, lastActive } from "./time";
 
 describe("times in lists", () => {
   const now = new Date(2026, 10, 2, 15, 0, 0).getTime();
@@ -13,6 +13,15 @@ describe("times in lists", () => {
     expect(ago(at(2026, 10, 1, 23, 0), now)).toBe("Yesterday");
     expect(ago(at(2026, 9, 12, 9, 0), now)).toBe("12 Oct");
     expect(ago(at(2025, 9, 12, 9, 0), now)).toBe("12 Oct 2025");
+  });
+
+  it("says when a teammate last worked", () => {
+    expect(lastActive(new Date(now - 30_000).toISOString(), now)).toBe("Active just now");
+    expect(lastActive(new Date(now - 5 * 60_000).toISOString(), now)).toBe("Active 5m ago");
+    expect(lastActive(new Date(now - 3 * 3600_000).toISOString(), now)).toBe("Active 3h ago");
+    expect(lastActive(at(2026, 10, 1, 23, 0), now)).toBe("Active yesterday");
+    expect(lastActive(at(2026, 9, 29, 10, 0), now)).toBe("Active Thu");
+    expect(lastActive(at(2026, 9, 12, 9, 0), now)).toBe("Active 12 Oct");
   });
 
   it("follows the phone's clock setting", () => {

@@ -1,15 +1,22 @@
 import type { BotSummary } from "@open-bot/api";
-import { StyleSheet, Text, View } from "react-native";
+import { useEffect, useRef } from "react";
+import { Animated, Easing, StyleSheet, Text, View } from "react-native";
+import { useReducedMotion } from "@/lib/motion";
 import { fonts, useColors } from "@/theme";
 import { mix } from "@/theme/mix";
 
+/** What a teammate is up to, which their avatar shows. `waiting` means waiting for you. */
 export type BotActivity = "idle" | "working" | "waiting" | "queued";
 
 const SIZES = {
-  sm: { box: 28, radius: 8, font: 12 },
-  md: { box: 36, radius: 10, font: 14 },
-  lg: { box: 48, radius: 13, font: 18 },
+  xs: { box: 24, radius: 7, font: 13 },
+  sm: { box: 28, radius: 8, font: 15 },
+  md: { box: 40, radius: 12, font: 20 },
+  lg: { box: 48, radius: 14, font: 24 },
+  xl: { box: 88, radius: 26, font: 44 },
 } as const;
+
+export type AvatarSize = keyof typeof SIZES;
 
 function initials(name: string) {
   const words = name.trim().split(/\s+/).filter(Boolean);
@@ -34,24 +41,106 @@ export function botStatusText(bot: Pick<BotSummary, "activeRun" | "role">): stri
   return "Working…";
 }
 
-/** A teammate's tile, as on the web: their color, their emoji or initials, and a status light. */
+const ACTIVITY_LABEL: Record<BotActivity, string> = {
+  idle: "",
+  working: "working",
+  waiting: "needs you",
+  queued: "up next",
+};
+
+/**
+ * A teammate's face: their color and emoji (or initials). Presence is part of the face, not a
+ * separate light: a soft pulse while they work, an amber ring and mark while they wait for you,
+ * and a dashed ring while they're up next.
+ */
 export function BotAvatar({
   name,
   color,
   emoji,
   size = "md",
   activity = "idle",
+  mark = true,
 }: {
   name: string;
   color: string;
   emoji?: string;
-  size?: keyof typeof SIZES;
+  size?: AvatarSize;
   activity?: BotActivity;
+  /** The "!" while waiting. Off where another badge on the avatar already says it. */
+  mark?: boolean;
 }) {
   const colors = useColors();
   const dims = SIZES[size];
+  const reduced = useReducedMotion();
+  const pulse = useRef(new Animated.Value(0)).current;
+  const small = dims.box <= 28;
+  // The ring sits just outside the tile, following its shape.
+  const gap = small ? 2 : 3;
+  const ring = {
+    position: "absolute" as const,
+    top: -gap - 1.5,
+    left: -gap - 1.5,
+    right: -gap - 1.5,
+    bottom: -gap - 1.5,
+    borderRadius: dims.radius + gap + 1.5,
+    borderWidth: 1.5,
+  };
+
+  useEffect(() => {
+    if (activity !== "working" || reduced) {
+      pulse.stopAnimation();
+      pulse.setValue(0);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 1400,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.delay(300),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [activity, reduced, pulse]);
+
+  const label = ACTIVITY_LABEL[activity];
   return (
-    <View>
+    <View
+      accessible
+      accessibilityRole="image"
+      accessibilityLabel={label ? `${name}, ${label}` : name}
+      style={{ width: dims.box, height: dims.box }}
+    >
+      {activity === "working" && (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            ring,
+            {
+              borderColor: colors.working,
+              opacity: reduced
+                ? 0.8
+                : pulse.interpolate({ inputRange: [0, 1], outputRange: [0.9, 0] }),
+              transform: reduced
+                ? []
+                : [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1.18] }) }],
+            },
+          ]}
+        />
+      )}
+      {activity === "waiting" && (
+        <View pointerEvents="none" style={[ring, { borderColor: colors.attention }]} />
+      )}
+      {activity === "queued" && (
+        <View
+          pointerEvents="none"
+          style={[ring, { borderColor: colors.mutedForeground, borderStyle: "dashed" }]}
+        />
+      )}
       <View
         style={{
           width: dims.box,
@@ -59,50 +148,95 @@ export function BotAvatar({
           borderRadius: dims.radius,
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: mix(color, colors.surface, 0.16),
+          backgroundColor: mix(color, colors.surface, 0.2),
           borderWidth: 1,
-          borderColor: mix(color, colors.surface, 0.3),
+          borderColor: mix(color, colors.surface, 0.42),
         }}
       >
         <Text
+          allowFontScaling={false}
           style={{
             fontFamily: fonts.heading,
             fontWeight: "600",
-            fontSize: dims.font,
-            color: mix(color, colors.foreground, 0.78),
+            fontSize: emoji ? dims.font : Math.round(dims.font * 0.72),
+            lineHeight: Math.round(dims.box * 0.9),
+            color: mix(color, colors.foreground, 0.7),
           }}
         >
           {emoji || initials(name)}
         </Text>
       </View>
-      {activity !== "idle" && (
+      {activity === "waiting" && mark && !small && (
         <View
-          style={[
-            styles.light,
-            {
-              borderColor: colors.background,
-              backgroundColor:
-                activity === "working"
-                  ? colors.live
-                  : activity === "waiting"
-                    ? colors.waiting
-                    : colors.mutedForeground,
-            },
-          ]}
-        />
+          style={[styles.badge, { backgroundColor: colors.attention, borderColor: colors.surface }]}
+        >
+          <Text allowFontScaling={false} style={styles.badgeText}>
+            !
+          </Text>
+        </View>
       )}
     </View>
   );
 }
 
+/** Up to three teammates' faces, overlapping, for a group chat. */
+export function GroupAvatar({
+  members,
+  size = "lg",
+  ring,
+}: {
+  members: Pick<BotSummary, "name" | "color" | "emoji">[];
+  size?: "md" | "lg";
+  /** What's behind the avatar, so the front face's cut-out ring matches it. */
+  ring?: string;
+}) {
+  const colors = useColors();
+  const box = SIZES[size].box;
+  const shown = members.slice(0, 2);
+  if (shown.length < 2)
+    return shown[0] ? (
+      <BotAvatar {...shown[0]} size={size} />
+    ) : (
+      <View style={{ width: box, height: box }} />
+    );
+  const inner = size === "lg" ? "sm" : "xs";
+  const innerBox = SIZES[inner].box;
+  return (
+    <View style={{ width: box, height: box }}>
+      <View style={{ position: "absolute", top: 0, left: 0 }}>
+        <BotAvatar {...shown[0]!} size={inner} />
+      </View>
+      <View
+        style={{
+          position: "absolute",
+          right: 0,
+          bottom: 0,
+          borderRadius: SIZES[inner].radius + 2,
+          borderWidth: 2,
+          borderColor: ring ?? colors.background,
+          width: innerBox + 4,
+          height: innerBox + 4,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <BotAvatar {...shown[1]!} size={inner} />
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  light: {
+  badge: {
     position: "absolute",
-    right: -2,
-    bottom: -2,
-    width: 11,
-    height: 11,
-    borderRadius: 6,
+    right: -5,
+    top: -5,
+    width: 17,
+    height: 17,
+    borderRadius: 9,
     borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
   },
+  badgeText: { color: "#1A1200", fontSize: 10, lineHeight: 12, fontWeight: "800" },
 });

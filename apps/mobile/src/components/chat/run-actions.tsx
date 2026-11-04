@@ -4,10 +4,10 @@ import { safe } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
 import * as Clipboard from "expo-clipboard";
 import * as Crypto from "expo-crypto";
-import * as Haptics from "expo-haptics";
 import {
   Check,
   Copy,
+  Ellipsis,
   RotateCcw,
   Square,
   ThumbsDown,
@@ -16,13 +16,16 @@ import {
   type LucideIcon,
 } from "lucide-react-native";
 import { useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, Switch, View, type TextInputInstance } from "react-native";
+import { Pressable, StyleSheet, View, type TextInputInstance } from "react-native";
 import { Button } from "@/components/button";
-import { Sheet } from "@/components/sheet";
+import { Sheet, SheetItem } from "@/components/sheet";
+import { Toggle } from "@/components/toggle";
 import { Text } from "@/components/text";
 import { TextField } from "@/components/text-field";
 import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/errors";
+import { haptics } from "@/lib/haptics";
+import { phoneDayClock } from "@/lib/phone-clock";
 import { queryKeys } from "@/lib/query";
 import { readAloud, readingNow, stopReading, useReading } from "@/lib/read-aloud";
 import { space, useColors } from "@/theme";
@@ -66,12 +69,11 @@ function IconButton({
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ selected: active }}
-      android_ripple={{ color: colors.muted, borderless: true, radius: 18 }}
-      hitSlop={4}
+      android_ripple={{ color: colors.muted, borderless: true, radius: 20 }}
       style={styles.icon}
       testID={testID}
     >
-      <Icon size={16} color={color} fill={filled ? color : "transparent"} />
+      <Icon size={18} color={color} fill={filled ? color : "transparent"} />
     </Pressable>
   );
 }
@@ -114,19 +116,26 @@ export function RetryRun({ runId, chatId }: { runId: string; chatId: string }) {
 }
 
 /**
- * Under a finished reply: copy it, hear it, rate it (a thumbs down asks what to change), and what
- * it took.
+ * What you can do with a finished reply: copy it, hear it, rate it (a thumbs down asks what to
+ * change), and see what it took. The newest reply shows them in a row under it; every reply has
+ * them in a sheet (`menuOpen`), which a long press on the reply opens.
  */
 export function RunActions({
   run,
   chatId,
   botName,
   reply,
+  showRow,
+  menuOpen,
+  onMenuChange,
 }: {
   run: RunView;
   chatId: string;
   botName: string;
   reply: string;
+  showRow: boolean;
+  menuOpen: boolean;
+  onMenuChange: (open: boolean) => void;
 }) {
   const colors = useColors();
   const queryClient = useQueryClient();
@@ -156,70 +165,81 @@ export function RunActions({
     const before = rating;
     setPicked({ rating: next });
     setProblem(null);
-    void Haptics.selectionAsync();
+    haptics.tap();
     void safe(api.runs.rate({ runId: run.id, rating: next })).then(async (result) => {
       if (!result.error) return refresh();
       setPicked({ rating: before });
       setProblem(errorMessage(result.error, "Couldn't save that."));
     });
   }
+  async function copy() {
+    await Clipboard.setStringAsync(reply);
+    haptics.success();
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+  const toggleReading = () => (reading ? stopReading() : readAloud(run.id, reply));
+  const rateUp = () => rate(rating === "up" ? null : "up");
+  const rateDown = () => {
+    if (rating === "down") return rate(null);
+    rate("down");
+    setFeedbackOpen(true);
+  };
+  const close = (then?: () => void) => {
+    onMenuChange(false);
+    then?.();
+  };
 
   return (
     <View style={{ gap: space(1) }}>
-      <View style={styles.row} testID="run-actions">
-        {reply ? (
-          <>
-            <IconButton
-              icon={copied ? Check : Copy}
-              label={copied ? "Copied" : "Copy reply"}
-              onPress={async () => {
-                await Clipboard.setStringAsync(reply);
-                void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1500);
-              }}
-              testID="copy-reply"
-            />
-            <IconButton
-              icon={reading ? Square : Volume2}
-              label={reading ? "Stop reading" : "Read aloud"}
-              active={reading}
-              filled={reading}
-              onPress={() => (reading ? stopReading() : readAloud(run.id, reply))}
-              testID="read-aloud"
-            />
-          </>
-        ) : null}
-        {completed && (
-          <>
-            <IconButton
-              icon={ThumbsUp}
-              label="Good reply"
-              active={rating === "up"}
-              filled={rating === "up"}
-              onPress={() => rate(rating === "up" ? null : "up")}
-              testID="rate-up"
-            />
-            <IconButton
-              icon={ThumbsDown}
-              label="Bad reply"
-              active={rating === "down"}
-              filled={rating === "down"}
-              onPress={() => {
-                if (rating === "down") return rate(null);
-                rate("down");
-                setFeedbackOpen(true);
-              }}
-              testID="rate-down"
-            />
-          </>
-        )}
-        {usage && (
-          <Text variant="caption" muted numberOfLines={1} style={styles.usage} testID="run-usage">
-            {usage}
-          </Text>
-        )}
-      </View>
+      {showRow && (
+        <View style={styles.row} testID="run-actions">
+          {reply ? (
+            <>
+              <IconButton
+                icon={copied ? Check : Copy}
+                label={copied ? "Copied" : "Copy reply"}
+                onPress={() => void copy()}
+                testID="copy-reply"
+              />
+              <IconButton
+                icon={reading ? Square : Volume2}
+                label={reading ? "Stop reading" : "Read aloud"}
+                active={reading}
+                filled={reading}
+                onPress={toggleReading}
+                testID="read-aloud"
+              />
+            </>
+          ) : null}
+          {completed && (
+            <>
+              <IconButton
+                icon={ThumbsUp}
+                label="Good reply"
+                active={rating === "up"}
+                filled={rating === "up"}
+                onPress={rateUp}
+                testID="rate-up"
+              />
+              <IconButton
+                icon={ThumbsDown}
+                label="Bad reply"
+                active={rating === "down"}
+                filled={rating === "down"}
+                onPress={rateDown}
+                testID="rate-down"
+              />
+            </>
+          )}
+          <IconButton
+            icon={Ellipsis}
+            label="More"
+            onPress={() => onMenuChange(true)}
+            testID="reply-more"
+          />
+        </View>
+      )}
       {problem && (
         <Text variant="small" style={{ color: colors.destructive }}>
           {problem}
@@ -230,6 +250,65 @@ export function RunActions({
           {note}
         </Text>
       )}
+      <Sheet
+        open={menuOpen}
+        onClose={() => onMenuChange(false)}
+        title={`${botName}'s reply`}
+        description={[phoneDayClock(run.createdAt), usage].filter(Boolean).join(" · ")}
+        testID="reply-menu"
+      >
+        {reply ? (
+          <>
+            <SheetItem
+              icon={<Copy size={20} color={colors.foreground} />}
+              label="Copy"
+              onPress={() => close(() => void copy())}
+            />
+            <SheetItem
+              icon={
+                reading ? (
+                  <Square size={20} color={colors.foreground} />
+                ) : (
+                  <Volume2 size={20} color={colors.foreground} />
+                )
+              }
+              label={reading ? "Stop reading" : "Read aloud"}
+              onPress={() => close(toggleReading)}
+            />
+          </>
+        ) : null}
+        {completed && (
+          <>
+            <SheetItem
+              icon={
+                <ThumbsUp
+                  size={20}
+                  color={colors.foreground}
+                  fill={rating === "up" ? colors.foreground : "transparent"}
+                />
+              }
+              label={rating === "up" ? "Rated good" : "Good reply"}
+              onPress={() => close(rateUp)}
+            />
+            <SheetItem
+              icon={
+                <ThumbsDown
+                  size={20}
+                  color={colors.foreground}
+                  fill={rating === "down" ? colors.foreground : "transparent"}
+                />
+              }
+              label={rating === "down" ? "Rated bad" : "Bad reply, tell them why"}
+              onPress={() => close(rateDown)}
+            />
+          </>
+        )}
+        {usage && (
+          <Text variant="caption" muted style={styles.usage} testID="run-usage">
+            {usage}
+          </Text>
+        )}
+      </Sheet>
       <FeedbackSheet
         open={feedbackOpen}
         onClose={() => setFeedbackOpen(false)}
@@ -326,12 +405,7 @@ function FeedbackSheet({
           <Text variant="small" muted style={{ flex: 1 }}>
             Remember this for future tasks
           </Text>
-          <Switch
-            value={remember}
-            onValueChange={setRemember}
-            trackColor={{ false: colors.input, true: colors.primary }}
-            thumbColor={colors.surface}
-          />
+          <Toggle value={remember} onValueChange={setRemember} />
         </Pressable>
         {problem && (
           <Text variant="small" style={{ color: colors.destructive }}>
@@ -364,19 +438,14 @@ function FeedbackSheet({
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", marginLeft: -space(2), minHeight: 32 },
-  icon: { width: 34, height: 32, alignItems: "center", justifyContent: "center" },
-  usage: {
-    marginLeft: "auto",
-    paddingLeft: space(2),
-    flexShrink: 1,
-    fontVariant: ["tabular-nums"],
-  },
+  row: { flexDirection: "row", alignItems: "center", marginLeft: -space(3), minHeight: 44 },
+  icon: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  usage: { paddingHorizontal: space(5), paddingTop: space(2), fontVariant: ["tabular-nums"] },
   retry: {
     flexDirection: "row",
     alignItems: "center",
     gap: space(1.5),
-    minHeight: 28,
+    minHeight: 40,
     alignSelf: "flex-start",
   },
   form: { paddingHorizontal: space(5), gap: space(3) },

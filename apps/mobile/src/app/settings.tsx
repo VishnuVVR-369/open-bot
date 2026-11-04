@@ -1,47 +1,81 @@
 import { safe } from "@orpc/client";
 import Constants from "expo-constants";
-import { BellRing, KeyRound, LogOut } from "lucide-react-native";
-import { useState } from "react";
+import * as LocalAuthentication from "expo-local-authentication";
+import { router } from "expo-router";
+import {
+  BellOff,
+  BellRing,
+  ChevronRight,
+  Fingerprint,
+  Globe,
+  Info,
+  KeyRound,
+  LogOut,
+  Moon,
+  Smartphone,
+  ShieldCheck,
+  Sun,
+  Vibrate,
+} from "lucide-react-native";
+import { useEffect, useState } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
-import { Button } from "@/components/button";
+import { Separator } from "@/components/list-row";
+import { Card, Section } from "@/components/section";
+import { Segmented, SETTINGS_INSET, SettingsRow, SettingsSwitch } from "@/components/settings-row";
 import { Text } from "@/components/text";
 import { api } from "@/lib/api";
 import { authClient } from "@/lib/auth";
 import { APP_URL } from "@/lib/config";
 import { errorMessage } from "@/lib/errors";
+import { haptics } from "@/lib/haptics";
 import { addPasskey } from "@/lib/passkey";
+import { setPreference, usePreferences, type Preferences } from "@/lib/preferences";
+import { useApprovalRules } from "@/lib/queries";
 import { signOut } from "@/lib/session";
 import { hasFirebase } from "@/push/firebase";
-import { radius, space, useColors } from "@/theme";
+import { fonts, radius, space, useColors } from "@/theme";
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  const colors = useColors();
-  return (
-    <View style={{ gap: space(2) }}>
-      <Text variant="caption" muted style={styles.overline}>
-        {title.toUpperCase()}
-      </Text>
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        {children}
-      </View>
-    </View>
-  );
+const APPEARANCES: {
+  value: Preferences["appearance"];
+  label: string;
+  icon: (color: string) => React.ReactNode;
+}[] = [
+  { value: "system", label: "System", icon: (color) => <Smartphone size={16} color={color} /> },
+  { value: "light", label: "Light", icon: (color) => <Sun size={16} color={color} /> },
+  { value: "dark", label: "Dark", icon: (color) => <Moon size={16} color={color} /> },
+];
+
+/** Whether the app lock can work here: it needs a screen lock or fingerprint on the phone. */
+function useCanLock(): boolean | null {
+  const [canLock, setCanLock] = useState<boolean | null>(null);
+  useEffect(() => {
+    void LocalAuthentication.getEnrolledLevelAsync()
+      .then((level) => setCanLock(level !== LocalAuthentication.SecurityLevel.NONE))
+      .catch(() => setCanLock(null));
+  }, []);
+  return canLock;
 }
 
-/** Your account on this phone: notifications, and signing out. */
+/** Your account on this phone, and how the app looks, feels and keeps itself safe. */
 export default function Settings() {
   const colors = useColors();
   const { data: session } = authClient.useSession();
+  const preferences = usePreferences();
+  const { data: rules } = useApprovalRules();
+  const canLock = useCanLock();
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [passkeyResult, setPasskeyResult] = useState<string | null>(null);
+  const name = session?.user.name?.trim() || "You";
+  const host = new URL(APP_URL).host;
 
   async function add() {
     setAdding(true);
     setPasskeyResult(null);
     const result = await addPasskey();
     setAdding(false);
+    if (result.ok) haptics.success();
     setPasskeyResult(
       result.ok ? "Passkey added. Use it the next time you sign in." : result.message,
     );
@@ -62,6 +96,7 @@ export default function Settings() {
   }
 
   function confirmSignOut() {
+    haptics.warning();
     Alert.alert("Sign out?", "This phone stops getting notifications until you sign in again.", [
       { text: "Cancel", style: "cancel" },
       { text: "Sign out", style: "destructive", onPress: () => void signOut() },
@@ -71,69 +106,188 @@ export default function Settings() {
   return (
     <ScrollView contentContainerStyle={styles.content}>
       <Section title="Account">
-        <View style={{ gap: 2 }}>
-          <Text variant="label">{session?.user.name ?? "You"}</Text>
-          <Text variant="small" muted>
-            {session?.user.email}
-          </Text>
-          <Text variant="small" muted>
-            {new URL(APP_URL).host}
-          </Text>
-        </View>
+        <Card>
+          <View style={styles.account}>
+            <View style={[styles.initial, { backgroundColor: colors.primary }]}>
+              <Text
+                allowFontScaling={false}
+                style={[styles.initialText, { color: colors.primaryForeground }]}
+              >
+                {name[0]!.toUpperCase()}
+              </Text>
+            </View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text variant="heading" numberOfLines={1}>
+                {name}
+              </Text>
+              {session?.user.email ? (
+                <Text variant="small" muted numberOfLines={1}>
+                  {session.user.email}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+        </Card>
       </Section>
+
+      <Section title="Appearance">
+        <Card>
+          <View style={styles.theme}>
+            <Text variant="label">Theme</Text>
+            <Segmented
+              options={APPEARANCES}
+              value={preferences.appearance}
+              onChange={(value) => {
+                haptics.tap();
+                setPreference("appearance", value);
+              }}
+              testID="appearance"
+            />
+          </View>
+          <Separator inset={space(4)} />
+          <SettingsSwitch
+            icon={(color) => <Vibrate size={18} color={color} />}
+            title="Haptics"
+            subtitle="A light touch when you tap, approve or deny"
+            value={preferences.haptics}
+            onChange={(value) => {
+              setPreference("haptics", value);
+              // Feel it right away when it's turned on.
+              haptics.tap();
+            }}
+            testID="haptics"
+          />
+        </Card>
+      </Section>
+
       <Section title="Notifications">
-        <Text variant="small" muted>
-          {hasFirebase
-            ? "Approvals and replies come to this phone, even when the app is closed."
-            : "This build can't get notifications: it was built without Firebase."}
-        </Text>
-        <Button
-          title="Send a test notification"
-          variant="outline"
-          icon={<BellRing size={16} color={colors.foreground} />}
-          busy={testing}
-          onPress={() => void sendTest()}
-        />
-        {testResult && (
-          <Text variant="small" muted>
-            {testResult}
-          </Text>
-        )}
+        <Card>
+          {hasFirebase ? (
+            <SettingsRow
+              icon={(color) => <BellRing size={18} color={color} />}
+              title="Send a test notification"
+              subtitle={
+                testResult ?? "Approvals and replies come to this phone, even when it's closed"
+              }
+              busy={testing}
+              onPress={() => void sendTest()}
+              testID="test-notification"
+            />
+          ) : (
+            <SettingsRow
+              icon={(color) => <BellOff size={18} color={color} />}
+              title="Send a test notification"
+              subtitle="Notifications aren't available in this build. Approvals and replies still show up in the app."
+              disabled
+              testID="test-notification"
+            />
+          )}
+        </Card>
       </Section>
-      <Section title="Passkeys">
-        <Text variant="small" muted>
-          Sign in with your fingerprint instead of your password. The passkey also works on the web.
-        </Text>
-        <Button
-          title="Add a passkey"
-          variant="outline"
-          icon={<KeyRound size={16} color={colors.foreground} />}
-          busy={adding}
-          onPress={() => void add()}
-          testID="add-passkey"
-        />
-        {passkeyResult && (
-          <Text variant="small" muted>
-            {passkeyResult}
-          </Text>
-        )}
+
+      <Section title="Security">
+        <Card>
+          <SettingsRow
+            icon={(color) => <Fingerprint size={18} color={color} />}
+            title="App lock"
+            subtitle={
+              canLock === false
+                ? "Set up a screen lock on this phone to lock open-bot"
+                : "Asks for your fingerprint when you open open-bot, and after 5 minutes away"
+            }
+            aside={
+              canLock === null ? null : (
+                <Text variant="small" muted>
+                  {canLock ? "On" : "Off"}
+                </Text>
+              )
+            }
+            accessibilityLabel={`App lock, ${canLock ? "on" : "off"}`}
+            testID="app-lock"
+          />
+          <Separator inset={SETTINGS_INSET} />
+          <SettingsRow
+            icon={(color) => <KeyRound size={18} color={color} />}
+            title="Add a passkey"
+            subtitle={
+              passkeyResult ??
+              "Sign in with your fingerprint instead of your password, here or on the web"
+            }
+            busy={adding}
+            onPress={() => void add()}
+            aside={<ChevronRight size={18} color={colors.mutedForeground} />}
+            testID="add-passkey"
+          />
+          <Separator inset={SETTINGS_INSET} />
+          <SettingsRow
+            icon={(color) => <ShieldCheck size={18} color={color} />}
+            title="Always allowed"
+            subtitle={
+              rules?.length
+                ? `${rules.length} ${rules.length === 1 ? "rule" : "rules"} teammates don't ask about`
+                : "What teammates may do without asking"
+            }
+            onPress={() => router.push("/approval-rules")}
+            aside={<ChevronRight size={18} color={colors.mutedForeground} />}
+            testID="settings-approval-rules"
+          />
+        </Card>
       </Section>
-      <Button
-        title="Sign out"
-        variant="destructive"
-        icon={<LogOut size={16} color={colors.destructive} />}
-        onPress={confirmSignOut}
-        testID="sign-out"
-      />
-      <Text variant="caption" muted style={{ textAlign: "center" }}>
-        open-bot {Constants.expoConfig?.version ?? ""}
-      </Text>
+
+      <Section title="About">
+        <Card>
+          <SettingsRow
+            icon={(color) => <Info size={18} color={color} />}
+            title="Version"
+            aside={
+              <Text variant="small" muted selectable>
+                {Constants.expoConfig?.version ?? "Unknown"}
+                {__DEV__ ? " (dev)" : ""}
+              </Text>
+            }
+          />
+          <Separator inset={SETTINGS_INSET} />
+          <SettingsRow
+            icon={(color) => <Globe size={18} color={color} />}
+            title="Server"
+            aside={
+              <Text variant="small" muted numberOfLines={1} selectable style={styles.value}>
+                {host}
+              </Text>
+            }
+          />
+        </Card>
+      </Section>
+
+      <Card>
+        <SettingsRow
+          icon={(color) => <LogOut size={18} color={color} />}
+          title="Sign out"
+          destructive
+          onPress={confirmSignOut}
+          testID="sign-out"
+        />
+      </Card>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: space(4), gap: space(6) },
-  overline: { letterSpacing: 0.6, fontWeight: "500", paddingHorizontal: space(1) },
-  card: { borderWidth: 1, borderRadius: radius.xl, padding: space(4), gap: space(2) },
+  content: { padding: space(4), gap: space(6), paddingBottom: space(10) },
+  account: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space(3.5),
+    padding: space(4),
+  },
+  initial: {
+    width: 52,
+    height: 52,
+    borderRadius: radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  initialText: { fontFamily: fonts.heading, fontWeight: "600", fontSize: 22, lineHeight: 28 },
+  theme: { padding: space(4), gap: space(3) },
+  value: { maxWidth: 180 },
 });

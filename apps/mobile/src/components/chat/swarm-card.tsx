@@ -23,7 +23,7 @@ function StateIcon({ state }: { state: SwarmTaskState }) {
     case "queued":
       return <Clock size={14} color={colors.mutedForeground} />;
     case "running":
-      return <View style={[styles.live, { backgroundColor: colors.live }]} />;
+      return <View style={[styles.live, { backgroundColor: colors.working }]} />;
     case "completed":
       return <Check size={14} color={colors.done} />;
     case "failed":

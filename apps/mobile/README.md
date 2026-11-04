@@ -6,17 +6,31 @@ It's installed over USB; there's no Play Store listing.
 
 ## Using the pocket inbox
 
-Home shows what needs you, recent activity, teammates and a briefing of work finished while you were away.
+Home leads with what needs you, then your teammates, then a briefing of work finished while you were away.
+Each teammate's avatar shows what they're doing: a soft pulse while they work, an amber ring and mark while they wait for you, and a dashed ring while they're up next.
+Teammates who need you sort first; tap one to open your latest chat with them, or hold to open their profile.
+A teammate's profile has Message, New chat and Screen, how much they do on their own, their Always allow rules, and every conversation they're in.
 Use Computer to watch or take over a teammate's screen; suggested instructions are still reviewed on the web.
-Chats shows unread badges and previews; use New chat for a direct conversation or a group, and @-mention teammates to choose who answers.
+Chats shows unread dots, previews and who is working; filter by Unread, Direct, Groups or Scheduled when there are any.
+Hold a chat to mark it read or archive it.
+Use New chat for a direct conversation or a group, and @-mention teammates to choose who answers.
+A teammate names a new chat after its topic once that's clear, and the chat list then says whose reply it is; a name you give is never replaced.
 The chat menu lets you rename or archive a conversation; archiving keeps its history.
+Tap a chat's title to open the teammate's profile.
+When a teammate is idle, the chat header, their profile and New chat show when they last worked, such as "Active 5m ago".
+
+In a chat, a teammate's work folds into one line, such as "Worked for 21s · 5 steps", with the steps a tap away.
+While they work, one line says what they're doing right now, and long command output folds after 14 lines.
+Code scrolls sideways with a fade at the edge, and every code block has a copy button.
+Unsent text is kept per chat on the phone, so leaving for an approval or another app doesn't lose it.
 
 Attach a photo, take one with the camera, or pick a file from the composer.
 Failed uploads can be retried or removed before sending.
 Images, Markdown, text and CSV/TSV files open in the app; tables scroll in both directions.
 PDFs and other formats open in a compatible app on the phone.
 The microphone adds dictation to the current draft; leaving that composer cancels recognition.
-Replies offer copy, read aloud, ratings and feedback, with an option to remember a lesson or try again.
+The latest reply shows copy, read aloud and ratings under it; hold any reply, or use its More button, for the same actions plus its time and usage.
+Feedback offers an option to remember a lesson or try again.
 You can steer a working teammate with another message, stop it, or retry a failed or stopped turn.
 
 Use the header's search and notification buttons to find earlier work.
@@ -25,19 +39,25 @@ If loading history fails, use Retry to continue.
 Loaded history stays in place when newer replies arrive.
 A chat becomes read across devices after fresh history has loaded while it is visible; failed refreshes keep it unread.
 
-Approvals supports Approve, Deny and Always allow, with saved rules available from its menu.
+Approvals supports Approve, Deny and Always allow, with saved rules one tap away at the top.
+Requests that spend money, send email or delete things carry a short warning, in the chat and on the request itself.
+Past decisions are grouped by day.
 Notification approvals can be decided without opening the app; purchases use Review and require the phone's authentication check before approval.
 Reply on a message notification sends directly to its teammate, including in a group chat.
 
+Settings, from your initial on Home, has Light, Dark or System appearance and a switch for haptics.
+Animations follow Android's Remove animations setting.
+
 ## The computer on your phone
 
-Computer lists every teammate's screen, including sleeping screens, its current holder, and requests for you.
+Computer lists every teammate's screen, including sleeping screens, its current holder, and requests for you; screens that need you come first.
+Each screen has one action right on the list: Wake, Watch, or Take over.
 Watching a sleeping screen does not start it; use Wake or Take over.
 The live viewer is noVNC bundled inside the app, with a fresh short-lived VNC token for every connection.
 Your session cookie stays on the React Native side and is never passed to the WebView.
 
 Tap to click, hold for a right click, and drag with two fingers to scroll.
-Pinch zooms the local screen; Fit resets it.
+Pinch zooms the local screen; Fit, which appears once the screen connects, resets it.
 Use Trackpad for relative cursor movement and precise taps.
 The keyboard bar provides Esc, Tab, Ctrl, Alt, arrows, Enter, and Paste from phone.
 In portrait the screen fits the width; in landscape it fills the height beside the controls.
@@ -88,6 +108,7 @@ cd apps/mobile
 APP_VARIANT=development pnpm prebuild --clean
 adb reverse tcp:3000 tcp:3000       # the phone's localhost:3000 is your computer's
 adb reverse tcp:8081 tcp:8081       # Metro
+adb reverse tcp:4001 tcp:4001       # the worker's websockets, for watching screens
 APP_VARIANT=development EXPO_PUBLIC_APP_URL=http://localhost:3000 pnpm start
 # In a second terminal, also in apps/mobile:
 APP_VARIANT=development EXPO_PUBLIC_APP_URL=http://localhost:3000 pnpm android --no-bundler

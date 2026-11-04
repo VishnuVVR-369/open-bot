@@ -29,11 +29,13 @@ import {
   type TextInputSelectionChangeEvent,
 } from "react-native";
 import { BotAvatar } from "@/components/bot-avatar";
-import { Sheet, SheetItem } from "@/components/sheet";
+import { Sheet } from "@/components/sheet";
 import { Text } from "@/components/text";
 import { api } from "@/lib/api";
 import { useDictation } from "@/lib/dictation";
+import { readDraft, writeDraft } from "@/lib/drafts";
 import { errorMessage } from "@/lib/errors";
+import { haptics } from "@/lib/haptics";
 import { insertMention, mentionedIds, mentionOptions, mentionQuery } from "@/lib/mentions";
 import { cantAttach, type PickedFile } from "@/lib/upload-protocol";
 import { uploadAttachment } from "@/lib/uploads";
@@ -159,9 +161,27 @@ export function Composer({
   const filesRef = useRef(files);
   filesRef.current = files;
 
+  // What you'd typed here before, unless you've started typing already.
+  useEffect(() => {
+    let current = true;
+    void readDraft(chatId).then((draft) => {
+      if (current && draft) setText((typed) => typed || draft);
+    });
+    return () => {
+      current = false;
+    };
+  }, [chatId]);
+  const edit = useCallback(
+    (next: string) => {
+      setText(next);
+      writeDraft(chatId, next);
+    },
+    [chatId],
+  );
+
   const dictation = useDictation({
     onText: (spoken) => {
-      setText(spoken);
+      edit(spoken);
       setCaret(spoken.length);
     },
     onError: setError,
@@ -313,7 +333,8 @@ export function Composer({
       return;
     }
     failedSend.current = null;
-    setText("");
+    haptics.press();
+    edit("");
     setCaret(0);
     const submitted = new Set(ready.map((pending) => pending.key));
     setFiles((current) => current.filter((pending) => !submitted.has(pending.key)));
@@ -324,6 +345,7 @@ export function Composer({
     if (!activeRun) return;
     setStopping(true);
     setError(null);
+    haptics.warning();
     const result = await safe(api.runs.cancel({ runId: activeRun.id }));
     setStopping(false);
     if (result.error) setError(errorMessage(result.error, "Couldn't stop them."));
@@ -333,13 +355,13 @@ export function Composer({
   const query = isGroup ? mentionQuery(text, caret) : null;
   const options = query !== null ? mentionOptions(members, query) : [];
 
-  const action: "send" | "stop" | "mic" | "listening" = dictation.listening
+  const action: "send" | "mic" | "listening" = dictation.listening
     ? "listening"
     : hasContent || uploading || files.length > 0
       ? "send"
-      : activeRun
-        ? "stop"
-        : "mic";
+      : "mic";
+  // Dictation stays at hand while a teammate works; Stop sits beside it.
+  const showStop = Boolean(activeRun) && action === "mic";
 
   return (
     <View style={{ gap: space(1.5) }}>
@@ -362,7 +384,7 @@ export function Composer({
               key={member.id}
               onPress={() => {
                 const next = insertMention(text, caret, member);
-                setText(next.text);
+                edit(next.text);
                 setCaret(next.caret);
                 input.current?.setSelection(next.caret, next.caret);
               }}
@@ -404,16 +426,17 @@ export function Composer({
           onPress={() => setAttachOpen(true)}
           accessibilityRole="button"
           accessibilityLabel="Attach"
-          android_ripple={{ color: colors.muted, borderless: true, radius: 20 }}
+          android_ripple={{ color: colors.muted, borderless: true, radius: 22 }}
+          hitSlop={4}
           style={styles.side}
           testID="attach"
         >
-          <Plus size={22} color={colors.mutedForeground} />
+          <Plus size={23} color={colors.foreground} />
         </Pressable>
         <TextInput
           ref={input}
           value={text}
-          onChangeText={setText}
+          onChangeText={edit}
           onSelectionChange={(event: TextInputSelectionChangeEvent) =>
             setCaret(event.nativeEvent.selection.end)
           }
@@ -444,7 +467,22 @@ export function Composer({
               <ArrowUp size={18} color={colors.primaryForeground} strokeWidth={2.25} />
             )}
           </Pressable>
-        ) : action === "stop" ? (
+        ) : (
+          <Pressable
+            onPress={() => (dictation.listening ? dictation.stop() : void dictation.start(text))}
+            accessibilityRole="button"
+            accessibilityLabel={dictation.listening ? "Stop dictating" : "Dictate"}
+            accessibilityState={{ selected: dictation.listening }}
+            style={[
+              styles.send,
+              dictation.listening && { backgroundColor: mix(colors.live, colors.surface, 0.14) },
+            ]}
+            testID="dictate"
+          >
+            <Mic size={21} color={dictation.listening ? colors.live : colors.mutedForeground} />
+          </Pressable>
+        )}
+        {showStop && (
           <Pressable
             onPress={() => void stop()}
             disabled={stopping}
@@ -459,41 +497,38 @@ export function Composer({
               <Square size={13} color={colors.primaryForeground} fill={colors.primaryForeground} />
             )}
           </Pressable>
-        ) : (
-          <Pressable
-            onPress={() => (dictation.listening ? dictation.stop() : void dictation.start(text))}
-            accessibilityRole="button"
-            accessibilityLabel={dictation.listening ? "Stop dictating" : "Dictate"}
-            accessibilityState={{ selected: dictation.listening }}
-            style={[
-              styles.send,
-              dictation.listening && { backgroundColor: mix(colors.live, colors.surface, 0.14) },
-            ]}
-            testID="dictate"
-          >
-            <Mic size={20} color={dictation.listening ? colors.live : colors.mutedForeground} />
-          </Pressable>
         )}
       </View>
       <Sheet open={attachOpen} onClose={() => setAttachOpen(false)} testID="attach-sheet">
-        <SheetItem
-          icon={<Camera size={20} color={colors.foreground} />}
-          label="Take a photo"
-          onPress={() => void pick("camera")}
-          testID="attach-camera"
-        />
-        <SheetItem
-          icon={<ImageIcon size={20} color={colors.foreground} />}
-          label="Photos"
-          onPress={() => void pick("photos")}
-          testID="attach-photos"
-        />
-        <SheetItem
-          icon={<FileUp size={20} color={colors.foreground} />}
-          label="Files"
-          onPress={() => void pick("files")}
-          testID="attach-files"
-        />
+        <View style={styles.attachGrid}>
+          {(
+            [
+              { source: "camera", label: "Camera", Icon: Camera, testID: "attach-camera" },
+              { source: "photos", label: "Photos", Icon: ImageIcon, testID: "attach-photos" },
+              { source: "files", label: "Files", Icon: FileUp, testID: "attach-files" },
+            ] as const
+          ).map(({ source, label, Icon, testID }) => (
+            <Pressable
+              key={source}
+              onPress={() => {
+                haptics.tap();
+                void pick(source);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={source === "camera" ? "Take a photo" : label}
+              android_ripple={{ color: colors.muted }}
+              style={[styles.attachTile, { backgroundColor: colors.subtle }]}
+              testID={testID}
+            >
+              <View style={[styles.attachIcon, { backgroundColor: colors.surface }]}>
+                <Icon size={22} color={colors.foreground} />
+              </View>
+              <Text variant="small" style={{ fontWeight: "500" }}>
+                {label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
       </Sheet>
     </View>
   );
@@ -510,25 +545,47 @@ const styles = StyleSheet.create({
     paddingVertical: space(1.5),
     gap: space(1),
   },
-  side: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
+  side: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   input: {
     flex: 1,
     fontFamily: fonts.sans,
     fontSize: 15,
     lineHeight: 21,
     maxHeight: 140,
-    minHeight: 36,
-    paddingTop: 7,
-    paddingBottom: 7,
+    minHeight: 40,
+    paddingTop: 9,
+    paddingBottom: 9,
   },
   send: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
   },
   chips: { gap: space(2), paddingHorizontal: space(0.5) },
+  attachGrid: {
+    flexDirection: "row",
+    gap: space(3),
+    paddingHorizontal: space(5),
+    paddingTop: space(1),
+    paddingBottom: space(2),
+  },
+  attachTile: {
+    flex: 1,
+    alignItems: "center",
+    gap: space(2),
+    paddingVertical: space(4),
+    borderRadius: radius.xl,
+    overflow: "hidden",
+  },
+  attachIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   chip: {
     flexDirection: "row",
     alignItems: "center",
