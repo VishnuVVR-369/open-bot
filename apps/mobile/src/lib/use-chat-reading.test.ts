@@ -105,13 +105,14 @@ async function render(chatId = "a") {
     const tree = createElement(QueryClientProvider, { client }, createElement(Probe, { chatId }));
     if (root) root.update(tree);
     else root = create(tree);
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await vi.runAllTimersAsync();
   });
 }
 async function settle(action: () => void) {
   await act(async () => {
     action();
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    // Drain React Query's scheduled observer notifications as well as the request microtasks.
+    await vi.runAllTimersAsync();
   });
 }
 async function appState(value: string) {
@@ -127,6 +128,7 @@ function expectUnread() {
   expect(client.getQueryData<{ unread: boolean }[]>(["chats"])?.[0]?.unread).toBe(true);
 }
 beforeEach(() => {
+  vi.useFakeTimers();
   vi.clearAllMocks();
   state.get.mockReset();
   state.focused = true;
@@ -149,6 +151,7 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root?.unmount());
   client.clear();
+  vi.useRealTimers();
 });
 
 describe("fresh visible chat history", () => {
@@ -175,7 +178,7 @@ describe("fresh visible chat history", () => {
     state.get.mockResolvedValueOnce(page(2));
     await act(async () => {
       await hook.refetch();
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await vi.runAllTimersAsync();
     });
     expect(hook.entries).toHaveLength(2);
     expect(state.markRead).toHaveBeenCalledWith({ chatId: "a" });
