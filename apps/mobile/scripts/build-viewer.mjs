@@ -15,7 +15,7 @@ const result = await build({
   legalComments: "inline",
 });
 const script = result.outputFiles[0].text.replaceAll("</script", "<\\/script");
-const license = await readFile(path.join(root, "assets/novnc-licenses/LICENSE.MPL-2.0"), "utf8");
+const license = await readFile(path.join(root, "node_modules/@novnc/novnc/docs/LICENSE.MPL-2.0"), "utf8");
 const notice = `noVNC 1.7.0, MPL-2.0. Unmodified library source: https://github.com/novnc/noVNC/tree/v1.7.0\n${license}`;
 const css =
   "html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101117;touch-action:none}#host{position:absolute;inset:0;transform-origin:0 0}#cursor{position:absolute;width:14px;height:14px;border:2px solid white;border-radius:50%;box-shadow:0 0 2px black;pointer-events:none;display:none;z-index:2}";
