@@ -1,0 +1,167 @@
+import { docMetadata } from "@/lib/docs";
+
+export const metadata = docMetadata("/docs/flows/pages");
+
+# Pages
+
+A **page** is one self-contained HTML file a teammate builds for you and publishes in the app: an in-depth explainer of a system design, a research report, a comparison, a dashboard, an itinerary, a study guide or slides.
+You open it in the app on your laptop or phone, switch between its versions, and select any passage to ask the teammate about it.
+This page follows one page from the request to the library.
+How pages are served and isolated is on [The pages service](/docs/architecture/pages).
+
+## Asking for a page
+
+Any request can become a page.
+A teammate builds one when you ask for a page, an HTML page, a visual explainer or a report to open, or when the answer is too rich for a chat reply.
+Typing `/page` invokes the built-in skill explicitly, like any [skill](/docs/flows/skills-and-connections#invoking-a-skill).
+
+A typical request is a link you came across:
+
+```text title="A message"
+/page Read this post and explain the system design in depth: https://www.linkedin.com/posts/...
+```
+
+## The page skill
+
+`page` is a built-in skill that every teammate has.
+The worker writes it to `/home/bot/.agents/skills/page/` with a `SKILL.md` and a `template.html`, next to your shared skills, and a saved skill can't take its name.
+Its text is `PAGE_SKILL_MARKDOWN` in `packages/page-kit/src/skill.ts`.
+
+It tells the teammate to:
+
+1. **Research first.** Read the source with `browser_read_page` (which works on signed-in sites like LinkedIn), follow it to primary sources, and note every URL.
+2. **Plan the story**: who it's for, what they should understand by the end, and the one idea that makes it click.
+3. **Write the file** at `pages/<short-name>/index.html` in its workspace, starting from the template.
+4. **Check it** with `check_page`, look at both screenshots, fix everything, and check again until it's clean.
+5. **Publish it** with `publish_page`, with a title and a one or two sentence summary.
+
+The skill also sets the rules of the format:
+
+- One file of at most 5 MB. At viewing time a page can't reach the internet, so everything it needs is in the file or in `/lib`.
+- Images go in the file, as inline SVG or `data:` URLs.
+- Phones first: it must read well at 390 px wide without scrolling sideways.
+- Light and dark: the kit's color tokens, like `var(--ink)` and `var(--accent)`, instead of fixed colors.
+- No cookies, storage, forms that submit anywhere, or popups. Interactivity is client-side only.
+
+### The kit and libraries
+
+Every page loads the kit, `/lib/kit@1/page.css` and `/lib/kit@1/kit.js`.
+It sets the type (Onest, Familjen Grotesk and JetBrains Mono), colors for both themes, and components: a hero, an automatic table of contents, stats, callouts, cards, tables, tabs, steppers, timelines, quizzes, source lists, and figures for diagrams and charts.
+It also themes the libraries a page can load from `/lib`:
+
+| Library         | For                                                       |
+| --------------- | --------------------------------------------------------- |
+| Mermaid 12      | Flowcharts, sequence, architecture, state and ER diagrams |
+| Chart.js 4      | Bar, line, pie, doughnut, radar and scatter charts        |
+| D3 7            | Custom visualizations and interactive SVG                 |
+| KaTeX 0.19      | Math                                                      |
+| highlight.js 11 | Syntax highlighting                                       |
+
+They are vendored in `packages/page-kit` and listed in `PAGE_LIBRARIES`, so the skill and the files always agree.
+
+## Checking
+
+`check_page` renders the file in a fresh headless Chromium on the computer, with no network, at a phone's width (390 px) and a laptop's (1280 px).
+It returns what's wrong, with a JPEG screenshot of the top of the page at each width, and a preview address the teammate can open on its own screen to click through the page.
+See [The checker](/docs/architecture/pages#the-checker) for how it runs.
+
+Errors stop a page from being published:
+
+| Error                                 | Example message                                                                      |
+| ------------------------------------- | ------------------------------------------------------------------------------------ |
+| A script failed                       | `A script failed (line 12): ReferenceError: undefinedFunction is not defined`        |
+| It loads something from the internet  | `It loads https://cdn.example.com/lib.js from the internet, which pages can't reach` |
+| It connects to the network            | `It connects to https://api.example.com/data, but pages can't use the network`       |
+| It loads a file by a relative address | `It loads diagram.png by a relative address, which only works on the computer`       |
+| A library isn't in `/lib`             | `There's no /lib/nope@1/x.js in the shared libraries`                                |
+| It logged an error                    | `The page logged an error: A diagram didn't draw: Parse error on line 2`             |
+| No viewport                           | `Add <meta name="viewport" ...> to the head, or phones show the page shrunk`         |
+| It scrolls sideways on a phone        | `On a phone (390px) the page is 716px wide ... img (716px wide)`                     |
+| A Mermaid diagram didn't draw         | `1 Mermaid diagram didn't draw`                                                      |
+| An image in the file doesn't show     | `An image in the file doesn't show: data:image/png;...`                              |
+
+Warnings don't stop it: no doctype, no `<title>`, sideways scrolling at laptop width, almost no text, and a file over 2 MB.
+Warnings that remain are kept with the version.
+
+## Publishing
+
+`publish_page` checks the file again and stores the exact bytes that were checked, so the version is what the teammate saw.
+`PageService.publish()` in `apps/worker/src/services/pages.ts` decides which page it belongs to:
+
+1. the page named by `page_id`, if given;
+2. otherwise the page this teammate last published from the same file;
+3. otherwise a new page.
+
+It adds the next version in one transaction, with the page row locked.
+Publishing a file identical to the current version (the same SHA-256) is refused, so a teammate can't add empty versions.
+
+The tool's timeline item, "Publishing ...", is replaced by a **page item** with the page, the version, the title and the summary.
+The chat shows it as a card that opens that version, and it always stays visible, even when the run's steps are collapsed.
+The teammate's reply doesn't repeat the page.
+
+Publishing a page never needs approval, on any autonomy level.
+A page is private to you and only shows inside the app, so it isn't "posting or publishing" in the sense that asks first.
+Swarm helpers can check pages but can't publish them.
+
+## Versions
+
+Every version is a separate, immutable row.
+Changing a page means editing its file and publishing again, with `page_id` and a `note` on what changed.
+
+- `list_pages` lists the pages with their ids, version counts, teammates and source files.
+- `get_page` reads a page's versions and the text of the current one (as data, between `<page_text>` tags).
+- `get_page` with `restore: true` writes the current version into the teammate's workspace, at the file it came from when that is in the same workspace, or at `pages/<slug>/index.html`.
+  It never overwrites unpublished changes: if the file differs, the published version goes beside it as `index.published-v<N>.html`, and the teammate decides which to keep.
+
+## Opening pages
+
+### The library
+
+**Pages** in the sidebar lists every page, pinned ones first, then the most recently updated, with a thumbnail, the title, the summary, the teammate and the version.
+Each one's menu can pin it, open it in a new tab, download it, or delete it.
+With more than six pages, a search box filters them.
+⌘K search finds pages by their title, their summary and the text on the page.
+
+### The viewer
+
+`/pages/<pageId>` shows the latest version, or the one in `?v=<versionId>`, which is what a chat card links to.
+The page fills the window in a frame from the pages service, in your app's light or dark theme.
+
+- **Versions.** The header says which version is showing, and its menu lists every version with its note and date.
+- **A newer version.** When a teammate publishes while you're reading, a "Version N is ready" banner offers to show it, so the page never changes under you.
+- **Open in a new tab** and **Download**. A download is the stored HTML as an attachment, with its `/lib` addresses pointed at the pages service.
+- **Go to the chat** where the page was made, **Pin** and **Delete**. Deleting removes every version everywhere, including the chat card, but not the file on the computer.
+
+The Android app uses the same API (`pages.*` in `packages/api/src/contract.ts`); see `apps/mobile/README.md`.
+
+### Ask about this
+
+Select text in a page and an **Ask about this** button appears next to it.
+It opens a panel in the app with the passage, the heading above it, and a box for your question.
+**Ask** with the teammate's name, in the header, opens the same panel without a passage, for a general question or a change.
+
+Sending posts a normal message to the direct or group chat the page was made in.
+A page made somewhere else, like a scheduled run, or whose chat was archived, gets the message in your direct chat with its teammate.
+In a group chat, the message mentions the teammate who made the page.
+The text names the page and the version, so the teammate knows which file to change:
+
+```text title="The message the teammate gets"
+About your page “How a URL shortener scales” (page_id 03ef..., version 2):
+Section: Trade-offs
+> The cache sits in front of the database, so most redirects never reach it.
+
+Why not cache in the CDN instead?
+```
+
+If the answer changes the page, the teammate publishes a new version, and an open viewer offers it.
+
+## Living pages
+
+A page can stay current on a schedule.
+The skill tells a teammate to use `schedule_task` with a prompt that names the page's `page_id`, says to research again, and publishes a new version, such as a weekly digest or a dashboard.
+Each run adds a version to the same page.
+
+## Notifications
+
+When a run publishes a page, its `run_finished` notification carries the page's id, so opening it from the inbox, a push notification or a toast opens the page instead of the chat.
+When a finished run's reply goes to Telegram, it ends with a link to each page the run published.

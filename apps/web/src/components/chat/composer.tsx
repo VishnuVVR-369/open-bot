@@ -1,6 +1,6 @@
 "use client";
 
-import { MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from "@open-bot/shared";
+import { BUILT_IN_SKILLS, MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from "@open-bot/shared";
 import { ArrowUp, FileText, Loader2, Mic, Paperclip, Sparkles, Square, X } from "lucide-react";
 import Link from "next/link";
 import {
@@ -23,6 +23,10 @@ import { useDictation } from "@/lib/client/dictation";
 import { useAppState } from "@/lib/client/queries";
 import type { BotSummary, ChatSummary, MessageView, SkillSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+/** A skill the menu offers: one you saved, or one that comes with the app. */
+type SkillOption =
+  SkillSummary | { id: string; name: string; description: string; botId: null; builtIn: true };
 
 type Attachment = MessageView["attachments"][number];
 
@@ -147,13 +151,22 @@ export function Composer({
     return members.filter((member) => member.name.toLowerCase().startsWith(query));
   }, [isGroup, mentionQuery, members]);
 
-  /** Skills this chat's teammates can use: the shared ones and their own. */
-  const skillOptions = useMemo(() => {
+  /** Skills this chat's teammates can use: the built-in ones, the shared ones and their own. */
+  const skillOptions = useMemo((): SkillOption[] => {
     if (skillQuery === null) return [];
     const memberIds = new Set(members.map((member) => member.id));
-    const usable = (state?.skills ?? []).filter(
-      (skill) => skill.botId === null || memberIds.has(skill.botId),
-    );
+    const usable: SkillOption[] = [
+      ...BUILT_IN_SKILLS.map((skill) => ({
+        id: `built-in:${skill.name}`,
+        name: skill.name,
+        description: skill.description,
+        botId: null,
+        builtIn: true as const,
+      })),
+      ...(state?.skills ?? []).filter(
+        (skill) => skill.botId === null || memberIds.has(skill.botId),
+      ),
+    ];
     const query = skillQuery.toLowerCase();
     return usable
       .filter((skill) => skill.name.includes(query))
@@ -194,7 +207,7 @@ export function Composer({
     replaceBeforeCaret(/@([\w-]*)$/, `@${member.name} `);
   }
 
-  function insertSkill(skill: SkillSummary) {
+  function insertSkill(skill: SkillOption) {
     replaceBeforeCaret(/\/([a-z0-9-]*)$/, `/${skill.name} `);
   }
 
@@ -306,9 +319,7 @@ export function Composer({
           </div>
           {skillOptions.length === 0 ? (
             <p className="px-2 pb-2 text-[13px] text-muted-foreground">
-              {state?.skills.length
-                ? "No skill matches that name."
-                : "No skills yet. Save one on the Skills page, or ask a teammate to save a task as a skill."}
+              No skill matches that name.
             </p>
           ) : (
             skillOptions.map((skill, index) => {
@@ -332,6 +343,11 @@ export function Composer({
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span className="flex items-center gap-1.5">
                       <span className="font-mono text-[13px] font-medium">/{skill.name}</span>
+                      {"builtIn" in skill && (
+                        <span className="rounded bg-subtle px-1.5 text-[11px] leading-[18px] font-medium text-muted-foreground">
+                          Built in
+                        </span>
+                      )}
                       {owner && (
                         <BotAvatar
                           name={owner.name}

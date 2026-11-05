@@ -39,7 +39,7 @@ For browsers and web-manifest installs, Settings turns on Web Push per device.
 - **Keys.** The worker generates a VAPID key pair once and stores it encrypted in `credentials`. The web app gets the public key to subscribe.
 - **Subscribing.** The browser registers the service worker `/sw.js`, subscribes with the browser's push service, and the subscription is saved in `push_subscriptions`.
 - **Sending.** For each notification, the worker builds an encrypted request per device with `web-push`'s `generateRequestDetails()` (TTL one hour, urgency high), and sends it with `fetch`. A device the push service reports as gone (`404` or `410`) is forgotten.
-- **Showing.** The service worker skips the notification if open-bot is open, focused and visible, since the app already shows it. Tapping one opens the right chat, or Approvals.
+- **Showing.** The service worker skips the notification if open-bot is open, focused and visible, since the app already shows it. Tapping one opens the right chat, the [page](/docs/flows/pages) a run published, or Approvals.
 
 The native Android app uses FCM instead; setup and notification actions are documented in `apps/mobile/README.md`.
 
@@ -56,13 +56,13 @@ Telegram lets you approve, get alerts and chat with teammates from your phone, w
 
 ### What arrives
 
-| Notification                  | On Telegram                                                                                                                |
-| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Approval                      | The request, with **Approve** and **Deny** buttons. When it's decided anywhere, the buttons are replaced with the outcome. |
-| Takeover request              | The reason, with a link that opens the screen                                                                              |
-| Run failed                    | Always                                                                                                                     |
-| Run finished                  | Only for what you started from Telegram (as a reply to your message), and for automations                                  |
-| Teammate message, cap reached | Always                                                                                                                     |
+| Notification                  | On Telegram                                                                                                                      |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Approval                      | The request, with **Approve** and **Deny** buttons. When it's decided anywhere, the buttons are replaced with the outcome.       |
+| Takeover request              | The reason, with a link that opens the screen                                                                                    |
+| Run failed                    | Always                                                                                                                           |
+| Run finished                  | Only for what you started from Telegram (as a reply to your message), and for automations, with a link to each page it published |
+| Teammate message, cap reached | Always                                                                                                                           |
 
 Replies to what you started in the app stay in the app.
 

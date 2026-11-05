@@ -37,6 +37,10 @@ export const queryKeys = {
   notifications: ["notifications"] as const,
   search: (query: string) => ["search", query] as const,
   file: (path: string) => ["file", path] as const,
+  pages: ["pages"] as const,
+  page: (pageId: string) => ["pages", pageId] as const,
+  /** Short-lived, so never shared with the lists the "pages" event refreshes. */
+  pageLink: (versionId: string, theme: string) => ["page-link", versionId, theme] as const,
 };
 
 /**
@@ -60,6 +64,8 @@ export function keysForAppEvent(type: string): (readonly unknown[])[] {
       return [queryKeys.chats, queryKeys.chatDetails, queryKeys.home, queryKeys.teammates];
     case "bots":
       return [queryKeys.teammates, queryKeys.chats, queryKeys.home, queryKeys.approvalRules];
+    case "pages":
+      return [queryKeys.pages];
     case "takeovers":
     case "screens":
     case "lease":
@@ -75,10 +81,12 @@ export function keysForPush(data: {
   type: string;
   approvalId?: string;
   chatId?: string;
+  pageId?: string;
 }): (readonly unknown[])[] {
   const keys: (readonly unknown[])[] = [queryKeys.home];
   if (data.type === "notification") keys.push(queryKeys.notifications, queryKeys.screens);
   if (data.approvalId) keys.push(queryKeys.approvals, queryKeys.approval(data.approvalId));
   if (data.chatId) keys.push(queryKeys.chats, queryKeys.chat(data.chatId), queryKeys.teammates);
+  if (data.pageId) keys.push(queryKeys.pages);
   return keys;
 }

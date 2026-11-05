@@ -14,6 +14,26 @@ const approval = {
 };
 
 describe("phone notifications", () => {
+  it("opens the page a teammate published, and can still be replied to", () => {
+    const data = parsePushData({
+      type: "notification",
+      kind: "run_finished",
+      title: "Iris finished",
+      body: "Published “How Kafka works”",
+      tag: "r1",
+      url: "/pages/p1",
+      botId: "b1",
+      chatId: "c1",
+      runId: "r1",
+      pageId: "p1",
+    })!;
+    expect(data.pageId).toBe("p1");
+    expect(planNotification(data)).toMatchObject({
+      url: "/pages/p1",
+      reply: { chatId: "c1", botId: "b1" },
+    });
+  });
+
   it("opens a screen for takeover actions and keeps code submission in the foreground", () => {
     const asking = planNotification(
       parsePushData({

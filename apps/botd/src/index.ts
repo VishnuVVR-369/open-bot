@@ -3,6 +3,7 @@ import { COMPUTER_PATHS, isOwnerLease, type ComputerHealth } from "@open-bot/sha
 import { CodeScreens } from "./code-screens";
 import { CookieSync } from "./cookies";
 import { EgressRouter } from "./egress";
+import { PageChecker, PagePreviewServer } from "./pages";
 import { browserSandboxAvailable } from "./sandbox";
 import { ScreenManager } from "./screens";
 import { createServer } from "./server";
@@ -113,6 +114,10 @@ const screens = new ScreenManager(
   },
 );
 
+/** Drafts of pages, as teammates (and their browsers) see them, and the checker that renders them. */
+const pagePreview = new PagePreviewServer(process.env.PAGE_LIB_DIR ?? "/opt/page-kit/lib", log);
+const pageChecker = new PageChecker(pagePreview, desktopUser, browserSandbox, log);
+
 function health(): ComputerHealth {
   const agent = supervisor.state("codex");
   return {
@@ -149,6 +154,7 @@ async function main() {
   });
 
   egress.listen(PORTS.socks);
+  await pagePreview.listen();
 
   const { server, broadcastHealth: broadcast } = createServer({
     token: token!,
@@ -156,6 +162,7 @@ async function main() {
     egress,
     health,
     codexUrl: `ws://127.0.0.1:${PORTS.codex}`,
+    pages: pageChecker,
     log,
   });
   server.listen(PORTS.botd, "0.0.0.0", () => log(`botd listening on :${PORTS.botd}`));

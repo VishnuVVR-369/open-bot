@@ -375,6 +375,14 @@ export async function markChatRead(chatId: string) {
   });
 }
 
+export async function pinPage(pageId: string, pinned: boolean) {
+  return guarded(() => api.pinPage({ pageId: z.string().uuid().parse(pageId), pinned }));
+}
+
+export async function removePage(pageId: string) {
+  return guarded(() => api.removePage({ pageId: z.string().uuid().parse(pageId) }));
+}
+
 export async function sendMessage(
   input: ApiInputs["chats"]["send"],
 ): Promise<ActionResult<MessageView>> {

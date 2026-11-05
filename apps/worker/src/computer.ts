@@ -11,6 +11,8 @@ import type {
   ComputerReadResult,
   LeaseChangeReason,
   LeaseHolder,
+  PageCheckError,
+  PageCheckResult,
   RunIdentity,
   TypeOnScreen,
 } from "@open-bot/shared";
@@ -153,6 +155,14 @@ export class ComputerClient extends EventEmitter<{
   /** Type a vault secret on a bot's screen. botd checks the site first, for logins. */
   fill(request: ComputerFillRequest): Promise<ComputerFillResult | ComputerActionError> {
     return this.call("POST", "/computer/fill", request, 60_000);
+  }
+
+  /**
+   * Render a page file in a browser with no network, at a phone's width and a laptop's, and say
+   * what's wrong with it. Returns the exact bytes it checked, for publishing.
+   */
+  checkPage(path: string): Promise<PageCheckResult | PageCheckError> {
+    return this.call("POST", "/pages/check", { path }, 90_000);
   }
 
   /** Start a bot's screen without using it, so you can watch it. */

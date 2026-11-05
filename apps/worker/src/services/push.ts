@@ -30,9 +30,11 @@ export function pushPayload(event: NotificationEvent): PushPayload {
   const url =
     event.kind === "approval"
       ? "/approvals"
-      : event.chatId
-        ? `/chats/${event.chatId}${event.runId ? `#run-${event.runId}` : ""}`
-        : "/";
+      : event.pageId
+        ? `/pages/${event.pageId}`
+        : event.chatId
+          ? `/chats/${event.chatId}${event.runId ? `#run-${event.runId}` : ""}`
+          : "/";
   return {
     title: event.title,
     body: body.length > 180 ? `${body.slice(0, 179)}…` : body,

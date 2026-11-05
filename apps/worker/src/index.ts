@@ -25,6 +25,7 @@ import { SkillService } from "./services/skills";
 import { TakeoverService } from "./services/takeovers";
 import { TelegramService } from "./services/telegram";
 import { TriggerService } from "./services/triggers";
+import { PageService } from "./services/pages";
 import { ToolHandlers } from "./tools/handlers";
 import { BotService } from "./services/bots";
 import { eq } from "drizzle-orm";
@@ -80,6 +81,7 @@ const botService = new BotService(ctx, schedules, skills, async (bot) => {
   await memory.store.importLegacy();
   await executor.syncWorkspace(bot);
 });
+const pages = new PageService(ctx);
 const tools = new ToolHandlers(
   ctx,
   approvals,
@@ -93,6 +95,7 @@ const tools = new ToolHandlers(
   email,
   memory,
   botService,
+  pages,
 );
 const model = new ModelAccess(ctx);
 const connections = new ConnectionService(ctx);
@@ -218,6 +221,7 @@ const server = createHttpServer({
   telegram,
   egress,
   uploads,
+  pages,
 });
 server.listen(env.WORKER_PORT, () => log.info(`worker listening on :${env.WORKER_PORT}`));
 

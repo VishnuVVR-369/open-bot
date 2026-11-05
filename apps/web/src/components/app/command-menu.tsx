@@ -3,6 +3,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { formatDistanceToNowStrict } from "date-fns";
 import {
+  FileText,
   FolderClosed,
   KeyRound,
   Plug,
@@ -43,7 +44,7 @@ import {
 import { getJson } from "@/lib/client/api";
 import { useAppState } from "@/lib/client/queries";
 import { chatHref } from "@/lib/utils";
-import type { SearchResultView } from "@/lib/types";
+import type { PageSummary, SearchResultView } from "@/lib/types";
 
 const CommandMenuContext = createContext<{ open: () => void }>({ open: () => {} });
 
@@ -64,6 +65,12 @@ const PAGES = [
     keywords: "schedules routines reminders page watches webhooks",
   },
   { href: "/skills", label: "Skills", icon: Sparkles },
+  {
+    href: "/pages",
+    label: "Pages",
+    icon: FileText,
+    keywords: "html explainers reports documents dashboards",
+  },
   { href: "/files", label: "Files", icon: FolderClosed },
   {
     href: "/vault",
@@ -130,6 +137,14 @@ function CommandMenu({
     placeholderData: keepPreviousData,
   });
 
+  const { data: foundPages } = useQuery({
+    queryKey: ["search", "pages", searchFor],
+    queryFn: () => getJson<PageSummary[]>(`/api/search/pages?q=${encodeURIComponent(searchFor)}`),
+    enabled: open && searchFor.length >= 2,
+    staleTime: 10_000,
+    placeholderData: keepPreviousData,
+  });
+
   useEffect(() => {
     if (!open) setQuery("");
   }, [open]);
@@ -159,8 +174,9 @@ function CommandMenu({
   const showNewTeammate = matches("new teammate create bot");
   const showTheme = matches(themeLabel, "theme switch appearance");
   const messageResults = searching && words.length > 0 ? (results ?? []) : [];
+  const pageResults = searching && words.length > 0 ? (foundPages ?? []) : [];
   const nothing =
-    bots.length + groups.length + pages.length + messageResults.length === 0 &&
+    bots.length + groups.length + pages.length + messageResults.length + pageResults.length === 0 &&
     !showNewTeammate &&
     !showTheme;
 
@@ -186,7 +202,7 @@ function CommandMenu({
         <CommandInput
           value={query}
           onValueChange={setQuery}
-          placeholder="Search teammates, chats and messages…"
+          placeholder="Search teammates, chats, pages and messages…"
           data-testid="command-input"
         />
         <CommandList className="max-h-[min(60vh,440px)]">
@@ -231,6 +247,29 @@ function CommandMenu({
                   </span>
                 </CommandItem>
               ))}
+            </CommandGroup>
+          )}
+          {pageResults.length > 0 && (
+            <CommandGroup heading="Pages">
+              {pageResults.map((result) => {
+                const bot = botOf(result.botId);
+                return (
+                  <CommandItem
+                    key={result.id}
+                    value={`made-page-${result.id}`}
+                    onSelect={() => go(`/pages/${result.id}`)}
+                    data-testid="search-page-result"
+                  >
+                    <FileText />
+                    <span className="truncate">
+                      <Highlighted text={result.title} query={searchFor} />
+                    </span>
+                    <span className="ml-auto shrink-0 text-[12px] text-muted-foreground">
+                      {bot?.name ?? "Former teammate"}
+                    </span>
+                  </CommandItem>
+                );
+              })}
             </CommandGroup>
           )}
           {messageResults.length > 0 && (

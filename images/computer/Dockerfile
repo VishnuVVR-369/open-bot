@@ -7,12 +7,14 @@ WORKDIR /src
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY packages/shared/package.json packages/shared/
 COPY packages/egress/package.json packages/egress/
+COPY packages/page-kit/package.json packages/page-kit/
 COPY apps/botd/package.json apps/botd/
-RUN pnpm install --frozen-lockfile --filter @open-bot/botd...
+RUN pnpm install --frozen-lockfile --filter @open-bot/botd... --filter @open-bot/page-kit
 COPY packages/shared packages/shared
 COPY packages/egress packages/egress
+COPY packages/page-kit packages/page-kit
 COPY apps/botd apps/botd
-RUN pnpm --filter @open-bot/botd build
+RUN pnpm --filter @open-bot/page-kit build && pnpm --filter @open-bot/botd build
 
 FROM node:24-trixie-slim
 
@@ -54,6 +56,8 @@ RUN mkdir -p /usr/share/backgrounds \
        /usr/share/applications/thunar.desktop > /usr/local/share/applications/thunar.desktop
 
 COPY --from=build /src/apps/botd/dist/botd.mjs /opt/botd/botd.mjs
+# What pages load from /lib, served by botd's page preview the same way the pages service does.
+COPY --from=build /src/packages/page-kit/dist/lib /opt/page-kit/lib
 
 ENV BOTS_GID=1100
 EXPOSE 7000

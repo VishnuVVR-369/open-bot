@@ -35,6 +35,8 @@ export interface NotificationEvent {
   approvalKind?: ApprovalKind;
   /** For takeover requests: the request. */
   takeoverId?: string;
+  /** A page the teammate published, which the notification opens. */
+  pageId?: string;
 }
 
 /** Things that happen in the worker that other parts react to. */
@@ -100,6 +102,7 @@ export async function createNotification(
     approvalId?: string;
     approvalKind?: ApprovalKind;
     takeoverId?: string;
+    pageId?: string | null;
   },
 ): Promise<void> {
   const [row] = await ctx.db
@@ -111,6 +114,7 @@ export async function createNotification(
       botId: input.botId ?? null,
       chatId: input.chatId ?? null,
       runId: input.runId ?? null,
+      pageId: input.pageId ?? null,
     })
     .returning({ id: notifications.id });
   await publishApp(ctx, { type: "notification", id: row!.id });
@@ -125,6 +129,7 @@ export async function createNotification(
     ...(input.approvalId ? { approvalId: input.approvalId } : {}),
     ...(input.approvalKind ? { approvalKind: input.approvalKind } : {}),
     ...(input.takeoverId ? { takeoverId: input.takeoverId } : {}),
+    ...(input.pageId ? { pageId: input.pageId } : {}),
   });
 }
 

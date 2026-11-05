@@ -16,6 +16,7 @@ open-bot/
 │   ├── worker/       Node service: runs, tools, services, the internal API
 │   ├── botd/         The daemon inside the computer, bundled into the image
 │   ├── desktop/      Electron shell and egress agent
+│   ├── pages/        Serves published pages on an origin of their own
 │   ├── mobile/       Expo Android app; setup and UI tests in apps/mobile/README.md
 │   └── site/         This site: the landing page, the tour and these docs
 ├── packages/
@@ -24,6 +25,7 @@ open-bot/
 │   ├── api/          Shared web/phone RPC contract and serializable views
 │   ├── agent/        Codex app-server client and generated protocol types
 │   ├── egress/       Tunnel framing, multiplexer, SOCKS server, agent
+│   ├── page-kit/     The pages' styles, scripts, libraries, runtime and /page skill
 │   └── memory/       The memory service and its background jobs
 ├── images/computer/  The computer's Dockerfile and its filesystem overlay
 ├── e2e/              Playwright end-to-end tests for the whole stack
@@ -36,21 +38,21 @@ The web app compiles them through Next.js, the worker and botd bundle them with 
 
 ## Commands
 
-| Command                               | What it does                                                     |
-| ------------------------------------- | ---------------------------------------------------------------- |
-| `pnpm dev`                            | The web app and the worker, with reload                          |
-| `pnpm infra:up`                       | Postgres and the computer in Docker, waiting until healthy       |
-| `pnpm computer:build`                 | Rebuilds the computer image (after changing botd or the image)   |
-| `pnpm db:migrate`, `pnpm db:generate` | Apply migrations, or generate one from the schema                |
-| `pnpm lint`                           | ESLint over the repository, with no warnings allowed             |
-| `pnpm format`, `pnpm format:check`    | Prettier                                                         |
-| `pnpm typecheck`                      | `tsc` in every package (and `next typegen` for the Next.js apps) |
-| `pnpm test`                           | Vitest unit tests in every package                               |
-| `pnpm e2e`                            | Playwright against the running stack                             |
-| `pnpm test:memory -- --e2e`           | The isolated memory suite                                        |
-| `pnpm test:bots`                      | Teammate management against a disposable Postgres                |
-| `pnpm test:mobile-api`                | Mobile API integration tests against disposable Postgres         |
-| `pnpm test:mobile-ui`                 | Android Maestro flows; see `apps/mobile/README.md`               |
+| Command                               | What it does                                                       |
+| ------------------------------------- | ------------------------------------------------------------------ |
+| `pnpm dev`                            | The web app, the worker and the pages service, with reload         |
+| `pnpm infra:up`                       | Postgres and the computer in Docker, waiting until healthy         |
+| `pnpm computer:build`                 | Rebuilds the computer image (after changing botd or the image)     |
+| `pnpm db:migrate`, `pnpm db:generate` | Apply migrations, or generate one from the schema                  |
+| `pnpm lint`                           | ESLint over the repository, with no warnings allowed               |
+| `pnpm format`, `pnpm format:check`    | Prettier                                                           |
+| `pnpm typecheck`                      | `tsc` in every package (and `next typegen` for the Next.js apps)   |
+| `pnpm test`                           | Vitest unit tests in every package                                 |
+| `pnpm e2e`                            | Playwright against the running stack                               |
+| `pnpm test:memory -- --e2e`           | The isolated memory suite                                          |
+| `pnpm test:bots`                      | Teammate management against a disposable Postgres                  |
+| `pnpm test:mobile-api`                | Mobile API and pages integration tests against disposable Postgres |
+| `pnpm test:mobile-ui`                 | Android Maestro flows; see `apps/mobile/README.md`                 |
 
 ## Tests
 

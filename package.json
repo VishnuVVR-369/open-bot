@@ -6,7 +6,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev": "turbo run dev --parallel --filter=@open-bot/web --filter=@open-bot/worker",
+    "dev": "turbo run dev --parallel --filter=@open-bot/web --filter=@open-bot/worker --filter=@open-bot/pages",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "lint": "eslint . --max-warnings=0",

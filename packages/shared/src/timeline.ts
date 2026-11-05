@@ -131,6 +131,17 @@ export interface SwarmItem extends BaseItem {
   }[];
 }
 
+/** A page the teammate published: a new page, or a new version of one. */
+export interface PageItem extends BaseItem {
+  kind: "page";
+  pageId: string;
+  versionId: string;
+  /** 1 for a new page. */
+  version: number;
+  title: string;
+  summary: string;
+}
+
 export interface ErrorItem extends BaseItem {
   kind: "error";
   message: string;
@@ -150,6 +161,7 @@ export type TimelineItem =
   | HandoffItem
   | UserMessageItem
   | SwarmItem
+  | PageItem
   | ErrorItem;
 
 export type RunStatus =

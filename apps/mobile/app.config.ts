@@ -59,6 +59,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "android.permission.READ_MEDIA_AUDIO",
       "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
     ],
+    // Links and text shared from other apps (like a post from LinkedIn) go to a teammate.
+    intentFilters: [{ action: "SEND", category: ["DEFAULT"], data: [{ mimeType: "text/plain" }] }],
     ...(hasFirebase ? { googleServicesFile: googleServices } : {}),
   },
   plugins: [

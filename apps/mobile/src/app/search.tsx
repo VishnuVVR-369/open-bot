@@ -1,10 +1,11 @@
-import type { BotSummary, SearchResult } from "@open-bot/api";
+import type { BotSummary, PageSummary, SearchResult } from "@open-bot/api";
 import { useQuery } from "@tanstack/react-query";
 import { router, Stack, useNavigation, type Href } from "expo-router";
 import type { NativeStackNavigationProp } from "expo-router/native-stack";
 import {
   Bell,
   CalendarClock,
+  FileText,
   House,
   Mail,
   MessageSquare,
@@ -36,7 +37,8 @@ import { api } from "@/lib/api";
 import { chatSubtitle, chatTitle } from "@/lib/chats";
 import { haptics } from "@/lib/haptics";
 import { chatHref } from "@/lib/links";
-import { useChats, useHome, useNewDirectChat, useTeammates } from "@/lib/queries";
+import { pageHref } from "@/lib/pages";
+import { useChats, useHome, useNewDirectChat, usePages, useTeammates } from "@/lib/queries";
 import { queryKeys } from "@/lib/query";
 import { ago } from "@/lib/time";
 import { fonts, radius, space, useColors } from "@/theme";
@@ -47,6 +49,12 @@ const PAGES: { title: string; href: Href; icon: LucideIcon; keywords: string }[]
   { title: "Approvals", href: "/approvals", icon: ShieldCheck, keywords: "approve deny rules" },
   { title: "Notifications", href: "/notifications", icon: Bell, keywords: "bell alerts" },
   { title: "New chat", href: "/new-chat", icon: MessageSquare, keywords: "start group" },
+  {
+    title: "Pages",
+    href: "/pages",
+    icon: FileText,
+    keywords: "html explainers reports documents dashboards",
+  },
   {
     title: "Settings",
     href: "/settings",
@@ -60,6 +68,7 @@ const SCOPES = [
   { key: "all", label: "All" },
   { key: "teammates", label: "Teammates" },
   { key: "chats", label: "Chats" },
+  { key: "pages", label: "Pages" },
   { key: "messages", label: "Messages" },
 ] as const;
 type Scope = (typeof SCOPES)[number]["key"];
@@ -77,6 +86,8 @@ type Row =
       members?: BotSummary[];
     }
   | { kind: "page"; key: string; title: string; href: Href; icon: LucideIcon }
+  /** A page a teammate made. */
+  | { kind: "made"; key: string; page: PageSummary; bot?: BotSummary }
   | {
       kind: "message";
       key: string;
@@ -116,6 +127,12 @@ function Leading({ row, you }: { row: Row; you: string }) {
   const colors = useColors();
   if (row.kind === "chat" && row.members && row.members.length > 1)
     return <GroupAvatar members={row.members} size="md" />;
+  if (row.kind === "made")
+    return (
+      <View style={[styles.mark, { backgroundColor: colors.subtle }]}>
+        <FileText size={20} color={colors.foreground} />
+      </View>
+    );
   const bot = row.kind === "page" ? undefined : row.bot;
   if (bot)
     return (
@@ -212,6 +229,7 @@ export default function Search() {
   const { data: bots = [] } = useTeammates();
   const { data: chats = [] } = useChats();
   const { data: home } = useHome();
+  const { data: madePages = [] } = usePages();
   const you = home?.user.name.trim()[0]?.toUpperCase() ?? "Y";
   const newChat = useNewDirectChat();
   const messageQuery = useDebounced(text.trim(), 250);
@@ -258,6 +276,17 @@ export default function Search() {
       })
       .filter((row) => !query || matches(query, row.title, row.subtitle))
       .slice(0, only ? undefined : query ? 8 : 5);
+    const madeRows: Row[] = query
+      ? madePages
+          .filter((page) => matches(query, page.title, page.summary))
+          .slice(0, only ? undefined : 5)
+          .map((page) => ({
+            kind: "made",
+            key: `pg:${page.id}`,
+            page,
+            bot: bots.find((candidate) => candidate.id === page.botId),
+          }))
+      : [];
     const pageRows: Row[] = PAGES.filter(
       (page) => !query || matches(query, page.title, page.keywords),
     ).map((page) => ({ kind: "page", key: `p:${page.title}`, ...page }));
@@ -290,13 +319,14 @@ export default function Search() {
     const all = [
       { scope: "teammates", title: "Teammates", data: teammateRows },
       { scope: "chats", title: query ? "Chats" : "Recent chats", data: chatRows },
+      { scope: "pages", title: "Pages", data: madeRows },
       { scope: "messages", title: "Messages", data: messageRows },
-      { scope: "all", title: "Pages", data: pageRows },
+      { scope: "all", title: "Go to", data: pageRows },
     ];
     return all.filter(
       (section) => section.data.length > 0 && (scope === "all" || section.scope === scope),
     );
-  }, [bots, chats, messages.data, query, scope]);
+  }, [bots, chats, madePages, messages.data, query, scope]);
 
   const open = (row: Row) => {
     switch (row.kind) {
@@ -309,6 +339,9 @@ export default function Search() {
         return;
       case "page":
         router.replace(row.href);
+        return;
+      case "made":
+        router.replace(pageHref(row.page.id));
         return;
       case "message":
         router.replace(chatHref(row.result.chatId, row.result.runId));
@@ -367,7 +400,7 @@ export default function Search() {
                 value={text}
                 ref={input}
                 onChangeText={setText}
-                placeholder="Search teammates, chats, messages"
+                placeholder="Search teammates, chats, pages"
                 placeholderTextColor={colors.mutedForeground}
                 cursorColor={colors.foreground}
                 selectionColor={colors.input}
@@ -457,6 +490,15 @@ export default function Search() {
                 </>
               ) : row.kind === "page" ? (
                 <Text variant="label">{row.title}</Text>
+              ) : row.kind === "made" ? (
+                <>
+                  <Text variant="label" numberOfLines={1}>
+                    {row.page.title}
+                  </Text>
+                  <Text variant="small" muted numberOfLines={1}>
+                    {[row.bot?.name ?? "Former teammate", ago(row.page.updatedAt)].join(" · ")}
+                  </Text>
+                </>
               ) : (
                 <>
                   <View style={styles.messageHead}>

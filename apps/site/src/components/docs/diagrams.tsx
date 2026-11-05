@@ -1,16 +1,16 @@
 import { Box, Edge, Group, Label, State, Svg } from "./svg";
 
-/** The five processes and how they connect. */
+/** The processes and how they connect. */
 export function SystemDiagram() {
   return (
     <Svg
-      height={424}
+      height={470}
       label="System overview: your devices, the app services and the shared computer"
     >
       {(m) => (
         <>
           <Group x={0} y={0} w={160} h={322} label="Your devices" />
-          <Group x={200} y={0} w={300} h={322} label="App services" />
+          <Group x={200} y={0} w={300} h={428} label="App services" />
           <Group x={540} y={0} w={204} h={322} label="The computer" note="Docker" />
 
           {/* Browser to web app, and to the worker's VNC socket. */}
@@ -26,28 +26,29 @@ export function SystemDiagram() {
           />
           <Edge
             points={[
-              [146, 90],
-              [174, 90],
-              [174, 172],
+              [146, 88],
+              [186, 88],
+              [186, 172],
               [216, 172],
             ]}
             marker={m.arrow}
             start={m.arrow}
             label={["VNC", "socket"]}
-            at={[174, 132]}
+            at={[192, 131]}
+            anchor="start"
           />
           {/* Desktop app to the worker's egress socket, and out to websites. */}
           <Edge
             points={[
               [146, 232],
-              [190, 232],
-              [190, 192],
+              [200, 232],
+              [200, 192],
               [216, 192],
             ]}
             marker={m.arrow}
             start={m.arrow}
             label="egress"
-            at={[190, 246]}
+            at={[200, 246]}
           />
           <Edge
             points={[
@@ -58,6 +59,19 @@ export function SystemDiagram() {
             label={["browser", "traffic"]}
             at={[88, 340]}
             anchor="start"
+          />
+          {/* Browser to the pages service, in a sandboxed frame. */}
+          <Edge
+            points={[
+              [146, 100],
+              [172, 100],
+              [172, 382],
+              [216, 382],
+            ]}
+            marker={m.arrow}
+            bridge
+            label={["signed", "link"]}
+            at={[172, 340]}
           />
 
           {/* Inside the app services. */}
@@ -80,6 +94,16 @@ export function SystemDiagram() {
             start={m.arrow}
             label="SQL, LISTEN/NOTIFY"
             at={[308, 228]}
+            anchor="start"
+          />
+          <Edge
+            points={[
+              [300, 352],
+              [300, 306],
+            ]}
+            marker={m.arrow}
+            label="SQL, reads only"
+            at={[308, 329]}
             anchor="start"
           />
           <Edge
@@ -138,7 +162,7 @@ export function SystemDiagram() {
             w={132}
             h={64}
             title="Browser"
-            sub={["app UI, and the", "live screen view"]}
+            sub={["app UI, pages and", "the live screen view"]}
           />
           <Box
             x={14}
@@ -160,6 +184,7 @@ export function SystemDiagram() {
             tone="ink"
           />
           <Box x={216} y={246} w={240} h={60} title="Postgres" sub="data, run queue, event log" />
+          <Box x={216} y={352} w={240} h={60} title="Pages" sub="its own origin, port 3400" />
 
           <Box
             x={556}
@@ -192,10 +217,9 @@ export function SystemDiagram() {
           />
 
           <Label
-            x={250}
-            y={392}
-            anchor="start"
-            lines={["Telegram, Postmark and Web Push", "talk to the worker directly."]}
+            x={350}
+            y={456}
+            lines="Telegram, Postmark and Web Push talk to the worker directly."
           />
         </>
       )}
@@ -1548,12 +1572,13 @@ export function MemoryRecallDiagram() {
 /** Where the trust boundaries are, and what crosses each. */
 export function TrustDiagram() {
   return (
-    <Svg height={340} label="Trust boundaries and the credential on each connection">
+    <Svg height={498} label="Trust boundaries and the credential on each connection">
       {(m) => (
         <>
-          <Group x={0} y={0} w={170} h={296} label="Outside" />
-          <Group x={210} y={0} w={300} h={296} label="App services" />
-          <Group x={550} y={0} w={194} h={296} label="Computer" />
+          <Group x={0} y={0} w={170} h={330} label="Outside" />
+          <Group x={210} y={0} w={300} h={330} label="App services" />
+          <Group x={550} y={0} w={194} h={330} label="Computer" />
+          <Group x={210} y={350} w={300} h={112} label="Pages origin" note="sandboxed" />
 
           <Edge
             points={[
@@ -1573,7 +1598,8 @@ export function TrustDiagram() {
             ]}
             marker={m.arrow}
             label={["VNC token,", "60 s"]}
-            at={[184, 142]}
+            at={[190, 142]}
+            anchor="start"
           />
           <Edge
             points={[
@@ -1584,8 +1610,21 @@ export function TrustDiagram() {
             ]}
             marker={m.arrow}
             label={["egress token,", "120 s"]}
-            at={[150, 258]}
+            at={[202, 256]}
             anchor="start"
+          />
+          <Edge
+            points={[
+              [150, 100],
+              [160, 100],
+              [160, 420],
+              [226, 420],
+            ]}
+            marker={m.arrow}
+            bridge
+            label="page key, 10 min"
+            at={[154, 396]}
+            anchor="end"
           />
           <Edge
             points={[
@@ -1594,8 +1633,8 @@ export function TrustDiagram() {
             ]}
             marker={m.arrow}
             label="x-worker-secret"
-            at={[318, 136]}
-            anchor="end"
+            at={[334, 136]}
+            anchor="start"
           />
           <Edge
             points={[
@@ -1622,9 +1661,17 @@ export function TrustDiagram() {
           <Box x={566} y={180} w={162} h={56} title="botd" sub="root, the only way in" tone="ink" />
           <Box x={566} y={258} w={162} h={56} title="Codex, shell" sub="user bot, no display" />
           <Box x={566} y={44} w={162} h={56} title="Screens" sub="user desktop" />
+          <Box
+            x={226}
+            y={394}
+            w={268}
+            h={52}
+            title="Pages"
+            sub="no session, serves one signed version"
+          />
           <Label
             x={0}
-            y={324}
+            y={482}
             anchor="start"
             lines="Postgres holds API keys, vault items, connection headers and the Telegram token, encrypted with AES-256-GCM."
           />
@@ -1634,47 +1681,60 @@ export function TrustDiagram() {
   );
 }
 
-/** A cloud deployment: four services in one private network, plus the Mac. */
+/** A cloud deployment: five services in one private network, plus the Mac. */
 export function DeploymentDiagram() {
   return (
     <Svg
-      height={300}
-      label="Cloud deployment: web and worker public, Postgres and the computer private"
+      height={352}
+      label="Cloud deployment: web, pages and the worker public, Postgres and the computer private"
     >
       {(m) => (
         <>
-          <Group x={180} y={0} w={564} h={250} label="One project, one private network" />
+          <Group x={180} y={0} w={564} h={340} label="One project, one private network" />
           <Edge
             points={[
-              [150, 66],
+              [136, 66],
               [212, 66],
             ]}
             marker={m.arrow}
             label="HTTPS"
-            at={[181, 54]}
+            at={[174, 54]}
           />
           <Edge
             points={[
-              [150, 92],
-              [176, 92],
-              [176, 182],
+              [136, 88],
+              [166, 88],
+              [166, 182],
               [212, 182],
             ]}
             marker={m.arrow}
             label={["WSS", "/vnc"]}
-            at={[176, 137]}
+            at={[172, 137]}
+            anchor="start"
           />
           <Edge
             points={[
-              [150, 244],
+              [136, 244],
               [196, 244],
               [196, 206],
               [212, 206],
             ]}
             marker={m.arrow}
             label="WSS /egress/agent"
-            at={[150, 266]}
+            at={[202, 250]}
             anchor="start"
+          />
+          <Edge
+            points={[
+              [136, 100],
+              [152, 100],
+              [152, 296],
+              [212, 296],
+            ]}
+            marker={m.arrow}
+            bridge
+            label="HTTPS"
+            at={[182, 284]}
           />
           <Edge
             points={[
@@ -1688,8 +1748,8 @@ export function DeploymentDiagram() {
           />
           <Edge
             points={[
-              [388, 82],
-              [480, 82],
+              [388, 66],
+              [480, 66],
             ]}
             marker={m.arrow}
           />
@@ -1697,8 +1757,8 @@ export function DeploymentDiagram() {
             points={[
               [388, 182],
               [434, 182],
-              [434, 104],
-              [480, 104],
+              [434, 90],
+              [480, 90],
             ]}
             marker={m.arrow}
           />
@@ -1708,12 +1768,21 @@ export function DeploymentDiagram() {
               [560, 206],
             ]}
             marker={m.arrow}
-            label="private, port 7000"
-            at={[474, 194]}
+            label={["private,", "port 7000"]}
+            at={[460, 206]}
+          />
+          <Edge
+            points={[
+              [388, 296],
+              [520, 296],
+              [520, 104],
+            ]}
+            marker={m.arrow}
+            bridge
           />
 
-          <Box x={0} y={44} w={150} h={64} title="Browser" sub="anywhere" />
-          <Box x={0} y={212} w={150} h={64} title="Desktop app" sub="on your Mac" />
+          <Box x={0} y={44} w={136} h={64} title="Browser" sub="anywhere" />
+          <Box x={0} y={212} w={136} h={64} title="Desktop app" sub="on your Mac" />
           <Box x={212} y={44} w={176} h={60} title="web" sub="public, port 3000" />
           <Box
             x={212}
@@ -1724,6 +1793,7 @@ export function DeploymentDiagram() {
             sub={["public for websockets,", "port 4001, one replica"]}
             tone="ink"
           />
+          <Box x={212} y={268} w={176} h={56} title="pages" sub="public, a domain of its own" />
           <Box x={480} y={44} w={248} h={60} title="Postgres" sub="private, with pgvector" />
           <Box
             x={560}

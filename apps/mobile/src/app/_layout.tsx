@@ -21,6 +21,7 @@ import { useTrackPresence } from "@/lib/presence";
 import { queryClient, setUnauthorizedHandler } from "@/lib/query";
 import { RealtimeProvider } from "@/lib/realtime";
 import { signOut } from "@/lib/session";
+import { useIncomingShares } from "@/lib/share-inbox";
 import { usePushNotifications } from "@/push/register";
 import { fonts, useColors } from "@/theme";
 
@@ -51,6 +52,8 @@ function App() {
   const lock = useAppLock(isPending ? "pending" : signedIn ? "signedIn" : "signedOut");
   usePushNotifications(signedIn);
   useTrackPresence(signedIn);
+  // Something shared from another app opens once you're signed in and past the lock.
+  useIncomingShares(signedIn && !lock.locked && !lock.checking);
 
   // Signed out elsewhere, or the session expired: back to sign-in, with nothing left behind.
   useEffect(() => setUnauthorizedHandler(() => void signOut()), []);
@@ -101,6 +104,9 @@ function App() {
               <Stack.Screen name="search" options={{ title: "Search", animation: "fade" }} />
               <Stack.Screen name="file" options={{ title: "" }} />
               <Stack.Screen name="approval-rules" options={{ title: "Always allowed" }} />
+              <Stack.Screen name="pages/index" options={{ title: "Pages" }} />
+              <Stack.Screen name="pages/[pageId]" options={{ title: "" }} />
+              <Stack.Screen name="share" options={{ title: "Share with a teammate" }} />
             </Stack.Protected>
             <Stack.Protected guard={!signedIn}>
               <Stack.Screen name="sign-in" options={{ headerShown: false }} />

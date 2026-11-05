@@ -20,6 +20,7 @@ import {
 import { WebSocket, WebSocketServer } from "ws";
 import { ActionAbortedError, Desktop } from "./desktop";
 import type { EgressRouter } from "./egress";
+import type { PageChecker } from "./pages";
 import type { Screen, ScreenManager } from "./screens";
 
 export interface ServerDeps {
@@ -28,6 +29,7 @@ export interface ServerDeps {
   egress: EgressRouter;
   health: () => ComputerHealth;
   codexUrl: string;
+  pages: PageChecker;
   log: (message: string) => void;
 }
 
@@ -307,6 +309,13 @@ export function createServer(deps: ServerDeps): {
           const screen = await screens.ensure(screenIdOf(screenId));
           const image = await screen.desktop.screenshot();
           send(response, 200, { screenshot: image.toString("base64") });
+          return;
+        }
+        case "POST /pages/check": {
+          const { path } = (await readJson(request)) as { path?: unknown };
+          if (typeof path !== "string" || !path || path.length > 1000)
+            throw new BadRequest("A page path is required");
+          send(response, 200, await deps.pages.check(path));
           return;
         }
         case "POST /lease/run/release": {

@@ -26,6 +26,8 @@ export interface PushData {
   approvalId?: string;
   approvalNeedsBiometric?: boolean;
   takeoverId?: string;
+  /** The page a teammate published; the notification opens it. */
+  pageId?: string;
 }
 
 /** Reads a data message; anything malformed is null and ignored. */
@@ -50,6 +52,7 @@ export function parsePushData(raw: Record<string, unknown> | undefined): PushDat
     approvalId: text("approvalId"),
     approvalNeedsBiometric: raw.approvalNeedsBiometric === "true",
     takeoverId: text("takeoverId"),
+    pageId: text("pageId"),
   };
 }
 

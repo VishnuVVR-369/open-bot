@@ -1,0 +1,172 @@
+import { docMetadata } from "@/lib/docs";
+
+export const metadata = docMetadata("/docs/architecture/pages");
+
+# The pages service
+
+[Pages](/docs/flows/pages) are HTML written by a teammate, often from websites it read.
+That HTML has to be treated as hostile: a page built from a poisoned post could carry a script that tries to act as you.
+So a page never runs on the app's origin, never sees your session, and can't reach the network.
+This page covers where pages are stored, how they are served and checked, and why each piece is shaped the way it is.
+
+## The parts
+
+| Part                | Code                                   | Does                                                                             |
+| ------------------- | -------------------------------------- | -------------------------------------------------------------------------------- |
+| Pages service       | `apps/pages`                           | Serves published versions and `/lib`, on an origin of its own                    |
+| Page kit            | `packages/page-kit`                    | The kit, the runtime, the vendored libraries, the `/page` skill and its template |
+| Preview and checker | `apps/botd/src/pages.ts`               | Serves drafts on the computer and checks them in a headless browser              |
+| `PageService`       | `apps/worker/src/services/pages.ts`    | Publishes checked files as versions, and restores them for editing               |
+| Web API             | `apps/web/src/lib/server/api/pages.ts` | Lists, signs links, pins, deletes, thumbnails and downloads                      |
+| Shared rules        | `packages/shared/src/pages.ts`         | The CSP, response headers, limits, the Ask message and its parser                |
+| Link signing        | `packages/shared/src/page-links.ts`    | Signs and verifies the short-lived links                                         |
+
+## Storage
+
+Published pages live in Postgres, so they open while the computer sleeps or is rebuilt.
+Working copies stay in teammates' workspaces on the computer.
+
+| Table           | Holds                                                                                                                                                     |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pages`         | One row per page: title, summary, the teammate and chat it came from, the source file, the current version, the version count, pinned, updated time       |
+| `page_versions` | One row per version: its number, the HTML as text, size, SHA-256, the page's text, a JPEG thumbnail, the check's warnings, the note, the run and teammate |
+
+A version is never updated after it's written.
+Publishing adds a row and moves `pages.current_version_id`, and `(page_id, number)` is unique.
+Deleting a page cascades to its versions.
+Deleting a teammate or a chat keeps its pages, with `bot_id` or `chat_id` set to null.
+
+The text of a version (up to 200,000 characters) is extracted by the checker, with hidden tabs and steps included.
+It backs ⌘K search and lets a teammate read a page back with `get_page`.
+The thumbnail is the top of the page at 1280 px, at half scale.
+
+`notifications.page_id` points at the page a run published, with `ON DELETE SET NULL`.
+Publishing, pinning and deleting send the `pages` app event, which refreshes the library and open viewers.
+
+## A separate origin
+
+The pages service runs on a domain of its own.
+On Railway that is a second generated domain, and `up.railway.app` is on the Public Suffix List, so the browser treats it as a different site from the app: cookies can't be shared, and nothing on it is same-site with the app.
+Locally it is `http://127.0.0.1:3400`, while the app is `http://localhost:3000`.
+
+The service has no session, no sign-in and no API.
+It answers `GET` and `HEAD` (anything else gets a 405) for three paths, and a 404 page for everything else:
+
+| Path                     | Answers                                                                                                                        |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `/healthz`               | `ok`                                                                                                                           |
+| `/lib/*`                 | The kit and the libraries                                                                                                      |
+| `/v/<versionId>?k=<key>` | One version. A missing, wrong or expired key gets a 403 "This link has expired", and a deleted page a 404 "This page is gone". |
+
+It reads only `html` and `sha256` from `page_versions`, by id, and only after the key checks out.
+
+## Signed links
+
+A link names one version and works for 10 minutes (`PAGE_LINK_TTL_SECONDS`).
+The web app signs it for a signed-in session, and the pages service checks it:
+
+```text title="A page link"
+https://<pages domain>/v/<versionId>?k=<exp>.<signature>&theme=dark&ask=1
+```
+
+- `signature` is HMAC-SHA256 over `page:v1:<versionId>:<exp>` with `PAGES_SECRET`, in base64url.
+- `exp` is a Unix time in seconds. A key past it, for another version, or with a changed expiry is refused, and the comparison is constant time.
+- `theme` and `ask` only change how the page looks; they aren't signed.
+
+The key is in the URL because the frame can't carry the app's cookie to another site, and shouldn't.
+A page already open keeps working after its link expires.
+Reopening it asks the app for a fresh link.
+
+## What a page may do
+
+Every version is served with these headers:
+
+```http title="Response headers"
+Content-Security-Policy: sandbox allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads;
+  default-src 'none'; script-src 'unsafe-inline' <origin>/lib/; style-src 'unsafe-inline' <origin>/lib/;
+  font-src data: <origin>/lib/; img-src data: blob: <origin>/lib/; media-src data: blob:;
+  connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'; frame-src 'none';
+  worker-src 'none'; manifest-src 'none'; frame-ancestors <APP_URL origins>
+Referrer-Policy: no-referrer
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+X-Content-Type-Options: nosniff
+X-Robots-Tag: noindex, nofollow
+Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=(), clipboard-read=()
+Cache-Control: private, max-age=600
+```
+
+- **`sandbox` without `allow-same-origin`** gives the page an opaque origin. It has no cookies or storage, and isn't even same-origin with the pages service.
+- **`connect-src 'none'`** blocks `fetch`, XHR, websockets and beacons, so a page can't send anything anywhere or load data at view time.
+- **Scripts and styles** run inline or from `/lib` only. A page can't load code from the internet.
+- **`frame-ancestors`** lets only the app's origins show a page in a frame. `APP_URL` on the pages service lists them, separated by commas.
+- **`no-referrer`** keeps a link's key from leaking to the sites a page links to.
+
+The app's frame adds the same sandbox flags as an attribute, so a page stays sandboxed even if a header were lost, plus `allow="clipboard-write; fullscreen"` for the kit's copy buttons.
+
+## The runtime
+
+Before serving a version, the service adds `<script src="<origin>/lib/runtime.js">` as the first thing in `<head>`, so it runs before the page's own scripts.
+It is never stored with the version, so every version picks up runtime fixes.
+
+The runtime:
+
+- applies the app's theme from `?theme=light|dark`;
+- opens links to other sites outside the page: a new tab on the web, or the phone's browser through `ReactNativeWebView.postMessage`;
+- with `?ask=1` and when it's in a frame or the phone's WebView, shows **Ask about this** next to selected text, in its own shadow root.
+
+**Ask about this** posts `{ source: "openbot-page", type: "ask", quote, section }` to the app.
+The app accepts it only from its own frame (`event.source` is that frame's window), and `parsePageAskMessage()` checks every field and caps the quote at 1,000 characters.
+All it can do is open the Ask panel with the passage filled in.
+You write and send the message yourself.
+
+## Libraries
+
+`packages/page-kit/scripts/build.mjs` assembles `dist/lib`: the runtime, the kit, Mermaid, Chart.js, D3, KaTeX with its fonts, highlight.js, and the kit's fonts.
+The pages service build copies it next to the server, and the computer image copies it to `/opt/page-kit/lib`.
+
+`readLibFile()` serves it the same way in both places: no path outside the folder, a content type by extension, an ETag, `Cache-Control: public, max-age=3600, stale-while-revalidate=86400`, and `Access-Control-Allow-Origin: *` with `Cross-Origin-Resource-Policy: cross-origin`, because a sandboxed page's requests come from an opaque origin.
+
+## The preview server
+
+botd serves drafts on the computer at `http://127.0.0.1:7080`, the same way the pages service serves versions: the same CSP (with `frame-ancestors 'none'`), the runtime and `/lib`.
+
+| Path                   | Answers                                                                            |
+| ---------------------- | ---------------------------------------------------------------------------------- |
+| `/preview?path=<file>` | A draft, read from the computer, for a teammate to click through on its own screen |
+| `/snapshot/<uuid>`     | The exact bytes being checked, held in memory only while the check runs            |
+| `/lib/*`               | The libraries                                                                      |
+
+It answers only requests addressed to `127.0.0.1:7080` or `localhost:7080` (others get `421`), so a website can't reach it by pointing its own name at `127.0.0.1`.
+
+`readPageFile()` reads only `.html` and `.htm` files under `/home/bot/bots/` or `/home/bot/shared/`, with no hidden folders and no `..`.
+It resolves symlinks and checks the real path again, so a link can't lead out to, say, the Codex sign-in.
+Files must be UTF-8, not empty, and at most 5 MB.
+
+## The checker
+
+`PageChecker` checks a page in a fresh headless Chromium each time:
+
+- It runs as the `desktop` user, with a temporary profile under `/tmp/botd-page-check-*` that is deleted afterwards.
+- It has no network. Every address but the preview server resolves to nothing (`--host-resolver-rules`), and the rest goes to a proxy that isn't there (`--proxy-server=socks5://127.0.0.1:9`).
+- botd drives it over `--remote-debugging-pipe`, so no DevTools port opens.
+- At most two checks run at once, and each has 40 seconds.
+
+The browser loads the snapshot, so it checks exactly the bytes that will be stored.
+It renders once at 390 px with phone emulation and once at 1280 px.
+At each width it waits for fonts, for the page to stop changing for 600 ms (at most 6 seconds), and for two frames, then measures the page inside the browser.
+Width is measured against the device's width, because a phone zooms out to fit a page that's too wide, so the window's own width can't be trusted.
+
+While it loads, the checker collects script exceptions, console errors, CSP violations and failed requests, and turns each into one message a teammate can act on.
+The rules are on [Checking](/docs/flows/pages#checking).
+
+It returns the file, its size and SHA-256, its title and text, the issues, a phone screenshot (up to 3200 px tall), a laptop screenshot (up to 2400 px tall, at 0.6 scale) and the thumbnail, all JPEG.
+The worker calls it with `POST /pages/check` on botd, with a 90 second timeout.
+
+## Why this shape
+
+- **Postgres, not the computer, holds published pages.** A page opens while the computer sleeps, after it's rebuilt, and on the phone, and a version can't change after you've seen it.
+- **A service of its own, not a route in the web app.** A route on the app's origin would run the page's scripts with your session. A sandboxed frame on the same origin is close, but one mistake in a header would hand a page your cookies; a separate site makes that impossible.
+- **Short links, not a session.** The pages service never needs to know who you are, and a leaked link stops working within minutes.
+- **The runtime is injected, not stored.** Fixes to theming, links and Ask reach every version ever published.
+- **Check in a real browser before publishing.** Most broken pages fail for reasons only a browser shows: a script error, a CDN that isn't reachable, a table that scrolls sideways on a phone.

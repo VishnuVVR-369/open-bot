@@ -12,6 +12,7 @@ export {
 } from "./chats";
 export { getHome } from "./home";
 export { markNotificationsRead } from "./notifications";
+export { getPage, listPages, openPage, pinPage, removePage } from "./pages";
 export { registerPushDevice, sendTestPush, unregisterPushDevice } from "./push";
 export { cancelRun, giveFeedback, rateRun, retryRun, stopSwarm } from "./runs";
 export { putUpload, uploadFormFile, uploadStatus } from "./uploads";

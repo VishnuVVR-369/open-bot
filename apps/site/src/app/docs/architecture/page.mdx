@@ -4,7 +4,7 @@ export const metadata = docMetadata("/docs/architecture");
 
 # System overview
 
-open-bot is five processes around one Postgres database.
+open-bot is six processes around one Postgres database.
 This page shows what each one owns, every connection between them, and the reasons for the shape.
 
 <Figure caption="One-headed arrows point away from the side that connects. Two-headed arrows are connections where both sides push data, like websockets and LISTEN/NOTIFY.">
@@ -20,16 +20,18 @@ This page shows what each one owns, every connection between them, and the reaso
 | Postgres    | `pgvector/pgvector:pg17`          | All state, the run queue, the event log, the pub/sub channels                                                              | Run application logic                 |
 | botd        | `apps/botd`, in `images/computer` | Every process on the computer, the screens, their leases, the shared cookie jar, the browser's SOCKS proxy                 | Touch Postgres                        |
 | Desktop app | `apps/desktop`                    | A native window for the web UI, notifications, and the egress agent                                                        | Store any data of its own             |
+| Pages       | `apps/pages`                      | Showing published [pages](/docs/architecture/pages), on an origin of its own                                               | Know who you are, or write anything   |
 
 The shared code lives in `packages/*`:
 
-| Package            | Used by               | What it holds                                                                                                    |
-| ------------------ | --------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `@open-bot/db`     | web, worker           | The Drizzle schema, migrations, `CHANNELS` and `notify()`                                                        |
-| `@open-bot/shared` | everyone              | Types and pure logic: timeline items, approval rules, schedules, page diffing, vault, templates, tokens, secrets |
-| `@open-bot/agent`  | worker                | A typed JSON-RPC client for Codex app-server, with the protocol types generated from Codex                       |
-| `@open-bot/egress` | worker, botd, desktop | The tunnel's framing, multiplexer, SOCKS server and agent                                                        |
-| `@open-bot/memory` | web, worker           | The memory service: scopes, revisions, search and background jobs                                                |
+| Package              | Used by               | What it holds                                                                                                    |
+| -------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `@open-bot/db`       | web, worker           | The Drizzle schema, migrations, `CHANNELS` and `notify()`                                                        |
+| `@open-bot/shared`   | everyone              | Types and pure logic: timeline items, approval rules, schedules, page diffing, vault, templates, tokens, secrets |
+| `@open-bot/agent`    | worker                | A typed JSON-RPC client for Codex app-server, with the protocol types generated from Codex                       |
+| `@open-bot/egress`   | worker, botd, desktop | The tunnel's framing, multiplexer, SOCKS server and agent                                                        |
+| `@open-bot/memory`   | web, worker           | The memory service: scopes, revisions, search and background jobs                                                |
+| `@open-bot/page-kit` | pages, worker, botd   | The pages' styles, scripts and libraries in `/lib`, their runtime, and the `/page` skill                         |
 
 ## Every connection
 
@@ -46,6 +48,8 @@ The shared code lives in `packages/*`:
 | botd        | Codex app-server       | WebSocket on `127.0.0.1:4500` | None (local only, see [Security](/docs/security#known-risks)) | JSON-RPC, bridged from the worker                                              |
 | Codex       | OpenAI                 | HTTPS                         | ChatGPT login or API key                                      | Model traffic, sent directly                                                   |
 | Chromium    | botd SOCKS5            | TCP on `127.0.0.1:1080`       | None (local only)                                             | Every browser connection                                                       |
+| Browser     | Pages service          | HTTPS, in a sandboxed frame   | HMAC key for one version, signed by the web app, valid 10 min | One published page, and `/lib`                                                 |
+| Pages       | Postgres               | TCP                           | Database credentials                                          | Reads of `page_versions`, by id                                                |
 
 Two rules fall out of this table.
 The worker is the only process that reaches the computer, and botd is the only process the worker reaches inside it.

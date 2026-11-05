@@ -76,6 +76,29 @@ An uncertain response is recovered by its operation id; the app never blindly re
 After a computer restart, affected screens stay paused; explicit recovery discards their browser pages before returning control.
 The submitted code is not stored in operation records, logs, or botd state.
 
+## Pages
+
+Pages are explainers, comparisons and dashboards your teammates build as HTML and publish for you.
+A page a teammate publishes shows in the chat as a card with its picture; tap it to open the version it published.
+Home lists the latest pages under your teammates, and All pages opens the full list, pinned ones first.
+Hold a page to pin it to the top or delete it.
+Search finds pages by their title and summary.
+
+A page opens in a viewer that loads it from open-bot's separate pages service, with a link that works for a few minutes.
+Your session cookie is never passed to that WebView, cookies and storage are off, and the page can't reach the network.
+Links in a page open in a browser tab, never inside the viewer.
+The viewer follows the app's light or dark appearance and gets a fresh link when that changes or when an old link has run out.
+Tap the title to switch versions, and when a teammate publishes a newer version while you read, a banner offers it.
+Select text in a page and tap Ask about this, or use the Ask button in the header, to ask its teammate a question or for a change.
+The question goes to the chat the page was made in, or the teammate's own chat, with the page, version and passage attached.
+The menu also opens the page in the browser, goes to its chat, pins it or deletes it.
+A notification about a published page opens the page.
+
+Share a link or text from any app (like a LinkedIn post) and pick open-bot to send it to a teammate.
+Choose Make a page explaining this (which runs the built-in /page skill), Summarize it for me, or Just send it, add an optional note, and pick who gets it.
+The message goes to that teammate's direct chat, and the chat opens.
+A share waits until you're signed in and past the app lock.
+
 ## What you need
 
 - Node and pnpm, as for the rest of the repo (`pnpm install` at the root).
@@ -109,6 +132,7 @@ APP_VARIANT=development pnpm prebuild --clean
 adb reverse tcp:3000 tcp:3000       # the phone's localhost:3000 is your computer's
 adb reverse tcp:8081 tcp:8081       # Metro
 adb reverse tcp:4001 tcp:4001       # the worker's websockets, for watching screens
+adb reverse tcp:3400 tcp:3400       # the pages service, for opening pages
 APP_VARIANT=development EXPO_PUBLIC_APP_URL=http://localhost:3000 pnpm start
 # In a second terminal, also in apps/mobile:
 APP_VARIANT=development EXPO_PUBLIC_APP_URL=http://localhost:3000 pnpm android --no-bundler
@@ -159,6 +183,13 @@ This phone can also ignore injected Send taps, so the flow allows 60 seconds for
 It exercises Android RemoteInput and the background handler without calling the application handler or send RPC directly.
 Injection requires both a development build and `EXPO_PUBLIC_E2E_NOTIFICATIONS=1`; it is excluded from release bundles and provides no authentication bypass.
 Screenshots and logs are local in `.maestro-results/`, which is ignored by Git.
+
+`maestro/pages.yaml` is a focused flow for Pages, run on its own against a signed-in development app.
+Pass a published page as `PAGE_ID`, for example `maestro test -e PAGE_ID=<page id> maestro/pages.yaml`.
+It opens the page from a link, checks that it loads, opens Ask and the menu, and switches to an older version when there is one.
+To check sharing, send a share with `adb shell am start -a android.intent.action.SEND -t text/plain --es android.intent.extra.TEXT "'https://example.com'" dev.openbot.mobile.dev`.
+Do it while the app is open (or in the background): the development client's launcher drops a share that cold-starts the app, which a release build doesn't do.
+To try the cold path in a development build, turn on "Don't keep activities" (`adb shell settings put global always_finish_activities 1`), leave the app, share, and turn it off again afterwards.
 
 ## Push notifications (Firebase)
 

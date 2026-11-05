@@ -22,8 +22,8 @@ It is locked to one owner account, and every teammate works for that one person.
 
 ## The big picture
 
-There are five moving parts.
-Four of them are processes you run, and the fifth is an optional desktop app on your Mac.
+There are six moving parts.
+Five of them are processes you run, and the sixth is an optional desktop app on your Mac.
 
 <Figure caption="The worker is the hub. The web app never talks to the computer directly, and the computer never talks to Postgres. One-headed arrows point away from the side that connects. Two-headed arrows are connections where both sides push data, like websockets and LISTEN/NOTIFY.">
   <SystemDiagram />
@@ -33,6 +33,7 @@ Four of them are processes you run, and the fifth is an optional desktop app on 
 - **The worker** (`apps/worker`) runs the teammates. It claims queued work from Postgres, drives the agent, serves the agent's tools, and runs schedules, approvals and integrations.
 - **Postgres** stores everything, and is also the job queue, the event log and the pub/sub bus.
 - **The computer** (`images/computer`) is a Docker container with a Linux desktop. Inside it, a small daemon called **botd** (`apps/botd`) starts every process, owns the screens, and is the only way in.
+- **The pages service** (`apps/pages`) shows the [pages](/docs/flows/pages) teammates publish, on a domain of its own, so a page never runs with your session.
 - **The desktop app** (`apps/desktop`) wraps the web UI in Electron and adds an egress agent, so the computer's browser reaches websites through your home internet.
 
 ## Five decisions that shape everything

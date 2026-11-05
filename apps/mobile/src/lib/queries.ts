@@ -19,6 +19,9 @@ export const useApprovalRules = () =>
 export const useNotifications = () =>
   useQuery({ queryKey: queryKeys.notifications, queryFn: () => api.notifications.list() });
 
+export const usePages = () =>
+  useQuery({ queryKey: queryKeys.pages, queryFn: () => api.pages.list() });
+
 /** Home, with what teammates finished since you were last here. */
 export function useHome() {
   const { awaySince } = usePresence();

@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@open-bot/egress": "workspace:*",
+    "@open-bot/page-kit": "workspace:*",
     "@open-bot/shared": "workspace:*",
     "ws": "^8.22.0"
   },

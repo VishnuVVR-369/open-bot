@@ -54,6 +54,7 @@ export type AppEvent =
   | { type: "connections" }
   | { type: "email" }
   | { type: "purchases" }
+  | { type: "pages" }
   | { type: "auth" };
 
 export type WorkerSignal = "runs" | "schedules" | "triggers" | "cancel";

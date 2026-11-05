@@ -1,0 +1,57 @@
+appId: dev.openbot.mobile.dev
+name: Open a page, ask about it, and switch versions
+# Run against a signed-in development app: maestro test -e PAGE_ID=<page id> maestro/pages.yaml
+---
+- runFlow:
+    file: flows/open-link.yaml
+    env:
+      LINK: openbot://pages/${PAGE_ID}
+- extendedWaitUntil:
+    visible:
+      id: page-webview
+    timeout: 20000
+- assertVisible:
+    id: page-header
+- tapOn:
+    id: page-ask-open
+- extendedWaitUntil:
+    visible:
+      id: page-ask-input
+    timeout: 5000
+- tapOn:
+    id: page-ask-input
+- inputText: What is the hardest part of this design?
+- assertVisible:
+    id: page-ask-send
+- back
+- runFlow:
+    when:
+      visible:
+        id: page-ask
+    commands:
+      - back
+- tapOn:
+    id: page-menu-open
+- assertVisible:
+    id: page-open-browser
+- assertVisible:
+    id: page-delete
+- back
+- runFlow:
+    when:
+      visible: Versions
+    commands:
+      - back
+- tapOn:
+    id: page-header
+- runFlow:
+    when:
+      visible:
+        id: page-versions
+    commands:
+      - tapOn:
+          id: page-version
+          index: 1
+      - extendedWaitUntil:
+          visible: .*\(older\).*
+          timeout: 10000

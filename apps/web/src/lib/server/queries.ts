@@ -642,6 +642,7 @@ export async function listNotifications(limit = 40): Promise<NotificationView[]>
     botId: row.botId,
     chatId: row.chatId,
     runId: row.runId,
+    pageId: row.pageId,
     readAt: row.readAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
   }));

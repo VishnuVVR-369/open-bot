@@ -47,6 +47,11 @@ export default async function globalTeardown() {
     await pool.query("delete from uploads where name like 'e2e-%'");
     await pool.query("delete from vault_items where name like 'E2E %'");
     await pool.query("delete from connections where label like 'E2E %'");
+    // Pages outlive their teammate, so the tests' go first.
+    await pool.query(
+      "delete from pages where title like 'E2E %' or bot_id in (select id from bots where name ~ $1)",
+      [TEST_BOT_NAMES.source],
+    );
     // Helpers' screens go when their part is done; these are from runs that were cut short.
     const helpers = await pool.query<{ id: string }>(
       "select t.id from swarm_tasks t join swarms s on s.id = t.swarm_id join bots b on b.id = s.bot_id where b.name ~ $1",

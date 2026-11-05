@@ -212,6 +212,8 @@ export const notificationViewSchema = z.object({
   botId: z.string().nullable(),
   chatId: z.string().nullable(),
   runId: z.string().nullable(),
+  /** The page it's about, when a teammate published one: opening the notification opens it. */
+  pageId: z.string().nullable(),
   readAt: isoDate.nullable(),
   createdAt: isoDate,
 });
@@ -290,3 +292,54 @@ export const uploadViewSchema = z.object({
   attachment: attachmentSchema.nullable(),
 });
 export type UploadView = z.infer<typeof uploadViewSchema>;
+
+/** A page a teammate published, as the library lists it. */
+export const pageSummarySchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  summary: z.string(),
+  /** Who published it; null once that teammate is deleted. */
+  botId: z.string().nullable(),
+  /** Where it was made: asking about it goes there. */
+  chatId: z.string().nullable(),
+  pinned: z.boolean(),
+  versionCount: z.number().int().positive(),
+  /** The latest version. */
+  versionId: z.string(),
+  version: z.number().int().positive(),
+  size: z.number().int().nonnegative(),
+  createdAt: isoDate,
+  updatedAt: isoDate,
+});
+export type PageSummary = z.infer<typeof pageSummarySchema>;
+
+export const pageVersionViewSchema = z.object({
+  id: z.string(),
+  number: z.number().int().positive(),
+  title: z.string(),
+  summary: z.string(),
+  /** What changed, in the teammate's words. */
+  note: z.string(),
+  botId: z.string().nullable(),
+  runId: z.string().nullable(),
+  size: z.number().int().nonnegative(),
+  /** What the check found that didn't stop it being published. */
+  warnings: z.array(z.string()),
+  createdAt: isoDate,
+});
+export type PageVersionView = z.infer<typeof pageVersionViewSchema>;
+
+/** A page with all its versions, newest first. */
+export const pageDetailSchema = pageSummarySchema.extend({
+  /** The file it was published from, on the computer. */
+  sourcePath: z.string().nullable(),
+  versions: z.array(pageVersionViewSchema),
+});
+export type PageDetail = z.infer<typeof pageDetailSchema>;
+
+/** A short-lived address to show one version, on the pages origin. */
+export const pageLinkSchema = z.object({
+  url: z.string(),
+  expiresAt: isoDate,
+});
+export type PageLink = z.infer<typeof pageLinkSchema>;

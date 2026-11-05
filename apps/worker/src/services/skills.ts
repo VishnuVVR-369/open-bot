@@ -1,8 +1,15 @@
 import type { v2 } from "@open-bot/agent";
 import { bots, skills } from "@open-bot/db";
 import {
+  PAGE_SKILL_DESCRIPTION,
+  PAGE_SKILL_MARKDOWN,
+  PAGE_SKILL_NAME,
+  PAGE_TEMPLATE_HTML,
+} from "@open-bot/page-kit/skill";
+import {
   COMPUTER_PATHS,
   invokedSkillNames,
+  isBuiltInSkill,
   skillInputSchema,
   skillMarkdown,
   type SkillInput,
@@ -17,6 +24,21 @@ const SHARED_ROOT = "/home/bot/.agents/skills";
 function botRoot(slug: string) {
   return `${COMPUTER_PATHS.workspace(slug)}/.agents/skills`;
 }
+
+/** Skills open-bot gives every teammate, with the files that go in each skill's folder. */
+const BUILT_IN_SKILLS: { name: string; files: Record<string, string> }[] = [
+  {
+    name: PAGE_SKILL_NAME,
+    files: {
+      "SKILL.md": skillMarkdown({
+        name: PAGE_SKILL_NAME,
+        description: PAGE_SKILL_DESCRIPTION,
+        instructions: PAGE_SKILL_MARKDOWN,
+      }),
+      "template.html": PAGE_TEMPLATE_HTML,
+    },
+  },
+];
 
 type Skill = typeof skills.$inferSelect;
 type BotRef = { id: string; slug: string };
@@ -54,6 +76,10 @@ export class SkillService {
     const available = await this.forBot(botId);
     const inputs: v2.UserInput[] = [];
     for (const name of names) {
+      if (isBuiltInSkill(name)) {
+        inputs.push({ type: "skill", name, path: `${SHARED_ROOT}/${name}/SKILL.md` });
+        continue;
+      }
       const skill = available.find((s) => s.name === name);
       if (skill) inputs.push({ type: "skill", name: skill.name, path: await this.pathOf(skill) });
     }
@@ -138,7 +164,8 @@ export class SkillService {
       .where(isNull(bots.archivedAt));
     await this.syncRoot(
       SHARED_ROOT,
-      all.filter((s) => !s.botId),
+      all.filter((s) => !s.botId && !isBuiltInSkill(s.name)),
+      BUILT_IN_SKILLS,
     );
     for (const bot of botRows) await this.syncBot(bot, all);
     await this.refresh(botRows);
@@ -153,11 +180,15 @@ export class SkillService {
     );
   }
 
-  private async syncRoot(root: string, wanted: Skill[]) {
+  private async syncRoot(
+    root: string,
+    wanted: Skill[],
+    builtIns: { name: string; files: Record<string, string> }[] = [],
+  ) {
     const client = await this.ctx.codex.ready();
     await client.request("fs/createDirectory", { path: root, recursive: true });
     const { entries } = await client.request("fs/readDirectory", { path: root });
-    const names = new Set(wanted.map((s) => s.name));
+    const names = new Set([...wanted.map((s) => s.name), ...builtIns.map((s) => s.name)]);
     for (const entry of entries) {
       if (entry.isDirectory && !names.has(entry.fileName))
         await client.request("fs/remove", { path: `${root}/${entry.fileName}`, recursive: true });
@@ -171,6 +202,17 @@ export class SkillService {
         path: `${root}/${skill.name}/SKILL.md`,
         dataBase64: Buffer.from(skillMarkdown(skill)).toString("base64"),
       });
+    }
+    for (const skill of builtIns) {
+      await client.request("fs/createDirectory", {
+        path: `${root}/${skill.name}`,
+        recursive: true,
+      });
+      for (const [file, content] of Object.entries(skill.files))
+        await client.request("fs/writeFile", {
+          path: `${root}/${skill.name}/${file}`,
+          dataBase64: Buffer.from(content).toString("base64"),
+        });
     }
   }
 

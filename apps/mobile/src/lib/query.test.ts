@@ -1,6 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
-import { keysForAppEvent, queryKeys } from "./query";
+import { keysForAppEvent, keysForPush, queryKeys } from "./query";
 
 describe("live changes from another device", () => {
   it("refreshes an open approval and its chat when an approval is decided elsewhere", async () => {
@@ -28,5 +28,27 @@ describe("live changes from another device", () => {
     );
     expect(client.getQueryState(chat)?.isInvalidated).toBe(true);
     client.clear();
+  });
+
+  it("refreshes the page list and an open page when a teammate publishes, but not its link", async () => {
+    const client = new QueryClient();
+    const list = queryKeys.pages;
+    const page = queryKeys.page("page-1");
+    const link = queryKeys.pageLink("version-1", "dark");
+    client.setQueryData(list, []);
+    client.setQueryData(page, { title: "Before" });
+    client.setQueryData(link, { url: "https://pages/v/1" });
+    await Promise.all(
+      keysForAppEvent("pages").map((queryKey) => client.invalidateQueries({ queryKey })),
+    );
+    expect(client.getQueryState(list)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(page)?.isInvalidated).toBe(true);
+    // The page on screen keeps its link; reloading it for nothing would lose your place.
+    expect(client.getQueryState(link)?.isInvalidated).toBe(false);
+    client.clear();
+  });
+
+  it("refreshes pages when a push is about one", () => {
+    expect(keysForPush({ type: "notification", pageId: "page-1" })).toContainEqual(queryKeys.pages);
   });
 });
