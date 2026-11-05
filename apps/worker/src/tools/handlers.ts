@@ -12,6 +12,8 @@ import {
 import {
   applyBlockedMessage,
   chatTitleText,
+  COMPUTER_PATHS,
+  type PageCheckResult,
   computerActionSchema,
   describeInterval,
   formatMoney,
@@ -37,6 +39,7 @@ import { EmailError, type EmailService } from "../services/email";
 import { SwarmError, type SwarmService } from "../services/swarms";
 import { VaultError, type VaultService } from "../services/vault";
 import { BotError, type BotService } from "../services/bots";
+import { PageError, type PageService } from "../services/pages";
 import { BOT_TOOL_NAMES, BotTools } from "./bots";
 
 type Response = v2.DynamicToolCallResponse;
@@ -81,6 +84,7 @@ const HELPER_FORBIDDEN = new Set([
   "create_bot",
   "update_bot",
   "set_bot_connection",
+  "publish_page",
 ]);
 
 const emailArgs = z.object({
@@ -121,6 +125,14 @@ const updateArgs = z.object({
   quiet: z.boolean().optional(),
 });
 
+const publishPageArgs = z.object({
+  path: z.string(),
+  title: z.string().trim().min(1, "Give the page a title.").max(120),
+  summary: z.string().trim().min(1, "Give the page a summary.").max(400),
+  note: z.string().max(1000).optional(),
+  page_id: z.string().uuid("Use a page_id from list_pages.").optional(),
+});
+
 const scheduleArgs = z.object({
   bot_id: z.string().uuid().optional(),
   title: z.string().min(1).max(80),
@@ -147,6 +159,7 @@ export class ToolHandlers {
     private readonly email: EmailService,
     private readonly memory: MemoryCoordinator,
     bots: BotService,
+    private readonly pages: PageService,
   ) {
     this.botTools = new BotTools(ctx, bots, approvals);
   }
@@ -239,12 +252,21 @@ export class ToolHandlers {
           return text(await this.email.describe(session.bot.id));
         case "handoff_to_bot":
           return await this.handoff(session, params.callId, args);
+        case "check_page":
+          return await this.checkPage(session, params.callId, args);
+        case "publish_page":
+          return await this.publishPage(session, params.callId, args);
+        case "list_pages":
+          return text(await this.pages.describe());
+        case "get_page":
+          return await this.getPage(session, args);
         default:
           return text(`Unknown tool ${params.tool}`, false);
       }
     } catch (error) {
       // Problems the bot can fix itself, said plainly.
-      if (error instanceof BotError) return text(error.message, false);
+      if (error instanceof BotError || error instanceof PageError)
+        return text(error.message, false);
       if (error instanceof z.ZodError)
         return text(
           error.issues
@@ -390,6 +412,150 @@ export class ToolHandlers {
         "</links>",
       ].join("\n"),
     );
+  }
+
+  /** A page's file as a full path: paths without a leading slash are in the teammate's workspace. */
+  private pagePath(session: RunSession, raw: unknown): string {
+    const path = z.string().trim().min(1, "path is required").max(1000).parse(raw);
+    return path.startsWith("/")
+      ? path
+      : `${COMPUTER_PATHS.workspace(session.bot.slug)}/${path.replace(/^\.\//, "")}`;
+  }
+
+  /** The check's findings, as the teammate reads them. */
+  private describeCheck(check: PageCheckResult, path: string): string {
+    const errors = check.issues.filter((issue) => issue.level === "error");
+    const warnings = check.issues.filter((issue) => issue.level === "warning");
+    const lines = [
+      `Checked ${path} (${(check.size / 1024).toFixed(0)} KB${check.title ? `, titled “${check.title}”` : ""}).`,
+      errors.length || warnings.length
+        ? `${errors.length} error${errors.length === 1 ? "" : "s"} and ${warnings.length} warning${warnings.length === 1 ? "" : "s"}:`
+        : "No problems found. Still look at both screenshots before publishing.",
+      ...errors.map((issue) => `- Error: ${issue.message}`),
+      ...warnings.map((issue) => `- Warning: ${issue.message}`),
+      "",
+      `The screenshots below show the page on a phone (390px) and on a laptop (1280px), from the top. To click through it, open http://127.0.0.1:7080/preview?path=${encodeURIComponent(path)} on your screen (add &theme=dark for the dark theme).`,
+    ];
+    return lines.join("\n");
+  }
+
+  private async checkPage(
+    session: RunSession,
+    callId: string,
+    args: Record<string, unknown>,
+  ): Promise<Response> {
+    const path = this.pagePath(session, args.path);
+    const item = this.toolItem(
+      session,
+      callId,
+      "check_page",
+      "Checked the page",
+      args,
+      session.now(),
+    );
+    session.putItem(item);
+    const check = await this.ctx.computer.checkPage(path);
+    if (!check.ok) {
+      session.putItem({
+        ...item,
+        status: "failed",
+        completedAt: session.now(),
+        error: check.message,
+      });
+      return text(check.message, false);
+    }
+    const errors = check.issues.filter((issue) => issue.level === "error").length;
+    session.putItem({
+      ...item,
+      label: `Checked “${check.title || path.split("/").slice(-2).join("/")}”`,
+      status: "completed",
+      completedAt: session.now(),
+      result: errors
+        ? `${errors} problem${errors === 1 ? "" : "s"} to fix`
+        : check.issues.length
+          ? `Looks good, ${check.issues.length} note${check.issues.length === 1 ? "" : "s"}`
+          : "Looks good",
+    });
+    return {
+      success: true,
+      contentItems: [
+        { type: "inputText", text: this.describeCheck(check, path) },
+        { type: "inputImage", imageUrl: `data:image/jpeg;base64,${check.screenshots.phone}` },
+        { type: "inputImage", imageUrl: `data:image/jpeg;base64,${check.screenshots.desktop}` },
+      ],
+    };
+  }
+
+  private async publishPage(
+    session: RunSession,
+    callId: string,
+    args: Record<string, unknown>,
+  ): Promise<Response> {
+    const parsed = publishPageArgs.parse(args);
+    const path = this.pagePath(session, parsed.path);
+    const startedAt = session.now();
+    const item = this.toolItem(
+      session,
+      callId,
+      "publish_page",
+      `Publishing “${parsed.title}”`,
+      args,
+      startedAt,
+    );
+    session.putItem(item);
+    const fail = (message: string) => {
+      session.putItem({ ...item, status: "failed", completedAt: session.now(), error: message });
+      return text(message, false);
+    };
+    let published;
+    try {
+      published = await this.pages.checkAndPublish({
+        botId: session.bot.id,
+        chatId: session.chat.id,
+        runId: session.run.id,
+        path,
+        title: parsed.title,
+        summary: parsed.summary,
+        note: parsed.note ?? "",
+        ...(parsed.page_id ? { pageId: parsed.page_id } : {}),
+      });
+    } catch (error) {
+      if (error instanceof PageError) return fail(error.message);
+      throw error;
+    }
+    const { page, version, check } = published;
+    session.putItem({
+      id: callId,
+      kind: "page",
+      pageId: page.id,
+      versionId: version.id,
+      version: version.number,
+      title: version.title,
+      summary: version.summary,
+      status: "completed",
+      startedAt,
+      completedAt: session.now(),
+    });
+    const warnings = check.issues.filter((issue) => issue.level === "warning");
+    return text(
+      [
+        version.number === 1
+          ? `Published “${version.title}” (page_id ${page.id}).`
+          : `Published version ${version.number} of “${version.title}” (page_id ${page.id}).`,
+        "It shows in this chat as a card the user can open, so don't paste the page or its HTML in your reply.",
+        ...(warnings.length
+          ? ["Warnings to consider next time:", ...warnings.map((issue) => `- ${issue.message}`)]
+          : []),
+      ].join("\n"),
+    );
+  }
+
+  private async getPage(session: RunSession, args: Record<string, unknown>): Promise<Response> {
+    const pageId = z.string().uuid("Use a page_id from list_pages.").parse(args.page_id);
+    const details = await this.pages.describeOne(pageId);
+    if (args.restore !== true) return text(details);
+    const restored = await this.pages.restore(pageId, session.bot);
+    return text(`${restored}\n\n${details}`);
   }
 
   private toolItem(

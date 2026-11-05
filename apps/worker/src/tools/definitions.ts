@@ -5,7 +5,7 @@ import { MAX_SWARM_TASKS, SCREEN } from "@open-bot/shared";
  * Bump when the tool set or the developer instructions change.
  * Codex threads keep the tools they started with, so a new version starts fresh threads.
  */
-export const TOOLS_VERSION = 15;
+export const TOOLS_VERSION = 17;
 
 const SCREENSHOT_NOTE =
   "Returns a JPEG screenshot taken after the action, as a data URL string. In exec, pass it to image() to look at it, for example `image(await tools.desktop_click({x: 10, y: 20}))`.";
@@ -694,6 +694,68 @@ export const SWARM_TOOLS: v2.DynamicToolSpec[] = [
   ),
 ];
 
+const pagePath = {
+  type: "string",
+  minLength: 1,
+  maxLength: 1000,
+  description:
+    "The page's .html file: a path in your workspace like pages/kafka/index.html, or a full path under /home/bot.",
+} as const;
+
+export const PAGE_TOOLS: v2.DynamicToolSpec[] = [
+  tool(
+    "check_page",
+    "Check a page before publishing it (see the page skill). Renders the file in a browser without network at a phone's width and a laptop's, and returns what's wrong (script errors, things it can't load, sideways scrolling on phones) with screenshots of both. Also gives a preview URL to open on your screen.",
+    { path: pagePath },
+    ["path"],
+  ),
+  tool(
+    "publish_page",
+    "Publish a page for the user: checks it, then stores it as a version they open in the app, and shows it in this chat as a card. Publishing the same file again, or giving page_id, adds a new version of the same page. Pages with errors aren't published; fix them and try again. Only the user can see a page, in their own app, so publishing one never needs approval.",
+    {
+      path: pagePath,
+      title: {
+        type: "string",
+        minLength: 1,
+        maxLength: 120,
+        description: "What the page is, in a few words, like 'How Kafka's tiered storage works'.",
+      },
+      summary: {
+        type: "string",
+        minLength: 1,
+        maxLength: 400,
+        description: "One or two sentences on what the reader gets from it, for the card.",
+      },
+      note: {
+        type: "string",
+        maxLength: 1000,
+        description: "For a new version: what changed, like 'Added the failure modes section'.",
+      },
+      page_id: {
+        type: "string",
+        format: "uuid",
+        description:
+          "Publish as a new version of this page (from list_pages or the user's message).",
+      },
+    },
+    ["path", "title", "summary"],
+  ),
+  tool(
+    "list_pages",
+    "List the pages teammates have published, newest first, with their page_id, versions, who made them and the file they came from.",
+    {},
+  ),
+  tool(
+    "get_page",
+    "Read a page's versions and its text. With restore, also put its current version in your workspace to change it (needed when its file is gone or it's another teammate's page).",
+    {
+      page_id: { type: "string", format: "uuid" },
+      restore: { type: "boolean", default: false },
+    },
+    ["page_id"],
+  ),
+];
+
 export const GROUP_TOOLS: v2.DynamicToolSpec[] = [
   tool(
     "ask_teammate",
@@ -733,6 +795,7 @@ export function toolsFor(): v2.DynamicToolSpec[] {
     ...VAULT_TOOLS,
     ...EMAIL_TOOLS,
     ...SWARM_TOOLS,
+    ...PAGE_TOOLS,
     ...GROUP_TOOLS,
   ];
 }

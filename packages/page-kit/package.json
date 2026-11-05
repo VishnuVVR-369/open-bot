@@ -1,0 +1,30 @@
+{
+  "name": "@open-bot/page-kit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "What every page can load: the runtime, the page kit, fonts and the vendored libraries.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./serve": "./src/serve.ts",
+    "./skill": "./src/skill.ts"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc -p .",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@fontsource-variable/familjen-grotesk": "5.3.0",
+    "@fontsource-variable/jetbrains-mono": "5.3.0",
+    "@fontsource-variable/onest": "5.3.1",
+    "@highlightjs/cdn-assets": "11.12.0",
+    "@types/node": "^24.19.2",
+    "chart.js": "4.5.1",
+    "d3": "7.9.0",
+    "katex": "0.19.0",
+    "mermaid": "12.2.0",
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.4"
+  }
+}

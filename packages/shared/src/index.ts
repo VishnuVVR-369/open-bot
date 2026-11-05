@@ -19,3 +19,4 @@ export * from "./memory";
 export * from "./text";
 export * from "./files";
 export * from "./screen-operations";
+export * from "./pages";

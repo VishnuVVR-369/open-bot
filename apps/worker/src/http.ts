@@ -7,7 +7,10 @@ import {
   createBotSchema,
   isOwnerLease,
   isRunActive,
+  isPageSourcePath,
   isScreenId,
+  MAX_PAGE_SUMMARY,
+  MAX_PAGE_TITLE,
   MAX_UPLOAD_BYTES,
   typeOnScreenSchema,
   undeletablePath,
@@ -40,6 +43,7 @@ import type { SwarmService } from "./services/swarms";
 import { TaskError, type TaskService } from "./services/tasks";
 import { TriggerError, type TriggerService } from "./services/triggers";
 import { BotError, type BotService } from "./services/bots";
+import { PageError, type PageService } from "./services/pages";
 
 export interface HttpDeps {
   bots: BotService;
@@ -61,6 +65,7 @@ export interface HttpDeps {
   telegram: TelegramService;
   egress: EgressRelay;
   uploads: UploadService;
+  pages: PageService;
 }
 
 class HttpError extends Error {
@@ -394,6 +399,39 @@ export function createHttpServer(deps: HttpDeps): http.Server {
       const client = await ctx.codex.ready();
       await client.request("fs/writeFile", { path, dataBase64: body.dataBase64 });
       return ok;
+    },
+    // Check and publish a page from a file on the computer, the way publish_page does but outside
+    // a run: for setting up pages, and for tests that need a real one.
+    "POST /internal/pages/publish": async (request) => {
+      const body = await readJson(
+        request,
+        z.object({
+          botId: z.string().uuid(),
+          chatId: z.string().uuid().nullable().default(null),
+          path: z
+            .string()
+            .refine(isPageSourcePath, "Use an .html file in a workspace or the shared folder."),
+          title: z.string().trim().min(1).max(MAX_PAGE_TITLE),
+          summary: z.string().max(MAX_PAGE_SUMMARY).default(""),
+          note: z.string().max(1000).default(""),
+          pageId: z.string().uuid().optional(),
+        }),
+      );
+      try {
+        const { page, version, check } = await deps.pages.checkAndPublish({
+          ...body,
+          runId: null,
+        });
+        return {
+          pageId: page.id,
+          versionId: version.id,
+          version: version.number,
+          warnings: check.issues.map((issue) => issue.message),
+        };
+      } catch (error) {
+        if (error instanceof PageError) throw new HttpError(400, error.message);
+        throw error;
+      }
     },
     // An attachment for a message, as raw bytes; see UploadService. Retries reuse the id.
     "PUT /internal/uploads/:id": async (request, params) => {

@@ -40,6 +40,10 @@ These read routes back the web client's TanStack Query cache; the stream sends S
 | `GET /api/profile`, `/api/usage`, `/api/model-access`, `/api/rate-limits`       | About you, usage, plan or key, and plan limits                                |
 | `GET /api/telegram`, `/api/push`                                                | Telegram and push status                                                      |
 | `GET /api/search?q=`                                                            | ⌘K search across teammates, chats and messages                                |
+| `GET /api/search/pages?q=`                                                      | ⌘K search across pages' titles, summaries and text                            |
+| `GET /api/pages`, `/api/pages/:id`                                              | The page library, and one page with its versions                              |
+| `GET /api/pages/versions/:id/link?theme=&ask=1`                                 | A 10-minute signed link to a version, on the pages service                    |
+| `GET /api/pages/versions/:id/thumbnail`, `/download`                            | A version's thumbnail, and its HTML as a download                             |
 | `GET /api/files/list`, `/api/files/download`                                    | The computer's files under `/home/bot`                                        |
 | `GET /api/desktop/token`                                                        | A 60-second VNC token and the worker's websocket URL                          |
 | `GET /api/desktop/egress-token`                                                 | A 120-second egress token and URL, for the desktop app                        |
@@ -47,7 +51,7 @@ These read routes back the web client's TanStack Query cache; the stream sends S
 ### Writes and the phone API
 
 The browser uses server actions in `apps/web/src/lib/actions.ts`.
-The Android app calls the authenticated RPC handler at `/api/rpc/*`; its authoritative procedures, inputs, outputs and errors are the schemas in `packages/api/src/contract.ts` and `views.ts`.
+The Android app calls the authenticated RPC handler at `/api/rpc/*`, including `pages.list`, `pages.get`, `pages.open`, `pages.pin` and `pages.remove`; its authoritative procedures, inputs, outputs and errors are the schemas in `packages/api/src/contract.ts` and `views.ts`.
 Both entry points use services in `apps/web/src/lib/server/api/`.
 
 `PUT /api/uploads/:uploadId` accepts raw attachment bytes with the owner's session and an allowed origin (or no Origin header for native clients).
@@ -107,6 +111,12 @@ Bodies and responses are JSON, except upload request bodies, which are raw bytes
 
 Retryable attachments use `PUT /internal/uploads/:id` and `GET /internal/uploads/:id` for status, implemented in `apps/worker/src/uploads.ts`.
 
+### Pages
+
+| Route                          | Purpose                                                                                                                             |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /internal/pages/publish` | Check and publish a page from a file on the computer, the way `publish_page` does but outside a run. `400` with the check's errors. |
+
 ### Integrations and settings
 
 | Route                                                                                                        | Purpose                                                          |
@@ -147,6 +157,7 @@ Every route except `/healthz` requires `Authorization: Bearer <BOTD_TOKEN>`, or 
 | `POST /lease/user/take`     | Give you a screen's lease, preempting a run                                                                  |
 | `POST /lease/user/release`  | Release your lease (`handed_back`, `user_idle`, `user_disconnected`)                                         |
 | `POST /lease/user/touch`    | Record your input                                                                                            |
+| `POST /pages/check`         | `{ path }`: check a page in a headless browser; see [The checker](/docs/architecture/pages#the-checker)      |
 
 | Websocket            | Purpose                                                |
 | -------------------- | ------------------------------------------------------ |
@@ -154,6 +165,8 @@ Every route except `/healthz` requires `Authorization: Bearer <BOTD_TOKEN>`, or 
 | `/codex`             | A bridge to `codex app-server` on `127.0.0.1:4500`     |
 | `/egress`            | The computer's end of the egress tunnel                |
 | `/vnc?screen=&mode=` | A bridge to a screen's view-only or control VNC server |
+
+botd also serves drafts of pages on `127.0.0.1:7080`, for the computer's own browsers only; see [The preview server](/docs/architecture/pages#the-preview-server).
 
 ### Action errors
 
@@ -166,6 +179,20 @@ Every route except `/healthz` requires `Authorization: Bearer <BOTD_TOKEN>`, or 
 | `invalid_action`   | The action or identity failed validation                              |
 | `wrong_site`       | A vault login didn't match every visible page                         |
 | `failed`           | Anything else, like a screen that couldn't start                      |
+
+## The pages service
+
+Base URL `PAGES_URL` (port 3400, public, on its own origin).
+It has no session: a version opens only with a key the web app signed.
+See [The pages service](/docs/architecture/pages).
+
+| Route                              | Purpose                                                                                            |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `GET /healthz`                     | Liveness                                                                                           |
+| `GET /lib/*`                       | The page kit and libraries, cacheable, readable from any origin                                    |
+| `GET /v/:versionId?k=&theme=&ask=` | One version with the runtime added. `403` for a missing, wrong or expired key; `404` once deleted. |
+
+It answers only `GET` and `HEAD`.
 
 ## Codex app-server
 

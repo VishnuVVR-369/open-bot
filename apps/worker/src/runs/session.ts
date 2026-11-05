@@ -83,6 +83,13 @@ export function approvalPolicy(bot: Pick<Bot, "autonomy">): ApprovalPolicy {
 export class RunSession {
   readonly writer: RunEventWriter;
   readonly items = new Map<string, TimelineItem>();
+
+  /** The last page this run published, if any. */
+  publishedPageId(): string | null {
+    let pageId: string | null = null;
+    for (const item of this.items.values()) if (item.kind === "page") pageId = item.pageId;
+    return pageId;
+  }
   memoryGeneration = "";
   threadId: string | null = null;
   turnId: string | null = null;
@@ -715,6 +722,8 @@ export class RunSession {
     ) {
       // An answer to a teammate isn't news for you; their reply to you is.
       await createNotification(ctx, {
+        // A page made in this run is what you'll want to open.
+        pageId: this.publishedPageId(),
         kind: "run_finished",
         title:
           run.trigger === "schedule"

@@ -1,0 +1,29 @@
+{
+  "name": "@open-bot/pages",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Serves published pages on an origin of their own, behind links the web app signs.",
+  "scripts": {
+    "dev": "pnpm --filter @open-bot/page-kit build && tsx watch --env-file-if-exists=../../.env src/index.ts",
+    "start": "node --env-file-if-exists=../../.env dist/pages.mjs",
+    "build": "pnpm --filter @open-bot/page-kit build && node build.mjs",
+    "typecheck": "tsc -p .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@open-bot/db": "workspace:*",
+    "@open-bot/page-kit": "workspace:*",
+    "@open-bot/shared": "workspace:*",
+    "drizzle-orm": "^0.45.4",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/pg": "^8.15.6",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.4"
+  }
+}

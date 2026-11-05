@@ -10,7 +10,7 @@ This page covers the schema, how runs are queued, how events are stored and stre
 ## The schema
 
 The schema is one file, `packages/db/src/schema.ts`, written with Drizzle ORM.
-It has about 45 tables.
+It has about 50 tables.
 Here they are grouped by what they're for:
 
 <SchemaMap
@@ -64,7 +64,23 @@ Here they are grouped by what they're for:
           name: "desktop_takeovers",
           note: "Takeovers and bot requests for help, with hand-back notes",
         },
-        { name: "notifications", note: "What you were told, with read state" },
+        {
+          name: "notifications",
+          note: "What you were told, with read state and the page a run published",
+        },
+      ],
+    },
+    {
+      title: "Pages",
+      tables: [
+        {
+          name: "pages",
+          note: "A page: title, summary, teammate, chat, source file, current version, pinned",
+        },
+        {
+          name: "page_versions",
+          note: "Immutable versions: the HTML, its SHA-256, its text, a thumbnail, warnings, a note",
+        },
       ],
     },
     {
@@ -230,7 +246,7 @@ It is pure and shared: the web app uses it on the server to build a chat's first
 | `openbot_chat`   | a chat id                                      | the worker, after storing run events | the web app's SSE streams |
 | `openbot_app`    | a JSON `AppEvent`, like `{"type":"approvals"}` | the web app and the worker           | the web app's SSE streams |
 
-`AppEvent` has about twenty types, one per area of the UI: `bots`, `chats`, `approvals`, `takeovers`, `lease`, `computer`, `notification`, `schedules`, `triggers`, `tasks`, `memory`, `vault`, `purchases`, `connections`, `email`, `telegram`, `skills`, `profile`, `lessons` and `auth`.
+`AppEvent` has about twenty types, one per area of the UI: `bots`, `chats`, `approvals`, `takeovers`, `lease`, `computer`, `notification`, `schedules`, `triggers`, `tasks`, `memory`, `vault`, `purchases`, `connections`, `email`, `telegram`, `skills`, `pages`, `profile`, `lessons` and `auth`.
 Each one tells open tabs which cached queries to refetch.
 
 Notifications are hints, not data.

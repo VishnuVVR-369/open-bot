@@ -56,6 +56,16 @@ You can watch them work live, take over the computer at any time, and hand it ba
 - Share a task board with your teammates.
 - Split a big job across helpers that work at the same time, then combine the results.
 
+### Pages
+
+- Ask a teammate for a page, and it builds a polished HTML page you open in the app: an in-depth explainer, a research report, a comparison, a dashboard, an itinerary or a study guide.
+- Share a link to a post about a system design, and get back a page that explains it in depth, with diagrams, the life of a request, the trade-offs and the sources.
+- Every page is checked in a browser on the computer before it is published, at a phone's width and a laptop's.
+- Changing a page adds a new version, and you can switch between versions.
+- Select any passage and choose **Ask about this** to ask the teammate about it, or ask for a change.
+- Pages are private to you, and open on the web and on your phone.
+- Run with `/page` in any chat, or keep a page current with a schedule.
+
 ### Tools and connections
 
 - **Skills:** save the steps for a task once, then run it with `/name` in any chat.
@@ -64,7 +74,7 @@ You can watch them work live, take over the computer at any time, and hand it ba
 - **Telegram:** approve actions, get alerts and chat with teammates from your phone.
 - **Files:** browse, upload and download files on the computer, and attach files up to 40 MB.
 - **Voice:** speak your messages and hear replies read aloud.
-- **Search:** press ⌘K to find any teammate, chat or message.
+- **Search:** press ⌘K to find any teammate, chat, page or message.
 
 ### Apps and notifications
 
@@ -77,6 +87,9 @@ You can watch them work live, take over the computer at any time, and hand it ba
 ## How it works
 
 ```
+         Pages service (its own origin, shows published pages)
+                         │
+                         ▼
 Web app (Next.js) ──► Postgres ◄── Worker ──► botd (in the computer container)
        ▲                              │            ├─ codex app-server  (the agent)
        │                              │            ├─ XFCE + Chromium   (the desktop)
@@ -86,9 +99,11 @@ Desktop app (Electron) ── egress ─────┘            └─ x11vnc
 - `apps/web`: the web app you use.
 - `apps/worker`: runs the teammates, their tools, schedules and approvals.
 - `apps/botd`: a helper that runs inside the computer and controls the desktop.
+- `apps/pages`: a small server that shows published pages, on an origin of its own so a page never runs with your session.
 - `apps/desktop`: the desktop app.
 - `apps/site`: the public landing page with the launch tour, and the technical documentation under `/docs`.
 - `packages/*`: shared code like the database schema and types.
+- `packages/page-kit`: the styles, scripts and libraries pages load from `/lib`, and the `/page` skill teammates follow.
 - `images/computer`: the Docker image for the computer.
 
 ## Run it locally
@@ -107,7 +122,7 @@ pnpm install
 cp .env.example .env            # set OWNER_EMAIL to your email
 pnpm infra:up                   # starts Postgres and the computer (first build takes a few minutes)
 pnpm db:migrate
-pnpm dev                        # web on http://localhost:3000, worker on :4001
+pnpm dev                        # web on http://localhost:3000, worker on :4001, pages on :3400
 ```
 
 Open http://localhost:3000, create your account, and create your first teammate.

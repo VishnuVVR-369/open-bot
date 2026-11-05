@@ -120,6 +120,13 @@ export const router = os.router({
     list: os.notifications.list.handler(() => listNotifications()),
     markRead: os.notifications.markRead.handler(({ input }) => api.markNotificationsRead(input)),
   },
+  pages: {
+    list: os.pages.list.handler(() => api.listPages()),
+    get: os.pages.get.handler(({ input }) => api.getPage(input.pageId)),
+    open: os.pages.open.handler(({ input }) => api.openPage(input)),
+    pin: os.pages.pin.handler(({ input }) => api.pinPage(input)),
+    remove: os.pages.remove.handler(({ input }) => api.removePage(input)),
+  },
   search: {
     messages: os.search.messages.handler(({ input }) => searchMessages(input.query)),
   },

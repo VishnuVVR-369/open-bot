@@ -1,4 +1,11 @@
-import type { ActivityItem, BotSummary, BriefingItem, ChatSummary, Home } from "@open-bot/api";
+import type {
+  ActivityItem,
+  BotSummary,
+  BriefingItem,
+  ChatSummary,
+  Home,
+  PageSummary,
+} from "@open-bot/api";
 import { isRunActive, plainText } from "@open-bot/shared";
 import { router, type Href } from "expo-router";
 import {
@@ -25,7 +32,9 @@ import { Text } from "@/components/text";
 import { haptics } from "@/lib/haptics";
 import { animateLayout } from "@/lib/motion";
 import { usePresence } from "@/lib/presence";
-import { useChats, useHome, useNewDirectChat, useTeammates } from "@/lib/queries";
+import { PageMenu, PageRow } from "@/components/page-row";
+import { sortPages } from "@/lib/pages";
+import { useChats, useHome, useNewDirectChat, usePages, useTeammates } from "@/lib/queries";
 import { phoneDayClock } from "@/lib/phone-clock";
 import { screenHref } from "@/lib/screens";
 import { ago } from "@/lib/time";
@@ -572,18 +581,62 @@ function ActivityRow({
 }
 
 /** Home: what needs you, what you missed, and your teammates with where you left off. */
+/** How many pages Home shows. */
+const PAGES_ON_HOME = 3;
+
+/** The latest pages teammates made, pinned ones first. */
+function Pages({ pages, bots }: { pages: PageSummary[]; bots: BotSummary[] }) {
+  const colors = useColors();
+  const [menuFor, setMenuFor] = useState<PageSummary | null>(null);
+  const shown = useMemo(() => sortPages(pages).slice(0, PAGES_ON_HOME), [pages]);
+  if (shown.length === 0) return null;
+  return (
+    <Section
+      title="Pages"
+      action={
+        <Pressable
+          onPress={() => router.push("/pages")}
+          accessibilityRole="button"
+          hitSlop={12}
+          style={styles.seeAll}
+          testID="all-pages"
+        >
+          <Text variant="small" muted style={{ fontWeight: "500" }}>
+            {pages.length > PAGES_ON_HOME ? `All ${pages.length}` : "All pages"}
+          </Text>
+          <ChevronRight size={14} color={colors.mutedForeground} />
+        </Pressable>
+      }
+    >
+      <Card>
+        {shown.map((page, index) => (
+          <PageRow
+            key={page.id}
+            page={page}
+            bot={bots.find((bot) => bot.id === page.botId)}
+            first={index === 0}
+            onLongPress={() => setMenuFor(page)}
+          />
+        ))}
+      </Card>
+      <PageMenu page={menuFor} onClose={() => setMenuFor(null)} />
+    </Section>
+  );
+}
+
 export default function HomeScreen() {
   const colors = useColors();
   const home = useHome();
   const teammates = useTeammates();
   const chats = useChats();
+  const pages = usePages();
   const { awaySince } = usePresence();
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([home.refetch(), teammates.refetch(), chats.refetch()]);
+    await Promise.all([home.refetch(), teammates.refetch(), chats.refetch(), pages.refetch()]);
     setRefreshing(false);
-  }, [home, teammates, chats]);
+  }, [home, teammates, chats, pages]);
   // Direct chats already show on the roster; this is what happened elsewhere.
   const recent = useMemo(
     () => (home.data?.activity ?? []).filter((item) => item.chatKind !== "direct").slice(0, RECENT),
@@ -638,6 +691,7 @@ export default function HomeScreen() {
       ) : (
         <>
           <Teammates bots={bots} chats={chats.data ?? []} />
+          <Pages pages={pages.data ?? []} bots={bots} />
           {recent.length > 0 && (
             <Section
               title="Elsewhere"

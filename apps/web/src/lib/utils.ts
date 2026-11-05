@@ -7,9 +7,25 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isUuid(value: string): boolean {
+  return UUID.test(value);
+}
+
 /** A chat's address, scrolled to one run when it's given. */
 export function chatHref(chatId: string, runId?: string | null): string {
   return runId ? `/chats/${chatId}#run-${runId}` : `/chats/${chatId}`;
+}
+
+/** Where a notification leads: the page a teammate published, else the chat it's about. */
+export function notificationHref(notification: {
+  chatId: string | null;
+  runId: string | null;
+  pageId: string | null;
+}): string | null {
+  if (notification.pageId) return `/pages/${notification.pageId}`;
+  return notification.chatId ? chatHref(notification.chatId, notification.runId) : null;
 }
 
 /**

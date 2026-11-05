@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { markNotificationsRead } from "@/lib/actions";
 import { queryKeys, useNotifications } from "@/lib/client/queries";
-import { chatHref, cn, plainText } from "@/lib/utils";
+import { cn, notificationHref, plainText } from "@/lib/utils";
 
 export function NotificationsButton({ count }: { count: number }) {
   const [open, setOpen] = useState(false);
@@ -71,8 +71,8 @@ export function NotificationsButton({ count }: { count: number }) {
             <button
               key={notification.id}
               onClick={() => {
-                if (notification.chatId)
-                  router.push(chatHref(notification.chatId, notification.runId));
+                const href = notificationHref(notification);
+                if (href) router.push(href);
                 void onOpenChange(false);
               }}
               className="flex w-full gap-3 border-b px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-muted"

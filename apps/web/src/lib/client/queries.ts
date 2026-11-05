@@ -16,6 +16,9 @@ import type {
   TriggerView,
   VaultItemView,
   ConnectionView,
+  PageDetail,
+  PageLink,
+  PageSummary,
 } from "../types";
 import { getJson } from "./api";
 
@@ -39,6 +42,10 @@ export const queryKeys = {
   connections: ["connections"] as const,
   email: ["email"] as const,
   spending: (botId: string) => ["spending", botId] as const,
+  pages: ["pages"] as const,
+  page: (pageId: string) => ["pages", pageId] as const,
+  pageLink: (versionId: string, theme: string, ask: boolean) =>
+    ["page-link", versionId, theme, ask] as const,
 };
 
 export function useAppState(initial?: AppState) {
@@ -150,5 +157,44 @@ export function useConnections() {
   return useQuery({
     queryKey: queryKeys.connections,
     queryFn: () => getJson<ConnectionView[]>("/api/connections"),
+  });
+}
+
+export function usePages() {
+  return useQuery({
+    queryKey: queryKeys.pages,
+    queryFn: () => getJson<PageSummary[]>("/api/pages"),
+  });
+}
+
+export function usePage(pageId: string) {
+  return useQuery({
+    queryKey: queryKeys.page(pageId),
+    queryFn: () => getJson<PageDetail>(`/api/pages/${pageId}`),
+    retry: (count, error) => !/deleted/.test(error.message) && count < 2,
+  });
+}
+
+/** Where to show a version. Links work for a few minutes, so a page reopened later gets a new one. */
+export function pageLinkUrl(versionId: string, options: { theme?: string; ask?: boolean }) {
+  const params = new URLSearchParams();
+  if (options.theme) params.set("theme", options.theme);
+  if (options.ask) params.set("ask", "1");
+  return `/api/pages/versions/${versionId}/link?${params}`;
+}
+
+export function usePageLink(versionId: string | null, theme: "light" | "dark", ask: boolean) {
+  return useQuery({
+    queryKey: queryKeys.pageLink(versionId ?? "", theme, ask),
+    queryFn: () => getJson<PageLink>(pageLinkUrl(versionId!, { theme, ask })),
+    enabled: versionId !== null,
+    // Loaded once into the frame, which keeps working after the link expires. Coming back to it
+    // later (another theme and back, or the page again) gets a new link once this one is near its end.
+    staleTime: (query) =>
+      query.state.data
+        ? Math.max(0, Date.parse(query.state.data.expiresAt) - Date.now() - 60_000)
+        : 0,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 }

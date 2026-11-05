@@ -22,6 +22,8 @@ export interface NativePushData {
   botId?: string;
   chatId?: string;
   runId?: string;
+  /** A page to open, for a teammate's reply that published one. */
+  pageId?: string;
   approvalId?: string;
   /** "true" when approving needs your fingerprint, like for a purchase. */
   approvalNeedsBiometric?: "true" | "false";
@@ -47,6 +49,7 @@ const URGENT_KINDS = new Set(["approval", "takeover_request"]);
 /** The phone's in-app route for a notification. */
 function nativeUrl(event: NotificationEvent): string {
   if (event.kind === "approval" && event.approvalId) return `/approvals/${event.approvalId}`;
+  if (event.pageId) return `/pages/${event.pageId}`;
   if (event.chatId) return `/chats/${event.chatId}${event.runId ? `?run=${event.runId}` : ""}`;
   return "/";
 }
@@ -70,6 +73,7 @@ export function nativeNotification(event: NotificationEvent): NativePush {
         }
       : {}),
     ...(event.takeoverId ? { takeoverId: event.takeoverId } : {}),
+    ...(event.pageId ? { pageId: event.pageId } : {}),
   };
   return { data, priority: URGENT_KINDS.has(event.kind) ? "high" : "normal" };
 }

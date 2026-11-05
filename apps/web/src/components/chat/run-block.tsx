@@ -41,6 +41,7 @@ import { readAloud, readingNow, stopReading, useReadAloud } from "@/lib/client/r
 import type { BotSummary, RunView } from "@/lib/types";
 import { cn, compactNumber, formatDuration, REVEAL_ON_RUN_HOVER } from "@/lib/utils";
 import { RunMemory } from "@/components/memory/run-memory";
+import { PageCard } from "@/components/pages/page-card";
 import { SwarmCard } from "./swarm-card";
 import { DesktopStrip } from "./desktop-strip";
 import {
@@ -206,6 +207,7 @@ function isPinned(item: TimelineItem): boolean {
     item.kind === "user_message" ||
     item.kind === "error" ||
     item.kind === "swarm" ||
+    item.kind === "page" ||
     (item.kind === "approval" && item.decision === "pending") ||
     (item.kind === "takeover_request" &&
       (item.resolution === "pending" || item.resolution === "taken"))
@@ -414,6 +416,8 @@ function renderItem(item: TimelineItem, botId: string, bot: BotSummary | undefin
       return <SteeredMessage item={item} />;
     case "swarm":
       return <SwarmCard item={item} botName={bot?.name ?? "Your teammate"} />;
+    case "page":
+      return <PageCard item={item} />;
     case "error":
       return (
         <div className="flex items-start gap-2 rounded-lg bg-destructive/8 px-3 py-2 text-[13.5px] text-destructive">
@@ -540,6 +544,7 @@ export function RunBlock({
               part.item.kind === "takeover_request" ||
               part.item.kind === "plan" ||
               part.item.kind === "swarm" ||
+              part.item.kind === "page" ||
               part.item.kind === "user_message";
             return (
               <div key={part.id} className={cn(spaced && "my-1")}>

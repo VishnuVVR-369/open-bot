@@ -5,6 +5,8 @@ import {
   chats,
   credentials,
   messages,
+  pages,
+  pageVersions,
   runs,
   telegram,
   telegramMessages,
@@ -719,10 +721,11 @@ export class TelegramService {
         .from(bots)
         .where(eq(bots.id, run.botId));
       const name = escapeHtml(bot?.name ?? "Your teammate");
+      const pageLinks = await this.pageLinks(run.id);
       const body =
         event.kind === "run_failed"
           ? `⚠️ <b>${name} couldn't finish.</b>\n${escapeHtml(event.body)}`
-          : `<b>${origin ? name : escapeHtml(event.title)}</b>\n${telegramHtml(run.finalText ?? "Done.")}`;
+          : `<b>${origin ? name : escapeHtml(event.title)}</b>\n${telegramHtml(run.finalText ?? "Done.")}${pageLinks}`;
       const ids = await this.send(telegramChatId, body, { replyTo: origin?.telegramMessageId });
       await this.remember(telegramChatId, ids, { chatId: run.chatId });
       return;
@@ -779,6 +782,21 @@ export class TelegramService {
   }
 
   /** The Telegram message that started or steered a run, if any. */
+  /** Links to the pages a run published, to open in the app. */
+  private async pageLinks(runId: string): Promise<string> {
+    const rows = await this.ctx.db
+      .selectDistinct({ id: pages.id, title: pages.title })
+      .from(pageVersions)
+      .innerJoin(pages, eq(pages.id, pageVersions.pageId))
+      .where(eq(pageVersions.runId, runId));
+    return rows
+      .map(
+        (page) =>
+          `\n📄 <a href="${escapeHtml(this.appLink(`/pages/${page.id}`))}">${escapeHtml(page.title)}</a>`,
+      )
+      .join("");
+  }
+
   private async telegramOrigin(runId: string) {
     const [run] = await this.ctx.db
       .select({ messageId: runs.messageId })

@@ -3,12 +3,29 @@ import { z } from "zod";
 /** Skill names are what you type after `/`, like `/weekly-report`. */
 export const SKILL_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+/** Skills open-bot gives every teammate, like `/page`. Saved skills can't take their names. */
+export const BUILT_IN_SKILLS = [
+  {
+    name: "page",
+    description:
+      "Build a Page: a polished HTML explainer, report, comparison or dashboard you open in the app.",
+  },
+] as const;
+
+export function isBuiltInSkill(name: string): boolean {
+  return BUILT_IN_SKILLS.some((skill) => skill.name === name);
+}
+
 export const skillInputSchema = z.object({
   name: z
     .string()
     .min(2, "Give the skill a name of at least 2 characters")
     .max(48)
-    .regex(SKILL_NAME_PATTERN, "Use lowercase letters, numbers and dashes, like weekly-report"),
+    .regex(SKILL_NAME_PATTERN, "Use lowercase letters, numbers and dashes, like weekly-report")
+    .refine(
+      (name) => !isBuiltInSkill(name),
+      "That name belongs to a built-in skill. Pick another.",
+    ),
   description: z.string().trim().min(1, "Say when to use the skill").max(300),
   instructions: z.string().trim().min(1, "Write the steps").max(20_000),
   /** The teammate who can use it, or null for every teammate. */

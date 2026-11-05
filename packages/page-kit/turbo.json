@@ -1,0 +1,9 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "test": {
+      // The tests read the assembled dist/lib.
+      "dependsOn": ["$TURBO_EXTENDS$", "build"]
+    }
+  }
+}

@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./tokens": "./src/tokens.ts",
-    "./secrets": "./src/secrets.ts"
+    "./secrets": "./src/secrets.ts",
+    "./page-links": "./src/page-links.ts"
   },
   "scripts": {
     "typecheck": "tsc -p .",

@@ -22,7 +22,7 @@ pnpm install
 cp .env.example .env    # set OWNER_EMAIL to your email
 pnpm infra:up           # Postgres and the computer (the first build takes a few minutes)
 pnpm db:migrate
-pnpm dev                # the web app and the worker
+pnpm dev                # the web app, the worker and the pages service
 ```
 
 Open `http://localhost:3000`.
@@ -35,6 +35,7 @@ Any other email is refused, and so is a second account.
 | ------------------------ | ------------ | ----------------------------------------- | ------------------------------------- |
 | Web app                  | your machine | `3000`                                    | `pnpm dev`                            |
 | Worker                   | your machine | `4001`                                    | `pnpm dev`                            |
+| Pages service            | your machine | `127.0.0.1:3400`                          | `pnpm dev`                            |
 | Postgres (with pgvector) | Docker       | `127.0.0.1:54329`                         | `pnpm infra:up`                       |
 | The computer (botd)      | Docker       | `127.0.0.1:7070`, mapped to `7000` inside | `pnpm infra:up`                       |
 | Desktop app (optional)   | your Mac     | none                                      | `pnpm --filter @open-bot/desktop dev` |
@@ -42,9 +43,10 @@ Any other email is refused, and so is a second account.
 Both Docker services publish their ports on `127.0.0.1` only.
 In the cloud, Postgres and the computer have no public address at all (see [Deployment](/docs/deployment)).
 
-`pnpm dev` runs Turborepo with `--parallel` for the two apps.
-The worker runs through `tsx watch`, and the web app through `next dev`, so both reload when you edit them.
-Both read the root `.env`.
+`pnpm dev` runs Turborepo with `--parallel` for the three apps.
+The worker and the pages service run through `tsx watch`, and the web app through `next dev`, so they reload when you edit them.
+The pages service builds the page kit first, so after changing `packages/page-kit`, restart `pnpm dev`.
+All three read the root `.env`.
 
 ## Your first teammate
 

@@ -16,7 +16,7 @@ import { toast } from "sonner";
 import type { NotificationView, StreamRunEvent } from "../types";
 import { setTimezone } from "../actions";
 import { getJson } from "./api";
-import { chatHref, plainText } from "../utils";
+import { notificationHref, plainText } from "../utils";
 import { queryKeys } from "./queries";
 
 type RunListener = (event: StreamRunEvent) => void;
@@ -77,8 +77,9 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       });
       const notification = list.find((entry) => entry.id === id);
       if (!notification) return;
+      const href = notificationHref(notification);
       const open = () => {
-        if (notification.chatId) router.push(chatHref(notification.chatId, notification.runId));
+        if (href) router.push(href);
       };
       // The chat you're looking at already shows what happened, so only other chats get a toast.
       const watching =
@@ -87,7 +88,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
         const body = plainText(notification.body);
         toast(notification.title, {
           description: body.length > 140 ? `${body.slice(0, 140)}…` : body,
-          action: notification.chatId && !watching ? { label: "Open", onClick: open } : undefined,
+          action: href && !watching ? { label: "Open", onClick: open } : undefined,
         });
       }
       if (document.hidden || !document.hasFocus()) showDesktopNotification(notification, open);
@@ -146,6 +147,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.triggers });
       if (event.type === "skills")
         void queryClient.invalidateQueries({ queryKey: queryKeys.skills });
+      if (event.type === "pages") void queryClient.invalidateQueries({ queryKey: queryKeys.pages });
     });
     source.addEventListener("run", (message) => {
       const event = JSON.parse((message as MessageEvent<string>).data) as StreamRunEvent;

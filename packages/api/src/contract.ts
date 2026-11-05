@@ -17,6 +17,9 @@ import {
   homeSchema,
   messageViewSchema,
   notificationViewSchema,
+  pageDetailSchema,
+  pageLinkSchema,
+  pageSummarySchema,
   searchResultSchema,
   uploadViewSchema,
 } from "./views";
@@ -199,6 +202,27 @@ export const contract = {
     markRead: base
       .input(z.object({ ids: z.array(id).max(200).optional(), through: id.optional() }))
       .output(ok),
+  },
+  pages: {
+    /** Every page, pinned first, then the most recently updated. */
+    list: base.output(z.array(pageSummarySchema)),
+    get: base.input(z.object({ pageId: id })).output(pageDetailSchema),
+    /**
+     * An address that shows a version for the next few minutes, on the pages origin (never the
+     * app's). `ask` offers "Ask about this" on selected text; see `parsePageAskMessage`.
+     */
+    open: base
+      .input(
+        z.object({
+          versionId: id,
+          theme: z.enum(["light", "dark"]).optional(),
+          ask: z.boolean().optional(),
+        }),
+      )
+      .output(pageLinkSchema),
+    pin: base.input(z.object({ pageId: id, pinned: z.boolean() })).output(ok),
+    /** Delete a page and every version of it. */
+    remove: base.input(z.object({ pageId: id })).output(ok),
   },
   search: {
     /** Your messages and teammates' replies that contain the text, newest first. */

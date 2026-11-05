@@ -47,7 +47,7 @@ export const docs: DocSection[] = [
         href: "/docs/architecture",
         title: "System overview",
         description:
-          "The five processes, how they talk to each other, and the design decisions behind the shape.",
+          "The six processes, how they talk to each other, and the design decisions behind the shape.",
       },
       {
         href: "/docs/architecture/web-app",
@@ -78,6 +78,12 @@ export const docs: DocSection[] = [
         title: "Data and events",
         description:
           "The Postgres schema, the run queue, the append-only event log and the NOTIFY channels.",
+      },
+      {
+        href: "/docs/architecture/pages",
+        title: "The pages service",
+        description:
+          "Where pages are stored, how they are checked, and how a separate origin keeps them away from your session.",
       },
       {
         href: "/docs/architecture/desktop-and-egress",
@@ -141,6 +147,12 @@ export const docs: DocSection[] = [
         href: "/docs/flows/skills-and-connections",
         title: "Skills and connections",
         description: "Saved procedures as Codex skills, and outside services through MCP servers.",
+      },
+      {
+        href: "/docs/flows/pages",
+        title: "Pages",
+        description:
+          "HTML pages a teammate builds, checks and publishes, with versions and Ask about this.",
       },
       {
         href: "/docs/flows/channels",

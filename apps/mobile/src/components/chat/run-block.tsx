@@ -49,6 +49,7 @@ import { FileChip } from "@/components/file-chip";
 import { ApprovalCard } from "./approval-card";
 import { RetryRun, RunActions } from "./run-actions";
 import { CodeBlock, Step, type StepIcon } from "./step";
+import { PageCard } from "./page-card";
 import { SwarmCard } from "./swarm-card";
 
 /** Items that stay visible when the steps are collapsed. */
@@ -58,6 +59,7 @@ function isPinned(item: TimelineItem): boolean {
     item.kind === "user_message" ||
     item.kind === "error" ||
     item.kind === "swarm" ||
+    item.kind === "page" ||
     (item.kind === "approval" && item.decision === "pending") ||
     (item.kind === "takeover_request" &&
       (item.resolution === "pending" || item.resolution === "taken"))
@@ -410,6 +412,8 @@ function ItemView({
       );
     case "swarm":
       return <SwarmCard item={item} botName={botName} />;
+    case "page":
+      return <PageCard item={item} />;
     case "error":
       return (
         <View
@@ -619,6 +623,7 @@ export const RunBlock = memo(function RunBlock({
             "takeover_request",
             "plan",
             "swarm",
+            "page",
             "user_message",
           ].includes(part.item.kind);
           return (

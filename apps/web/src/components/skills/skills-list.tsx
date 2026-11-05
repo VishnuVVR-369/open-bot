@@ -2,7 +2,9 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNowStrict } from "date-fns";
-import { Pencil, Sparkles, Trash2, Users } from "lucide-react";
+import { BUILT_IN_SKILLS } from "@open-bot/shared";
+import { FileText, Pencil, Sparkles, Trash2, Users } from "lucide-react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { BotAvatar } from "@/components/bot-avatar";
 import {
@@ -66,6 +68,45 @@ function DeleteSkill({ skill }: { skill: SkillView }) {
   );
 }
 
+/** What the built-in skills lead to, for their cards. */
+const BUILT_IN_LINKS: Record<string, { href: string; label: string }> = {
+  page: { href: "/pages", label: "See your pages" },
+};
+
+/** A skill that comes with open-bot: every teammate has it, and it can't be edited. */
+function BuiltInSkill({ skill }: { skill: (typeof BUILT_IN_SKILLS)[number] }) {
+  const link = BUILT_IN_LINKS[skill.name];
+  return (
+    <li className="flex flex-col gap-3 rounded-xl border bg-card p-4" data-testid="built-in-skill">
+      <div className="flex items-start gap-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-subtle text-muted-foreground">
+          <FileText className="size-4" />
+        </span>
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="flex items-center gap-2">
+            <span className="truncate font-mono text-[14px] font-medium">/{skill.name}</span>
+            <span className="rounded bg-subtle px-1.5 text-[11px] leading-[18px] font-medium text-muted-foreground">
+              Built in
+            </span>
+          </span>
+          <p className="line-clamp-2 text-[13.5px] text-muted-foreground">{skill.description}</p>
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pl-12 text-[12.5px] text-muted-foreground">
+        <span className="flex items-center gap-1.5">
+          <Users className="size-3.5" />
+          Every teammate
+        </span>
+        {link && (
+          <Link href={link.href} className="font-medium text-foreground/80 hover:text-foreground">
+            {link.label}
+          </Link>
+        )}
+      </div>
+    </li>
+  );
+}
+
 /** Every saved skill, or the ones one teammate can use. */
 export function SkillsList({ botId }: { botId?: string }) {
   const { data, isLoading } = useSkills();
@@ -86,18 +127,25 @@ export function SkillsList({ botId }: { botId?: string }) {
 
   if (skills.length === 0) {
     return (
-      <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed px-6 py-14 text-center">
-        <Sparkles className="size-6 text-muted-foreground" />
-        <p className="font-medium">No skills yet</p>
-        <p className="max-w-md text-[13.5px] text-muted-foreground">
-          Save the steps for a task once, then run it any time by typing / in a chat. Teammates can
-          save skills too: after a task goes well, ask &ldquo;save that as a skill&rdquo;.
-        </p>
-        {botId && (
-          <div className="mt-2">
-            <SkillDialog defaultBotId={botId} />
-          </div>
-        )}
+      <div className="flex flex-col gap-4">
+        <ul className="grid gap-3 md:grid-cols-2">
+          {BUILT_IN_SKILLS.map((skill) => (
+            <BuiltInSkill key={skill.name} skill={skill} />
+          ))}
+        </ul>
+        <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed px-6 py-14 text-center">
+          <Sparkles className="size-6 text-muted-foreground" />
+          <p className="font-medium">No saved skills yet</p>
+          <p className="max-w-md text-[13.5px] text-muted-foreground">
+            Save the steps for a task once, then run it any time by typing / in a chat. Teammates
+            can save skills too: after a task goes well, ask &ldquo;save that as a skill&rdquo;.
+          </p>
+          {botId && (
+            <div className="mt-2">
+              <SkillDialog defaultBotId={botId} />
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -110,6 +158,9 @@ export function SkillsList({ botId }: { botId?: string }) {
         </div>
       )}
       <ul className="grid gap-3 md:grid-cols-2">
+        {BUILT_IN_SKILLS.map((skill) => (
+          <BuiltInSkill key={skill.name} skill={skill} />
+        ))}
         {skills.map((skill) => {
           const owner = botOf(skill.botId);
           const author = skill.createdBy === "bot" ? botOf(skill.createdByBotId) : null;

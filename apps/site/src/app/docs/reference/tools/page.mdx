@@ -4,7 +4,7 @@ export const metadata = docMetadata("/docs/reference/tools");
 
 # Teammate tools
 
-Besides Codex's built-in shell, file and web search tools, every teammate has the 46 dynamic tools below.
+Besides Codex's built-in shell, file and web search tools, every teammate has the 50 dynamic tools below.
 They are defined in `apps/worker/src/tools/definitions.ts` and handled in `apps/worker/src/tools/handlers.ts`, with the teammate tools in `apps/worker/src/tools/bots.ts`.
 
 ## How tools are served
@@ -13,7 +13,7 @@ They are defined in `apps/worker/src/tools/definitions.ts` and handled in `apps/
 - The worker validates arguments against each tool's JSON schema, and returns readable errors the model can act on.
 - Each call becomes a timeline item, recorded by the handler with more detail than Codex's generic item.
 - Before every call, the handler checks that the teammate's memory hasn't changed since the run started. If it has, the turn is interrupted.
-- Tool definitions and the developer instructions are versioned together with `TOOLS_VERSION` (currently 14). Changing either requires a bump, which starts fresh threads.
+- Tool definitions and the developer instructions are versioned together with `TOOLS_VERSION` (currently 17). Changing either requires a bump, which starts fresh threads.
 
 Arguments marked with `?` are optional.
 **Helpers** are swarm helper runs, which can't use the tools marked "no".
@@ -39,12 +39,13 @@ They all fail with `user_has_control` while you hold the screen.
 
 ## Working with you
 
-| Tool                   | Arguments                | Does                                                                                         | Helpers |
-| ---------------------- | ------------------------ | -------------------------------------------------------------------------------------------- | ------- |
-| `notify_user`          | `title`, `message`       | Sends you a notification                                                                     | no      |
-| `request_approval`     | `action`, `details`      | Asks you to approve a consequential action, and waits up to 10 minutes                       | no      |
-| `request_takeover`     | `reason`                 | Asks you to take over the screen for a password, code or CAPTCHA, and waits up to 10 minutes | no      |
-| `propose_instructions` | `instructions`, `reason` | Suggests a rewrite of its own instructions for you to accept                                 | no      |
+| Tool                   | Arguments                | Does                                                                                          | Helpers |
+| ---------------------- | ------------------------ | --------------------------------------------------------------------------------------------- | ------- |
+| `notify_user`          | `title`, `message`       | Sends you a notification                                                                      | no      |
+| `request_approval`     | `action`, `details`      | Asks you to approve a consequential action, and waits up to 10 minutes                        | no      |
+| `request_takeover`     | `reason`                 | Asks you to take over the screen for a password, code or CAPTCHA, and waits up to 10 minutes  | no      |
+| `propose_instructions` | `instructions`, `reason` | Suggests a rewrite of its own instructions for you to accept                                  | no      |
+| `set_chat_title`       | `title`                  | Names a direct chat that has no title yet, in 2 to 6 words. Your own title is never replaced. | yes     |
 
 ## Automations
 
@@ -101,6 +102,18 @@ These create and configure permanent teammates. See [Building the team](/docs/fl
 | Tool         | Arguments                                                                      | Does                                                                                             | Helpers |
 | ------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ | ------- |
 | `save_skill` | `bot_id?`, `skill_id?`, `name`, `description`, `instructions`, `for_everyone?` | Saves a reusable procedure, invoked later with `/name`, for itself, another teammate or everyone | no      |
+
+## Pages
+
+See [Pages](/docs/flows/pages).
+`path` is a `.html` file in the teammate's workspace, like `pages/kafka/index.html`, or a full path under `/home/bot`.
+
+| Tool           | Arguments                                       | Does                                                                                                                      | Helpers |
+| -------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `check_page`   | `path`                                          | Renders the file without network at 390 and 1280 px, and returns its errors, warnings, both screenshots and a preview URL | yes     |
+| `publish_page` | `path`, `title`, `summary`, `note?`, `page_id?` | Checks the file again and stores it as a new version, shown in the chat as a card. Never asks you first.                  | no      |
+| `list_pages`   |                                                 | Lists published pages, newest first, with ids, versions, teammates and source files                                       | yes     |
+| `get_page`     | `page_id`, `restore?`                           | Reads a page's versions and text. With `restore`, writes the current version into its workspace to edit.                  | yes     |
 
 ## Vault and payments
 

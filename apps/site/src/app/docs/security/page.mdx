@@ -16,7 +16,7 @@ The known risks were reproduced in the `computer` image, not inferred from readi
 
 ## Trust boundaries
 
-<Figure caption="Each arrow is labeled with the credential it carries. Postgres and the computer are never exposed publicly.">
+<Figure caption="Each arrow is labeled with the credential it carries. Postgres and the computer are never exposed publicly. Pages are served from an origin of their own, which never sees your session.">
   <TrustDiagram />
 </Figure>
 
@@ -29,6 +29,7 @@ The known risks were reproduced in the `computer` image, not inferred from readi
 | Worker to botd                        | `Bearer BOTD_TOKEN` (header or query)                         | Static secret            |
 | Anyone to a webhook                   | The random token in the URL                                   | Until you rotate it      |
 | Postmark to inbound email             | The random secret in the URL                                  | Until you change it      |
+| Browser to the pages service          | HMAC-SHA256 key for one version, signed with `PAGES_SECRET`   | 10 minutes               |
 
 Tokens for websockets exist because a websocket from the browser can't carry the session cookie to the worker's different origin.
 The web app issues them only to a signed-in session, and they say what they're for, so a VNC token can't open the egress tunnel.
@@ -72,6 +73,29 @@ In the cloud, Codex keeps its login in `/home/bot/.codex` on the computer's volu
 - **The egress agent** refuses any destination whose name resolves to a private or local address, and connects to the checked address to defeat DNS rebinding. A teammate can't reach your home network.
 - **Webhooks** are rate limited to 30 runs an hour each, and bodies to 256 KB.
 - **Prompt injection.** Watched pages, webhook payloads, emails and `browser_read_page` results are wrapped in notes that mark them as outside data. That reduces the risk but can't remove it, which is why approvals and budgets don't depend on the model's judgment.
+
+## Pages
+
+A [page](/docs/flows/pages) is HTML a teammate wrote, often from websites it read, so it's treated as untrusted code.
+[The pages service](/docs/architecture/pages) has the details.
+
+| Protection                          | How                                                                                                                                       |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| A page can't act with your session  | Pages are served from a different site than the app, and the pages service has no session. The app's cookies never reach a page.          |
+| A page can't reach its own origin   | CSP `sandbox` without `allow-same-origin` gives it an opaque origin, with no cookies or storage. The app's frame sets the same sandbox.   |
+| A page can't send anything anywhere | `connect-src 'none'` and `form-action 'none'`, and scripts, styles, fonts and images only inline or from `/lib`.                          |
+| Only the app can frame a page       | `frame-ancestors` lists only `APP_URL`'s origins.                                                                                         |
+| A link opens one version, briefly   | The web app signs a link for one version, for 10 minutes, for a signed-in session only. `no-referrer` keeps the key out of other sites.   |
+| The app trusts nothing a page says  | It reads one message from a page's frame, **Ask about this**, checks every field, and only prefills a question you then write and send.   |
+| Checking a page reaches nothing     | The checker's browser runs as `desktop`, with no network and a throwaway profile, and reads only `.html` files in workspaces or `shared`. |
+
+What a malicious page can still do:
+
+- Show misleading content, inside the frame.
+- Offer links to other sites, which open in a new tab or the phone's browser when you click them. Because of `allow-popups-to-escape-sandbox`, a site opened that way is an ordinary tab.
+- Put words in a link's URL that a site you open learns, the same as any link you click.
+
+The app's own session, your teammates, the computer and the vault are out of its reach.
 
 ## Known risks
 

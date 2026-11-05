@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  FileText,
   FolderClosed,
   KeyRound,
   House,
@@ -183,6 +184,13 @@ export function Sidebar({ initial, onNavigate }: { initial: AppState; onNavigate
             icon={Sparkles}
             label="Skills"
             active={pathname === "/skills"}
+            onNavigate={onNavigate}
+          />
+          <NavItem
+            href="/pages"
+            icon={FileText}
+            label="Pages"
+            active={pathname === "/pages" || pathname.startsWith("/pages/")}
             onNavigate={onNavigate}
           />
           <NavItem

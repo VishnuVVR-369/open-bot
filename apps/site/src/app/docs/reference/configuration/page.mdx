@@ -5,22 +5,24 @@ export const metadata = docMetadata("/docs/reference/configuration");
 # Configuration
 
 open-bot is configured with environment variables.
-In development, the web app and the worker both read the repository's root `.env`, copied from `.env.example`.
+In development, the web app, the worker and the pages service all read the repository's root `.env`, copied from `.env.example`.
 Every value has a development default except `OWNER_EMAIL`.
 
 <Callout kind="warning">
-  The defaults for `BETTER_AUTH_SECRET`, `WORKER_SECRET`, `BOTD_TOKEN` and `ENCRYPTION_KEY` are
-  public. Replace every one of them in any deployment. See [Deployment](/docs/deployment#1-secrets).
+  The defaults for `BETTER_AUTH_SECRET`, `WORKER_SECRET`, `BOTD_TOKEN`, `ENCRYPTION_KEY` and
+  `PAGES_SECRET` are public. Replace every one of them in any deployment. See
+  [Deployment](/docs/deployment#1-secrets).
 </Callout>
 
 ## Shared secrets
 
-| Variable         | Web | Worker | Computer | Notes                                                                                 |
-| ---------------- | --- | ------ | -------- | ------------------------------------------------------------------------------------- |
-| `DATABASE_URL`   | yes | yes    |          | Default `postgres://openbot:openbot@127.0.0.1:54329/openbot`                          |
-| `WORKER_SECRET`  | yes | yes    |          | At least 16 characters. Authenticates internal calls and signs VNC and egress tokens. |
-| `ENCRYPTION_KEY` | yes | yes    |          | 32 bytes, base64. Encrypts every stored secret with AES-256-GCM.                      |
-| `BOTD_TOKEN`     |     | yes    | yes      | At least 16 characters. botd refuses to start without it.                             |
+| Variable         | Web | Worker | Computer | Pages | Notes                                                                                 |
+| ---------------- | --- | ------ | -------- | ----- | ------------------------------------------------------------------------------------- |
+| `DATABASE_URL`   | yes | yes    |          | yes   | Default `postgres://openbot:openbot@127.0.0.1:54329/openbot`                          |
+| `WORKER_SECRET`  | yes | yes    |          |       | At least 16 characters. Authenticates internal calls and signs VNC and egress tokens. |
+| `ENCRYPTION_KEY` | yes | yes    |          |       | 32 bytes, base64. Encrypts every stored secret with AES-256-GCM.                      |
+| `BOTD_TOKEN`     |     | yes    | yes      |       | At least 16 characters. botd refuses to start without it.                             |
+| `PAGES_SECRET`   | yes |        |          | yes   | At least 32 characters. Signs and verifies the 10 minute links to pages.              |
 
 ## Web app
 
@@ -31,6 +33,7 @@ Every value has a development default except `OWNER_EMAIL`.
 | `BETTER_AUTH_URL`           | `http://localhost:3000` | The app's public URL. Also the passkey relying party.                                    |
 | `WORKER_URL`                | `http://127.0.0.1:4001` | Where the web server reaches the worker                                                  |
 | `NEXT_PUBLIC_WORKER_WS_URL` | `ws://localhost:4001`   | Where browsers and the desktop app reach the worker's websockets. Built into the client. |
+| `PAGES_URL`                 | `http://127.0.0.1:3400` | The pages service's public URL, which page links and downloads point at                  |
 
 ## Worker
 
@@ -65,17 +68,32 @@ See [Memory](/docs/flows/memory#optional-ai).
 | `MEMORY_AI_API_KEY`             | empty   | A bearer token for those two endpoints only              |
 | `MEMORY_AI_DAILY_REQUEST_LIMIT` | `100`   | All memory AI requests per day. `0` turns memory AI off. |
 
+## Pages service
+
+See [The pages service](/docs/architecture/pages).
+
+| Variable       | Default                                                        | Purpose                                                                 |
+| -------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `PORT`         | `3400`                                                         | HTTP port                                                               |
+| `PAGES_URL`    | `https://$RAILWAY_PUBLIC_DOMAIN`, or `http://127.0.0.1:<PORT>` | Its own public URL, which the runtime and `/lib` addresses use          |
+| `APP_URL`      | `http://localhost:3000`                                        | The app's origins, comma-separated: the only ones that may frame a page |
+| `PAGE_LIB_DIR` | `dist/lib` next to the server, or the page kit's build         | Where `/lib` is served from                                             |
+
+`PAGES_SECRET` has a development default only outside production.
+In production, the pages service refuses to start without it.
+
 ## The computer (botd)
 
-| Variable                    | Default | Purpose                                                                                               |
-| --------------------------- | ------- | ----------------------------------------------------------------------------------------------------- |
-| `BOTD_TOKEN`                | none    | Required                                                                                              |
-| `MAX_SCREENS`               | `4`     | Screens running at once                                                                               |
-| `SCREEN_IDLE_MINUTES`       | `20`    | A screen nobody used for this long stops                                                              |
-| `APPLY_GUARD_EXTRA_DOMAINS` | empty   | Comma-separated extra domains for the apply guard. Compose sets `host.docker.internal` for the tests. |
-| `BOTS_GID`                  | `1100`  | The shared `bots` group, set in the image                                                             |
+| Variable                    | Default             | Purpose                                                                                               |
+| --------------------------- | ------------------- | ----------------------------------------------------------------------------------------------------- |
+| `BOTD_TOKEN`                | none                | Required                                                                                              |
+| `MAX_SCREENS`               | `4`                 | Screens running at once                                                                               |
+| `SCREEN_IDLE_MINUTES`       | `20`                | A screen nobody used for this long stops                                                              |
+| `APPLY_GUARD_EXTRA_DOMAINS` | empty               | Comma-separated extra domains for the apply guard. Compose sets `host.docker.internal` for the tests. |
+| `BOTS_GID`                  | `1100`              | The shared `bots` group, set in the image                                                             |
+| `PAGE_LIB_DIR`              | `/opt/page-kit/lib` | Where the page preview server serves `/lib` from. The image copies the page kit there.                |
 
-botd's own ports are fixed: 7000 for its API, 4500 for Codex (localhost) and 1080 for SOCKS (localhost).
+botd's own ports are fixed: 7000 for its API, 4500 for Codex (localhost), 1080 for SOCKS (localhost) and 7080 for the page preview server (localhost).
 The Codex version is the image's `CODEX_VERSION` build argument.
 
 ## Desktop app

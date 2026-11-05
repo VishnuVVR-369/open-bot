@@ -8,7 +8,7 @@ To keep teammates working while your laptop is closed, run open-bot in the cloud
 This page describes the shape of a deployment and walks through it on Railway, which the project was built against.
 The same shape works on any host that runs containers with a private network and a persistent volume.
 
-<Figure caption="Only the web app and the worker's websocket endpoints are public. The desktop app runs on your Mac and connects out to the worker, so no ports open at home.">
+<Figure caption="Only the web app, the pages service and the worker's websocket endpoints are public. The desktop app runs on your Mac and connects out to the worker, so no ports open at home.">
   <DeploymentDiagram />
 </Figure>
 
@@ -20,8 +20,9 @@ The same shape works on any host that runs containers with a private network and
 | `computer` | `images/computer/Dockerfile`  | Private, port 7000                         | Volume at `/home` | 1         |
 | `worker`   | This repository, Node 24      | Private, plus public HTTPS and WSS on 4001 | None              | 1         |
 | `web`      | This repository, Node 24      | Public HTTPS on 3000                       | None              | 1 or more |
+| `pages`    | This repository, Node 24      | Public HTTPS on its own domain             | None              | 1 or more |
 
-The three services built from the repository use its root as their root directory, because they need the shared workspace packages and the root lockfile.
+The four services built from the repository use its root as their root directory, because they need the shared workspace packages and the root lockfile.
 
 <Callout kind="warning" title="One worker, one computer">
   The worker keeps in-memory state: run sessions, approval waiters, timers, Telegram long polling
@@ -36,6 +37,7 @@ Generate each secret separately:
 ```sh title="Terminal"
 openssl rand -hex 32      # BETTER_AUTH_SECRET, WORKER_SECRET, BOTD_TOKEN (one each)
 openssl rand -base64 32   # ENCRYPTION_KEY: exactly 32 bytes, base64
+openssl rand -base64 32   # PAGES_SECRET: at least 32 characters
 ```
 
 | Secret               | Set on                        |
@@ -44,6 +46,7 @@ openssl rand -base64 32   # ENCRYPTION_KEY: exactly 32 bytes, base64
 | `WORKER_SECRET`      | web, worker (same value)      |
 | `ENCRYPTION_KEY`     | web, worker (same value)      |
 | `BOTD_TOKEN`         | worker, computer (same value) |
+| `PAGES_SECRET`       | web, pages (same value)       |
 
 Back up `ENCRYPTION_KEY`.
 Every stored API key, vault item and connection secret depends on it.
@@ -130,21 +133,51 @@ WORKER_URL=http://<worker private host>:4001
 WORKER_SECRET=<same as worker>
 ENCRYPTION_KEY=<same as worker>
 NEXT_PUBLIC_WORKER_WS_URL=wss://<worker domain>
+PAGES_URL=https://<pages domain>
+PAGES_SECRET=<same as pages>
 ELECTRON_SKIP_BINARY_DOWNLOAD=1
 ```
 
 `NEXT_PUBLIC_WORKER_WS_URL` is built into the client, so rebuild after changing it.
 Use the targeted build commands above rather than the root `pnpm build`, which also builds the desktop app.
 
-## 6. First sign-in and smoke test
+## 6. The pages service
 
-1. Deploy Postgres and the computer, then the worker (with migrations), then the web app.
+The pages service shows published [pages](/docs/flows/pages).
+It must have a domain of its own, never a path or subdomain you also use for the web app, because its isolation depends on being a different site from the app.
+A Railway generated domain works: `up.railway.app` is on the Public Suffix List, so two of its subdomains are different sites.
+If you use custom domains, give the pages service a separate registrable domain, not a subdomain of the app's.
+[The pages service](/docs/architecture/pages#a-separate-origin) explains why.
+
+```sh title="Build and start"
+pnpm --filter @open-bot/pages build     # builds the page kit, then bundles the server with /lib next to it
+pnpm --filter @open-bot/pages start     # node dist/pages.mjs
+```
+
+- Generate a public domain for it, and health check `/healthz`.
+- It reads `page_versions` from Postgres and writes nothing, so it needs no migrations of its own.
+- It keeps no state, so it can run more than one replica.
+
+```dotenv title="pages variables"
+NODE_ENV=production
+DATABASE_URL=<private Postgres URL>
+PAGES_SECRET=<same as web>
+APP_URL=https://<web domain>            # the only origin allowed to show pages in a frame
+PAGES_URL=https://<pages domain>        # optional on Railway: defaults to RAILWAY_PUBLIC_DOMAIN
+```
+
+The pages service refuses to start in production without a `PAGES_SECRET` of at least 32 characters.
+
+## 7. First sign-in and smoke test
+
+1. Deploy Postgres and the computer, then the worker (with migrations), then the web app and the pages service.
 2. Open the web app and create the owner account with `OWNER_EMAIL`.
 3. In Settings → ChatGPT, choose **Sign in on the computer**, then complete the device-code login. The login is saved on the computer's volume.
 4. Optionally add an OpenAI API key and a monthly cap.
 5. Create a teammate. Open its screen, load a page, take over, hand back, and send a message.
-6. Restart the computer and check that files, the ChatGPT login and browser sign-ins survived.
-7. Run the desktop app against the deployment with `OPEN_BOT_URL=https://<web domain>`, sign in inside it, and check that the computer panel shows browsing through your Mac.
+6. Ask the teammate for a page, open it from the chat, and select some text to check that **Ask about this** appears.
+7. Restart the computer and check that files, the ChatGPT login and browser sign-ins survived.
+8. Run the desktop app against the deployment with `OPEN_BOT_URL=https://<web domain>`, sign in inside it, and check that the computer panel shows browsing through your Mac.
 
 ## Backups
 

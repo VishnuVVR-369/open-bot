@@ -10,10 +10,12 @@ export function notificationHref(notification: {
   botId?: string | null;
   chatId: string | null;
   runId: string | null;
+  pageId?: string | null;
 }): Href {
   if (notification.kind === "takeover_request" && notification.botId)
     return `/screens/${encodeURIComponent(notification.botId)}`;
   if (notification.kind === "approval") return "/approvals";
+  if (notification.pageId) return `/pages/${notification.pageId}`;
   if (notification.chatId) return chatHref(notification.chatId, notification.runId);
   return "/";
 }
