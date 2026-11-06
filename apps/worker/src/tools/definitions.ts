@@ -1,11 +1,12 @@
 import type { v2 } from "@open-bot/agent";
 import { MAX_SWARM_TASKS, SCREEN } from "@open-bot/shared";
+import { ACCOUNT_TOOL_SPECS } from "../accounts/registry";
 
 /**
  * Bump when the tool set or the developer instructions change.
  * Codex threads keep the tools they started with, so a new version starts fresh threads.
  */
-export const TOOLS_VERSION = 17;
+export const TOOLS_VERSION = 20;
 
 const SCREENSHOT_NOTE =
   "Returns a JPEG screenshot taken after the action, as a data URL string. In exec, pass it to image() to look at it, for example `image(await tools.desktop_click({x: 10, y: 20}))`.";
@@ -407,6 +408,63 @@ export const CONTROL_TOOLS: v2.DynamicToolSpec[] = [
     ["title", "url", "prompt"],
   ),
   tool(
+    "watch_gmail",
+    "Wake yourself or a specified teammate (bot_id) when new mail arrives in the user's Gmail. Mail matching the search starts a run in that teammate's Scheduled chat with the new messages, checked every 2 minutes; mail the user sends doesn't count. The teammate must have Gmail. Use it for things like 'tell me when the school writes' or 'file every receipt'.",
+    {
+      bot_id: targetBot,
+      title: { type: "string", minLength: 1, maxLength: 80 },
+      query: {
+        type: "string",
+        maxLength: 500,
+        description:
+          "A Gmail search the new mail must match, like 'from:school.org' or 'subject:invoice has:attachment'. Leave it out for all new mail.",
+      },
+      prompt: {
+        type: "string",
+        minLength: 1,
+        maxLength: 4000,
+        description: "What to do with the new mail. You'll get this with the messages.",
+      },
+      account: {
+        type: "string",
+        description: "With several Gmail accounts: the address to watch.",
+      },
+    },
+    ["title", "prompt"],
+  ),
+  tool(
+    "watch_calendar",
+    "Wake yourself or a specified teammate (bot_id) a set time before events on the user's Google Calendar (their primary calendar). Each event starts a run in that teammate's Scheduled chat with the event, once per occurrence, and again if it moves. Cancelled, all-day and declined events don't count. The teammate must have Google Calendar. Use it for things like 'brief me 30 minutes before meetings with guests'.",
+    {
+      bot_id: targetBot,
+      title: { type: "string", minLength: 1, maxLength: 80 },
+      lead_minutes: {
+        type: "integer",
+        minimum: 0,
+        maximum: 10080,
+        default: 30,
+        description: "How many minutes before each event to wake up. 0 is when it starts.",
+      },
+      events: {
+        type: "string",
+        enum: ["all", "guests"],
+        default: "all",
+        description: "guests: only events with other people on them.",
+      },
+      prompt: {
+        type: "string",
+        minLength: 1,
+        maxLength: 4000,
+        description: "What to do before each event. You'll get this with the event.",
+      },
+      account: {
+        type: "string",
+        description: "With several Google Calendar accounts: the address to watch.",
+      },
+    },
+    ["title", "prompt"],
+  ),
+  tool(
     "create_webhook",
     "Create a webhook URL for yourself or a specified teammate (bot_id). Calls start a run in that teammate's Scheduled chat with the request it received. Use it to connect services that send webhooks (GitHub, Stripe, Zapier, a form, a script). Returns the URL to give to that service.",
     {
@@ -423,18 +481,18 @@ export const CONTROL_TOOLS: v2.DynamicToolSpec[] = [
   ),
   tool(
     "list_automations",
-    "List your or a specified teammate's schedules, reminders, page watches and webhooks, with their ids.",
+    "List your or a specified teammate's schedules, reminders, page watches, webhooks, and Gmail and Calendar triggers, with their ids.",
     { bot_id: targetBot },
   ),
   tool(
     "cancel_automation",
-    "Delete a schedule, reminder, page watch or webhook by id, from yourself or the teammate specified by bot_id. The automation must belong to that teammate.",
+    "Delete a schedule, reminder, page watch, webhook, or Gmail or Calendar trigger by id, from yourself or the teammate specified by bot_id. The automation must belong to that teammate.",
     { id: { type: "string" }, bot_id: targetBot },
     ["id"],
   ),
   tool(
     "update_automation",
-    "Change a schedule, reminder, page watch or webhook by id (see list_automations), yours or the teammate's given by bot_id: pause or resume it, rename it, or change its instructions, timing, page or the text it waits for. Leave out what stays the same.",
+    "Change a schedule, reminder, page watch, webhook, or Gmail or Calendar trigger by id (see list_automations), yours or the teammate's given by bot_id: pause or resume it, rename it, or change its instructions, timing, page, the text it waits for, its Gmail search, or which events and how early. Leave out what stays the same.",
     {
       bot_id: targetBot,
       id: { type: "string" },
@@ -455,6 +513,22 @@ export const CONTROL_TOOLS: v2.DynamicToolSpec[] = [
         type: "string",
         maxLength: 200,
         description: "Page watches: the text to wait for, or an empty string for any change.",
+      },
+      query: {
+        type: "string",
+        maxLength: 500,
+        description: "Gmail triggers: a new search, or an empty string for all new mail.",
+      },
+      lead_minutes: {
+        type: "integer",
+        minimum: 0,
+        maximum: 10080,
+        description: "Calendar triggers: how many minutes before each event.",
+      },
+      events: {
+        type: "string",
+        enum: ["all", "guests"],
+        description: "Calendar triggers: every event, or only ones with other people.",
       },
       quiet: {
         type: "boolean",
@@ -797,6 +871,7 @@ export function toolsFor(): v2.DynamicToolSpec[] {
     ...SWARM_TOOLS,
     ...PAGE_TOOLS,
     ...GROUP_TOOLS,
+    ...ACCOUNT_TOOL_SPECS,
   ];
 }
 

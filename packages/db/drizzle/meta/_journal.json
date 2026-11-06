@@ -204,6 +204,13 @@
       "when": 1793819427508,
       "tag": "0028_pages",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1793960584341,
+      "tag": "0029_accounts",
+      "breakpoints": true
     }
   ]
 }

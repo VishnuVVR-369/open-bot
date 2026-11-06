@@ -1,4 +1,5 @@
 import {
+  accountTool,
   invalidRulePattern,
   rulesCover,
   shellScript,
@@ -77,14 +78,18 @@ export function AlwaysAllowSheet({
                 ? `Let ${botName} run commands starting with`
                 : kind === "file_change"
                   ? `Let ${botName} change files without asking`
-                  : `Let ${botName} do this without asking`}
+                  : kind === "account_write"
+                    ? `Let ${botName} ${(accountTool(subject)?.label ?? "do this").replace(/^./, (first) => first.toLowerCase())} without asking`
+                    : `Let ${botName} do this without asking`}
             </Text>
             <Text variant="small" muted>
+              {kind === "account_write" &&
+                "Only for changes only you see: anything others see still asks. "}
               This approves the request now. You can remove the rule from Approvals.
             </Text>
           </View>
         </View>
-        {kind !== "file_change" && (
+        {kind !== "file_change" && kind !== "account_write" && (
           <TextField
             value={pattern}
             onChangeText={setPattern}

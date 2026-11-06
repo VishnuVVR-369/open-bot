@@ -1,6 +1,7 @@
 import "server-only";
 import type { ApprovalView, MessageView } from "@open-bot/api";
 import type { approvals, messages } from "@open-bot/db";
+import type { AccountActionPreview } from "@open-bot/shared";
 
 /** Database rows as the API and the UI read them. */
 
@@ -28,6 +29,7 @@ export function toApprovalView(row: typeof approvals.$inferSelect): ApprovalView
     askEveryTime: row.payload.askEveryTime === true,
     title: row.title,
     detail: row.detail,
+    preview: (row.payload.preview as AccountActionPreview | undefined) ?? null,
     status: row.status,
     createdAt: row.createdAt.toISOString(),
     decidedAt: row.decidedAt?.toISOString() ?? null,

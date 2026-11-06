@@ -1,8 +1,91 @@
 /**
  * Triggers wake a teammate when something happens instead of at a time: a web page changes
- * (a watch), or a service calls the teammate's webhook URL.
+ * (a watch), a service calls the teammate's webhook URL, new mail arrives in your Gmail, or an
+ * event on your calendar is about to start.
  */
-export type TriggerKind = "watch" | "webhook";
+export type TriggerKind = "watch" | "webhook" | "gmail" | "calendar";
+
+/** Triggers on your own accounts, which watch a connection instead of a page or a URL. */
+export type AccountTriggerKind = "gmail" | "calendar";
+
+export function isAccountTrigger(kind: string): kind is AccountTriggerKind {
+  return kind === "gmail" || kind === "calendar";
+}
+
+/** The kind of connection each account trigger watches. */
+export const TRIGGER_CONNECTION_KIND = {
+  gmail: "gmail",
+  calendar: "google_calendar",
+} as const satisfies Record<AccountTriggerKind, string>;
+
+/** How often new mail is looked for, and the calendar is looked at, in minutes. */
+export const GMAIL_POLL_MINUTES = 2;
+export const CALENDAR_POLL_MINUTES = 5;
+
+/** The longest Gmail search a trigger keeps. */
+export const MAX_GMAIL_QUERY_CHARS = 500;
+
+/** Why a Gmail search can't be watched, or null when it can. Empty means all new mail. */
+export function invalidGmailQuery(query: string): string | null {
+  const value = query.trim();
+  if (value.length > MAX_GMAIL_QUERY_CHARS)
+    return `Keep the search under ${MAX_GMAIL_QUERY_CHARS} characters.`;
+  // New mail is what the trigger is about; these would leave nothing, or old mail, to wake for.
+  if (/(^|\s)(older_than|older|before):/i.test(value))
+    return "Leave out older_than and before: the trigger only looks at new mail.";
+  return null;
+}
+
+/** Which mail a Gmail trigger wakes for, in a few words. */
+export function describeGmailQuery(query: string | null | undefined): string {
+  const value = query?.trim();
+  return value ? `mail matching “${value}”` : "all new mail";
+}
+
+/** Which events a Calendar trigger wakes for. */
+export type CalendarEventFilter = "all" | "guests";
+
+export const CALENDAR_EVENT_FILTERS: readonly { value: CalendarEventFilter; label: string }[] = [
+  { value: "all", label: "Every event" },
+  { value: "guests", label: "Events with other people" },
+];
+
+export function isCalendarEventFilter(value: unknown): value is CalendarEventFilter {
+  return value === "all" || value === "guests";
+}
+
+/** How long before an event a Calendar trigger can wake a teammate, in minutes. */
+export const CALENDAR_LEADS = [
+  { minutes: 5, label: "5 minutes before" },
+  { minutes: 15, label: "15 minutes before" },
+  { minutes: 30, label: "30 minutes before" },
+  { minutes: 60, label: "An hour before" },
+  { minutes: 180, label: "3 hours before" },
+  { minutes: 1440, label: "A day before" },
+] as const;
+
+export const MIN_LEAD_MINUTES = 0;
+export const MAX_LEAD_MINUTES = 7 * 24 * 60;
+
+export function describeLead(minutes: number): string {
+  const known = CALENDAR_LEADS.find((option) => option.minutes === minutes);
+  if (known) return known.label;
+  if (minutes === 0) return "When it starts";
+  if (minutes % 1440 === 0) return `${minutes / 1440} days before`;
+  if (minutes % 60 === 0) return `${minutes / 60} hours before`;
+  return `${minutes} minutes before`;
+}
+
+/** Why a lead time can't be used, or null when it can. */
+export function invalidLead(minutes: number): string | null {
+  if (!Number.isInteger(minutes) || minutes < MIN_LEAD_MINUTES || minutes > MAX_LEAD_MINUTES)
+    return "Wake it between when the event starts and a week before.";
+  return null;
+}
+
+/** Told to the bot with mail or an event that woke it. The app hides it when showing you the run. */
+export const ACCOUNT_TRIGGER_NOTE =
+  "This run started from the user's own account, so sending mail, and anything else other people see, asks the user first.";
 
 /** How often a watch can check its page, in minutes. */
 export const WATCH_INTERVALS = [

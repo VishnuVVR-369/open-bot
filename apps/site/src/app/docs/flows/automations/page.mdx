@@ -5,8 +5,9 @@ export const metadata = docMetadata("/docs/flows/automations");
 # Automations
 
 Automations wake a teammate without you.
-There are three kinds: **schedules** fire at a time, **page watches** fire when a web page changes, and **webhooks** fire when another service calls a URL.
-All three end the same way: a queued run in the teammate's Scheduled chat.
+**Schedules** fire at a time, **page watches** fire when a web page changes, and **webhooks** fire when another service calls a URL.
+With [your accounts](/docs/flows/accounts) connected, **Gmail** triggers fire when new mail arrives, and **Calendar** triggers fire before your events.
+They all end the same way: a queued run in the teammate's Scheduled chat.
 
 ## Where automations run
 
@@ -21,14 +22,16 @@ They need the worker and the computer to be running, not the web app or a browse
 You create automations on the Automations page, or on a teammate's Automations tab.
 Teammates create them too, with their own tools, for themselves or, with `bot_id`, for another teammate:
 
-| Tool                | Creates                                                  |
-| ------------------- | -------------------------------------------------------- |
-| `schedule_task`     | A cron routine or a one-time reminder                    |
-| `watch_page`        | A page watch                                             |
-| `create_webhook`    | A webhook URL                                            |
-| `list_automations`  | Lists its schedules, watches and webhooks with their ids |
-| `update_automation` | Pauses, resumes, renames or changes one                  |
-| `cancel_automation` | Deletes one                                              |
+| Tool                | Creates                                 |
+| ------------------- | --------------------------------------- |
+| `schedule_task`     | A cron routine or a one-time reminder   |
+| `watch_page`        | A page watch                            |
+| `create_webhook`    | A webhook URL                           |
+| `watch_gmail`       | A Gmail trigger                         |
+| `watch_calendar`    | A Calendar trigger                      |
+| `list_automations`  | Lists its automations with their ids    |
+| `update_automation` | Pauses, resumes, renames or changes one |
+| `cancel_automation` | Deletes one                             |
 
 Without `bot_id`, a teammate sees and changes only its own automations.
 With it, the automation must belong to that teammate, and setting it up may ask you first: see [Building the team](/docs/flows/teamwork#what-asks-you).
@@ -153,9 +156,62 @@ curl -X POST https://<your-app>/api/hooks/<token> \
   -d '{"event":"deploy_failed","service":"api"}'
 ```
 
+## Mail and calendar
+
+These watch your own Gmail or Google Calendar, through a connection the teammate may read.
+You create them on the Automations page, under **New automation**, and they are listed together under **Mail and calendar**.
+A teammate creates them with `watch_gmail` and `watch_calendar`.
+
+### New mail
+
+A Gmail trigger has a search, in Gmail's own syntax, like `from:school.org` or `subject:invoice has:attachment`, or none for all new mail.
+Mail you send, drafts and chats never count, and `older_than` and `before` can't be used, since the trigger is about new mail.
+
+- It checks every 2 minutes. A new or resumed trigger starts from the mailbox as it is, so mail that was already there doesn't wake the teammate.
+- Each check starts one run with all the new mail that matches: up to 10 messages in full, and any others listed by subject.
+- A message never wakes the same trigger twice.
+
+`AccountTriggers` (`apps/worker/src/services/account-triggers.ts`) checks all the triggers on one mailbox with one Gmail `history.list` request, from the oldest trigger's place in the mailbox, and each trigger takes what is newer than its own.
+New messages are matched with the trigger's search in parentheses, plus `-in:sent -in:drafts -in:chats newer_than:2d`, so an `OR` in your search can't undo the rest.
+If Gmail no longer has the history, after a long outage, the trigger looks at the last day's mail instead, and skips mail older than the trigger itself.
+
+```text title="The run's prompt"
+[Gmail: "Receipts"]
+
+File every receipt in the Receipts label.
+
+A new email arrived in you@gmail.com (mail matching “subject:receipt”). …
+
+From Gmail (you@gmail.com): the new message. …
+<outside_data>
+--- message 18f2… in thread 18f2…
+From: Shop <orders@shop.example>
+Subject: Your receipt
+…
+</outside_data>
+```
+
+### Upcoming events
+
+A Calendar trigger wakes the teammate a set time before each event on your primary calendar, from when it starts to a week before, for every event or only events with other people on them.
+
+- It checks every 5 minutes, and each event starts its own run, with the event's time, place, guests and description.
+- Each occurrence of a repeating event counts, once. An event that moves to a new time wakes it again for the new time.
+- Cancelled events, all-day events and events you declined don't count.
+
+An event is due when its wake-up time is within half a check, and it didn't start more than 10 minutes ago, so a late check still catches it.
+
+### Limits and safety
+
+- Each Gmail or Calendar trigger starts at most **30 runs an hour**. A check over the limit shows why on the trigger.
+- What woke a trigger is kept in `trigger_firings`, keyed by the message (`mail:<id>`) or the occurrence and its start (`event:<id>@<start>`), so it can't fire twice, even from two workers.
+- Their runs start as having read your accounts, so anything they would send out, like an email or a reply to an invitation, asks you first. See [Your accounts](/docs/flows/accounts#mail-events-and-pages-are-not-instructions).
+- If the account needs reconnecting, you're told once, and the trigger shows the problem until you reconnect it. **Check now** shows the reason too.
+
 ## Prompt injection
 
-Watched pages and webhook payloads come from outside, and may contain text that looks like instructions.
+Watched pages, webhook payloads, and the mail and events that wake a teammate come from outside, and may contain text that looks like instructions.
 Both are wrapped in a note that says to treat them as data (`PAGE_TEXT_NOTE` and `WEBHOOK_PAYLOAD_NOTE`), and the developer instructions repeat the rule.
 This lowers the risk, but can't remove it.
 Teammates still need your approval for consequential actions according to their autonomy level, and that is the real safeguard.
+Runs started by mail or an event go further: everything they would send out asks you, whatever the teammate's autonomy.

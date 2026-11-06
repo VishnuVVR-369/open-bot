@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   ArrowRightLeft,
   CalendarClock,
+  CalendarDays,
   ChevronDown,
   CircleCheck,
   CircleDashed,
@@ -100,6 +101,10 @@ function triggerLabel(run: RunView, bots: BotSummary[]): { icon: StepIcon; text:
       return { icon: Eye, text: run.triggerTitle ?? "Page watch" };
     case "webhook":
       return { icon: Webhook, text: run.triggerTitle ?? "Webhook" };
+    case "gmail":
+      return { icon: Mail, text: run.triggerTitle ?? "New mail" };
+    case "calendar":
+      return { icon: CalendarDays, text: run.triggerTitle ?? "Calendar event" };
     case "hand_back":
       return { icon: Undo2, text: "After you handed back" };
     case "approval":

@@ -527,6 +527,8 @@ describe.skipIf(!url)("bot management with Postgres", () => {
       "schedule_task",
       "watch_page",
       "create_webhook",
+      "watch_gmail",
+      "watch_calendar",
     ]) {
       expect((await call(helper, tool, {})).response.success).toBe(false);
     }

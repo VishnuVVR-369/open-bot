@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   ArrowRightLeft,
   CalendarClock,
+  CalendarDays,
   Check,
   ChevronDown,
   Copy,
@@ -266,6 +267,16 @@ function TriggerLabel({ run, bots }: { run: RunView; bots: BotSummary[] }) {
       return <AutomationLabel run={run} icon={Eye} title={run.triggerTitle ?? "Page watch"} />;
     case "webhook":
       return <AutomationLabel run={run} icon={Webhook} title={run.triggerTitle ?? "Webhook"} />;
+    case "gmail":
+      return <AutomationLabel run={run} icon={Mail} title={run.triggerTitle ?? "New mail"} />;
+    case "calendar":
+      return (
+        <AutomationLabel
+          run={run}
+          icon={CalendarDays}
+          title={run.triggerTitle ?? "Calendar event"}
+        />
+      );
     case "hand_back":
       return (
         <span className="flex items-center gap-1 text-muted-foreground">

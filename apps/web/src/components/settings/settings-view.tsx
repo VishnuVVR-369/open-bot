@@ -788,7 +788,7 @@ export function SettingsView() {
       <Section
         id="connections"
         title="Connections"
-        description="Services your teammates use directly through MCP, like GitHub, Notion or your own API."
+        description="Your Gmail, Calendar and Notion, and other services your teammates use through MCP, like GitHub or your own API."
       >
         <ConnectionsSection />
       </Section>

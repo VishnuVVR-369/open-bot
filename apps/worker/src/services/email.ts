@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import {
   approvals,
   bots,
@@ -16,7 +16,7 @@ import {
   type ToolItem,
 } from "@open-bot/shared";
 import { decryptSecret } from "@open-bot/shared/secrets";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import {
   appendRunEvent,
   createNotification,
@@ -206,37 +206,47 @@ export class EmailService {
         )[0]
       : undefined;
     if (input.replyTo && !original) throw new EmailError("No email of yours with that id.");
-    const [draft] = await this.ctx.db
-      .insert(emails)
-      .values({
-        botId: session.bot.id,
-        direction: "out",
-        status: "pending",
-        inReplyTo: original?.messageId ?? null,
-        replyToId: original?.id ?? null,
-        from: `${session.bot.name} <${address}>`,
-        to: input.to.join(", "),
-        subject: input.subject,
-        text: input.body,
-        runId: session.run.id,
-        chatId: session.chat.id,
-        itemId: input.itemId,
-      })
-      .returning();
-    if (session.bot.autonomy === "full") {
+    const values = {
+      id: randomUUID(),
+      botId: session.bot.id,
+      direction: "out" as const,
+      inReplyTo: original?.messageId ?? null,
+      replyToId: original?.id ?? null,
+      from: `${session.bot.name} <${address}>`,
+      to: input.to.join(", "),
+      subject: input.subject,
+      text: input.body,
+      runId: session.run.id,
+      chatId: session.chat.id,
+      itemId: input.itemId,
+    };
+    // A run that read your accounts can't email what it read without you: outside text may have
+    // asked it to.
+    if (session.bot.autonomy === "full" && !session.run.readOutsideData) {
+      // Saved as already claimed, so nothing else sends it too.
+      const [draft] = await this.ctx.db
+        .insert(emails)
+        .values({ ...values, status: "sending" })
+        .returning();
       const sent = await this.deliver(draft!);
       if (sent.status === "failed") throw new EmailError(sent.error ?? "It couldn't be sent.");
       return { id: draft!.id, status: "sent" };
     }
-    const approvalId = await this.approvals.requestDeferred(session, {
-      kind: "email",
-      title: `Email ${input.to.join(", ")}: ${input.subject}`,
-      detail: input.body,
-      itemId: `${input.itemId}-approval`,
-      payload: { emailId: draft!.id },
-    });
-    await this.ctx.db.update(emails).set({ approvalId }).where(eq(emails.id, draft!.id));
-    return { id: draft!.id, status: "pending" };
+    // The email and its approval are saved together, already linked, before you hear of it.
+    await this.approvals.requestDeferred(
+      session,
+      {
+        kind: "email",
+        title: `Email ${input.to.join(", ")}: ${input.subject}`,
+        detail: input.body,
+        itemId: `${input.itemId}-approval`,
+        payload: { emailId: values.id },
+      },
+      async (tx, approvalId) => {
+        await tx.insert(emails).values({ ...values, status: "pending", approvalId });
+      },
+    );
+    return { id: values.id, status: "pending" };
   }
 
   /** You decided on an email in the outbox: send it, or tell its teammate you didn't. */
@@ -245,11 +255,13 @@ export class EmailService {
       .select()
       .from(approvals)
       .where(eq(approvals.id, approvalId));
-    if (!approval || approval.kind !== "email") return;
+    if (!approval || approval.kind !== "email" || approval.status === "pending") return;
+    // Claimed first: whoever moves it out of pending is the only one that sends it.
     const [draft] = await this.ctx.db
-      .select()
-      .from(emails)
-      .where(and(eq(emails.approvalId, approvalId), eq(emails.status, "pending")));
+      .update(emails)
+      .set({ status: approval.status === "approved" ? "sending" : "denied" })
+      .where(and(eq(emails.approvalId, approvalId), eq(emails.status, "pending")))
+      .returning();
     if (!draft) return;
     if (approval.status === "approved") {
       const sent = await this.deliver(draft);
@@ -264,8 +276,7 @@ export class EmailService {
         });
       return;
     }
-    await this.ctx.db.update(emails).set({ status: "denied" }).where(eq(emails.id, draft.id));
-    await this.showOutcome({ ...draft, status: "denied" });
+    await this.showOutcome(draft);
     if (draft.chatId)
       await enqueueRun(this.ctx, {
         chatId: draft.chatId,
@@ -274,6 +285,35 @@ export class EmailService {
         prompt: `[Email not sent] The user didn't approve your email to ${draft.to} ("${draft.subject}"), so it wasn't sent. Don't send it. Briefly acknowledge, and ask what they'd like instead if it matters.`,
         parentRunId: draft.runId,
       });
+  }
+
+  /**
+   * After a restart: emails you decided on that weren't acted on yet go now, and any caught
+   * mid-send are marked, since Postmark can't say whether they went.
+   */
+  async recover(): Promise<void> {
+    const stuck = await this.ctx.db
+      .update(emails)
+      .set({
+        status: "failed",
+        error:
+          "The worker restarted while sending it, so it may or may not have gone. Check before sending it again.",
+      })
+      .where(eq(emails.status, "sending"))
+      .returning();
+    for (const row of stuck) await this.showOutcome(row);
+    await this.sweep();
+  }
+
+  /** Emails whose approval was decided while nobody acted on it. */
+  async sweep(): Promise<void> {
+    const decided = await this.ctx.db
+      .select({ approvalId: approvals.id })
+      .from(emails)
+      .innerJoin(approvals, eq(approvals.id, emails.approvalId))
+      .where(and(eq(emails.status, "pending"), inArray(approvals.status, ["approved", "denied"])))
+      .limit(20);
+    for (const { approvalId } of decided) await this.decided(approvalId);
   }
 
   /** Send an email from the outbox through Postmark, threaded under the one it answers. */

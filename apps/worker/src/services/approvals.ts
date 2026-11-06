@@ -1,17 +1,22 @@
 import {
+  accountActions,
   approvalRules,
   approvals,
   configurationRevision,
   purchases,
   type ApprovalKind,
+  type Queryable,
 } from "@open-bot/db";
 import type { RuleKind } from "@open-bot/shared";
 import {
+  DEFERRED_APPROVAL_KINDS,
+  ruleAllowed,
   approvalQuotes,
   formatMoney,
   invalidRulePattern,
   PURCHASE_WINDOW_MS,
   rulesCover,
+  type AccountActionPreview,
   type ApprovalItem,
 } from "@open-bot/shared";
 import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
@@ -31,6 +36,21 @@ type Decision = "approved" | "denied";
 
 type Rule = typeof approvalRules.$inferSelect;
 
+interface ApprovalInput {
+  kind: ApprovalKind;
+  title: string;
+  detail: string;
+  itemId: string;
+  subject?: string;
+  /** No "always allow": this kind of change is asked about every time. */
+  askEveryTime?: boolean;
+  /** What an action on your accounts will do, for the approval card. */
+  preview?: AccountActionPreview;
+  payload?: Record<string, unknown>;
+}
+
+const ACCOUNT_KINDS: readonly ApprovalKind[] = ["account_write", "account_outward"];
+
 /**
  * Approval requests: Codex's own (commands and file changes, which wait as long as the turn lives)
  * and the bots' request_approval tool (which waits up to 10 minutes, then continues in a new run).
@@ -47,20 +67,15 @@ export class ApprovalService {
     private readonly sessions: SessionRegistry,
   ) {}
 
-  private async create(
-    session: RunSession,
-    input: {
-      kind: ApprovalKind;
-      title: string;
-      detail: string;
-      itemId: string;
-      subject?: string;
-      /** No "always allow": this kind of change is asked about every time. */
-      askEveryTime?: boolean;
-      payload?: Record<string, unknown>;
-    },
-  ): Promise<string> {
-    const [row] = await this.ctx.db
+  private async create(session: RunSession, input: ApprovalInput): Promise<string> {
+    const approvalId = await this.insert(this.ctx.db, session, input);
+    await this.announce(session, approvalId, input);
+    return approvalId;
+  }
+
+  /** Save an approval, in the caller's transaction when given one. Nobody hears of it yet. */
+  private async insert(db: Queryable, session: RunSession, input: ApprovalInput): Promise<string> {
+    const [row] = await db
       .insert(approvals)
       .values({
         runId: session.run.id,
@@ -77,7 +92,15 @@ export class ApprovalService {
         itemId: input.itemId,
       })
       .returning({ id: approvals.id });
-    const approvalId = row!.id;
+    return row!.id;
+  }
+
+  /** Show a saved approval in the run, and tell you about it. */
+  private async announce(
+    session: RunSession,
+    approvalId: string,
+    input: ApprovalInput,
+  ): Promise<void> {
     session.putItem({
       id: input.itemId,
       kind: "approval",
@@ -85,6 +108,7 @@ export class ApprovalService {
       approvalKind: input.kind,
       ...(input.subject ? { subject: input.subject } : {}),
       ...(input.askEveryTime ? { askEveryTime: true } : {}),
+      ...(input.preview ? { preview: input.preview } : {}),
       title: input.title,
       detail: input.detail,
       decision: "pending",
@@ -102,6 +126,42 @@ export class ApprovalService {
       approvalKind: input.kind,
     });
     await publishApp(this.ctx, { type: "approvals" });
+  }
+
+  /**
+   * Ask about an action on one of your accounts. The action row and its approval are saved in one
+   * transaction, already linked, before anyone hears of the approval; `save` inserts the action
+   * with the approval's id. Deciding updates the action in the same transaction as the approval.
+   */
+  async requestAccountAction(
+    session: RunSession,
+    input: {
+      kind: "account_write" | "account_outward";
+      title: string;
+      detail: string;
+      itemId: string;
+      /** The tool, for "Always allow" on account_write. */
+      subject: string;
+      preview: AccountActionPreview | null;
+      actionId: string;
+    },
+    save: (tx: Queryable, approvalId: string) => Promise<void>,
+  ): Promise<string> {
+    const approval: ApprovalInput = {
+      kind: input.kind,
+      title: input.title,
+      detail: input.detail,
+      itemId: input.itemId,
+      ...(input.kind === "account_write" ? { subject: input.subject } : {}),
+      ...(input.preview ? { preview: input.preview } : {}),
+      payload: { actionId: input.actionId, ...(input.preview ? { preview: input.preview } : {}) },
+    };
+    const approvalId = await this.ctx.db.transaction(async (tx) => {
+      const id = await this.insert(tx, session, approval);
+      await save(tx, id);
+      return id;
+    });
+    await this.announce(session, approvalId, approval);
     return approvalId;
   }
 
@@ -268,8 +328,16 @@ export class ApprovalService {
       itemId: string;
       payload: Record<string, unknown>;
     },
+    /** Saves what it's about, in the same transaction, linked to the approval's id. */
+    save: (tx: Queryable, approvalId: string) => Promise<void>,
   ): Promise<string> {
-    return this.create(session, input);
+    const approvalId = await this.ctx.db.transaction(async (tx) => {
+      const id = await this.insert(tx, session, input);
+      await save(tx, id);
+      return id;
+    });
+    await this.announce(session, approvalId, input);
+    return approvalId;
   }
 
   /** A purchase over the teammate's auto-approve amount. No rule covers it, so it always asks. */
@@ -301,20 +369,39 @@ export class ApprovalService {
     decision: Decision,
     alwaysAllow?: { pattern: string },
   ): Promise<boolean> {
-    const [row] = await this.ctx.db
-      .update(approvals)
-      .set({ status: decision, decidedAt: new Date() })
-      .where(and(eq(approvals.id, approvalId), eq(approvals.status, "pending")))
-      .returning();
+    const row = await this.ctx.db.transaction(async (tx) => {
+      const [decided] = await tx
+        .update(approvals)
+        .set({ status: decision, decidedAt: new Date() })
+        .where(and(eq(approvals.id, approvalId), eq(approvals.status, "pending")))
+        .returning();
+      // An action on your accounts moves on with its approval, or not at all.
+      if (decided && ACCOUNT_KINDS.includes(decided.kind))
+        await tx
+          .update(accountActions)
+          .set({
+            status: decision,
+            decidedAt: new Date(),
+            ...(decision === "denied" ? { finishedAt: new Date() } : {}),
+          })
+          .where(
+            and(eq(accountActions.approvalId, decided.id), eq(accountActions.status, "pending")),
+          );
+      return decided;
+    });
     if (!row) return false;
     if (
       decision === "approved" &&
       alwaysAllow &&
-      row.kind !== "purchase" &&
-      row.kind !== "email" &&
+      ruleAllowed(row.kind) &&
       row.payload.askEveryTime !== true
     ) {
-      await this.addRule(row.botId, row.kind, alwaysAllow.pattern);
+      // A rule for an account action covers its tool, whatever pattern came with the decision.
+      const pattern =
+        row.kind === "account_write" && typeof row.payload.subject === "string"
+          ? row.payload.subject
+          : alwaysAllow.pattern;
+      await this.addRule(row.botId, row.kind, pattern);
     }
     // An approved purchase opens its card to the teammate for a while.
     const [purchase] =
@@ -337,6 +424,7 @@ export class ApprovalService {
       approvalId: row.id,
       approvalKind: row.kind,
       ...(typeof row.payload.subject === "string" ? { subject: row.payload.subject } : {}),
+      ...(row.payload.preview ? { preview: row.payload.preview as AccountActionPreview } : {}),
       title: row.title,
       detail: row.detail,
       decision,
@@ -410,7 +498,7 @@ export class ApprovalService {
         and(
           eq(approvals.runId, runId),
           eq(approvals.status, "pending"),
-          notInArray(approvals.kind, ["action", "purchase", "email"]),
+          notInArray(approvals.kind, [...DEFERRED_APPROVAL_KINDS]),
         ),
       )
       .returning();

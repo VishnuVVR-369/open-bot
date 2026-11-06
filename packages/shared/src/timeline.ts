@@ -1,4 +1,6 @@
 import type { ComputerAction } from "./computer";
+import type { AccountActionPreview } from "./accounts";
+import type { ApprovalKind } from "./approval-rules";
 
 /**
  * A run's activity, as the UI renders it.
@@ -72,7 +74,7 @@ export interface ApprovalItem extends BaseItem {
   kind: "approval";
   approvalId: string;
   /** What is being approved: a shell command, a file change, or an action the bot describes. */
-  approvalKind?: "command" | "file_change" | "action" | "purchase" | "email";
+  approvalKind?: ApprovalKind;
   /**
    * What an "always allow" rule matches: the raw command for command approvals (by prefix), or
    * a kind of action, like "Create teammates", when the title names one instance of it.
@@ -83,6 +85,8 @@ export interface ApprovalItem extends BaseItem {
   title: string;
   detail: string;
   decision: "pending" | "approved" | "denied" | "expired";
+  /** For an action on one of your accounts: what will happen, exactly, to render properly. */
+  preview?: AccountActionPreview;
 }
 
 export interface TakeoverRequestItem extends BaseItem {

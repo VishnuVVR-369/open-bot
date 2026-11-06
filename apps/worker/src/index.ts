@@ -24,10 +24,15 @@ import { MemoryCoordinator } from "./services/memory";
 import { SkillService } from "./services/skills";
 import { TakeoverService } from "./services/takeovers";
 import { TelegramService } from "./services/telegram";
+import { AccountTriggers } from "./services/account-triggers";
 import { TriggerService } from "./services/triggers";
 import { PageService } from "./services/pages";
 import { ToolHandlers } from "./tools/handlers";
 import { BotService } from "./services/bots";
+import { AccountAccess } from "./accounts/access";
+import { AccountActions } from "./accounts/actions";
+import { Integrations } from "./accounts/registry";
+import { AccountTools } from "./accounts/tools";
 import { eq } from "drizzle-orm";
 import { EventEmitter } from "node:events";
 
@@ -82,6 +87,11 @@ const botService = new BotService(ctx, schedules, skills, async (bot) => {
   await executor.syncWorkspace(bot);
 });
 const pages = new PageService(ctx);
+const accountAccess = new AccountAccess(ctx);
+const integrations = Integrations.create(ctx);
+const accountActions = new AccountActions(ctx, sessions, approvals, accountAccess, integrations);
+const accountTools = new AccountTools(ctx, accountAccess, accountActions, integrations);
+const accountTriggers = new AccountTriggers(ctx, accountAccess, triggers);
 const tools = new ToolHandlers(
   ctx,
   approvals,
@@ -96,9 +106,10 @@ const tools = new ToolHandlers(
   memory,
   botService,
   pages,
+  accountTools,
 );
 const model = new ModelAccess(ctx);
-const connections = new ConnectionService(ctx);
+const connections = new ConnectionService(ctx, accountTools);
 const executor = new RunExecutor(
   ctx,
   sessions,
@@ -109,6 +120,7 @@ const executor = new RunExecutor(
   skills,
   connections,
   memory,
+  accountAccess,
 );
 const egress = new EgressRelay(ctx);
 const telegram = new TelegramService(ctx, executor, approvals, uploads);
@@ -149,6 +161,24 @@ setInterval(reconcileTakeovers, 30_000).unref();
 await egress.start();
 schedules.start();
 triggers.start();
+accountTriggers.start();
+accountActions.start();
+const sweepEmail = () =>
+  void email
+    .sweep()
+    .catch((error: unknown) => log.warn("email sweep failed", { error: errorMessage(error) }));
+await email
+  .recover()
+  .catch((error: unknown) => log.warn("email recovery failed", { error: errorMessage(error) }));
+setInterval(sweepEmail, 30_000).unref();
+const keepAccountsAlive = () =>
+  void accountAccess
+    .keepAlive()
+    .catch((error: unknown) =>
+      log.warn("account keep-alive failed", { error: errorMessage(error) }),
+    );
+setTimeout(keepAccountsAlive, 60_000).unref();
+setInterval(keepAccountsAlive, 12 * 60 * 60_000).unref();
 push.start();
 fcm.start();
 void telegram
@@ -168,6 +198,10 @@ listener.on("notification", (message) => {
       return;
     case "triggers":
       triggers.kick();
+      accountTriggers.kick();
+      return;
+    case "accounts":
+      accountActions.kick();
       return;
     case "cancel":
       void executor
@@ -212,6 +246,7 @@ const server = createHttpServer({
   skills,
   memory,
   triggers,
+  accountTriggers,
   tasks,
   push,
   fcm,
@@ -231,6 +266,7 @@ async function shutdown(signal: string) {
   await memory.stop();
   schedules.stop();
   triggers.stop();
+  accountTriggers.stop();
   telegram.stop();
   egress.stop();
   codex.stop();

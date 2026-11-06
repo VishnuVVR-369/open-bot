@@ -11,6 +11,7 @@ import {
 } from "lucide-react-native";
 import { useState } from "react";
 import { StyleSheet, View } from "react-native";
+import { ActionPreview, previewIcon } from "@/components/action-preview";
 import { AlwaysAllowSheet } from "@/components/always-allow-sheet";
 import { ApprovalTitle } from "@/components/approval-parts";
 import { Button } from "@/components/button";
@@ -72,11 +73,12 @@ export function ApprovalCard({
   }
 
   const Icon =
-    item.approvalKind === "purchase"
+    previewIcon(item.preview) ??
+    (item.approvalKind === "purchase"
       ? CreditCard
       : item.approvalKind === "email"
         ? Mail
-        : ShieldAlert;
+        : ShieldAlert);
   const detail = item.detail ? approvalDetail(item.detail) : "";
   const isCode = detail.startsWith("$ ") || item.approvalKind === "file_change";
   const risk = approvalRisk({
@@ -130,7 +132,9 @@ export function ApprovalCard({
           <ApprovalTitle title={item.title} style={{ fontSize: 16, lineHeight: 22 }} />
         </View>
       </View>
-      {detail ? (
+      {item.preview ? (
+        <ActionPreview preview={item.preview} compact />
+      ) : detail ? (
         isCode ? (
           <CodeScroll background={colors.surface}>
             <Text

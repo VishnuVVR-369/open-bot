@@ -1,17 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  Check,
-  Globe,
-  Loader2,
-  Pencil,
-  Plug,
-  Plus,
-  SquareTerminal,
-  Trash2,
-  TriangleAlert,
-} from "lucide-react";
+import { Globe, Loader2, Pencil, Plug, Plus, SquareTerminal, Trash2 } from "lucide-react";
 import { useEffect, useId, useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 import { AccessPicker } from "@/components/access-picker";
@@ -42,7 +32,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   deleteConnection,
   saveConnection,
@@ -52,6 +41,8 @@ import {
 import { queryKeys, useAppState, useConnections } from "@/lib/client/queries";
 import type { ConnectionTestView, ConnectionView } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { AccountsSection } from "./accounts-section";
+import { TestResult } from "./connection-test-result";
 
 function where(connection: ConnectionView): string {
   if (connection.transport === "stdio")
@@ -62,49 +53,6 @@ function where(connection: ConnectionView): string {
   } catch {
     return connection.url ?? "";
   }
-}
-
-function TestResult({ result }: { result: ConnectionTestView }) {
-  if (!result.ok)
-    return (
-      <p
-        className="flex items-start gap-2 rounded-lg bg-destructive/8 px-3 py-2 text-[13px] text-destructive"
-        data-testid="connection-test"
-      >
-        <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
-        {result.error ?? "It didn't connect."}
-      </p>
-    );
-  return (
-    <div
-      className="flex flex-col gap-1.5 rounded-lg bg-done/8 px-3 py-2 text-[13px]"
-      data-testid="connection-test"
-    >
-      <span className="flex items-center gap-2 font-medium text-done">
-        <Check className="size-3.5" />
-        Connected · {result.tools.length} {result.tools.length === 1 ? "tool" : "tools"}
-      </span>
-      {result.tools.length > 0 && (
-        <ul className="flex flex-wrap gap-1.5 pl-5.5">
-          {result.tools.slice(0, 24).map((tool) => (
-            <Tooltip key={tool.name}>
-              <TooltipTrigger asChild>
-                <li className="rounded bg-card px-1.5 py-0.5 font-mono text-[11.5px] text-foreground/80 ring-1 ring-border">
-                  {tool.name}
-                </li>
-              </TooltipTrigger>
-              {tool.description && (
-                <TooltipContent className="max-w-72">{tool.description}</TooltipContent>
-              )}
-            </Tooltip>
-          ))}
-          {result.tools.length > 24 && (
-            <li className="text-[12px] text-muted-foreground">+{result.tools.length - 24} more</li>
-          )}
-        </ul>
-      )}
-    </div>
-  );
 }
 
 /** Add a service, or edit one when `connection` is given. */
@@ -425,11 +373,31 @@ function ConnectionRow({
   );
 }
 
-/** Services teammates use through MCP. */
+/** Your accounts, and services teammates use through MCP. */
 export function ConnectionsSection() {
   const { data, isLoading } = useConnections();
   const [results, setResults] = useState<Record<string, ConnectionTestView>>({});
   const [testing, setTesting] = useState<string | null>(null);
+
+  // Back from signing in to Google or Notion: say how it went, and test what was connected.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const connected = url.searchParams.get("connected");
+    const error = url.searchParams.get("account_error");
+    const missing = url.searchParams.get("missing");
+    if (!connected && !error) return;
+    for (const key of ["connected", "account_error", "missing"]) url.searchParams.delete(key);
+    window.history.replaceState(window.history.state, "", url);
+    if (error) toast.error("Couldn't connect", { description: error });
+    if (connected) {
+      if (missing)
+        toast.warning("Connected, with less than you asked for", {
+          description: `It didn't grant ${missing.split(",").join(" or ")}. Teammates can't do that until you reconnect and allow it.`,
+        });
+      else toast.success("Connected");
+      void test(connected);
+    }
+  }, []);
 
   async function test(id: string) {
     setTesting(id);
@@ -448,37 +416,49 @@ export function ConnectionsSection() {
   }
 
   if (isLoading) return <Skeleton className="h-20 rounded-xl" />;
-  const connections = data ?? [];
+  const all = data ?? [];
+  const connections = all.filter((connection) => connection.kind === "mcp");
 
   return (
-    <div className="flex flex-col gap-3" data-testid="connections">
-      {connections.length > 0 ? (
-        <ul className="flex flex-col divide-y rounded-xl border bg-card">
-          {connections.map((connection) => (
-            <ConnectionRow
-              key={connection.id}
-              connection={connection}
-              result={results[connection.id]}
-              testing={testing === connection.id}
-              onTest={() => void test(connection.id)}
-            />
-          ))}
-        </ul>
-      ) : (
-        <p className="rounded-xl border border-dashed px-4 py-3.5 text-[13.5px] text-muted-foreground">
-          Nothing connected yet. Connect a service, and teammates use its tools instead of clicking
-          through its website.
-        </p>
-      )}
-      <ConnectionDialog
-        onSaved={(id) => void test(id)}
-        trigger={
-          <Button variant="outline" className="self-start">
-            <Plus />
-            Connect a service
-          </Button>
-        }
+    <div className="flex flex-col gap-6">
+      <AccountsSection
+        connections={all}
+        results={results}
+        testing={testing}
+        onTest={(id) => void test(id)}
       />
+      <div className="flex flex-col gap-3" data-testid="connections">
+        <span className="text-[13px] font-medium text-muted-foreground">
+          Other services, through MCP
+        </span>
+        {connections.length > 0 ? (
+          <ul className="flex flex-col divide-y rounded-xl border bg-card">
+            {connections.map((connection) => (
+              <ConnectionRow
+                key={connection.id}
+                connection={connection}
+                result={results[connection.id]}
+                testing={testing === connection.id}
+                onTest={() => void test(connection.id)}
+              />
+            ))}
+          </ul>
+        ) : (
+          <p className="rounded-xl border border-dashed px-4 py-3.5 text-[13.5px] text-muted-foreground">
+            Nothing connected yet. Connect a service, and teammates use its tools instead of
+            clicking through its website.
+          </p>
+        )}
+        <ConnectionDialog
+          onSaved={(id) => void test(id)}
+          trigger={
+            <Button variant="outline" className="self-start">
+              <Plus />
+              Connect a service
+            </Button>
+          }
+        />
+      </div>
     </div>
   );
 }

@@ -97,6 +97,8 @@ export const runTriggerSchema = z.enum([
   "swarm",
   "swarm_results",
   "email",
+  "gmail",
+  "calendar",
 ]);
 
 /**
@@ -171,7 +173,54 @@ export type ChatData = z.infer<typeof chatDataSchema>;
 export const approvalStatusSchema = z.enum(["pending", "approved", "denied", "expired"]);
 export type ApprovalStatus = z.infer<typeof approvalStatusSchema>;
 
-export const approvalKindSchema = z.enum(["command", "file_change", "action", "purchase", "email"]);
+export const approvalKindSchema = z.enum([
+  "command",
+  "file_change",
+  "action",
+  "purchase",
+  "email",
+  "account_write",
+  "account_outward",
+]);
+
+/** What an approval for one of your accounts will do, exactly, to render properly. */
+export const accountActionPreviewSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("email"),
+    account: z.string(),
+    to: z.array(z.string()),
+    cc: z.array(z.string()),
+    bcc: z.array(z.string()),
+    subject: z.string(),
+    body: z.string(),
+    inReplyTo: z.string().optional(),
+  }),
+  z.object({
+    type: z.literal("event"),
+    account: z.string(),
+    change: z.enum(["create", "update", "delete", "respond"]),
+    title: z.string(),
+    start: z.string().nullable(),
+    end: z.string().nullable(),
+    allDay: z.boolean(),
+    timeZone: z.string().nullable(),
+    location: z.string().optional(),
+    guests: z.array(z.string()),
+    notifiesGuests: z.boolean(),
+    response: z.enum(["accepted", "declined", "tentative"]).optional(),
+    calendar: z.string().optional(),
+  }),
+  z.object({
+    type: z.literal("change"),
+    service: z.string(),
+    account: z.string(),
+    action: z.string(),
+    target: z.string(),
+    detail: z.string(),
+    url: z.string().optional(),
+    changesAccess: z.boolean().optional(),
+  }),
+]);
 
 export const approvalViewSchema = z.object({
   id: z.string(),
@@ -185,13 +234,15 @@ export const approvalViewSchema = z.object({
   askEveryTime: z.boolean(),
   title: z.string(),
   detail: z.string(),
+  /** For an action on one of your accounts: what will happen, exactly. */
+  preview: accountActionPreviewSchema.nullable(),
   status: approvalStatusSchema,
   createdAt: isoDate,
   decidedAt: isoDate.nullable(),
 });
 export type ApprovalView = z.infer<typeof approvalViewSchema>;
 
-export const approvalRuleKindSchema = z.enum(["command", "file_change", "action"]);
+export const approvalRuleKindSchema = z.enum(["command", "file_change", "action", "account_write"]);
 
 /** Something a teammate may do without asking, from "Always allow" on an approval. */
 export const approvalRuleSchema = z.object({

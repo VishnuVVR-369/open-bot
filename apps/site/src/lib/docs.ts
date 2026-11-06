@@ -112,12 +112,13 @@ export const docs: DocSection[] = [
         href: "/docs/flows/approvals",
         title: "Approvals",
         description:
-          "Autonomy levels, Codex's native approvals, request_approval, and Always allow rules.",
+          "Autonomy levels, Codex's native approvals, request_approval, account actions and Always allow rules.",
       },
       {
         href: "/docs/flows/automations",
         title: "Automations",
-        description: "Schedules, reminders, page watches, webhooks and quiet check-ins.",
+        description:
+          "Schedules, reminders, page watches, webhooks, new mail and upcoming events, and quiet check-ins.",
       },
       {
         href: "/docs/flows/teamwork",
@@ -147,6 +148,12 @@ export const docs: DocSection[] = [
         href: "/docs/flows/skills-and-connections",
         title: "Skills and connections",
         description: "Saved procedures as Codex skills, and outside services through MCP servers.",
+      },
+      {
+        href: "/docs/flows/accounts",
+        title: "Your accounts",
+        description:
+          "Gmail, Google Calendar and Notion: connecting them, what teammates do there, and what asks you first.",
       },
       {
         href: "/docs/flows/pages",

@@ -1,11 +1,27 @@
 /**
- * What a teammate asks you about. Purchases and emails always ask: no rule covers spending money
- * or writing to people as you.
+ * What a teammate asks you about. Purchases, emails and outward actions on your accounts always
+ * ask: no rule covers spending money, or acting as you where other people see it.
+ * `account_write` is a change to one of your accounts only you see; a rule names its tool.
  */
-export type ApprovalKind = "command" | "file_change" | "action" | "purchase" | "email";
+export type ApprovalKind =
+  "command" | "file_change" | "action" | "purchase" | "email" | "account_write" | "account_outward";
 
 /** What an "always allow" rule can cover. */
-export type RuleKind = Exclude<ApprovalKind, "purchase" | "email">;
+export type RuleKind = Exclude<ApprovalKind, "purchase" | "email" | "account_outward">;
+
+/** Approvals that act by themselves when you decide, even long after their run ended. */
+export const DEFERRED_APPROVAL_KINDS = [
+  "action",
+  "purchase",
+  "email",
+  "account_write",
+  "account_outward",
+] as const satisfies readonly ApprovalKind[];
+
+/** Whether "always allow" can be offered for this kind. */
+export function ruleAllowed(kind: ApprovalKind): kind is RuleKind {
+  return kind !== "purchase" && kind !== "email" && kind !== "account_outward";
+}
 
 export interface ApprovalRule {
   kind: RuleKind;
@@ -67,9 +83,11 @@ export function rulesCover(rules: ApprovalRule[], kind: ApprovalKind, text: stri
       );
     }
     case "action":
+    case "account_write":
       return relevant.some((rule) => normalize(rule.pattern) === normalize(text));
     case "purchase":
     case "email":
+    case "account_outward":
       return false;
   }
 }
@@ -89,8 +107,8 @@ export function approvalQuotes(approved: string, command: string): boolean {
 
 /** A sensible rule for a request: the first command's program and subcommand, or the action. */
 export function suggestedRule(kind: ApprovalKind, subject: string): string {
-  if (kind === "file_change" || kind === "purchase" || kind === "email") return "";
-  if (kind === "action") return subject.trim();
+  if (!ruleAllowed(kind) || kind === "file_change") return "";
+  if (kind === "action" || kind === "account_write") return subject.trim();
   const script = shellScript(subject);
   const first = simpleCommands(script)?.[0] ?? script;
   return first.split(/\s+/).filter(Boolean).slice(0, 2).join(" ");
@@ -101,6 +119,8 @@ export function invalidRulePattern(kind: ApprovalKind, pattern: string): string 
   if (kind === "file_change") return null;
   if (kind === "purchase")
     return "Purchases always ask you. Set an amount to approve on its own instead.";
+  if (kind === "email" || kind === "account_outward")
+    return "Anything others see from you always asks you.";
   const clean = pattern.trim();
   if (!clean) return "Say what to allow.";
   if (kind === "command") {

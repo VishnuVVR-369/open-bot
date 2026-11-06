@@ -183,7 +183,7 @@ test.describe("the phone's API", () => {
         [UPLOAD_HEADERS.size]: String(data.length),
         [UPLOAD_HEADERS.sha256]: createHash("sha256").update(data).digest("hex"),
       },
-      body: sent,
+      body: new Uint8Array(sent),
     });
   }
 

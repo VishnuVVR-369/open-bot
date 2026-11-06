@@ -10,7 +10,9 @@ import { BotAvatar } from "@/components/bot-avatar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { decideApproval } from "@/lib/actions";
+import { ruleAllowed } from "@open-bot/shared";
 import { approvalDetail, InlineCode } from "@/components/inline-code";
+import { ActionPreview } from "./action-preview";
 import { AlwaysAllowButton } from "./always-allow";
 import { queryKeys, useAppState, useApprovals } from "@/lib/client/queries";
 import type { ApprovalView } from "@/lib/types";
@@ -22,6 +24,8 @@ const KIND_LABEL = {
   action: "Action",
   purchase: "Purchase",
   email: "Email",
+  account_write: "Your account",
+  account_outward: "Acts as you",
 } as const;
 
 function ApprovalRow({ approval }: { approval: ApprovalView }) {
@@ -70,10 +74,14 @@ function ApprovalRow({ approval }: { approval: ApprovalView }) {
         <span className="text-[15px] font-medium">
           <InlineCode text={approval.title} />
         </span>
-        {approval.detail && (
-          <pre className="max-h-48 overflow-auto rounded-lg bg-subtle px-3 py-2 font-sans text-[13px] whitespace-pre-wrap text-foreground/85">
-            {approvalDetail(approval.detail)}
-          </pre>
+        {approval.preview ? (
+          <ActionPreview preview={approval.preview} className="bg-subtle/50" />
+        ) : (
+          approval.detail && (
+            <pre className="max-h-48 overflow-auto rounded-lg bg-subtle px-3 py-2 font-sans text-[13px] whitespace-pre-wrap text-foreground/85">
+              {approvalDetail(approval.detail)}
+            </pre>
+          )
         )}
         {open ? (
           <div className="mt-1 flex gap-2">
@@ -84,17 +92,15 @@ function ApprovalRow({ approval }: { approval: ApprovalView }) {
             <Button size="sm" variant="outline" onClick={() => decide("denied")} disabled={pending}>
               Deny
             </Button>
-            {approval.kind !== "purchase" &&
-              approval.kind !== "email" &&
-              !approval.askEveryTime && (
-                <AlwaysAllowButton
-                  kind={approval.kind}
-                  subject={approval.subject ?? approval.title}
-                  botName={bot?.name ?? "your teammate"}
-                  disabled={pending}
-                  onConfirm={async (pattern) => decide("approved", pattern)}
-                />
-              )}
+            {ruleAllowed(approval.kind) && !approval.askEveryTime && (
+              <AlwaysAllowButton
+                kind={approval.kind}
+                subject={approval.subject ?? approval.title}
+                botName={bot?.name ?? "your teammate"}
+                disabled={pending}
+                onConfirm={async (pattern) => decide("approved", pattern)}
+              />
+            )}
           </div>
         ) : (
           <span className="flex items-center gap-1.5 text-[13px] text-muted-foreground">

@@ -5,7 +5,9 @@ import { formatDistanceToNowStrict } from "date-fns";
 import {
   ArrowRight,
   CalendarClock,
+  CalendarDays,
   Eye,
+  Mail,
   Hand,
   Plus,
   ShieldAlert,
@@ -308,6 +310,16 @@ function Activity() {
                       {item.trigger === "webhook" && (
                         <span className="flex items-center gap-1">
                           <Webhook className="size-3" /> webhook
+                        </span>
+                      )}
+                      {item.trigger === "gmail" && (
+                        <span className="flex items-center gap-1">
+                          <Mail className="size-3" /> new mail
+                        </span>
+                      )}
+                      {item.trigger === "calendar" && (
+                        <span className="flex items-center gap-1">
+                          <CalendarDays className="size-3" /> event coming up
                         </span>
                       )}
                       <span>

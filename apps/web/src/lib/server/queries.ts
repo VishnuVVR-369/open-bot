@@ -6,6 +6,7 @@ import {
   credentials,
   chatMembers,
   chats,
+  accounts,
   connections,
   emailSettings,
   desktopTakeovers,
@@ -33,9 +34,15 @@ import {
   emptyTimeline,
   isNothingToReport,
   monthStart,
+  ACCOUNT_TRIGGER_NOTE,
+  hideOutsideDataNote,
   PAGE_TEXT_NOTE,
   WEBHOOK_PAYLOAD_NOTE,
   type RunStatus,
+  missingCapabilities,
+  ACCOUNT_PROVIDERS,
+  authProvider,
+  integrationSettings,
 } from "@open-bot/shared";
 import {
   and,
@@ -63,6 +70,8 @@ import type {
   ChatEntry,
   ChatSummary,
   CodexStatusView,
+  AccountsSetupView,
+  AccountView,
   ConnectionView,
   EmailStatusView,
   LessonView,
@@ -85,6 +94,7 @@ import type {
   VaultItemView,
 } from "../types";
 import { toApprovalView, toMessageView } from "./views";
+import { accountRedirectUri, accountStore } from "./accounts";
 import { db } from "./db";
 import { worker } from "./worker";
 import { plainText } from "../utils";
@@ -523,13 +533,15 @@ async function usageByRun(
 
 /** What an automation gave the teammate, without the header line naming the automation. */
 function automationPrompt(run: { trigger: string; prompt: string }): string | null {
-  if (run.trigger !== "schedule" && run.trigger !== "watch" && run.trigger !== "webhook")
-    return null;
+  if (!["schedule", "watch", "webhook", "gmail", "calendar"].includes(run.trigger)) return null;
   // The warnings about outside text are for the teammate, not for you.
-  return run.prompt
-    .replace(/^\[(Scheduled task|Watch|Webhook): "[^\n]*"\]\n+/, "")
-    .replace(WEBHOOK_PAYLOAD_NOTE, "It received:")
-    .replace(` ${PAGE_TEXT_NOTE}`, "");
+  return hideOutsideDataNote(
+    run.prompt
+      .replace(/^\[(Scheduled task|Watch|Webhook|Gmail|Calendar): "[^\n]*"\]\n+/, "")
+      .replace(WEBHOOK_PAYLOAD_NOTE, "It received:")
+      .replace(` ${PAGE_TEXT_NOTE}`, "")
+      .replace(` ${ACCOUNT_TRIGGER_NOTE}`, ""),
+  );
 }
 
 export async function getRunView(runId: string): Promise<RunView | null> {
@@ -710,6 +722,16 @@ export async function getProfile(): Promise<ProfileView> {
 
 export async function listTriggers(): Promise<TriggerView[]> {
   const rows = await db.select().from(triggers).orderBy(asc(triggers.createdAt));
+  const connectionIds = [
+    ...new Set(rows.map((row) => row.connectionId).filter((id): id is string => id !== null)),
+  ];
+  const watched = connectionIds.length
+    ? await db
+        .select({ id: connections.id, display: accounts.display, status: accounts.status })
+        .from(connections)
+        .innerJoin(accounts, eq(accounts.id, connections.accountId))
+        .where(inArray(connections.id, connectionIds))
+    : [];
   const lastRuns = rows.length
     ? await db
         .selectDistinctOn([runs.triggerId], {
@@ -740,6 +762,10 @@ export async function listTriggers(): Promise<TriggerView[]> {
       url: row.url,
       intervalMinutes: row.intervalMinutes,
       lookFor: row.lookFor,
+      connectionId: row.connectionId,
+      account: watched.find((entry) => entry.id === row.connectionId)?.display ?? null,
+      query: row.query,
+      leadMinutes: row.leadMinutes,
       hookPath: row.token ? `/api/hooks/${row.token}` : null,
       nextCheckAt: row.nextCheckAt?.toISOString() ?? null,
       lastCheckedAt: row.lastCheckedAt?.toISOString() ?? null,
@@ -1029,13 +1055,15 @@ export async function getSpending(botId: string): Promise<SpendingView | null> {
 
 export async function listConnections(): Promise<ConnectionView[]> {
   const rows = await db
-    .select()
+    .select({ connection: connections, account: accounts })
     .from(connections)
+    .leftJoin(accounts, eq(accounts.id, connections.accountId))
     .orderBy(asc(sql`lower(${connections.label})`));
-  return rows.map((row) => ({
+  return rows.map(({ connection: row, account }) => ({
     id: row.id,
     label: row.label,
     name: row.name,
+    kind: row.kind,
     transport: row.transport,
     url: row.url,
     command: row.command,
@@ -1044,7 +1072,64 @@ export async function listConnections(): Promise<ConnectionView[]> {
     botIds: row.botIds,
     enabled: row.enabled,
     updatedAt: row.updatedAt.toISOString(),
+    account: account ? toAccountView(account) : null,
+    capabilities: row.capabilities,
+    missingCapabilities:
+      account && row.kind !== "mcp"
+        ? missingCapabilities(row.kind, row.capabilities, account.scopes)
+        : [],
+    askBeforeActing: row.askBeforeActing,
+    settings:
+      row.kind === "mcp"
+        ? []
+        : integrationSettings(row.kind).flatMap((setting) => {
+            const value = row.settings[setting.key];
+            return value
+              ? [{ key: setting.key, id: value.id, title: value.title, url: value.url }]
+              : [];
+          }),
   }));
+}
+
+function toAccountView(row: typeof accounts.$inferSelect): AccountView {
+  return {
+    id: row.id,
+    provider: row.provider,
+    display: row.display,
+    status: row.status,
+    lastError: row.lastError,
+    lastUsedAt: row.lastUsedAt?.toISOString() ?? null,
+    expiresAt: grantEnds(row),
+  };
+}
+
+/** When the provider ends the grant however it's used, if it does. */
+function grantEnds(row: typeof accounts.$inferSelect): string | null {
+  const days = authProvider(row.provider).grantMaxDays;
+  return days ? new Date(row.grantedAt.getTime() + days * 86_400_000).toISOString() : null;
+}
+
+/**
+ * What connecting needs, per provider: whether its client is set up (yours, for providers that
+ * take one), and the redirect address to register. And the accounts signed in, to reuse.
+ */
+export async function getAccountsSetup(): Promise<AccountsSetupView> {
+  const rows = await db.select().from(accounts).orderBy(asc(accounts.createdAt));
+  const providers = await Promise.all(
+    ACCOUNT_PROVIDERS.map(async (id) => {
+      const definition = authProvider(id);
+      const current = definition.client === "owner" ? await accountStore.clients.current(id) : null;
+      return {
+        id,
+        label: definition.label,
+        client: definition.client,
+        configured: definition.client === "automatic" || current !== null,
+        hint: current?.hint ?? null,
+        redirectUri: accountRedirectUri(id),
+      };
+    }),
+  );
+  return { providers, accounts: rows.map(toAccountView) };
 }
 
 /* ------------------------------------------------------------------ Email */

@@ -13,6 +13,7 @@ import {
 } from "@open-bot/db";
 import type { Attachment } from "@open-bot/db";
 import type { EventEmitter } from "node:events";
+import { sql } from "drizzle-orm";
 import type { ApprovalKind, RunEventPayload } from "@open-bot/shared";
 import type pg from "pg";
 import type { CodexManager } from "./codex";
@@ -147,6 +148,11 @@ export interface RunInput {
   parentRunId?: string | null;
   /** A screen of its own, for a swarm helper. */
   screenId?: string | null;
+  /**
+   * It starts with data from your accounts in hand (a Gmail trigger, a swarm's results). Runs
+   * started by a run that read such data inherit this anyway.
+   */
+  readOutsideData?: boolean;
 }
 
 /**
@@ -168,6 +174,12 @@ export async function insertRun(db: Queryable, input: RunInput): Promise<string>
       triggerId: input.triggerId ?? null,
       parentRunId: input.parentRunId ?? null,
       screenId: input.screenId ?? null,
+      // What a run read from your accounts travels with everything it starts.
+      readOutsideData: input.readOutsideData
+        ? true
+        : input.parentRunId
+          ? sql<boolean>`coalesce((select ${runs.readOutsideData} from ${runs} where ${runs.id} = ${input.parentRunId}), false)`
+          : false,
     })
     .onConflictDoNothing({ target: runs.id })
     .returning({ id: runs.id });

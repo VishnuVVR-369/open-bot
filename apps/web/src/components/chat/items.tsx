@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ruleAllowed,
   shellScript,
   type ApprovalItem,
   type CommandItem,
@@ -18,6 +19,7 @@ import {
   ArrowRightLeft,
   Bell,
   CalendarClock,
+  CalendarDays,
   Check,
   ChevronRight,
   CircleCheck,
@@ -34,6 +36,7 @@ import {
   ShieldAlert,
   CreditCard,
   Mail,
+  NotebookText,
   Sparkles,
   SquareTerminal,
   Undo2,
@@ -45,6 +48,7 @@ import {
 import { useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 import { TakeOverButton, useComputer } from "@/components/computer/computer-panel";
+import { ActionPreview, previewIcon } from "@/components/approvals/action-preview";
 import { AlwaysAllowButton } from "@/components/approvals/always-allow";
 import { approvalDetail, InlineCode } from "@/components/inline-code";
 import { MessageText } from "./message-text";
@@ -233,6 +237,8 @@ const TOOL_ICONS: Record<string, typeof Wrench> = {
   update_task: ListTodo,
   watch_page: Eye,
   create_webhook: Webhook,
+  watch_gmail: Mail,
+  watch_calendar: CalendarDays,
   search_history: History,
   save_skill: Sparkles,
   remember_about_user: UserRound,
@@ -242,8 +248,15 @@ const TOOL_ICONS: Record<string, typeof Wrench> = {
   finish_purchase: CreditCard,
 };
 
+/** Account tools are named by namespace: `gmail.search`, `calendar.create_event`. */
+const NAMESPACE_ICONS: Record<string, typeof Wrench> = {
+  gmail: Mail,
+  calendar: CalendarDays,
+  notion: NotebookText,
+};
+
 export function ToolStep({ item }: { item: ToolItem }) {
-  const Icon = TOOL_ICONS[item.name] ?? Wrench;
+  const Icon = TOOL_ICONS[item.name] ?? NAMESPACE_ICONS[item.name.split(".")[0]!] ?? Wrench;
   return (
     <Step
       icon={<Icon />}
@@ -358,27 +371,34 @@ export function ApprovalCard({ item, botName }: { item: ApprovalItem; botName: s
       </div>
     );
   }
+  const PreviewIcon = previewIcon(item.preview);
   return (
     <div
       className="flex flex-col gap-3 rounded-xl border border-waiting/35 bg-waiting/[0.06] p-4"
       data-testid="approval-card"
     >
       <div className="flex items-start gap-2.5">
-        {item.approvalKind === "purchase" ? (
+        {PreviewIcon ? (
+          <PreviewIcon className="mt-0.5 size-4 shrink-0 text-waiting" />
+        ) : item.approvalKind === "purchase" ? (
           <CreditCard className="mt-0.5 size-4 shrink-0 text-waiting" />
         ) : item.approvalKind === "email" ? (
           <Mail className="mt-0.5 size-4 shrink-0 text-waiting" />
         ) : (
           <ShieldAlert className="mt-0.5 size-4 shrink-0 text-waiting" />
         )}
-        <div className="flex min-w-0 flex-col gap-1">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="text-[14px] font-medium">
             Approve: <InlineCode text={item.title} />
           </span>
-          {item.detail && (
-            <pre className="max-h-60 overflow-auto font-sans text-[13px] whitespace-pre-wrap text-muted-foreground">
-              {approvalDetail(item.detail)}
-            </pre>
+          {item.preview ? (
+            <ActionPreview preview={item.preview} className="mt-1.5" />
+          ) : (
+            item.detail && (
+              <pre className="max-h-60 overflow-auto font-sans text-[13px] whitespace-pre-wrap text-muted-foreground">
+                {approvalDetail(item.detail)}
+              </pre>
+            )
           )}
         </div>
       </div>
@@ -401,18 +421,15 @@ export function ApprovalCard({ item, botName }: { item: ApprovalItem; botName: s
         >
           Deny
         </Button>
-        {item.approvalKind &&
-          item.approvalKind !== "purchase" &&
-          item.approvalKind !== "email" &&
-          !item.askEveryTime && (
-            <AlwaysAllowButton
-              kind={item.approvalKind}
-              subject={item.subject ?? item.title}
-              botName={botName}
-              disabled={pending}
-              onConfirm={async (pattern) => decide("approved", pattern)}
-            />
-          )}
+        {item.approvalKind && ruleAllowed(item.approvalKind) && !item.askEveryTime && (
+          <AlwaysAllowButton
+            kind={item.approvalKind}
+            subject={item.subject ?? item.title}
+            botName={botName}
+            disabled={pending}
+            onConfirm={async (pattern) => decide("approved", pattern)}
+          />
+        )}
       </div>
     </div>
   );

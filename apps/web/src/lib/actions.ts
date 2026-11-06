@@ -17,6 +17,8 @@ import {
   type Attachment,
 } from "@open-bot/db";
 import {
+  isAccountConnectionKind,
+  isAccountProvider,
   isValidTimeZone,
   MAX_UPLOAD_BYTES,
   MAX_UPLOAD_LABEL,
@@ -35,10 +37,14 @@ import {
   normalizeDomain,
   normalizeExpiry,
   toCents,
+  type AccountCapability,
+  type AccountConnectionKind,
+  type AccountProvider,
   type CardSecret,
   type LoginSecret,
   type Autonomy,
   type EgressModeSetting,
+  type TriggerKind,
 } from "@open-bot/shared";
 import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
@@ -56,7 +62,14 @@ import { memoryReady } from "./server/memory";
 import { publish } from "./server/publish";
 import { db, pool } from "./server/db";
 import { serverEnv } from "./server/env";
-import { requireUser } from "./server/session";
+import { getSession, requireUser } from "./server/session";
+import {
+  removeAccountConnection,
+  saveOwnerClient,
+  setAccountConnectionEnabled,
+  startAuthorization,
+  updateAccountConnection,
+} from "./server/accounts";
 import { emailSettingsRow } from "./server/queries";
 import { insertTeammateParts, teammateParts } from "./server/teammates";
 import { worker } from "./server/worker";
@@ -833,18 +846,100 @@ async function uniqueConnectionName(base: string): Promise<string> {
 
 export async function setConnectionEnabled(id: string, enabled: boolean) {
   return guarded(async () => {
-    await db
-      .update(connections)
-      .set({ enabled })
+    const [row] = await db
+      .select({ kind: connections.kind })
+      .from(connections)
       .where(eq(connections.id, z.string().uuid().parse(id)));
+    if (!row) throw new Error("That connection is gone.");
+    if (row.kind !== "mcp") return setAccountConnectionEnabled(id, enabled);
+    await db.update(connections).set({ enabled }).where(eq(connections.id, id));
     await publish("connections");
   });
 }
 
+/**
+ * Remove a connection. For an account, the last connection using it also revokes its access at
+ * the provider; the warning says when that couldn't be done.
+ */
 export async function deleteConnection(id: string) {
-  return guarded(async () => {
-    await db.delete(connections).where(eq(connections.id, z.string().uuid().parse(id)));
+  return guarded(async (): Promise<{ warning: string | null }> => {
+    const [row] = await db
+      .select({ kind: connections.kind })
+      .from(connections)
+      .where(eq(connections.id, z.string().uuid().parse(id)));
+    if (!row) return { warning: null };
+    if (row.kind !== "mcp") return removeAccountConnection(id);
+    await db.delete(connections).where(eq(connections.id, id));
     await publish("connections");
+    return { warning: null };
+  });
+}
+
+/* ------------------------------------------------------------------ Accounts */
+
+const accountProvider = z
+  .string()
+  .refine(isAccountProvider, "Unknown provider.")
+  .transform((value) => value as AccountProvider);
+const accountKind = z
+  .string()
+  .refine(isAccountConnectionKind, "Unknown kind of account.")
+  .transform((value) => value as AccountConnectionKind);
+/** Capabilities by name; each kind keeps only its own (`normalizeCapabilities`). */
+const accountCapabilities = z
+  .array(z.string().max(40))
+  .max(20)
+  .transform((value) => value as AccountCapability[]);
+
+const oauthClientInput = z.object({
+  provider: accountProvider,
+  clientId: z.string().max(300),
+  clientSecret: z.string().max(300),
+});
+
+/** Save the OAuth client you made in a provider's console (Google's, in your Cloud project). */
+export async function saveOAuthClient(input: z.input<typeof oauthClientInput>) {
+  return guarded(async () => saveOwnerClient(oauthClientInput.parse(input)));
+}
+
+const accountConnectInput = z.object({
+  kind: accountKind,
+  capabilities: accountCapabilities,
+  botIds: z.array(z.string().uuid()).nullable(),
+  /** Sign in again as this account: to reconnect it, or to grant it more. */
+  accountId: z.string().uuid().nullable(),
+});
+
+/** Start connecting an account. Returns the provider's sign-in page to go to. */
+export async function startAccountConnect(input: z.input<typeof accountConnectInput>) {
+  return guarded(async () => {
+    const data = accountConnectInput.parse(input);
+    if (data.botIds?.length === 0) throw new Error("Pick at least one teammate, or everyone.");
+    const session = await getSession();
+    if (!session) throw new Error("Sign in again.");
+    const url = await startAuthorization({ sessionId: session.session.id, ...data });
+    return { url };
+  });
+}
+
+const accountConnectionInput = z.object({
+  id: z.string().uuid(),
+  capabilities: accountCapabilities,
+  botIds: z.array(z.string().uuid()).nullable(),
+  askBeforeActing: z.boolean(),
+  /** The integration's settings as you typed them, by key: "" clears one, a missing key keeps it. */
+  settings: z.record(z.string().max(60), z.string().max(2000)).optional(),
+});
+
+/**
+ * Change what an account connection allows and who uses it. When it allows more than the account
+ * granted, nothing changes and `needsConsent` says to sign in again for it.
+ */
+export async function saveAccountConnection(input: z.input<typeof accountConnectionInput>) {
+  return guarded(async () => {
+    const data = accountConnectionInput.parse(input);
+    if (data.botIds?.length === 0) throw new Error("Pick at least one teammate, or everyone.");
+    return updateAccountConnection(data);
   });
 }
 
@@ -970,12 +1065,15 @@ export async function runScheduleNow(scheduleId: string) {
 
 export interface TriggerInput {
   botId: string;
-  kind: "watch" | "webhook";
+  kind: TriggerKind;
   title: string;
   prompt: string;
   url?: string | null;
   intervalMinutes?: number | null;
   lookFor?: string | null;
+  connectionId?: string | null;
+  query?: string | null;
+  leadMinutes?: number | null;
 }
 
 export async function createTrigger(input: TriggerInput) {

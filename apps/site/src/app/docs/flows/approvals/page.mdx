@@ -18,18 +18,20 @@ It controls two things: Codex's own approval policy, and the approval rules writ
 | `risky`      | Ask before risky actions | `never`      | Call `request_approval` before sending messages, posting or publishing, deleting data, and changing settings, permissions or anything in production. Reading, research, drafting and preparing need nothing. |
 | `everything` | Ask before every command | `untrusted`  | Expect an approval prompt before every shell command and file change, and call `request_approval` before consequential desktop actions.                                                                      |
 
-Payments and emails don't depend on these instructions.
-`start_purchase` and `send_email` ask you themselves (an email from a `full` teammate sends right away).
+Payments, emails and changes to your accounts don't depend on these instructions.
+`start_purchase`, `send_email` and the Gmail, Calendar and Notion tools ask you themselves (an email from a `full` teammate sends right away, unless its task read your accounts).
 
 ## Kinds of approval
 
-| Kind          | Created by                                                           | How long the tool waits   | Can be Always allowed                                        |
-| ------------- | -------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------ |
-| `command`     | Codex, before a shell command (`everything` only)                    | As long as the turn lives | Yes, by command prefix                                       |
-| `file_change` | Codex, before a file edit (`everything` only)                        | As long as the turn lives | Yes, all file changes                                        |
-| `action`      | `request_approval`, and the tools that create or configure teammates | Up to 10 minutes          | Yes, by exact wording, except autonomy and connection access |
-| `purchase`    | `start_purchase`, above the auto-approve amount                      | Up to 10 minutes          | No                                                           |
-| `email`       | `send_email`, unless the teammate is `full`                          | Doesn't wait              | No                                                           |
+| Kind              | Created by                                                                              | How long the tool waits   | Can be Always allowed                                        |
+| ----------------- | --------------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------ |
+| `command`         | Codex, before a shell command (`everything` only)                                       | As long as the turn lives | Yes, by command prefix                                       |
+| `file_change`     | Codex, before a file edit (`everything` only)                                           | As long as the turn lives | Yes, all file changes                                        |
+| `action`          | `request_approval`, and the tools that create or configure teammates                    | Up to 10 minutes          | Yes, by exact wording, except autonomy and connection access |
+| `purchase`        | `start_purchase`, above the auto-approve amount                                         | Up to 10 minutes          | No                                                           |
+| `email`           | `send_email`, unless the teammate is `full` and its run read nothing from your accounts | Doesn't wait              | No                                                           |
+| `account_write`   | A Gmail, Calendar or Notion change only you see or that is yours, by autonomy           | Up to 10 minutes          | Yes, by tool, like "Change Notion pages"                     |
+| `account_outward` | A Gmail, Calendar or Notion change others see                                           | Up to 10 minutes          | No                                                           |
 
 ## The flow
 
@@ -96,11 +98,34 @@ A denial says "Don't do it. Briefly acknowledge, and continue with anything else
 A teammate tool's approval (see [Building the team](/docs/flows/teamwork#what-asks-you)) is tied to its exact tool call, saved in the payload as the call and a canonical hash of it.
 The new run is told to make that call again, and the call goes through once without asking, only in that run.
 
+## Account actions
+
+Changes teammates make to [your accounts](/docs/flows/accounts) get approvals of their own, because what is approved must be exactly what runs, once, however late you answer.
+
+The worker classes each call from the tool and its checked arguments (`approvalFor()` in `apps/worker/src/accounts/effects.ts`):
+
+| Effect        | Examples                                                               | `full`                       | `risky`                                        | `everything`      |
+| ------------- | ---------------------------------------------------------------------- | ---------------------------- | ---------------------------------------------- | ----------------- |
+| read          | Searching mail, reading events and pages                               | runs                         | runs                                           | runs              |
+| private write | Drafts, labels, a private Notion page                                  | runs                         | runs                                           | `account_write`   |
+| write         | Your own event without guests, pages teammates made or in their area   | runs                         | `account_write`, unless a rule covers the tool | `account_write`   |
+| outward       | Sending a draft, events with guests, invitations, other Notion changes | `account_outward`, see below | `account_outward`                              | `account_outward` |
+
+An outward action from a `full` teammate runs without asking only when you turned **Always ask before acting for me** off for that connection and the run hasn't read anything from your accounts.
+
+Each action is an `account_actions` row with the frozen provider request, inserted together with its approval.
+The card is drawn from that request: the email with every recipient, the event with its time and guests, or the Notion change with a link to the page.
+Deciding updates the action in the same transaction, and the worker's action executor runs it, even when the run that asked has ended.
+The teammate is waiting only if you answer within 10 minutes; otherwise the chat item updates when it's done, and a follow-up run starts if it was denied, failed, cancelled, expired, or might not have happened.
+An account approval that isn't answered within 7 days expires.
+
+Turning a connection off, removing it, or changing what it allows or who may use it cancels its pending account approvals.
+
 ### Expiry
 
 Codex's own command and file approvals can't outlive their turn.
 When a run ends, its pending `command` and `file_change` approvals become `expired`.
-`action`, `purchase` and `email` approvals stay answerable after the run ends.
+`action`, `purchase`, `email`, `account_write` and `account_outward` approvals stay answerable after the run ends.
 
 ## Always allow
 
@@ -111,6 +136,7 @@ They are also written into `AGENTS.md` and into every prompt, so the teammate kn
 Matching (`rulesCover()` in `packages/shared/src/approval-rules.ts`) depends on the kind:
 
 - **file_change**: one rule covers every file change.
+- **account_write**: the rule names a tool, like `notion.update_page`, and covers that tool's changes that follow the teammate's autonomy. Nothing others see is ever covered.
 - **action**: the rule matches an action with the same wording, ignoring case and spacing. Teammate tools give a kind of change as the wording to match, like "Create teammates", so one rule covers every teammate. Changes to autonomy and connection access are asked every time, and their cards have no Always allow.
 - **command**: the rule is a command prefix, like `npm install` or `git status`. A script is covered only if **every** command it chains with `;`, `&&`, `||`, `|`, `&` or a new line starts with an allowed prefix, on a word boundary.
 
@@ -119,7 +145,7 @@ Some scripts can never be covered:
 - Scripts that redirect (`<`, `>`) or substitute (`` ` ``, `$(...)`) always ask, because a prefix can't say what they do.
 - A pattern must be a single simple command.
 - A pattern that would allow everything, like `bash -lc` or `sh`, is refused.
-- Purchases and emails can't be Always allowed at all.
+- Purchases, emails and account actions others see can't be Always allowed at all.
 
 When you press Always allow, the app suggests a rule: the first command's program and subcommand (`git push` for `git push origin main`), or the action's wording.
 

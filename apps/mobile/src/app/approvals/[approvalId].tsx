@@ -13,6 +13,7 @@ import {
 import { useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ActionPreview } from "@/components/action-preview";
 import { AlwaysAllowSheet } from "@/components/always-allow-sheet";
 import {
   ApprovalAvatar,
@@ -45,6 +46,8 @@ const KIND_LABEL = {
   action: "take an action",
   purchase: "make a purchase",
   email: "send an email",
+  account_write: "change your account",
+  account_outward: "act as you",
 } as const;
 
 /** A small label over a part of the request. */
@@ -182,7 +185,20 @@ export default function ApprovalScreen() {
 
         {risk && <RiskNote risk={risk} />}
 
-        <Detail kind={approval.kind} detail={approval.detail} />
+        {approval.preview ? (
+          <View style={{ gap: space(2) }}>
+            <Overline>
+              {approval.preview.type === "email"
+                ? "Message"
+                : approval.preview.type === "event"
+                  ? "Event"
+                  : "In Notion"}
+            </Overline>
+            <ActionPreview preview={approval.preview} />
+          </View>
+        ) : (
+          <Detail kind={approval.kind} detail={approval.detail} />
+        )}
 
         {!pending && (
           <View style={[styles.settled, { backgroundColor: colors.subtle }]}>

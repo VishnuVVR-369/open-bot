@@ -1,5 +1,5 @@
 import type { ApprovalView } from "@open-bot/api";
-import { CreditCard, FilePen, Mail, ShieldAlert, SquareTerminal } from "lucide-react-native";
+import { CreditCard, FilePen, Mail, Plug, ShieldAlert, SquareTerminal } from "lucide-react-native";
 
 /** The icon for what's being approved. */
 export function ApprovalIcon({
@@ -20,6 +20,8 @@ export function ApprovalIcon({
           ? SquareTerminal
           : kind === "file_change"
             ? FilePen
-            : ShieldAlert;
+            : kind === "account_write" || kind === "account_outward"
+              ? Plug
+              : ShieldAlert;
   return <Icon size={size} color={color} />;
 }

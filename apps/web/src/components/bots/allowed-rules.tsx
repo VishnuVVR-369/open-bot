@@ -1,7 +1,7 @@
 "use client";
 
-import type { RuleKind } from "@open-bot/shared";
-import { FilePen, MousePointerClick, SquareTerminal, X } from "lucide-react";
+import { accountTool, type RuleKind } from "@open-bot/shared";
+import { FilePen, MousePointerClick, Plug, SquareTerminal, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -15,7 +15,12 @@ export interface AllowedRule {
   pattern: string;
 }
 
-const ICONS = { command: SquareTerminal, file_change: FilePen, action: MousePointerClick };
+const ICONS: Record<RuleKind, typeof Plug> = {
+  command: SquareTerminal,
+  file_change: FilePen,
+  action: MousePointerClick,
+  account_write: Plug,
+};
 
 function RuleText({ rule }: { rule: AllowedRule }) {
   switch (rule.kind) {
@@ -32,6 +37,8 @@ function RuleText({ rule }: { rule: AllowedRule }) {
       );
     case "action":
       return <span>{rule.pattern}</span>;
+    case "account_write":
+      return <span>{accountTool(rule.pattern)?.label ?? rule.pattern}</span>;
   }
 }
 

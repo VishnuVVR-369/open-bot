@@ -1,6 +1,7 @@
 import pg from "pg";
 
-const TEST_BOT_NAMES = /^(Tess|Ava|Ben|Ivy|Ora|Sol|Scr|Held|Free|Ann|Bob|Alw)[a-z0-9]{4}( \d+)?$/;
+const TEST_BOT_NAMES =
+  /^(Tess|Ava|Ben|Ivy|Ora|Sol|Scr|Held|Free|Ann|Bob|Alw|Acc)[a-z0-9]{4}( \d+)?$/;
 /**
  * Attachments the tests upload are named e2e-…, behind the prefix uploads get: 8 characters for
  * ones saved from email or Telegram, the upload id for ones the apps upload.

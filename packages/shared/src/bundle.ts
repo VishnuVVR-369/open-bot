@@ -63,7 +63,7 @@ export const teammateBundleSchema = z.object({
   allowed: z
     .array(
       z.object({
-        kind: z.enum(["command", "file_change", "action"]),
+        kind: z.enum(["command", "file_change", "action", "account_write"]),
         pattern: z.string().max(500),
       }),
     )

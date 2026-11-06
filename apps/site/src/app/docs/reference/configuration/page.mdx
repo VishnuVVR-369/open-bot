@@ -68,6 +68,29 @@ See [Memory](/docs/flows/memory#optional-ai).
 | `MEMORY_AI_API_KEY`             | empty   | A bearer token for those two endpoints only              |
 | `MEMORY_AI_DAILY_REQUEST_LIMIT` | `100`   | All memory AI requests per day. `0` turns memory AI off. |
 
+## Accounts
+
+Gmail, Google Calendar and Notion need no environment variables.
+Your Google OAuth client is pasted into Settings, and Notion's client registers itself on the first connect.
+See [Your accounts](/docs/flows/accounts#setting-up-google).
+
+The redirect URIs are built from `BETTER_AUTH_URL`, the app's public URL:
+
+```text title="Redirect URIs"
+<BETTER_AUTH_URL>/api/accounts/google/callback
+<BETTER_AUTH_URL>/api/accounts/notion/callback
+```
+
+The Google one goes in your OAuth client, and Settings shows it with a copy button.
+If the app's URL changes, add the new URI to your Google client; the app registers with Notion again by itself for a new URI.
+
+These two variables are for tests only, and must be set the same in the web app and the worker:
+
+| Variable          | Default                      | Purpose                                                                                                                                                    |
+| ----------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GOOGLE_BASE_URL` | unset: Google's real servers | Send Google sign-in, Gmail and Calendar traffic to a stand-in, under `/o/oauth2/v2/auth`, `/token`, `/revoke`, `/userinfo`, `/gmail/v1` and `/calendar/v3` |
+| `NOTION_MCP_URL`  | `https://mcp.notion.com/mcp` | Use a stand-in for Notion's hosted MCP server and its sign-in                                                                                              |
+
 ## Pages service
 
 See [The pages service](/docs/architecture/pages).
@@ -120,13 +143,17 @@ Some configuration lives in the database, changed in Settings rather than in the
 | Email domain and Postmark token                                   | `email_settings`                                          |
 | Push devices                                                      | `push_subscriptions`                                      |
 | Connections                                                       | `connections`, secrets encrypted                          |
+| Google OAuth client ID and secret, and Notion's registered client | `oauth_clients`, secrets encrypted                        |
+| Gmail, Google Calendar and Notion sign-ins                        | `accounts`, tokens encrypted, and their `connections`     |
 
 ## Tests
 
-| Variable                    | Used by                                                          |
-| --------------------------- | ---------------------------------------------------------------- |
-| `E2E_EMAIL`, `E2E_PASSWORD` | Playwright: the owner account to sign in with                    |
-| `E2E_BASE_URL`              | Playwright: the web app, default `http://localhost:3000`         |
-| `E2E_TELEGRAM=1`            | Run the Telegram tests (with the worker pointed at the stand-in) |
-| `E2E_PLAN_REHEARSAL=1`      | Run the plan fallback rehearsal                                  |
-| `MEMORY_TEST_DATABASE_URL`  | The memory suite's isolated database                             |
+| Variable                       | Used by                                                                                                           |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `E2E_EMAIL`, `E2E_PASSWORD`    | Playwright: the owner account to sign in with                                                                     |
+| `E2E_BASE_URL`                 | Playwright: the web app, default `http://localhost:3000`                                                          |
+| `E2E_TELEGRAM=1`               | Run the Telegram tests (with the worker pointed at the stand-in)                                                  |
+| `E2E_PLAN_REHEARSAL=1`         | Run the plan fallback rehearsal                                                                                   |
+| `MEMORY_TEST_DATABASE_URL`     | The memory suite's isolated database                                                                              |
+| `ACCOUNTS_TEST_DATABASE_URL`   | `pnpm test:accounts`: the credential store's throwaway database                                                   |
+| `MOBILE_API_TEST_DATABASE_URL` | `pnpm test:mobile-api`: the throwaway database for the phone API, account actions and Gmail and Calendar triggers |
