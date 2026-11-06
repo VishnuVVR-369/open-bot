@@ -90,7 +90,7 @@ function Card({
         <span
           className={cn(
             "text-[13.5px] leading-snug font-medium break-words",
-            done && "text-muted-foreground line-through decoration-muted-foreground/40",
+            done && "text-muted-foreground",
           )}
         >
           {task.title}

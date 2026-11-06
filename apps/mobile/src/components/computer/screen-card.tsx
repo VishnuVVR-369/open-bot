@@ -6,6 +6,7 @@ import { Button } from "@/components/button";
 import { Text } from "@/components/text";
 import { screenState, screenStatus, type ScreenState } from "@/lib/screens";
 import { radius, space, useColors } from "@/theme";
+import { mix } from "@/theme/mix";
 import { DESKTOP_ASPECT_RATIO } from "./desktop-view";
 import { ScreenPanel, useScreenSurface } from "./screen-surface";
 
@@ -26,6 +27,8 @@ export function screenAction(state: ScreenState): ScreenAction | null {
       return "watch";
   }
 }
+
+const OFFLINE_ASPECT_RATIO = 3.4;
 
 const ACTION_TITLE: Record<ScreenAction, string> = {
   wake: "Wake",
@@ -75,7 +78,9 @@ export function ScreenCard({
       ]}
     >
       <ScreenPanel
-        aspectRatio={DESKTOP_ASPECT_RATIO}
+        // An offline computer has nothing to show, so its stand-in stays short and the list
+        // doesn't turn into a wall of dark panels.
+        aspectRatio={state.kind === "offline" ? OFFLINE_ASPECT_RATIO : DESKTOP_ASPECT_RATIO}
         tint={needsYou ? colors.attention : undefined}
       >
         <PanelGlyph state={state} />
@@ -118,7 +123,7 @@ export function ScreenCard({
 function PanelGlyph({ state }: { state: ScreenState }) {
   const colors = useColors();
   const surface = useScreenSurface();
-  const size = 26;
+  const size = 22;
   const icon =
     state.kind === "asleep" ? (
       <Moon size={size} color={surface.ink} />
@@ -133,7 +138,17 @@ function PanelGlyph({ state }: { state: ScreenState }) {
     );
   return (
     <View style={styles.glyph} accessible={false}>
-      {icon}
+      <View
+        style={[
+          styles.glyphTile,
+          {
+            backgroundColor: mix(surface.ink, surface.background, 0.08),
+            borderColor: mix(surface.ink, surface.background, 0.14),
+          },
+        ]}
+      >
+        {icon}
+      </View>
       {state.kind === "using" && (
         // A teammate at work: the same calm blue their avatar pulses with.
         <View style={[styles.workingDot, { backgroundColor: colors.working }]} />
@@ -153,6 +168,14 @@ const styles = StyleSheet.create({
   footer: { flexDirection: "row", alignItems: "center", gap: space(3), paddingLeft: space(1) },
   text: { flex: 1, gap: space(0.5) },
   glyph: { flex: 1, alignItems: "center", justifyContent: "center" },
+  glyphTile: {
+    width: 48,
+    height: 48,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   workingDot: {
     position: "absolute",
     width: space(2),

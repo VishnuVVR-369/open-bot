@@ -50,7 +50,7 @@ const ACTIVITY_LABEL: Record<BotActivity, string> = {
 
 /**
  * A teammate's face: their color and emoji (or initials). Presence is part of the face, not a
- * separate light: a soft pulse while they work, an amber ring and mark while they wait for you,
+ * separate light: a soft pulse while they work, an amber mark while they wait for you,
  * and a dashed ring while they're up next.
  */
 export function BotAvatar({
@@ -131,9 +131,6 @@ export function BotAvatar({
             },
           ]}
         />
-      )}
-      {activity === "waiting" && (
-        <View pointerEvents="none" style={[ring, { borderColor: colors.attention }]} />
       )}
       {activity === "queued" && (
         <View

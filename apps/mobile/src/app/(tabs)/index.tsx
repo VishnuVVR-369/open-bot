@@ -25,7 +25,14 @@ import {
   X,
 } from "lucide-react-native";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
+import {
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  View,
+  useColorScheme,
+} from "react-native";
 import { BotAvatar, botActivity, GroupAvatar } from "@/components/bot-avatar";
 import { ConnectionNotice } from "@/components/connection-notice";
 import { Card, Section } from "@/components/section";
@@ -90,6 +97,7 @@ function Callout({
   testID?: string;
 }) {
   const colors = useColors();
+  const dark = useColorScheme() === "dark";
   return (
     <Pressable
       onPress={() => {
@@ -101,16 +109,17 @@ function Callout({
       style={[
         styles.callout,
         {
-          borderColor: mix(colors.attention, colors.surface, 0.5),
-          backgroundColor: mix(colors.attention, colors.surface, 0.09),
+          borderColor: mix(colors.attention, colors.surface, dark ? 0.28 : 0.42),
+          backgroundColor: mix(colors.attention, colors.surface, dark ? 0.06 : 0.08),
         },
       ]}
       testID={testID}
     >
       {leading}
       <View style={{ flex: 1, gap: 2 }}>{children}</View>
-      <View style={[styles.calloutAction, { backgroundColor: colors.attention }]}>
-        <Text variant="small" style={{ color: "#1A1200", fontWeight: "600" }}>
+      {/* The card already says "needs you"; the action itself stays ink, like every button. */}
+      <View style={[styles.calloutAction, { backgroundColor: colors.primary }]}>
+        <Text variant="small" style={{ color: colors.primaryForeground, fontWeight: "600" }}>
           {action}
         </Text>
       </View>

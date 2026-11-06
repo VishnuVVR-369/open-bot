@@ -24,7 +24,7 @@ export const palette = {
     destructive: "#D23C42",
     border: "#E6E7EB",
     input: "#DDDFE4",
-    bubble: "#EDEEF1",
+    bubble: "#DFE1E6",
     bubbleForeground: "#16171B",
     live: "#E5484D",
     working: "#3B74F0",
