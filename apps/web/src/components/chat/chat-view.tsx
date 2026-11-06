@@ -422,14 +422,16 @@ export function ChatView({ chatId }: { chatId: string }) {
                   {panelOpen ? "Hide the computer" : "Show the computer"}
                 </TooltipContent>
               </Tooltip>
+              {/* On a phone the label would squeeze the chat title, so only the icon shows. */}
               <Button
                 variant="outline"
                 size="sm"
-                className="xl:hidden"
+                aria-label="Computer"
+                className="max-sm:size-8 max-sm:px-0 xl:hidden"
                 onClick={() => setSheetOpen(true)}
               >
                 <Monitor />
-                Computer
+                <span className="max-sm:sr-only">Computer</span>
               </Button>
             </>
           )}
