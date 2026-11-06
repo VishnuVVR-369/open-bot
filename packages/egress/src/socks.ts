@@ -5,7 +5,13 @@ import net, { type Socket } from "node:net";
  * Hostnames arrive unresolved, so DNS happens wherever the connection is finally opened.
  */
 
-export type Route = (host: string, port: number, client: Socket) => Promise<void>;
+/** Handle one CONNECT request. `acceptedAt` is when the client connected (epoch ms). */
+export type Route = (
+  host: string,
+  port: number,
+  client: Socket,
+  acceptedAt: number,
+) => Promise<void>;
 
 const REPLY = {
   succeeded: 0x00,
@@ -106,11 +112,12 @@ async function handshake(socket: Socket): Promise<{ host: string; port: number; 
 
 export function createSocksServer(route: Route, onError?: (error: unknown) => void): net.Server {
   return net.createServer((client) => {
+    const acceptedAt = Date.now();
     client.setNoDelay(true);
     handshake(client)
       .then(async ({ host, port, rest }) => {
         if (rest.length > 0) client.unshift(rest);
-        await route(host, port, client);
+        await route(host, port, client, acceptedAt);
       })
       .catch((error: unknown) => {
         onError?.(error);
@@ -119,22 +126,58 @@ export function createSocksServer(route: Route, onError?: (error: unknown) => vo
   });
 }
 
-/** Route a SOCKS client straight to the destination from this machine. */
-export function connectDirect(host: string, port: number, client: Socket): Promise<void> {
+/**
+ * Route a SOCKS client straight to the destination from this machine. Settles once the
+ * destination is connected, fails, misses `deadline` (epoch ms), or the client goes away first.
+ */
+export function connectDirect(
+  host: string,
+  port: number,
+  client: Socket,
+  options: { deadline?: number } = {},
+): Promise<void> {
   return new Promise((resolve, reject) => {
     const upstream = net.connect({ host, port });
     upstream.setNoDelay(true);
+    let settled = false;
+    let connected = false;
+    const settle = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (error) reject(error);
+      else resolve();
+    };
+    const timer =
+      options.deadline === undefined
+        ? undefined
+        : setTimeout(
+            () => {
+              if (settled) return;
+              upstream.destroy();
+              if (!client.destroyed) client.end(socksReply(REPLY.hostUnreachable));
+              settle(new Error(`Timed out connecting to ${host}:${port}`));
+            },
+            Math.max(0, options.deadline - Date.now()),
+          );
     upstream.once("connect", () => {
+      if (settled) return;
+      connected = true;
       client.write(socksReply(REPLY.succeeded));
       client.pipe(upstream);
       upstream.pipe(client);
-      resolve();
+      settle();
     });
     upstream.once("error", (error) => {
-      if (!client.destroyed) client.end(socksReply(REPLY.hostUnreachable));
-      reject(error);
+      // `pipe` doesn't pass errors on: a destination that resets must take the client along.
+      if (connected) client.destroy();
+      else if (!settled && !client.destroyed) client.end(socksReply(REPLY.hostUnreachable));
+      settle(error);
     });
     client.once("error", () => upstream.destroy());
-    client.once("close", () => upstream.destroy());
+    client.once("close", () => {
+      upstream.destroy();
+      settle(); // Nobody is waiting for it any more.
+    });
   });
 }

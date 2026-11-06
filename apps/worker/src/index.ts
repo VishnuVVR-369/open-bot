@@ -1,13 +1,15 @@
 import { CHANNELS, computers, createDb, createPool, settings } from "@open-bot/db";
 import { CodexManager } from "./codex";
 import { ComputerClient } from "./computer";
-import { publishApp, type Context } from "./context";
-import { EgressRelay } from "./egress-relay";
+import { createNotification, publishApp, type Context } from "./context";
+import { databaseStore } from "./egress/store";
+import { EgressRelay } from "./egress/relay";
+import { WakeController } from "./egress/wake";
 import { env } from "./env";
 import { createHttpServer } from "./http";
 import { computerFiles, UploadService } from "./uploads";
 import { PushService } from "./services/push";
-import { FcmService } from "./services/fcm";
+import { FcmService, nativeEgressPush } from "./services/fcm";
 import { TaskService } from "./services/tasks";
 import { ConnectionService } from "./services/connections";
 import { EmailService } from "./services/email";
@@ -122,7 +124,47 @@ const executor = new RunExecutor(
   memory,
   accountAccess,
 );
-const egress = new EgressRelay(ctx);
+const egress = new EgressRelay({
+  store: databaseStore(db),
+  computerUrl: () => computer.wsUrl("/egress"),
+  log: log.child("egress"),
+  publish: () => void publishApp(ctx, { type: "computer" }),
+});
+const wake = new WakeController({
+  now: Date.now,
+  relay: egress,
+  leasedScreens: () =>
+    (computer.health?.screens ?? [])
+      .filter((screen) => screen.state !== "paused" && screen.lease !== null)
+      .map((screen) => screen.id),
+  pushConfigured: () => fcm.configured,
+  push: async (phone, stage, phoneMode) => {
+    if (!phone.pushToken) return "failed";
+    const results = await fcm.sendToTokens(
+      [phone.pushToken],
+      nativeEgressPush(stage, new Date(), phoneMode),
+    );
+    return results.get(phone.pushToken) ?? "failed";
+  },
+  phonesChanged: () => void egress.reloadPhones(),
+  notifyUnanswered: () =>
+    createNotification(ctx, {
+      kind: "egress_unanswered",
+      title: "Your phone didn't answer",
+      body: "Open open-bot on it so teammates can browse.",
+    }),
+  publish: () => void publishApp(ctx, { type: "computer" }),
+  log: log.child("wake"),
+});
+egress.setHooks({
+  configExtras: () => wake.configExtras(),
+  phoneStatus: (id) => wake.phoneStatus(id),
+  waiting: () => wake.waiting(),
+  onDemand: () => wake.demand(),
+  onUnavailable: (id, reason, seq) => wake.unavailable(id, reason, seq),
+  onAvailable: (id, seq) => wake.available(id, seq),
+  onChange: () => wake.evaluate(),
+});
 const telegram = new TelegramService(ctx, executor, approvals, uploads);
 
 await executor.recover();
@@ -159,6 +201,8 @@ const reconcileTakeovers = () =>
 reconcileTakeovers();
 setInterval(reconcileTakeovers, 30_000).unref();
 await egress.start();
+computer.on("lease", () => wake.evaluate());
+setInterval(() => wake.evaluate(), 1_000).unref();
 schedules.start();
 triggers.start();
 accountTriggers.start();
@@ -255,6 +299,7 @@ const server = createHttpServer({
   email,
   telegram,
   egress,
+  wake,
   uploads,
   pages,
 });

@@ -65,7 +65,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   plugins: [
     "expo-router",
-    "expo-secure-store",
+    // The phone connection's backup rules (modules/egress) keep SecureStore's exclusions too.
+    ["expo-secure-store", { configureAndroidBackup: false }],
     "expo-web-browser",
     ["expo-local-authentication", { faceIDPermission: false }],
     "expo-image",
@@ -136,8 +137,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "./plugins/with-release-signing",
     "./plugins/with-notification-icon",
     ["./plugins/with-android-theme", palette],
-    // The phase 0.6 background egress spike, only in a build made for it (spikes/egress).
-    ...(process.env.OPENBOT_EGRESS_SPIKE === "1" ? ["./spikes/egress/with-egress-spike"] : []),
+    // The phone connection: carries teammates' browsing over this phone (modules/egress).
+    ["./modules/egress/app.plugin.js", { firebase: hasFirebase, development }],
   ],
   experiments: { typedRoutes: true },
   extra: { firebase: hasFirebase },

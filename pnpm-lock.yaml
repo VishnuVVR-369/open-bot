@@ -532,6 +532,9 @@ importers:
       '@open-bot/agent':
         specifier: workspace:*
         version: link:../../packages/agent
+      '@open-bot/api':
+        specifier: workspace:*
+        version: link:../../packages/api
       '@open-bot/db':
         specifier: workspace:*
         version: link:../../packages/db

@@ -37,7 +37,8 @@ module.exports = function withReleaseSigning(config) {
     );
     gradle += `
 gradle.taskGraph.whenReady { graph ->
-    if (graph.allTasks.any { it.name.toLowerCase().contains("release") && it.name.startsWith("package") }
+    // Only the tasks that write a signed APK or bundle; release lint and resources don't need the key.
+    if (graph.allTasks.any { it.project == project && it.name in ["packageRelease", "signReleaseBundle"] }
             && !project.hasProperty("OPENBOT_RELEASE_STORE_FILE")) {
         throw new GradleException("Set OPENBOT_RELEASE_STORE_FILE and the other OPENBOT_RELEASE_* properties in ~/.gradle/gradle.properties to build a release (see apps/mobile/README.md).")
     }

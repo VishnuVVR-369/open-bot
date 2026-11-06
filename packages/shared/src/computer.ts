@@ -143,7 +143,17 @@ export interface ComputerHealth {
   agent: ProcessState;
   /** Screens that are running. A bot without one gets it on first use. */
   screens: ScreenStatus[];
-  egress: { mode: "off" | "prefer" | "require"; agentOnline: boolean; tunnelConnected: boolean };
+  egress: {
+    mode: "off" | "prefer" | "require";
+    agentOnline: boolean;
+    tunnelConnected: boolean;
+    /** The worker has sent its first `config` since botd started. */
+    configured?: boolean;
+    /** Connections waiting for a device right now. */
+    held?: number;
+    /** Connections refused in the last minute because no device could carry them. */
+    refusedRecently?: number;
+  };
 }
 
 /** Events botd streams to the worker. */

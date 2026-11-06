@@ -15,12 +15,14 @@ import {
   typeOnScreenSchema,
   undeletablePath,
 } from "@open-bot/shared";
-import { verifyToken } from "@open-bot/shared/tokens";
+import { LEGACY_DESKTOP_AGENT, readToken, verifyToken } from "@open-bot/shared/tokens";
 import { and, asc, eq, gt, isNull, sql } from "drizzle-orm";
 import WebSocket, { WebSocketServer } from "ws";
 import { z } from "zod";
 import { enqueueRun, publishApp, type Context } from "./context";
-import type { EgressRelay } from "./egress-relay";
+import { egressAgentClaimSchema } from "./egress/claims";
+import type { EgressRelay } from "./egress/relay";
+import type { WakeController } from "./egress/wake";
 import { errorMessage } from "./logger";
 import { sanitizeFileName, UploadError, type UploadService } from "./uploads";
 import type { RunExecutor } from "./runs/executor";
@@ -66,6 +68,7 @@ export interface HttpDeps {
   email: EmailService;
   telegram: TelegramService;
   egress: EgressRelay;
+  wake: WakeController;
   uploads: UploadService;
   pages: PageService;
 }
@@ -201,6 +204,7 @@ export function createHttpServer(deps: HttpDeps): http.Server {
     email,
     telegram,
     egress,
+    wake,
   } = deps;
   const ok = { ok: true };
 
@@ -794,6 +798,41 @@ export function createHttpServer(deps: HttpDeps): http.Server {
       await egress.setMode(mode);
       return ok;
     },
+    "POST /internal/egress/phone-mode": async (request) => {
+      const { mode } = await readJson(
+        request,
+        z.object({ mode: z.enum(["off", "fallback", "always"]) }),
+      );
+      await egress.setPhoneMode(mode);
+      return ok;
+    },
+    "POST /internal/egress/devices/changed": async () => {
+      await egress.reloadPhones();
+      return ok;
+    },
+    "POST /internal/egress/devices/:id/unavailable": async (request, params) => {
+      const { reason, generation, seq } = await readJson(
+        request,
+        z.object({
+          reason: z.enum(["wifi-only", "data-cap", "low-battery", "low-power-standby", "stopped"]),
+          generation: z.number().int().positive(),
+          seq: z.number().int().nonnegative().optional(),
+        }),
+      );
+      const id = uuid(params.id);
+      // Only from the pairing that is current: an old one can't silence a new one.
+      const phone = egress.pairedPhones.find((row) => row.id === id);
+      if (phone?.generation === generation) wake.unavailable(id, reason, seq);
+      return ok;
+    },
+    "POST /internal/egress/devices/:id/revoked": async (request, params) => {
+      const { generation } = await readJson(
+        request,
+        z.object({ generation: z.number().int().nonnegative() }),
+      );
+      await egress.revoke(uuid(params.id), generation);
+      return ok;
+    },
   };
 
   const compiled = Object.entries(routes).map(([key, handler]) => {
@@ -880,11 +919,16 @@ export function createHttpServer(deps: HttpDeps): http.Server {
       return;
     }
     if (url.pathname === "/egress/agent") {
-      if (!verifyToken(token, "egress", ctx.env.WORKER_SECRET)) {
+      const claims = readToken(token, "egress", ctx.env.WORKER_SECRET);
+      // Tokens from a web server older than phone egress name no device: the desktop app.
+      const agent = egressAgentClaimSchema.safeParse(claims?.agent ?? LEGACY_DESKTOP_AGENT);
+      if (!claims || !agent.success) {
         socket.end("HTTP/1.1 401 Unauthorized\r\n\r\n");
         return;
       }
-      wss.handleUpgrade(request, socket, head, (client) => egress.attachAgent(client));
+      wss.handleUpgrade(request, socket, head, (client) => {
+        void egress.attachAgent(client, agent.data);
+      });
       return;
     }
     socket.end("HTTP/1.1 404 Not Found\r\n\r\n");

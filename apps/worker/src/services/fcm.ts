@@ -1,5 +1,5 @@
 import { createSign } from "node:crypto";
-import { nativePushDevices } from "@open-bot/db";
+import { egressDevices, nativePushDevices } from "@open-bot/db";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Context, NotificationEvent } from "../context";
@@ -28,6 +28,15 @@ export interface NativePushData {
   /** "true" when approving needs your fingerprint, like for a purchase. */
   approvalNeedsBiometric?: "true" | "false";
   takeoverId?: string;
+  /** `egress-needed`: `wake` starts the phone's connection silently; `ask` asks you to tap. */
+  stage?: "wake" | "ask";
+  /** When it was sent (ISO), so the phone can ignore a wake that arrives too late to matter. */
+  sentAt?: string;
+  /**
+   * `egress-needed`: the phone mode now. A phone that was off when it changed would otherwise
+   * act on the one it has stored (and, with `off` stored, never learn of the change).
+   */
+  phoneMode?: "fallback" | "always";
 }
 
 export interface NativePush {
@@ -39,6 +48,40 @@ export interface NativePush {
   priority: "high" | "normal";
   /** Only the latest message with the same key is delivered, like progress updates. */
   collapseKey?: string;
+  /** How long FCM keeps trying to deliver it (default an hour). */
+  ttlSeconds?: number;
+}
+
+/** How a send to one token went. `gone` tokens have been forgotten everywhere. */
+export type PushResult = "sent" | "gone" | "failed";
+
+/**
+ * Ask a paired phone to carry the computer's traffic. A wake is silent and only useful for a
+ * few seconds; an ask shows a notification, and stays useful for a while.
+ */
+export function nativeEgressPush(
+  stage: "wake" | "ask",
+  sentAt: Date,
+  phoneMode: "fallback" | "always",
+): NativePush {
+  return {
+    data: {
+      type: "egress-needed",
+      stage,
+      sentAt: sentAt.toISOString(),
+      phoneMode,
+      tag: "egress",
+      ...(stage === "ask"
+        ? {
+            title: "Teammates need your phone's connection",
+            body: "Tap to start browsing through this phone.",
+          }
+        : {}),
+    },
+    priority: "high",
+    collapseKey: `egress-${stage}`,
+    ttlSeconds: stage === "wake" ? 30 : 600,
+  };
 }
 
 const MAX_BODY = 180;
@@ -147,32 +190,53 @@ export class FcmService {
     await this.ctx.db.delete(nativePushDevices).where(eq(nativePushDevices.token, token));
   }
 
-  /** Sends to every phone; tokens FCM says are gone are forgotten. */
+  /** Sends to every phone signed in for notifications; returns how many got it. */
   async sendAll(push: NativePush): Promise<number> {
     if (!this.account) return 0;
     const rows = await this.ctx.db.select().from(nativePushDevices);
-    if (rows.length === 0) return 0;
+    const results = await this.sendToTokens(
+      rows.map((row) => row.token),
+      push,
+    );
+    return [...results.values()].filter((result) => result === "sent").length;
+  }
+
+  /**
+   * Sends to these tokens only, with each one's result. A token FCM says is gone is forgotten
+   * everywhere it's kept: as a notification device and as a paired phone's wake token.
+   */
+  async sendToTokens(tokens: string[], push: NativePush): Promise<Map<string, PushResult>> {
+    const results = new Map<string, PushResult>();
+    if (!this.account || tokens.length === 0) return results;
     const accessToken = await this.accessToken();
-    let sent = 0;
     await Promise.all(
-      rows.map(async (row) => {
+      [...new Set(tokens)].map(async (token) => {
         try {
-          const result = await this.send(accessToken, row.token, push);
+          const result = await this.send(accessToken, token, push);
+          results.set(token, result);
           if (result === "gone") {
-            await this.unregister(row.token);
+            await this.forget(token);
             return;
           }
-          sent += 1;
           await this.ctx.db
             .update(nativePushDevices)
             .set({ lastSentAt: new Date() })
-            .where(eq(nativePushDevices.token, row.token));
+            .where(eq(nativePushDevices.token, token));
         } catch (error) {
+          results.set(token, "failed");
           this.ctx.log.warn("push to a phone failed", { error: errorMessage(error) });
         }
       }),
     );
-    return sent;
+    return results;
+  }
+
+  private async forget(token: string): Promise<void> {
+    await this.unregister(token);
+    await this.ctx.db
+      .update(egressDevices)
+      .set({ pushToken: null })
+      .where(eq(egressDevices.pushToken, token));
   }
 
   private async send(
@@ -195,7 +259,7 @@ export class FcmService {
             data,
             android: {
               priority: push.priority === "high" ? "HIGH" : "NORMAL",
-              ttl: "3600s",
+              ttl: `${push.ttlSeconds ?? 3600}s`,
               ...(push.collapseKey ? { collapse_key: push.collapseKey } : {}),
             },
           },

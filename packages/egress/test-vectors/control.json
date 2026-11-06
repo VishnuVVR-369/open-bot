@@ -1,0 +1,184 @@
+[
+  {
+    "text": "{\"type\":\"config\",\"mode\":\"prefer\",\"agentOnline\":true}",
+    "parsed": {
+      "type": "config",
+      "mode": "prefer",
+      "agentOnline": true
+    }
+  },
+  {
+    "text": "{\"type\":\"config\",\"mode\":\"require\",\"agentOnline\":false,\"wakeable\":true,\"holdMs\":20000}",
+    "parsed": {
+      "type": "config",
+      "mode": "require",
+      "agentOnline": false,
+      "wakeable": true,
+      "holdMs": 20000
+    }
+  },
+  {
+    "text": "{\"type\":\"demand\",\"screenId\":\"0b6c6a3e-6f1b-4c4b-9a43-7d2f0f9b1a11\"}",
+    "parsed": {
+      "type": "demand",
+      "screenId": "0b6c6a3e-6f1b-4c4b-9a43-7d2f0f9b1a11"
+    }
+  },
+  {
+    "text": "{\"type\":\"peer-down\"}",
+    "parsed": {
+      "type": "peer-down"
+    }
+  },
+  {
+    "text": "{\"type\":\"peer-up\",\"extra\":1}",
+    "parsed": {
+      "type": "peer-up"
+    }
+  },
+  {
+    "text": "{\"type\":\"role\",\"role\":\"active\"}",
+    "parsed": {
+      "type": "role",
+      "role": "active"
+    }
+  },
+  {
+    "text": "{\"type\":\"role\",\"role\":\"standby\"}",
+    "parsed": {
+      "type": "role",
+      "role": "standby"
+    }
+  },
+  {
+    "text": "{\"type\":\"role\",\"role\":\"release\"}",
+    "parsed": {
+      "type": "role",
+      "role": "release"
+    }
+  },
+  {
+    "text": "{\"type\":\"policy\",\"phoneMode\":\"always\"}",
+    "parsed": {
+      "type": "policy",
+      "phoneMode": "always"
+    }
+  },
+  {
+    "text": "{\"type\":\"stats\",\"openStreams\":3,\"bytesIn\":1024,\"bytesOut\":2048}",
+    "parsed": {
+      "type": "stats",
+      "openStreams": 3,
+      "bytesIn": 1024,
+      "bytesOut": 2048
+    }
+  },
+  {
+    "text": "{\"type\":\"unavailable\",\"reason\":\"wifi-only\"}",
+    "parsed": {
+      "type": "unavailable",
+      "reason": "wifi-only"
+    }
+  },
+  {
+    "text": "{\"type\":\"unavailable\",\"reason\":\"low-power-standby\"}",
+    "parsed": {
+      "type": "unavailable",
+      "reason": "low-power-standby"
+    }
+  },
+  {
+    "text": "{\"type\":\"unavailable\",\"reason\":\"data-cap\",\"seq\":7}",
+    "parsed": {
+      "type": "unavailable",
+      "reason": "data-cap",
+      "seq": 7
+    }
+  },
+  {
+    "text": "{\"type\":\"available\",\"seq\":0}",
+    "parsed": {
+      "type": "available",
+      "seq": 0
+    }
+  },
+  {
+    "text": "{\"type\":\"available\",\"seq\":7}",
+    "parsed": {
+      "type": "available",
+      "seq": 7
+    }
+  },
+  {
+    "text": "",
+    "parsed": null
+  },
+  {
+    "text": "not json",
+    "parsed": null
+  },
+  {
+    "text": "[]",
+    "parsed": null
+  },
+  {
+    "text": "null",
+    "parsed": null
+  },
+  {
+    "text": "{\"type\":\"config\",\"mode\":\"sometimes\",\"agentOnline\":true}",
+    "parsed": null
+  },
+  {
+    "text": "{\"type\":\"config\",\"mode\":\"off\",\"agentOnline\":\"yes\"}",
+    "parsed": null
+  },
+  {
+    "text": "{\"type\":\"config\",\"mode\":\"off\",\"agentOnline\":false,\"holdMs\":-1}",
+    "parsed": null
+  },
+  {
+    "text": "{\"type\":\"config\",\"mode\":\"off\",\"agentOnline\":false,\"holdMs\":1.5}",
+    "parsed": null
+  },
+  {
+    "text": "{\"type\":\"role\",\"role\":\"boss\"}",
+    "parsed": null
+  },
+  {
+    "text": "{\"type\":\"policy\",\"phoneMode\":\"sometimes\"}",
+    "parsed": null
+  },
+  {
+    "text": "{\"type\":\"stats\",\"openStreams\":-1,\"bytesIn\":0,\"bytesOut\":0}",
+    "parsed": null
+  },
+  {
+    "text": "{\"type\":\"unavailable\",\"reason\":\"tired\"}",
+    "parsed": null
+  },
+  {
+    "text": "{\"type\":\"unavailable\",\"reason\":\"stopped\",\"seq\":-1}",
+    "parsed": null
+  },
+  {
+    "text": "{\"type\":\"available\"}",
+    "parsed": null
+  },
+  {
+    "text": "{\"type\":\"available\",\"seq\":\"7\"}",
+    "parsed": null
+  },
+  {
+    "text": "{\"type\":\"demand\",\"screenId\":\"\"}",
+    "parsed": null
+  },
+  {
+    "text": "{\"type\":\"hello\"}",
+    "parsed": null
+  },
+  {
+    "text": "{\"kind\":\"config\"}",
+    "parsed": null
+  }
+]

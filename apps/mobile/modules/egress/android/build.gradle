@@ -1,0 +1,22 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+group = 'dev.openbot'
+version = '0.1.0'
+android {
+  namespace "dev.openbot.egress"
+  // The protocol core is a plain JVM project (../core), tested on its own; the app compiles it here.
+  sourceSets { main { java.srcDirs += ['../core/src/main/kotlin'] } }
+}
+dependencies {
+  // React Native's own OkHttp, which the core is written and tested against.
+  implementation "com.squareup.okhttp3:okhttp:4.9.2"
+  implementation "androidx.work:work-runtime:2.10.1"
+  // The messaging service and receiver extend React Native Firebase's, which every build links.
+  // `api`, because those superclasses are part of the public classes the app's manifest names:
+  // with `implementation`, the app can't resolve them and release lint rejects the service.
+  api project(':react-native-firebase_messaging')
+  api platform("com.google.firebase:firebase-bom:35.0.2")
+  api "com.google.firebase:firebase-messaging"
+}

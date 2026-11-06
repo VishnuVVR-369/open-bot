@@ -761,7 +761,13 @@ export class TelegramService {
     }
 
     const icon =
-      event.kind === "takeover_request" ? "🖐" : event.kind === "cap_reached" ? "💳" : "💬";
+      event.kind === "takeover_request"
+        ? "🖐"
+        : event.kind === "cap_reached"
+          ? "💳"
+          : event.kind === "egress_unanswered"
+            ? "📱"
+            : "💬";
     const link =
       event.kind === "takeover_request" && event.botId
         ? this.appLink(`/computer?screen=${event.botId}`)

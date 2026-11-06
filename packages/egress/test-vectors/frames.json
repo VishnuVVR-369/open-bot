@@ -1,0 +1,94 @@
+{
+  "constants": {
+    "initialWindow": 1048576,
+    "maxFramePayload": 65536,
+    "maxInFlight": 8388608,
+    "agentGone": "AGENT_GONE"
+  },
+  "valid": [
+    {
+      "type": 1,
+      "streamId": 1,
+      "payload": "7b22686f7374223a226578616d706c652e636f6d222c22706f7274223a3434337d",
+      "encoded": "01000000017b22686f7374223a226578616d706c652e636f6d222c22706f7274223a3434337d"
+    },
+    {
+      "type": 2,
+      "streamId": 1,
+      "payload": "",
+      "encoded": "0200000001"
+    },
+    {
+      "type": 3,
+      "streamId": 3,
+      "payload": "436f6e6e656374696f6e2072656675736564",
+      "encoded": "0300000003436f6e6e656374696f6e2072656675736564"
+    },
+    {
+      "type": 3,
+      "streamId": 5,
+      "payload": "4147454e545f474f4e45",
+      "encoded": "03000000054147454e545f474f4e45"
+    },
+    {
+      "type": 4,
+      "streamId": 0,
+      "payload": "000102ff",
+      "encoded": "0400000000000102ff"
+    },
+    {
+      "type": 4,
+      "streamId": 4294967295,
+      "payload": "",
+      "encoded": "04ffffffff"
+    },
+    {
+      "type": 5,
+      "streamId": 7,
+      "payload": "",
+      "encoded": "0500000007"
+    },
+    {
+      "type": 6,
+      "streamId": 16909060,
+      "payload": "",
+      "encoded": "0601020304"
+    },
+    {
+      "type": 7,
+      "streamId": 9,
+      "payload": "00010000",
+      "encoded": "070000000900010000"
+    }
+  ],
+  "largest": {
+    "type": 4,
+    "streamId": 11,
+    "fill": [
+      65536,
+      171
+    ],
+    "encodedLength": 65541,
+    "encodedSha256": "55b4edb82553d57882a47da1b33f4e20a67423f08549c05d5a8e2f405ccd3d66"
+  },
+  "invalid": [
+    {
+      "encoded": ""
+    },
+    {
+      "encoded": "01"
+    },
+    {
+      "encoded": "01000000"
+    },
+    {
+      "encoded": "0000000001"
+    },
+    {
+      "encoded": "0800000001"
+    },
+    {
+      "encoded": "ff00000001"
+    }
+  ]
+}

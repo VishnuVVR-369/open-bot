@@ -25,3 +25,60 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+
+  egress-core:
+    name: Phone egress core (Kotlin)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/mobile/modules/egress/core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      # Also checks that the Gradle wrapper jar is an official one.
+      - uses: gradle/actions/setup-gradle@v4
+      # Runs against the vectors in packages/egress/test-vectors, which the check job keeps current.
+      - run: ./gradlew test
+
+  android:
+    name: Android app (${{ matrix.variant }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # No Firebase: the debug wake receiver instead of the messaging service.
+          - variant: development
+            env: APP_VARIANT=development
+            checks: --development
+          # Firebase with a placeholder config: the messaging service and receiver swap.
+          - variant: normal
+            env: GOOGLE_SERVICES_JSON=$GITHUB_WORKSPACE/apps/mobile/scripts/ci-google-services.json
+            checks: --firebase
+            # Release lint vets the manifest the signed app ships; debug builds skip it.
+            tasks: :app:lintVitalRelease
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - run: pnpm install --frozen-lockfile
+      - run: env ${{ matrix.env }} npx expo prebuild --platform android --no-install
+      - run: env ${{ matrix.env }} ./gradlew :app:assembleDebug ${{ matrix.tasks }} -PreactNativeArchitectures=x86_64
+        working-directory: apps/mobile/android
+      - run: node scripts/check-egress-manifest.mjs android/app/build/intermediates/merged_manifests/debug/processDebugManifest/AndroidManifest.xml ${{ matrix.checks }}

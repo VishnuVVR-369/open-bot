@@ -144,4 +144,14 @@ export const router = os.router({
     ),
     test: os.push.test.handler(() => api.sendTestPush()),
   },
+  egress: {
+    status: os.egress.status.handler(() => api.getEgressStatus()),
+    setMode: os.egress.setMode.handler(({ input }) => api.setEgressMode(input)),
+    setPhoneMode: os.egress.setPhoneMode.handler(({ input }) => api.setPhoneEgressMode(input)),
+    devices: os.egress.devices.handler(() => api.listEgressDevices()),
+    registerDevice: os.egress.registerDevice.handler(({ input }) =>
+      api.registerEgressDevice(input),
+    ),
+    revokeDevice: os.egress.revokeDevice.handler(({ input }) => api.revokeEgressDevice(input)),
+  },
 });

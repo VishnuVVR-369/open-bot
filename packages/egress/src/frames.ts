@@ -67,25 +67,133 @@ export function encodeWindow(streamId: number, bytes: number): Buffer {
   return encodeFrame(FrameType.Window, streamId, payload);
 }
 
+/**
+ * The `OpenFail` reason the worker's relay sends when no device can take a stream (none is
+ * connected, or the one carrying it went away while it was opening). The computer side may try
+ * the connection again another way; any other reason is about the destination itself.
+ */
+export const AGENT_GONE = "AGENT_GONE";
+
 export type EgressMode = "off" | "prefer" | "require";
+
+/** When the phone carries the computer's traffic: never, while the Mac is offline, or first. */
+export type PhoneMode = "off" | "fallback" | "always";
+
+/**
+ * What the relay wants from an agent: carry new connections, carry only the ones it already has,
+ * or disconnect (a phone then stops its foreground service; the Mac ignores it).
+ */
+export type AgentRole = "active" | "standby" | "release";
+
+/** Why a phone can't carry traffic right now, by its own rules or its owner's choice. */
+export type UnavailableReason =
+  "wifi-only" | "data-cap" | "low-battery" | "low-power-standby" | "stopped";
+
+export const UNAVAILABLE_REASONS: readonly UnavailableReason[] = [
+  "wifi-only",
+  "data-cap",
+  "low-battery",
+  "low-power-standby",
+  "stopped",
+];
 
 /** JSON control messages exchanged as text websocket messages. */
 export type ControlMessage =
-  /** Worker to computer: the current egress mode and whether a desktop agent is connected. */
-  | { type: "config"; mode: EgressMode; agentOnline: boolean }
+  /**
+   * Worker to computer: the egress mode and whether a device carries new connections.
+   * `wakeable`: a phone could be woken, so connections that need one should wait for it.
+   * `holdMs`: a phone is being woken now, so hold new connections for up to this long.
+   */
+  | { type: "config"; mode: EgressMode; agentOnline: boolean; wakeable?: boolean; holdMs?: number }
+  /** Computer to worker: a screen is starting or being taken for a run or you, so browsing is near. */
+  | { type: "demand"; screenId: string }
   /** Worker to agent: the computer side of the tunnel went away, so drop every stream. */
   | { type: "peer-down" }
   /** Worker to agent: the computer side is connected. */
   | { type: "peer-up" }
+  /** Worker to agent: what this agent should do now. */
+  | { type: "role"; role: AgentRole }
+  /** Worker to a phone: the server's phone mode, which the phone remembers for reboots. */
+  | { type: "policy"; phoneMode: PhoneMode }
   /** Agent to worker: periodic counters for the settings page. */
-  | { type: "stats"; openStreams: number; bytesIn: number; bytesOut: number };
+  | { type: "stats"; openStreams: number; bytesIn: number; bytesOut: number }
+  /**
+   * Phone to worker: it is about to disconnect because it can't carry traffic, and why. `seq`
+   * numbers the phone's reports (here and through the device route), so one that arrives late
+   * can be told apart from a new one.
+   */
+  | { type: "unavailable"; reason: UnavailableReason; seq?: number }
+  /** Phone to worker, once connected: it carries traffic again, so its reports up to `seq` are over. */
+  | { type: "available"; seq: number };
 
+const EGRESS_MODES: readonly EgressMode[] = ["off", "prefer", "require"];
+const PHONE_MODES: readonly PhoneMode[] = ["off", "fallback", "always"];
+const ROLES: readonly AgentRole[] = ["active", "standby", "release"];
+
+const isCount = (value: unknown): value is number =>
+  typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+const isOneOf = <T extends string>(values: readonly T[], value: unknown): value is T =>
+  typeof value === "string" && (values as readonly string[]).includes(value);
+
+/**
+ * Parse a control message, or `null` for anything malformed or unknown, so each side can ignore
+ * messages from newer versions of the other.
+ */
 export function parseControlMessage(text: string): ControlMessage | null {
+  let value: Record<string, unknown>;
   try {
-    const value = JSON.parse(text) as { type?: unknown };
-    if (typeof value !== "object" || value === null || typeof value.type !== "string") return null;
-    return value as ControlMessage;
+    const parsed: unknown = JSON.parse(text);
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return null;
+    value = parsed as Record<string, unknown>;
   } catch {
     return null;
+  }
+  switch (value.type) {
+    case "config": {
+      if (!isOneOf(EGRESS_MODES, value.mode) || typeof value.agentOnline !== "boolean") return null;
+      if (value.wakeable !== undefined && typeof value.wakeable !== "boolean") return null;
+      if (value.holdMs !== undefined && !isCount(value.holdMs)) return null;
+      return {
+        type: "config",
+        mode: value.mode,
+        agentOnline: value.agentOnline,
+        ...(value.wakeable === undefined ? {} : { wakeable: value.wakeable }),
+        ...(value.holdMs === undefined ? {} : { holdMs: value.holdMs }),
+      };
+    }
+    case "demand":
+      return typeof value.screenId === "string" && value.screenId.length > 0
+        ? { type: "demand", screenId: value.screenId }
+        : null;
+    case "peer-down":
+    case "peer-up":
+      return { type: value.type };
+    case "role":
+      return isOneOf(ROLES, value.role) ? { type: "role", role: value.role } : null;
+    case "policy":
+      return isOneOf(PHONE_MODES, value.phoneMode)
+        ? { type: "policy", phoneMode: value.phoneMode }
+        : null;
+    case "stats":
+      return isCount(value.openStreams) && isCount(value.bytesIn) && isCount(value.bytesOut)
+        ? {
+            type: "stats",
+            openStreams: value.openStreams,
+            bytesIn: value.bytesIn,
+            bytesOut: value.bytesOut,
+          }
+        : null;
+    case "unavailable":
+      if (!isOneOf(UNAVAILABLE_REASONS, value.reason)) return null;
+      if (value.seq !== undefined && !isCount(value.seq)) return null;
+      return {
+        type: "unavailable",
+        reason: value.reason,
+        ...(value.seq === undefined ? {} : { seq: value.seq }),
+      };
+    case "available":
+      return isCount(value.seq) ? { type: "available", seq: value.seq } : null;
+    default:
+      return null;
   }
 }

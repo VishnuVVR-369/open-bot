@@ -5,9 +5,9 @@ import type { AddressInfo } from "node:net";
 import { fileURLToPath } from "node:url";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { createDb, createPool, nativePushDevices } from "@open-bot/db";
+import { createDb, createPool, egressDevices, nativePushDevices } from "@open-bot/db";
 import type { Context, NotificationEvent } from "../context";
-import { FcmService } from "./fcm";
+import { FcmService, nativeEgressPush } from "./fcm";
 
 const url = process.env.MOBILE_API_TEST_DATABASE_URL;
 
@@ -109,6 +109,7 @@ describe.skipIf(!url)("FCM fan-out", () => {
   });
   beforeEach(async () => {
     await db.delete(nativePushDevices);
+    await db.delete(egressDevices);
     sent.length = 0;
     gone.clear();
   });
@@ -207,5 +208,56 @@ describe.skipIf(!url)("FCM fan-out", () => {
     expect(devices).toEqual([expect.objectContaining({ token: "phone-1", device: "Pixel 9 Pro" })]);
     await fcm.unregister("phone-1");
     expect(await db.select().from(nativePushDevices)).toEqual([]);
+  });
+  it("wakes only the phones it's given, urgently and briefly, with each one's result", async () => {
+    await fcm.register({ token: "notify-only", platform: "android", device: "Pixel 9" });
+    const sentAt = new Date("2026-11-06T10:00:00.000Z");
+    const results = await fcm.sendToTokens(
+      ["egress-1"],
+      nativeEgressPush("wake", sentAt, "always"),
+    );
+    expect(results).toEqual(new Map([["egress-1", "sent"]]));
+    expect(sent).toEqual([
+      {
+        token: "egress-1",
+        data: {
+          type: "egress-needed",
+          stage: "wake",
+          sentAt: "2026-11-06T10:00:00.000Z",
+          phoneMode: "always",
+          tag: "egress",
+        },
+        android: { priority: "HIGH", ttl: "30s", collapse_key: "egress-wake" },
+      },
+    ]);
+  });
+
+  it("asks with a notification that stays deliverable for ten minutes", async () => {
+    await fcm.sendToTokens(["egress-1"], nativeEgressPush("ask", new Date(), "fallback"));
+    expect(sent[0]!.android).toEqual({ priority: "HIGH", ttl: "600s", collapse_key: "egress-ask" });
+    expect(sent[0]!.data).toMatchObject({
+      type: "egress-needed",
+      stage: "ask",
+      title: "Teammates need your phone's connection",
+    });
+  });
+
+  it("forgets a gone token everywhere: as a notification device and as a phone's wake token", async () => {
+    await fcm.register({ token: "stale", platform: "android", device: "Old phone" });
+    await db.insert(egressDevices).values({
+      id: "6f1c1f3e-8a5b-4c39-9a51-1c1e1d0f0a01",
+      name: "Old phone",
+      secretHash: "x",
+      pushToken: "stale",
+    });
+    gone.add("stale");
+    const results = await fcm.sendToTokens(
+      ["stale"],
+      nativeEgressPush("wake", new Date(), "fallback"),
+    );
+    expect(results.get("stale")).toBe("gone");
+    expect(await db.select().from(nativePushDevices)).toEqual([]);
+    const [phone] = await db.select().from(egressDevices);
+    expect(phone!.pushToken).toBeNull();
   });
 });

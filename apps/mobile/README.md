@@ -252,12 +252,11 @@ Both the options and verification requests use Better Auth's Expo cookie jar, wh
 The Android binding is a local Expo module in `modules/passkey`; regenerate the native project after adding or changing its native dependencies.
 Debug builds use password sign-in unless their signing certificate is explicitly allowed by the development server.
 
-### Background connection experiment
+### Phone connection
 
-Phase 0's native FCM and foreground-service experiment lives in [`spikes/egress`](spikes/egress/README.md).
-It is included only when `OPENBOT_EGRESS_SPIKE=1` during prebuild.
-Normal builds contain the passkey module and notifications, without the experiment's services or token logging.
-Run a clean prebuild without that variable before installing a normal build again.
+The phone can carry teammates' browsing when your Mac is offline (or always, if you choose), through a native foreground service in the local Expo module [`modules/egress`](modules/egress).
+A high-priority FCM data message wakes it without starting React Native; its protocol core is a plain Kotlin project in `modules/egress/core`, tested with `./gradlew test` there against the vectors in `packages/egress/test-vectors`.
+Development builds have no Firebase, so they take the same wake data from adb (see [MOBILE-TESTING.md](../../docs/MOBILE-TESTING.md)).
 
 ## How it fits together
 

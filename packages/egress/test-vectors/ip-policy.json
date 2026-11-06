@@ -1,0 +1,605 @@
+{
+  "policy": [
+    {
+      "address": "8.8.8.8",
+      "public": true
+    },
+    {
+      "address": "93.184.215.14",
+      "public": true
+    },
+    {
+      "address": "1.1.1.1",
+      "public": true
+    },
+    {
+      "address": "0.0.0.0",
+      "public": false
+    },
+    {
+      "address": "10.1.2.3",
+      "public": false
+    },
+    {
+      "address": "100.64.1.1",
+      "public": false
+    },
+    {
+      "address": "100.128.0.1",
+      "public": true
+    },
+    {
+      "address": "127.0.0.1",
+      "public": false
+    },
+    {
+      "address": "169.254.169.254",
+      "public": false
+    },
+    {
+      "address": "172.15.255.255",
+      "public": true
+    },
+    {
+      "address": "172.16.0.1",
+      "public": false
+    },
+    {
+      "address": "172.31.255.255",
+      "public": false
+    },
+    {
+      "address": "172.32.0.1",
+      "public": true
+    },
+    {
+      "address": "192.0.0.8",
+      "public": false
+    },
+    {
+      "address": "192.0.1.1",
+      "public": true
+    },
+    {
+      "address": "192.168.1.10",
+      "public": false
+    },
+    {
+      "address": "198.18.0.1",
+      "public": false
+    },
+    {
+      "address": "198.20.0.1",
+      "public": true
+    },
+    {
+      "address": "224.0.0.1",
+      "public": false
+    },
+    {
+      "address": "255.255.255.255",
+      "public": false
+    },
+    {
+      "address": "2606:4700:4700::1111",
+      "public": true
+    },
+    {
+      "address": "2001:4860:4860::8888",
+      "public": true
+    },
+    {
+      "address": "::",
+      "public": false
+    },
+    {
+      "address": "::1",
+      "public": false
+    },
+    {
+      "address": "::127.0.0.1",
+      "public": false
+    },
+    {
+      "address": "::8.8.8.8",
+      "public": false
+    },
+    {
+      "address": "::ffff:192.168.1.1",
+      "public": false
+    },
+    {
+      "address": "::ffff:8.8.8.8",
+      "public": true
+    },
+    {
+      "address": "::ffff:7f00:1",
+      "public": false
+    },
+    {
+      "address": "0:0:0:0:0:ffff:7f00:1",
+      "public": false
+    },
+    {
+      "address": "::FFFF:C0A8:0101",
+      "public": false
+    },
+    {
+      "address": "64:ff9b::a00:1",
+      "public": false
+    },
+    {
+      "address": "64:ff9b::808:808",
+      "public": true
+    },
+    {
+      "address": "64:ff9b::8.8.8.8",
+      "public": true
+    },
+    {
+      "address": "64:ff9b::10.0.0.1",
+      "public": false
+    },
+    {
+      "address": "64:ff9b:1::808:808",
+      "public": false
+    },
+    {
+      "address": "2002:c0a8:101::1",
+      "public": false
+    },
+    {
+      "address": "2002:808:808::1",
+      "public": true
+    },
+    {
+      "address": "2001:0:4136:e378:8000:63bf:3fff:fdd2",
+      "public": false
+    },
+    {
+      "address": "2001:db8::1",
+      "public": false
+    },
+    {
+      "address": "100::1",
+      "public": false
+    },
+    {
+      "address": "fc00::1",
+      "public": false
+    },
+    {
+      "address": "fd12:3456::1",
+      "public": false
+    },
+    {
+      "address": "fe80::1",
+      "public": false
+    },
+    {
+      "address": "febf::1",
+      "public": false
+    },
+    {
+      "address": "fec0::1",
+      "public": false
+    },
+    {
+      "address": "ff02::1",
+      "public": false
+    },
+    {
+      "address": "fe80::1%en0",
+      "public": false
+    },
+    {
+      "address": "example.com",
+      "public": false
+    },
+    {
+      "address": "1.2.3",
+      "public": false
+    },
+    {
+      "address": "1.2.3.4.5",
+      "public": false
+    },
+    {
+      "address": "01.2.3.4",
+      "public": false
+    },
+    {
+      "address": "256.1.1.1",
+      "public": false
+    },
+    {
+      "address": "1:2:3:4:5:6:7:8:9",
+      "public": false
+    },
+    {
+      "address": "1::2::3",
+      "public": false
+    },
+    {
+      "address": "1:2:3:4:5:6:7::8:9",
+      "public": false
+    },
+    {
+      "address": "1:2:3:4:5:6:7:8::",
+      "public": false
+    },
+    {
+      "address": "12345::1",
+      "public": false
+    },
+    {
+      "address": "",
+      "public": false
+    },
+    {
+      "address": "2001:db8:64::a00:1",
+      "nat64": [
+        {
+          "prefix": "2001:db8:64::",
+          "length": 96
+        }
+      ],
+      "public": false
+    },
+    {
+      "address": "2001:db8:64::808:808",
+      "nat64": [
+        {
+          "prefix": "2001:db8:64::",
+          "length": 96
+        }
+      ],
+      "public": true
+    },
+    {
+      "address": "2001:db8:64::a00:1",
+      "public": false
+    },
+    {
+      "address": "2001:db8:a00:1:0:0:0:0",
+      "nat64": [
+        {
+          "prefix": "2001:db8::",
+          "length": 32
+        }
+      ],
+      "public": false
+    },
+    {
+      "address": "2001:db8:c0a8:101:0:0:0:0",
+      "nat64": [
+        {
+          "prefix": "2001:db8::",
+          "length": 32
+        }
+      ],
+      "public": false
+    },
+    {
+      "address": "2001:db8:808:808:0:0:0:0",
+      "nat64": [
+        {
+          "prefix": "2001:db8::",
+          "length": 32
+        }
+      ],
+      "public": true
+    },
+    {
+      "address": "2001:db8:5db8:d70e:0:0:0:0",
+      "nat64": [
+        {
+          "prefix": "2001:db8::",
+          "length": 32
+        }
+      ],
+      "public": true
+    },
+    {
+      "address": "2001:db8:10a:0:1:0:0:0",
+      "nat64": [
+        {
+          "prefix": "2001:db8:100::",
+          "length": 40
+        }
+      ],
+      "public": false
+    },
+    {
+      "address": "2001:db8:1c0:a801:1:0:0:0",
+      "nat64": [
+        {
+          "prefix": "2001:db8:100::",
+          "length": 40
+        }
+      ],
+      "public": false
+    },
+    {
+      "address": "2001:db8:108:808:8:0:0:0",
+      "nat64": [
+        {
+          "prefix": "2001:db8:100::",
+          "length": 40
+        }
+      ],
+      "public": true
+    },
+    {
+      "address": "2001:db8:15d:b8d7:e:0:0:0",
+      "nat64": [
+        {
+          "prefix": "2001:db8:100::",
+          "length": 40
+        }
+      ],
+      "public": true
+    },
+    {
+      "address": "2001:db8:122:a00:0:100:0:0",
+      "nat64": [
+        {
+          "prefix": "2001:db8:122::",
+          "length": 48
+        }
+      ],
+      "public": false
+    },
+    {
+      "address": "2001:db8:122:c0a8:1:100:0:0",
+      "nat64": [
+        {
+          "prefix": "2001:db8:122::",
+          "length": 48
+        }
+      ],
+      "public": false
+    },
+    {
+      "address": "2001:db8:122:808:8:800:0:0",
+      "nat64": [
+        {
+          "prefix": "2001:db8:122::",
+          "length": 48
+        }
+      ],
+      "public": true
+    },
+    {
+      "address": "2001:db8:122:5db8:d7:e00:0:0",
+      "nat64": [
+        {
+          "prefix": "2001:db8:122::",
+          "length": 48
+        }
+      ],
+      "public": true
+    },
+    {
+      "address": "2001:db8:122:30a:0:1:0:0",
+      "nat64": [
+        {
+          "prefix": "2001:db8:122:300::",
+          "length": 56
+        }
+      ],
+      "public": false
+    },
+    {
+      "address": "2001:db8:122:3c0:a8:101:0:0",
+      "nat64": [
+        {
+          "prefix": "2001:db8:122:300::",
+          "length": 56
+        }
+      ],
+      "public": false
+    },
+    {
+      "address": "2001:db8:122:308:8:808:0:0",
+      "nat64": [
+        {
+          "prefix": "2001:db8:122:300::",
+          "length": 56
+        }
+      ],
+      "public": true
+    },
+    {
+      "address": "2001:db8:122:35d:b8:d70e:0:0",
+      "nat64": [
+        {
+          "prefix": "2001:db8:122:300::",
+          "length": 56
+        }
+      ],
+      "public": true
+    },
+    {
+      "address": "2001:db8:122:344:a:0:100:0",
+      "nat64": [
+        {
+          "prefix": "2001:db8:122:344::",
+          "length": 64
+        }
+      ],
+      "public": false
+    },
+    {
+      "address": "2001:db8:122:344:c0:a801:100:0",
+      "nat64": [
+        {
+          "prefix": "2001:db8:122:344::",
+          "length": 64
+        }
+      ],
+      "public": false
+    },
+    {
+      "address": "2001:db8:122:344:8:808:800:0",
+      "nat64": [
+        {
+          "prefix": "2001:db8:122:344::",
+          "length": 64
+        }
+      ],
+      "public": true
+    },
+    {
+      "address": "2001:db8:122:344:5d:b8d7:e00:0",
+      "nat64": [
+        {
+          "prefix": "2001:db8:122:344::",
+          "length": 64
+        }
+      ],
+      "public": true
+    },
+    {
+      "address": "2001:db8:122:344:0:0:a00:1",
+      "nat64": [
+        {
+          "prefix": "2001:db8:122:344::",
+          "length": 96
+        }
+      ],
+      "public": false
+    },
+    {
+      "address": "2001:db8:122:344:0:0:c0a8:101",
+      "nat64": [
+        {
+          "prefix": "2001:db8:122:344::",
+          "length": 96
+        }
+      ],
+      "public": false
+    },
+    {
+      "address": "2001:db8:122:344:0:0:808:808",
+      "nat64": [
+        {
+          "prefix": "2001:db8:122:344::",
+          "length": 96
+        }
+      ],
+      "public": true
+    },
+    {
+      "address": "2001:db8:122:344:0:0:5db8:d70e",
+      "nat64": [
+        {
+          "prefix": "2001:db8:122:344::",
+          "length": 96
+        }
+      ],
+      "public": true
+    }
+  ],
+  "resolutions": [
+    {
+      "host": "example.com",
+      "answers": [
+        {
+          "address": "93.184.215.14",
+          "family": 4
+        }
+      ],
+      "result": "93.184.215.14"
+    },
+    {
+      "host": "dual.example",
+      "answers": [
+        {
+          "address": "2606:2800:220:1::1",
+          "family": 6
+        },
+        {
+          "address": "93.184.215.14",
+          "family": 4
+        }
+      ],
+      "result": "93.184.215.14"
+    },
+    {
+      "host": "v6only.example",
+      "answers": [
+        {
+          "address": "2606:2800:220:1::1",
+          "family": 6
+        }
+      ],
+      "result": "2606:2800:220:1::1"
+    },
+    {
+      "host": "mixed.example",
+      "answers": [
+        {
+          "address": "93.184.215.14",
+          "family": 4
+        },
+        {
+          "address": "192.168.0.1",
+          "family": 4
+        }
+      ],
+      "error": "blocked"
+    },
+    {
+      "host": "rebind.example",
+      "answers": [
+        {
+          "address": "127.0.0.1",
+          "family": 4
+        }
+      ],
+      "error": "blocked"
+    },
+    {
+      "host": "dns64.example",
+      "answers": [
+        {
+          "address": "2001:db8:64::a00:1",
+          "family": 6
+        }
+      ],
+      "nat64": [
+        {
+          "prefix": "2001:db8:64::",
+          "length": 96
+        }
+      ],
+      "error": "blocked"
+    },
+    {
+      "host": "empty.example",
+      "answers": [],
+      "error": "unresolved"
+    },
+    {
+      "host": "8.8.8.8",
+      "answers": [],
+      "result": "8.8.8.8"
+    },
+    {
+      "host": "[2606:4700:4700::1111]",
+      "answers": [],
+      "result": "2606:4700:4700::1111"
+    },
+    {
+      "host": "[::1]",
+      "answers": [],
+      "error": "blocked"
+    },
+    {
+      "host": "10.0.0.1",
+      "answers": [],
+      "error": "blocked"
+    }
+  ]
+}

@@ -8,7 +8,8 @@
   },
   "scripts": {
     "typecheck": "tsc -p .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "vectors": "UPDATE_VECTORS=1 vitest run src/vectors.test.ts"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
