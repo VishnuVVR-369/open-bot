@@ -361,7 +361,7 @@ test.describe("Accounts, against a stand-in for Google and Notion", () => {
     });
     const sentBefore = standIn.gmail.sent.length;
     const name = uniqueName("Acc");
-    await createTeammate(page, name, "inbox assistant", "Full auto");
+    await createTeammate(page, name, "inbox assistant", "Works on its own");
     await sendMessage(page, "Read my newest Gmail message and do what it asks.");
     await waitForLastRun(page, ["completed", "waiting", "failed"], 6 * 60_000);
 
@@ -384,7 +384,7 @@ test.describe("Accounts, against a stand-in for Google and Notion", () => {
   test("@agent your own event goes in; inviting a guest asks first", async () => {
     test.setTimeout(10 * 60_000);
     const name = uniqueName("Acc");
-    await createTeammate(page, name, "scheduling assistant", "Full auto");
+    await createTeammate(page, name, "scheduling assistant", "Works on its own");
 
     await sendMessage(
       page,
@@ -461,7 +461,7 @@ test.describe("Accounts, against a stand-in for Google and Notion", () => {
   test("@agent writes in the teammates' area without asking; moving a page asks", async () => {
     test.setTimeout(10 * 60_000);
     const name = uniqueName("Acc");
-    await createTeammate(page, name, "notes assistant", "Full auto");
+    await createTeammate(page, name, "notes assistant", "Works on its own");
 
     await sendMessage(
       page,

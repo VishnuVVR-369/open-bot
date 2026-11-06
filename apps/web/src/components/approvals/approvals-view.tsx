@@ -1,22 +1,21 @@
 "use client";
 
-import { useQueryClient } from "@tanstack/react-query";
-import { formatDistanceToNowStrict } from "date-fns";
-import { Check, ShieldCheck, X } from "lucide-react";
+import { ArrowUpRight, Check, CircleDashed, ShieldCheck, X } from "lucide-react";
 import Link from "next/link";
-import { useTransition } from "react";
-import { toast } from "sonner";
 import { BotAvatar } from "@/components/bot-avatar";
-import { Button } from "@/components/ui/button";
+import { InlineCode } from "@/components/inline-code";
+import { TimeAgo } from "@/components/time-ago";
 import { Skeleton } from "@/components/ui/skeleton";
-import { decideApproval } from "@/lib/actions";
-import { ruleAllowed } from "@open-bot/shared";
-import { approvalDetail, InlineCode } from "@/components/inline-code";
-import { ActionPreview } from "./action-preview";
-import { AlwaysAllowButton } from "./always-allow";
-import { queryKeys, useAppState, useApprovals } from "@/lib/client/queries";
-import type { ApprovalView } from "@/lib/types";
+import { useAppState, useApprovals } from "@/lib/client/queries";
+import type { ApprovalView, BotSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import {
+  ApprovalDecision,
+  ApprovalDetail,
+  NEEDS_YOU_SURFACE,
+  RiskChip,
+  riskOf,
+} from "./approval-parts";
 
 const KIND_LABEL = {
   command: "Shell command",
@@ -28,114 +27,113 @@ const KIND_LABEL = {
   account_outward: "Acts as you",
 } as const;
 
-function ApprovalRow({ approval }: { approval: ApprovalView }) {
-  const { data: state } = useAppState();
-  const bot = state?.bots.find((b) => b.id === approval.botId);
-  const [pending, startTransition] = useTransition();
-  const queryClient = useQueryClient();
-  const decide = (decision: "approved" | "denied", alwaysAllow?: string) =>
-    startTransition(async () => {
-      const result = await decideApproval(
-        approval.id,
-        decision,
-        alwaysAllow === undefined ? null : { pattern: alwaysAllow },
-      );
-      if (!result.ok) toast.error(result.error);
-      else if (alwaysAllow !== undefined)
-        toast("Approved, and allowed from now on", {
-          description: `${bot?.name ?? "Your teammate"} won't ask about this again.`,
-        });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.approvals });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.state });
-    });
-  const open = approval.status === "pending";
+function OpenChat({ chatId, className }: { chatId: string; className?: string }) {
+  return (
+    <Link
+      href={`/chats/${chatId}`}
+      className={cn(
+        "inline-flex shrink-0 items-center gap-0.5 rounded-md text-[13px] font-medium text-foreground/80 underline-offset-[3px] outline-none hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/12",
+        className,
+      )}
+    >
+      Open chat
+      <ArrowUpRight className="size-3.5" />
+    </Link>
+  );
+}
 
+function Avatar({ bot, size }: { bot: BotSummary | undefined; size: "sm" | "md" }) {
+  return bot ? (
+    <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size={size} />
+  ) : (
+    <span
+      className={cn(
+        "shrink-0 bg-subtle",
+        size === "md" ? "size-9 rounded-[10px]" : "size-7 rounded-[8px]",
+      )}
+    />
+  );
+}
+
+/** An approval waiting on you: what it does, what's at stake, and the decision. */
+function PendingApproval({ approval, bot }: { approval: ApprovalView; bot?: BotSummary }) {
+  const risk = riskOf(approval);
   return (
     <li
-      className={cn(
-        "flex gap-3.5 rounded-xl bg-card shadow-raised p-4",
-        open && "border-waiting/35",
-      )}
+      className={cn("flex gap-3.5 rounded-xl p-4 sm:p-5", NEEDS_YOU_SURFACE)}
       data-testid="approval-row"
     >
-      {bot ? (
-        <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="md" />
-      ) : (
-        <span className="size-9 rounded-[10px] bg-subtle" />
-      )}
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <div className="flex flex-wrap items-center gap-x-2 text-[12.5px] text-muted-foreground">
-          <span className="font-medium text-foreground">{bot?.name ?? "Former teammate"}</span>
-          <span>{KIND_LABEL[approval.kind]}</span>
-          <span>
-            · {formatDistanceToNowStrict(new Date(approval.createdAt), { addSuffix: true })}
-          </span>
-          <Link href={`/chats/${approval.chatId}`} className="underline-offset-2 hover:underline">
-            · Open chat
-          </Link>
+      <Avatar bot={bot} size="md" />
+      <div className="flex min-w-0 flex-1 flex-col gap-3">
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
+            <span className="font-medium text-foreground">{bot?.name ?? "Former teammate"}</span>
+            {!risk && <span>{KIND_LABEL[approval.kind]}</span>}
+            <TimeAgo date={approval.createdAt} />
+            <OpenChat chatId={approval.chatId} className="ml-auto" />
+          </div>
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+            <h3 className="text-[15.5px] leading-snug font-medium">
+              <InlineCode text={approval.title} />
+            </h3>
+            {risk && <RiskChip risk={risk} />}
+          </div>
         </div>
-        <span className="text-[15px] font-medium">
+        <ApprovalDetail approval={approval} />
+        <ApprovalDecision
+          approvalId={approval.id}
+          approval={approval}
+          botName={bot?.name ?? "your teammate"}
+        />
+      </div>
+    </li>
+  );
+}
+
+/** A decided approval, one line: who, what, how you decided, and when. */
+function DecidedApproval({ approval, bot }: { approval: ApprovalView; bot?: BotSummary }) {
+  return (
+    <li className="flex items-center gap-3 px-4 py-3" data-testid="approval-row">
+      <Avatar bot={bot} size="sm" />
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="truncate text-[14px]">
           <InlineCode text={approval.title} />
         </span>
-        {approval.preview ? (
-          <ActionPreview preview={approval.preview} className="bg-subtle/50" />
-        ) : (
-          approval.detail && (
-            <pre className="max-h-48 overflow-auto rounded-lg bg-subtle px-3 py-2 font-sans text-[13px] whitespace-pre-wrap text-foreground/85">
-              {approvalDetail(approval.detail)}
-            </pre>
-          )
-        )}
-        {open ? (
-          <div className="mt-1 flex gap-2">
-            <Button size="sm" onClick={() => decide("approved")} disabled={pending}>
-              <Check />
-              Approve
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => decide("denied")} disabled={pending}>
-              Deny
-            </Button>
-            {ruleAllowed(approval.kind) && !approval.askEveryTime && (
-              <AlwaysAllowButton
-                kind={approval.kind}
-                subject={approval.subject ?? approval.title}
-                botName={bot?.name ?? "your teammate"}
-                disabled={pending}
-                onConfirm={async (pattern) => decide("approved", pattern)}
-              />
-            )}
-          </div>
-        ) : (
-          <span className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
-            {approval.status === "approved" ? (
-              <Check className="size-3.5 text-done" />
-            ) : (
-              <X className="size-3.5" />
-            )}
-            {approval.status === "approved"
-              ? "Approved"
-              : approval.status === "denied"
-                ? "Denied"
-                : "Expired"}
-            {approval.decidedAt &&
-              ` ${formatDistanceToNowStrict(new Date(approval.decidedAt), { addSuffix: true })}`}
-          </span>
-        )}
+        <span className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
+          {approval.status === "approved" ? (
+            <Check className="size-3.5 text-done" />
+          ) : approval.status === "denied" ? (
+            <X className="size-3.5" />
+          ) : (
+            <CircleDashed className="size-3.5" />
+          )}
+          {approval.status === "approved"
+            ? "Approved"
+            : approval.status === "denied"
+              ? "Denied"
+              : "Expired"}
+          {approval.decidedAt && <TimeAgo date={approval.decidedAt} />}
+          <span aria-hidden>·</span>
+          <span className="truncate">{bot?.name ?? "Former teammate"}</span>
+        </span>
       </div>
+      <OpenChat chatId={approval.chatId} />
     </li>
   );
 }
 
 export function ApprovalsView() {
   const { data, isLoading } = useApprovals();
+  const { data: state } = useAppState();
+  const botFor = (approval: ApprovalView) => state?.bots.find((b) => b.id === approval.botId);
   const pending = (data ?? []).filter((approval) => approval.status === "pending");
   const decided = (data ?? []).filter((approval) => approval.status !== "pending");
   if (isLoading) return <Skeleton className="h-40 w-full rounded-xl" />;
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-10">
       {pending.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed px-6 py-14 text-center">
-          <ShieldCheck className="size-6 text-done" />
+          <ShieldCheck className="size-6 text-muted-foreground" />
           <p className="font-medium">Nothing to approve</p>
           <p className="max-w-sm text-[13.5px] text-muted-foreground">
             Teammates ask here before sending, posting, buying or deleting anything. Set how careful
@@ -145,7 +143,7 @@ export function ApprovalsView() {
       ) : (
         <ul className="flex flex-col gap-3">
           {pending.map((approval) => (
-            <ApprovalRow key={approval.id} approval={approval} />
+            <PendingApproval key={approval.id} approval={approval} bot={botFor(approval)} />
           ))}
         </ul>
       )}
@@ -154,9 +152,9 @@ export function ApprovalsView() {
           <h2 className="font-heading text-[15px] font-semibold tracking-[-0.01em] text-foreground">
             History
           </h2>
-          <ul className="flex flex-col gap-2.5">
+          <ul className="flex flex-col divide-y overflow-hidden rounded-xl bg-card shadow-raised">
             {decided.map((approval) => (
-              <ApprovalRow key={approval.id} approval={approval} />
+              <DecidedApproval key={approval.id} approval={approval} bot={botFor(approval)} />
             ))}
           </ul>
         </section>

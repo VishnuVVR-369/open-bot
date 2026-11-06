@@ -8,10 +8,12 @@ import { Empty, LoadError, Loading } from "@/components/states";
 import { Text } from "@/components/text";
 import { sortPages } from "@/lib/pages";
 import { usePages, useTeammates } from "@/lib/queries";
+import { useSafeBottom } from "@/lib/use-safe-bottom";
 import { radius, space, useColors } from "@/theme";
 
 /** Every page teammates have published, pinned first. Hold one to pin or delete it. */
 export default function PagesScreen() {
+  const bottom = useSafeBottom();
   const colors = useColors();
   const pages = usePages();
   const teammates = useTeammates();
@@ -35,7 +37,11 @@ export default function PagesScreen() {
         data={sorted}
         keyExtractor={(page) => page.id}
         ListHeaderComponent={<ConnectionNotice />}
-        contentContainerStyle={[styles.content, sorted.length === 0 && { flexGrow: 1 }]}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: bottom },
+          sorted.length === 0 && { flexGrow: 1 },
+        ]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -83,7 +89,7 @@ export default function PagesScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: space(4), paddingTop: space(2), paddingBottom: space(10) },
+  content: { padding: space(4), paddingTop: space(2) },
   // The list is one card, drawn a row at a time so it stays virtualized.
   cell: { borderLeftWidth: 1, borderRightWidth: 1, overflow: "hidden" },
   firstCell: {

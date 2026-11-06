@@ -14,7 +14,6 @@ import {
   Maximize2,
   Moon,
   MousePointer2,
-  PlugZap,
   Power,
   Undo2,
 } from "lucide-react";
@@ -172,10 +171,10 @@ function ActivityDot({ activity, className }: { activity: ScreenActivity; classN
     <span
       className={cn(
         "size-2 shrink-0 rounded-full",
-        activity === "working" && "animate-tally bg-live",
-        activity === "you" && "bg-manual",
-        activity === "idle" && "bg-done",
-        (activity === "asleep" || activity === "offline") && "bg-bezel-foreground/35",
+        activity === "working" && "animate-tally bg-working",
+        activity === "you" && "bg-attention",
+        (activity === "idle" || activity === "asleep" || activity === "offline") &&
+          "bg-bezel-foreground/35",
         className,
       )}
     />
@@ -202,7 +201,7 @@ function ScreenBadge({ info }: { info: ScreenInfo }) {
             transition={{ type: "spring", stiffness: 420, damping: 34 }}
             className={cn(
               "flex h-6 items-center gap-1.5 rounded-full bg-white/[0.06] px-2 text-[11.5px] font-medium whitespace-nowrap text-bezel-foreground/75",
-              info.activity === "you" && "text-manual",
+              info.activity === "you" && "text-attention",
             )}
           >
             {info.activity === "you" ? (
@@ -238,7 +237,7 @@ function EgressChip({ initial }: { initial?: AppState }) {
           href="/settings#browsing"
           className={cn(
             "flex h-7 items-center gap-1.5 rounded-full px-2.5 text-[12px] font-medium text-bezel-foreground/70 transition-colors hover:bg-white/[0.06] hover:text-bezel-foreground",
-            blocked && "text-manual",
+            blocked && "text-attention",
           )}
         >
           {home ? <Home className="size-3.5" /> : <Globe className="size-3.5" />}
@@ -253,7 +252,7 @@ function EgressChip({ initial }: { initial?: AppState }) {
 /** The rim takes the bot's color while it works, amber while you have control. */
 function rimColor(info: ScreenInfo | null): string {
   if (!info) return "transparent";
-  if (info.activity === "you") return "var(--manual)";
+  if (info.activity === "you") return "var(--attention)";
   if (info.activity === "working") return info.bot.color;
   return "transparent";
 }
@@ -279,6 +278,41 @@ function WakeButton({ screenId }: { screenId: string }) {
       {pending ? <Loader2 className="animate-spin" /> : <Power />}
       {pending ? "Waking up…" : "Wake screen"}
     </Button>
+  );
+}
+
+/**
+ * The computer is offline: one short card in place of a dark, empty screen.
+ * Takeover requests still show where you are asked for them (Home, the chat), not here.
+ */
+export function ComputerOffline({
+  botNames,
+  className,
+}: {
+  /** Whose screens these are, to say who is affected. */
+  botNames: string[];
+  className?: string;
+}) {
+  const who = botNames.length === 1 ? `${botNames[0]} pauses` : "Teammates pause";
+  return (
+    <section
+      aria-label="Computer"
+      className={cn(
+        "flex items-start gap-3 rounded-xl bg-card px-4 py-3.5 shadow-raised",
+        className,
+      )}
+      data-testid="computer-offline"
+    >
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-subtle text-muted-foreground">
+        <CloudOff className="size-4" />
+      </span>
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="text-[14px] font-medium">The computer is offline</span>
+        <span className="text-[13px] leading-snug text-muted-foreground">
+          {who} computer work until it&apos;s back. It reconnects on its own.
+        </span>
+      </div>
+    </section>
   );
 }
 
@@ -324,14 +358,16 @@ export function ScreenGlass({
   if (!workerOnline || !online) {
     placeholder = (
       <>
-        <GlassIcon>{workerOnline ? <CloudOff /> : <PlugZap />}</GlassIcon>
+        <GlassIcon>
+          <CloudOff />
+        </GlassIcon>
         <span className="text-[14px] font-medium text-bezel-foreground">
-          {workerOnline ? "The computer is starting or offline" : "The worker isn't running"}
+          The computer is offline
         </span>
         <span className="max-w-80 text-[12.5px] leading-relaxed">
-          {workerOnline
-            ? "It reconnects on its own. If it doesn't, check the computer container."
-            : "Start everything with pnpm dev, and this screen connects by itself."}
+          {info
+            ? `${info.bot.name} pauses computer work until it's back. It reconnects on its own.`
+            : "It reconnects on its own."}
         </span>
       </>
     );
@@ -425,7 +461,7 @@ export function ScreenGlass({
       <div
         aria-hidden={!hintVisible}
         className={cn(
-          "pointer-events-none absolute top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-manual px-3 py-1 text-[11.5px] font-semibold whitespace-nowrap text-black shadow-lg transition-all duration-500",
+          "pointer-events-none absolute top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-attention px-3 py-1 text-[11.5px] font-semibold whitespace-nowrap text-black shadow-lg transition-all duration-500",
           hintVisible ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0",
         )}
       >
@@ -548,7 +584,7 @@ function HandBackButton({
       <PopoverTrigger asChild>
         <Button
           size={size}
-          className="bg-manual text-black hover:bg-manual/85"
+          className="bg-attention text-black hover:bg-attention/85"
           data-testid="hand-back"
         >
           <Undo2 />
@@ -650,18 +686,21 @@ export function ScreenControls({
   initial,
   handleRef,
   expand = true,
+  showRequests = true,
 }: {
   screenId: string;
   initial?: AppState;
   handleRef?: React.RefObject<DesktopHandle | null>;
   expand?: boolean;
+  /** Show the bot's takeover request here. Off where the page already lists it. */
+  showRequests?: boolean;
 }) {
   const { screen, online } = useComputer(initial);
   const queryClient = useQueryClient();
   const info = screen(screenId);
   if (!info) return null;
   const youHaveControl = info.activity === "you";
-  const request = info.requests[0];
+  const request = showRequests ? info.requests[0] : undefined;
   const name = info.bot.name;
   if (!request && !youHaveControl && !online && !expand) return null;
 
@@ -669,18 +708,24 @@ export function ScreenControls({
     <div className="flex flex-col gap-2.5">
       {request && !youHaveControl && (
         <div
-          className="flex flex-col gap-2.5 rounded-xl border border-manual/40 bg-manual/[0.07] p-3.5"
+          className="flex flex-col gap-2.5 rounded-xl border border-attention/40 bg-attention/[0.07] p-3.5"
           role="status"
         >
           <div className="flex items-start gap-2.5">
-            <Hand className="mt-0.5 size-4 shrink-0 text-manual-ink" />
+            <Hand className="mt-0.5 size-4 shrink-0 text-attention-ink" />
             <div className="flex min-w-0 flex-col gap-0.5">
               <span className="text-[13.5px] font-medium">{name} needs you to take over</span>
               <span className="text-[13px] text-muted-foreground">{request.reason}</span>
             </div>
           </div>
-          <div className="flex gap-1.5 pl-6.5">
-            <TakeOverButton screenId={screenId} size="sm" />
+          <div className="flex items-center gap-1.5 pl-6.5">
+            {online ? (
+              <TakeOverButton screenId={screenId} size="sm" />
+            ) : (
+              <span className="mr-1.5 text-[12.5px] text-muted-foreground">
+                You can take over once the computer is back.
+              </span>
+            )}
             <Button
               variant="ghost"
               size="sm"
@@ -783,13 +828,11 @@ function ScreenTab({
     >
       <BotAvatar name={info.bot.name} color={info.bot.color} emoji={info.bot.emoji} size="xs" />
       <span className="max-w-[112px] truncate">{info.bot.name}</span>
-      <ActivityDot
-        activity={info.activity}
-        className={cn(
-          "size-1.5",
-          (info.activity === "asleep" || info.activity === "offline") && "bg-muted-foreground/40",
-        )}
-      />
+      {info.activity === "working" || info.activity === "you" ? (
+        <ActivityDot activity={info.activity} className="size-1.5" />
+      ) : info.requests.length > 0 ? (
+        <span className="size-1.5 shrink-0 rounded-full bg-attention" aria-label="Needs you" />
+      ) : null}
     </button>
   );
 }
@@ -882,6 +925,7 @@ export function ComputerPanel({
   botIds,
   initial,
   loading = false,
+  showRequests = true,
   className,
 }: {
   /** Whose screens to offer. The panel follows whichever is busy. */
@@ -889,11 +933,17 @@ export function ComputerPanel({
   initial?: AppState;
   /** Whose screens they are isn't known yet. */
   loading?: boolean;
+  /** Show takeover requests under the screen. Off where the page already lists them. */
+  showRequests?: boolean;
   className?: string;
 }) {
   const handleRef = useRef<DesktopHandle | null>(null);
-  const { state } = useComputer(initial);
+  const { state, online } = useComputer(initial);
   const { screenId, pick } = useFollowedScreen(botIds, initial);
+  if (state && !online && botIds.length > 0) {
+    const names = botIds.flatMap((id) => state.bots.find((bot) => bot.id === id)?.name ?? []);
+    return <ComputerOffline botNames={names} className={className} />;
+  }
   if (!screenId) {
     return (
       <section
@@ -919,7 +969,13 @@ export function ComputerPanel({
     <section aria-label="Computer" className={cn("flex flex-col gap-3", className)}>
       <ScreenPicker botIds={botIds} value={screenId} onChange={pick} initial={initial} />
       <ScreenFrame screenId={screenId} initial={initial} handleRef={handleRef} expand />
-      <ScreenControls screenId={screenId} initial={initial} handleRef={handleRef} expand={false} />
+      <ScreenControls
+        screenId={screenId}
+        initial={initial}
+        handleRef={handleRef}
+        expand={false}
+        showRequests={showRequests}
+      />
     </section>
   );
 }

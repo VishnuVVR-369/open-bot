@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ruleAllowed,
   shellScript,
   type ApprovalItem,
   type CommandItem,
@@ -33,7 +32,6 @@ import {
   Loader2,
   MessageCircleQuestion,
   Search,
-  ShieldAlert,
   CreditCard,
   Mail,
   NotebookText,
@@ -45,15 +43,22 @@ import {
   Wrench,
   X,
 } from "lucide-react";
-import { useState, useTransition, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { TakeOverButton, useComputer } from "@/components/computer/computer-panel";
-import { ActionPreview, previewIcon } from "@/components/approvals/action-preview";
-import { AlwaysAllowButton } from "@/components/approvals/always-allow";
-import { approvalDetail, InlineCode } from "@/components/inline-code";
+import {
+  ApprovalDecision,
+  ApprovalDetail,
+  ApprovalIcon,
+  NEEDS_YOU_SURFACE,
+  RiskChip,
+  riskOf,
+  type ApprovalSubject,
+} from "@/components/approvals/approval-parts";
+import { InlineCode } from "@/components/inline-code";
 import { MessageText } from "./message-text";
 import { Button } from "@/components/ui/button";
-import { decideApproval, dismissTakeoverRequest } from "@/lib/actions";
+import { dismissTakeoverRequest } from "@/lib/actions";
 import { queryKeys } from "@/lib/client/queries";
 import { cn } from "@/lib/utils";
 import { Markdown } from "./markdown";
@@ -331,23 +336,6 @@ export function HandoffStep({ item }: { item: HandoffItem }) {
 }
 
 export function ApprovalCard({ item, botName }: { item: ApprovalItem; botName: string }) {
-  const [pending, startTransition] = useTransition();
-  const queryClient = useQueryClient();
-  const decide = (decision: "approved" | "denied", alwaysAllow?: string) =>
-    startTransition(async () => {
-      const result = await decideApproval(
-        item.approvalId,
-        decision,
-        alwaysAllow === undefined ? null : { pattern: alwaysAllow },
-      );
-      if (!result.ok) toast.error(result.error);
-      else if (alwaysAllow !== undefined)
-        toast("Approved, and allowed from now on", {
-          description: `${botName} won't ask about this again.`,
-        });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.state });
-    });
-
   if (item.decision !== "pending") {
     return (
       <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
@@ -369,66 +357,29 @@ export function ApprovalCard({ item, botName }: { item: ApprovalItem; botName: s
       </div>
     );
   }
-  const PreviewIcon = previewIcon(item.preview);
+  const approval: ApprovalSubject = { ...item, kind: item.approvalKind ?? "action" };
+  const risk = riskOf(approval);
   return (
     <div
-      className="flex flex-col gap-3 rounded-xl border border-waiting/35 bg-waiting/[0.06] p-4"
+      className={cn("flex flex-col gap-3 rounded-xl p-4", NEEDS_YOU_SURFACE)}
       data-testid="approval-card"
     >
       <div className="flex items-start gap-2.5">
-        {PreviewIcon ? (
-          <PreviewIcon className="mt-0.5 size-4 shrink-0 text-waiting" />
-        ) : item.approvalKind === "purchase" ? (
-          <CreditCard className="mt-0.5 size-4 shrink-0 text-waiting" />
-        ) : item.approvalKind === "email" ? (
-          <Mail className="mt-0.5 size-4 shrink-0 text-waiting" />
-        ) : (
-          <ShieldAlert className="mt-0.5 size-4 shrink-0 text-waiting" />
-        )}
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className="text-[14px] font-medium">
-            Approve: <InlineCode text={item.title} />
+        <ApprovalIcon approval={approval} className="mt-[3px] size-4 shrink-0 text-attention-ink" />
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1">
+          <span className="text-[14.5px] leading-snug font-medium">
+            <InlineCode text={item.title} />
           </span>
-          {item.preview ? (
-            <ActionPreview preview={item.preview} className="mt-1.5" />
-          ) : (
-            item.detail && (
-              <pre className="max-h-60 overflow-auto font-sans text-[13px] whitespace-pre-wrap text-muted-foreground">
-                {approvalDetail(item.detail)}
-              </pre>
-            )
-          )}
+          {risk && <RiskChip risk={risk} />}
         </div>
       </div>
-      <div className="flex gap-2 pl-6">
-        <Button
-          size="sm"
-          onClick={() => decide("approved")}
-          disabled={pending}
-          data-testid="approve"
-        >
-          <Check />
-          Approve
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => decide("denied")}
-          disabled={pending}
-          data-testid="deny"
-        >
-          Deny
-        </Button>
-        {item.approvalKind && ruleAllowed(item.approvalKind) && !item.askEveryTime && (
-          <AlwaysAllowButton
-            kind={item.approvalKind}
-            subject={item.subject ?? item.title}
-            botName={botName}
-            disabled={pending}
-            onConfirm={async (pattern) => decide("approved", pattern)}
-          />
-        )}
-      </div>
+      <ApprovalDetail approval={approval} className="ml-6.5" />
+      <ApprovalDecision
+        approvalId={item.approvalId}
+        approval={approval}
+        botName={botName}
+        className="ml-6.5"
+      />
     </div>
   );
 }
@@ -442,7 +393,7 @@ export function TakeoverRequestCard({
   botId: string;
   botName: string;
 }) {
-  const { screen } = useComputer();
+  const { screen, online } = useComputer();
   const youHaveControl = screen(botId)?.activity === "you";
   const queryClient = useQueryClient();
   if (item.resolution === "handed_back" || item.resolution === "dismissed") {
@@ -461,24 +412,30 @@ export function TakeoverRequestCard({
   }
   return (
     <div
-      className="flex flex-col gap-3 rounded-xl border border-manual/40 bg-manual/[0.07] p-4"
+      className="flex flex-col gap-3 rounded-xl border border-attention/40 bg-attention/[0.07] p-4"
       data-testid="takeover-request"
     >
       <div className="flex items-start gap-2.5">
-        <Hand className="mt-0.5 size-4 shrink-0 text-manual-ink" />
+        <Hand className="mt-0.5 size-4 shrink-0 text-attention-ink" />
         <div className="flex flex-col gap-1">
           <span className="text-[14px] font-medium">{botName} needs you to take over</span>
           <span className="text-[13px] text-muted-foreground">{item.reason}</span>
         </div>
       </div>
-      <div className="flex gap-2 pl-6">
+      <div className="flex items-center gap-2 pl-6.5">
         {youHaveControl || item.resolution === "taken" ? (
-          <span className="text-[13px] text-manual-ink">
+          <span className="text-[13px] text-attention-ink">
             You have control of {botName}&apos;s screen. Hand it back when you&apos;re done.
           </span>
         ) : (
           <>
-            <TakeOverButton screenId={botId} size="sm" />
+            {online ? (
+              <TakeOverButton screenId={botId} size="sm" />
+            ) : (
+              <span className="mr-1 text-[13px] text-muted-foreground">
+                You can take over once the computer is back.
+              </span>
+            )}
             <Button
               size="sm"
               variant="ghost"
@@ -500,7 +457,7 @@ export function TakeoverRequestCard({
 export function SteeredMessage({ item }: { item: UserMessageItem }) {
   if (item.variant === "hand_back") {
     return (
-      <div className="flex items-center gap-2 self-start rounded-full bg-manual/12 px-3 py-1 text-[12.5px] text-manual-ink">
+      <div className="flex items-center gap-2 self-start rounded-full bg-subtle px-3 py-1 text-[12.5px] text-muted-foreground">
         <Undo2 className="size-3.5" />
         {item.text ? <>You handed the screen back: “{item.text}”</> : "You handed the screen back"}
       </div>

@@ -361,7 +361,7 @@ I put the full checklist on a page so you can forward it: [Kestrel 2.0 launch ch
           }),
           tool("vault_fill", "Picked the Travel Amex from the vault", { result: "Amex •••• 1007" }),
           tool("start_purchase", "Asked to pay $842.30 to TAP Air Portugal", {
-            result: "Waiting for your approval",
+            result: "$842.30, round trip",
           }),
           flightApproval,
         ],

@@ -41,6 +41,7 @@ import { pageHref } from "@/lib/pages";
 import { useChats, useHome, useNewDirectChat, usePages, useTeammates } from "@/lib/queries";
 import { queryKeys } from "@/lib/query";
 import { ago } from "@/lib/time";
+import { useSafeBottom } from "@/lib/use-safe-bottom";
 import { fonts, radius, space, useColors } from "@/theme";
 
 const PAGES: { title: string; href: Href; icon: LucideIcon; keywords: string }[] = [
@@ -212,6 +213,7 @@ function useDebounced<T>(value: T, ms: number): T {
 
 /** Find a teammate, a chat, a page, or something said, like the web's command menu. */
 export default function Search() {
+  const bottom = useSafeBottom();
   const colors = useColors();
   const [text, setText] = useState("");
   const [scope, setScope] = useState<Scope>("all");
@@ -450,7 +452,7 @@ export default function Search() {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         stickySectionHeadersEnabled={false}
-        contentContainerStyle={{ flexGrow: 1, paddingBottom: space(8) }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: bottom }}
         renderSectionHeader={({ section }) =>
           // One kind of thing needs no heading saying which.
           scope === "all" ? (

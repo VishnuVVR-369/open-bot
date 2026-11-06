@@ -2,7 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { differenceInCalendarDays, format, parseISO } from "date-fns";
-import { CalendarDays, Plus, StickyNote } from "lucide-react";
+import { CalendarDays, ChevronDown, CircleCheck, Plus } from "lucide-react";
 import { useState, type DragEvent } from "react";
 import { toast } from "sonner";
 import { BotAvatar } from "@/components/bot-avatar";
@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { createTask, updateTask } from "@/lib/actions";
-import { queryKeys, useAppState, useTasks } from "@/lib/client/queries";
+import { queryKeys, useAppState, useApprovals, useTasks } from "@/lib/client/queries";
 import type { BotSummary, TaskView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { STATUS_LABELS, TaskDialog } from "./task-dialog";
@@ -27,19 +27,19 @@ function Due({ dueOn, done }: { dueOn: string; done: boolean }) {
         ? "Tomorrow"
         : days === -1
           ? "Yesterday"
-          : format(date, date.getFullYear() === new Date().getFullYear() ? "d MMM" : "d MMM yyyy");
+          : format(date, date.getFullYear() === new Date().getFullYear() ? "MMM d" : "MMM d, yyyy");
+  const overdue = !done && days < 0;
   return (
     <span
       className={cn(
-        "flex items-center gap-1 rounded-md px-1.5 py-px text-[12px]",
-        done
-          ? "text-muted-foreground"
-          : days < 0
-            ? "bg-destructive/10 text-destructive"
-            : days === 0
-              ? "bg-waiting/12 text-waiting"
-              : "text-muted-foreground",
+        "flex items-center gap-1 rounded-md text-[12px]",
+        overdue
+          ? "bg-attention/12 px-1.5 py-px text-attention-ink"
+          : !done && days === 0
+            ? "font-medium text-foreground"
+            : "text-muted-foreground",
       )}
+      title={overdue ? "Overdue" : undefined}
     >
       <CalendarDays className="size-3" />
       {label}
@@ -47,21 +47,27 @@ function Due({ dueOn, done }: { dueOn: string; done: boolean }) {
   );
 }
 
+/** What a task waits on from you, when its chat is blocked on you. */
+type Blocker = "approval" | "takeover";
+
 function Card({
   task,
   owner,
+  blocker,
   onOpen,
   onDragStart,
   onDropBefore,
 }: {
   task: TaskView;
   owner: BotSummary | undefined;
+  blocker: Blocker | null;
   onOpen: () => void;
   onDragStart: (event: DragEvent) => void;
   onDropBefore: (event: DragEvent) => void;
 }) {
   const [over, setOver] = useState(false);
   const done = task.status === "done";
+  const notes = task.notes.trim().split("\n")[0];
   return (
     <li
       draggable
@@ -85,34 +91,44 @@ function Card({
       <button
         type="button"
         onClick={onOpen}
-        className="flex w-full cursor-grab flex-col gap-2.5 rounded-[10px] bg-card px-3.5 py-3 text-left shadow-raised transition-shadow hover:shadow-float active:cursor-grabbing"
+        className="flex w-full cursor-grab flex-col gap-2 rounded-[10px] bg-card px-3.5 py-3 text-left shadow-raised transition-shadow hover:shadow-float active:cursor-grabbing"
       >
-        <span
-          className={cn(
-            "text-[13.5px] leading-snug font-medium break-words",
-            done && "text-muted-foreground",
-          )}
-        >
-          {task.title}
-        </span>
-        {(owner || task.dueOn || task.notes) && (
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            {owner && (
-              <span className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
-                <BotAvatar name={owner.name} color={owner.color} emoji={owner.emoji} size="xs" />
-                {owner.name}
-              </span>
-            )}
-            {task.dueOn && <Due dueOn={task.dueOn} done={done} />}
-            {task.notes && (
-              <StickyNote className="size-3.5 text-muted-foreground" aria-label="Has notes" />
-            )}
+        {blocker && (
+          <span className="flex items-center gap-1.5 text-[12px] font-medium text-attention-ink">
+            <span className="size-1.5 rounded-full bg-attention" />
+            {blocker === "approval" ? "Needs your approval" : "Needs you to take over"}
           </span>
         )}
+        <span className="flex items-start gap-2">
+          {done && <CircleCheck className="mt-px size-4 shrink-0 text-done" aria-label="Done" />}
+          <span className={cn("flex min-w-0 flex-col gap-0.5", done && "text-muted-foreground")}>
+            <span className="text-[13.5px] leading-snug font-medium break-words">{task.title}</span>
+            {notes && !done && (
+              <span className="line-clamp-1 text-[12.5px] text-muted-foreground">{notes}</span>
+            )}
+          </span>
+        </span>
+        <span className={cn("flex flex-wrap items-center gap-x-2.5 gap-y-1", done && "pl-6")}>
+          {owner ? (
+            <span className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
+              <BotAvatar name={owner.name} color={owner.color} emoji={owner.emoji} size="xs" />
+              {owner.name}
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5 text-[12.5px] text-faint">
+              <span className="size-5 rounded-[6px] border border-dashed border-foreground/20" />
+              Unassigned
+            </span>
+          )}
+          {task.dueOn && <Due dueOn={task.dueOn} done={done} />}
+        </span>
       </button>
     </li>
   );
 }
+
+/** How many finished tasks show before "Show N completed". */
+const DONE_SHOWN = 4;
 
 function QuickAdd({ onAdded }: { onAdded: () => void }) {
   const [title, setTitle] = useState("");
@@ -172,7 +188,18 @@ export function TaskBoard() {
     open: false,
   });
   const [overColumn, setOverColumn] = useState<TaskView["status"] | null>(null);
+  const [showAllDone, setShowAllDone] = useState(false);
+  const { data: approvals } = useApprovals();
   const bots = state?.bots ?? [];
+  /** A task whose chat waits on you says so on its card. */
+  const blockerOf = (task: TaskView): Blocker | null => {
+    if (task.status === "done" || !task.chatId) return null;
+    if (approvals?.some((a) => a.status === "pending" && a.chatId === task.chatId))
+      return "approval";
+    if (state?.takeoverRequests.some((request) => request.chatId === task.chatId))
+      return "takeover";
+    return null;
+  };
   const refresh = () => void queryClient.invalidateQueries({ queryKey: queryKeys.tasks });
 
   /** Moves a task, showing it in place right away. */
@@ -239,7 +266,7 @@ export function TaskBoard() {
                 className={cn(
                   "size-2 rounded-full",
                   column.status === "todo" && "bg-muted-foreground/40",
-                  column.status === "doing" && "bg-manual",
+                  column.status === "doing" && "bg-working",
                   column.status === "done" && "bg-done",
                 )}
               />
@@ -249,11 +276,15 @@ export function TaskBoard() {
               </span>
             </h2>
             <ol className="flex flex-col gap-2">
-              {column.tasks.map((task, index) => (
+              {(column.status === "done" && !showAllDone
+                ? column.tasks.slice(0, DONE_SHOWN)
+                : column.tasks
+              ).map((task, index) => (
                 <Card
                   key={task.id}
                   task={task}
                   owner={bots.find((bot) => bot.id === task.ownerBotId)}
+                  blocker={blockerOf(task)}
                   onOpen={() => setEditing({ task, open: true })}
                   onDragStart={(event) => {
                     event.dataTransfer.setData("text/task-id", task.id);
@@ -272,6 +303,21 @@ export function TaskBoard() {
                 />
               ))}
             </ol>
+            {column.status === "done" && column.tasks.length > DONE_SHOWN && (
+              <button
+                type="button"
+                onClick={() => setShowAllDone((value) => !value)}
+                className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[13px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                aria-expanded={showAllDone}
+              >
+                <ChevronDown
+                  className={cn("size-3.5 transition-transform", showAllDone && "rotate-180")}
+                />
+                {showAllDone
+                  ? "Show fewer"
+                  : `Show ${column.tasks.length - DONE_SHOWN} more completed`}
+              </button>
+            )}
             {column.tasks.length === 0 && column.status !== "todo" && (
               <p className="mx-0.5 rounded-[10px] border border-dashed border-foreground/10 px-2 py-5 text-center text-[12.5px] text-muted-foreground">
                 {column.status === "doing" ? "Nothing in progress." : "Nothing finished yet."}

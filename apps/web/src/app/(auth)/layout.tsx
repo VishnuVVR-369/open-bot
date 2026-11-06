@@ -1,11 +1,39 @@
+import { BOT_COLORS, TEAMMATE_TEMPLATES } from "@open-bot/shared";
+import { Check } from "lucide-react";
+import { BotAvatar } from "@/components/bot-avatar";
 import { Logo, Wordmark } from "@/components/logo";
 
-/** What the dark screen beside the form shows: teammates at work on the shared computer. */
-const SCENE = [
-  { name: "Iris", color: "#7C5CFF", line: "Comparing three flights to Lisbon" },
-  { name: "Otto", color: "#14B8A6", line: "Fixed the failing checkout test" },
-  { name: "Juno", color: "#F97316", line: "Drafted replies to 4 emails" },
+/**
+ * What the dark screen beside the form shows: teammates from the real templates at work, one in
+ * each state the app shows, in the app's own status colors.
+ */
+const SCENE: {
+  template: string;
+  color: string;
+  line: string;
+  state: "working" | "waiting" | "done";
+}[] = [
+  {
+    template: "travel",
+    color: BOT_COLORS[1],
+    line: "Comparing three flights to Lisbon",
+    state: "working",
+  },
+  {
+    template: "chief-of-staff",
+    color: BOT_COLORS[0],
+    line: "Needs your approval to book the 9:40 flight",
+    state: "waiting",
+  },
+  {
+    template: "developer",
+    color: BOT_COLORS[3],
+    line: "Fixed the failing checkout test",
+    state: "done",
+  },
 ];
+
+const STATE_LABEL = { working: "Working", waiting: "Needs you", done: "Done" } as const;
 
 export default function AuthLayout({ children }: LayoutProps<"/">) {
   return (
@@ -23,38 +51,50 @@ export default function AuthLayout({ children }: LayoutProps<"/">) {
           className="relative m-2 hidden w-[46%] max-w-[640px] flex-col justify-center overflow-hidden rounded-[14px] bg-bezel p-12 text-bezel-foreground lg:flex"
         >
           <div className="absolute inset-0 bg-[radial-gradient(rgb(255_255_255/0.06)_1px,transparent_1px)] [mask-image:radial-gradient(ellipse_at_70%_30%,black_10%,transparent_70%)] bg-[size:18px_18px]" />
-          <div className="absolute -top-40 -right-40 size-[520px] rounded-full bg-[radial-gradient(closest-side,rgb(229_72_77/0.16),transparent)]" />
+          <div className="absolute -top-40 -right-40 size-[520px] rounded-full bg-[radial-gradient(closest-side,rgb(255_255_255/0.07),transparent)]" />
           <div className="relative flex flex-col gap-8">
             <Logo className="size-11 [&_.fill-foreground]:fill-white/[0.07] [&_.stroke-background]:stroke-white/80" />
             <p className="max-w-[22ch] font-heading text-[34px] leading-[1.1] font-semibold tracking-[-0.025em] text-white">
               Hand it off. They&rsquo;ll take it from here.
             </p>
-            <ul className="flex flex-col gap-2">
-              {SCENE.map((entry, index) => (
-                <li
-                  key={entry.name}
-                  className="flex items-center gap-3 rounded-xl bg-white/[0.04] px-3.5 py-3 ring-1 ring-white/[0.06]"
-                >
-                  <span
-                    className="flex size-8 items-center justify-center rounded-[9px] font-heading text-[13px] font-semibold"
-                    style={{
-                      backgroundColor: `color-mix(in oklab, ${entry.color} 26%, transparent)`,
-                      color: `color-mix(in oklab, ${entry.color} 55%, white)`,
-                    }}
+            {/* Avatars here sit on the dark screen whatever the theme, so they get dark tiles. */}
+            <ul className="flex flex-col gap-2 [--avatar-ring:#1a1b20] [--foreground:#ffffff] [--surface:#1a1b20]">
+              {SCENE.map((entry) => {
+                const template = TEAMMATE_TEMPLATES.find((item) => item.id === entry.template)!;
+                return (
+                  <li
+                    key={entry.template}
+                    className="flex items-center gap-3 rounded-xl bg-white/[0.04] px-3.5 py-3 ring-1 ring-white/[0.06]"
                   >
-                    {entry.name[0]}
-                  </span>
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="text-[13px] font-medium text-white/90">{entry.name}</span>
-                    <span className="truncate text-[12.5px] text-white/55">{entry.line}</span>
-                  </span>
-                  {index === 0 ? (
-                    <span className="size-2 animate-tally rounded-full bg-live" />
-                  ) : (
-                    <span className="size-2 rounded-full bg-done" />
-                  )}
-                </li>
-              ))}
+                    <BotAvatar
+                      name={template.name}
+                      color={entry.color}
+                      emoji={template.emoji}
+                      size="sm"
+                    />
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="text-[13px] font-medium text-white/90">{template.name}</span>
+                      <span className="truncate text-[12.5px] text-white/60">{entry.line}</span>
+                    </span>
+                    <span
+                      className={
+                        entry.state === "waiting"
+                          ? "flex shrink-0 items-center gap-1.5 text-[12px] font-medium text-attention"
+                          : "flex shrink-0 items-center gap-1.5 text-[12px] text-white/55"
+                      }
+                    >
+                      {entry.state === "done" ? (
+                        <Check className="size-3.5 text-done" />
+                      ) : entry.state === "working" ? (
+                        <span className="size-1.5 animate-tally rounded-full bg-working" />
+                      ) : (
+                        <span className="size-1.5 rounded-full bg-attention" />
+                      )}
+                      {STATE_LABEL[entry.state]}
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         </aside>

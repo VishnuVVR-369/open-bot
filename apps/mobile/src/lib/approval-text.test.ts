@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { approvalRisk, commandParts, shortenPaths, titleParts } from "./approval-text";
+import {
+  approvalRisk,
+  approveLabel,
+  commandParts,
+  detailRows,
+  sendsEmail,
+  shortenPaths,
+  titleParts,
+} from "./approval-text";
 
 describe("approval titles", () => {
   it("splits out code quoted in backticks", () => {
@@ -82,5 +90,56 @@ describe("account approvals", () => {
         detail: "",
       }),
     ).toBeNull();
+  });
+});
+
+describe("approval details", () => {
+  it("turns an itinerary into labeled rows", () => {
+    expect(
+      detailRows(
+        "Round trip SFO to LIS, economy.\nOut: Mon Nov 30, 6:15 PM.\nBack: Sat Dec 5, 11:40 AM.\nCard: Travel Amex (•••• 1007)",
+      ),
+    ).toEqual({
+      summary: "Round trip SFO to LIS, economy.",
+      rows: [
+        { label: "Out", value: "Mon Nov 30, 6:15 PM" },
+        { label: "Back", value: "Sat Dec 5, 11:40 AM" },
+        { label: "Card", value: "Travel Amex (•••• 1007)" },
+      ],
+    });
+  });
+
+  it("leaves prose and commands alone", () => {
+    expect(detailRows("Just a sentence. Note: not a table.")).toBeNull();
+    expect(detailRows("$ git push\nin /home/bot")).toBeNull();
+    expect(detailRows("Out: Mon\nThen something else entirely\nBack: Sat")).toBeNull();
+  });
+
+  it("names the consequence on the approve button", () => {
+    expect(approveLabel({ kind: "purchase", title: "Pay $842.30 to TAP Air Portugal" })).toBe(
+      "Approve $842.30",
+    );
+    expect(approveLabel({ kind: "purchase", title: "Buy a server" })).toBe("Approve purchase");
+    expect(approveLabel({ kind: "account_outward", title: "Send an email to Priya Nair" })).toBe(
+      "Approve and send",
+    );
+    expect(approveLabel({ kind: "command", title: "git push" })).toBe("Approve");
+  });
+
+  it("knows an email when it sees one", () => {
+    expect(sendsEmail({ kind: "account_outward", title: "Send an email to Priya" })).toBe(true);
+    expect(
+      sendsEmail({ kind: "account_outward", title: "Create an event", preview: { type: "email" } }),
+    ).toBe(true);
+    expect(sendsEmail({ kind: "account_outward", title: "Create a Notion page" })).toBe(false);
+  });
+});
+
+describe("approval risk for mail", () => {
+  it("treats mail sent through an account as mail", () => {
+    expect(
+      approvalRisk({ kind: "account_outward", title: "Send an email to Priya Nair", detail: "" })
+        ?.label,
+    ).toBe("Sends an email");
   });
 });

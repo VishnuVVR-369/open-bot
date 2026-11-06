@@ -16,7 +16,11 @@ function initials(name: string) {
   return (words[0] ?? "?").slice(0, 1).toUpperCase();
 }
 
-/** A teammate's tile: their color, their emoji or initials, and a status light. */
+/**
+ * A teammate's tile: their color, their emoji or initials, and a status light.
+ * The light follows the status signals in globals.css: blue while working, amber when they need you,
+ * gray while queued, and nothing at all while idle.
+ */
 export function BotAvatar({
   name,
   color,
@@ -52,9 +56,9 @@ export function BotAvatar({
         <span
           className={cn(
             "absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-(--avatar-ring)",
-            activity === "working" && "animate-tally bg-live",
-            activity === "waiting" && "bg-waiting",
-            activity === "queued" && "bg-muted-foreground/60",
+            activity === "working" && "animate-tally bg-working",
+            activity === "waiting" && "bg-attention",
+            activity === "queued" && "bg-idle",
           )}
         />
       )}

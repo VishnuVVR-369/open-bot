@@ -8,6 +8,8 @@ export interface MemorySource {
   messageId?: string;
   runId?: string;
   chatId?: string;
+  /** The teammate whose run saved it, filled in when memory is listed for display. */
+  botId?: string;
 }
 export interface MemoryItem {
   id: string;

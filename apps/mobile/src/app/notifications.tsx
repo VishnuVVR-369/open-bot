@@ -15,7 +15,7 @@ import {
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Pressable, RefreshControl, SectionList, StyleSheet, View } from "react-native";
 import { AvatarBadge, ON_ATTENTION } from "@/components/approval-parts";
-import { BotAvatar, botActivity } from "@/components/bot-avatar";
+import { BotAvatar } from "@/components/bot-avatar";
 import { Separator } from "@/components/list-row";
 import { Empty, LoadError, Loading } from "@/components/states";
 import { Text } from "@/components/text";
@@ -23,10 +23,11 @@ import { api } from "@/lib/api";
 import { groupByDay } from "@/lib/day-groups";
 import { haptics } from "@/lib/haptics";
 import { notificationHref } from "@/lib/links";
-import { collapseRepeats } from "@/lib/notification-groups";
+import { collapseRepeats, notificationText } from "@/lib/notification-groups";
 import { useHome, useNotifications, useTeammates } from "@/lib/queries";
 import { queryKeys } from "@/lib/query";
 import { ago } from "@/lib/time";
+import { useSafeBottom } from "@/lib/use-safe-bottom";
 import { radius, space, useColors } from "@/theme";
 import { mix } from "@/theme/mix";
 
@@ -44,9 +45,12 @@ const ICONS: Record<string, LucideIcon> = {
 const NEEDS_YOU = new Set(["approval", "takeover_request", "cap_reached", "egress_unanswered"]);
 const FAILED = new Set(["run_failed"]);
 
-const AVATAR = 40;
+const AVATAR = 36;
 
-/** Who it's from: the teammate's face (with what they're up to), or a tile for the app itself. */
+/**
+ * Who it's from: the teammate's face, or a tile for the app itself. The badge says what kind of
+ * event it was. It never shows what the teammate is doing now: the row is about then, not now.
+ */
 function Leading({ notification, bot }: { notification: NotificationView; bot?: BotSummary }) {
   const colors = useColors();
   const Icon = ICONS[notification.kind] ?? Bell;
@@ -66,15 +70,7 @@ function Leading({ notification, bot }: { notification: NotificationView; bot?: 
         <Icon size={20} color={signal ? signal.ink : colors.foreground} />
       </View>
     );
-  const avatar = (
-    <BotAvatar
-      name={bot.name}
-      color={bot.color}
-      emoji={bot.emoji}
-      size="md"
-      activity={botActivity(bot)}
-    />
-  );
+  const avatar = <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="md" />;
   if (!signal) return avatar;
   return (
     <AvatarBadge
@@ -91,6 +87,7 @@ function Leading({ notification, bot }: { notification: NotificationView; bot?: 
 
 /** What teammates told you, newest first, as the bell on the web shows it. */
 export default function Notifications() {
+  const bottom = useSafeBottom();
   const colors = useColors();
   const queryClient = useQueryClient();
   const query = useNotifications();
@@ -168,7 +165,7 @@ export default function Notifications() {
         sections={sections}
         keyExtractor={(row) => row.key}
         stickySectionHeadersEnabled={false}
-        contentContainerStyle={{ flexGrow: 1, paddingBottom: space(6) }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: bottom }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -199,7 +196,8 @@ export default function Notifications() {
           const bot = bots.find((candidate) => candidate.id === notification.botId);
           const unreadIds = row.items.filter((item) => !item.readAt).map((item) => item.id);
           const isUnread = unreadIds.length > 0;
-          const body = plainText(notification.body);
+          const { title, body: rawBody } = notificationText(notification);
+          const body = plainText(rawBody);
           const count = row.items.length;
           return (
             <Pressable
@@ -215,7 +213,7 @@ export default function Notifications() {
               accessibilityRole="button"
               accessibilityLabel={[
                 isUnread ? "Unread" : null,
-                notification.title,
+                title,
                 count > 1 ? `${count} times` : null,
                 body,
                 ago(notification.createdAt),
@@ -232,7 +230,7 @@ export default function Notifications() {
                     numberOfLines={2}
                     style={[styles.title, { fontWeight: isUnread ? "600" : "400" }]}
                   >
-                    {notification.title}
+                    {title}
                   </Text>
                   {count > 1 && (
                     <View style={[styles.count, { backgroundColor: colors.subtle }]}>

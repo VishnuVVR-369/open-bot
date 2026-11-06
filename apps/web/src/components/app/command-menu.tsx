@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/command";
 import { getJson } from "@/lib/client/api";
 import { useAppState } from "@/lib/client/queries";
+import { highlightParts, matchScore, queryWords, startsWords } from "@/lib/search-match";
 import { chatHref } from "@/lib/utils";
 import type { PageSummary, SearchResultView } from "@/lib/types";
 
@@ -96,24 +97,41 @@ function useDebounced<T>(value: T, ms: number): T {
   return debounced;
 }
 
-/** The excerpt with each occurrence of the query marked. */
+/** The text with each word of the query marked where it starts a word. */
 function Highlighted({ text, query }: { text: string; query: string }) {
-  const q = query.trim();
-  if (!q) return <>{text}</>;
-  const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const words = queryWords(query);
+  if (words.length === 0) return <>{text}</>;
   return (
     <>
-      {text.split(new RegExp(`(${escaped})`, "gi")).map((part, index) =>
-        part.toLowerCase() === q.toLowerCase() ? (
-          <mark key={index} className="rounded-[3px] bg-waiting/20 px-px text-foreground">
-            {part}
+      {highlightParts(text, words).map((part, index) =>
+        part.mark ? (
+          <mark
+            key={index}
+            className="rounded-[3px] bg-foreground/10 px-px font-medium text-foreground"
+          >
+            {part.text}
           </mark>
         ) : (
-          part
+          part.text
         ),
       )}
     </>
   );
+}
+
+/** Items that match the query, best first: by score, then in their own order. */
+function ranked<T>(items: T[], texts: (item: T) => string[], words: string[]): T[] {
+  return items
+    .map((item, index) => ({ item, index, score: matchScore(texts(item), words) }))
+    .filter((entry): entry is { item: T; index: number; score: number } => entry.score !== null)
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .map((entry) => entry.item);
+}
+
+/** Search results with the query at the start of a word first, then the rest as they came. */
+function wordStartsFirst<T>(items: T[], text: (item: T) => string, words: string[]): T[] {
+  const starts = items.filter((item) => startsWords(text(item), words));
+  return [...starts, ...items.filter((item) => !starts.includes(item))];
 }
 
 function CommandMenu({
@@ -155,26 +173,32 @@ function CommandMenu({
   const chatOf = (id: string) => chats.find((chat) => chat.id === id);
   const searching = searchFor.length >= 2;
 
-  // Every word you type has to appear somewhere in the item.
-  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  const matches = (...texts: string[]) => {
-    const haystack = texts.join(" ").toLowerCase();
-    return words.every((word) => haystack.includes(word));
-  };
-  const bots = allBots.filter((bot) => matches(bot.name, bot.role));
-  const groups = chats.filter(
-    (chat) =>
-      chat.kind === "group" &&
-      matches(chat.title, ...chat.memberIds.map((id) => botOf(id)?.name ?? "")),
+  // Every word you type has to start a word in the item: "lis" finds Lisbon, not Publish.
+  const words = queryWords(query);
+  const matches = (...texts: string[]) => matchScore(texts, words) !== null;
+  const bots = ranked(allBots, (bot) => [bot.name, bot.role], words);
+  const groups = ranked(
+    chats.filter((chat) => chat.kind === "group"),
+    (chat) => [chat.title, ...chat.memberIds.map((id) => botOf(id)?.name ?? "")],
+    words,
   );
-  const pages = PAGES.filter((page) =>
-    matches(page.label, ("keywords" in page && page.keywords) || ""),
+  const pages = ranked(
+    PAGES,
+    (page) => [page.label, ("keywords" in page && page.keywords) || ""],
+    words,
   );
   const themeLabel = resolvedTheme === "dark" ? "Light mode" : "Dark mode";
   const showNewTeammate = matches("new teammate create bot");
   const showTheme = matches(themeLabel, "theme switch appearance");
-  const messageResults = searching && words.length > 0 ? (results ?? []) : [];
-  const pageResults = searching && words.length > 0 ? (foundPages ?? []) : [];
+  const searchWords = queryWords(searchFor);
+  const messageResults =
+    searching && words.length > 0
+      ? wordStartsFirst(results ?? [], (result) => result.excerpt, searchWords)
+      : [];
+  const pageResults =
+    searching && words.length > 0
+      ? wordStartsFirst(foundPages ?? [], (page) => page.title, searchWords)
+      : [];
   const nothing =
     bots.length + groups.length + pages.length + messageResults.length + pageResults.length === 0 &&
     !showNewTeammate &&
@@ -223,7 +247,9 @@ function CommandMenu({
                   }}
                 >
                   <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="xs" />
-                  <span>{bot.name}</span>
+                  <span>
+                    <Highlighted text={bot.name} query={query} />
+                  </span>
                   <span className="truncate text-muted-foreground">{bot.role}</span>
                 </CommandItem>
               ))}
@@ -238,7 +264,9 @@ function CommandMenu({
                   onSelect={() => go(`/chats/${chat.id}`)}
                 >
                   <Users />
-                  <span>{chat.title}</span>
+                  <span>
+                    <Highlighted text={chat.title} query={query} />
+                  </span>
                   <span className="truncate text-muted-foreground">
                     {chat.memberIds
                       .map((id) => botOf(id)?.name)

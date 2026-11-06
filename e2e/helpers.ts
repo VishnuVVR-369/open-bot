@@ -24,7 +24,7 @@ export async function createTeammate(
   page: Page,
   name: string,
   role = "test assistant",
-  autonomy = "Ask before risky actions",
+  autonomy = "Asks before risky actions",
 ) {
   await page.goto("/bots/new");
   await page.getByLabel("Name").fill(name);

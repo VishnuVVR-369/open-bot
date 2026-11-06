@@ -2,9 +2,9 @@
 
 import { isRunActive } from "@open-bot/shared";
 import { format } from "date-fns";
-import { Check, CircleSlash, Clock, Loader2, Trash2, X } from "lucide-react";
+import { Check, CircleSlash, Clock, Ellipsis, Loader2, Pencil, Trash2, X } from "lucide-react";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,9 +14,15 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ScheduleRunView } from "@/lib/types";
@@ -47,8 +53,8 @@ function RunIcon({ status }: { status: ScheduleRunView["status"] }) {
   if (status === "completed") return <Check className="size-3.5 text-done" />;
   if (status === "failed") return <X className="size-3.5 text-destructive" />;
   if (status === "interrupted") return <CircleSlash className="size-3.5 text-muted-foreground" />;
-  if (status === "waiting") return <Clock className="size-3.5 text-waiting" />;
-  return <Loader2 className="size-3.5 animate-spin text-live" />;
+  if (status === "waiting") return <Clock className="size-3.5 text-attention-ink" />;
+  return <Loader2 className="size-3.5 animate-spin text-working" />;
 }
 
 export function DetailLabel({ children }: { children: ReactNode }) {
@@ -83,7 +89,7 @@ export function RunHistory({
               >
                 <RunIcon status={run.status} />
                 <span className="w-[136px] shrink-0 text-muted-foreground tabular-nums">
-                  {format(new Date(run.createdAt), "EEE d MMM, h:mm a")}
+                  {format(new Date(run.createdAt), "EEE MMM d, h:mm a")}
                 </span>
                 <span className="min-w-0 flex-1 truncate">
                   {isRunActive(run.status) || !run.preview ? (
@@ -101,41 +107,72 @@ export function RunHistory({
   );
 }
 
-/** A delete button that asks first. */
-export function ConfirmDelete({
+/**
+ * An automation row's less frequent actions behind "...": edit, and delete after asking.
+ * The edit dialog is the row's own, opened through `onEdit`.
+ */
+export function RowMenu({
   title,
-  description,
-  onConfirm,
+  deleteDescription,
+  onEdit,
+  onDelete,
 }: {
   title: string;
-  description: string;
-  onConfirm: () => Promise<void>;
+  deleteDescription: string;
+  onEdit: () => void;
+  onDelete: () => Promise<void>;
 }) {
+  const [confirming, setConfirming] = useState(false);
   return (
-    <AlertDialog>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <AlertDialogTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="Delete">
-              <Trash2 />
-            </Button>
-          </AlertDialogTrigger>
-        </TooltipTrigger>
-        <TooltipContent>Delete</TooltipContent>
-      </Tooltip>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{title}</AlertDialogTitle>
-          <AlertDialogDescription>{description}</AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction variant="destructive" onClick={onConfirm}>
-            Delete
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <>
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={`More actions for ${title}`}
+            className="text-muted-foreground"
+          >
+            <Ellipsis />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-40">
+          <DropdownMenuItem onSelect={onEdit}>
+            <Pencil /> Edit
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onSelect={() => setConfirming(true)}>
+            <Trash2 /> Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <AlertDialog open={confirming} onOpenChange={setConfirming}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete “{title}”?</AlertDialogTitle>
+            <AlertDialogDescription>{deleteDescription}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={onDelete}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
+/** "Paused" or "Done" beside an automation's title, so an off row still reads clearly. */
+export function StateBadge({ children }: { children: ReactNode }) {
+  return (
+    <span
+      className="shrink-0 rounded-full bg-foreground/[0.06] px-2 py-px text-[11.5px] font-medium text-muted-foreground"
+      data-testid="automation-state"
+    >
+      {children}
+    </span>
   );
 }
 
@@ -158,6 +195,7 @@ export function RowAction({
           variant="ghost"
           size="icon"
           aria-label={label}
+          className="text-muted-foreground hover:text-foreground"
           onClick={onClick}
           disabled={disabled}
         >

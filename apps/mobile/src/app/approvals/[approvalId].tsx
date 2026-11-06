@@ -19,9 +19,9 @@ import {
   ApprovalAvatar,
   ApprovalStatusChip,
   ApprovalTitle,
+  DetailRows,
   RiskNote,
 } from "@/components/approval-parts";
-import { botActivity } from "@/components/bot-avatar";
 import { Button } from "@/components/button";
 import { CodeScroll } from "@/components/code-scroll";
 import { ListRow } from "@/components/list-row";
@@ -29,7 +29,13 @@ import { Card } from "@/components/section";
 import { LoadError, Loading } from "@/components/states";
 import { Text } from "@/components/text";
 import { api } from "@/lib/api";
-import { approvalRisk, commandParts } from "@/lib/approval-text";
+import {
+  approvalRisk,
+  approveLabel,
+  commandParts,
+  detailRows,
+  sendsEmail,
+} from "@/lib/approval-text";
 import { canAlwaysAllow, useDecideApproval, type Decision } from "@/lib/approvals";
 import { recently } from "@/lib/day-groups";
 import { approvalDetail } from "@/lib/format";
@@ -107,6 +113,13 @@ function Detail({ kind, detail }: { kind: string; detail: string }) {
         </CodeScroll>
       </View>
     );
+  if (kind !== "email" && detailRows(detail))
+    return (
+      <View style={{ gap: space(2) }}>
+        <Overline>Details</Overline>
+        <DetailRows detail={detail} />
+      </View>
+    );
   return (
     <View style={{ gap: space(2) }}>
       <Overline>{kind === "email" ? "Message" : "Details"}</Overline>
@@ -161,18 +174,24 @@ export default function ApprovalScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.content,
+          // The decision bar sits below while it's pending, and keeps clear of the gesture bar.
+          { paddingBottom: pending ? space(6) : insets.bottom + space(6) },
+        ]}
+      >
         <View style={styles.who}>
           <ApprovalAvatar
             bot={bot}
-            kind={approval.kind}
+            approval={approval}
             pending={pending}
-            activity={pending && bot ? botActivity(bot) : "idle"}
             behind={colors.background}
           />
           <View style={{ flex: 1, gap: 2 }}>
             <Text variant="label" numberOfLines={1}>
-              {botName} {pending ? "wants to" : "asked to"} {KIND_LABEL[approval.kind]}
+              {botName} {pending ? "wants to" : "asked to"}{" "}
+              {sendsEmail(approval) ? KIND_LABEL.email : KIND_LABEL[approval.kind]}
             </Text>
             <Text variant="small" muted>
               Asked {recently(approval.createdAt) ?? phoneDayClock(approval.createdAt)}
@@ -283,7 +302,7 @@ export default function ApprovalScreen() {
               testID="deny"
             />
             <Button
-              title="Approve"
+              title={approveLabel(approval)}
               icon={
                 approval.kind === "purchase" ? (
                   <Fingerprint size={18} color={colors.primaryForeground} />
@@ -318,7 +337,7 @@ export default function ApprovalScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: space(4), paddingTop: space(5), gap: space(5), paddingBottom: space(8) },
+  content: { padding: space(4), paddingTop: space(5), gap: space(5) },
   who: { flexDirection: "row", alignItems: "center", gap: space(3.5) },
   overline: { paddingHorizontal: space(1) },
   code: { borderRadius: radius.xl },

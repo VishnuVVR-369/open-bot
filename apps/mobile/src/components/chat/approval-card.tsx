@@ -13,11 +13,11 @@ import { useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { ActionPreview, previewIcon } from "@/components/action-preview";
 import { AlwaysAllowSheet } from "@/components/always-allow-sheet";
-import { ApprovalTitle } from "@/components/approval-parts";
+import { ApprovalTitle, DetailRows } from "@/components/approval-parts";
 import { Button } from "@/components/button";
 import { CodeScroll } from "@/components/code-scroll";
 import { Text } from "@/components/text";
-import { approvalRisk } from "@/lib/approval-text";
+import { approvalRisk, approveLabel, detailRows, sendsEmail } from "@/lib/approval-text";
 import { canAlwaysAllow, useDecideApproval, type Decision } from "@/lib/approvals";
 import { approvalDetail } from "@/lib/format";
 import { haptics } from "@/lib/haptics";
@@ -76,7 +76,11 @@ export function ApprovalCard({
     previewIcon(item.preview) ??
     (item.approvalKind === "purchase"
       ? CreditCard
-      : item.approvalKind === "email"
+      : sendsEmail({
+            kind: item.approvalKind ?? "action",
+            title: item.title,
+            preview: item.preview,
+          })
         ? Mail
         : ShieldAlert);
   const detail = item.detail ? approvalDetail(item.detail) : "";
@@ -86,6 +90,7 @@ export function ApprovalCard({
     title: item.title,
     detail: item.detail ?? "",
     subject: item.subject,
+    preview: item.preview,
   });
   const onDecide = async (decision: Decision, alwaysAllow: string | null = null) => {
     setError(null);
@@ -127,7 +132,7 @@ export function ApprovalCard({
         </View>
         <View style={{ flex: 1, gap: 2 }}>
           <Text variant="small" style={{ color: colors.attentionInk, fontWeight: "600" }}>
-            {botName} needs your OK
+            {botName} needs your approval
           </Text>
           <ApprovalTitle title={item.title} style={{ fontSize: 16, lineHeight: 22 }} />
         </View>
@@ -150,6 +155,8 @@ export function ApprovalCard({
               {detail}
             </Text>
           </CodeScroll>
+        ) : detailRows(detail) ? (
+          <DetailRows detail={detail} />
         ) : (
           <Text
             variant="small"
@@ -205,7 +212,11 @@ export function ApprovalCard({
           testID="deny"
         />
         <Button
-          title="Approve"
+          title={approveLabel({
+            kind: item.approvalKind ?? "action",
+            title: item.title,
+            preview: item.preview,
+          })}
           icon={<Check size={17} color={colors.primaryForeground} />}
           busy={deciding === "approved"}
           disabled={busy}

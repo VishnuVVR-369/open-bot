@@ -4,7 +4,6 @@ import { Check, ChevronRight, ShieldCheck, WifiOff } from "lucide-react-native";
 import { useCallback, useMemo, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { ApprovalAvatar, ApprovalStatusChip, ApprovalTitle } from "@/components/approval-parts";
-import { botActivity } from "@/components/bot-avatar";
 import { ConnectionNotice } from "@/components/connection-notice";
 import { ListRow, Separator } from "@/components/list-row";
 import { Card, Section } from "@/components/section";
@@ -49,15 +48,21 @@ function ApprovalRow({
       accessibilityRole="button"
       accessibilityHint={pending ? "Opens the request to approve or deny it" : undefined}
     >
-      <ApprovalAvatar
-        bot={bot}
-        kind={approval.kind}
-        pending={pending}
-        activity={pending && bot ? botActivity(bot) : "idle"}
-        behind={behind}
-      />
+      <ApprovalAvatar bot={bot} approval={approval} pending={pending} behind={behind} />
       <View style={styles.text}>
-        <ApprovalTitle title={shortenPaths(approval.title)} numberOfLines={2} />
+        {approval.kind === "command" ? (
+          // A command reads as code: monospace, on one line, cut at the end rather than wrapped.
+          <Text
+            variant="mono"
+            numberOfLines={1}
+            ellipsizeMode="tail"
+            style={{ fontSize: 14, lineHeight: 22 }}
+          >
+            {approval.title.replace(/^`|`$/g, "")}
+          </Text>
+        ) : (
+          <ApprovalTitle title={shortenPaths(approval.title)} numberOfLines={2} />
+        )}
         <Text variant="small" muted numberOfLines={1}>
           {bot?.name ?? "Former teammate"} · {meta}
         </Text>
@@ -86,7 +91,7 @@ function CaughtUp() {
       <View style={{ flex: 1, gap: 2 }}>
         <Text variant="heading">You&apos;re all caught up</Text>
         <Text variant="small" muted>
-          Nothing needs your OK. New requests show up here and on your lock screen.
+          Nothing needs your approval. New requests show up here and on your lock screen.
         </Text>
       </View>
     </View>
@@ -258,9 +263,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  // The width of the avatars above, so the text lines up with theirs.
   tile: {
-    width: 48,
-    height: 48,
+    width: 44,
+    height: 44,
     borderRadius: radius.xl,
     alignItems: "center",
     justifyContent: "center",

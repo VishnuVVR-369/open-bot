@@ -61,7 +61,7 @@ export function AlwaysAllowButton({
       }}
     >
       <PopoverTrigger asChild>
-        <Button size="sm" variant="ghost" disabled={disabled} data-testid="always-allow">
+        <Button size="lg" variant="ghost" disabled={disabled} data-testid="always-allow">
           Always allow…
         </Button>
       </PopoverTrigger>

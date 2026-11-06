@@ -18,7 +18,8 @@ test("create, edit and delete a schedule", async ({ page }) => {
   await expect(row).toContainText("Weekdays at");
 
   // Editing opens with what the schedule already says, and keeps it in sync.
-  await row.getByRole("button", { name: "Edit" }).click();
+  await row.getByRole("button", { name: /^More actions/ }).click();
+  await page.getByRole("menuitem", { name: "Edit" }).click();
   await expect(page.getByLabel("Title")).toHaveValue(title);
   await expect(page.getByLabel("What to do")).toHaveValue("Send me a short digest.");
   await page.getByRole("dialog").getByRole("combobox").nth(1).click();
@@ -33,7 +34,8 @@ test("create, edit and delete a schedule", async ({ page }) => {
   await expect(row).toContainText("Send me a short weekly digest.");
   await expect(row).toContainText("It hasn't run yet.");
 
-  await row.getByRole("button", { name: "Delete" }).click();
+  await row.getByRole("button", { name: /^More actions/ }).click();
+  await page.getByRole("menuitem", { name: "Delete" }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();
   await expect(row).toHaveCount(0);
 });

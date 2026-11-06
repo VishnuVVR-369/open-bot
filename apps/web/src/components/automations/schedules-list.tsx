@@ -2,23 +2,21 @@
 
 import { describeCron } from "@open-bot/shared";
 import { format, formatDistanceToNowStrict } from "date-fns";
-import { ChevronRight, Pencil, Play } from "lucide-react";
+import { ChevronRight, Play } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { BotAvatar } from "@/components/bot-avatar";
-import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { deleteSchedule, runScheduleNow, setScheduleEnabled } from "@/lib/actions";
 import { useScheduleRuns } from "@/lib/client/queries";
 import type { BotSummary, ScheduleView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { ScheduleDialog } from "./schedule-dialog";
-import { ConfirmDelete, DetailLabel, LAST_RUN_TEXT, RowAction, RunHistory } from "./shared";
+import { DetailLabel, LAST_RUN_TEXT, RowAction, RowMenu, RunHistory, StateBadge } from "./shared";
 
 function cadence(schedule: ScheduleView) {
   if (schedule.kind === "cron" && schedule.cron) return describeCron(schedule.cron);
-  if (schedule.runAt) return `Once, ${format(new Date(schedule.runAt), "EEE d MMM, h:mm a")}`;
+  if (schedule.runAt) return `Once, ${format(new Date(schedule.runAt), "EEE MMM d, h:mm a")}`;
   return "Once";
 }
 
@@ -51,16 +49,11 @@ export function ScheduleRow({
   refresh: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [editing, setEditing] = useState(false);
   const done = schedule.kind === "once" && Boolean(schedule.lastRunAt) && !schedule.enabled;
 
   return (
-    <li
-      className={cn(
-        "rounded-xl bg-card shadow-raised",
-        !schedule.enabled && !expanded && "opacity-70",
-      )}
-      data-testid="schedule"
-    >
+    <li className="rounded-xl bg-card shadow-raised" data-testid="schedule">
       <div className="flex flex-wrap items-center gap-4 px-4 py-3.5">
         {bot && <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="md" />}
         <button
@@ -74,9 +67,10 @@ export function ScheduleRow({
             <span className="truncate text-[14.5px] font-medium group-hover:underline group-focus-visible:underline">
               {schedule.title}
             </span>
+            {!schedule.enabled && <StateBadge>{done ? "Done" : "Paused"}</StateBadge>}
             {schedule.createdBy === "bot" && (
-              <span className="shrink-0 rounded-full bg-subtle px-2 py-px text-[11px] text-muted-foreground">
-                set by {bot?.name ?? "a bot"}
+              <span className="shrink-0 text-[12px] text-muted-foreground">
+                Set by {bot?.name ?? "a teammate"}
               </span>
             )}
             <ChevronRight
@@ -95,7 +89,6 @@ export function ScheduleRow({
                 {formatDistanceToNowStrict(new Date(schedule.nextRunAt), { addSuffix: true })}
               </>
             )}
-            {!schedule.enabled && (done ? " · done" : " · paused")}
             {schedule.quiet && " · only news"}
           </span>
           {schedule.lastRun && (
@@ -121,31 +114,9 @@ export function ScheduleRow({
           >
             <Play />
           </RowAction>
-          <Tooltip>
-            <ScheduleDialog
-              schedule={schedule}
-              trigger={
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" aria-label="Edit">
-                    <Pencil />
-                  </Button>
-                </TooltipTrigger>
-              }
-            />
-            <TooltipContent>Edit</TooltipContent>
-          </Tooltip>
-          <ConfirmDelete
-            title={`Delete “${schedule.title}”?`}
-            description="It won't run again. Past runs stay in the Scheduled chat."
-            onConfirm={async () => {
-              const result = await deleteSchedule(schedule.id);
-              if (!result.ok) toast.error(result.error);
-              refresh();
-            }}
-          />
           {!done && (
             <Switch
-              className="ml-2"
+              className="mx-1.5"
               checked={schedule.enabled}
               aria-label={schedule.enabled ? "Pause" : "Resume"}
               onCheckedChange={async (checked) => {
@@ -155,6 +126,17 @@ export function ScheduleRow({
               }}
             />
           )}
+          <RowMenu
+            title={schedule.title}
+            deleteDescription="It won't run again. Past runs stay in the Scheduled chat."
+            onEdit={() => setEditing(true)}
+            onDelete={async () => {
+              const result = await deleteSchedule(schedule.id);
+              if (!result.ok) toast.error(result.error);
+              refresh();
+            }}
+          />
+          <ScheduleDialog schedule={schedule} open={editing} onOpenChange={setEditing} />
         </div>
       </div>
       {expanded && <ScheduleDetails schedule={schedule} />}

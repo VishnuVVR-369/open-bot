@@ -41,11 +41,11 @@ export function NotificationsButton({ count }: { count: number }) {
         >
           <Bell />
           {count > 0 && (
-            <span className="absolute top-1 right-1 size-2 rounded-full bg-live ring-2 ring-sidebar" />
+            <span className="absolute top-1 right-1 size-2 rounded-full bg-foreground ring-2 ring-sidebar" />
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-[360px] p-0">
+      <PopoverContent align="start" className="w-[min(360px,calc(100vw-1rem))] p-0">
         <div className="flex items-center justify-between border-b px-4 py-3">
           <span className="text-sm font-semibold">Notifications</span>
           {permission === "default" && (
@@ -80,7 +80,7 @@ export function NotificationsButton({ count }: { count: number }) {
               <span
                 className={cn(
                   "mt-1.5 size-1.5 shrink-0 rounded-full",
-                  notification.readAt ? "bg-transparent" : "bg-live",
+                  notification.readAt ? "bg-transparent" : "bg-foreground",
                 )}
               />
               <span className="flex min-w-0 flex-col gap-0.5">

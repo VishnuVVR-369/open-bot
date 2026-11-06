@@ -20,3 +20,22 @@ export function collapseRepeats<
   }
   return rows;
 }
+
+/**
+ * A notification's words as the row shows them. A failure titled "Kit couldn't finish: <task>"
+ * reads as if the task were what failed to happen ("couldn't finish: GitHub release published"),
+ * so the task's name is quoted: "Kit couldn't finish “GitHub release published”".
+ */
+export function notificationText<T extends { kind: string; title: string; body: string }>(
+  notification: T,
+): { title: string; body: string } {
+  const match =
+    notification.kind === "run_failed"
+      ? /^(.+? couldn't finish):\s+(.+?)\.?$/.exec(notification.title)
+      : null;
+  if (!match) return { title: notification.title, body: notification.body };
+  return {
+    title: `${match[1]} “${match[2]!.replace(/^["“]|["”]$/g, "")}”`,
+    body: notification.body,
+  };
+}

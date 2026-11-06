@@ -9,11 +9,17 @@ export function botActivity(bot: Pick<BotSummary, "activeRun">): BotActivity {
   return "working";
 }
 
-export function botStatusText(bot: Pick<BotSummary, "activeRun" | "role">): string {
+/** What a teammate needs from you, in the words used everywhere, or null when they need nothing. */
+export function botNeedsText(bot: Pick<BotSummary, "activeRun">): string | null {
   const run = bot.activeRun;
-  if (!run) return bot.role;
-  if (run.status === "waiting")
-    return run.waitingFor === "takeover" ? "Needs you to take over" : "Needs your approval";
-  if (run.status === "queued") return "Up next";
-  return "Working…";
+  if (run?.status !== "waiting") return null;
+  return run.waitingFor === "takeover" ? "Needs you to take over" : "Needs your approval";
+}
+
+/**
+ * The line under a teammate's name in lists: their job, unless they need you.
+ * Whether they are working shows on the avatar's light, so the line stays put while they work.
+ */
+export function botSubtitle(bot: Pick<BotSummary, "activeRun" | "role">): string {
+  return botNeedsText(bot) ?? bot.role;
 }

@@ -134,7 +134,7 @@ It works like a manager staffing a team: one clear job per teammate, a brief for
 
 <Figure
   minWidth={660}
-  caption="One approval per new teammate, showing everything it starts with. A teammate on Full auto skips the approval, except for more autonomy or a connection."
+  caption="One approval per new teammate, showing everything it starts with. A teammate set to Works on its own skips the approval, except for more autonomy or a connection."
 >
   <Sequence
     actors={[
@@ -197,13 +197,13 @@ A changed profile reaches the teammate's ongoing chats on their next message: se
 
 ### What asks you
 
-| Change                                                        | Asks you                          | Always allow covers                              |
-| ------------------------------------------------------------- | --------------------------------- | ------------------------------------------------ |
-| Create a teammate                                             | Unless the caller is on Full auto | "Create teammates"                               |
-| Edit a profile (itself included)                              | Unless the caller is on Full auto | "Edit teammates' profiles"                       |
-| Set up another teammate's skills or automations               | Unless the caller is on Full auto | "Set up other teammates' skills and automations" |
-| Give a teammate more autonomy than "ask before risky actions" | Always                            | Nothing                                          |
-| Let a teammate use a connection, or stop it                   | Always                            | Nothing                                          |
+| Change                                                        | Asks you                           | Always allow covers                              |
+| ------------------------------------------------------------- | ---------------------------------- | ------------------------------------------------ |
+| Create a teammate                                             | Unless the caller works on its own | "Create teammates"                               |
+| Edit a profile (itself included)                              | Unless the caller works on its own | "Edit teammates' profiles"                       |
+| Set up another teammate's skills or automations               | Unless the caller works on its own | "Set up other teammates' skills and automations" |
+| Give a teammate more autonomy than "ask before risky actions" | Always                             | Nothing                                          |
+| Let a teammate use a connection, or stop it                   | Always                             | Nothing                                          |
 
 The card's title names the teammate, like `Create the teammate Iris` or `Schedule "Morning brief" for Iris`, and its detail shows what will be saved, instructions included.
 An Always allow rule saved from one card covers the whole kind of change, not just that teammate.

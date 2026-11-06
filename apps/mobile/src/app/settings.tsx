@@ -33,6 +33,7 @@ import { setPreference, usePreferences, type Preferences } from "@/lib/preferenc
 import { useApprovalRules } from "@/lib/queries";
 import { signOut } from "@/lib/session";
 import { hasFirebase } from "@/push/firebase";
+import { useSafeBottom } from "@/lib/use-safe-bottom";
 import { fonts, radius, space, useColors } from "@/theme";
 
 const APPEARANCES: {
@@ -58,6 +59,7 @@ function useCanLock(): boolean | null {
 
 /** Your account on this phone, and how the app looks, feels and keeps itself safe. */
 export default function Settings() {
+  const bottom = useSafeBottom();
   const colors = useColors();
   const { data: session } = authClient.useSession();
   const preferences = usePreferences();
@@ -79,6 +81,20 @@ export default function Settings() {
     setPasskeyResult(
       result.ok ? "Passkey added. Use it the next time you sign in." : result.message,
     );
+  }
+
+  /** Turning the lock off takes your fingerprint, so a phone left open can't switch it off. */
+  async function changeAppLock(value: boolean) {
+    if (!value) {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: "Turn off app lock",
+        cancelLabel: "Cancel",
+        disableDeviceFallback: false,
+      });
+      if (!result.success) return;
+    }
+    haptics.tap();
+    setPreference("appLock", value);
   }
 
   async function sendTest() {
@@ -104,7 +120,7 @@ export default function Settings() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.content}>
+    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottom }]}>
       <Section title="Account">
         <Card>
           <View style={styles.account}>
@@ -176,9 +192,8 @@ export default function Settings() {
           ) : (
             <SettingsRow
               icon={(color) => <BellOff size={18} color={color} />}
-              title="Send a test notification"
-              subtitle="Notifications aren't available in this build. Approvals and replies still show up in the app."
-              disabled
+              title="Phone notifications are off"
+              subtitle="This app isn't set up to notify you yet. Approvals and replies still wait for you here and in the bell."
               testID="test-notification"
             />
           )}
@@ -187,7 +202,7 @@ export default function Settings() {
 
       <Section title="Security">
         <Card>
-          <SettingsRow
+          <SettingsSwitch
             icon={(color) => <Fingerprint size={18} color={color} />}
             title="App lock"
             subtitle={
@@ -195,14 +210,9 @@ export default function Settings() {
                 ? "Set up a screen lock on this phone to lock open-bot"
                 : "Asks for your fingerprint when you open open-bot, and after 5 minutes away"
             }
-            aside={
-              canLock === null ? null : (
-                <Text variant="small" muted>
-                  {canLock ? "On" : "Off"}
-                </Text>
-              )
-            }
-            accessibilityLabel={`App lock, ${canLock ? "on" : "off"}`}
+            value={canLock !== false && preferences.appLock}
+            disabled={canLock !== true}
+            onChange={(value) => void changeAppLock(value)}
             testID="app-lock"
           />
           <Separator inset={SETTINGS_INSET} />
@@ -273,7 +283,7 @@ export default function Settings() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: space(4), gap: space(6), paddingBottom: space(10) },
+  content: { padding: space(4), gap: space(6) },
   account: {
     flexDirection: "row",
     alignItems: "center",

@@ -53,10 +53,11 @@ export default function TabsLayout() {
             <MessagesSquare color={color} size={size - 2} strokeWidth={focused ? 2.4 : 2} />
           ),
           tabBarBadge: unread > 0 ? unread : undefined,
+          // Unread is news, not a request: a neutral count. Amber is only for what needs you.
           tabBarBadgeStyle: {
             ...badgeStyle,
-            color: colors.primaryForeground,
-            backgroundColor: colors.primary,
+            color: colors.surface,
+            backgroundColor: colors.mutedForeground,
           },
           tabBarAccessibilityLabel: unread > 0 ? `Chats, ${unread} unread` : "Chats",
           tabBarButtonTestID: "tab-chats",
@@ -71,7 +72,8 @@ export default function TabsLayout() {
           ),
           tabBarBadge: pending > 0 ? pending : undefined,
           tabBarBadgeStyle: { ...badgeStyle, color: "#1A1200", backgroundColor: colors.attention },
-          tabBarAccessibilityLabel: pending > 0 ? `Approvals, ${pending} waiting` : "Approvals",
+          tabBarAccessibilityLabel:
+            pending > 0 ? `Approvals, ${pending} need your approval` : "Approvals",
           tabBarButtonTestID: "tab-approvals",
         }}
       />

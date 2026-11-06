@@ -590,7 +590,7 @@ function EditDialog({
             </div>
           ))}
           {consent && (
-            <p className="flex items-start gap-2 rounded-lg bg-manual/12 px-3 py-2 text-[13px]">
+            <p className="flex items-start gap-2 rounded-lg bg-attention/12 px-3 py-2 text-[13px]">
               <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
               {provider.label} hasn&apos;t granted this yet. Continue to sign in again and allow it.
             </p>
@@ -768,9 +768,9 @@ function AccountRow({
           {!connection.askBeforeActing && " · doesn't always ask"}
         </span>
         {broken ? (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-manual/12 px-3 py-2 text-[13px]">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-attention/12 px-3 py-2 text-[13px]">
             <span className="flex min-w-0 flex-1 items-start gap-2">
-              <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-manual-ink" />
+              <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-attention-ink" />
               Needs reconnecting{account?.lastError ? `: ${account.lastError}` : "."}
             </span>
             <Button size="sm" variant="outline" onClick={reconnect} disabled={reconnecting}>
@@ -779,9 +779,9 @@ function AccountRow({
             </Button>
           </div>
         ) : connection.missingCapabilities.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-manual/12 px-3 py-2 text-[13px]">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-attention/12 px-3 py-2 text-[13px]">
             <span className="flex min-w-0 flex-1 items-start gap-2">
-              <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-manual-ink" />
+              <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-attention-ink" />
               {provider.label} didn&apos;t grant{" "}
               {connection.missingCapabilities
                 .map((capability) => `“${capabilityLabel(kind, capability)}”`)
@@ -795,7 +795,7 @@ function AccountRow({
           </div>
         ) : (
           endsSoon && (
-            <span className="flex items-center gap-1.5 text-[12.5px] text-manual-ink">
+            <span className="flex items-center gap-1.5 text-[12.5px] text-attention-ink">
               {provider.label} asks you to sign in again by {dateText(account!.expiresAt!)}.
               <button
                 type="button"

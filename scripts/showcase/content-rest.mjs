@@ -489,7 +489,7 @@ That widens the gap with Kestrel 2.0 at $25 for 200k pageviews. I would not chan
     id: release,
     botId: kit.id,
     kind: "webhook",
-    title: "GitHub release published",
+    title: "Update the changelog for a new release",
     prompt:
       "A release was published. Update the changelog draft with it and tell me if anything unexpected is in it.",
     token: releaseToken,
@@ -501,7 +501,7 @@ That widens the gap with Kestrel 2.0 at $25 for 200k pageviews. I would not chan
     at: ago({ d: 1, h: 4 }),
     trigger: "webhook",
     triggerId: release,
-    prompt: `[Webhook: "GitHub release published"]\n\nA release was published. Update the changelog draft with it and tell me if anything unexpected is in it.`,
+    prompt: `[Webhook: "Update the changelog for a new release"]\n\nA release was published. Update the changelog draft with it and tell me if anything unexpected is in it.`,
     items: [
       toolItem("search_history", "Read the release notes for v2.0.0-rc.2", "12 changes"),
       msgItem(
@@ -515,7 +515,7 @@ That widens the gap with Kestrel 2.0 at $25 for 200k pageviews. I would not chan
     triggerId: release,
     status: "failed",
     error: "The computer was restarting. Try again in a minute.",
-    prompt: `[Webhook: "GitHub release published"]\n\nA release was published. Update the changelog draft with it and tell me if anything unexpected is in it.`,
+    prompt: `[Webhook: "Update the changelog for a new release"]\n\nA release was published. Update the changelog draft with it and tell me if anything unexpected is in it.`,
     items: [
       { kind: "error", message: "The computer was restarting. Try again in a minute.", dur: 300 },
     ],
@@ -1453,7 +1453,7 @@ export async function seedNotifications(ctx) {
   });
   await n({
     kind: "run_failed",
-    title: "Kit couldn't finish: GitHub release published",
+    title: "Kit couldn't finish: Update the changelog for a new release",
     body: "The computer was restarting. Try again in a minute.",
     botId: kit.id,
     chatId: ctx.chats.kitSched?.id ?? chats.kitBug.id,

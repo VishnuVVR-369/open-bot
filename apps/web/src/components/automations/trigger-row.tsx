@@ -15,7 +15,6 @@ import {
   ExternalLink,
   Eye,
   Mail,
-  Pencil,
   RefreshCw,
   RotateCcw,
   Send,
@@ -25,9 +24,7 @@ import {
 import { useState, useSyncExternalStore, useTransition } from "react";
 import { toast } from "sonner";
 import { BotAvatar } from "@/components/bot-avatar";
-import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   checkTriggerNow,
   deleteTrigger,
@@ -38,7 +35,7 @@ import {
 import { useTriggerRuns } from "@/lib/client/queries";
 import type { BotSummary, TriggerView } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { ConfirmDelete, DetailLabel, LAST_RUN_TEXT, RowAction, RunHistory } from "./shared";
+import { DetailLabel, LAST_RUN_TEXT, RowAction, RowMenu, RunHistory, StateBadge } from "./shared";
 import { TriggerDialog } from "./trigger-dialog";
 import { copyWebhookUrl, isLocalOrigin, webhookUrl } from "./webhook-url";
 
@@ -132,7 +129,7 @@ function WebhookAddress({ trigger, botName }: { trigger: TriggerView; botName: s
         {`curl -X POST ${url} \\\n  -H 'content-type: application/json' -d '{"hello": "world"}'`}
       </pre>
       {local && (
-        <p className="text-[12.5px] text-waiting">
+        <p className="text-[12.5px] text-attention-ink">
           This address only works on this computer. Services on the internet can call it once
           open-bot runs on a public address.
         </p>
@@ -194,7 +191,6 @@ function StatusLine({ trigger }: { trigger: TriggerView }) {
     return (
       <span className="line-clamp-2 text-[13px] text-muted-foreground sm:truncate">
         {trigger.account ?? "No account"} · {accountWatch(trigger)}
-        {!trigger.enabled && " · paused"}
       </span>
     );
   }
@@ -203,7 +199,6 @@ function StatusLine({ trigger }: { trigger: TriggerView }) {
       <span className="truncate text-[13px] text-muted-foreground">
         Webhook ·{" "}
         {trigger.lastFiredAt ? `last called ${ago(trigger.lastFiredAt)}` : "not called yet"}
-        {!trigger.enabled && " · paused"}
       </span>
     );
   }
@@ -212,7 +207,6 @@ function StatusLine({ trigger }: { trigger: TriggerView }) {
       {shortUrl(trigger.url ?? "")} ·{" "}
       {describeInterval(trigger.intervalMinutes ?? 60).toLowerCase()}
       {trigger.lookFor && ` · waiting for “${trigger.lookFor}”`}
-      {!trigger.enabled && " · paused"}
     </span>
   );
 }
@@ -263,17 +257,12 @@ export function TriggerRow({
   refresh: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [busy, startBusy] = useTransition();
   const KindIcon = KIND_ICONS[trigger.kind];
 
   return (
-    <li
-      className={cn(
-        "rounded-xl bg-card shadow-raised",
-        !trigger.enabled && !expanded && "opacity-70",
-      )}
-      data-testid={trigger.kind}
-    >
+    <li className="rounded-xl bg-card shadow-raised" data-testid={trigger.kind}>
       <div className="flex flex-wrap items-center gap-4 px-4 py-3.5">
         {bot && (
           <span className="relative shrink-0">
@@ -294,9 +283,10 @@ export function TriggerRow({
             <span className="truncate text-[14.5px] font-medium group-hover:underline group-focus-visible:underline">
               {trigger.title}
             </span>
+            {!trigger.enabled && <StateBadge>Paused</StateBadge>}
             {trigger.createdBy === "bot" && (
-              <span className="shrink-0 rounded-full bg-subtle px-2 py-px text-[11px] text-muted-foreground">
-                set by {bot?.name ?? "a bot"}
+              <span className="shrink-0 text-[12px] text-muted-foreground">
+                Set by {bot?.name ?? "a teammate"}
               </span>
             )}
             <ChevronRight
@@ -352,31 +342,8 @@ export function TriggerRow({
               <Send />
             </RowAction>
           )}
-          <Tooltip>
-            <TriggerDialog
-              kind={trigger.kind}
-              existing={trigger}
-              trigger={
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" aria-label="Edit">
-                    <Pencil />
-                  </Button>
-                </TooltipTrigger>
-              }
-            />
-            <TooltipContent>Edit</TooltipContent>
-          </Tooltip>
-          <ConfirmDelete
-            title={`Delete “${trigger.title}”?`}
-            description={DELETE_TEXT[trigger.kind]}
-            onConfirm={async () => {
-              const result = await deleteTrigger(trigger.id);
-              if (!result.ok) toast.error(result.error);
-              refresh();
-            }}
-          />
           <Switch
-            className="ml-2"
+            className="mx-1.5"
             checked={trigger.enabled}
             aria-label={trigger.enabled ? "Pause" : "Resume"}
             onCheckedChange={async (checked) => {
@@ -384,6 +351,22 @@ export function TriggerRow({
               if (!result.ok) toast.error(result.error);
               refresh();
             }}
+          />
+          <RowMenu
+            title={trigger.title}
+            deleteDescription={DELETE_TEXT[trigger.kind]}
+            onEdit={() => setEditing(true)}
+            onDelete={async () => {
+              const result = await deleteTrigger(trigger.id);
+              if (!result.ok) toast.error(result.error);
+              refresh();
+            }}
+          />
+          <TriggerDialog
+            kind={trigger.kind}
+            existing={trigger}
+            open={editing}
+            onOpenChange={setEditing}
           />
         </div>
       </div>

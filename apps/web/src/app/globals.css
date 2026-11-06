@@ -7,7 +7,14 @@
 /*
  * open-bot palette: porcelain and ink.
  * The interface itself is monochrome. Color only ever means "someone": a teammate's own color,
- * or a signal light (live, you have control, waiting, done).
+ * or a status signal. Each signal has one meaning, everywhere:
+ *   attention (amber)   needs you: an approval, a take over, a screen you still hold
+ *   working   (blue)    a teammate is working on something
+ *   idle      (gray)    idle, asleep, queued or offline
+ *   destructive (red)   failed, or an action that destroys something
+ *   done      (green)   healthy or finished, and never beside a zero
+ * Use `attention` for fills, dots and tints, and `attention-ink` for amber text and icons.
+ * `tally` is the red light in the logo, a brand mark, not a status.
  */
 
 @theme inline {
@@ -44,11 +51,12 @@
   --color-subtle: var(--subtle);
   --color-bezel: var(--bezel);
   --color-bezel-foreground: var(--bezel-foreground);
-  --color-live: var(--live);
-  --color-manual: var(--manual);
-  --color-manual-ink: var(--manual-ink);
-  --color-waiting: var(--waiting);
+  --color-attention: var(--attention);
+  --color-attention-ink: var(--attention-ink);
+  --color-working: var(--working);
+  --color-idle: var(--idle);
   --color-done: var(--done);
+  --color-tally: var(--tally);
   --color-faint: var(--faint);
   --shadow-canvas: var(--elev-canvas);
   --shadow-raised: var(--elev-raised);
@@ -79,8 +87,8 @@
   --secondary: #f1f2f4;
   --secondary-foreground: #16171b;
   --muted: #f1f2f4;
-  --muted-foreground: #6a6e78;
-  --faint: #9a9ea7;
+  --muted-foreground: #646872;
+  --faint: #92969f;
   --accent: #f1f2f4;
   --accent-foreground: #16171b;
   --destructive: #d23c42;
@@ -98,12 +106,13 @@
   /* The computer: a dark screen sitting on the light desk. */
   --bezel: #121318;
   --bezel-foreground: #c9ccd4;
-  /* Signal lights. */
-  --live: #e5484d;
-  --manual: #f5a524;
-  --manual-ink: #9a5d00;
-  --waiting: #3b74f0;
+  /* Status signals (see the top of this file). */
+  --attention: #f5a524;
+  --attention-ink: #9a5d00;
+  --working: #3b74f0;
+  --idle: #a3a7b0;
   --done: #23935b;
+  --tally: #e5484d;
   /* Depth: a hairline and a soft fall-off, never a heavy drop shadow. */
   --elev-canvas:
     0 0 0 1px rgb(16 17 22 / 0.055), 0 1px 2px rgb(16 17 22 / 0.04),
@@ -130,8 +139,8 @@
   --secondary: #1e1f24;
   --secondary-foreground: #e8e9ed;
   --muted: #1e1f24;
-  --muted-foreground: #8c909a;
-  --faint: #5f636c;
+  --muted-foreground: #a5a9b3;
+  --faint: #737781;
   --accent: #212227;
   --accent-foreground: #e8e9ed;
   --destructive: #ef5b60;
@@ -148,11 +157,12 @@
   --sidebar-ring: #e8e9ed;
   --bezel: #060709;
   --bezel-foreground: #b8bcc5;
-  --live: #f0585d;
-  --manual: #f5b03c;
-  --manual-ink: #f5b03c;
-  --waiting: #6194ff;
+  --attention: #f5b03c;
+  --attention-ink: #f5b03c;
+  --working: #6194ff;
+  --idle: #6b6f79;
   --done: #3cb878;
+  --tally: #f0585d;
   --elev-canvas: 0 0 0 1px rgb(255 255 255 / 0.055), 0 12px 32px -16px rgb(0 0 0 / 0.6);
   --elev-raised: 0 0 0 1px rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.3);
   --elev-float:

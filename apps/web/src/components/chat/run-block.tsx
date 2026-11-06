@@ -38,6 +38,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { retryRun } from "@/lib/actions";
+import { useCoarsePointer } from "@/lib/client/pointer";
 import { readAloud, readingNow, stopReading, useReadAloud } from "@/lib/client/read-aloud";
 import type { BotSummary, RunView } from "@/lib/types";
 import { cn, compactNumber, formatDuration, REVEAL_ON_RUN_HOVER } from "@/lib/utils";
@@ -145,7 +146,7 @@ function RunTime({ run }: { run: RunView }) {
       dateTime={run.createdAt}
       data-testid="run-time"
     >
-      {format(new Date(run.createdAt), "HH:mm")}
+      {format(new Date(run.createdAt), "h:mm a")}
       {took !== null && ` · ${formatDuration(took)}`}
     </time>
   );
@@ -154,7 +155,7 @@ function RunTime({ run }: { run: RunView }) {
     <Tooltip>
       <TooltipTrigger asChild>{time}</TooltipTrigger>
       <TooltipContent data-testid="run-stats">
-        {format(new Date(run.createdAt), "EEE d MMM, HH:mm")} · {details.join(" · ")}
+        {format(new Date(run.createdAt), "EEE, MMM d, h:mm a")} · {details.join(" · ")}
       </TooltipContent>
     </Tooltip>
   );
@@ -370,15 +371,9 @@ function Elapsed({ since }: { since: string }) {
 }
 
 function WorkingLine({ run }: { run: RunView }) {
-  const { status, waitingFor } = run.timeline;
-  if (status === "waiting") {
-    return (
-      <div className="flex items-center gap-2 text-[13px] text-waiting">
-        <span className="size-2 rounded-full bg-waiting" />
-        {waitingFor === "takeover" ? "Waiting for you to take over" : "Waiting for your approval"}
-      </div>
-    );
-  }
+  const { status } = run.timeline;
+  // The approval or takeover card above already says what the run needs from you.
+  if (status === "waiting") return null;
   const label =
     status === "queued" ? "Up next" : status === "starting" ? "Getting ready" : "Working";
   return (
@@ -386,7 +381,7 @@ function WorkingLine({ run }: { run: RunView }) {
       <span
         className={cn(
           "size-2 rounded-full",
-          status === "queued" ? "bg-muted-foreground/50" : "animate-tally bg-live",
+          status === "queued" ? "bg-idle" : "animate-tally bg-working",
         )}
       />
       <span>{label}</span>
@@ -464,6 +459,28 @@ export function RunBlock({
   const showSteps = !collapsible || expanded;
   const name = bot?.name ?? "Former teammate";
   const reply = replyText(run);
+  // With a mouse, a reply's actions wait in its header until you hover it. A finger can't hover,
+  // so on a touch screen they sit quietly under the reply instead of crowding the name.
+  const touch = useCoarsePointer();
+  const actions = !active && (
+    <span
+      className={cn(
+        "flex items-center",
+        touch && "-ml-1.5 gap-1 [&_button:not([aria-pressed=true])]:text-faint",
+      )}
+    >
+      <RunMemory runId={run.id} />
+      {reply && (
+        <>
+          <CopyReply text={reply} />
+          <ReadAloud runId={run.id} text={reply} />
+          {run.timeline.status === "completed" && bot && (
+            <ReplyFeedback run={run} botName={name} chatId={chatId} />
+          )}
+        </>
+      )}
+    </span>
+  );
 
   // A routine that looked and found nothing needs no more than a line.
   if (!active && run.trigger === "schedule" && isNothingToReport(reply)) {
@@ -513,20 +530,7 @@ export function RunBlock({
             </span>
           )}
           <RunTime run={run} />
-          {!active && (
-            <span className="flex items-center">
-              <RunMemory runId={run.id} />
-              {reply && (
-                <>
-                  <CopyReply text={reply} />
-                  <ReadAloud runId={run.id} text={reply} />
-                  {run.timeline.status === "completed" && bot && (
-                    <ReplyFeedback run={run} botName={name} chatId={chatId} />
-                  )}
-                </>
-              )}
-            </span>
-          )}
+          {!touch && actions}
         </header>
 
         {collapsible && (
@@ -581,6 +585,7 @@ export function RunBlock({
           (run.timeline.status === "failed" || run.timeline.status === "interrupted") && (
             <RetryRun runId={run.id} />
           )}
+        {touch && actions}
       </div>
     </article>
   );

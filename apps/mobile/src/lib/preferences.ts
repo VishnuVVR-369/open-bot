@@ -6,10 +6,12 @@ import { Appearance } from "react-native";
 export interface Preferences {
   appearance: "system" | "light" | "dark";
   haptics: boolean;
+  /** Ask for a fingerprint when the app opens, and after five minutes away. */
+  appLock: boolean;
 }
 
 const KEY = "openbot:preferences";
-const DEFAULTS: Preferences = { appearance: "system", haptics: true };
+const DEFAULTS: Preferences = { appearance: "system", haptics: true, appLock: true };
 
 let current: Preferences = DEFAULTS;
 const listeners = new Set<() => void>();

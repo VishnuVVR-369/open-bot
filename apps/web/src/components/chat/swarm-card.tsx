@@ -24,7 +24,7 @@ import { cn, plainText } from "@/lib/utils";
 
 const STATE: Record<SwarmTaskState, { label: string; className: string }> = {
   queued: { label: "Waiting to start", className: "text-muted-foreground" },
-  running: { label: "Working", className: "text-live" },
+  running: { label: "Working", className: "text-working" },
   completed: { label: "Done", className: "text-done" },
   failed: { label: "Couldn't finish", className: "text-destructive" },
   stopped: { label: "Stopped", className: "text-muted-foreground" },
@@ -35,7 +35,7 @@ function StateIcon({ state }: { state: SwarmTaskState }) {
     case "queued":
       return <Clock className="size-3.5" />;
     case "running":
-      return <span className="size-1.5 animate-tally rounded-full bg-live" />;
+      return <span className="size-1.5 animate-tally rounded-full bg-working" />;
     case "completed":
       return <Check className="size-3.5" />;
     case "failed":

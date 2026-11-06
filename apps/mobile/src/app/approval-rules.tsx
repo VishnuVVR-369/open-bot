@@ -14,6 +14,7 @@ import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/errors";
 import { useApprovalRules, useTeammates } from "@/lib/queries";
 import { queryKeys } from "@/lib/query";
+import { useSafeBottom } from "@/lib/use-safe-bottom";
 import { space, useColors } from "@/theme";
 
 const KIND: Record<RuleKind, string> = {
@@ -25,6 +26,7 @@ const KIND: Record<RuleKind, string> = {
 
 /** What each teammate may do without asking, from "Always allow". Remove one to be asked again. */
 export default function ApprovalRules() {
+  const bottom = useSafeBottom();
   const colors = useColors();
   const queryClient = useQueryClient();
   const rules = useApprovalRules();
@@ -70,7 +72,7 @@ export default function ApprovalRules() {
       />
     );
   return (
-    <ScrollView contentContainerStyle={styles.content}>
+    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottom }]}>
       <Text variant="small" muted style={styles.intro}>
         Teammates do these without asking. Remove one to be asked again.
       </Text>
@@ -132,7 +134,7 @@ export default function ApprovalRules() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: space(4), gap: space(6), paddingBottom: space(8) },
+  content: { padding: space(4), gap: space(6) },
   intro: { paddingHorizontal: space(1) },
   head: {
     flexDirection: "row",

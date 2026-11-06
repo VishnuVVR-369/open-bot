@@ -18,6 +18,7 @@ import {
   Hand,
   History,
   Mail,
+  Monitor,
   ShieldAlert,
   Sparkles,
   Users,
@@ -33,7 +34,7 @@ import {
   View,
   useColorScheme,
 } from "react-native";
-import { BotAvatar, botActivity, GroupAvatar } from "@/components/bot-avatar";
+import { BotAvatar, botActivity, GroupAvatar, needsYouText } from "@/components/bot-avatar";
 import { ConnectionNotice } from "@/components/connection-notice";
 import { Card, Section } from "@/components/section";
 import { Empty, LoadError, Loading } from "@/components/states";
@@ -139,8 +140,9 @@ function NeedsYou({ home, bots }: { home: Home; bots: BotSummary[] }) {
   );
   if (home.pendingApprovals === 0 && home.takeoverRequests.length === 0 && proposals.length === 0)
     return null;
+  const actionable = home.pendingApprovals > 0 || home.takeoverRequests.length > 0;
   return (
-    <Section title="Needs you">
+    <Section title={actionable ? "Needs you" : "For you"}>
       <View style={{ gap: space(2) }}>
         {home.takeoverRequests.map((request) => {
           const bot = bots.find((entry) => entry.id === request.botId);
@@ -193,8 +195,8 @@ function NeedsYou({ home, bots }: { home: Home; bots: BotSummary[] }) {
           >
             <Text variant="label">
               {home.pendingApprovals === 1
-                ? "1 action waiting for your OK"
-                : `${home.pendingApprovals} actions waiting for your OK`}
+                ? "1 action needs your approval"
+                : `${home.pendingApprovals} actions need your approval`}
             </Text>
             {asking.length > 0 && (
               <Text variant="small" muted numberOfLines={1}>
@@ -203,17 +205,26 @@ function NeedsYou({ home, bots }: { home: Home; bots: BotSummary[] }) {
             )}
           </Callout>
         )}
+        {/* Not something to act on from the phone, so it stays quiet and comes last. */}
         {proposals.map((proposal) => (
           <View
             key={proposal.id}
-            style={[styles.note, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            style={[styles.note, { borderColor: colors.border }]}
+            accessible
+            accessibilityLabel={`${proposal.bot.name} suggests new instructions. Review them on your computer.`}
+            testID="proposal"
           >
-            <Sparkles size={18} color={colors.mutedForeground} />
+            <Sparkles size={16} color={colors.mutedForeground} />
             <View style={{ flex: 1, gap: 2 }}>
-              <Text variant="label">{proposal.bot.name} suggests new instructions</Text>
-              <Text variant="small" muted>
-                Review them in open-bot on a computer.
+              <Text variant="small" style={{ fontSize: 14, fontWeight: "500" }}>
+                {proposal.bot.name} suggests new instructions
               </Text>
+              <View style={styles.noteTag}>
+                <Monitor size={12} color={colors.mutedForeground} />
+                <Text variant="caption" muted>
+                  Review on desktop
+                </Text>
+              </View>
             </View>
           </View>
         ))}
@@ -388,9 +399,7 @@ function TeammateRow({
   const unread = Boolean(chat?.unread);
   const state =
     activity === "waiting"
-      ? bot.activeRun?.waitingFor === "takeover"
-        ? "Needs you to take over"
-        : "Waiting for your OK"
+      ? needsYouText(bot.activeRun?.waitingFor)
       : activity === "working"
         ? "Working on it…"
         : activity === "queued"
@@ -582,7 +591,9 @@ function ActivityRow({
               color: item.status === "waiting" ? colors.attentionInk : colors.working,
             }}
           >
-            {item.status === "waiting" ? "Waiting for you" : "Working on it…"}
+            {item.status === "waiting"
+              ? needsYouText(bot?.activeRun?.id === item.runId ? bot.activeRun.waitingFor : null)
+              : "Working on it…"}
           </Text>
         ) : (
           <Text
@@ -770,11 +781,14 @@ const styles = StyleSheet.create({
   note: {
     flexDirection: "row",
     alignItems: "center",
-    gap: space(3),
+    gap: space(2.5),
     borderWidth: 1,
+    borderStyle: "dashed",
     borderRadius: radius.xl,
-    padding: space(3.5),
+    paddingHorizontal: space(3.5),
+    paddingVertical: space(3),
   },
+  noteTag: { flexDirection: "row", alignItems: "center", gap: space(1) },
   briefing: {
     borderWidth: 1,
     borderRadius: radius.xl,

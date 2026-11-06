@@ -66,7 +66,8 @@ test("@agent rate a reply, teach a lesson, and see it used in a new chat", async
   const lesson = page.getByTestId("memory-item").filter({ hasText: LESSON });
   await expect(lesson).toHaveCount(1);
   await expect(lesson).toContainText(LESSON);
-  await lesson.getByRole("button", { name: "History", exact: true }).click();
+  await lesson.getByRole("button", { name: "More actions" }).click();
+  await page.getByRole("menuitem", { name: "History" }).click();
   await expect(page.getByRole("link", { name: "See source conversation" }).first()).toHaveAttribute(
     "href",
     /\/chats\/.+#run-/,
@@ -94,8 +95,9 @@ test("@agent rate a reply, teach a lesson, and see it used in a new chat", async
   await page
     .getByTestId("memory-item")
     .filter({ hasText: LESSON })
-    .getByRole("button", { name: "Forget", exact: true })
+    .getByRole("button", { name: "More actions" })
     .click();
+  await page.getByRole("menuitem", { name: "Forget" }).click();
   await page.getByRole("button", { name: "Forget memory", exact: true }).click();
   await expect(page.getByTestId("memory-item").filter({ hasText: LESSON })).toHaveCount(0);
 });

@@ -34,7 +34,7 @@ import {
 import { router } from "expo-router";
 import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
-import { BotAvatar } from "@/components/bot-avatar";
+import { BotAvatar, needsYouText } from "@/components/bot-avatar";
 import { Button } from "@/components/button";
 import { Markdown } from "@/components/markdown";
 import { Text } from "@/components/text";
@@ -185,7 +185,7 @@ function WorkingLine({ run }: { run: RunView }) {
       <View style={styles.working} accessibilityLiveRegion="polite">
         <View style={[styles.dot, { backgroundColor: colors.attention }]} />
         <Text variant="small" style={{ color: colors.attentionInk, fontWeight: "500" }}>
-          {waitingFor === "takeover" ? "Waiting for you to take over" : "Waiting for your OK"}
+          {needsYouText(waitingFor)}
         </Text>
       </View>
     );

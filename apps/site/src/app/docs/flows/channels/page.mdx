@@ -94,7 +94,7 @@ Each teammate can have an email address on your domain, `<slug>@<your-domain>`, 
 
 Teammates write with `send_email`, and can thread a reply under an email they received with `reply_to`.
 
-- A teammate on **Full auto** sends at once.
+- A teammate set to **Works on its own** sends at once.
 - Any other teammate's email goes to an **outbox** and waits for an `email` approval. It doesn't block the run.
 - The moment you approve, the worker sends it through Postmark, threaded with `In-Reply-To` when it answers an email, even if the run ended long ago. A denial is reported back to the teammate.
 

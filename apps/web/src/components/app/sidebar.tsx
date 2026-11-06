@@ -16,6 +16,7 @@ import {
   Sun,
   Users,
   ListTodo,
+  X,
   Zap,
 } from "lucide-react";
 import Link from "next/link";
@@ -36,7 +37,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { authClient } from "@/lib/auth-client";
 import { useAppState } from "@/lib/client/queries";
-import { botActivity, botStatusText } from "@/lib/status";
+import { botActivity, botNeedsText, botSubtitle } from "@/lib/status";
 import type { AppState } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useCommandMenu } from "./command-menu";
@@ -75,7 +76,7 @@ function NavItem({
       />
       <span className="flex-1 truncate">{label}</span>
       {badge ? (
-        <span className="min-w-5 rounded-full bg-waiting px-1.5 text-center text-[11px] leading-[18px] font-semibold text-white tabular-nums">
+        <span className="min-w-5 rounded-full bg-attention px-1.5 text-center text-[11px] leading-[18px] font-semibold text-black/85 tabular-nums">
           {badge}
         </span>
       ) : null}
@@ -102,7 +103,8 @@ function SearchItem({ onNavigate }: { onNavigate?: () => void }) {
     >
       <Search className="size-4 shrink-0 opacity-70" strokeWidth={1.8} />
       <span className="flex-1 truncate">Search</span>
-      <kbd className="rounded-[5px] bg-sidebar-accent px-1.5 font-sans text-[11px] leading-[18px] text-muted-foreground">
+      {/* A keyboard shortcut means nothing on a touch screen. */}
+      <kbd className="rounded-[5px] bg-sidebar-accent px-1.5 font-sans text-[11px] leading-[18px] text-muted-foreground pointer-coarse:hidden">
         {shortcut}
       </kbd>
     </button>
@@ -118,7 +120,16 @@ function SectionHeader({ title, action }: { title: string; action?: React.ReactN
   );
 }
 
-export function Sidebar({ initial, onNavigate }: { initial: AppState; onNavigate?: () => void }) {
+export function Sidebar({
+  initial,
+  onNavigate,
+  onClose,
+}: {
+  initial: AppState;
+  onNavigate?: () => void;
+  /** Shown as a close button, when the sidebar is a drawer over the page. */
+  onClose?: () => void;
+}) {
   const { data } = useAppState(initial);
   const state = data ?? initial;
   const pathname = usePathname();
@@ -142,7 +153,20 @@ export function Sidebar({ initial, onNavigate }: { initial: AppState; onNavigate
         >
           <Wordmark />
         </Link>
-        <NotificationsButton count={state.unreadNotifications} />
+        <div className="flex items-center gap-0.5">
+          <NotificationsButton count={state.unreadNotifications} />
+          {onClose && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Close menu"
+              onClick={onClose}
+              data-testid="close-menu"
+            >
+              <X />
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-2.5 pt-1 pb-4">
@@ -270,10 +294,10 @@ export function Sidebar({ initial, onNavigate }: { initial: AppState; onNavigate
                   <span
                     className={cn(
                       "truncate text-[12px] leading-tight text-muted-foreground",
-                      bot.activeRun?.status === "waiting" && "text-waiting",
+                      botNeedsText(bot) && "text-attention-ink",
                     )}
                   >
-                    {botStatusText(bot)}
+                    {botSubtitle(bot)}
                   </span>
                 </span>
               </Link>
@@ -315,16 +339,24 @@ export function Sidebar({ initial, onNavigate }: { initial: AppState; onNavigate
                     </span>
                   </span>
                   {chat.active && (
-                    <span className="size-2 shrink-0 animate-tally rounded-full bg-live" />
+                    <span
+                      className="size-2 shrink-0 animate-tally rounded-full bg-working"
+                      aria-label="Working"
+                    />
                   )}
                 </Link>
               );
             })}
           </div>
         )}
+        {/* Where the list runs on under the account row, it fades out instead of being cut. */}
+        <div
+          aria-hidden
+          className="pointer-events-none sticky bottom-0 z-10 -mt-6 -mb-4 h-5 shrink-0 bg-gradient-to-t from-sidebar to-transparent"
+        />
       </div>
 
-      <div className="flex shrink-0 items-center gap-1 px-2.5 py-2.5">
+      <div className="flex shrink-0 items-center gap-1 border-t border-sidebar-border/70 px-2.5 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))]">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-sidebar-accent/70 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">

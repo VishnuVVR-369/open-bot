@@ -6,6 +6,7 @@ export * from "./schedule";
 export * from "./model-access";
 export * from "./skills";
 export * from "./approval-rules";
+export * from "./approval-display";
 export * from "./triggers";
 export * from "./telegram";
 export * from "./templates";

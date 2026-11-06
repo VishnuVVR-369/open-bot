@@ -5,7 +5,7 @@ import { StyleSheet, View, type TextProps } from "react-native";
 import { ApprovalIcon } from "@/components/approval-icon";
 import { BotAvatar, type AvatarSize, type BotActivity } from "@/components/bot-avatar";
 import { Text, type TextVariant } from "@/components/text";
-import { titleParts, type ApprovalRisk } from "@/lib/approval-text";
+import { detailRows, titleParts, type ApprovalRisk } from "@/lib/approval-text";
 import { fonts, radius, space, useColors } from "@/theme";
 import { mix } from "@/theme/mix";
 
@@ -37,14 +37,14 @@ export function AvatarBadge({
 /** A teammate's face with what they asked to do in its corner. */
 export function ApprovalAvatar({
   bot,
-  kind,
+  approval,
   pending,
   size = "lg",
   activity = "idle",
   behind,
 }: {
   bot: Pick<BotSummary, "name" | "color" | "emoji"> | undefined;
-  kind: ApprovalView["kind"];
+  approval: Pick<ApprovalView, "kind" | "title" | "preview">;
   pending: boolean;
   size?: AvatarSize;
   activity?: BotActivity;
@@ -57,7 +57,13 @@ export function ApprovalAvatar({
       tint={pending ? colors.attention : colors.subtle}
       ink={behind}
       badge={
-        <ApprovalIcon kind={kind} size={11} color={pending ? ON_ATTENTION : colors.foreground} />
+        <ApprovalIcon
+          kind={approval.kind}
+          title={approval.title}
+          preview={approval.preview}
+          size={11}
+          color={pending ? ON_ATTENTION : colors.foreground}
+        />
       }
     >
       <BotAvatar
@@ -66,7 +72,6 @@ export function ApprovalAvatar({
         emoji={bot?.emoji}
         size={size}
         activity={activity}
-        mark={false}
       />
     </AvatarBadge>
   );
@@ -143,6 +148,51 @@ export function ApprovalTitle({
   );
 }
 
+/**
+ * A detail written as "Label: value" lines, as a summary and labeled rows, or null when the
+ * detail isn't shaped that way (the caller shows it as written).
+ */
+export function DetailRows({ detail, background }: { detail: string; background?: string }) {
+  const colors = useColors();
+  const parsed = detailRows(detail);
+  if (!parsed) return null;
+  return (
+    <View style={{ gap: space(2.5) }}>
+      {parsed.summary && (
+        <Text variant="small" selectable style={{ fontSize: 14, lineHeight: 20 }}>
+          {parsed.summary}
+        </Text>
+      )}
+      <View
+        style={[
+          styles.rows,
+          { backgroundColor: background ?? colors.surface, borderColor: colors.border },
+        ]}
+      >
+        {parsed.rows.map((row, index) => (
+          <View
+            key={`${row.label}-${index}`}
+            style={[
+              styles.detailRow,
+              index > 0 && {
+                borderTopWidth: StyleSheet.hairlineWidth,
+                borderTopColor: colors.border,
+              },
+            ]}
+          >
+            <Text variant="caption" muted style={styles.detailLabel}>
+              {row.label}
+            </Text>
+            <Text variant="small" selectable style={{ flex: 1, fontSize: 14, lineHeight: 20 }}>
+              {row.value}
+            </Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 /** A second-look note: red for what can't be undone, amber for money and mail. */
 export function RiskNote({ risk }: { risk: ApprovalRisk }) {
   const colors = useColors();
@@ -180,6 +230,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  rows: { borderWidth: 1, borderRadius: radius.lg, overflow: "hidden" },
+  detailRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: space(3),
+    paddingHorizontal: space(3),
+    paddingVertical: space(2.5),
+  },
+  // Sized for the longest usual label ("Card", "Back", "Route") so values line up.
+  detailLabel: { width: 52, fontSize: 13, lineHeight: 20 },
   chip: {
     flexDirection: "row",
     alignItems: "center",

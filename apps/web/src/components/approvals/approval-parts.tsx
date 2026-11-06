@@ -1,0 +1,214 @@
+"use client";
+
+import {
+  approvalRisk,
+  approveLabel,
+  commandParts,
+  detailFields,
+  ruleAllowed,
+  type AccountActionPreview,
+  type ApprovalFacts,
+  type ApprovalKind,
+  type ApprovalRisk,
+} from "@open-bot/shared";
+import { useQueryClient } from "@tanstack/react-query";
+import { Check, CircleAlert, CreditCard, Mail, ShieldAlert, TriangleAlert } from "lucide-react";
+import { useTransition } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { decideApproval } from "@/lib/actions";
+import { queryKeys } from "@/lib/client/queries";
+import { cn } from "@/lib/utils";
+import { ActionPreview, previewIcon } from "./action-preview";
+import { AlwaysAllowButton } from "./always-allow";
+
+/** The surface of an approval waiting on you: the "needs you" amber, kept quiet. */
+export const NEEDS_YOU_SURFACE =
+  "border border-attention/40 bg-attention/[0.05] dark:bg-attention/[0.06]";
+
+/** What an approval is, in the shape the display helpers take. */
+export interface ApprovalSubject {
+  kind: ApprovalKind;
+  title: string;
+  detail: string;
+  subject?: string | null;
+  askEveryTime?: boolean;
+  preview?: AccountActionPreview | null;
+}
+
+export function approvalFacts(approval: ApprovalSubject): ApprovalFacts {
+  return {
+    kind: approval.kind,
+    title: approval.title,
+    detail: approval.detail,
+    subject: approval.subject,
+    previewType: approval.preview?.type ?? null,
+  };
+}
+
+/** The icon for what an approval does: mail, a card, a calendar, or a plain shield. */
+export function ApprovalIcon({
+  approval,
+  className,
+}: {
+  approval: ApprovalSubject;
+  className?: string;
+}) {
+  const Icon =
+    previewIcon(approval.preview) ??
+    (approval.kind === "purchase" ? CreditCard : approval.kind === "email" ? Mail : ShieldAlert);
+  return <Icon className={className} />;
+}
+
+/** A few words on what's at stake: "Spends money", "Sends an email", "Can't be undone". */
+export function RiskChip({ risk, className }: { risk: ApprovalRisk; className?: string }) {
+  const Icon = risk.tone === "destructive" ? TriangleAlert : CircleAlert;
+  return (
+    <span
+      title={risk.text}
+      className={cn(
+        "inline-flex h-[22px] shrink-0 items-center gap-1 rounded-full px-2 text-[12px] font-medium whitespace-nowrap",
+        risk.tone === "destructive"
+          ? "bg-destructive/10 text-destructive"
+          : "bg-attention/15 text-attention-ink",
+        className,
+      )}
+      data-testid="risk-chip"
+    >
+      <Icon className="size-3" />
+      {risk.label}
+    </span>
+  );
+}
+
+export function riskOf(approval: ApprovalSubject) {
+  return approvalRisk(approvalFacts(approval));
+}
+
+/**
+ * What approving does, laid out to check at a glance: an account action's exact preview,
+ * a command as code, or labeled rows (Out, Back, Card) for details written as "Label: value".
+ */
+export function ApprovalDetail({
+  approval,
+  className,
+}: {
+  approval: ApprovalSubject;
+  className?: string;
+}) {
+  if (approval.preview)
+    return <ActionPreview preview={approval.preview} className={cn("max-w-[680px]", className)} />;
+  const detail = approval.detail.trim();
+  if (!detail) return null;
+
+  if (detail.split("\n").some((line) => line.startsWith("$ "))) {
+    const { reason, command, cwd } = commandParts(detail);
+    return (
+      <div className={cn("flex max-w-[680px] min-w-0 flex-col gap-1.5", className)}>
+        {reason && (
+          <p className="text-[13.5px] leading-relaxed whitespace-pre-wrap text-foreground/85">
+            {reason}
+          </p>
+        )}
+        {command && (
+          <pre className="max-h-60 overflow-auto rounded-lg border bg-card px-3 py-2 font-mono text-[12.5px] leading-relaxed whitespace-pre-wrap text-foreground">
+            {command}
+          </pre>
+        )}
+        {cwd && <span className="text-[12.5px] text-muted-foreground">in {cwd}</span>}
+      </div>
+    );
+  }
+
+  const { text, fields } = detailFields(detail);
+  return (
+    <div
+      className={cn(
+        "flex max-w-[680px] min-w-0 flex-col gap-2.5 rounded-lg border bg-card px-3.5 py-3 text-[13.5px]",
+        className,
+      )}
+      data-testid="approval-detail"
+    >
+      {text.length > 0 && (
+        <p className="leading-relaxed whitespace-pre-wrap text-foreground/90">{text.join("\n")}</p>
+      )}
+      {fields.length > 0 && (
+        <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-1.5">
+          {fields.map((field) => (
+            <div key={field.label} className="contents">
+              <dt className="text-[13px] text-muted-foreground">{field.label}</dt>
+              <dd className="min-w-0 break-words text-foreground">{field.value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </div>
+  );
+}
+
+/** Approve, deny, or approve and allow from now on. The approve button says what happens. */
+export function ApprovalDecision({
+  approvalId,
+  approval,
+  botName,
+  className,
+}: {
+  approvalId: string;
+  approval: ApprovalSubject;
+  botName: string;
+  className?: string;
+}) {
+  const [pending, startTransition] = useTransition();
+  const queryClient = useQueryClient();
+  const decide = (decision: "approved" | "denied", alwaysAllow?: string) =>
+    startTransition(async () => {
+      const result = await decideApproval(
+        approvalId,
+        decision,
+        alwaysAllow === undefined ? null : { pattern: alwaysAllow },
+      );
+      if (!result.ok) toast.error(result.error);
+      else if (alwaysAllow !== undefined)
+        toast("Approved, and allowed from now on", {
+          description: `${botName} won't ask about this again.`,
+        });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.approvals }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.state }),
+      ]);
+    });
+
+  return (
+    <div className={cn("flex flex-wrap items-center gap-2", className)}>
+      <Button
+        size="lg"
+        className="px-3.5"
+        onClick={() => decide("approved")}
+        disabled={pending}
+        data-testid="approve"
+      >
+        <Check />
+        {approveLabel(approvalFacts(approval))}
+      </Button>
+      <Button
+        size="lg"
+        variant="outline"
+        className="px-3.5"
+        onClick={() => decide("denied")}
+        disabled={pending}
+        data-testid="deny"
+      >
+        Deny
+      </Button>
+      {ruleAllowed(approval.kind) && !approval.askEveryTime && (
+        <AlwaysAllowButton
+          kind={approval.kind}
+          subject={approval.subject ?? approval.title}
+          botName={botName}
+          disabled={pending}
+          onConfirm={async (pattern) => decide("approved", pattern)}
+        />
+      )}
+    </div>
+  );
+}

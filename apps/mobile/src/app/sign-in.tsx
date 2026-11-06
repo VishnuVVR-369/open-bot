@@ -216,7 +216,7 @@ export default function SignIn() {
           {/* Which server a development build talks to; everyone else has just the one. */}
           {__DEV__ ? (
             <Text variant="caption" muted style={{ textAlign: "center" }}>
-              {new URL(APP_URL).host}
+              Server: {new URL(APP_URL).host}
             </Text>
           ) : null}
         </ScrollView>

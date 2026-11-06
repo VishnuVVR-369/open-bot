@@ -14,7 +14,7 @@ export function Logo({ className, live = true }: { className?: string; live?: bo
         className="fill-none stroke-background"
         strokeWidth="2"
       />
-      <circle cx="22.5" cy="11.5" r="1.5" className={live ? "fill-live" : "fill-background"} />
+      <circle cx="22.5" cy="11.5" r="1.5" className={live ? "fill-tally" : "fill-background"} />
       <path d="M12.5 24.5h7" className="stroke-background" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );

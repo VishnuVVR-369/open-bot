@@ -55,10 +55,12 @@ test.describe("versioned memory in an isolated database", () => {
     const item = page
       .getByTestId("memory-item")
       .filter({ hasText: "I prefer remote engineering roles." });
-    await expect(item).toContainText("Revision 1");
+    await expect(item).toContainText("Saved by you");
+    await expect(item).not.toContainText("Revision");
     await page.reload();
     await expect(item).toBeVisible();
-    await item.getByRole("button", { name: "Edit", exact: true }).click();
+    await item.getByRole("button", { name: "More actions" }).click();
+    await page.getByRole("menuitem", { name: "Edit" }).click();
     await page
       .getByRole("textbox", { name: "Memory", exact: true })
       .fill("I prefer hybrid engineering roles.");
@@ -67,7 +69,8 @@ test.describe("versioned memory in an isolated database", () => {
       .getByTestId("memory-item")
       .filter({ hasText: "I prefer hybrid engineering roles." });
     await expect(current).toContainText("Revision 2");
-    await current.getByRole("button", { name: "History", exact: true }).click();
+    await current.getByRole("button", { name: "More actions" }).click();
+    await page.getByRole("menuitem", { name: "History" }).click();
     await expect(page.getByRole("dialog")).toContainText("I prefer remote engineering roles.");
     await page.getByRole("button", { name: "Restore revision 1", exact: true }).click();
     await expect(page.getByRole("dialog")).toContainText("Revision 3");
@@ -87,7 +90,8 @@ test.describe("versioned memory in an isolated database", () => {
     await expect(page.getByText("No memories match that search.")).toBeVisible();
     await page.getByLabel("Search memories").fill("remote");
     await expect(item).toBeVisible();
-    await item.getByRole("button", { name: "Forget", exact: true }).click();
+    await item.getByRole("button", { name: "More actions" }).click();
+    await page.getByRole("menuitem", { name: "Forget" }).click();
     await page.getByRole("button", { name: "Forget memory", exact: true }).click();
     await expect(item).toHaveCount(0);
     const revisions = await pool.query(
@@ -146,12 +150,14 @@ test.describe("versioned memory in an isolated database", () => {
     const other = await context.newPage();
     await other.goto(`/bots/${botId}?tab=memory`);
     const item = page.getByTestId("memory-item").filter({ hasText: "Example Air" });
-    await item.getByRole("button", { name: "Edit", exact: true }).click();
+    await item.getByRole("button", { name: "More actions" }).click();
+    await page.getByRole("menuitem", { name: "Edit" }).click();
     await other
       .getByTestId("memory-item")
       .filter({ hasText: "Example Air" })
-      .getByRole("button", { name: "Edit", exact: true })
+      .getByRole("button", { name: "More actions" })
       .click();
+    await other.getByRole("menuitem", { name: "Edit" }).click();
     await other
       .getByRole("textbox", { name: "Memory", exact: true })
       .fill("My preferred airline is New Air.");

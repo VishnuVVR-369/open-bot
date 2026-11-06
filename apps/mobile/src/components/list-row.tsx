@@ -50,8 +50,8 @@ export function ListRow({
   );
 }
 
-/** The line between rows, starting where the text does: after a 48 wide leading item by default. */
-export function Separator({ inset = space(4) + 48 + space(3) }: { inset?: number }) {
+/** The line between rows, starting where the text does: after a list avatar (44 wide) by default. */
+export function Separator({ inset = space(4) + 44 + space(3) }: { inset?: number }) {
   const colors = useColors();
   return (
     <View

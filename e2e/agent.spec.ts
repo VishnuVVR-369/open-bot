@@ -56,7 +56,7 @@ test.describe("@agent bots at work", () => {
 
   test("always allowing a command stops the bot asking about it", async ({ page }) => {
     const name = uniqueName("Alw");
-    await createTeammate(page, name, "assistant", "Ask before every command");
+    await createTeammate(page, name, "assistant", "Asks before every command");
     await sendMessage(
       page,
       "Run the shell command `date -u` on its own and tell me what it printed.",

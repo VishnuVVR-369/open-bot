@@ -1,7 +1,19 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Download, History, Loader2, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { format } from "date-fns";
+import {
+  Check,
+  Download,
+  Ellipsis,
+  History,
+  Loader2,
+  Pencil,
+  Pin,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { type MemoryItem, type MemoryRevision } from "@open-bot/shared";
@@ -10,6 +22,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -35,12 +54,130 @@ import {
   restoreMemoryItem,
 } from "@/lib/actions";
 import { getJson } from "@/lib/client/api";
+import { useAppState } from "@/lib/client/queries";
 
-function sourceLabel(item: MemoryItem) {
-  if (item.source.type === "feedback") return "Your feedback";
-  if (item.source.type === "import") return "Imported notes";
-  if (item.source.type === "extraction") return "Suggested from a conversation";
-  return item.source.type === "user" ? "Saved by you" : "Saved by a teammate";
+/** Who saved a memory, by name when a teammate did. */
+function sourceLabel(item: MemoryItem, teammate: string | null) {
+  if (item.source.type === "feedback") return "From your feedback";
+  if (item.source.type === "import") return "Imported";
+  if (item.source.type === "user") return "Saved by you";
+  const verb =
+    item.state === "candidate" || item.source.type === "extraction" ? "Suggested" : "Saved";
+  if (teammate) return `${verb} by ${teammate}`;
+  return item.source.type === "extraction"
+    ? `${verb} from a conversation`
+    : `${verb} by a teammate`;
+}
+
+const KIND_LABEL: Record<MemoryItem["kind"], string> = {
+  fact: "Fact",
+  preference: "Preference",
+  lesson: "Lesson",
+  note: "Note",
+};
+
+function MemoryRow({
+  item,
+  savedBy,
+  busy,
+  onConfirm,
+  onEdit,
+  onHistory,
+  onForget,
+}: {
+  item: MemoryItem;
+  savedBy: string | null;
+  busy: boolean;
+  onConfirm: () => void;
+  onEdit: () => void;
+  onHistory: () => void;
+  onForget: () => void;
+}) {
+  const suggestion = item.state === "candidate";
+  const expired = item.expiresAt !== null && new Date(item.expiresAt) <= new Date();
+  return (
+    <article
+      data-testid="memory-item"
+      className="group/memory flex items-start gap-3 py-3.5 pr-2.5 pl-4 transition-colors hover:bg-subtle/40"
+    >
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12.5px] text-muted-foreground">
+          {suggestion && (
+            <span className="mr-0.5 rounded-full bg-foreground/[0.07] px-2 py-px font-medium text-foreground">
+              Suggestion
+            </span>
+          )}
+          <span>{KIND_LABEL[item.kind]}</span>
+          <span aria-hidden>·</span>
+          <span>{sourceLabel(item, savedBy)}</span>
+          {item.pinned && (
+            <>
+              <span aria-hidden>·</span>
+              <span className="inline-flex items-center gap-1">
+                <Pin className="size-3" />
+                Pinned
+              </span>
+            </>
+          )}
+          {item.expiresAt && (
+            <>
+              <span aria-hidden>·</span>
+              <span>
+                {expired ? "Expired" : "Expires"} {format(new Date(item.expiresAt), "MMM d")}
+              </span>
+            </>
+          )}
+          {item.revision > 1 && (
+            <>
+              <span aria-hidden>·</span>
+              <span>Revision {item.revision}</span>
+            </>
+          )}
+        </div>
+        <p className="text-[14px] leading-relaxed break-words whitespace-pre-wrap">
+          {item.content}
+        </p>
+        {suggestion && (
+          <div className="mt-1 flex items-center gap-2">
+            <Button size="sm" disabled={busy} onClick={onConfirm}>
+              <Check /> Confirm
+            </Button>
+            <Button size="sm" variant="outline" disabled={busy} onClick={onForget}>
+              Dismiss
+            </Button>
+          </div>
+        )}
+      </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="More actions"
+            className="text-muted-foreground opacity-0 group-focus-within/memory:opacity-100 group-hover/memory:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"
+          >
+            <Ellipsis />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-40">
+          <DropdownMenuItem onSelect={onEdit}>
+            <Pencil /> Edit
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={onHistory}>
+            <History /> History
+          </DropdownMenuItem>
+          {!suggestion && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onSelect={onForget}>
+                <Trash2 /> Forget
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </article>
+  );
 }
 
 export function MemoryManager({ botId, name }: { botId: string | null; name: string }) {
@@ -74,6 +211,9 @@ export function MemoryManager({ botId, name }: { botId: string | null; name: str
     enabled: !!history,
   });
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["memory"] });
+  const { data: state } = useAppState();
+  const savedBy = (item: MemoryItem) =>
+    state?.bots.find((bot) => bot.id === item.source.botId)?.name ?? null;
   function edit(item: MemoryItem | null) {
     setProblem(null);
     setDraft({
@@ -101,33 +241,31 @@ export function MemoryManager({ botId, name }: { botId: string | null; name: str
   }
   return (
     <section className="flex flex-col gap-4" data-testid="memory-manager">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="max-w-xl text-[13px] text-muted-foreground">
-          {botId
-            ? `${name}'s saved facts and lessons. Shared facts are managed in Settings.`
-            : "Facts and preferences every teammate can use."}{" "}
-          Suggestions become memory when you confirm them.
+      {botId && (
+        <p className="max-w-xl text-[13.5px] text-muted-foreground">
+          {name}&apos;s saved facts and lessons. Shared facts are managed in Settings. Suggestions
+          become memory when you confirm them.
         </p>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" asChild>
-            <a href={`${url}&download=1`} download>
-              <Download /> Export
-            </a>
-          </Button>
-          <Button size="sm" onClick={() => edit(null)}>
-            <Plus /> Add memory
-          </Button>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[200px] flex-1 basis-full sm:basis-0">
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            aria-label="Search memories"
+            placeholder="Search memories…"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            className="h-9 pl-9"
+          />
         </div>
-      </div>
-      <div className="relative">
-        <Search className="pointer-events-none absolute top-3 left-3 size-4 text-muted-foreground" />
-        <Input
-          aria-label="Search memories"
-          placeholder="Search memories…"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          className="pl-9"
-        />
+        <Button variant="outline" size="lg" asChild>
+          <a href={`${url}&download=1`} download>
+            <Download /> Export
+          </a>
+        </Button>
+        <Button size="lg" onClick={() => edit(null)}>
+          <Plus /> Add memory
+        </Button>
       </div>
       {error ? (
         <div role="alert" className="flex items-center gap-3 text-sm">
@@ -145,64 +283,30 @@ export function MemoryManager({ botId, name }: { botId: string | null; name: str
             : "No saved memories yet. Add a fact, or ask your teammate to remember something."}
         </p>
       ) : (
-        <div className="divide-y rounded-lg border">
+        <div className="divide-y overflow-hidden rounded-xl bg-card shadow-raised">
           {items.map((item) => (
-            <article key={item.id} data-testid="memory-item" className="flex flex-col gap-3 p-4">
-              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                <span className="capitalize">{item.kind}</span>
-                <span>·</span>
-                <span>{sourceLabel(item)}</span>
-                {item.state === "candidate" && (
-                  <span className="rounded bg-waiting/10 px-2 py-0.5 text-waiting">Suggestion</span>
-                )}
-                {item.pinned && <span>Pinned</span>}
-                {item.expiresAt && (
-                  <span>
-                    {new Date(item.expiresAt) <= new Date() ? "Expired" : "Expires"}{" "}
-                    {new Date(item.expiresAt).toLocaleDateString()}
-                  </span>
-                )}
-              </div>
-              <p className="whitespace-pre-wrap break-words text-[14px] leading-relaxed">
-                {item.content}
-              </p>
-              {item.key && <p className="font-mono text-xs text-muted-foreground">{item.key}</p>}
-              <div className="flex flex-wrap items-center gap-2">
-                {item.state === "candidate" && (
-                  <Button
-                    size="sm"
-                    disabled={pending}
-                    onClick={() =>
-                      startTransition(async () => {
-                        const result = await confirmMemoryItem({
-                          id: item.id,
-                          expectedRevision: item.revision,
-                        });
-                        if (!result.ok) toast.error(result.error);
-                        else {
-                          await refresh();
-                          toast("Memory confirmed");
-                        }
-                      })
-                    }
-                  >
-                    <Check /> Confirm
-                  </Button>
-                )}
-                <Button variant="ghost" size="sm" onClick={() => edit(item)}>
-                  <Pencil /> Edit
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => setHistory(item)}>
-                  <History /> History
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => setForget(item)}>
-                  <Trash2 /> {item.state === "candidate" ? "Dismiss" : "Forget"}
-                </Button>
-                <span className="ml-auto text-xs text-muted-foreground">
-                  Revision {item.revision}
-                </span>
-              </div>
-            </article>
+            <MemoryRow
+              key={item.id}
+              item={item}
+              savedBy={savedBy(item)}
+              busy={pending}
+              onConfirm={() =>
+                startTransition(async () => {
+                  const result = await confirmMemoryItem({
+                    id: item.id,
+                    expectedRevision: item.revision,
+                  });
+                  if (!result.ok) toast.error(result.error);
+                  else {
+                    await refresh();
+                    toast("Memory confirmed");
+                  }
+                })
+              }
+              onEdit={() => edit(item)}
+              onHistory={() => setHistory(item)}
+              onForget={() => setForget(item)}
+            />
           ))}
         </div>
       )}
@@ -458,7 +562,13 @@ export function MemoryManager({ botId, name }: { botId: string | null; name: str
                 });
               }}
             >
-              {pending ? <Loader2 className="animate-spin" /> : "Forget memory"}
+              {pending ? (
+                <Loader2 className="animate-spin" />
+              ) : forget?.state === "candidate" ? (
+                "Dismiss suggestion"
+              ) : (
+                "Forget memory"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

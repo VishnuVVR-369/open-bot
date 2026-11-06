@@ -1,6 +1,6 @@
 import type { BotSummary } from "@open-bot/api";
 import { useEffect, useRef } from "react";
-import { Animated, Easing, StyleSheet, Text, View } from "react-native";
+import { Animated, Easing, Text, View } from "react-native";
 import { useReducedMotion } from "@/lib/motion";
 import { fonts, useColors } from "@/theme";
 import { mix } from "@/theme/mix";
@@ -11,8 +11,11 @@ export type BotActivity = "idle" | "working" | "waiting" | "queued";
 const SIZES = {
   xs: { box: 24, radius: 7, font: 13 },
   sm: { box: 28, radius: 8, font: 15 },
-  md: { box: 40, radius: 12, font: 20 },
-  lg: { box: 48, radius: 14, font: 24 },
+  // Headers and compact rows.
+  md: { box: 36, radius: 11, font: 18 },
+  // List rows.
+  lg: { box: 44, radius: 13, font: 22 },
+  // A profile's hero.
   xl: { box: 88, radius: 26, font: 44 },
 } as const;
 
@@ -32,11 +35,15 @@ export function botActivity(bot: Pick<BotSummary, "activeRun">): BotActivity {
   return "working";
 }
 
+/** The one phrase for each thing a teammate can be waiting on you for, everywhere in the app. */
+export function needsYouText(waitingFor: string | null | undefined): string {
+  return waitingFor === "takeover" ? "Needs you to take over" : "Needs your approval";
+}
+
 export function botStatusText(bot: Pick<BotSummary, "activeRun" | "role">): string {
   const run = bot.activeRun;
   if (!run) return bot.role;
-  if (run.status === "waiting")
-    return run.waitingFor === "takeover" ? "Needs you to take over" : "Needs your approval";
+  if (run.status === "waiting") return needsYouText(run.waitingFor);
   if (run.status === "queued") return "Up next";
   return "Working…";
 }
@@ -50,8 +57,8 @@ const ACTIVITY_LABEL: Record<BotActivity, string> = {
 
 /**
  * A teammate's face: their color and emoji (or initials). Presence is part of the face, not a
- * separate light: a soft pulse while they work, an amber mark while they wait for you,
- * and a dashed ring while they're up next.
+ * separate light: a soft pulse while they work and a dashed ring while they're up next. Waiting
+ * for you is said in words beside the face (amber text), not on it.
  */
 export function BotAvatar({
   name,
@@ -59,15 +66,12 @@ export function BotAvatar({
   emoji,
   size = "md",
   activity = "idle",
-  mark = true,
 }: {
   name: string;
   color: string;
   emoji?: string;
   size?: AvatarSize;
   activity?: BotActivity;
-  /** The "!" while waiting. Off where another badge on the avatar already says it. */
-  mark?: boolean;
 }) {
   const colors = useColors();
   const dims = SIZES[size];
@@ -163,15 +167,6 @@ export function BotAvatar({
           {emoji || initials(name)}
         </Text>
       </View>
-      {activity === "waiting" && mark && !small && (
-        <View
-          style={[styles.badge, { backgroundColor: colors.attention, borderColor: colors.surface }]}
-        >
-          <Text allowFontScaling={false} style={styles.badgeText}>
-            !
-          </Text>
-        </View>
-      )}
     </View>
   );
 }
@@ -222,18 +217,3 @@ export function GroupAvatar({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  badge: {
-    position: "absolute",
-    right: -5,
-    top: -5,
-    width: 17,
-    height: 17,
-    borderRadius: 9,
-    borderWidth: 2,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  badgeText: { color: "#1A1200", fontSize: 10, lineHeight: 12, fontWeight: "800" },
-});

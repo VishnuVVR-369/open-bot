@@ -71,8 +71,12 @@ export function approvalRisk(approval: {
   title: string;
   detail: string;
   subject?: string | null;
+  preview?: { type: string } | null;
 }): ApprovalRisk | null {
-  switch (approval.kind) {
+  // Mail sent through a connected account is still mail, and reads the same.
+  const kind =
+    approval.kind === "account_outward" && sendsEmail(approval) ? "email" : approval.kind;
+  switch (kind) {
     case "purchase":
       return {
         tone: "attention",
@@ -116,4 +120,59 @@ export function approvalRisk(approval: {
           }
         : null;
   }
+}
+
+const DETAIL_ROW = /^([A-Z][A-Za-z ]{0,18}):\s+(.+)$/;
+
+/**
+ * A detail written as "Label: value" lines (an itinerary, a card), split into a summary and
+ * labeled rows, so it reads as a table instead of a paragraph. Null when it isn't shaped that way.
+ */
+export function detailRows(
+  detail: string,
+): { summary: string | null; rows: { label: string; value: string }[] } | null {
+  const lines = detail
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const rows: { label: string; value: string }[] = [];
+  const rest: string[] = [];
+  for (const line of lines) {
+    const match = DETAIL_ROW.exec(line);
+    // Rows come after the summary; prose after the first row means it isn't a table.
+    if (match) rows.push({ label: match[1]!, value: match[2]!.replace(/\.$/, "") });
+    else if (rows.length === 0) rest.push(line);
+    else return null;
+  }
+  if (rows.length < 2) return null;
+  return { summary: rest.join(" ") || null, rows };
+}
+
+const AMOUNT = /(?:[$€£¥]\s?\d[\d,]*(?:\.\d{1,2})?|\d[\d,]*(?:\.\d{1,2})?\s?(?:USD|EUR|GBP))/;
+
+/** Whether an approval sends an email, whichever way it gets sent. */
+export function sendsEmail(approval: {
+  kind: string;
+  title: string;
+  preview?: { type: string } | null;
+}): boolean {
+  return (
+    approval.kind === "email" ||
+    approval.preview?.type === "email" ||
+    /^(send|reply|forward)\b.*\b(email|e-mail|mail|reply)\b/i.test(approval.title)
+  );
+}
+
+/** The approve button's words: what approving does, when the request says it plainly. */
+export function approveLabel(approval: {
+  kind: string;
+  title: string;
+  preview?: { type: string } | null;
+}): string {
+  if (approval.kind === "purchase") {
+    const amount = AMOUNT.exec(approval.title)?.[0];
+    return amount ? `Approve ${amount}` : "Approve purchase";
+  }
+  if (sendsEmail(approval)) return "Approve and send";
+  return "Approve";
 }

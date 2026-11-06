@@ -11,7 +11,7 @@ test("create, edit and archive a teammate", async ({ page }) => {
   await expect(page.getByRole("heading", { name: new RegExp(name) })).toBeVisible();
   await page.getByLabel("Job").fill("release manager");
   await page.getByRole("button", { name: "Save changes" }).click();
-  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("save-bar")).toContainText("Saved");
 
   await page.getByRole("tab", { name: "Memory" }).click();
   await expect(page.getByTestId("memory-manager")).toBeVisible();
@@ -156,7 +156,7 @@ test("export a teammate to a file and import it as a new one", async ({ page }) 
   await page.goto(`/bots/${await botIdOf(page, copy)}?tab=automations`);
   const schedules = page.getByTestId("schedule");
   await expect(schedules).toHaveCount(4);
-  await expect(schedules.first()).toContainText("paused");
+  await expect(schedules.first()).toContainText("Paused");
   await expect(schedules.filter({ hasText: "Daily check-in" })).toContainText("only news");
 
   // A file that isn't a teammate says so.

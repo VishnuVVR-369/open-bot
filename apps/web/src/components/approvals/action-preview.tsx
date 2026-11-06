@@ -35,7 +35,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 
 function Note({ children }: { children: ReactNode }) {
   return (
-    <p className="flex items-start gap-1.5 text-[12.5px] text-manual-ink">
+    <p className="flex items-start gap-1.5 text-[12.5px] text-attention-ink">
       <TriangleAlert className="mt-0.5 size-3 shrink-0" />
       {children}
     </p>

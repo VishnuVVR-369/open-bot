@@ -65,6 +65,13 @@ export default function ChatScreen() {
   const allBots = teammates ?? members;
   const list = useRef<FlatList<ChatEntry>>(null);
   const [scrolledUp, setScrolledUp] = useState(false);
+  // Older messages sit under the header (the list is inverted, so they're past its far end).
+  const [under, setUnder] = useState(false);
+  const extent = useRef({ offset: 0, layout: 0, content: 0 });
+  const measure = useCallback((next: Partial<typeof extent.current>) => {
+    const current = (extent.current = { ...extent.current, ...next });
+    setUnder(current.offset + current.layout < current.content - 1);
+  }, []);
   const scrollRetry = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollAttempts = useRef(0);
   useEffect(
@@ -77,6 +84,8 @@ export default function ChatScreen() {
   const isGroup = chat?.kind === "group";
   const bot = !isGroup ? members[0] : undefined;
   const liveBot = bot && (allBots.find((candidate) => candidate.id === bot.id) ?? bot);
+  // What the teammate is doing matters here only when it's this chat they're doing it in.
+  const liveRun = liveBot?.activeRun?.chatId === chatId ? liveBot.activeRun : null;
   const title = !chat
     ? ""
     : chat.kind === "scheduled"
@@ -207,7 +216,7 @@ export default function ChatScreen() {
                           color={liveBot.color}
                           emoji={liveBot.emoji}
                           size="md"
-                          activity={botActivity(liveBot)}
+                          activity={liveRun ? botActivity(liveBot) : "idle"}
                         />
                       )
                     )}
@@ -222,12 +231,12 @@ export default function ChatScreen() {
                       <Text
                         variant="caption"
                         numberOfLines={1}
-                        muted={!liveBot?.activeRun}
+                        muted={!liveRun}
                         style={
-                          liveBot?.activeRun
+                          liveRun
                             ? {
                                 color:
-                                  liveBot.activeRun.status === "waiting"
+                                  liveRun.status === "waiting"
                                     ? colors.attentionInk
                                     : colors.working,
                               }
@@ -237,8 +246,8 @@ export default function ChatScreen() {
                         {isGroup
                           ? members.map((member) => member.name).join(", ")
                           : `${chat && namedForTopic(chat, liveBot) ? `${liveBot!.name} · ` : ""}${
-                              liveBot?.activeRun
-                                ? botStatusText(liveBot)
+                              liveRun
+                                ? botStatusText(liveBot!)
                                 : liveBot?.lastActiveAt
                                   ? lastActive(liveBot.lastActiveAt)
                                   : (bot?.role ?? "")
@@ -302,9 +311,17 @@ export default function ChatScreen() {
             contentContainerStyle={[styles.timeline, data.length === 0 && { flex: 1 }]}
             onScroll={(event) => {
               // Inverted: the offset grows as you scroll back in time.
-              const up = event.nativeEvent.contentOffset.y > 600;
+              const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
+              const up = contentOffset.y > 600;
               if (up !== scrolledUp) setScrolledUp(up);
+              measure({
+                offset: contentOffset.y,
+                layout: layoutMeasurement.height,
+                content: contentSize.height,
+              });
             }}
+            onLayout={(event) => measure({ layout: event.nativeEvent.layout.height })}
+            onContentSizeChange={(_width, height) => measure({ content: height })}
             scrollEventThrottle={100}
             keyboardDismissMode="interactive"
             keyboardShouldPersistTaps="handled"
@@ -341,6 +358,13 @@ export default function ChatScreen() {
                 />
               </View>
             }
+          />
+        )}
+        {under && !loading && !gone && (
+          // The header stays opaque; a hairline marks where the conversation runs under it.
+          <View
+            pointerEvents="none"
+            style={[styles.hairline, { backgroundColor: colors.border }]}
           />
         )}
         {scrolledUp && !loading && !gone && (
@@ -597,6 +621,13 @@ const styles = StyleSheet.create({
     gap: space(3),
     maxWidth: 260,
     minHeight: 48,
+  },
+  hairline: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: StyleSheet.hairlineWidth * 2,
   },
   menuButton: { width: 48, height: 48, alignItems: "center", justifyContent: "center" },
   latestWrap: { position: "absolute", right: space(4), bottom: space(3) },

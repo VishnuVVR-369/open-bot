@@ -4,19 +4,19 @@ export type Autonomy = "full" | "risky" | "everything";
 export const AUTONOMY_OPTIONS: { value: Autonomy; label: string; description: string }[] = [
   {
     value: "full",
-    label: "Full auto",
+    label: "Works on its own",
     description:
-      "Works without asking. It still asks before anything you mark as needing approval.",
+      "Doesn't stop to ask. Payments over its budget and deleting important data still need your approval.",
   },
   {
     value: "risky",
-    label: "Ask before risky actions",
+    label: "Asks before risky actions",
     description:
       "Asks before sending, publishing, buying, deleting or changing settings on your behalf.",
   },
   {
     value: "everything",
-    label: "Ask before every command",
+    label: "Asks before every command",
     description: "Asks before each shell command and file change. Slow, but you see everything.",
   },
 ];

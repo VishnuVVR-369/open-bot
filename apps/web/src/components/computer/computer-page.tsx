@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, Globe, Hand, Home } from "lucide-react";
+import { Globe, Hand, Home } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { BotAvatar } from "@/components/bot-avatar";
@@ -30,6 +30,14 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Whether a screen's line asks something of you, which is the only time it turns amber. */
+function needsYou(info: ScreenInfo): boolean {
+  return (
+    info.activity === "you" ||
+    ((info.activity === "idle" || info.activity === "asleep") && info.requests.length > 0)
+  );
+}
+
 function screenLine(info: ScreenInfo, chat: ChatSummary | undefined): string {
   switch (info.activity) {
     case "you":
@@ -47,6 +55,38 @@ function screenLine(info: ScreenInfo, chat: ChatSummary | undefined): string {
     case "offline":
       return "Offline";
   }
+}
+
+type HealthSignal = "done" | "idle" | "failed";
+
+/**
+ * The health rows. Green only for something up and running; offline or nothing running is a calm
+ * gray; red only when a part is up but has failed.
+ */
+function healthRows({
+  online,
+  agent,
+  running,
+  screens,
+}: {
+  online: boolean;
+  agent: string | undefined;
+  running: number;
+  screens: number;
+}): { label: string; value: string; signal: HealthSignal }[] {
+  return [
+    { label: "Computer", value: online ? "Online" : "Offline", signal: online ? "done" : "idle" },
+    {
+      label: "Agent runtime",
+      value: agent ? agent[0]!.toUpperCase() + agent.slice(1) : "Offline",
+      signal: agent === "running" ? "done" : agent === "crashed" ? "failed" : "idle",
+    },
+    {
+      label: "Screens running",
+      value: `${running} of ${screens}`,
+      signal: running > 0 ? "done" : "idle",
+    },
+  ];
 }
 
 export function ComputerPage({ initialScreen }: { initialScreen: string | null }) {
@@ -136,8 +176,8 @@ export function ComputerPage({ initialScreen }: { initialScreen: string | null }
                         }
                         className={
                           selected
-                            ? "[&>span:last-child]:ring-card"
-                            : "[&>span:last-child]:ring-surface"
+                            ? "[--avatar-ring:var(--card)]"
+                            : "[--avatar-ring:var(--surface)]"
                         }
                       />
                       <span className="flex min-w-0 flex-1 flex-col">
@@ -145,14 +185,13 @@ export function ComputerPage({ initialScreen }: { initialScreen: string | null }
                         <span
                           className={cn(
                             "truncate text-[12.5px] text-muted-foreground",
-                            (info.activity === "you" || info.requests.length > 0) &&
-                              "text-manual-ink",
+                            needsYou(info) && "text-attention-ink",
                           )}
                         >
                           {screenLine(info, chat)}
                         </span>
                       </span>
-                      {info.activity === "you" && <Hand className="size-3.5 text-manual-ink" />}
+                      {info.activity === "you" && <Hand className="size-3.5 text-attention-ink" />}
                     </button>
                   </li>
                 );
@@ -191,42 +230,27 @@ export function ComputerPage({ initialScreen }: { initialScreen: string | null }
           </section>
 
           <section className="flex flex-col gap-2.5">
-            <SectionTitle>
-              <Activity className="size-3.5" /> Health
-            </SectionTitle>
+            <SectionTitle>Health</SectionTitle>
             <ul className="flex flex-col divide-y divide-border/70 rounded-xl bg-card shadow-raised">
-              {[
-                {
-                  label: "Computer",
-                  ok: online,
-                  value: online ? "Online" : "Offline",
-                },
-                {
-                  label: "Agent runtime",
-                  ok: health?.agent === "running",
-                  value: health?.agent
-                    ? health.agent[0]!.toUpperCase() + health.agent.slice(1)
-                    : "Offline",
-                },
-                {
-                  label: "Screens running",
-                  ok: true,
-                  value: `${running} of ${botIds.length}`,
-                },
-              ].map((row) => (
+              {healthRows({
+                online,
+                agent: online ? health?.agent : undefined,
+                running: online ? running : 0,
+                screens: botIds.length,
+              }).map((row) => (
                 <li
                   key={row.label}
                   className="flex items-center justify-between px-3.5 py-2 text-[13px]"
                 >
                   <span>{row.label}</span>
-                  <span
-                    className={cn(
-                      "flex items-center gap-1.5",
-                      row.ok ? "text-muted-foreground" : "text-destructive",
-                    )}
-                  >
+                  <span className="flex items-center gap-1.5 text-muted-foreground">
                     <span
-                      className={cn("size-1.5 rounded-full", row.ok ? "bg-done" : "bg-destructive")}
+                      className={cn(
+                        "size-1.5 rounded-full",
+                        row.signal === "done" && "bg-done",
+                        row.signal === "idle" && "bg-idle",
+                        row.signal === "failed" && "bg-destructive",
+                      )}
                     />
                     {row.value}
                   </span>

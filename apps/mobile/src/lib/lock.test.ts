@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("expo-local-authentication", () => ({}));
 vi.mock("react-native", () => ({}));
+vi.mock("./preferences", () => ({ getPreferences: () => ({ appLock: true }) }));
 
 const { RELOCK_AFTER_MS, shouldRelock } = await import("./lock");
 

@@ -4,7 +4,9 @@ import { EGRESS_OPTIONS, formatDollars, type EgressModeSetting } from "@open-bot
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNowStrict } from "date-fns";
 import {
+  Bell,
   BellRing,
+  Brain,
   Check,
   Copy,
   ExternalLink,
@@ -13,14 +15,24 @@ import {
   Loader2,
   Monitor,
   Moon,
+  Plug,
+  ShieldCheck,
   Sun,
+  SunMoon,
+  UserRound,
 } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+  useTransition,
+  type ReactNode,
+} from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -48,6 +60,7 @@ import { ConnectionsSection } from "@/components/settings/connections-section";
 import { EmailSection } from "@/components/settings/email-section";
 import { PushSection } from "@/components/settings/push-section";
 import { ProfileEditor } from "./profile-editor";
+import { OfflineNote, SectionState } from "./section-state";
 import { TelegramSection } from "./telegram-section";
 
 function Section({
@@ -64,11 +77,13 @@ function Section({
   return (
     <section
       id={id}
-      className="grid scroll-mt-8 gap-5 border-t pt-8 first:border-t-0 first:pt-0 md:grid-cols-[240px_minmax(0,1fr)]"
+      className="flex scroll-mt-8 flex-col gap-4 border-t pt-8 first:border-t-0 first:pt-0"
     >
       <div className="flex flex-col gap-1">
         <h2 className="text-[16px] font-semibold">{title}</h2>
-        {description && <p className="text-[13.5px] text-muted-foreground">{description}</p>}
+        {description && (
+          <p className="max-w-[60ch] text-[13.5px] text-muted-foreground">{description}</p>
+        )}
       </div>
       <div className="flex min-w-0 flex-col gap-4">{children}</div>
     </section>
@@ -138,7 +153,7 @@ function Meter({ label, window }: { label: string; window: RateWindow }) {
         <div
           className={cn(
             "h-full rounded-full",
-            used > 85 ? "bg-destructive" : used > 60 ? "bg-manual" : "bg-foreground",
+            used > 85 ? "bg-destructive" : used > 60 ? "bg-attention" : "bg-foreground",
           )}
           style={{ width: `${used}%` }}
         />
@@ -180,9 +195,9 @@ function ChatgptSection() {
 
   if (!codex) {
     return (
-      <p className="text-[14px] text-muted-foreground">
-        The worker isn&apos;t running, so the connection can&apos;t be checked.
-      </p>
+      <OfflineNote>
+        Your ChatGPT connection shows here once it&apos;s back. This updates by itself.
+      </OfflineNote>
     );
   }
 
@@ -493,18 +508,6 @@ function PasskeySection() {
 }
 
 /** A section's data is loading, or failed to load and can be retried. */
-function SectionState({ error, onRetry }: { error: Error | null; onRetry: () => void }) {
-  if (!error) return <Skeleton className="h-24 w-full rounded-xl" />;
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-xl border border-dashed px-4 py-3 text-[13.5px]">
-      <span className="text-muted-foreground">Couldn&apos;t load this. {error.message}</span>
-      <Button variant="outline" size="sm" onClick={onRetry}>
-        Try again
-      </Button>
-    </div>
-  );
-}
-
 function FallbackSection() {
   const queryClient = useQueryClient();
   const [pending, startTransition] = useTransition();
@@ -525,14 +528,14 @@ function FallbackSection() {
       <div
         className={cn(
           "flex items-start gap-3 rounded-xl border px-4 py-3.5",
-          data.planLimitedUntil ? "border-manual/40 bg-manual/[0.07]" : "bg-card",
+          data.planLimitedUntil ? "border-attention/40 bg-attention/[0.07]" : "bg-card",
         )}
         data-testid="fallback-status"
       >
         <span
           className={cn(
             "mt-1.5 size-2.5 shrink-0 rounded-full",
-            data.planLimitedUntil ? "bg-manual" : "bg-done",
+            data.planLimitedUntil ? "bg-attention" : "bg-done",
           )}
         />
         <div className="flex flex-col gap-0.5">
@@ -651,7 +654,7 @@ function FallbackSection() {
             <div
               className={cn(
                 "h-full rounded-full",
-                used >= 100 ? "bg-destructive" : used > 75 ? "bg-manual" : "bg-foreground",
+                used >= 100 ? "bg-destructive" : used > 75 ? "bg-attention" : "bg-foreground",
               )}
               style={{ width: `${used}%` }}
             />
@@ -741,81 +744,195 @@ function AppearanceSection() {
   );
 }
 
-export function SettingsView() {
+type GroupId = "account" | "memory" | "appearance" | "notifications" | "connections" | "security";
+
+/** Settings in groups, one group at a time. Old links to a section (#email) open its group. */
+const GROUPS: { id: GroupId; label: string; icon: typeof UserRound; sections: string[] }[] = [
+  {
+    id: "account",
+    label: "Account",
+    icon: UserRound,
+    sections: ["chatgpt", "plan", "usage", "timezone"],
+  },
+  { id: "memory", label: "Memory", icon: Brain, sections: ["about"] },
+  { id: "appearance", label: "Appearance", icon: SunMoon, sections: [] },
+  { id: "notifications", label: "Notifications", icon: Bell, sections: ["telegram"] },
+  { id: "connections", label: "Connections", icon: Plug, sections: ["email", "browsing"] },
+  { id: "security", label: "Security", icon: ShieldCheck, sections: ["passkeys"] },
+];
+
+function subscribeHash(onChange: () => void) {
+  window.addEventListener("hashchange", onChange);
+  return () => window.removeEventListener("hashchange", onChange);
+}
+
+function useHash() {
+  return useSyncExternalStore(
+    subscribeHash,
+    () => decodeURIComponent(window.location.hash.slice(1)),
+    () => "",
+  );
+}
+
+function groupFor(hash: string): GroupId {
   return (
-    <div className="flex flex-col gap-10">
-      <Section
-        id="about"
-        title="About you"
-        description="Shared facts and preferences, with source history and control over what your teammates remember."
-      >
-        <ProfileEditor />
-      </Section>
-      <Section
-        title="ChatGPT"
-        description="Your teammates run on your ChatGPT plan through Codex on the computer."
-      >
-        <ChatgptSection />
-      </Section>
-      <Section
-        title="When your plan runs out"
-        description="Teammates use your ChatGPT plan first. If its limit is reached, they can continue on an OpenAI API key, up to a monthly cap."
-      >
-        <FallbackSection />
-      </Section>
-      <Section
-        id="browsing"
-        title="Browsing"
-        description="Websites often block cloud IPs. The desktop app can route the computer's browser through your home connection."
-      >
-        <BrowsingSection />
-      </Section>
-      <Section title="Usage" description="Tokens your teammates used this month.">
-        <UsageSection />
-      </Section>
-      <Section
-        title="Timezone"
-        description="Used for schedules, and so your teammates know what time it is for you."
-      >
-        <TimezoneSection />
-      </Section>
-      <Section
-        id="email"
-        title="Email"
-        description="An address for every teammate. Forward them receipts, threads and requests; they answer from their own address."
-      >
-        <EmailSection />
-      </Section>
-      <Section
-        id="connections"
-        title="Connections"
-        description="Your Gmail, Calendar and Notion, and other services your teammates use through MCP, like GitHub or your own API."
-      >
-        <ConnectionsSection />
-      </Section>
-      <Section
-        id="telegram"
-        title="Telegram"
-        description="Approve, take over and talk to your teammates from your phone."
-      >
-        <TelegramSection />
-      </Section>
-      <Section
-        id="notifications"
-        title="Notifications"
-        description="Know when a teammate finishes or needs you, on this computer and your phone."
-      >
-        <PushSection fallback={<NotificationsSection />} />
-      </Section>
-      <Section
-        title="Passkeys"
-        description="Sign in with Touch ID or your phone instead of a password."
-      >
-        <PasskeySection />
-      </Section>
-      <Section title="Appearance">
-        <AppearanceSection />
-      </Section>
+    GROUPS.find((group) => group.id === hash || group.sections.includes(hash))?.id ?? "account"
+  );
+}
+
+function SettingsNav({ current }: { current: GroupId }) {
+  return (
+    <nav aria-label="Settings" className="md:sticky md:top-0 md:self-start">
+      <ul className="-mx-5 flex gap-1 overflow-x-auto px-5 [scrollbar-width:none] md:mx-0 md:flex-col md:gap-0.5 md:px-0">
+        {GROUPS.map((group) => {
+          const Icon = group.icon;
+          const active = group.id === current;
+          return (
+            <li key={group.id} className="shrink-0">
+              <a
+                href={`#${group.id}`}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex h-9 items-center gap-2.5 rounded-lg px-3 text-[14px] whitespace-nowrap transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/12",
+                  active
+                    ? "bg-foreground/[0.06] font-medium text-foreground"
+                    : "text-muted-foreground hover:bg-subtle hover:text-foreground",
+                )}
+              >
+                <Icon className="size-4 shrink-0" />
+                {group.label}
+              </a>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}
+
+function GroupContent({ group }: { group: GroupId }) {
+  switch (group) {
+    case "account":
+      return (
+        <>
+          <Section
+            id="chatgpt"
+            title="ChatGPT"
+            description="Your teammates run on your ChatGPT plan through Codex on the computer."
+          >
+            <ChatgptSection />
+          </Section>
+          <Section
+            id="plan"
+            title="When your plan runs out"
+            description="Teammates use your ChatGPT plan first. If its limit is reached, they can continue on an OpenAI API key, up to a monthly cap."
+          >
+            <FallbackSection />
+          </Section>
+          <Section id="usage" title="Usage" description="Tokens your teammates used this month.">
+            <UsageSection />
+          </Section>
+          <Section
+            id="timezone"
+            title="Timezone"
+            description="Used for schedules, and so your teammates know what time it is for you."
+          >
+            <TimezoneSection />
+          </Section>
+        </>
+      );
+    case "memory":
+      return (
+        <Section
+          id="about"
+          title="About you"
+          description="Facts and preferences every teammate can use, with where each came from. Suggestions become memory when you confirm them."
+        >
+          <ProfileEditor />
+        </Section>
+      );
+    case "appearance":
+      return (
+        <Section
+          id="appearance"
+          title="Appearance"
+          description="How open-bot looks on this device."
+        >
+          <AppearanceSection />
+        </Section>
+      );
+    case "notifications":
+      return (
+        <>
+          <Section
+            id="notifications"
+            title="Notifications"
+            description="Know when a teammate finishes or needs you, on this computer and your phone."
+          >
+            <PushSection fallback={<NotificationsSection />} />
+          </Section>
+          <Section
+            id="telegram"
+            title="Telegram"
+            description="Approve, take over and talk to your teammates from your phone."
+          >
+            <TelegramSection />
+          </Section>
+        </>
+      );
+    case "connections":
+      return (
+        <>
+          <Section
+            id="connections"
+            title="Connections"
+            description="Your Gmail, Calendar and Notion, and other services your teammates use through MCP, like GitHub or your own API."
+          >
+            <ConnectionsSection />
+          </Section>
+          <Section
+            id="email"
+            title="Email"
+            description="An address for every teammate. Forward them receipts, threads and requests; they answer from their own address."
+          >
+            <EmailSection />
+          </Section>
+          <Section
+            id="browsing"
+            title="Browsing"
+            description="Websites often block cloud IPs. The desktop app can route the computer's browser through your home connection."
+          >
+            <BrowsingSection />
+          </Section>
+        </>
+      );
+    case "security":
+      return (
+        <Section
+          id="passkeys"
+          title="Passkeys"
+          description="Sign in with Touch ID or your phone instead of a password."
+        >
+          <PasskeySection />
+        </Section>
+      );
+  }
+}
+
+export function SettingsView() {
+  const hash = useHash();
+  const group = groupFor(hash);
+  // A link to one section (#email) opens its group, then shows that section.
+  useEffect(() => {
+    if (!hash || hash === group) return;
+    document.getElementById(hash)?.scrollIntoView({ block: "start" });
+  }, [hash, group]);
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-8 md:grid-cols-[176px_minmax(0,1fr)] md:gap-12">
+      <SettingsNav current={group} />
+      <div key={group} className="flex min-w-0 flex-col gap-10" data-testid={`settings-${group}`}>
+        <GroupContent group={group} />
+      </div>
     </div>
   );
 }

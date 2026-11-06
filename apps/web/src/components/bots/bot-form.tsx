@@ -8,9 +8,9 @@ import {
   type Autonomy,
 } from "@open-bot/shared";
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, Loader2, Upload } from "lucide-react";
+import { Check, CircleCheck, Loader2, Upload } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { BotAvatar } from "@/components/bot-avatar";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,14 @@ export interface BotFormValues {
   autonomy: Autonomy;
 }
 
+/** When each teammate was last saved here, so the form can say so after it reloads. */
+const savedAt = new Map<string, number>();
+const SAVED_FOR_MS = 5000;
+
+function sameValues(a: BotFormValues, b: BotFormValues) {
+  return (Object.keys(a) as (keyof BotFormValues)[]).every((key) => a[key] === b[key]);
+}
+
 export function BotForm({
   editing,
   initial,
@@ -42,6 +50,24 @@ export function BotForm({
   submitLabel: string;
 }) {
   const [values, setValues] = useState<BotFormValues>(initial);
+  const [baseline, setBaseline] = useState<BotFormValues>(initial);
+  const dirty = !sameValues(values, baseline);
+  const [justSaved, setJustSaved] = useState(() => {
+    const at = editing ? savedAt.get(editing.botId) : undefined;
+    return at !== undefined && Date.now() - at < SAVED_FOR_MS;
+  });
+  useEffect(() => {
+    if (!justSaved) return;
+    const timer = setTimeout(() => setJustSaved(false), SAVED_FOR_MS);
+    return () => clearTimeout(timer);
+  }, [justSaved]);
+  // Leaving with unsaved edits asks first.
+  useEffect(() => {
+    if (!editing || !dirty) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [editing, dirty]);
   const [templateId, setTemplateId] = useState<string | null>(null);
   const [starterIds, setStarterIds] = useState<string[]>([]);
   const template = TEAMMATE_TEMPLATES.find((entry) => entry.id === templateId);
@@ -75,6 +101,9 @@ export function BotForm({
   const set = <K extends keyof BotFormValues>(key: K, value: BotFormValues[K]) =>
     setValues((current) => ({ ...current, [key]: value }));
 
+  const complete = Boolean(values.name.trim() && values.role.trim());
+  const canSubmit = !pending && complete && (!editing || dirty);
+
   function submit() {
     startTransition(async () => {
       if (editing) {
@@ -83,6 +112,9 @@ export function BotForm({
           toast.error(result.error);
           return;
         }
+        savedAt.set(editing.botId, Date.now());
+        setBaseline(values);
+        setJustSaved(true);
         toast("Saved", {
           description: `${values.name} uses the new settings from the next message.`,
         });
@@ -123,7 +155,13 @@ export function BotForm({
       className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_280px]"
       onSubmit={(event) => {
         event.preventDefault();
-        submit();
+        if (canSubmit) submit();
+      }}
+      onKeyDown={(event) => {
+        if ((event.metaKey || event.ctrlKey) && event.key === "s") {
+          event.preventDefault();
+          if (canSubmit) submit();
+        }
       }}
     >
       <div className="flex flex-col gap-7">
@@ -275,7 +313,7 @@ export function BotForm({
         )}
 
         <fieldset className="flex flex-col gap-2.5">
-          <legend className="mb-2.5 text-sm font-medium">When to ask you first</legend>
+          <legend className="mb-2.5 text-sm font-medium">When they ask you first</legend>
           <div className="grid gap-2">
             {AUTONOMY_OPTIONS.map((option) => {
               const checked = values.autonomy === option.value;
@@ -284,7 +322,7 @@ export function BotForm({
                   key={option.value}
                   className={cn(
                     "flex cursor-pointer items-start gap-3 rounded-xl bg-card shadow-raised px-4 py-3 transition-colors hover:bg-muted/40",
-                    checked && "border-foreground/50 bg-muted/40",
+                    checked && "bg-muted/40 ring-[1.5px] ring-foreground/70",
                   )}
                 >
                   <input
@@ -312,20 +350,6 @@ export function BotForm({
             })}
           </div>
         </fieldset>
-
-        <div className="flex gap-2">
-          <Button
-            type="submit"
-            size="lg"
-            disabled={pending || !values.name.trim() || !values.role.trim()}
-          >
-            {pending && <Loader2 className="animate-spin" />}
-            {submitLabel}
-          </Button>
-          <Button type="button" variant="ghost" size="lg" onClick={() => router.back()}>
-            Cancel
-          </Button>
-        </div>
       </div>
 
       <aside className="flex flex-col gap-6 lg:sticky lg:top-8 lg:self-start">
@@ -377,6 +401,54 @@ export function BotForm({
           />
         </div>
       </aside>
+
+      <div
+        className="sticky bottom-4 z-10 col-span-full flex min-h-14 flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-card/95 px-4 py-2.5 shadow-float backdrop-blur-sm"
+        data-testid="save-bar"
+      >
+        <span className="flex min-w-0 flex-1 items-center gap-2 text-[13.5px]" aria-live="polite">
+          {!editing ? (
+            <span className="text-muted-foreground">You can change all of this later.</span>
+          ) : pending ? (
+            <span className="text-muted-foreground">Saving…</span>
+          ) : dirty ? (
+            <>
+              <span className="size-1.5 shrink-0 rounded-full bg-foreground" />
+              <span className="font-medium">Unsaved changes</span>
+            </>
+          ) : justSaved ? (
+            <>
+              <CircleCheck className="size-4 shrink-0 text-done" />
+              <span>Saved</span>
+            </>
+          ) : (
+            <span className="text-muted-foreground">All changes saved</span>
+          )}
+        </span>
+        <div className="flex items-center gap-2">
+          {editing ? (
+            dirty && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="lg"
+                disabled={pending}
+                onClick={() => setValues(baseline)}
+              >
+                Discard
+              </Button>
+            )
+          ) : (
+            <Button type="button" variant="ghost" size="lg" onClick={() => router.back()}>
+              Cancel
+            </Button>
+          )}
+          <Button type="submit" size="lg" className="px-3.5" disabled={!canSubmit}>
+            {pending && <Loader2 className="animate-spin" />}
+            {submitLabel}
+          </Button>
+        </div>
+      </div>
     </form>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { collapseRepeats } from "./notification-groups";
+import { collapseRepeats, notificationText } from "./notification-groups";
 
 describe("repeated notifications", () => {
   const note = (id: string, title: string, botId: string | null = null, body = "") => ({
@@ -31,5 +31,27 @@ describe("repeated notifications", () => {
     expect(
       collapseRepeats([note("1", "Replied", "rex"), note("2", "Replied", "iris")]),
     ).toHaveLength(2);
+  });
+});
+
+describe("notification words", () => {
+  it("quotes the task a failure names, so it reads as a name", () => {
+    expect(
+      notificationText({
+        kind: "run_failed",
+        title: "Kit couldn't finish: GitHub release published",
+        body: "The computer was restarting.",
+      }),
+    ).toEqual({
+      title: "Kit couldn't finish “GitHub release published”",
+      body: "The computer was restarting.",
+    });
+  });
+
+  it("leaves everything else as written", () => {
+    const plain = { kind: "run_failed", title: "Kit couldn't finish", body: "It failed." };
+    expect(notificationText(plain)).toEqual({ title: plain.title, body: plain.body });
+    const other = { kind: "run_finished", title: "Iris finished: launch status", body: "" };
+    expect(notificationText(other)).toEqual({ title: other.title, body: other.body });
   });
 });

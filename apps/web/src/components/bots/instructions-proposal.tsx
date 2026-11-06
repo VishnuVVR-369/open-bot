@@ -33,12 +33,12 @@ export function InstructionsProposal({
 
   return (
     <section
-      className="flex flex-col gap-4 rounded-xl border border-waiting/35 bg-waiting/[0.04] p-4"
+      className="flex flex-col gap-4 rounded-xl border border-attention/35 bg-attention/[0.04] p-4"
       aria-label="Suggested instructions"
       data-testid="instructions-proposal"
     >
       <div className="flex items-start gap-3">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-waiting/12 text-waiting">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-attention/12 text-attention-ink">
           <Sparkles className="size-4" />
         </span>
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">

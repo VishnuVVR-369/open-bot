@@ -13,7 +13,7 @@ import {
 } from "lucide-react-native";
 import { useCallback, useMemo, useState } from "react";
 import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, View } from "react-native";
-import { BotAvatar, GroupAvatar, type BotActivity } from "@/components/bot-avatar";
+import { BotAvatar, GroupAvatar, needsYouText, type BotActivity } from "@/components/bot-avatar";
 import { ConnectionNotice } from "@/components/connection-notice";
 import { Separator } from "@/components/list-row";
 import { Sheet, SheetItem } from "@/components/sheet";
@@ -155,7 +155,7 @@ function ChatRow({
               }}
               testID="chat-live"
             >
-              {activity === "waiting" ? "Waiting for you" : "Working on it…"}
+              {activity === "waiting" ? needsYouText(bot?.activeRun?.waitingFor) : "Working on it…"}
             </Text>
           ) : (
             <Text
@@ -188,6 +188,15 @@ export default function Chats() {
   const [filter, setFilter] = useState<Filter>("all");
   const [menuFor, setMenuFor] = useState<ChatSummary | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  // The button folds down to its icon once you scroll, so it never sits on a preview for long.
+  const [compact, setCompact] = useState(false);
+  const fold = (offset: number) => {
+    const scrolled = offset > space(6);
+    if (scrolled !== compact) {
+      animateLayout();
+      setCompact(scrolled);
+    }
+  };
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await chats.refetch();
@@ -288,7 +297,13 @@ export default function Chats() {
           </View>
         }
         ItemSeparatorComponent={Separator}
-        contentContainerStyle={{ flexGrow: 1, paddingBottom: space(24) }}
+        onScroll={(event) => fold(event.nativeEvent.contentOffset.y)}
+        // A fling can end without a last scroll event at the top, so settle it when it stops.
+        onScrollEndDrag={(event) => fold(event.nativeEvent.contentOffset.y)}
+        onMomentumScrollEnd={(event) => fold(event.nativeEvent.contentOffset.y)}
+        scrollEventThrottle={100}
+        // Room for the New chat button and 24dp more, so the last chat clears it.
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: 56 + space(4) + space(6) }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -324,13 +339,19 @@ export default function Chats() {
         accessibilityRole="button"
         accessibilityLabel="New chat"
         android_ripple={{ color: colors.muted, borderless: false }}
-        style={[styles.fab, { backgroundColor: colors.primary, shadowColor: "#000000" }]}
+        style={[
+          styles.fab,
+          compact && styles.fabCompact,
+          { backgroundColor: colors.primary, shadowColor: "#000000" },
+        ]}
         testID="new-chat"
       >
         <SquarePen size={20} color={colors.primaryForeground} />
-        <Text variant="label" style={{ color: colors.primaryForeground }}>
-          New chat
-        </Text>
+        {!compact && (
+          <Text variant="label" style={{ color: colors.primaryForeground }}>
+            New chat
+          </Text>
+        )}
       </Pressable>
       <Sheet
         open={menuFor !== null}
@@ -383,7 +404,8 @@ const styles = StyleSheet.create({
   },
   chip: {
     minHeight: 36,
-    paddingHorizontal: space(3.5),
+    // Narrow enough that every filter fits a phone's width without running off the edge.
+    paddingHorizontal: space(3),
     borderRadius: radius.full,
     borderWidth: 1,
     justifyContent: "center",
@@ -409,6 +431,7 @@ const styles = StyleSheet.create({
     gap: space(2),
     height: 56,
     paddingHorizontal: space(5),
+    justifyContent: "center",
     borderRadius: 18,
     overflow: "hidden",
     elevation: 6,
@@ -416,4 +439,5 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 },
   },
+  fabCompact: { width: 56, paddingHorizontal: 0 },
 });

@@ -5,6 +5,7 @@ import {
   ArrowDown,
   Archive,
   Copy,
+  Menu,
   RotateCcw,
   Monitor,
   MoreHorizontal,
@@ -20,7 +21,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { BotAvatar } from "@/components/bot-avatar";
-import { ComputerPanel } from "@/components/computer/computer-panel";
+import { useOpenMobileMenu } from "@/components/app/shell";
+import { ComputerPanel, useComputer } from "@/components/computer/computer-panel";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -172,6 +174,8 @@ export function ChatView({ chatId }: { chatId: string }) {
   const [dragging, setDragging] = useState(false);
   const [dialog, setDialog] = useState<"rename" | "duplicate" | null>(null);
   const allBots = state?.bots ?? members;
+  const openMenu = useOpenMobileMenu();
+  const { online } = useComputer();
 
   useEffect(() => {
     setPanelOpen(localStorage.getItem(PANEL_KEY) !== "closed");
@@ -270,6 +274,12 @@ export function ChatView({ chatId }: { chatId: string }) {
         : chat.title
     : "";
 
+  async function startNewChat(botId: string) {
+    const result = await newDirectChat(botId);
+    if (result.ok) router.push(`/chats/${result.data.chatId}`);
+    else toast.error(result.error);
+  }
+
   function togglePanel() {
     setPanelOpen((open) => {
       localStorage.setItem(PANEL_KEY, open ? "closed" : "open");
@@ -296,7 +306,19 @@ export function ChatView({ chatId }: { chatId: string }) {
           if (event.dataTransfer.files.length) composer.current?.addFiles(event.dataTransfer.files);
         }}
       >
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border/70 px-4 [&_button[data-variant=ghost]]:text-muted-foreground [&_button[data-variant=ghost]:hover]:text-foreground">
+        {/* On a phone this is the only bar: it carries the menu button the app bar would have. */}
+        <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border/70 pr-2 pl-1.5 sm:gap-3 sm:px-4 lg:pl-4 [&_button[data-variant=ghost]]:text-muted-foreground [&_button[data-variant=ghost]:hover]:text-foreground">
+          {openMenu && (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Open menu"
+              className="shrink-0 lg:hidden"
+              onClick={openMenu}
+            >
+              <Menu />
+            </Button>
+          )}
           {loading || !chat ? (
             <Skeleton className="h-6 w-40" />
           ) : (
@@ -337,11 +359,8 @@ export function ChatView({ chatId }: { chatId: string }) {
                       variant="ghost"
                       size="icon"
                       aria-label="New chat"
-                      onClick={async () => {
-                        const result = await newDirectChat(bot.id);
-                        if (result.ok) router.push(`/chats/${result.data.chatId}`);
-                        else toast.error(result.error);
-                      }}
+                      className="max-sm:hidden"
+                      onClick={() => void startNewChat(bot.id)}
                     >
                       <Plus />
                     </Button>
@@ -356,6 +375,16 @@ export function ChatView({ chatId }: { chatId: string }) {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-52">
+                  {/* On a phone, New chat lives here so the title keeps its room. */}
+                  {!isGroup && bot && chat.kind === "direct" && (
+                    <DropdownMenuItem
+                      className="sm:hidden"
+                      onSelect={() => void startNewChat(bot.id)}
+                    >
+                      <Plus />
+                      New chat with {bot.name}
+                    </DropdownMenuItem>
+                  )}
                   {bot && (
                     <DropdownMenuItem asChild>
                       <Link href={`/bots/${bot.id}`}>
@@ -427,7 +456,7 @@ export function ChatView({ chatId }: { chatId: string }) {
                 variant="outline"
                 size="sm"
                 aria-label="Computer"
-                className="max-sm:size-8 max-sm:px-0 xl:hidden"
+                className="max-sm:size-9 max-sm:border-transparent max-sm:bg-transparent max-sm:px-0 max-sm:text-muted-foreground max-sm:shadow-none xl:hidden"
                 onClick={() => setSheetOpen(true)}
               >
                 <Monitor />
@@ -541,7 +570,12 @@ export function ChatView({ chatId }: { chatId: string }) {
       <aside
         className={cn(
           "hidden shrink-0 overflow-y-auto border-l border-border/70 bg-[color-mix(in_oklab,var(--background)_45%,var(--surface))] p-5 xl:block",
-          panelOpen ? "w-[clamp(440px,42%,760px)]" : "xl:hidden",
+          !panelOpen
+            ? "xl:hidden"
+            : // An offline computer is one short card, so it takes a narrow column, not half the page.
+              state && !online && !helper
+              ? "w-[360px]"
+              : "w-[clamp(440px,42%,760px)]",
         )}
       >
         {helper ? (

@@ -8,7 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { TimeAgo } from "@/components/time-ago";
 import { sendPushTest, subscribePush, unsubscribePush } from "@/lib/actions";
-import { getJson } from "@/lib/client/api";
+import { getJson, isOffline } from "@/lib/client/api";
+import { useComputerOnline } from "@/lib/client/queries";
+import { OFFLINE_RETRY, OfflineNote, SectionError } from "./section-state";
 
 interface PushStatus {
   publicKey: string;
@@ -71,10 +73,12 @@ async function registration(): Promise<ServiceWorkerRegistration> {
 export function PushSection({ fallback }: { fallback: React.ReactNode }) {
   const supported = useSyncExternalStore(noop, pushSupported, () => null);
   const queryClient = useQueryClient();
+  const online = useComputerOnline();
   const status = useQuery({
     queryKey: ["push"],
     queryFn: () => getJson<PushStatus>("/api/push"),
-    enabled: supported === true,
+    enabled: supported === true && online !== false,
+    ...OFFLINE_RETRY,
   });
   const [endpoint, setEndpoint] = useState<string | null | undefined>(undefined);
   const [pending, startTransition] = useTransition();
@@ -91,6 +95,14 @@ export function PushSection({ fallback }: { fallback: React.ReactNode }) {
 
   if (supported === null) return null;
   if (!supported) return <>{fallback}</>;
+  if ((status.error || online === false) && !status.data)
+    return online === false || isOffline(status.error) ? (
+      <OfflineNote>
+        You can turn on notifications for this device once it&apos;s back. This updates by itself.
+      </OfflineNote>
+    ) : (
+      <SectionError error={status.error!} onRetry={() => void status.refetch()} />
+    );
 
   const devices = status.data?.devices ?? [];
   const thisDevice = devices.some((device) => device.endpoint === endpoint);
