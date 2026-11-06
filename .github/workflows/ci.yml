@@ -60,6 +60,8 @@ jobs:
           - variant: normal
             env: GOOGLE_SERVICES_JSON=$GITHUB_WORKSPACE/apps/mobile/scripts/ci-google-services.json
             checks: --firebase
+            # Release lint vets the manifest the signed app ships; debug builds skip it.
+            tasks: :app:lintVitalRelease
     defaults:
       run:
         working-directory: apps/mobile
@@ -77,6 +79,6 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - run: pnpm install --frozen-lockfile
       - run: env ${{ matrix.env }} npx expo prebuild --platform android --no-install
-      - run: env ${{ matrix.env }} ./gradlew :app:assembleDebug -PreactNativeArchitectures=x86_64
+      - run: env ${{ matrix.env }} ./gradlew :app:assembleDebug ${{ matrix.tasks }} -PreactNativeArchitectures=x86_64
         working-directory: apps/mobile/android
       - run: node scripts/check-egress-manifest.mjs android/app/build/intermediates/merged_manifests/debug/processDebugManifest/AndroidManifest.xml ${{ matrix.checks }}
