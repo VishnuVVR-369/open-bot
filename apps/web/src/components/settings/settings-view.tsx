@@ -96,7 +96,7 @@ function Choice({
       disabled={disabled}
       onClick={onSelect}
       className={cn(
-        "flex items-start gap-3 rounded-xl border bg-card px-4 py-3 text-left transition-colors hover:bg-muted/40 disabled:opacity-60",
+        "flex items-start gap-3 rounded-xl bg-card shadow-raised px-4 py-3 text-left transition-colors hover:bg-muted/40 disabled:opacity-60",
         checked && "border-foreground/50 bg-muted/40",
       )}
     >
@@ -191,7 +191,7 @@ function ChatgptSection() {
 
   return (
     <>
-      <div className="flex items-center justify-between gap-4 rounded-xl border bg-card px-4 py-3.5">
+      <div className="flex items-center justify-between gap-4 rounded-xl bg-card shadow-raised px-4 py-3.5">
         <div className="flex items-center gap-3">
           <span
             className={cn("size-2.5 rounded-full", codex.account ? "bg-done" : "bg-destructive")}
@@ -228,7 +228,7 @@ function ChatgptSection() {
       </div>
 
       {(primary || secondary) && (
-        <div className="flex flex-col gap-3 rounded-xl border bg-card px-4 py-3.5">
+        <div className="flex flex-col gap-3 rounded-xl bg-card shadow-raised px-4 py-3.5">
           {primary && (
             <Meter
               label={windowLabel(primary.windowDurationMins, "Short-term limit")}
@@ -274,7 +274,7 @@ function ChatgptSection() {
       </div>
 
       {codex.authSource === "device" && !codex.account && (
-        <div className="flex flex-col gap-3 rounded-xl border bg-card px-4 py-4">
+        <div className="flex flex-col gap-3 rounded-xl bg-card shadow-raised px-4 py-4">
           {login ? (
             <>
               <p className="text-[14px]">Open the link, sign in to ChatGPT, and enter this code:</p>
@@ -329,7 +329,7 @@ function BrowsingSection() {
   const [pending, startTransition] = useTransition();
   return (
     <>
-      <div className="flex items-center gap-3 rounded-xl border bg-card px-4 py-3.5">
+      <div className="flex items-center gap-3 rounded-xl bg-card shadow-raised px-4 py-3.5">
         <Laptop className="size-4 text-muted-foreground" />
         <span className="flex-1 text-[14px]">
           {egress?.agentOnline
@@ -456,7 +456,7 @@ function PasskeySection() {
   return (
     <div className="flex flex-col gap-3">
       {passkeys.data && passkeys.data.length > 0 && (
-        <ul className="divide-y rounded-xl border bg-card">
+        <ul className="divide-y divide-border/70 rounded-xl bg-card shadow-raised">
           {passkeys.data.map((passkey) => (
             <li key={passkey.id} className="flex items-center gap-3 px-4 py-2.5 text-[14px]">
               <KeyRound className="size-4 text-muted-foreground" />
@@ -553,7 +553,7 @@ function FallbackSection() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-2 rounded-xl border bg-card px-4 py-3.5">
+      <div className="flex flex-col gap-2 rounded-xl bg-card shadow-raised px-4 py-3.5">
         <span className="text-[14px] font-medium">OpenAI API key</span>
         {data.keyHint ? (
           <div className="flex items-center gap-3">
@@ -611,7 +611,7 @@ function FallbackSection() {
         )}
       </div>
 
-      <div className="flex flex-col gap-3 rounded-xl border bg-card px-4 py-3.5">
+      <div className="flex flex-col gap-3 rounded-xl bg-card shadow-raised px-4 py-3.5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span className="text-[14px] font-medium">Monthly cap</span>
           <form
@@ -677,7 +677,7 @@ function UsageSection() {
     return <p className="text-[14px] text-muted-foreground">No work yet this month.</p>;
   const total = usage.data.reduce((sum, row) => sum + row.inputTokens + row.outputTokens, 0);
   return (
-    <div className="overflow-hidden rounded-xl border bg-card">
+    <div className="overflow-hidden rounded-xl bg-card shadow-raised">
       <table className="w-full text-[13.5px]">
         <thead className="bg-subtle/60 text-left text-[12px] text-muted-foreground">
           <tr>

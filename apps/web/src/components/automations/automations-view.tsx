@@ -173,7 +173,7 @@ function Section({
       aria-label={heading}
       data-testid={`section-${section}`}
     >
-      <h2 className="flex items-center gap-2 text-[13px] font-medium tracking-wide text-muted-foreground uppercase">
+      <h2 className="flex items-center gap-2 font-heading text-[15px] font-semibold tracking-[-0.01em] text-foreground">
         {heading}
         {count > 0 && <span className="font-normal tabular-nums">{count}</span>}
       </h2>
@@ -214,7 +214,7 @@ function CheckIn({ botId, name }: { botId: string; name: string }) {
   );
   return (
     <label
-      className="flex cursor-pointer items-start gap-3.5 rounded-xl border bg-card px-4 py-3.5"
+      className="flex cursor-pointer items-start gap-3.5 rounded-xl bg-card shadow-raised px-4 py-3.5"
       data-testid="check-in"
     >
       <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-subtle text-muted-foreground">

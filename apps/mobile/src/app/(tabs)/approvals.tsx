@@ -144,12 +144,8 @@ export default function Approvals() {
         <View style={{ gap: space(2.5) }}>
           <View style={styles.needsHead}>
             <View style={[styles.dot, { backgroundColor: colors.attention }]} />
-            <Text
-              variant="caption"
-              style={[styles.overline, { color: colors.attentionInk }]}
-              accessibilityRole="header"
-            >
-              NEEDS YOU · {pending.length}
+            <Text variant="section" style={{ color: colors.foreground }} accessibilityRole="header">
+              Needs you ({pending.length})
             </Text>
           </View>
           {!online && (
@@ -236,7 +232,6 @@ const styles = StyleSheet.create({
     gap: space(2),
     paddingHorizontal: space(1),
   },
-  overline: { letterSpacing: 0.6, fontWeight: "700" },
   dot: { width: 8, height: 8, borderRadius: radius.full },
   card: { borderWidth: 1, borderRadius: radius.xl, overflow: "hidden" },
   row: {

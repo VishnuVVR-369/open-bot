@@ -48,11 +48,11 @@ export function Shell({ initial, children }: { initial: AppState; children: Reac
       <div className="flex h-full flex-col">
         <ControlBanner initial={initial} />
         <div className="flex min-h-0 flex-1">
-          <aside className="hidden w-[264px] shrink-0 border-r border-sidebar-border lg:block">
+          <aside className="hidden w-[256px] shrink-0 lg:block">
             <Sidebar initial={initial} />
           </aside>
           <div className="flex min-w-0 flex-1 flex-col">
-            <header className="flex h-12 shrink-0 items-center gap-2 border-b px-3 lg:hidden">
+            <header className="flex h-13 shrink-0 items-center gap-1.5 border-b border-sidebar-border bg-sidebar px-2.5 lg:hidden">
               <Button
                 variant="ghost"
                 size="icon"
@@ -65,7 +65,10 @@ export function Shell({ initial, children }: { initial: AppState; children: Reac
                 <Wordmark />
               </Link>
             </header>
-            <main className="min-h-0 flex-1 bg-surface">{children}</main>
+            {/* On wide screens the page is a sheet of paper resting on the desk. */}
+            <main className="min-h-0 flex-1 overflow-hidden bg-surface lg:my-2 lg:mr-2 lg:rounded-[14px] lg:shadow-canvas">
+              {children}
+            </main>
           </div>
         </div>
         <Sheet open={menuOpen} onOpenChange={setMenuOpen}>

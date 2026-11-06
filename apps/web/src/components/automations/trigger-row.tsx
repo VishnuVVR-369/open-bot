@@ -268,7 +268,10 @@ export function TriggerRow({
 
   return (
     <li
-      className={cn("rounded-xl border bg-card", !trigger.enabled && !expanded && "opacity-70")}
+      className={cn(
+        "rounded-xl bg-card shadow-raised",
+        !trigger.enabled && !expanded && "opacity-70",
+      )}
       data-testid={trigger.kind}
     >
       <div className="flex flex-wrap items-center gap-4 px-4 py-3.5">

@@ -8,6 +8,7 @@ export default tseslint.config(
     ignores: [
       "**/node_modules/**",
       "**/.next/**",
+      "**/.next-showcase/**",
       "apps/site/out/**",
       "apps/site/.media/**",
       "**/dist/**",

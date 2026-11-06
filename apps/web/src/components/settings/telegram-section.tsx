@@ -74,7 +74,7 @@ export function TelegramSection() {
   if (telegram.connected && telegram.linked) {
     return (
       <>
-        <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border bg-card px-4 py-3.5">
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-card shadow-raised px-4 py-3.5">
           <div className="flex min-w-0 items-center gap-3">
             <span
               className={cn(
@@ -152,7 +152,7 @@ export function TelegramSection() {
   }
 
   return (
-    <ol className="flex flex-col gap-5 rounded-xl border bg-card px-4 py-4">
+    <ol className="flex flex-col gap-5 rounded-xl bg-card shadow-raised px-4 py-4">
       <Step number={1} done={telegram.connected} title="Make a Telegram bot">
         {!telegram.connected && (
           <p className="text-[13px] leading-relaxed text-muted-foreground">

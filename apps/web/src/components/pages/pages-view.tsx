@@ -38,7 +38,7 @@ function PageTile({ page, bot }: { page: PageSummary; bot: BotSummary | undefine
   const [menuOpen, setMenuOpen] = useState(false);
   return (
     <li
-      className="group/tile relative flex flex-col overflow-hidden rounded-xl border bg-card transition-colors hover:border-foreground/20 has-focus-visible:ring-2 has-focus-visible:ring-ring/50"
+      className="group/tile relative flex flex-col overflow-hidden rounded-xl bg-card shadow-raised transition-shadow hover:shadow-float has-focus-visible:ring-2 has-focus-visible:ring-ring/50"
       data-testid="page-tile"
     >
       <Link

@@ -116,7 +116,7 @@ export function SwarmCard({ item, botName }: { item: SwarmItem; botName: string 
 
   return (
     <section
-      className="flex flex-col gap-3.5 rounded-xl border bg-card p-4"
+      className="flex flex-col gap-3.5 rounded-xl bg-card shadow-raised p-4"
       aria-label={`Swarm: ${item.title}`}
       data-testid="swarm"
       data-state={item.state}

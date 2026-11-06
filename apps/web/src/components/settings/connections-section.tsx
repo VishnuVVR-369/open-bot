@@ -432,7 +432,7 @@ export function ConnectionsSection() {
           Other services, through MCP
         </span>
         {connections.length > 0 ? (
-          <ul className="flex flex-col divide-y rounded-xl border bg-card">
+          <ul className="flex flex-col divide-y divide-border/70 rounded-xl bg-card shadow-raised">
             {connections.map((connection) => (
               <ConnectionRow
                 key={connection.id}

@@ -242,7 +242,7 @@ function AutomationLabel({
         {title}
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[min(32rem,calc(100vw-2rem))] gap-2 p-0">
-        <div className="border-b px-3.5 py-2.5 text-[12px] font-medium tracking-wide text-muted-foreground uppercase">
+        <div className="border-b px-3.5 py-2.5 text-[12.5px] font-medium text-muted-foreground">
           What started this
         </div>
         <div className="max-h-80 overflow-y-auto px-3.5 pb-3">
@@ -504,7 +504,7 @@ export function RunBlock({
       />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <header className="flex h-6 items-center gap-2 text-[13px]">
-          <span className="font-heading text-[14.5px] font-semibold">{name}</span>
+          <span className="text-[14px] font-semibold">{name}</span>
           <TriggerLabel run={run} bots={bots} />
           {run.authMode === "api_key" && (
             <span className="flex items-center gap-1 rounded-full bg-subtle px-2 py-px text-[11.5px] text-muted-foreground">
@@ -513,12 +513,17 @@ export function RunBlock({
             </span>
           )}
           <RunTime run={run} />
-          {!active && reply && (
+          {!active && (
             <span className="flex items-center">
-              <CopyReply text={reply} />
-              <ReadAloud runId={run.id} text={reply} />
-              {run.timeline.status === "completed" && bot && (
-                <ReplyFeedback run={run} botName={name} chatId={chatId} />
+              <RunMemory runId={run.id} />
+              {reply && (
+                <>
+                  <CopyReply text={reply} />
+                  <ReadAloud runId={run.id} text={reply} />
+                  {run.timeline.status === "completed" && bot && (
+                    <ReplyFeedback run={run} botName={name} chatId={chatId} />
+                  )}
+                </>
               )}
             </span>
           )}
@@ -566,7 +571,6 @@ export function RunBlock({
         </div>
 
         {active && <WorkingLine run={run} />}
-        <RunMemory runId={run.id} />
         {run.timeline.status === "interrupted" && (
           <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
             <Square className="size-3" />

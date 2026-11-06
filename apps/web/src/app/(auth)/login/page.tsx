@@ -11,8 +11,10 @@ export default async function LoginPage() {
   return (
     <>
       <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold">Welcome back</h1>
-        <p className="text-muted-foreground">Your teammates kept working while you were away.</p>
+        <h1 className="text-[28px] leading-tight font-semibold">Welcome back</h1>
+        <p className="text-[14.5px] text-muted-foreground">
+          Your teammates kept working while you were away.
+        </p>
       </div>
       <AuthForm mode="login" />
     </>

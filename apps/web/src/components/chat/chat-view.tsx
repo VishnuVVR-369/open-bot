@@ -94,7 +94,7 @@ function UserMessage({ message }: { message: MessageView }) {
           ))}
         </div>
       )}
-      <div className="max-w-[85%] rounded-[18px] rounded-br-md bg-foreground px-3.5 py-2 text-[14.5px] leading-relaxed whitespace-pre-wrap text-background">
+      <div className="max-w-[85%] rounded-[18px] rounded-br-[6px] bg-[color-mix(in_oklab,var(--foreground)_6.5%,var(--surface))] px-4 py-2.5 text-[14.5px] leading-relaxed whitespace-pre-wrap text-foreground">
         <MessageText text={message.text} />
       </div>
     </div>
@@ -150,7 +150,7 @@ function EmptyState({
           <button
             key={starter}
             onClick={() => onPick(starter)}
-            className="rounded-xl border bg-card px-4 py-3 text-left text-[13.5px] text-foreground/85 transition-colors hover:border-foreground/25 hover:bg-muted/50"
+            className="rounded-xl bg-card px-4 py-3 text-left text-[13.5px] text-foreground/85 shadow-raised transition-shadow hover:shadow-float"
           >
             {starter}
           </button>
@@ -296,7 +296,7 @@ export function ChatView({ chatId }: { chatId: string }) {
           if (event.dataTransfer.files.length) composer.current?.addFiles(event.dataTransfer.files);
         }}
       >
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b px-4">
+        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border/70 px-4 [&_button[data-variant=ghost]]:text-muted-foreground [&_button[data-variant=ghost]:hover]:text-foreground">
           {loading || !chat ? (
             <Skeleton className="h-6 w-40" />
           ) : (
@@ -487,7 +487,7 @@ export function ChatView({ chatId }: { chatId: string }) {
               variant="outline"
               size="icon-sm"
               aria-label="Scroll to the latest"
-              className="absolute -top-11 left-1/2 -translate-x-1/2 rounded-full bg-card shadow-md"
+              className="absolute -top-11 left-1/2 -translate-x-1/2 rounded-full bg-card shadow-float"
               onClick={() =>
                 scroller.current?.scrollTo({
                   top: scroller.current.scrollHeight,
@@ -500,7 +500,7 @@ export function ChatView({ chatId }: { chatId: string }) {
           )}
           <div className="mx-auto w-full max-w-[760px]">
             {chat && helper ? (
-              <p className="mb-4 rounded-xl border bg-subtle/60 px-4 py-3 text-center text-[13px] text-muted-foreground">
+              <p className="mb-4 rounded-xl bg-subtle px-4 py-3 text-center text-[13px] text-muted-foreground">
                 A helper works on its part alone. Its result goes back to{" "}
                 {bot?.name ?? "its teammate"},{" "}
                 <Link
@@ -538,7 +538,7 @@ export function ChatView({ chatId }: { chatId: string }) {
 
       <aside
         className={cn(
-          "hidden shrink-0 overflow-y-auto border-l bg-background p-5 xl:block",
+          "hidden shrink-0 overflow-y-auto border-l border-border/70 bg-[color-mix(in_oklab,var(--background)_45%,var(--surface))] p-5 xl:block",
           panelOpen ? "w-[clamp(440px,42%,760px)]" : "xl:hidden",
         )}
       >

@@ -55,7 +55,10 @@ export function ScheduleRow({
 
   return (
     <li
-      className={cn("rounded-xl border bg-card", !schedule.enabled && !expanded && "opacity-70")}
+      className={cn(
+        "rounded-xl bg-card shadow-raised",
+        !schedule.enabled && !expanded && "opacity-70",
+      )}
       data-testid="schedule"
     >
       <div className="flex flex-wrap items-center gap-4 px-4 py-3.5">

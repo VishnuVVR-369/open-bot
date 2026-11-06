@@ -287,10 +287,8 @@ export function WebSearchStep({ item }: { item: WebSearchItem }) {
 
 export function PlanCard({ item }: { item: PlanItem }) {
   return (
-    <div className="rounded-xl border bg-card px-4 py-3">
-      <div className="mb-2 text-[12px] font-medium tracking-wide text-muted-foreground uppercase">
-        Plan
-      </div>
+    <div className="rounded-xl bg-card shadow-raised px-4 py-3">
+      <div className="mb-2 text-[12.5px] font-medium text-muted-foreground">Plan</div>
       <ol className="flex flex-col gap-1.5">
         {item.steps.map((step, index) => (
           <li key={index} className="flex items-start gap-2.5 text-[13.5px]">

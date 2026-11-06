@@ -204,7 +204,7 @@ export function FilesView() {
       </div>
       <div
         className={cn(
-          "relative overflow-hidden rounded-xl border bg-card transition-colors",
+          "relative overflow-hidden rounded-xl bg-card shadow-raised transition-colors",
           dragging && "border-foreground/40",
         )}
         onDragOver={(event) => {

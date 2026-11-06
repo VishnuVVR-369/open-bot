@@ -85,11 +85,11 @@ function Card({
       <button
         type="button"
         onClick={onOpen}
-        className="flex w-full cursor-grab flex-col gap-2 rounded-lg border bg-card px-3 py-2.5 text-left shadow-xs transition-colors hover:border-foreground/20 active:cursor-grabbing"
+        className="flex w-full cursor-grab flex-col gap-2.5 rounded-[10px] bg-card px-3.5 py-3 text-left shadow-raised transition-shadow hover:shadow-float active:cursor-grabbing"
       >
         <span
           className={cn(
-            "text-[14px] leading-snug break-words",
+            "text-[13.5px] leading-snug font-medium break-words",
             done && "text-muted-foreground line-through decoration-muted-foreground/40",
           )}
         >
@@ -230,11 +230,11 @@ export function TaskBoard() {
               void move(id, column.status, (last?.position ?? 0) + 1);
             }}
             className={cn(
-              "flex flex-col gap-2 rounded-xl md:min-h-40 bg-subtle/60 p-2 transition-colors dark:bg-white/[0.03]",
-              overColumn === column.status && "bg-subtle ring-1 ring-foreground/15",
+              "flex flex-col gap-2 rounded-[14px] bg-subtle p-2 transition-colors md:min-h-40 dark:bg-white/[0.025]",
+              overColumn === column.status && "ring-1 ring-foreground/15",
             )}
           >
-            <h2 className="flex items-center gap-2 px-1.5 pt-1 pb-0.5 text-[13px] font-medium">
+            <h2 className="flex items-center gap-2 px-1.5 pt-1 pb-1 text-[13px] font-semibold">
               <span
                 className={cn(
                   "size-2 rounded-full",
@@ -244,7 +244,7 @@ export function TaskBoard() {
                 )}
               />
               {STATUS_LABELS[column.status]}
-              <span className="font-normal text-muted-foreground tabular-nums">
+              <span className="ml-auto rounded-full bg-surface px-1.5 text-[11.5px] leading-[18px] font-medium text-muted-foreground tabular-nums shadow-raised dark:bg-white/[0.06] dark:shadow-none">
                 {column.tasks.length}
               </span>
             </h2>
@@ -273,7 +273,7 @@ export function TaskBoard() {
               ))}
             </ol>
             {column.tasks.length === 0 && column.status !== "todo" && (
-              <p className="px-2 py-3 text-center text-[13px] text-muted-foreground">
+              <p className="mx-0.5 rounded-[10px] border border-dashed border-foreground/10 px-2 py-5 text-center text-[12.5px] text-muted-foreground">
                 {column.status === "doing" ? "Nothing in progress." : "Nothing finished yet."}
               </p>
             )}

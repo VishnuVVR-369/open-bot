@@ -52,11 +52,7 @@ function RunIcon({ status }: { status: ScheduleRunView["status"] }) {
 }
 
 export function DetailLabel({ children }: { children: ReactNode }) {
-  return (
-    <span className="text-[12px] font-medium tracking-wide text-muted-foreground uppercase">
-      {children}
-    </span>
-  );
+  return <span className="text-[12.5px] font-medium text-muted-foreground">{children}</span>;
 }
 
 /** An automation's recent runs, each linking to the run in its chat. */

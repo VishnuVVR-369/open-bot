@@ -49,6 +49,10 @@
   --color-manual-ink: var(--manual-ink);
   --color-waiting: var(--waiting);
   --color-done: var(--done);
+  --color-faint: var(--faint);
+  --shadow-canvas: var(--elev-canvas);
+  --shadow-raised: var(--elev-raised);
+  --shadow-float: var(--elev-float);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -61,82 +65,99 @@
 
 :root {
   --radius: 0.625rem;
-  /* Porcelain desk, white paper, ink. */
-  --background: #f3f4f6;
+  /* Porcelain desk, white paper, ink. The canvas floats on the desk. */
+  --background: #eeeff2;
   --surface: #ffffff;
-  --subtle: #eceef1;
-  --foreground: #14161b;
+  --subtle: #f3f4f6;
+  --foreground: #16171b;
   --card: #ffffff;
-  --card-foreground: #14161b;
+  --card-foreground: #16171b;
   --popover: #ffffff;
-  --popover-foreground: #14161b;
-  --primary: #14161b;
+  --popover-foreground: #16171b;
+  --primary: #16171b;
   --primary-foreground: #ffffff;
-  --secondary: #eceef1;
-  --secondary-foreground: #14161b;
-  --muted: #eceef1;
-  --muted-foreground: #646a75;
-  --accent: #eceef1;
-  --accent-foreground: #14161b;
-  --destructive: #d93f45;
-  --border: #e1e4e9;
-  --input: #d9dce2;
-  --ring: #14161b;
-  --sidebar: #f3f4f6;
-  --sidebar-foreground: #14161b;
-  --sidebar-primary: #14161b;
+  --secondary: #f1f2f4;
+  --secondary-foreground: #16171b;
+  --muted: #f1f2f4;
+  --muted-foreground: #6a6e78;
+  --faint: #9a9ea7;
+  --accent: #f1f2f4;
+  --accent-foreground: #16171b;
+  --destructive: #d23c42;
+  --border: #e6e7eb;
+  --input: #dddfe4;
+  --ring: #16171b;
+  --sidebar: #eeeff2;
+  --sidebar-foreground: #16171b;
+  --sidebar-primary: #16171b;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e6e8ec;
-  --sidebar-accent-foreground: #14161b;
-  --sidebar-border: #e1e4e9;
-  --sidebar-ring: #14161b;
+  --sidebar-accent: #e2e4e8;
+  --sidebar-accent-foreground: #16171b;
+  --sidebar-border: #e0e2e6;
+  --sidebar-ring: #16171b;
   /* The computer: a dark screen sitting on the light desk. */
-  --bezel: #101117;
+  --bezel: #121318;
   --bezel-foreground: #c9ccd4;
   /* Signal lights. */
   --live: #e5484d;
   --manual: #f5a524;
   --manual-ink: #9a5d00;
-  --waiting: #3e7bfa;
-  --done: #2a9d63;
+  --waiting: #3b74f0;
+  --done: #23935b;
+  /* Depth: a hairline and a soft fall-off, never a heavy drop shadow. */
+  --elev-canvas:
+    0 0 0 1px rgb(16 17 22 / 0.055), 0 1px 2px rgb(16 17 22 / 0.04),
+    0 12px 32px -16px rgb(16 17 22 / 0.1);
+  --elev-raised:
+    0 0 0 1px rgb(16 17 22 / 0.06), 0 1px 2px rgb(16 17 22 / 0.05),
+    0 4px 12px -6px rgb(16 17 22 / 0.08);
+  --elev-float:
+    0 0 0 1px rgb(16 17 22 / 0.07), 0 8px 20px -6px rgb(16 17 22 / 0.14),
+    0 24px 48px -16px rgb(16 17 22 / 0.16);
 }
 
 .dark {
-  --background: #0e0f12;
-  --surface: #15171b;
-  --subtle: #1b1d22;
-  --foreground: #eceef1;
-  --card: #15171b;
-  --card-foreground: #eceef1;
-  --popover: #191b20;
-  --popover-foreground: #eceef1;
-  --primary: #eceef1;
-  --primary-foreground: #0e0f12;
-  --secondary: #1f2227;
-  --secondary-foreground: #eceef1;
-  --muted: #1f2227;
-  --muted-foreground: #8d929c;
-  --accent: #23262c;
-  --accent-foreground: #eceef1;
-  --destructive: #f0585d;
-  --border: #25282e;
-  --input: #2d3037;
-  --ring: #eceef1;
-  --sidebar: #0e0f12;
-  --sidebar-foreground: #eceef1;
-  --sidebar-primary: #eceef1;
-  --sidebar-primary-foreground: #0e0f12;
-  --sidebar-accent: #1b1d22;
-  --sidebar-accent-foreground: #eceef1;
-  --sidebar-border: #25282e;
-  --sidebar-ring: #eceef1;
-  --bezel: #050608;
+  --background: #0b0c0e;
+  --surface: #131417;
+  --subtle: #1a1b1f;
+  --foreground: #e8e9ed;
+  --card: #17181c;
+  --card-foreground: #e8e9ed;
+  --popover: #1a1b1f;
+  --popover-foreground: #e8e9ed;
+  --primary: #e8e9ed;
+  --primary-foreground: #0b0c0e;
+  --secondary: #1e1f24;
+  --secondary-foreground: #e8e9ed;
+  --muted: #1e1f24;
+  --muted-foreground: #8c909a;
+  --faint: #5f636c;
+  --accent: #212227;
+  --accent-foreground: #e8e9ed;
+  --destructive: #ef5b60;
+  --border: #23252a;
+  --input: #2b2d33;
+  --ring: #e8e9ed;
+  --sidebar: #0b0c0e;
+  --sidebar-foreground: #e8e9ed;
+  --sidebar-primary: #e8e9ed;
+  --sidebar-primary-foreground: #0b0c0e;
+  --sidebar-accent: #191a1e;
+  --sidebar-accent-foreground: #e8e9ed;
+  --sidebar-border: #1d1f23;
+  --sidebar-ring: #e8e9ed;
+  --bezel: #060709;
   --bezel-foreground: #b8bcc5;
   --live: #f0585d;
   --manual: #f5b03c;
   --manual-ink: #f5b03c;
-  --waiting: #5b8fff;
+  --waiting: #6194ff;
   --done: #3cb878;
+  --elev-canvas: 0 0 0 1px rgb(255 255 255 / 0.055), 0 12px 32px -16px rgb(0 0 0 / 0.6);
+  --elev-raised: 0 0 0 1px rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.3);
+  --elev-float:
+    0 0 0 1px rgb(255 255 255 / 0.08), 0 8px 20px -6px rgb(0 0 0 / 0.5),
+    0 24px 48px -16px rgb(0 0 0 / 0.6);
 }
 
 @keyframes tally {
@@ -150,6 +171,10 @@
 }
 
 @layer base {
+  :root {
+    /* The status light on an avatar is cut out of whatever it sits on. */
+    --avatar-ring: var(--surface);
+  }
   * {
     @apply border-border outline-ring/50;
   }
@@ -160,12 +185,18 @@
   body {
     @apply bg-background text-foreground;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
   h1,
   h2,
   h3 {
     @apply font-heading;
-    letter-spacing: -0.015em;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
   }
   ::selection {
     background: color-mix(in oklab, var(--foreground) 18%, transparent);

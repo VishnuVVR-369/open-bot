@@ -24,7 +24,7 @@ function formatBytes(bytes: number) {
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="flex items-center gap-1.5 text-[13px] font-medium tracking-wide text-muted-foreground uppercase">
+    <h2 className="flex items-center gap-1.5 font-heading text-[15px] font-semibold tracking-[-0.01em] text-foreground">
       {children}
     </h2>
   );
@@ -168,7 +168,7 @@ export function ComputerPage({ initialScreen }: { initialScreen: string | null }
             <SectionTitle>Browsing</SectionTitle>
             <Link
               href="/settings#browsing"
-              className="flex items-start gap-3 rounded-xl border bg-card px-3.5 py-3 transition-colors hover:border-foreground/20"
+              className="flex items-start gap-3 rounded-xl bg-card shadow-raised px-3.5 py-3 transition-shadow hover:shadow-float"
             >
               {home ? (
                 <Home className="mt-0.5 size-4 text-done" />
@@ -194,7 +194,7 @@ export function ComputerPage({ initialScreen }: { initialScreen: string | null }
             <SectionTitle>
               <Activity className="size-3.5" /> Health
             </SectionTitle>
-            <ul className="flex flex-col divide-y rounded-xl border bg-card">
+            <ul className="flex flex-col divide-y divide-border/70 rounded-xl bg-card shadow-raised">
               {[
                 {
                   label: "Computer",

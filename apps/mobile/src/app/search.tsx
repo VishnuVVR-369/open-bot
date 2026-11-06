@@ -454,8 +454,8 @@ export default function Search() {
         renderSectionHeader={({ section }) =>
           // One kind of thing needs no heading saying which.
           scope === "all" ? (
-            <Text variant="caption" muted style={styles.section} accessibilityRole="header">
-              {section.title.toUpperCase()}
+            <Text variant="overline" muted style={styles.section} accessibilityRole="header">
+              {section.title}
             </Text>
           ) : null
         }
@@ -557,8 +557,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   section: {
-    letterSpacing: 0.6,
-    fontWeight: "500",
     paddingHorizontal: space(4),
     paddingTop: space(4),
     paddingBottom: space(1),

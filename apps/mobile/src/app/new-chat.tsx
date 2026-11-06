@@ -173,8 +173,8 @@ export default function NewChat() {
         ) : (
           <>
             <View style={{ gap: space(2) }}>
-              <Text variant="caption" muted style={styles.overline}>
-                GROUP NAME
+              <Text variant="overline" muted style={styles.overline}>
+                Group name
               </Text>
               <TextField
                 value={title}
@@ -245,7 +245,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  overline: { letterSpacing: 0.6, fontWeight: "500", paddingHorizontal: space(1) },
+  overline: { paddingHorizontal: space(1) },
   problem: { paddingHorizontal: space(1) },
   check: {
     width: 24,

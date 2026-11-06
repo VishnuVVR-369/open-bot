@@ -41,9 +41,9 @@ export function BotAvatar({
           SIZES[size],
         )}
         style={{
-          backgroundColor: `color-mix(in oklab, ${color} 16%, var(--surface))`,
-          color: `color-mix(in oklab, ${color} 78%, var(--foreground))`,
-          boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${color} 30%, transparent)`,
+          backgroundImage: `linear-gradient(180deg, color-mix(in oklab, ${color} 22%, var(--surface)), color-mix(in oklab, ${color} 12%, var(--surface)))`,
+          color: `color-mix(in oklab, ${color} 80%, var(--foreground))`,
+          boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${color} 26%, transparent), inset 0 1px 0 color-mix(in oklab, white 35%, transparent)`,
         }}
       >
         {emoji ? <span className="leading-none">{emoji}</span> : initials(name)}
@@ -51,7 +51,7 @@ export function BotAvatar({
       {activity !== "idle" && (
         <span
           className={cn(
-            "absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-sidebar",
+            "absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-(--avatar-ring)",
             activity === "working" && "animate-tally bg-live",
             activity === "waiting" && "bg-waiting",
             activity === "queued" && "bg-muted-foreground/60",

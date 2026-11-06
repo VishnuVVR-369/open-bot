@@ -1,7 +1,7 @@
 "use client";
 
 import { isRunActive } from "@open-bot/shared";
-import { formatDistanceToNowStrict } from "date-fns";
+import { format, formatDistanceToNowStrict } from "date-fns";
 import {
   ArrowRight,
   CalendarClock,
@@ -28,8 +28,21 @@ import { useActivity, useAppState, useProfile } from "@/lib/client/queries";
 import { botActivity, botStatusText } from "@/lib/status";
 import { chatHref, cn, plainText } from "@/lib/utils";
 
-function greeting(name: string) {
-  const hour = new Date().getHours();
+/** The minute it is in the browser. Null while rendering on the server, whose clock and time zone aren't the reader's. */
+function subscribeMinute(onChange: () => void) {
+  const timer = setInterval(onChange, 30_000);
+  return () => clearInterval(timer);
+}
+function useMinute(): number | null {
+  return useSyncExternalStore(
+    subscribeMinute,
+    () => Math.floor(Date.now() / 60_000),
+    () => null,
+  );
+}
+
+function greeting(name: string, now: Date) {
+  const hour = now.getHours();
   const part =
     hour < 5
       ? "Good night"
@@ -59,7 +72,7 @@ function NeedsYou() {
     return null;
   return (
     <section className="flex flex-col gap-2.5" aria-label="Needs you">
-      <h2 className="text-[13px] font-medium tracking-wide text-muted-foreground uppercase">
+      <h2 className="font-heading text-[15px] font-semibold tracking-[-0.01em] text-foreground">
         Needs you
       </h2>
       <div className="flex flex-col gap-2">
@@ -95,7 +108,7 @@ function NeedsYou() {
           <Link
             key={proposal.id}
             href={`/bots/${proposal.bot.id}`}
-            className="flex items-center gap-3 rounded-xl border bg-card px-4 py-3 transition-colors hover:bg-muted/40"
+            className="flex items-center gap-3 rounded-xl bg-card shadow-raised px-4 py-3 transition-colors hover:bg-muted/40"
             data-testid="proposal-link"
           >
             <Sparkles className="size-4 shrink-0 text-waiting" />
@@ -129,7 +142,7 @@ function ProfileNudge() {
   );
   if (dismissed || !profile || profile.aboutMe.trim() || !state?.bots.length) return null;
   return (
-    <div className="relative flex items-center gap-3.5 rounded-xl border bg-card px-4 py-3.5">
+    <div className="relative flex items-center gap-3.5 rounded-xl bg-card px-4 py-3.5 shadow-raised">
       <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-subtle text-muted-foreground">
         <UserRound className="size-4" />
       </span>
@@ -163,7 +176,7 @@ function Teammates() {
   return (
     <section className="flex flex-col gap-3" aria-label="Teammates">
       <div className="flex items-center justify-between">
-        <h2 className="text-[13px] font-medium tracking-wide text-muted-foreground uppercase">
+        <h2 className="font-heading text-[15px] font-semibold tracking-[-0.01em] text-foreground">
           Teammates
         </h2>
         {bots.length > 0 && (
@@ -204,36 +217,36 @@ function Teammates() {
           </span>
         </Link>
       ) : (
-        <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
           {bots.map((bot) => {
             const activity = botActivity(bot);
             return (
               <Link
                 key={bot.id}
                 href={bot.directChatId ? `/chats/${bot.directChatId}` : `/bots/${bot.id}`}
-                className="group flex items-center gap-3 rounded-xl border bg-card px-3.5 py-3 transition-colors hover:border-foreground/20"
+                className="group flex min-w-0 items-center gap-3 rounded-xl bg-card px-3 py-2.5 shadow-raised transition-shadow hover:shadow-float"
                 data-testid="teammate-card"
               >
                 <BotAvatar
                   name={bot.name}
                   color={bot.color}
                   emoji={bot.emoji}
-                  size="lg"
+                  size="md"
                   activity={activity}
-                  className="[&>span:last-child]:ring-card"
+                  className="[--avatar-ring:var(--card)]"
                 />
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span className="flex items-center gap-1.5">
-                    <span className="truncate text-[15px] font-semibold">{bot.name}</span>
+                    <span className="truncate text-[14px] font-semibold">{bot.name}</span>
                     {bot.isPrimary && (
-                      <span className="rounded-full bg-subtle px-1.5 py-px text-[10.5px] text-muted-foreground">
-                        lead
+                      <span className="rounded-full bg-subtle px-1.5 py-px text-[11px] font-medium text-muted-foreground">
+                        Lead
                       </span>
                     )}
                   </span>
                   <span
                     className={cn(
-                      "truncate text-[13px] text-muted-foreground",
+                      "truncate text-[12.5px] text-muted-foreground",
                       activity === "waiting" && "text-waiting",
                     )}
                   >
@@ -256,7 +269,7 @@ function Activity() {
   if (!state || state.bots.length === 0) return null;
   return (
     <section className="flex flex-col gap-3" aria-label="Recent activity">
-      <h2 className="text-[13px] font-medium tracking-wide text-muted-foreground uppercase">
+      <h2 className="font-heading text-[15px] font-semibold tracking-[-0.01em] text-foreground">
         Recent activity
       </h2>
       {isLoading ? (
@@ -266,7 +279,7 @@ function Activity() {
           Nothing yet. Message a teammate to get them working.
         </p>
       ) : (
-        <ol className="divide-y overflow-hidden rounded-xl border bg-card">
+        <ol className="divide-y divide-border/70 overflow-hidden rounded-xl bg-card shadow-raised">
           {data.map((item) => {
             const bot = state.bots.find((b) => b.id === item.botId);
             const active = isRunActive(item.status);
@@ -274,7 +287,7 @@ function Activity() {
               <li key={item.runId}>
                 <Link
                   href={chatHref(item.chatId, item.runId)}
-                  className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-muted/40"
+                  className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-subtle/70"
                 >
                   {bot ? (
                     <BotAvatar
@@ -288,7 +301,7 @@ function Activity() {
                     <span className="size-7 rounded-[8px] bg-subtle" />
                   )}
                   <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <span className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
+                    <span className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
                       <span className="font-medium text-foreground">
                         {bot?.name ?? "Former teammate"}
                       </span>
@@ -328,7 +341,7 @@ function Activity() {
                     </span>
                     <span
                       className={cn(
-                        "line-clamp-2 text-[14px]",
+                        "line-clamp-2 text-[13.5px] leading-snug text-foreground/90",
                         item.status === "failed" && "text-destructive",
                       )}
                     >
@@ -361,15 +374,25 @@ function Activity() {
 
 export function HomeView() {
   const { data: state } = useAppState();
+  const minute = useMinute();
+  const now = minute === null ? null : new Date(minute * 60_000);
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto grid w-full max-w-[1400px] gap-10 px-5 py-8 sm:px-8 sm:py-10 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+      <div className="mx-auto grid w-full max-w-[1400px] gap-10 px-5 py-8 sm:px-10 sm:py-12 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] xl:gap-12">
         <div className="flex min-w-0 flex-col gap-8">
           <div className="flex flex-col gap-1.5">
-            <h1 className="text-[28px] leading-tight font-semibold">
-              {state ? greeting(state.user.name) : "Welcome"}
+            <p className="h-[18px] text-[13px] font-medium text-muted-foreground">
+              {now && format(now, "EEEE, MMMM d")}
+            </p>
+            <h1 className="text-[30px] leading-tight font-semibold">
+              {now && state ? (
+                greeting(state.user.name, now)
+              ) : (
+                // Holds the line's height until the browser knows what time it is.
+                <span className="invisible">Welcome</span>
+              )}
             </h1>
-            <p className="text-[15px] text-muted-foreground">
+            <p className="text-[14.5px] text-muted-foreground">
               {state?.bots.some((bot) => bot.activeRun && bot.activeRun.status !== "queued")
                 ? `${state.bots.filter((bot) => bot.activeRun && bot.activeRun.status !== "queued").length} teammate${state.bots.filter((bot) => bot.activeRun && bot.activeRun.status !== "queued").length === 1 ? " is" : "s are"} working right now.`
                 : "Your teammates are ready when you are."}
@@ -381,7 +404,7 @@ export function HomeView() {
           <Teammates />
           <Activity />
         </div>
-        <div className="min-w-0 xl:sticky xl:top-10 xl:self-start">
+        <div className="min-w-0 xl:sticky xl:top-12 xl:self-start">
           <ComputerPanel botIds={state?.bots.map((bot) => bot.id) ?? []} />
         </div>
       </div>

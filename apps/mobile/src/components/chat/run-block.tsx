@@ -321,8 +321,8 @@ function ItemView({
         <View
           style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
         >
-          <Text variant="caption" muted style={styles.overline}>
-            PLAN
+          <Text variant="overline" muted>
+            Plan
           </Text>
           {item.steps.map((step, index) => (
             <View key={index} style={styles.planStep}>
@@ -686,7 +686,6 @@ const styles = StyleSheet.create({
   working: { flexDirection: "row", alignItems: "center", gap: space(2), minHeight: 24 },
   dot: { width: 8, height: 8, borderRadius: 4 },
   card: { borderWidth: 1, borderRadius: radius.xl, padding: space(4), gap: space(2) },
-  overline: { letterSpacing: 0.6, fontWeight: "500" },
   planStep: { flexDirection: "row", alignItems: "flex-start", gap: space(2.5) },
   planMark: { width: 16, height: 20, alignItems: "center", justifyContent: "center" },
   planPending: { width: 12, height: 12, borderRadius: 6, borderWidth: 1, opacity: 0.6 },

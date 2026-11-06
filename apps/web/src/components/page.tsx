@@ -19,7 +19,7 @@ export function Page({
     <div className="h-full overflow-y-auto">
       <div
         className={cn(
-          "mx-auto flex w-full flex-col gap-8 px-5 py-8 sm:px-8 sm:py-10",
+          "mx-auto flex w-full flex-col gap-8 px-5 py-8 sm:px-10 sm:py-12",
           width === "default" && "max-w-[980px]",
           width === "wide" && "max-w-[1280px]",
           width === "narrow" && "max-w-[720px]",
@@ -27,7 +27,7 @@ export function Page({
       >
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div className="flex flex-col gap-1.5">
-            <h1 className="text-[26px] leading-tight font-semibold">{title}</h1>
+            <h1 className="text-[28px] leading-tight font-semibold">{title}</h1>
             {description && (
               <p className="max-w-[60ch] text-[14.5px] text-muted-foreground">{description}</p>
             )}

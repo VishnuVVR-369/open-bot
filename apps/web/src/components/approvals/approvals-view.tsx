@@ -52,7 +52,10 @@ function ApprovalRow({ approval }: { approval: ApprovalView }) {
 
   return (
     <li
-      className={cn("flex gap-3.5 rounded-xl border bg-card p-4", open && "border-waiting/35")}
+      className={cn(
+        "flex gap-3.5 rounded-xl bg-card shadow-raised p-4",
+        open && "border-waiting/35",
+      )}
       data-testid="approval-row"
     >
       {bot ? (
@@ -148,7 +151,7 @@ export function ApprovalsView() {
       )}
       {decided.length > 0 && (
         <section className="flex flex-col gap-3">
-          <h2 className="text-[13px] font-medium tracking-wide text-muted-foreground uppercase">
+          <h2 className="font-heading text-[15px] font-semibold tracking-[-0.01em] text-foreground">
             History
           </h2>
           <ul className="flex flex-col gap-2.5">

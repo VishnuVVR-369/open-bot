@@ -890,7 +890,7 @@ export function AccountsSection({
 
   return (
     <div className="flex flex-col gap-2.5" data-testid="accounts">
-      <ul className="flex flex-col divide-y rounded-xl border bg-card">
+      <ul className="flex flex-col divide-y divide-border/70 rounded-xl bg-card shadow-raised">
         {connected.map((connection) => (
           <AccountRow
             key={connection.id}

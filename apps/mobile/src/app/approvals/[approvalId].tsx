@@ -53,8 +53,8 @@ const KIND_LABEL = {
 /** A small label over a part of the request. */
 function Overline({ children }: { children: string }) {
   return (
-    <Text variant="caption" muted style={styles.overline}>
-      {children.toUpperCase()}
+    <Text variant="overline" muted style={styles.overline}>
+      {children}
     </Text>
   );
 }
@@ -320,7 +320,7 @@ export default function ApprovalScreen() {
 const styles = StyleSheet.create({
   content: { padding: space(4), paddingTop: space(5), gap: space(5), paddingBottom: space(8) },
   who: { flexDirection: "row", alignItems: "center", gap: space(3.5) },
-  overline: { letterSpacing: 0.6, fontWeight: "500", paddingHorizontal: space(1) },
+  overline: { paddingHorizontal: space(1) },
   code: { borderRadius: radius.xl },
   cwd: { flexDirection: "row", alignItems: "center", gap: space(1.5), paddingHorizontal: space(1) },
   prose: { borderWidth: 1, borderRadius: radius.xl, padding: space(4) },

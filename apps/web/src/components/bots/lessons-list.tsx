@@ -47,7 +47,7 @@ export function LessonsList({ botId, name }: { botId: string; name: string }) {
           </p>
         </div>
       ) : (
-        <ul className="flex flex-col divide-y rounded-xl border bg-card">
+        <ul className="flex flex-col divide-y divide-border/70 rounded-xl bg-card shadow-raised">
           {lessons.map((lesson) => (
             <li
               key={lesson.id}

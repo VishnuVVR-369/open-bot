@@ -83,7 +83,7 @@ export function Briefing() {
 
   return (
     <section
-      className="flex flex-col gap-4 rounded-xl border bg-card px-4 pt-3.5 pb-3"
+      className="flex flex-col gap-4 rounded-xl bg-card px-4 pt-3.5 pb-3 shadow-raised"
       aria-label="While you were away"
       data-testid="briefing"
     >

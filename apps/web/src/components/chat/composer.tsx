@@ -307,7 +307,7 @@ export function Composer({
           aria-label="Skills"
           data-testid="skill-menu"
         >
-          <div className="flex items-center justify-between px-2 pt-1 pb-1.5 text-[11.5px] font-medium tracking-wide text-muted-foreground uppercase">
+          <div className="flex items-center justify-between px-2 pt-1 pb-1.5 text-[12.5px] font-medium text-muted-foreground">
             Skills
             <Link
               href="/skills"
@@ -370,7 +370,7 @@ export function Composer({
       )}
       <div
         className={cn(
-          "flex flex-col rounded-[20px] border bg-card shadow-[0_1px_2px_rgb(0_0_0/0.04),0_8px_24px_-12px_rgb(0_0_0/0.12)] transition-colors focus-within:border-foreground/25",
+          "flex flex-col rounded-[20px] border border-border/80 bg-card shadow-[0_1px_2px_rgb(16_17_22/0.04),0_10px_28px_-14px_rgb(16_17_22/0.14)] transition-[border-color,box-shadow] focus-within:border-foreground/20 focus-within:shadow-[0_1px_2px_rgb(16_17_22/0.05),0_14px_36px_-14px_rgb(16_17_22/0.2)] dark:shadow-none",
         )}
       >
         {uploads.length > 0 && (
@@ -457,9 +457,9 @@ export function Composer({
               submit();
             }
           }}
-          className="max-h-60 min-h-[52px] w-full resize-none bg-transparent px-4 pt-3.5 pb-1 text-[14.5px] leading-relaxed outline-none placeholder:text-muted-foreground/80"
+          className="max-h-60 min-h-[52px] w-full resize-none bg-transparent px-4 pt-3.5 pb-1 text-[14.5px] leading-relaxed outline-none placeholder:text-faint"
         />
-        <div className="flex items-center gap-1 px-2 pb-2">
+        <div className="flex items-center gap-0.5 px-2 pb-2 [&_button[data-variant=ghost]]:text-muted-foreground [&_button[data-variant=ghost]:hover]:text-foreground">
           <input
             ref={fileInput}
             type="file"

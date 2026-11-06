@@ -14,3 +14,4 @@ next-env.d.ts
 e2e/.auth
 /docs/
 /apps/desktop/release/
+.next-showcase

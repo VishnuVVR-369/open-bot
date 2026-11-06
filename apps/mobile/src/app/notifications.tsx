@@ -182,8 +182,8 @@ export default function Notifications() {
           />
         }
         renderSectionHeader={({ section }) => (
-          <Text variant="caption" muted style={styles.section} accessibilityRole="header">
-            {section.title.toUpperCase()}
+          <Text variant="overline" muted style={styles.section} accessibilityRole="header">
+            {section.title}
           </Text>
         )}
         ItemSeparatorComponent={() => <Separator inset={space(4) + AVATAR + space(3)} />}
@@ -273,8 +273,6 @@ export default function Notifications() {
 
 const styles = StyleSheet.create({
   section: {
-    letterSpacing: 0.6,
-    fontWeight: "500",
     paddingHorizontal: space(4),
     paddingTop: space(5),
     paddingBottom: space(2),

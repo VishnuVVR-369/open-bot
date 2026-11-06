@@ -235,7 +235,7 @@ export function BotForm({
                 anytime in Automations.
               </span>
             </div>
-            <div className="flex flex-col divide-y rounded-xl border bg-card">
+            <div className="flex flex-col divide-y divide-border/70 rounded-xl bg-card shadow-raised">
               {template.starters.map((starter) => {
                 const on = starterIds.includes(starter.id);
                 return (
@@ -283,7 +283,7 @@ export function BotForm({
                 <label
                   key={option.value}
                   className={cn(
-                    "flex cursor-pointer items-start gap-3 rounded-xl border bg-card px-4 py-3 transition-colors hover:bg-muted/40",
+                    "flex cursor-pointer items-start gap-3 rounded-xl bg-card shadow-raised px-4 py-3 transition-colors hover:bg-muted/40",
                     checked && "border-foreground/50 bg-muted/40",
                   )}
                 >
@@ -329,7 +329,7 @@ export function BotForm({
       </div>
 
       <aside className="flex flex-col gap-6 lg:sticky lg:top-8 lg:self-start">
-        <div className="flex flex-col items-center gap-3 rounded-2xl border bg-card px-6 py-8 text-center">
+        <div className="flex flex-col items-center gap-3 rounded-2xl bg-card shadow-raised px-6 py-8 text-center">
           <BotAvatar
             name={values.name || "?"}
             color={values.color}

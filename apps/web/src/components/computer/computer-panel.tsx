@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   ChevronDown,
   ClipboardPaste,
+  CloudOff,
   Expand,
   Globe,
   Hand,
@@ -13,6 +14,7 @@ import {
   Maximize2,
   Moon,
   MousePointer2,
+  PlugZap,
   Power,
   Undo2,
 } from "lucide-react";
@@ -280,6 +282,15 @@ function WakeButton({ screenId }: { screenId: string }) {
   );
 }
 
+/** The icon above a dark screen's message: a small lit tile. */
+function GlassIcon({ children }: { children: ReactNode }) {
+  return (
+    <span className="mb-2 flex size-11 items-center justify-center rounded-[13px] bg-white/[0.05] text-bezel-foreground/80 shadow-[inset_0_1px_0_rgb(255_255_255/0.08)] ring-1 ring-white/[0.08] [&_svg]:size-5">
+      {children}
+    </span>
+  );
+}
+
 /** The glass: the bot's live screen, or why it isn't showing. */
 export function ScreenGlass({
   screenId,
@@ -313,10 +324,11 @@ export function ScreenGlass({
   if (!workerOnline || !online) {
     placeholder = (
       <>
+        <GlassIcon>{workerOnline ? <CloudOff /> : <PlugZap />}</GlassIcon>
         <span className="text-[14px] font-medium text-bezel-foreground">
           {workerOnline ? "The computer is starting or offline" : "The worker isn't running"}
         </span>
-        <span className="text-[12.5px]">
+        <span className="max-w-80 text-[12.5px] leading-relaxed">
           {workerOnline
             ? "It reconnects on its own. If it doesn't, check the computer container."
             : "Start everything with pnpm dev, and this screen connects by itself."}
@@ -361,17 +373,13 @@ export function ScreenGlass({
     const starting = info.status?.state === "starting";
     placeholder = (
       <>
-        {starting ? (
-          <Loader2 className="mb-1 size-5 animate-spin" />
-        ) : (
-          <Moon className="mb-1 size-5" />
-        )}
+        <GlassIcon>{starting ? <Loader2 className="animate-spin" /> : <Moon />}</GlassIcon>
         <span className="text-[14px] font-medium text-bezel-foreground">
           {starting ? `Starting ${info.bot.name}'s screen…` : `${info.bot.name}'s screen is asleep`}
         </span>
         {!starting && (
           <>
-            <span className="max-w-72 text-[12.5px]">
+            <span className="max-w-72 text-[12.5px] leading-relaxed">
               It wakes up when {info.bot.name} uses the desktop, or when you take over.
             </span>
             <div className="mt-2.5">
@@ -386,7 +394,7 @@ export function ScreenGlass({
   return (
     <div
       className={cn(
-        "relative aspect-[16/10] w-full overflow-hidden rounded-[12px] bg-black",
+        "relative aspect-[16/10] w-full overflow-hidden rounded-[12px] bg-[#050506]",
         className,
       )}
       data-activity={info?.activity ?? "none"}
@@ -401,8 +409,17 @@ export function ScreenGlass({
           handleRef={handleRef}
         />
       ) : (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-[radial-gradient(ellipse_at_top,rgb(255_255_255/0.05),transparent_60%)] px-6 text-center text-bezel-foreground/70">
-          {placeholder}
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-6 text-center text-bezel-foreground/65">
+          {/* A dimmed display: a faint glow from above over a fine dot grid. */}
+          <div
+            aria-hidden
+            className="absolute inset-0 bg-[radial-gradient(rgb(255_255_255/0.07)_1px,transparent_1px)] [mask-image:radial-gradient(ellipse_at_center,black_20%,transparent_75%)] bg-[size:16px_16px]"
+          />
+          <div
+            aria-hidden
+            className="absolute inset-0 bg-[radial-gradient(120%_70%_at_50%_-10%,rgb(255_255_255/0.08),transparent_60%)]"
+          />
+          <div className="relative flex flex-col items-center gap-1.5">{placeholder}</div>
         </div>
       )}
       <div
@@ -424,11 +441,14 @@ export function ScreenFrame({
   initial,
   handleRef,
   className,
+  expand = false,
 }: {
   screenId: string;
   initial?: AppState;
   handleRef?: React.RefObject<DesktopHandle | null>;
   className?: string;
+  /** Offer a way to the full computer page. */
+  expand?: boolean;
 }) {
   const { screen } = useComputer(initial);
   const info = screen(screenId);
@@ -442,13 +462,27 @@ export function ScreenFrame({
         className,
       )}
       style={{
-        boxShadow: `0 0 0 2px ${rim}, 0 0 0 6px color-mix(in oklab, ${rim} 20%, transparent), 0 24px 48px -24px rgb(0 0 0 / 0.5)`,
+        boxShadow: `0 0 0 2px ${rim}, 0 0 0 6px color-mix(in oklab, ${rim} 20%, transparent), inset 0 1px 0 rgb(255 255 255 / 0.06), 0 2px 4px rgb(0 0 0 / 0.08), 0 28px 56px -28px rgb(0 0 0 / 0.45)`,
       }}
     >
       <div className="flex h-7 items-center justify-between gap-2 pr-0.5 pl-1.5">
         {info ? <ScreenBadge info={info} /> : <span />}
         <div className="flex items-center">
           <EgressChip initial={initial} />
+          {expand && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Link
+                  href={`/computer?screen=${screenId}`}
+                  aria-label="Open the computer"
+                  className="flex size-7 items-center justify-center rounded-full text-bezel-foreground/70 transition-colors hover:bg-white/[0.06] hover:text-bezel-foreground"
+                >
+                  <Expand className="size-3.5" />
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent>Open the computer</TooltipContent>
+            </Tooltip>
+          )}
           <Tooltip>
             <TooltipTrigger asChild>
               <button
@@ -629,6 +663,7 @@ export function ScreenControls({
   const youHaveControl = info.activity === "you";
   const request = info.requests[0];
   const name = info.bot.name;
+  if (!request && !youHaveControl && !online && !expand) return null;
 
   return (
     <div className="flex flex-col gap-2.5">
@@ -741,7 +776,7 @@ function ScreenTab({
       className={cn(
         "flex h-8 min-w-0 shrink-0 items-center gap-2 rounded-full border py-1 pr-3 pl-1.5 text-[12.5px] font-medium transition-colors",
         selected
-          ? "border-foreground/15 bg-card text-foreground shadow-xs"
+          ? "border-transparent bg-card text-foreground shadow-raised"
           : "border-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
       data-testid={`screen-tab-${info.bot.slug}`}
@@ -883,8 +918,8 @@ export function ComputerPanel({
   return (
     <section aria-label="Computer" className={cn("flex flex-col gap-3", className)}>
       <ScreenPicker botIds={botIds} value={screenId} onChange={pick} initial={initial} />
-      <ScreenFrame screenId={screenId} initial={initial} handleRef={handleRef} />
-      <ScreenControls screenId={screenId} initial={initial} handleRef={handleRef} />
+      <ScreenFrame screenId={screenId} initial={initial} handleRef={handleRef} expand />
+      <ScreenControls screenId={screenId} initial={initial} handleRef={handleRef} expand={false} />
     </section>
   );
 }

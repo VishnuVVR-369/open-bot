@@ -14,7 +14,7 @@ export function PageCard({ item }: { item: PageItem }) {
   return (
     <Link
       href={pageHref(item.pageId, item.versionId)}
-      className="group/page flex w-full max-w-[560px] overflow-hidden rounded-xl border bg-card shadow-xs transition-colors hover:border-foreground/20 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+      className="group/page flex w-full max-w-[560px] overflow-hidden rounded-xl bg-card shadow-raised transition-shadow hover:shadow-float focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
       data-testid="page-card"
     >
       <PageThumbnail
@@ -22,7 +22,7 @@ export function PageCard({ item }: { item: PageItem }) {
         className="w-[38%] max-w-[200px] shrink-0 self-stretch after:shadow-none max-sm:hidden"
       />
       <div className="flex min-w-0 flex-1 flex-col gap-1 px-4 py-3 sm:border-l">
-        <span className="text-[11.5px] font-medium tracking-wide text-muted-foreground uppercase">
+        <span className="text-[12.5px] font-medium text-muted-foreground">
           {item.version === 1 ? "New page" : `Page · version ${item.version}`}
         </span>
         <span className="line-clamp-2 font-heading text-[15px] leading-snug font-semibold">
