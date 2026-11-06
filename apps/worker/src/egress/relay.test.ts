@@ -522,7 +522,13 @@ describe("egress relay", () => {
     const stale = env.rawAgent({ kind: "phone", id: PHONE_ID, name: "Phone", generation: 1 });
     expect(await new Promise((resolve) => stale.socket.once("close", resolve))).toBe(CLOSE_REVOKED);
     const current = env.rawAgent({ kind: "phone", id: PHONE_ID, name: "Phone", generation: 2 });
-    await until(() => env.relay.connectedPhones.includes(PHONE_ID), "the re-paired phone");
+    // The relay adopts the phone once the server's side is open, which can be before the client's.
+    await until(
+      () =>
+        env.relay.connectedPhones.includes(PHONE_ID) &&
+        current.socket.readyState === WebSocket.OPEN,
+      "the re-paired phone",
+    );
     expect(current.socket.readyState).toBe(WebSocket.OPEN);
   });
 
@@ -547,7 +553,11 @@ describe("egress relay", () => {
     const env = await setup();
     env.store.pair(PHONE_ID, 2);
     const raw = env.rawAgent({ kind: "phone", id: PHONE_ID, name: "Phone", generation: 2 });
-    await until(() => env.relay.connectedPhones.includes(PHONE_ID), "the phone");
+    await until(
+      () =>
+        env.relay.connectedPhones.includes(PHONE_ID) && raw.socket.readyState === WebSocket.OPEN,
+      "the phone",
+    );
     await env.relay.revoke(PHONE_ID, 1);
     expect(raw.socket.readyState).toBe(WebSocket.OPEN);
     expect(env.relay.connectedPhones).toEqual([PHONE_ID]);
