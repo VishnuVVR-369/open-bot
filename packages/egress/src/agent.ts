@@ -1,5 +1,5 @@
 import net, { type Socket } from "node:net";
-import { parseControlMessage } from "./frames";
+import { parseControlMessage, type AgentRole } from "./frames";
 import { resolvePublicAddress } from "./ip-policy";
 import { Mux, type MuxStats } from "./mux";
 
@@ -9,11 +9,14 @@ export interface EgressAgentOptions {
   /** Returns a websocket URL with a fresh short-lived token. */
   getUrl: () => Promise<string>;
   onStatus?: (status: AgentStatus, detail?: string) => void;
+  /** What the relay wants from this agent: carry new connections, or stand by. */
+  onRole?: (role: AgentRole) => void;
   log?: (message: string) => void;
   /** Overridable for tests. */
   resolve?: typeof resolvePublicAddress;
 }
 
+/** How long making one connection may take, including the name lookup. */
 const CONNECT_TIMEOUT_MS = 15_000;
 const STATS_INTERVAL_MS = 5_000;
 
@@ -88,7 +91,8 @@ export class EgressAgent {
       send: (frame) => {
         if (socket.readyState === WebSocket.OPEN) socket.send(new Uint8Array(frame));
       },
-      connect: (host, port) => this.openConnection(host, port),
+      connect: (host, port, signal) => this.openConnection(host, port, signal),
+      transportBuffered: () => socket.bufferedAmount,
     });
     this.mux = mux;
 
@@ -105,6 +109,7 @@ export class EgressAgent {
       if (typeof event.data === "string") {
         const message = parseControlMessage(event.data);
         if (message?.type === "peer-down") mux.resetAll();
+        if (message?.type === "role") this.options.onRole?.(message.role);
         return;
       }
       try {
@@ -132,24 +137,50 @@ export class EgressAgent {
     this.reconnectTimer = setTimeout(() => void this.connect(), delay);
   }
 
-  private async openConnection(host: string, port: number): Promise<Socket> {
+  private async openConnection(host: string, port: number, signal: AbortSignal): Promise<Socket> {
     if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new Error("Invalid port");
-    const address = await (this.options.resolve ?? resolvePublicAddress)(host);
+    // One limit for the lookup and the connection together, and both stop when the stream does.
+    const timeout = AbortSignal.timeout(CONNECT_TIMEOUT_MS);
+    const both = AbortSignal.any([signal, timeout]);
+    const aborted = new Promise<never>((_, reject) => {
+      const fail = () =>
+        reject(
+          new Error(
+            timeout.aborted ? `Timed out connecting to ${host}:${port}` : "Connection cancelled",
+          ),
+        );
+      if (both.aborted) fail();
+      else both.addEventListener("abort", fail, { once: true });
+    });
+    aborted.catch(() => {});
+    const address = await Promise.race([
+      (this.options.resolve ?? resolvePublicAddress)(host),
+      aborted,
+    ]);
     return new Promise<Socket>((resolve, reject) => {
       const socket = net.connect({ host: address, port });
       socket.setNoDelay(true);
-      const timer = setTimeout(() => {
+      const onAbort = () => {
         socket.destroy();
-        reject(new Error(`Timed out connecting to ${host}:${port}`));
-      }, CONNECT_TIMEOUT_MS);
+        reject(
+          new Error(
+            timeout.aborted ? `Timed out connecting to ${host}:${port}` : "Connection cancelled",
+          ),
+        );
+      };
+      if (both.aborted) {
+        onAbort();
+        return;
+      }
+      both.addEventListener("abort", onAbort, { once: true });
       socket.once("connect", () => {
-        clearTimeout(timer);
+        both.removeEventListener("abort", onAbort);
         // The mux resumes the socket when it attaches it.
         socket.pause();
         resolve(socket);
       });
       socket.once("error", (error) => {
-        clearTimeout(timer);
+        both.removeEventListener("abort", onAbort);
         reject(error);
       });
     });

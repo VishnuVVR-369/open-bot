@@ -13,6 +13,7 @@ import type {
   VaultKind,
   Autonomy,
   EgressModeSetting,
+  PhoneEgressSetting,
   RunEventPayload,
   RunStatus,
   TriggerKind,
@@ -123,6 +124,8 @@ export const computers = pgTable("computers", {
   provider: text("provider").notNull().default("docker"),
   providerRef: text("provider_ref"),
   egressMode: text("egress_mode").$type<EgressModeSetting>().notNull().default("prefer"),
+  /** When a paired phone carries the browser traffic. No effect until a phone is paired. */
+  phoneEgress: text("phone_egress").$type<PhoneEgressSetting>().notNull().default("fallback"),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
@@ -722,7 +725,14 @@ export const triggerFirings = pgTable(
 );
 
 export type NotificationKind =
-  "run_finished" | "run_failed" | "approval" | "takeover_request" | "bot_message" | "cap_reached";
+  | "run_finished"
+  | "run_failed"
+  | "approval"
+  | "takeover_request"
+  | "bot_message"
+  | "cap_reached"
+  /** Your phone was woken to carry the computer's traffic and didn't answer. */
+  | "egress_unanswered";
 
 export const notifications = pgTable(
   "notifications",
@@ -914,6 +924,25 @@ export const nativePushDevices = pgTable("native_push_devices", {
   device: text("device").notNull().default(""),
   lastSentAt: timestamp("last_sent_at", { withTimezone: true }),
   createdAt: createdAt(),
+});
+
+/**
+ * Phones paired to carry the computer's browser traffic. Each has its own secret (only its hash
+ * is kept), separate from your session, so the phone's background service can only ever get
+ * egress tokens. Pairing again bumps `generation`, which makes every older token useless.
+ */
+export const egressDevices = pgTable("egress_devices", {
+  /** The phone's stable device id, made once per install. */
+  id: uuid("id").primaryKey(),
+  name: text("name").notNull(),
+  /** SHA-256 of the 256-bit device secret, in hex. */
+  secretHash: text("secret_hash").notNull(),
+  generation: integer("generation").notNull().default(1),
+  /** The phone's current FCM token, for waking it. */
+  pushToken: text("push_token"),
+  createdAt: createdAt(),
+  lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
 });
 
 export type UploadStatus = "writing" | "complete" | "failed";

@@ -60,6 +60,7 @@ import {
   ne,
   sql,
 } from "drizzle-orm";
+import { OFFLINE_EGRESS_STATUS, type EgressStatusView } from "@open-bot/api";
 import type {
   ActivityView,
   AppState,
@@ -102,15 +103,32 @@ import { plainText } from "../utils";
 interface WorkerStatus {
   computer: { online: boolean; health: ComputerView["health"] };
   codex: CodexStatusView;
-  egress: ComputerView["egress"];
+  egress: EgressStatusView;
 }
 
 export async function workerStatus(): Promise<WorkerStatus | null> {
   try {
-    return await worker<WorkerStatus>("GET", "/internal/status", undefined, 2_500);
+    const status = await worker<WorkerStatus>("GET", "/internal/status", undefined, 2_500);
+    return { ...status, egress: withEgressDefaults(status.egress) };
   } catch {
     return null;
   }
+}
+
+/**
+ * A worker deployed before phones could carry traffic reports only the desktop's state; fill in
+ * the rest so the web and a newer worker can roll out in either order.
+ */
+function withEgressDefaults(egress: Partial<EgressStatusView>): EgressStatusView {
+  const merged = { ...OFFLINE_EGRESS_STATUS, ...egress };
+  if (egress.path) return merged;
+  const path =
+    merged.mode !== "off" && merged.agentOnline
+      ? "desktop"
+      : merged.mode === "require"
+        ? "blocked"
+        : "direct";
+  return { ...merged, path };
 }
 
 export async function listBots(): Promise<BotSummary[]> {
@@ -352,12 +370,7 @@ export async function getAppState(user: { name: string; email: string }): Promis
       workerOnline: status !== null,
       online: status?.computer.online ?? false,
       health: status?.computer.health ?? null,
-      egress: status?.egress ?? {
-        mode: "prefer",
-        agentOnline: false,
-        computerConnected: false,
-        stats: null,
-      },
+      egress: status?.egress ?? OFFLINE_EGRESS_STATUS,
     },
     codex: status?.codex ?? null,
     pendingApprovals: approvalCount?.value ?? 0,

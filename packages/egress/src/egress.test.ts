@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { isPublicAddress, resolvePublicAddress } from "./ip-policy";
 import { decodeFrame, FrameType } from "./frames";
 import { INITIAL_WINDOW, Mux } from "./mux";
-import { createSocksServer, socksReply, SocksReply } from "./socks";
+import { connectDirect, createSocksServer, socksReply, SocksReply } from "./socks";
 
 const servers: net.Server[] = [];
 afterEach(async () => {
@@ -124,6 +124,61 @@ describe("ip policy", () => {
       resolvePublicAddress("example.com", async () => [{ address: "93.184.215.14", family: 4 }]),
     ).resolves.toBe("93.184.215.14");
     await expect(resolvePublicAddress("[::1]")).rejects.toThrow(/blocked/);
+  });
+});
+
+/** Both ends of a local TCP connection: `client` plays the SOCKS client's socket in the proxy. */
+async function socketPair(): Promise<{ client: Socket; peer: Socket }> {
+  let accepted!: (socket: Socket) => void;
+  const client = new Promise<Socket>((resolve) => (accepted = resolve));
+  const port = await listen(net.createServer((socket) => accepted(socket)));
+  const peer = net.connect(port, "127.0.0.1");
+  return { client: await client, peer };
+}
+
+describe("connectDirect", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  /** A destination that never answers, like one behind a dropping firewall. */
+  function silentDestination(): Socket {
+    const upstream = new net.Socket();
+    vi.spyOn(net, "connect").mockReturnValue(upstream);
+    return upstream;
+  }
+
+  it("gives up at the deadline, with a failure reply", async () => {
+    const { client, peer } = await socketPair();
+    const upstream = silentDestination();
+    const reply = new Promise<Buffer>((resolve) => peer.once("data", resolve));
+    await expect(
+      connectDirect("example.com", 443, client, { deadline: Date.now() + 50 }),
+    ).rejects.toThrow("Timed out connecting to example.com:443");
+    expect(upstream.destroyed).toBe(true);
+    expect((await reply)[1]).toBe(SocksReply.hostUnreachable);
+    peer.destroy();
+  });
+
+  it("closes the client when the destination resets an open connection", async () => {
+    const destination = await listen(
+      net.createServer((socket) => socket.once("data", () => socket.resetAndDestroy())),
+    );
+    const { client, peer } = await socketPair();
+    const peerClosed = new Promise((resolve) => peer.once("close", resolve));
+    peer.on("error", () => {});
+    peer.resume(); // Read the SOCKS reply, or the close waits for it to be.
+    await connectDirect("127.0.0.1", destination, client, { deadline: Date.now() + 5_000 });
+    peer.write("GET");
+    await peerClosed;
+    expect(client.destroyed).toBe(true);
+  });
+
+  it("settles when the client leaves before the destination answers", async () => {
+    const { client, peer } = await socketPair();
+    const upstream = silentDestination();
+    const settled = connectDirect("example.com", 443, client);
+    peer.destroy();
+    await expect(settled).resolves.toBeUndefined();
+    expect(upstream.destroyed).toBe(true);
   });
 });
 

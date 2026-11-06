@@ -1,5 +1,9 @@
+import { spawnSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { readFileSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
-import { EgressAgent, type AgentStatus } from "@open-bot/egress";
+import { EgressAgent, type AgentRole, type AgentStatus } from "@open-bot/egress";
 import {
   app,
   BrowserWindow,
@@ -23,6 +27,7 @@ let tray: Tray | null = null;
 let quitting = false;
 let egressStatus: AgentStatus = "offline";
 let egressDetail: string | undefined;
+let egressRole: AgentRole | null = null;
 
 function asset(name: string) {
   return path.join(__dirname, "..", "assets", name);
@@ -85,10 +90,37 @@ function showWindow(route?: string) {
   window.focus();
 }
 
+/** This install's stable id, so the worker tells your Macs apart. Kept in the app's data folder. */
+let identity: { device: string; name: string } | null = null;
+
+function deviceId(): string {
+  const file = path.join(app.getPath("userData"), "device.json");
+  try {
+    const { id } = JSON.parse(readFileSync(file, "utf8")) as { id?: unknown };
+    if (typeof id === "string" && /^[\w-]{8,64}$/.test(id)) return id;
+  } catch {
+    // First run, or an unreadable file: make a new id.
+  }
+  const id = randomUUID();
+  writeFileSync(file, JSON.stringify({ id }));
+  return id;
+}
+
+/** The Mac's name as you set it in System Settings, like "Vishnu's MacBook Pro". */
+function deviceName(): string {
+  const named =
+    process.platform === "darwin"
+      ? spawnSync("scutil", ["--get", "ComputerName"], { encoding: "utf8" }).stdout?.trim()
+      : "";
+  return (named || os.hostname().replace(/\.local$/, "") || "Mac").slice(0, 80);
+}
+
 /** The egress agent signs in with the app's session cookie, so there is nothing to pair. */
 const agent = new EgressAgent({
   getUrl: async () => {
-    const response = await net.fetch(`${APP_URL}/api/desktop/egress-token`, {
+    identity ??= { device: deviceId(), name: deviceName() };
+    const query = new URLSearchParams(identity);
+    const response = await net.fetch(`${APP_URL}/api/desktop/egress-token?${query}`, {
       session: session.defaultSession,
     } as RequestInit);
     if (response.status === 401) throw new Error("Sign in to open-bot first");
@@ -99,6 +131,11 @@ const agent = new EgressAgent({
   onStatus: (status, detail) => {
     egressStatus = status;
     egressDetail = detail;
+    if (status !== "online") egressRole = null;
+    updateTray();
+  },
+  onRole: (role) => {
+    egressRole = role;
     updateTray();
   },
   log: (message) => console.log(`[egress] ${message}`),
@@ -108,7 +145,9 @@ function updateTray() {
   if (!tray) return;
   const statusLabel =
     egressStatus === "online"
-      ? "Browsing through this Mac"
+      ? egressRole === "standby"
+        ? "Standing by"
+        : "Browsing through this Mac"
       : egressStatus === "connecting"
         ? "Connecting…"
         : `Not browsing through this Mac${egressDetail ? ` (${egressDetail})` : ""}`;

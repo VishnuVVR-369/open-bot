@@ -9,6 +9,7 @@ import {
   Hand,
   MessageSquare,
   ShieldAlert,
+  Smartphone,
   type LucideIcon,
 } from "lucide-react-native";
 import { useCallback, useMemo, useRef, useState } from "react";
@@ -34,12 +35,13 @@ const ICONS: Record<string, LucideIcon> = {
   takeover_request: Hand,
   run_failed: AlertTriangle,
   cap_reached: CircleDollarSign,
+  egress_unanswered: Smartphone,
   bot_message: MessageSquare,
   run_finished: MessageSquare,
 };
 
 /** Kinds that need you, which get an amber mark, and failures, which get a red one. */
-const NEEDS_YOU = new Set(["approval", "takeover_request", "cap_reached"]);
+const NEEDS_YOU = new Set(["approval", "takeover_request", "cap_reached", "egress_unanswered"]);
 const FAILED = new Set(["run_failed"]);
 
 const AVATAR = 40;

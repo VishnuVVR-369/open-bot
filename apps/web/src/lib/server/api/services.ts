@@ -10,6 +10,14 @@ export {
   renameChat,
   sendMessage,
 } from "./chats";
+export {
+  getEgressStatus,
+  listEgressDevices,
+  registerEgressDevice,
+  revokeEgressDevice,
+  setEgressMode,
+  setPhoneEgressMode,
+} from "./egress";
 export { getHome } from "./home";
 export { markNotificationsRead } from "./notifications";
 export { getPage, listPages, openPage, pinPage, removePage } from "./pages";

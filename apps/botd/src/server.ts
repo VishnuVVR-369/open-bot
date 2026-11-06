@@ -103,6 +103,8 @@ export function createServer(deps: ServerDeps): {
       return { ok: false, code: "invalid_action", message: "Unknown screen" };
     let screen: Screen;
     try {
+      // Before the screen starts, so its first connections can wait for a phone.
+      deps.egress.noteDemand(screenId);
       screen = await screens.ensure(screenId);
     } catch (error) {
       return {
@@ -294,6 +296,7 @@ export function createServer(deps: ServerDeps): {
         }
         case "POST /screens/start": {
           const { screenId } = (await readJson(request)) as { screenId?: unknown };
+          deps.egress.noteDemand(screenIdOf(screenId));
           const screen = await screens.ensure(screenIdOf(screenId));
           send(response, 200, screen.status());
           return;
@@ -325,6 +328,7 @@ export function createServer(deps: ServerDeps): {
         }
         case "POST /lease/user/take": {
           const { screenId } = (await readJson(request)) as { screenId?: unknown };
+          deps.egress.noteDemand(screenIdOf(screenId));
           const screen = await screens.ensure(screenIdOf(screenId));
           if (!screens.codeAvailable(screen.id)) {
             send(response, 409, { error: "Code entry is in progress." });

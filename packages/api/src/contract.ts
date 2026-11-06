@@ -5,6 +5,12 @@ import {
 } from "@orpc/contract";
 import { MAX_LESSON_CHARS } from "@open-bot/shared";
 import { z } from "zod";
+import {
+  egressDeviceViewSchema,
+  egressModeSchema,
+  egressStatusSchema,
+  phoneEgressModeSchema,
+} from "./egress";
 import { screenViewSchema, screenOperationSchema, typeOnScreenSchema } from "./screens";
 import {
   approvalRuleSchema,
@@ -245,6 +251,35 @@ export const contract = {
     rules: base.output(z.array(approvalRuleSchema)),
     /** Make a teammate ask about this again. */
     removeRule: base.input(z.object({ ruleId: id })).output(ok),
+  },
+  egress: {
+    /** Where the computer's browser traffic goes now, and each device's state. */
+    status: base.output(egressStatusSchema),
+    setMode: base.input(z.object({ mode: egressModeSchema })).output(ok),
+    setPhoneMode: base.input(z.object({ mode: phoneEgressModeSchema })).output(ok),
+    /** Phones paired to carry the traffic. */
+    devices: base.output(z.array(egressDeviceViewSchema)),
+    /**
+     * Pair this phone, or pair it again. Returns its new secret, once; the phone's native code
+     * keeps it. Pairing again rotates the secret and makes the old one useless.
+     */
+    registerDevice: base
+      .input(
+        z.object({
+          deviceId: id,
+          name: z.string().trim().min(1).max(80),
+          /** The phone's FCM token, for waking it; null without push notifications. */
+          pushToken: z.string().min(1).max(4096).nullable(),
+        }),
+      )
+      .output(z.object({ secret: z.string(), generation: z.number().int().positive() })),
+    /**
+     * Unpair a phone. With `generation`, only that pairing is revoked, so a revoke delayed from an
+     * offline sign-out can't undo a later pairing.
+     */
+    revokeDevice: base
+      .input(z.object({ deviceId: id, generation: z.number().int().positive().optional() }))
+      .output(ok),
   },
   push: {
     /** Send notifications to this phone, by its Firebase Cloud Messaging token. */

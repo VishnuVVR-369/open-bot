@@ -4,7 +4,6 @@ import type {
   AccountStatus,
   ComputerHealth,
   ConnectionKind,
-  EgressModeSetting,
   RunStatus,
   TriggerKind,
 } from "@open-bot/shared";
@@ -31,7 +30,13 @@ export type {
   StreamRunEvent,
   TakeoverRequest as TakeoverRequestSummary,
 } from "@open-bot/api";
-import type { BotSummary, ChatSummary, RunView, TakeoverRequest } from "@open-bot/api";
+import type {
+  BotSummary,
+  ChatSummary,
+  EgressStatusView,
+  RunView,
+  TakeoverRequest,
+} from "@open-bot/api";
 
 export interface CodexStatusView {
   connected: boolean;
@@ -45,12 +50,7 @@ export interface ComputerView {
   workerOnline: boolean;
   online: boolean;
   health: ComputerHealth | null;
-  egress: {
-    mode: EgressModeSetting;
-    agentOnline: boolean;
-    computerConnected: boolean;
-    stats: { openStreams: number; bytesIn: number; bytesOut: number } | null;
-  };
+  egress: EgressStatusView;
 }
 
 /** A saved skill: reusable instructions you run with `/name`. */

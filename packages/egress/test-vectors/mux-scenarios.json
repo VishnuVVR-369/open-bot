@@ -1,0 +1,7865 @@
+[
+  {
+    "name": "open, exchange data and credit",
+    "steps": [
+      {
+        "op": "frame",
+        "type": 1,
+        "streamId": 1,
+        "payload": "7b22686f7374223a2239332e3138342e3231352e3134222c22706f7274223a3434337d",
+        "expect": {
+          "frames": [],
+          "sockets": [],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "connect-ok",
+        "expect": {
+          "frames": [
+            {
+              "type": 2,
+              "streamId": 1,
+              "payload": ""
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 0,
+        "payload": "68656c6c6f",
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 1,
+              "payload": "68656c6c6f"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 5
+        }
+      },
+      {
+        "op": "frame",
+        "type": 4,
+        "streamId": 1,
+        "payload": "474554202f20485454502f312e31",
+        "expect": {
+          "frames": [],
+          "sockets": [
+            {
+              "written": "474554202f20485454502f312e31",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 5
+        }
+      },
+      {
+        "op": "socket-flush",
+        "socket": 0,
+        "expect": {
+          "frames": [
+            {
+              "type": 7,
+              "streamId": 1,
+              "payload": "0000000e"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 5
+        }
+      },
+      {
+        "op": "frame",
+        "type": 7,
+        "streamId": 1,
+        "payload": "00000005",
+        "expect": {
+          "frames": [],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      }
+    ]
+  },
+  {
+    "name": "open fails",
+    "steps": [
+      {
+        "op": "frame",
+        "type": 1,
+        "streamId": 1,
+        "payload": "7b22686f7374223a2239332e3138342e3231352e3134222c22706f7274223a3434337d",
+        "expect": {
+          "frames": [],
+          "sockets": [],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "connect-fail",
+        "reason": "Connection refused",
+        "expect": {
+          "frames": [
+            {
+              "type": 3,
+              "streamId": 1,
+              "payload": "436f6e6e656374696f6e2072656675736564"
+            }
+          ],
+          "sockets": [],
+          "openStreams": 0,
+          "uncredited": 0
+        }
+      }
+    ]
+  },
+  {
+    "name": "malformed open",
+    "steps": [
+      {
+        "op": "frame",
+        "type": 1,
+        "streamId": 1,
+        "payload": "7b6e6f74206a736f6e",
+        "expect": {
+          "frames": [
+            {
+              "type": 3,
+              "streamId": 1,
+              "payload": "4d616c666f726d6564206f70656e2072657175657374"
+            }
+          ],
+          "sockets": [],
+          "openStreams": 0,
+          "uncredited": 0
+        }
+      }
+    ]
+  },
+  {
+    "name": "open with a missing port",
+    "steps": [
+      {
+        "op": "frame",
+        "type": 1,
+        "streamId": 1,
+        "payload": "7b22686f7374223a226578616d706c652e636f6d227d",
+        "expect": {
+          "frames": [
+            {
+              "type": 3,
+              "streamId": 1,
+              "payload": "4d616c666f726d6564206f70656e2072657175657374"
+            }
+          ],
+          "sockets": [],
+          "openStreams": 0,
+          "uncredited": 0
+        }
+      }
+    ]
+  },
+  {
+    "name": "duplicate open while connecting",
+    "steps": [
+      {
+        "op": "frame",
+        "type": 1,
+        "streamId": 1,
+        "payload": "7b22686f7374223a2239332e3138342e3231352e3134222c22706f7274223a3434337d",
+        "expect": {
+          "frames": [],
+          "sockets": [],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "frame",
+        "type": 1,
+        "streamId": 1,
+        "payload": "7b22686f7374223a2239332e3138342e3231352e3134222c22706f7274223a3434337d",
+        "expect": {
+          "frames": [
+            {
+              "type": 3,
+              "streamId": 1,
+              "payload": "53747265616d20696420616c726561647920696e20757365"
+            }
+          ],
+          "sockets": [],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "connect-ok",
+        "expect": {
+          "frames": [
+            {
+              "type": 2,
+              "streamId": 1,
+              "payload": ""
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      }
+    ]
+  },
+  {
+    "name": "destination ends first, then the other side",
+    "steps": [
+      {
+        "op": "frame",
+        "type": 1,
+        "streamId": 1,
+        "payload": "7b22686f7374223a2239332e3138342e3231352e3134222c22706f7274223a3434337d",
+        "expect": {
+          "frames": [],
+          "sockets": [],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "connect-ok",
+        "expect": {
+          "frames": [
+            {
+              "type": 2,
+              "streamId": 1,
+              "payload": ""
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "socket-end",
+        "socket": 0,
+        "expect": {
+          "frames": [
+            {
+              "type": 5,
+              "streamId": 1,
+              "payload": ""
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "frame",
+        "type": 5,
+        "streamId": 1,
+        "payload": "",
+        "expect": {
+          "frames": [],
+          "sockets": [
+            {
+              "written": "",
+              "ended": true,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 0,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "socket-close",
+        "socket": 0,
+        "hadError": false,
+        "expect": {
+          "frames": [],
+          "sockets": [
+            {
+              "written": "",
+              "ended": true,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 0,
+          "uncredited": 0
+        }
+      }
+    ]
+  },
+  {
+    "name": "the other side ends first, then the destination",
+    "steps": [
+      {
+        "op": "frame",
+        "type": 1,
+        "streamId": 1,
+        "payload": "7b22686f7374223a2239332e3138342e3231352e3134222c22706f7274223a3434337d",
+        "expect": {
+          "frames": [],
+          "sockets": [],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "connect-ok",
+        "expect": {
+          "frames": [
+            {
+              "type": 2,
+              "streamId": 1,
+              "payload": ""
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "frame",
+        "type": 5,
+        "streamId": 1,
+        "payload": "",
+        "expect": {
+          "frames": [],
+          "sockets": [
+            {
+              "written": "",
+              "ended": true,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 0,
+        "payload": "627965",
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 1,
+              "payload": "627965"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": true,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 3
+        }
+      },
+      {
+        "op": "socket-end",
+        "socket": 0,
+        "expect": {
+          "frames": [
+            {
+              "type": 5,
+              "streamId": 1,
+              "payload": ""
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": true,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 0,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "socket-close",
+        "socket": 0,
+        "hadError": false,
+        "expect": {
+          "frames": [],
+          "sockets": [
+            {
+              "written": "",
+              "ended": true,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 0,
+          "uncredited": 0
+        }
+      }
+    ]
+  },
+  {
+    "name": "data before end is still delivered",
+    "steps": [
+      {
+        "op": "frame",
+        "type": 1,
+        "streamId": 1,
+        "payload": "7b22686f7374223a2239332e3138342e3231352e3134222c22706f7274223a3434337d",
+        "expect": {
+          "frames": [],
+          "sockets": [],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "connect-ok",
+        "expect": {
+          "frames": [
+            {
+              "type": 2,
+              "streamId": 1,
+              "payload": ""
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "frame",
+        "type": 4,
+        "streamId": 1,
+        "payload": "6c61737420776f726473",
+        "expect": {
+          "frames": [],
+          "sockets": [
+            {
+              "written": "6c61737420776f726473",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "frame",
+        "type": 5,
+        "streamId": 1,
+        "payload": "",
+        "expect": {
+          "frames": [],
+          "sockets": [
+            {
+              "written": "",
+              "ended": true,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "socket-flush",
+        "socket": 0,
+        "expect": {
+          "frames": [
+            {
+              "type": 7,
+              "streamId": 1,
+              "payload": "0000000a"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": true,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      }
+    ]
+  },
+  {
+    "name": "reset while open",
+    "steps": [
+      {
+        "op": "frame",
+        "type": 1,
+        "streamId": 1,
+        "payload": "7b22686f7374223a2239332e3138342e3231352e3134222c22706f7274223a3434337d",
+        "expect": {
+          "frames": [],
+          "sockets": [],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "connect-ok",
+        "expect": {
+          "frames": [
+            {
+              "type": 2,
+              "streamId": 1,
+              "payload": ""
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "frame",
+        "type": 6,
+        "streamId": 1,
+        "payload": "",
+        "expect": {
+          "frames": [],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": true,
+              "paused": false
+            }
+          ],
+          "openStreams": 0,
+          "uncredited": 0
+        }
+      }
+    ]
+  },
+  {
+    "name": "reset while connecting",
+    "steps": [
+      {
+        "op": "frame",
+        "type": 1,
+        "streamId": 1,
+        "payload": "7b22686f7374223a2239332e3138342e3231352e3134222c22706f7274223a3434337d",
+        "expect": {
+          "frames": [],
+          "sockets": [],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "frame",
+        "type": 6,
+        "streamId": 1,
+        "payload": "",
+        "expect": {
+          "frames": [],
+          "sockets": [],
+          "openStreams": 0,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "connect-ok",
+        "expect": {
+          "frames": [],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": true,
+              "paused": false
+            }
+          ],
+          "openStreams": 0,
+          "uncredited": 0
+        }
+      }
+    ]
+  },
+  {
+    "name": "a failure for a replaced stream is not reported",
+    "steps": [
+      {
+        "op": "frame",
+        "type": 1,
+        "streamId": 1,
+        "payload": "7b22686f7374223a2239332e3138342e3231352e3134222c22706f7274223a3434337d",
+        "expect": {
+          "frames": [],
+          "sockets": [],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "frame",
+        "type": 6,
+        "streamId": 1,
+        "payload": "",
+        "expect": {
+          "frames": [],
+          "sockets": [],
+          "openStreams": 0,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "frame",
+        "type": 1,
+        "streamId": 1,
+        "payload": "7b22686f7374223a2239332e3138342e3231352e3134222c22706f7274223a3434337d",
+        "expect": {
+          "frames": [],
+          "sockets": [],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "connect-fail",
+        "reason": "late failure of the first",
+        "expect": {
+          "frames": [],
+          "sockets": [],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "connect-ok",
+        "expect": {
+          "frames": [
+            {
+              "type": 2,
+              "streamId": 1,
+              "payload": ""
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      }
+    ]
+  },
+  {
+    "name": "destination error",
+    "steps": [
+      {
+        "op": "frame",
+        "type": 1,
+        "streamId": 1,
+        "payload": "7b22686f7374223a2239332e3138342e3231352e3134222c22706f7274223a3434337d",
+        "expect": {
+          "frames": [],
+          "sockets": [],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "connect-ok",
+        "expect": {
+          "frames": [
+            {
+              "type": 2,
+              "streamId": 1,
+              "payload": ""
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "socket-error",
+        "socket": 0,
+        "expect": {
+          "frames": [
+            {
+              "type": 6,
+              "streamId": 1,
+              "payload": ""
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": true,
+              "paused": false
+            }
+          ],
+          "openStreams": 0,
+          "uncredited": 0
+        }
+      }
+    ]
+  },
+  {
+    "name": "destination closes with an error",
+    "steps": [
+      {
+        "op": "frame",
+        "type": 1,
+        "streamId": 1,
+        "payload": "7b22686f7374223a2239332e3138342e3231352e3134222c22706f7274223a3434337d",
+        "expect": {
+          "frames": [],
+          "sockets": [],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "connect-ok",
+        "expect": {
+          "frames": [
+            {
+              "type": 2,
+              "streamId": 1,
+              "payload": ""
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "socket-close",
+        "socket": 0,
+        "hadError": true,
+        "expect": {
+          "frames": [
+            {
+              "type": 6,
+              "streamId": 1,
+              "payload": ""
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": true,
+              "paused": false
+            }
+          ],
+          "openStreams": 0,
+          "uncredited": 0
+        }
+      }
+    ]
+  },
+  {
+    "name": "data for an unknown stream",
+    "steps": [
+      {
+        "op": "frame",
+        "type": 4,
+        "streamId": 9,
+        "payload": "7374726179",
+        "expect": {
+          "frames": [
+            {
+              "type": 6,
+              "streamId": 9,
+              "payload": ""
+            }
+          ],
+          "sockets": [],
+          "openStreams": 0,
+          "uncredited": 0
+        }
+      }
+    ]
+  },
+  {
+    "name": "end and window for an unknown stream",
+    "steps": [
+      {
+        "op": "frame",
+        "type": 5,
+        "streamId": 9,
+        "payload": "",
+        "expect": {
+          "frames": [],
+          "sockets": [],
+          "openStreams": 0,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "frame",
+        "type": 7,
+        "streamId": 9,
+        "payload": "0000000a",
+        "expect": {
+          "frames": [],
+          "sockets": [],
+          "openStreams": 0,
+          "uncredited": 0
+        }
+      }
+    ]
+  },
+  {
+    "name": "a large chunk is split into frames",
+    "steps": [
+      {
+        "op": "frame",
+        "type": 1,
+        "streamId": 1,
+        "payload": "7b22686f7374223a2239332e3138342e3231352e3134222c22706f7274223a3434337d",
+        "expect": {
+          "frames": [],
+          "sockets": [],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "connect-ok",
+        "expect": {
+          "frames": [
+            {
+              "type": 2,
+              "streamId": 1,
+              "payload": ""
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 0,
+        "fill": [
+          131172,
+          7
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "07dcb6d11a03624831513672ffdb84d6b1730f54e90aaace444fe3a8ea9b2163"
+            },
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "07dcb6d11a03624831513672ffdb84d6b1730f54e90aaace444fe3a8ea9b2163"
+            },
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 100,
+              "sha256": "d876885b7f40eae70bd1f5247a9854914fa5812ce63998e2d894a68e187967cb"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 131172
+        }
+      }
+    ]
+  },
+  {
+    "name": "window exhaustion pauses and credit resumes",
+    "steps": [
+      {
+        "op": "frame",
+        "type": 1,
+        "streamId": 1,
+        "payload": "7b22686f7374223a2239332e3138342e3231352e3134222c22706f7274223a3434337d",
+        "expect": {
+          "frames": [],
+          "sockets": [],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "connect-ok",
+        "expect": {
+          "frames": [
+            {
+              "type": 2,
+              "streamId": 1,
+              "payload": ""
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 0,
+        "fill": [
+          65536,
+          1
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 65536
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 0,
+        "fill": [
+          65536,
+          1
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 131072
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 0,
+        "fill": [
+          65536,
+          1
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 196608
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 0,
+        "fill": [
+          65536,
+          1
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 262144
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 0,
+        "fill": [
+          65536,
+          1
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 327680
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 0,
+        "fill": [
+          65536,
+          1
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 393216
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 0,
+        "fill": [
+          65536,
+          1
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 458752
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 0,
+        "fill": [
+          65536,
+          1
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 524288
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 0,
+        "fill": [
+          65536,
+          1
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 589824
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 0,
+        "fill": [
+          65536,
+          1
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 655360
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 0,
+        "fill": [
+          65536,
+          1
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 720896
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 0,
+        "fill": [
+          65536,
+          1
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 786432
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 0,
+        "fill": [
+          65536,
+          1
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 851968
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 0,
+        "fill": [
+          65536,
+          1
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 917504
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 0,
+        "fill": [
+          65536,
+          1
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 983040
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 0,
+        "fill": [
+          65536,
+          1
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 1048576
+        }
+      },
+      {
+        "op": "frame",
+        "type": 7,
+        "streamId": 1,
+        "payload": "00010000",
+        "expect": {
+          "frames": [],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 983040
+        }
+      },
+      {
+        "op": "frame",
+        "type": 7,
+        "streamId": 1,
+        "payload": "00100000",
+        "expect": {
+          "frames": [],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      }
+    ]
+  },
+  {
+    "name": "too much in flight across streams pauses every stream",
+    "steps": [
+      {
+        "op": "frame",
+        "type": 1,
+        "streamId": 1,
+        "payload": "7b22686f7374223a2239332e3138342e3231352e3134222c22706f7274223a3434337d",
+        "expect": {
+          "frames": [],
+          "sockets": [],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "connect-ok",
+        "expect": {
+          "frames": [
+            {
+              "type": 2,
+              "streamId": 1,
+              "payload": ""
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "frame",
+        "type": 1,
+        "streamId": 3,
+        "payload": "7b22686f7374223a2239332e3138342e3231352e3134222c22706f7274223a3434337d",
+        "expect": {
+          "frames": [],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 2,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "connect-ok",
+        "expect": {
+          "frames": [
+            {
+              "type": 2,
+              "streamId": 3,
+              "payload": ""
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 2,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "frame",
+        "type": 1,
+        "streamId": 5,
+        "payload": "7b22686f7374223a2239332e3138342e3231352e3134222c22706f7274223a3434337d",
+        "expect": {
+          "frames": [],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 3,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "connect-ok",
+        "expect": {
+          "frames": [
+            {
+              "type": 2,
+              "streamId": 5,
+              "payload": ""
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 3,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "frame",
+        "type": 1,
+        "streamId": 7,
+        "payload": "7b22686f7374223a2239332e3138342e3231352e3134222c22706f7274223a3434337d",
+        "expect": {
+          "frames": [],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 4,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "connect-ok",
+        "expect": {
+          "frames": [
+            {
+              "type": 2,
+              "streamId": 7,
+              "payload": ""
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 4,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "frame",
+        "type": 1,
+        "streamId": 9,
+        "payload": "7b22686f7374223a2239332e3138342e3231352e3134222c22706f7274223a3434337d",
+        "expect": {
+          "frames": [],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 5,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "connect-ok",
+        "expect": {
+          "frames": [
+            {
+              "type": 2,
+              "streamId": 9,
+              "payload": ""
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 5,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "frame",
+        "type": 1,
+        "streamId": 11,
+        "payload": "7b22686f7374223a2239332e3138342e3231352e3134222c22706f7274223a3434337d",
+        "expect": {
+          "frames": [],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 6,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "connect-ok",
+        "expect": {
+          "frames": [
+            {
+              "type": 2,
+              "streamId": 11,
+              "payload": ""
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 6,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "frame",
+        "type": 1,
+        "streamId": 13,
+        "payload": "7b22686f7374223a2239332e3138342e3231352e3134222c22706f7274223a3434337d",
+        "expect": {
+          "frames": [],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 7,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "connect-ok",
+        "expect": {
+          "frames": [
+            {
+              "type": 2,
+              "streamId": 13,
+              "payload": ""
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 7,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "frame",
+        "type": 1,
+        "streamId": 15,
+        "payload": "7b22686f7374223a2239332e3138342e3231352e3134222c22706f7274223a3434337d",
+        "expect": {
+          "frames": [],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 8,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "connect-ok",
+        "expect": {
+          "frames": [
+            {
+              "type": 2,
+              "streamId": 15,
+              "payload": ""
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 8,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "frame",
+        "type": 1,
+        "streamId": 17,
+        "payload": "7b22686f7374223a2239332e3138342e3231352e3134222c22706f7274223a3434337d",
+        "expect": {
+          "frames": [],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "connect-ok",
+        "expect": {
+          "frames": [
+            {
+              "type": 2,
+              "streamId": 17,
+              "payload": ""
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 0,
+        "fill": [
+          131072,
+          1
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            },
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 131072
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 0,
+        "fill": [
+          131072,
+          1
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            },
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 262144
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 0,
+        "fill": [
+          131072,
+          1
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            },
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 393216
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 0,
+        "fill": [
+          131072,
+          1
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            },
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 524288
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 0,
+        "fill": [
+          131072,
+          1
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            },
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 655360
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 0,
+        "fill": [
+          131072,
+          1
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            },
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 786432
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 0,
+        "fill": [
+          131072,
+          1
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            },
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 917504
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 0,
+        "fill": [
+          131072,
+          1
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            },
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 1048576
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 1,
+        "fill": [
+          131072,
+          2
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 3,
+              "length": 65536,
+              "sha256": "da1acff5c9defdd68bfa1435c4b43e8d43ed10fcc7cbcb77a85c4482d5f5bda3"
+            },
+            {
+              "type": 4,
+              "streamId": 3,
+              "length": 65536,
+              "sha256": "da1acff5c9defdd68bfa1435c4b43e8d43ed10fcc7cbcb77a85c4482d5f5bda3"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 1179648
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 1,
+        "fill": [
+          131072,
+          2
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 3,
+              "length": 65536,
+              "sha256": "da1acff5c9defdd68bfa1435c4b43e8d43ed10fcc7cbcb77a85c4482d5f5bda3"
+            },
+            {
+              "type": 4,
+              "streamId": 3,
+              "length": 65536,
+              "sha256": "da1acff5c9defdd68bfa1435c4b43e8d43ed10fcc7cbcb77a85c4482d5f5bda3"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 1310720
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 1,
+        "fill": [
+          131072,
+          2
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 3,
+              "length": 65536,
+              "sha256": "da1acff5c9defdd68bfa1435c4b43e8d43ed10fcc7cbcb77a85c4482d5f5bda3"
+            },
+            {
+              "type": 4,
+              "streamId": 3,
+              "length": 65536,
+              "sha256": "da1acff5c9defdd68bfa1435c4b43e8d43ed10fcc7cbcb77a85c4482d5f5bda3"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 1441792
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 1,
+        "fill": [
+          131072,
+          2
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 3,
+              "length": 65536,
+              "sha256": "da1acff5c9defdd68bfa1435c4b43e8d43ed10fcc7cbcb77a85c4482d5f5bda3"
+            },
+            {
+              "type": 4,
+              "streamId": 3,
+              "length": 65536,
+              "sha256": "da1acff5c9defdd68bfa1435c4b43e8d43ed10fcc7cbcb77a85c4482d5f5bda3"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 1572864
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 1,
+        "fill": [
+          131072,
+          2
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 3,
+              "length": 65536,
+              "sha256": "da1acff5c9defdd68bfa1435c4b43e8d43ed10fcc7cbcb77a85c4482d5f5bda3"
+            },
+            {
+              "type": 4,
+              "streamId": 3,
+              "length": 65536,
+              "sha256": "da1acff5c9defdd68bfa1435c4b43e8d43ed10fcc7cbcb77a85c4482d5f5bda3"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 1703936
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 1,
+        "fill": [
+          131072,
+          2
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 3,
+              "length": 65536,
+              "sha256": "da1acff5c9defdd68bfa1435c4b43e8d43ed10fcc7cbcb77a85c4482d5f5bda3"
+            },
+            {
+              "type": 4,
+              "streamId": 3,
+              "length": 65536,
+              "sha256": "da1acff5c9defdd68bfa1435c4b43e8d43ed10fcc7cbcb77a85c4482d5f5bda3"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 1835008
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 1,
+        "fill": [
+          131072,
+          2
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 3,
+              "length": 65536,
+              "sha256": "da1acff5c9defdd68bfa1435c4b43e8d43ed10fcc7cbcb77a85c4482d5f5bda3"
+            },
+            {
+              "type": 4,
+              "streamId": 3,
+              "length": 65536,
+              "sha256": "da1acff5c9defdd68bfa1435c4b43e8d43ed10fcc7cbcb77a85c4482d5f5bda3"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 1966080
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 1,
+        "fill": [
+          131072,
+          2
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 3,
+              "length": 65536,
+              "sha256": "da1acff5c9defdd68bfa1435c4b43e8d43ed10fcc7cbcb77a85c4482d5f5bda3"
+            },
+            {
+              "type": 4,
+              "streamId": 3,
+              "length": 65536,
+              "sha256": "da1acff5c9defdd68bfa1435c4b43e8d43ed10fcc7cbcb77a85c4482d5f5bda3"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 2097152
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 2,
+        "fill": [
+          131072,
+          3
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 5,
+              "length": 65536,
+              "sha256": "3af3f1d870212fe8fcfe6eb321fd14d009bccc953fce3f59f698f0c446a1a39a"
+            },
+            {
+              "type": 4,
+              "streamId": 5,
+              "length": 65536,
+              "sha256": "3af3f1d870212fe8fcfe6eb321fd14d009bccc953fce3f59f698f0c446a1a39a"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 2228224
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 2,
+        "fill": [
+          131072,
+          3
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 5,
+              "length": 65536,
+              "sha256": "3af3f1d870212fe8fcfe6eb321fd14d009bccc953fce3f59f698f0c446a1a39a"
+            },
+            {
+              "type": 4,
+              "streamId": 5,
+              "length": 65536,
+              "sha256": "3af3f1d870212fe8fcfe6eb321fd14d009bccc953fce3f59f698f0c446a1a39a"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 2359296
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 2,
+        "fill": [
+          131072,
+          3
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 5,
+              "length": 65536,
+              "sha256": "3af3f1d870212fe8fcfe6eb321fd14d009bccc953fce3f59f698f0c446a1a39a"
+            },
+            {
+              "type": 4,
+              "streamId": 5,
+              "length": 65536,
+              "sha256": "3af3f1d870212fe8fcfe6eb321fd14d009bccc953fce3f59f698f0c446a1a39a"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 2490368
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 2,
+        "fill": [
+          131072,
+          3
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 5,
+              "length": 65536,
+              "sha256": "3af3f1d870212fe8fcfe6eb321fd14d009bccc953fce3f59f698f0c446a1a39a"
+            },
+            {
+              "type": 4,
+              "streamId": 5,
+              "length": 65536,
+              "sha256": "3af3f1d870212fe8fcfe6eb321fd14d009bccc953fce3f59f698f0c446a1a39a"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 2621440
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 2,
+        "fill": [
+          131072,
+          3
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 5,
+              "length": 65536,
+              "sha256": "3af3f1d870212fe8fcfe6eb321fd14d009bccc953fce3f59f698f0c446a1a39a"
+            },
+            {
+              "type": 4,
+              "streamId": 5,
+              "length": 65536,
+              "sha256": "3af3f1d870212fe8fcfe6eb321fd14d009bccc953fce3f59f698f0c446a1a39a"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 2752512
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 2,
+        "fill": [
+          131072,
+          3
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 5,
+              "length": 65536,
+              "sha256": "3af3f1d870212fe8fcfe6eb321fd14d009bccc953fce3f59f698f0c446a1a39a"
+            },
+            {
+              "type": 4,
+              "streamId": 5,
+              "length": 65536,
+              "sha256": "3af3f1d870212fe8fcfe6eb321fd14d009bccc953fce3f59f698f0c446a1a39a"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 2883584
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 2,
+        "fill": [
+          131072,
+          3
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 5,
+              "length": 65536,
+              "sha256": "3af3f1d870212fe8fcfe6eb321fd14d009bccc953fce3f59f698f0c446a1a39a"
+            },
+            {
+              "type": 4,
+              "streamId": 5,
+              "length": 65536,
+              "sha256": "3af3f1d870212fe8fcfe6eb321fd14d009bccc953fce3f59f698f0c446a1a39a"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 3014656
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 2,
+        "fill": [
+          131072,
+          3
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 5,
+              "length": 65536,
+              "sha256": "3af3f1d870212fe8fcfe6eb321fd14d009bccc953fce3f59f698f0c446a1a39a"
+            },
+            {
+              "type": 4,
+              "streamId": 5,
+              "length": 65536,
+              "sha256": "3af3f1d870212fe8fcfe6eb321fd14d009bccc953fce3f59f698f0c446a1a39a"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 3145728
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 3,
+        "fill": [
+          131072,
+          4
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 7,
+              "length": 65536,
+              "sha256": "ac32e587c08925897c80a703080b055606911082361fbb25198873cfca8b72d0"
+            },
+            {
+              "type": 4,
+              "streamId": 7,
+              "length": 65536,
+              "sha256": "ac32e587c08925897c80a703080b055606911082361fbb25198873cfca8b72d0"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 3276800
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 3,
+        "fill": [
+          131072,
+          4
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 7,
+              "length": 65536,
+              "sha256": "ac32e587c08925897c80a703080b055606911082361fbb25198873cfca8b72d0"
+            },
+            {
+              "type": 4,
+              "streamId": 7,
+              "length": 65536,
+              "sha256": "ac32e587c08925897c80a703080b055606911082361fbb25198873cfca8b72d0"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 3407872
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 3,
+        "fill": [
+          131072,
+          4
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 7,
+              "length": 65536,
+              "sha256": "ac32e587c08925897c80a703080b055606911082361fbb25198873cfca8b72d0"
+            },
+            {
+              "type": 4,
+              "streamId": 7,
+              "length": 65536,
+              "sha256": "ac32e587c08925897c80a703080b055606911082361fbb25198873cfca8b72d0"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 3538944
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 3,
+        "fill": [
+          131072,
+          4
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 7,
+              "length": 65536,
+              "sha256": "ac32e587c08925897c80a703080b055606911082361fbb25198873cfca8b72d0"
+            },
+            {
+              "type": 4,
+              "streamId": 7,
+              "length": 65536,
+              "sha256": "ac32e587c08925897c80a703080b055606911082361fbb25198873cfca8b72d0"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 3670016
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 3,
+        "fill": [
+          131072,
+          4
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 7,
+              "length": 65536,
+              "sha256": "ac32e587c08925897c80a703080b055606911082361fbb25198873cfca8b72d0"
+            },
+            {
+              "type": 4,
+              "streamId": 7,
+              "length": 65536,
+              "sha256": "ac32e587c08925897c80a703080b055606911082361fbb25198873cfca8b72d0"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 3801088
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 3,
+        "fill": [
+          131072,
+          4
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 7,
+              "length": 65536,
+              "sha256": "ac32e587c08925897c80a703080b055606911082361fbb25198873cfca8b72d0"
+            },
+            {
+              "type": 4,
+              "streamId": 7,
+              "length": 65536,
+              "sha256": "ac32e587c08925897c80a703080b055606911082361fbb25198873cfca8b72d0"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 3932160
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 3,
+        "fill": [
+          131072,
+          4
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 7,
+              "length": 65536,
+              "sha256": "ac32e587c08925897c80a703080b055606911082361fbb25198873cfca8b72d0"
+            },
+            {
+              "type": 4,
+              "streamId": 7,
+              "length": 65536,
+              "sha256": "ac32e587c08925897c80a703080b055606911082361fbb25198873cfca8b72d0"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 4063232
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 3,
+        "fill": [
+          131072,
+          4
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 7,
+              "length": 65536,
+              "sha256": "ac32e587c08925897c80a703080b055606911082361fbb25198873cfca8b72d0"
+            },
+            {
+              "type": 4,
+              "streamId": 7,
+              "length": 65536,
+              "sha256": "ac32e587c08925897c80a703080b055606911082361fbb25198873cfca8b72d0"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 4194304
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 4,
+        "fill": [
+          131072,
+          5
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 9,
+              "length": 65536,
+              "sha256": "ac5f57d984b20f78b36a294e26cc99512a1196eb96e4c30d7cec153813e93e1b"
+            },
+            {
+              "type": 4,
+              "streamId": 9,
+              "length": 65536,
+              "sha256": "ac5f57d984b20f78b36a294e26cc99512a1196eb96e4c30d7cec153813e93e1b"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 4325376
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 4,
+        "fill": [
+          131072,
+          5
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 9,
+              "length": 65536,
+              "sha256": "ac5f57d984b20f78b36a294e26cc99512a1196eb96e4c30d7cec153813e93e1b"
+            },
+            {
+              "type": 4,
+              "streamId": 9,
+              "length": 65536,
+              "sha256": "ac5f57d984b20f78b36a294e26cc99512a1196eb96e4c30d7cec153813e93e1b"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 4456448
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 4,
+        "fill": [
+          131072,
+          5
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 9,
+              "length": 65536,
+              "sha256": "ac5f57d984b20f78b36a294e26cc99512a1196eb96e4c30d7cec153813e93e1b"
+            },
+            {
+              "type": 4,
+              "streamId": 9,
+              "length": 65536,
+              "sha256": "ac5f57d984b20f78b36a294e26cc99512a1196eb96e4c30d7cec153813e93e1b"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 4587520
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 4,
+        "fill": [
+          131072,
+          5
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 9,
+              "length": 65536,
+              "sha256": "ac5f57d984b20f78b36a294e26cc99512a1196eb96e4c30d7cec153813e93e1b"
+            },
+            {
+              "type": 4,
+              "streamId": 9,
+              "length": 65536,
+              "sha256": "ac5f57d984b20f78b36a294e26cc99512a1196eb96e4c30d7cec153813e93e1b"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 4718592
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 4,
+        "fill": [
+          131072,
+          5
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 9,
+              "length": 65536,
+              "sha256": "ac5f57d984b20f78b36a294e26cc99512a1196eb96e4c30d7cec153813e93e1b"
+            },
+            {
+              "type": 4,
+              "streamId": 9,
+              "length": 65536,
+              "sha256": "ac5f57d984b20f78b36a294e26cc99512a1196eb96e4c30d7cec153813e93e1b"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 4849664
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 4,
+        "fill": [
+          131072,
+          5
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 9,
+              "length": 65536,
+              "sha256": "ac5f57d984b20f78b36a294e26cc99512a1196eb96e4c30d7cec153813e93e1b"
+            },
+            {
+              "type": 4,
+              "streamId": 9,
+              "length": 65536,
+              "sha256": "ac5f57d984b20f78b36a294e26cc99512a1196eb96e4c30d7cec153813e93e1b"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 4980736
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 4,
+        "fill": [
+          131072,
+          5
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 9,
+              "length": 65536,
+              "sha256": "ac5f57d984b20f78b36a294e26cc99512a1196eb96e4c30d7cec153813e93e1b"
+            },
+            {
+              "type": 4,
+              "streamId": 9,
+              "length": 65536,
+              "sha256": "ac5f57d984b20f78b36a294e26cc99512a1196eb96e4c30d7cec153813e93e1b"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 5111808
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 4,
+        "fill": [
+          131072,
+          5
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 9,
+              "length": 65536,
+              "sha256": "ac5f57d984b20f78b36a294e26cc99512a1196eb96e4c30d7cec153813e93e1b"
+            },
+            {
+              "type": 4,
+              "streamId": 9,
+              "length": 65536,
+              "sha256": "ac5f57d984b20f78b36a294e26cc99512a1196eb96e4c30d7cec153813e93e1b"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 5242880
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 5,
+        "fill": [
+          131072,
+          6
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 11,
+              "length": 65536,
+              "sha256": "570c8bbac0dfe325a89e8193cdb88560d4ce244ac2de3b5226791203107d74f5"
+            },
+            {
+              "type": 4,
+              "streamId": 11,
+              "length": 65536,
+              "sha256": "570c8bbac0dfe325a89e8193cdb88560d4ce244ac2de3b5226791203107d74f5"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 5373952
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 5,
+        "fill": [
+          131072,
+          6
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 11,
+              "length": 65536,
+              "sha256": "570c8bbac0dfe325a89e8193cdb88560d4ce244ac2de3b5226791203107d74f5"
+            },
+            {
+              "type": 4,
+              "streamId": 11,
+              "length": 65536,
+              "sha256": "570c8bbac0dfe325a89e8193cdb88560d4ce244ac2de3b5226791203107d74f5"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 5505024
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 5,
+        "fill": [
+          131072,
+          6
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 11,
+              "length": 65536,
+              "sha256": "570c8bbac0dfe325a89e8193cdb88560d4ce244ac2de3b5226791203107d74f5"
+            },
+            {
+              "type": 4,
+              "streamId": 11,
+              "length": 65536,
+              "sha256": "570c8bbac0dfe325a89e8193cdb88560d4ce244ac2de3b5226791203107d74f5"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 5636096
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 5,
+        "fill": [
+          131072,
+          6
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 11,
+              "length": 65536,
+              "sha256": "570c8bbac0dfe325a89e8193cdb88560d4ce244ac2de3b5226791203107d74f5"
+            },
+            {
+              "type": 4,
+              "streamId": 11,
+              "length": 65536,
+              "sha256": "570c8bbac0dfe325a89e8193cdb88560d4ce244ac2de3b5226791203107d74f5"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 5767168
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 5,
+        "fill": [
+          131072,
+          6
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 11,
+              "length": 65536,
+              "sha256": "570c8bbac0dfe325a89e8193cdb88560d4ce244ac2de3b5226791203107d74f5"
+            },
+            {
+              "type": 4,
+              "streamId": 11,
+              "length": 65536,
+              "sha256": "570c8bbac0dfe325a89e8193cdb88560d4ce244ac2de3b5226791203107d74f5"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 5898240
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 5,
+        "fill": [
+          131072,
+          6
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 11,
+              "length": 65536,
+              "sha256": "570c8bbac0dfe325a89e8193cdb88560d4ce244ac2de3b5226791203107d74f5"
+            },
+            {
+              "type": 4,
+              "streamId": 11,
+              "length": 65536,
+              "sha256": "570c8bbac0dfe325a89e8193cdb88560d4ce244ac2de3b5226791203107d74f5"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 6029312
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 5,
+        "fill": [
+          131072,
+          6
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 11,
+              "length": 65536,
+              "sha256": "570c8bbac0dfe325a89e8193cdb88560d4ce244ac2de3b5226791203107d74f5"
+            },
+            {
+              "type": 4,
+              "streamId": 11,
+              "length": 65536,
+              "sha256": "570c8bbac0dfe325a89e8193cdb88560d4ce244ac2de3b5226791203107d74f5"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 6160384
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 5,
+        "fill": [
+          131072,
+          6
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 11,
+              "length": 65536,
+              "sha256": "570c8bbac0dfe325a89e8193cdb88560d4ce244ac2de3b5226791203107d74f5"
+            },
+            {
+              "type": 4,
+              "streamId": 11,
+              "length": 65536,
+              "sha256": "570c8bbac0dfe325a89e8193cdb88560d4ce244ac2de3b5226791203107d74f5"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 6291456
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 6,
+        "fill": [
+          131072,
+          7
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 13,
+              "length": 65536,
+              "sha256": "07dcb6d11a03624831513672ffdb84d6b1730f54e90aaace444fe3a8ea9b2163"
+            },
+            {
+              "type": 4,
+              "streamId": 13,
+              "length": 65536,
+              "sha256": "07dcb6d11a03624831513672ffdb84d6b1730f54e90aaace444fe3a8ea9b2163"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 6422528
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 6,
+        "fill": [
+          131072,
+          7
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 13,
+              "length": 65536,
+              "sha256": "07dcb6d11a03624831513672ffdb84d6b1730f54e90aaace444fe3a8ea9b2163"
+            },
+            {
+              "type": 4,
+              "streamId": 13,
+              "length": 65536,
+              "sha256": "07dcb6d11a03624831513672ffdb84d6b1730f54e90aaace444fe3a8ea9b2163"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 6553600
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 6,
+        "fill": [
+          131072,
+          7
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 13,
+              "length": 65536,
+              "sha256": "07dcb6d11a03624831513672ffdb84d6b1730f54e90aaace444fe3a8ea9b2163"
+            },
+            {
+              "type": 4,
+              "streamId": 13,
+              "length": 65536,
+              "sha256": "07dcb6d11a03624831513672ffdb84d6b1730f54e90aaace444fe3a8ea9b2163"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 6684672
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 6,
+        "fill": [
+          131072,
+          7
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 13,
+              "length": 65536,
+              "sha256": "07dcb6d11a03624831513672ffdb84d6b1730f54e90aaace444fe3a8ea9b2163"
+            },
+            {
+              "type": 4,
+              "streamId": 13,
+              "length": 65536,
+              "sha256": "07dcb6d11a03624831513672ffdb84d6b1730f54e90aaace444fe3a8ea9b2163"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 6815744
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 6,
+        "fill": [
+          131072,
+          7
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 13,
+              "length": 65536,
+              "sha256": "07dcb6d11a03624831513672ffdb84d6b1730f54e90aaace444fe3a8ea9b2163"
+            },
+            {
+              "type": 4,
+              "streamId": 13,
+              "length": 65536,
+              "sha256": "07dcb6d11a03624831513672ffdb84d6b1730f54e90aaace444fe3a8ea9b2163"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 6946816
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 6,
+        "fill": [
+          131072,
+          7
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 13,
+              "length": 65536,
+              "sha256": "07dcb6d11a03624831513672ffdb84d6b1730f54e90aaace444fe3a8ea9b2163"
+            },
+            {
+              "type": 4,
+              "streamId": 13,
+              "length": 65536,
+              "sha256": "07dcb6d11a03624831513672ffdb84d6b1730f54e90aaace444fe3a8ea9b2163"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 7077888
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 6,
+        "fill": [
+          131072,
+          7
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 13,
+              "length": 65536,
+              "sha256": "07dcb6d11a03624831513672ffdb84d6b1730f54e90aaace444fe3a8ea9b2163"
+            },
+            {
+              "type": 4,
+              "streamId": 13,
+              "length": 65536,
+              "sha256": "07dcb6d11a03624831513672ffdb84d6b1730f54e90aaace444fe3a8ea9b2163"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 7208960
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 6,
+        "fill": [
+          131072,
+          7
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 13,
+              "length": 65536,
+              "sha256": "07dcb6d11a03624831513672ffdb84d6b1730f54e90aaace444fe3a8ea9b2163"
+            },
+            {
+              "type": 4,
+              "streamId": 13,
+              "length": 65536,
+              "sha256": "07dcb6d11a03624831513672ffdb84d6b1730f54e90aaace444fe3a8ea9b2163"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 7340032
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 7,
+        "fill": [
+          131072,
+          8
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 15,
+              "length": 65536,
+              "sha256": "0e7424be9627f88499110c34e21214ed91e026e1657d9be3bd54e3e7e09fd867"
+            },
+            {
+              "type": 4,
+              "streamId": 15,
+              "length": 65536,
+              "sha256": "0e7424be9627f88499110c34e21214ed91e026e1657d9be3bd54e3e7e09fd867"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 7471104
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 7,
+        "fill": [
+          131072,
+          8
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 15,
+              "length": 65536,
+              "sha256": "0e7424be9627f88499110c34e21214ed91e026e1657d9be3bd54e3e7e09fd867"
+            },
+            {
+              "type": 4,
+              "streamId": 15,
+              "length": 65536,
+              "sha256": "0e7424be9627f88499110c34e21214ed91e026e1657d9be3bd54e3e7e09fd867"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 7602176
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 7,
+        "fill": [
+          131072,
+          8
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 15,
+              "length": 65536,
+              "sha256": "0e7424be9627f88499110c34e21214ed91e026e1657d9be3bd54e3e7e09fd867"
+            },
+            {
+              "type": 4,
+              "streamId": 15,
+              "length": 65536,
+              "sha256": "0e7424be9627f88499110c34e21214ed91e026e1657d9be3bd54e3e7e09fd867"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 7733248
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 7,
+        "fill": [
+          131072,
+          8
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 15,
+              "length": 65536,
+              "sha256": "0e7424be9627f88499110c34e21214ed91e026e1657d9be3bd54e3e7e09fd867"
+            },
+            {
+              "type": 4,
+              "streamId": 15,
+              "length": 65536,
+              "sha256": "0e7424be9627f88499110c34e21214ed91e026e1657d9be3bd54e3e7e09fd867"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 7864320
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 7,
+        "fill": [
+          131072,
+          8
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 15,
+              "length": 65536,
+              "sha256": "0e7424be9627f88499110c34e21214ed91e026e1657d9be3bd54e3e7e09fd867"
+            },
+            {
+              "type": 4,
+              "streamId": 15,
+              "length": 65536,
+              "sha256": "0e7424be9627f88499110c34e21214ed91e026e1657d9be3bd54e3e7e09fd867"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 7995392
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 7,
+        "fill": [
+          131072,
+          8
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 15,
+              "length": 65536,
+              "sha256": "0e7424be9627f88499110c34e21214ed91e026e1657d9be3bd54e3e7e09fd867"
+            },
+            {
+              "type": 4,
+              "streamId": 15,
+              "length": 65536,
+              "sha256": "0e7424be9627f88499110c34e21214ed91e026e1657d9be3bd54e3e7e09fd867"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 8126464
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 7,
+        "fill": [
+          131072,
+          8
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 15,
+              "length": 65536,
+              "sha256": "0e7424be9627f88499110c34e21214ed91e026e1657d9be3bd54e3e7e09fd867"
+            },
+            {
+              "type": 4,
+              "streamId": 15,
+              "length": 65536,
+              "sha256": "0e7424be9627f88499110c34e21214ed91e026e1657d9be3bd54e3e7e09fd867"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 8257536
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 7,
+        "fill": [
+          131072,
+          8
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 15,
+              "length": 65536,
+              "sha256": "0e7424be9627f88499110c34e21214ed91e026e1657d9be3bd54e3e7e09fd867"
+            },
+            {
+              "type": 4,
+              "streamId": 15,
+              "length": 65536,
+              "sha256": "0e7424be9627f88499110c34e21214ed91e026e1657d9be3bd54e3e7e09fd867"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 8388608
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 8,
+        "fill": [
+          65536,
+          9
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 17,
+              "length": 65536,
+              "sha256": "83c57546e5a31f700e7adc9edc55118bf2677bd04f0fc9089c6477b1646ffa1f"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 8454144
+        }
+      },
+      {
+        "op": "frame",
+        "type": 7,
+        "streamId": 1,
+        "payload": "00100000",
+        "expect": {
+          "frames": [],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": true
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 9,
+          "uncredited": 7405568
+        }
+      }
+    ]
+  },
+  {
+    "name": "a closed stream's uncredited data is released",
+    "steps": [
+      {
+        "op": "frame",
+        "type": 1,
+        "streamId": 1,
+        "payload": "7b22686f7374223a2239332e3138342e3231352e3134222c22706f7274223a3434337d",
+        "expect": {
+          "frames": [],
+          "sockets": [],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "connect-ok",
+        "expect": {
+          "frames": [
+            {
+              "type": 2,
+              "streamId": 1,
+              "payload": ""
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "socket-data",
+        "socket": 0,
+        "fill": [
+          65536,
+          1
+        ],
+        "expect": {
+          "frames": [
+            {
+              "type": 4,
+              "streamId": 1,
+              "length": 65536,
+              "sha256": "916b144867c340614f515c7b0e5415c74832d899c05264ded2a277a6e81d81ff"
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 65536
+        }
+      },
+      {
+        "op": "frame",
+        "type": 6,
+        "streamId": 1,
+        "payload": "",
+        "expect": {
+          "frames": [],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": true,
+              "paused": false
+            }
+          ],
+          "openStreams": 0,
+          "uncredited": 0
+        }
+      }
+    ]
+  },
+  {
+    "name": "reset all",
+    "steps": [
+      {
+        "op": "frame",
+        "type": 1,
+        "streamId": 1,
+        "payload": "7b22686f7374223a2239332e3138342e3231352e3134222c22706f7274223a3434337d",
+        "expect": {
+          "frames": [],
+          "sockets": [],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "connect-ok",
+        "expect": {
+          "frames": [
+            {
+              "type": 2,
+              "streamId": 1,
+              "payload": ""
+            }
+          ],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 1,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "frame",
+        "type": 1,
+        "streamId": 3,
+        "payload": "7b22686f7374223a2239332e3138342e3231352e3134222c22706f7274223a3434337d",
+        "expect": {
+          "frames": [],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": false,
+              "paused": false
+            }
+          ],
+          "openStreams": 2,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "reset-all",
+        "expect": {
+          "frames": [],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": true,
+              "paused": false
+            }
+          ],
+          "openStreams": 0,
+          "uncredited": 0
+        }
+      },
+      {
+        "op": "connect-ok",
+        "expect": {
+          "frames": [],
+          "sockets": [
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": true,
+              "paused": false
+            },
+            {
+              "written": "",
+              "ended": false,
+              "destroyed": true,
+              "paused": false
+            }
+          ],
+          "openStreams": 0,
+          "uncredited": 0
+        }
+      }
+    ]
+  }
+]

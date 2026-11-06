@@ -44,6 +44,7 @@ import {
   type LoginSecret,
   type Autonomy,
   type EgressModeSetting,
+  type PhoneEgressSetting,
   type TriggerKind,
 } from "@open-bot/shared";
 import { and, eq, inArray, isNull, ne } from "drizzle-orm";
@@ -52,7 +53,9 @@ import { decryptSecret, encryptSecret, secretHint } from "@open-bot/shared/secre
 import { memoryInputSchema, memoryEditSchema, memoryReferenceSchema } from "@open-bot/shared";
 import {
   decideApprovalInputSchema,
+  egressModeSchema,
   feedbackInputSchema,
+  phoneEgressModeSchema,
   sendMessageInputSchema,
   type ApiInputs,
 } from "@open-bot/api";
@@ -1201,9 +1204,19 @@ export async function markNotificationsRead(ids?: string[]) {
 
 export async function setEgressMode(mode: EgressModeSetting) {
   return guarded(async () => {
-    await worker("POST", "/internal/egress/mode", {
-      mode: z.enum(["off", "prefer", "require"]).parse(mode),
-    });
+    await api.setEgressMode({ mode: egressModeSchema.parse(mode) });
+  });
+}
+
+export async function setPhoneEgress(mode: PhoneEgressSetting) {
+  return guarded(async () => {
+    await api.setPhoneEgressMode({ mode: phoneEgressModeSchema.parse(mode) });
+  });
+}
+
+export async function revokeEgressDevice(deviceId: string) {
+  return guarded(async () => {
+    await api.revokeEgressDevice({ deviceId: z.string().uuid().parse(deviceId) });
   });
 }
 

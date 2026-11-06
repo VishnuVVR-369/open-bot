@@ -89,7 +89,16 @@ if (!browserSandbox) {
 
 const supervisor = new Supervisor(log);
 let broadcastHealth = () => {};
-const egress = new EgressRouter(log, () => broadcastHealth());
+const egress = new EgressRouter({
+  log,
+  onChange: () => broadcastHealth(),
+  stateFile: `${STATE_DIR}/egress.json`,
+  leasedScreens: () =>
+    screens
+      .list()
+      .filter((screen) => screen.state !== "paused" && screen.lease !== null)
+      .map((screen) => screen.id),
+});
 const cookies = new CookieSync(`${STATE_DIR}/cookies.json`, log);
 const codeScreens = new CodeScreens(`${STATE_DIR}/code-screens`);
 const screens = new ScreenManager(

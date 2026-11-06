@@ -211,6 +211,13 @@
       "when": 1793960584341,
       "tag": "0029_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1793976471609,
+      "tag": "0030_phone_egress",
+      "breakpoints": true
     }
   ]
 }
