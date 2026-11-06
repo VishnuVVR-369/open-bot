@@ -1,8 +1,22 @@
 "use client";
 
-import { describeInterval, invalidWatchUrl, WATCH_INTERVALS } from "@open-bot/shared";
+import {
+  CALENDAR_EVENT_FILTERS,
+  CALENDAR_LEADS,
+  describeInterval,
+  describeLead,
+  invalidGmailQuery,
+  invalidWatchUrl,
+  isAccountTrigger,
+  isCalendarEventFilter,
+  MAX_GMAIL_QUERY_CHARS,
+  TRIGGER_CONNECTION_KIND,
+  WATCH_INTERVALS,
+  type TriggerKind,
+} from "@open-bot/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 import { BotAvatar } from "@/components/bot-avatar";
@@ -27,8 +41,8 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { createTrigger, updateTrigger } from "@/lib/actions";
-import { queryKeys, useAppState } from "@/lib/client/queries";
-import type { TriggerView } from "@/lib/types";
+import { queryKeys, useAppState, useConnections } from "@/lib/client/queries";
+import type { ConnectionView, TriggerView } from "@/lib/types";
 import { copyWebhookUrl } from "./webhook-url";
 
 const COPY = {
@@ -50,10 +64,54 @@ const COPY = {
     promptPlaceholder: "Summarize the new issue and tell me if it looks urgent.",
     create: "Create webhook",
   },
-} as const;
+  gmail: {
+    newTitle: "New Gmail trigger",
+    editTitle: "Edit Gmail trigger",
+    description:
+      "New mail is looked for every 2 minutes. When some arrives, the teammate gets it and your instructions, in their Scheduled chat.",
+    titlePlaceholder: "Invoices",
+    promptPlaceholder:
+      "Add the amount and due date to my bills list, and tell me if it's over £200.",
+    create: "Start watching",
+  },
+  calendar: {
+    newTitle: "New Calendar trigger",
+    editTitle: "Edit Calendar trigger",
+    description:
+      "Before each event on your calendar, the teammate gets its details and your instructions, in their Scheduled chat.",
+    titlePlaceholder: "Meeting prep",
+    promptPlaceholder: "Look up the people I'm meeting and send me a short brief.",
+    create: "Start watching",
+  },
+} as const satisfies Record<TriggerKind, Record<string, string>>;
+
+const NOUN = {
+  watch: "watch",
+  webhook: "webhook",
+  gmail: "trigger",
+  calendar: "trigger",
+} as const satisfies Record<TriggerKind, string>;
+
+const CONNECTION_LABEL = { gmail: "Gmail", calendar: "Google Calendar" } as const;
+
+/** The connections a trigger of this kind can watch for the teammate: on, signed in, and theirs. */
+function watchable(
+  connections: ConnectionView[] | undefined,
+  kind: "gmail" | "calendar",
+  botId: string,
+): ConnectionView[] {
+  return (connections ?? []).filter(
+    (connection) =>
+      connection.kind === TRIGGER_CONNECTION_KIND[kind] &&
+      connection.account !== null &&
+      connection.enabled &&
+      (connection.botIds === null || connection.botIds.includes(botId)),
+  );
+}
 
 /**
- * Create a page watch or a webhook, or edit one when `existing` is given. Opens from `trigger`, or
+ * Create a page watch, a webhook, or a Gmail or Calendar trigger, or edit one when `existing` is
+ * given. Opens from `trigger`, or
  * from outside with `open` and `onOpenChange`.
  */
 export function TriggerDialog({
@@ -64,7 +122,7 @@ export function TriggerDialog({
   open: controlledOpen,
   onOpenChange,
 }: {
-  kind: "watch" | "webhook";
+  kind: TriggerKind;
   botId?: string;
   existing?: TriggerView;
   trigger?: ReactNode;
@@ -83,6 +141,11 @@ export function TriggerDialog({
   const [intervalMinutes, setIntervalMinutes] = useState("60");
   const [lookFor, setLookFor] = useState("");
   const [urlTouched, setUrlTouched] = useState(false);
+  const [connectionId, setConnectionId] = useState("");
+  const [query, setQuery] = useState("");
+  const [leadMinutes, setLeadMinutes] = useState("30");
+  const [events, setEvents] = useState("all");
+  const { data: connections, isLoading: loadingConnections } = useConnections();
   const [pending, startTransition] = useTransition();
   const queryClient = useQueryClient();
   const copy = COPY[kind];
@@ -97,10 +160,33 @@ export function TriggerDialog({
     setIntervalMinutes(String(existing?.intervalMinutes ?? 60));
     setLookFor(existing?.lookFor ?? "");
     setUrlTouched(false);
+    setConnectionId(existing?.connectionId ?? "");
+    setQuery(existing?.kind === "gmail" ? (existing.query ?? "") : "");
+    setLeadMinutes(String(existing?.leadMinutes ?? 30));
+    setEvents(
+      existing?.kind === "calendar" && isCalendarEventFilter(existing.query)
+        ? existing.query
+        : "all",
+    );
   }, [open, existing, botId]);
 
   const botValue = selectedBot || bots[0]?.id || "";
   const urlProblem = kind === "watch" ? invalidWatchUrl(url) : null;
+  const queryProblem = kind === "gmail" ? invalidGmailQuery(query) : null;
+  const account = isAccountTrigger(kind) ? kind : null;
+  const choices = account ? watchable(connections, account, botValue) : [];
+  // Keep the one it watches in the menu, even when it's off or no longer the teammate's.
+  if (account && existing?.connectionId && !choices.some((c) => c.id === existing.connectionId)) {
+    const current = connections?.find((connection) => connection.id === existing.connectionId);
+    if (current) choices.push(current);
+  }
+  const connectionValue = choices.some((c) => c.id === connectionId)
+    ? connectionId
+    : (choices[0]?.id ?? "");
+  const noAccount = account !== null && !loadingConnections && choices.length === 0;
+  const leads: { minutes: number; label: string }[] = [...CALENDAR_LEADS];
+  if (!leads.some((option) => String(option.minutes) === leadMinutes))
+    leads.push({ minutes: Number(leadMinutes), label: describeLead(Number(leadMinutes)) });
   const intervals: { minutes: number; label: string }[] = [...WATCH_INTERVALS];
   // A bot may have picked an interval the menu doesn't offer.
   if (!intervals.some((option) => String(option.minutes) === intervalMinutes))
@@ -114,6 +200,7 @@ export function TriggerDialog({
       setUrlTouched(true);
       return;
     }
+    if (queryProblem) return;
     startTransition(async () => {
       const input = {
         botId: botValue,
@@ -123,19 +210,17 @@ export function TriggerDialog({
         url: kind === "watch" ? url.trim() : null,
         intervalMinutes: kind === "watch" ? Number(intervalMinutes) : null,
         lookFor: kind === "watch" ? lookFor.trim() || null : null,
+        connectionId: account ? connectionValue : null,
+        query: kind === "gmail" ? query.trim() || null : kind === "calendar" ? events : null,
+        leadMinutes: kind === "calendar" ? Number(leadMinutes) : null,
       };
       const result = existing
         ? await updateTrigger(existing.id, input)
         : await createTrigger(input);
       if (!result.ok) {
-        toast.error(
-          existing
-            ? "Couldn't save that"
-            : `Couldn't create the ${kind === "watch" ? "watch" : "webhook"}`,
-          {
-            description: result.error,
-          },
-        );
+        toast.error(existing ? "Couldn't save that" : `Couldn't create the ${NOUN[kind]}`, {
+          description: result.error,
+        });
         return;
       }
       setOpen(false);
@@ -145,6 +230,14 @@ export function TriggerDialog({
         toast("Watching the page", {
           description:
             "The first check learns what it looks like. Changes after that wake your teammate.",
+        });
+      else if (kind === "gmail")
+        toast("Watching for new mail", {
+          description: "Mail that arrives from now on wakes your teammate.",
+        });
+      else if (kind === "calendar")
+        toast("Watching your calendar", {
+          description: `${describeLead(Number(leadMinutes))} each event, your teammate gets to work.`,
         });
       else if ("hookPath" in result.data && typeof result.data.hookPath === "string") {
         const hookPath = result.data.hookPath;
@@ -200,6 +293,102 @@ export function TriggerDialog({
               maxLength={80}
             />
           </div>
+          {account && (
+            <div className="flex flex-col gap-2">
+              <Label>Account</Label>
+              {noAccount ? (
+                <p
+                  className="rounded-lg border border-dashed px-3 py-2.5 text-[13px] text-muted-foreground"
+                  data-testid="trigger-no-account"
+                >
+                  This teammate can&apos;t use {CONNECTION_LABEL[account]} yet.{" "}
+                  <Link
+                    href="/settings#connections"
+                    className="text-foreground underline underline-offset-4"
+                    onClick={() => setOpen(false)}
+                  >
+                    Connect it in Settings
+                  </Link>
+                  , then come back.
+                </p>
+              ) : (
+                <Select
+                  value={connectionValue}
+                  onValueChange={setConnectionId}
+                  disabled={loadingConnections}
+                >
+                  <SelectTrigger
+                    className="w-full"
+                    aria-label={`${CONNECTION_LABEL[account]} account`}
+                  >
+                    <SelectValue placeholder="Loading…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {choices.map((connection) => (
+                      <SelectItem key={connection.id} value={connection.id}>
+                        {connection.account?.display ?? connection.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
+          {kind === "gmail" && (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="trigger-query">Only mail matching (optional)</Label>
+              <Input
+                id="trigger-query"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="from:billing@example.com has:attachment"
+                maxLength={MAX_GMAIL_QUERY_CHARS}
+                aria-invalid={Boolean(queryProblem)}
+              />
+              {queryProblem ? (
+                <p className="text-[12.5px] text-destructive">{queryProblem}</p>
+              ) : (
+                <p className="text-[12.5px] text-muted-foreground">
+                  A Gmail search, as you&apos;d type it in Gmail. Leave it empty for all new mail.
+                  Mail you send, drafts and spam never count.
+                </p>
+              )}
+            </div>
+          )}
+          {kind === "calendar" && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-2">
+                <Label>When</Label>
+                <Select value={leadMinutes} onValueChange={setLeadMinutes}>
+                  <SelectTrigger className="w-full" aria-label="How long before each event">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {leads.map((option) => (
+                      <SelectItem key={option.minutes} value={String(option.minutes)}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label>Events</Label>
+                <Select value={events} onValueChange={setEvents}>
+                  <SelectTrigger className="w-full" aria-label="Which events">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CALENDAR_EVENT_FILTERS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
           {kind === "watch" && (
             <>
               <div className="flex flex-col gap-2">
@@ -274,7 +463,9 @@ export function TriggerDialog({
               !title.trim() ||
               !prompt.trim() ||
               !botValue ||
-              (kind === "watch" && !url.trim())
+              (kind === "watch" && !url.trim()) ||
+              Boolean(queryProblem) ||
+              (account !== null && !connectionValue)
             }
           >
             {pending && <Loader2 className="animate-spin" />}

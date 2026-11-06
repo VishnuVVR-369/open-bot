@@ -1,17 +1,26 @@
 "use client";
 
-import { describeInterval } from "@open-bot/shared";
+import {
+  describeGmailQuery,
+  describeInterval,
+  describeLead,
+  isAccountTrigger,
+  type TriggerKind,
+} from "@open-bot/shared";
 import { formatDistanceToNowStrict } from "date-fns";
 import {
+  CalendarDays,
   ChevronRight,
   Copy,
   ExternalLink,
   Eye,
+  Mail,
   Pencil,
   RefreshCw,
   RotateCcw,
   Send,
   Webhook,
+  type LucideIcon,
 } from "lucide-react";
 import { useState, useSyncExternalStore, useTransition } from "react";
 import { toast } from "sonner";
@@ -39,6 +48,41 @@ const ago = (iso: string) => formatDistanceToNowStrict(new Date(iso), { addSuffi
 function shortUrl(url: string) {
   return url.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
 }
+
+const KIND_ICONS: Record<TriggerKind, LucideIcon> = {
+  watch: Eye,
+  webhook: Webhook,
+  gmail: Mail,
+  calendar: CalendarDays,
+};
+
+/** Which mail, or which events, an account trigger wakes for, in a few words. */
+function accountWatch(trigger: TriggerView): string {
+  if (trigger.kind === "gmail") return describeGmailQuery(trigger.query);
+  const events = trigger.query === "guests" ? "event with other people" : "event";
+  return `${describeLead(trigger.leadMinutes ?? 30).toLowerCase()} each ${events}`;
+}
+
+const EMPTY_HISTORY: Record<TriggerKind, string> = {
+  watch: "The page hasn't changed yet.",
+  webhook: "Nothing has called it yet. Send a test to try it.",
+  gmail: "No new mail has woken it yet.",
+  calendar: "No events have come up yet.",
+};
+
+const DELETE_TEXT: Record<TriggerKind, string> = {
+  watch: "The page won't be checked again. Past runs stay in the Scheduled chat.",
+  webhook: "Its URL stops working. Past runs stay in the Scheduled chat.",
+  gmail: "New mail won't wake your teammate any more. Past runs stay in the Scheduled chat.",
+  calendar: "Events won't wake your teammate any more. Past runs stay in the Scheduled chat.",
+};
+
+const CHECK_FAILED: Record<TriggerKind, string> = {
+  watch: "Couldn't check the page",
+  webhook: "Couldn't call the webhook",
+  gmail: "Couldn't check for new mail",
+  calendar: "Couldn't check the calendar",
+};
 
 const subscribeNever = () => () => {};
 
@@ -124,25 +168,36 @@ function TriggerDetails({ trigger, botName }: { trigger: TriggerView; botName: s
       {trigger.kind === "webhook" && trigger.hookPath && (
         <WebhookAddress trigger={trigger} botName={botName} />
       )}
+      {isAccountTrigger(trigger.kind) && (
+        <div className="flex flex-col gap-1">
+          <DetailLabel>{trigger.kind === "gmail" ? "Mail" : "Events"}</DetailLabel>
+          <span className="text-[13.5px]">{trigger.account ?? "An account that was removed"}</span>
+          <span className="text-[12.5px] text-muted-foreground">
+            {trigger.kind === "gmail"
+              ? `Wakes ${botName} for ${describeGmailQuery(trigger.query)}, checked every 2 minutes`
+              : `Wakes ${botName} ${accountWatch(trigger)}, skipping all-day events and ones you declined`}
+          </span>
+        </div>
+      )}
       <div className="flex flex-col gap-1">
         <DetailLabel>What to do</DetailLabel>
         <p className="text-[13.5px] whitespace-pre-wrap">{trigger.prompt}</p>
       </div>
-      <RunHistory
-        runs={history}
-        isLoading={isLoading}
-        empty={
-          trigger.kind === "watch"
-            ? "The page hasn't changed yet."
-            : "Nothing has called it yet. Send a test to try it."
-        }
-      />
+      <RunHistory runs={history} isLoading={isLoading} empty={EMPTY_HISTORY[trigger.kind]} />
     </div>
   );
 }
 
-/** What the watch or webhook is doing, in one line. */
+/** What the trigger is doing, in one line. */
 function StatusLine({ trigger }: { trigger: TriggerView }) {
+  if (isAccountTrigger(trigger.kind)) {
+    return (
+      <span className="line-clamp-2 text-[13px] text-muted-foreground sm:truncate">
+        {trigger.account ?? "No account"} · {accountWatch(trigger)}
+        {!trigger.enabled && " · paused"}
+      </span>
+    );
+  }
   if (trigger.kind === "webhook") {
     return (
       <span className="truncate text-[13px] text-muted-foreground">
@@ -165,7 +220,10 @@ function StatusLine({ trigger }: { trigger: TriggerView }) {
 function CheckLine({ trigger }: { trigger: TriggerView }) {
   if (trigger.lastError)
     return (
-      <span className="truncate text-[12.5px] text-destructive" data-testid="watch-error">
+      <span
+        className="line-clamp-2 text-[12.5px] text-destructive sm:truncate"
+        data-testid="watch-error"
+      >
         Last check failed: {trigger.lastError}
       </span>
     );
@@ -184,6 +242,14 @@ function CheckLine({ trigger }: { trigger: TriggerView }) {
           : "Checking for the first time…"}
       </span>
     );
+  if (isAccountTrigger(trigger.kind))
+    return (
+      <span className="text-[12.5px] text-muted-foreground">
+        {trigger.lastCheckedAt
+          ? `${trigger.kind === "gmail" ? "No new mail yet" : "Nothing coming up yet"} · checked ${ago(trigger.lastCheckedAt)}`
+          : "Checking for the first time…"}
+      </span>
+    );
   return null;
 }
 
@@ -198,12 +264,12 @@ export function TriggerRow({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [busy, startBusy] = useTransition();
-  const KindIcon = trigger.kind === "watch" ? Eye : Webhook;
+  const KindIcon = KIND_ICONS[trigger.kind];
 
   return (
     <li
       className={cn("rounded-xl border bg-card", !trigger.enabled && !expanded && "opacity-70")}
-      data-testid={trigger.kind === "watch" ? "watch" : "webhook"}
+      data-testid={trigger.kind}
     >
       <div className="flex flex-wrap items-center gap-4 px-4 py-3.5">
         {bot && (
@@ -241,19 +307,19 @@ export function TriggerRow({
           <CheckLine trigger={trigger} />
         </button>
         <div className="-my-1 ml-auto flex items-center gap-1 sm:my-0">
-          {trigger.kind === "watch" ? (
+          {trigger.kind !== "webhook" ? (
             <RowAction
               label="Check now"
               disabled={busy}
               onClick={() =>
                 startBusy(async () => {
                   const result = await checkTriggerNow(trigger.id);
-                  if (!result.ok)
-                    toast.error("Couldn't check the page", { description: result.error });
+                  const failed = CHECK_FAILED[trigger.kind];
+                  if (!result.ok) toast.error(failed, { description: result.error });
                   else if (!result.data.ok)
-                    toast.error("Couldn't check the page", { description: result.data.summary });
+                    toast.error(failed, { description: result.data.summary });
                   else if (result.data.changed)
-                    toast(`“${trigger.title}” changed`, {
+                    toast(trigger.kind === "watch" ? `“${trigger.title}” changed` : trigger.title, {
                       description: `${result.data.summary}. ${bot?.name ?? "Your teammate"} is on it.`,
                     });
                   else toast(result.data.summary);
@@ -299,11 +365,7 @@ export function TriggerRow({
           </Tooltip>
           <ConfirmDelete
             title={`Delete “${trigger.title}”?`}
-            description={
-              trigger.kind === "watch"
-                ? "The page won't be checked again. Past runs stay in the Scheduled chat."
-                : "Its URL stops working. Past runs stay in the Scheduled chat."
-            }
+            description={DELETE_TEXT[trigger.kind]}
             onConfirm={async () => {
               const result = await deleteTrigger(trigger.id);
               if (!result.ok) toast.error(result.error);

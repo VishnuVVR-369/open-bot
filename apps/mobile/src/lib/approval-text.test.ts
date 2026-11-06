@@ -66,3 +66,21 @@ describe("approval risk", () => {
     expect(approvalRisk({ kind: "email", title: "Email a", detail: "" })?.tone).toBe("attention");
   });
 });
+
+describe("account approvals", () => {
+  it("says when a teammate acts as you, and when that deletes something", () => {
+    expect(
+      approvalRisk({ kind: "account_outward", title: "Send “Notes” to Priya", detail: "" }),
+    ).toMatchObject({ tone: "attention", label: "Acts as you" });
+    expect(
+      approvalRisk({ kind: "account_outward", title: "Delete “Design review”", detail: "" }),
+    ).toMatchObject({ tone: "destructive" });
+    expect(
+      approvalRisk({
+        kind: "account_write",
+        title: "Add “Weekly review” to your calendar",
+        detail: "",
+      }),
+    ).toBeNull();
+  });
+});

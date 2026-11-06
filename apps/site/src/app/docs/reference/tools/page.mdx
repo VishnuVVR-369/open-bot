@@ -4,8 +4,8 @@ export const metadata = docMetadata("/docs/reference/tools");
 
 # Teammate tools
 
-Besides Codex's built-in shell, file and web search tools, every teammate has the 50 dynamic tools below.
-They are defined in `apps/worker/src/tools/definitions.ts` and handled in `apps/worker/src/tools/handlers.ts`, with the teammate tools in `apps/worker/src/tools/bots.ts`.
+Besides Codex's built-in shell, file and web search tools, every teammate has the 52 dynamic tools below, plus 28 tools for [your accounts](#your-accounts) in three namespaces.
+They are defined in `apps/worker/src/tools/definitions.ts` and handled in `apps/worker/src/tools/handlers.ts`, with the teammate tools in `apps/worker/src/tools/bots.ts` and the account tools in `apps/worker/src/accounts/`.
 
 ## How tools are served
 
@@ -13,7 +13,7 @@ They are defined in `apps/worker/src/tools/definitions.ts` and handled in `apps/
 - The worker validates arguments against each tool's JSON schema, and returns readable errors the model can act on.
 - Each call becomes a timeline item, recorded by the handler with more detail than Codex's generic item.
 - Before every call, the handler checks that the teammate's memory hasn't changed since the run started. If it has, the turn is interrupted.
-- Tool definitions and the developer instructions are versioned together with `TOOLS_VERSION` (currently 17). Changing either requires a bump, which starts fresh threads.
+- Tool definitions and the developer instructions are versioned together with `TOOLS_VERSION` (currently 19). Changing either requires a bump, which starts fresh threads.
 
 Arguments marked with `?` are optional.
 **Helpers** are swarm helper runs, which can't use the tools marked "no".
@@ -52,14 +52,16 @@ They all fail with `user_has_control` while you hold the screen.
 Each of these acts on the caller, or on the teammate given by `bot_id`.
 Acting on another teammate may ask you first: see [Building the team](/docs/flows/teamwork#what-asks-you).
 
-| Tool                | Arguments                                                                                                                         | Does                                              | Helpers |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | ------- |
-| `schedule_task`     | `bot_id?`, `title`, `prompt`, `cron?`, `at?`, `timezone?`, `quiet?`                                                               | Creates a cron routine or a one-time reminder     | no      |
-| `watch_page`        | `bot_id?`, `title`, `url`, `prompt`, `every_minutes?`, `look_for?`                                                                | Watches a page for changes, or for text to appear | no      |
-| `create_webhook`    | `bot_id?`, `title`, `prompt`                                                                                                      | Creates a webhook URL                             | no      |
-| `list_automations`  | `bot_id?`                                                                                                                         | Lists schedules, watches and webhooks with ids    | yes     |
-| `update_automation` | `bot_id?`, `id`, `enabled?`, `title?`, `prompt?`, `cron?`, `at?`, `timezone?`, `url?`, `interval_minutes?`, `look_for?`, `quiet?` | Pauses, resumes or changes one                    | no      |
-| `cancel_automation` | `bot_id?`, `id`                                                                                                                   | Deletes one                                       | no      |
+| Tool                | Arguments                                                                                                                                                               | Does                                                                                                                  | Helpers |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------- |
+| `schedule_task`     | `bot_id?`, `title`, `prompt`, `cron?`, `at?`, `timezone?`, `quiet?`                                                                                                     | Creates a cron routine or a one-time reminder                                                                         | no      |
+| `watch_page`        | `bot_id?`, `title`, `url`, `prompt`, `every_minutes?`, `look_for?`                                                                                                      | Watches a page for changes, or for text to appear                                                                     | no      |
+| `create_webhook`    | `bot_id?`, `title`, `prompt`                                                                                                                                            | Creates a webhook URL. After a read from your accounts, it asks you first                                             | no      |
+| `watch_gmail`       | `bot_id?`, `title`, `prompt`, `query?`, `account?`                                                                                                                      | Wakes the teammate when new mail matching a Gmail search arrives, checked every 2 minutes                             | no      |
+| `watch_calendar`    | `bot_id?`, `title`, `prompt`, `lead_minutes?`, `events?`, `account?`                                                                                                    | Wakes the teammate a set time before each event (30 minutes by default), for `all` events or only those with `guests` | no      |
+| `list_automations`  | `bot_id?`                                                                                                                                                               | Lists schedules, watches, webhooks, and Gmail and Calendar triggers with ids                                          | yes     |
+| `update_automation` | `bot_id?`, `id`, `enabled?`, `title?`, `prompt?`, `cron?`, `at?`, `timezone?`, `url?`, `interval_minutes?`, `look_for?`, `query?`, `lead_minutes?`, `events?`, `quiet?` | Pauses, resumes or changes one                                                                                        | no      |
+| `cancel_automation` | `bot_id?`, `id`                                                                                                                                                         | Deletes one                                                                                                           | no      |
 
 ## Teammates
 
@@ -126,10 +128,70 @@ See [Pages](/docs/flows/pages).
 
 ## Email
 
-| Tool          | Arguments                            | Does                                                                     | Helpers |
-| ------------- | ------------------------------------ | ------------------------------------------------------------------------ | ------- |
-| `send_email`  | `to`, `subject`, `body`, `reply_to?` | Sends from its own address, through the outbox unless it is on Full auto | no      |
-| `list_emails` |                                      | Lists recent emails in and out, with ids                                 | yes     |
+| Tool          | Arguments                            | Does                                                                                                                 | Helpers |
+| ------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------- | ------- |
+| `send_email`  | `to`, `subject`, `body`, `reply_to?` | Sends from its own address, through the outbox unless it is on Full auto and its run read nothing from your accounts | no      |
+| `list_emails` |                                      | Lists recent emails in and out, with ids                                                                             | yes     |
+
+## Your accounts
+
+These act in your own [Gmail, Google Calendar and Notion](/docs/flows/accounts).
+They are in the `gmail`, `calendar` and `notion` namespaces, so a call reads like `gmail.search`, and they load on demand (`deferLoading`): a teammate looks them up when a task needs them.
+
+- Every thread has them. The worker checks on every call that the connection is on, shared with the teammate, allows the tool, and was granted it at sign-in.
+- Every tool takes `account?`, the email address or Notion workspace to use, when you connected several of a kind.
+- Reads come back as outside data, and the first one makes the rest of the run [ask before sending anything](/docs/flows/accounts#mail-events-and-pages-are-not-instructions).
+- **Asks** says when a call needs you: by the teammate's autonomy, or always for anything others see. See [What asks you first](/docs/flows/accounts#what-asks-you-first).
+- Helpers can use the reads only.
+
+### Gmail
+
+| Tool             | Arguments                                                               | Does                                                                    | Asks                               |
+| ---------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------- |
+| `search`         | `query?`, `max_results?`                                                | Searches with Gmail's syntax and returns up to 50 threads, newest first | no                                 |
+| `read_thread`    | `thread_id`                                                             | Reads a thread's messages as text, with attachments listed              | no                                 |
+| `get_attachment` | `message_id`, `part_id`                                                 | Saves an attachment, up to 25 MB, into the workspace's `attachments/`   | no                                 |
+| `list_labels`    |                                                                         | Lists labels with their ids                                             | no                                 |
+| `create_draft`   | `to`, `body`, `cc?`, `bcc?`, `subject?`, `reply_to_message_id?`         | Writes a draft, or a reply in its thread                                | only on "Ask before every command" |
+| `update_draft`   | `draft_id`, `to?`, `cc?`, `bcc?`, `subject?`, `body?`                   | Changes a draft                                                         | only on "Ask before every command" |
+| `send_draft`     | `draft_id`                                                              | Sends a draft exactly as it was when asked for                          | yes                                |
+| `organize`       | `thread_ids`, `add_labels?`, `remove_labels?`, `archive?`, `mark_read?` | Labels, archives, or marks threads read or unread. Needs **Organize**   | only on "Ask before every command" |
+
+### Calendar
+
+Times are RFC 3339 with an offset; `start`, `end`, `all_day?` and `time_zone?` set an event's time.
+`calendar_id?` defaults to the primary calendar.
+
+| Tool             | Arguments                                                                                                            | Does                                                                               | Asks                            |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------- |
+| `list_calendars` |                                                                                                                      | Lists calendars, with which is primary                                             | no                              |
+| `list_events`    | `calendar_ids?`, `from?`, `to?`, `query?`, `max_results?`                                                            | Lists events in a window (the next 7 days by default)                              | no                              |
+| `get_event`      | `event_id`, `calendar_id?`                                                                                           | Reads one event: guests and their answers, the call link, the description          | no                              |
+| `find_free_time` | `minutes`, `from?`, `to?`, `calendar_ids?`, `working_hours?`, `max_results?`                                         | Finds free stretches, within working hours (09:00 to 18:00 on weekdays by default) | no                              |
+| `create_event`   | `title`, `start`, `end`, `calendar_id?`, `location?`, `description?`, `guests?`, `add_meet?`, `reminders_minutes?`   | Adds an event                                                                      | by autonomy; always with guests |
+| `update_event`   | `event_id`, `calendar_id?`, `title?`, times, `location?`, `description?`, `guests?`, `add_guests?`, `remove_guests?` | Changes an event, failing if it changed since it was read                          | by autonomy; always with guests |
+| `delete_event`   | `event_id`, `calendar_id?`                                                                                           | Deletes an event, cancelling it for any guests                                     | yes                             |
+| `respond`        | `event_id`, `response`, `calendar_id?`, `note?`                                                                      | Accepts, declines or answers maybe to an invitation                                | yes                             |
+
+### Notion
+
+These forward to Notion's own tools of the same purpose, and other arguments of Notion's tool pass through as they are.
+"Yours" means pages and databases teammates created, and anything under the teammates' area.
+
+| Tool              | Arguments                                                 | Does                                                             | Asks                                                                                         |
+| ----------------- | --------------------------------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `search`          | `query`, `query_type?`                                    | Searches the workspace's pages and databases, or its people      | no                                                                                           |
+| `fetch`           | `id`                                                      | Reads a page, database or data source as Markdown, by id or link | no                                                                                           |
+| `query_database`  | `mode?`, `data_source_url?`, `filter?`, `sort?`, `limit?` | Reads rows of a data source                                      | no                                                                                           |
+| `get_comments`    | `page_id`                                                 | Reads a page's comments                                          | no                                                                                           |
+| `get_users`       | `query?`                                                  | Lists or looks up people in the workspace                        | no                                                                                           |
+| `create_pages`    | `pages`, `parent?`                                        | Creates pages, or private pages with no parent                   | by autonomy under yours, only on "Ask before every command" with no parent, always elsewhere |
+| `update_page`     | `page_id`, `command`                                      | Changes a page's content or properties                           | by autonomy for yours; always for others                                                     |
+| `move_pages`      | `page_or_database_ids`, `new_parent`                      | Moves pages or databases                                         | yes                                                                                          |
+| `duplicate_page`  | `page_id`                                                 | Duplicates a page                                                | yes                                                                                          |
+| `create_database` | `parent?`                                                 | Creates a database                                               | by autonomy under yours; always elsewhere                                                    |
+| `update_database` | `data_source_id`                                          | Changes a data source's properties or name                       | by autonomy for yours; always for others                                                     |
+| `add_comment`     | `page_id?`, `discussion_id?`                              | Comments on a page or replies in a discussion                    | yes                                                                                          |
 
 ## Codex's built-in tools
 

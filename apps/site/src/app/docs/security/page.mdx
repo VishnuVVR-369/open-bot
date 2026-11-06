@@ -20,16 +20,18 @@ The known risks were reproduced in the `computer` image, not inferred from readi
   <TrustDiagram />
 </Figure>
 
-| Connection                            | Credential                                                    | Lifetime                 |
-| ------------------------------------- | ------------------------------------------------------------- | ------------------------ |
-| Browser to web app                    | Better Auth session cookie, owner only                        | 30 days, refreshed daily |
-| Browser to worker `/vnc`              | HMAC-SHA256 token, purpose `vnc`, signed with `WORKER_SECRET` | 60 seconds               |
-| Desktop app to worker `/egress/agent` | HMAC token, purpose `egress`                                  | 120 seconds              |
-| Web app to worker `/internal/*`       | `x-worker-secret` header, compared in constant time           | Static secret            |
-| Worker to botd                        | `Bearer BOTD_TOKEN` (header or query)                         | Static secret            |
-| Anyone to a webhook                   | The random token in the URL                                   | Until you rotate it      |
-| Postmark to inbound email             | The random secret in the URL                                  | Until you change it      |
-| Browser to the pages service          | HMAC-SHA256 key for one version, signed with `PAGES_SECRET`   | 10 minutes               |
+| Connection                               | Credential                                                     | Lifetime                                 |
+| ---------------------------------------- | -------------------------------------------------------------- | ---------------------------------------- |
+| Browser to web app                       | Better Auth session cookie, owner only                         | 30 days, refreshed daily                 |
+| Browser to worker `/vnc`                 | HMAC-SHA256 token, purpose `vnc`, signed with `WORKER_SECRET`  | 60 seconds                               |
+| Desktop app to worker `/egress/agent`    | HMAC token, purpose `egress`                                   | 120 seconds                              |
+| Web app to worker `/internal/*`          | `x-worker-secret` header, compared in constant time            | Static secret                            |
+| Worker to botd                           | `Bearer BOTD_TOKEN` (header or query)                          | Static secret                            |
+| Anyone to a webhook                      | The random token in the URL                                    | Until you rotate it                      |
+| Postmark to inbound email                | The random secret in the URL                                   | Until you change it                      |
+| Browser to the pages service             | HMAC-SHA256 key for one version, signed with `PAGES_SECRET`    | 10 minutes                               |
+| Worker to Google and Notion              | Your OAuth access token, refreshed by the worker               | About an hour (Google), 8 hours (Notion) |
+| Google or Notion to the sign-in callback | A one-time `state`, bound to your session, and a PKCE verifier | 10 minutes                               |
 
 Tokens for websockets exist because a websocket from the browser can't carry the session cookie to the worker's different origin.
 The web app issues them only to a signed-in session, and they say what they're for, so a VNC token can't open the egress tunnel.
@@ -46,7 +48,8 @@ The web app issues them only to a signed-in session, and they say what they're f
 
 - the OpenAI API key, the Telegram bot token and the VAPID private key (`credentials`);
 - vault logins and cards (`vault_items`);
-- MCP connection headers and environment variables (`connections`).
+- MCP connection headers and environment variables (`connections`);
+- your Google OAuth client's secret (`oauth_clients`), and the tokens of your Gmail, Calendar and Notion accounts (`accounts`).
 
 The web app encrypts when you save, and the worker decrypts only at the moment of use.
 Losing `ENCRYPTION_KEY` makes these unreadable, so back it up with the database.
@@ -72,7 +75,31 @@ In the cloud, Codex keeps its login in `/home/bot/.codex` on the computer's volu
 - **Page watches** fetch from the worker and refuse private, loopback and metadata addresses in production (`WATCH_ALLOW_PRIVATE_URLS=false`), at every redirect.
 - **The egress agent** refuses any destination whose name resolves to a private or local address, and connects to the checked address to defeat DNS rebinding. A teammate can't reach your home network.
 - **Webhooks** are rate limited to 30 runs an hour each, and bodies to 256 KB.
-- **Prompt injection.** Watched pages, webhook payloads, emails and `browser_read_page` results are wrapped in notes that mark them as outside data. That reduces the risk but can't remove it, which is why approvals and budgets don't depend on the model's judgment.
+- **Prompt injection.** Watched pages, webhook payloads, emails, `browser_read_page` results and everything read from your accounts are wrapped in notes that mark them as outside data. That reduces the risk but can't remove it, which is why approvals and budgets don't depend on the model's judgment.
+
+## Your accounts
+
+[Gmail, Google Calendar and Notion](/docs/flows/accounts) let teammates act as you, and what they read there was written by anyone who can email you, invite you or share a page.
+
+| Protection                          | How                                                                                                                                                                                                  |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Teammates never hold your tokens    | Tokens are encrypted in Postgres and used only by the worker, which makes every provider call. Nothing reaches Codex's config, the computer, or a teammate's shell.                                  |
+| Only what you allowed               | The app asks Google only for the scopes of the switches you turned on, and the worker checks the connection, the teammate's access, the switch and the granted scope on every call.                  |
+| A sign-in can't be swapped          | Each sign-in uses PKCE and a one-time state bound to your session. A reconnect that comes back as a different Google account or Notion workspace is refused.                                         |
+| Anything others see asks you        | The worker classes every change from its arguments, and sending, invitations and Notion changes others see always ask, with no Always allow. When it can't tell, it asks.                            |
+| What you approve is what runs       | The exact request is frozen when it is asked for, so a draft edited later doesn't change what is sent, and an event changed since fails.                                                             |
+| At most once                        | The action executor claims each action atomically, rechecks the connection before running it, and never repeats an action whose answer was lost: it looks at the account, or tells you to check.     |
+| Reading your accounts locks sending | Once a run reads anything from your accounts, emails, actions others see and new webhooks ask you whatever the teammate's autonomy, and so do runs it starts and runs that mail or an event started. |
+| Outside data stays data             | Reads are wrapped as outside data that can't close its own wrapper, and hidden text in emails is dropped.                                                                                            |
+| Notion stays in the workspace       | Notion's sign-in reaches everything you can see in the workspace. Teammates can only fetch Notion pages and databases, search in the workspace only, and results from connected sources are dropped. |
+
+<Callout kind="risk" title="The shell can still reach the internet">
+  These protections cover what the app sends for teammates. A teammate's shell has network access,
+  so a teammate that an email talked into it could post what it read with `curl`. Closing that gap
+  is the egress rule in [risk 4](#4-egress-is-a-browser-setting-not-a-network-rule), extended to the
+  `bot` user. Until then, give your accounts only to teammates whose job needs them, and keep
+  **Always ask before acting for me** on.
+</Callout>
 
 ## Pages
 
@@ -160,3 +187,4 @@ The lease and the apply guard are enforced by botd, not by the operating system,
 - Keep Postgres and the computer private. Only the web app and the worker's websocket endpoints need public addresses.
 - Back up Postgres, `ENCRYPTION_KEY`, and the computer's `/home` volume together.
 - Rotate a webhook's URL if it leaks.
+- Keep your Google OAuth client to yourself, and remove a Gmail, Calendar or Notion connection you no longer use: removing the last one on an account signs the app out of it.

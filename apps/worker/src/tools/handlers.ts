@@ -15,9 +15,12 @@ import {
   COMPUTER_PATHS,
   type PageCheckResult,
   computerActionSchema,
+  describeGmailQuery,
   describeInterval,
+  describeLead,
   formatMoney,
   MAX_SWARM_TASKS,
+  TRIGGER_CONNECTION_KIND,
   type ComputerAction,
   type ToolItem,
 } from "@open-bot/shared";
@@ -41,6 +44,9 @@ import { VaultError, type VaultService } from "../services/vault";
 import { BotError, type BotService } from "../services/bots";
 import { PageError, type PageService } from "../services/pages";
 import { BOT_TOOL_NAMES, BotTools } from "./bots";
+import { AccountToolError } from "../accounts/access";
+import { isAccountNamespace } from "../accounts/registry";
+import type { AccountTools } from "../accounts/tools";
 
 type Response = v2.DynamicToolCallResponse;
 
@@ -70,6 +76,8 @@ const HELPER_FORBIDDEN = new Set([
   "start_purchase",
   "schedule_task",
   "watch_page",
+  "watch_gmail",
+  "watch_calendar",
   "create_webhook",
   "cancel_automation",
   "update_automation",
@@ -122,6 +130,9 @@ const updateArgs = z.object({
   url: z.string().optional(),
   interval_minutes: z.number().int().optional(),
   look_for: z.string().max(200).optional(),
+  query: z.string().max(500).optional(),
+  lead_minutes: z.number().int().optional(),
+  events: z.enum(["all", "guests"]).optional(),
   quiet: z.boolean().optional(),
 });
 
@@ -160,6 +171,7 @@ export class ToolHandlers {
     private readonly memory: MemoryCoordinator,
     bots: BotService,
     private readonly pages: PageService,
+    private readonly accounts: AccountTools,
   ) {
     this.botTools = new BotTools(ctx, bots, approvals);
   }
@@ -178,6 +190,9 @@ export class ToolHandlers {
           false,
         );
       }
+      // The user's accounts (gmail.*, calendar.*, notion.*, …), which check their own access.
+      if (params.namespace && isAccountNamespace(params.namespace))
+        return await this.accounts.handle(session, params);
       // A helper does its one part; it doesn't reach out to the user or the team.
       if (session.isHelper && HELPER_FORBIDDEN.has(params.tool))
         return text(
@@ -205,6 +220,9 @@ export class ToolHandlers {
           return await this.saveSkill(session, params.callId, args);
         case "watch_page":
           return await this.watchPage(session, params.callId, args);
+        case "watch_gmail":
+        case "watch_calendar":
+          return await this.watchAccount(session, params.callId, params.tool, args);
         case "create_webhook":
           return await this.createWebhook(session, params.callId, args);
         case "list_automations":
@@ -815,6 +833,84 @@ export class ToolHandlers {
     );
   }
 
+  /** watch_gmail and watch_calendar: wake a teammate from the user's own mail or calendar. */
+  private async watchAccount(
+    session: RunSession,
+    callId: string,
+    tool: "watch_gmail" | "watch_calendar",
+    args: Record<string, unknown>,
+  ): Promise<Response> {
+    const startedAt = session.now();
+    const kind = tool === "watch_gmail" ? "gmail" : "calendar";
+    const target = await this.botTools.setupTarget(session, callId, tool, args);
+    let row;
+    let display;
+    try {
+      const connection = await this.accounts.connectionFor(
+        target.id,
+        TRIGGER_CONNECTION_KIND[kind],
+        typeof args.account === "string" ? args.account : undefined,
+      );
+      display = connection.display;
+      row = await this.triggers.create(
+        {
+          botId: target.id,
+          kind,
+          title: String(args.title ?? ""),
+          prompt: String(args.prompt ?? ""),
+          connectionId: connection.connectionId,
+          query:
+            kind === "gmail"
+              ? typeof args.query === "string"
+                ? args.query
+                : null
+              : typeof args.events === "string"
+                ? args.events
+                : "all",
+          leadMinutes:
+            kind === "calendar"
+              ? typeof args.lead_minutes === "number"
+                ? args.lead_minutes
+                : 30
+              : null,
+        },
+        { kind: "bot", runId: session.run.id },
+      );
+    } catch (error) {
+      if (error instanceof TriggerError || error instanceof AccountToolError)
+        return text(
+          target.id === session.bot.id
+            ? error.message
+            : error.message.replaceAll("You don't have", `${target.name} doesn't have`),
+          false,
+        );
+      throw error;
+    }
+    const what =
+      kind === "gmail"
+        ? `${describeGmailQuery(row.query)} in ${display}`
+        : `${describeLead(row.leadMinutes ?? 30).toLowerCase()} ${row.query === "guests" ? "events with other people" : "every event"} on ${display}'s calendar`;
+    session.putItem({
+      ...this.toolItem(
+        session,
+        callId,
+        tool,
+        kind === "gmail"
+          ? `Watching Gmail: “${row.title}”`
+          : `Watching the calendar: “${row.title}”`,
+        args,
+        startedAt,
+      ),
+      status: "completed",
+      completedAt: session.now(),
+      result: what,
+    });
+    const who = target.id === session.bot.id ? "You'll get" : `${target.name} gets`;
+    return text(
+      `Set up "${row.title}" (id ${row.id})${target.id === session.bot.id ? "" : ` for ${target.name}`}: ${what}. ${who} a run in ${target.id === session.bot.id ? "your" : "their"} Scheduled chat ${kind === "gmail" ? "when such mail arrives, checked every 2 minutes, starting now" : "for each event, once"}. Those runs ask the user before sending anything.`,
+    );
+  }
+
   private async createWebhook(
     session: RunSession,
     callId: string,
@@ -822,6 +918,23 @@ export class ToolHandlers {
   ): Promise<Response> {
     const startedAt = session.now();
     const target = await this.botTools.setupTarget(session, callId, "create_webhook", args);
+    // A webhook is a way in from outside; a run that read your accounts asks before opening one.
+    if (session.run.readOutsideData) {
+      const decision = await this.approvals.requestAction(session, {
+        title: `Create the webhook “${String(args.title ?? "")}”`,
+        detail: `${session.bot.name} read mail, events or pages from your accounts in this task, so it asks before creating a webhook.\n\n${String(args.prompt ?? "")}`,
+        itemId: `${callId}-approval`,
+        askEveryTime: true,
+        operation: { tool: "create_webhook", arguments: args },
+      });
+      if (decision !== "approved")
+        return text(
+          decision === "denied"
+            ? "The user didn't approve the webhook. Don't create it."
+            : "It's waiting for the user's approval. End your turn; you'll hear back when they decide.",
+          decision === "pending",
+        );
+    }
     let hook;
     try {
       hook = await this.triggers.create(
@@ -862,8 +975,8 @@ export class ToolHandlers {
       this.triggers.describeForBot(botId),
     ]);
     return triggered
-      ? `${scheduled}\n\nWatches and webhooks:\n${triggered}`
-      : `${scheduled}\nYou have no page watches or webhooks.`;
+      ? `${scheduled}\n\nWatches, webhooks, and Gmail and Calendar triggers:\n${triggered}`
+      : `${scheduled}\nYou have no page watches, webhooks, or Gmail or Calendar triggers.`;
   }
 
   private async cancelAutomation(
@@ -1123,6 +1236,9 @@ export class ToolHandlers {
           change.url,
           change.interval_minutes,
           change.look_for,
+          change.query,
+          change.lead_minutes,
+          change.events,
         ];
         if (edits.some((value) => value !== undefined)) {
           await this.triggers.update(row.id, {
@@ -1133,6 +1249,14 @@ export class ToolHandlers {
             url: change.url ?? row.url,
             intervalMinutes: change.interval_minutes ?? row.intervalMinutes,
             lookFor: change.look_for ?? row.lookFor,
+            connectionId: row.connectionId,
+            query:
+              row.kind === "gmail"
+                ? (change.query ?? row.query)
+                : row.kind === "calendar"
+                  ? (change.events ?? row.query)
+                  : null,
+            leadMinutes: change.lead_minutes ?? row.leadMinutes,
           });
         }
         if (change.enabled !== undefined) await this.triggers.setEnabled(row.id, change.enabled);

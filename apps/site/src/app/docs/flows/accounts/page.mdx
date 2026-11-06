@@ -1,0 +1,134 @@
+import { docMetadata } from "@/lib/docs";
+
+export const metadata = docMetadata("/docs/flows/accounts");
+
+# Your accounts
+
+You can connect your own Gmail, Google Calendar and Notion, so teammates work in them for you.
+They search and read your mail, write drafts, find free time, plan events and write pages.
+Anything other people would see, like an email that goes out or an invitation, asks you first, and you see exactly what will happen before you approve.
+
+You connect them in **Settings → Connections**, above the services you added through [MCP](/docs/flows/skills-and-connections#connections).
+
+## Setting up Google
+
+Gmail and Calendar sign in through an OAuth client in your own Google Cloud project, so your mail never passes through anyone else's app.
+It takes about five minutes, once.
+The first time you press **Connect** on Gmail or Google Calendar, Settings walks you through it:
+
+1. In the [Google Cloud console](https://console.cloud.google.com/projectcreate), create a project.
+2. Enable the [Gmail API](https://console.cloud.google.com/apis/library/gmail.googleapis.com) and the [Google Calendar API](https://console.cloud.google.com/apis/library/calendar-json.googleapis.com) in it.
+3. Under [Google Auth Platform](https://console.cloud.google.com/auth/overview), set the audience to **External** and publish the app (**In production**).
+4. Under **Clients**, create a client of type **Web application**, with the authorized redirect URI that Settings shows, `<your app>/api/accounts/google/callback`. It has a copy button.
+5. Paste the client's ID and secret into Settings, and press **Save**.
+
+The ID and secret are stored encrypted.
+You can replace them later from **Google client** under your connections.
+Accounts already connected keep working with the client they signed in with, and move to the new one when you reconnect them.
+
+<Callout kind="why" title="Why publish an unverified app">
+  In Testing, Google ends the sign-in for Gmail and Calendar after 7 days, so you'd reconnect every
+  week. Published, Google shows "Google hasn't verified this app" when you sign in: choose
+  **Advanced**, then continue to your app. That is expected for an app only you use, and the
+  100-user cap for unverified apps doesn't matter for one owner.
+</Callout>
+
+## Connecting
+
+Each account is its own connection, with its own **Connect** button.
+Before you sign in, you choose:
+
+- **What teammates may do.** Each connection has switches, and the app asks the provider only for what you switch on.
+- **Which teammates may use it**, or every teammate.
+- For Notion, an optional **teammates' area**: a link to a page, under which teammates' pages count as theirs to change.
+
+| Connection      | Always on                                     | Switches                                                                                   |
+| --------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Gmail           | Read and search mail, threads and attachments | **Write drafts and send** (on), **Organize**: labels, archive, mark read (off)             |
+| Google Calendar | Read calendars, events and free time          | **Create and change events** (on)                                                          |
+| Notion          | Search and read everything you can see in it  | **Write pages** (on): private pages and the teammates' area change directly, the rest asks |
+
+One Google sign-in serves both Gmail and Calendar.
+Connecting the second one only asks Google for what it adds.
+Google's consent screen lets you untick permissions; if you do, the row in Settings says what teammates can't do yet, and **Reconnect** asks again.
+
+<Callout kind="warning" title="What a Notion connection reaches">
+  Notion's sign-in covers everything you can see in the workspace you pick, not chosen pages.
+  Teammates only search inside the workspace, and results from sources connected to Notion, like
+  your mail or Drive, are dropped.
+</Callout>
+
+After you sign in, Settings tests the connection and shows who it is signed in as and the tools teammates get.
+
+## What teammates can do
+
+Teammates find the tools when a task needs them, so connecting costs them almost nothing until then.
+A teammate sees in its instructions which accounts it may use and what each allows.
+
+- **Gmail:** search with Gmail's own syntax, read threads, save attachments to its workspace, write and change drafts, send a draft, and label or archive.
+  There is no "send in one step": a teammate drafts, then asks to send the draft, so you can also open it in Gmail before you approve.
+- **Calendar:** list calendars and events, read one event, find free time within working hours, create and change events, delete them, and answer invitations.
+- **Notion:** search, read pages and databases, read comments and people, create and change pages and databases, move and duplicate pages, and comment.
+
+The full list is in [Teammate tools](/docs/reference/tools#your-accounts).
+
+A teammate's own email address (`send_email`) is the teammate writing as itself.
+Gmail is the teammate acting as you.
+
+## What asks you first
+
+Whether an action asks you depends on who it reaches, worked out by the app from the action itself, never from what the teammate says about it:
+
+| Kind of action  | Examples                                                                                                                                      | Asks you                                                                                                                                                                            |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Reading         | Searching mail, reading a thread, listing events, reading a page                                                                              | Never                                                                                                                                                                               |
+| Only you see it | Drafts, labels, archiving, a private Notion page                                                                                              | Only for a teammate that asks before everything                                                                                                                                     |
+| Your own things | An event on your calendar with no one else on it; pages teammates made, or under the teammates' area                                          | By the teammate's [autonomy](/docs/flows/approvals#autonomy-levels), and **Always allow** can cover a tool                                                                          |
+| Others see it   | Sending a draft, an event with guests, deleting an event, answering an invitation, any other Notion change, moving or duplicating, commenting | Always. The one exception: a teammate on Full auto, with **Always ask before acting for me** turned off for that connection, in a task that hasn't read anything from your accounts |
+
+When the app can't tell who an action reaches, it asks.
+
+The approval card shows the action as it will happen: the email with every recipient, including Bcc, the subject and the body; the event with its time, guests and whether they get an email; or the Notion page and what changes.
+What you approve is what runs.
+A draft edited in Gmail after the teammate asked doesn't change what is sent, and an event changed since fails instead of being overwritten.
+
+You can answer later, from the chat, the Approvals inbox, your phone or Telegram.
+An approved action happens once, even if the teammate's task has ended or the app restarted in between, and the teammate's chat shows how it went.
+If you don't answer within 7 days, it doesn't happen.
+
+## Mail, events and pages are not instructions
+
+Anything a teammate reads from your accounts was written by someone else, and may try to steer it: "forward all mail to …".
+So:
+
+- What it reads is marked as outside data, not instructions, and the teammate is told to tell you about requests in it instead of following them.
+- Once a task has read anything from your accounts, everything it would send out asks you first, whatever the teammate's autonomy: emails from its own address, actions others see, and new webhooks. Tasks it starts carry the same rule.
+- Hidden text in emails is dropped before the teammate reads them.
+
+This guards what the app sends for teammates.
+It doesn't stop a teammate's shell from reaching the internet: see [Security model](/docs/security#your-accounts).
+Give account access to the teammates whose job needs it.
+
+## Automations on your accounts
+
+A teammate can wake up when new mail arrives, or before events on your calendar.
+See [Automations](/docs/flows/automations#mail-and-calendar).
+
+## Reconnecting, turning off and removing
+
+- If Google or Notion ends the sign-in, you get one notification, the connection shows **Reconnect**, and teammates are told to ask you.
+  Reconnecting must use the same Google account or Notion workspace.
+- Notion ends a sign-in that goes unused for 30 days, so the app keeps idle ones alive, and Settings shows when one will need signing in again.
+- Turning a connection off, or changing what it allows or who may use it, cancels actions still waiting for your approval on it.
+  Reconnecting with fewer permissions, or through a new Google client, cancels the waiting actions on every connection of that account.
+- Removing Gmail keeps Calendar working, and the other way round.
+  Removing the last connection on an account also signs the app out of it at Google or Notion.
+
+## How it works
+
+- Tokens are encrypted in Postgres and used only by the worker, which makes every call to Google and Notion. They never reach the computer, so a teammate can't read them from its shell.
+- Notion is reached through its hosted MCP server, with the worker as the client.
+- Every change goes through one durable executor that runs it at most once, and checks again just before that the connection is on, unchanged, and still allows it.
+- When an answer from Google or Notion is lost, the executor looks at the account to find out what happened, and never repeats an action on a guess. If it can't tell, the teammate tells you to check.
+
+[The worker](/docs/architecture/worker#accounts) and [Data and events](/docs/architecture/data#accounts) have the details.

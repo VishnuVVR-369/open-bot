@@ -1,4 +1,13 @@
-import type { ComputerHealth, EgressModeSetting, RunStatus } from "@open-bot/shared";
+import type {
+  AccountCapability,
+  AccountProvider,
+  AccountStatus,
+  ComputerHealth,
+  ConnectionKind,
+  EgressModeSetting,
+  RunStatus,
+  TriggerKind,
+} from "@open-bot/shared";
 
 /** What the UI reads; shared by route handlers and client components. */
 
@@ -131,11 +140,11 @@ export interface ProfileView {
   updatedAt: string | null;
 }
 
-/** A page watch or a webhook that wakes a teammate. */
+/** A page watch, a webhook, or a Gmail or Calendar trigger that wakes a teammate. */
 export interface TriggerView {
   id: string;
   botId: string;
-  kind: "watch" | "webhook";
+  kind: TriggerKind;
   title: string;
   prompt: string;
   enabled: boolean;
@@ -143,6 +152,13 @@ export interface TriggerView {
   url: string | null;
   intervalMinutes: number | null;
   lookFor: string | null;
+  /** Gmail and Calendar: the connection watched, and its account's address. */
+  connectionId: string | null;
+  account: string | null;
+  /** Gmail: the search new mail must match. Calendar: `all` or `guests`. */
+  query: string | null;
+  /** Calendar: how many minutes before an event it wakes the teammate. */
+  leadMinutes: number | null;
   /** Webhooks: the path services call, without the origin. */
   hookPath: string | null;
   nextCheckAt: string | null;
@@ -240,7 +256,10 @@ export interface ConnectionView {
   id: string;
   label: string;
   name: string;
-  transport: "http" | "stdio";
+  /** An MCP server you added, or one of your accounts. */
+  kind: ConnectionKind;
+  /** MCP servers only. */
+  transport: "http" | "stdio" | null;
   url: string | null;
   command: string | null;
   args: string[];
@@ -249,6 +268,56 @@ export interface ConnectionView {
   botIds: string[] | null;
   enabled: boolean;
   updatedAt: string;
+  /** Accounts only: the signed-in account, what teammates may do, and what you allowed. */
+  account: AccountView | null;
+  capabilities: AccountCapability[];
+  /** Capabilities you picked that the provider's consent screen left out. */
+  missingCapabilities: AccountCapability[];
+  askBeforeActing: boolean;
+  /** Accounts only: the integration's settings that are set, like Notion's teammates' area. */
+  settings: ConnectionSettingView[];
+}
+
+/** One of an integration's settings on a connection: what it points at. */
+export interface ConnectionSettingView {
+  key: string;
+  /** The provider's id for it, like a Notion page's. */
+  id: string;
+  title: string;
+  url: string | null;
+}
+
+/** A signed-in account at an auth provider (a Google account, a Notion workspace). */
+export interface AccountView {
+  id: string;
+  provider: AccountProvider;
+  /** An email address, or the workspace's name. */
+  display: string;
+  status: AccountStatus;
+  lastError: string | null;
+  lastUsedAt: string | null;
+  /** When the provider ends its grant and it must be connected again, for providers that do. */
+  expiresAt: string | null;
+}
+
+/** What signing in at a provider needs. */
+export interface ProviderSetupView {
+  id: AccountProvider;
+  label: string;
+  /** `owner`: you paste a client from the provider's console; `automatic`: open-bot registers. */
+  client: "owner" | "automatic";
+  /** Ready for sign-ins: always, for automatic clients. */
+  configured: boolean;
+  /** What Settings shows of your client, without its secret. */
+  hint: string | null;
+  /** The address to register with the provider. */
+  redirectUri: string;
+}
+
+/** What connecting accounts needs, per provider, and the accounts already signed in, to reuse. */
+export interface AccountsSetupView {
+  providers: ProviderSetupView[];
+  accounts: AccountView[];
 }
 
 /** What connecting to a service found. */

@@ -41,6 +41,7 @@ import type { ConnectionService } from "./services/connections";
 import { EmailError, type EmailService } from "./services/email";
 import type { SwarmService } from "./services/swarms";
 import { TaskError, type TaskService } from "./services/tasks";
+import type { AccountTriggers } from "./services/account-triggers";
 import { TriggerError, type TriggerService } from "./services/triggers";
 import { BotError, type BotService } from "./services/bots";
 import { PageError, type PageService } from "./services/pages";
@@ -56,6 +57,7 @@ export interface HttpDeps {
   skills: SkillService;
   memory: MemoryCoordinator;
   triggers: TriggerService;
+  accountTriggers: AccountTriggers;
   tasks: TaskService;
   push: PushService;
   fcm: FcmService;
@@ -137,12 +139,15 @@ function safePath(path: string): string {
 
 const triggerBody = z.object({
   botId: z.string().uuid(),
-  kind: z.enum(["watch", "webhook"]),
+  kind: z.enum(["watch", "webhook", "gmail", "calendar"]),
   title: z.string().max(200),
   prompt: z.string().max(8000),
   url: z.string().max(2000).nullable().optional(),
   intervalMinutes: z.number().int().nullable().optional(),
   lookFor: z.string().max(400).nullable().optional(),
+  connectionId: z.string().uuid().nullable().optional(),
+  query: z.string().max(1000).nullable().optional(),
+  leadMinutes: z.number().int().nullable().optional(),
 });
 
 /** Turn a trigger's validation errors into 400s. */
@@ -187,6 +192,7 @@ export function createHttpServer(deps: HttpDeps): http.Server {
     schedules,
     skills,
     triggers,
+    accountTriggers,
     tasks,
     push,
     fcm,
@@ -698,7 +704,12 @@ export function createHttpServer(deps: HttpDeps): http.Server {
       return ok;
     },
     "POST /internal/triggers/:id/check": async (_request, params) =>
-      triggerCall(() => triggers.checkNow(params.id!)),
+      triggerCall(async () => {
+        const kind = await triggers.kindOf(params.id!);
+        return kind === "gmail" || kind === "calendar"
+          ? accountTriggers.checkNow(params.id!)
+          : triggers.checkNow(params.id!);
+      }),
     "POST /internal/triggers/:id/rotate": async (_request, params) => ({
       token: await triggerCall(() => triggers.rotateToken(params.id!)),
     }),

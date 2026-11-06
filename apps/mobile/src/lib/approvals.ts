@@ -78,7 +78,10 @@ export function useDecideApproval() {
   return { decide, deciding };
 }
 
-/** Whether "Always allow" fits a request: not for purchases, emails, or what always asks. */
+/**
+ * Whether "Always allow" fits a request: not for purchases, emails, acting as you, or what always
+ * asks. Changes to your accounts that only you see are allowed by tool.
+ */
 export function canAlwaysAllow(approval: {
   kind?: string;
   subject?: string | null;
@@ -86,5 +89,10 @@ export function canAlwaysAllow(approval: {
 }): approval is { kind: RuleKind; subject?: string | null; askEveryTime?: boolean } {
   if (approval.askEveryTime) return false;
   if (approval.kind === "file_change") return true;
-  return (approval.kind === "command" || approval.kind === "action") && Boolean(approval.subject);
+  return (
+    (approval.kind === "command" ||
+      approval.kind === "action" ||
+      approval.kind === "account_write") &&
+    Boolean(approval.subject)
+  );
 }

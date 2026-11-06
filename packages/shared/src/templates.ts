@@ -168,14 +168,14 @@ export const TEAMMATE_TEMPLATES: TeammateTemplate[] = [
     emoji: "📬",
     autonomy: "risky",
     instructions:
-      "Help me keep up with email and my calendar in the browser. Triage new mail, draft replies in my voice, and flag anything urgent. Never send anything without my approval.",
+      "Help me keep up with email and my calendar. Use my Gmail and Google Calendar when they're connected, and the browser when they aren't. Triage new mail, draft replies in my voice as Gmail drafts, and flag anything urgent. Never send anything or invite anyone without my approval.",
     starters: [
       {
         id: "inbox-triage",
         title: "Inbox triage",
         cron: "0 9 * * 1-5",
         prompt:
-          "Check my inbox in the browser. Tell me what's urgent, what needs a reply from me (with a draft for each), and what can wait. Don't send anything.",
+          "Check my inbox and today's calendar. Tell me what's urgent, what needs a reply from me (with a Gmail draft for each), and what can wait. Don't send anything.",
       },
       DAILY_CHECK_IN,
       WEEKLY_RETRO,

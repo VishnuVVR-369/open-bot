@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "turbo run dev --parallel --filter=@open-bot/web --filter=@open-bot/worker --filter=@open-bot/pages",
     "build": "turbo run build",
-    "typecheck": "turbo run typecheck",
+    "typecheck": "turbo run typecheck && tsc -p e2e",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -19,6 +19,7 @@
     "computer:build": "docker compose build computer",
     "infra:up": "docker compose up -d --wait postgres computer",
     "test:memory": "bash scripts/test-memory.sh",
+    "test:accounts": "bash scripts/test-accounts.sh",
     "test:bots": "bash scripts/test-bots.sh",
     "test:mobile-api": "bash scripts/test-mobile-api.sh",
     "test:mobile-ui": "node scripts/test-mobile-ui.mjs"

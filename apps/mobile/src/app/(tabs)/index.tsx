@@ -11,11 +11,13 @@ import { router, type Href } from "expo-router";
 import {
   AlertCircle,
   CalendarClock,
+  CalendarDays,
   ChevronRight,
   Crown,
   Eye,
   Hand,
   History,
+  Mail,
   ShieldAlert,
   Sparkles,
   Users,
@@ -211,7 +213,13 @@ function NeedsYou({ home, bots }: { home: Home; bots: BotSummary[] }) {
   );
 }
 
-const TRIGGER_ICONS = { schedule: CalendarClock, watch: Eye, webhook: Webhook } as const;
+const TRIGGER_ICONS = {
+  schedule: CalendarClock,
+  watch: Eye,
+  webhook: Webhook,
+  gmail: Mail,
+  calendar: CalendarDays,
+} as const;
 
 /** The most replies shown for each teammate in the briefing. */
 const PER_BOT = 3;
@@ -521,7 +529,11 @@ function ActivityRow({
           ? "Page changed"
           : item.trigger === "webhook"
             ? "Webhook"
-            : null;
+            : item.trigger === "gmail"
+              ? "New mail"
+              : item.trigger === "calendar"
+                ? "Event coming up"
+                : null;
   return (
     <Pressable
       onPress={() => router.push(chatHref(item.chatId, item.runId))}

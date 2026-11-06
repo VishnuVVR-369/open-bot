@@ -1,8 +1,16 @@
 import { randomBytes } from "node:crypto";
 import { lookup } from "node:dns/promises";
-import { bots, runs, triggers } from "@open-bot/db";
+import { accounts, bots, connections, runs, triggers } from "@open-bot/db";
 import {
+  describeGmailQuery,
   describeInterval,
+  describeLead,
+  invalidGmailQuery,
+  integration,
+  invalidLead,
+  isAccountTrigger,
+  isCalendarEventFilter,
+  TRIGGER_CONNECTION_KIND,
   describeWatchChange,
   invalidWatchUrl,
   isPrivateAddress,
@@ -30,6 +38,8 @@ const MAX_REDIRECTS = 5;
 const CHECK_CONCURRENCY = 4;
 /** A webhook can start at most this many runs an hour, so a noisy sender can't run up a bill. */
 export const WEBHOOK_RUNS_PER_HOUR = 30;
+/** The same limit for Gmail and Calendar triggers, so a flood of mail can't either. */
+export const ACCOUNT_TRIGGER_RUNS_PER_HOUR = 30;
 const MAX_PAYLOAD_CHARS = 20_000;
 
 export class TriggerError extends Error {}
@@ -42,6 +52,24 @@ export interface TriggerInput {
   url?: string | null;
   intervalMinutes?: number | null;
   lookFor?: string | null;
+  /** Gmail and Calendar: the connection to watch. */
+  connectionId?: string | null;
+  /** Gmail: the search new mail must match (empty for all of it). Calendar: `all` or `guests`. */
+  query?: string | null;
+  /** Calendar: how many minutes before an event to wake the teammate. */
+  leadMinutes?: number | null;
+}
+
+/** What a trigger saves, after its input is checked. */
+interface TriggerFields {
+  title: string;
+  prompt: string;
+  url: string | null;
+  intervalMinutes: number | null;
+  lookFor: string | null;
+  connectionId: string | null;
+  query: string | null;
+  leadMinutes: number | null;
 }
 
 export interface CheckResult {
@@ -84,20 +112,35 @@ function fetchFailure(error: unknown, url: URL): string {
   return "Couldn't reach the page.";
 }
 
-/** Watches and webhooks: wake a teammate when a page changes or a service calls it. */
+/**
+ * Watches and webhooks: wake a teammate when a page changes or a service calls it. Gmail and
+ * Calendar triggers are saved here too, and checked by AccountTriggers.
+ */
 export class TriggerService {
   private timer: NodeJS.Timeout | null = null;
   private ticking = false;
   private again = false;
+  /** Checks Gmail and Calendar triggers now, after one changed. */
+  private accountKick: (() => void) | null = null;
 
   constructor(private readonly ctx: Context) {}
+
+  /** AccountTriggers registers here, so a new or changed trigger is checked right away. */
+  onAccountTriggerChange(kick: () => void): void {
+    this.accountKick = kick;
+  }
+
+  private kickFor(kind: TriggerKind): void {
+    if (isAccountTrigger(kind)) this.accountKick?.();
+    else this.kick();
+  }
 
   /** The address services call to fire a webhook. */
   webhookUrl(token: string): string {
     return `${this.ctx.env.APP_URL.replace(/\/+$/, "")}/api/hooks/${token}`;
   }
 
-  private validate(input: TriggerInput) {
+  private async validate(input: TriggerInput): Promise<TriggerFields> {
     const title = input.title.trim();
     const prompt = input.prompt.trim();
     if (!title) throw new TriggerError("Give it a name.");
@@ -105,8 +148,32 @@ export class TriggerService {
     if (!prompt) throw new TriggerError("Say what the teammate should do when it fires.");
     if (prompt.length > 4000)
       throw new TriggerError("Keep the instructions under 4000 characters.");
-    if (input.kind === "webhook")
-      return { title, prompt, url: null, intervalMinutes: null, lookFor: null };
+    const none = {
+      url: null,
+      intervalMinutes: null,
+      lookFor: null,
+      connectionId: null,
+      query: null,
+      leadMinutes: null,
+    };
+    if (input.kind === "webhook") return { title, prompt, ...none };
+    if (input.kind === "gmail") {
+      const connectionId = await this.checkConnection(input);
+      const query = input.query?.trim() ?? "";
+      const problem = invalidGmailQuery(query);
+      if (problem) throw new TriggerError(problem);
+      return { title, prompt, ...none, connectionId, query: query || null };
+    }
+    if (input.kind === "calendar") {
+      const connectionId = await this.checkConnection(input);
+      const query = input.query ?? "all";
+      if (!isCalendarEventFilter(query))
+        throw new TriggerError("Choose every event, or only events with other people.");
+      const leadMinutes = Math.round(input.leadMinutes ?? 30);
+      const problem = invalidLead(leadMinutes);
+      if (problem) throw new TriggerError(problem);
+      return { title, prompt, ...none, connectionId, query, leadMinutes };
+    }
     const url = input.url?.trim() ?? "";
     const problem = invalidWatchUrl(url);
     if (problem) throw new TriggerError(problem);
@@ -114,14 +181,42 @@ export class TriggerService {
     if (intervalMinutes < MIN_WATCH_MINUTES || intervalMinutes > MAX_WATCH_MINUTES)
       throw new TriggerError(`Check between every ${MIN_WATCH_MINUTES} minutes and once a week.`);
     const lookFor = input.lookFor?.trim().slice(0, 200) || null;
-    return { title, prompt, url, intervalMinutes, lookFor };
+    return { ...none, title, prompt, url, intervalMinutes, lookFor };
+  }
+
+  /** The connection a Gmail or Calendar trigger watches: on, of its kind, and the teammate's. */
+  private async checkConnection(input: TriggerInput): Promise<string> {
+    const kind = TRIGGER_CONNECTION_KIND[input.kind as "gmail" | "calendar"];
+    const label = integration(kind).label;
+    if (!input.connectionId) throw new TriggerError(`Choose the ${label} account to watch.`);
+    const [row] = await this.ctx.db
+      .select({
+        kind: connections.kind,
+        enabled: connections.enabled,
+        botIds: connections.botIds,
+      })
+      .from(connections)
+      .where(eq(connections.id, input.connectionId));
+    if (!row || row.kind !== kind)
+      throw new TriggerError(`That ${label} account isn't connected any more.`);
+    if (!row.enabled) throw new TriggerError(`${label} is turned off in Settings → Connections.`);
+    if (row.botIds && !row.botIds.includes(input.botId)) {
+      const [bot] = await this.ctx.db
+        .select({ name: bots.name })
+        .from(bots)
+        .where(eq(bots.id, input.botId));
+      throw new TriggerError(
+        `${bot?.name ?? "This teammate"} can't use ${label}. Give them access in Settings → Connections.`,
+      );
+    }
+    return input.connectionId;
   }
 
   async create(
     input: TriggerInput,
     by: { kind: "user" } | { kind: "bot"; runId: string },
   ): Promise<Trigger> {
-    const fields = this.validate(input);
+    const fields = await this.validate(input);
     const [row] = await this.ctx.db
       .insert(triggers)
       .values({
@@ -129,14 +224,14 @@ export class TriggerService {
         kind: input.kind,
         ...fields,
         token: input.kind === "webhook" ? newToken() : null,
-        // A new watch checks right away, to learn what the page looks like.
-        nextCheckAt: input.kind === "watch" ? new Date() : null,
+        // A new watch checks right away, to learn what the page (or the mailbox) looks like now.
+        nextCheckAt: input.kind === "webhook" ? null : new Date(),
         createdBy: by.kind,
         createdByRunId: by.kind === "bot" ? by.runId : null,
       })
       .returning();
     await publishApp(this.ctx, { type: "triggers" });
-    this.kick();
+    this.kickFor(input.kind);
     return row!;
   }
 
@@ -145,17 +240,27 @@ export class TriggerService {
     if (!existing) throw new TriggerError("That automation no longer exists.");
     if (existing.kind !== input.kind)
       throw new TriggerError("An automation can't change its kind.");
-    const fields = this.validate(input);
+    const fields = await this.validate(input);
     // A watch on a new page, or looking for new text, starts over from a fresh look at the page.
     const restart =
       existing.kind === "watch" &&
       (existing.url !== fields.url || existing.lookFor !== fields.lookFor);
+    // A Gmail trigger on another account starts from that mailbox as it is now; a Calendar one
+    // looks again with its new timing.
+    const recheck =
+      isAccountTrigger(existing.kind) &&
+      (existing.connectionId !== fields.connectionId ||
+        existing.leadMinutes !== fields.leadMinutes ||
+        existing.query !== fields.query);
+    const newMailbox = existing.kind === "gmail" && existing.connectionId !== fields.connectionId;
     const [row] = await this.ctx.db
       .update(triggers)
       .set({
         botId: input.botId,
         ...fields,
         ...(restart ? { snapshot: null, lastError: null, nextCheckAt: new Date() } : {}),
+        ...(recheck ? { lastError: null, nextCheckAt: new Date() } : {}),
+        ...(newMailbox ? { cursor: null } : {}),
         ...(existing.kind === "watch" &&
         !restart &&
         existing.intervalMinutes !== fields.intervalMinutes &&
@@ -170,19 +275,32 @@ export class TriggerService {
       .where(eq(triggers.id, id))
       .returning();
     await publishApp(this.ctx, { type: "triggers" });
-    this.kick();
+    this.kickFor(existing.kind);
     return row!;
   }
 
   async setEnabled(id: string, enabled: boolean): Promise<void> {
+    const [existing] = await this.ctx.db
+      .select({ kind: triggers.kind })
+      .from(triggers)
+      .where(eq(triggers.id, id));
+    if (!existing) throw new TriggerError("That automation no longer exists.");
+    // Turning a trigger back on checks right away. Mail that came while it was paused doesn't
+    // wake the teammate: a resumed Gmail trigger starts from the mailbox as it is now.
     const [row] = await this.ctx.db
       .update(triggers)
-      .set({ enabled, ...(enabled ? { nextCheckAt: new Date() } : {}) })
+      .set({
+        enabled,
+        ...(enabled && existing.kind !== "webhook"
+          ? { nextCheckAt: new Date(), lastError: null }
+          : {}),
+        ...(enabled && existing.kind === "gmail" ? { cursor: null } : {}),
+      })
       .where(eq(triggers.id, id))
       .returning({ kind: triggers.kind });
     if (!row) throw new TriggerError("That automation no longer exists.");
     await publishApp(this.ctx, { type: "triggers" });
-    this.kick();
+    this.kickFor(row.kind);
   }
 
   async remove(id: string): Promise<Trigger | null> {
@@ -204,19 +322,38 @@ export class TriggerService {
     return token;
   }
 
+  async kindOf(id: string): Promise<TriggerKind | null> {
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+    const [row] = await this.ctx.db
+      .select({ kind: triggers.kind })
+      .from(triggers)
+      .where(eq(triggers.id, id));
+    return row?.kind ?? null;
+  }
+
   async forBot(botId: string): Promise<Trigger[]> {
     return this.ctx.db.select().from(triggers).where(eq(triggers.botId, botId));
   }
 
-  /** The bot's own watches and webhooks, as it reads them. */
+  /** The bot's own watches, webhooks and Gmail and Calendar triggers, as it reads them. */
   async describeForBot(botId: string): Promise<string | null> {
-    const rows = await this.forBot(botId);
+    const rows = await this.ctx.db
+      .select({ trigger: triggers, account: accounts.display })
+      .from(triggers)
+      .leftJoin(connections, eq(connections.id, triggers.connectionId))
+      .leftJoin(accounts, eq(accounts.id, connections.accountId))
+      .where(eq(triggers.botId, botId));
     if (rows.length === 0) return null;
     return rows
-      .map((row) => {
+      .map(({ trigger: row, account }) => {
         const state = row.enabled ? "on" : "paused";
+        const problem = row.lastError ? ` (last check failed: ${row.lastError})` : "";
         if (row.kind === "webhook")
           return `- ${row.id}: webhook "${row.title}", ${state}, URL ${this.webhookUrl(row.token!)}`;
+        if (row.kind === "gmail")
+          return `- ${row.id}: Gmail trigger "${row.title}" on ${account ?? "Gmail"}, for ${describeGmailQuery(row.query)}, ${state}${problem}`;
+        if (row.kind === "calendar")
+          return `- ${row.id}: Calendar trigger "${row.title}" on ${account ?? "Google Calendar"}, ${describeLead(row.leadMinutes ?? 30).toLowerCase()} ${row.query === "guests" ? "events with other people" : "every event"}, ${state}${problem}`;
         const look = row.lookFor ? `, waiting for "${row.lookFor}"` : "";
         return `- ${row.id}: watch "${row.title}" on ${row.url}, ${describeInterval(row.intervalMinutes ?? 60).toLowerCase()}${look}, ${state}`;
       })
@@ -438,7 +575,15 @@ export class TriggerService {
 
   /* -------------------------------------------------------------- Firing */
 
-  private async fire(row: Trigger, prompt: string): Promise<string | null> {
+  /**
+   * Start the trigger's teammate in its Scheduled chat. `readOutsideData` starts the run as one
+   * that read your accounts, so it asks before sending anything.
+   */
+  async fire(
+    row: Trigger,
+    prompt: string,
+    options: { readOutsideData?: boolean } = {},
+  ): Promise<string | null> {
     const [bot] = await this.ctx.db
       .select({ archivedAt: bots.archivedAt })
       .from(bots)
@@ -455,6 +600,7 @@ export class TriggerService {
       trigger: row.kind,
       triggerId: row.id,
       prompt,
+      readOutsideData: options.readOutsideData ?? false,
     });
   }
 }

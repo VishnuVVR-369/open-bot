@@ -10,7 +10,7 @@ This page covers the schema, how runs are queued, how events are stored and stre
 ## The schema
 
 The schema is one file, `packages/db/src/schema.ts`, written with Drizzle ORM.
-It has about 50 tables.
+It has about 60 tables.
 Here they are grouped by what they're for:
 
 <SchemaMap
@@ -38,7 +38,7 @@ Here they are grouped by what they're for:
       tables: [
         {
           name: "runs",
-          note: "One turn: trigger, prompt, status, thread and turn ids, final reply, rating",
+          note: "One turn: trigger, prompt, status, thread and turn ids, final reply, rating, whether it read your accounts",
         },
         { name: "run_events", note: "The ordered log of everything a run did, as jsonb payloads" },
         {
@@ -92,7 +92,11 @@ Here they are grouped by what they're for:
         },
         {
           name: "triggers",
-          note: "Page watches (URL, interval, last text) and webhooks (secret token)",
+          note: "Page watches (URL, interval, last text), webhooks (secret token), Gmail and Calendar triggers (connection, search or events, lead time, history id)",
+        },
+        {
+          name: "trigger_firings",
+          note: "The messages and event occurrences that already woke a Gmail or Calendar trigger",
         },
         { name: "tasks", note: "The shared task board" },
         {
@@ -139,7 +143,10 @@ Here they are grouped by what they're for:
           name: "purchases",
           note: "Payments a teammate made or asked to make, against its budget",
         },
-        { name: "connections", note: "MCP servers, with encrypted headers or environment" },
+        {
+          name: "connections",
+          note: "MCP servers with encrypted headers or environment, and your Gmail, Calendar and Notion connections",
+        },
         {
           name: "telegram, telegram_messages",
           note: "The linked bot and chat, and message-to-chat links",
@@ -149,6 +156,31 @@ Here they are grouped by what they're for:
           note: "Your domain and inbound secret; every email in and out",
         },
         { name: "push_subscriptions", note: "Browsers and phones that get push notifications" },
+      ],
+    },
+    {
+      title: "Your accounts",
+      tables: [
+        {
+          name: "accounts",
+          note: "A Google or Notion sign-in: identity, granted scopes, encrypted tokens, the client it was made with, status",
+        },
+        {
+          name: "oauth_clients",
+          note: "Each provider's OAuth client, yours or registered, secret encrypted; a replaced one stays until no sign-in uses it",
+        },
+        {
+          name: "oauth_states",
+          note: "Sign-ins in progress, with their PKCE verifiers",
+        },
+        {
+          name: "account_actions",
+          note: "Every change teammates make to your accounts: the frozen request, approval, outcome",
+        },
+        {
+          name: "account_resources",
+          note: "Notion pages and databases teammates created",
+        },
       ],
     },
     {
@@ -240,17 +272,56 @@ It is pure and shared: the web app uses it on the server to build a chat's first
 
 `packages/db/src/index.ts` defines three channels:
 
-| Channel          | Payload                                        | Sent by                              | Listened to by            |
-| ---------------- | ---------------------------------------------- | ------------------------------------ | ------------------------- |
-| `openbot_worker` | `runs`, `schedules`, `triggers` or `cancel`    | the web app and the worker           | the worker                |
-| `openbot_chat`   | a chat id                                      | the worker, after storing run events | the web app's SSE streams |
-| `openbot_app`    | a JSON `AppEvent`, like `{"type":"approvals"}` | the web app and the worker           | the web app's SSE streams |
+| Channel          | Payload                                                 | Sent by                              | Listened to by            |
+| ---------------- | ------------------------------------------------------- | ------------------------------------ | ------------------------- |
+| `openbot_worker` | `runs`, `schedules`, `triggers`, `accounts` or `cancel` | the web app and the worker           | the worker                |
+| `openbot_chat`   | a chat id                                               | the worker, after storing run events | the web app's SSE streams |
+| `openbot_app`    | a JSON `AppEvent`, like `{"type":"approvals"}`          | the web app and the worker           | the web app's SSE streams |
 
 `AppEvent` has about twenty types, one per area of the UI: `bots`, `chats`, `approvals`, `takeovers`, `lease`, `computer`, `notification`, `schedules`, `triggers`, `tasks`, `memory`, `vault`, `purchases`, `connections`, `email`, `telegram`, `skills`, `pages`, `profile`, `lessons` and `auth`.
 Each one tells open tabs which cached queries to refetch.
 
 Notifications are hints, not data.
 Every listener reads the rows itself, and the worker sweeps for queued runs and cancellations every 15 seconds, so a dropped notification only delays something.
+
+## Accounts
+
+Your Gmail, Google Calendar and Notion are three tables and two kinds of `connections` row.
+See [Your accounts](/docs/flows/accounts) for what you see.
+
+- An **`accounts`** row is one sign-in: Google's `sub`, or Notion's workspace and user, unique per provider, with the granted scopes and the token set encrypted as one value. One Google account serves both a Gmail and a Calendar connection.
+- `credential_version` is bumped by every change to the tokens, which happen only inside a transaction holding the row with `FOR UPDATE`, so two workers never refresh at once or lose a rotated refresh token.
+- `status` is `connected`, `needs_reconnect` (the provider ended the grant) or `revoked`, and `notified_at` makes the "needs reconnecting" notification happen once.
+- A **connection** of kind `gmail`, `google_calendar` or `notion` points at its account (`on delete restrict`), with the `capabilities` you allowed, `ask_before_acting`, Notion's teammates' area in `settings`, and a `revision` bumped by every change to who may use it and how. A check constraint keeps MCP and account connections apart.
+- **`oauth_states`** holds a sign-in in progress for 10 minutes: the state, the encrypted PKCE verifier, the session that started it, and what it asks for, including the identity a reconnect must come back as.
+
+### Account actions
+
+`account_actions` is the queue and the record of every change teammates make.
+A row is inserted with its approval, already linked, holding the exact provider request, the effect class, the connection's revision when it was asked for, and the labels its timeline item shows.
+
+```text title="An action's states"
+pending ──► approved ──► executing ──► done
+   │           │           │   ▲       failed
+   │           │           │   │       unknown    the answer was lost, and the account can't tell
+   │           │           ▼   │
+   │           │     waiting_on_provider          Notion's background task, up to 15 minutes
+   │           │
+   │           └──► cancelled                     turned off, changed, or access taken away
+   ├──► cancelled
+   ├──► denied
+   └──► expired                                   not decided within 7 days
+```
+
+Only pending and approved actions can still change course.
+Executing holds a 5-minute lease, and a stopped action whose lease ran out is reconciled with the provider, never simply run again.
+
+- Deciding the approval moves `pending` to `approved` or `denied` in the same transaction, then sends `NOTIFY openbot_worker, 'accounts'`.
+- The executor claims an action with an `UPDATE … WHERE status = 'approved'` and bumps `attempt`; `next_check_at` holds the lease, or when to poll Notion again.
+- `provider_ref` keeps what the provider returned, like the event id and etag or the sent message id, and `result` what the teammate is told.
+- `reported_at` is set when the outcome reached the timeline and, for `denied`, `failed`, `unknown`, `cancelled` and `expired`, a follow-up run. Finished rows without it are still to be reported, so an outcome is told once, even across a restart.
+
+`account_resources` records Notion pages and databases teammates created, so later changes to them follow the teammate's autonomy instead of always asking.
 
 ## Usage ledger
 

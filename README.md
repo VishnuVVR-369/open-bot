@@ -46,6 +46,7 @@ You can watch them work live, take over the computer at any time, and hand it ba
 - Run tasks on a schedule, like a morning briefing every weekday.
 - Watch a page and wake a teammate when it changes, like "tell me when it's back in stock".
 - Start a teammate from another service with a webhook.
+- Wake a teammate when new mail arrives in your Gmail, like "file every receipt", or before events on your calendar, like "brief me 30 minutes before meetings".
 - Check-ins stay quiet when there is nothing new.
 - Automations keep running when your laptop is closed.
 
@@ -69,7 +70,8 @@ You can watch them work live, take over the computer at any time, and hand it ba
 ### Tools and connections
 
 - **Skills:** save the steps for a task once, then run it with `/name` in any chat.
-- **Connections:** give teammates access to GitHub, Notion or your own API through MCP.
+- **Your accounts:** connect Gmail, Google Calendar and Notion. Teammates search your mail, draft replies, plan events and write pages, and anything other people would see asks you first.
+- **Connections:** give teammates access to GitHub or your own API through MCP.
 - **Email:** each teammate gets an email address on your domain through Postmark.
 - **Telegram:** approve actions, get alerts and chat with teammates from your phone.
 - **Files:** browse, upload and download files on the computer, and attach files up to 40 MB.
@@ -144,6 +146,8 @@ Start the local stack first, then run:
 pnpm lint && pnpm typecheck && pnpm test         # checks and unit tests
 pnpm test:memory -- --e2e                       # memory database and browser tests
 pnpm test:bots                                 # bot management integration tests in disposable Postgres
+pnpm test:accounts                             # account sign-ins and token refresh in disposable Postgres
+pnpm test:mobile-api                           # phone API, account actions and Gmail/Calendar triggers in disposable Postgres
 E2E_EMAIL=you@example.com E2E_PASSWORD=... pnpm e2e --grep-invert @agent   # fast end-to-end tests
 E2E_EMAIL=you@example.com E2E_PASSWORD=... pnpm e2e --grep @agent          # real teammates at work (slow, uses your plan)
 ```
@@ -155,6 +159,16 @@ These use a fake Telegram server, so you don't need a real bot:
 ```sh
 TELEGRAM_API_BASE_URL=http://127.0.0.1:4797 pnpm --filter @open-bot/worker dev
 E2E_TELEGRAM=1 E2E_EMAIL=you@example.com E2E_PASSWORD=... pnpm e2e --grep Telegram
+```
+
+### Account tests
+
+These use a fake Google and Notion, so you don't need a Google Cloud project or real accounts.
+Start the web app and the worker pointed at the fake, with no accounts connected:
+
+```sh
+GOOGLE_BASE_URL=http://127.0.0.1:4796 NOTION_MCP_URL=http://127.0.0.1:4796/mcp pnpm dev
+E2E_ACCOUNTS=1 E2E_EMAIL=you@example.com E2E_PASSWORD=... pnpm e2e e2e/accounts.spec.ts
 ```
 
 ### Plan fallback tests

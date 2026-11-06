@@ -1,0 +1,25 @@
+{
+  "name": "@open-bot/accounts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@open-bot/db": "workspace:*",
+    "@open-bot/shared": "workspace:*",
+    "drizzle-orm": "^0.45.4"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/pg": "^8.15.6",
+    "pg": "^8.23.1",
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.4"
+  }
+}

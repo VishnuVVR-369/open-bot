@@ -41,7 +41,11 @@ function readable(error: string, row: Row): string {
  * their APIs instead of their websites. Each thread gets the ones its teammate may use.
  */
 export class ConnectionService {
-  constructor(private readonly ctx: Context) {}
+  constructor(
+    private readonly ctx: Context,
+    /** Account connections (Gmail, Calendar, Notion) are tested by the worker, not Codex. */
+    private readonly accounts?: { test(connectionId: string): Promise<ConnectionTest> },
+  ) {}
 
   private config(row: Row): ConnectionConfig {
     const secrets = row.encrypted
@@ -52,7 +56,7 @@ export class ConnectionService {
       : {};
     return {
       name: row.name,
-      transport: row.transport,
+      transport: row.transport ?? "http",
       url: row.url,
       command: row.command,
       args: row.args,
@@ -68,6 +72,9 @@ export class ConnectionService {
       .from(connections)
       .where(
         and(
+          // Accounts (Gmail, Calendar, Notion) aren't MCP servers on the computer: the worker
+          // serves their tools, so their tokens never reach it.
+          eq(connections.kind, "mcp"),
           eq(connections.enabled, true),
           or(isNull(connections.botIds), sql`${botId} = any(${connections.botIds})`),
         ),
@@ -89,6 +96,11 @@ export class ConnectionService {
   async test(id: string): Promise<ConnectionTest> {
     const [row] = await this.ctx.db.select().from(connections).where(eq(connections.id, id));
     if (!row) return { ok: false, status: null, tools: [], error: "That connection is gone." };
+    if (row.kind !== "mcp") {
+      if (!this.accounts)
+        return { ok: false, status: null, tools: [], error: "Accounts aren't available." };
+      return this.accounts.test(row.id);
+    }
     const client = await this.ctx.codex.ready();
     // A name of its own, so Codex connects for real instead of answering from its tools cache.
     const probe = {

@@ -85,6 +85,18 @@ export function approvalRisk(approval: {
         label: "Sends an email",
         text: "This sends an email in your name. It can't be unsent.",
       };
+    case "account_outward":
+      return DESTRUCTIVE_WORDS.test(approval.title)
+        ? {
+            tone: "destructive",
+            label: "Deletes something",
+            text: "This deletes something others can see. It may not come back.",
+          }
+        : {
+            tone: "attention",
+            label: "Acts as you",
+            text: "Other people see this, and it comes from you.",
+          };
     case "command": {
       const command = approval.subject ?? commandParts(approval.detail).command ?? approval.title;
       return DESTRUCTIVE_COMMAND.some((pattern) => pattern.test(shellScript(command)))

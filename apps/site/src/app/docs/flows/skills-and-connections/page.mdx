@@ -66,6 +66,9 @@ The developer instructions tell teammates to offer this after a task that is lik
 
 A connection (`connections`) is an MCP server that teammates use as a set of tools, so they work with a service's API instead of clicking through its website.
 
+Gmail, Google Calendar and Notion are connections too, but you sign in to them instead of giving a token, and the worker serves their tools: see [Your accounts](/docs/flows/accounts).
+This section is about the MCP servers you add yourself, listed in Settings under **Other services, through MCP**.
+
 | Transport | You give                                     | Secrets                                                 |
 | --------- | -------------------------------------------- | ------------------------------------------------------- |
 | `http`    | A URL                                        | Headers, like `Authorization: Bearer ...`, one per line |
@@ -113,5 +116,5 @@ Testing runs on the computer, so it checks the real path: the computer's network
 
 ### Limits
 
-- OAuth sign-in for MCP servers isn't supported yet. A connection takes a token as a header or an environment variable.
+- OAuth sign-in for MCP servers you add isn't supported yet. A connection takes a token as a header or an environment variable. Gmail, Calendar and Notion sign in with OAuth through [Your accounts](/docs/flows/accounts).
 - `stdio` servers run as the `bot` user on the computer, with access to everything that user can read.

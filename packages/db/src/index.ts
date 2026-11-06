@@ -57,7 +57,7 @@ export type AppEvent =
   | { type: "pages" }
   | { type: "auth" };
 
-export type WorkerSignal = "runs" | "schedules" | "triggers" | "cancel";
+export type WorkerSignal = "runs" | "schedules" | "triggers" | "cancel" | "accounts";
 
 export async function notify(
   client: Pick<pg.Pool, "query">,

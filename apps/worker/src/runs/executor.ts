@@ -21,6 +21,7 @@ import type { MemoryCoordinator } from "../services/memory";
 import type { ModelAccess } from "../services/model-access";
 import type { TakeoverService } from "../services/takeovers";
 import type { ToolHandlers } from "../tools/handlers";
+import type { AccountAccess } from "../accounts/access";
 import { RunSession, type Bot, type Run } from "./session";
 
 /** How long a saved message may wait for its dispatch before the worker dispatches it itself. */
@@ -41,6 +42,7 @@ export class RunExecutor {
     private readonly skills: SkillService,
     private readonly connections: ConnectionService,
     private readonly memory: MemoryCoordinator,
+    private readonly accounts: AccountAccess,
   ) {}
 
   /** Runs that were executing when the worker stopped can't resume their turn. */
@@ -178,7 +180,8 @@ export class RunExecutor {
     const { domain } = await emailSettingsRow(this.ctx);
     const address = domain ? emailAddress(bot.slug, domain) : null;
     await client.request("fs/createDirectory", { path: workspace, recursive: true });
-    const instructions = agentsMarkdown(bot, rules, "", [], teammates, services, address);
+    const accounts = await this.accounts.lines(bot.id);
+    const instructions = agentsMarkdown(bot, rules, "", [], teammates, services, address, accounts);
     await client.request("fs/writeFile", {
       path: `${workspace}/AGENTS.md`,
       dataBase64: Buffer.from(instructions).toString("base64"),

@@ -52,6 +52,8 @@ const SETUP_TITLES: Record<string, (args: Record<string, unknown>, name: string)
   schedule_task: (args, name) => `Schedule "${String(args.title ?? "")}" for ${name}`,
   save_skill: (args, name) => `Save the /${String(args.name ?? "")} skill for ${name}`,
   watch_page: (args, name) => `Watch ${String(args.url ?? "a page")} for ${name}`,
+  watch_gmail: (args, name) => `Wake ${name} for new mail: "${String(args.title ?? "")}"`,
+  watch_calendar: (args, name) => `Wake ${name} before events: "${String(args.title ?? "")}"`,
   create_webhook: (args, name) => `Create the webhook "${String(args.title ?? "")}" for ${name}`,
   update_automation: (args, name) => `Change ${String(args.automation)} for ${name}`,
   cancel_automation: (args, name) => `Delete ${String(args.automation)} for ${name}`,

@@ -4,9 +4,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import { DAILY_CHECK_IN } from "@open-bot/shared";
 import {
   CalendarClock,
+  CalendarDays,
   ChevronDown,
   Eye,
   Loader2,
+  Mail,
   Plus,
   Sunrise,
   Webhook,
@@ -30,32 +32,49 @@ import { ScheduleRow } from "./schedules-list";
 import { TriggerDialog } from "./trigger-dialog";
 import { TriggerRow } from "./trigger-row";
 
-type Kind = "schedule" | "watch" | "webhook";
+type Kind = "schedule" | "watch" | "webhook" | "gmail" | "calendar";
 
-const KINDS: Record<
-  Kind,
-  { label: string; icon: LucideIcon; heading: string; hint: string; button: string }
+/** Each kind of automation, as the "New automation" menu offers it. */
+const KINDS: Record<Kind, { label: string; icon: LucideIcon }> = {
+  schedule: { label: "Schedule", icon: CalendarClock },
+  watch: { label: "Page watch", icon: Eye },
+  webhook: { label: "Webhook", icon: Webhook },
+  gmail: { label: "New mail in Gmail", icon: Mail },
+  calendar: { label: "Calendar event", icon: CalendarDays },
+};
+
+type SectionKey = "schedule" | "watch" | "webhook" | "accounts";
+
+const SECTIONS: Record<
+  SectionKey,
+  { heading: string; hint: string; icon: LucideIcon; actions: { kind: Kind; button: string }[] }
 > = {
   schedule: {
-    label: "Schedule",
-    icon: CalendarClock,
     heading: "Schedules",
     hint: "Routines and reminders, at the times you set. Or ask a teammate: “Every weekday at 9, send me a briefing.”",
-    button: "New schedule",
+    icon: CalendarClock,
+    actions: [{ kind: "schedule", button: "New schedule" }],
   },
   watch: {
-    label: "Page watch",
-    icon: Eye,
     heading: "Page watches",
     hint: "Wake a teammate when a page changes: a price drops, something is back in stock, a new job is posted.",
-    button: "Watch a page",
+    icon: Eye,
+    actions: [{ kind: "watch", button: "Watch a page" }],
   },
   webhook: {
-    label: "Webhook",
-    icon: Webhook,
     heading: "Webhooks",
     hint: "A private URL that starts a teammate when another service calls it, like GitHub, Stripe, a form or a script.",
-    button: "New webhook",
+    icon: Webhook,
+    actions: [{ kind: "webhook", button: "New webhook" }],
+  },
+  accounts: {
+    heading: "Mail and calendar",
+    hint: "Wake a teammate when mail arrives in your Gmail, or before an event on your Google Calendar.",
+    icon: Mail,
+    actions: [
+      { kind: "gmail", button: "Watch Gmail" },
+      { kind: "calendar", button: "Watch Calendar" },
+    ],
   },
 };
 
@@ -88,6 +107,18 @@ function NewDialogs({
         botId={botId}
         open={open === "webhook"}
         onOpenChange={onOpenChange("webhook")}
+      />
+      <TriggerDialog
+        kind="gmail"
+        botId={botId}
+        open={open === "gmail"}
+        onOpenChange={onOpenChange("gmail")}
+      />
+      <TriggerDialog
+        kind="calendar"
+        botId={botId}
+        open={open === "calendar"}
+        onOpenChange={onOpenChange("calendar")}
       />
     </>
   );
@@ -125,19 +156,23 @@ export function NewAutomationMenu({ botId }: { botId?: string }) {
 }
 
 function Section({
-  kind,
+  section,
   count,
   onNew,
   children,
 }: {
-  kind: Kind;
+  section: SectionKey;
   count: number;
-  onNew: () => void;
+  onNew: (kind: Kind) => void;
   children: ReactNode;
 }) {
-  const { heading, hint, button, icon: Icon } = KINDS[kind];
+  const { heading, hint, actions, icon: Icon } = SECTIONS[section];
   return (
-    <section className="flex flex-col gap-3" aria-label={heading} data-testid={`section-${kind}`}>
+    <section
+      className="flex flex-col gap-3"
+      aria-label={heading}
+      data-testid={`section-${section}`}
+    >
       <h2 className="flex items-center gap-2 text-[13px] font-medium tracking-wide text-muted-foreground uppercase">
         {heading}
         {count > 0 && <span className="font-normal tabular-nums">{count}</span>}
@@ -148,10 +183,19 @@ function Section({
             <Icon className="size-4" />
           </span>
           <p className="min-w-0 flex-1 text-[13.5px] text-muted-foreground">{hint}</p>
-          <Button variant="outline" size="sm" onClick={onNew}>
-            <Plus />
-            {button}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {actions.map((action) => (
+              <Button
+                key={action.kind}
+                variant="outline"
+                size="sm"
+                onClick={() => onNew(action.kind)}
+              >
+                <Plus />
+                {action.button}
+              </Button>
+            ))}
+          </div>
         </div>
       ) : (
         <ul className="flex flex-col gap-2.5">{children}</ul>
@@ -208,7 +252,7 @@ function CheckIn({ botId, name }: { botId: string; name: string }) {
   );
 }
 
-/** Schedules, page watches and webhooks, for everyone or one teammate. */
+/** Schedules, page watches, webhooks, and mail and calendar triggers, for everyone or one teammate. */
 export function AutomationsView({ botId }: { botId?: string }) {
   const { data: schedules, isLoading: loadingSchedules } = useSchedules();
   const { data: triggers, isLoading: loadingTriggers } = useTriggers();
@@ -221,6 +265,9 @@ export function AutomationsView({ botId }: { botId?: string }) {
   const scheduleRows = mine(schedules);
   const watches = mine(triggers).filter((row) => row.kind === "watch");
   const webhooks = mine(triggers).filter((row) => row.kind === "webhook");
+  const accountTriggers = mine(triggers).filter(
+    (row) => row.kind === "gmail" || row.kind === "calendar",
+  );
   const refreshSchedules = () =>
     void queryClient.invalidateQueries({ queryKey: queryKeys.schedules });
   const refreshTriggers = () =>
@@ -244,7 +291,7 @@ export function AutomationsView({ botId }: { botId?: string }) {
           <CheckIn botId={botId} name={botOf(botId)?.name ?? "This teammate"} />
         </div>
       )}
-      <Section kind="schedule" count={scheduleRows.length} onNew={() => setOpen("schedule")}>
+      <Section section="schedule" count={scheduleRows.length} onNew={setOpen}>
         {scheduleRows.map((schedule) => (
           <ScheduleRow
             key={schedule.id}
@@ -254,7 +301,7 @@ export function AutomationsView({ botId }: { botId?: string }) {
           />
         ))}
       </Section>
-      <Section kind="watch" count={watches.length} onNew={() => setOpen("watch")}>
+      <Section section="watch" count={watches.length} onNew={setOpen}>
         {watches.map((trigger) => (
           <TriggerRow
             key={trigger.id}
@@ -264,7 +311,17 @@ export function AutomationsView({ botId }: { botId?: string }) {
           />
         ))}
       </Section>
-      <Section kind="webhook" count={webhooks.length} onNew={() => setOpen("webhook")}>
+      <Section section="accounts" count={accountTriggers.length} onNew={setOpen}>
+        {accountTriggers.map((trigger) => (
+          <TriggerRow
+            key={trigger.id}
+            trigger={trigger}
+            bot={botOf(trigger.botId)}
+            refresh={refreshTriggers}
+          />
+        ))}
+      </Section>
+      <Section section="webhook" count={webhooks.length} onNew={setOpen}>
         {webhooks.map((trigger) => (
           <TriggerRow
             key={trigger.id}

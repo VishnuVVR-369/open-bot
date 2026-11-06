@@ -179,10 +179,20 @@ export class SwarmService {
           `## ${index + 1}. ${task.title}${task.status === "completed" ? "" : ` (${task.status === "failed" ? "failed" : "stopped"})`}\n\n${task.result?.trim() || "No result."}`,
       )
       .join("\n\n");
+    // The helpers' results carry what they read from your accounts into the merge.
+    const helperRunIds = tasks.map((task) => task.runId).filter((id): id is string => Boolean(id));
+    const [tainted] = helperRunIds.length
+      ? await this.ctx.db
+          .select({ id: runs.id })
+          .from(runs)
+          .where(and(inArray(runs.id, helperRunIds), eq(runs.readOutsideData, true)))
+          .limit(1)
+      : [];
     await enqueueRun(this.ctx, {
       chatId: swarm.chatId,
       botId: swarm.botId,
       trigger: "swarm_results",
+      readOutsideData: Boolean(tainted),
       prompt: `[Swarm results: "${swarm.title}"]\n\nYour ${tasks.length} helpers finished. Merge their results into one answer for the user: compare, dedupe and check them, say what's missing, and finish the job you split up.\n\n${parts}`,
       parentRunId: swarm.runId,
     });

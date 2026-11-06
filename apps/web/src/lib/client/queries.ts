@@ -15,6 +15,7 @@ import type {
   SpendingView,
   TriggerView,
   VaultItemView,
+  AccountsSetupView,
   ConnectionView,
   PageDetail,
   PageLink,
@@ -157,6 +158,14 @@ export function useConnections() {
   return useQuery({
     queryKey: queryKeys.connections,
     queryFn: () => getJson<ConnectionView[]>("/api/connections"),
+  });
+}
+
+export function useAccountsSetup() {
+  return useQuery({
+    // Under connections, so the same live updates refresh it.
+    queryKey: [...queryKeys.connections, "setup"],
+    queryFn: () => getJson<AccountsSetupView>("/api/accounts/setup"),
   });
 }
 

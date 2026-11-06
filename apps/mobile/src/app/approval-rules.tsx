@@ -1,4 +1,5 @@
 import type { ApprovalRule } from "@open-bot/api";
+import { accountTool, type RuleKind } from "@open-bot/shared";
 import { safe } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { ShieldCheck, X } from "lucide-react-native";
@@ -15,7 +16,12 @@ import { useApprovalRules, useTeammates } from "@/lib/queries";
 import { queryKeys } from "@/lib/query";
 import { space, useColors } from "@/theme";
 
-const KIND = { command: "Commands starting with", file_change: "Changing files", action: "Doing" };
+const KIND: Record<RuleKind, string> = {
+  command: "Commands starting with",
+  file_change: "Changing files",
+  action: "Doing",
+  account_write: "On your accounts",
+};
 
 /** What each teammate may do without asking, from "Always allow". Remove one to be asked again. */
 export default function ApprovalRules() {
@@ -92,7 +98,9 @@ export default function ApprovalRules() {
                       </Text>
                       {rule.kind !== "file_change" && (
                         <Text variant={rule.kind === "command" ? "mono" : "label"} selectable>
-                          {rule.pattern}
+                          {rule.kind === "account_write"
+                            ? (accountTool(rule.pattern)?.label ?? rule.pattern)
+                            : rule.pattern}
                         </Text>
                       )}
                     </View>

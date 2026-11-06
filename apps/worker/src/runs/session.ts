@@ -143,6 +143,16 @@ export class RunSession {
     return new Date().toISOString();
   }
 
+  /**
+   * The run read mail, events or pages from your accounts. From now on, everything it sends out
+   * asks you first, and the runs it starts carry the same mark.
+   */
+  async markReadOutsideData(): Promise<void> {
+    if (this.run.readOutsideData) return;
+    this.run.readOutsideData = true;
+    await this.ctx.db.update(runs).set({ readOutsideData: true }).where(eq(runs.id, this.run.id));
+  }
+
   /** Insert or replace a timeline item. */
   putItem(item: TimelineItem): void {
     this.items.set(item.id, item);
