@@ -110,8 +110,8 @@ test("a webhook gets a private URL that can be replaced and paused", async ({ pa
   // The old URL stops working.
   expect((await page.request.post(first, { data: { hello: "world" } })).status()).toBe(404);
 
-  await row.getByRole("switch", { name: "Pause" }).click();
-  await expect(row).toContainText("Paused");
+  await row.getByRole("switch", { name: "On", exact: true }).click();
+  await expect(row.getByTestId("automation-state")).toHaveText("Off");
   const paused = await page.request.post(second, { data: { hello: "world" } });
   expect(paused.status()).toBe(409);
   expect(await paused.json()).toEqual({ error: "This webhook is paused" });

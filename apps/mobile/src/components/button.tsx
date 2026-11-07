@@ -57,7 +57,7 @@ export function Button({
           backgroundColor: look.bg,
           borderColor: look.border,
           // Busy is still at work, so only an unavailable button fades.
-          opacity: unavailable ? (variant === "primary" ? 0.38 : 0.5) : pressed ? 0.85 : 1,
+          opacity: unavailable ? (variant === "primary" ? 0.4 : 0.5) : pressed ? 0.85 : 1,
         },
         style,
       ]}

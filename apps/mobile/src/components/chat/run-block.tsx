@@ -460,10 +460,27 @@ function MentionedFiles({ text }: { text: string }) {
   );
 }
 
-/** How long a finished run took, like "21s" or "2m 05s". */
+/**
+ * How long the teammate worked, like "21s" or "2m 05s": until the run finished, or until it
+ * stopped to wait on you. Null while it's still working.
+ */
 function took(run: RunView): string | null {
-  if (!run.startedAt || !run.completedAt) return null;
-  return elapsed(new Date(run.completedAt).getTime() - new Date(run.startedAt).getTime());
+  if (!run.startedAt) return null;
+  const pending = run.timeline.items.find(
+    (item) =>
+      (item.kind === "approval" && item.decision === "pending") ||
+      (item.kind === "takeover_request" && item.resolution === "pending"),
+  );
+  const end =
+    run.completedAt ?? (run.timeline.status === "waiting" ? pending?.startedAt : undefined);
+  if (!end) return null;
+  return elapsed(Math.max(0, new Date(end).getTime() - new Date(run.startedAt).getTime()));
+}
+
+/** The steps toggle's words: "Worked for 8s · 2 steps", the same on every turn. */
+export function workSummary(duration: string | null, steps: number): string {
+  const count = `${steps} ${steps === 1 ? "step" : "steps"}`;
+  return duration ? `Worked for ${duration} · ${count}` : count;
 }
 
 /**
@@ -498,7 +515,10 @@ export const RunBlock = memo(function RunBlock({
     (part) => part.kind === "computer" || !isPinned(part.item),
   ).length;
   const failed = run.timeline.status === "failed";
-  const [expanded, setExpanded] = useState(false);
+  // A turn that's still working shows its steps; a finished one (or one waiting on you) folds
+  // them into one line, until you open it.
+  const [toggled, setToggled] = useState<boolean | null>(null);
+  const expanded = toggled ?? (active && run.timeline.status !== "waiting");
   const [menuOpen, setMenuOpen] = useState(false);
   const showSteps = expanded || stepCount === 0;
   const name = bot?.name ?? "Former teammate";
@@ -517,7 +537,7 @@ export const RunBlock = memo(function RunBlock({
         (item.kind === "approval" && item.decision === "pending") ||
         (item.kind === "takeover_request" && item.resolution === "pending"),
     );
-  const duration = !active ? took(run) : null;
+  const duration = took(run);
 
   if (!active && run.trigger === "schedule" && isNothingToReport(reply)) {
     return (
@@ -564,8 +584,11 @@ export const RunBlock = memo(function RunBlock({
                   active ? (run.timeline.status === "waiting" ? "waiting" : "working") : "idle"
                 }
               />
-              <Text variant="heading" style={{ fontSize: 15 }} numberOfLines={1}>
+              <Text variant="heading" style={{ fontSize: 15, flexShrink: 1 }} numberOfLines={1}>
                 {name}
+              </Text>
+              <Text variant="caption" muted style={{ fontVariant: ["tabular-nums"] }}>
+                {phoneClock(run.createdAt)}
               </Text>
             </>
           )}
@@ -586,27 +609,24 @@ export const RunBlock = memo(function RunBlock({
             onPress={() => {
               haptics.tap();
               animateLayout();
-              setExpanded((value) => !value);
+              setToggled(!expanded);
             }}
             accessibilityRole="button"
             accessibilityState={{ expanded }}
-            accessibilityLabel={`${expanded ? "Hide" : "Show"} ${stepCount} ${stepCount === 1 ? "step" : "steps"}`}
-            style={[styles.toggle, { backgroundColor: expanded ? colors.subtle : "transparent" }]}
-            hitSlop={{ top: 6, bottom: 6 }}
+            accessibilityLabel={`${workSummary(duration, stepCount)}. ${expanded ? "Hide" : "Show"} the steps`}
+            style={styles.toggle}
+            hitSlop={{ top: 10, bottom: 10, right: 12 }}
+            testID="steps-toggle"
           >
+            {/* The words start on the turn's left edge, with the reply; the chevron follows them. */}
+            <Text variant="small" muted>
+              {workSummary(duration, stepCount)}
+            </Text>
             <ChevronDown
               size={15}
               color={colors.mutedForeground}
-              style={{ transform: [{ rotate: expanded ? "0deg" : "-90deg" }] }}
+              style={{ transform: [{ rotate: expanded ? "180deg" : "0deg" }] }}
             />
-            <Text variant="small" muted>
-              {[
-                active ? null : duration ? `Worked for ${duration}` : "Worked",
-                `${stepCount} ${stepCount === 1 ? "step" : "steps"}`,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </Text>
           </Pressable>
         )}
         {segments.map((part) => {
@@ -623,7 +643,6 @@ export const RunBlock = memo(function RunBlock({
           }
           if (!showSteps && !isPinned(part.item)) return null;
           const spaced = [
-            "message",
             "approval",
             "takeover_request",
             "plan",
@@ -666,24 +685,20 @@ export const RunBlock = memo(function RunBlock({
 });
 
 const styles = StyleSheet.create({
-  // Who's speaking sits close to their work (about 8dp, with the step toggle's own padding).
-  run: { gap: space(0.5) },
+  // Who's speaking sits about 16dp above their work, and the steps line about 12dp above the reply.
+  run: { gap: space(3) },
   header: { flexDirection: "row", alignItems: "center", gap: space(2), minHeight: 28 },
-  body: { gap: space(1) },
+  body: { gap: space(2) },
   quiet: { flexDirection: "row", alignItems: "center", gap: space(2.5) },
   row: { flexDirection: "row", alignItems: "center", gap: space(2) },
   toggle: {
     flexDirection: "row",
     alignItems: "center",
-    gap: space(1.5),
-    minHeight: 32,
+    gap: space(1),
+    minHeight: 24,
     alignSelf: "flex-start",
-    borderRadius: radius.full,
-    paddingLeft: space(1.5),
-    paddingRight: space(3),
-    marginLeft: -space(1.5),
   },
-  // The answer starts about 12dp under the steps toggle, and a card gets a little room after it.
+  // A card gets a little room after it.
   spaced: { marginBottom: space(1) },
   working: { flexDirection: "row", alignItems: "center", gap: space(2), minHeight: 24 },
   dot: { width: 8, height: 8, borderRadius: 4 },

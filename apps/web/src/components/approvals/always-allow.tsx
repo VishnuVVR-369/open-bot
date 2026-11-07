@@ -28,6 +28,30 @@ function coverageNote(subject: string, pattern: string, botName: string): string
   return `This doesn't cover ${missed.map((command) => `\`${command}\``).join(", ")}, so ${botName} will still ask about ${missed.length === 1 ? "it" : "them"}.`;
 }
 
+/** "Always allow `git push` for Kit…": what the rule would cover, before you open it. */
+function AlwaysAllowLabel({
+  kind,
+  subject,
+  botName,
+}: {
+  kind: RuleKind;
+  subject: string;
+  botName: string;
+}) {
+  const prefix = kind === "command" ? suggestedRule(kind, subject) : "";
+  return (
+    <span className="flex min-w-0 items-baseline gap-1">
+      Always allow
+      {prefix && (
+        <code className="max-w-[16ch] truncate font-mono text-[0.9em] text-foreground/85">
+          {prefix}
+        </code>
+      )}
+      <span className="truncate">for {botName}…</span>
+    </span>
+  );
+}
+
 /**
  * Approve, and let the bot do things like this from now on without asking.
  * Commands are allowed by how they start; actions by their wording, which you can edit.
@@ -61,8 +85,14 @@ export function AlwaysAllowButton({
       }}
     >
       <PopoverTrigger asChild>
-        <Button size="lg" variant="ghost" disabled={disabled} data-testid="always-allow">
-          Always allow…
+        <Button
+          size="lg"
+          variant="ghost"
+          disabled={disabled}
+          className="min-w-0 px-3 font-normal text-muted-foreground hover:text-foreground"
+          data-testid="always-allow"
+        >
+          <AlwaysAllowLabel kind={kind} subject={subject} botName={botName} />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80">

@@ -1,14 +1,13 @@
 import { RECOVERY_COPY, resetPasswordCommand } from "@open-bot/shared";
-import { CircleAlert, Eye, EyeOff, KeyRound, Server } from "lucide-react-native";
-import { useRef, useState, type ComponentRef, type ReactNode, type Ref } from "react";
+import { CircleAlert, KeyRound } from "lucide-react-native";
+import { useRef, useState, type ComponentProps, type ReactNode } from "react";
 import {
   KeyboardAvoidingView,
   Pressable,
   ScrollView,
   StyleSheet,
-  TextInput,
   View,
-  type TextInputProps,
+  type TextInputInstance,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AppMark } from "@/components/app-mark";
@@ -16,32 +15,26 @@ import { Button } from "@/components/button";
 import { CopyCommand } from "@/components/copy-command";
 import { Sheet } from "@/components/sheet";
 import { Text } from "@/components/text";
+import { TextField } from "@/components/text-field";
 import { authClient } from "@/lib/auth";
 import { APP_URL } from "@/lib/config";
 import { haptics } from "@/lib/haptics";
 import { signInWithPasskey } from "@/lib/passkey";
 import { requestPasswordReset, takePasswordResetRequest } from "@/lib/password";
 import { queryClient } from "@/lib/query";
-import { fonts, radius, space, useColors } from "@/theme";
+import { radius, space, useColors } from "@/theme";
 import { mix } from "@/theme/mix";
 
-type Input = ComponentRef<typeof TextInput>;
-
+/** A labelled field in the app's one style, with a link beside the label when there's one. */
 function Field({
   label,
   labelAside,
-  ref,
-  trailing,
   ...props
-}: TextInputProps & {
+}: ComponentProps<typeof TextField> & {
   label: string;
   /** Beside the label, at the end: a link like "Forgot password?". */
   labelAside?: ReactNode;
-  ref?: Ref<Input>;
-  trailing?: ReactNode;
 }) {
-  const colors = useColors();
-  const [focused, setFocused] = useState(false);
   return (
     <View style={{ gap: space(2) }}>
       <View style={styles.labelRow}>
@@ -50,42 +43,15 @@ function Field({
         </Text>
         {labelAside}
       </View>
-      <View
-        style={[
-          styles.field,
-          {
-            borderColor: focused ? colors.foreground : colors.input,
-            backgroundColor: colors.surface,
-          },
-        ]}
-      >
-        <TextInput
-          ref={ref}
-          {...props}
-          accessibilityLabel={label}
-          onFocus={(event) => {
-            setFocused(true);
-            props.onFocus?.(event);
-          }}
-          onBlur={(event) => {
-            setFocused(false);
-            props.onBlur?.(event);
-          }}
-          placeholderTextColor={colors.mutedForeground}
-          cursorColor={colors.foreground}
-          selectionColor={colors.input}
-          style={[styles.input, { color: colors.foreground }]}
-        />
-        {trailing}
-      </View>
+      <TextField {...props} accessibilityLabel={label} />
     </View>
   );
 }
 
 /**
- * What to do without your password, in the web's words (`RECOVERY_COPY`). open-bot sends no
- * email, so there's no reset link: a passkey gets you in and opens the new-password form in
- * Settings, and without one the reset command on the server sets it.
+ * What to do without your password, in the web's words (`RECOVERY_COPY`), shortest way first: a
+ * passkey gets you in and opens the new-password form in Settings. Without one, the reset
+ * command on the server sets it (open-bot sends no email, so there's no reset link).
  */
 function ForgotPassword({
   open,
@@ -100,46 +66,33 @@ function ForgotPassword({
 }) {
   const colors = useColors();
   return (
-    <Sheet
-      open={open}
-      onClose={onClose}
-      title={RECOVERY_COPY.title}
-      description={RECOVERY_COPY.intro}
-      testID="forgot-sheet"
-    >
+    <Sheet open={open} onClose={onClose} title={RECOVERY_COPY.title} testID="forgot-sheet">
       <View style={styles.forgot}>
-        <View style={styles.way}>
-          <View style={[styles.wayIcon, { backgroundColor: colors.subtle }]}>
-            <KeyRound size={18} color={colors.foreground} />
-          </View>
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text variant="label">{RECOVERY_COPY.passkeyHeading}</Text>
-            <Text variant="small" muted style={styles.wayBody}>
-              {RECOVERY_COPY.passkeyBody}
-            </Text>
-          </View>
+        <View style={{ gap: space(3) }}>
+          <Text style={styles.lead}>{RECOVERY_COPY.passkeyHeading}</Text>
+          <Button
+            title={RECOVERY_COPY.passkeyAction}
+            icon={<KeyRound size={18} color={colors.primaryForeground} />}
+            onPress={onPasskey}
+            style={styles.cta}
+            testID="forgot-passkey"
+          />
+          <Text variant="small" muted style={styles.wayBody}>
+            {RECOVERY_COPY.passkeyNote}
+          </Text>
         </View>
-        <View style={styles.way}>
-          <View style={[styles.wayIcon, { backgroundColor: colors.subtle }]}>
-            <Server size={18} color={colors.foreground} />
-          </View>
-          <View style={{ flex: 1, gap: space(2) }}>
-            <View style={{ gap: 2 }}>
-              <Text variant="label">{RECOVERY_COPY.serverHeading}</Text>
-              <Text variant="small" muted style={styles.wayBody}>
-                {RECOVERY_COPY.serverBody}
-              </Text>
-            </View>
-            <CopyCommand command={resetPasswordCommand(email)} testID="reset-command" />
-          </View>
+        <View style={[styles.other, { borderTopColor: colors.rule }]}>
+          <Text variant="small" muted style={{ fontWeight: "600" }}>
+            {RECOVERY_COPY.otherWaysHeading}
+          </Text>
+          <Text variant="small" muted style={styles.wayBody}>
+            {RECOVERY_COPY.serverBody}
+          </Text>
+          <CopyCommand command={resetPasswordCommand(email)} testID="reset-command" />
+          <Text variant="caption" muted>
+            {RECOVERY_COPY.noEmailNote}
+          </Text>
         </View>
-        <Button
-          title={RECOVERY_COPY.passkeyAction}
-          icon={<KeyRound size={18} color={colors.primaryForeground} />}
-          onPress={onPasskey}
-          style={styles.cta}
-          testID="forgot-passkey"
-        />
       </View>
     </Sheet>
   );
@@ -150,11 +103,10 @@ export default function SignIn() {
   const colors = useColors();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [pending, setPending] = useState<"password" | "passkey" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [forgot, setForgot] = useState(false);
-  const passwordField = useRef<Input>(null);
+  const passwordField = useRef<TextInputInstance>(null);
 
   function fail(message: string) {
     haptics.error();
@@ -244,28 +196,12 @@ export default function SignIn() {
               }
               value={password}
               onChangeText={setPassword}
-              secureTextEntry={!showPassword}
+              password
               autoComplete="current-password"
-              autoCapitalize="none"
-              autoCorrect={false}
               textContentType="password"
               returnKeyType="go"
               onSubmitEditing={() => void submit()}
               testID="password"
-              trailing={
-                <Pressable
-                  onPress={() => setShowPassword((shown) => !shown)}
-                  style={styles.reveal}
-                  accessibilityRole="button"
-                  accessibilityLabel={showPassword ? "Hide password" : "Show password"}
-                >
-                  {showPassword ? (
-                    <EyeOff size={18} color={colors.mutedForeground} />
-                  ) : (
-                    <Eye size={18} color={colors.mutedForeground} />
-                  )}
-                </Pressable>
-              }
             />
             {error && (
               <View
@@ -342,21 +278,6 @@ const styles = StyleSheet.create({
   },
   head: { gap: space(6) },
   title: { fontSize: 30, lineHeight: 36 },
-  field: {
-    flexDirection: "row",
-    alignItems: "center",
-    minHeight: 52,
-    borderWidth: 1,
-    borderRadius: radius.xl,
-  },
-  input: {
-    flex: 1,
-    minHeight: 50,
-    paddingHorizontal: space(4),
-    fontFamily: fonts.sans,
-    fontSize: 16,
-  },
-  reveal: { width: 48, height: 48, alignItems: "center", justifyContent: "center" },
   error: {
     flexDirection: "row",
     gap: space(2),
@@ -369,14 +290,9 @@ const styles = StyleSheet.create({
   or: { flexDirection: "row", alignItems: "center", gap: space(3) },
   rule: { flex: 1, height: 1 },
   labelRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  forgot: { gap: space(5), paddingHorizontal: space(5), paddingTop: space(2) },
+  forgot: { gap: space(6), paddingHorizontal: space(5), paddingTop: space(1) },
+  lead: { fontSize: 16, lineHeight: 22, fontWeight: "500" },
   wayBody: { fontSize: 14, lineHeight: 20 },
-  way: { flexDirection: "row", alignItems: "flex-start", gap: space(3) },
-  wayIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.lg,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  // Quieter, under a rule: for when there's no passkey.
+  other: { gap: space(2.5), borderTopWidth: StyleSheet.hairlineWidth, paddingTop: space(5) },
 });

@@ -47,17 +47,14 @@ class AppRenderer extends Renderer {
   }
 
   /**
-   * Inline code: a soft tint of the text color with a little air on each side. Android can't round
-   * or pad a span inside a paragraph, so the air is a narrow no-break space in the body font, and
-   * the span keeps the paragraph's line height so the line doesn't grow.
+   * Inline code: monospace in the text's own color, nothing behind it. Android can't round or pad
+   * a span's background, and a square slab taller than the text looks broken, so the font alone
+   * says it's code, on the paragraph's line height so the line doesn't grow.
    */
   override codespan(text: string, styles?: TextStyle): ReactNode {
-    const pad = { fontFamily: fonts.sans, fontSize: 15 };
     return (
       <Text key={this.getKey()} style={styles}>
-        <Text style={pad}>{"\u202F"}</Text>
         {text}
-        <Text style={pad}>{"\u202F"}</Text>
       </Text>
     );
   }
@@ -123,7 +120,8 @@ export function Markdown({ text, tone = "default" }: { text: string; tone?: "def
     const heading = { fontFamily: fonts.heading, fontWeight: "600" as const, color: ink };
     return {
       text: body,
-      paragraph: { marginVertical: space(1), padding: 0 },
+      // The library pads paragraphs vertically (and paddingVertical beats padding), so zero it.
+      paragraph: { marginVertical: space(1.5), paddingVertical: 0 },
       strong: { ...body, fontWeight: "600" },
       em: { ...body, fontStyle: "italic" },
       link: { ...body, fontStyle: "normal", textDecorationLine: "underline" },
@@ -134,12 +132,12 @@ export function Markdown({ text, tone = "default" }: { text: string; tone?: "def
       codespan: {
         fontFamily: fonts.mono,
         fontStyle: "normal",
-        // 0.9em of the body, on the body's line height.
-        fontSize: tone === "muted" ? 12.5 : 13.5,
+        // 0.92em of the body, on the body's line height, with no background.
+        fontSize: tone === "muted" ? 13 : 13.8,
         lineHeight: tone === "muted" ? 20 : 22,
         color: ink,
-        // 6% of the text color in light, 10% in dark: a tint, not a slab.
-        backgroundColor: `${ink}${scheme === "dark" ? "1A" : "0F"}`,
+        // The library fills it with the theme's code color; a slab taller than the text looks broken.
+        backgroundColor: "transparent",
       },
       code: {
         backgroundColor: colors.muted,
@@ -156,7 +154,7 @@ export function Markdown({ text, tone = "default" }: { text: string; tone?: "def
       tableRow: { borderColor: colors.border },
       table: { borderColor: colors.border, borderWidth: 1, borderRadius: radius.md },
     };
-  }, [colors, ink, tone, scheme]);
+  }, [colors, ink, tone]);
   const lineHeight = tone === "muted" ? 20 : 22;
   const renderer = useMemo(() => new AppRenderer(ink, lineHeight), [ink, lineHeight]);
   const elements = useMarkdown(text, {
@@ -172,8 +170,10 @@ export function Markdown({ text, tone = "default" }: { text: string; tone?: "def
       },
     },
   });
+  // Each block keeps a little room around it; the reply's own edges don't, so whatever sits
+  // above and below sets the spacing.
   return (
-    <View>
+    <View style={{ marginVertical: -space(1.5) }}>
       {elements.map((element, index) => (
         <Fragment key={index}>{element}</Fragment>
       ))}

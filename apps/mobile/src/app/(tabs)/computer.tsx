@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { Alert, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { BotAvatar, StatusLine } from "@/components/bot-avatar";
 import { Button } from "@/components/button";
+import { LastFrames } from "@/components/computer/last-frames";
 import { ScreenCard, type ScreenAction } from "@/components/computer/screen-card";
 import { ConnectionNotice } from "@/components/connection-notice";
 import { ListRow, Separator } from "@/components/list-row";
@@ -175,6 +176,11 @@ export default function Computer() {
               <OfflineRow key={screen.id} screen={screen} first={index === 0} />
             ))}
           </Card>
+        </Section>
+      )}
+      {allOffline && offline.some((screen) => screen.lastFrame) && (
+        <Section title="Last seen">
+          <LastFrames screens={offline} />
         </Section>
       )}
     </ScrollView>

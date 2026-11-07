@@ -100,7 +100,7 @@ function BuiltInSkill({ skill }: { skill: (typeof BUILT_IN_SKILLS)[number] }) {
         {link && (
           <Link
             href={link.href}
-            className="inline-flex items-center gap-1 rounded-sm font-medium text-foreground underline decoration-foreground/25 underline-offset-[3px] transition-colors outline-none hover:decoration-foreground focus-visible:ring-[3px] focus-visible:ring-ring/12"
+            className="inline-flex items-center gap-1 rounded-sm font-medium text-foreground/80 underline-offset-[3px] transition-colors outline-none hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/12"
           >
             {link.label}
             <ArrowRight className="size-3.5" />

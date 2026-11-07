@@ -77,7 +77,7 @@ export function ScheduleRow({
             <span className="truncate text-[14.5px] font-medium group-hover:underline group-focus-visible:underline">
               {schedule.title}
             </span>
-            {!schedule.enabled && <StateBadge>{done ? "Done" : "Paused"}</StateBadge>}
+            {!schedule.enabled && <StateBadge>{done ? "Done" : "Off"}</StateBadge>}
             {schedule.createdBy === "bot" && (
               <span className="shrink-0 text-[12px] text-muted-foreground">
                 Set by {bot?.name ?? "a teammate"}
@@ -121,7 +121,7 @@ export function ScheduleRow({
             <Switch
               className="mx-1.5"
               checked={schedule.enabled}
-              aria-label={schedule.enabled ? "Pause" : "Resume"}
+              aria-label="On"
               onCheckedChange={async (checked) => {
                 const result = await setScheduleEnabled(schedule.id, checked);
                 if (!result.ok) toast.error(result.error);

@@ -1,4 +1,5 @@
 import type { ChatEntry, ChatSummary } from "@open-bot/api";
+import type { ChatStatus } from "@open-bot/shared";
 import { isRunActive } from "@open-bot/shared";
 import { safe } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -6,6 +7,8 @@ import { router, Stack, useLocalSearchParams } from "expo-router";
 import {
   Archive,
   ArrowDown,
+  ChevronRight,
+  CloudOff,
   EllipsisVertical,
   MessageCircle,
   Pencil,
@@ -13,17 +16,17 @@ import {
   Users,
 } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  activityText,
-  BotAvatar,
-  botActivity,
-  GroupAvatar,
-  PAUSED_OFFLINE,
-  StatusLine,
-  type BotActivity,
-} from "@/components/bot-avatar";
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { AvatarStack, BotAvatar, StatusLine, type BotActivity } from "@/components/bot-avatar";
 import { Composer } from "@/components/chat/composer";
 import { RunBlock } from "@/components/chat/run-block";
 import { UserMessage } from "@/components/chat/user-message";
@@ -37,7 +40,8 @@ import { api } from "@/lib/api";
 import { errorMessage, isNotFound } from "@/lib/errors";
 import { haptics } from "@/lib/haptics";
 import { queryKeys } from "@/lib/query";
-import { useComputerOffline, useNewDirectChat, useTeammates } from "@/lib/queries";
+import { useChats, useComputerOffline, useNewDirectChat, useTeammates } from "@/lib/queries";
+import { headerStatus } from "@/lib/chat-status";
 import { namedForTopic } from "@/lib/chats";
 import { lastActive } from "@/lib/time";
 import { useChat } from "@/lib/use-chat";
@@ -45,6 +49,7 @@ import { useChatRunTarget } from "@/lib/use-chat-run-target";
 import { useKeyboardHeight } from "@/lib/use-keyboard";
 import { phoneClock } from "@/lib/phone-clock";
 import { space, useColors } from "@/theme";
+import { mix } from "@/theme/mix";
 
 /** A conversation with a teammate (or a group), live while you're looking at it. */
 export default function ChatScreen() {
@@ -70,6 +75,7 @@ export default function ChatScreen() {
   // Archived (here or on another device) or deleted: what's cached of it is no use anymore.
   const gone = isNotFound(error);
   const { data: teammates } = useTeammates();
+  const { data: chatList } = useChats();
   const computerOffline = useComputerOffline();
   const newChat = useNewDirectChat();
   const allBots = teammates ?? members;
@@ -94,23 +100,32 @@ export default function ChatScreen() {
   const isGroup = chat?.kind === "group";
   const bot = !isGroup ? members[0] : undefined;
   const liveBot = bot && (allBots.find((candidate) => candidate.id === bot.id) ?? bot);
-  // What the teammate is doing matters here only when it's this chat they're doing it in.
-  const liveRun = liveBot?.activeRun?.chatId === chatId ? liveBot.activeRun : null;
-  // The header's status: what they're doing in this chat, paused while the computer is offline
-  // (said here, as there's no offline notice on this screen), or when they were last active.
-  const headerActivity: BotActivity = liveRun
-    ? botActivity(liveBot!, computerOffline)
-    : computerOffline
-      ? "paused"
-      : "idle";
-  const headerStatus =
-    headerActivity === "paused"
-      ? PAUSED_OFFLINE
-      : headerActivity === "idle"
-        ? liveBot?.lastActiveAt
+  // The header says what is happening in this chat, never what its teammates do elsewhere (the
+  // same words as the web's); what the teammate needs from you in another chat is a link there.
+  const status = useMemo(
+    () =>
+      headerStatus({
+        members: members.map(
+          (member) => allBots.find((candidate) => candidate.id === member.id) ?? member,
+        ),
+        group: isGroup,
+        chatId,
+        computerOnline: !computerOffline,
+        chatById: (id) => chatList?.find((entry) => entry.id === id),
+      }),
+    [members, allBots, isGroup, chatId, computerOffline, chatList],
+  );
+  const headerActivity: BotActivity = status.activity;
+  // An idle direct chat says when its teammate was last active instead; an idle group, nothing.
+  const headerText =
+    status.activity === "idle"
+      ? isGroup
+        ? null
+        : liveBot?.lastActiveAt
           ? lastActive(liveBot.lastActiveAt)
           : (bot?.role ?? "")
-        : activityText(headerActivity, liveRun?.waitingFor);
+      : status.label;
+  const elsewhere = status.elsewhere;
   const title = !chat
     ? ""
     : chat.kind === "scheduled"
@@ -238,7 +253,7 @@ export default function ChatScreen() {
                     testID="chat-header"
                   >
                     {isGroup ? (
-                      <GroupAvatar members={members} size="md" ring={colors.background} />
+                      <AvatarStack members={members} ring={colors.background} />
                     ) : (
                       liveBot && (
                         <BotAvatar
@@ -258,19 +273,18 @@ export default function ChatScreen() {
                       >
                         {title}
                       </Text>
-                      {isGroup ? (
-                        computerOffline ? (
-                          <StatusLine activity="paused" size="caption">
-                            Paused · {members.map((member) => member.name).join(", ")}
-                          </StatusLine>
-                        ) : (
-                          <Text variant="caption" muted numberOfLines={1}>
-                            {members.map((member) => member.name).join(", ")}
-                          </Text>
-                        )
+                      {isGroup && status.activity === "idle" ? (
+                        // Nothing happening here: who's in it, without a status light.
+                        <Text variant="caption" muted numberOfLines={1} testID="chat-status">
+                          {members.length} teammates
+                        </Text>
+                      ) : isGroup ? (
+                        <StatusLine activity={headerActivity} size="caption" testID="chat-status">
+                          {[`${members.length} teammates`, headerText].filter(Boolean).join(" · ")}
+                        </StatusLine>
                       ) : (
                         <StatusLine activity={headerActivity} size="caption" testID="chat-status">
-                          {`${chat && namedForTopic(chat, liveBot) ? `${liveBot!.name} · ` : ""}${headerStatus}`}
+                          {`${chat && namedForTopic(chat, liveBot) ? `${liveBot!.name} · ` : ""}${headerText}`}
                         </StatusLine>
                       )}
                     </View>
@@ -291,6 +305,9 @@ export default function ChatScreen() {
             ) : null,
         }}
       />
+      {chat && !gone && (computerOffline || elsewhere) && (
+        <ChatContext computerOffline={computerOffline} elsewhere={elsewhere} />
+      )}
       {Boolean(olderError) && (
         <View style={{ padding: space(3), gap: space(2) }}>
           <Text variant="small" style={{ color: colors.destructive }}>
@@ -595,15 +612,84 @@ function RenameForm({ chat, onDone }: { chat: ChatSummary; onDone: () => void })
   );
 }
 
+/**
+ * What's around the chat, under its header: a link to what its teammate needs from you in another
+ * chat, and that the computer is offline (a neutral chip, apart from the chat's own status; just
+ * "Offline" beside the link, so both fit on a phone).
+ */
+function ChatContext({
+  computerOffline,
+  elsewhere,
+}: {
+  computerOffline: boolean;
+  elsewhere: ChatStatus["elsewhere"];
+}) {
+  const colors = useColors();
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.context}
+      style={{ flexGrow: 0 }}
+      testID="chat-context"
+    >
+      {elsewhere && (
+        <Pressable
+          onPress={() => {
+            haptics.tap();
+            router.push(`/chats/${elsewhere.chatId}`);
+          }}
+          accessibilityRole="link"
+          android_ripple={{ color: mix(colors.attention, colors.surface, 0.18) }}
+          style={[
+            styles.chip,
+            styles.link,
+            {
+              backgroundColor: mix(colors.attention, colors.surface, 0.1),
+              borderColor: mix(colors.attention, colors.surface, 0.4),
+            },
+          ]}
+          testID="elsewhere-chip"
+        >
+          <View style={[styles.chipDot, { backgroundColor: colors.attention }]} />
+          <Text
+            variant="caption"
+            numberOfLines={1}
+            style={{ flexShrink: 1, fontWeight: "500", color: colors.attentionInk }}
+          >
+            {elsewhere.label}
+          </Text>
+          <ChevronRight size={14} color={colors.attentionInk} />
+        </Pressable>
+      )}
+      {computerOffline && (
+        <Pressable
+          onPress={() => router.navigate("/computer")}
+          accessibilityRole="button"
+          accessibilityHint="Opens the computer"
+          android_ripple={{ color: colors.muted }}
+          style={[styles.chip, { backgroundColor: colors.subtle, borderColor: colors.border }]}
+          testID="computer-offline-chip"
+        >
+          <CloudOff size={14} color={colors.mutedForeground} />
+          <Text variant="caption" muted style={{ fontWeight: "500" }}>
+            {elsewhere ? "Offline" : "Computer offline"}
+          </Text>
+        </Pressable>
+      )}
+    </ScrollView>
+  );
+}
+
 /** Back where you came from, or to the chats when the chat was opened straight from a link. */
 function goBack() {
   if (router.canGoBack()) router.back();
   else router.replace("/chats");
 }
 
-/** The room between turns: more than inside one, so each exchange reads as a unit. */
+/** The room between turns (about 24dp): more than inside one, so each exchange reads as a unit. */
 function Gap() {
-  return <View style={{ height: space(7) }} />;
+  return <View style={{ height: space(6) }} />;
 }
 
 /** A pause this long between two turns earns a time stamp, as in a messaging app. */
@@ -664,6 +750,26 @@ const styles = StyleSheet.create({
     height: StyleSheet.hairlineWidth * 2,
   },
   menuButton: { width: 48, height: 48, alignItems: "center", justifyContent: "center" },
+  context: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space(2),
+    paddingHorizontal: space(4),
+    paddingBottom: space(2),
+  },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space(1.5),
+    height: 32,
+    paddingHorizontal: space(3),
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: "hidden",
+  },
+  chipDot: { width: 6, height: 6, borderRadius: 3 },
+  // A long chat name ends in an ellipsis, so the offline chip beside it stays in view.
+  link: { maxWidth: 300 },
   latestWrap: { position: "absolute", right: space(4), bottom: space(3) },
   latest: {
     width: 44,

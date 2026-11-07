@@ -1,6 +1,6 @@
 "use client";
 
-import { BOT_COLORS, isRunActive, TEAMMATE_TEMPLATES } from "@open-bot/shared";
+import { approvalShortTitle, BOT_COLORS, isRunActive, TEAMMATE_TEMPLATES } from "@open-bot/shared";
 import { format, formatDistanceToNowStrict, isToday, isTomorrow } from "date-fns";
 import {
   AlertCircle,
@@ -14,28 +14,36 @@ import {
   ShieldAlert,
   Sparkles,
   UserRound,
-  Users,
   Webhook,
   X,
 } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useSyncExternalStore } from "react";
 import { BotAvatar } from "@/components/bot-avatar";
+import { TimeAgo } from "@/components/time-ago";
 import { ComputerOffline, ComputerPanel, useComputer } from "@/components/computer/computer-panel";
 import { Briefing, useBriefingItems } from "@/components/home/briefing";
 import { PageThumbnail } from "@/components/pages/page-thumbnail";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useActivity, useAppState, usePages, useProfile, useSchedules } from "@/lib/client/queries";
+import {
+  useActivity,
+  useApprovals,
+  useAppState,
+  usePages,
+  useProfile,
+  useSchedules,
+} from "@/lib/client/queries";
 import {
   botActivity,
+  failureLine,
   isComputerOnline,
   runIsHeldBack,
   STATUS,
   teammateStatus,
   WAITING_FOR_COMPUTER,
 } from "@/lib/status";
-import type { AppState } from "@/lib/types";
+import type { ActivityView, AppState, TakeoverRequestSummary } from "@/lib/types";
 import { chatHref, cn, plainText } from "@/lib/utils";
 
 /** The minute it is in the browser. Null while rendering on the server, whose clock and time zone aren't the reader's. */
@@ -96,64 +104,126 @@ export function teamSummary(
 
 /** The amber row of something you can act on. */
 const NEEDS_ROW =
-  "flex items-center gap-3 rounded-xl border border-attention/40 bg-attention/[0.07] px-4 py-3 transition-colors hover:bg-attention/[0.12]";
+  "flex items-start gap-3 rounded-xl border border-attention/40 bg-attention/[0.07] px-4 py-3 transition-colors hover:bg-attention/[0.12]";
 
+/** The most approvals listed one by one; the rest are on the approvals page. */
+const APPROVALS_SHOWN = 3;
+
+/** Each pending approval on its own row: what it does, with the amount or recipient, and who asks. */
+function ApprovalRows({ state }: { state: AppState }) {
+  const { data } = useApprovals();
+  const pending = (data ?? []).filter((approval) => approval.status === "pending");
+  // Until the list agrees with the count, one row stands for them all.
+  if (pending.length !== state.pendingApprovals)
+    return (
+      <Link href="/approvals" className={NEEDS_ROW} data-testid="home-approvals">
+        <ShieldAlert className="mt-0.5 size-4 shrink-0 text-attention-ink" />
+        <span className="flex-1 text-[14px] font-medium">
+          {state.pendingApprovals === 1
+            ? "1 action needs your approval"
+            : `${state.pendingApprovals} actions need your approval`}
+        </span>
+        <ArrowRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+      </Link>
+    );
+  const more = pending.length - APPROVALS_SHOWN;
+  return (
+    <>
+      {pending.slice(0, APPROVALS_SHOWN).map((approval) => {
+        const bot = state.bots.find((entry) => entry.id === approval.botId);
+        const title = approvalShortTitle({
+          ...approval,
+          previewType: approval.preview?.type ?? null,
+        });
+        return (
+          <Link
+            key={approval.id}
+            href={chatHref(approval.chatId, approval.runId)}
+            className={NEEDS_ROW}
+            data-testid="home-approval"
+          >
+            <ShieldAlert className="mt-0.5 size-4 shrink-0 text-attention-ink" />
+            <span className="line-clamp-2 min-w-0 flex-1 text-[14px] break-words text-pretty">
+              <span className="font-medium">{title}</span>
+              {bot && <span className="text-muted-foreground"> · {bot.name}</span>}
+            </span>
+            <ArrowRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+          </Link>
+        );
+      })}
+      {more > 0 && (
+        <Link
+          href="/approvals"
+          className="flex items-center gap-1 self-start px-1 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+        >
+          {more} more {more === 1 ? "approval" : "approvals"}
+          <ArrowRight className="size-3.5" />
+        </Link>
+      )}
+    </>
+  );
+}
+
+/**
+ * A teammate asks you to take over their screen. While the computer is online you can, so it is
+ * an amber row like an approval. While it is offline you can't yet: a lighter card with when you
+ * can, after what you can act on now.
+ */
+function TakeoverRow({ request, online }: { request: TakeoverRequestSummary; online: boolean }) {
+  const href = `/computer?screen=${request.screenId}`;
+  if (online)
+    return (
+      <Link href={href} className={NEEDS_ROW} data-testid="home-takeover-request">
+        <Hand className="mt-0.5 size-4 shrink-0 text-attention-ink" />
+        <span className="line-clamp-2 min-w-0 flex-1 text-[14px] break-words text-pretty">
+          <span className="font-medium">{request.botName} needs you to take over:</span>{" "}
+          <span className="text-muted-foreground">{request.reason}</span>
+        </span>
+        <ArrowRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+      </Link>
+    );
+  return (
+    <div
+      className="flex items-start gap-3 rounded-xl bg-card px-4 py-3 shadow-raised"
+      data-testid="home-takeover-request"
+    >
+      <Hand className="mt-0.5 size-4 shrink-0 text-attention-ink" />
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="text-[14px] font-medium">{request.botName} needs you to take over</span>
+        <span className="line-clamp-2 text-[13px] break-words text-pretty text-muted-foreground">
+          {request.reason}
+        </span>
+        <span className="mt-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+          <span className="text-[12.5px] text-muted-foreground">
+            You can take over once the computer is back.
+          </span>
+          <Link
+            href={href}
+            className="flex items-center gap-1 text-[13px] font-medium text-foreground/85 transition-colors hover:text-foreground"
+          >
+            View request
+            <ArrowRight className="size-3.5" />
+          </Link>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * What needs you, and only what you can act on here: each approval, then each take over request
+ * (first instead while the computer is online, since then it's the most urgent). The number in the
+ * line under the greeting counts exactly these rows.
+ */
 function NeedsYou() {
   const { data: state } = useAppState();
   if (!state) return null;
   const online = isComputerOnline(state);
-  const waiting = state.bots.filter((bot) => bot.activeRun?.status === "waiting");
   const requests = state.takeoverRequests;
-  const proposals = state.proposals.flatMap((proposal) => {
-    const bot = state.bots.find((entry) => entry.id === proposal.botId);
-    return bot ? [{ ...proposal, bot }] : [];
-  });
-  if (
-    state.pendingApprovals === 0 &&
-    requests.length === 0 &&
-    waiting.length === 0 &&
-    proposals.length === 0
-  )
-    return null;
-
-  const approvals = state.pendingApprovals > 0 && (
-    <Link href="/approvals" className={NEEDS_ROW} data-testid="home-approvals">
-      <ShieldAlert className="size-4 shrink-0 text-attention-ink" />
-      <span className="flex-1 text-[14px] font-medium">
-        {state.pendingApprovals === 1
-          ? "1 action needs your approval"
-          : `${state.pendingApprovals} actions need your approval`}
-      </span>
-      <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
-    </Link>
-  );
-  // A take over you can do now comes first; one that waits for the computer goes after what you can do.
+  if (state.pendingApprovals === 0 && requests.length === 0) return null;
+  const approvals = state.pendingApprovals > 0 && <ApprovalRows state={state} />;
   const takeovers = requests.map((request) => (
-    <Link
-      key={request.id}
-      href={`/computer?screen=${request.screenId}`}
-      className={cn(NEEDS_ROW, "items-start")}
-      data-testid="home-takeover-request"
-    >
-      <Hand className="mt-0.5 size-4 shrink-0 text-attention-ink" />
-      {online ? (
-        <span className="min-w-0 flex-1 text-[14px] text-pretty">
-          <span className="font-medium">{request.botName} needs you to take over:</span>{" "}
-          <span className="text-muted-foreground">{request.reason}</span>
-        </span>
-      ) : (
-        <span className="flex min-w-0 flex-1 flex-col gap-0.5 text-[14px]">
-          <span className="truncate">
-            <span className="font-medium">{request.botName} needs you to take over:</span>{" "}
-            <span className="text-muted-foreground">{request.reason}</span>
-          </span>
-          <span className="text-[13px] text-pretty text-attention-ink">
-            Take over once the computer is back.
-          </span>
-        </span>
-      )}
-      <ArrowRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-    </Link>
+    <TakeoverRow key={request.id} request={request} online={online} />
   ));
   return (
     <section className="flex flex-col gap-2.5" aria-label="Needs you">
@@ -172,22 +242,42 @@ function NeedsYou() {
             {takeovers}
           </>
         )}
-        {proposals.map((proposal) => (
-          <Link
-            key={proposal.id}
-            href={`/bots/${proposal.bot.id}`}
-            className="flex items-center gap-3 rounded-xl bg-card px-4 py-3 shadow-raised transition-colors hover:bg-muted/40"
-            data-testid="proposal-link"
-          >
-            <Sparkles className="size-4 shrink-0 text-muted-foreground" />
-            <span className="flex-1 text-[14px] font-medium">
-              {proposal.bot.name} suggests new instructions
-            </span>
-            <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
-          </Link>
-        ))}
       </div>
     </section>
+  );
+}
+
+/**
+ * A teammate's suggested new instructions: worth a look when you have a minute, so a quiet row
+ * outside "Needs you", and not in its count.
+ */
+function Suggestions() {
+  const { data: state } = useAppState();
+  const proposals = (state?.proposals ?? []).flatMap((proposal) => {
+    const bot = state?.bots.find((entry) => entry.id === proposal.botId);
+    return bot ? [{ ...proposal, bot }] : [];
+  });
+  if (proposals.length === 0) return null;
+  return (
+    <div className="flex flex-col">
+      {proposals.map((proposal) => (
+        <Link
+          key={proposal.id}
+          href={`/bots/${proposal.bot.id}`}
+          className="group flex items-center gap-3 rounded-xl px-4 py-2.5 text-[13.5px] transition-colors hover:bg-subtle"
+          data-testid="proposal-link"
+        >
+          <Sparkles className="size-4 shrink-0 text-muted-foreground" />
+          <span className="shrink-0 rounded-full bg-subtle px-2 py-px text-[11.5px] font-medium text-muted-foreground group-hover:bg-muted">
+            Suggestion
+          </span>
+          <span className="min-w-0 flex-1 text-pretty">
+            {proposal.bot.name} suggests new instructions
+          </span>
+          <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
+        </Link>
+      ))}
+    </div>
   );
 }
 
@@ -450,6 +540,52 @@ function RecentPages() {
   );
 }
 
+/** A small mark for a run an automation started, before its outcome. */
+const ACTIVITY_TRIGGER_ICONS: Partial<Record<ActivityView["trigger"], typeof CalendarClock>> = {
+  schedule: CalendarClock,
+  watch: Eye,
+  webhook: Webhook,
+  gmail: Mail,
+  calendar: CalendarDays,
+};
+
+/**
+ * What came of a teammate's turn, in a few words for one line: its status while it is still going
+ * (in the words used everywhere), else the start of the reply, or why it didn't finish.
+ */
+function activityOutcome(
+  item: ActivityView,
+  online: boolean,
+  waitingFor: "approval" | "takeover" | null,
+): { text: string; tone: "attention" | "failed" | "plain"; dot: string | null; where?: string } {
+  // While it's going, the status alone doesn't say what it's about: the chat's name does.
+  const where =
+    item.chatKind === "direct" || item.chatKind === "group" ? item.chatTitle : undefined;
+  if (isRunActive(item.status)) {
+    if (item.status === "waiting") {
+      return {
+        text: waitingFor === "takeover" ? STATUS.takeover : STATUS.approval,
+        tone: "attention",
+        dot: "bg-attention",
+        where,
+      };
+    }
+    if (!online) return { text: STATUS.paused, tone: "plain", dot: "bg-idle", where };
+    if (item.status === "queued")
+      return { text: STATUS.upNext, tone: "plain", dot: "bg-idle", where };
+    return { text: STATUS.working, tone: "plain", dot: "animate-tally bg-working", where };
+  }
+  if (item.status === "failed")
+    return {
+      text: failureLine(item.preview && plainText(item.preview)),
+      tone: "failed",
+      dot: null,
+    };
+  const text = plainText(item.preview ?? (item.status === "interrupted" ? "Stopped" : "Done"));
+  const group = item.chatKind === "group" ? `${item.chatTitle}: ` : "";
+  return { text: `${group}${text}`, tone: "plain", dot: null };
+}
+
 function Activity() {
   const { data: state } = useAppState();
   const { data: all, isLoading } = useActivity();
@@ -477,102 +613,53 @@ function Activity() {
         <ol className="divide-y divide-border/70 overflow-hidden rounded-xl bg-card shadow-raised">
           {data.map((item) => {
             const bot = state.bots.find((b) => b.id === item.botId);
-            const active = isRunActive(item.status);
-            const paused = active && !online && item.status !== "waiting";
+            const outcome = activityOutcome(
+              item,
+              online,
+              state.bots.find((entry) => entry.activeRun?.id === item.runId)?.activeRun
+                ?.waitingFor ?? null,
+            );
+            const TriggerIcon = ACTIVITY_TRIGGER_ICONS[item.trigger];
             return (
               <li key={item.runId}>
+                {/* One line: who, what came of it, when. */}
                 <Link
                   href={chatHref(item.chatId, item.runId)}
-                  className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-subtle/70"
+                  className="flex h-12 items-center gap-3 px-3.5 text-[13.5px] transition-colors hover:bg-subtle/70"
+                  data-testid="activity-row"
                 >
                   {bot ? (
-                    <BotAvatar
-                      name={bot.name}
-                      color={bot.color}
-                      emoji={bot.emoji}
-                      size="sm"
-                      className="mt-0.5"
-                    />
+                    <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="sm" />
                   ) : (
-                    <span className="size-7 rounded-[8px] bg-subtle" />
+                    <span className="size-7 shrink-0 rounded-[8px] bg-subtle" />
                   )}
-                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <span className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
-                      <span className="font-medium text-foreground">
-                        {bot?.name ?? "Former teammate"}
+                  <span className="shrink-0 font-medium">{bot?.name ?? "Former teammate"}</span>
+                  <span
+                    className={cn(
+                      "flex min-w-0 flex-1 items-center gap-1.5 text-muted-foreground",
+                      outcome.tone === "attention" && "text-attention-ink",
+                    )}
+                  >
+                    {outcome.dot && (
+                      <span className={cn("size-1.5 shrink-0 rounded-full", outcome.dot)} />
+                    )}
+                    {outcome.tone === "failed" && (
+                      <AlertCircle className="size-3.5 shrink-0 text-destructive" />
+                    )}
+                    {TriggerIcon && !outcome.dot && (
+                      <TriggerIcon className="size-3.5 shrink-0" aria-hidden />
+                    )}
+                    <span className={outcome.where ? "shrink-0" : "truncate"}>{outcome.text}</span>
+                    {outcome.where && (
+                      <span className="min-w-0 truncate text-muted-foreground">
+                        · {outcome.where}
                       </span>
-                      {item.chatKind === "group" && (
-                        <span className="flex items-center gap-1">
-                          <Users className="size-3" /> {item.chatTitle}
-                        </span>
-                      )}
-                      {item.trigger === "schedule" && (
-                        <span className="flex items-center gap-1">
-                          <CalendarClock className="size-3" /> scheduled
-                        </span>
-                      )}
-                      {item.trigger === "watch" && (
-                        <span className="flex items-center gap-1">
-                          <Eye className="size-3" /> page changed
-                        </span>
-                      )}
-                      {item.trigger === "webhook" && (
-                        <span className="flex items-center gap-1">
-                          <Webhook className="size-3" /> webhook
-                        </span>
-                      )}
-                      {item.trigger === "gmail" && (
-                        <span className="flex items-center gap-1">
-                          <Mail className="size-3" /> new mail
-                        </span>
-                      )}
-                      {item.trigger === "calendar" && (
-                        <span className="flex items-center gap-1">
-                          <CalendarDays className="size-3" /> event coming up
-                        </span>
-                      )}
-                      <span>
-                        · {formatDistanceToNowStrict(new Date(item.createdAt), { addSuffix: true })}
-                      </span>
-                    </span>
-                    <span className="line-clamp-2 text-[13.5px] leading-snug text-foreground/90">
-                      {active ? (
-                        <span
-                          className={cn(
-                            "flex items-center gap-1.5 text-muted-foreground",
-                            item.status === "waiting" && "text-attention-ink",
-                          )}
-                        >
-                          <span
-                            className={cn(
-                              "size-1.5 rounded-full",
-                              item.status === "waiting"
-                                ? "bg-attention"
-                                : item.status === "queued" || paused
-                                  ? "bg-idle"
-                                  : "animate-tally bg-working",
-                            )}
-                          />
-                          {item.status === "waiting"
-                            ? "Needs you"
-                            : paused
-                              ? STATUS.paused
-                              : item.status === "queued"
-                                ? "Up next"
-                                : "Working on it"}
-                        </span>
-                      ) : item.status === "failed" ? (
-                        <>
-                          <AlertCircle className="mr-1.5 inline size-3.5 -translate-y-px text-destructive" />
-                          {plainText(item.preview ?? "Couldn't finish")}
-                        </>
-                      ) : (
-                        plainText(
-                          item.preview ?? (item.status === "interrupted" ? "Stopped" : "Done"),
-                        )
-                      )}
-                    </span>
+                    )}
                   </span>
+                  <TimeAgo
+                    date={item.createdAt}
+                    className="shrink-0 text-[12.5px] text-muted-foreground tabular-nums"
+                  />
                 </Link>
               </li>
             );
@@ -623,7 +710,11 @@ export function HomeView() {
           {offline && botIds.length > 0 && (
             <ComputerOffline botNames={botNames} className="-mt-2 xl:hidden" />
           )}
-          <NeedsYou />
+          {/* The suggestion sits right under what needs you, apart from it. */}
+          <div className="flex flex-col gap-2 empty:hidden">
+            <NeedsYou />
+            <Suggestions />
+          </div>
           <Briefing />
           <ProfileNudge />
           <Teammates />

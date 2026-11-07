@@ -2,12 +2,15 @@ import * as Clipboard from "expo-clipboard";
 import { RECOVERY_COPY } from "@open-bot/shared";
 import { Check, Copy } from "lucide-react-native";
 import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
 import { haptics } from "@/lib/haptics";
 import { radius, space, useColors } from "@/theme";
 
-/** A command to run somewhere else, in full, with a Copy button that says when it worked. */
+/**
+ * A command to run somewhere else, on one line that scrolls sideways (a command broken mid-way
+ * reads as two), with a Copy button that says when it worked.
+ */
 export function CopyCommand({ command, testID }: { command: string; testID?: string }) {
   const colors = useColors();
   const [copied, setCopied] = useState(false);
@@ -21,9 +24,16 @@ export function CopyCommand({ command, testID }: { command: string; testID?: str
       style={[styles.box, { backgroundColor: colors.subtle, borderColor: colors.border }]}
       testID={testID}
     >
-      <Text variant="mono" selectable style={styles.command}>
-        {command}
-      </Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.scroll}
+        contentContainerStyle={styles.line}
+      >
+        <Text variant="mono" style={styles.command}>
+          {command}
+        </Text>
+      </ScrollView>
       <Pressable
         onPress={() => {
           void Clipboard.setStringAsync(command);
@@ -61,8 +71,11 @@ const styles = StyleSheet.create({
     paddingLeft: space(3),
     paddingRight: space(1.5),
     paddingVertical: space(1.5),
+    overflow: "hidden",
   },
-  command: { flex: 1, fontSize: 12.5, lineHeight: 18 },
+  scroll: { flex: 1 },
+  line: { alignItems: "center", paddingRight: space(1) },
+  command: { fontSize: 12.5, lineHeight: 18 },
   copy: {
     flexDirection: "row",
     alignItems: "center",

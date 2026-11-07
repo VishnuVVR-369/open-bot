@@ -4,6 +4,7 @@ import {
   approvalCommand,
   approvalHeadline,
   approvalRisk,
+  approvalShortTitle,
   approveLabel,
   commandSummary,
   detailFields,
@@ -175,5 +176,27 @@ describe("previewText", () => {
     const { text, cut } = previewText("word ".repeat(100), { maxChars: 42 });
     expect(cut).toBe(true);
     expect(text).toBe(`${"word ".repeat(8).trim()}…`);
+  });
+});
+
+describe("approvalShortTitle", () => {
+  it("keeps the amount and the recipient, in a few words", () => {
+    expect(
+      approvalShortTitle({
+        kind: "purchase",
+        title: "Pay $842.30 to TAP Air Portugal",
+        detail: "",
+      }),
+    ).toBe("Pay $842.30 to TAP Air Portugal");
+    expect(
+      approvalShortTitle({
+        kind: "account_outward",
+        title: "Send an email to Priya Nair",
+        detail: "",
+      }),
+    ).toBe("Email to Priya Nair");
+    expect(
+      approvalShortTitle({ kind: "command", title: "git push -u origin fix/dst", detail: "" }),
+    ).toBe(commandSummary("git push -u origin fix/dst"));
   });
 });

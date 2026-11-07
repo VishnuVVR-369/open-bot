@@ -35,11 +35,12 @@ function RateButton({
       <TooltipTrigger asChild>
         <Button
           variant="ghost"
-          size="icon-xs"
+          size="icon"
           aria-label={label}
           aria-pressed={active}
           className={cn(
-            "text-muted-foreground",
+            // A 32px target with a 16px glyph, like the reply's other actions.
+            "size-8 text-muted-foreground [&_svg:not([class*='size-'])]:size-4",
             // Shown on hover like the copy button, and always once you've picked it.
             active ? "text-foreground [&_svg]:fill-current" : REVEAL_ON_RUN_HOVER,
           )}
@@ -115,7 +116,7 @@ export function ReplyFeedback({
 
   return (
     <span
-      className="flex items-center"
+      className="flex items-center gap-0.5"
       data-testid="reply-feedback"
       // A rated reply keeps its whole action row in view, so the picked thumb never floats alone.
       data-pinned={open || rating ? true : undefined}

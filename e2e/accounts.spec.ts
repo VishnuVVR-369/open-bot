@@ -13,7 +13,14 @@ import {
   parseMime,
 } from "./accounts-stand-in";
 import { expect, test, type Page } from "./fixtures";
-import { botIdOf, createTeammate, sendMessage, uniqueName, waitForLastRun } from "./helpers";
+import {
+  approve,
+  botIdOf,
+  createTeammate,
+  sendMessage,
+  uniqueName,
+  waitForLastRun,
+} from "./helpers";
 
 /**
  * Connecting Gmail, Google Calendar and Notion, and teammates using them, against a stand-in for
@@ -325,7 +332,7 @@ test.describe("Accounts, against a stand-in for Google and Notion", () => {
 
     // You change the draft in Gmail meanwhile: what goes out is what the card showed you.
     standIn.gmail.editDraft(draftId!, "Changed in Gmail after the approval card was shown.");
-    await card.getByTestId("approve").click();
+    await approve(card);
     await waitForLastRun(page, ["completed"]);
     await expect.poll(() => standIn.gmail.sent.length).toBe(1);
     const action = await lastAction(name, "gmail.send_draft");

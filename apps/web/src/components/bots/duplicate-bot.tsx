@@ -69,7 +69,7 @@ export function DuplicateBotDialog({
       setOpen(false);
       if (result.data.memoryCopied) {
         toast(`${name.trim()} is ready`, {
-          description: `Set up like ${bot.name}. Their automations start paused.`,
+          description: `Set up like ${bot.name}. Their automations start off.`,
         });
       } else {
         toast.warning(`${name.trim()} is ready, without ${bot.name}'s memory`, {
@@ -88,7 +88,7 @@ export function DuplicateBotDialog({
           <DialogTitle>Duplicate {bot.name}</DialogTitle>
           <DialogDescription>
             The new teammate gets {bot.name}&apos;s job and instructions, their own skills, what
-            they may do without asking, and their schedules and page watches, paused. Chats and
+            they may do without asking, and their schedules and page watches, turned off. Chats and
             webhooks stay with {bot.name}.
           </DialogDescription>
         </DialogHeader>

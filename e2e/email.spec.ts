@@ -3,7 +3,7 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 import pg from "pg";
 import { expect, test, type Page } from "./fixtures";
-import { botIdOf, createTeammate, uniqueName, waitForLastRun } from "./helpers";
+import { approve, botIdOf, createTeammate, uniqueName, waitForLastRun } from "./helpers";
 
 const pool = new pg.Pool({
   connectionString:
@@ -152,7 +152,7 @@ test("@agent a teammate answers an email from its own address, after you approve
     await expect(approval.locator("svg.lucide-mail")).toBeVisible();
     await expect(approval.getByRole("button", { name: /Always allow/ })).toHaveCount(0);
     expect(sent).toHaveLength(0);
-    await approval.getByTestId("approve").click();
+    await approve(approval);
     await expect.poll(() => sent.length, { timeout: 30_000 }).toBe(1);
     await waitForLastRun(page, ["completed"]);
     await expect(page.getByText(`Emailed dana@example.com`).first()).toBeVisible();

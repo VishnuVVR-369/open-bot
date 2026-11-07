@@ -1,17 +1,16 @@
 "use client";
 
 import { RECOVERY_COPY, resetPasswordCommand } from "@open-bot/shared";
-import { Eye, EyeOff, KeyRound, Loader2 } from "lucide-react";
+import { KeyRound, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, type ComponentProps } from "react";
+import { useState } from "react";
 import { CopyCommand } from "@/components/copy-command";
+import { PasswordInput } from "@/components/password-input";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -25,8 +24,9 @@ import { PASSWORD_MIN_LENGTH } from "@open-bot/shared";
 const SET_PASSWORD = "/settings#set-password";
 
 /**
- * There's no email to send a reset link with, so this says the two ways back in: a passkey,
- * which also lets you set a new password right after, or the reset command on the server.
+ * There's no email to send a reset link with, so this leads with the short way back in: a passkey,
+ * which also lets you set a new password right after. The reset command on the server sits below,
+ * under "Other ways".
  */
 function ForgotPassword({
   email,
@@ -48,29 +48,17 @@ function ForgotPassword({
           Forgot password?
         </button>
       </DialogTrigger>
-      <DialogContent className="gap-5 sm:max-w-[460px]">
+      <DialogContent className="gap-0 sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle>{RECOVERY_COPY.title}</DialogTitle>
-          <DialogDescription>{RECOVERY_COPY.intro}</DialogDescription>
+          <DialogDescription className="text-[14px] text-foreground/80">
+            {RECOVERY_COPY.passkeyHeading}
+          </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-5 text-[14px]">
-          <section className="flex flex-col gap-1">
-            <h3 className="font-medium">{RECOVERY_COPY.passkeyHeading}</h3>
-            <p className="text-muted-foreground">{RECOVERY_COPY.passkeyBody}</p>
-          </section>
-          <section className="flex flex-col gap-2">
-            <div className="flex flex-col gap-1">
-              <h3 className="font-medium">{RECOVERY_COPY.serverHeading}</h3>
-              <p className="text-muted-foreground">{RECOVERY_COPY.serverBody}</p>
-            </div>
-            <CopyCommand command={resetPasswordCommand(email)} />
-          </section>
-        </div>
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button variant="outline">{RECOVERY_COPY.close}</Button>
-          </DialogClose>
+        <div className="mt-4 flex flex-col gap-2">
           <Button
+            size="lg"
+            className="w-full"
             onClick={() => {
               setOpen(false);
               onPasskey();
@@ -80,36 +68,21 @@ function ForgotPassword({
             <KeyRound />
             {RECOVERY_COPY.passkeyAction}
           </Button>
-        </DialogFooter>
+          <p className="text-[13px] text-muted-foreground">{RECOVERY_COPY.passkeyNote}</p>
+        </div>
+        <section
+          className="mt-5 flex flex-col gap-2 border-t pt-4 text-[13px]"
+          aria-labelledby="forgot-other-ways"
+        >
+          <h3 id="forgot-other-ways" className="font-medium text-foreground/80">
+            {RECOVERY_COPY.otherWaysHeading}
+          </h3>
+          <p className="text-muted-foreground">{RECOVERY_COPY.serverBody}</p>
+          <CopyCommand command={resetPasswordCommand(email)} />
+          <p className="text-[12.5px] text-muted-foreground">{RECOVERY_COPY.noEmailNote}</p>
+        </section>
       </DialogContent>
     </Dialog>
-  );
-}
-
-/** A password field with a button that shows what you typed. */
-function PasswordInput({
-  mode,
-  ...props
-}: { mode: "login" | "setup" } & ComponentProps<typeof Input>) {
-  const [visible, setVisible] = useState(false);
-  return (
-    <div className="relative">
-      <Input
-        {...props}
-        type={visible ? "text" : "password"}
-        autoComplete={mode === "setup" ? "new-password" : "current-password"}
-        className="pr-10"
-      />
-      <button
-        type="button"
-        onClick={() => setVisible((value) => !value)}
-        aria-label={visible ? "Hide password" : "Show password"}
-        aria-pressed={visible}
-        className="absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-r-lg text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/12"
-      >
-        {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-      </button>
-    </div>
   );
 }
 
@@ -196,7 +169,7 @@ export function AuthForm({ mode }: { mode: "login" | "setup" }) {
             )}
           </div>
           <PasswordInput
-            mode={mode}
+            autoComplete={mode === "setup" ? "new-password" : "current-password"}
             id="password"
             name="password"
             minLength={PASSWORD_MIN_LENGTH}

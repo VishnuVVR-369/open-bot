@@ -14,8 +14,16 @@ import {
   type ApprovalRisk,
 } from "@open-bot/shared";
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, CloudOff, CreditCard, Mail, ShieldAlert, TriangleAlert } from "lucide-react";
-import { useTransition } from "react";
+import {
+  Check,
+  ChevronDown,
+  CloudOff,
+  CreditCard,
+  Mail,
+  ShieldAlert,
+  TriangleAlert,
+} from "lucide-react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { decideApproval } from "@/lib/actions";
@@ -23,7 +31,7 @@ import { queryKeys, useAppState } from "@/lib/client/queries";
 import { isComputerOnline } from "@/lib/status";
 import { InlineCode } from "@/components/inline-code";
 import { cn } from "@/lib/utils";
-import { ActionPreview, previewIcon } from "./action-preview";
+import { ActionPreview, emailIsClamped, previewIcon } from "./action-preview";
 import { AlwaysAllowButton } from "./always-allow";
 
 /** The surface of an approval waiting on you: the "needs you" amber, kept quiet. */
@@ -125,13 +133,24 @@ export function ApprovalTitle({
  */
 export function ApprovalDetail({
   approval,
+  emailOpen,
+  onEmailOpenChange,
   className,
 }: {
   approval: ApprovalSubject;
+  emailOpen?: boolean;
+  onEmailOpenChange?: (open: boolean) => void;
   className?: string;
 }) {
   if (approval.preview)
-    return <ActionPreview preview={approval.preview} className={cn("max-w-[680px]", className)} />;
+    return (
+      <ActionPreview
+        preview={approval.preview}
+        emailOpen={emailOpen}
+        onEmailOpenChange={onEmailOpenChange}
+        className={className}
+      />
+    );
   const detail = approval.detail.trim();
   if (!detail && approval.kind !== "command") return null;
 
@@ -142,7 +161,7 @@ export function ApprovalDetail({
     const command = parts.command ?? approvalCommand(facts);
     const { reason, cwd } = parts;
     return (
-      <div className={cn("flex max-w-[680px] min-w-0 flex-col gap-1.5", className)}>
+      <div className={cn("flex min-w-0 flex-col gap-1.5", className)}>
         {reason && (
           <p className="text-[13.5px] leading-relaxed whitespace-pre-wrap text-foreground/85">
             {reason}
@@ -162,7 +181,7 @@ export function ApprovalDetail({
   return (
     <div
       className={cn(
-        "flex max-w-[680px] min-w-0 flex-col gap-2.5 rounded-lg border bg-card px-3.5 py-3 text-[13.5px]",
+        "flex min-w-0 flex-col gap-2.5 rounded-lg border bg-card px-3.5 py-3 text-[13.5px]",
         className,
       )}
       data-testid="approval-detail"
@@ -184,16 +203,22 @@ export function ApprovalDetail({
   );
 }
 
-/** Approve, deny, or approve and allow from now on. The approve button says what happens. */
+/**
+ * Deny, approve, or approve and allow from now on. The secondary choice sits left and the
+ * primary right, as on the phone, and the approve button says what happens. With `onReview`,
+ * there's more to read first (a long email), so the primary action reads it.
+ */
 export function ApprovalDecision({
   approvalId,
   approval,
   botName,
+  onReview,
   className,
 }: {
   approvalId: string;
   approval: ApprovalSubject;
   botName: string;
+  onReview?: () => void;
   className?: string;
 }) {
   const [pending, startTransition] = useTransition();
@@ -223,16 +248,6 @@ export function ApprovalDecision({
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
       <Button
         size="lg"
-        className="px-3.5"
-        onClick={() => decide("approved")}
-        disabled={pending}
-        data-testid="approve"
-      >
-        <Check />
-        {approveLabel(approvalFacts(approval))}
-      </Button>
-      <Button
-        size="lg"
         variant="outline"
         className="px-3.5"
         onClick={() => decide("denied")}
@@ -241,6 +256,23 @@ export function ApprovalDecision({
       >
         Deny
       </Button>
+      {onReview ? (
+        <Button size="lg" className="px-3.5" onClick={onReview} data-testid="review">
+          <ChevronDown />
+          Review full email
+        </Button>
+      ) : (
+        <Button
+          size="lg"
+          className="px-3.5"
+          onClick={() => decide("approved")}
+          disabled={pending}
+          data-testid="approve"
+        >
+          <Check />
+          {approveLabel(approvalFacts(approval))}
+        </Button>
+      )}
       {ruleAllowed(approval.kind) && !approval.askEveryTime && (
         <AlwaysAllowButton
           kind={approval.kind}
@@ -260,5 +292,34 @@ export function ApprovalDecision({
         </span>
       )}
     </div>
+  );
+}
+
+/**
+ * What a pending approval does and the decision under it. A long email is cut to its first
+ * lines; until it's read in full, the primary action is "Review full email", which opens it in
+ * place, so the approve button ends up at the end of the message.
+ */
+export function ApprovalReview({
+  approvalId,
+  approval,
+  botName,
+}: {
+  approvalId: string;
+  approval: ApprovalSubject;
+  botName: string;
+}) {
+  const [emailOpen, setEmailOpen] = useState(false);
+  const unread = emailIsClamped(approval.preview) && !emailOpen;
+  return (
+    <>
+      <ApprovalDetail approval={approval} emailOpen={emailOpen} onEmailOpenChange={setEmailOpen} />
+      <ApprovalDecision
+        approvalId={approvalId}
+        approval={approval}
+        botName={botName}
+        onReview={unread ? () => setEmailOpen(true) : undefined}
+      />
+    </>
   );
 }

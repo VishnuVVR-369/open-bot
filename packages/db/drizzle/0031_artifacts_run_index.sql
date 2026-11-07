@@ -1,0 +1,1 @@
+CREATE INDEX "artifacts_run_idx" ON "artifacts" USING btree ("run_id","created_at");

@@ -44,13 +44,30 @@ function Note({ children }: { children: ReactNode }) {
   );
 }
 
+/** Whether the email's body is cut in its preview, so there's more to read before approving. */
+export function emailIsClamped(preview: AccountActionPreview | null | undefined): boolean {
+  return preview?.type === "email" && previewText(preview.body).cut;
+}
+
 /**
- * An email's body, cut to its first few lines so Approve and Deny stay in view, with a button
- * to read the rest. The button only shows when the body is actually cut.
+ * An email's body, cut to its first few lines so the decision stays in view. When the approval
+ * controls it (`open`), its primary action reads the rest and only "Show less" shows here;
+ * otherwise a "Show full email" button does.
  */
-function EmailBody({ body }: { body: string }) {
-  const [open, setOpen] = useState(false);
+function EmailBody({
+  body,
+  open: controlled,
+  onOpenChange,
+}: {
+  body: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
+  const [own, setOwn] = useState(false);
+  const open = controlled ?? own;
+  const setOpen = onOpenChange ?? setOwn;
   const preview = previewText(body);
+  const showToggle = preview.cut && (controlled === undefined || open);
   return (
     <div className="flex flex-col items-start gap-1.5 border-t pt-2.5">
       <div
@@ -59,10 +76,10 @@ function EmailBody({ body }: { body: string }) {
       >
         {(open ? body.trim() : preview.text) || "(empty)"}
       </div>
-      {preview.cut && (
+      {showToggle && (
         <button
           type="button"
-          onClick={() => setOpen((value) => !value)}
+          onClick={() => setOpen(!open)}
           aria-expanded={open}
           className="inline-flex items-center gap-1 rounded-md text-[12.5px] font-medium text-foreground/80 underline-offset-[3px] outline-none hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/12"
         >
@@ -77,9 +94,14 @@ function EmailBody({ body }: { body: string }) {
 /** Exactly what an action on one of your accounts will do, for its approval. */
 export function ActionPreview({
   preview,
+  emailOpen,
+  onEmailOpenChange,
   className,
 }: {
   preview: AccountActionPreview;
+  /** Whether an email's whole body shows, when the approval around it decides. */
+  emailOpen?: boolean;
+  onEmailOpenChange?: (open: boolean) => void;
   className?: string;
 }) {
   const box = cn(
@@ -104,7 +126,7 @@ export function ActionPreview({
             A reply in “{preview.inReplyTo}”
           </span>
         )}
-        <EmailBody body={preview.body} />
+        <EmailBody body={preview.body} open={emailOpen} onOpenChange={onEmailOpenChange} />
       </div>
     );
 

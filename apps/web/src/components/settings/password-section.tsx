@@ -1,22 +1,21 @@
 "use client";
 
-import { resetPasswordCommand } from "@open-bot/shared";
+import { RECOVERY_COPY, resetPasswordCommand } from "@open-bot/shared";
 import { KeyRound, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 import { useAppState } from "@/lib/client/queries";
 import {
   newPasswordProblem,
-  PASSKEY_RESET_MINUTES,
   PASSWORD_MIN_LENGTH,
   passwordChangeError,
   passwordChangeProblem,
 } from "@open-bot/shared";
 import { CopyCommand } from "@/components/copy-command";
+import { PasswordInput } from "@/components/password-input";
 
 type Mode = "change" | "reset";
 
@@ -38,9 +37,8 @@ function Field({
   return (
     <div className="flex flex-col gap-2">
       <Label htmlFor={id}>{label}</Label>
-      <Input
+      <PasswordInput
         id={id}
-        type="password"
         autoComplete={autoComplete}
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -170,37 +168,37 @@ export function PasswordSection({ startWithReset = false }: { startWithReset?: b
           <div className="flex flex-col gap-0.5">
             <span className="text-[14px] font-medium">Set a new password</span>
             <span className="text-[13px] text-muted-foreground">
-              {ready
-                ? `You signed in with your passkey, so you don't need the old password. This works for ${PASSKEY_RESET_MINUTES} minutes after signing in.`
-                : "Your passkey confirms it's you, so you don't need the old password. You'll be asked for it when you save."}
+              {ready ? RECOVERY_COPY.resetReadyNote : RECOVERY_COPY.resetConfirmNote}
             </span>
           </div>
         </div>
       )}
-      {mode === "change" && (
+      <div className="flex max-w-[420px] flex-col gap-4">
+        {mode === "change" && (
+          <Field
+            id="current-password"
+            label="Current password"
+            autoComplete="current-password"
+            value={current}
+            onChange={setCurrent}
+          />
+        )}
         <Field
-          id="current-password"
-          label="Current password"
-          autoComplete="current-password"
-          value={current}
-          onChange={setCurrent}
+          id="new-password"
+          label="New password"
+          autoComplete="new-password"
+          value={next}
+          onChange={setNext}
+          hint={`At least ${PASSWORD_MIN_LENGTH} characters.`}
         />
-      )}
-      <Field
-        id="new-password"
-        label="New password"
-        autoComplete="new-password"
-        value={next}
-        onChange={setNext}
-        hint={`At least ${PASSWORD_MIN_LENGTH} characters.`}
-      />
-      <Field
-        id="confirm-password"
-        label="New password again"
-        autoComplete="new-password"
-        value={confirm}
-        onChange={setConfirm}
-      />
+        <Field
+          id="confirm-password"
+          label="Confirm new password"
+          autoComplete="new-password"
+          value={confirm}
+          onChange={setConfirm}
+        />
+      </div>
       {error && (
         <p
           role="alert"
@@ -224,34 +222,44 @@ export function PasswordSection({ startWithReset = false }: { startWithReset?: b
         </Button>
         <span className="text-[12.5px] text-muted-foreground">Signs out your other devices.</span>
       </div>
-      <div className="-mx-4 -mb-4 border-t px-4 py-3 text-[13px] text-muted-foreground sm:-mx-5 sm:-mb-5 sm:px-5">
+      <div
+        className="-mx-4 -mb-4 flex flex-col gap-2 border-t px-4 py-3.5 text-[13px] text-muted-foreground sm:-mx-5 sm:-mb-5 sm:px-5"
+        data-testid="forgot-password"
+      >
         {mode === "reset" ? (
           <button
             type="button"
             onClick={() => switchTo("change")}
-            className="rounded-sm font-medium text-foreground/80 underline-offset-[3px] outline-none hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/12"
+            className="w-fit rounded-sm font-medium text-foreground/80 underline-offset-[3px] outline-none hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/12"
           >
-            Use your current password instead
+            {RECOVERY_COPY.useCurrentPassword}
           </button>
         ) : hasPasskey ? (
-          <span>
-            Forgot it?{" "}
-            <button
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <span>{RECOVERY_COPY.settingsForgot}</span>
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               onClick={() => switchTo("reset")}
-              className="rounded-sm font-medium text-foreground/80 underline-offset-[3px] outline-none hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/12"
               data-testid="use-passkey-instead"
             >
-              Use your passkey instead
-            </button>
-          </span>
-        ) : (
-          <div className="flex flex-col gap-2">
-            <span>
-              Forgot it? Add a passkey below to reset it from here, or run this where open-bot runs:
-            </span>
-            <CopyCommand command={resetPasswordCommand(state?.user.email)} />
+              <KeyRound />
+              {RECOVERY_COPY.resetAction}
+            </Button>
           </div>
+        ) : (
+          <>
+            <p>
+              <span className="font-medium text-foreground/80">{RECOVERY_COPY.settingsForgot}</span>{" "}
+              {RECOVERY_COPY.settingsNoPasskey}
+            </p>
+            <p className="mt-1.5 font-medium text-foreground/80">
+              {RECOVERY_COPY.otherWaysHeading}
+            </p>
+            <p>{RECOVERY_COPY.serverBody}</p>
+            <CopyCommand command={resetPasswordCommand(state?.user.email)} />
+          </>
         )}
       </div>
     </form>

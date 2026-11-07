@@ -5,6 +5,7 @@ import { router, Stack, useFocusEffect } from "expo-router";
 import {
   AlertTriangle,
   Bell,
+  Check,
   CircleDollarSign,
   Hand,
   MessageSquare,
@@ -14,9 +15,9 @@ import {
 } from "lucide-react-native";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Pressable, RefreshControl, SectionList, StyleSheet, View } from "react-native";
-import { BottomScrim } from "@/components/bottom-scrim";
-import { AvatarBadge, ON_ATTENTION } from "@/components/approval-parts";
+import { ApprovalStatusChip, AvatarBadge, ON_ATTENTION } from "@/components/approval-parts";
 import { BotAvatar } from "@/components/bot-avatar";
+import { FilterChips } from "@/components/filter-chips";
 import { Separator } from "@/components/list-row";
 import { Empty, LoadError, Loading } from "@/components/states";
 import { Text } from "@/components/text";
@@ -25,8 +26,14 @@ import { groupByDay } from "@/lib/day-groups";
 import { haptics } from "@/lib/haptics";
 import { notificationHref } from "@/lib/links";
 import { phoneClock } from "@/lib/phone-clock";
-import { collapseRepeats, notificationText } from "@/lib/notification-groups";
-import { useHome, useNotifications, useTeammates } from "@/lib/queries";
+import {
+  collapseRepeats,
+  notificationState,
+  notificationText,
+  stillNeedsYou,
+  type NotificationState,
+} from "@/lib/notification-groups";
+import { useApprovals, useHome, useNotifications, useTeammates } from "@/lib/queries";
 import { queryKeys } from "@/lib/query";
 import { ago } from "@/lib/time";
 import { useSafeBottom } from "@/lib/use-safe-bottom";
@@ -48,6 +55,11 @@ const NEEDS_YOU = new Set(["approval", "takeover_request", "cap_reached", "egres
 const FAILED = new Set(["run_failed"]);
 
 const AVATAR = 36;
+
+const FILTERS = [
+  { key: "all", label: "All" },
+  { key: "needs", label: "Needs you" },
+] as const;
 
 /**
  * Who it's from: the teammate's face, or a tile for the app itself. The badge says what kind of
@@ -95,14 +107,36 @@ export default function Notifications() {
   const query = useNotifications();
   const { data: bots = [] } = useTeammates();
   const [refreshing, setRefreshing] = useState(false);
-  const notifications = query.data ?? [];
+  const notifications = useMemo(() => query.data ?? [], [query.data]);
   const unread = notifications.filter((notification) => !notification.readAt);
   const { data: home } = useHome();
   // What the bell counts can include ones too old for the list.
   const anyUnread = unread.length > 0 || (home?.unreadNotifications ?? 0) > 0;
+  const { data: approvals = [] } = useApprovals();
+  const [filter, setFilter] = useState<"all" | "needs">("all");
+  // Where each request stands now: pending, or how it was decided.
+  const states = useMemo(() => {
+    const result = new Map<string, NotificationState | null>();
+    for (const notification of notifications)
+      result.set(
+        notification.id,
+        notificationState(notification, approvals, home?.takeoverRequests ?? []),
+      );
+    return result;
+  }, [notifications, approvals, home?.takeoverRequests]);
   const sections = useMemo(
-    () => groupByDay(collapseRepeats(query.data ?? []), (row) => row.items[0]!.createdAt),
-    [query.data],
+    () =>
+      groupByDay(
+        collapseRepeats(
+          filter === "needs"
+            ? notifications.filter((notification) =>
+                stillNeedsYou(notification, states.get(notification.id) ?? null),
+              )
+            : notifications,
+        ),
+        (row) => row.items[0]!.createdAt,
+      ),
+    [notifications, filter, states],
   );
   const seen = useRef({ newest: notifications[0]?.id, anyUnread });
   seen.current = { newest: notifications[0]?.id, anyUnread };
@@ -186,12 +220,25 @@ export default function Notifications() {
           </Text>
         )}
         ItemSeparatorComponent={() => <Separator inset={space(4) + AVATAR + space(3)} />}
+        ListHeaderComponent={
+          notifications.length > 0 ? (
+            <FilterChips options={FILTERS} value={filter} onChange={setFilter} />
+          ) : undefined
+        }
         ListEmptyComponent={
-          <Empty
-            icon={<Bell size={28} color={colors.mutedForeground} />}
-            title="Nothing yet"
-            body="When a teammate finishes something or needs you, it shows up here."
-          />
+          filter === "needs" ? (
+            <Empty
+              icon={<Check size={28} color={colors.mutedForeground} />}
+              title="Nothing needs you"
+              body="Requests waiting on you show up here until you decide them."
+            />
+          ) : (
+            <Empty
+              icon={<Bell size={28} color={colors.mutedForeground} />}
+              title="Nothing yet"
+              body="When a teammate finishes something or needs you, it shows up here."
+            />
+          )
         }
         renderItem={({ item: row, section }) => {
           const notification = row.items[0]!;
@@ -206,6 +253,14 @@ export default function Notifications() {
           const { title, body: rawBody } = notificationText(notification);
           const body = plainText(rawBody);
           const count = row.items.length;
+          const state = states.get(notification.id) ?? null;
+          const stateLabel = !state
+            ? null
+            : state.status !== "pending"
+              ? undefined
+              : state.kind === "takeover"
+                ? "Takeover pending"
+                : "Approval pending";
           return (
             <Pressable
               onPress={() => {
@@ -223,6 +278,7 @@ export default function Notifications() {
                 title,
                 count > 1 ? `${count} times` : null,
                 body,
+                state ? (stateLabel ?? state.status) : null,
                 when,
               ]
                 .filter(Boolean)
@@ -267,12 +323,20 @@ export default function Notifications() {
                     {body}
                   </Text>
                 ) : null}
+                {state && (
+                  <View style={styles.state}>
+                    <ApprovalStatusChip
+                      status={state.status}
+                      size="sm"
+                      label={stateLabel ?? undefined}
+                    />
+                  </View>
+                )}
               </View>
             </Pressable>
           );
         }}
       />
-      <BottomScrim />
     </>
   );
 }
@@ -292,6 +356,7 @@ const styles = StyleSheet.create({
     minHeight: 64,
   },
   titleRow: { flexDirection: "row", alignItems: "flex-start", gap: space(2) },
+  state: { flexDirection: "row", marginTop: space(1.5) },
   title: { flex: 1 },
   // The time and the unread dot share the title's first line.
   when: { flexDirection: "row", alignItems: "center", gap: space(1.5), height: 20 },

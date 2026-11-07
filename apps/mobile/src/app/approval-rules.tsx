@@ -5,7 +5,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ShieldCheck, X } from "lucide-react-native";
 import { useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
-import { BottomScrim } from "@/components/bottom-scrim";
 import { BotAvatar } from "@/components/bot-avatar";
 import { Separator } from "@/components/list-row";
 import { Card } from "@/components/section";
@@ -132,7 +131,6 @@ export default function ApprovalRules() {
           );
         })}
       </ScrollView>
-      <BottomScrim />
     </View>
   );
 }

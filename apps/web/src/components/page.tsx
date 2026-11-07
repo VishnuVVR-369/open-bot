@@ -14,6 +14,7 @@ export function Page({
   width = "default",
 }: {
   title: ReactNode;
+  /** One line under the title, about 90 characters at most. */
   description?: ReactNode;
   /** Page-level buttons, on the title's line, at the content's right edge. */
   actions?: ReactNode;
@@ -30,7 +31,7 @@ export function Page({
               {actions && <div className="ml-auto flex items-center gap-2">{actions}</div>}
             </div>
             {description && (
-              <p className="max-w-[64ch] text-[14.5px] text-muted-foreground">{description}</p>
+              <p className="max-w-[90ch] text-[14.5px] text-muted-foreground">{description}</p>
             )}
           </header>
           {children}

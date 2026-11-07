@@ -1,6 +1,6 @@
 "use client";
 
-import { accountTool, type RuleKind } from "@open-bot/shared";
+import { accountTool, noRulesYet, type RuleKind } from "@open-bot/shared";
 import { FilePen, MousePointerClick, Plug, SquareTerminal, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -64,9 +64,7 @@ export function AllowedRules({ name, rules }: { name: string; rules: AllowedRule
       <div className="flex flex-col gap-0.5">
         <span className="text-[14px] font-medium">Always allowed</span>
         <span className="text-[13px] text-muted-foreground">
-          {rules.length > 0
-            ? `${name} does these without asking you first.`
-            : `Nothing yet. Pick "Always allow" when you approve something and ${name} stops asking about it.`}
+          {rules.length > 0 ? `${name} does these without asking you first.` : noRulesYet(name)}
         </span>
       </div>
       {rules.length > 0 && (

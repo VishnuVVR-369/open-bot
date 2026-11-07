@@ -48,9 +48,8 @@ import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { TakeOverButton, useComputer } from "@/components/computer/computer-panel";
 import {
-  ApprovalDecision,
-  ApprovalDetail,
   ApprovalIcon,
+  ApprovalReview,
   ApprovalTitle,
   NEEDS_YOU_SURFACE,
   RiskChip,
@@ -72,6 +71,7 @@ function Step({
   running,
   failed,
   defaultOpen = false,
+  wrap = false,
 }: {
   icon: ReactNode;
   summary: ReactNode;
@@ -79,6 +79,8 @@ function Step({
   running?: boolean;
   failed?: boolean;
   defaultOpen?: boolean;
+  /** The summary ends in an outcome worth reading in full: it wraps to a second line. */
+  wrap?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const expandable = Boolean(detail);
@@ -90,15 +92,23 @@ function Step({
         onClick={() => setOpen((value) => !value)}
         aria-expanded={expandable ? open : undefined}
         className={cn(
-          "group flex min-h-7 items-center gap-2 rounded-md text-left text-[13px] text-muted-foreground transition-colors",
+          "group flex min-h-7 gap-2 rounded-md text-left text-[13px] text-muted-foreground transition-colors",
+          wrap ? "items-start py-[5px] leading-[18px]" : "items-center",
           expandable && "hover:text-foreground",
           failed && "text-destructive",
         )}
       >
-        <span className="flex size-4 shrink-0 items-center justify-center [&_svg]:size-3.5">
+        <span
+          className={cn(
+            "flex size-4 shrink-0 items-center justify-center [&_svg]:size-3.5",
+            wrap && "mt-px",
+          )}
+        >
           {running ? <Loader2 className="animate-spin" /> : icon}
         </span>
-        <span className="min-w-0 flex-1 truncate">{summary}</span>
+        <span className={cn("min-w-0 flex-1", wrap ? "line-clamp-2 text-pretty" : "truncate")}>
+          {summary}
+        </span>
         {expandable && (
           <ChevronRight
             className={cn(
@@ -287,6 +297,7 @@ export function ToolStep({ item }: { item: ToolItem }) {
       icon={<Icon />}
       running={item.status === "running"}
       failed={item.status === "failed"}
+      wrap
       summary={
         <>
           <span className="text-foreground/85">{item.label}</span>
@@ -345,6 +356,7 @@ export function HandoffStep({ item }: { item: HandoffItem }) {
   return (
     <Step
       icon={<ArrowRightLeft />}
+      wrap
       summary={
         <>
           Handed to <span className="font-medium text-foreground">{item.toBotName}</span>:{" "}
@@ -395,8 +407,7 @@ export function ApprovalCard({ item, botName }: { item: ApprovalItem; botName: s
         </span>
         {risk && <RiskChip risk={risk} />}
       </div>
-      <ApprovalDetail approval={approval} />
-      <ApprovalDecision approvalId={item.approvalId} approval={approval} botName={botName} />
+      <ApprovalReview approvalId={item.approvalId} approval={approval} botName={botName} />
     </div>
   );
 }

@@ -45,7 +45,16 @@ const bot = {
 } as unknown as ScreenView["bot"];
 
 function view(id: string, patch: Partial<ScreenView> = {}): ScreenView {
-  return { id, bot, online: true, running: false, lease: null, requests: [], ...patch };
+  return {
+    id,
+    bot,
+    online: true,
+    running: false,
+    lease: null,
+    requests: [],
+    lastFrame: null,
+    ...patch,
+  };
 }
 
 const ownerLease = {

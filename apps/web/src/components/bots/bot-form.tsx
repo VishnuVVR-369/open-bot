@@ -13,10 +13,12 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { BotAvatar } from "@/components/bot-avatar";
+import { Markdown } from "@/components/chat/markdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { createBot, importTeammate, updateBot } from "@/lib/actions";
 import { queryKeys } from "@/lib/client/queries";
@@ -43,6 +45,65 @@ function lastGlyph(text: string) {
 
 function sameValues(a: BotFormValues, b: BotFormValues) {
   return (Object.keys(a) as (keyof BotFormValues)[]).every((key) => a[key] === b[key]);
+}
+
+/**
+ * A teammate's instructions: a Markdown file, written as prose in the text face, with a preview
+ * that shows the headings and lists the way they read.
+ */
+function InstructionsField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [view, setView] = useState<"write" | "preview">("write");
+  return (
+    <Tabs
+      value={view}
+      onValueChange={(next) => setView(next as "write" | "preview")}
+      className="gap-2"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <Label htmlFor="bot-instructions">What they&apos;re responsible for</Label>
+        <TabsList aria-label="Instructions view" className="h-7 group-data-horizontal/tabs:h-7">
+          <TabsTrigger value="write" className="px-2.5 text-[12.5px]">
+            Write
+          </TabsTrigger>
+          <TabsTrigger value="preview" className="px-2.5 text-[12.5px]">
+            Preview
+          </TabsTrigger>
+        </TabsList>
+      </div>
+      <TabsContent value="write">
+        <Textarea
+          id="bot-instructions"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder="Describe the job: what to do, how you like it done, and what to stay away from."
+          // Room between lines so lists and "## Headings" stay easy to scan.
+          className="min-h-36 px-3.5 py-3 font-sans text-[14.5px] leading-[22px] md:text-[14.5px]"
+          spellCheck
+        />
+      </TabsContent>
+      <TabsContent
+        value="preview"
+        className="min-h-36 rounded-lg border px-3.5 py-3 text-[14.5px]"
+        data-testid="instructions-preview"
+      >
+        {value.trim() ? (
+          <Markdown text={value} files={false} />
+        ) : (
+          <p className="text-muted-foreground">Nothing to preview yet.</p>
+        )}
+      </TabsContent>
+      <p className="text-[12.5px] text-muted-foreground">
+        This becomes their instructions file. They also keep their own memory of what they learn
+        about you.
+      </p>
+    </Tabs>
+  );
 }
 
 export function BotForm({
@@ -94,7 +155,7 @@ export function BotForm({
       toast(`${result.data.name} joined the team`, {
         description:
           result.data.paused > 0
-            ? `Their ${result.data.paused === 1 ? "automation is" : `${result.data.paused} automations are`} paused. Turn them on in Automations.`
+            ? `Their ${result.data.paused === 1 ? "automation is" : `${result.data.paused} automations are`} off. Turn them on in Automations.`
             : undefined,
       });
       await queryClient.invalidateQueries({ queryKey: queryKeys.state });
@@ -247,7 +308,7 @@ export function BotForm({
               id="bot-name"
               value={values.name}
               onChange={(e) => set("name", e.target.value)}
-              placeholder="Nova"
+              placeholder="e.g. Nova"
               maxLength={40}
               required
             />
@@ -258,30 +319,17 @@ export function BotForm({
               id="bot-role"
               value={values.role}
               onChange={(e) => set("role", e.target.value)}
-              placeholder="Research assistant"
+              placeholder="e.g. Research assistant"
               maxLength={80}
               required
             />
           </div>
         </div>
 
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="bot-instructions">What they&apos;re responsible for</Label>
-          <Textarea
-            id="bot-instructions"
-            value={values.instructions}
-            onChange={(e) => set("instructions", e.target.value)}
-            placeholder="Describe the job: what to do, how you like it done, and what to stay away from."
-            // Instructions are a Markdown file, but read and written as prose: the text face, with
-            // room between lines so lists and "## Headings" stay easy to scan.
-            className="min-h-36 px-3.5 py-3 font-sans text-[14.5px] leading-[22px] md:text-[14.5px]"
-            spellCheck
-          />
-          <p className="text-[12.5px] text-muted-foreground">
-            This becomes their instructions file. They also keep their own memory of what they learn
-            about you.
-          </p>
-        </div>
+        <InstructionsField
+          value={values.instructions}
+          onChange={(value) => set("instructions", value)}
+        />
 
         {template && template.starters.length > 0 && (
           <div className="flex flex-col gap-2.5" data-testid="starter-automations">
@@ -438,7 +486,7 @@ export function BotForm({
                 <button
                   type="button"
                   onClick={() => set("emoji", "")}
-                  className="rounded-sm text-[13px] font-medium text-foreground underline decoration-foreground/30 underline-offset-[3px] outline-none hover:decoration-foreground focus-visible:ring-[3px] focus-visible:ring-ring/12"
+                  className="rounded-sm text-[13px] font-medium text-foreground/80 underline-offset-[3px] outline-none hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/12"
                 >
                   Use initials instead
                 </button>

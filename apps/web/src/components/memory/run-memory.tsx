@@ -1,13 +1,10 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Brain } from "lucide-react";
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import type { ReactNode } from "react";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { getJson } from "@/lib/client/api";
-import { cn, REVEAL_ON_RUN_HOVER } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 interface Ref {
   id: string;
@@ -17,34 +14,29 @@ interface Ref {
   forgotten: boolean;
 }
 
-/** Which saved memories a reply was given. Sits with the reply's other actions in its header. */
-export function RunMemory({ runId }: { runId: string }) {
-  const [open, setOpen] = useState(false);
+/**
+ * Which saved memories a reply was given, in a popover beside `children` (what it opens from,
+ * like the reply's "More" button). Opened from the reply's More menu.
+ */
+export function RunMemory({
+  runId,
+  open,
+  onOpenChange,
+  children,
+}: {
+  runId: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  children: ReactNode;
+}) {
   const { data, error } = useQuery({
     queryKey: ["memory", "run", runId],
     queryFn: () => getJson<Ref[]>(`/api/memory?runId=${runId}`),
     enabled: open,
   });
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Memory context"
-              className={cn(
-                "text-muted-foreground",
-                open ? "text-foreground" : REVEAL_ON_RUN_HOVER,
-              )}
-            >
-              <Brain />
-            </Button>
-          </PopoverTrigger>
-        </TooltipTrigger>
-        <TooltipContent>What they remembered</TooltipContent>
-      </Tooltip>
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <PopoverAnchor asChild>{children}</PopoverAnchor>
       <PopoverContent align="start" className="w-[min(26rem,calc(100vw-2rem))] gap-0 p-0">
         <div className="border-b px-3.5 py-2.5 text-[12.5px] font-medium text-muted-foreground">
           Memories given to this reply

@@ -12,6 +12,7 @@ import { format } from "date-fns";
 import {
   AlertTriangle,
   ArrowRightLeft,
+  Brain,
   CalendarClock,
   CalendarDays,
   Check,
@@ -23,6 +24,7 @@ import {
   Mail,
   MessageCircleQuestion,
   MessageCircleReply,
+  MoreHorizontal,
   Network,
   RotateCcw,
   ShieldCheck,
@@ -32,10 +34,16 @@ import {
   Webhook,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { BotAvatar } from "@/components/bot-avatar";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { retryRun } from "@/lib/actions";
@@ -70,6 +78,9 @@ function replyText(run: RunView): string {
     .join("\n\n");
 }
 
+/** A reply action: a 32px target with a 16px glyph, quiet until you point at the reply. */
+const ACTION = "size-8 text-muted-foreground [&_svg:not([class*='size-'])]:size-4";
+
 /** Copies the reply. */
 function CopyReply({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -78,9 +89,9 @@ function CopyReply({ text }: { text: string }) {
       <TooltipTrigger asChild>
         <Button
           variant="ghost"
-          size="icon-xs"
+          size="icon"
           aria-label="Copy reply"
-          className={cn("text-muted-foreground", REVEAL_ON_RUN_HOVER)}
+          className={cn(ACTION, REVEAL_ON_RUN_HOVER)}
           onClick={async () => {
             await navigator.clipboard.writeText(text);
             setCopied(true);
@@ -95,9 +106,16 @@ function CopyReply({ text }: { text: string }) {
   );
 }
 
-/** Reads the reply aloud, or stops reading it. */
-function ReadAloud({ runId, text }: { runId: string; text: string }) {
+/**
+ * The reply's less common actions, by name: which memories it was given, and reading it aloud.
+ * While it's being read, a stop button stays in the row.
+ */
+function MoreActions({ runId, text }: { runId: string; text: string }) {
   const { supported, speaking } = useReadAloud();
+  const [memoryOpen, setMemoryOpen] = useState(false);
+  // Picked in the menu: the popover opens once the menu has closed, or the closing would dismiss it.
+  const openMemory = useRef(false);
+  const reading = speaking === runId;
   // A reply that leaves the screen stops being read, since its stop button goes with it.
   useEffect(
     () => () => {
@@ -105,30 +123,79 @@ function ReadAloud({ runId, text }: { runId: string; text: string }) {
     },
     [runId],
   );
-  if (!supported) return null;
-  const reading = speaking === runId;
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          aria-label={reading ? "Stop reading" : "Read aloud"}
-          aria-pressed={reading}
-          className={cn("text-muted-foreground", reading ? "text-foreground" : REVEAL_ON_RUN_HOVER)}
-          onClick={() => (reading ? stopReading() : readAloud(runId, text))}
-          data-testid="read-aloud"
-        >
-          {reading ? <Square className="fill-current" /> : <Volume2 />}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{reading ? "Stop reading" : "Read aloud"}</TooltipContent>
-    </Tooltip>
+    <>
+      {reading && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Stop reading"
+              aria-pressed
+              className={cn(ACTION, "text-foreground")}
+              onClick={stopReading}
+              data-testid="stop-reading"
+            >
+              <Square className="size-3.5 fill-current" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Stop reading</TooltipContent>
+        </Tooltip>
+      )}
+      <RunMemory runId={runId} open={memoryOpen} onOpenChange={setMemoryOpen}>
+        <span className="flex">
+          <DropdownMenu>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="More actions"
+                    className={cn(ACTION, memoryOpen ? "text-foreground" : REVEAL_ON_RUN_HOVER)}
+                    data-testid="reply-more"
+                  >
+                    <MoreHorizontal />
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent>More</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent
+              align="start"
+              className="w-56"
+              onCloseAutoFocus={(event) => {
+                if (!openMemory.current) return;
+                // The memory popover takes over from the menu, focus and all.
+                event.preventDefault();
+                openMemory.current = false;
+                setMemoryOpen(true);
+              }}
+            >
+              <DropdownMenuItem onSelect={() => (openMemory.current = true)}>
+                <Brain />
+                What they remembered
+              </DropdownMenuItem>
+              {supported && text && (
+                <DropdownMenuItem
+                  onSelect={() => (reading ? stopReading() : readAloud(runId, text))}
+                  data-testid="read-aloud"
+                >
+                  {reading ? <Square className="fill-current" /> : <Volume2 />}
+                  {reading ? "Stop reading" : "Read aloud"}
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </span>
+      </RunMemory>
+    </>
   );
 }
 
 /** When the run started and, once done, how long it took and what it used. */
-function RunTime({ run }: { run: RunView }) {
+function RunTime({ run, showDuration = true }: { run: RunView; showDuration?: boolean }) {
   const took =
     run.startedAt && run.completedAt
       ? new Date(run.completedAt).getTime() - new Date(run.startedAt).getTime()
@@ -147,7 +214,7 @@ function RunTime({ run }: { run: RunView }) {
       data-testid="run-time"
     >
       {format(new Date(run.createdAt), "h:mm a")}
-      {took !== null && ` · ${formatDuration(took)}`}
+      {showDuration && took !== null && ` · ${formatDuration(took)}`}
     </time>
   );
   if (details.length === 0) return time;
@@ -201,9 +268,6 @@ function segment(items: TimelineItem[]): Segment[] {
   }
   return segments;
 }
-
-/** A finished run with more steps than this shows them behind a "Show N steps" toggle. */
-const FOLD_STEPS_OVER = 6;
 
 /** Tools whose call is itself a request for your approval: the approval card says it all. */
 const ASKS_APPROVAL = new Set(["request_approval", "start_purchase", "send_email"]);
@@ -524,30 +588,41 @@ export function RunBlock({
     };
   }, [allItems]);
   const segments = useMemo(() => segment(items), [items]);
-  const stepCount = items.filter((item) => !isPinned(item)).length;
-  // Steps show by default: they are one line each and say how the answer came about. Only a long
-  // finished run folds them behind a count, so its reply isn't pushed out of view.
-  const collapsible = !active && stepCount > FOLD_STEPS_OVER;
+  // A stretch of computer use is one step, as it shows as one strip.
+  const stepCount = segments.filter(
+    (part) =>
+      part.kind === "desktop" ||
+      (!isPinned(part.item) && !(part.item.kind === "reasoning" && !part.item.text)),
+  ).length;
+  // A finished run folds its steps into one line, the same as on the phone, so the chat reads as a
+  // conversation; what you need to see (the reply, a pending approval, an error, a page) stays out.
+  // A run that is still going shows its steps as they happen.
+  const collapsible = !active && stepCount > 0;
   const [expanded, setExpanded] = useState(false);
   const showSteps = !collapsible || expanded;
+  const took =
+    run.startedAt && run.completedAt
+      ? new Date(run.completedAt).getTime() - new Date(run.startedAt).getTime()
+      : null;
   const name = bot?.name ?? "Former teammate";
   const reply = replyText(run);
   // A reply's actions sit in one row under it, the same with a mouse or a finger.
   const actions = !active && (
     <span
-      className="-ml-1.5 flex items-center gap-1 [&_button:not([aria-pressed=true])]:text-faint"
+      className={cn(
+        "-ml-2 flex items-center gap-0.5 [&_button:not([aria-pressed=true]):not([aria-expanded=true])]:text-faint",
+        // The latest reply's row is part of it. An earlier reply's row, shown on hover, sits in the
+        // space after it instead of holding that space open between every message. On a touch
+        // screen every row shows, so each keeps its place.
+        latest ? "-mt-1" : "absolute top-full left-0 -mt-1 pointer-coarse:static",
+      )}
       data-testid="run-actions"
     >
-      <RunMemory runId={run.id} />
-      {reply && (
-        <>
-          <CopyReply text={reply} />
-          <ReadAloud runId={run.id} text={reply} />
-          {run.timeline.status === "completed" && bot && (
-            <ReplyFeedback run={run} botName={name} chatId={chatId} />
-          )}
-        </>
+      {reply && <CopyReply text={reply} />}
+      {reply && run.timeline.status === "completed" && bot && (
+        <ReplyFeedback run={run} botName={name} chatId={chatId} />
       )}
+      <MoreActions runId={run.id} text={reply} />
     </span>
   );
 
@@ -589,7 +664,7 @@ export function RunBlock({
         size="md"
         className="mt-0.5"
       />
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
+      <div className="relative flex min-w-0 flex-1 flex-col gap-2">
         <header className="flex h-6 items-center gap-2 text-[13px]">
           <span className="text-[14px] font-semibold">{name}</span>
           <TriggerLabel run={run} bots={bots} />
@@ -599,19 +674,22 @@ export function RunBlock({
               API key
             </span>
           )}
-          <RunTime run={run} />
+          <RunTime run={run} showDuration={!collapsible} />
         </header>
 
         {collapsible && (
           <button
+            type="button"
             onClick={() => setExpanded((value) => !value)}
-            className="flex items-center gap-1.5 self-start rounded-md text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+            className="-ml-1 flex h-7 items-center gap-1.5 self-start rounded-md px-1 text-[13px] text-muted-foreground transition-colors hover:text-foreground aria-expanded:text-foreground/80"
             aria-expanded={expanded}
+            data-testid="run-steps"
           >
             <ChevronDown
               className={cn("size-3.5 transition-transform", !expanded && "-rotate-90")}
             />
-            {expanded ? "Hide" : "Show"} {stepCount} {stepCount === 1 ? "step" : "steps"}
+            {took !== null ? `Worked for ${formatDuration(took)}` : "Worked"} · {stepCount}{" "}
+            {stepCount === 1 ? "step" : "steps"}
           </button>
         )}
 

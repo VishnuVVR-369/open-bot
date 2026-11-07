@@ -153,12 +153,12 @@ test("export a teammate to a file and import it as a new one", async ({ page }) 
   });
   await page.waitForURL(/\/chats\//);
   await expect(page.getByText(`${copy} joined the team`)).toBeVisible();
-  await expect(page.getByText("Their 4 automations are paused.", { exact: false })).toBeVisible();
+  await expect(page.getByText("Their 4 automations are off.", { exact: false })).toBeVisible();
 
   await page.goto(`/bots/${await botIdOf(page, copy)}?tab=automations`);
   const schedules = page.getByTestId("schedule");
   await expect(schedules).toHaveCount(4);
-  await expect(schedules.first()).toContainText("Paused");
+  await expect(schedules.first().getByTestId("automation-state")).toHaveText("Off");
   await expect(schedules.filter({ hasText: "Daily check-in" })).toContainText(
     "tells you only if something changed",
   );

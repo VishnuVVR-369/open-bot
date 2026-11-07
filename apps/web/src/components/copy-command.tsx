@@ -5,7 +5,10 @@ import { Check, Copy } from "lucide-react";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
-/** A command to run in a terminal, in a code face, with a Copy button that says when it worked. */
+/**
+ * A command to run in a terminal, in a code face, with a Copy button that says when it worked.
+ * It stays on one line and scrolls sideways when it's long, so it never breaks mid-command.
+ */
 export function CopyCommand({ command, className }: { command: string; className?: string }) {
   const [copied, setCopied] = useState(false);
   useEffect(() => {
@@ -21,8 +24,9 @@ export function CopyCommand({ command, className }: { command: string; className
       )}
     >
       <code
-        className="min-w-0 flex-1 font-mono text-[12.5px] leading-relaxed break-words"
+        className="min-w-0 flex-1 overflow-x-auto py-1 font-mono text-[12.5px] leading-relaxed whitespace-nowrap [scrollbar-width:thin]"
         data-testid="command"
+        tabIndex={0}
       >
         {command}
       </code>

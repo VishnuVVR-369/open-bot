@@ -39,3 +39,53 @@ export function notificationText<T extends { kind: string; title: string; body: 
     body: notification.body,
   };
 }
+
+/** Where something a notification asked of you stands now, for the label under it. */
+export type NotificationState =
+  | { kind: "approval"; status: "pending" | "approved" | "denied" | "expired" }
+  | { kind: "takeover"; status: "pending" };
+
+/**
+ * Where a notification that asked something of you stands: an approval by the request it was
+ * about (the one in its run made closest before it), a takeover while it still waits. Null for
+ * everything else, and for a takeover that's over (how it ended isn't known here).
+ */
+export function notificationState(
+  notification: { kind: string; runId: string | null; botId: string | null; createdAt: string },
+  approvals: { runId: string; status: string; createdAt: string }[],
+  takeovers: { botId: string | null }[],
+): NotificationState | null {
+  if (notification.kind === "approval" && notification.runId) {
+    const at = new Date(notification.createdAt).getTime();
+    const near = (iso: string) => Math.abs(new Date(iso).getTime() - at);
+    const match = approvals
+      .filter((approval) => approval.runId === notification.runId)
+      .sort((a, b) => near(a.createdAt) - near(b.createdAt))[0];
+    if (!match) return null;
+    const status = match.status;
+    return status === "pending" ||
+      status === "approved" ||
+      status === "denied" ||
+      status === "expired"
+      ? { kind: "approval", status }
+      : null;
+  }
+  if (
+    notification.kind === "takeover_request" &&
+    takeovers.some((request) => request.botId !== null && request.botId === notification.botId)
+  )
+    return { kind: "takeover", status: "pending" };
+  return null;
+}
+
+/** Whether a notification still needs you: a request not yet decided, or a limit or phone question unread. */
+export function stillNeedsYou(
+  notification: { kind: string; readAt: string | null },
+  state: NotificationState | null,
+): boolean {
+  if (state) return state.status === "pending";
+  return (
+    (notification.kind === "cap_reached" || notification.kind === "egress_unanswered") &&
+    !notification.readAt
+  );
+}

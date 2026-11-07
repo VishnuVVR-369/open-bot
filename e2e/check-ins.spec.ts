@@ -23,14 +23,14 @@ test("turn a teammate's daily check-in on and off", async ({ page }) => {
   await expect(row).toContainText("Every day at 9:00 AM");
   await expect(row).toContainText("tells you only if something changed");
 
-  // Off pauses it; on again resumes the same one.
+  // Off stops it; on again resumes the same one.
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-checked", "false");
-  await expect(row).toContainText("Paused");
+  await expect(row.getByTestId("automation-state")).toHaveText("Off");
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-checked", "true");
   await expect(page.getByTestId("schedule")).toHaveCount(1);
-  await expect(row).not.toContainText("Paused");
+  await expect(row.getByTestId("automation-state")).toHaveCount(0);
 
   // The schedule's own settings say it only speaks up for news.
   await row.getByRole("button", { name: /^More actions/ }).click();

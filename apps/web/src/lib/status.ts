@@ -1,22 +1,10 @@
+import { teammateStatus } from "@open-bot/shared";
 import type { BotActivity } from "@/components/bot-avatar";
 import type { AppState, BotSummary } from "./types";
 
-/**
- * The words for a teammate's status, the same on every surface: the sidebar, Home, the computer's
- * screen list and the chat header. The line under a teammate's name says only this, never their job.
- */
-export const STATUS = {
-  approval: "Needs your approval",
-  takeover: "Needs you to take over",
-  working: "Working",
-  /** Online, but waiting for a free turn on the computer. */
-  upNext: "Up next",
-  /** The computer is offline, so nothing they do can move. */
-  paused: "Paused",
-  idle: "Idle",
-} as const;
-
-export type StatusLabel = (typeof STATUS)[keyof typeof STATUS];
+// The words and the rules for a teammate's status are shared with the phone (packages/shared).
+export { chatStatus, STATUS, teammateStatus } from "@open-bot/shared";
+export type { ChatStatus, StatusLabel, TeammateStatus } from "@open-bot/shared";
 
 /** A scheduled run whose time has come while the computer is offline. */
 export const WAITING_FOR_COMPUTER = "Waiting for the computer";
@@ -37,57 +25,18 @@ export function isComputerOnline(state: Pick<AppState, "computer"> | undefined):
   return Boolean(state?.computer.online && state.computer.workerOnline);
 }
 
-/**
- * What a teammate is doing, for their status light. A teammate waiting on you still needs you,
- * offline or not; everyone else is paused while the computer is offline, with or without work.
- */
+/** What a teammate is doing, for their status light. */
 export function botActivity(
   bot: Pick<BotSummary, "activeRun">,
   computerOnline = true,
 ): BotActivity {
-  const run = bot.activeRun;
-  if (run?.status === "waiting") return "waiting";
-  if (!computerOnline) return "paused";
-  if (!run) return "idle";
-  if (run.status === "queued") return "queued";
-  return "working";
+  return teammateStatus(bot, computerOnline).activity;
 }
 
 /** What a teammate needs from you, in the words used everywhere, or null when they need nothing. */
 export function botNeedsText(bot: Pick<BotSummary, "activeRun">): string | null {
-  const run = bot.activeRun;
-  if (run?.status !== "waiting") return null;
-  return run.waitingFor === "takeover" ? STATUS.takeover : STATUS.approval;
-}
-
-export interface TeammateStatus {
-  /** The words under their name. */
-  label: StatusLabel;
-  /** For their avatar's light. */
-  activity: BotActivity;
-  /** They are waiting on you: the line turns amber. */
-  needsYou: boolean;
-}
-
-/** A teammate's status line and light, from the fixed list in `STATUS`. */
-export function teammateStatus(
-  bot: Pick<BotSummary, "activeRun">,
-  computerOnline = true,
-): TeammateStatus {
-  const activity = botActivity(bot, computerOnline);
-  const label: StatusLabel =
-    activity === "waiting"
-      ? bot.activeRun?.waitingFor === "takeover"
-        ? STATUS.takeover
-        : STATUS.approval
-      : activity === "paused"
-        ? STATUS.paused
-        : activity === "working"
-          ? STATUS.working
-          : activity === "queued"
-            ? STATUS.upNext
-            : STATUS.idle;
-  return { label, activity, needsYou: activity === "waiting" };
+  const status = teammateStatus(bot);
+  return status.needsYou ? status.label : null;
 }
 
 /**

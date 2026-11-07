@@ -644,7 +644,7 @@ function FallbackSection() {
               : data.planLimitedUntil
                 ? data.keyHint
                   ? "Running on your API key"
-                  : "Paused: your plan's limit is reached"
+                  : "Stopped: your plan's limit is reached"
                 : "Running on your ChatGPT plan"}
           </span>
           <span className="text-[13px] text-muted-foreground">
@@ -670,21 +670,38 @@ function FallbackSection() {
             </code>
             <span className="text-[13px] text-muted-foreground">Stored encrypted.</span>
             <span className="flex-1" />
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={pending}
-              onClick={() =>
-                startTransition(async () => {
-                  const result = await removeApiKey();
-                  if (!result.ok) toast.error(result.error);
-                  else toast("API key removed");
-                  await refresh();
-                })
-              }
-            >
-              Remove
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm" disabled={pending}>
+                  Remove
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Remove your API key?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    When your plan's limit is reached, teammates stop until it resets instead of
+                    continuing on the key. You can add a key again any time.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    variant="destructive"
+                    onClick={() =>
+                      startTransition(async () => {
+                        const result = await removeApiKey();
+                        if (!result.ok) toast.error(result.error);
+                        else toast("API key removed");
+                        await refresh();
+                      })
+                    }
+                  >
+                    Remove key
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         ) : (
           <form
@@ -778,7 +795,7 @@ function FallbackSection() {
           </div>
           <span className="text-[12.5px] text-muted-foreground">
             At list prices: $2 per million input tokens, $0.10 cached, $10 output. At the cap,
-            teammates pause until the plan resets.
+            teammates stop until the plan resets.
           </span>
         </div>
       </div>
@@ -948,9 +965,10 @@ function SettingsNav({ current }: { current: GroupId }) {
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "flex h-9 items-center gap-2.5 rounded-lg px-3 text-[14px] whitespace-nowrap transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/12",
-                  // The sidebar's selected style: a raised surface, not a gray fill.
+                  // A quiet gray fill marks where you are; on the white page a raised white
+                  // surface didn't show.
                   active
-                    ? "bg-surface font-medium text-foreground shadow-raised dark:bg-sidebar-accent"
+                    ? "bg-muted font-medium text-foreground"
                     : "text-muted-foreground hover:bg-subtle hover:text-foreground",
                 )}
               >

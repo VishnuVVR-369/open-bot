@@ -1,9 +1,13 @@
 "use client";
 
+import type { ScreenFrame as LastFrame } from "@open-bot/api";
+import { relativeTime } from "@open-bot/shared";
+import { useQuery } from "@tanstack/react-query";
 import { CloudOff, Globe, Hand, Home } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { BotAvatar } from "@/components/bot-avatar";
+import { getJson } from "@/lib/client/api";
 import { useAppState } from "@/lib/client/queries";
 import { STATUS, teammateStatus, type TeammateStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
@@ -99,23 +103,70 @@ function HealthPill({ signal, label }: { signal: HealthSignal; label: string }) 
   );
 }
 
+/** Each screen's last captured frame, by screen id, for while the computer is offline. */
+function useScreenFrames(enabled: boolean) {
+  return useQuery({
+    queryKey: ["screens", "frames"],
+    queryFn: () => getJson<Record<string, LastFrame>>("/api/screens/frames"),
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
 /**
- * The computer is offline, so there is no screen to show. The selected teammate's screen says
- * what waits for it, on the page's own surface instead of a large black frame.
+ * The computer is offline, so there is no live screen. With a frame the teammate captured, it shows
+ * that, dimmed, with when it was taken: what you'd come back to. Without one, a short card says what
+ * waits, on the page's own surface instead of a large black frame.
  */
-function ScreenAway({ info }: { info: ScreenInfo }) {
+function ScreenAway({ info, frame }: { info: ScreenInfo; frame: LastFrame | null }) {
   const name = info.bot.name;
   const status = screenStatus(info);
-  const line =
+  const waiting =
     status.label === STATUS.takeover
       ? `${name} is waiting for you to take over.`
       : status.label === STATUS.approval
-        ? `${name} is waiting for your approval. The screen shows here when the computer is back.`
-        : `${name}'s work is paused. The screen shows here when the computer is back.`;
+        ? `${name} is waiting for your approval.`
+        : `${name}'s work is paused.`;
+  if (frame)
+    return (
+      <section
+        aria-label={`${name}'s screen`}
+        className="relative aspect-[16/10] w-full overflow-hidden rounded-[22px] bg-bezel shadow-raised"
+        data-testid="computer-offline"
+      >
+        <img
+          src={`/api/artifacts/${frame.artifactId}`}
+          alt={`${name}'s screen when it was last seen`}
+          className="absolute inset-0 size-full object-cover opacity-40 grayscale-[40%]"
+          data-testid="last-frame"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-black/10" />
+        <span className="absolute top-4 left-4 flex h-7 items-center gap-1.5 rounded-full bg-black/55 px-2.5 text-[12.5px] font-medium text-white/85 backdrop-blur">
+          <CloudOff className="size-3.5" />
+          Last seen {relativeTime(frame.at)}
+        </span>
+        <div className="absolute inset-x-0 bottom-0 flex items-center gap-3 p-5 text-white sm:p-6">
+          <BotAvatar
+            name={name}
+            color={info.bot.color}
+            emoji={info.bot.emoji}
+            size="md"
+            activity={status.activity}
+            className="[--avatar-ring:#000]"
+          />
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <h2 className="text-[16px] font-semibold">{name}&rsquo;s screen</h2>
+            <p className="text-[13.5px] text-pretty text-white/75">
+              {waiting} The live screen returns when the computer reconnects.
+            </p>
+          </div>
+        </div>
+      </section>
+    );
   return (
     <section
       aria-label={`${name}'s screen`}
-      className="flex flex-col items-center gap-2 rounded-2xl bg-card px-8 py-12 text-center shadow-raised"
+      className="flex items-center gap-4 rounded-2xl bg-card px-5 py-5 shadow-raised"
       data-testid="computer-offline"
     >
       <BotAvatar
@@ -124,16 +175,18 @@ function ScreenAway({ info }: { info: ScreenInfo }) {
         emoji={info.bot.emoji}
         size="lg"
         activity={status.activity}
-        className="mb-1 [--avatar-ring:var(--card)]"
+        className="[--avatar-ring:var(--card)]"
       />
-      <h2 className="text-[18px] font-semibold">{name}&rsquo;s screen</h2>
-      <p className="max-w-md text-[14px] leading-relaxed text-pretty text-muted-foreground">
-        {line}
-      </p>
-      <p className="mt-3 flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
-        <CloudOff className="size-3.5" />
-        The computer is offline. It reconnects on its own.
-      </p>
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <h2 className="text-[16px] font-semibold">{name}&rsquo;s screen</h2>
+        <p className="text-[14px] leading-relaxed text-pretty text-muted-foreground">
+          {waiting} The screen shows here when the computer is back.
+        </p>
+        <p className="mt-1 flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
+          <CloudOff className="size-3.5 shrink-0" />
+          The computer is offline. It reconnects on its own.
+        </p>
+      </div>
     </section>
   );
 }
@@ -175,6 +228,8 @@ export function ComputerPage({ initialScreen }: { initialScreen: string | null }
           }
         : { signal: "idle" as const, label: "Offline" };
   const selected = screenId ? screen(screenId) : null;
+  const offline = Boolean(state) && !online;
+  const { data: frames } = useScreenFrames(offline);
 
   return (
     <div className="h-full overflow-y-auto">
@@ -188,7 +243,7 @@ export function ComputerPage({ initialScreen }: { initialScreen: string | null }
           {state && !online ? (
             selected && (
               <>
-                <ScreenAway info={selected} />
+                <ScreenAway info={selected} frame={frames?.[selected.bot.id] ?? null} />
                 <ScreenControls screenId={selected.bot.id} expand={false} />
               </>
             )
@@ -218,7 +273,7 @@ export function ComputerPage({ initialScreen }: { initialScreen: string | null }
         <aside className="flex flex-col gap-6">
           <section className="flex flex-col gap-2.5">
             <SectionTitle>Screens</SectionTitle>
-            <ul className="flex flex-col gap-1" role="tablist" aria-label="Screens">
+            <ul className="flex flex-col gap-0.5" role="tablist" aria-label="Screens">
               {botIds.map((id) => {
                 const info = screen(id);
                 if (!info) return null;
@@ -231,7 +286,7 @@ export function ComputerPage({ initialScreen }: { initialScreen: string | null }
                       aria-selected={isSelected}
                       onClick={() => setPicked(id)}
                       className={cn(
-                        "flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors",
+                        "flex h-14 w-full items-center gap-3 rounded-xl border px-3 text-left transition-colors",
                         isSelected
                           ? "border-foreground/15 bg-card shadow-xs"
                           : "border-transparent hover:bg-muted",
@@ -252,10 +307,12 @@ export function ComputerPage({ initialScreen }: { initialScreen: string | null }
                         }
                       />
                       <span className="flex min-w-0 flex-1 flex-col">
-                        <span className="truncate text-[13.5px] font-medium">{info.bot.name}</span>
+                        <span className="truncate text-[13.5px] leading-tight font-medium">
+                          {info.bot.name}
+                        </span>
                         <span
                           className={cn(
-                            "truncate text-[12.5px] text-muted-foreground",
+                            "truncate text-[12.5px] leading-tight text-muted-foreground",
                             status.needsYou && "text-attention-ink",
                           )}
                         >

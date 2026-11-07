@@ -1,4 +1,5 @@
 import type { BotSummary } from "@open-bot/api";
+import { STATUS, teammateStatus, type TeammateActivity } from "@open-bot/shared";
 import { useEffect, useRef, type ReactNode } from "react";
 import { Animated, Easing, Text, View } from "react-native";
 import { useReducedMotion } from "@/lib/motion";
@@ -7,9 +8,9 @@ import { mix } from "@/theme/mix";
 
 /**
  * What a teammate is up to, which their avatar shows. `waiting` means waiting for you; `paused`
- * means they were working but the computer that runs their work is offline.
+ * means waiting for the offline computer. The same as the shared `TeammateActivity`.
  */
-export type BotActivity = "idle" | "working" | "paused" | "waiting" | "queued";
+export type BotActivity = TeammateActivity;
 
 const SIZES = {
   xs: { box: 24, radius: 7, font: 13 },
@@ -20,8 +21,8 @@ const SIZES = {
   lg: { box: 44, radius: 13, font: 22 },
   // Each of a group's two faces in a list row.
   group: { box: 31, radius: 9, font: 17 },
-  // A profile's hero.
-  xl: { box: 88, radius: 26, font: 44 },
+  // A profile's header, beside the name.
+  profile: { box: 72, radius: 21, font: 36 },
 } as const;
 
 export type AvatarSize = keyof typeof SIZES;
@@ -34,37 +35,24 @@ function initials(name: string) {
 
 /**
  * The words for a teammate's status, the same on every surface (Home, the Computer tab, chat
- * headers) and the same as the web's (apps/web/src/lib/status.ts). The line under a teammate's
+ * headers) and the same as the web's: one list, in packages/shared. The line under a teammate's
  * name says only this, never their job.
  */
-export const STATUS = {
-  approval: "Needs your approval",
-  takeover: "Needs you to take over",
-  working: "Working",
-  /** Online, but waiting for a free turn on the computer. */
-  upNext: "Up next",
-  /** The computer is offline, so nothing they do can move. */
-  paused: "Paused",
-  idle: "Idle",
-} as const;
+export { STATUS };
 
 /** "Paused" with its reason, for a place that doesn't already say the computer is offline. */
-export const PAUSED_OFFLINE = "Paused, computer offline";
+export const PAUSED_OFFLINE = `${STATUS.paused}, computer offline`;
 
 /**
- * What a teammate is doing. Waiting on you still needs you, offline or not; everyone else is
- * paused while the computer (from `useComputerOffline`) is offline, with work or without.
+ * What a teammate is doing, by the shared rule (packages/shared `teammateStatus`): waiting on you
+ * still needs you, offline or not; everyone else is paused while the computer (from
+ * `useComputerOffline`) is offline.
  */
 export function botActivity(
   bot: Pick<BotSummary, "activeRun">,
   computerOffline = false,
 ): BotActivity {
-  const run = bot.activeRun;
-  if (run?.status === "waiting") return "waiting";
-  if (computerOffline) return "paused";
-  if (!run) return "idle";
-  if (run.status === "queued") return "queued";
-  return "working";
+  return teammateStatus(bot, !computerOffline).activity;
 }
 
 /** The words for what a teammate is up to, from the fixed list in `STATUS`. */
@@ -351,6 +339,84 @@ export function GroupAvatar({
       >
         <BotAvatar {...shown[1]!} size={inner} />
       </View>
+    </View>
+  );
+}
+
+/**
+ * A group's faces in a row for its chat header: up to three, overlapping a little, each cut out
+ * of what's behind it, and "+2" for the rest.
+ */
+export function AvatarStack({
+  members,
+  max = 3,
+  ring,
+}: {
+  members: Pick<BotSummary, "id" | "name" | "color" | "emoji">[];
+  max?: number;
+  /** What's behind the stack, so each face's cut-out ring matches it. */
+  ring?: string;
+}) {
+  const colors = useColors();
+  const tile = SIZES.sm;
+  const edge = 2;
+  const overlap = 10;
+  const shown = members.slice(0, max);
+  const rest = members.length - shown.length;
+  const outer = tile.box + edge * 2;
+  return (
+    <View
+      style={{ flexDirection: "row", alignItems: "center" }}
+      accessible
+      accessibilityLabel={members.map((member) => member.name).join(", ")}
+    >
+      {shown.map((member, index) => (
+        <View
+          key={member.id}
+          style={{
+            marginLeft: index === 0 ? -edge : -overlap,
+            width: outer,
+            height: outer,
+            borderRadius: tile.radius + edge,
+            borderWidth: edge,
+            borderColor: ring ?? colors.background,
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: max - index,
+          }}
+        >
+          <BotAvatar {...member} size="sm" />
+        </View>
+      ))}
+      {rest > 0 && (
+        <View
+          style={{
+            marginLeft: -overlap,
+            height: outer,
+            minWidth: outer,
+            paddingHorizontal: 5,
+            borderRadius: tile.radius + edge,
+            borderWidth: edge,
+            borderColor: ring ?? colors.background,
+            backgroundColor: colors.muted,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Text
+            allowFontScaling={false}
+            style={{
+              fontFamily: fonts.sans,
+              fontSize: 12,
+              lineHeight: 16,
+              fontWeight: "600",
+              color: colors.mutedForeground,
+            }}
+          >
+            +{rest}
+          </Text>
+        </View>
+      )}
     </View>
   );
 }

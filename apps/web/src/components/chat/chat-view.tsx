@@ -3,6 +3,7 @@
 import { isRunActive } from "@open-bot/shared";
 import {
   ArrowDown,
+  ArrowRight,
   Archive,
   CloudOff,
   Copy,
@@ -41,7 +42,7 @@ import { FilePreview } from "@/components/files/file-preview";
 import { archiveChat, markChatRead, newDirectChat } from "@/lib/actions";
 import { useAppState } from "@/lib/client/queries";
 import { fileKind, fileUrl } from "@/lib/files";
-import { teammateStatus } from "@/lib/status";
+import { chatStatus } from "@/lib/status";
 import type { BotSummary, MessageView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Composer, type ComposerHandle } from "./composer";
@@ -170,6 +171,8 @@ export function ChatView({ chatId }: { chatId: string }) {
   const composer = useRef<ComposerHandle>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const [atBottom, setAtBottom] = useState(true);
+  // Scrolled away from the top: the header gets a hairline so content doesn't slide under it unmarked.
+  const [scrolled, setScrolled] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -257,6 +260,7 @@ export function ChatView({ chatId }: { chatId: string }) {
     const element = scroller.current;
     if (!element) return;
     setAtBottom(element.scrollHeight - element.scrollTop - element.clientHeight < 80);
+    setScrolled(element.scrollTop > 4);
   }
 
   if (error) {
@@ -273,8 +277,19 @@ export function ChatView({ chatId }: { chatId: string }) {
 
   const isGroup = chat?.kind === "group";
   const bot = !isGroup ? members[0] : undefined;
-  // While the computer's state is still loading, nobody is shown as paused.
-  const status = bot && !isGroup && !helper ? teammateStatus(bot, !offline) : null;
+  // This chat's state, not the teammate's: what they wait for elsewhere is a link to there. While
+  // the computer's state is still loading, nothing is shown as paused.
+  const liveBot = bot && (allBots.find((entry) => entry.id === bot.id) ?? bot);
+  const status =
+    liveBot && !isGroup && !helper
+      ? chatStatus({
+          bot: liveBot,
+          chatId,
+          computerOnline: !offline,
+          chatById: (id) => state?.chats.find((entry) => entry.id === id),
+        })
+      : null;
+  const elsewhere = status?.elsewhere ?? null;
   const title = chat
     ? chat.kind === "scheduled"
       ? `${bot?.name ?? ""} · Scheduled`
@@ -316,7 +331,14 @@ export function ChatView({ chatId }: { chatId: string }) {
         }}
       >
         {/* On a phone this is the only bar: it carries the menu button the app bar would have. */}
-        <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border/70 pr-2 pl-1.5 sm:gap-3 sm:px-4 lg:pl-4 [&_button[data-variant=ghost]]:text-muted-foreground [&_button[data-variant=ghost]:hover]:text-foreground">
+        <header
+          className={cn(
+            "relative z-10 flex h-14 shrink-0 items-center gap-2 border-b pr-2 pl-1.5 transition-[border-color,box-shadow] duration-200 sm:gap-3 sm:px-4 lg:pl-4 [&_button[data-variant=ghost]]:text-muted-foreground [&_button[data-variant=ghost]:hover]:text-foreground",
+            scrolled
+              ? "border-border/70 shadow-[0_6px_14px_-10px_rgb(0_0_0/0.18)] dark:shadow-[0_6px_14px_-10px_rgb(0_0_0/0.6)]"
+              : "border-transparent",
+          )}
+        >
           {openMenu && (
             <Button
               variant="ghost"
@@ -364,13 +386,40 @@ export function ChatView({ chatId }: { chatId: string }) {
                     <>
                       {/* Titled after its topic, so say who it's with. */}
                       {chat.kind === "direct" && chat.title !== bot.name && `${bot.name} · `}
-                      <span className={cn(status.needsYou && "text-attention-ink")}>
+                      <span
+                        className={cn(
+                          status.needsYou && "text-attention-ink",
+                          elsewhere && "max-sm:hidden",
+                        )}
+                      >
                         {status.label}
                       </span>
+                      {/* On a phone there's no room for the chip: the line links there instead. */}
+                      {elsewhere && (
+                        <Link
+                          href={`/chats/${elsewhere.chatId}`}
+                          className="text-attention-ink underline-offset-2 hover:underline sm:hidden"
+                          aria-label={elsewhere.label}
+                        >
+                          {elsewhere.short} →
+                        </Link>
+                      )}
                     </>
                   ) : null}
                 </span>
               </div>
+              {elsewhere && (
+                // What the teammate waits for in another chat, and a way there.
+                <Link
+                  href={`/chats/${elsewhere.chatId}`}
+                  className="flex h-7 min-w-0 shrink items-center gap-1.5 rounded-full bg-attention/[0.1] px-2.5 text-[12.5px] font-medium text-attention-ink transition-colors hover:bg-attention/[0.16] max-sm:hidden"
+                  data-testid="chat-elsewhere"
+                >
+                  <span className="size-1.5 shrink-0 rounded-full bg-attention" />
+                  <span className="truncate">{elsewhere.label}</span>
+                  <ArrowRight className="size-3.5 shrink-0" />
+                </Link>
+              )}
               <span className="flex-1" />
               {!isGroup && bot && chat.kind === "direct" && (
                 <Tooltip>
@@ -533,7 +582,7 @@ export function ChatView({ chatId }: { chatId: string }) {
               onPick={(text) => composer.current?.setDraft(text)}
             />
           ) : (
-            <div className="mx-auto flex w-full max-w-[760px] flex-col gap-7 px-4 py-8 sm:px-6">
+            <div className="mx-auto flex w-full max-w-[760px] flex-col gap-8 px-4 py-8 sm:px-6">
               {entries.map((entry, index) => {
                 if (entry.type === "message") {
                   if (entry.message.steeredRunId || steered.has(entry.message.id)) return null;

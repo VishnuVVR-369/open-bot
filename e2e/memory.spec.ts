@@ -269,7 +269,8 @@ test.describe("versioned memory in an isolated database", () => {
     await page.goto(`/chats/${chat}`);
     // The reply's actions show on hover.
     await page.getByTestId("run").hover();
-    await page.getByRole("button", { name: "Memory context", exact: true }).click();
+    await page.getByRole("button", { name: "More actions", exact: true }).click();
+    await page.getByRole("menuitem", { name: "What they remembered" }).click();
     await expect(page.getByRole("listitem").filter({ hasText: revised.content })).toBeVisible();
     await expect(
       page.getByRole("listitem").filter({ hasText: "Memory changed since this task" }),

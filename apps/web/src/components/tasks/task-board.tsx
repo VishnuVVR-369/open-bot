@@ -9,6 +9,7 @@ import { BotAvatar } from "@/components/bot-avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { createTask, updateTask } from "@/lib/actions";
 import { queryKeys, useAppState, useApprovals, useTasks } from "@/lib/client/queries";
 import type { BotSummary, TaskView } from "@/lib/types";
@@ -172,6 +173,22 @@ function Card({
   );
 }
 
+/** Which tasks the board shows: every task, yours, or the ones waiting on you or overdue. */
+type Filter = "all" | "mine" | "attention";
+
+function overdue(task: TaskView): boolean {
+  return (
+    task.status !== "done" &&
+    task.dueOn !== null &&
+    differenceInCalendarDays(parseISO(task.dueOn), new Date()) < 0
+  );
+}
+
+/** A task's blocker that is waiting on you, rather than on the computer. */
+function waitsOnYou(blocker: Blocker | null): boolean {
+  return blocker === "approval" || blocker === "takeover";
+}
+
 /** How many finished tasks show before "Show N completed". */
 const DONE_SHOWN = 4;
 
@@ -234,6 +251,7 @@ export function TaskBoard() {
   });
   const [overColumn, setOverColumn] = useState<TaskView["status"] | null>(null);
   const [showAllDone, setShowAllDone] = useState(false);
+  const [filter, setFilter] = useState<Filter>("all");
   const { data: approvals } = useApprovals();
   const bots = state?.bots ?? [];
   /** A task whose chat waits on you says so on its card. */
@@ -271,119 +289,159 @@ export function TaskBoard() {
       </div>
     );
 
+  const blockers = new Map(tasks.map((task) => [task.id, blockerOf(task)]));
+  const mine = (task: TaskView) => task.ownerBotId === null;
+  const needsAttention = (task: TaskView) =>
+    waitsOnYou(blockers.get(task.id) ?? null) || overdue(task);
+  const counts = {
+    mine: tasks.filter((task) => task.status !== "done" && mine(task)).length,
+    attention: tasks.filter(needsAttention).length,
+  };
+  const shown = tasks.filter((task) =>
+    filter === "mine" ? mine(task) : filter === "attention" ? needsAttention(task) : true,
+  );
+
   const columns = COLUMNS.map((status) => ({
     status,
-    tasks: tasks
+    tasks: shown
       .filter((task) => task.status === status)
-      .sort((a, b) =>
-        status === "done"
-          ? (b.completedAt ?? "").localeCompare(a.completedAt ?? "")
-          : a.position - b.position,
-      ),
+      .sort((a, b) => {
+        if (status === "done") return (b.completedAt ?? "").localeCompare(a.completedAt ?? "");
+        // What waits on you leads its column, so it's seen first.
+        const first =
+          Number(waitsOnYou(blockers.get(b.id) ?? null)) -
+          Number(waitsOnYou(blockers.get(a.id) ?? null));
+        return first || a.position - b.position;
+      }),
   }));
 
   const dragId = (event: DragEvent) => event.dataTransfer.getData("text/task-id");
 
   return (
-    <>
-      <div className="grid items-start gap-4 md:grid-cols-3">
-        {columns.map((column) => (
-          <section
-            key={column.status}
-            aria-label={STATUS_LABELS[column.status]}
-            data-testid={`column-${column.status}`}
-            onDragOver={(event) => {
-              event.preventDefault();
-              setOverColumn(column.status);
-            }}
-            onDragLeave={(event) => {
-              if (!event.currentTarget.contains(event.relatedTarget as Node)) setOverColumn(null);
-            }}
-            onDrop={(event) => {
-              setOverColumn(null);
-              const id = dragId(event);
-              if (!id || event.defaultPrevented) return;
-              const last = column.tasks.filter((task) => task.id !== id).at(-1);
-              void move(id, column.status, (last?.position ?? 0) + 1);
-            }}
-            className={cn(
-              "flex flex-col gap-2 rounded-[14px] bg-subtle p-2 transition-colors md:min-h-40 dark:bg-white/[0.025]",
-              overColumn === column.status && "ring-1 ring-foreground/15",
-            )}
-          >
-            <h2 className="flex items-center gap-2 px-1.5 pt-1 pb-1 text-[13px] font-semibold">
-              <span
-                className={cn(
-                  "size-2 rounded-full",
-                  column.status === "todo" && "bg-muted-foreground/40",
-                  column.status === "doing" && "bg-working",
-                  column.status === "done" && "bg-done",
+    <Tabs value={filter} onValueChange={(value) => setFilter(value as Filter)} className="gap-4">
+      <TabsList aria-label="Show tasks" data-testid="task-filters">
+        <TabsTrigger value="all" className="px-3">
+          All
+        </TabsTrigger>
+        <TabsTrigger value="mine" className="px-3">
+          Mine ({counts.mine})
+        </TabsTrigger>
+        <TabsTrigger value="attention" className="px-3">
+          Needs attention{counts.attention > 0 && ` (${counts.attention})`}
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value={filter} className="flex flex-col gap-4">
+        <div className="grid items-start gap-4 md:grid-cols-3">
+          {columns.map((column) => (
+            <section
+              key={column.status}
+              aria-label={STATUS_LABELS[column.status]}
+              data-testid={`column-${column.status}`}
+              onDragOver={(event) => {
+                event.preventDefault();
+                setOverColumn(column.status);
+              }}
+              onDragLeave={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget as Node)) setOverColumn(null);
+              }}
+              onDrop={(event) => {
+                setOverColumn(null);
+                const id = dragId(event);
+                if (!id || event.defaultPrevented) return;
+                const last = column.tasks.filter((task) => task.id !== id).at(-1);
+                void move(id, column.status, (last?.position ?? 0) + 1);
+              }}
+              className={cn(
+                "flex flex-col gap-2 rounded-[14px] bg-subtle p-2 transition-colors md:min-h-40 dark:bg-white/[0.025]",
+                overColumn === column.status && "ring-1 ring-foreground/15",
+              )}
+            >
+              <h2 className="flex items-center gap-2 px-1.5 pt-1 pb-1 text-[13px] font-semibold">
+                <span
+                  className={cn(
+                    "size-2 rounded-full",
+                    column.status === "todo" && "bg-muted-foreground/40",
+                    column.status === "doing" && "bg-working",
+                    column.status === "done" && "bg-done",
+                  )}
+                />
+                {STATUS_LABELS[column.status]}
+                <span className="ml-auto rounded-full bg-surface px-1.5 text-[11.5px] leading-[18px] font-medium text-muted-foreground tabular-nums shadow-raised dark:bg-white/[0.06] dark:shadow-none">
+                  {column.tasks.length}
+                </span>
+              </h2>
+              <ol className="flex flex-col gap-2">
+                {(column.status === "done" && !showAllDone
+                  ? column.tasks.slice(0, DONE_SHOWN)
+                  : column.tasks
+                ).map((task) => (
+                  <Card
+                    key={task.id}
+                    task={task}
+                    owner={bots.find((bot) => bot.id === task.ownerBotId)}
+                    you={task.ownerBotId ? null : (state?.user.name ?? "You")}
+                    blocker={blockerOf(task)}
+                    onOpen={() => setEditing({ task, open: true })}
+                    onDragStart={(event) => {
+                      event.dataTransfer.setData("text/task-id", task.id);
+                      event.dataTransfer.effectAllowed = "move";
+                    }}
+                    onDropBefore={(event) => {
+                      const id = dragId(event);
+                      event.preventDefault();
+                      setOverColumn(null);
+                      if (!id || id === task.id) return;
+                      // The task just before it by position: blocked tasks are shown first, so
+                      // the one above it on screen may not be.
+                      const before = column.tasks.reduce(
+                        (best, other) =>
+                          other.id !== id && other.position < task.position && other.position > best
+                            ? other.position
+                            : best,
+                        task.position - 1,
+                      );
+                      void move(id, column.status, (before + task.position) / 2);
+                    }}
+                  />
+                ))}
+              </ol>
+              {column.status === "done" && column.tasks.length > DONE_SHOWN && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllDone((value) => !value)}
+                  className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[13px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  aria-expanded={showAllDone}
+                >
+                  <ChevronDown
+                    className={cn("size-3.5 transition-transform", showAllDone && "rotate-180")}
+                  />
+                  {showAllDone
+                    ? "Show fewer"
+                    : `Show ${column.tasks.length - DONE_SHOWN} more completed`}
+                </button>
+              )}
+              {column.tasks.length === 0 &&
+                (column.status !== "todo" || filter === "attention") && (
+                  <p className="mx-0.5 rounded-[10px] border border-dashed border-foreground/10 px-2 py-5 text-center text-[12.5px] text-muted-foreground">
+                    {filter !== "all"
+                      ? "Nothing here."
+                      : column.status === "doing"
+                        ? "Nothing in progress."
+                        : "Nothing finished yet."}
+                  </p>
                 )}
-              />
-              {STATUS_LABELS[column.status]}
-              <span className="ml-auto rounded-full bg-surface px-1.5 text-[11.5px] leading-[18px] font-medium text-muted-foreground tabular-nums shadow-raised dark:bg-white/[0.06] dark:shadow-none">
-                {column.tasks.length}
-              </span>
-            </h2>
-            <ol className="flex flex-col gap-2">
-              {(column.status === "done" && !showAllDone
-                ? column.tasks.slice(0, DONE_SHOWN)
-                : column.tasks
-              ).map((task, index) => (
-                <Card
-                  key={task.id}
-                  task={task}
-                  owner={bots.find((bot) => bot.id === task.ownerBotId)}
-                  you={task.ownerBotId ? null : (state?.user.name ?? "You")}
-                  blocker={blockerOf(task)}
-                  onOpen={() => setEditing({ task, open: true })}
-                  onDragStart={(event) => {
-                    event.dataTransfer.setData("text/task-id", task.id);
-                    event.dataTransfer.effectAllowed = "move";
-                  }}
-                  onDropBefore={(event) => {
-                    const id = dragId(event);
-                    event.preventDefault();
-                    setOverColumn(null);
-                    if (!id || id === task.id) return;
-                    const previous = column.tasks[index - 1];
-                    const before =
-                      previous && previous.id !== id ? previous.position : task.position - 1;
-                    void move(id, column.status, (before + task.position) / 2);
-                  }}
-                />
-              ))}
-            </ol>
-            {column.status === "done" && column.tasks.length > DONE_SHOWN && (
-              <button
-                type="button"
-                onClick={() => setShowAllDone((value) => !value)}
-                className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[13px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                aria-expanded={showAllDone}
-              >
-                <ChevronDown
-                  className={cn("size-3.5 transition-transform", showAllDone && "rotate-180")}
-                />
-                {showAllDone
-                  ? "Show fewer"
-                  : `Show ${column.tasks.length - DONE_SHOWN} more completed`}
-              </button>
-            )}
-            {column.tasks.length === 0 && column.status !== "todo" && (
-              <p className="mx-0.5 rounded-[10px] border border-dashed border-foreground/10 px-2 py-5 text-center text-[12.5px] text-muted-foreground">
-                {column.status === "doing" ? "Nothing in progress." : "Nothing finished yet."}
-              </p>
-            )}
-            {column.status === "todo" && <QuickAdd onAdded={refresh} />}
-          </section>
-        ))}
-      </div>
-      {tasks.length === 0 && (
-        <p className="text-center text-[13.5px] text-muted-foreground">
-          Add what needs doing, or give a goal to your chief of staff and they&apos;ll fill the
-          board.
-        </p>
-      )}
+              {/* A quick-added task is yours, so it shows under All and Mine. */}
+              {column.status === "todo" && filter !== "attention" && <QuickAdd onAdded={refresh} />}
+            </section>
+          ))}
+        </div>
+        {tasks.length === 0 && (
+          <p className="text-center text-[13.5px] text-muted-foreground">
+            Add what needs doing, or give a goal to your chief of staff and they&apos;ll fill the
+            board.
+          </p>
+        )}
+      </TabsContent>
       {editing.task && (
         <TaskDialog
           key={editing.task.id}
@@ -394,7 +452,7 @@ export function TaskBoard() {
           onSaved={refresh}
         />
       )}
-    </>
+    </Tabs>
   );
 }
 

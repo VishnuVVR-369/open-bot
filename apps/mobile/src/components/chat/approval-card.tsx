@@ -1,4 +1,4 @@
-import { approvalRisk, approveLabel, type ApprovalItem } from "@open-bot/shared";
+import { approvalRisk, approveLabel, type ApprovalItem, type ApprovalRisk } from "@open-bot/shared";
 import {
   AlertTriangle,
   Check,
@@ -133,9 +133,13 @@ export function ApprovalCard({
           <Icon size={17} color={colors.attentionInk} />
         </View>
         <View style={{ flex: 1, gap: 2 }}>
-          <Text variant="small" style={{ color: colors.attentionInk, fontWeight: "600" }}>
-            {botName} needs your approval
-          </Text>
+          {/* Who's asking, with what's worth a second look beside it, as on the web. */}
+          <View style={styles.ask}>
+            <Text variant="small" style={{ color: colors.attentionInk, fontWeight: "600" }}>
+              {botName} needs your approval
+            </Text>
+            {risk && <RiskChip risk={risk} />}
+          </View>
           <ApprovalTitle title={item.title} style={{ fontSize: 16, lineHeight: 22 }} />
         </View>
       </View>
@@ -171,35 +175,6 @@ export function ApprovalCard({
           </Text>
         )
       ) : null}
-      {risk && (
-        <View
-          style={[
-            styles.risk,
-            // A surface fill with a signal border, like the web: it stays legible on the amber card.
-            {
-              backgroundColor: colors.surface,
-              borderColor:
-                risk.tone === "destructive"
-                  ? mix(colors.destructive, colors.surface, 0.55)
-                  : mix(colors.attention, colors.surface, 0.7),
-            },
-          ]}
-        >
-          <AlertTriangle
-            size={13}
-            color={risk.tone === "destructive" ? colors.destructive : colors.attentionInk}
-          />
-          <Text
-            variant="caption"
-            style={{
-              fontWeight: "600",
-              color: risk.tone === "destructive" ? colors.destructive : colors.attentionInk,
-            }}
-          >
-            {risk.label}
-          </Text>
-        </View>
-      )}
       {error && (
         <Text variant="small" style={{ color: colors.destructive }}>
           {error}
@@ -258,7 +233,44 @@ export function ApprovalCard({
   );
 }
 
+/** What's worth a second look before approving, as a small chip: "Spends money". */
+function RiskChip({ risk }: { risk: ApprovalRisk }) {
+  const colors = useColors();
+  const destructive = risk.tone === "destructive";
+  const ink = destructive ? colors.destructive : colors.attentionInk;
+  return (
+    <View
+      style={[
+        styles.risk,
+        // A surface fill with a signal border, like the web: it stays legible on the amber card.
+        {
+          backgroundColor: colors.surface,
+          borderColor: destructive
+            ? mix(colors.destructive, colors.surface, 0.55)
+            : mix(colors.attention, colors.surface, 0.7),
+        },
+      ]}
+      testID="risk-chip"
+    >
+      <AlertTriangle size={11} color={ink} />
+      <Text
+        variant="caption"
+        style={{ fontSize: 11.5, lineHeight: 15, fontWeight: "600", color: ink }}
+      >
+        {risk.label}
+      </Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  ask: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    columnGap: space(2),
+    rowGap: 2,
+  },
   settled: { flexDirection: "row", alignItems: "center", gap: space(1.5), minHeight: 28 },
   card: { borderWidth: 1, borderRadius: radius.xl + 2, padding: space(4), gap: space(3) },
   head: { flexDirection: "row", alignItems: "flex-start", gap: space(3) },
@@ -266,12 +278,11 @@ const styles = StyleSheet.create({
   risk: {
     flexDirection: "row",
     alignItems: "center",
-    gap: space(1.5),
-    alignSelf: "flex-start",
+    gap: space(1),
     borderRadius: radius.full,
     borderWidth: 1,
-    paddingHorizontal: space(2.5),
-    paddingVertical: space(1),
+    paddingHorizontal: space(2),
+    paddingVertical: 2,
   },
   actions: { flexDirection: "row", gap: space(2.5) },
   action: { flex: 1 },

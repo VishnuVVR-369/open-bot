@@ -344,7 +344,7 @@ I put the full checklist on a page so you can forward it: [Kestrel 2.0 launch ch
   const flightApproval = approval({
     kind: "purchase",
     title: "Pay $842.30 to TAP Air Portugal",
-    detail: `Round trip SFO to LIS, economy, nonstop both ways.\nOut: ${fmtDay(outboundDate)}, 6:15 PM, arrives 11:05 AM next day.\nBack: ${fmtDay(backDate)}, 11:40 AM, arrives 3:35 PM.\nCard: Travel Amex (•••• 1007)`,
+    detail: `Round trip SFO to LIS, economy, nonstop both ways.\nOut: ${fmtDay(outboundDate)}, 6:15 PM PST, arrives 11:05 AM WET next day.\nBack: ${fmtDay(backDate)}, 11:40 AM WET, arrives 3:35 PM PST.\nCard: Travel Amex (•••• 1007)`,
     askEveryTime: true,
   });
   const flightsExchange = await s.exchange(irisFlights, {

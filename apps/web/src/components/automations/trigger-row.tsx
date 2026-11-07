@@ -292,7 +292,7 @@ export function TriggerRow({
             <span className="truncate text-[14.5px] font-medium group-hover:underline group-focus-visible:underline">
               {trigger.title}
             </span>
-            {!trigger.enabled && <StateBadge>Paused</StateBadge>}
+            {!trigger.enabled && <StateBadge>Off</StateBadge>}
             {trigger.createdBy === "bot" && (
               <span className="shrink-0 text-[12px] text-muted-foreground">
                 Set by {bot?.name ?? "a teammate"}
@@ -352,7 +352,7 @@ export function TriggerRow({
           <Switch
             className="mx-1.5"
             checked={trigger.enabled}
-            aria-label={trigger.enabled ? "Pause" : "Resume"}
+            aria-label="On"
             onCheckedChange={async (checked) => {
               const result = await setTriggerEnabled(trigger.id, checked);
               if (!result.ok) toast.error(result.error);

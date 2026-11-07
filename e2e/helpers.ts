@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 export const owner = {
   email: process.env.E2E_EMAIL ?? process.env.OWNER_EMAIL ?? "",
@@ -62,4 +62,14 @@ export async function botIdOf(page: Page, name: string): Promise<string> {
     bots: { id: string; name: string }[];
   };
   return state.bots.find((bot) => bot.name === name)!.id;
+}
+
+/**
+ * Approves a pending approval card. A long email has to be read in full first: its primary
+ * action is "Review full email" until then, and Approve shows after it.
+ */
+export async function approve(card: Locator) {
+  const review = card.getByTestId("review");
+  if (await review.isVisible()) await review.click();
+  await card.getByTestId("approve").click();
 }

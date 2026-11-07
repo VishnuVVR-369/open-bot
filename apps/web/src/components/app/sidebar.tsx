@@ -213,10 +213,8 @@ export function Sidebar({
         <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-2.5 pt-1 pb-8">
           <div className="flex flex-col gap-0.5">
             <SearchItem onNavigate={onNavigate} />
-            {/* In the phone menu every place fits in two columns, so none hides below the fold. */}
-            <div className={cn("flex flex-col gap-0.5", drawer && "grid grid-cols-2")}>
-              {[...PRIMARY_NAV, ...TOOLS_NAV].map(navItem)}
-            </div>
+            {/* The phone menu reads top to bottom: where you go most, your teammates, then tools. */}
+            {(drawer ? PRIMARY_NAV : [...PRIMARY_NAV, ...TOOLS_NAV]).map(navItem)}
           </div>
 
           <div className="flex flex-col gap-0.5">
@@ -347,6 +345,12 @@ export function Sidebar({
                   </Link>
                 );
               })}
+            </div>
+          )}
+          {drawer && (
+            <div className="flex flex-col gap-0.5">
+              <SectionHeader title="Tools" />
+              {TOOLS_NAV.map(navItem)}
             </div>
           )}
         </div>

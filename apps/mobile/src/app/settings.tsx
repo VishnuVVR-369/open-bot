@@ -1,3 +1,4 @@
+import { RECOVERY_COPY } from "@open-bot/shared";
 import { safe } from "@orpc/client";
 import Constants from "expo-constants";
 import * as LocalAuthentication from "expo-local-authentication";
@@ -13,6 +14,7 @@ import {
   LockKeyhole,
   LogOut,
   Moon,
+  RotateCcwKey,
   Smartphone,
   ShieldCheck,
   Sun,
@@ -20,7 +22,6 @@ import {
 } from "lucide-react-native";
 import { useEffect, useState } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
-import { BottomScrim } from "@/components/bottom-scrim";
 import { Separator } from "@/components/list-row";
 import { PasswordSheet } from "@/components/password-sheet";
 import { Card, Section } from "@/components/section";
@@ -74,7 +75,9 @@ export default function Settings() {
   const [passkeyResult, setPasskeyResult] = useState<string | null>(null);
   // "?password=new": you just signed in with a passkey from "Forgot password?".
   const { password } = useLocalSearchParams<{ password?: string }>();
-  const [passwordOpen, setPasswordOpen] = useState(password === "new");
+  const [passwordOpen, setPasswordOpen] = useState<false | "change" | "passkey">(
+    password === "new" ? "change" : false,
+  );
   const name = session?.user.name?.trim() || "You";
   const host = new URL(APP_URL).host;
 
@@ -231,9 +234,19 @@ export default function Settings() {
               icon={(color) => <LockKeyhole size={18} color={color} />}
               title="Change password"
               subtitle="Signs out your other devices"
-              onPress={() => setPasswordOpen(true)}
+              onPress={() => setPasswordOpen("change")}
               aside={<ChevronRight size={18} color={colors.mutedForeground} />}
               testID="change-password"
+            />
+            <Separator inset={SETTINGS_INSET} />
+            {/* The short way back in when the password is forgotten, right beside changing it. */}
+            <SettingsRow
+              icon={(color) => <RotateCcwKey size={18} color={color} />}
+              title={RECOVERY_COPY.resetAction}
+              subtitle={RECOVERY_COPY.settingsForgot}
+              onPress={() => setPasswordOpen("passkey")}
+              aside={<ChevronRight size={18} color={colors.mutedForeground} />}
+              testID="reset-with-passkey"
             />
             <Separator inset={SETTINGS_INSET} />
             <SettingsRow
@@ -299,8 +312,11 @@ export default function Settings() {
           />
         </Card>
       </ScrollView>
-      <BottomScrim />
-      <PasswordSheet open={passwordOpen} onClose={() => setPasswordOpen(false)} />
+      <PasswordSheet
+        open={passwordOpen !== false}
+        viaPasskey={passwordOpen === "passkey"}
+        onClose={() => setPasswordOpen(false)}
+      />
     </View>
   );
 }

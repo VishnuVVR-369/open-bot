@@ -18,7 +18,7 @@ export default async function NewBotPage() {
   return (
     <Page
       title="New teammate"
-      description="Give them a job. They work on the shared computer, remember what they learn, and ask you before anything risky."
+      description="Give them a job. They remember what they learn and ask you before anything risky."
     >
       <BotForm
         initial={{ name: "", role: "", instructions: "", color, emoji: "", autonomy: "risky" }}

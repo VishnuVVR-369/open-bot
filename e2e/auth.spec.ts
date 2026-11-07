@@ -23,8 +23,10 @@ test.describe("sign-in", () => {
     await page.getByLabel("Email").fill("someone@example.com");
     await page.getByRole("button", { name: "Forgot password?" }).click();
     const dialog = page.getByRole("dialog", { name: "Forgot your password?" });
-    await expect(dialog).toContainText("then set a new password");
+    await expect(dialog).toContainText("Use a passkey to reset your password");
+    await expect(dialog).toContainText("you have 10 minutes to choose a new password");
     await expect(dialog.getByRole("button", { name: "Sign in with a passkey" })).toBeVisible();
+    await expect(dialog.getByRole("heading", { name: "Other ways" })).toBeVisible();
     await expect(dialog.getByTestId("command")).toHaveText(
       "pnpm owner:reset-password someone@example.com",
     );
@@ -53,7 +55,7 @@ test.describe("change password", () => {
     const form = page.getByTestId("change-password");
     await form.getByLabel("Current password").fill("not-the-current-password");
     await form.getByLabel("New password", { exact: true }).fill("a-new-password-1");
-    await form.getByLabel("New password again").fill("a-new-password-1");
+    await form.getByLabel("Confirm new password").fill("a-new-password-1");
     await form.getByRole("button", { name: "Change password" }).click();
     await expect(form.getByRole("alert")).toHaveText("That isn't your current password.");
   });
@@ -77,7 +79,7 @@ test.describe("change password", () => {
     const form = page.getByTestId("change-password");
     await form.getByLabel("Current password").fill("whatever-it-is");
     await form.getByLabel("New password", { exact: true }).fill("a-new-password-1");
-    await form.getByLabel("New password again").fill("a-new-password-2");
+    await form.getByLabel("Confirm new password").fill("a-new-password-2");
     await form.getByRole("button", { name: "Change password" }).click();
     await expect(form.getByRole("alert")).toHaveText("The new passwords don't match.");
   });

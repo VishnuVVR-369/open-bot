@@ -25,3 +25,4 @@ export * from "./accounts";
 export * from "./recovery";
 export * from "./relative-time";
 export * from "./password";
+export * from "./status";

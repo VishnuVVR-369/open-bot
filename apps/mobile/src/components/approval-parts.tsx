@@ -82,13 +82,16 @@ export function ApprovalAvatar({
 export function ApprovalStatusChip({
   status,
   size = "md",
+  label: override,
 }: {
   status: ApprovalView["status"];
   /** `sm` sits at the end of a list row, leaving the title room. */
   size?: "sm" | "md";
+  /** Words in place of the status's own, like "Approval pending". */
+  label?: string;
 }) {
   const colors = useColors();
-  const [Icon, signal, label] =
+  const [Icon, signal, own] =
     status === "approved"
       ? [Check, colors.done, "Approved"]
       : status === "denied"
@@ -96,6 +99,7 @@ export function ApprovalStatusChip({
         : status === "expired"
           ? [CircleDashed, colors.mutedForeground, "Expired"]
           : [Clock, colors.attention, "Waiting"];
+  const label = override ?? own;
   const ink =
     status === "expired"
       ? colors.mutedForeground

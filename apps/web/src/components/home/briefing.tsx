@@ -201,7 +201,9 @@ export function Briefing() {
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <h2 className="text-[14px] font-medium">While you were away</h2>
           <p className="text-[13px] text-muted-foreground">
-            {summary} since {clock(sinceDate)}, {formatDistanceToNowStrict(sinceDate)} ago.
+            {summary} since {clock(sinceDate)}
+            {/* On a phone the clock time is enough. */}
+            <span className="max-sm:hidden">, {formatDistanceToNowStrict(sinceDate)} ago</span>.
           </p>
         </div>
         <Button

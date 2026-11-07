@@ -350,3 +350,16 @@ export function previewText(
   if (shown.length >= whole.length) return { text: whole, cut: false };
   return { text: `${shown.replace(/[\s.,;:!?…-]+$/u, "")}…`, cut: true };
 }
+
+/**
+ * An approval in a few words, for a list that names each one: "Pay $842.30 to TAP Air Portugal",
+ * "Email to Priya Nair", "Push the fix/x branch". The amount and the recipient stay in.
+ */
+export function approvalShortTitle(approval: ApprovalFacts): string {
+  const command = approvalCommand(approval);
+  if (command) return commandSummary(command);
+  const title = approval.title.trim();
+  const email = /^send (?:an |the )?email to (.+)$/i.exec(title);
+  if (email) return `Email to ${email[1]}`;
+  return title;
+}

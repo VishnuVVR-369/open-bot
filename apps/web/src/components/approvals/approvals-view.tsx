@@ -9,8 +9,7 @@ import { useAppState, useApprovals } from "@/lib/client/queries";
 import type { ApprovalView, BotSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
-  ApprovalDecision,
-  ApprovalDetail,
+  ApprovalReview,
   ApprovalTitle,
   NEEDS_YOU_SURFACE,
   RiskChip,
@@ -70,7 +69,8 @@ function PendingApproval({ approval, bot }: { approval: ApprovalView; bot?: BotS
             <span className="font-medium text-foreground">{bot?.name ?? "Former teammate"}</span>
             {!risk && <span>{KIND_LABEL[approval.kind]}</span>}
             <TimeAgo date={approval.createdAt} />
-            <OpenChat chatId={approval.chatId} className="ml-auto" />
+            <span aria-hidden>·</span>
+            <OpenChat chatId={approval.chatId} />
           </div>
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
             <h3 className="text-[15.5px] leading-snug font-medium">
@@ -79,8 +79,7 @@ function PendingApproval({ approval, bot }: { approval: ApprovalView; bot?: BotS
             {risk && <RiskChip risk={risk} />}
           </div>
         </div>
-        <ApprovalDetail approval={approval} />
-        <ApprovalDecision
+        <ApprovalReview
           approvalId={approval.id}
           approval={approval}
           botName={bot?.name ?? "your teammate"}
@@ -131,9 +130,10 @@ export function ApprovalsView() {
   const decided = (data ?? [])
     .filter((approval) => approval.status !== "pending")
     .sort((a, b) => (b.decidedAt ?? b.createdAt).localeCompare(a.decidedAt ?? a.createdAt));
-  if (isLoading) return <Skeleton className="h-40 w-full rounded-xl" />;
+  if (isLoading) return <Skeleton className="h-40 w-full max-w-[880px] rounded-xl" />;
+  // One reading width for the cards and the details inside them.
   return (
-    <div className="flex flex-col gap-10">
+    <div className="flex max-w-[880px] flex-col gap-10">
       {pending.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed px-6 py-14 text-center">
           <ShieldCheck className="size-6 text-muted-foreground" />

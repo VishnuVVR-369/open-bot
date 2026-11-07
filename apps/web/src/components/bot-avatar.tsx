@@ -1,7 +1,8 @@
+import type { TeammateActivity } from "@open-bot/shared";
 import { cn } from "@/lib/utils";
 
 /** `paused`: they have work, but it waits for the computer to come back. */
-export type BotActivity = "idle" | "working" | "waiting" | "queued" | "paused";
+export type BotActivity = TeammateActivity;
 
 const SIZES = {
   xs: "size-5 rounded-[6px] text-[10px]",

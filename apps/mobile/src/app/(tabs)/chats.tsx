@@ -21,20 +21,21 @@ import {
   type BotActivity,
 } from "@/components/bot-avatar";
 import { ComputerOfflineNotice, ConnectionNotice } from "@/components/connection-notice";
+import { FilterChips } from "@/components/filter-chips";
 import { HeaderActions, HeaderButton } from "@/components/header-actions";
 import { Separator } from "@/components/list-row";
 import { Sheet, SheetItem } from "@/components/sheet";
 import { Empty, LoadError, Loading } from "@/components/states";
 import { Text } from "@/components/text";
 import { api } from "@/lib/api";
-import { chatSubtitle, chatTitle } from "@/lib/chats";
+import { chatSubtitle, chatTitle, namedForTopic } from "@/lib/chats";
 import { errorMessage } from "@/lib/errors";
 import { haptics } from "@/lib/haptics";
 import { animateLayout } from "@/lib/motion";
 import { queryKeys } from "@/lib/query";
 import { useChats, useComputerOffline, useTeammates } from "@/lib/queries";
 import { ago } from "@/lib/time";
-import { radius, space, useColors } from "@/theme";
+import { space, useColors } from "@/theme";
 
 const FILTERS = [
   { key: "all", label: "All" },
@@ -94,6 +95,8 @@ function ChatRow({
   const members = chat.memberIds.flatMap((id) => bots.filter((entry) => entry.id === id));
   const title = chatTitle(chat, bot);
   const subtitle = plainText(chatSubtitle(chat, bot, bots));
+  // Who it's about leads the second line, as "Kit: …" does in a preview.
+  const speaker = bot && namedForTopic(chat, bot) ? bot.name : null;
   return (
     <Pressable
       onPress={() => router.push(`/chats/${chat.id}`)}
@@ -140,11 +143,11 @@ function ChatRow({
         )}
       </View>
       <View style={{ flex: 1, gap: 2 }}>
-        {/* Titles are often the task itself, so they get a second line before they're cut. */}
-        <View style={[styles.titleRow, { alignItems: "flex-start" }]}>
+        {/* Every row has the same two lines: the title, then who said what or what's going on. */}
+        <View style={styles.titleRow}>
           <Text
             variant="label"
-            numberOfLines={2}
+            numberOfLines={1}
             style={[
               { flex: 1, fontSize: 16, lineHeight: 21 },
               chat.unread && { fontWeight: "700" },
@@ -163,23 +166,21 @@ function ChatRow({
         <View style={styles.titleRow}>
           {live ? (
             <View style={{ flex: 1 }}>
-              <StatusLine
-                activity={activity}
-                waitingFor={bot?.activeRun?.waitingFor}
-                testID="chat-live"
-              />
+              <StatusLine activity={activity} testID="chat-live">
+                {speaker ? `${speaker} · ${live}` : live}
+              </StatusLine>
             </View>
           ) : (
             <Text
               variant="small"
-              numberOfLines={2}
+              numberOfLines={1}
               muted={!chat.unread}
               style={{ flex: 1, fontSize: 14, lineHeight: 19 }}
             >
               {subtitle}
             </Text>
           )}
-          {chat.unread && !chat.active && (
+          {chat.unread && (
             <View
               style={[styles.unread, { backgroundColor: colors.foreground }]}
               testID="chat-unread"
@@ -283,43 +284,7 @@ export default function Chats() {
             <ConnectionNotice />
             <ComputerOfflineNotice style={styles.notice} />
             {sorted.length > 0 && filters.length > 1 && (
-              <FlatList
-                horizontal
-                data={filters}
-                keyExtractor={(entry) => entry.key}
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.filters}
-                renderItem={({ item: entry }) => {
-                  const selected = entry.key === filter;
-                  return (
-                    <Pressable
-                      onPress={() => {
-                        haptics.tap();
-                        animateLayout();
-                        setFilter(entry.key);
-                      }}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected }}
-                      style={[
-                        styles.chip,
-                        selected
-                          ? { backgroundColor: colors.primary, borderColor: colors.primary }
-                          : { backgroundColor: colors.surface, borderColor: colors.border },
-                      ]}
-                    >
-                      <Text
-                        variant="small"
-                        style={{
-                          fontWeight: "500",
-                          color: selected ? colors.primaryForeground : colors.foreground,
-                        }}
-                      >
-                        {entry.label}
-                      </Text>
-                    </Pressable>
-                  );
-                }}
-              />
+              <FilterChips options={filters} value={filter} onChange={setFilter} />
             )}
           </View>
         }
@@ -400,20 +365,6 @@ const styles = StyleSheet.create({
     minHeight: 76,
   },
   titleRow: { flexDirection: "row", alignItems: "center", gap: space(2) },
-  filters: {
-    paddingHorizontal: space(4),
-    paddingTop: space(2),
-    paddingBottom: space(2),
-    gap: space(2),
-  },
-  chip: {
-    minHeight: 36,
-    // Narrow enough that every filter fits a phone's width without running off the edge.
-    paddingHorizontal: space(3),
-    borderRadius: radius.full,
-    borderWidth: 1,
-    justifyContent: "center",
-  },
   kind: {
     position: "absolute",
     right: -4,

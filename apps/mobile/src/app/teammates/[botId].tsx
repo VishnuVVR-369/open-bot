@@ -26,7 +26,6 @@ import {
   PAUSED_OFFLINE,
   StatusLine,
 } from "@/components/bot-avatar";
-import { BottomScrim } from "@/components/bottom-scrim";
 import { Card, Section } from "@/components/section";
 import { LoadError, Loading, NotFound } from "@/components/states";
 import { Text } from "@/components/text";
@@ -131,12 +130,7 @@ function PendingBanner({
         </Text>
         <ApprovalTitle title={title} numberOfLines={2} />
       </View>
-      <View style={styles.review}>
-        <Text variant="small" style={{ fontWeight: "600" }}>
-          {kind === "takeover" ? "Open" : "Review"}
-        </Text>
-        <ChevronRight size={16} color={colors.foreground} />
-      </View>
+      <ChevronRight size={18} color={colors.attentionInk} />
     </Pressable>
   );
 }
@@ -271,25 +265,30 @@ export default function TeammateScreen() {
       >
         <Stack.Screen options={{ title: "" }} />
         <View style={styles.hero}>
-          <BotAvatar {...bot} size="xl" activity={activity} />
-          <View style={{ alignItems: "center", gap: space(1) }}>
-            <View style={styles.nameRow}>
-              <Text variant="title" style={{ fontSize: 28, lineHeight: 34 }}>
-                {bot.name}
-              </Text>
-              {bot.isPrimary && <LeadBadge />}
-            </View>
-            <Text muted style={{ fontSize: 16, textAlign: "center" }}>
-              {bot.role}
-            </Text>
-            {/* Waiting on you is the banner below; this line is their status otherwise. */}
-            {activity !== "waiting" && (
-              <View style={{ marginTop: space(0.5) }}>
-                <StatusLine activity={activity} testID="profile-activity">
-                  {activity === "idle" && bot.lastActiveAt ? lastActive(bot.lastActiveAt) : status}
-                </StatusLine>
+          {/* Who they are, compact: the face beside the name, so what to do comes right after. */}
+          <View style={styles.identity}>
+            <BotAvatar {...bot} size="profile" activity={activity} />
+            <View style={{ flex: 1, gap: 2 }}>
+              <View style={styles.nameRow}>
+                <Text variant="title" numberOfLines={1} style={styles.name}>
+                  {bot.name}
+                </Text>
+                {bot.isPrimary && <LeadBadge />}
               </View>
-            )}
+              <Text muted numberOfLines={1} style={{ fontSize: 15, lineHeight: 20 }}>
+                {bot.role}
+              </Text>
+              {/* Waiting on you is the banner below; this line is their status otherwise. */}
+              {activity !== "waiting" && (
+                <View style={{ marginTop: space(1) }}>
+                  <StatusLine activity={activity} testID="profile-activity">
+                    {activity === "idle" && bot.lastActiveAt
+                      ? lastActive(bot.lastActiveAt)
+                      : status}
+                  </StatusLine>
+                </View>
+              )}
+            </View>
           </View>
           {takeover ? (
             <PendingBanner
@@ -346,7 +345,7 @@ export default function TeammateScreen() {
               title="Always allowed"
               subtitle={
                 ruleCount === 0
-                  ? "Nothing yet. Use Always allow on an approval."
+                  ? "Nothing yet. Command approvals offer Always allow."
                   : `${ruleCount} ${ruleCount === 1 ? "rule" : "rules"}: ${bot.name} doesn't ask about these`
               }
               onPress={() => router.push("/approval-rules")}
@@ -376,7 +375,6 @@ export default function TeammateScreen() {
           </Section>
         )}
       </ScrollView>
-      <BottomScrim />
     </View>
   );
 }
@@ -389,8 +387,10 @@ function goBack() {
 
 const styles = StyleSheet.create({
   content: { padding: space(4), gap: space(7) },
-  hero: { alignItems: "center", gap: space(4), paddingTop: space(2) },
+  hero: { gap: space(4) },
+  identity: { flexDirection: "row", alignItems: "center", gap: space(4) },
   nameRow: { flexDirection: "row", alignItems: "center", gap: space(2) },
+  name: { fontSize: 26, lineHeight: 32, flexShrink: 1 },
   banner: {
     alignSelf: "stretch",
     flexDirection: "row",
@@ -403,7 +403,6 @@ const styles = StyleSheet.create({
     paddingVertical: space(3),
     overflow: "hidden",
   },
-  review: { flexDirection: "row", alignItems: "center", gap: 2 },
   actions: { flexDirection: "row", gap: space(2.5), alignSelf: "stretch" },
   action: {
     flex: 1,

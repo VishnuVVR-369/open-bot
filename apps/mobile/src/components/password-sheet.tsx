@@ -18,7 +18,16 @@ type Mode = "change" | "reset";
  * after confirming with a passkey (right after a passkey sign-in it isn't asked for again).
  * Either way every other device is signed out and this phone stays in.
  */
-export function PasswordSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function PasswordSheet({
+  open,
+  onClose,
+  viaPasskey,
+}: {
+  open: boolean;
+  onClose: () => void;
+  /** Settings' "Reset with a passkey": ask for the passkey straight away. */
+  viaPasskey?: boolean;
+}) {
   const colors = useColors();
   const [mode, setMode] = useState<Mode>("change");
   const [current, setCurrent] = useState("");
@@ -38,12 +47,14 @@ export function PasswordSheet({ open, onClose }: { open: boolean; onClose: () =>
     let live = true;
     // Just signed in with a passkey: no need for the old password.
     void canSetWithoutCurrent().then((ready) => {
-      if (live && ready) setMode("reset");
+      if (!live) return;
+      if (ready) setMode("reset");
+      else if (viaPasskey) void confirmWithPasskey();
     });
     return () => {
       live = false;
     };
-  }, [open]);
+  }, [open, viaPasskey]);
 
   async function confirmWithPasskey() {
     setPending("passkey");
@@ -104,34 +115,31 @@ export function PasswordSheet({ open, onClose }: { open: boolean; onClose: () =>
       <View style={styles.form}>
         {mode === "change" && (
           <View style={styles.field}>
-            <View style={styles.labelRow}>
-              <Text variant="small" style={{ fontWeight: "500" }}>
-                Current password
-              </Text>
-              <Pressable
-                onPress={() => void confirmWithPasskey()}
-                disabled={pending !== null}
-                accessibilityRole="button"
-                hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
-                style={styles.forgot}
-                testID="password-use-passkey"
-              >
-                <KeyRound size={13} color={colors.mutedForeground} />
-                <Text variant="small" muted style={{ fontWeight: "500" }}>
-                  {pending === "passkey" ? "Checking…" : "Forgot it? Use your passkey"}
-                </Text>
-              </Pressable>
-            </View>
+            <Text variant="small" style={{ fontWeight: "500" }}>
+              Current password
+            </Text>
             <TextField
               ref={first}
               value={current}
               onChangeText={setCurrent}
-              secureTextEntry
+              password
               autoComplete="current-password"
-              autoCapitalize="none"
-              autoCorrect={false}
               testID="password-current"
             />
+            {/* Its own row, under the field it stands in for. */}
+            <Pressable
+              onPress={() => void confirmWithPasskey()}
+              disabled={pending !== null}
+              accessibilityRole="button"
+              hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
+              style={styles.forgot}
+              testID="password-use-passkey"
+            >
+              <KeyRound size={14} color={colors.mutedForeground} />
+              <Text variant="small" muted style={{ fontWeight: "500" }}>
+                {pending === "passkey" ? "Checking…" : "Forgot it? Use your passkey"}
+              </Text>
+            </Pressable>
           </View>
         )}
         <View style={styles.field}>
@@ -142,10 +150,8 @@ export function PasswordSheet({ open, onClose }: { open: boolean; onClose: () =>
             ref={mode === "reset" ? first : undefined}
             value={next}
             onChangeText={setNext}
-            secureTextEntry
+            password
             autoComplete="new-password"
-            autoCapitalize="none"
-            autoCorrect={false}
             testID="password-new"
           />
           <Text variant="caption" muted>
@@ -154,15 +160,13 @@ export function PasswordSheet({ open, onClose }: { open: boolean; onClose: () =>
         </View>
         <View style={styles.field}>
           <Text variant="small" style={{ fontWeight: "500" }}>
-            New password again
+            Confirm new password
           </Text>
           <TextField
             value={confirm}
             onChangeText={setConfirm}
-            secureTextEntry
+            password
             autoComplete="new-password"
-            autoCapitalize="none"
-            autoCorrect={false}
             returnKeyType="done"
             onSubmitEditing={() => void save()}
             testID="password-confirm"
@@ -188,6 +192,11 @@ export function PasswordSheet({ open, onClose }: { open: boolean; onClose: () =>
 const styles = StyleSheet.create({
   form: { paddingHorizontal: space(5), paddingTop: space(1), gap: space(4) },
   field: { gap: space(2) },
-  labelRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  forgot: { flexDirection: "row", alignItems: "center", gap: space(1) },
+  forgot: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: space(1.5),
+    minHeight: 32,
+  },
 });

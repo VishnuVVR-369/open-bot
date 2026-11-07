@@ -208,7 +208,7 @@ export const OFFLINE_ACTION = "Works once the computer is back";
 /** The rows of one kind of automation: one surface, divided, not a stack of cards. */
 export const ROWS = "flex flex-col divide-y rounded-xl border bg-card";
 
-/** "Paused" or "Done" beside an automation's title, so an off row still reads clearly. */
+/** "Off" or "Done" beside an automation's title, so an off row still reads clearly. */
 export function StateBadge({ children }: { children: ReactNode }) {
   return (
     <span

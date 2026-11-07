@@ -9,7 +9,7 @@ export default function SkillsPage() {
   return (
     <Page
       title="Skills"
-      description="Step-by-step instructions your teammates follow the same way every time. Type / in any chat to run one."
+      description="Steps your teammates follow the same way every time. Type / in a chat to run one."
       actions={<SkillDialog />}
     >
       <SkillsList />
