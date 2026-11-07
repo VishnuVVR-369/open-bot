@@ -117,7 +117,8 @@ export function ReplyFeedback({
     <span
       className="flex items-center"
       data-testid="reply-feedback"
-      data-pinned={open || undefined}
+      // A rated reply keeps its whole action row in view, so the picked thumb never floats alone.
+      data-pinned={open || rating ? true : undefined}
     >
       <RateButton
         label="Good reply"

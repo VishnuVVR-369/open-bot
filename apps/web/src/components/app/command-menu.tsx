@@ -43,7 +43,14 @@ import {
 } from "@/components/ui/command";
 import { getJson } from "@/lib/client/api";
 import { useAppState } from "@/lib/client/queries";
-import { highlightParts, matchScore, queryWords, startsWords } from "@/lib/search-match";
+import {
+  excerptLine,
+  highlightParts,
+  matchScore,
+  preferWordStarts,
+  queryWords,
+  rankFound,
+} from "@/lib/search-match";
 import { chatHref } from "@/lib/utils";
 import type { PageSummary, SearchResultView } from "@/lib/types";
 
@@ -128,12 +135,6 @@ function ranked<T>(items: T[], texts: (item: T) => string[], words: string[]): T
     .map((entry) => entry.item);
 }
 
-/** Search results with the query at the start of a word first, then the rest as they came. */
-function wordStartsFirst<T>(items: T[], text: (item: T) => string, words: string[]): T[] {
-  const starts = items.filter((item) => startsWords(text(item), words));
-  return [...starts, ...items.filter((item) => !starts.includes(item))];
-}
-
 function CommandMenu({
   open,
   onOpenChange,
@@ -193,11 +194,11 @@ function CommandMenu({
   const searchWords = queryWords(searchFor);
   const messageResults =
     searching && words.length > 0
-      ? wordStartsFirst(results ?? [], (result) => result.excerpt, searchWords)
+      ? preferWordStarts(results ?? [], (result) => result.excerpt, searchWords)
       : [];
   const pageResults =
     searching && words.length > 0
-      ? wordStartsFirst(foundPages ?? [], (page) => page.title, searchWords)
+      ? rankFound(foundPages ?? [], (page) => page.title, searchWords)
       : [];
   const nothing =
     bots.length + groups.length + pages.length + messageResults.length + pageResults.length === 0 &&
@@ -315,8 +316,16 @@ function CommandMenu({
                   >
                     {bot ? (
                       <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="xs" />
+                    ) : result.from === "you" ? (
+                      // You, as the account row shows you, in a tile the size of a teammate's.
+                      <span
+                        aria-hidden
+                        className="flex size-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-b from-foreground/85 to-foreground text-[10px] font-semibold text-background"
+                      >
+                        {(state?.user.name ?? "You").slice(0, 1).toUpperCase()}
+                      </span>
                     ) : (
-                      <MessageSquare className="mt-0.5 text-muted-foreground" />
+                      <MessageSquare className="text-muted-foreground" />
                     )}
                     <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                       <span className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
@@ -330,8 +339,11 @@ function CommandMenu({
                           })}
                         </span>
                       </span>
-                      <span className="line-clamp-2 text-[13px] leading-snug">
-                        <Highlighted text={result.excerpt} query={searchFor} />
+                      <span className="truncate text-[13px] leading-snug">
+                        <Highlighted
+                          text={excerptLine(result.excerpt, searchWords)}
+                          query={searchFor}
+                        />
                       </span>
                     </span>
                   </CommandItem>

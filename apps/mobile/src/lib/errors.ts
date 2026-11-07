@@ -28,6 +28,14 @@ export function isGone(error: unknown): boolean {
   return call?.code === "NOT_FOUND" && call.defined === true;
 }
 
+/**
+ * What you opened isn't there: it's gone, or the link's id was turned down as one that can't
+ * exist (a mistyped or truncated link). Either way the screen says "not found", not "try again".
+ */
+export function isNotFound(error: unknown): boolean {
+  return isGone(error) || callError(error)?.code === "BAD_REQUEST";
+}
+
 export function isUnauthorized(error: unknown): boolean {
   return callError(error)?.code === "UNAUTHORIZED";
 }

@@ -17,7 +17,7 @@ import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/errors";
 import { haptics } from "@/lib/haptics";
 import { queryKeys } from "@/lib/query";
-import { useTeammates } from "@/lib/queries";
+import { useComputerOffline, useTeammates } from "@/lib/queries";
 import { lastActive } from "@/lib/time";
 import { useKeyboardHeight } from "@/lib/use-keyboard";
 import { radius, space, useColors } from "@/theme";
@@ -29,6 +29,7 @@ export default function NewChat() {
   const keyboard = useKeyboardHeight();
   const queryClient = useQueryClient();
   const { data: bots, error, isLoading, refetch } = useTeammates();
+  const computerOffline = useComputerOffline();
   const [mode, setMode] = useState<"direct" | "group">("direct");
   const [title, setTitle] = useState("");
   const [picked, setPicked] = useState<string[]>([]);
@@ -86,14 +87,14 @@ export default function NewChat() {
               color={bot.color}
               emoji={bot.emoji}
               size="lg"
-              activity={botActivity(bot)}
+              activity={botActivity(bot, computerOffline)}
             />
           }
           title={bot.name}
           subtitle={
             !bot.activeRun && bot.lastActiveAt
               ? `${bot.role} · ${lastActive(bot.lastActiveAt)}`
-              : botStatusText(bot)
+              : botStatusText(bot, computerOffline)
           }
           testID="pick-teammate"
           aside={

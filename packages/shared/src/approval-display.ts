@@ -1,4 +1,4 @@
-import { shellScript } from "./approval-rules";
+import { shellScript, simpleCommands } from "./approval-rules";
 
 /** A command's approval detail in its parts: why, the command itself, and where it runs. */
 export function commandParts(detail: string): {
@@ -131,4 +131,202 @@ export function detailFields(detail: string): { text: string[]; fields: DetailFi
     else text.push(line);
   }
   return fields.length >= 2 ? { text, fields } : { text: lines, fields: [] };
+}
+
+/** The last part of a path, so a summary names the thing rather than where it lives. */
+function lastSegment(path: string): string {
+  const trimmed = path.replace(/^["']|["']$/g, "").replace(/\/+$/, "");
+  const segment = trimmed.split("/").filter(Boolean).at(-1) ?? trimmed;
+  return segment === "*" ? (trimmed.split("/").filter(Boolean).at(-2) ?? trimmed) : segment;
+}
+
+/** The words of a command, without flags (and their values, for the flags given). */
+function operands(words: string[], valued: string[] = []): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i]!;
+    if (valued.includes(word)) i++;
+    else if (!word.startsWith("-")) out.push(word);
+  }
+  return out;
+}
+
+function summarizeOne(command: string): string | null {
+  const all = command.trim().split(/\s+/).filter(Boolean);
+  // Redirections say where output goes, not what the command does.
+  const cut = all.findIndex((word) => /^(\d?[<>]|&>)/.test(word));
+  const words = cut < 0 ? all : all.slice(0, cut);
+  while (words[0] === "sudo" || /^[A-Z_][A-Z0-9_]*=/.test(words[0] ?? "")) words.shift();
+  const [tool, sub, ...rest] = words;
+  if (!tool) return null;
+  const args = operands(rest);
+  switch (tool) {
+    case "git":
+      if (sub === "push") {
+        const [, branch] = args;
+        return branch ? `Push the ${branch} branch` : "Push to the remote";
+      }
+      if (sub === "commit") return "Commit changes";
+      if (sub === "clone")
+        return args[0]
+          ? `Clone ${lastSegment(args[0]).replace(/\.git$/, "")}`
+          : "Clone a repository";
+      if (sub === "checkout" || sub === "switch")
+        return args[0] ? `Switch to ${args[0]}` : "Switch branches";
+      if (sub === "reset") return "Reset the branch";
+      if (sub === "status") return "Check what changed";
+      if (sub === "diff" || sub === "show") return "Look at changes";
+      if (sub === "log") return "Read the history";
+      if (sub === "merge") return args[0] ? `Merge ${args[0]}` : "Merge a branch";
+      return sub ? `Run git ${sub}` : "Run git";
+    case "gh": {
+      const action = rest[0];
+      if (sub === "pr") {
+        if (action === "merge") return "Merge a pull request";
+        if (action === "create") return "Open a pull request";
+        if (action === "list") return "List pull requests";
+        if (action === "close") return "Close a pull request";
+        return "Look at a pull request";
+      }
+      if (sub === "issue") {
+        if (action === "create") return "Open an issue";
+        if (action === "list") return "List issues";
+        if (action === "close") return "Close an issue";
+        return "Look at an issue";
+      }
+      if (sub === "release") return action === "list" ? "List releases" : "Publish a release";
+      if (sub === "run" || sub === "workflow") return "Check CI runs";
+      return "Use GitHub";
+    }
+    case "cat":
+    case "head":
+    case "tail":
+    case "less":
+    case "more":
+    case "nl":
+    case "wc": {
+      const file = operands([sub ?? "", ...rest].filter(Boolean), ["-n", "-c"]).at(-1);
+      return file ? `Read ${lastSegment(file)}` : "Read a file";
+    }
+    case "sed": {
+      const all = [sub ?? "", ...rest].filter(Boolean);
+      // The script comes first; the file it reads or edits is last.
+      const file = operands(all, ["-e", "-f"])
+        .slice(all.includes("-e") ? 0 : 1)
+        .at(-1);
+      const editing = all.some((word) => /^-i/.test(word) || word === "--in-place");
+      if (editing) return file ? `Edit ${lastSegment(file)}` : "Edit a file";
+      return file ? `Read ${lastSegment(file)}` : "Read a file";
+    }
+    case "ls":
+    case "tree":
+      return "List files";
+    case "find":
+    case "fd":
+      return "Find files";
+    case "grep":
+    case "rg":
+    case "ag":
+      return "Search files";
+    case "rm":
+    case "rmdir":
+    case "shred": {
+      const targets = operands([sub ?? "", ...rest].filter(Boolean));
+      if (targets.length === 0) return "Delete files";
+      return targets.length === 1
+        ? `Delete ${lastSegment(targets[0]!)}`
+        : `Delete ${targets.length} items`;
+    }
+    case "mv":
+      return "Move files";
+    case "cp":
+      return "Copy files";
+    case "mkdir":
+      return "Create a folder";
+    case "chmod":
+    case "chown":
+      return "Change file permissions";
+    case "pg_dump": {
+      const database = operands([sub ?? "", ...rest].filter(Boolean), [
+        "-f",
+        "--file",
+        "-U",
+        "-h",
+        "-p",
+        "-t",
+        "-n",
+      ]).at(-1);
+      return database ? `Export the ${database} database` : "Export a database";
+    }
+    case "psql":
+    case "mysql":
+    case "sqlite3":
+      return "Run a database query";
+    case "curl":
+    case "wget":
+      return "Make a web request";
+    case "npm":
+    case "pnpm":
+    case "yarn":
+    case "bun":
+      if (sub === "install" || sub === "i" || sub === "add") return "Install packages";
+      if (sub === "publish") return "Publish a package";
+      return sub ? `Run ${sub === "run" ? (args[0] ?? "a script") : sub}` : `Run ${tool}`;
+    case "docker":
+      return "Run a container command";
+    case "ssh":
+      return "Connect to another machine";
+    case "kill":
+    case "pkill":
+    case "killall":
+      return "Stop a process";
+    default:
+      return `Run ${lastSegment(tool)}`;
+  }
+}
+
+/**
+ * A few plain words for what a shell command does, for a title: "Push the fix branch",
+ * "Delete downloads". Follows the first command of a script and says how many more follow.
+ * The command itself is still shown, in a code face, beside it.
+ */
+export function commandSummary(command: string): string {
+  const script = shellScript(command);
+  const parts = simpleCommands(script) ?? [script.split(/[;&|\n]/)[0] ?? script];
+  const meaningful = parts.filter(
+    (part) => !/^(cd|export|set|source|\.)\s/.test(part) && part !== "cd",
+  );
+  const first = meaningful[0] ?? parts[0] ?? script;
+  const summary = summarizeOne(first) ?? "Run a command";
+  const more = meaningful.length - 1;
+  return more > 0 ? `${summary}, then ${more} more` : summary;
+}
+
+/**
+ * The whole command a command approval runs: the "$ " line of its detail, else its title
+ * (bare, or as the worker writes it, "Run `...`"). Null for approvals that aren't commands.
+ */
+export function approvalCommand(approval: ApprovalFacts): string | null {
+  if (approval.kind !== "command") return null;
+  const fromDetail = commandParts(approval.detail).command;
+  if (fromDetail) return fromDetail;
+  const title = approval.title.trim();
+  const wrapped = /^Run `([\s\S]+)`$/.exec(title)?.[1] ?? title.replace(/^`([\s\S]*)`$/, "$1");
+  const fromTitle = shellScript(wrapped);
+  if (fromTitle) return fromTitle;
+  return approval.subject ? shellScript(approval.subject) || null : null;
+}
+
+/**
+ * What an approval leads with: plain words for a command ("Push the fix/x branch") with the
+ * command itself beside it, in a code face; any other approval's own title.
+ */
+export function approvalHeadline(approval: ApprovalFacts): {
+  title: string;
+  command: string | null;
+} {
+  const command = approvalCommand(approval);
+  return command
+    ? { title: commandSummary(command), command }
+    : { title: approval.title, command: null };
 }

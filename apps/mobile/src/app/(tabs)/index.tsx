@@ -34,8 +34,15 @@ import {
   View,
   useColorScheme,
 } from "react-native";
-import { BotAvatar, botActivity, GroupAvatar, needsYouText } from "@/components/bot-avatar";
-import { ConnectionNotice } from "@/components/connection-notice";
+import {
+  activityColor,
+  activityText,
+  BotAvatar,
+  botActivity,
+  GroupAvatar,
+  type BotActivity,
+} from "@/components/bot-avatar";
+import { ComputerOfflineNotice, ConnectionNotice } from "@/components/connection-notice";
 import { Card, Section } from "@/components/section";
 import { Empty, LoadError, Loading } from "@/components/states";
 import { Text } from "@/components/text";
@@ -44,7 +51,14 @@ import { animateLayout } from "@/lib/motion";
 import { usePresence } from "@/lib/presence";
 import { PageMenu, PageRow } from "@/components/page-row";
 import { sortPages } from "@/lib/pages";
-import { useChats, useHome, useNewDirectChat, usePages, useTeammates } from "@/lib/queries";
+import {
+  useChats,
+  useComputerOffline,
+  useHome,
+  useNewDirectChat,
+  usePages,
+  useTeammates,
+} from "@/lib/queries";
 import { phoneDayClock } from "@/lib/phone-clock";
 import { screenHref } from "@/lib/screens";
 import { ago } from "@/lib/time";
@@ -73,13 +87,20 @@ const chatHref = (chatId: string, runId?: string | null): Href =>
 /** How many recent turns from groups and automations Home shows. */
 const RECENT = 4;
 
-/** The line under the greeting: what's going on, in a few words. */
-function statusLine(home: Home, bots: BotSummary[]): string {
+/**
+ * The line under the greeting: what's going on, in a few words. While the computer is offline
+ * nobody is working, so it never says they are (the notice under it says why).
+ */
+function statusLine(home: Home, bots: BotSummary[], computerOffline = false): string {
   const needs = home.pendingApprovals + home.takeoverRequests.length;
-  const working = bots.filter((bot) => botActivity(bot) === "working");
+  const activity = bots.map((bot) => ({ bot, activity: botActivity(bot, computerOffline) }));
+  const working = activity.filter((entry) => entry.activity === "working");
+  const paused = activity.filter((entry) => entry.activity === "paused");
   if (needs > 0) return `${plural(needs, "thing")} ${needs === 1 ? "needs" : "need"} you.`;
-  if (working.length === 1) return `${working[0]!.name} is working on something.`;
+  if (working.length === 1) return `${working[0]!.bot.name} is working on something.`;
   if (working.length > 1) return `${plural(working.length, "teammate")} are working right now.`;
+  if (paused.length === 1) return `${paused[0]!.bot.name}'s work is paused.`;
+  if (paused.length > 1) return `${plural(paused.length, "teammate")}'s work is paused.`;
   return "All quiet. Your teammates are ready when you are.";
 }
 
@@ -89,12 +110,18 @@ function Callout({
   onPress,
   children,
   action,
+  quiet,
   testID,
 }: {
   leading: ReactNode;
   onPress: () => void;
   children: ReactNode;
   action: string;
+  /**
+   * Nothing to do yet, only something to read: the action is an outline under the words, so
+   * they keep the card's full width.
+   */
+  quiet?: boolean;
   testID?: string;
 }) {
   const colors = useColors();
@@ -109,6 +136,7 @@ function Callout({
       android_ripple={{ color: mix(colors.attention, colors.surface, 0.18) }}
       style={[
         styles.callout,
+        quiet && { alignItems: "flex-start" },
         {
           borderColor: mix(colors.attention, colors.surface, dark ? 0.28 : 0.42),
           backgroundColor: mix(colors.attention, colors.surface, dark ? 0.06 : 0.08),
@@ -117,32 +145,51 @@ function Callout({
       testID={testID}
     >
       {leading}
-      <View style={{ flex: 1, gap: 2 }}>{children}</View>
-      {/* The card already says "needs you"; the action itself stays ink, like every button. */}
-      <View style={[styles.calloutAction, { backgroundColor: colors.primary }]}>
-        <Text variant="small" style={{ color: colors.primaryForeground, fontWeight: "600" }}>
-          {action}
-        </Text>
+      <View style={{ flex: 1, gap: 2 }}>
+        {children}
+        {quiet && (
+          <View
+            style={[
+              styles.calloutAction,
+              styles.calloutQuiet,
+              { backgroundColor: colors.surface, borderColor: colors.input },
+            ]}
+          >
+            <Text variant="small" style={{ fontWeight: "600" }}>
+              {action}
+            </Text>
+          </View>
+        )}
       </View>
+      {/* The card already says "needs you"; the action itself stays ink, like every button. */}
+      {!quiet && (
+        <View style={[styles.calloutAction, { backgroundColor: colors.primary }]}>
+          <Text variant="small" style={{ color: colors.primaryForeground, fontWeight: "600" }}>
+            {action}
+          </Text>
+        </View>
+      )}
     </Pressable>
   );
 }
 
-function NeedsYou({ home, bots }: { home: Home; bots: BotSummary[] }) {
+function NeedsYou({
+  home,
+  bots,
+  computerOffline,
+}: {
+  home: Home;
+  bots: BotSummary[];
+  computerOffline: boolean;
+}) {
   const colors = useColors();
-  const proposals = home.proposals.flatMap((proposal) => {
-    const bot = bots.find((entry) => entry.id === proposal.botId);
-    return bot ? [{ ...proposal, bot }] : [];
-  });
   // Who is waiting on an approval, from the teammates' live state.
   const asking = bots.filter(
     (bot) => bot.activeRun?.status === "waiting" && bot.activeRun.waitingFor === "approval",
   );
-  if (home.pendingApprovals === 0 && home.takeoverRequests.length === 0 && proposals.length === 0)
-    return null;
-  const actionable = home.pendingApprovals > 0 || home.takeoverRequests.length > 0;
+  if (home.pendingApprovals === 0 && home.takeoverRequests.length === 0) return null;
   return (
-    <Section title={actionable ? "Needs you" : "For you"}>
+    <Section title="Needs you">
       <View style={{ gap: space(2) }}>
         {home.takeoverRequests.map((request) => {
           const bot = bots.find((entry) => entry.id === request.botId);
@@ -157,13 +204,20 @@ function NeedsYou({ home, bots }: { home: Home; bots: BotSummary[] }) {
                 )
               }
               onPress={() => router.push(screenHref(request.screenId, request.id))}
-              action="Open"
+              // The screen can't be driven while the computer is away, only read about.
+              action={computerOffline ? "View request" : "Open"}
+              quiet={computerOffline}
               testID="takeover-request"
             >
               <Text variant="label">{request.botName} needs you to take over</Text>
               <Text variant="small" muted numberOfLines={2}>
                 {request.reason}
               </Text>
+              {computerOffline && (
+                <Text variant="small" style={{ fontWeight: "500" }} testID="takeover-later">
+                  You can take over once the computer is back.
+                </Text>
+              )}
             </Callout>
           );
         })}
@@ -205,30 +259,53 @@ function NeedsYou({ home, bots }: { home: Home; bots: BotSummary[] }) {
             )}
           </Callout>
         )}
-        {/* Not something to act on from the phone, so it stays quiet and comes last. */}
-        {proposals.map((proposal) => (
+      </View>
+    </Section>
+  );
+}
+
+/** Suggestions to review on the computer: worth knowing about, nothing to do from the phone. */
+function OnDesktop({ home, bots }: { home: Home; bots: BotSummary[] }) {
+  const colors = useColors();
+  const proposals = home.proposals.flatMap((proposal) => {
+    const bot = bots.find((entry) => entry.id === proposal.botId);
+    return bot ? [{ ...proposal, bot }] : [];
+  });
+  if (proposals.length === 0) return null;
+  return (
+    <Section title="On desktop">
+      <Card>
+        {proposals.map((proposal, index) => (
           <View
             key={proposal.id}
-            style={[styles.note, { borderColor: colors.border }]}
+            style={[
+              styles.desktopRow,
+              index > 0 && {
+                borderTopWidth: StyleSheet.hairlineWidth,
+                borderTopColor: colors.border,
+              },
+            ]}
             accessible
-            accessibilityLabel={`${proposal.bot.name} suggests new instructions. Review them on your computer.`}
+            accessibilityLabel={`${proposal.bot.name} suggests new instructions. Review them in open-bot on your computer.`}
             testID="proposal"
           >
-            <Sparkles size={16} color={colors.mutedForeground} />
+            <View style={[styles.desktopIcon, { backgroundColor: colors.subtle }]}>
+              <Sparkles size={18} color={colors.foreground} />
+            </View>
             <View style={{ flex: 1, gap: 2 }}>
-              <Text variant="small" style={{ fontSize: 14, fontWeight: "500" }}>
+              <Text variant="label" numberOfLines={1}>
                 {proposal.bot.name} suggests new instructions
               </Text>
               <View style={styles.noteTag}>
-                <Monitor size={12} color={colors.mutedForeground} />
-                <Text variant="caption" muted>
-                  Review on desktop
+                <Monitor size={13} color={colors.mutedForeground} />
+                <Text variant="small" muted numberOfLines={1}>
+                  Review them in open-bot on your computer
                 </Text>
               </View>
             </View>
           </View>
         ))}
-      </View>
+      </Card>
     </Section>
   );
 }
@@ -387,24 +464,19 @@ function TeammateRow({
   bot,
   chat,
   first,
+  computerOffline,
   onPress,
 }: {
   bot: BotSummary;
   chat: ChatSummary | undefined;
   first: boolean;
+  computerOffline: boolean;
   onPress: () => void;
 }) {
   const colors = useColors();
-  const activity = botActivity(bot);
+  const activity = botActivity(bot, computerOffline);
   const unread = Boolean(chat?.unread);
-  const state =
-    activity === "waiting"
-      ? needsYouText(bot.activeRun?.waitingFor)
-      : activity === "working"
-        ? "Working on it…"
-        : activity === "queued"
-          ? "Up next"
-          : null;
+  const state = activityText(activity, bot.activeRun?.waitingFor);
   const preview = chat?.preview
     ? `${chat.preview.botId ? "" : "You: "}${chat.preview.text}`
     : `Say hi to ${bot.name}, your ${bot.role}.`;
@@ -466,7 +538,7 @@ function TeammateRow({
                 flex: 1,
                 fontSize: 14,
                 fontWeight: "500",
-                color: activity === "waiting" ? colors.attentionInk : colors.working,
+                color: activityColor(activity, colors),
               }}
             >
               {state}
@@ -474,7 +546,7 @@ function TeammateRow({
           ) : (
             <Text
               variant="small"
-              numberOfLines={2}
+              numberOfLines={1}
               muted={!unread}
               style={{ flex: 1, fontSize: 14, lineHeight: 19 }}
             >
@@ -488,7 +560,15 @@ function TeammateRow({
   );
 }
 
-function Teammates({ bots, chats }: { bots: BotSummary[]; chats: ChatSummary[] }) {
+function Teammates({
+  bots,
+  chats,
+  computerOffline,
+}: {
+  bots: BotSummary[];
+  chats: ChatSummary[];
+  computerOffline: boolean;
+}) {
   const newChat = useNewDirectChat();
   const open = (bot: BotSummary) => {
     haptics.tap();
@@ -497,7 +577,7 @@ function Teammates({ bots, chats }: { bots: BotSummary[]; chats: ChatSummary[] }
     else newChat.mutate(bot.id);
   };
   // Who needs you first, then who's working, then everyone by their latest conversation.
-  const rank = { waiting: 0, working: 1, queued: 2, idle: 3 } as const;
+  const rank = { waiting: 0, working: 1, paused: 1, queued: 2, idle: 3 } as const;
   const sorted = [...bots].sort((a, b) => {
     const byState = rank[botActivity(a)] - rank[botActivity(b)];
     if (byState) return byState;
@@ -513,6 +593,7 @@ function Teammates({ bots, chats }: { bots: BotSummary[]; chats: ChatSummary[] }
             bot={bot}
             chat={latestChat(bot, chats)}
             first={index === 0}
+            computerOffline={computerOffline}
             onPress={() => open(bot)}
           />
         ))}
@@ -525,13 +606,18 @@ function ActivityRow({
   item,
   bot,
   first,
+  computerOffline,
 }: {
   item: ActivityItem;
   bot?: BotSummary;
   first: boolean;
+  computerOffline: boolean;
 }) {
   const colors = useColors();
   const active = isRunActive(item.status);
+  // A run that is still going reads like its teammate does: needs you, working, or paused.
+  const activity: BotActivity =
+    item.status === "waiting" ? "waiting" : computerOffline ? "paused" : "working";
   const Icon =
     item.chatKind === "group"
       ? Users
@@ -584,16 +670,11 @@ function ActivityRow({
           </Text>
         </View>
         {active ? (
-          <Text
-            variant="small"
-            style={{
-              fontSize: 14,
-              color: item.status === "waiting" ? colors.attentionInk : colors.working,
-            }}
-          >
-            {item.status === "waiting"
-              ? needsYouText(bot?.activeRun?.id === item.runId ? bot.activeRun.waitingFor : null)
-              : "Working on it…"}
+          <Text variant="small" style={{ fontSize: 14, color: activityColor(activity, colors) }}>
+            {activityText(
+              activity,
+              bot?.activeRun?.id === item.runId ? bot.activeRun.waitingFor : null,
+            )}
           </Text>
         ) : (
           <Text
@@ -662,6 +743,7 @@ export default function HomeScreen() {
   const teammates = useTeammates();
   const chats = useChats();
   const pages = usePages();
+  const computerOffline = useComputerOffline();
   const { awaySince } = usePresence();
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
@@ -704,15 +786,18 @@ export default function HomeScreen() {
       testID="home"
     >
       <ConnectionNotice />
-      <View style={{ gap: space(1) }}>
-        <Text variant="title" style={{ fontSize: 30, lineHeight: 36 }}>
-          {greeting(data.user.name)}
-        </Text>
-        <Text muted style={{ fontSize: 16, lineHeight: 22 }}>
-          {statusLine(data, bots)}
-        </Text>
+      <View style={styles.greeting}>
+        <View style={{ gap: space(1) }}>
+          <Text variant="title" style={{ fontSize: 30, lineHeight: 36 }}>
+            {greeting(data.user.name)}
+          </Text>
+          <Text muted style={{ fontSize: 16, lineHeight: 22 }} testID="home-status">
+            {statusLine(data, bots, computerOffline)}
+          </Text>
+        </View>
+        <ComputerOfflineNotice />
       </View>
-      <NeedsYou home={data} bots={bots} />
+      <NeedsYou home={data} bots={bots} computerOffline={computerOffline} />
       {awaySince && <Briefing items={data.briefing} bots={bots} since={awaySince} />}
       {bots.length === 0 ? (
         <Empty
@@ -722,7 +807,8 @@ export default function HomeScreen() {
         />
       ) : (
         <>
-          <Teammates bots={bots} chats={chats.data ?? []} />
+          <Teammates bots={bots} chats={chats.data ?? []} computerOffline={computerOffline} />
+          <OnDesktop home={data} bots={bots} />
           <Pages pages={pages.data ?? []} bots={bots} />
           {recent.length > 0 && (
             <Section
@@ -748,6 +834,7 @@ export default function HomeScreen() {
                     item={item}
                     bot={bots.find((bot) => bot.id === item.botId)}
                     first={index === 0}
+                    computerOffline={computerOffline}
                   />
                 ))}
               </Card>
@@ -778,15 +865,23 @@ const styles = StyleSheet.create({
     minHeight: 36,
     justifyContent: "center",
   },
-  note: {
+  calloutQuiet: { alignSelf: "flex-start", borderWidth: 1, marginTop: space(2.5) },
+  // The greeting sits a little closer to what follows than sections do to each other.
+  greeting: { gap: space(4), marginBottom: -space(1) },
+  desktopRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: space(2.5),
-    borderWidth: 1,
-    borderStyle: "dashed",
-    borderRadius: radius.xl,
-    paddingHorizontal: space(3.5),
+    gap: space(3.5),
+    paddingHorizontal: space(4),
     paddingVertical: space(3),
+    minHeight: 64,
+  },
+  desktopIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
   noteTag: { flexDirection: "row", alignItems: "center", gap: space(1) },
   briefing: {
@@ -820,8 +915,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: space(3.5),
     paddingHorizontal: space(4),
-    paddingVertical: space(3.5),
-    minHeight: 80,
+    paddingVertical: space(3),
+    minHeight: 72,
   },
   nameRow: { flexDirection: "row", alignItems: "center", gap: space(1.5) },
   previewRow: { flexDirection: "row", alignItems: "center", gap: space(2) },

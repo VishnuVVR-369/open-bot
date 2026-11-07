@@ -7,6 +7,7 @@ import {
   Archive,
   ArrowDown,
   EllipsisVertical,
+  MessageCircle,
   Pencil,
   SquarePen,
   Users,
@@ -14,21 +15,27 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { BotAvatar, botActivity, botStatusText, GroupAvatar } from "@/components/bot-avatar";
+import {
+  activityColor,
+  BotAvatar,
+  botActivity,
+  botStatusText,
+  GroupAvatar,
+} from "@/components/bot-avatar";
 import { Composer } from "@/components/chat/composer";
 import { RunBlock } from "@/components/chat/run-block";
 import { UserMessage } from "@/components/chat/user-message";
 import { Button } from "@/components/button";
 import { ConnectionNotice } from "@/components/connection-notice";
 import { Sheet, SheetItem } from "@/components/sheet";
-import { Empty, LoadError, Loading } from "@/components/states";
+import { Empty, LoadError, Loading, NotFound } from "@/components/states";
 import { Text } from "@/components/text";
 import { TextField } from "@/components/text-field";
 import { api } from "@/lib/api";
-import { errorMessage, isGone } from "@/lib/errors";
+import { errorMessage, isNotFound } from "@/lib/errors";
 import { haptics } from "@/lib/haptics";
 import { queryKeys } from "@/lib/query";
-import { useNewDirectChat, useTeammates } from "@/lib/queries";
+import { useComputerOffline, useNewDirectChat, useTeammates } from "@/lib/queries";
 import { namedForTopic } from "@/lib/chats";
 import { lastActive } from "@/lib/time";
 import { useChat } from "@/lib/use-chat";
@@ -59,8 +66,9 @@ export default function ChatScreen() {
   } = useChat(chatId);
   const [menuOpen, setMenuOpen] = useState(false);
   // Archived (here or on another device) or deleted: what's cached of it is no use anymore.
-  const gone = isGone(error);
+  const gone = isNotFound(error);
   const { data: teammates } = useTeammates();
+  const computerOffline = useComputerOffline();
   const newChat = useNewDirectChat();
   const allBots = teammates ?? members;
   const list = useRef<FlatList<ChatEntry>>(null);
@@ -125,8 +133,13 @@ export default function ChatScreen() {
   );
   const activeName =
     activeRun && allBots.find((candidate) => candidate.id === activeRun.botId)?.name;
+  // Waiting on you or paused for the computer, nothing is being done right now to add to or stop.
+  const runHeld =
+    Boolean(activeRun) && (activeRun?.timeline.status === "waiting" || computerOffline);
   const placeholder = activeRun
-    ? `Add to what ${activeName ?? "your teammate"} is doing…`
+    ? runHeld
+      ? `Add a note for ${activeName ?? "your teammate"}…`
+      : `Add to what ${activeName ?? "your teammate"} is doing…`
     : isGroup
       ? "Message the group, @ to pick who…"
       : `Message ${bot?.name ?? "your teammate"}…`;
@@ -216,7 +229,7 @@ export default function ChatScreen() {
                           color={liveBot.color}
                           emoji={liveBot.emoji}
                           size="md"
-                          activity={liveRun ? botActivity(liveBot) : "idle"}
+                          activity={liveRun ? botActivity(liveBot, computerOffline) : "idle"}
                         />
                       )
                     )}
@@ -233,12 +246,9 @@ export default function ChatScreen() {
                         numberOfLines={1}
                         muted={!liveRun}
                         style={
-                          liveRun
+                          liveRun && liveBot
                             ? {
-                                color:
-                                  liveRun.status === "waiting"
-                                    ? colors.attentionInk
-                                    : colors.working,
+                                color: activityColor(botActivity(liveBot, computerOffline), colors),
                               }
                             : undefined
                         }
@@ -247,7 +257,7 @@ export default function ChatScreen() {
                           ? members.map((member) => member.name).join(", ")
                           : `${chat && namedForTopic(chat, liveBot) ? `${liveBot!.name} · ` : ""}${
                               liveRun
-                                ? botStatusText(liveBot!)
+                                ? botStatusText(liveBot!, computerOffline)
                                 : liveBot?.lastActiveAt
                                   ? lastActive(liveBot.lastActiveAt)
                                   : (bot?.role ?? "")
@@ -283,14 +293,19 @@ export default function ChatScreen() {
         {loading ? (
           <Loading />
         ) : gone ? (
-          <Empty
-            icon={<Archive size={28} color={colors.mutedForeground} />}
-            title="This chat isn't available"
-            body="It may have been archived."
-            action={<Button title="Go back" variant="outline" onPress={goBack} />}
+          <NotFound
+            icon={<MessageCircle size={28} color={colors.mutedForeground} />}
+            title="Chat not found"
+            body="It isn't in your chats anymore."
+            onBack={goBack}
           />
         ) : error || !chat ? (
-          <LoadError error={error} onRetry={() => void refetch()} />
+          <LoadError
+            title="Couldn't load this chat"
+            error={error}
+            onRetry={() => void refetch()}
+            onBack={goBack}
+          />
         ) : (
           <FlatList
             ref={list}
@@ -410,6 +425,7 @@ export default function ChatScreen() {
             activeRun={
               activeRun ? { id: activeRun.id, botName: activeName ?? "your teammate" } : null
             }
+            canStop={!runHeld}
             onSent={(message) => {
               addSent(message);
               list.current?.scrollToOffset({ offset: 0, animated: true });

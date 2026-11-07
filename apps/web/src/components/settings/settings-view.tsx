@@ -60,6 +60,7 @@ import { ConnectionsSection } from "@/components/settings/connections-section";
 import { EmailSection } from "@/components/settings/email-section";
 import { PushSection } from "@/components/settings/push-section";
 import { ProfileEditor } from "./profile-editor";
+import { PasswordSection } from "./password-section";
 import { OfflineNote, SectionState } from "./section-state";
 import { TelegramSection } from "./telegram-section";
 
@@ -384,6 +385,9 @@ function BrowsingSection() {
   );
 }
 
+/** For a value that never changes while the page is open. */
+const noSubscription = () => () => {};
+
 function TimezoneSection() {
   const { data: state } = useAppState();
   const queryClient = useQueryClient();
@@ -394,8 +398,13 @@ function TimezoneSection() {
       ) ?? [];
     return supported.includes("UTC") ? supported : ["UTC", ...supported];
   }, []);
-  const browserZone =
-    typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC";
+  // The device's zone is only known in the browser; the server renders without the suggestion,
+  // so both sides agree until hydration ends.
+  const browserZone = useSyncExternalStore(
+    noSubscription,
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+    () => null,
+  );
   const current = state?.timezone ?? "UTC";
   const save = async (zone: string) => {
     const result = await setTimezone(zone);
@@ -417,7 +426,7 @@ function TimezoneSection() {
           ))}
         </SelectContent>
       </Select>
-      {browserZone !== current && (
+      {browserZone && browserZone !== current && (
         <Button variant="ghost" size="sm" onClick={() => void save(browserZone)}>
           Use {browserZone.replace(/_/g, " ")}
         </Button>
@@ -517,6 +526,10 @@ function FallbackSection() {
     queryKey: ["model-access"],
     queryFn: () => getJson<ModelAccessView>("/api/model-access"),
   });
+  const { data: state } = useAppState();
+  // Nothing runs while the computer is offline, so the plan is what teammates use, not what
+  // they're running on.
+  const offline = Boolean(state && !(state.computer.online && state.computer.workerOnline));
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["model-access"] });
   const data = access.data;
   if (!data) return <SectionState error={access.error} onRetry={() => void access.refetch()} />;
@@ -527,31 +540,41 @@ function FallbackSection() {
     <>
       <div
         className={cn(
-          "flex items-start gap-3 rounded-xl border px-4 py-3.5",
-          data.planLimitedUntil ? "border-attention/40 bg-attention/[0.07]" : "bg-card",
+          "flex items-start gap-3 rounded-xl px-4 py-3.5",
+          data.planLimitedUntil && !offline
+            ? "border border-attention/40 bg-attention/[0.07]"
+            : "bg-card shadow-raised",
         )}
         data-testid="fallback-status"
       >
         <span
           className={cn(
             "mt-1.5 size-2.5 shrink-0 rounded-full",
-            data.planLimitedUntil ? "bg-attention" : "bg-done",
+            offline ? "bg-idle" : data.planLimitedUntil ? "bg-attention" : "bg-done",
           )}
         />
         <div className="flex flex-col gap-0.5">
           <span className="text-[14px] font-medium">
-            {data.planLimitedUntil
-              ? data.keyHint
-                ? "Running on your API key"
-                : "Paused: your plan's limit is reached"
-              : "Running on your ChatGPT plan"}
+            {offline
+              ? data.planLimitedUntil && data.keyHint
+                ? "Set to use your API key"
+                : "Set to use your ChatGPT plan"
+              : data.planLimitedUntil
+                ? data.keyHint
+                  ? "Running on your API key"
+                  : "Paused: your plan's limit is reached"
+                : "Running on your ChatGPT plan"}
           </span>
           <span className="text-[13px] text-muted-foreground">
-            {data.planLimitedUntil
-              ? `Your plan's limit resets ${formatDistanceToNowStrict(new Date(data.planLimitedUntil), { addSuffix: true })}. Then teammates switch back to it on their own.`
-              : data.keyHint
-                ? "If the plan's limit is reached, teammates continue on your API key until it resets."
-                : "Add an API key so teammates keep working when the plan's limit is reached."}
+            {offline
+              ? data.keyHint
+                ? "Nothing runs while the computer is offline. Once it's back, teammates use your plan, then your API key if the plan's limit is reached."
+                : "Nothing runs while the computer is offline. Once it's back, teammates use your plan."
+              : data.planLimitedUntil
+                ? `Your plan's limit resets ${formatDistanceToNowStrict(new Date(data.planLimitedUntil), { addSuffix: true })}. Then teammates switch back to it on their own.`
+                : data.keyHint
+                  ? "If the plan's limit is reached, teammates continue on your API key until it resets."
+                  : "Add an API key so teammates keep working when the plan's limit is reached."}
           </span>
         </div>
       </div>
@@ -758,7 +781,7 @@ const GROUPS: { id: GroupId; label: string; icon: typeof UserRound; sections: st
   { id: "appearance", label: "Appearance", icon: SunMoon, sections: [] },
   { id: "notifications", label: "Notifications", icon: Bell, sections: ["telegram"] },
   { id: "connections", label: "Connections", icon: Plug, sections: ["email", "browsing"] },
-  { id: "security", label: "Security", icon: ShieldCheck, sections: ["passkeys"] },
+  { id: "security", label: "Security", icon: ShieldCheck, sections: ["password", "passkeys"] },
 ];
 
 function subscribeHash(onChange: () => void) {
@@ -908,13 +931,22 @@ function GroupContent({ group }: { group: GroupId }) {
       );
     case "security":
       return (
-        <Section
-          id="passkeys"
-          title="Passkeys"
-          description="Sign in with Touch ID or your phone instead of a password."
-        >
-          <PasskeySection />
-        </Section>
+        <>
+          <Section
+            id="password"
+            title="Password"
+            description="Change the password you sign in with. You need the current one."
+          >
+            <PasswordSection />
+          </Section>
+          <Section
+            id="passkeys"
+            title="Passkeys"
+            description="Sign in with Touch ID or your phone instead of a password. A passkey also gets you in if you forget your password."
+          >
+            <PasskeySection />
+          </Section>
+        </>
       );
   }
 }

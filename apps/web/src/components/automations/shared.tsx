@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useAppState } from "@/lib/client/queries";
 import type { ScheduleRunView } from "@/lib/types";
 import { chatHref } from "@/lib/utils";
 
@@ -164,6 +165,15 @@ export function RowMenu({
   );
 }
 
+/**
+ * Whether the computer can run anything right now. Unknown while the state loads, which reads as
+ * online, so nothing flashes an offline note.
+ */
+export function useCanRun(): boolean {
+  const { data: state } = useAppState();
+  return !state || Boolean(state.computer.online && state.computer.workerOnline);
+}
+
 /** "Paused" or "Done" beside an automation's title, so an off row still reads clearly. */
 export function StateBadge({ children }: { children: ReactNode }) {
   return (
@@ -176,18 +186,37 @@ export function StateBadge({ children }: { children: ReactNode }) {
   );
 }
 
-/** An icon button with a tooltip, for a row's actions. */
+/**
+ * An icon button with a tooltip, for a row's actions. `labeled` also writes the label beside
+ * the icon on wider screens, for the row's main action ("Run now").
+ */
 export function RowAction({
   label,
   onClick,
   disabled,
+  labeled,
   children,
 }: {
   label: string;
   onClick?: () => void;
   disabled?: boolean;
+  labeled?: boolean;
   children: ReactNode;
 }) {
+  if (labeled)
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        aria-label={label}
+        className="text-muted-foreground hover:text-foreground max-sm:size-8 max-sm:px-0"
+        onClick={onClick}
+        disabled={disabled}
+      >
+        {children}
+        <span className="max-sm:sr-only">{label}</span>
+      </Button>
+    );
   return (
     <Tooltip>
       <TooltipTrigger asChild>

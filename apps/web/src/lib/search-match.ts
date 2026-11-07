@@ -68,3 +68,58 @@ export function highlightParts(text: string, words: string[]): { text: string; m
   if (at < text.length) parts.push({ text: text.slice(at), mark: false });
   return parts;
 }
+
+/**
+ * The items whose text has every word at the start of a word. Only when none does are the
+ * matches inside words kept, so "lis" finds "Lisbon" and "list" and never "checklist" beside them.
+ */
+export function preferWordStarts<T>(items: T[], text: (item: T) => string, words: string[]): T[] {
+  const starts = items.filter((item) => startsWords(text(item), words));
+  return starts.length > 0 ? starts : items;
+}
+
+/**
+ * A one-line excerpt that starts shortly before the first match, so the match is in view even when
+ * the line is cut at the end. A word cut in half at the start is dropped.
+ */
+export function excerptLine(text: string, words: string[], lead = 32): string {
+  let flat = text.replace(/\s+/g, " ").trim();
+  let cut = flat.startsWith("…");
+  if (cut) flat = flat.slice(1).replace(/^\S*\s/, "");
+  let at = -1;
+  for (const word of words) {
+    const match = wordStart(word).exec(flat);
+    const index = match ? match.index : flat.toLowerCase().indexOf(word);
+    if (index >= 0 && (at < 0 || index < at)) at = index;
+  }
+  // A line this short shows whole, wherever the match is.
+  if (at > lead && flat.length > 72) {
+    const space = flat.lastIndexOf(" ", at - lead);
+    flat = flat.slice(space < 0 ? at - lead : space + 1);
+    cut = true;
+    at = at - (space < 0 ? at - lead : space + 1);
+  }
+  // A sentence that starts before the match, but after the cut, is a cleaner place to begin.
+  if (cut) {
+    const ends = [...flat.slice(0, at).matchAll(/[.!?]\s+(?=\S)/g)];
+    const last = ends.at(-1);
+    if (last?.index !== undefined) return flat.slice(last.index + last[0].length);
+  }
+  return `${cut ? "…" : ""}${flat}`;
+}
+
+/**
+ * Results found by the server, whose text we only partly see (a page's title, while its body
+ * matched too). Drops those whose visible text has a word only inside another word, like
+ * "checklist" for "lis", when anything better exists; matches elsewhere (the body) are kept, after
+ * the ones whose visible text has the words where they start.
+ */
+export function rankFound<T>(items: T[], text: (item: T) => string, words: string[]): T[] {
+  const starts = items.filter((item) => startsWords(text(item), words));
+  const elsewhere = items.filter((item) => {
+    const lower = text(item).toLowerCase();
+    return !starts.includes(item) && !words.some((word) => lower.includes(word));
+  });
+  const better = [...starts, ...elsewhere];
+  return better.length > 0 ? better : items;
+}

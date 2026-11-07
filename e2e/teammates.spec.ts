@@ -96,7 +96,9 @@ test("start from a template with starter automations", async ({ page }) => {
   await expect(schedules.filter({ hasText: "Plan my week" })).toHaveCount(1);
   await expect(schedules.filter({ hasText: "Weekly retro" })).toHaveCount(1);
   // The check-in only speaks up when there's news.
-  await expect(schedules.filter({ hasText: "Daily check-in" })).toContainText("only news");
+  await expect(schedules.filter({ hasText: "Daily check-in" })).toContainText(
+    "tells you only if something changed",
+  );
   await expect(
     page.getByTestId("check-in").getByRole("switch", { name: "Daily check-in" }),
   ).toHaveAttribute("aria-checked", "true");
@@ -157,7 +159,9 @@ test("export a teammate to a file and import it as a new one", async ({ page }) 
   const schedules = page.getByTestId("schedule");
   await expect(schedules).toHaveCount(4);
   await expect(schedules.first()).toContainText("Paused");
-  await expect(schedules.filter({ hasText: "Daily check-in" })).toContainText("only news");
+  await expect(schedules.filter({ hasText: "Daily check-in" })).toContainText(
+    "tells you only if something changed",
+  );
 
   // A file that isn't a teammate says so.
   await page.goto("/bots/new");

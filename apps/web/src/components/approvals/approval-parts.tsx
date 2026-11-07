@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  approvalCommand,
+  approvalHeadline,
   approvalRisk,
   approveLabel,
   commandParts,
@@ -18,6 +20,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { decideApproval } from "@/lib/actions";
 import { queryKeys } from "@/lib/client/queries";
+import { InlineCode } from "@/components/inline-code";
 import { cn } from "@/lib/utils";
 import { ActionPreview, previewIcon } from "./action-preview";
 import { AlwaysAllowButton } from "./always-allow";
@@ -68,9 +71,11 @@ export function RiskChip({ risk, className }: { risk: ApprovalRisk; className?: 
       title={risk.text}
       className={cn(
         "inline-flex h-[22px] shrink-0 items-center gap-1 rounded-full px-2 text-[12px] font-medium whitespace-nowrap",
+        // A surface fill keeps the chip readable on the amber card it usually sits on.
+        "border bg-surface",
         risk.tone === "destructive"
-          ? "bg-destructive/10 text-destructive"
-          : "bg-attention/15 text-attention-ink",
+          ? "border-destructive/45 text-destructive"
+          : "border-attention/60 text-attention-ink",
         className,
       )}
       data-testid="risk-chip"
@@ -83,6 +88,34 @@ export function RiskChip({ risk, className }: { risk: ApprovalRisk; className?: 
 
 export function riskOf(approval: ApprovalSubject) {
   return approvalRisk(approvalFacts(approval));
+}
+
+/**
+ * An approval's title. A command leads with what it does, "Push the fix/x branch"; with
+ * `showCommand`, the command itself follows on the same line in a code face, cut short when long.
+ * (A pending approval shows the command in full in its detail instead.)
+ */
+export function ApprovalTitle({
+  approval,
+  showCommand,
+}: {
+  approval: ApprovalSubject;
+  showCommand?: boolean;
+}) {
+  const { title, command } = approvalHeadline(approvalFacts(approval));
+  if (!command) return <InlineCode text={title} />;
+  if (!showCommand) return <>{title}</>;
+  return (
+    <span className="inline-flex max-w-full min-w-0 items-baseline gap-2 align-bottom">
+      <span className="shrink-0">{title}</span>
+      <code
+        className="min-w-0 truncate font-mono text-[0.86em] font-normal text-muted-foreground"
+        title={command}
+      >
+        {command}
+      </code>
+    </span>
+  );
 }
 
 /**
@@ -99,10 +132,14 @@ export function ApprovalDetail({
   if (approval.preview)
     return <ActionPreview preview={approval.preview} className={cn("max-w-[680px]", className)} />;
   const detail = approval.detail.trim();
-  if (!detail) return null;
+  if (!detail && approval.kind !== "command") return null;
 
-  if (detail.split("\n").some((line) => line.startsWith("$ "))) {
-    const { reason, command, cwd } = commandParts(detail);
+  const facts = approvalFacts(approval);
+  if (facts.kind === "command" || detail.split("\n").some((line) => line.startsWith("$ "))) {
+    // The command in full: the title shows it on one line, cut short when it's long.
+    const parts = commandParts(detail);
+    const command = parts.command ?? approvalCommand(facts);
+    const { reason, cwd } = parts;
     return (
       <div className={cn("flex max-w-[680px] min-w-0 flex-col gap-1.5", className)}>
         {reason && (

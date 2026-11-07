@@ -10,7 +10,6 @@ import {
 import { formatDistanceToNowStrict } from "date-fns";
 import {
   CalendarDays,
-  ChevronRight,
   Copy,
   ExternalLink,
   Eye,
@@ -35,7 +34,15 @@ import {
 import { useTriggerRuns } from "@/lib/client/queries";
 import type { BotSummary, TriggerView } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { DetailLabel, LAST_RUN_TEXT, RowAction, RowMenu, RunHistory, StateBadge } from "./shared";
+import {
+  DetailLabel,
+  LAST_RUN_TEXT,
+  RowAction,
+  RowMenu,
+  RunHistory,
+  StateBadge,
+  useCanRun,
+} from "./shared";
 import { TriggerDialog } from "./trigger-dialog";
 import { copyWebhookUrl, isLocalOrigin, webhookUrl } from "./webhook-url";
 
@@ -212,6 +219,14 @@ function StatusLine({ trigger }: { trigger: TriggerView }) {
 }
 
 function CheckLine({ trigger }: { trigger: TriggerView }) {
+  const canRun = useCanRun();
+  // A watch or account trigger can't wake anyone while the computer is offline.
+  if (!canRun && trigger.enabled && trigger.kind !== "webhook")
+    return (
+      <span className="text-[12.5px] text-muted-foreground">
+        Won&apos;t run while the computer is offline
+      </span>
+    );
   if (trigger.lastError)
     return (
       <span
@@ -263,7 +278,7 @@ export function TriggerRow({
 
   return (
     <li className="rounded-xl bg-card shadow-raised" data-testid={trigger.kind}>
-      <div className="flex flex-wrap items-center gap-4 px-4 py-3.5">
+      <div className="flex flex-wrap items-start gap-4 px-4 py-3.5 sm:items-center">
         {bot && (
           <span className="relative shrink-0">
             <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="md" />
@@ -289,12 +304,6 @@ export function TriggerRow({
                 Set by {bot?.name ?? "a teammate"}
               </span>
             )}
-            <ChevronRight
-              className={cn(
-                "size-3.5 shrink-0 text-muted-foreground transition-transform",
-                expanded && "rotate-90",
-              )}
-            />
           </span>
           <StatusLine trigger={trigger} />
           <CheckLine trigger={trigger} />
@@ -303,6 +312,7 @@ export function TriggerRow({
           {trigger.kind !== "webhook" ? (
             <RowAction
               label="Check now"
+              labeled
               disabled={busy}
               onClick={() =>
                 startBusy(async () => {
@@ -325,6 +335,7 @@ export function TriggerRow({
           ) : (
             <RowAction
               label="Send a test"
+              labeled
               disabled={busy || !trigger.enabled}
               onClick={() =>
                 startBusy(async () => {

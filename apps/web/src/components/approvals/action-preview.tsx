@@ -8,6 +8,7 @@ import {
 } from "@open-bot/shared";
 import {
   CalendarDays,
+  ChevronDown,
   ExternalLink,
   Mail,
   MapPin,
@@ -15,7 +16,7 @@ import {
   TriangleAlert,
   Users,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 /** The icon an approval for this action shows. */
@@ -39,6 +40,50 @@ function Note({ children }: { children: ReactNode }) {
       <TriangleAlert className="mt-0.5 size-3 shrink-0" />
       {children}
     </p>
+  );
+}
+
+/**
+ * An email's body, cut to about six lines so Approve and Deny stay in view, with a button
+ * to read the rest. The button only shows when the body is actually cut.
+ */
+function EmailBody({ body }: { body: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [cut, setCut] = useState(false);
+  useLayoutEffect(() => {
+    const node = ref.current;
+    if (!node || open) return;
+    const measure = () => setCut(node.scrollHeight > node.clientHeight + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [body, open]);
+  return (
+    <div className="flex flex-col items-start gap-1.5 border-t pt-2.5">
+      <div
+        ref={ref}
+        className={cn(
+          "w-full font-sans text-[13px] leading-relaxed break-words whitespace-pre-wrap text-foreground/90",
+          !open && "line-clamp-6",
+        )}
+        data-testid="email-body"
+      >
+        {body || "(empty)"}
+      </div>
+      {(cut || open) && (
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          aria-expanded={open}
+          className="inline-flex items-center gap-1 rounded-md text-[12.5px] font-medium text-foreground/80 underline-offset-[3px] outline-none hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/12"
+        >
+          {open ? "Show less" : "Show full email"}
+          <ChevronDown className={cn("size-3.5 transition-transform", open && "rotate-180")} />
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -72,9 +117,7 @@ export function ActionPreview({
             A reply in “{preview.inReplyTo}”
           </span>
         )}
-        <pre className="max-h-64 overflow-auto border-t pt-2.5 font-sans text-[13px] leading-relaxed whitespace-pre-wrap text-foreground/90">
-          {preview.body || "(empty)"}
-        </pre>
+        <EmailBody body={preview.body} />
       </div>
     );
 

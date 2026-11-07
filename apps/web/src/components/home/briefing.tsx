@@ -2,15 +2,20 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { format, formatDistanceToNowStrict, isToday } from "date-fns";
-import { AlertCircle, CalendarClock, Eye, History, Webhook, X } from "lucide-react";
+import { AlertCircle, CalendarClock, Eye, History, RotateCcw, Webhook, X } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useTransition } from "react";
+import { toast } from "sonner";
 import { BotAvatar } from "@/components/bot-avatar";
 import { Button } from "@/components/ui/button";
+import { retryRun } from "@/lib/actions";
 import { getJson } from "@/lib/client/api";
 import { dismissBriefing, useBriefingSince } from "@/lib/client/presence";
 import { useAppState } from "@/lib/client/queries";
+import { failureLine, isComputerOnline } from "@/lib/status";
 import type { BriefingItem } from "@/lib/types";
-import { chatHref, plainText } from "@/lib/utils";
+import { chatHref, cn, plainText } from "@/lib/utils";
 
 /** The most replies shown for each teammate; the rest are a link away. */
 const PER_BOT = 3;
@@ -36,29 +41,78 @@ function Item({ item }: { item: BriefingItem }) {
       <Link
         href={chatHref(item.chatId, item.runId)}
         className="group flex items-baseline gap-2 rounded-md py-1 text-[13.5px] leading-snug"
+        data-testid="briefing-item"
       >
         {Icon ? (
           <Icon className="size-3.5 shrink-0 translate-y-0.5 text-muted-foreground" />
         ) : (
           <span className="size-3.5 shrink-0" />
         )}
-        <span className="min-w-0 flex-1 truncate group-hover:underline">
-          {item.automationTitle && <span className="font-medium">{item.automationTitle}: </span>}
-          {plainText(item.preview ?? "Done")}
-        </span>
-        <span className="shrink-0 text-[12px] text-muted-foreground tabular-nums">
-          {clock(new Date(item.completedAt))}
+        {/*
+          Two lines, so the outcome at the end of a reply survives. On a narrow screen the time
+          goes under the line instead of taking width from it.
+        */}
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-2">
+          <span className="line-clamp-2 min-w-0 flex-1 group-hover:underline">
+            {item.automationTitle && <span className="font-medium">{item.automationTitle}: </span>}
+            {plainText(item.preview ?? "Done")}
+          </span>
+          <span className="shrink-0 text-[12px] text-muted-foreground tabular-nums">
+            {clock(new Date(item.completedAt))}
+          </span>
         </span>
       </Link>
     </li>
   );
 }
 
-/** Something that didn't finish: first in the list, with why and a way to look at it. */
-function Failure({ item, botName }: { item: BriefingItem; botName: string }) {
+/** A failure's action: under its text on a phone, on its right from small screens up. */
+const ACTION_PLACE = "col-start-2 justify-self-start sm:col-start-3 sm:row-start-1 sm:self-center";
+
+/** Runs the request again and opens its chat to follow along. */
+function RetryButton({ item }: { item: BriefingItem }) {
+  const router = useRouter();
+  const [retrying, startRetry] = useTransition();
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      className={ACTION_PLACE}
+      disabled={retrying}
+      data-testid="briefing-retry"
+      onClick={() =>
+        startRetry(async () => {
+          const result = await retryRun(item.runId);
+          if (!result.ok) {
+            toast.error("Couldn't try again", { description: result.error });
+            return;
+          }
+          router.push(chatHref(item.chatId));
+        })
+      }
+    >
+      <RotateCcw className={cn(retrying && "animate-spin")} />
+      Retry
+    </Button>
+  );
+}
+
+/**
+ * Something that didn't finish: first in the list, with what happened as it stands now and a way to
+ * run it again. While the computer is offline a retry can't start, so the row says so and opens the chat.
+ */
+function Failure({
+  item,
+  botName,
+  computerOnline,
+}: {
+  item: BriefingItem;
+  botName: string;
+  computerOnline: boolean;
+}) {
   return (
     <li
-      className="flex items-start gap-3 rounded-lg bg-subtle px-3 py-2.5 dark:bg-white/[0.03]"
+      className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-2.5 rounded-lg bg-subtle px-3 py-2.5 sm:grid-cols-[auto_minmax(0,1fr)_auto] dark:bg-white/[0.03]"
       data-testid="briefing-failure"
     >
       <AlertCircle className="mt-0.5 size-4 shrink-0 text-destructive" />
@@ -74,13 +128,20 @@ function Failure({ item, botName }: { item: BriefingItem; botName: string }) {
         <span className="truncate text-[12.5px] text-muted-foreground">
           {item.automationTitle ?? item.chatTitle}
         </span>
-        <span className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-foreground/85">
-          {plainText(item.preview ?? "It stopped before it was done.")}
+        <span className="mt-0.5 line-clamp-3 text-[13px] leading-snug text-foreground/85">
+          {failureLine(item.preview && plainText(item.preview))}
+          {!computerOnline && (
+            <span className="text-muted-foreground"> You can retry once the computer is back.</span>
+          )}
         </span>
       </div>
-      <Button variant="outline" size="sm" className="shrink-0 self-center" asChild>
-        <Link href={chatHref(item.chatId, item.runId)}>Review</Link>
-      </Button>
+      {computerOnline ? (
+        <RetryButton item={item} />
+      ) : (
+        <Button variant="outline" size="sm" className={ACTION_PLACE} asChild>
+          <Link href={chatHref(item.chatId, item.runId)}>Open chat</Link>
+        </Button>
+      )}
     </li>
   );
 }
@@ -92,6 +153,7 @@ const newestFirst = (a: BriefingItem, b: BriefingItem) =>
 export function Briefing() {
   const since = useBriefingSince();
   const { data: state } = useAppState();
+  const computerOnline = isComputerOnline(state);
   const { data: items } = useQuery({
     queryKey: ["briefing", since],
     queryFn: () => getJson<BriefingItem[]>(`/api/briefing?since=${since}`),
@@ -143,7 +205,12 @@ export function Briefing() {
       {failures.length > 0 && (
         <ul className="flex flex-col gap-1.5">
           {failures.map((item) => (
-            <Failure key={item.runId} item={item} botName={botName(item.botId)} />
+            <Failure
+              key={item.runId}
+              item={item}
+              botName={botName(item.botId)}
+              computerOnline={computerOnline}
+            />
           ))}
         </ul>
       )}

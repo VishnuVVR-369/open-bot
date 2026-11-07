@@ -53,7 +53,9 @@ export function screenStatus(screen: ScreenView): string {
 export function sortScreens(screens: readonly ScreenView[]): ScreenView[] {
   const rank = (screen: ScreenView) => {
     const kind = screenState(screen).kind;
-    return kind === "needs-you" ? 0 : kind === "controlling" ? 1 : 2;
+    // A teammate waiting for you comes first, even while the computer is offline.
+    const waiting = kind === "needs-you" || (kind === "offline" && screen.requests.length > 0);
+    return waiting ? 0 : kind === "controlling" ? 1 : 2;
   };
   return screens
     .map((screen, index) => ({ screen, index }))

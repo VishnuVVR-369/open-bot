@@ -1,4 +1,5 @@
 import type { ApprovalView, BotSummary } from "@open-bot/api";
+import { commandParts, commandSummary } from "@open-bot/shared";
 import { router } from "expo-router";
 import { Check, ChevronRight, ShieldCheck, WifiOff } from "lucide-react-native";
 import { useCallback, useMemo, useState } from "react";
@@ -25,6 +26,15 @@ function decidedWhen(iso: string, group: DayGroup): string {
   return ago(iso);
 }
 
+/**
+ * The shell command an approval runs, on one line, without the backticks a title quotes it in.
+ * Not `subject`: that's only what "always allow" matches, like "git push".
+ */
+function commandOf(approval: ApprovalView): string {
+  const raw = commandParts(approval.detail).command ?? approval.title.replace(/^`|`$/g, "");
+  return raw.replace(/\s*\n\s*/g, " ").trim();
+}
+
 function ApprovalRow({
   approval,
   bot,
@@ -39,6 +49,7 @@ function ApprovalRow({
 }) {
   const colors = useColors();
   const pending = approval.status === "pending";
+  const command = approval.kind === "command" ? commandOf(approval) : null;
   return (
     <Pressable
       testID="approval"
@@ -50,16 +61,22 @@ function ApprovalRow({
     >
       <ApprovalAvatar bot={bot} approval={approval} pending={pending} behind={behind} />
       <View style={styles.text}>
-        {approval.kind === "command" ? (
-          // A command reads as code: monospace, on one line, cut at the end rather than wrapped.
-          <Text
-            variant="mono"
-            numberOfLines={1}
-            ellipsizeMode="tail"
-            style={{ fontSize: 14, lineHeight: 22 }}
-          >
-            {approval.title.replace(/^`|`$/g, "")}
-          </Text>
+        {command ? (
+          // A command leads with what it does in plain words; the command itself follows as code.
+          <>
+            <Text variant="label" numberOfLines={2}>
+              {commandSummary(command)}
+            </Text>
+            <Text
+              variant="mono"
+              muted
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              style={{ fontSize: 12, lineHeight: 17 }}
+            >
+              {command}
+            </Text>
+          </>
         ) : (
           <ApprovalTitle title={shortenPaths(approval.title)} numberOfLines={2} />
         )}
@@ -70,7 +87,7 @@ function ApprovalRow({
       {pending ? (
         <ChevronRight size={18} color={colors.attentionInk} />
       ) : (
-        <ApprovalStatusChip status={approval.status} />
+        <ApprovalStatusChip status={approval.status} size="sm" />
       )}
     </Pressable>
   );

@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
-  approvalRisk,
-  approveLabel,
+  approvalRisk as sharedRisk,
+  approveLabel as sharedLabel,
   commandParts,
-  detailRows,
-  sendsEmail,
-  shortenPaths,
-  titleParts,
-} from "./approval-text";
+} from "@open-bot/shared";
+import { approvalFacts, detailRows, sendsEmail, shortenPaths, titleParts } from "./approval-text";
+
+/** The shared helpers, read through the phone's adapter, as the screens call them. */
+const approvalRisk = (approval: Parameters<typeof approvalFacts>[0]) =>
+  sharedRisk(approvalFacts(approval));
+const approveLabel = (approval: Parameters<typeof approvalFacts>[0]) =>
+  sharedLabel(approvalFacts(approval));
 
 describe("approval titles", () => {
   it("splits out code quoted in backticks", () => {
@@ -119,7 +122,7 @@ describe("approval details", () => {
     expect(approveLabel({ kind: "purchase", title: "Pay $842.30 to TAP Air Portugal" })).toBe(
       "Approve $842.30",
     );
-    expect(approveLabel({ kind: "purchase", title: "Buy a server" })).toBe("Approve purchase");
+    expect(approveLabel({ kind: "purchase", title: "Buy a server" })).toBe("Approve payment");
     expect(approveLabel({ kind: "account_outward", title: "Send an email to Priya Nair" })).toBe(
       "Approve and send",
     );

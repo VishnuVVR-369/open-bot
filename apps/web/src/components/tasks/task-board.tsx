@@ -50,9 +50,22 @@ function Due({ dueOn, done }: { dueOn: string; done: boolean }) {
 /** What a task waits on from you, when its chat is blocked on you. */
 type Blocker = "approval" | "takeover";
 
+/** The owner's own mark, as the sidebar shows it: their initial on a round ink tile. */
+function YouAvatar({ name }: { name: string }) {
+  return (
+    <span
+      aria-hidden
+      className="flex size-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-b from-foreground/85 to-foreground text-[10px] font-semibold text-background"
+    >
+      {name.slice(0, 1).toUpperCase()}
+    </span>
+  );
+}
+
 function Card({
   task,
   owner,
+  you,
   blocker,
   onOpen,
   onDragStart,
@@ -60,6 +73,8 @@ function Card({
 }: {
   task: TaskView;
   owner: BotSummary | undefined;
+  /** The owner's name, when the task is theirs: tasks without a teammate belong to them. */
+  you: string | null;
   blocker: Blocker | null;
   onOpen: () => void;
   onDragStart: (event: DragEvent) => void;
@@ -113,6 +128,11 @@ function Card({
             <span className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
               <BotAvatar name={owner.name} color={owner.color} emoji={owner.emoji} size="xs" />
               {owner.name}
+            </span>
+          ) : you !== null ? (
+            <span className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
+              <YouAvatar name={you} />
+              You
             </span>
           ) : (
             <span className="flex items-center gap-1.5 text-[12.5px] text-faint">
@@ -284,6 +304,7 @@ export function TaskBoard() {
                   key={task.id}
                   task={task}
                   owner={bots.find((bot) => bot.id === task.ownerBotId)}
+                  you={task.ownerBotId ? null : (state?.user.name ?? "You")}
                   blocker={blockerOf(task)}
                   onOpen={() => setEditing({ task, open: true })}
                   onDragStart={(event) => {

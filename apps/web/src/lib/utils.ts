@@ -29,10 +29,11 @@ export function notificationHref(notification: {
 }
 
 /**
- * For a reply's header controls: shown when you hover or focus the reply, and taking no room
- * otherwise, so what's always shown (like your rating) sits next to the name. Still reachable with
- * the keyboard, since focusing one reveals them all. Anything marked `data-pinned` in the reply,
- * like an open menu, keeps them shown so they don't shift under it.
+ * For a reply's actions (copy, read aloud, rate), in the row under the reply. They keep their place
+ * and show when you hover or focus the reply, so the row never shifts; on the latest reply in a chat,
+ * and on a touch screen, which can't hover, they always show. Still reachable with the keyboard,
+ * since focusing one reveals them all. Anything marked `data-pinned` in the reply, like an open
+ * menu, keeps them shown.
  */
 export const REVEAL_ON_RUN_HOVER =
-  "max-w-0 overflow-hidden opacity-0 transition-opacity group-hover/run:max-w-none group-hover/run:opacity-100 group-focus-within/run:max-w-none group-focus-within/run:opacity-100 group-has-[[data-pinned]]/run:max-w-none group-has-[[data-pinned]]/run:opacity-100 pointer-coarse:max-w-none pointer-coarse:opacity-100";
+  "opacity-0 transition-opacity group-hover/run:opacity-100 group-focus-within/run:opacity-100 group-has-[[data-pinned]]/run:opacity-100 group-data-[latest]/run:opacity-100 pointer-coarse:opacity-100";

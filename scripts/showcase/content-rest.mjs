@@ -514,11 +514,9 @@ That widens the gap with Kestrel 2.0 at $25 for 200k pageviews. I would not chan
     trigger: "webhook",
     triggerId: release,
     status: "failed",
-    error: "The computer was restarting. Try again in a minute.",
+    error: "Interrupted when the computer restarted.",
     prompt: `[Webhook: "Update the changelog for a new release"]\n\nA release was published. Update the changelog draft with it and tell me if anything unexpected is in it.`,
-    items: [
-      { kind: "error", message: "The computer was restarting. Try again in a minute.", dur: 300 },
-    ],
+    items: [{ kind: "error", message: "Interrupted when the computer restarted.", dur: 300 }],
   });
 
   const investorMail = randomUUID();
@@ -1454,7 +1452,7 @@ export async function seedNotifications(ctx) {
   await n({
     kind: "run_failed",
     title: "Kit couldn't finish: Update the changelog for a new release",
-    body: "The computer was restarting. Try again in a minute.",
+    body: "Interrupted when the computer restarted.",
     botId: kit.id,
     chatId: ctx.chats.kitSched?.id ?? chats.kitBug.id,
     createdAt: ago({ h: 6 }),

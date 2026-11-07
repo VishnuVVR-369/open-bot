@@ -1,5 +1,4 @@
 import type { ScreenView } from "@open-bot/api";
-import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { ChevronRight, CloudOff, Monitor } from "lucide-react-native";
 import { useMemo, useState } from "react";
@@ -16,6 +15,7 @@ import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/errors";
 import { haptics } from "@/lib/haptics";
 import { queryClient, queryKeys } from "@/lib/query";
+import { useScreens } from "@/lib/queries";
 import { screenHref, screenState, sortScreens } from "@/lib/screens";
 import { useSafeBottom } from "@/lib/use-safe-bottom";
 import { radius, space, useColors } from "@/theme";
@@ -51,14 +51,18 @@ function OfflineBanner({ onRetry, retrying }: { onRetry: () => void; retrying: b
   );
 }
 
-/** An offline screen, as one quiet row: whose it is and that it's offline. */
+/**
+ * An offline screen, as one quiet row: whose it is and that it's offline. A teammate waiting for
+ * you to take over still says so, in amber, with when you can.
+ */
 function OfflineRow({ screen, first }: { screen: ScreenView; first: boolean }) {
   const colors = useColors();
+  const request = screen.requests[0];
   return (
     <>
       {!first && <Separator inset={space(4) + 36 + space(3)} />}
       <ListRow
-        onPress={() => router.push(screenHref(screen.id))}
+        onPress={() => router.push(screenHref(screen.id, request?.id))}
         leading={
           <BotAvatar
             name={screen.bot.name}
@@ -68,7 +72,20 @@ function OfflineRow({ screen, first }: { screen: ScreenView; first: boolean }) {
           />
         }
         title={screen.bot.name}
-        subtitle="Offline"
+        subtitle={
+          request ? (
+            <Text
+              variant="small"
+              numberOfLines={1}
+              style={{ color: colors.attentionInk, fontWeight: "500" }}
+              testID="screen-needs-you"
+            >
+              Needs you to take over, once it&apos;s back
+            </Text>
+          ) : (
+            "Offline"
+          )
+        }
         aside={<ChevronRight size={18} color={colors.mutedForeground} />}
         testID={`screen-${screen.id}`}
       />
@@ -79,7 +96,7 @@ function OfflineRow({ screen, first }: { screen: ScreenView; first: boolean }) {
 export default function Computer() {
   const colors = useColors();
   const bottom = useSafeBottom({ tabs: true });
-  const screens = useQuery({ queryKey: queryKeys.screens, queryFn: () => api.screens.list() });
+  const screens = useScreens();
   // What each screen is in the middle of, so waking one doesn't hold up the others.
   const [pending, setPending] = useState<Record<string, ScreenAction>>({});
   const [refreshing, setRefreshing] = useState(false);

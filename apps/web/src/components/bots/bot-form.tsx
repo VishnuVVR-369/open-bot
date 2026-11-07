@@ -35,6 +35,12 @@ export interface BotFormValues {
 const savedAt = new Map<string, number>();
 const SAVED_FOR_MS = 5000;
 
+/** The last character typed, whole: one emoji, even one built from several code points. */
+function lastGlyph(text: string) {
+  const glyphs = [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(text)];
+  return glyphs.at(-1)?.segment ?? "";
+}
+
 function sameValues(a: BotFormValues, b: BotFormValues) {
   return (Object.keys(a) as (keyof BotFormValues)[]).every((key) => a[key] === b[key]);
 }
@@ -103,6 +109,8 @@ export function BotForm({
 
   const complete = Boolean(values.name.trim() && values.role.trim());
   const canSubmit = !pending && complete && (!editing || dirty);
+  // Nothing to save on a teammate: the bar only says so, and stays at the end of the form.
+  const idle = Boolean(editing) && !dirty && !pending && !justSaved;
 
   function submit() {
     startTransition(async () => {
@@ -256,7 +264,9 @@ export function BotForm({
             value={values.instructions}
             onChange={(e) => set("instructions", e.target.value)}
             placeholder="Describe the job: what to do, how you like it done, and what to stay away from."
-            className="min-h-36 text-[14px] leading-relaxed"
+            // Instructions are a Markdown file; a code face keeps its headings and lists lined up.
+            className="min-h-36 px-3.5 py-3 font-mono text-[13px] leading-[1.7] md:text-[13px]"
+            spellCheck
           />
           <p className="text-[12.5px] text-muted-foreground">
             This becomes their instructions file. They also keep their own memory of what they learn
@@ -392,23 +402,49 @@ export function BotForm({
         </div>
         <div className="flex flex-col gap-2">
           <Label htmlFor="bot-emoji">Emoji (optional)</Label>
-          <Input
-            id="bot-emoji"
-            value={values.emoji}
-            onChange={(e) => set("emoji", [...e.target.value].slice(-2).join(""))}
-            placeholder="Initials if empty"
-            className="w-40"
-          />
+          <div className="flex items-center gap-3">
+            <Input
+              id="bot-emoji"
+              value={values.emoji}
+              onChange={(e) => set("emoji", lastGlyph(e.target.value))}
+              aria-describedby="bot-emoji-hint"
+              className="size-11 shrink-0 px-0 text-center text-[20px] md:text-[20px]"
+            />
+            <span id="bot-emoji-hint" className="text-[12.5px] leading-snug text-muted-foreground">
+              {values.emoji ? (
+                <button
+                  type="button"
+                  onClick={() => set("emoji", "")}
+                  className="rounded-sm font-medium text-foreground/80 underline-offset-[3px] outline-none hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/12"
+                >
+                  Use initials instead
+                </button>
+              ) : (
+                "Leave it empty for initials."
+              )}
+            </span>
+          </div>
         </div>
       </aside>
 
+      {/* Solid and flush with the bottom edge while there's something to save; once saved, it
+          settles at the end of the form as a quiet line. It reaches 16px past the content on both
+          sides, so what scrolls under it never shows an edge beside it, while its text stays on
+          the content's edges. */}
       <div
-        className="sticky bottom-4 z-10 col-span-full flex min-h-14 flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-card/95 px-4 py-2.5 shadow-float backdrop-blur-sm"
+        className={cn(
+          "z-10 col-span-full -mx-4 -mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 bg-surface px-4",
+          idle
+            ? "-mb-4"
+            : "sticky bottom-0 min-h-16 border-t pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]",
+        )}
         data-testid="save-bar"
       >
         <span className="flex min-w-0 flex-1 items-center gap-2 text-[13.5px]" aria-live="polite">
           {!editing ? (
-            <span className="text-muted-foreground">You can change all of this later.</span>
+            <span className="text-muted-foreground max-sm:hidden">
+              You can change all of this later.
+            </span>
           ) : pending ? (
             <span className="text-muted-foreground">Saving…</span>
           ) : dirty ? (
@@ -422,12 +458,15 @@ export function BotForm({
               <span>Saved</span>
             </>
           ) : (
-            <span className="text-muted-foreground">All changes saved</span>
+            <>
+              <Check className="size-4 shrink-0 text-muted-foreground" />
+              <span className="text-muted-foreground">All changes saved</span>
+            </>
           )}
         </span>
-        <div className="flex items-center gap-2">
-          {editing ? (
-            dirty && (
+        {(!editing || dirty || pending) && (
+          <div className="flex items-center gap-2">
+            {editing ? (
               <Button
                 type="button"
                 variant="ghost"
@@ -437,17 +476,17 @@ export function BotForm({
               >
                 Discard
               </Button>
-            )
-          ) : (
-            <Button type="button" variant="ghost" size="lg" onClick={() => router.back()}>
-              Cancel
+            ) : (
+              <Button type="button" variant="ghost" size="lg" onClick={() => router.back()}>
+                Cancel
+              </Button>
+            )}
+            <Button type="submit" size="lg" className="px-3.5" disabled={!canSubmit}>
+              {pending && <Loader2 className="animate-spin" />}
+              {submitLabel}
             </Button>
-          )}
-          <Button type="submit" size="lg" className="px-3.5" disabled={!canSubmit}>
-            {pending && <Loader2 className="animate-spin" />}
-            {submitLabel}
-          </Button>
-        </div>
+          </div>
+        )}
       </div>
     </form>
   );

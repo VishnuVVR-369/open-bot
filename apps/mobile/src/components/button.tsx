@@ -43,8 +43,8 @@ export function Button({
   // which reads as grey on grey in the dark.
   const unavailable = disabled && !busy;
   if (unavailable && variant === "primary") {
-    look.bg = colors.muted;
-    look.fg = colors.mutedForeground;
+    look.bg = colors.disabled;
+    look.fg = colors.disabledForeground;
   }
   const inactive = disabled || busy;
   return (

@@ -160,7 +160,11 @@ export default function Settings() {
               testID="appearance"
             />
           </View>
-          <Separator inset={space(4)} />
+        </Card>
+      </Section>
+
+      <Section title="Feedback">
+        <Card>
           <SettingsSwitch
             icon={(color) => <Vibrate size={18} color={color} />}
             title="Haptics"
@@ -192,8 +196,8 @@ export default function Settings() {
           ) : (
             <SettingsRow
               icon={(color) => <BellOff size={18} color={color} />}
-              title="Phone notifications are off"
-              subtitle="This app isn't set up to notify you yet. Approvals and replies still wait for you here and in the bell."
+              title="No phone notifications in this build"
+              subtitle="This version of the app can't send them. Approvals and replies still show up here in the app and in the bell."
               testID="test-notification"
             />
           )}

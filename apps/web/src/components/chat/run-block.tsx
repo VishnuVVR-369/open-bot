@@ -38,7 +38,6 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { retryRun } from "@/lib/actions";
-import { useCoarsePointer } from "@/lib/client/pointer";
 import { readAloud, readingNow, stopReading, useReadAloud } from "@/lib/client/read-aloud";
 import type { BotSummary, RunView } from "@/lib/types";
 import { cn, compactNumber, formatDuration, REVEAL_ON_RUN_HOVER } from "@/lib/utils";
@@ -70,7 +69,7 @@ function replyText(run: RunView): string {
     .join("\n\n");
 }
 
-/** Copies the reply. Sits in the header, shown on hover like the time, so it takes no room. */
+/** Copies the reply. */
 function CopyReply({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   return (
@@ -142,7 +141,7 @@ function RunTime({ run }: { run: RunView }) {
   ].filter(Boolean);
   const time = (
     <time
-      className={cn("text-[12px] whitespace-nowrap text-muted-foreground/80", REVEAL_ON_RUN_HOVER)}
+      className="text-[12px] whitespace-nowrap text-muted-foreground"
       dateTime={run.createdAt}
       data-testid="run-time"
     >
@@ -200,6 +199,33 @@ function segment(items: TimelineItem[]): Segment[] {
     }
   }
   return segments;
+}
+
+/** A finished run with more steps than this shows them behind a "Show N steps" toggle. */
+const FOLD_STEPS_OVER = 6;
+
+/** Tools whose call is itself a request for your approval: the approval card says it all. */
+const ASKS_APPROVAL = new Set(["request_approval", "start_purchase", "send_email"]);
+
+/**
+ * Steps the pending approval right after them already states, like "Asked to pay $842.30" above
+ * the payment card. A tool that asks blocks on the answer, so it is still running, or it is one of
+ * the tools that exist to ask.
+ */
+function restatedSteps(items: TimelineItem[]): Set<string> {
+  const ids = new Set<string>();
+  const shown = items.filter((item) => item.kind !== "computer");
+  shown.forEach((item, index) => {
+    const next = shown[index + 1];
+    if (
+      item.kind === "tool" &&
+      next?.kind === "approval" &&
+      next.decision === "pending" &&
+      (item.status === "running" || ASKS_APPROVAL.has(item.name))
+    )
+      ids.add(item.id);
+  });
+  return ids;
 }
 
 /** Items that always stay visible, even when the steps are collapsed. */
@@ -442,6 +468,7 @@ export function RunBlock({
   bot,
   bots,
   superseded = false,
+  latest = false,
 }: {
   run: RunView;
   chatId: string;
@@ -449,25 +476,29 @@ export function RunBlock({
   bots: BotSummary[];
   /** The same bot ran again after this, so there's nothing to retry. */
   superseded?: boolean;
+  /** The last entry in the chat: its actions always show. */
+  latest?: boolean;
 }) {
   const active = isRunActive(run.timeline.status);
-  const items = run.timeline.items;
+  const allItems = run.timeline.items;
+  const items = useMemo(() => {
+    const restated = restatedSteps(allItems);
+    return restated.size ? allItems.filter((item) => !restated.has(item.id)) : allItems;
+  }, [allItems]);
   const segments = useMemo(() => segment(items), [items]);
   const stepCount = items.filter((item) => !isPinned(item)).length;
-  const collapsible = !active && stepCount > 3;
+  // Steps show by default: they are one line each and say how the answer came about. Only a long
+  // finished run folds them behind a count, so its reply isn't pushed out of view.
+  const collapsible = !active && stepCount > FOLD_STEPS_OVER;
   const [expanded, setExpanded] = useState(false);
   const showSteps = !collapsible || expanded;
   const name = bot?.name ?? "Former teammate";
   const reply = replyText(run);
-  // With a mouse, a reply's actions wait in its header until you hover it. A finger can't hover,
-  // so on a touch screen they sit quietly under the reply instead of crowding the name.
-  const touch = useCoarsePointer();
+  // A reply's actions sit in one row under it, the same with a mouse or a finger.
   const actions = !active && (
     <span
-      className={cn(
-        "flex items-center",
-        touch && "-ml-1.5 gap-1 [&_button:not([aria-pressed=true])]:text-faint",
-      )}
+      className="-ml-1.5 flex items-center gap-1 [&_button:not([aria-pressed=true])]:text-faint"
+      data-testid="run-actions"
     >
       <RunMemory runId={run.id} />
       {reply && (
@@ -509,6 +540,7 @@ export function RunBlock({
     <article
       id={`run-${run.id}`}
       className="group/run flex scroll-mt-6 gap-3"
+      data-latest={latest || undefined}
       data-testid="run"
       data-status={run.timeline.status}
     >
@@ -530,7 +562,6 @@ export function RunBlock({
             </span>
           )}
           <RunTime run={run} />
-          {!touch && actions}
         </header>
 
         {collapsible && (
@@ -585,7 +616,7 @@ export function RunBlock({
           (run.timeline.status === "failed" || run.timeline.status === "interrupted") && (
             <RetryRun runId={run.id} />
           )}
-        {touch && actions}
+        {actions}
       </div>
     </article>
   );

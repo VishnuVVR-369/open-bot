@@ -222,14 +222,14 @@ function EgressChip({ initial }: { initial?: AppState }) {
   if (!egress) return null;
   const home = egress.mode !== "off" && egress.agentOnline;
   const blocked = egress.mode === "require" && !egress.agentOnline;
-  const label = home ? "Home connection" : blocked ? "Browsing paused" : "Cloud connection";
+  const label = home ? "Home internet" : blocked ? "Browsing paused" : "Computer's internet";
   const hint = home
-    ? "The computer's browsers go online through your desktop app, so websites see your home IP."
+    ? "Browsing through your home internet, by way of your desktop app, so websites see your home."
     : blocked
-      ? "Browsing only through your desktop is on, and the desktop app isn't connected. Open it to let the browsers load pages."
+      ? "Browsing only through your home internet is on, and the desktop app isn't open. Open it so pages load."
       : egress.mode === "off"
-        ? "The browsers go online directly from the cloud computer."
-        : "Your desktop app isn't connected, so the browsers go online directly from the cloud computer.";
+        ? "Browsing on the computer's own internet. Websites see the cloud computer, not your home."
+        : "Browsing on the computer's own internet, since the desktop app isn't open.";
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -364,7 +364,7 @@ export function ScreenGlass({
         <span className="text-[14px] font-medium text-bezel-foreground">
           The computer is offline
         </span>
-        <span className="max-w-80 text-[12.5px] leading-relaxed">
+        <span className="max-w-80 text-[12.5px] leading-relaxed text-bezel-foreground/85">
           {info
             ? `${info.bot.name} pauses computer work until it's back. It reconnects on its own.`
             : "It reconnects on its own."}

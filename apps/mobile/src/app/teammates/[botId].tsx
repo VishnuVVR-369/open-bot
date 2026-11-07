@@ -17,9 +17,16 @@ import {
 import type { ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, useColorScheme, View } from "react-native";
 import { ApprovalTitle } from "@/components/approval-parts";
-import { BotAvatar, botActivity, GroupAvatar, needsYouText } from "@/components/bot-avatar";
+import {
+  activityColor,
+  activityText,
+  BotAvatar,
+  botActivity,
+  GroupAvatar,
+  needsYouText,
+} from "@/components/bot-avatar";
 import { Card, Section } from "@/components/section";
-import { Empty, Loading } from "@/components/states";
+import { LoadError, Loading, NotFound } from "@/components/states";
 import { Text } from "@/components/text";
 import { chatSubtitle, chatTitle } from "@/lib/chats";
 import { haptics } from "@/lib/haptics";
@@ -27,6 +34,7 @@ import {
   useApprovalRules,
   useApprovals,
   useChats,
+  useComputerOffline,
   useHome,
   useNewDirectChat,
   useTeammates,
@@ -187,19 +195,31 @@ export default function TeammateScreen() {
   const { data: approvals = [] } = useApprovals();
   const { data: home } = useHome();
   const newChat = useNewDirectChat();
+  const computerOffline = useComputerOffline();
   const bot = teammates.data?.find((candidate) => candidate.id === botId);
 
   if (teammates.isLoading) return <Loading />;
+  if (!bot && teammates.error)
+    return (
+      <LoadError
+        title="Couldn't load this teammate"
+        error={teammates.error}
+        onRetry={() => void teammates.refetch()}
+        onBack={goBack}
+      />
+    );
   if (!bot)
     return (
-      <Empty
+      <NotFound
         icon={<Users size={28} color={colors.mutedForeground} />}
-        title="This teammate isn't here"
-        body="They may have been removed on the web."
+        title="Teammate not found"
+        body="They aren't on your team anymore."
+        onBack={goBack}
       />
     );
 
-  const activity = botActivity(bot);
+  const activity = botActivity(bot, computerOffline);
+  const status = activity === "idle" ? null : activityText(activity, bot.activeRun?.waitingFor);
   const all = chats.data ?? [];
   const theirs = all
     .filter(
@@ -261,15 +281,14 @@ export default function TeammateScreen() {
               {lastActive(bot.lastActiveAt)}
             </Text>
           ) : null}
-          {(activity === "working" || activity === "queued") && (
+          {/* Waiting on you is the banner below; this line is for work in progress. */}
+          {status && activity !== "waiting" && (
             <Text
               variant="small"
-              style={{
-                fontWeight: "500",
-                color: activity === "working" ? colors.working : colors.mutedForeground,
-              }}
+              style={{ fontWeight: "500", color: activityColor(activity, colors) }}
+              testID="profile-activity"
             >
-              {activity === "working" ? "Working on it…" : "Up next"}
+              {status}
             </Text>
           )}
         </View>
@@ -359,6 +378,12 @@ export default function TeammateScreen() {
       )}
     </ScrollView>
   );
+}
+
+/** Back where you came from, or Home when the profile was opened straight from a link. */
+function goBack() {
+  if (router.canGoBack()) router.back();
+  else router.replace("/");
 }
 
 const styles = StyleSheet.create({

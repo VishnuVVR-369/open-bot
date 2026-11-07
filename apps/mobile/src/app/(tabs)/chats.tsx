@@ -13,8 +13,14 @@ import {
 } from "lucide-react-native";
 import { useCallback, useMemo, useState } from "react";
 import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, View } from "react-native";
-import { BotAvatar, GroupAvatar, needsYouText, type BotActivity } from "@/components/bot-avatar";
-import { ConnectionNotice } from "@/components/connection-notice";
+import {
+  activityColor,
+  activityText,
+  BotAvatar,
+  GroupAvatar,
+  type BotActivity,
+} from "@/components/bot-avatar";
+import { ComputerOfflineNotice, ConnectionNotice } from "@/components/connection-notice";
 import { Separator } from "@/components/list-row";
 import { Sheet, SheetItem } from "@/components/sheet";
 import { Empty, LoadError, Loading } from "@/components/states";
@@ -25,7 +31,7 @@ import { errorMessage } from "@/lib/errors";
 import { haptics } from "@/lib/haptics";
 import { animateLayout } from "@/lib/motion";
 import { queryKeys } from "@/lib/query";
-import { useChats, useTeammates } from "@/lib/queries";
+import { useChats, useComputerOffline, useTeammates } from "@/lib/queries";
 import { ago } from "@/lib/time";
 import { radius, space, useColors } from "@/theme";
 
@@ -53,30 +59,37 @@ function matches(chat: ChatSummary, filter: Filter): boolean {
   }
 }
 
-/** What the chat's teammate is doing in this chat, for its avatar. */
-function chatActivity(chat: ChatSummary, bot: BotSummary | undefined): BotActivity {
+/** What the chat's teammate is doing in this chat, for its avatar; paused while the computer is away. */
+function chatActivity(
+  chat: ChatSummary,
+  bot: BotSummary | undefined,
+  computerOffline: boolean,
+): BotActivity {
   if (!chat.active) return "idle";
   const run = bot?.activeRun;
   if (run?.chatId === chat.id) {
     if (run.status === "waiting") return "waiting";
     if (run.status === "queued") return "queued";
   }
-  return "working";
+  return computerOffline ? "paused" : "working";
 }
 
 function ChatRow({
   chat,
   bots,
+  computerOffline,
   onLongPress,
 }: {
   chat: ChatSummary;
   bots: BotSummary[];
+  computerOffline: boolean;
   onLongPress: () => void;
 }) {
   const colors = useColors();
   const bot = bots.find((candidate) => candidate.id === chat.botId);
   const KindIcon = chat.kind === "scheduled" ? CalendarClock : chat.kind === "inbox" ? Mail : null;
-  const activity = chatActivity(chat, bot);
+  const activity = chatActivity(chat, bot, computerOffline);
+  const live = activityText(activity, bot?.activeRun?.waitingFor);
   const members = chat.memberIds.flatMap((id) => bots.filter((entry) => entry.id === id));
   const title = chatTitle(chat, bot);
   const subtitle = plainText(chatSubtitle(chat, bot, bots));
@@ -91,7 +104,7 @@ function ChatRow({
       accessibilityRole="button"
       accessibilityLabel={[
         title,
-        activity === "working" ? "working" : activity === "waiting" ? "needs you" : null,
+        live,
         chat.unread ? "unread" : null,
         subtitle,
         ago(chat.lastActivityAt),
@@ -143,7 +156,7 @@ function ChatRow({
           </Text>
         </View>
         <View style={styles.titleRow}>
-          {chat.active ? (
+          {live ? (
             <Text
               variant="small"
               numberOfLines={1}
@@ -151,11 +164,11 @@ function ChatRow({
                 flex: 1,
                 fontSize: 14,
                 fontWeight: "500",
-                color: activity === "waiting" ? colors.attentionInk : colors.working,
+                color: activityColor(activity, colors),
               }}
               testID="chat-live"
             >
-              {activity === "waiting" ? needsYouText(bot?.activeRun?.waitingFor) : "Working on it…"}
+              {live}
             </Text>
           ) : (
             <Text
@@ -188,15 +201,7 @@ export default function Chats() {
   const [filter, setFilter] = useState<Filter>("all");
   const [menuFor, setMenuFor] = useState<ChatSummary | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  // The button folds down to its icon once you scroll, so it never sits on a preview for long.
-  const [compact, setCompact] = useState(false);
-  const fold = (offset: number) => {
-    const scrolled = offset > space(6);
-    if (scrolled !== compact) {
-      animateLayout();
-      setCompact(scrolled);
-    }
-  };
+  const computerOffline = useComputerOffline();
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await chats.refetch();
@@ -255,6 +260,7 @@ export default function Chats() {
         ListHeaderComponent={
           <View>
             <ConnectionNotice />
+            <ComputerOfflineNotice style={styles.notice} />
             {sorted.length > 0 && filters.length > 1 && (
               <FlatList
                 horizontal
@@ -297,11 +303,6 @@ export default function Chats() {
           </View>
         }
         ItemSeparatorComponent={Separator}
-        onScroll={(event) => fold(event.nativeEvent.contentOffset.y)}
-        // A fling can end without a last scroll event at the top, so settle it when it stops.
-        onScrollEndDrag={(event) => fold(event.nativeEvent.contentOffset.y)}
-        onMomentumScrollEnd={(event) => fold(event.nativeEvent.contentOffset.y)}
-        scrollEventThrottle={100}
         // Room for the New chat button and 24dp more, so the last chat clears it.
         contentContainerStyle={{ flexGrow: 1, paddingBottom: 56 + space(4) + space(6) }}
         refreshControl={
@@ -328,7 +329,12 @@ export default function Chats() {
           )
         }
         renderItem={({ item: chat }) => (
-          <ChatRow chat={chat} bots={bots} onLongPress={() => setMenuFor(chat)} />
+          <ChatRow
+            chat={chat}
+            bots={bots}
+            computerOffline={computerOffline}
+            onLongPress={() => setMenuFor(chat)}
+          />
         )}
       />
       <Pressable
@@ -339,19 +345,10 @@ export default function Chats() {
         accessibilityRole="button"
         accessibilityLabel="New chat"
         android_ripple={{ color: colors.muted, borderless: false }}
-        style={[
-          styles.fab,
-          compact && styles.fabCompact,
-          { backgroundColor: colors.primary, shadowColor: "#000000" },
-        ]}
+        style={[styles.fab, { backgroundColor: colors.primary, shadowColor: "#000000" }]}
         testID="new-chat"
       >
-        <SquarePen size={20} color={colors.primaryForeground} />
-        {!compact && (
-          <Text variant="label" style={{ color: colors.primaryForeground }}>
-            New chat
-          </Text>
-        )}
+        <SquarePen size={22} color={colors.primaryForeground} />
       </Pressable>
       <Sheet
         open={menuFor !== null}
@@ -422,22 +419,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   unread: { width: 9, height: 9, borderRadius: 5 },
+  // The standard 56dp compose button: big enough to find, small enough to keep off the previews.
   fab: {
     position: "absolute",
     right: space(4),
     bottom: space(4),
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space(2),
+    width: 56,
     height: 56,
-    paddingHorizontal: space(5),
+    alignItems: "center",
     justifyContent: "center",
-    borderRadius: 18,
+    borderRadius: 16,
     overflow: "hidden",
     elevation: 6,
     shadowOpacity: 0.18,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 },
   },
-  fabCompact: { width: 56, paddingHorizontal: 0 },
+  notice: { marginHorizontal: space(4), marginTop: space(2), marginBottom: space(1) },
 });

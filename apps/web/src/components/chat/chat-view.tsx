@@ -4,6 +4,7 @@ import { isRunActive } from "@open-bot/shared";
 import {
   ArrowDown,
   Archive,
+  CloudOff,
   Copy,
   Menu,
   RotateCcw,
@@ -40,7 +41,7 @@ import { FilePreview } from "@/components/files/file-preview";
 import { archiveChat, markChatRead, newDirectChat } from "@/lib/actions";
 import { useAppState } from "@/lib/client/queries";
 import { fileKind, fileUrl } from "@/lib/files";
-import { botActivity } from "@/lib/status";
+import { botActivity, PAUSED_OFFLINE } from "@/lib/status";
 import type { BotSummary, MessageView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Composer, type ComposerHandle } from "./composer";
@@ -175,7 +176,9 @@ export function ChatView({ chatId }: { chatId: string }) {
   const [dialog, setDialog] = useState<"rename" | "duplicate" | null>(null);
   const allBots = state?.bots ?? members;
   const openMenu = useOpenMobileMenu();
-  const { online } = useComputer();
+  const { online, state: computerState } = useComputer();
+  // Known offline, not just unknown yet: the panel collapses to a chip in the header.
+  const offline = Boolean(computerState) && !online;
 
   useEffect(() => {
     setPanelOpen(localStorage.getItem(PANEL_KEY) !== "closed");
@@ -192,6 +195,8 @@ export function ChatView({ chatId }: { chatId: string }) {
     }
     return superseded;
   }, [entries]);
+  // The last reply in the chat keeps its actions in view.
+  const lastRunIndex = entries.findLastIndex((entry) => entry.type === "run");
 
   const steered = useMemo(() => {
     const ids = new Set<string>();
@@ -210,6 +215,8 @@ export function ChatView({ chatId }: { chatId: string }) {
     return {
       id: active.id,
       botName: allBots.find((bot) => bot.id === active.botId)?.name ?? "Your teammate",
+      status: active.timeline.status,
+      waitingFor: active.timeline.waitingFor ?? null,
     };
   }, [runs, allBots]);
 
@@ -334,21 +341,23 @@ export function ChatView({ chatId }: { chatId: string }) {
                     color={bot.color}
                     emoji={bot.emoji}
                     size="sm"
-                    activity={botActivity(bot)}
+                    activity={botActivity(bot, !offline)}
                   />
                 )
               )}
               <div className="flex min-w-0 flex-col">
                 <h1 className="truncate text-[15px] leading-tight font-semibold">{title}</h1>
                 <span className="truncate text-[12.5px] leading-tight text-muted-foreground">
-                  {helper
-                    ? `${bot?.name ?? "A teammate"}'s helper in ${helper.swarmTitle}`
-                    : isGroup
-                      ? members.map((member) => member.name).join(", ")
-                      : chat.kind === "direct" && bot && chat.title !== bot.name
-                        ? // Titled after its topic, so say who it's with.
-                          `${bot.name} · ${bot.role}`
-                        : bot?.role}
+                  {!helper && !isGroup && bot && botActivity(bot, !offline) === "paused"
+                    ? PAUSED_OFFLINE
+                    : helper
+                      ? `${bot?.name ?? "A teammate"}'s helper in ${helper.swarmTitle}`
+                      : isGroup
+                        ? members.map((member) => member.name).join(", ")
+                        : chat.kind === "direct" && bot && chat.title !== bot.name
+                          ? // Titled after its topic, so say who it's with.
+                            `${bot.name} · ${bot.role}`
+                          : bot?.role}
                 </span>
               </div>
               <span className="flex-1" />
@@ -435,33 +444,56 @@ export function ChatView({ chatId }: { chatId: string }) {
                   onOpenChange={(open) => setDialog(open ? "duplicate" : null)}
                 />
               )}
-              <Tooltip>
-                <TooltipTrigger asChild>
+              {offline && !helper ? (
+                // An offline computer has no screen to watch: a chip says so and opens the details.
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => setSheetOpen(true)}
+                      className="flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-border bg-subtle px-2.5 text-[12.5px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      data-testid="computer-offline-chip"
+                    >
+                      <CloudOff className="size-3.5" />
+                      <span className="max-sm:hidden">Computer offline</span>
+                      <span className="sm:hidden">Offline</span>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Work that needs the computer waits until it&apos;s back
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                <>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={panelOpen ? "Hide the computer" : "Show the computer"}
+                        className="hidden xl:inline-flex"
+                        onClick={togglePanel}
+                      >
+                        {panelOpen ? <PanelRightClose /> : <Monitor />}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {panelOpen ? "Hide the computer" : "Show the computer"}
+                    </TooltipContent>
+                  </Tooltip>
+                  {/* On a phone the label would squeeze the chat title, so only the icon shows. */}
                   <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={panelOpen ? "Hide the computer" : "Show the computer"}
-                    className="hidden xl:inline-flex"
-                    onClick={togglePanel}
+                    variant="outline"
+                    size="sm"
+                    aria-label="Computer"
+                    className="max-sm:size-9 max-sm:border-transparent max-sm:bg-transparent max-sm:px-0 max-sm:text-muted-foreground max-sm:shadow-none xl:hidden"
+                    onClick={() => setSheetOpen(true)}
                   >
-                    {panelOpen ? <PanelRightClose /> : <Monitor />}
+                    <Monitor />
+                    <span className="max-sm:sr-only">Computer</span>
                   </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {panelOpen ? "Hide the computer" : "Show the computer"}
-                </TooltipContent>
-              </Tooltip>
-              {/* On a phone the label would squeeze the chat title, so only the icon shows. */}
-              <Button
-                variant="outline"
-                size="sm"
-                aria-label="Computer"
-                className="max-sm:size-9 max-sm:border-transparent max-sm:bg-transparent max-sm:px-0 max-sm:text-muted-foreground max-sm:shadow-none xl:hidden"
-                onClick={() => setSheetOpen(true)}
-              >
-                <Monitor />
-                <span className="max-sm:sr-only">Computer</span>
-              </Button>
+                </>
+              )}
             </>
           )}
         </header>
@@ -491,7 +523,7 @@ export function ChatView({ chatId }: { chatId: string }) {
             />
           ) : (
             <div className="mx-auto flex w-full max-w-[760px] flex-col gap-7 px-4 py-8 sm:px-6">
-              {entries.map((entry) => {
+              {entries.map((entry, index) => {
                 if (entry.type === "message") {
                   if (entry.message.steeredRunId || steered.has(entry.message.id)) return null;
                   return <UserMessage key={entry.message.id} message={entry.message} />;
@@ -503,6 +535,7 @@ export function ChatView({ chatId }: { chatId: string }) {
                     run={run}
                     chatId={chatId}
                     superseded={supersededRuns.get(run.id) ?? false}
+                    latest={index === lastRunIndex}
                     bot={allBots.find((b) => b.id === run.botId)}
                     bots={allBots}
                   />
@@ -549,6 +582,7 @@ export function ChatView({ chatId }: { chatId: string }) {
                   chat={chat}
                   members={members}
                   activeRun={activeRun}
+                  computerOnline={!offline}
                   onSent={(message) => {
                     addOptimistic(message);
                     setAtBottom(true);
@@ -569,13 +603,9 @@ export function ChatView({ chatId }: { chatId: string }) {
 
       <aside
         className={cn(
-          "hidden shrink-0 overflow-y-auto border-l border-border/70 bg-[color-mix(in_oklab,var(--background)_45%,var(--surface))] p-5 xl:block",
-          !panelOpen
-            ? "xl:hidden"
-            : // An offline computer is one short card, so it takes a narrow column, not half the page.
-              state && !online && !helper
-              ? "w-[360px]"
-              : "w-[clamp(440px,42%,760px)]",
+          "hidden w-[clamp(440px,42%,760px)] shrink-0 overflow-y-auto border-l border-border/70 bg-[color-mix(in_oklab,var(--background)_45%,var(--surface))] p-5 xl:block",
+          // The full panel is for a live screen. Offline, the header's chip stands in for it.
+          (!panelOpen || (offline && !helper)) && "xl:hidden",
         )}
       >
         {helper ? (
@@ -587,7 +617,12 @@ export function ChatView({ chatId }: { chatId: string }) {
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent
           side="right"
-          className="w-full max-w-[640px] overflow-y-auto p-5 sm:max-w-[640px]"
+          className={cn(
+            "w-full overflow-y-auto p-5",
+            offline && !helper
+              ? "max-w-[420px] sm:max-w-[420px]"
+              : "max-w-[640px] sm:max-w-[640px]",
+          )}
         >
           <SheetTitle className="mb-4">Computer</SheetTitle>
           {sheetOpen &&

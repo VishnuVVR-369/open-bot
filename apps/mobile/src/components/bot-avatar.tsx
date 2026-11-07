@@ -2,11 +2,14 @@ import type { BotSummary } from "@open-bot/api";
 import { useEffect, useRef } from "react";
 import { Animated, Easing, Text, View } from "react-native";
 import { useReducedMotion } from "@/lib/motion";
-import { fonts, useColors } from "@/theme";
+import { fonts, useColors, type Colors } from "@/theme";
 import { mix } from "@/theme/mix";
 
-/** What a teammate is up to, which their avatar shows. `waiting` means waiting for you. */
-export type BotActivity = "idle" | "working" | "waiting" | "queued";
+/**
+ * What a teammate is up to, which their avatar shows. `waiting` means waiting for you; `paused`
+ * means they were working but the computer that runs their work is offline.
+ */
+export type BotActivity = "idle" | "working" | "paused" | "waiting" | "queued";
 
 const SIZES = {
   xs: { box: 24, radius: 7, font: 13 },
@@ -27,12 +30,39 @@ function initials(name: string) {
   return (words[0] ?? "?").slice(0, 1).toUpperCase();
 }
 
-export function botActivity(bot: Pick<BotSummary, "activeRun">): BotActivity {
+/** `computerOffline` (from `useComputerOffline`) turns work in progress into `paused`. */
+export function botActivity(
+  bot: Pick<BotSummary, "activeRun">,
+  computerOffline = false,
+): BotActivity {
   const run = bot.activeRun;
   if (!run) return "idle";
   if (run.status === "waiting") return "waiting";
   if (run.status === "queued") return "queued";
-  return "working";
+  return computerOffline ? "paused" : "working";
+}
+
+/** The words for what a teammate is up to, the same everywhere; null when they're free. */
+export function activityText(activity: BotActivity, waitingFor?: string | null): string | null {
+  switch (activity) {
+    case "waiting":
+      return needsYouText(waitingFor);
+    case "working":
+      return "Working on it…";
+    case "paused":
+      return "Paused, computer offline";
+    case "queued":
+      return "Up next";
+    case "idle":
+      return null;
+  }
+}
+
+/** The color those words are in: amber when it needs you, blue while working, quiet otherwise. */
+export function activityColor(activity: BotActivity, colors: Colors): string {
+  if (activity === "waiting") return colors.attentionInk;
+  if (activity === "working") return colors.working;
+  return colors.mutedForeground;
 }
 
 /** The one phrase for each thing a teammate can be waiting on you for, everywhere in the app. */
@@ -40,24 +70,24 @@ export function needsYouText(waitingFor: string | null | undefined): string {
   return waitingFor === "takeover" ? "Needs you to take over" : "Needs your approval";
 }
 
-export function botStatusText(bot: Pick<BotSummary, "activeRun" | "role">): string {
-  const run = bot.activeRun;
-  if (!run) return bot.role;
-  if (run.status === "waiting") return needsYouText(run.waitingFor);
-  if (run.status === "queued") return "Up next";
-  return "Working…";
+export function botStatusText(
+  bot: Pick<BotSummary, "activeRun" | "role">,
+  computerOffline = false,
+): string {
+  return activityText(botActivity(bot, computerOffline), bot.activeRun?.waitingFor) ?? bot.role;
 }
 
 const ACTIVITY_LABEL: Record<BotActivity, string> = {
   idle: "",
   working: "working",
+  paused: "paused, computer offline",
   waiting: "needs you",
   queued: "up next",
 };
 
 /**
  * A teammate's face: their color and emoji (or initials). Presence is part of the face, not a
- * separate light: a soft pulse while they work and a dashed ring while they're up next. Waiting
+ * separate light: a ring that breathes while they work and a dashed ring while they're up next. Waiting
  * for you is said in words beside the face (amber text), not on it.
  */
 export function BotAvatar({
@@ -77,17 +107,17 @@ export function BotAvatar({
   const dims = SIZES[size];
   const reduced = useReducedMotion();
   const pulse = useRef(new Animated.Value(0)).current;
-  const small = dims.box <= 28;
-  // The ring sits just outside the tile, following its shape.
-  const gap = small ? 2 : 3;
+  // A 2px ring hugging the tile with a hairline of air, following its shape and centered on it.
+  const gap = 1.5;
+  const width = 2;
   const ring = {
     position: "absolute" as const,
-    top: -gap - 1.5,
-    left: -gap - 1.5,
-    right: -gap - 1.5,
-    bottom: -gap - 1.5,
-    borderRadius: dims.radius + gap + 1.5,
-    borderWidth: 1.5,
+    top: -gap - width,
+    left: -gap - width,
+    right: -gap - width,
+    bottom: -gap - width,
+    borderRadius: dims.radius + gap + width,
+    borderWidth: width,
   };
 
   useEffect(() => {
@@ -96,16 +126,14 @@ export function BotAvatar({
       pulse.setValue(0);
       return;
     }
+    // Starts and ends at full strength, so each loop restarts seamlessly.
     const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, {
-          toValue: 1,
-          duration: 1400,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.delay(300),
-      ]),
+      Animated.timing(pulse, {
+        toValue: 1,
+        duration: 1800,
+        easing: Easing.inOut(Easing.sin),
+        useNativeDriver: true,
+      }),
     );
     loop.start();
     return () => loop.stop();
@@ -126,12 +154,10 @@ export function BotAvatar({
             ring,
             {
               borderColor: colors.working,
+              // It breathes in place: only its strength changes, never its size or position.
               opacity: reduced
-                ? 0.8
-                : pulse.interpolate({ inputRange: [0, 1], outputRange: [0.9, 0] }),
-              transform: reduced
-                ? []
-                : [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1.18] }) }],
+                ? 1
+                : pulse.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0.35, 1] }),
             },
           ]}
         />

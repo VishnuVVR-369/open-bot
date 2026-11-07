@@ -1,10 +1,11 @@
 "use client";
 
-import { Globe, Hand, Home } from "lucide-react";
+import { CloudOff, Globe, Hand, Home } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { BotAvatar } from "@/components/bot-avatar";
 import { useAppState } from "@/lib/client/queries";
+import { botActivity, botNeedsText, PAUSED_OFFLINE } from "@/lib/status";
 import type { ChatSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
@@ -34,7 +35,8 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 function needsYou(info: ScreenInfo): boolean {
   return (
     info.activity === "you" ||
-    ((info.activity === "idle" || info.activity === "asleep") && info.requests.length > 0)
+    (info.activity !== "working" && info.requests.length > 0) ||
+    (info.activity === "offline" && botNeedsText(info.bot) !== null)
   );
 }
 
@@ -53,7 +55,9 @@ function screenLine(info: ScreenInfo, chat: ChatSummary | undefined): string {
     case "asleep":
       return info.requests.length ? "Needs you to take over" : "Asleep";
     case "offline":
-      return "Offline";
+      // What still stands while the computer is away: a request for you, or work waiting for it.
+      if (info.requests.length) return "Needs you to take over";
+      return botNeedsText(info.bot) ?? (info.bot.activeRun ? PAUSED_OFFLINE : "Offline");
   }
 }
 
@@ -89,6 +93,29 @@ function healthRows({
   ];
 }
 
+/**
+ * The computer is offline. There is no screen to show, so the page says so on its own surface
+ * instead of a large black frame, and the take over request (if any) follows below it.
+ */
+function ComputerAway({ names }: { names: string[] }) {
+  return (
+    <section
+      aria-label="Computer"
+      className="flex flex-col items-center gap-2 rounded-2xl bg-card px-8 py-12 text-center shadow-raised"
+      data-testid="computer-offline"
+    >
+      <span className="mb-1 flex size-11 items-center justify-center rounded-xl bg-subtle text-muted-foreground">
+        <CloudOff className="size-5" />
+      </span>
+      <h1 className="text-[18px] font-semibold">The computer is offline</h1>
+      <p className="max-w-md text-[14px] leading-relaxed text-muted-foreground">
+        {names.length === 1 ? `${names[0]} pauses` : "Your teammates pause"} computer work until
+        it&apos;s back. It reconnects on its own, and their screens show here again.
+      </p>
+    </section>
+  );
+}
+
 export function ComputerPage({ initialScreen }: { initialScreen: string | null }) {
   const handleRef = useRef<DesktopHandle | null>(null);
   const { data: state } = useAppState();
@@ -114,7 +141,10 @@ export function ComputerPage({ initialScreen }: { initialScreen: string | null }
     <div className="h-full overflow-y-auto">
       <div className="mx-auto grid w-full max-w-[1600px] gap-8 px-5 py-6 sm:px-8 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="flex min-w-0 flex-col gap-4">
-          {screenId ? (
+          {state && !online ? <ComputerAway names={state.bots.map((bot) => bot.name)} /> : null}
+          {state && !online ? (
+            screenId && <ScreenControls screenId={screenId} expand={false} />
+          ) : screenId ? (
             <>
               <ScreenFrame screenId={screenId} handleRef={handleRef} />
               <ScreenControls screenId={screenId} handleRef={handleRef} expand={false} />
@@ -172,7 +202,9 @@ export function ComputerPage({ initialScreen }: { initialScreen: string | null }
                             ? "working"
                             : info.requests.length && info.activity !== "you"
                               ? "waiting"
-                              : "idle"
+                              : info.activity === "offline"
+                                ? botActivity(info.bot, false)
+                                : "idle"
                         }
                         className={
                           selected
@@ -210,20 +242,20 @@ export function ComputerPage({ initialScreen }: { initialScreen: string | null }
               className="flex items-start gap-3 rounded-xl bg-card shadow-raised px-3.5 py-3 transition-shadow hover:shadow-float"
             >
               {home ? (
-                <Home className="mt-0.5 size-4 text-done" />
+                <Home className="mt-0.5 size-4 shrink-0 text-done" />
               ) : (
-                <Globe className="mt-0.5 size-4 text-muted-foreground" />
+                <Globe className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
               )}
               <span className="flex flex-col gap-0.5">
                 <span className="text-[14px] font-medium">
-                  {home ? "Through your home connection" : "Straight from the cloud"}
+                  {home ? "Through your home internet" : "On the computer's own internet"}
                 </span>
                 <span className="text-[12.5px] text-muted-foreground">
                   {home && egress?.stats
-                    ? `${egress.stats.openStreams} open connections · ${formatBytes(egress.stats.bytesIn + egress.stats.bytesOut)} relayed`
+                    ? `${egress.stats.openStreams} open connections · ${formatBytes(egress.stats.bytesIn + egress.stats.bytesOut)} passed through`
                     : egress?.mode === "off"
-                      ? "Routing through your desktop is off."
-                      : "Open the desktop app to browse from your home IP."}
+                      ? "Websites see the cloud computer, not your home. You can change this in Settings."
+                      : "Open the open-bot desktop app and websites see your home internet instead, which some sites trust more."}
                 </span>
               </span>
             </Link>

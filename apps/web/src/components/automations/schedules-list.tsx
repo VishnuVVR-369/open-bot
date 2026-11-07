@@ -2,7 +2,7 @@
 
 import { describeCron } from "@open-bot/shared";
 import { format, formatDistanceToNowStrict } from "date-fns";
-import { ChevronRight, Play } from "lucide-react";
+import { Play } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { BotAvatar } from "@/components/bot-avatar";
@@ -10,9 +10,16 @@ import { Switch } from "@/components/ui/switch";
 import { deleteSchedule, runScheduleNow, setScheduleEnabled } from "@/lib/actions";
 import { useScheduleRuns } from "@/lib/client/queries";
 import type { BotSummary, ScheduleView } from "@/lib/types";
-import { cn } from "@/lib/utils";
 import { ScheduleDialog } from "./schedule-dialog";
-import { DetailLabel, LAST_RUN_TEXT, RowAction, RowMenu, RunHistory, StateBadge } from "./shared";
+import {
+  DetailLabel,
+  LAST_RUN_TEXT,
+  RowAction,
+  RowMenu,
+  RunHistory,
+  StateBadge,
+  useCanRun,
+} from "./shared";
 
 function cadence(schedule: ScheduleView) {
   if (schedule.kind === "cron" && schedule.cron) return describeCron(schedule.cron);
@@ -51,10 +58,11 @@ export function ScheduleRow({
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const done = schedule.kind === "once" && Boolean(schedule.lastRunAt) && !schedule.enabled;
+  const canRun = useCanRun();
 
   return (
     <li className="rounded-xl bg-card shadow-raised" data-testid="schedule">
-      <div className="flex flex-wrap items-center gap-4 px-4 py-3.5">
+      <div className="flex flex-wrap items-start gap-4 px-4 py-3.5 sm:items-center">
         {bot && <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="md" />}
         <button
           type="button"
@@ -73,23 +81,21 @@ export function ScheduleRow({
                 Set by {bot?.name ?? "a teammate"}
               </span>
             )}
-            <ChevronRight
-              className={cn(
-                "size-3.5 shrink-0 text-muted-foreground transition-transform",
-                expanded && "rotate-90",
-              )}
-            />
           </span>
-          <span className="truncate text-[13px] text-muted-foreground">
+          <span className="text-[13px] text-muted-foreground sm:truncate">
             {cadence(schedule)}
-            {schedule.enabled && schedule.nextRunAt && (
-              <>
-                {" "}
-                · next{" "}
-                {formatDistanceToNowStrict(new Date(schedule.nextRunAt), { addSuffix: true })}
-              </>
-            )}
-            {schedule.quiet && " · only news"}
+            {schedule.enabled &&
+              schedule.nextRunAt &&
+              (canRun ? (
+                <>
+                  {" "}
+                  · next{" "}
+                  {formatDistanceToNowStrict(new Date(schedule.nextRunAt), { addSuffix: true })}
+                </>
+              ) : (
+                " · won't run while the computer is offline"
+              ))}
+            {schedule.quiet && " · tells you only if something changed"}
           </span>
           {schedule.lastRun && (
             <span className="text-[12.5px] text-muted-foreground">
@@ -102,6 +108,7 @@ export function ScheduleRow({
         <div className="-my-1 ml-auto flex items-center gap-1 sm:my-0">
           <RowAction
             label="Run now"
+            labeled
             onClick={async () => {
               const result = await runScheduleNow(schedule.id);
               if (!result.ok) toast.error(result.error);

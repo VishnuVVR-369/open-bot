@@ -1,7 +1,7 @@
 "use client";
 
 import { BOT_COLORS, isRunActive, TEAMMATE_TEMPLATES } from "@open-bot/shared";
-import { format, formatDistanceToNowStrict } from "date-fns";
+import { format, formatDistanceToNowStrict, isToday, isTomorrow } from "date-fns";
 import {
   AlertCircle,
   ArrowRight,
@@ -23,11 +23,18 @@ import { useSyncExternalStore } from "react";
 import { BotAvatar } from "@/components/bot-avatar";
 import { ComputerPanel, useComputer } from "@/components/computer/computer-panel";
 import { Briefing } from "@/components/home/briefing";
+import { PageThumbnail } from "@/components/pages/page-thumbnail";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useActivity, useAppState, useProfile } from "@/lib/client/queries";
-import { botActivity, botNeedsText, botSubtitle } from "@/lib/status";
-import type { BotSummary } from "@/lib/types";
+import { useActivity, useAppState, usePages, useProfile, useSchedules } from "@/lib/client/queries";
+import {
+  botActivity,
+  botNeedsText,
+  botSubtitle,
+  isComputerOnline,
+  PAUSED_OFFLINE,
+} from "@/lib/status";
+import type { AppState } from "@/lib/types";
 import { chatHref, cn, plainText } from "@/lib/utils";
 
 /** The minute it is in the browser. Null while rendering on the server, whose clock and time zone aren't the reader's. */
@@ -60,13 +67,28 @@ function count(n: number, one: string, many: string) {
   return `${n} ${n === 1 ? one : many}`;
 }
 
-/** The line under the greeting: what your teammates are doing, from their real state. */
-function teamSummary(bots: BotSummary[]): string {
-  const working = bots.filter((bot) => botActivity(bot) === "working").length;
-  const needYou = bots.filter((bot) => botActivity(bot) === "waiting").length;
-  if (working && needYou)
-    return `${count(working, "teammate is", "teammates are")} working and ${needYou} ${needYou === 1 ? "needs" : "need"} you.`;
-  if (needYou) return `${count(needYou, "teammate needs", "teammates need")} you.`;
+/**
+ * The line under the greeting, from the real state: how many things need you (each take over
+ * request and each approval), then whether work is moving. While the computer is offline nothing
+ * moves, and the line says so rather than counting anyone as working.
+ */
+export function teamSummary(
+  state: Pick<AppState, "bots" | "computer" | "pendingApprovals" | "takeoverRequests">,
+): string {
+  const online = isComputerOnline(state);
+  const things = state.takeoverRequests.length + state.pendingApprovals;
+  const needs = things > 0 ? `${count(things, "thing needs", "things need")} you` : null;
+  if (!online) {
+    const busy = state.bots.some((bot) => bot.activeRun);
+    const paused = busy
+      ? "Work is paused until the computer is back."
+      : "Your teammates pick up again when the computer is back.";
+    return needs ? `${needs}. ${paused}` : paused;
+  }
+  const working = state.bots.filter((bot) => botActivity(bot) === "working").length;
+  if (needs && working)
+    return `${needs}, and ${count(working, "teammate is", "teammates are")} working.`;
+  if (needs) return `${needs}.`;
   if (working) return `${count(working, "teammate is", "teammates are")} working right now.`;
   return "Your teammates are ready when you are.";
 }
@@ -74,6 +96,7 @@ function teamSummary(bots: BotSummary[]): string {
 function NeedsYou() {
   const { data: state } = useAppState();
   if (!state) return null;
+  const online = isComputerOnline(state);
   const waiting = state.bots.filter((bot) => bot.activeRun?.status === "waiting");
   const requests = state.takeoverRequests;
   const proposals = state.proposals.flatMap((proposal) => {
@@ -98,11 +121,19 @@ function NeedsYou() {
             key={request.id}
             href={`/computer?screen=${request.screenId}`}
             className="flex items-center gap-3 rounded-xl border border-attention/40 bg-attention/[0.07] px-4 py-3 transition-colors hover:bg-attention/[0.12]"
+            data-testid="home-takeover-request"
           >
             <Hand className="size-4 shrink-0 text-attention-ink" />
-            <span className="min-w-0 flex-1 text-[14px]">
-              <span className="font-medium">{request.botName} needs you to take over:</span>{" "}
-              <span className="text-muted-foreground">{request.reason}</span>
+            <span className="flex min-w-0 flex-1 flex-col gap-1 text-[14px]">
+              <span>
+                <span className="font-medium">{request.botName} needs you to take over:</span>{" "}
+                <span className="text-muted-foreground">{request.reason}</span>
+              </span>
+              {!online && (
+                <span className="text-[13px] text-attention-ink">
+                  You can take over once the computer is back.
+                </span>
+              )}
             </span>
             <ArrowRight className="size-4 text-muted-foreground" />
           </Link>
@@ -187,11 +218,19 @@ function ProfileNudge() {
   );
 }
 
+/**
+ * Your teammates. On a wide screen the sidebar already lists them, so Home only shows them there
+ * to help you create the first one.
+ */
 function Teammates() {
   const { data: state } = useAppState();
   const bots = state?.bots ?? [];
+  const online = isComputerOnline(state);
   return (
-    <section className="flex flex-col gap-3" aria-label="Teammates">
+    <section
+      className={cn("flex flex-col gap-3", bots.length > 0 && "lg:hidden")}
+      aria-label="Teammates"
+    >
       <div className="flex items-center justify-between">
         <h2 className="font-heading text-[15px] font-semibold tracking-[-0.01em] text-foreground">
           Teammates
@@ -235,9 +274,9 @@ function Teammates() {
           </span>
         </Link>
       ) : (
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+        <div className="grid gap-2 sm:grid-cols-2">
           {bots.map((bot) => {
-            const activity = botActivity(bot);
+            const activity = botActivity(bot, online);
             return (
               <Link
                 key={bot.id}
@@ -268,7 +307,7 @@ function Teammates() {
                       botNeedsText(bot) && "text-attention-ink",
                     )}
                   >
-                    {botSubtitle(bot)}
+                    {botSubtitle(bot, online)}
                   </span>
                 </span>
                 <ArrowRight className="size-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
@@ -281,9 +320,118 @@ function Teammates() {
   );
 }
 
+/** "Today 4:00 PM", "Tomorrow 8:00 AM", or "Mon 8:00 AM" further out. */
+function nextRunLabel(date: Date): string {
+  const time = format(date, "h:mm a");
+  if (isToday(date)) return `Today ${time}`;
+  if (isTomorrow(date)) return `Tomorrow ${time}`;
+  return format(date, "EEE h:mm a");
+}
+
+function SideHeading({ title, href, label }: { title: string; href: string; label: string }) {
+  return (
+    <div className="flex items-center justify-between">
+      <h2 className="font-heading text-[15px] font-semibold tracking-[-0.01em] text-foreground">
+        {title}
+      </h2>
+      <Link
+        href={href}
+        className="flex items-center gap-1 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+      >
+        {label}
+        <ArrowRight className="size-3.5" />
+      </Link>
+    </div>
+  );
+}
+
+/** The next few scheduled runs, so you know what your teammates will do without asking. */
+function ComingUp() {
+  const { data: state } = useAppState();
+  const { data: schedules } = useSchedules();
+  const online = isComputerOnline(state);
+  const next = (schedules ?? [])
+    .filter((schedule) => schedule.enabled && schedule.nextRunAt)
+    .sort((a, b) => a.nextRunAt!.localeCompare(b.nextRunAt!))
+    .slice(0, 3);
+  if (!state || next.length === 0) return null;
+  return (
+    <section className="flex flex-col gap-3" aria-label="Coming up" data-testid="coming-up">
+      <SideHeading title="Coming up" href="/automations" label="Automations" />
+      <ol className="divide-y divide-border/70 overflow-hidden rounded-xl bg-card shadow-raised">
+        {next.map((schedule) => {
+          const bot = state.bots.find((entry) => entry.id === schedule.botId);
+          return (
+            <li key={schedule.id} className="flex items-center gap-3 px-3.5 py-2.5">
+              {bot ? (
+                <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="sm" />
+              ) : (
+                <span className="size-7 shrink-0 rounded-[8px] bg-subtle" />
+              )}
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate text-[13.5px] font-medium">{schedule.title}</span>
+                <span className="truncate text-[12.5px] text-muted-foreground">
+                  {bot?.name ?? "Former teammate"}
+                </span>
+              </span>
+              <span className="shrink-0 text-[12.5px] text-muted-foreground tabular-nums">
+                {nextRunLabel(new Date(schedule.nextRunAt!))}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+      {!online && (
+        <p className="px-1 text-[12.5px] text-muted-foreground">
+          These wait while the computer is offline.
+        </p>
+      )}
+    </section>
+  );
+}
+
+/** The latest pages your teammates published, as pictures you can open. */
+function RecentPages() {
+  const { data: state } = useAppState();
+  const { data: pages } = usePages();
+  const latest = [...(pages ?? [])]
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    .slice(0, 2);
+  if (!state || latest.length === 0) return null;
+  return (
+    <section className="flex flex-col gap-3" aria-label="Recent pages" data-testid="recent-pages">
+      <SideHeading title="Recent pages" href="/pages" label="All pages" />
+      <div className="grid grid-cols-2 gap-3">
+        {latest.map((page) => {
+          const bot = state.bots.find((entry) => entry.id === page.botId);
+          return (
+            <Link
+              key={page.id}
+              href={`/pages/${page.id}`}
+              className="group flex min-w-0 flex-col overflow-hidden rounded-xl bg-card shadow-raised transition-shadow hover:shadow-float"
+            >
+              <PageThumbnail versionId={page.versionId} />
+              <span className="flex min-w-0 flex-col gap-0.5 px-3 py-2.5">
+                <span className="truncate text-[13.5px] font-medium group-hover:underline">
+                  {page.title}
+                </span>
+                <span className="truncate text-[12.5px] text-muted-foreground">
+                  {bot?.name ?? "Former teammate"} ·{" "}
+                  {formatDistanceToNowStrict(new Date(page.updatedAt), { addSuffix: true })}
+                </span>
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function Activity() {
   const { data: state } = useAppState();
   const { data, isLoading } = useActivity();
+  const online = isComputerOnline(state);
   if (!state || state.bots.length === 0) return null;
   return (
     <section className="flex flex-col gap-3" aria-label="Recent activity">
@@ -301,6 +449,7 @@ function Activity() {
           {data.map((item) => {
             const bot = state.bots.find((b) => b.id === item.botId);
             const active = isRunActive(item.status);
+            const paused = active && !online && item.status !== "waiting";
             return (
               <li key={item.runId}>
                 <Link
@@ -370,16 +519,18 @@ function Activity() {
                               "size-1.5 rounded-full",
                               item.status === "waiting"
                                 ? "bg-attention"
-                                : item.status === "queued"
+                                : item.status === "queued" || paused
                                   ? "bg-idle"
                                   : "animate-tally bg-working",
                             )}
                           />
                           {item.status === "waiting"
                             ? "Needs you"
-                            : item.status === "queued"
-                              ? "Up next"
-                              : "Working on it"}
+                            : paused
+                              ? PAUSED_OFFLINE
+                              : item.status === "queued"
+                                ? "Up next"
+                                : "Working on it"}
                         </span>
                       ) : item.status === "failed" ? (
                         <>
@@ -406,13 +557,20 @@ function Activity() {
 export function HomeView() {
   const { data: state } = useAppState();
   const { online } = useComputer();
-  // While the computer is offline it is one short card, so the teammates sit under it instead.
+  // While the computer is offline it is one short card, so its column narrows.
   const offline = Boolean(state) && !online;
   const minute = useMinute();
   const now = minute === null ? null : new Date(minute * 60_000);
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto grid w-full max-w-[1400px] gap-10 px-5 py-8 sm:px-10 sm:py-12 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] xl:gap-12">
+      <div
+        className={cn(
+          "mx-auto grid w-full max-w-[1400px] gap-10 px-5 py-8 sm:px-10 sm:py-12 xl:gap-12",
+          offline
+            ? "xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]"
+            : "xl:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]",
+        )}
+      >
         <div className="flex min-w-0 flex-col gap-8">
           <div className="flex flex-col gap-1.5">
             <p className="h-[18px] text-[13px] font-medium text-muted-foreground">
@@ -427,25 +585,20 @@ export function HomeView() {
               )}
             </h1>
             <p className="h-[22px] text-[14.5px] text-muted-foreground">
-              {state && teamSummary(state.bots)}
+              {state && teamSummary(state)}
             </p>
           </div>
           <NeedsYou />
           <Briefing />
           <ProfileNudge />
-          {!offline && <Teammates />}
+          <Teammates />
           <Activity />
         </div>
-        <div
-          className={cn(
-            "flex min-w-0 flex-col gap-8 xl:self-start",
-            // A live screen stays in view; a long list of teammates scrolls with the page.
-            !offline && "xl:sticky xl:top-12",
-          )}
-        >
+        <div className="flex min-w-0 flex-col gap-8 xl:self-start">
           {/* Takeover requests are already in "Needs you", so the panel leaves them out. */}
           <ComputerPanel botIds={state?.bots.map((bot) => bot.id) ?? []} showRequests={false} />
-          {offline && <Teammates />}
+          <ComingUp />
+          <RecentPages />
         </div>
       </div>
     </div>

@@ -1,11 +1,12 @@
 import type { ApprovalView, BotSummary } from "@open-bot/api";
+import type { ApprovalRisk } from "@open-bot/shared";
 import { Check, CircleDashed, Clock, OctagonAlert, TriangleAlert, X } from "lucide-react-native";
 import type { ReactNode } from "react";
 import { StyleSheet, View, type TextProps } from "react-native";
 import { ApprovalIcon } from "@/components/approval-icon";
 import { BotAvatar, type AvatarSize, type BotActivity } from "@/components/bot-avatar";
 import { Text, type TextVariant } from "@/components/text";
-import { detailRows, titleParts, type ApprovalRisk } from "@/lib/approval-text";
+import { detailRows, titleParts } from "@/lib/approval-text";
 import { fonts, radius, space, useColors } from "@/theme";
 import { mix } from "@/theme/mix";
 
@@ -78,7 +79,14 @@ export function ApprovalAvatar({
 }
 
 /** How a request ended (or that it's waiting), with an icon and a word, never color alone. */
-export function ApprovalStatusChip({ status }: { status: ApprovalView["status"] }) {
+export function ApprovalStatusChip({
+  status,
+  size = "md",
+}: {
+  status: ApprovalView["status"];
+  /** `sm` sits at the end of a list row, leaving the title room. */
+  size?: "sm" | "md";
+}) {
   const colors = useColors();
   const [Icon, signal, label] =
     status === "approved"
@@ -96,12 +104,22 @@ export function ApprovalStatusChip({ status }: { status: ApprovalView["status"] 
         : mix(signal, colors.foreground, 0.75);
   return (
     <View
-      style={[styles.chip, { backgroundColor: mix(signal, colors.surface, 0.12) }]}
+      style={[
+        styles.chip,
+        size === "sm" && styles.chipSmall,
+        { backgroundColor: mix(signal, colors.surface, 0.12) },
+      ]}
       accessible
       accessibilityLabel={label}
     >
-      <Icon size={13} color={ink} strokeWidth={2.5} />
-      <Text variant="caption" style={{ color: ink, fontWeight: "600" }}>
+      <Icon size={size === "sm" ? 11 : 13} color={ink} strokeWidth={2.5} />
+      <Text
+        variant="caption"
+        style={[
+          { color: ink, fontWeight: "600" },
+          size === "sm" && { fontSize: 11, lineHeight: 14 },
+        ]}
+      >
         {label}
       </Text>
     </View>
@@ -248,6 +266,7 @@ const styles = StyleSheet.create({
     paddingVertical: space(1),
     borderRadius: radius.full,
   },
+  chipSmall: { gap: 3, paddingHorizontal: space(1.5), paddingVertical: 2 },
   risk: {
     flexDirection: "row",
     alignItems: "center",

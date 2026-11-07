@@ -1,4 +1,4 @@
-import type { ApprovalItem } from "@open-bot/shared";
+import { approvalRisk, approveLabel, type ApprovalItem } from "@open-bot/shared";
 import {
   AlertTriangle,
   Check,
@@ -17,7 +17,7 @@ import { ApprovalTitle, DetailRows } from "@/components/approval-parts";
 import { Button } from "@/components/button";
 import { CodeScroll } from "@/components/code-scroll";
 import { Text } from "@/components/text";
-import { approvalRisk, approveLabel, detailRows, sendsEmail } from "@/lib/approval-text";
+import { approvalFacts, detailRows, sendsEmail } from "@/lib/approval-text";
 import { canAlwaysAllow, useDecideApproval, type Decision } from "@/lib/approvals";
 import { approvalDetail } from "@/lib/format";
 import { haptics } from "@/lib/haptics";
@@ -85,13 +85,14 @@ export function ApprovalCard({
         : ShieldAlert);
   const detail = item.detail ? approvalDetail(item.detail) : "";
   const isCode = detail.startsWith("$ ") || item.approvalKind === "file_change";
-  const risk = approvalRisk({
+  const facts = approvalFacts({
     kind: item.approvalKind ?? "action",
     title: item.title,
-    detail: item.detail ?? "",
+    detail: item.detail,
     subject: item.subject,
     preview: item.preview,
   });
+  const risk = approvalRisk(facts);
   const onDecide = async (decision: Decision, alwaysAllow: string | null = null) => {
     setError(null);
     if (decision === "approved") haptics.press();
@@ -212,11 +213,7 @@ export function ApprovalCard({
           testID="deny"
         />
         <Button
-          title={approveLabel({
-            kind: item.approvalKind ?? "action",
-            title: item.title,
-            preview: item.preview,
-          })}
+          title={approveLabel(facts)}
           icon={<Check size={17} color={colors.primaryForeground} />}
           busy={deciding === "approved"}
           disabled={busy}

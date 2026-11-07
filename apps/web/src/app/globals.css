@@ -126,35 +126,41 @@
 }
 
 .dark {
-  --background: #0b0c0e;
-  --surface: #131417;
-  --subtle: #1a1b1f;
-  --foreground: #e8e9ed;
-  --card: #17181c;
-  --card-foreground: #e8e9ed;
-  --popover: #1a1b1f;
-  --popover-foreground: #e8e9ed;
-  --primary: #e8e9ed;
+  /*
+   * Three clear steps up from the desk, so the page, its cards and anything floating separate:
+   *   background (desk) < surface (the page) < card (cards, the composer) < popover (menus).
+   * Text on any of them: foreground, then muted-foreground (7:1 or more), then faint (4.5:1 on
+   * the page, for hints and placeholders).
+   */
+  --background: #09090b;
+  --surface: #111215;
+  --subtle: #18191d;
+  --foreground: #ecedf0;
+  --card: #1a1b1f;
+  --card-foreground: #ecedf0;
+  --popover: #202126;
+  --popover-foreground: #ecedf0;
+  --primary: #ecedf0;
   --primary-foreground: #0b0c0e;
-  --secondary: #1e1f24;
-  --secondary-foreground: #e8e9ed;
-  --muted: #1e1f24;
-  --muted-foreground: #a5a9b3;
-  --faint: #737781;
-  --accent: #212227;
-  --accent-foreground: #e8e9ed;
+  --secondary: #222328;
+  --secondary-foreground: #ecedf0;
+  --muted: #222328;
+  --muted-foreground: #aeb2bb;
+  --faint: #868a94;
+  --accent: #26272d;
+  --accent-foreground: #ecedf0;
   --destructive: #ef5b60;
-  --border: #23252a;
-  --input: #2b2d33;
-  --ring: #e8e9ed;
-  --sidebar: #0b0c0e;
-  --sidebar-foreground: #e8e9ed;
-  --sidebar-primary: #e8e9ed;
+  --border: #2a2c32;
+  --input: #34363d;
+  --ring: #ecedf0;
+  --sidebar: #09090b;
+  --sidebar-foreground: #ecedf0;
+  --sidebar-primary: #ecedf0;
   --sidebar-primary-foreground: #0b0c0e;
-  --sidebar-accent: #191a1e;
-  --sidebar-accent-foreground: #e8e9ed;
-  --sidebar-border: #1d1f23;
-  --sidebar-ring: #e8e9ed;
+  --sidebar-accent: #1a1b1f;
+  --sidebar-accent-foreground: #ecedf0;
+  --sidebar-border: #202126;
+  --sidebar-ring: #ecedf0;
   --bezel: #060709;
   --bezel-foreground: #b8bcc5;
   --attention: #f5b03c;
@@ -164,7 +170,9 @@
   --done: #3cb878;
   --tally: #f0585d;
   --elev-canvas: 0 0 0 1px rgb(255 255 255 / 0.055), 0 12px 32px -16px rgb(0 0 0 / 0.6);
-  --elev-raised: 0 0 0 1px rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.3);
+  --elev-raised:
+    0 0 0 1px rgb(255 255 255 / 0.075), inset 0 1px 0 rgb(255 255 255 / 0.03),
+    0 1px 2px rgb(0 0 0 / 0.35);
   --elev-float:
     0 0 0 1px rgb(255 255 255 / 0.08), 0 8px 20px -6px rgb(0 0 0 / 0.5),
     0 24px 48px -16px rgb(0 0 0 / 0.6);

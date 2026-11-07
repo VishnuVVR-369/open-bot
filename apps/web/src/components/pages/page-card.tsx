@@ -1,7 +1,7 @@
 "use client";
 
 import type { PageItem } from "@open-bot/shared";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { PageThumbnail } from "./page-thumbnail";
 
@@ -35,7 +35,7 @@ export function PageCard({ item }: { item: PageItem }) {
         )}
         <span className="mt-auto flex items-center gap-1 pt-1.5 text-[13px] font-medium text-foreground/80 transition-colors group-hover/page:text-foreground">
           Open page
-          <ArrowUpRight className="size-3.5 transition-transform group-hover/page:translate-x-px group-hover/page:-translate-y-px" />
+          <ArrowRight className="size-3.5 transition-transform group-hover/page:translate-x-0.5" />
         </span>
       </div>
     </Link>

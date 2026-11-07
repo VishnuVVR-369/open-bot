@@ -138,6 +138,23 @@ To run the desktop app:
 pnpm --filter @open-bot/desktop dev
 ```
 
+## Passwords
+
+open-bot has one account, the owner's, and sends no email, so there is no reset link.
+Change your password in Settings, under Security; you need the current one.
+If you forget it, sign in with a passkey and change it there.
+
+Without a passkey, reset it from the server.
+In a terminal in the open-bot folder, with the same environment the app runs with (`.env` locally, or a shell on the web service in the cloud, like `railway ssh --service web`):
+
+```sh
+pnpm owner:reset-password you@example.com
+```
+
+The email must be `OWNER_EMAIL`, or nothing changes.
+It asks for the new password twice, saves it with the same hashing sign-in uses, and signs out every device.
+Passkeys keep working.
+
 ## Tests
 
 Start the local stack first, then run:
@@ -148,6 +165,7 @@ pnpm test:memory -- --e2e                       # memory database and browser te
 pnpm test:bots                                 # bot management integration tests in disposable Postgres
 pnpm test:accounts                             # account sign-ins and token refresh in disposable Postgres
 pnpm test:mobile-api                           # phone API, account actions and Gmail/Calendar triggers in disposable Postgres
+pnpm test:owner-reset                          # the owner password reset command in disposable Postgres
 E2E_EMAIL=you@example.com E2E_PASSWORD=... pnpm e2e --grep-invert @agent   # fast end-to-end tests
 E2E_EMAIL=you@example.com E2E_PASSWORD=... pnpm e2e --grep @agent          # real teammates at work (slow, uses your plan)
 ```

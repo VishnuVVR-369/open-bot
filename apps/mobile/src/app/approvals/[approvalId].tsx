@@ -1,3 +1,4 @@
+import { approvalRisk, approveLabel, commandParts } from "@open-bot/shared";
 import { useQuery } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import {
@@ -29,13 +30,7 @@ import { Card } from "@/components/section";
 import { LoadError, Loading } from "@/components/states";
 import { Text } from "@/components/text";
 import { api } from "@/lib/api";
-import {
-  approvalRisk,
-  approveLabel,
-  commandParts,
-  detailRows,
-  sendsEmail,
-} from "@/lib/approval-text";
+import { approvalFacts, detailRows, sendsEmail } from "@/lib/approval-text";
 import { canAlwaysAllow, useDecideApproval, type Decision } from "@/lib/approvals";
 import { recently } from "@/lib/day-groups";
 import { approvalDetail } from "@/lib/format";
@@ -151,7 +146,7 @@ export default function ApprovalScreen() {
   const bot = bots.find((candidate) => candidate.id === approval.botId);
   const botName = bot?.name ?? "A former teammate";
   const pending = approval.status === "pending";
-  const risk = pending ? approvalRisk(approval) : null;
+  const risk = pending ? approvalRisk(approvalFacts(approval)) : null;
   const allowable = pending && canAlwaysAllow(approval);
   const busy = deciding !== null || !online;
 
@@ -302,7 +297,7 @@ export default function ApprovalScreen() {
               testID="deny"
             />
             <Button
-              title={approveLabel(approval)}
+              title={approveLabel(approvalFacts(approval))}
               icon={
                 approval.kind === "purchase" ? (
                   <Fingerprint size={18} color={colors.primaryForeground} />

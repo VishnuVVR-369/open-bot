@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  commandSummary,
   shellScript,
   type ApprovalItem,
   type CommandItem,
@@ -50,12 +51,12 @@ import {
   ApprovalDecision,
   ApprovalDetail,
   ApprovalIcon,
+  ApprovalTitle,
   NEEDS_YOU_SURFACE,
   RiskChip,
   riskOf,
   type ApprovalSubject,
 } from "@/components/approvals/approval-parts";
-import { InlineCode } from "@/components/inline-code";
 import { MessageText } from "./message-text";
 import { Button } from "@/components/ui/button";
 import { dismissTakeoverRequest } from "@/lib/actions";
@@ -133,6 +134,7 @@ export function ReasoningStep({ item }: { item: ReasoningItem }) {
   );
 }
 
+/** A shell command: what it does in plain words, then the command itself in a code face. */
 export function CommandStep({ item }: { item: CommandItem }) {
   const command = shellScript(item.command);
   const failed = item.status === "failed" || (item.exitCode !== null && item.exitCode !== 0);
@@ -142,12 +144,17 @@ export function CommandStep({ item }: { item: CommandItem }) {
       running={item.status === "running"}
       failed={failed && item.status !== "running"}
       summary={
-        <span className="font-mono text-[12.5px]">
-          {command}
+        <>
+          <span className={cn(!failed && "text-foreground/85")}>
+            {commandSummary(item.command)}
+          </span>
           {failed && item.exitCode !== null && (
-            <span className="ml-2 font-sans">exit {item.exitCode}</span>
+            <span className="ml-1.5">· didn&apos;t work (exit {item.exitCode})</span>
           )}
-        </span>
+          <span className="ml-2 font-mono text-[12px] text-faint" data-testid="step-command">
+            {command}
+          </span>
+        </>
       }
       detail={
         <pre className="max-h-72 overflow-auto rounded-lg bg-subtle px-3 py-2 font-mono text-[12px] leading-relaxed whitespace-pre-wrap text-foreground/85">
@@ -336,6 +343,7 @@ export function HandoffStep({ item }: { item: HandoffItem }) {
 }
 
 export function ApprovalCard({ item, botName }: { item: ApprovalItem; botName: string }) {
+  const approval: ApprovalSubject = { ...item, kind: item.approvalKind ?? "action" };
   if (item.decision !== "pending") {
     return (
       <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
@@ -352,12 +360,11 @@ export function ApprovalCard({ item, botName }: { item: ApprovalItem; botName: s
             : item.decision === "denied"
               ? "You denied"
               : "Expired"}
-          : <InlineCode text={item.title} />
+          : <ApprovalTitle approval={approval} showCommand />
         </span>
       </div>
     );
   }
-  const approval: ApprovalSubject = { ...item, kind: item.approvalKind ?? "action" };
   const risk = riskOf(approval);
   return (
     <div
@@ -368,7 +375,7 @@ export function ApprovalCard({ item, botName }: { item: ApprovalItem; botName: s
         <ApprovalIcon approval={approval} className="mt-[3px] size-4 shrink-0 text-attention-ink" />
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1">
           <span className="text-[14.5px] leading-snug font-medium">
-            <InlineCode text={item.title} />
+            <ApprovalTitle approval={approval} />
           </span>
           {risk && <RiskChip risk={risk} />}
         </div>

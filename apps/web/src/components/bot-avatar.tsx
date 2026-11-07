@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 
-export type BotActivity = "idle" | "working" | "waiting" | "queued";
+/** `paused`: they have work, but it waits for the computer to come back. */
+export type BotActivity = "idle" | "working" | "waiting" | "queued" | "paused";
 
 const SIZES = {
   xs: "size-5 rounded-[6px] text-[10px]",
@@ -19,7 +20,7 @@ function initials(name: string) {
 /**
  * A teammate's tile: their color, their emoji or initials, and a status light.
  * The light follows the status signals in globals.css: blue while working, amber when they need you,
- * gray while queued, and nothing at all while idle.
+ * gray while queued or paused for an offline computer, and nothing at all while idle.
  */
 export function BotAvatar({
   name,
@@ -58,7 +59,7 @@ export function BotAvatar({
             "absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-(--avatar-ring)",
             activity === "working" && "animate-tally bg-working",
             activity === "waiting" && "bg-attention",
-            activity === "queued" && "bg-idle",
+            (activity === "queued" || activity === "paused") && "bg-idle",
           )}
         />
       )}

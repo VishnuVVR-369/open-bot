@@ -1,7 +1,24 @@
 "use client";
 
-import { BUILT_IN_SKILLS, MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from "@open-bot/shared";
-import { ArrowUp, FileText, Loader2, Mic, Paperclip, Sparkles, Square, X } from "lucide-react";
+import {
+  BUILT_IN_SKILLS,
+  MAX_UPLOAD_BYTES,
+  MAX_UPLOAD_LABEL,
+  type RunStatus,
+} from "@open-bot/shared";
+import {
+  ArrowUp,
+  CloudOff,
+  FileText,
+  Hand,
+  Loader2,
+  Mic,
+  Paperclip,
+  ShieldAlert,
+  Sparkles,
+  Square,
+  X,
+} from "lucide-react";
 import Link from "next/link";
 import {
   useCallback,
@@ -48,16 +65,26 @@ function formatSize(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+/** The run going on in the chat, if any, and what it is waiting for. */
+export interface ComposerRun {
+  id: string;
+  botName: string;
+  status: RunStatus;
+  waitingFor: "approval" | "takeover" | null;
+}
+
 export function Composer({
   chat,
   members,
   activeRun,
+  computerOnline = true,
   onSent,
   ref,
 }: {
   chat: ChatSummary;
   members: BotSummary[];
-  activeRun: { id: string; botName: string } | null;
+  activeRun: ComposerRun | null;
+  computerOnline?: boolean;
   onSent: (message: MessageView) => void;
   ref?: Ref<ComposerHandle>;
 }) {
@@ -264,8 +291,13 @@ export function Composer({
     });
   }
 
+  // What the run is doing now: waiting on you, paused for the computer, or working.
+  const waiting = activeRun?.status === "waiting";
+  const paused = Boolean(activeRun) && !waiting && !computerOnline;
   const placeholder = activeRun
-    ? `Add to what ${activeRun.botName} is doing…`
+    ? waiting || paused
+      ? `Add a note for ${activeRun.botName}…`
+      : `Add to what ${activeRun.botName} is doing…`
     : isGroup
       ? "Message the group, or @ a teammate…"
       : `Message ${members[0]?.name ?? "your teammate"}…`;
@@ -373,6 +405,32 @@ export function Composer({
           "flex flex-col rounded-[20px] border border-border/80 bg-card shadow-[0_1px_2px_rgb(16_17_22/0.04),0_10px_28px_-14px_rgb(16_17_22/0.14)] transition-[border-color,box-shadow] focus-within:border-foreground/20 focus-within:shadow-[0_1px_2px_rgb(16_17_22/0.05),0_14px_36px_-14px_rgb(16_17_22/0.2)] dark:shadow-none",
         )}
       >
+        {activeRun && (waiting || paused) && (
+          <div
+            className={cn(
+              "flex items-center gap-2 px-4 pt-3 text-[12.5px] font-medium",
+              waiting ? "text-attention-ink" : "text-muted-foreground",
+            )}
+            data-testid="composer-run-state"
+          >
+            {waiting ? (
+              activeRun.waitingFor === "takeover" ? (
+                <Hand className="size-3.5 shrink-0" />
+              ) : (
+                <ShieldAlert className="size-3.5 shrink-0" />
+              )
+            ) : (
+              <CloudOff className="size-3.5 shrink-0" />
+            )}
+            <span className="min-w-0 flex-1 truncate">
+              {waiting
+                ? activeRun.waitingFor === "takeover"
+                  ? `${activeRun.botName} is waiting for you to take over`
+                  : `${activeRun.botName} is waiting for your approval`
+                : `${activeRun.botName}'s work is paused until the computer is back`}
+            </span>
+          </div>
+        )}
         {uploads.length > 0 && (
           <div className="flex flex-wrap gap-2 px-3 pt-3">
             {uploads.map((upload) => (
@@ -537,11 +595,12 @@ export function Composer({
             </span>
           )}
           <span className="flex-1" />
-          {activeRun && (
+          {/* Stopping needs the computer. While it waits on you, stopping ends the whole task. */}
+          {activeRun && computerOnline && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  variant="outline"
+                  variant={waiting ? "ghost" : "outline"}
                   size="sm"
                   data-testid="stop-run"
                   disabled={stopping}
@@ -554,13 +613,17 @@ export function Composer({
                 >
                   {stopping ? (
                     <Loader2 className="animate-spin" />
-                  ) : (
+                  ) : waiting ? null : (
                     <Square className="fill-current" />
                   )}
-                  Stop
+                  {waiting ? "Cancel task" : "Stop"}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Stop {activeRun.botName}</TooltipContent>
+              <TooltipContent>
+                {waiting
+                  ? `Cancel what ${activeRun.botName} is doing, instead of answering`
+                  : `Stop ${activeRun.botName}`}
+              </TooltipContent>
             </Tooltip>
           )}
           <Button

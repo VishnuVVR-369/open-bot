@@ -24,6 +24,11 @@ export const palette = {
     destructive: "#D23C42",
     border: "#E6E7EB",
     input: "#DDDFE4",
+    // An unavailable primary button: a fill that still shows on the page, with quiet text.
+    disabled: "#E4E4E7",
+    disabledForeground: "#A1A1AA",
+    // A divider drawn straight on the page, like the "or" between ways to sign in.
+    rule: "#D4D4D8",
     bubble: "#DFE1E6",
     bubbleForeground: "#16171B",
     live: "#E5484D",
@@ -44,6 +49,9 @@ export const palette = {
     destructive: "#EF5B60",
     border: "#25272C",
     input: "#2F3137",
+    disabled: "#212227",
+    disabledForeground: "#6E717A",
+    rule: "#2F3137",
     bubble: "#24262B",
     bubbleForeground: "#E8E9ED",
     live: "#F0585D",

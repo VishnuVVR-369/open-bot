@@ -96,4 +96,11 @@ describe("screen state", () => {
       "awake",
     ]);
   });
+  it("keeps a teammate waiting for you first while the computer is offline", () => {
+    const screens = [
+      view("idle", { online: false }),
+      view("waiting", { online: false, requests: [{ id: "t", reason: null, createdAt: "" }] }),
+    ];
+    expect(sortScreens(screens).map((screen) => screen.id)).toEqual(["waiting", "idle"]);
+  });
 });

@@ -7,6 +7,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
 import { count } from "drizzle-orm";
+import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "../password";
 import { BASE_URL, passkeyConfig, TRUSTED_ORIGINS } from "./auth-config";
 import { db } from "./db";
 import { serverEnv } from "./env";
@@ -23,7 +24,11 @@ export const auth = betterAuth({
       passkey: schema.passkey,
     },
   }),
-  emailAndPassword: { enabled: true, minPasswordLength: 10 },
+  emailAndPassword: {
+    enabled: true,
+    minPasswordLength: PASSWORD_MIN_LENGTH,
+    maxPasswordLength: PASSWORD_MAX_LENGTH,
+  },
   session: { expiresIn: 60 * 60 * 24 * 30, updateAge: 60 * 60 * 24 },
   trustedOrigins: TRUSTED_ORIGINS,
   plugins: [

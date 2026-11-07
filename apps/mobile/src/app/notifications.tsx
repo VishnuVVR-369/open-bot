@@ -23,6 +23,7 @@ import { api } from "@/lib/api";
 import { groupByDay } from "@/lib/day-groups";
 import { haptics } from "@/lib/haptics";
 import { notificationHref } from "@/lib/links";
+import { phoneClock } from "@/lib/phone-clock";
 import { collapseRepeats, notificationText } from "@/lib/notification-groups";
 import { useHome, useNotifications, useTeammates } from "@/lib/queries";
 import { queryKeys } from "@/lib/query";
@@ -191,8 +192,13 @@ export default function Notifications() {
             body="When a teammate finishes something or needs you, it shows up here."
           />
         }
-        renderItem={({ item: row }) => {
+        renderItem={({ item: row, section }) => {
           const notification = row.items[0]!;
+          // The header already says "Yesterday", so its rows give the time of day instead.
+          const when =
+            section.title === "Yesterday"
+              ? phoneClock(notification.createdAt)
+              : ago(notification.createdAt);
           const bot = bots.find((candidate) => candidate.id === notification.botId);
           const unreadIds = row.items.filter((item) => !item.readAt).map((item) => item.id);
           const isUnread = unreadIds.length > 0;
@@ -216,7 +222,7 @@ export default function Notifications() {
                 title,
                 count > 1 ? `${count} times` : null,
                 body,
-                ago(notification.createdAt),
+                when,
               ]
                 .filter(Boolean)
                 .join(", ")}
@@ -245,7 +251,7 @@ export default function Notifications() {
                       muted={!isUnread}
                       style={isUnread ? { fontWeight: "600" } : undefined}
                     >
-                      {ago(notification.createdAt)}
+                      {when}
                     </Text>
                     <View
                       style={[

@@ -1,9 +1,8 @@
 "use client";
 
-import { ArrowUpRight, Check, CircleDashed, ShieldCheck, X } from "lucide-react";
+import { ArrowRight, Check, CircleDashed, ShieldCheck, X } from "lucide-react";
 import Link from "next/link";
 import { BotAvatar } from "@/components/bot-avatar";
-import { InlineCode } from "@/components/inline-code";
 import { TimeAgo } from "@/components/time-ago";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAppState, useApprovals } from "@/lib/client/queries";
@@ -12,6 +11,7 @@ import { cn } from "@/lib/utils";
 import {
   ApprovalDecision,
   ApprovalDetail,
+  ApprovalTitle,
   NEEDS_YOU_SURFACE,
   RiskChip,
   riskOf,
@@ -32,12 +32,12 @@ function OpenChat({ chatId, className }: { chatId: string; className?: string })
     <Link
       href={`/chats/${chatId}`}
       className={cn(
-        "inline-flex shrink-0 items-center gap-0.5 rounded-md text-[13px] font-medium text-foreground/80 underline-offset-[3px] outline-none hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/12",
+        "inline-flex shrink-0 items-center gap-1 rounded-md text-[13px] font-medium text-foreground/80 underline-offset-[3px] outline-none hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/12",
         className,
       )}
     >
       Open chat
-      <ArrowUpRight className="size-3.5" />
+      <ArrowRight className="size-3.5" />
     </Link>
   );
 }
@@ -74,7 +74,7 @@ function PendingApproval({ approval, bot }: { approval: ApprovalView; bot?: BotS
           </div>
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
             <h3 className="text-[15.5px] leading-snug font-medium">
-              <InlineCode text={approval.title} />
+              <ApprovalTitle approval={approval} />
             </h3>
             {risk && <RiskChip risk={risk} />}
           </div>
@@ -97,7 +97,7 @@ function DecidedApproval({ approval, bot }: { approval: ApprovalView; bot?: BotS
       <Avatar bot={bot} size="sm" />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="truncate text-[14px]">
-          <InlineCode text={approval.title} />
+          <ApprovalTitle approval={approval} showCommand />
         </span>
         <span className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
           {approval.status === "approved" ? (
