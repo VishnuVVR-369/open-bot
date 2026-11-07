@@ -58,7 +58,9 @@ Railway SSH needs no public domain, exposed port 22, or container SSH daemon.
 
 ## Deploys
 
-- Merging to `main` deploys `web`, `worker`, `computer` and `pages`. The
+- Merging to `main` deploys only the services among `web`, `worker`, `computer`
+  and `pages` whose watch paths (`.railway/watch-paths.ts`) match a changed
+  file. A docs-only merge deploys nothing. The
   worker's pre-deploy step runs DB migrations; if it fails, Railway keeps the
   old commit.
 - `WORKER_SECRET` and `ENCRYPTION_KEY` must match between `web` and `worker`.

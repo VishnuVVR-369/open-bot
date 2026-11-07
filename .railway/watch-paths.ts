@@ -1,0 +1,57 @@
+// Which pushes to main redeploy which Railway service.
+// A service redeploys only when a push changes a file under one of its folders or a root
+// build file. `watch-paths.test.ts` checks every list against the workspace dependency graph
+// and the computer's Dockerfile, so a new workspace dependency must be added here too.
+
+export type DeployedService = "web" | "worker" | "pages" | "computer";
+
+/** Repo-relative folders whose contents end up in each service's build. */
+export const SERVICE_FOLDERS: Record<DeployedService, readonly string[]> = {
+  web: [
+    "apps/web",
+    "packages/accounts",
+    "packages/api",
+    "packages/db",
+    "packages/memory",
+    "packages/shared",
+  ],
+  worker: [
+    "apps/worker",
+    "packages/accounts",
+    "packages/agent",
+    "packages/api",
+    "packages/db",
+    "packages/egress",
+    "packages/memory",
+    "packages/page-kit",
+    "packages/shared",
+  ],
+  pages: ["apps/pages", "packages/db", "packages/page-kit", "packages/shared"],
+  computer: [
+    "images/computer",
+    "apps/botd",
+    "packages/egress",
+    "packages/page-kit",
+    "packages/shared",
+  ],
+};
+
+/** Root files every build reads: the install inputs and the shared compiler options. */
+export const ROOT_FILES = [
+  "package.json",
+  "pnpm-lock.yaml",
+  "pnpm-workspace.yaml",
+  "tsconfig.base.json",
+] as const;
+
+/** Files inside watched folders that never reach a build. Negations must come last. */
+export const IGNORED = ["AGENTS.md", "CLAUDE.md", "*.test.ts", "*.test.tsx"] as const;
+
+/** Gitignore-style patterns, rooted at the repo root, for a service's `build.watchPatterns`. */
+export function watchPatterns(service: DeployedService): string[] {
+  return [
+    ...ROOT_FILES.map((file) => `/${file}`),
+    ...SERVICE_FOLDERS[service].map((folder) => `/${folder}/**`),
+    ...IGNORED.map((name) => `!**/${name}`),
+  ];
+}
