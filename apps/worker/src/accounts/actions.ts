@@ -106,7 +106,8 @@ export class AccountActions {
     string,
     { runId: string; resolve: (row: ActionRow | null) => void }
   >();
-  private sweeping = false;
+  /** The sweep loop that is running, if any; kick() starts one, idle() waits for it. */
+  private sweeping: Promise<void> | null = null;
   /** Set at shutdown: work that finishes afterwards starts no new sweep or poll. */
   private stopped = false;
   private again = false;
@@ -140,7 +141,7 @@ export class AccountActions {
     this.sweepTimer = setInterval(() => this.kick(), SWEEP_MS).unref();
   }
 
-  /** Stops sweeping and polling, and stops listening. A sweep already running finishes. */
+  /** Stops sweeping and polling, and stops listening. A sweep already running finishes; see idle(). */
   stop(): void {
     this.stopped = true;
     this.ctx.events.off("approvalDecided", this.onDecided);
@@ -569,8 +570,7 @@ export class AccountActions {
       this.again = true;
       return;
     }
-    this.sweeping = true;
-    void (async () => {
+    this.sweeping = (async () => {
       try {
         do {
           this.again = false;
@@ -579,9 +579,17 @@ export class AccountActions {
       } catch (error) {
         this.ctx.log.error("account actions sweep failed", { error: errorMessage(error) });
       } finally {
-        this.sweeping = false;
+        this.sweeping = null;
       }
     })();
+  }
+
+  /**
+   * Resolves once no sweep is running, including the ones a finished action kicks. Shutdown waits
+   * for it before closing the database pool, and tests wait for it before they look.
+   */
+  async idle(): Promise<void> {
+    while (this.sweeping) await this.sweeping;
   }
 
   private async sweep(): Promise<void> {

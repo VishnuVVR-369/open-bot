@@ -26,9 +26,16 @@ import type { ActionOutcome, ActionRunner, IntegrationAdapter } from "./types";
 
 const url = testDatabaseServer();
 
-/** The executor's sweep, which start() runs every 30 seconds, called directly to await it. */
-const sweep = (actions: AccountActions) =>
-  (actions as unknown as { sweep(): Promise<void> }).sweep();
+/**
+ * The executor's sweep, which start() runs every 30 seconds, called directly to await it. An action
+ * that finishes kicks another sweep in the background, so wait for that too: otherwise it can claim
+ * an outcome and report it after the test has looked, or still hold locks when the next test
+ * truncates the tables.
+ */
+const sweep = async (actions: AccountActions) => {
+  await (actions as unknown as { sweep(): Promise<void> }).sweep();
+  await actions.idle();
+};
 
 describe.skipIf(!url)("account actions with Postgres", () => {
   const database = testDatabase(url);
@@ -201,6 +208,16 @@ describe.skipIf(!url)("account actions with Postgres", () => {
     expect(after.reportedAt).not.toBeNull();
     // Done shows in the timeline; it needs no follow-up run.
     expect(await followUps()).toHaveLength(0);
+  });
+
+  it("waits in idle() for every sweep kick() starts, including one asked for meanwhile", async () => {
+    const row = await action();
+    first.kick();
+    const later = await action();
+    first.kick();
+    await first.idle();
+    expect((await reload(row.id)).status).toBe("done");
+    expect((await reload(later.id)).status).toBe("done");
   });
 
   it("runs an action approved just before a restart, when the worker comes back", async () => {
