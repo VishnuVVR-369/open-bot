@@ -119,7 +119,17 @@ Under **Settings → Build → Variables and secrets**, add these build variable
 
 They are build variables, not runtime ones: the URLs are baked into the static files.
 A build on Cloudflare stops with an error if either URL is missing, so a deploy never points at localhost.
-Every push to `main` deploys, and other branches get a preview version.
+A push to `main` deploys, and a push to another branch gets a preview version, but only when the push changes the site.
+Under **Settings → Build → Build watch paths**, set:
+
+| Setting       | Value                                                                                  |
+| ------------- | -------------------------------------------------------------------------------------- |
+| Include paths | `apps/site/*`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `turbo.json`   |
+| Exclude paths | `apps/site/AGENTS.md`, `apps/site/CLAUDE.md`, `apps/site/README.md`, `apps/site/e2e/*` |
+
+The site uses no workspace packages, so only its own folder and the root install and build files can change what it ships.
+A push that changes nothing else, such as a `web` or `worker` change, skips the build and posts no Cloudflare check.
+If the site ever imports a workspace package or reads another repo file, add that path here.
 
 To deploy from your own machine instead, build with both variables set and deploy:
 
