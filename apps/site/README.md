@@ -120,7 +120,7 @@ Under **Settings → Build → Variables and secrets**, add these build variable
 They are build variables, not runtime ones: the URLs are baked into the static files.
 A build on Cloudflare stops with an error if either URL is missing, so a deploy never points at localhost.
 A push to `main` deploys, and a push to another branch gets a preview version, but only when the push changes the site.
-Under **Settings → Build → Build watch paths**, set:
+Under **Settings → Build → Build watch paths**, set these for both the production branch and preview branches:
 
 | Setting       | Value                                                                                  |
 | ------------- | -------------------------------------------------------------------------------------- |
@@ -129,6 +129,7 @@ Under **Settings → Build → Build watch paths**, set:
 
 The site uses no workspace packages, so only its own folder and the root install and build files can change what it ships.
 A push that changes nothing else, such as a `web` or `worker` change, skips the build and posts no Cloudflare check.
+The first push of a new branch always builds, because Cloudflare has no earlier commit on that branch to compare against.
 If the site ever imports a workspace package or reads another repo file, add that path here.
 
 To deploy from your own machine instead, build with both variables set and deploy:
