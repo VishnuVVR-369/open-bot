@@ -13,10 +13,11 @@ import {
   telegramLinkCode,
   unlinkTelegram,
 } from "@/lib/actions";
-import { getJson } from "@/lib/client/api";
-import { queryKeys } from "@/lib/client/queries";
+import { getJson, isOffline } from "@/lib/client/api";
+import { queryKeys, useComputerOnline } from "@/lib/client/queries";
 import type { TelegramStatusView } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { OFFLINE_RETRY, OfflineNote, SectionError } from "./section-state";
 
 function Step({
   number,
@@ -52,9 +53,12 @@ function Step({
 /** Approvals, updates and chat with your teammates, on Telegram. */
 export function TelegramSection() {
   const queryClient = useQueryClient();
+  const online = useComputerOnline();
   const status = useQuery({
     queryKey: queryKeys.telegram,
     queryFn: () => getJson<TelegramStatusView>("/api/telegram"),
+    enabled: online !== false,
+    ...OFFLINE_RETRY,
   });
   const [token, setToken] = useState("");
   const [link, setLink] = useState<{ code: string; url: string } | null>(null);
@@ -62,10 +66,14 @@ export function TelegramSection() {
   const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.telegram });
 
   if (!status.data)
-    return status.error ? (
-      <p className="text-[14px] text-muted-foreground">
-        The worker isn&apos;t running, so Telegram can&apos;t be set up.
-      </p>
+    return status.error || online === false ? (
+      online === false || isOffline(status.error) ? (
+        <OfflineNote>
+          You can connect Telegram once it&apos;s back. This updates by itself.
+        </OfflineNote>
+      ) : (
+        <SectionError error={status.error!} onRetry={() => void status.refetch()} />
+      )
     ) : (
       <div className="h-24 animate-pulse rounded-xl bg-subtle" />
     );

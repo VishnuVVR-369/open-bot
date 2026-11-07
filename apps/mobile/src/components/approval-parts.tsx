@@ -1,11 +1,12 @@
 import type { ApprovalView, BotSummary } from "@open-bot/api";
+import type { ApprovalRisk } from "@open-bot/shared";
 import { Check, CircleDashed, Clock, OctagonAlert, TriangleAlert, X } from "lucide-react-native";
 import type { ReactNode } from "react";
 import { StyleSheet, View, type TextProps } from "react-native";
 import { ApprovalIcon } from "@/components/approval-icon";
 import { BotAvatar, type AvatarSize, type BotActivity } from "@/components/bot-avatar";
 import { Text, type TextVariant } from "@/components/text";
-import { titleParts, type ApprovalRisk } from "@/lib/approval-text";
+import { detailRows, titleParts } from "@/lib/approval-text";
 import { fonts, radius, space, useColors } from "@/theme";
 import { mix } from "@/theme/mix";
 
@@ -37,14 +38,14 @@ export function AvatarBadge({
 /** A teammate's face with what they asked to do in its corner. */
 export function ApprovalAvatar({
   bot,
-  kind,
+  approval,
   pending,
   size = "lg",
   activity = "idle",
   behind,
 }: {
   bot: Pick<BotSummary, "name" | "color" | "emoji"> | undefined;
-  kind: ApprovalView["kind"];
+  approval: Pick<ApprovalView, "kind" | "title" | "preview">;
   pending: boolean;
   size?: AvatarSize;
   activity?: BotActivity;
@@ -57,7 +58,13 @@ export function ApprovalAvatar({
       tint={pending ? colors.attention : colors.subtle}
       ink={behind}
       badge={
-        <ApprovalIcon kind={kind} size={11} color={pending ? ON_ATTENTION : colors.foreground} />
+        <ApprovalIcon
+          kind={approval.kind}
+          title={approval.title}
+          preview={approval.preview}
+          size={11}
+          color={pending ? ON_ATTENTION : colors.foreground}
+        />
       }
     >
       <BotAvatar
@@ -66,16 +73,25 @@ export function ApprovalAvatar({
         emoji={bot?.emoji}
         size={size}
         activity={activity}
-        mark={false}
       />
     </AvatarBadge>
   );
 }
 
 /** How a request ended (or that it's waiting), with an icon and a word, never color alone. */
-export function ApprovalStatusChip({ status }: { status: ApprovalView["status"] }) {
+export function ApprovalStatusChip({
+  status,
+  size = "md",
+  label: override,
+}: {
+  status: ApprovalView["status"];
+  /** `sm` sits at the end of a list row, leaving the title room. */
+  size?: "sm" | "md";
+  /** Words in place of the status's own, like "Approval pending". */
+  label?: string;
+}) {
   const colors = useColors();
-  const [Icon, signal, label] =
+  const [Icon, signal, own] =
     status === "approved"
       ? [Check, colors.done, "Approved"]
       : status === "denied"
@@ -83,6 +99,7 @@ export function ApprovalStatusChip({ status }: { status: ApprovalView["status"] 
         : status === "expired"
           ? [CircleDashed, colors.mutedForeground, "Expired"]
           : [Clock, colors.attention, "Waiting"];
+  const label = override ?? own;
   const ink =
     status === "expired"
       ? colors.mutedForeground
@@ -91,12 +108,22 @@ export function ApprovalStatusChip({ status }: { status: ApprovalView["status"] 
         : mix(signal, colors.foreground, 0.75);
   return (
     <View
-      style={[styles.chip, { backgroundColor: mix(signal, colors.surface, 0.12) }]}
+      style={[
+        styles.chip,
+        size === "sm" && styles.chipSmall,
+        { backgroundColor: mix(signal, colors.surface, 0.12) },
+      ]}
       accessible
       accessibilityLabel={label}
     >
-      <Icon size={13} color={ink} strokeWidth={2.5} />
-      <Text variant="caption" style={{ color: ink, fontWeight: "600" }}>
+      <Icon size={size === "sm" ? 11 : 13} color={ink} strokeWidth={2.5} />
+      <Text
+        variant="caption"
+        style={[
+          { color: ink, fontWeight: "600" },
+          size === "sm" && { fontSize: 11, lineHeight: 14 },
+        ]}
+      >
         {label}
       </Text>
     </View>
@@ -143,6 +170,51 @@ export function ApprovalTitle({
   );
 }
 
+/**
+ * A detail written as "Label: value" lines, as a summary and labeled rows, or null when the
+ * detail isn't shaped that way (the caller shows it as written).
+ */
+export function DetailRows({ detail, background }: { detail: string; background?: string }) {
+  const colors = useColors();
+  const parsed = detailRows(detail);
+  if (!parsed) return null;
+  return (
+    <View style={{ gap: space(2.5) }}>
+      {parsed.summary && (
+        <Text variant="small" selectable style={{ fontSize: 14, lineHeight: 20 }}>
+          {parsed.summary}
+        </Text>
+      )}
+      <View
+        style={[
+          styles.rows,
+          { backgroundColor: background ?? colors.surface, borderColor: colors.border },
+        ]}
+      >
+        {parsed.rows.map((row, index) => (
+          <View
+            key={`${row.label}-${index}`}
+            style={[
+              styles.detailRow,
+              index > 0 && {
+                borderTopWidth: StyleSheet.hairlineWidth,
+                borderTopColor: colors.border,
+              },
+            ]}
+          >
+            <Text variant="caption" muted style={styles.detailLabel}>
+              {row.label}
+            </Text>
+            <Text variant="small" selectable style={{ flex: 1, fontSize: 14, lineHeight: 20 }}>
+              {row.value}
+            </Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 /** A second-look note: red for what can't be undone, amber for money and mail. */
 export function RiskNote({ risk }: { risk: ApprovalRisk }) {
   const colors = useColors();
@@ -180,6 +252,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  rows: { borderWidth: 1, borderRadius: radius.lg, overflow: "hidden" },
+  detailRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: space(3),
+    paddingHorizontal: space(3),
+    paddingVertical: space(2.5),
+  },
+  // Sized for the longest usual label ("Card", "Back", "Route") so values line up.
+  detailLabel: { width: 52, fontSize: 13, lineHeight: 20 },
   chip: {
     flexDirection: "row",
     alignItems: "center",
@@ -188,6 +270,7 @@ const styles = StyleSheet.create({
     paddingVertical: space(1),
     borderRadius: radius.full,
   },
+  chipSmall: { gap: 3, paddingHorizontal: space(1.5), paddingVertical: 2 },
   risk: {
     flexDirection: "row",
     alignItems: "center",

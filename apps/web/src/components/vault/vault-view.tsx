@@ -225,7 +225,7 @@ function Section({
         )}
       </div>
       {items.length > 0 ? (
-        <ul className="flex flex-col divide-y rounded-xl border bg-card">
+        <ul className="flex flex-col divide-y divide-border/70 rounded-xl border bg-card">
           {items.map((item) => (
             <ItemRow key={item.id} item={item} />
           ))}

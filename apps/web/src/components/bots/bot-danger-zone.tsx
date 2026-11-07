@@ -75,7 +75,7 @@ export function BotDangerZone({
             <AlertDialogHeader>
               <AlertDialogTitle>Archive {name}?</AlertDialogTitle>
               <AlertDialogDescription>
-                {name} stops what they&apos;re doing, their automations are paused, and their chats
+                {name} stops what they&apos;re doing, their automations turn off, and their chats
                 are hidden. Their workspace stays on the computer.
               </AlertDialogDescription>
             </AlertDialogHeader>

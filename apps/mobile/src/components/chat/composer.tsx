@@ -138,6 +138,7 @@ export function Composer({
   members,
   isGroup,
   activeRun,
+  canStop = true,
   onSent,
 }: {
   chatId: string;
@@ -146,6 +147,11 @@ export function Composer({
   isGroup: boolean;
   /** The reply being written right now, which Stop stops. */
   activeRun: { id: string; botName: string } | null;
+  /**
+   * False while the run waits on you (the request itself has Deny) or the computer is offline
+   * (stopping needs it), so Stop only shows while they're actually working.
+   */
+  canStop?: boolean;
   onSent: (message: MessageView) => void;
 }) {
   const colors = useColors();
@@ -361,7 +367,7 @@ export function Composer({
       ? "send"
       : "mic";
   // Dictation stays at hand while a teammate works; Stop sits beside it.
-  const showStop = Boolean(activeRun) && action === "mic";
+  const showStop = Boolean(activeRun) && canStop && action === "mic";
 
   return (
     <View style={{ gap: space(1.5) }}>

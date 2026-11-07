@@ -23,6 +23,14 @@ export function ruleAllowed(kind: ApprovalKind): kind is RuleKind {
   return kind !== "purchase" && kind !== "email" && kind !== "account_outward";
 }
 
+/**
+ * The empty "Always allowed" list, on the web and the phone. Only some approvals offer
+ * "Always allow" (commands and other routine work); payments and emails always ask.
+ */
+export function noRulesYet(name: string): string {
+  return `Nothing yet. Command approvals offer "Always allow": choose it and ${name} stops asking about commands like that one. Payments and emails always ask.`;
+}
+
 export interface ApprovalRule {
   kind: RuleKind;
   pattern: string;

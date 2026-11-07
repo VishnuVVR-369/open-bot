@@ -1,7 +1,7 @@
 import type { BotSummary, PageSummary } from "@open-bot/api";
 import { safe } from "@orpc/client";
 import { router } from "expo-router";
-import { Pin, PinOff, Trash2 } from "lucide-react-native";
+import { EllipsisVertical, Pin, PinOff, Trash2 } from "lucide-react-native";
 import { Alert, Pressable, StyleSheet, View } from "react-native";
 import { BotAvatar } from "@/components/bot-avatar";
 import { PageThumb } from "@/components/page-thumb";
@@ -16,17 +16,20 @@ import { queryClient, queryKeys } from "@/lib/query";
 import { ago } from "@/lib/time";
 import { space, useColors } from "@/theme";
 
-/** A page in a list: its picture, title, summary, and who made it when. Hold for its menu. */
+/**
+ * A page in a list: its picture, title, summary, and who made it when, with a menu button (pin,
+ * delete) at the end. Holding the row opens the same menu.
+ */
 export function PageRow({
   page,
   bot,
   first,
-  onLongPress,
+  onMenu,
 }: {
   page: PageSummary;
   bot: BotSummary | undefined;
   first: boolean;
-  onLongPress?: () => void;
+  onMenu?: () => void;
 }) {
   const colors = useColors();
   return (
@@ -36,16 +39,15 @@ export function PageRow({
         router.push(pageHref(page.id));
       }}
       onLongPress={
-        onLongPress
+        onMenu
           ? () => {
               haptics.press();
-              onLongPress();
+              onMenu();
             }
           : undefined
       }
       accessibilityRole="button"
       accessibilityLabel={page.title}
-      accessibilityHint={onLongPress ? "Hold for options" : undefined}
       android_ripple={{ color: colors.muted }}
       style={[
         styles.row,
@@ -54,17 +56,17 @@ export function PageRow({
       testID="page-row"
     >
       <View style={[styles.thumb, { borderColor: colors.border }]}>
-        <PageThumb versionId={page.versionId} style={{ width: "100%" }} />
+        <PageThumb versionId={page.versionId} style={styles.picture} />
       </View>
       <View style={{ flex: 1, gap: 2 }}>
         <View style={styles.titleRow}>
           {page.pinned && <Pin size={12} color={colors.mutedForeground} />}
-          <Text variant="label" numberOfLines={2} style={{ flex: 1, lineHeight: 19 }}>
+          <Text variant="label" numberOfLines={1} style={{ flex: 1 }}>
             {page.title}
           </Text>
         </View>
         {page.summary ? (
-          <Text variant="small" muted numberOfLines={1}>
+          <Text variant="small" muted numberOfLines={2}>
             {page.summary}
           </Text>
         ) : null}
@@ -81,6 +83,21 @@ export function PageRow({
           </Text>
         </View>
       </View>
+      {onMenu && (
+        <Pressable
+          onPress={() => {
+            haptics.tap();
+            onMenu();
+          }}
+          accessibilityRole="button"
+          accessibilityLabel={`Options for ${page.title}`}
+          android_ripple={{ color: colors.muted, borderless: true, radius: 22 }}
+          style={styles.more}
+          testID="page-more"
+        >
+          <EllipsisVertical size={20} color={colors.mutedForeground} />
+        </Pressable>
+      )}
     </Pressable>
   );
 }
@@ -169,17 +186,20 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "center",
-    gap: space(3.5),
-    paddingHorizontal: space(4),
+    gap: space(3),
+    paddingLeft: space(4),
+    // The menu button's own 48dp target makes the room on the right.
+    paddingRight: space(1),
     paddingVertical: space(3),
     minHeight: 84,
   },
   thumb: {
-    width: 92,
     borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth,
     overflow: "hidden",
   },
+  picture: { width: 72, height: 56, aspectRatio: undefined },
+  more: { width: 48, height: 48, alignItems: "center", justifyContent: "center" },
   titleRow: { flexDirection: "row", alignItems: "center", gap: space(1.5) },
   meta: { flexDirection: "row", alignItems: "center", gap: space(1.5), marginTop: 2 },
 });

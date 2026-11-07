@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNowStrict } from "date-fns";
 import {
   ChevronRight,
+  CloudOff,
   Download,
   Eye,
   Folder,
@@ -30,8 +31,8 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { removeFile, uploadFile } from "@/lib/actions";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getJson } from "@/lib/client/api";
-import { queryKeys, useAppState } from "@/lib/client/queries";
+import { getJson, isOffline } from "@/lib/client/api";
+import { queryKeys, useAppState, useComputerOnline } from "@/lib/client/queries";
 import { BotAvatar } from "@/components/bot-avatar";
 import { FileIcon } from "@/components/files/file-chip";
 import { FilePreview } from "@/components/files/file-preview";
@@ -106,10 +107,13 @@ export function FilesView() {
   const [preview, setPreview] = useState({ path: "", open: false });
   const setPreviewing = (path: string) => setPreview({ path, open: true });
   const { data: state } = useAppState();
+  const online = useComputerOnline();
   const { data, isLoading, error } = useQuery({
     queryKey: queryKeys.files(path),
     queryFn: () => getJson<Listing>(`/api/files/list?path=${encodeURIComponent(path)}`),
+    enabled: online !== false,
   });
+  const offline = online === false || isOffline(error);
   const parts = path.slice(ROOT.length).split("/").filter(Boolean);
   const botBySlug = (slug: string) => state?.bots.find((bot) => bot.slug === slug);
   const botSlugs = new Set(state?.bots.map((bot) => bot.slug) ?? []);
@@ -204,7 +208,7 @@ export function FilesView() {
       </div>
       <div
         className={cn(
-          "relative overflow-hidden rounded-xl border bg-card transition-colors",
+          "relative overflow-hidden rounded-xl bg-card shadow-raised transition-colors",
           dragging && "border-foreground/40",
         )}
         onDragOver={(event) => {
@@ -223,7 +227,15 @@ export function FilesView() {
             Drop to upload to {parts.at(-1) ?? "this folder"}
           </div>
         )}
-        {isLoading ? (
+        {offline ? (
+          <div className="flex flex-col items-center gap-1.5 px-6 py-10 text-center">
+            <CloudOff className="mb-1 size-5 text-muted-foreground" />
+            <p className="text-[14px] font-medium">The computer is offline</p>
+            <p className="max-w-sm text-[13px] text-muted-foreground">
+              Its files show here once it&apos;s back. This updates by itself.
+            </p>
+          </div>
+        ) : isLoading ? (
           <div className="flex flex-col gap-2 p-4">
             <Skeleton className="h-6 w-1/2" />
             <Skeleton className="h-6 w-2/3" />

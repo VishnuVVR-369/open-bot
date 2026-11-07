@@ -207,3 +207,9 @@ export function usePageLink(versionId: string | null, theme: "light" | "dark", a
     refetchOnReconnect: false,
   });
 }
+
+/** False while the computer (the worker) is offline, so views skip requests that would fail. */
+export function useComputerOnline(): boolean | undefined {
+  const { data: state } = useAppState();
+  return state?.computer.workerOnline;
+}

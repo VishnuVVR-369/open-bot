@@ -34,8 +34,8 @@ export function PageCard({ item }: { item: PageItem }) {
         style={{ borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border }}
       />
       <View style={styles.body}>
-        <Text variant="caption" muted style={styles.eyebrow}>
-          {item.version === 1 ? "NEW PAGE" : `PAGE · VERSION ${item.version}`}
+        <Text variant="overline" muted>
+          {item.version === 1 ? "New page" : `Page, version ${item.version}`}
         </Text>
         <Text variant="heading" numberOfLines={2} style={{ fontSize: 16, lineHeight: 21 }}>
           {item.title}
@@ -59,6 +59,5 @@ export function PageCard({ item }: { item: PageItem }) {
 const styles = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: radius.xl, overflow: "hidden" },
   body: { paddingHorizontal: space(4), paddingTop: space(3), paddingBottom: space(3.5), gap: 4 },
-  eyebrow: { letterSpacing: 0.6, fontWeight: "500", fontSize: 11 },
   open: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: space(1.5) },
 });

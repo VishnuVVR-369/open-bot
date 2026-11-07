@@ -6,7 +6,7 @@ import { Text } from "@/components/text";
 import { useHome } from "@/lib/queries";
 import { fonts, space, useColors } from "@/theme";
 
-function HeaderButton({
+export function HeaderButton({
   label,
   onPress,
   children,
@@ -63,13 +63,23 @@ function ProfileButton() {
   );
 }
 
-/** Search and notifications in every tab's header; Home also has your settings. */
-export function HeaderActions({ profile = false }: { profile?: boolean }) {
+/**
+ * Search and notifications in every tab's header; Home also has your settings, and a tab can put
+ * its own action first (`leading`).
+ */
+export function HeaderActions({
+  profile = false,
+  leading,
+}: {
+  profile?: boolean;
+  leading?: ReactNode;
+}) {
   const colors = useColors();
   const { data: home } = useHome();
   const unread = home?.unreadNotifications ?? 0;
   return (
     <View style={styles.row}>
+      {leading}
       <HeaderButton label="Search" onPress={() => router.push("/search")} testID="open-search">
         <Search size={22} color={colors.foreground} />
       </HeaderButton>

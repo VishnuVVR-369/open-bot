@@ -1,4 +1,5 @@
 import type { ChatEntry, ChatSummary } from "@open-bot/api";
+import type { ChatStatus } from "@open-bot/shared";
 import { isRunActive } from "@open-bot/shared";
 import { safe } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -6,29 +7,41 @@ import { router, Stack, useLocalSearchParams } from "expo-router";
 import {
   Archive,
   ArrowDown,
+  ChevronRight,
+  CloudOff,
   EllipsisVertical,
+  MessageCircle,
   Pencil,
   SquarePen,
   Users,
 } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { BotAvatar, botActivity, botStatusText, GroupAvatar } from "@/components/bot-avatar";
+import { AvatarStack, BotAvatar, StatusLine, type BotActivity } from "@/components/bot-avatar";
 import { Composer } from "@/components/chat/composer";
 import { RunBlock } from "@/components/chat/run-block";
 import { UserMessage } from "@/components/chat/user-message";
 import { Button } from "@/components/button";
 import { ConnectionNotice } from "@/components/connection-notice";
 import { Sheet, SheetItem } from "@/components/sheet";
-import { Empty, LoadError, Loading } from "@/components/states";
+import { Empty, LoadError, Loading, NotFound } from "@/components/states";
 import { Text } from "@/components/text";
 import { TextField } from "@/components/text-field";
 import { api } from "@/lib/api";
-import { errorMessage, isGone } from "@/lib/errors";
+import { errorMessage, isNotFound } from "@/lib/errors";
 import { haptics } from "@/lib/haptics";
 import { queryKeys } from "@/lib/query";
-import { useNewDirectChat, useTeammates } from "@/lib/queries";
+import { useChats, useComputerOffline, useNewDirectChat, useTeammates } from "@/lib/queries";
+import { headerStatus } from "@/lib/chat-status";
 import { namedForTopic } from "@/lib/chats";
 import { lastActive } from "@/lib/time";
 import { useChat } from "@/lib/use-chat";
@@ -36,6 +49,7 @@ import { useChatRunTarget } from "@/lib/use-chat-run-target";
 import { useKeyboardHeight } from "@/lib/use-keyboard";
 import { phoneClock } from "@/lib/phone-clock";
 import { space, useColors } from "@/theme";
+import { mix } from "@/theme/mix";
 
 /** A conversation with a teammate (or a group), live while you're looking at it. */
 export default function ChatScreen() {
@@ -59,12 +73,21 @@ export default function ChatScreen() {
   } = useChat(chatId);
   const [menuOpen, setMenuOpen] = useState(false);
   // Archived (here or on another device) or deleted: what's cached of it is no use anymore.
-  const gone = isGone(error);
+  const gone = isNotFound(error);
   const { data: teammates } = useTeammates();
+  const { data: chatList } = useChats();
+  const computerOffline = useComputerOffline();
   const newChat = useNewDirectChat();
   const allBots = teammates ?? members;
   const list = useRef<FlatList<ChatEntry>>(null);
   const [scrolledUp, setScrolledUp] = useState(false);
+  // Older messages sit under the header (the list is inverted, so they're past its far end).
+  const [under, setUnder] = useState(false);
+  const extent = useRef({ offset: 0, layout: 0, content: 0 });
+  const measure = useCallback((next: Partial<typeof extent.current>) => {
+    const current = (extent.current = { ...extent.current, ...next });
+    setUnder(current.offset + current.layout < current.content - 1);
+  }, []);
   const scrollRetry = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollAttempts = useRef(0);
   useEffect(
@@ -77,6 +100,32 @@ export default function ChatScreen() {
   const isGroup = chat?.kind === "group";
   const bot = !isGroup ? members[0] : undefined;
   const liveBot = bot && (allBots.find((candidate) => candidate.id === bot.id) ?? bot);
+  // The header says what is happening in this chat, never what its teammates do elsewhere (the
+  // same words as the web's); what the teammate needs from you in another chat is a link there.
+  const status = useMemo(
+    () =>
+      headerStatus({
+        members: members.map(
+          (member) => allBots.find((candidate) => candidate.id === member.id) ?? member,
+        ),
+        group: isGroup,
+        chatId,
+        computerOnline: !computerOffline,
+        chatById: (id) => chatList?.find((entry) => entry.id === id),
+      }),
+    [members, allBots, isGroup, chatId, computerOffline, chatList],
+  );
+  const headerActivity: BotActivity = status.activity;
+  // An idle direct chat says when its teammate was last active instead; an idle group, nothing.
+  const headerText =
+    status.activity === "idle"
+      ? isGroup
+        ? null
+        : liveBot?.lastActiveAt
+          ? lastActive(liveBot.lastActiveAt)
+          : (bot?.role ?? "")
+      : status.label;
+  const elsewhere = status.elsewhere;
   const title = !chat
     ? ""
     : chat.kind === "scheduled"
@@ -116,10 +165,15 @@ export default function ChatScreen() {
   );
   const activeName =
     activeRun && allBots.find((candidate) => candidate.id === activeRun.botId)?.name;
+  // Waiting on you or paused for the computer, nothing is being done right now to add to or stop.
+  const runHeld =
+    Boolean(activeRun) && (activeRun?.timeline.status === "waiting" || computerOffline);
   const placeholder = activeRun
-    ? `Add to what ${activeName ?? "your teammate"} is doing…`
+    ? runHeld
+      ? `Add a note for ${activeName ?? "your teammate"}…`
+      : `Add to what ${activeName ?? "your teammate"} is doing…`
     : isGroup
-      ? "Message the group, @ to pick who…"
+      ? "Message the group, @ to mention"
       : `Message ${bot?.name ?? "your teammate"}…`;
 
   // A run is superseded once the same teammate has run again after it, so it has no Try again.
@@ -199,7 +253,7 @@ export default function ChatScreen() {
                     testID="chat-header"
                   >
                     {isGroup ? (
-                      <GroupAvatar members={members} size="md" ring={colors.surface} />
+                      <AvatarStack members={members} ring={colors.background} />
                     ) : (
                       liveBot && (
                         <BotAvatar
@@ -207,7 +261,7 @@ export default function ChatScreen() {
                           color={liveBot.color}
                           emoji={liveBot.emoji}
                           size="md"
-                          activity={botActivity(liveBot)}
+                          activity={headerActivity}
                         />
                       )
                     )}
@@ -219,31 +273,20 @@ export default function ChatScreen() {
                       >
                         {title}
                       </Text>
-                      <Text
-                        variant="caption"
-                        numberOfLines={1}
-                        muted={!liveBot?.activeRun}
-                        style={
-                          liveBot?.activeRun
-                            ? {
-                                color:
-                                  liveBot.activeRun.status === "waiting"
-                                    ? colors.attentionInk
-                                    : colors.working,
-                              }
-                            : undefined
-                        }
-                      >
-                        {isGroup
-                          ? members.map((member) => member.name).join(", ")
-                          : `${chat && namedForTopic(chat, liveBot) ? `${liveBot!.name} · ` : ""}${
-                              liveBot?.activeRun
-                                ? botStatusText(liveBot)
-                                : liveBot?.lastActiveAt
-                                  ? lastActive(liveBot.lastActiveAt)
-                                  : (bot?.role ?? "")
-                            }`}
-                      </Text>
+                      {isGroup && status.activity === "idle" ? (
+                        // Nothing happening here: who's in it, without a status light.
+                        <Text variant="caption" muted numberOfLines={1} testID="chat-status">
+                          {members.length} teammates
+                        </Text>
+                      ) : isGroup ? (
+                        <StatusLine activity={headerActivity} size="caption" testID="chat-status">
+                          {[`${members.length} teammates`, headerText].filter(Boolean).join(" · ")}
+                        </StatusLine>
+                      ) : (
+                        <StatusLine activity={headerActivity} size="caption" testID="chat-status">
+                          {`${chat && namedForTopic(chat, liveBot) ? `${liveBot!.name} · ` : ""}${headerText}`}
+                        </StatusLine>
+                      )}
                     </View>
                   </Pressable>
                 ),
@@ -262,6 +305,9 @@ export default function ChatScreen() {
             ) : null,
         }}
       />
+      {chat && !gone && (computerOffline || elsewhere) && (
+        <ChatContext computerOffline={computerOffline} elsewhere={elsewhere} />
+      )}
       {Boolean(olderError) && (
         <View style={{ padding: space(3), gap: space(2) }}>
           <Text variant="small" style={{ color: colors.destructive }}>
@@ -274,14 +320,20 @@ export default function ChatScreen() {
         {loading ? (
           <Loading />
         ) : gone ? (
-          <Empty
-            icon={<Archive size={28} color={colors.mutedForeground} />}
-            title="This chat isn't available"
-            body="It may have been archived."
-            action={<Button title="Go back" variant="outline" onPress={goBack} />}
+          <NotFound
+            icon={MessageCircle}
+            title="This chat is unavailable"
+            body="It may have been deleted, or the link may be wrong."
+            action="Go to Chats"
+            onAction={() => router.navigate("/chats")}
           />
         ) : error || !chat ? (
-          <LoadError error={error} onRetry={() => void refetch()} />
+          <LoadError
+            title="Couldn't load this chat"
+            error={error}
+            onRetry={() => void refetch()}
+            onBack={goBack}
+          />
         ) : (
           <FlatList
             ref={list}
@@ -291,7 +343,8 @@ export default function ChatScreen() {
             renderItem={renderItem}
             ItemSeparatorComponent={Gap}
             ListFooterComponent={
-              <View style={styles.older}>
+              // Room for the spinner only while there's more to load, so a short chat starts at the top.
+              <View style={hasMore || loadingOlder ? styles.older : undefined}>
                 {loadingOlder && <ActivityIndicator size="small" color={colors.mutedForeground} />}
               </View>
             }
@@ -299,12 +352,25 @@ export default function ChatScreen() {
               if (hasMore) void loadOlder();
             }}
             onEndReachedThreshold={0.4}
-            contentContainerStyle={[styles.timeline, data.length === 0 && { flex: 1 }]}
+            // A short conversation starts at the top, under the header, not at the composer:
+            // the list is inverted, so "flex-end" is the top.
+            contentContainerStyle={[
+              styles.timeline,
+              data.length === 0 ? { flex: 1 } : { flexGrow: 1, justifyContent: "flex-end" },
+            ]}
             onScroll={(event) => {
               // Inverted: the offset grows as you scroll back in time.
-              const up = event.nativeEvent.contentOffset.y > 600;
+              const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
+              const up = contentOffset.y > 600;
               if (up !== scrolledUp) setScrolledUp(up);
+              measure({
+                offset: contentOffset.y,
+                layout: layoutMeasurement.height,
+                content: contentSize.height,
+              });
             }}
+            onLayout={(event) => measure({ layout: event.nativeEvent.layout.height })}
+            onContentSizeChange={(_width, height) => measure({ content: height })}
             scrollEventThrottle={100}
             keyboardDismissMode="interactive"
             keyboardShouldPersistTaps="handled"
@@ -341,6 +407,13 @@ export default function ChatScreen() {
                 />
               </View>
             }
+          />
+        )}
+        {under && !loading && !gone && (
+          // The header stays opaque; a hairline marks where the conversation runs under it.
+          <View
+            pointerEvents="none"
+            style={[styles.hairline, { backgroundColor: colors.border }]}
           />
         )}
         {scrolledUp && !loading && !gone && (
@@ -386,6 +459,7 @@ export default function ChatScreen() {
             activeRun={
               activeRun ? { id: activeRun.id, botName: activeName ?? "your teammate" } : null
             }
+            canStop={!runHeld}
             onSent={(message) => {
               addSent(message);
               list.current?.scrollToOffset({ offset: 0, animated: true });
@@ -538,14 +612,84 @@ function RenameForm({ chat, onDone }: { chat: ChatSummary; onDone: () => void })
   );
 }
 
+/**
+ * What's around the chat, under its header: a link to what its teammate needs from you in another
+ * chat, and that the computer is offline (a neutral chip, apart from the chat's own status; just
+ * "Offline" beside the link, so both fit on a phone).
+ */
+function ChatContext({
+  computerOffline,
+  elsewhere,
+}: {
+  computerOffline: boolean;
+  elsewhere: ChatStatus["elsewhere"];
+}) {
+  const colors = useColors();
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.context}
+      style={{ flexGrow: 0 }}
+      testID="chat-context"
+    >
+      {elsewhere && (
+        <Pressable
+          onPress={() => {
+            haptics.tap();
+            router.push(`/chats/${elsewhere.chatId}`);
+          }}
+          accessibilityRole="link"
+          android_ripple={{ color: mix(colors.attention, colors.surface, 0.18) }}
+          style={[
+            styles.chip,
+            styles.link,
+            {
+              backgroundColor: mix(colors.attention, colors.surface, 0.1),
+              borderColor: mix(colors.attention, colors.surface, 0.4),
+            },
+          ]}
+          testID="elsewhere-chip"
+        >
+          <View style={[styles.chipDot, { backgroundColor: colors.attention }]} />
+          <Text
+            variant="caption"
+            numberOfLines={1}
+            style={{ flexShrink: 1, fontWeight: "500", color: colors.attentionInk }}
+          >
+            {elsewhere.label}
+          </Text>
+          <ChevronRight size={14} color={colors.attentionInk} />
+        </Pressable>
+      )}
+      {computerOffline && (
+        <Pressable
+          onPress={() => router.navigate("/computer")}
+          accessibilityRole="button"
+          accessibilityHint="Opens the computer"
+          android_ripple={{ color: colors.muted }}
+          style={[styles.chip, { backgroundColor: colors.subtle, borderColor: colors.border }]}
+          testID="computer-offline-chip"
+        >
+          <CloudOff size={14} color={colors.mutedForeground} />
+          <Text variant="caption" muted style={{ fontWeight: "500" }}>
+            {elsewhere ? "Offline" : "Computer offline"}
+          </Text>
+        </Pressable>
+      )}
+    </ScrollView>
+  );
+}
+
 /** Back where you came from, or to the chats when the chat was opened straight from a link. */
 function goBack() {
   if (router.canGoBack()) router.back();
   else router.replace("/chats");
 }
 
+/** The room between turns (about 24dp): more than inside one, so each exchange reads as a unit. */
 function Gap() {
-  return <View style={{ height: space(5) }} />;
+  return <View style={{ height: space(6) }} />;
 }
 
 /** A pause this long between two turns earns a time stamp, as in a messaging app. */
@@ -598,7 +742,34 @@ const styles = StyleSheet.create({
     maxWidth: 260,
     minHeight: 48,
   },
+  hairline: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: StyleSheet.hairlineWidth * 2,
+  },
   menuButton: { width: 48, height: 48, alignItems: "center", justifyContent: "center" },
+  context: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space(2),
+    paddingHorizontal: space(4),
+    paddingBottom: space(2),
+  },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space(1.5),
+    height: 32,
+    paddingHorizontal: space(3),
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: "hidden",
+  },
+  chipDot: { width: 6, height: 6, borderRadius: 3 },
+  // A long chat name ends in an ellipsis, so the offline chip beside it stays in view.
+  link: { maxWidth: 300 },
   latestWrap: { position: "absolute", right: space(4), bottom: space(3) },
   latest: {
     width: 44,

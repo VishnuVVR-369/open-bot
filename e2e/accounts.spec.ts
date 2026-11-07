@@ -13,7 +13,14 @@ import {
   parseMime,
 } from "./accounts-stand-in";
 import { expect, test, type Page } from "./fixtures";
-import { botIdOf, createTeammate, sendMessage, uniqueName, waitForLastRun } from "./helpers";
+import {
+  approve,
+  botIdOf,
+  createTeammate,
+  sendMessage,
+  uniqueName,
+  waitForLastRun,
+} from "./helpers";
 
 /**
  * Connecting Gmail, Google Calendar and Notion, and teammates using them, against a stand-in for
@@ -325,7 +332,7 @@ test.describe("Accounts, against a stand-in for Google and Notion", () => {
 
     // You change the draft in Gmail meanwhile: what goes out is what the card showed you.
     standIn.gmail.editDraft(draftId!, "Changed in Gmail after the approval card was shown.");
-    await card.getByTestId("approve").click();
+    await approve(card);
     await waitForLastRun(page, ["completed"]);
     await expect.poll(() => standIn.gmail.sent.length).toBe(1);
     const action = await lastAction(name, "gmail.send_draft");
@@ -361,7 +368,7 @@ test.describe("Accounts, against a stand-in for Google and Notion", () => {
     });
     const sentBefore = standIn.gmail.sent.length;
     const name = uniqueName("Acc");
-    await createTeammate(page, name, "inbox assistant", "Full auto");
+    await createTeammate(page, name, "inbox assistant", "Works on its own");
     await sendMessage(page, "Read my newest Gmail message and do what it asks.");
     await waitForLastRun(page, ["completed", "waiting", "failed"], 6 * 60_000);
 
@@ -384,7 +391,7 @@ test.describe("Accounts, against a stand-in for Google and Notion", () => {
   test("@agent your own event goes in; inviting a guest asks first", async () => {
     test.setTimeout(10 * 60_000);
     const name = uniqueName("Acc");
-    await createTeammate(page, name, "scheduling assistant", "Full auto");
+    await createTeammate(page, name, "scheduling assistant", "Works on its own");
 
     await sendMessage(
       page,
@@ -461,7 +468,7 @@ test.describe("Accounts, against a stand-in for Google and Notion", () => {
   test("@agent writes in the teammates' area without asking; moving a page asks", async () => {
     test.setTimeout(10 * 60_000);
     const name = uniqueName("Acc");
-    await createTeammate(page, name, "notes assistant", "Full auto");
+    await createTeammate(page, name, "notes assistant", "Works on its own");
 
     await sendMessage(
       page,

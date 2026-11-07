@@ -8,15 +8,17 @@ import {
   type Autonomy,
 } from "@open-bot/shared";
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, Loader2, Upload } from "lucide-react";
+import { Check, CircleCheck, Loader2, Upload } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { BotAvatar } from "@/components/bot-avatar";
+import { Markdown } from "@/components/chat/markdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { createBot, importTeammate, updateBot } from "@/lib/actions";
 import { queryKeys } from "@/lib/client/queries";
@@ -31,6 +33,79 @@ export interface BotFormValues {
   autonomy: Autonomy;
 }
 
+/** When each teammate was last saved here, so the form can say so after it reloads. */
+const savedAt = new Map<string, number>();
+const SAVED_FOR_MS = 5000;
+
+/** The last character typed, whole: one emoji, even one built from several code points. */
+function lastGlyph(text: string) {
+  const glyphs = [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(text)];
+  return glyphs.at(-1)?.segment ?? "";
+}
+
+function sameValues(a: BotFormValues, b: BotFormValues) {
+  return (Object.keys(a) as (keyof BotFormValues)[]).every((key) => a[key] === b[key]);
+}
+
+/**
+ * A teammate's instructions: a Markdown file, written as prose in the text face, with a preview
+ * that shows the headings and lists the way they read.
+ */
+function InstructionsField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [view, setView] = useState<"write" | "preview">("write");
+  return (
+    <Tabs
+      value={view}
+      onValueChange={(next) => setView(next as "write" | "preview")}
+      className="gap-2"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <Label htmlFor="bot-instructions">What they&apos;re responsible for</Label>
+        <TabsList aria-label="Instructions view" className="h-7 group-data-horizontal/tabs:h-7">
+          <TabsTrigger value="write" className="px-2.5 text-[12.5px]">
+            Write
+          </TabsTrigger>
+          <TabsTrigger value="preview" className="px-2.5 text-[12.5px]">
+            Preview
+          </TabsTrigger>
+        </TabsList>
+      </div>
+      <TabsContent value="write">
+        <Textarea
+          id="bot-instructions"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder="Describe the job: what to do, how you like it done, and what to stay away from."
+          // Room between lines so lists and "## Headings" stay easy to scan.
+          className="min-h-36 px-3.5 py-3 font-sans text-[14.5px] leading-[22px] md:text-[14.5px]"
+          spellCheck
+        />
+      </TabsContent>
+      <TabsContent
+        value="preview"
+        className="min-h-36 rounded-lg border px-3.5 py-3 text-[14.5px]"
+        data-testid="instructions-preview"
+      >
+        {value.trim() ? (
+          <Markdown text={value} files={false} />
+        ) : (
+          <p className="text-muted-foreground">Nothing to preview yet.</p>
+        )}
+      </TabsContent>
+      <p className="text-[12.5px] text-muted-foreground">
+        This becomes their instructions file. They also keep their own memory of what they learn
+        about you.
+      </p>
+    </Tabs>
+  );
+}
+
 export function BotForm({
   editing,
   initial,
@@ -42,6 +117,24 @@ export function BotForm({
   submitLabel: string;
 }) {
   const [values, setValues] = useState<BotFormValues>(initial);
+  const [baseline, setBaseline] = useState<BotFormValues>(initial);
+  const dirty = !sameValues(values, baseline);
+  const [justSaved, setJustSaved] = useState(() => {
+    const at = editing ? savedAt.get(editing.botId) : undefined;
+    return at !== undefined && Date.now() - at < SAVED_FOR_MS;
+  });
+  useEffect(() => {
+    if (!justSaved) return;
+    const timer = setTimeout(() => setJustSaved(false), SAVED_FOR_MS);
+    return () => clearTimeout(timer);
+  }, [justSaved]);
+  // Leaving with unsaved edits asks first.
+  useEffect(() => {
+    if (!editing || !dirty) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [editing, dirty]);
   const [templateId, setTemplateId] = useState<string | null>(null);
   const [starterIds, setStarterIds] = useState<string[]>([]);
   const template = TEAMMATE_TEMPLATES.find((entry) => entry.id === templateId);
@@ -62,7 +155,7 @@ export function BotForm({
       toast(`${result.data.name} joined the team`, {
         description:
           result.data.paused > 0
-            ? `Their ${result.data.paused === 1 ? "automation is" : `${result.data.paused} automations are`} paused. Turn them on in Automations.`
+            ? `Their ${result.data.paused === 1 ? "automation is" : `${result.data.paused} automations are`} off. Turn them on in Automations.`
             : undefined,
       });
       await queryClient.invalidateQueries({ queryKey: queryKeys.state });
@@ -75,6 +168,19 @@ export function BotForm({
   const set = <K extends keyof BotFormValues>(key: K, value: BotFormValues[K]) =>
     setValues((current) => ({ ...current, [key]: value }));
 
+  const complete = Boolean(values.name.trim() && values.role.trim());
+  // What a new teammate still needs before it can be created, said beside the disabled button.
+  const missing = complete
+    ? null
+    : !values.name.trim() && !values.role.trim()
+      ? "Add a name and a job to continue"
+      : !values.name.trim()
+        ? "Add a name to continue"
+        : "Add a job to continue";
+  const canSubmit = !pending && complete && (!editing || dirty);
+  // Nothing to save on a teammate: the bar only says so, and stays at the end of the form.
+  const idle = Boolean(editing) && !dirty && !pending && !justSaved;
+
   function submit() {
     startTransition(async () => {
       if (editing) {
@@ -83,6 +189,9 @@ export function BotForm({
           toast.error(result.error);
           return;
         }
+        savedAt.set(editing.botId, Date.now());
+        setBaseline(values);
+        setJustSaved(true);
         toast("Saved", {
           description: `${values.name} uses the new settings from the next message.`,
         });
@@ -120,10 +229,16 @@ export function BotForm({
 
   return (
     <form
-      className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_280px]"
+      className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_300px]"
       onSubmit={(event) => {
         event.preventDefault();
-        submit();
+        if (canSubmit) submit();
+      }}
+      onKeyDown={(event) => {
+        if ((event.metaKey || event.ctrlKey) && event.key === "s") {
+          event.preventDefault();
+          if (canSubmit) submit();
+        }
       }}
     >
       <div className="flex flex-col gap-7">
@@ -193,7 +308,7 @@ export function BotForm({
               id="bot-name"
               value={values.name}
               onChange={(e) => set("name", e.target.value)}
-              placeholder="Nova"
+              placeholder="e.g. Nova"
               maxLength={40}
               required
             />
@@ -204,27 +319,17 @@ export function BotForm({
               id="bot-role"
               value={values.role}
               onChange={(e) => set("role", e.target.value)}
-              placeholder="research assistant"
+              placeholder="e.g. Research assistant"
               maxLength={80}
               required
             />
           </div>
         </div>
 
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="bot-instructions">What they&apos;re responsible for</Label>
-          <Textarea
-            id="bot-instructions"
-            value={values.instructions}
-            onChange={(e) => set("instructions", e.target.value)}
-            placeholder="Describe the job: what to do, how you like it done, and what to stay away from."
-            className="min-h-36 text-[14px] leading-relaxed"
-          />
-          <p className="text-[12.5px] text-muted-foreground">
-            This becomes their instructions file. They also keep their own memory of what they learn
-            about you.
-          </p>
-        </div>
+        <InstructionsField
+          value={values.instructions}
+          onChange={(value) => set("instructions", value)}
+        />
 
         {template && template.starters.length > 0 && (
           <div className="flex flex-col gap-2.5" data-testid="starter-automations">
@@ -235,7 +340,7 @@ export function BotForm({
                 anytime in Automations.
               </span>
             </div>
-            <div className="flex flex-col divide-y rounded-xl border bg-card">
+            <div className="flex flex-col divide-y divide-border/70 rounded-xl border bg-card">
               {template.starters.map((starter) => {
                 const on = starterIds.includes(starter.id);
                 return (
@@ -275,7 +380,7 @@ export function BotForm({
         )}
 
         <fieldset className="flex flex-col gap-2.5">
-          <legend className="mb-2.5 text-sm font-medium">When to ask you first</legend>
+          <legend className="mb-2.5 text-sm font-medium">When they ask you first</legend>
           <div className="grid gap-2">
             {AUTONOMY_OPTIONS.map((option) => {
               const checked = values.autonomy === option.value;
@@ -284,7 +389,7 @@ export function BotForm({
                   key={option.value}
                   className={cn(
                     "flex cursor-pointer items-start gap-3 rounded-xl border bg-card px-4 py-3 transition-colors hover:bg-muted/40",
-                    checked && "border-foreground/50 bg-muted/40",
+                    checked && "border-foreground/70 bg-muted/40 ring-[0.5px] ring-foreground/70",
                   )}
                 >
                   <input
@@ -312,38 +417,38 @@ export function BotForm({
             })}
           </div>
         </fieldset>
-
-        <div className="flex gap-2">
-          <Button
-            type="submit"
-            size="lg"
-            disabled={pending || !values.name.trim() || !values.role.trim()}
-          >
-            {pending && <Loader2 className="animate-spin" />}
-            {submitLabel}
-          </Button>
-          <Button type="button" variant="ghost" size="lg" onClick={() => router.back()}>
-            Cancel
-          </Button>
-        </div>
       </div>
 
-      <aside className="flex flex-col gap-6 lg:sticky lg:top-8 lg:self-start">
-        <div className="flex flex-col items-center gap-3 rounded-2xl border bg-card px-6 py-8 text-center">
+      {/* How they look: the avatar as it will show, with its color and emoji right under it. A
+          teammate's page already has their name and job in its header, so only a new one repeats
+          them here. */}
+      <aside
+        className="flex flex-col gap-6 rounded-2xl border bg-card p-5 lg:sticky lg:top-8 lg:self-start"
+        data-testid="avatar-card"
+      >
+        <div className="flex flex-col items-center gap-3 pt-2 text-center">
           <BotAvatar
             name={values.name || "?"}
             color={values.color}
             emoji={values.emoji}
             size="xl"
           />
-          <div className="flex flex-col gap-0.5">
-            <span className="font-heading text-lg font-semibold">{values.name || "Unnamed"}</span>
-            <span className="text-[13px] text-muted-foreground">{values.role || "No job yet"}</span>
-          </div>
+          {!editing && (
+            <div className="flex flex-col gap-0.5">
+              <span className="font-heading text-lg font-semibold">{values.name || "Unnamed"}</span>
+              <span className="text-[13px] text-muted-foreground">
+                {values.role || "No job yet"}
+              </span>
+            </div>
+          )}
         </div>
-        <div className="flex flex-col gap-2.5">
+        <div className="flex flex-col gap-2.5 border-t pt-5">
           <Label>Color</Label>
-          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Color">
+          <div
+            className="flex flex-wrap justify-between gap-y-2"
+            role="radiogroup"
+            aria-label="Color"
+          >
             {BOT_COLORS.map((color) => (
               <button
                 type="button"
@@ -352,12 +457,12 @@ export function BotForm({
                 aria-checked={values.color === color}
                 aria-label={color}
                 onClick={() => set("color", color)}
-                className="flex size-7 items-center justify-center rounded-full ring-offset-2 ring-offset-surface transition-transform hover:scale-110 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                className="flex size-7 items-center justify-center rounded-full ring-offset-2 ring-offset-card transition-transform hover:scale-110 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                 style={{
                   backgroundColor: color,
                   boxShadow:
                     values.color === color
-                      ? `0 0 0 2px var(--surface), 0 0 0 4px ${color}`
+                      ? `0 0 0 2px var(--card), 0 0 0 4px ${color}`
                       : undefined,
                 }}
               >
@@ -368,15 +473,98 @@ export function BotForm({
         </div>
         <div className="flex flex-col gap-2">
           <Label htmlFor="bot-emoji">Emoji (optional)</Label>
-          <Input
-            id="bot-emoji"
-            value={values.emoji}
-            onChange={(e) => set("emoji", [...e.target.value].slice(-2).join(""))}
-            placeholder="Initials if empty"
-            className="w-40"
-          />
+          <div className="flex items-center gap-3">
+            <Input
+              id="bot-emoji"
+              value={values.emoji}
+              onChange={(e) => set("emoji", lastGlyph(e.target.value))}
+              aria-describedby="bot-emoji-hint"
+              className="size-11 shrink-0 px-0 text-center text-[20px] md:text-[20px]"
+            />
+            <span id="bot-emoji-hint" className="text-[12.5px] leading-snug text-muted-foreground">
+              {values.emoji ? (
+                <button
+                  type="button"
+                  onClick={() => set("emoji", "")}
+                  className="rounded-sm text-[13px] font-medium text-foreground/80 underline-offset-[3px] outline-none hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/12"
+                >
+                  Use initials instead
+                </button>
+              ) : (
+                "Leave it empty for initials."
+              )}
+            </span>
+          </div>
         </div>
       </aside>
+
+      {/* Solid and flush with the bottom edge while there's something to save; once saved, it
+          settles at the end of the form as a quiet line. It reaches 16px past the content on both
+          sides, so what scrolls under it never shows an edge beside it, while its text stays on
+          the content's edges. */}
+      <div
+        className={cn(
+          "z-10 col-span-full -mx-4 -mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 bg-surface px-4",
+          idle
+            ? "-mb-4"
+            : "sticky bottom-0 min-h-16 border-t pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]",
+        )}
+        data-testid="save-bar"
+      >
+        <span className="flex min-w-0 flex-1 items-center gap-2 text-[13.5px]" aria-live="polite">
+          {!editing ? (
+            missing ? (
+              <span className="text-muted-foreground" data-testid="missing">
+                {missing}
+              </span>
+            ) : (
+              <span className="text-muted-foreground max-sm:hidden">
+                You can change all of this later.
+              </span>
+            )
+          ) : pending ? (
+            <span className="text-muted-foreground">Saving…</span>
+          ) : dirty ? (
+            <>
+              <span className="size-1.5 shrink-0 rounded-full bg-foreground" />
+              <span className="font-medium">Unsaved changes</span>
+            </>
+          ) : justSaved ? (
+            <>
+              <CircleCheck className="size-4 shrink-0 text-done" />
+              <span>Saved</span>
+            </>
+          ) : (
+            <>
+              <Check className="size-4 shrink-0 text-muted-foreground" />
+              <span className="text-muted-foreground">All changes saved</span>
+            </>
+          )}
+        </span>
+        {(!editing || dirty || pending) && (
+          <div className="flex items-center gap-2">
+            {editing ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="lg"
+                disabled={pending}
+                onClick={() => setValues(baseline)}
+              >
+                Discard
+              </Button>
+            ) : (
+              <Button type="button" variant="ghost" size="lg" onClick={() => router.back()}>
+                Cancel
+              </Button>
+            )}
+            <Button type="submit" size="lg" className="px-3.5" disabled={!canSubmit}>
+              {pending && <Loader2 className="animate-spin" />}
+              {submitLabel}
+            </Button>
+          </div>
+        )}
+      </div>
     </form>
   );
 }

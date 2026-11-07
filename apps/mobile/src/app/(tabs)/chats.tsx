@@ -2,7 +2,7 @@ import type { BotSummary, ChatSummary } from "@open-bot/api";
 import { plainText } from "@open-bot/shared";
 import { safe } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
-import { router } from "expo-router";
+import { router, useNavigation } from "expo-router";
 import {
   Archive,
   CalendarClock,
@@ -11,23 +11,31 @@ import {
   MessagesSquare,
   SquarePen,
 } from "lucide-react-native";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useState } from "react";
 import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, View } from "react-native";
-import { BotAvatar, GroupAvatar, type BotActivity } from "@/components/bot-avatar";
-import { ConnectionNotice } from "@/components/connection-notice";
+import {
+  activityText,
+  BotAvatar,
+  GroupAvatar,
+  StatusLine,
+  type BotActivity,
+} from "@/components/bot-avatar";
+import { ComputerOfflineNotice, ConnectionNotice } from "@/components/connection-notice";
+import { FilterChips } from "@/components/filter-chips";
+import { HeaderActions, HeaderButton } from "@/components/header-actions";
 import { Separator } from "@/components/list-row";
 import { Sheet, SheetItem } from "@/components/sheet";
 import { Empty, LoadError, Loading } from "@/components/states";
 import { Text } from "@/components/text";
 import { api } from "@/lib/api";
-import { chatSubtitle, chatTitle } from "@/lib/chats";
+import { chatSubtitle, chatTitle, namedForTopic } from "@/lib/chats";
 import { errorMessage } from "@/lib/errors";
 import { haptics } from "@/lib/haptics";
 import { animateLayout } from "@/lib/motion";
 import { queryKeys } from "@/lib/query";
-import { useChats, useTeammates } from "@/lib/queries";
+import { useChats, useComputerOffline, useTeammates } from "@/lib/queries";
 import { ago } from "@/lib/time";
-import { radius, space, useColors } from "@/theme";
+import { space, useColors } from "@/theme";
 
 const FILTERS = [
   { key: "all", label: "All" },
@@ -53,33 +61,42 @@ function matches(chat: ChatSummary, filter: Filter): boolean {
   }
 }
 
-/** What the chat's teammate is doing in this chat, for its avatar. */
-function chatActivity(chat: ChatSummary, bot: BotSummary | undefined): BotActivity {
+/** What the chat's teammate is doing in this chat, for its avatar; paused while the computer is away. */
+function chatActivity(
+  chat: ChatSummary,
+  bot: BotSummary | undefined,
+  computerOffline: boolean,
+): BotActivity {
   if (!chat.active) return "idle";
   const run = bot?.activeRun;
   if (run?.chatId === chat.id) {
     if (run.status === "waiting") return "waiting";
     if (run.status === "queued") return "queued";
   }
-  return "working";
+  return computerOffline ? "paused" : "working";
 }
 
 function ChatRow({
   chat,
   bots,
+  computerOffline,
   onLongPress,
 }: {
   chat: ChatSummary;
   bots: BotSummary[];
+  computerOffline: boolean;
   onLongPress: () => void;
 }) {
   const colors = useColors();
   const bot = bots.find((candidate) => candidate.id === chat.botId);
   const KindIcon = chat.kind === "scheduled" ? CalendarClock : chat.kind === "inbox" ? Mail : null;
-  const activity = chatActivity(chat, bot);
+  const activity = chatActivity(chat, bot, computerOffline);
+  const live = chat.active ? activityText(activity, bot?.activeRun?.waitingFor) : null;
   const members = chat.memberIds.flatMap((id) => bots.filter((entry) => entry.id === id));
   const title = chatTitle(chat, bot);
   const subtitle = plainText(chatSubtitle(chat, bot, bots));
+  // Who it's about leads the second line, as "Kit: …" does in a preview.
+  const speaker = bot && namedForTopic(chat, bot) ? bot.name : null;
   return (
     <Pressable
       onPress={() => router.push(`/chats/${chat.id}`)}
@@ -91,7 +108,7 @@ function ChatRow({
       accessibilityRole="button"
       accessibilityLabel={[
         title,
-        activity === "working" ? "working" : activity === "waiting" ? "needs you" : null,
+        live,
         chat.unread ? "unread" : null,
         subtitle,
         ago(chat.lastActivityAt),
@@ -126,48 +143,44 @@ function ChatRow({
         )}
       </View>
       <View style={{ flex: 1, gap: 2 }}>
+        {/* Every row has the same two lines: the title, then who said what or what's going on. */}
         <View style={styles.titleRow}>
           <Text
             variant="label"
             numberOfLines={1}
-            style={[{ flex: 1, fontSize: 16 }, chat.unread && { fontWeight: "700" }]}
+            style={[
+              { flex: 1, fontSize: 16, lineHeight: 21 },
+              chat.unread && { fontWeight: "700" },
+            ]}
           >
             {title}
           </Text>
           <Text
             variant="caption"
             muted={!chat.unread}
-            style={chat.unread ? { fontWeight: "600" } : undefined}
+            style={[styles.when, chat.unread && { fontWeight: "600" }]}
           >
             {ago(chat.lastActivityAt)}
           </Text>
         </View>
         <View style={styles.titleRow}>
-          {chat.active ? (
-            <Text
-              variant="small"
-              numberOfLines={1}
-              style={{
-                flex: 1,
-                fontSize: 14,
-                fontWeight: "500",
-                color: activity === "waiting" ? colors.attentionInk : colors.working,
-              }}
-              testID="chat-live"
-            >
-              {activity === "waiting" ? "Waiting for you" : "Working on it…"}
-            </Text>
+          {live ? (
+            <View style={{ flex: 1 }}>
+              <StatusLine activity={activity} testID="chat-live">
+                {speaker ? `${speaker} · ${live}` : live}
+              </StatusLine>
+            </View>
           ) : (
             <Text
               variant="small"
-              numberOfLines={2}
+              numberOfLines={1}
               muted={!chat.unread}
               style={{ flex: 1, fontSize: 14, lineHeight: 19 }}
             >
               {subtitle}
             </Text>
           )}
-          {chat.unread && !chat.active && (
+          {chat.unread && (
             <View
               style={[styles.unread, { backgroundColor: colors.foreground }]}
               testID="chat-unread"
@@ -188,6 +201,29 @@ export default function Chats() {
   const [filter, setFilter] = useState<Filter>("all");
   const [menuFor, setMenuFor] = useState<ChatSummary | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const computerOffline = useComputerOffline();
+  const navigation = useNavigation();
+  // New chat lives in the header, beside search, so nothing floats over the list's rows.
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <HeaderActions
+          leading={
+            <HeaderButton
+              label="New chat"
+              onPress={() => {
+                haptics.tap();
+                router.push("/new-chat");
+              }}
+              testID="new-chat"
+            >
+              <SquarePen size={22} color={colors.foreground} />
+            </HeaderButton>
+          }
+        />
+      ),
+    });
+  }, [navigation, colors.foreground]);
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await chats.refetch();
@@ -246,49 +282,14 @@ export default function Chats() {
         ListHeaderComponent={
           <View>
             <ConnectionNotice />
+            <ComputerOfflineNotice style={styles.notice} />
             {sorted.length > 0 && filters.length > 1 && (
-              <FlatList
-                horizontal
-                data={filters}
-                keyExtractor={(entry) => entry.key}
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.filters}
-                renderItem={({ item: entry }) => {
-                  const selected = entry.key === filter;
-                  return (
-                    <Pressable
-                      onPress={() => {
-                        haptics.tap();
-                        animateLayout();
-                        setFilter(entry.key);
-                      }}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected }}
-                      style={[
-                        styles.chip,
-                        selected
-                          ? { backgroundColor: colors.primary, borderColor: colors.primary }
-                          : { backgroundColor: colors.surface, borderColor: colors.border },
-                      ]}
-                    >
-                      <Text
-                        variant="small"
-                        style={{
-                          fontWeight: "500",
-                          color: selected ? colors.primaryForeground : colors.foreground,
-                        }}
-                      >
-                        {entry.label}
-                      </Text>
-                    </Pressable>
-                  );
-                }}
-              />
+              <FilterChips options={filters} value={filter} onChange={setFilter} />
             )}
           </View>
         }
         ItemSeparatorComponent={Separator}
-        contentContainerStyle={{ flexGrow: 1, paddingBottom: space(24) }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: space(6) }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -313,25 +314,14 @@ export default function Chats() {
           )
         }
         renderItem={({ item: chat }) => (
-          <ChatRow chat={chat} bots={bots} onLongPress={() => setMenuFor(chat)} />
+          <ChatRow
+            chat={chat}
+            bots={bots}
+            computerOffline={computerOffline}
+            onLongPress={() => setMenuFor(chat)}
+          />
         )}
       />
-      <Pressable
-        onPress={() => {
-          haptics.tap();
-          router.push("/new-chat");
-        }}
-        accessibilityRole="button"
-        accessibilityLabel="New chat"
-        android_ripple={{ color: colors.muted, borderless: false }}
-        style={[styles.fab, { backgroundColor: colors.primary, shadowColor: "#000000" }]}
-        testID="new-chat"
-      >
-        <SquarePen size={20} color={colors.primaryForeground} />
-        <Text variant="label" style={{ color: colors.primaryForeground }}>
-          New chat
-        </Text>
-      </Pressable>
       <Sheet
         open={menuFor !== null}
         onClose={() => setMenuFor(null)}
@@ -375,19 +365,6 @@ const styles = StyleSheet.create({
     minHeight: 76,
   },
   titleRow: { flexDirection: "row", alignItems: "center", gap: space(2) },
-  filters: {
-    paddingHorizontal: space(4),
-    paddingTop: space(2),
-    paddingBottom: space(2),
-    gap: space(2),
-  },
-  chip: {
-    minHeight: 36,
-    paddingHorizontal: space(3.5),
-    borderRadius: radius.full,
-    borderWidth: 1,
-    justifyContent: "center",
-  },
   kind: {
     position: "absolute",
     right: -4,
@@ -400,20 +377,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   unread: { width: 9, height: 9, borderRadius: 5 },
-  fab: {
-    position: "absolute",
-    right: space(4),
-    bottom: space(4),
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space(2),
-    height: 56,
-    paddingHorizontal: space(5),
-    borderRadius: 18,
-    overflow: "hidden",
-    elevation: 6,
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
-  },
+  // The time sits on the title's first line, even when the title wraps.
+  when: { lineHeight: 21 },
+  notice: { marginHorizontal: space(4), marginTop: space(2), marginBottom: space(1) },
 });

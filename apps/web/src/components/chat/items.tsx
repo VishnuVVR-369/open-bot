@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  ruleAllowed,
+  commandSummary,
   shellScript,
   type ApprovalItem,
   type CommandItem,
@@ -33,7 +33,6 @@ import {
   Loader2,
   MessageCircleQuestion,
   Search,
-  ShieldAlert,
   CreditCard,
   Mail,
   NotebookText,
@@ -45,15 +44,21 @@ import {
   Wrench,
   X,
 } from "lucide-react";
-import { useState, useTransition, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { TakeOverButton, useComputer } from "@/components/computer/computer-panel";
-import { ActionPreview, previewIcon } from "@/components/approvals/action-preview";
-import { AlwaysAllowButton } from "@/components/approvals/always-allow";
-import { approvalDetail, InlineCode } from "@/components/inline-code";
+import {
+  ApprovalIcon,
+  ApprovalReview,
+  ApprovalTitle,
+  NEEDS_YOU_SURFACE,
+  RiskChip,
+  riskOf,
+  type ApprovalSubject,
+} from "@/components/approvals/approval-parts";
 import { MessageText } from "./message-text";
 import { Button } from "@/components/ui/button";
-import { decideApproval, dismissTakeoverRequest } from "@/lib/actions";
+import { dismissTakeoverRequest } from "@/lib/actions";
 import { queryKeys } from "@/lib/client/queries";
 import { cn } from "@/lib/utils";
 import { Markdown } from "./markdown";
@@ -66,6 +71,7 @@ function Step({
   running,
   failed,
   defaultOpen = false,
+  wrap = false,
 }: {
   icon: ReactNode;
   summary: ReactNode;
@@ -73,6 +79,8 @@ function Step({
   running?: boolean;
   failed?: boolean;
   defaultOpen?: boolean;
+  /** The summary ends in an outcome worth reading in full: it wraps to a second line. */
+  wrap?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const expandable = Boolean(detail);
@@ -84,15 +92,23 @@ function Step({
         onClick={() => setOpen((value) => !value)}
         aria-expanded={expandable ? open : undefined}
         className={cn(
-          "group flex min-h-7 items-center gap-2 rounded-md text-left text-[13px] text-muted-foreground transition-colors",
+          "group flex min-h-7 gap-2 rounded-md text-left text-[13px] text-muted-foreground transition-colors",
+          wrap ? "items-start py-[5px] leading-[18px]" : "items-center",
           expandable && "hover:text-foreground",
           failed && "text-destructive",
         )}
       >
-        <span className="flex size-4 shrink-0 items-center justify-center [&_svg]:size-3.5">
+        <span
+          className={cn(
+            "flex size-4 shrink-0 items-center justify-center [&_svg]:size-3.5",
+            wrap && "mt-px",
+          )}
+        >
           {running ? <Loader2 className="animate-spin" /> : icon}
         </span>
-        <span className="min-w-0 flex-1 truncate">{summary}</span>
+        <span className={cn("min-w-0 flex-1", wrap ? "line-clamp-2 text-pretty" : "truncate")}>
+          {summary}
+        </span>
         {expandable && (
           <ChevronRight
             className={cn(
@@ -128,7 +144,8 @@ export function ReasoningStep({ item }: { item: ReasoningItem }) {
   );
 }
 
-export function CommandStep({ item }: { item: CommandItem }) {
+/** A shell command: what it does in plain words, then the command itself in a code face. */
+export function CommandStep({ item, approved = false }: { item: CommandItem; approved?: boolean }) {
   const command = shellScript(item.command);
   const failed = item.status === "failed" || (item.exitCode !== null && item.exitCode !== 0);
   return (
@@ -137,11 +154,29 @@ export function CommandStep({ item }: { item: CommandItem }) {
       running={item.status === "running"}
       failed={failed && item.status !== "running"}
       summary={
-        <span className="font-mono text-[12.5px]">
-          {command}
-          {failed && item.exitCode !== null && (
-            <span className="ml-2 font-sans">exit {item.exitCode}</span>
-          )}
+        // What it did always shows in full; the raw command gets what room is left, on one line.
+        // The whole command is in the detail.
+        <span className="flex min-w-0 items-baseline">
+          <span className="max-w-full shrink-0 truncate">
+            <span className={cn(!failed && "text-foreground/85")}>
+              {commandSummary(item.command)}
+            </span>
+            {failed && item.exitCode !== null && (
+              <span className="ml-1.5">· didn&apos;t work (exit {item.exitCode})</span>
+            )}
+            {approved && (
+              <span className="ml-1.5 inline-flex items-center gap-1 text-muted-foreground">
+                · <Check className="size-3 text-done" aria-hidden />
+                you approved
+              </span>
+            )}
+          </span>
+          <span
+            className="ml-2 min-w-0 flex-1 truncate font-mono text-[11.5px] text-faint"
+            data-testid="step-command"
+          >
+            {command.replace(/\s+/g, " ")}
+          </span>
         </span>
       }
       detail={
@@ -262,6 +297,7 @@ export function ToolStep({ item }: { item: ToolItem }) {
       icon={<Icon />}
       running={item.status === "running"}
       failed={item.status === "failed"}
+      wrap
       summary={
         <>
           <span className="text-foreground/85">{item.label}</span>
@@ -287,10 +323,8 @@ export function WebSearchStep({ item }: { item: WebSearchItem }) {
 
 export function PlanCard({ item }: { item: PlanItem }) {
   return (
-    <div className="rounded-xl border bg-card px-4 py-3">
-      <div className="mb-2 text-[12px] font-medium tracking-wide text-muted-foreground uppercase">
-        Plan
-      </div>
+    <div className="rounded-xl bg-card shadow-raised px-4 py-3">
+      <div className="mb-2 text-[12.5px] font-medium text-muted-foreground">Plan</div>
       <ol className="flex flex-col gap-1.5">
         {item.steps.map((step, index) => (
           <li key={index} className="flex items-start gap-2.5 text-[13.5px]">
@@ -322,6 +356,7 @@ export function HandoffStep({ item }: { item: HandoffItem }) {
   return (
     <Step
       icon={<ArrowRightLeft />}
+      wrap
       summary={
         <>
           Handed to <span className="font-medium text-foreground">{item.toBotName}</span>:{" "}
@@ -333,23 +368,7 @@ export function HandoffStep({ item }: { item: HandoffItem }) {
 }
 
 export function ApprovalCard({ item, botName }: { item: ApprovalItem; botName: string }) {
-  const [pending, startTransition] = useTransition();
-  const queryClient = useQueryClient();
-  const decide = (decision: "approved" | "denied", alwaysAllow?: string) =>
-    startTransition(async () => {
-      const result = await decideApproval(
-        item.approvalId,
-        decision,
-        alwaysAllow === undefined ? null : { pattern: alwaysAllow },
-      );
-      if (!result.ok) toast.error(result.error);
-      else if (alwaysAllow !== undefined)
-        toast("Approved, and allowed from now on", {
-          description: `${botName} won't ask about this again.`,
-        });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.state });
-    });
-
+  const approval: ApprovalSubject = { ...item, kind: item.approvalKind ?? "action" };
   if (item.decision !== "pending") {
     return (
       <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
@@ -366,71 +385,29 @@ export function ApprovalCard({ item, botName }: { item: ApprovalItem; botName: s
             : item.decision === "denied"
               ? "You denied"
               : "Expired"}
-          : <InlineCode text={item.title} />
+          : <ApprovalTitle approval={approval} showCommand />
         </span>
       </div>
     );
   }
-  const PreviewIcon = previewIcon(item.preview);
+  const risk = riskOf(approval);
   return (
     <div
-      className="flex flex-col gap-3 rounded-xl border border-waiting/35 bg-waiting/[0.06] p-4"
+      className={cn("flex flex-col gap-3 rounded-xl p-4", NEEDS_YOU_SURFACE)}
       data-testid="approval-card"
     >
-      <div className="flex items-start gap-2.5">
-        {PreviewIcon ? (
-          <PreviewIcon className="mt-0.5 size-4 shrink-0 text-waiting" />
-        ) : item.approvalKind === "purchase" ? (
-          <CreditCard className="mt-0.5 size-4 shrink-0 text-waiting" />
-        ) : item.approvalKind === "email" ? (
-          <Mail className="mt-0.5 size-4 shrink-0 text-waiting" />
-        ) : (
-          <ShieldAlert className="mt-0.5 size-4 shrink-0 text-waiting" />
+      {/* One mark beside the title, the risk chip's triangle, as on the phone. Without a risk,
+          the kind of action leads instead. */}
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
+        {!risk && (
+          <ApprovalIcon approval={approval} className="size-4 shrink-0 text-attention-ink" />
         )}
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className="text-[14px] font-medium">
-            Approve: <InlineCode text={item.title} />
-          </span>
-          {item.preview ? (
-            <ActionPreview preview={item.preview} className="mt-1.5" />
-          ) : (
-            item.detail && (
-              <pre className="max-h-60 overflow-auto font-sans text-[13px] whitespace-pre-wrap text-muted-foreground">
-                {approvalDetail(item.detail)}
-              </pre>
-            )
-          )}
-        </div>
+        <span className="text-[14.5px] leading-snug font-medium">
+          <ApprovalTitle approval={approval} />
+        </span>
+        {risk && <RiskChip risk={risk} />}
       </div>
-      <div className="flex gap-2 pl-6">
-        <Button
-          size="sm"
-          onClick={() => decide("approved")}
-          disabled={pending}
-          data-testid="approve"
-        >
-          <Check />
-          Approve
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => decide("denied")}
-          disabled={pending}
-          data-testid="deny"
-        >
-          Deny
-        </Button>
-        {item.approvalKind && ruleAllowed(item.approvalKind) && !item.askEveryTime && (
-          <AlwaysAllowButton
-            kind={item.approvalKind}
-            subject={item.subject ?? item.title}
-            botName={botName}
-            disabled={pending}
-            onConfirm={async (pattern) => decide("approved", pattern)}
-          />
-        )}
-      </div>
+      <ApprovalReview approvalId={item.approvalId} approval={approval} botName={botName} />
     </div>
   );
 }
@@ -444,7 +421,7 @@ export function TakeoverRequestCard({
   botId: string;
   botName: string;
 }) {
-  const { screen } = useComputer();
+  const { screen, online } = useComputer();
   const youHaveControl = screen(botId)?.activity === "you";
   const queryClient = useQueryClient();
   if (item.resolution === "handed_back" || item.resolution === "dismissed") {
@@ -463,24 +440,30 @@ export function TakeoverRequestCard({
   }
   return (
     <div
-      className="flex flex-col gap-3 rounded-xl border border-manual/40 bg-manual/[0.07] p-4"
+      className="flex flex-col gap-3 rounded-xl border border-attention/40 bg-attention/[0.07] p-4"
       data-testid="takeover-request"
     >
       <div className="flex items-start gap-2.5">
-        <Hand className="mt-0.5 size-4 shrink-0 text-manual-ink" />
+        <Hand className="mt-0.5 size-4 shrink-0 text-attention-ink" />
         <div className="flex flex-col gap-1">
           <span className="text-[14px] font-medium">{botName} needs you to take over</span>
           <span className="text-[13px] text-muted-foreground">{item.reason}</span>
         </div>
       </div>
-      <div className="flex gap-2 pl-6">
+      <div className="flex items-center gap-2 pl-6.5">
         {youHaveControl || item.resolution === "taken" ? (
-          <span className="text-[13px] text-manual-ink">
+          <span className="text-[13px] text-attention-ink">
             You have control of {botName}&apos;s screen. Hand it back when you&apos;re done.
           </span>
         ) : (
           <>
-            <TakeOverButton screenId={botId} size="sm" />
+            {online ? (
+              <TakeOverButton screenId={botId} size="sm" />
+            ) : (
+              <span className="mr-1 text-[13px] text-muted-foreground">
+                You can take over once the computer is back.
+              </span>
+            )}
             <Button
               size="sm"
               variant="ghost"
@@ -502,7 +485,7 @@ export function TakeoverRequestCard({
 export function SteeredMessage({ item }: { item: UserMessageItem }) {
   if (item.variant === "hand_back") {
     return (
-      <div className="flex items-center gap-2 self-start rounded-full bg-manual/12 px-3 py-1 text-[12.5px] text-manual-ink">
+      <div className="flex items-center gap-2 self-start rounded-full bg-subtle px-3 py-1 text-[12.5px] text-muted-foreground">
         <Undo2 className="size-3.5" />
         {item.text ? <>You handed the screen back: “{item.text}”</> : "You handed the screen back"}
       </div>

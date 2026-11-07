@@ -1,6 +1,7 @@
 import * as LocalAuthentication from "expo-local-authentication";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState } from "react-native";
+import { getPreferences } from "./preferences";
 
 /** How long the app may sit in the background before it asks for your fingerprint again. */
 export const RELOCK_AFTER_MS = 5 * 60_000;
@@ -12,8 +13,9 @@ export function shouldRelock(backgroundedAt: number | null, now: number): boolea
 /**
  * Asks for your fingerprint (or the phone's PIN) when the app opens, and when it comes back after
  * five minutes away. The session itself lasts 30 days; this guards the phone, not the account.
- * Phones without a screen lock can't do this, so they aren't locked. Signing in with your
- * password proves it's you already, so that doesn't lock either.
+ * Phones without a screen lock can't do this, so they aren't locked, and neither is the app when
+ * you've turned the lock off in Settings. Signing in with your password proves it's you already,
+ * so that doesn't lock either.
  */
 export function useAppLock(session: "pending" | "signedIn" | "signedOut") {
   const signedIn = session === "signedIn";
@@ -49,6 +51,7 @@ export function useAppLock(session: "pending" | "signedIn" | "signedOut") {
   }, [setLocked]);
 
   const lockIfSecured = useCallback(async () => {
+    if (!getPreferences().appLock) return false;
     const level = await LocalAuthentication.getEnrolledLevelAsync();
     if (level === LocalAuthentication.SecurityLevel.NONE) return false;
     setLocked(true);

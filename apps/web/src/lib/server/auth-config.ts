@@ -1,4 +1,6 @@
 import "server-only";
+import { getAuthenticatorName } from "@better-auth/passkey";
+import { passkeyNameFor } from "../passkey-name";
 
 /** Where the app is served. Passkeys are bound to its hostname. */
 export const BASE_URL = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
@@ -53,4 +55,18 @@ export function passkeyConfig(fingerprints: string[] = androidCertFingerprints()
     rpID: new URL(BASE_URL).hostname,
     origin: passkeyOrigins(fingerprints),
   };
+}
+
+/**
+ * A name for a new passkey when the device didn't give one: where it's kept ("Apple Passwords",
+ * "Google Password Manager") when known, otherwise the browser and device that made it.
+ */
+export function defaultPasskeyName({
+  aaguid,
+  userAgent,
+}: {
+  aaguid?: string | null;
+  userAgent?: string | null;
+}) {
+  return getAuthenticatorName(aaguid ?? undefined) ?? passkeyNameFor(userAgent ?? "");
 }

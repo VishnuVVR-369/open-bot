@@ -31,8 +31,9 @@ test.describe("@agent bots at work", () => {
 
     // Replay what it did on the desktop, frame by frame.
     const run = page.getByTestId("run").first();
-    const steps = run.getByRole("button", { name: /^Show \d+ steps?$/ });
-    if (await steps.isVisible()) await steps.click();
+    // A finished run folds its steps into "Worked for 8s · 2 steps".
+    const steps = run.getByTestId("run-steps");
+    if ((await steps.getAttribute("aria-expanded")) === "false") await steps.click();
     await run.getByTestId("replay").first().click();
     const viewer = page.getByTestId("replay-viewer");
     await expect(viewer.getByRole("heading")).toContainText(/1 \/ \d+/);
@@ -56,7 +57,7 @@ test.describe("@agent bots at work", () => {
 
   test("always allowing a command stops the bot asking about it", async ({ page }) => {
     const name = uniqueName("Alw");
-    await createTeammate(page, name, "assistant", "Ask before every command");
+    await createTeammate(page, name, "assistant", "Asks before every command");
     await sendMessage(
       page,
       "Run the shell command `date -u` on its own and tell me what it printed.",

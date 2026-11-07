@@ -144,8 +144,8 @@ function AskSheet({
         {question.quote && (
           <View style={[styles.quote, { borderColor: colors.input }]}>
             {question.section && (
-              <Text variant="caption" muted numberOfLines={1} style={styles.overline}>
-                {question.section.toUpperCase()}
+              <Text variant="overline" muted numberOfLines={1}>
+                {question.section}
               </Text>
             )}
             <Text variant="small" muted numberOfLines={4}>
@@ -358,7 +358,7 @@ export default function PageScreen() {
           title="This page was deleted"
           body="Its teammate can make it again if you ask."
           action={
-            <Button title="All pages" variant="outline" onPress={() => router.replace("/pages")} />
+            <Button title="All pages" variant="outline" onPress={() => router.navigate("/pages")} />
           }
         />
       </>
@@ -625,7 +625,7 @@ export default function PageScreen() {
           onPress={() => {
             setMenuOpen(false);
             confirmDeletePage(data, () =>
-              router.canGoBack() ? router.back() : router.replace("/pages"),
+              router.canGoBack() ? router.back() : router.navigate("/pages"),
             );
           }}
           testID="page-delete"
@@ -669,7 +669,6 @@ const styles = StyleSheet.create({
   newerDismiss: { width: 28, height: 28, alignItems: "center", justifyContent: "center" },
   askBody: { paddingHorizontal: space(5), gap: space(3), paddingTop: space(1) },
   quote: { borderLeftWidth: 2, paddingLeft: space(3), gap: 2 },
-  overline: { letterSpacing: 0.6, fontWeight: "500" },
   version: {
     flexDirection: "row",
     alignItems: "flex-start",

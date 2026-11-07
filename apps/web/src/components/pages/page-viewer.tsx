@@ -137,7 +137,7 @@ function AskPanel({
       {question.quote && (
         <figure className="flex flex-col gap-1 border-l-2 border-foreground/15 pl-3">
           {question.section && (
-            <figcaption className="truncate text-[11.5px] font-medium tracking-wide text-muted-foreground uppercase">
+            <figcaption className="truncate text-[12.5px] font-medium text-muted-foreground">
               {question.section}
             </figcaption>
           )}

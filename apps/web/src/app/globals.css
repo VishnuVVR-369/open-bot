@@ -7,7 +7,14 @@
 /*
  * open-bot palette: porcelain and ink.
  * The interface itself is monochrome. Color only ever means "someone": a teammate's own color,
- * or a signal light (live, you have control, waiting, done).
+ * or a status signal. Each signal has one meaning, everywhere:
+ *   attention (amber)   needs you: an approval, a take over, a screen you still hold
+ *   working   (blue)    a teammate is working on something
+ *   idle      (gray)    idle, asleep, queued or offline
+ *   destructive (red)   failed, or an action that destroys something
+ *   done      (green)   healthy or finished, and never beside a zero
+ * Use `attention` for fills, dots and tints, and `attention-ink` for amber text and icons.
+ * `tally` is the red light in the logo, a brand mark, not a status.
  */
 
 @theme inline {
@@ -18,6 +25,7 @@
   --font-mono: var(--font-jetbrains);
   --color-ring: var(--ring);
   --color-input: var(--input);
+  --color-control: var(--control);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
   --color-accent-foreground: var(--accent-foreground);
@@ -44,11 +52,16 @@
   --color-subtle: var(--subtle);
   --color-bezel: var(--bezel);
   --color-bezel-foreground: var(--bezel-foreground);
-  --color-live: var(--live);
-  --color-manual: var(--manual);
-  --color-manual-ink: var(--manual-ink);
-  --color-waiting: var(--waiting);
+  --color-attention: var(--attention);
+  --color-attention-ink: var(--attention-ink);
+  --color-working: var(--working);
+  --color-idle: var(--idle);
   --color-done: var(--done);
+  --color-tally: var(--tally);
+  --color-faint: var(--faint);
+  --shadow-canvas: var(--elev-canvas);
+  --shadow-raised: var(--elev-raised);
+  --shadow-float: var(--elev-float);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -61,82 +74,114 @@
 
 :root {
   --radius: 0.625rem;
-  /* Porcelain desk, white paper, ink. */
-  --background: #f3f4f6;
+  /* Porcelain desk, white paper, ink. The canvas floats on the desk. */
+  --background: #eeeff2;
   --surface: #ffffff;
-  --subtle: #eceef1;
-  --foreground: #14161b;
+  --subtle: #f3f4f6;
+  --foreground: #16171b;
   --card: #ffffff;
-  --card-foreground: #14161b;
+  --card-foreground: #16171b;
   --popover: #ffffff;
-  --popover-foreground: #14161b;
-  --primary: #14161b;
+  --popover-foreground: #16171b;
+  --primary: #16171b;
   --primary-foreground: #ffffff;
-  --secondary: #eceef1;
-  --secondary-foreground: #14161b;
-  --muted: #eceef1;
-  --muted-foreground: #646a75;
-  --accent: #eceef1;
-  --accent-foreground: #14161b;
-  --destructive: #d93f45;
-  --border: #e1e4e9;
-  --input: #d9dce2;
-  --ring: #14161b;
-  --sidebar: #f3f4f6;
-  --sidebar-foreground: #14161b;
-  --sidebar-primary: #14161b;
+  --secondary: #f1f2f4;
+  --secondary-foreground: #16171b;
+  --muted: #f1f2f4;
+  --muted-foreground: #646872;
+  /* Hints, placeholders and commands: lighter than muted, still 4.5:1 on white. */
+  --faint: #71757f;
+  --accent: #f1f2f4;
+  --accent-foreground: #16171b;
+  --destructive: #d23c42;
+  --border: #e6e7eb;
+  --input: #dddfe4;
+  /* The edge of a field or an outlined button. */
+  --control: #d3d6dc;
+  --ring: #16171b;
+  --sidebar: #eeeff2;
+  --sidebar-foreground: #16171b;
+  --sidebar-primary: #16171b;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e6e8ec;
-  --sidebar-accent-foreground: #14161b;
-  --sidebar-border: #e1e4e9;
-  --sidebar-ring: #14161b;
+  --sidebar-accent: #e2e4e8;
+  --sidebar-accent-foreground: #16171b;
+  --sidebar-border: #e0e2e6;
+  --sidebar-ring: #16171b;
   /* The computer: a dark screen sitting on the light desk. */
-  --bezel: #101117;
+  --bezel: #121318;
   --bezel-foreground: #c9ccd4;
-  /* Signal lights. */
-  --live: #e5484d;
-  --manual: #f5a524;
-  --manual-ink: #9a5d00;
-  --waiting: #3e7bfa;
-  --done: #2a9d63;
+  /* Status signals (see the top of this file). */
+  --attention: #f5a524;
+  --attention-ink: #9a5d00;
+  --working: #3b74f0;
+  --idle: #a3a7b0;
+  --done: #23935b;
+  --tally: #e5484d;
+  /* Depth: a hairline and a soft fall-off, never a heavy drop shadow. */
+  --elev-canvas:
+    0 0 0 1px rgb(16 17 22 / 0.055), 0 1px 2px rgb(16 17 22 / 0.04),
+    0 12px 32px -16px rgb(16 17 22 / 0.1);
+  --elev-raised:
+    0 0 0 1px rgb(16 17 22 / 0.06), 0 1px 2px rgb(16 17 22 / 0.05),
+    0 4px 12px -6px rgb(16 17 22 / 0.08);
+  --elev-float:
+    0 0 0 1px rgb(16 17 22 / 0.07), 0 8px 20px -6px rgb(16 17 22 / 0.14),
+    0 24px 48px -16px rgb(16 17 22 / 0.16);
 }
 
 .dark {
-  --background: #0e0f12;
-  --surface: #15171b;
-  --subtle: #1b1d22;
-  --foreground: #eceef1;
-  --card: #15171b;
-  --card-foreground: #eceef1;
-  --popover: #191b20;
-  --popover-foreground: #eceef1;
-  --primary: #eceef1;
-  --primary-foreground: #0e0f12;
-  --secondary: #1f2227;
-  --secondary-foreground: #eceef1;
-  --muted: #1f2227;
-  --muted-foreground: #8d929c;
-  --accent: #23262c;
-  --accent-foreground: #eceef1;
-  --destructive: #f0585d;
-  --border: #25282e;
-  --input: #2d3037;
-  --ring: #eceef1;
-  --sidebar: #0e0f12;
-  --sidebar-foreground: #eceef1;
-  --sidebar-primary: #eceef1;
-  --sidebar-primary-foreground: #0e0f12;
-  --sidebar-accent: #1b1d22;
-  --sidebar-accent-foreground: #eceef1;
-  --sidebar-border: #25282e;
-  --sidebar-ring: #eceef1;
-  --bezel: #050608;
+  /*
+   * Three clear steps up from the desk, so the page, its cards and anything floating separate:
+   *   background (desk) < surface (the page) < card (cards, the composer) < popover (menus).
+   * Text on any of them: foreground, then muted-foreground (7:1 or more), then faint (4.5:1 on
+   * the page, for hints and placeholders).
+   */
+  --background: #09090b;
+  --surface: #111215;
+  --subtle: #18191d;
+  --foreground: #ecedf0;
+  --card: #1a1b1f;
+  --card-foreground: #ecedf0;
+  --popover: #202126;
+  --popover-foreground: #ecedf0;
+  --primary: #ecedf0;
+  --primary-foreground: #0b0c0e;
+  --secondary: #222328;
+  --secondary-foreground: #ecedf0;
+  --muted: #222328;
+  --muted-foreground: #aeb2bb;
+  --faint: #868a94;
+  --accent: #26272d;
+  --accent-foreground: #ecedf0;
+  --destructive: #ef5b60;
+  --border: #2a2c32;
+  --input: #34363d;
+  /* 3:1 on the page, so a field or an outlined button is findable without its fill. */
+  --control: #64676f;
+  --ring: #ecedf0;
+  --sidebar: #09090b;
+  --sidebar-foreground: #ecedf0;
+  --sidebar-primary: #ecedf0;
+  --sidebar-primary-foreground: #0b0c0e;
+  --sidebar-accent: #1a1b1f;
+  --sidebar-accent-foreground: #ecedf0;
+  --sidebar-border: #202126;
+  --sidebar-ring: #ecedf0;
+  --bezel: #060709;
   --bezel-foreground: #b8bcc5;
-  --live: #f0585d;
-  --manual: #f5b03c;
-  --manual-ink: #f5b03c;
-  --waiting: #5b8fff;
+  --attention: #f5b03c;
+  --attention-ink: #f5b03c;
+  --working: #6194ff;
+  --idle: #6b6f79;
   --done: #3cb878;
+  --tally: #f0585d;
+  --elev-canvas: 0 0 0 1px rgb(255 255 255 / 0.055), 0 12px 32px -16px rgb(0 0 0 / 0.6);
+  --elev-raised:
+    0 0 0 1px rgb(255 255 255 / 0.075), inset 0 1px 0 rgb(255 255 255 / 0.03),
+    0 1px 2px rgb(0 0 0 / 0.35);
+  --elev-float:
+    0 0 0 1px rgb(255 255 255 / 0.08), 0 8px 20px -6px rgb(0 0 0 / 0.5),
+    0 24px 48px -16px rgb(0 0 0 / 0.6);
 }
 
 @keyframes tally {
@@ -150,6 +195,10 @@
 }
 
 @layer base {
+  :root {
+    /* The status light on an avatar is cut out of whatever it sits on. */
+    --avatar-ring: var(--surface);
+  }
   * {
     @apply border-border outline-ring/50;
   }
@@ -160,12 +209,18 @@
   body {
     @apply bg-background text-foreground;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
   h1,
   h2,
   h3 {
     @apply font-heading;
-    letter-spacing: -0.015em;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
   }
   ::selection {
     background: color-mix(in oklab, var(--foreground) 18%, transparent);

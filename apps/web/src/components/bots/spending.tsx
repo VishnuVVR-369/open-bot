@@ -18,8 +18,8 @@ import type { PurchaseView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const STATUS: Record<PurchaseView["status"], { label: string; className: string }> = {
-  pending: { label: "Waiting for you", className: "bg-waiting/12 text-waiting" },
-  approved: { label: "Approved", className: "bg-live/10 text-live" },
+  pending: { label: "Needs your approval", className: "bg-attention/12 text-attention-ink" },
+  approved: { label: "Approved", className: "bg-done/10 text-done" },
   paid: { label: "Paid", className: "bg-done/12 text-done" },
   denied: { label: "Denied", className: "bg-muted text-muted-foreground" },
   not_paid: { label: "Didn't go through", className: "bg-muted text-muted-foreground" },
@@ -184,7 +184,7 @@ export function Spending({ botId, name }: { botId: string; name: string }) {
             <div
               className={cn(
                 "h-full rounded-full transition-[width]",
-                used >= 0.9 ? "bg-destructive" : used >= 0.7 ? "bg-waiting" : "bg-done",
+                used >= 0.9 ? "bg-destructive" : used >= 0.7 ? "bg-attention" : "bg-done",
               )}
               style={{ width: `${used * 100}%` }}
             />
@@ -202,7 +202,7 @@ export function Spending({ botId, name }: { botId: string; name: string }) {
           </span>
         </div>
         {data.purchases.length > 0 && (
-          <ul className="flex flex-col divide-y rounded-xl border bg-card">
+          <ul className="flex flex-col divide-y divide-border/70 rounded-xl border bg-card">
             {data.purchases.map((purchase) => {
               const status = STATUS[purchase.status];
               return (

@@ -725,7 +725,7 @@ export class RunSession {
       await createNotification(ctx, {
         kind: "run_failed",
         title: `${bot.name} couldn't finish`,
-        body: error ?? "The run failed.",
+        body: error ?? "It stopped before it was done.",
         botId: bot.id,
         chatId: chat.id,
         runId: run.id,

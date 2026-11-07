@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   ChevronDown,
   ClipboardPaste,
+  CloudOff,
   Expand,
   Globe,
   Hand,
@@ -170,10 +171,10 @@ function ActivityDot({ activity, className }: { activity: ScreenActivity; classN
     <span
       className={cn(
         "size-2 shrink-0 rounded-full",
-        activity === "working" && "animate-tally bg-live",
-        activity === "you" && "bg-manual",
-        activity === "idle" && "bg-done",
-        (activity === "asleep" || activity === "offline") && "bg-bezel-foreground/35",
+        activity === "working" && "animate-tally bg-working",
+        activity === "you" && "bg-attention",
+        (activity === "idle" || activity === "asleep" || activity === "offline") &&
+          "bg-bezel-foreground/35",
         className,
       )}
     />
@@ -200,7 +201,7 @@ function ScreenBadge({ info }: { info: ScreenInfo }) {
             transition={{ type: "spring", stiffness: 420, damping: 34 }}
             className={cn(
               "flex h-6 items-center gap-1.5 rounded-full bg-white/[0.06] px-2 text-[11.5px] font-medium whitespace-nowrap text-bezel-foreground/75",
-              info.activity === "you" && "text-manual",
+              info.activity === "you" && "text-attention",
             )}
           >
             {info.activity === "you" ? (
@@ -221,14 +222,14 @@ function EgressChip({ initial }: { initial?: AppState }) {
   if (!egress) return null;
   const home = egress.mode !== "off" && egress.agentOnline;
   const blocked = egress.mode === "require" && !egress.agentOnline;
-  const label = home ? "Home connection" : blocked ? "Browsing paused" : "Cloud connection";
+  const label = home ? "Home internet" : blocked ? "Browsing paused" : "Computer's internet";
   const hint = home
-    ? "The computer's browsers go online through your desktop app, so websites see your home IP."
+    ? "Browsing through your home internet, by way of your desktop app, so websites see your home."
     : blocked
-      ? "Browsing only through your desktop is on, and the desktop app isn't connected. Open it to let the browsers load pages."
+      ? "Browsing only through your home internet is on, and the desktop app isn't open. Open it so pages load."
       : egress.mode === "off"
-        ? "The browsers go online directly from the cloud computer."
-        : "Your desktop app isn't connected, so the browsers go online directly from the cloud computer.";
+        ? "Browsing on the computer's own internet. Websites see the cloud computer, not your home."
+        : "Browsing on the computer's own internet, since the desktop app isn't open.";
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -236,7 +237,7 @@ function EgressChip({ initial }: { initial?: AppState }) {
           href="/settings#browsing"
           className={cn(
             "flex h-7 items-center gap-1.5 rounded-full px-2.5 text-[12px] font-medium text-bezel-foreground/70 transition-colors hover:bg-white/[0.06] hover:text-bezel-foreground",
-            blocked && "text-manual",
+            blocked && "text-attention",
           )}
         >
           {home ? <Home className="size-3.5" /> : <Globe className="size-3.5" />}
@@ -251,7 +252,7 @@ function EgressChip({ initial }: { initial?: AppState }) {
 /** The rim takes the bot's color while it works, amber while you have control. */
 function rimColor(info: ScreenInfo | null): string {
   if (!info) return "transparent";
-  if (info.activity === "you") return "var(--manual)";
+  if (info.activity === "you") return "var(--attention)";
   if (info.activity === "working") return info.bot.color;
   return "transparent";
 }
@@ -277,6 +278,50 @@ function WakeButton({ screenId }: { screenId: string }) {
       {pending ? <Loader2 className="animate-spin" /> : <Power />}
       {pending ? "Waking up…" : "Wake screen"}
     </Button>
+  );
+}
+
+/**
+ * The computer is offline: one short card in place of a dark, empty screen.
+ * Takeover requests still show where you are asked for them (Home, the chat), not here.
+ */
+export function ComputerOffline({
+  botNames,
+  className,
+}: {
+  /** Whose screens these are, to say who is affected. */
+  botNames: string[];
+  className?: string;
+}) {
+  const who = botNames.length === 1 ? `${botNames[0]} pauses` : "Teammates pause";
+  return (
+    <section
+      aria-label="Computer"
+      className={cn(
+        "flex items-start gap-3 rounded-xl bg-card px-4 py-3.5 shadow-raised",
+        className,
+      )}
+      data-testid="computer-offline"
+    >
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-subtle text-muted-foreground">
+        <CloudOff className="size-4" />
+      </span>
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="text-[14px] font-medium">The computer is offline</span>
+        <span className="text-[13px] leading-snug text-muted-foreground">
+          {who} computer work until it&apos;s back. It reconnects on its own.
+        </span>
+      </div>
+    </section>
+  );
+}
+
+/** The icon above a dark screen's message: a small lit tile. */
+function GlassIcon({ children }: { children: ReactNode }) {
+  return (
+    <span className="mb-2 flex size-11 items-center justify-center rounded-[13px] bg-white/[0.05] text-bezel-foreground/80 shadow-[inset_0_1px_0_rgb(255_255_255/0.08)] ring-1 ring-white/[0.08] [&_svg]:size-5">
+      {children}
+    </span>
   );
 }
 
@@ -313,13 +358,16 @@ export function ScreenGlass({
   if (!workerOnline || !online) {
     placeholder = (
       <>
+        <GlassIcon>
+          <CloudOff />
+        </GlassIcon>
         <span className="text-[14px] font-medium text-bezel-foreground">
-          {workerOnline ? "The computer is starting or offline" : "The worker isn't running"}
+          The computer is offline
         </span>
-        <span className="text-[12.5px]">
-          {workerOnline
-            ? "It reconnects on its own. If it doesn't, check the computer container."
-            : "Start everything with pnpm dev, and this screen connects by itself."}
+        <span className="max-w-80 text-[12.5px] leading-relaxed text-bezel-foreground/85">
+          {info
+            ? `${info.bot.name} pauses computer work until it's back. It reconnects on its own.`
+            : "It reconnects on its own."}
         </span>
       </>
     );
@@ -361,17 +409,13 @@ export function ScreenGlass({
     const starting = info.status?.state === "starting";
     placeholder = (
       <>
-        {starting ? (
-          <Loader2 className="mb-1 size-5 animate-spin" />
-        ) : (
-          <Moon className="mb-1 size-5" />
-        )}
+        <GlassIcon>{starting ? <Loader2 className="animate-spin" /> : <Moon />}</GlassIcon>
         <span className="text-[14px] font-medium text-bezel-foreground">
           {starting ? `Starting ${info.bot.name}'s screen…` : `${info.bot.name}'s screen is asleep`}
         </span>
         {!starting && (
           <>
-            <span className="max-w-72 text-[12.5px]">
+            <span className="max-w-72 text-[12.5px] leading-relaxed">
               It wakes up when {info.bot.name} uses the desktop, or when you take over.
             </span>
             <div className="mt-2.5">
@@ -386,7 +430,7 @@ export function ScreenGlass({
   return (
     <div
       className={cn(
-        "relative aspect-[16/10] w-full overflow-hidden rounded-[12px] bg-black",
+        "relative aspect-[16/10] w-full overflow-hidden rounded-[12px] bg-[#050506]",
         className,
       )}
       data-activity={info?.activity ?? "none"}
@@ -401,14 +445,23 @@ export function ScreenGlass({
           handleRef={handleRef}
         />
       ) : (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-[radial-gradient(ellipse_at_top,rgb(255_255_255/0.05),transparent_60%)] px-6 text-center text-bezel-foreground/70">
-          {placeholder}
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-6 text-center text-bezel-foreground/65">
+          {/* A dimmed display: a faint glow from above over a fine dot grid. */}
+          <div
+            aria-hidden
+            className="absolute inset-0 bg-[radial-gradient(rgb(255_255_255/0.07)_1px,transparent_1px)] [mask-image:radial-gradient(ellipse_at_center,black_20%,transparent_75%)] bg-[size:16px_16px]"
+          />
+          <div
+            aria-hidden
+            className="absolute inset-0 bg-[radial-gradient(120%_70%_at_50%_-10%,rgb(255_255_255/0.08),transparent_60%)]"
+          />
+          <div className="relative flex flex-col items-center gap-1.5">{placeholder}</div>
         </div>
       )}
       <div
         aria-hidden={!hintVisible}
         className={cn(
-          "pointer-events-none absolute top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-manual px-3 py-1 text-[11.5px] font-semibold whitespace-nowrap text-black shadow-lg transition-all duration-500",
+          "pointer-events-none absolute top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-attention px-3 py-1 text-[11.5px] font-semibold whitespace-nowrap text-black shadow-lg transition-all duration-500",
           hintVisible ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0",
         )}
       >
@@ -424,11 +477,14 @@ export function ScreenFrame({
   initial,
   handleRef,
   className,
+  expand = false,
 }: {
   screenId: string;
   initial?: AppState;
   handleRef?: React.RefObject<DesktopHandle | null>;
   className?: string;
+  /** Offer a way to the full computer page. */
+  expand?: boolean;
 }) {
   const { screen } = useComputer(initial);
   const info = screen(screenId);
@@ -442,13 +498,27 @@ export function ScreenFrame({
         className,
       )}
       style={{
-        boxShadow: `0 0 0 2px ${rim}, 0 0 0 6px color-mix(in oklab, ${rim} 20%, transparent), 0 24px 48px -24px rgb(0 0 0 / 0.5)`,
+        boxShadow: `0 0 0 2px ${rim}, 0 0 0 6px color-mix(in oklab, ${rim} 20%, transparent), inset 0 1px 0 rgb(255 255 255 / 0.06), 0 2px 4px rgb(0 0 0 / 0.08), 0 28px 56px -28px rgb(0 0 0 / 0.45)`,
       }}
     >
       <div className="flex h-7 items-center justify-between gap-2 pr-0.5 pl-1.5">
         {info ? <ScreenBadge info={info} /> : <span />}
         <div className="flex items-center">
           <EgressChip initial={initial} />
+          {expand && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Link
+                  href={`/computer?screen=${screenId}`}
+                  aria-label="Open the computer"
+                  className="flex size-7 items-center justify-center rounded-full text-bezel-foreground/70 transition-colors hover:bg-white/[0.06] hover:text-bezel-foreground"
+                >
+                  <Expand className="size-3.5" />
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent>Open the computer</TooltipContent>
+            </Tooltip>
+          )}
           <Tooltip>
             <TooltipTrigger asChild>
               <button
@@ -514,7 +584,7 @@ function HandBackButton({
       <PopoverTrigger asChild>
         <Button
           size={size}
-          className="bg-manual text-black hover:bg-manual/85"
+          className="bg-attention text-black hover:bg-attention/85"
           data-testid="hand-back"
         >
           <Undo2 />
@@ -616,36 +686,46 @@ export function ScreenControls({
   initial,
   handleRef,
   expand = true,
+  showRequests = true,
 }: {
   screenId: string;
   initial?: AppState;
   handleRef?: React.RefObject<DesktopHandle | null>;
   expand?: boolean;
+  /** Show the bot's takeover request here. Off where the page already lists it. */
+  showRequests?: boolean;
 }) {
   const { screen, online } = useComputer(initial);
   const queryClient = useQueryClient();
   const info = screen(screenId);
   if (!info) return null;
   const youHaveControl = info.activity === "you";
-  const request = info.requests[0];
+  const request = showRequests ? info.requests[0] : undefined;
   const name = info.bot.name;
+  if (!request && !youHaveControl && !online && !expand) return null;
 
   return (
     <div className="flex flex-col gap-2.5">
       {request && !youHaveControl && (
         <div
-          className="flex flex-col gap-2.5 rounded-xl border border-manual/40 bg-manual/[0.07] p-3.5"
+          className="flex flex-col gap-2.5 rounded-xl border border-attention/40 bg-attention/[0.07] p-3.5"
           role="status"
         >
           <div className="flex items-start gap-2.5">
-            <Hand className="mt-0.5 size-4 shrink-0 text-manual-ink" />
+            <Hand className="mt-0.5 size-4 shrink-0 text-attention-ink" />
             <div className="flex min-w-0 flex-col gap-0.5">
               <span className="text-[13.5px] font-medium">{name} needs you to take over</span>
               <span className="text-[13px] text-muted-foreground">{request.reason}</span>
             </div>
           </div>
-          <div className="flex gap-1.5 pl-6.5">
-            <TakeOverButton screenId={screenId} size="sm" />
+          <div className="flex items-center gap-1.5 pl-6.5">
+            {online ? (
+              <TakeOverButton screenId={screenId} size="sm" />
+            ) : (
+              <span className="mr-1.5 text-[12.5px] text-muted-foreground">
+                You can take over once the computer is back.
+              </span>
+            )}
             <Button
               variant="ghost"
               size="sm"
@@ -655,7 +735,7 @@ export function ScreenControls({
                 await queryClient.invalidateQueries({ queryKey: queryKeys.state });
               }}
             >
-              Dismiss
+              Not now
             </Button>
           </div>
         </div>
@@ -741,20 +821,18 @@ function ScreenTab({
       className={cn(
         "flex h-8 min-w-0 shrink-0 items-center gap-2 rounded-full border py-1 pr-3 pl-1.5 text-[12.5px] font-medium transition-colors",
         selected
-          ? "border-foreground/15 bg-card text-foreground shadow-xs"
+          ? "border-transparent bg-card text-foreground shadow-raised"
           : "border-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
       data-testid={`screen-tab-${info.bot.slug}`}
     >
       <BotAvatar name={info.bot.name} color={info.bot.color} emoji={info.bot.emoji} size="xs" />
       <span className="max-w-[112px] truncate">{info.bot.name}</span>
-      <ActivityDot
-        activity={info.activity}
-        className={cn(
-          "size-1.5",
-          (info.activity === "asleep" || info.activity === "offline") && "bg-muted-foreground/40",
-        )}
-      />
+      {info.activity === "working" || info.activity === "you" ? (
+        <ActivityDot activity={info.activity} className="size-1.5" />
+      ) : info.requests.length > 0 ? (
+        <span className="size-1.5 shrink-0 rounded-full bg-attention" aria-label="Needs you" />
+      ) : null}
     </button>
   );
 }
@@ -847,6 +925,7 @@ export function ComputerPanel({
   botIds,
   initial,
   loading = false,
+  showRequests = true,
   className,
 }: {
   /** Whose screens to offer. The panel follows whichever is busy. */
@@ -854,11 +933,17 @@ export function ComputerPanel({
   initial?: AppState;
   /** Whose screens they are isn't known yet. */
   loading?: boolean;
+  /** Show takeover requests under the screen. Off where the page already lists them. */
+  showRequests?: boolean;
   className?: string;
 }) {
   const handleRef = useRef<DesktopHandle | null>(null);
-  const { state } = useComputer(initial);
+  const { state, online } = useComputer(initial);
   const { screenId, pick } = useFollowedScreen(botIds, initial);
+  if (state && !online && botIds.length > 0) {
+    const names = botIds.flatMap((id) => state.bots.find((bot) => bot.id === id)?.name ?? []);
+    return <ComputerOffline botNames={names} className={className} />;
+  }
   if (!screenId) {
     return (
       <section
@@ -883,8 +968,14 @@ export function ComputerPanel({
   return (
     <section aria-label="Computer" className={cn("flex flex-col gap-3", className)}>
       <ScreenPicker botIds={botIds} value={screenId} onChange={pick} initial={initial} />
-      <ScreenFrame screenId={screenId} initial={initial} handleRef={handleRef} />
-      <ScreenControls screenId={screenId} initial={initial} handleRef={handleRef} />
+      <ScreenFrame screenId={screenId} initial={initial} handleRef={handleRef} expand />
+      <ScreenControls
+        screenId={screenId}
+        initial={initial}
+        handleRef={handleRef}
+        expand={false}
+        showRequests={showRequests}
+      />
     </section>
   );
 }

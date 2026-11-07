@@ -52,7 +52,7 @@ export class RunExecutor {
       .set({
         status: "interrupted",
         waitingFor: null,
-        error: "The worker restarted while this was running.",
+        error: "Interrupted when the computer restarted.",
         completedAt: new Date(),
       })
       .where(inArray(runs.status, ["starting", "running", "waiting"]))
@@ -61,7 +61,7 @@ export class RunExecutor {
       await appendRunEvent(this.ctx, run.id, run.chatId, {
         type: "status",
         status: "interrupted",
-        error: "The worker restarted while this was running.",
+        error: "Interrupted when the computer restarted.",
       });
       await this.approvals.expireForRun(run.id);
       this.ctx.events.emit(
@@ -69,7 +69,7 @@ export class RunExecutor {
         run,
         "interrupted",
         null,
-        "The worker restarted while this was running.",
+        "Interrupted when the computer restarted.",
       );
     }
     if (stale.length)

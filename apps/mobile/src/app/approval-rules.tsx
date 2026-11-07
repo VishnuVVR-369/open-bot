@@ -14,6 +14,7 @@ import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/errors";
 import { useApprovalRules, useTeammates } from "@/lib/queries";
 import { queryKeys } from "@/lib/query";
+import { useSafeBottom } from "@/lib/use-safe-bottom";
 import { space, useColors } from "@/theme";
 
 const KIND: Record<RuleKind, string> = {
@@ -25,6 +26,7 @@ const KIND: Record<RuleKind, string> = {
 
 /** What each teammate may do without asking, from "Always allow". Remove one to be asked again. */
 export default function ApprovalRules() {
+  const bottom = useSafeBottom();
   const colors = useColors();
   const queryClient = useQueryClient();
   const rules = useApprovalRules();
@@ -70,69 +72,71 @@ export default function ApprovalRules() {
       />
     );
   return (
-    <ScrollView contentContainerStyle={styles.content}>
-      <Text variant="small" muted style={styles.intro}>
-        Teammates do these without asking. Remove one to be asked again.
-      </Text>
-      {sections.map((section) => {
-        const botName = section.bot?.name ?? "Former teammate";
-        return (
-          <View key={section.botId} style={{ gap: space(2.5) }}>
-            <View style={styles.head}>
-              <BotAvatar
-                name={section.bot?.name ?? "?"}
-                color={section.bot?.color ?? colors.mutedForeground}
-                emoji={section.bot?.emoji}
-                size="sm"
-              />
-              <Text variant="label">{botName}</Text>
-            </View>
-            <Card>
-              {section.data.map((rule, index) => (
-                <View key={rule.id}>
-                  {index > 0 && <Separator inset={space(4)} />}
-                  <View style={styles.row} testID="approval-rule">
-                    <View style={{ flex: 1, gap: space(1) }}>
-                      <Text variant="caption" muted>
-                        {KIND[rule.kind]}
-                      </Text>
-                      {rule.kind !== "file_change" && (
-                        <Text variant={rule.kind === "command" ? "mono" : "label"} selectable>
-                          {rule.kind === "account_write"
-                            ? (accountTool(rule.pattern)?.label ?? rule.pattern)
-                            : rule.pattern}
+    <View style={{ flex: 1 }}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottom }]}>
+        <Text variant="small" muted style={styles.intro}>
+          Teammates do these without asking. Remove one to be asked again.
+        </Text>
+        {sections.map((section) => {
+          const botName = section.bot?.name ?? "Former teammate";
+          return (
+            <View key={section.botId} style={{ gap: space(2.5) }}>
+              <View style={styles.head}>
+                <BotAvatar
+                  name={section.bot?.name ?? "?"}
+                  color={section.bot?.color ?? colors.mutedForeground}
+                  emoji={section.bot?.emoji}
+                  size="sm"
+                />
+                <Text variant="label">{botName}</Text>
+              </View>
+              <Card>
+                {section.data.map((rule, index) => (
+                  <View key={rule.id}>
+                    {index > 0 && <Separator inset={space(4)} />}
+                    <View style={styles.row} testID="approval-rule">
+                      <View style={{ flex: 1, gap: space(1) }}>
+                        <Text variant="caption" muted>
+                          {KIND[rule.kind]}
                         </Text>
+                        {rule.kind !== "file_change" && (
+                          <Text variant={rule.kind === "command" ? "mono" : "label"} selectable>
+                            {rule.kind === "account_write"
+                              ? (accountTool(rule.pattern)?.label ?? rule.pattern)
+                              : rule.pattern}
+                          </Text>
+                        )}
+                      </View>
+                      {removing === rule.id ? (
+                        <View style={styles.remove}>
+                          <ActivityIndicator size="small" color={colors.mutedForeground} />
+                        </View>
+                      ) : (
+                        <Pressable
+                          onPress={() => remove(rule, section.bot?.name ?? "This teammate")}
+                          android_ripple={{ color: colors.muted, borderless: true, radius: 22 }}
+                          style={styles.remove}
+                          accessibilityRole="button"
+                          accessibilityLabel="Remove"
+                          testID="remove-rule"
+                        >
+                          <X size={18} color={colors.mutedForeground} />
+                        </Pressable>
                       )}
                     </View>
-                    {removing === rule.id ? (
-                      <View style={styles.remove}>
-                        <ActivityIndicator size="small" color={colors.mutedForeground} />
-                      </View>
-                    ) : (
-                      <Pressable
-                        onPress={() => remove(rule, section.bot?.name ?? "This teammate")}
-                        android_ripple={{ color: colors.muted, borderless: true, radius: 22 }}
-                        style={styles.remove}
-                        accessibilityRole="button"
-                        accessibilityLabel="Remove"
-                        testID="remove-rule"
-                      >
-                        <X size={18} color={colors.mutedForeground} />
-                      </Pressable>
-                    )}
                   </View>
-                </View>
-              ))}
-            </Card>
-          </View>
-        );
-      })}
-    </ScrollView>
+                ))}
+              </Card>
+            </View>
+          );
+        })}
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: space(4), gap: space(6), paddingBottom: space(8) },
+  content: { padding: space(4), gap: space(6) },
   intro: { paddingHorizontal: space(1) },
   head: {
     flexDirection: "row",

@@ -38,9 +38,17 @@ import { chatSubtitle, chatTitle } from "@/lib/chats";
 import { haptics } from "@/lib/haptics";
 import { chatHref } from "@/lib/links";
 import { pageHref } from "@/lib/pages";
-import { useChats, useHome, useNewDirectChat, usePages, useTeammates } from "@/lib/queries";
+import {
+  useChats,
+  useComputerOffline,
+  useHome,
+  useNewDirectChat,
+  usePages,
+  useTeammates,
+} from "@/lib/queries";
 import { queryKeys } from "@/lib/query";
 import { ago } from "@/lib/time";
+import { useSafeBottom } from "@/lib/use-safe-bottom";
 import { fonts, radius, space, useColors } from "@/theme";
 
 const PAGES: { title: string; href: Href; icon: LucideIcon; keywords: string }[] = [
@@ -125,6 +133,7 @@ function Highlight({ text, query }: { text: string; query: string }) {
 /** A teammate's face for what's theirs, your initial for what you said, an icon for the rest. */
 function Leading({ row, you }: { row: Row; you: string }) {
   const colors = useColors();
+  const computerOffline = useComputerOffline();
   if (row.kind === "chat" && row.members && row.members.length > 1)
     return <GroupAvatar members={row.members} size="md" />;
   if (row.kind === "made")
@@ -141,7 +150,7 @@ function Leading({ row, you }: { row: Row; you: string }) {
         color={bot.color}
         emoji={bot.emoji}
         size="md"
-        activity={row.kind === "bot" ? botActivity(bot) : "idle"}
+        activity={row.kind === "bot" ? botActivity(bot, computerOffline) : "idle"}
       />
     );
   if (row.kind === "message")
@@ -212,6 +221,7 @@ function useDebounced<T>(value: T, ms: number): T {
 
 /** Find a teammate, a chat, a page, or something said, like the web's command menu. */
 export default function Search() {
+  const bottom = useSafeBottom();
   const colors = useColors();
   const [text, setText] = useState("");
   const [scope, setScope] = useState<Scope>("all");
@@ -450,12 +460,12 @@ export default function Search() {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         stickySectionHeadersEnabled={false}
-        contentContainerStyle={{ flexGrow: 1, paddingBottom: space(8) }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: bottom }}
         renderSectionHeader={({ section }) =>
           // One kind of thing needs no heading saying which.
           scope === "all" ? (
-            <Text variant="caption" muted style={styles.section} accessibilityRole="header">
-              {section.title.toUpperCase()}
+            <Text variant="overline" muted style={styles.section} accessibilityRole="header">
+              {section.title}
             </Text>
           ) : null
         }
@@ -557,8 +567,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   section: {
-    letterSpacing: 0.6,
-    fontWeight: "500",
     paddingHorizontal: space(4),
     paddingTop: space(4),
     paddingBottom: space(1),

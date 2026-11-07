@@ -64,7 +64,8 @@ test("watch a page: the first look, checking now, a failing page, and deleting",
     await expect(page.getByText("No change", { exact: true })).toBeVisible();
 
     // Point it at a page that doesn't exist: the failure shows on the row.
-    await row.getByRole("button", { name: "Edit" }).click();
+    await row.getByRole("button", { name: /^More actions/ }).click();
+    await page.getByRole("menuitem", { name: "Edit" }).click();
     await expect(page.getByRole("textbox", { name: "Page", exact: true })).toHaveValue(shop.url);
     await page.getByRole("textbox", { name: "Page", exact: true }).fill(`${shop.base}/gone`);
     await page.getByRole("button", { name: "Save changes" }).click();
@@ -74,7 +75,8 @@ test("watch a page: the first look, checking now, a failing page, and deleting",
     await expect(row).toContainText("Tell me it's back in stock.");
     await expect(row).toContainText("The page hasn't changed yet.");
 
-    await row.getByRole("button", { name: "Delete" }).click();
+    await row.getByRole("button", { name: /^More actions/ }).click();
+    await page.getByRole("menuitem", { name: "Delete" }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();
     await expect(row).toHaveCount(0);
   } finally {
@@ -108,13 +110,14 @@ test("a webhook gets a private URL that can be replaced and paused", async ({ pa
   // The old URL stops working.
   expect((await page.request.post(first, { data: { hello: "world" } })).status()).toBe(404);
 
-  await row.getByRole("switch", { name: "Pause" }).click();
-  await expect(row).toContainText("paused");
+  await row.getByRole("switch", { name: "On", exact: true }).click();
+  await expect(row.getByTestId("automation-state")).toHaveText("Off");
   const paused = await page.request.post(second, { data: { hello: "world" } });
   expect(paused.status()).toBe(409);
   expect(await paused.json()).toEqual({ error: "This webhook is paused" });
 
-  await row.getByRole("button", { name: "Delete" }).click();
+  await row.getByRole("button", { name: /^More actions/ }).click();
+  await page.getByRole("menuitem", { name: "Delete" }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();
   await expect(row).toHaveCount(0);
   expect((await page.request.post(second, { data: {} })).status()).toBe(404);

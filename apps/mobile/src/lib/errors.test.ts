@@ -1,6 +1,6 @@
 import { createApiClient } from "@open-bot/api";
 import { describe, expect, it } from "vitest";
-import { errorMessage, FileError, isGone, isRetryable, isUnauthorized } from "./errors";
+import { errorMessage, FileError, isGone, isNotFound, isRetryable, isUnauthorized } from "./errors";
 
 /** What the real client throws when the server answers with `response`. */
 async function failure(response: () => Response): Promise<unknown> {
@@ -39,6 +39,24 @@ describe("call errors", () => {
     expect(errorMessage(error)).toBe("That chat no longer exists.");
     expect(isRetryable(error)).toBe(false);
     expect(isGone(error)).toBe(true);
+    expect(isNotFound(error)).toBe(true);
+  });
+
+  it("reads a link whose id was turned down as not found, not as worth retrying", async () => {
+    const error = await failure(() =>
+      json(400, {
+        json: {
+          defined: false,
+          code: "BAD_REQUEST",
+          status: 400,
+          message: "Input validation failed",
+        },
+      }),
+    );
+    expect(isNotFound(error)).toBe(true);
+    expect(isRetryable(error)).toBe(false);
+    const offline = new TypeError("Network request failed");
+    expect(isNotFound(offline)).toBe(false);
   });
 
   it("spots a lost session", async () => {

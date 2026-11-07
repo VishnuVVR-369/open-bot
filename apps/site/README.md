@@ -97,12 +97,16 @@ Everything runs on free Cloudflare URLs: the stream on an `r2.dev` address and t
 The site deploys as a Worker that only serves static files, configured in `wrangler.jsonc`.
 Create a Worker connected to the GitHub repository (**Workers & Pages → Create → Import a repository**) with these settings:
 
-| Setting                              | Value                                          |
-| ------------------------------------ | ---------------------------------------------- |
-| Root directory                       | `/`                                            |
-| Build command                        | `pnpm --filter @open-bot/site build`           |
-| Deploy command                       | `npx wrangler deploy --cwd apps/site`          |
-| Non-production branch deploy command | `npx wrangler versions upload --cwd apps/site` |
+| Setting                              | Value                                  |
+| ------------------------------------ | -------------------------------------- |
+| Root directory                       | `/`                                    |
+| Build command                        | `pnpm --filter @open-bot/site build`   |
+| Deploy command                       | `npx wrangler deploy --cwd apps/site`  |
+| Non-production branch deploy command | `npx wrangler preview --cwd apps/site` |
+
+`wrangler preview` requires the top-level `"previews": {}` block in `wrangler.jsonc`.
+Static assets and compatibility settings stay at the top level.
+Keep `--cwd apps/site` in both deploy commands so Wrangler finds the site's configuration from the repository root.
 
 Under **Settings → Build → Variables and secrets**, add these build variables:
 

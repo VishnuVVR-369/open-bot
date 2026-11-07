@@ -21,21 +21,22 @@ test("turn a teammate's daily check-in on and off", async ({ page }) => {
   await expect(toggle).toHaveAttribute("aria-checked", "true");
   const row = page.getByTestId("schedule").filter({ hasText: "Daily check-in" });
   await expect(row).toContainText("Every day at 9:00 AM");
-  await expect(row).toContainText("only news");
+  await expect(row).toContainText("tells you only if something changed");
 
-  // Off pauses it; on again resumes the same one.
+  // Off stops it; on again resumes the same one.
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-checked", "false");
-  await expect(row).toContainText("paused");
+  await expect(row.getByTestId("automation-state")).toHaveText("Off");
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-checked", "true");
   await expect(page.getByTestId("schedule")).toHaveCount(1);
-  await expect(row).not.toContainText("paused");
+  await expect(row.getByTestId("automation-state")).toHaveCount(0);
 
   // The schedule's own settings say it only speaks up for news.
-  await row.getByRole("button", { name: "Edit" }).click();
+  await row.getByRole("button", { name: /^More actions/ }).click();
+  await page.getByRole("menuitem", { name: "Edit" }).click();
   await expect(
-    page.getByRole("dialog").getByRole("switch", { name: "Only tell me when there's news" }),
+    page.getByRole("dialog").getByRole("switch", { name: "Only tell me if something changed" }),
   ).toHaveAttribute("aria-checked", "true");
 });
 
@@ -54,10 +55,10 @@ test("@agent a quiet routine stays quiet until there's news", async ({ page }) =
   await dialog
     .getByLabel("What to do")
     .fill("This is a test check, and today there is nothing the user needs to know.");
-  await dialog.getByRole("switch", { name: "Only tell me when there's news" }).click();
+  await dialog.getByRole("switch", { name: "Only tell me if something changed" }).click();
   await dialog.getByRole("button", { name: "Schedule", exact: true }).click();
   const row = page.getByTestId("schedule").filter({ hasText: title });
-  await expect(row).toContainText("only news");
+  await expect(row).toContainText("tells you only if something changed");
 
   // Nothing to report: one quiet line in the Scheduled chat, and no notification.
   await row.getByRole("button", { name: "Run now" }).click();
@@ -75,7 +76,8 @@ test("@agent a quiet routine stays quiet until there's news", async ({ page }) =
 
   // News: a full reply, and a notification.
   await page.goto(`/bots/${botId}?tab=automations`);
-  await row.getByRole("button", { name: "Edit" }).click();
+  await row.getByRole("button", { name: /^More actions/ }).click();
+  await page.getByRole("menuitem", { name: "Edit" }).click();
   await dialog
     .getByLabel("What to do")
     .fill("This is a test check. Today the user needs to know one thing: the word MANGO.");

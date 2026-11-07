@@ -1,5 +1,6 @@
 import type {
   ActivityItem,
+  ApprovalView,
   BotSummary,
   BriefingItem,
   ChatSummary,
@@ -13,21 +14,40 @@ import {
   CalendarClock,
   CalendarDays,
   ChevronRight,
-  Crown,
+  CloudOff,
   Eye,
   Hand,
   History,
   Mail,
+  Monitor,
   ShieldAlert,
   Sparkles,
   Users,
   Webhook,
   X,
 } from "lucide-react-native";
-import { useCallback, useMemo, useState, type ReactNode } from "react";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
-import { BotAvatar, botActivity, GroupAvatar } from "@/components/bot-avatar";
-import { ConnectionNotice } from "@/components/connection-notice";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  View,
+  useColorScheme,
+} from "react-native";
+import {
+  activityColor,
+  activityText,
+  BotAvatar,
+  botActivity,
+  LeadBadge,
+  needsYouText,
+  StatusLine,
+  type BotActivity,
+} from "@/components/bot-avatar";
+import { ComputerOfflineNotice, ConnectionNotice } from "@/components/connection-notice";
+import { ApprovalRow } from "@/components/approval-row";
+import { Separator } from "@/components/list-row";
 import { Card, Section } from "@/components/section";
 import { Empty, LoadError, Loading } from "@/components/states";
 import { Text } from "@/components/text";
@@ -36,7 +56,16 @@ import { animateLayout } from "@/lib/motion";
 import { usePresence } from "@/lib/presence";
 import { PageMenu, PageRow } from "@/components/page-row";
 import { sortPages } from "@/lib/pages";
-import { useChats, useHome, useNewDirectChat, usePages, useTeammates } from "@/lib/queries";
+import {
+  useApprovals,
+  useChats,
+  useComputerOffline,
+  useHome,
+  useNewDirectChat,
+  usePages,
+  useTeammates,
+} from "@/lib/queries";
+import { takePasswordResetRequest } from "@/lib/password";
 import { phoneDayClock } from "@/lib/phone-clock";
 import { screenHref } from "@/lib/screens";
 import { ago } from "@/lib/time";
@@ -65,11 +94,21 @@ const chatHref = (chatId: string, runId?: string | null): Href =>
 /** How many recent turns from groups and automations Home shows. */
 const RECENT = 4;
 
-/** The line under the greeting: what's going on, in a few words. */
-function statusLine(home: Home, bots: BotSummary[]): string {
-  const needs = home.pendingApprovals + home.takeoverRequests.length;
-  const working = bots.filter((bot) => botActivity(bot) === "working");
+/**
+ * The line under the greeting: what's going on, in a few words. While the computer is offline
+ * nobody is working, so it never says they are (the notice under it says why).
+ */
+function statusLine(
+  home: Home,
+  bots: BotSummary[],
+  computerOffline = false,
+  approvals = home.pendingApprovals,
+): string {
+  // What you can act on in the app, the same things the section under it lists one by one.
+  const needs = approvals + home.takeoverRequests.length;
   if (needs > 0) return `${plural(needs, "thing")} ${needs === 1 ? "needs" : "need"} you.`;
+  if (computerOffline) return "Nothing needs you. Work picks up when the computer is back.";
+  const working = bots.filter((bot) => botActivity(bot) === "working");
   if (working.length === 1) return `${working[0]!.name} is working on something.`;
   if (working.length > 1) return `${plural(working.length, "teammate")} are working right now.`;
   return "All quiet. Your teammates are ready when you are.";
@@ -90,6 +129,7 @@ function Callout({
   testID?: string;
 }) {
   const colors = useColors();
+  const dark = useColorScheme() === "dark";
   return (
     <Pressable
       onPress={() => {
@@ -101,16 +141,17 @@ function Callout({
       style={[
         styles.callout,
         {
-          borderColor: mix(colors.attention, colors.surface, 0.5),
-          backgroundColor: mix(colors.attention, colors.surface, 0.09),
+          borderColor: mix(colors.attention, colors.surface, dark ? 0.28 : 0.42),
+          backgroundColor: mix(colors.attention, colors.surface, dark ? 0.06 : 0.08),
         },
       ]}
       testID={testID}
     >
       {leading}
       <View style={{ flex: 1, gap: 2 }}>{children}</View>
-      <View style={[styles.calloutAction, { backgroundColor: colors.attention }]}>
-        <Text variant="small" style={{ color: "#1A1200", fontWeight: "600" }}>
+      {/* The card already says "needs you"; the action itself stays ink, like every button. */}
+      <View style={[styles.calloutAction, { backgroundColor: colors.primary }]}>
+        <Text variant="small" style={{ color: colors.primaryForeground, fontWeight: "600" }}>
           {action}
         </Text>
       </View>
@@ -118,24 +159,90 @@ function Callout({
   );
 }
 
-function NeedsYou({ home, bots }: { home: Home; bots: BotSummary[] }) {
+/**
+ * What needs you, each thing on its own: every approval as a row (strongest, as you can decide it
+ * right here), then takeovers, then suggestions you review on the computer, which aren't counted.
+ */
+function NeedsYou({
+  home,
+  approvals,
+  bots,
+  computerOffline,
+}: {
+  home: Home;
+  /** Pending approvals, or null until they've loaded (Home's count stands in until then). */
+  approvals: ApprovalView[] | null;
+  bots: BotSummary[];
+  computerOffline: boolean;
+}) {
   const colors = useColors();
   const proposals = home.proposals.flatMap((proposal) => {
     const bot = bots.find((entry) => entry.id === proposal.botId);
     return bot ? [{ ...proposal, bot }] : [];
   });
-  // Who is waiting on an approval, from the teammates' live state.
-  const asking = bots.filter(
-    (bot) => bot.activeRun?.status === "waiting" && bot.activeRun.waitingFor === "approval",
-  );
-  if (home.pendingApprovals === 0 && home.takeoverRequests.length === 0 && proposals.length === 0)
-    return null;
+  const approvalCount = approvals?.length ?? home.pendingApprovals;
+  const needs = approvalCount + home.takeoverRequests.length;
+  if (needs === 0 && proposals.length === 0) return null;
+  const pendingFill = mix(colors.attention, colors.surface, 0.07);
   return (
-    <Section title="Needs you">
-      <View style={{ gap: space(2) }}>
+    <Section title={needs > 0 ? "Needs you" : "Suggestions"}>
+      <View style={{ gap: space(3) }}>
+        {approvals && approvals.length > 0 ? (
+          <View
+            style={[
+              styles.approvals,
+              {
+                backgroundColor: pendingFill,
+                borderColor: mix(colors.attention, colors.surface, 0.45),
+              },
+            ]}
+            testID="pending-approvals"
+          >
+            {approvals.map((approval, index) => (
+              <View key={approval.id}>
+                {index > 0 && <Separator />}
+                <ApprovalRow
+                  approval={approval}
+                  bot={bots.find((bot) => bot.id === approval.botId)}
+                  meta={ago(approval.createdAt)}
+                  behind={pendingFill}
+                  short
+                />
+              </View>
+            ))}
+          </View>
+        ) : approvalCount > 0 ? (
+          // The list hasn't loaded: the count, with a way to the full list.
+          <Callout
+            leading={
+              <View
+                style={[
+                  styles.mark,
+                  { backgroundColor: mix(colors.attention, colors.surface, 0.22) },
+                ]}
+              >
+                <ShieldAlert size={20} color={colors.attentionInk} />
+              </View>
+            }
+            onPress={() => router.navigate("/approvals")}
+            action="Review"
+            testID="pending-approvals"
+          >
+            <Text variant="label">
+              {approvalCount === 1
+                ? "1 action needs your approval"
+                : `${approvalCount} actions need your approval`}
+            </Text>
+          </Callout>
+        ) : null}
         {home.takeoverRequests.map((request) => {
           const bot = bots.find((entry) => entry.id === request.botId);
-          return (
+          const open = () => router.push(screenHref(request.screenId, request.id));
+          // The screen can't be driven while the computer is away: a lighter card, after what
+          // you can decide now, that only says when you can.
+          return computerOffline ? (
+            <TakeoverLater key={request.id} request={request} bot={bot} onOpen={open} />
+          ) : (
             <Callout
               key={request.id}
               leading={
@@ -145,71 +252,111 @@ function NeedsYou({ home, bots }: { home: Home; bots: BotSummary[] }) {
                   <Hand size={20} color={colors.attentionInk} />
                 )
               }
-              onPress={() => router.push(screenHref(request.screenId, request.id))}
+              onPress={open}
               action="Open"
               testID="takeover-request"
             >
-              <Text variant="label">{request.botName} needs you to take over</Text>
-              <Text variant="small" muted numberOfLines={2}>
-                {request.reason}
+              <Text variant="label">
+                {request.botName} {needsYouText("takeover").toLowerCase()}
               </Text>
+              {request.reason ? (
+                <Text variant="small" muted numberOfLines={2} style={styles.calloutBody}>
+                  {request.reason}
+                </Text>
+              ) : null}
             </Callout>
           );
         })}
-        {home.pendingApprovals > 0 && (
-          <Callout
-            leading={
-              asking.length === 1 ? (
-                <BotAvatar {...asking[0]!} size="md" />
-              ) : asking.length > 1 ? (
-                <GroupAvatar
-                  members={asking}
-                  size="md"
-                  ring={mix(colors.attention, colors.surface, 0.09)}
-                />
-              ) : (
-                <View
-                  style={[
-                    styles.mark,
-                    { backgroundColor: mix(colors.attention, colors.surface, 0.22) },
-                  ]}
-                >
-                  <ShieldAlert size={20} color={colors.attentionInk} />
-                </View>
-              )
-            }
-            onPress={() => router.navigate("/approvals")}
-            action="Review"
-            testID="pending-approvals"
-          >
-            <Text variant="label">
-              {home.pendingApprovals === 1
-                ? "1 action waiting for your OK"
-                : `${home.pendingApprovals} actions waiting for your OK`}
-            </Text>
-            {asking.length > 0 && (
-              <Text variant="small" muted numberOfLines={1}>
-                From {asking.map((bot) => bot.name).join(", ")}
-              </Text>
-            )}
-          </Callout>
-        )}
         {proposals.map((proposal) => (
           <View
             key={proposal.id}
-            style={[styles.note, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            style={[
+              styles.suggestion,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+            accessible
+            accessibilityLabel={`Suggestion: ${proposal.bot.name} suggests new instructions. Review them in open-bot on your computer.`}
+            testID="proposal"
           >
-            <Sparkles size={18} color={colors.mutedForeground} />
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text variant="label">{proposal.bot.name} suggests new instructions</Text>
-              <Text variant="small" muted>
-                Review them in open-bot on a computer.
+            <View style={[styles.suggestionIcon, { backgroundColor: colors.subtle }]}>
+              <Sparkles size={16} color={colors.foreground} />
+            </View>
+            <View style={{ flex: 1, gap: 1 }}>
+              <Text variant="label" numberOfLines={1} style={{ fontSize: 15 }}>
+                {proposal.bot.name} suggests new instructions
               </Text>
+              <View style={styles.noteTag}>
+                <Monitor size={12} color={colors.mutedForeground} />
+                <Text variant="caption" muted numberOfLines={1}>
+                  Suggestion · review it on your computer
+                </Text>
+              </View>
             </View>
           </View>
         ))}
       </View>
     </Section>
+  );
+}
+
+/**
+ * A takeover while the computer is offline: who needs you and why on one line each, when you
+ * can act, and a small way to read the request.
+ */
+function TakeoverLater({
+  request,
+  bot,
+  onOpen,
+}: {
+  request: Home["takeoverRequests"][number];
+  bot: BotSummary | undefined;
+  onOpen: () => void;
+}) {
+  const colors = useColors();
+  return (
+    <View
+      style={[styles.later, { backgroundColor: colors.surface, borderColor: colors.border }]}
+      testID="takeover-request"
+    >
+      <View style={styles.laterHead}>
+        {bot ? (
+          <BotAvatar {...bot} size="md" activity="waiting" />
+        ) : (
+          <Hand size={20} color={colors.attentionInk} />
+        )}
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text variant="label" numberOfLines={1}>
+            {request.botName} {needsYouText("takeover").toLowerCase()}
+          </Text>
+          {request.reason ? (
+            <Text variant="small" muted numberOfLines={1}>
+              {request.reason}
+            </Text>
+          ) : null}
+        </View>
+      </View>
+      <View style={styles.laterFoot}>
+        <View style={[styles.noteTag, { flex: 1 }]}>
+          <CloudOff size={13} color={colors.mutedForeground} />
+          <Text variant="caption" muted numberOfLines={1} testID="takeover-later">
+            When the computer is back
+          </Text>
+        </View>
+        <Pressable
+          onPress={() => {
+            haptics.tap();
+            onOpen();
+          }}
+          accessibilityRole="button"
+          android_ripple={{ color: colors.muted }}
+          style={[styles.small, { borderColor: colors.input, backgroundColor: colors.surface }]}
+        >
+          <Text variant="small" style={{ fontWeight: "600" }}>
+            View request
+          </Text>
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -362,34 +509,27 @@ function latestChat(bot: BotSummary, chats: ChatSummary[]): ChatSummary | undefi
   );
 }
 
-/** One teammate: their face and state, and the last thing said between you. */
+/**
+ * One teammate: their face, name and job, and their status from the fixed list (the same words as
+ * the web and the Computer tab). When you last talked is on the right.
+ */
 function TeammateRow({
   bot,
   chat,
   first,
+  computerOffline,
   onPress,
 }: {
   bot: BotSummary;
   chat: ChatSummary | undefined;
   first: boolean;
+  computerOffline: boolean;
   onPress: () => void;
 }) {
   const colors = useColors();
-  const activity = botActivity(bot);
+  const activity = botActivity(bot, computerOffline);
   const unread = Boolean(chat?.unread);
-  const state =
-    activity === "waiting"
-      ? bot.activeRun?.waitingFor === "takeover"
-        ? "Needs you to take over"
-        : "Waiting for your OK"
-      : activity === "working"
-        ? "Working on it…"
-        : activity === "queued"
-          ? "Up next"
-          : null;
-  const preview = chat?.preview
-    ? `${chat.preview.botId ? "" : "You: "}${chat.preview.text}`
-    : `Say hi to ${bot.name}, your ${bot.role}.`;
+  const state = activityText(activity, bot.activeRun?.waitingFor);
   return (
     <Pressable
       onPress={onPress}
@@ -403,8 +543,8 @@ function TeammateRow({
         bot.name,
         bot.isPrimary ? "lead" : null,
         state,
+        bot.role,
         unread ? "unread" : null,
-        preview,
       ]
         .filter(Boolean)
         .join(", ")}
@@ -425,7 +565,7 @@ function TeammateRow({
           >
             {bot.name}
           </Text>
-          {bot.isPrimary && <Crown size={13} color={colors.mutedForeground} />}
+          {bot.isPrimary && <LeadBadge />}
           <Text variant="small" muted numberOfLines={1} style={{ flexShrink: 1 }}>
             {bot.role}
           </Text>
@@ -440,29 +580,9 @@ function TeammateRow({
           )}
         </View>
         <View style={styles.previewRow}>
-          {state ? (
-            <Text
-              variant="small"
-              numberOfLines={1}
-              style={{
-                flex: 1,
-                fontSize: 14,
-                fontWeight: "500",
-                color: activity === "waiting" ? colors.attentionInk : colors.working,
-              }}
-            >
-              {state}
-            </Text>
-          ) : (
-            <Text
-              variant="small"
-              numberOfLines={2}
-              muted={!unread}
-              style={{ flex: 1, fontSize: 14, lineHeight: 19 }}
-            >
-              {plainText(preview)}
-            </Text>
-          )}
+          <View style={{ flex: 1 }}>
+            <StatusLine activity={activity} waitingFor={bot.activeRun?.waitingFor} />
+          </View>
           {unread && <View style={[styles.unread, { backgroundColor: colors.foreground }]} />}
         </View>
       </View>
@@ -470,7 +590,15 @@ function TeammateRow({
   );
 }
 
-function Teammates({ bots, chats }: { bots: BotSummary[]; chats: ChatSummary[] }) {
+function Teammates({
+  bots,
+  chats,
+  computerOffline,
+}: {
+  bots: BotSummary[];
+  chats: ChatSummary[];
+  computerOffline: boolean;
+}) {
   const newChat = useNewDirectChat();
   const open = (bot: BotSummary) => {
     haptics.tap();
@@ -479,7 +607,7 @@ function Teammates({ bots, chats }: { bots: BotSummary[]; chats: ChatSummary[] }
     else newChat.mutate(bot.id);
   };
   // Who needs you first, then who's working, then everyone by their latest conversation.
-  const rank = { waiting: 0, working: 1, queued: 2, idle: 3 } as const;
+  const rank = { waiting: 0, working: 1, paused: 1, queued: 2, idle: 3 } as const;
   const sorted = [...bots].sort((a, b) => {
     const byState = rank[botActivity(a)] - rank[botActivity(b)];
     if (byState) return byState;
@@ -495,6 +623,7 @@ function Teammates({ bots, chats }: { bots: BotSummary[]; chats: ChatSummary[] }
             bot={bot}
             chat={latestChat(bot, chats)}
             first={index === 0}
+            computerOffline={computerOffline}
             onPress={() => open(bot)}
           />
         ))}
@@ -507,13 +636,18 @@ function ActivityRow({
   item,
   bot,
   first,
+  computerOffline,
 }: {
   item: ActivityItem;
   bot?: BotSummary;
   first: boolean;
+  computerOffline: boolean;
 }) {
   const colors = useColors();
   const active = isRunActive(item.status);
+  // A run that is still going reads like its teammate does: needs you, working, or paused.
+  const activity: BotActivity =
+    item.status === "waiting" ? "waiting" : computerOffline ? "paused" : "working";
   const Icon =
     item.chatKind === "group"
       ? Users
@@ -566,14 +700,11 @@ function ActivityRow({
           </Text>
         </View>
         {active ? (
-          <Text
-            variant="small"
-            style={{
-              fontSize: 14,
-              color: item.status === "waiting" ? colors.attentionInk : colors.working,
-            }}
-          >
-            {item.status === "waiting" ? "Waiting for you" : "Working on it…"}
+          <Text variant="small" style={{ fontSize: 14, color: activityColor(activity, colors) }}>
+            {activityText(
+              activity,
+              bot?.activeRun?.id === item.runId ? bot.activeRun.waitingFor : null,
+            )}
           </Text>
         ) : (
           <Text
@@ -607,7 +738,7 @@ function Pages({ pages, bots }: { pages: PageSummary[]; bots: BotSummary[] }) {
       title="Pages"
       action={
         <Pressable
-          onPress={() => router.push("/pages")}
+          onPress={() => router.navigate("/pages")}
           accessibilityRole="button"
           hitSlop={12}
           style={styles.seeAll}
@@ -627,7 +758,7 @@ function Pages({ pages, bots }: { pages: PageSummary[]; bots: BotSummary[] }) {
             page={page}
             bot={bots.find((bot) => bot.id === page.botId)}
             first={index === 0}
-            onLongPress={() => setMenuFor(page)}
+            onMenu={() => setMenuFor(page)}
           />
         ))}
       </Card>
@@ -642,13 +773,29 @@ export default function HomeScreen() {
   const teammates = useTeammates();
   const chats = useChats();
   const pages = usePages();
+  const computerOffline = useComputerOffline();
+  const approvals = useApprovals();
+  const pending = useMemo(
+    () => approvals.data?.filter((approval) => approval.status === "pending") ?? null,
+    [approvals.data],
+  );
   const { awaySince } = usePresence();
+  // Signed in with a passkey from "Forgot password?": straight on to setting a new one.
+  useEffect(() => {
+    if (takePasswordResetRequest()) router.push("/settings?password=new");
+  }, []);
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([home.refetch(), teammates.refetch(), chats.refetch(), pages.refetch()]);
+    await Promise.all([
+      home.refetch(),
+      teammates.refetch(),
+      chats.refetch(),
+      pages.refetch(),
+      approvals.refetch(),
+    ]);
     setRefreshing(false);
-  }, [home, teammates, chats, pages]);
+  }, [home, teammates, chats, pages, approvals]);
   // Direct chats already show on the roster; this is what happened elsewhere.
   const recent = useMemo(
     () => (home.data?.activity ?? []).filter((item) => item.chatKind !== "direct").slice(0, RECENT),
@@ -684,15 +831,18 @@ export default function HomeScreen() {
       testID="home"
     >
       <ConnectionNotice />
-      <View style={{ gap: space(1) }}>
-        <Text variant="title" style={{ fontSize: 30, lineHeight: 36 }}>
-          {greeting(data.user.name)}
-        </Text>
-        <Text muted style={{ fontSize: 16, lineHeight: 22 }}>
-          {statusLine(data, bots)}
-        </Text>
+      <View style={styles.greeting}>
+        <View style={{ gap: space(1) }}>
+          <Text variant="title" style={{ fontSize: 30, lineHeight: 36 }}>
+            {greeting(data.user.name)}
+          </Text>
+          <Text muted style={{ fontSize: 16, lineHeight: 22 }} testID="home-status">
+            {statusLine(data, bots, computerOffline, pending?.length)}
+          </Text>
+        </View>
+        <ComputerOfflineNotice />
       </View>
-      <NeedsYou home={data} bots={bots} />
+      <NeedsYou home={data} approvals={pending} bots={bots} computerOffline={computerOffline} />
       {awaySince && <Briefing items={data.briefing} bots={bots} since={awaySince} />}
       {bots.length === 0 ? (
         <Empty
@@ -702,7 +852,7 @@ export default function HomeScreen() {
         />
       ) : (
         <>
-          <Teammates bots={bots} chats={chats.data ?? []} />
+          <Teammates bots={bots} chats={chats.data ?? []} computerOffline={computerOffline} />
           <Pages pages={pages.data ?? []} bots={bots} />
           {recent.length > 0 && (
             <Section
@@ -728,6 +878,7 @@ export default function HomeScreen() {
                     item={item}
                     bot={bots.find((bot) => bot.id === item.botId)}
                     first={index === 0}
+                    computerOffline={computerOffline}
                   />
                 ))}
               </Card>
@@ -740,7 +891,7 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: space(4), paddingTop: space(1), gap: space(7), paddingBottom: space(10) },
+  content: { padding: space(4), paddingTop: space(1), gap: space(7), paddingBottom: space(8) },
   callout: {
     flexDirection: "row",
     alignItems: "center",
@@ -758,14 +909,44 @@ const styles = StyleSheet.create({
     minHeight: 36,
     justifyContent: "center",
   },
-  note: {
+  calloutBody: { fontSize: 14, lineHeight: 19 },
+  approvals: { borderWidth: 1, borderRadius: radius.xl, overflow: "hidden" },
+  later: { borderWidth: 1, borderRadius: radius.xl, padding: space(4), gap: space(3) },
+  laterHead: { flexDirection: "row", alignItems: "center", gap: space(3) },
+  // Under the words, past the avatar.
+  laterFoot: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space(3),
+    paddingLeft: 36 + space(3),
+  },
+  small: {
+    minHeight: 32,
+    paddingHorizontal: space(3),
+    borderRadius: radius.full,
+    borderWidth: 1,
+    justifyContent: "center",
+  },
+  suggestion: {
     flexDirection: "row",
     alignItems: "center",
     gap: space(3),
     borderWidth: 1,
     borderRadius: radius.xl,
-    padding: space(3.5),
+    paddingHorizontal: space(4),
+    paddingVertical: space(2.5),
+    minHeight: 56,
   },
+  suggestionIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  // The greeting sits a little closer to what follows than sections do to each other.
+  greeting: { gap: space(4), marginBottom: -space(1) },
+  noteTag: { flexDirection: "row", alignItems: "center", gap: space(1) },
   briefing: {
     borderWidth: 1,
     borderRadius: radius.xl,
@@ -797,8 +978,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: space(3.5),
     paddingHorizontal: space(4),
-    paddingVertical: space(3.5),
-    minHeight: 80,
+    paddingVertical: space(3),
+    minHeight: 72,
   },
   nameRow: { flexDirection: "row", alignItems: "center", gap: space(1.5) },
   previewRow: { flexDirection: "row", alignItems: "center", gap: space(2) },

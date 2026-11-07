@@ -13,6 +13,9 @@ export const ownerLeaseSchema = z.object({
   lastInputAt: z.string(),
   pausedForSafety: z.boolean().optional(),
 });
+export const screenFrameSchema = z.object({ artifactId: z.string(), at: z.string() });
+export type ScreenFrame = z.infer<typeof screenFrameSchema>;
+
 export const screenViewSchema = z.object({
   id: z.string(),
   bot: botSummarySchema,
@@ -35,5 +38,10 @@ export const screenViewSchema = z.object({
   requests: z.array(
     z.object({ id: z.string(), reason: z.string().nullable(), createdAt: z.string() }),
   ),
+  /**
+   * The last screenshot the teammate took of this screen, to show (dimmed, as "Last seen") while
+   * the computer is offline. Open it at `/api/artifacts/<artifactId>`. Null if there is none.
+   */
+  lastFrame: screenFrameSchema.nullable(),
 });
 export type ScreenView = z.infer<typeof screenViewSchema>;

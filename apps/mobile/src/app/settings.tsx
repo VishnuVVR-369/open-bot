@@ -1,7 +1,8 @@
+import { RECOVERY_COPY } from "@open-bot/shared";
 import { safe } from "@orpc/client";
 import Constants from "expo-constants";
 import * as LocalAuthentication from "expo-local-authentication";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import {
   BellOff,
   BellRing,
@@ -10,8 +11,10 @@ import {
   Globe,
   Info,
   KeyRound,
+  LockKeyhole,
   LogOut,
   Moon,
+  RotateCcwKey,
   Smartphone,
   ShieldCheck,
   Sun,
@@ -20,6 +23,7 @@ import {
 import { useEffect, useState } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
 import { Separator } from "@/components/list-row";
+import { PasswordSheet } from "@/components/password-sheet";
 import { Card, Section } from "@/components/section";
 import { Segmented, SETTINGS_INSET, SettingsRow, SettingsSwitch } from "@/components/settings-row";
 import { Text } from "@/components/text";
@@ -33,6 +37,7 @@ import { setPreference, usePreferences, type Preferences } from "@/lib/preferenc
 import { useApprovalRules } from "@/lib/queries";
 import { signOut } from "@/lib/session";
 import { hasFirebase } from "@/push/firebase";
+import { useSafeBottom } from "@/lib/use-safe-bottom";
 import { fonts, radius, space, useColors } from "@/theme";
 
 const APPEARANCES: {
@@ -58,6 +63,7 @@ function useCanLock(): boolean | null {
 
 /** Your account on this phone, and how the app looks, feels and keeps itself safe. */
 export default function Settings() {
+  const bottom = useSafeBottom();
   const colors = useColors();
   const { data: session } = authClient.useSession();
   const preferences = usePreferences();
@@ -67,6 +73,11 @@ export default function Settings() {
   const [testResult, setTestResult] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [passkeyResult, setPasskeyResult] = useState<string | null>(null);
+  // "?password=new": you just signed in with a passkey from "Forgot password?".
+  const { password } = useLocalSearchParams<{ password?: string }>();
+  const [passwordOpen, setPasswordOpen] = useState<false | "change" | "passkey">(
+    password === "new" ? "change" : false,
+  );
   const name = session?.user.name?.trim() || "You";
   const host = new URL(APP_URL).host;
 
@@ -79,6 +90,20 @@ export default function Settings() {
     setPasskeyResult(
       result.ok ? "Passkey added. Use it the next time you sign in." : result.message,
     );
+  }
+
+  /** Turning the lock off takes your fingerprint, so a phone left open can't switch it off. */
+  async function changeAppLock(value: boolean) {
+    if (!value) {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: "Turn off app lock",
+        cancelLabel: "Cancel",
+        disableDeviceFallback: false,
+      });
+      if (!result.success) return;
+    }
+    haptics.tap();
+    setPreference("appLock", value);
   }
 
   async function sendTest() {
@@ -104,176 +129,200 @@ export default function Settings() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.content}>
-      <Section title="Account">
-        <Card>
-          <View style={styles.account}>
-            <View style={[styles.initial, { backgroundColor: colors.primary }]}>
-              <Text
-                allowFontScaling={false}
-                style={[styles.initialText, { color: colors.primaryForeground }]}
-              >
-                {name[0]!.toUpperCase()}
-              </Text>
-            </View>
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text variant="heading" numberOfLines={1}>
-                {name}
-              </Text>
-              {session?.user.email ? (
-                <Text variant="small" muted numberOfLines={1}>
-                  {session.user.email}
+    <View style={{ flex: 1 }}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottom }]}>
+        <Section title="Account">
+          <Card>
+            <View style={styles.account}>
+              <View style={[styles.initial, { backgroundColor: colors.primary }]}>
+                <Text
+                  allowFontScaling={false}
+                  style={[styles.initialText, { color: colors.primaryForeground }]}
+                >
+                  {name[0]!.toUpperCase()}
                 </Text>
-              ) : null}
+              </View>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text variant="heading" numberOfLines={1}>
+                  {name}
+                </Text>
+                {session?.user.email ? (
+                  <Text variant="small" muted numberOfLines={1}>
+                    {session.user.email}
+                  </Text>
+                ) : null}
+              </View>
             </View>
-          </View>
-        </Card>
-      </Section>
+          </Card>
+        </Section>
 
-      <Section title="Appearance">
-        <Card>
-          <View style={styles.theme}>
-            <Text variant="label">Theme</Text>
-            <Segmented
-              options={APPEARANCES}
-              value={preferences.appearance}
+        <Section title="Appearance">
+          <Card>
+            <View style={styles.theme}>
+              <Text variant="label">Theme</Text>
+              <Segmented
+                options={APPEARANCES}
+                value={preferences.appearance}
+                onChange={(value) => {
+                  haptics.tap();
+                  setPreference("appearance", value);
+                }}
+                testID="appearance"
+              />
+            </View>
+          </Card>
+        </Section>
+
+        <Section title="Feedback">
+          <Card>
+            <SettingsSwitch
+              icon={(color) => <Vibrate size={18} color={color} />}
+              title="Haptics"
+              subtitle="A light touch when you tap, approve or deny"
+              value={preferences.haptics}
               onChange={(value) => {
+                setPreference("haptics", value);
+                // Feel it right away when it's turned on.
                 haptics.tap();
-                setPreference("appearance", value);
               }}
-              testID="appearance"
+              testID="haptics"
             />
-          </View>
-          <Separator inset={space(4)} />
-          <SettingsSwitch
-            icon={(color) => <Vibrate size={18} color={color} />}
-            title="Haptics"
-            subtitle="A light touch when you tap, approve or deny"
-            value={preferences.haptics}
-            onChange={(value) => {
-              setPreference("haptics", value);
-              // Feel it right away when it's turned on.
-              haptics.tap();
-            }}
-            testID="haptics"
-          />
-        </Card>
-      </Section>
+          </Card>
+        </Section>
 
-      <Section title="Notifications">
-        <Card>
-          {hasFirebase ? (
-            <SettingsRow
-              icon={(color) => <BellRing size={18} color={color} />}
-              title="Send a test notification"
+        <Section title="Notifications">
+          <Card>
+            {hasFirebase ? (
+              <SettingsRow
+                icon={(color) => <BellRing size={18} color={color} />}
+                title="Send a test notification"
+                subtitle={
+                  testResult ?? "Approvals and replies come to this phone, even when it's closed"
+                }
+                busy={testing}
+                onPress={() => void sendTest()}
+                testID="test-notification"
+              />
+            ) : (
+              <SettingsRow
+                icon={(color) => <BellOff size={18} color={color} />}
+                title="Phone alerts"
+                subtitle="Phone alerts aren't available in this build yet. Approvals and replies show here and in the bell."
+                testID="test-notification"
+              />
+            )}
+          </Card>
+        </Section>
+
+        <Section title="Security">
+          <Card>
+            <SettingsSwitch
+              icon={(color) => <Fingerprint size={18} color={color} />}
+              title="App lock"
               subtitle={
-                testResult ?? "Approvals and replies come to this phone, even when it's closed"
+                canLock === false
+                  ? "Set up a screen lock on this phone to lock open-bot"
+                  : "Asks for your fingerprint when you open open-bot, and after 5 minutes away"
               }
-              busy={testing}
-              onPress={() => void sendTest()}
-              testID="test-notification"
+              value={canLock !== false && preferences.appLock}
+              disabled={canLock !== true}
+              onChange={(value) => void changeAppLock(value)}
+              testID="app-lock"
             />
-          ) : (
+            <Separator inset={SETTINGS_INSET} />
             <SettingsRow
-              icon={(color) => <BellOff size={18} color={color} />}
-              title="Send a test notification"
-              subtitle="Notifications aren't available in this build. Approvals and replies still show up in the app."
-              disabled
-              testID="test-notification"
+              icon={(color) => <LockKeyhole size={18} color={color} />}
+              title="Change password"
+              subtitle="Signs out your other devices"
+              onPress={() => setPasswordOpen("change")}
+              aside={<ChevronRight size={18} color={colors.mutedForeground} />}
+              testID="change-password"
             />
-          )}
-        </Card>
-      </Section>
+            <Separator inset={SETTINGS_INSET} />
+            {/* The short way back in when the password is forgotten, right beside changing it. */}
+            <SettingsRow
+              icon={(color) => <RotateCcwKey size={18} color={color} />}
+              title={RECOVERY_COPY.resetAction}
+              subtitle={RECOVERY_COPY.settingsForgot}
+              onPress={() => setPasswordOpen("passkey")}
+              aside={<ChevronRight size={18} color={colors.mutedForeground} />}
+              testID="reset-with-passkey"
+            />
+            <Separator inset={SETTINGS_INSET} />
+            <SettingsRow
+              icon={(color) => <KeyRound size={18} color={color} />}
+              title="Add a passkey"
+              subtitle={
+                passkeyResult ??
+                "Sign in with your fingerprint instead of your password, here or on the web"
+              }
+              busy={adding}
+              onPress={() => void add()}
+              aside={<ChevronRight size={18} color={colors.mutedForeground} />}
+              testID="add-passkey"
+            />
+            <Separator inset={SETTINGS_INSET} />
+            <SettingsRow
+              icon={(color) => <ShieldCheck size={18} color={color} />}
+              title="Always allowed"
+              subtitle={
+                rules?.length
+                  ? `${rules.length} ${rules.length === 1 ? "rule" : "rules"} teammates don't ask about`
+                  : "What teammates may do without asking"
+              }
+              onPress={() => router.push("/approval-rules")}
+              aside={<ChevronRight size={18} color={colors.mutedForeground} />}
+              testID="settings-approval-rules"
+            />
+          </Card>
+        </Section>
 
-      <Section title="Security">
-        <Card>
-          <SettingsRow
-            icon={(color) => <Fingerprint size={18} color={color} />}
-            title="App lock"
-            subtitle={
-              canLock === false
-                ? "Set up a screen lock on this phone to lock open-bot"
-                : "Asks for your fingerprint when you open open-bot, and after 5 minutes away"
-            }
-            aside={
-              canLock === null ? null : (
-                <Text variant="small" muted>
-                  {canLock ? "On" : "Off"}
+        <Section title="About">
+          <Card>
+            <SettingsRow
+              icon={(color) => <Info size={18} color={color} />}
+              title="Version"
+              aside={
+                <Text variant="small" muted selectable>
+                  {Constants.expoConfig?.version ?? "Unknown"}
+                  {__DEV__ ? " (dev)" : ""}
                 </Text>
-              )
-            }
-            accessibilityLabel={`App lock, ${canLock ? "on" : "off"}`}
-            testID="app-lock"
-          />
-          <Separator inset={SETTINGS_INSET} />
-          <SettingsRow
-            icon={(color) => <KeyRound size={18} color={color} />}
-            title="Add a passkey"
-            subtitle={
-              passkeyResult ??
-              "Sign in with your fingerprint instead of your password, here or on the web"
-            }
-            busy={adding}
-            onPress={() => void add()}
-            aside={<ChevronRight size={18} color={colors.mutedForeground} />}
-            testID="add-passkey"
-          />
-          <Separator inset={SETTINGS_INSET} />
-          <SettingsRow
-            icon={(color) => <ShieldCheck size={18} color={color} />}
-            title="Always allowed"
-            subtitle={
-              rules?.length
-                ? `${rules.length} ${rules.length === 1 ? "rule" : "rules"} teammates don't ask about`
-                : "What teammates may do without asking"
-            }
-            onPress={() => router.push("/approval-rules")}
-            aside={<ChevronRight size={18} color={colors.mutedForeground} />}
-            testID="settings-approval-rules"
-          />
-        </Card>
-      </Section>
+              }
+            />
+            <Separator inset={SETTINGS_INSET} />
+            <SettingsRow
+              icon={(color) => <Globe size={18} color={color} />}
+              title="Server"
+              aside={
+                <Text variant="small" muted numberOfLines={1} selectable style={styles.value}>
+                  {host}
+                </Text>
+              }
+            />
+          </Card>
+        </Section>
 
-      <Section title="About">
         <Card>
           <SettingsRow
-            icon={(color) => <Info size={18} color={color} />}
-            title="Version"
-            aside={
-              <Text variant="small" muted selectable>
-                {Constants.expoConfig?.version ?? "Unknown"}
-                {__DEV__ ? " (dev)" : ""}
-              </Text>
-            }
-          />
-          <Separator inset={SETTINGS_INSET} />
-          <SettingsRow
-            icon={(color) => <Globe size={18} color={color} />}
-            title="Server"
-            aside={
-              <Text variant="small" muted numberOfLines={1} selectable style={styles.value}>
-                {host}
-              </Text>
-            }
+            icon={(color) => <LogOut size={18} color={color} />}
+            title="Sign out"
+            destructive
+            onPress={confirmSignOut}
+            testID="sign-out"
           />
         </Card>
-      </Section>
-
-      <Card>
-        <SettingsRow
-          icon={(color) => <LogOut size={18} color={color} />}
-          title="Sign out"
-          destructive
-          onPress={confirmSignOut}
-          testID="sign-out"
-        />
-      </Card>
-    </ScrollView>
+      </ScrollView>
+      <PasswordSheet
+        open={passwordOpen !== false}
+        viaPasskey={passwordOpen === "passkey"}
+        onClose={() => setPasswordOpen(false)}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: space(4), gap: space(6), paddingBottom: space(10) },
+  content: { padding: space(4), gap: space(6) },
   account: {
     flexDirection: "row",
     alignItems: "center",

@@ -4,10 +4,12 @@ import {
   eventChangeLabel,
   eventTime,
   previewNote,
+  previewText,
   type AccountActionPreview,
 } from "@open-bot/shared";
 import {
   CalendarDays,
+  ChevronDown,
   ExternalLink,
   Mail,
   MapPin,
@@ -15,7 +17,7 @@ import {
   TriangleAlert,
   Users,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 /** The icon an approval for this action shows. */
@@ -35,19 +37,71 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 
 function Note({ children }: { children: ReactNode }) {
   return (
-    <p className="flex items-start gap-1.5 text-[12.5px] text-manual-ink">
+    <p className="flex items-start gap-1.5 text-[12.5px] text-attention-ink">
       <TriangleAlert className="mt-0.5 size-3 shrink-0" />
       {children}
     </p>
   );
 }
 
+/** Whether the email's body is cut in its preview, so there's more to read before approving. */
+export function emailIsClamped(preview: AccountActionPreview | null | undefined): boolean {
+  return preview?.type === "email" && previewText(preview.body).cut;
+}
+
+/**
+ * An email's body, cut to its first few lines so the decision stays in view. When the approval
+ * controls it (`open`), its primary action reads the rest and only "Show less" shows here;
+ * otherwise a "Show full email" button does.
+ */
+function EmailBody({
+  body,
+  open: controlled,
+  onOpenChange,
+}: {
+  body: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
+  const [own, setOwn] = useState(false);
+  const open = controlled ?? own;
+  const setOpen = onOpenChange ?? setOwn;
+  const preview = previewText(body);
+  const showToggle = preview.cut && (controlled === undefined || open);
+  return (
+    <div className="flex flex-col items-start gap-1.5 border-t pt-2.5">
+      <div
+        className="w-full font-sans text-[13px] leading-relaxed break-words whitespace-pre-wrap text-foreground/90"
+        data-testid="email-body"
+      >
+        {(open ? body.trim() : preview.text) || "(empty)"}
+      </div>
+      {showToggle && (
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          aria-expanded={open}
+          className="inline-flex items-center gap-1 rounded-md text-[12.5px] font-medium text-foreground/80 underline-offset-[3px] outline-none hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/12"
+        >
+          {open ? "Show less" : "Show full email"}
+          <ChevronDown className={cn("size-3.5 transition-transform", open && "rotate-180")} />
+        </button>
+      )}
+    </div>
+  );
+}
+
 /** Exactly what an action on one of your accounts will do, for its approval. */
 export function ActionPreview({
   preview,
+  emailOpen,
+  onEmailOpenChange,
   className,
 }: {
   preview: AccountActionPreview;
+  /** Whether an email's whole body shows, when the approval around it decides. */
+  emailOpen?: boolean;
+  onEmailOpenChange?: (open: boolean) => void;
   className?: string;
 }) {
   const box = cn(
@@ -72,9 +126,7 @@ export function ActionPreview({
             A reply in “{preview.inReplyTo}”
           </span>
         )}
-        <pre className="max-h-64 overflow-auto border-t pt-2.5 font-sans text-[13px] leading-relaxed whitespace-pre-wrap text-foreground/90">
-          {preview.body || "(empty)"}
-        </pre>
+        <EmailBody body={preview.body} open={emailOpen} onOpenChange={onEmailOpenChange} />
       </div>
     );
 

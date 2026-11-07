@@ -1,19 +1,40 @@
 import "server-only";
-import type { ApiInputs, ApiOutputs, ScreenView } from "@open-bot/api";
-import { desktopTakeovers } from "@open-bot/db";
-import { inArray } from "drizzle-orm";
+import type { ApiInputs, ApiOutputs, ScreenFrame, ScreenView } from "@open-bot/api";
+import { artifacts, desktopTakeovers, runs } from "@open-bot/db";
+import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "../db";
 import { listBots, workerStatus } from "../queries";
 import { worker } from "../worker";
 
+/**
+ * Each screen's last frame: the newest screenshot its teammate took, by screen (a teammate's
+ * screen has their id). Only the ids and times are read, never the images.
+ */
+export async function lastScreenFrames(): Promise<Record<string, ScreenFrame>> {
+  const rows = await db
+    .selectDistinctOn([runs.botId], {
+      screenId: runs.botId,
+      artifactId: artifacts.id,
+      at: artifacts.createdAt,
+    })
+    .from(artifacts)
+    .innerJoin(runs, eq(runs.id, artifacts.runId))
+    .where(eq(artifacts.kind, "screenshot"))
+    .orderBy(runs.botId, desc(artifacts.createdAt));
+  return Object.fromEntries(
+    rows.map((row) => [row.screenId, { artifactId: row.artifactId, at: row.at.toISOString() }]),
+  );
+}
+
 export async function listScreens(): Promise<ScreenView[]> {
-  const [bots, status, requests] = await Promise.all([
+  const [bots, status, requests, frames] = await Promise.all([
     listBots(),
     workerStatus(),
     db
       .select()
       .from(desktopTakeovers)
       .where(inArray(desktopTakeovers.status, ["requested", "active"])),
+    lastScreenFrames(),
   ]);
   return bots.map((bot) => {
     const screen = status?.computer.health?.screens.find((s) => s.id === bot.id);
@@ -27,6 +48,7 @@ export async function listScreens(): Promise<ScreenView[]> {
       requests: requests
         .filter((r) => r.screenId === bot.id)
         .map((r) => ({ id: r.id, reason: r.reason, createdAt: r.createdAt.toISOString() })),
+      lastFrame: frames[bot.id] ?? null,
     };
   });
 }

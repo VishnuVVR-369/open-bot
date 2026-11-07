@@ -412,14 +412,19 @@ export const runEvents = pgTable(
   ],
 );
 
-export const artifacts = pgTable("artifacts", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  runId: uuid("run_id").references(() => runs.id, { onDelete: "cascade" }),
-  kind: text("kind").$type<"screenshot" | "upload">().notNull(),
-  mime: text("mime").notNull(),
-  bytes: bytea("bytes").notNull(),
-  createdAt: createdAt(),
-});
+export const artifacts = pgTable(
+  "artifacts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    runId: uuid("run_id").references(() => runs.id, { onDelete: "cascade" }),
+    kind: text("kind").$type<"screenshot" | "upload">().notNull(),
+    mime: text("mime").notNull(),
+    bytes: bytea("bytes").notNull(),
+    createdAt: createdAt(),
+  },
+  // A run's screenshots, newest first: each screen's last frame, and deleting a run.
+  (table) => [index("artifacts_run_idx").on(table.runId, table.createdAt)],
+);
 
 /* ---------------------------------------------------------------- Pages */
 

@@ -104,7 +104,6 @@ function App() {
               <Stack.Screen name="search" options={{ title: "Search", animation: "fade" }} />
               <Stack.Screen name="file" options={{ title: "" }} />
               <Stack.Screen name="approval-rules" options={{ title: "Always allowed" }} />
-              <Stack.Screen name="pages/index" options={{ title: "Pages" }} />
               <Stack.Screen name="pages/[pageId]" options={{ title: "" }} />
               <Stack.Screen name="share" options={{ title: "Share with a teammate" }} />
             </Stack.Protected>

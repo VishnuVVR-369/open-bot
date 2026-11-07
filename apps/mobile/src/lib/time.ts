@@ -45,10 +45,19 @@ export function ago(iso: string, now = Date.now()): string {
  * "Active yesterday", "Active Mon", "Active 12 Oct".
  */
 export function lastActive(iso: string, now = Date.now()): string {
+  return since("Active", iso, now);
+}
+
+/** When a screen was last captured: "Last seen 4h ago", "Last seen yesterday". */
+export function lastSeen(iso: string, now = Date.now()): string {
+  return since("Last seen", iso, now);
+}
+
+function since(lead: string, iso: string, now: number): string {
   const when = ago(iso, now);
-  if (when === "now") return "Active just now";
-  if (/^\d+[mh]$/.test(when)) return `Active ${when} ago`;
-  return `Active ${when === "Yesterday" ? "yesterday" : when}`;
+  if (when === "now") return `${lead} just now`;
+  if (/^\d+[mh]$/.test(when)) return `${lead} ${when} ago`;
+  return `${lead} ${when === "Yesterday" ? "yesterday" : when}`;
 }
 
 /** 42s, 3m 05s */

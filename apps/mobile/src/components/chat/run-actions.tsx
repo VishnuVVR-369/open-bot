@@ -190,139 +190,147 @@ export function RunActions({
     then?.();
   };
 
+  const visible = showRow || Boolean(problem) || Boolean(note);
   return (
-    <View style={{ gap: space(1) }}>
-      {showRow && (
-        <View style={styles.row} testID="run-actions">
+    <>
+      {visible && (
+        <View style={{ gap: space(1) }}>
+          {showRow && (
+            <View style={styles.row} testID="run-actions">
+              {reply ? (
+                <>
+                  <IconButton
+                    icon={copied ? Check : Copy}
+                    label={copied ? "Copied" : "Copy reply"}
+                    onPress={() => void copy()}
+                    testID="copy-reply"
+                  />
+                  <IconButton
+                    icon={reading ? Square : Volume2}
+                    label={reading ? "Stop reading" : "Read aloud"}
+                    active={reading}
+                    filled={reading}
+                    onPress={toggleReading}
+                    testID="read-aloud"
+                  />
+                </>
+              ) : null}
+              {completed && (
+                <>
+                  <IconButton
+                    icon={ThumbsUp}
+                    label="Good reply"
+                    active={rating === "up"}
+                    filled={rating === "up"}
+                    onPress={rateUp}
+                    testID="rate-up"
+                  />
+                  <IconButton
+                    icon={ThumbsDown}
+                    label="Bad reply"
+                    active={rating === "down"}
+                    filled={rating === "down"}
+                    onPress={rateDown}
+                    testID="rate-down"
+                  />
+                </>
+              )}
+              <IconButton
+                icon={Ellipsis}
+                label="More"
+                onPress={() => onMenuChange(true)}
+                testID="reply-more"
+              />
+            </View>
+          )}
+          {problem && (
+            <Text variant="small" style={{ color: colors.destructive }}>
+              {problem}
+            </Text>
+          )}
+          {note && (
+            <Text variant="small" muted testID="feedback-saved">
+              {note}
+            </Text>
+          )}
+        </View>
+      )}
+      {/* The sheets open in their own window; out of the layout, they add no space to the turn. */}
+      <View style={styles.sheets}>
+        <Sheet
+          open={menuOpen}
+          onClose={() => onMenuChange(false)}
+          title={`${botName}'s reply`}
+          description={[phoneDayClock(run.createdAt), usage].filter(Boolean).join(" · ")}
+          testID="reply-menu"
+        >
           {reply ? (
             <>
-              <IconButton
-                icon={copied ? Check : Copy}
-                label={copied ? "Copied" : "Copy reply"}
-                onPress={() => void copy()}
-                testID="copy-reply"
+              <SheetItem
+                icon={<Copy size={20} color={colors.foreground} />}
+                label="Copy"
+                onPress={() => close(() => void copy())}
               />
-              <IconButton
-                icon={reading ? Square : Volume2}
+              <SheetItem
+                icon={
+                  reading ? (
+                    <Square size={20} color={colors.foreground} />
+                  ) : (
+                    <Volume2 size={20} color={colors.foreground} />
+                  )
+                }
                 label={reading ? "Stop reading" : "Read aloud"}
-                active={reading}
-                filled={reading}
-                onPress={toggleReading}
-                testID="read-aloud"
+                onPress={() => close(toggleReading)}
               />
             </>
           ) : null}
           {completed && (
             <>
-              <IconButton
-                icon={ThumbsUp}
-                label="Good reply"
-                active={rating === "up"}
-                filled={rating === "up"}
-                onPress={rateUp}
-                testID="rate-up"
+              <SheetItem
+                icon={
+                  <ThumbsUp
+                    size={20}
+                    color={colors.foreground}
+                    fill={rating === "up" ? colors.foreground : "transparent"}
+                  />
+                }
+                label={rating === "up" ? "Rated good" : "Good reply"}
+                onPress={() => close(rateUp)}
               />
-              <IconButton
-                icon={ThumbsDown}
-                label="Bad reply"
-                active={rating === "down"}
-                filled={rating === "down"}
-                onPress={rateDown}
-                testID="rate-down"
+              <SheetItem
+                icon={
+                  <ThumbsDown
+                    size={20}
+                    color={colors.foreground}
+                    fill={rating === "down" ? colors.foreground : "transparent"}
+                  />
+                }
+                label={rating === "down" ? "Rated bad" : "Bad reply, tell them why"}
+                onPress={() => close(rateDown)}
               />
             </>
           )}
-          <IconButton
-            icon={Ellipsis}
-            label="More"
-            onPress={() => onMenuChange(true)}
-            testID="reply-more"
-          />
-        </View>
-      )}
-      {problem && (
-        <Text variant="small" style={{ color: colors.destructive }}>
-          {problem}
-        </Text>
-      )}
-      {note && (
-        <Text variant="small" muted testID="feedback-saved">
-          {note}
-        </Text>
-      )}
-      <Sheet
-        open={menuOpen}
-        onClose={() => onMenuChange(false)}
-        title={`${botName}'s reply`}
-        description={[phoneDayClock(run.createdAt), usage].filter(Boolean).join(" · ")}
-        testID="reply-menu"
-      >
-        {reply ? (
-          <>
-            <SheetItem
-              icon={<Copy size={20} color={colors.foreground} />}
-              label="Copy"
-              onPress={() => close(() => void copy())}
-            />
-            <SheetItem
-              icon={
-                reading ? (
-                  <Square size={20} color={colors.foreground} />
-                ) : (
-                  <Volume2 size={20} color={colors.foreground} />
-                )
-              }
-              label={reading ? "Stop reading" : "Read aloud"}
-              onPress={() => close(toggleReading)}
-            />
-          </>
-        ) : null}
-        {completed && (
-          <>
-            <SheetItem
-              icon={
-                <ThumbsUp
-                  size={20}
-                  color={colors.foreground}
-                  fill={rating === "up" ? colors.foreground : "transparent"}
-                />
-              }
-              label={rating === "up" ? "Rated good" : "Good reply"}
-              onPress={() => close(rateUp)}
-            />
-            <SheetItem
-              icon={
-                <ThumbsDown
-                  size={20}
-                  color={colors.foreground}
-                  fill={rating === "down" ? colors.foreground : "transparent"}
-                />
-              }
-              label={rating === "down" ? "Rated bad" : "Bad reply, tell them why"}
-              onPress={() => close(rateDown)}
-            />
-          </>
-        )}
-        {usage && (
-          <Text variant="caption" muted style={styles.usage} testID="run-usage">
-            {usage}
-          </Text>
-        )}
-      </Sheet>
-      <FeedbackSheet
-        open={feedbackOpen}
-        onClose={() => setFeedbackOpen(false)}
-        runId={run.id}
-        botName={botName}
-        onSent={(remembered) => {
-          void refresh();
-          if (remembered) {
-            setNote(`${botName} will remember that before every task.`);
-            setTimeout(() => setNote(null), 5000);
-          }
-        }}
-      />
-    </View>
+          {usage && (
+            <Text variant="caption" muted style={styles.usage} testID="run-usage">
+              {usage}
+            </Text>
+          )}
+        </Sheet>
+        <FeedbackSheet
+          open={feedbackOpen}
+          onClose={() => setFeedbackOpen(false)}
+          runId={run.id}
+          botName={botName}
+          onSent={(remembered) => {
+            void refresh();
+            if (remembered) {
+              setNote(`${botName} will remember that before every task.`);
+              setTimeout(() => setNote(null), 5000);
+            }
+          }}
+        />
+      </View>
+    </>
   );
 }
 
@@ -438,6 +446,7 @@ function FeedbackSheet({
 }
 
 const styles = StyleSheet.create({
+  sheets: { position: "absolute", width: 0, height: 0 },
   row: { flexDirection: "row", alignItems: "center", marginLeft: -space(3), minHeight: 44 },
   icon: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   usage: { paddingHorizontal: space(5), paddingTop: space(2), fontVariant: ["tabular-nums"] },

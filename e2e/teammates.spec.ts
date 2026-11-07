@@ -11,7 +11,7 @@ test("create, edit and archive a teammate", async ({ page }) => {
   await expect(page.getByRole("heading", { name: new RegExp(name) })).toBeVisible();
   await page.getByLabel("Job").fill("release manager");
   await page.getByRole("button", { name: "Save changes" }).click();
-  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("save-bar")).toContainText("Saved");
 
   await page.getByRole("tab", { name: "Memory" }).click();
   await expect(page.getByTestId("memory-manager")).toBeVisible();
@@ -96,7 +96,9 @@ test("start from a template with starter automations", async ({ page }) => {
   await expect(schedules.filter({ hasText: "Plan my week" })).toHaveCount(1);
   await expect(schedules.filter({ hasText: "Weekly retro" })).toHaveCount(1);
   // The check-in only speaks up when there's news.
-  await expect(schedules.filter({ hasText: "Daily check-in" })).toContainText("only news");
+  await expect(schedules.filter({ hasText: "Daily check-in" })).toContainText(
+    "tells you only if something changed",
+  );
   await expect(
     page.getByTestId("check-in").getByRole("switch", { name: "Daily check-in" }),
   ).toHaveAttribute("aria-checked", "true");
@@ -151,13 +153,15 @@ test("export a teammate to a file and import it as a new one", async ({ page }) 
   });
   await page.waitForURL(/\/chats\//);
   await expect(page.getByText(`${copy} joined the team`)).toBeVisible();
-  await expect(page.getByText("Their 4 automations are paused.", { exact: false })).toBeVisible();
+  await expect(page.getByText("Their 4 automations are off.", { exact: false })).toBeVisible();
 
   await page.goto(`/bots/${await botIdOf(page, copy)}?tab=automations`);
   const schedules = page.getByTestId("schedule");
   await expect(schedules).toHaveCount(4);
-  await expect(schedules.first()).toContainText("paused");
-  await expect(schedules.filter({ hasText: "Daily check-in" })).toContainText("only news");
+  await expect(schedules.first().getByTestId("automation-state")).toHaveText("Off");
+  await expect(schedules.filter({ hasText: "Daily check-in" })).toContainText(
+    "tells you only if something changed",
+  );
 
   // A file that isn't a teammate says so.
   await page.goto("/bots/new");

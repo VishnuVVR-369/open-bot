@@ -30,7 +30,7 @@ test("plan work on the task board", async ({ page }) => {
     const todo = page.getByTestId("column-todo");
     const flights = todo.getByTestId("task").filter({ hasText: `Book flights ${marker}` });
     await expect(flights).toContainText(owner);
-    await expect(flights).toContainText("15 Jan 2030");
+    await expect(flights).toContainText("Jan 15, 2030");
 
     // Quick add, then drag it to Doing.
     await todo.getByRole("button", { name: "Add a task" }).click();

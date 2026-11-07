@@ -103,12 +103,16 @@ test("@agent read a reply aloud", async ({ page }) => {
 
   const run = page.getByTestId("run").last();
   await run.hover();
-  await run.getByRole("button", { name: "Read aloud" }).click();
+  // Reading aloud is in the reply's More menu; while it reads, a stop button stays in the row.
+  await run.getByRole("button", { name: "More actions" }).click();
+  await page.getByRole("menuitem", { name: "Read aloud" }).click();
   await expect(run.getByRole("button", { name: "Stop reading" })).toBeVisible();
   const said = await page.evaluate(() => (window as unknown as { said: string[] }).said);
   expect(said.at(-1)).toMatch(/First line\.? Second line/);
 
   await page.evaluate(() => (window as unknown as { finishSpeaking: () => void }).finishSpeaking());
+  await expect(run.getByRole("button", { name: "Stop reading" })).toHaveCount(0);
   await run.hover();
-  await expect(run.getByRole("button", { name: "Read aloud" })).toBeVisible();
+  await run.getByRole("button", { name: "More actions" }).click();
+  await expect(page.getByRole("menuitem", { name: "Read aloud" })).toBeVisible();
 });

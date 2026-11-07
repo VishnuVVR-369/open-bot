@@ -1,11 +1,12 @@
 "use client";
 
-import { formatDistanceToNowStrict } from "date-fns";
+import { relativeTime } from "@open-bot/shared";
 import { useEffect, useState } from "react";
 
 /**
- * "3 minutes ago", kept current. The server and the browser render it a moment apart, so the
- * first paint may differ by a second; that's expected rather than a hydration error.
+ * "4h ago", kept current, in the short form the phone app uses too. The server and the browser
+ * render it a moment apart, so the first paint may differ; that's expected rather than a
+ * hydration error. Hovering shows the exact time.
  */
 export function TimeAgo({ date, className }: { date: string; className?: string }) {
   const [, tick] = useState(0);
@@ -14,8 +15,13 @@ export function TimeAgo({ date, className }: { date: string; className?: string 
     return () => clearInterval(timer);
   }, []);
   return (
-    <time dateTime={date} className={className} suppressHydrationWarning>
-      {formatDistanceToNowStrict(new Date(date), { addSuffix: true })}
+    <time
+      dateTime={date}
+      title={new Date(date).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}
+      className={className}
+      suppressHydrationWarning
+    >
+      {relativeTime(date)}
     </time>
   );
 }

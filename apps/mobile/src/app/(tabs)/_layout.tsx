@@ -1,9 +1,11 @@
 import { Tabs } from "expo-router";
-import { House, MessagesSquare, Monitor, ShieldCheck } from "lucide-react-native";
+import { FileText, House, MessagesSquare, Monitor, ShieldCheck } from "lucide-react-native";
+import { StyleSheet, View } from "react-native";
+import { AppMark } from "@/components/app-mark";
 import { HeaderActions } from "@/components/header-actions";
 import { haptics } from "@/lib/haptics";
 import { useApprovals, useChats } from "@/lib/queries";
-import { fonts, useColors } from "@/theme";
+import { fonts, space, useColors } from "@/theme";
 
 export default function TabsLayout() {
   const colors = useColors();
@@ -25,7 +27,13 @@ export default function TabsLayout() {
         headerTintColor: colors.foreground,
         headerShadowVisible: false,
         sceneStyle: { backgroundColor: colors.background },
-        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
+        // A hairline above the bar, so rows scrolling under it end on a line, not a hard cut.
+        tabBarStyle: {
+          backgroundColor: colors.surface,
+          borderTopColor: colors.border,
+          borderTopWidth: StyleSheet.hairlineWidth * 2,
+          elevation: 0,
+        },
         tabBarActiveTintColor: colors.foreground,
         tabBarInactiveTintColor: colors.mutedForeground,
         tabBarLabelStyle: { fontFamily: fonts.sans, fontSize: 12, fontWeight: "500" },
@@ -36,8 +44,13 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: "Home",
-          // The greeting is the page's title; the bar only holds the actions.
+          // The greeting is the page's title; the bar holds the app's mark and the actions.
           headerTitle: "",
+          headerLeft: () => (
+            <View style={{ marginLeft: space(4) }}>
+              <AppMark size={30} />
+            </View>
+          ),
           headerRight: () => <HeaderActions profile />,
           tabBarIcon: ({ color, size, focused }) => (
             <House color={color} size={size - 2} strokeWidth={focused ? 2.4 : 2} />
@@ -53,10 +66,11 @@ export default function TabsLayout() {
             <MessagesSquare color={color} size={size - 2} strokeWidth={focused ? 2.4 : 2} />
           ),
           tabBarBadge: unread > 0 ? unread : undefined,
+          // Unread is news, not a request: a neutral count. Amber is only for what needs you.
           tabBarBadgeStyle: {
             ...badgeStyle,
-            color: colors.primaryForeground,
-            backgroundColor: colors.primary,
+            color: colors.surface,
+            backgroundColor: colors.mutedForeground,
           },
           tabBarAccessibilityLabel: unread > 0 ? `Chats, ${unread} unread` : "Chats",
           tabBarButtonTestID: "tab-chats",
@@ -71,8 +85,19 @@ export default function TabsLayout() {
           ),
           tabBarBadge: pending > 0 ? pending : undefined,
           tabBarBadgeStyle: { ...badgeStyle, color: "#1A1200", backgroundColor: colors.attention },
-          tabBarAccessibilityLabel: pending > 0 ? `Approvals, ${pending} waiting` : "Approvals",
+          tabBarAccessibilityLabel:
+            pending > 0 ? `Approvals, ${pending} need your approval` : "Approvals",
           tabBarButtonTestID: "tab-approvals",
+        }}
+      />
+      <Tabs.Screen
+        name="pages"
+        options={{
+          title: "Pages",
+          tabBarIcon: ({ color, size, focused }) => (
+            <FileText color={color} size={size - 2} strokeWidth={focused ? 2.4 : 2} />
+          ),
+          tabBarButtonTestID: "tab-pages",
         }}
       />
       <Tabs.Screen

@@ -35,7 +35,7 @@ export function ChatList({
           New chat with {botName}
         </Button>
       </div>
-      <div className="divide-y rounded-xl border bg-card">
+      <div className="divide-y divide-border/70 rounded-xl border bg-card">
         {chats.map((chat) => (
           <Link
             key={chat.id}

@@ -5,13 +5,14 @@ import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
 import { ConnectionNotice } from "@/components/connection-notice";
 import { PageMenu, PageRow } from "@/components/page-row";
 import { Empty, LoadError, Loading } from "@/components/states";
-import { Text } from "@/components/text";
 import { sortPages } from "@/lib/pages";
 import { usePages, useTeammates } from "@/lib/queries";
+import { useSafeBottom } from "@/lib/use-safe-bottom";
 import { radius, space, useColors } from "@/theme";
 
-/** Every page teammates have published, pinned first. Hold one to pin or delete it. */
+/** Every page teammates have published, pinned first, as a tab, each with a menu to pin or delete it. */
 export default function PagesScreen() {
+  const bottom = useSafeBottom({ tabs: true });
   const colors = useColors();
   const pages = usePages();
   const teammates = useTeammates();
@@ -35,7 +36,11 @@ export default function PagesScreen() {
         data={sorted}
         keyExtractor={(page) => page.id}
         ListHeaderComponent={<ConnectionNotice />}
-        contentContainerStyle={[styles.content, sorted.length === 0 && { flexGrow: 1 }]}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: bottom },
+          sorted.length === 0 && { flexGrow: 1 },
+        ]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -64,17 +69,10 @@ export default function PagesScreen() {
               page={page}
               bot={bots.find((bot) => bot.id === page.botId)}
               first={index === 0}
-              onLongPress={() => setMenuFor(page)}
+              onMenu={() => setMenuFor(page)}
             />
           </View>
         )}
-        ListFooterComponent={
-          sorted.length > 0 ? (
-            <Text variant="caption" muted style={styles.footer}>
-              Hold a page to pin or delete it.
-            </Text>
-          ) : undefined
-        }
         testID="pages"
       />
       <PageMenu page={menuFor} onClose={() => setMenuFor(null)} />
@@ -83,7 +81,7 @@ export default function PagesScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: space(4), paddingTop: space(2), paddingBottom: space(10) },
+  content: { padding: space(4), paddingTop: space(2) },
   // The list is one card, drawn a row at a time so it stays virtualized.
   cell: { borderLeftWidth: 1, borderRightWidth: 1, overflow: "hidden" },
   firstCell: {
@@ -96,5 +94,4 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: radius.xl,
     borderBottomRightRadius: radius.xl,
   },
-  footer: { textAlign: "center", marginTop: space(4) },
 });

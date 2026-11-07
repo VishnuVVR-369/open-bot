@@ -3,8 +3,11 @@
 import { isRunActive } from "@open-bot/shared";
 import {
   ArrowDown,
+  ArrowRight,
   Archive,
+  CloudOff,
   Copy,
+  Menu,
   RotateCcw,
   Monitor,
   MoreHorizontal,
@@ -20,7 +23,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { BotAvatar } from "@/components/bot-avatar";
-import { ComputerPanel } from "@/components/computer/computer-panel";
+import { useOpenMobileMenu } from "@/components/app/shell";
+import { ComputerPanel, useComputer } from "@/components/computer/computer-panel";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -38,7 +42,7 @@ import { FilePreview } from "@/components/files/file-preview";
 import { archiveChat, markChatRead, newDirectChat } from "@/lib/actions";
 import { useAppState } from "@/lib/client/queries";
 import { fileKind, fileUrl } from "@/lib/files";
-import { botActivity } from "@/lib/status";
+import { chatStatus } from "@/lib/status";
 import type { BotSummary, MessageView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Composer, type ComposerHandle } from "./composer";
@@ -94,7 +98,7 @@ function UserMessage({ message }: { message: MessageView }) {
           ))}
         </div>
       )}
-      <div className="max-w-[85%] rounded-[18px] rounded-br-md bg-foreground px-3.5 py-2 text-[14.5px] leading-relaxed whitespace-pre-wrap text-background">
+      <div className="max-w-[85%] rounded-[18px] rounded-br-[6px] bg-[color-mix(in_oklab,var(--foreground)_6.5%,var(--surface))] px-4 py-2.5 text-[14.5px] leading-relaxed whitespace-pre-wrap text-foreground">
         <MessageText text={message.text} />
       </div>
     </div>
@@ -150,7 +154,7 @@ function EmptyState({
           <button
             key={starter}
             onClick={() => onPick(starter)}
-            className="rounded-xl border bg-card px-4 py-3 text-left text-[13.5px] text-foreground/85 transition-colors hover:border-foreground/25 hover:bg-muted/50"
+            className="rounded-xl bg-card px-4 py-3 text-left text-[13.5px] text-foreground/85 shadow-raised transition-shadow hover:shadow-float"
           >
             {starter}
           </button>
@@ -167,11 +171,17 @@ export function ChatView({ chatId }: { chatId: string }) {
   const composer = useRef<ComposerHandle>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const [atBottom, setAtBottom] = useState(true);
+  // Scrolled away from the top: the header gets a hairline so content doesn't slide under it unmarked.
+  const [scrolled, setScrolled] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [dialog, setDialog] = useState<"rename" | "duplicate" | null>(null);
   const allBots = state?.bots ?? members;
+  const openMenu = useOpenMobileMenu();
+  const { online, state: computerState } = useComputer();
+  // Known offline, not just unknown yet: the panel collapses to a chip in the header.
+  const offline = Boolean(computerState) && !online;
 
   useEffect(() => {
     setPanelOpen(localStorage.getItem(PANEL_KEY) !== "closed");
@@ -188,6 +198,8 @@ export function ChatView({ chatId }: { chatId: string }) {
     }
     return superseded;
   }, [entries]);
+  // The last reply in the chat keeps its actions in view.
+  const lastRunIndex = entries.findLastIndex((entry) => entry.type === "run");
 
   const steered = useMemo(() => {
     const ids = new Set<string>();
@@ -206,6 +218,8 @@ export function ChatView({ chatId }: { chatId: string }) {
     return {
       id: active.id,
       botName: allBots.find((bot) => bot.id === active.botId)?.name ?? "Your teammate",
+      status: active.timeline.status,
+      waitingFor: active.timeline.waitingFor ?? null,
     };
   }, [runs, allBots]);
 
@@ -246,6 +260,7 @@ export function ChatView({ chatId }: { chatId: string }) {
     const element = scroller.current;
     if (!element) return;
     setAtBottom(element.scrollHeight - element.scrollTop - element.clientHeight < 80);
+    setScrolled(element.scrollTop > 4);
   }
 
   if (error) {
@@ -262,6 +277,19 @@ export function ChatView({ chatId }: { chatId: string }) {
 
   const isGroup = chat?.kind === "group";
   const bot = !isGroup ? members[0] : undefined;
+  // This chat's state, not the teammate's: what they wait for elsewhere is a link to there. While
+  // the computer's state is still loading, nothing is shown as paused.
+  const liveBot = bot && (allBots.find((entry) => entry.id === bot.id) ?? bot);
+  const status =
+    liveBot && !isGroup && !helper
+      ? chatStatus({
+          bot: liveBot,
+          chatId,
+          computerOnline: !offline,
+          chatById: (id) => state?.chats.find((entry) => entry.id === id),
+        })
+      : null;
+  const elsewhere = status?.elsewhere ?? null;
   const title = chat
     ? chat.kind === "scheduled"
       ? `${bot?.name ?? ""} · Scheduled`
@@ -269,6 +297,12 @@ export function ChatView({ chatId }: { chatId: string }) {
         ? `${bot?.name ?? ""} · Email`
         : chat.title
     : "";
+
+  async function startNewChat(botId: string) {
+    const result = await newDirectChat(botId);
+    if (result.ok) router.push(`/chats/${result.data.chatId}`);
+    else toast.error(result.error);
+  }
 
   function togglePanel() {
     setPanelOpen((open) => {
@@ -296,7 +330,26 @@ export function ChatView({ chatId }: { chatId: string }) {
           if (event.dataTransfer.files.length) composer.current?.addFiles(event.dataTransfer.files);
         }}
       >
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b px-4">
+        {/* On a phone this is the only bar: it carries the menu button the app bar would have. */}
+        <header
+          className={cn(
+            "relative z-10 flex h-14 shrink-0 items-center gap-2 border-b pr-2 pl-1.5 transition-[border-color,box-shadow] duration-200 sm:gap-3 sm:px-4 lg:pl-4 [&_button[data-variant=ghost]]:text-muted-foreground [&_button[data-variant=ghost]:hover]:text-foreground",
+            scrolled
+              ? "border-border/70 shadow-[0_6px_14px_-10px_rgb(0_0_0/0.18)] dark:shadow-[0_6px_14px_-10px_rgb(0_0_0/0.6)]"
+              : "border-transparent",
+          )}
+        >
+          {openMenu && (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Open menu"
+              className="shrink-0 lg:hidden"
+              onClick={openMenu}
+            >
+              <Menu />
+            </Button>
+          )}
           {loading || !chat ? (
             <Skeleton className="h-6 w-40" />
           ) : (
@@ -312,23 +365,61 @@ export function ChatView({ chatId }: { chatId: string }) {
                     color={bot.color}
                     emoji={bot.emoji}
                     size="sm"
-                    activity={botActivity(bot)}
+                    activity={status?.activity}
                   />
                 )
               )}
-              <div className="flex min-w-0 flex-col">
+              <div
+                className="flex min-w-0 flex-col"
+                title={bot && !isGroup ? `${bot.name}, ${bot.role}` : undefined}
+              >
                 <h1 className="truncate text-[15px] leading-tight font-semibold">{title}</h1>
-                <span className="truncate text-[12.5px] leading-tight text-muted-foreground">
-                  {helper
-                    ? `${bot?.name ?? "A teammate"}'s helper in ${helper.swarmTitle}`
-                    : isGroup
-                      ? members.map((member) => member.name).join(", ")
-                      : chat.kind === "direct" && bot && chat.title !== bot.name
-                        ? // Titled after its topic, so say who it's with.
-                          `${bot.name} · ${bot.role}`
-                        : bot?.role}
+                <span
+                  className="truncate text-[12.5px] leading-tight text-muted-foreground"
+                  data-testid="chat-status"
+                >
+                  {helper ? (
+                    `${bot?.name ?? "A teammate"}'s helper in ${helper.swarmTitle}`
+                  ) : isGroup ? (
+                    members.map((member) => member.name).join(", ")
+                  ) : bot && status ? (
+                    <>
+                      {/* Titled after its topic, so say who it's with. */}
+                      {chat.kind === "direct" && chat.title !== bot.name && `${bot.name} · `}
+                      <span
+                        className={cn(
+                          status.needsYou && "text-attention-ink",
+                          elsewhere && "max-sm:hidden",
+                        )}
+                      >
+                        {status.label}
+                      </span>
+                      {/* On a phone there's no room for the chip: the line links there instead. */}
+                      {elsewhere && (
+                        <Link
+                          href={`/chats/${elsewhere.chatId}`}
+                          className="text-attention-ink underline-offset-2 hover:underline sm:hidden"
+                          aria-label={elsewhere.label}
+                        >
+                          {elsewhere.short} →
+                        </Link>
+                      )}
+                    </>
+                  ) : null}
                 </span>
               </div>
+              {elsewhere && (
+                // What the teammate waits for in another chat, and a way there.
+                <Link
+                  href={`/chats/${elsewhere.chatId}`}
+                  className="flex h-7 min-w-0 shrink items-center gap-1.5 rounded-full bg-attention/[0.1] px-2.5 text-[12.5px] font-medium text-attention-ink transition-colors hover:bg-attention/[0.16] max-sm:hidden"
+                  data-testid="chat-elsewhere"
+                >
+                  <span className="size-1.5 shrink-0 rounded-full bg-attention" />
+                  <span className="truncate">{elsewhere.label}</span>
+                  <ArrowRight className="size-3.5 shrink-0" />
+                </Link>
+              )}
               <span className="flex-1" />
               {!isGroup && bot && chat.kind === "direct" && (
                 <Tooltip>
@@ -337,11 +428,8 @@ export function ChatView({ chatId }: { chatId: string }) {
                       variant="ghost"
                       size="icon"
                       aria-label="New chat"
-                      onClick={async () => {
-                        const result = await newDirectChat(bot.id);
-                        if (result.ok) router.push(`/chats/${result.data.chatId}`);
-                        else toast.error(result.error);
-                      }}
+                      className="max-sm:hidden"
+                      onClick={() => void startNewChat(bot.id)}
                     >
                       <Plus />
                     </Button>
@@ -356,6 +444,16 @@ export function ChatView({ chatId }: { chatId: string }) {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-52">
+                  {/* On a phone, New chat lives here so the title keeps its room. */}
+                  {!isGroup && bot && chat.kind === "direct" && (
+                    <DropdownMenuItem
+                      className="sm:hidden"
+                      onSelect={() => void startNewChat(bot.id)}
+                    >
+                      <Plus />
+                      New chat with {bot.name}
+                    </DropdownMenuItem>
+                  )}
                   {bot && (
                     <DropdownMenuItem asChild>
                       <Link href={`/bots/${bot.id}`}>
@@ -406,31 +504,56 @@ export function ChatView({ chatId }: { chatId: string }) {
                   onOpenChange={(open) => setDialog(open ? "duplicate" : null)}
                 />
               )}
-              <Tooltip>
-                <TooltipTrigger asChild>
+              {offline && !helper ? (
+                // An offline computer has no screen to watch: a chip says so and opens the details.
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => setSheetOpen(true)}
+                      className="flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-border bg-subtle px-2.5 text-[12.5px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      data-testid="computer-offline-chip"
+                    >
+                      <CloudOff className="size-3.5" />
+                      <span className="max-sm:hidden">Computer offline</span>
+                      <span className="sm:hidden">Offline</span>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Work that needs the computer waits until it&apos;s back
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                <>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={panelOpen ? "Hide the computer" : "Show the computer"}
+                        className="hidden xl:inline-flex"
+                        onClick={togglePanel}
+                      >
+                        {panelOpen ? <PanelRightClose /> : <Monitor />}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {panelOpen ? "Hide the computer" : "Show the computer"}
+                    </TooltipContent>
+                  </Tooltip>
+                  {/* On a phone the label would squeeze the chat title, so only the icon shows. */}
                   <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={panelOpen ? "Hide the computer" : "Show the computer"}
-                    className="hidden xl:inline-flex"
-                    onClick={togglePanel}
+                    variant="outline"
+                    size="sm"
+                    aria-label="Computer"
+                    className="max-sm:size-9 max-sm:border-transparent max-sm:bg-transparent max-sm:px-0 max-sm:text-muted-foreground max-sm:shadow-none xl:hidden"
+                    onClick={() => setSheetOpen(true)}
                   >
-                    {panelOpen ? <PanelRightClose /> : <Monitor />}
+                    <Monitor />
+                    <span className="max-sm:sr-only">Computer</span>
                   </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {panelOpen ? "Hide the computer" : "Show the computer"}
-                </TooltipContent>
-              </Tooltip>
-              <Button
-                variant="outline"
-                size="sm"
-                className="xl:hidden"
-                onClick={() => setSheetOpen(true)}
-              >
-                <Monitor />
-                Computer
-              </Button>
+                </>
+              )}
             </>
           )}
         </header>
@@ -459,8 +582,8 @@ export function ChatView({ chatId }: { chatId: string }) {
               onPick={(text) => composer.current?.setDraft(text)}
             />
           ) : (
-            <div className="mx-auto flex w-full max-w-[760px] flex-col gap-7 px-4 py-8 sm:px-6">
-              {entries.map((entry) => {
+            <div className="mx-auto flex w-full max-w-[760px] flex-col gap-8 px-4 py-8 sm:px-6">
+              {entries.map((entry, index) => {
                 if (entry.type === "message") {
                   if (entry.message.steeredRunId || steered.has(entry.message.id)) return null;
                   return <UserMessage key={entry.message.id} message={entry.message} />;
@@ -472,6 +595,7 @@ export function ChatView({ chatId }: { chatId: string }) {
                     run={run}
                     chatId={chatId}
                     superseded={supersededRuns.get(run.id) ?? false}
+                    latest={index === lastRunIndex}
                     bot={allBots.find((b) => b.id === run.botId)}
                     bots={allBots}
                   />
@@ -487,7 +611,7 @@ export function ChatView({ chatId }: { chatId: string }) {
               variant="outline"
               size="icon-sm"
               aria-label="Scroll to the latest"
-              className="absolute -top-11 left-1/2 -translate-x-1/2 rounded-full bg-card shadow-md"
+              className="absolute -top-11 left-1/2 -translate-x-1/2 rounded-full bg-card shadow-float"
               onClick={() =>
                 scroller.current?.scrollTo({
                   top: scroller.current.scrollHeight,
@@ -500,7 +624,7 @@ export function ChatView({ chatId }: { chatId: string }) {
           )}
           <div className="mx-auto w-full max-w-[760px]">
             {chat && helper ? (
-              <p className="mb-4 rounded-xl border bg-subtle/60 px-4 py-3 text-center text-[13px] text-muted-foreground">
+              <p className="mb-4 rounded-xl bg-subtle px-4 py-3 text-center text-[13px] text-muted-foreground">
                 A helper works on its part alone. Its result goes back to{" "}
                 {bot?.name ?? "its teammate"},{" "}
                 <Link
@@ -518,6 +642,7 @@ export function ChatView({ chatId }: { chatId: string }) {
                   chat={chat}
                   members={members}
                   activeRun={activeRun}
+                  computerOnline={!offline}
                   onSent={(message) => {
                     addOptimistic(message);
                     setAtBottom(true);
@@ -538,8 +663,9 @@ export function ChatView({ chatId }: { chatId: string }) {
 
       <aside
         className={cn(
-          "hidden shrink-0 overflow-y-auto border-l bg-background p-5 xl:block",
-          panelOpen ? "w-[clamp(440px,42%,760px)]" : "xl:hidden",
+          "hidden w-[clamp(440px,42%,760px)] shrink-0 overflow-y-auto border-l border-border/70 bg-[color-mix(in_oklab,var(--background)_45%,var(--surface))] p-5 xl:block",
+          // The full panel is for a live screen. Offline, the header's chip stands in for it.
+          (!panelOpen || (offline && !helper)) && "xl:hidden",
         )}
       >
         {helper ? (
@@ -551,7 +677,12 @@ export function ChatView({ chatId }: { chatId: string }) {
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent
           side="right"
-          className="w-full max-w-[640px] overflow-y-auto p-5 sm:max-w-[640px]"
+          className={cn(
+            "w-full overflow-y-auto p-5",
+            offline && !helper
+              ? "max-w-[420px] sm:max-w-[420px]"
+              : "max-w-[640px] sm:max-w-[640px]",
+          )}
         >
           <SheetTitle className="mb-4">Computer</SheetTitle>
           {sheetOpen &&

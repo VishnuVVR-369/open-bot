@@ -11,8 +11,8 @@ export default async function SetupPage() {
   return (
     <>
       <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold">Set up open-bot</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-[28px] leading-tight font-semibold">Set up open-bot</h1>
+        <p className="text-[14.5px] text-muted-foreground">
           Create the owner account. Only the email configured as{" "}
           <code className="font-mono text-[13px]">OWNER_EMAIL</code> can sign up, and only once.
         </p>

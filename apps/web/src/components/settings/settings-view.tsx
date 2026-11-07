@@ -1,11 +1,19 @@
 "use client";
 
-import { EGRESS_OPTIONS, formatDollars, type EgressModeSetting } from "@open-bot/shared";
+import {
+  EGRESS_OPTIONS,
+  formatDollars,
+  relativeTime,
+  type EgressModeSetting,
+} from "@open-bot/shared";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNowStrict } from "date-fns";
 import {
+  Bell,
   BellRing,
+  Brain,
   Check,
+  ChevronRight,
   Copy,
   ExternalLink,
   KeyRound,
@@ -13,11 +21,34 @@ import {
   Loader2,
   Monitor,
   Moon,
+  Plug,
+  ShieldCheck,
   Sun,
+  SunMoon,
+  Trash2,
+  UserRound,
 } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+  useTransition,
+  type ReactNode,
+} from "react";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -40,6 +71,7 @@ import {
   startChatgptLogin,
 } from "@/lib/actions";
 import { authClient } from "@/lib/auth-client";
+import { passkeyLabel } from "@/lib/passkey-name";
 import { getJson } from "@/lib/client/api";
 import { queryKeys, useAppState } from "@/lib/client/queries";
 import type { ModelAccessView, UsageView } from "@/lib/types";
@@ -48,6 +80,8 @@ import { ConnectionsSection } from "@/components/settings/connections-section";
 import { EmailSection } from "@/components/settings/email-section";
 import { PushSection } from "@/components/settings/push-section";
 import { ProfileEditor } from "./profile-editor";
+import { PasswordSection } from "./password-section";
+import { OfflineNote, SectionState } from "./section-state";
 import { TelegramSection } from "./telegram-section";
 
 function Section({
@@ -64,11 +98,13 @@ function Section({
   return (
     <section
       id={id}
-      className="grid scroll-mt-8 gap-5 border-t pt-8 first:border-t-0 first:pt-0 md:grid-cols-[240px_minmax(0,1fr)]"
+      className="flex scroll-mt-8 flex-col gap-4 border-t pt-8 first:border-t-0 first:pt-0"
     >
       <div className="flex flex-col gap-1">
         <h2 className="text-[16px] font-semibold">{title}</h2>
-        {description && <p className="text-[13.5px] text-muted-foreground">{description}</p>}
+        {description && (
+          <p className="max-w-[60ch] text-[13.5px] text-muted-foreground">{description}</p>
+        )}
       </div>
       <div className="flex min-w-0 flex-col gap-4">{children}</div>
     </section>
@@ -97,7 +133,7 @@ function Choice({
       onClick={onSelect}
       className={cn(
         "flex items-start gap-3 rounded-xl border bg-card px-4 py-3 text-left transition-colors hover:bg-muted/40 disabled:opacity-60",
-        checked && "border-foreground/50 bg-muted/40",
+        checked && "border-foreground/60 bg-muted/40",
       )}
     >
       <span
@@ -134,11 +170,11 @@ function Meter({ label, window }: { label: string; window: RateWindow }) {
             ` · resets ${formatDistanceToNowStrict(new Date(window.resetsAt * 1000), { addSuffix: true })}`}
         </span>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-subtle">
+      <div className="h-1.5 overflow-hidden rounded-full bg-foreground/8">
         <div
           className={cn(
             "h-full rounded-full",
-            used > 85 ? "bg-destructive" : used > 60 ? "bg-manual" : "bg-foreground",
+            used >= 100 ? "bg-destructive" : used > 80 ? "bg-attention" : "bg-foreground/45",
           )}
           style={{ width: `${used}%` }}
         />
@@ -180,9 +216,9 @@ function ChatgptSection() {
 
   if (!codex) {
     return (
-      <p className="text-[14px] text-muted-foreground">
-        The worker isn&apos;t running, so the connection can&apos;t be checked.
-      </p>
+      <OfflineNote>
+        Your ChatGPT connection shows here once it&apos;s back. This updates by itself.
+      </OfflineNote>
     );
   }
 
@@ -369,6 +405,9 @@ function BrowsingSection() {
   );
 }
 
+/** For a value that never changes while the page is open. */
+const noSubscription = () => () => {};
+
 function TimezoneSection() {
   const { data: state } = useAppState();
   const queryClient = useQueryClient();
@@ -379,8 +418,13 @@ function TimezoneSection() {
       ) ?? [];
     return supported.includes("UTC") ? supported : ["UTC", ...supported];
   }, []);
-  const browserZone =
-    typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC";
+  // The device's zone is only known in the browser; the server renders without the suggestion,
+  // so both sides agree until hydration ends.
+  const browserZone = useSyncExternalStore(
+    noSubscription,
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+    () => null,
+  );
   const current = state?.timezone ?? "UTC";
   const save = async (zone: string) => {
     const result = await setTimezone(zone);
@@ -402,7 +446,7 @@ function TimezoneSection() {
           ))}
         </SelectContent>
       </Select>
-      {browserZone !== current && (
+      {browserZone && browserZone !== current && (
         <Button variant="ghost" size="sm" onClick={() => void save(browserZone)}>
           Use {browserZone.replace(/_/g, " ")}
         </Button>
@@ -450,21 +494,83 @@ function NotificationsSection() {
   );
 }
 
+type Passkey = NonNullable<ReturnType<typeof authClient.useListPasskeys>["data"]>[number];
+
+function PasskeyRow({ passkey, onRemoved }: { passkey: Passkey; onRemoved: () => void }) {
+  const label = passkeyLabel(passkey.name);
+  return (
+    <li className="flex min-h-14 items-center gap-3 py-2 pr-2 pl-4 text-[14px]">
+      <KeyRound className="size-4 shrink-0 text-muted-foreground" />
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <time
+        dateTime={new Date(passkey.createdAt).toISOString()}
+        title={new Date(passkey.createdAt).toLocaleString()}
+        className="shrink-0 text-[12.5px] text-muted-foreground"
+      >
+        Added {relativeTime(passkey.createdAt)}
+      </time>
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Remove ${label}`}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <Trash2 />
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove this passkey?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {label} can't sign you in anymore. Remove it from the device too, in its password
+              settings.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={async () => {
+                const result = await authClient.passkey.deletePasskey({ id: passkey.id });
+                if (result?.error)
+                  toast.error(result.error.message ?? "The passkey wasn't removed.");
+                else toast("Passkey removed");
+                onRemoved();
+              }}
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </li>
+  );
+}
+
 function PasskeySection() {
   const passkeys = authClient.useListPasskeys();
   const [pending, setPending] = useState(false);
   return (
     <div className="flex flex-col gap-3">
+      {passkeys.data && passkeys.data.length === 0 && (
+        <p
+          className="flex items-center gap-3 rounded-xl border px-4 py-3 text-[14px] text-muted-foreground"
+          data-testid="no-passkeys"
+        >
+          <KeyRound className="size-4" />
+          No passkeys yet
+        </p>
+      )}
       {passkeys.data && passkeys.data.length > 0 && (
-        <ul className="divide-y rounded-xl border bg-card">
+        <ul className="divide-y divide-border/70 rounded-xl border bg-card" data-testid="passkeys">
           {passkeys.data.map((passkey) => (
-            <li key={passkey.id} className="flex items-center gap-3 px-4 py-2.5 text-[14px]">
-              <KeyRound className="size-4 text-muted-foreground" />
-              <span className="flex-1">{passkey.name || "Passkey"}</span>
-              <span className="text-[12.5px] text-muted-foreground">
-                Added {formatDistanceToNowStrict(new Date(passkey.createdAt), { addSuffix: true })}
-              </span>
-            </li>
+            <PasskeyRow
+              key={passkey.id}
+              passkey={passkey}
+              onRemoved={() => void passkeys.refetch()}
+            />
           ))}
         </ul>
       )}
@@ -474,9 +580,8 @@ function PasskeySection() {
         disabled={pending}
         onClick={async () => {
           setPending(true);
-          const result = await authClient.passkey.addPasskey({
-            name: navigator.platform || "This device",
-          });
+          // The server names it after where it's kept, or this browser.
+          const result = await authClient.passkey.addPasskey();
           setPending(false);
           if (result?.error) toast.error(result.error.message ?? "The passkey wasn't added.");
           else {
@@ -493,18 +598,6 @@ function PasskeySection() {
 }
 
 /** A section's data is loading, or failed to load and can be retried. */
-function SectionState({ error, onRetry }: { error: Error | null; onRetry: () => void }) {
-  if (!error) return <Skeleton className="h-24 w-full rounded-xl" />;
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-xl border border-dashed px-4 py-3 text-[13.5px]">
-      <span className="text-muted-foreground">Couldn&apos;t load this. {error.message}</span>
-      <Button variant="outline" size="sm" onClick={onRetry}>
-        Try again
-      </Button>
-    </div>
-  );
-}
-
 function FallbackSection() {
   const queryClient = useQueryClient();
   const [pending, startTransition] = useTransition();
@@ -514,41 +607,56 @@ function FallbackSection() {
     queryKey: ["model-access"],
     queryFn: () => getJson<ModelAccessView>("/api/model-access"),
   });
+  const { data: state } = useAppState();
+  // Nothing runs while the computer is offline, so the plan is what teammates use, not what
+  // they're running on.
+  const offline = Boolean(state && !(state.computer.online && state.computer.workerOnline));
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["model-access"] });
   const data = access.data;
   if (!data) return <SectionState error={access.error} onRetry={() => void access.refetch()} />;
   const capDollars = data.capMicros / 1_000_000;
+  const capChanged = cap !== null && cap !== "" && Number(cap) !== capDollars;
   const used = data.capMicros > 0 ? Math.min(100, (data.spendMicros / data.capMicros) * 100) : 100;
 
   return (
     <>
       <div
         className={cn(
-          "flex items-start gap-3 rounded-xl border px-4 py-3.5",
-          data.planLimitedUntil ? "border-manual/40 bg-manual/[0.07]" : "bg-card",
+          "flex items-start gap-3 rounded-xl px-4 py-3.5",
+          data.planLimitedUntil && !offline
+            ? "border border-attention/40 bg-attention/[0.07]"
+            : "border bg-card",
         )}
         data-testid="fallback-status"
       >
         <span
           className={cn(
             "mt-1.5 size-2.5 shrink-0 rounded-full",
-            data.planLimitedUntil ? "bg-manual" : "bg-done",
+            offline ? "bg-idle" : data.planLimitedUntil ? "bg-attention" : "bg-done",
           )}
         />
         <div className="flex flex-col gap-0.5">
           <span className="text-[14px] font-medium">
-            {data.planLimitedUntil
-              ? data.keyHint
-                ? "Running on your API key"
-                : "Paused: your plan's limit is reached"
-              : "Running on your ChatGPT plan"}
+            {offline
+              ? data.planLimitedUntil && data.keyHint
+                ? "Set to use your API key"
+                : "Set to use your ChatGPT plan"
+              : data.planLimitedUntil
+                ? data.keyHint
+                  ? "Running on your API key"
+                  : "Stopped: your plan's limit is reached"
+                : "Running on your ChatGPT plan"}
           </span>
           <span className="text-[13px] text-muted-foreground">
-            {data.planLimitedUntil
-              ? `Your plan's limit resets ${formatDistanceToNowStrict(new Date(data.planLimitedUntil), { addSuffix: true })}. Then teammates switch back to it on their own.`
-              : data.keyHint
-                ? "If the plan's limit is reached, teammates continue on your API key until it resets."
-                : "Add an API key so teammates keep working when the plan's limit is reached."}
+            {offline
+              ? data.keyHint
+                ? "Nothing runs while the computer is offline. Once it's back, teammates use your plan, then your API key if the plan's limit is reached."
+                : "Nothing runs while the computer is offline. Once it's back, teammates use your plan."
+              : data.planLimitedUntil
+                ? `Your plan's limit resets ${formatDistanceToNowStrict(new Date(data.planLimitedUntil), { addSuffix: true })}. Then teammates switch back to it on their own.`
+                : data.keyHint
+                  ? "If the plan's limit is reached, teammates continue on your API key until it resets."
+                  : "Add an API key so teammates keep working when the plan's limit is reached."}
           </span>
         </div>
       </div>
@@ -562,21 +670,38 @@ function FallbackSection() {
             </code>
             <span className="text-[13px] text-muted-foreground">Stored encrypted.</span>
             <span className="flex-1" />
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={pending}
-              onClick={() =>
-                startTransition(async () => {
-                  const result = await removeApiKey();
-                  if (!result.ok) toast.error(result.error);
-                  else toast("API key removed");
-                  await refresh();
-                })
-              }
-            >
-              Remove
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm" disabled={pending}>
+                  Remove
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Remove your API key?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    When your plan's limit is reached, teammates stop until it resets instead of
+                    continuing on the key. You can add a key again any time.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    variant="destructive"
+                    onClick={() =>
+                      startTransition(async () => {
+                        const result = await removeApiKey();
+                        if (!result.ok) toast.error(result.error);
+                        else toast("API key removed");
+                        await refresh();
+                      })
+                    }
+                  >
+                    Remove key
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         ) : (
           <form
@@ -627,15 +752,27 @@ function FallbackSection() {
               });
             }}
           >
-            <span className="text-[14px] text-muted-foreground">$</span>
-            <Input
-              inputMode="decimal"
-              value={cap ?? String(capDollars)}
-              onChange={(event) => setCap(event.target.value.replace(/[^0-9.]/g, ""))}
-              className="w-24 text-right tabular-nums"
-              aria-label="Monthly cap in dollars"
-            />
-            <Button type="submit" variant="outline" size="sm" disabled={pending || cap === null}>
+            <span className="relative">
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[14px] text-muted-foreground"
+              >
+                $
+              </span>
+              <Input
+                inputMode="decimal"
+                value={cap ?? String(capDollars)}
+                onChange={(event) => setCap(event.target.value.replace(/[^0-9.]/g, ""))}
+                className="w-28 pl-6 tabular-nums"
+                aria-label="Monthly cap in dollars"
+              />
+            </span>
+            <Button
+              type="submit"
+              variant={capChanged ? "default" : "outline"}
+              size="sm"
+              disabled={pending || !capChanged}
+            >
               Save
             </Button>
           </form>
@@ -647,18 +784,18 @@ function FallbackSection() {
               {formatDollars(data.spendMicros)} of {formatDollars(data.capMicros)}
             </span>
           </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-subtle">
+          <div className="h-1.5 overflow-hidden rounded-full bg-foreground/8">
             <div
               className={cn(
                 "h-full rounded-full",
-                used >= 100 ? "bg-destructive" : used > 75 ? "bg-manual" : "bg-foreground",
+                used >= 100 ? "bg-destructive" : used > 80 ? "bg-attention" : "bg-foreground/45",
               )}
               style={{ width: `${used}%` }}
             />
           </div>
           <span className="text-[12.5px] text-muted-foreground">
             At list prices: $2 per million input tokens, $0.10 cached, $10 output. At the cap,
-            teammates pause until the plan resets.
+            teammates stop until the plan resets.
           </span>
         </div>
       </div>
@@ -716,6 +853,38 @@ function UsageSection() {
   );
 }
 
+/** Who's signed in: the owner's mark, name and email, at the top of Account. */
+function ProfileBlock() {
+  const { data: state } = useAppState();
+  if (!state) return <Skeleton className="h-[72px] w-full rounded-xl" />;
+  const { name, email } = state.user;
+  return (
+    <section
+      aria-label="Your account"
+      className="flex items-center gap-4 rounded-xl border bg-card px-4 py-4"
+      data-testid="profile-block"
+    >
+      <span
+        aria-hidden
+        className="flex size-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-b from-foreground/85 to-foreground text-[17px] font-semibold text-background"
+      >
+        {name.slice(0, 1).toUpperCase()}
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-[15px] font-medium">{name}</span>
+        <span className="truncate text-[13.5px] text-muted-foreground">{email}</span>
+      </span>
+      <a
+        href="#security"
+        className="flex shrink-0 items-center gap-0.5 rounded-md text-[13px] font-medium text-foreground/80 underline-offset-[3px] outline-none hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/12"
+      >
+        Password and passkeys
+        <ChevronRight className="size-3.5 text-muted-foreground" />
+      </a>
+    </section>
+  );
+}
+
 function AppearanceSection() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -741,81 +910,212 @@ function AppearanceSection() {
   );
 }
 
-export function SettingsView() {
+type GroupId = "account" | "memory" | "appearance" | "notifications" | "connections" | "security";
+
+/** Settings in groups, one group at a time. Old links to a section (#email) open its group. */
+const GROUPS: { id: GroupId; label: string; icon: typeof UserRound; sections: string[] }[] = [
+  {
+    id: "account",
+    label: "Account",
+    icon: UserRound,
+    sections: ["chatgpt", "plan", "usage", "timezone"],
+  },
+  { id: "memory", label: "Memory", icon: Brain, sections: ["about"] },
+  { id: "appearance", label: "Appearance", icon: SunMoon, sections: [] },
+  { id: "notifications", label: "Notifications", icon: Bell, sections: ["telegram"] },
+  { id: "connections", label: "Connections", icon: Plug, sections: ["email", "browsing"] },
+  {
+    id: "security",
+    label: "Security",
+    icon: ShieldCheck,
+    sections: ["password", "set-password", "passkeys"],
+  },
+];
+
+function subscribeHash(onChange: () => void) {
+  window.addEventListener("hashchange", onChange);
+  return () => window.removeEventListener("hashchange", onChange);
+}
+
+function useHash() {
+  return useSyncExternalStore(
+    subscribeHash,
+    () => decodeURIComponent(window.location.hash.slice(1)),
+    () => "",
+  );
+}
+
+function groupFor(hash: string): GroupId {
   return (
-    <div className="flex flex-col gap-10">
-      <Section
-        id="about"
-        title="About you"
-        description="Shared facts and preferences, with source history and control over what your teammates remember."
+    GROUPS.find((group) => group.id === hash || group.sections.includes(hash))?.id ?? "account"
+  );
+}
+
+function SettingsNav({ current }: { current: GroupId }) {
+  return (
+    <nav aria-label="Settings" className="md:sticky md:top-0 md:self-start">
+      <ul className="-mx-5 flex gap-1 overflow-x-auto px-5 [scrollbar-width:none] md:mx-0 md:flex-col md:gap-0.5 md:px-0">
+        {GROUPS.map((group) => {
+          const Icon = group.icon;
+          const active = group.id === current;
+          return (
+            <li key={group.id} className="shrink-0">
+              <a
+                href={`#${group.id}`}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex h-9 items-center gap-2.5 rounded-lg px-3 text-[14px] whitespace-nowrap transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/12",
+                  // A quiet gray fill marks where you are; on the white page a raised white
+                  // surface didn't show.
+                  active
+                    ? "bg-muted font-medium text-foreground"
+                    : "text-muted-foreground hover:bg-subtle hover:text-foreground",
+                )}
+              >
+                <Icon className="size-4 shrink-0" />
+                {group.label}
+              </a>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}
+
+function GroupContent({ group, hash }: { group: GroupId; hash: string }) {
+  switch (group) {
+    case "account":
+      return (
+        <>
+          <ProfileBlock />
+          <Section
+            id="chatgpt"
+            title="ChatGPT"
+            description="Your teammates run on your ChatGPT plan through Codex on the computer."
+          >
+            <ChatgptSection />
+          </Section>
+          <Section
+            id="plan"
+            title="When your plan runs out"
+            description="Teammates use your ChatGPT plan first. If its limit is reached, they can continue on an OpenAI API key, up to a monthly cap."
+          >
+            <FallbackSection />
+          </Section>
+          <Section id="usage" title="Usage" description="Tokens your teammates used this month.">
+            <UsageSection />
+          </Section>
+          <Section
+            id="timezone"
+            title="Timezone"
+            description="Used for schedules, and so your teammates know what time it is for you."
+          >
+            <TimezoneSection />
+          </Section>
+        </>
+      );
+    case "memory":
+      return (
+        <Section
+          id="about"
+          title="About you"
+          description="Facts and preferences every teammate can use, with where each came from. Suggestions become memory when you confirm them."
+        >
+          <ProfileEditor />
+        </Section>
+      );
+    case "appearance":
+      return (
+        <Section
+          id="appearance"
+          title="Appearance"
+          description="How open-bot looks on this device."
+        >
+          <AppearanceSection />
+        </Section>
+      );
+    case "notifications":
+      return (
+        <>
+          <Section
+            id="notifications"
+            title="Notifications"
+            description="Know when a teammate finishes or needs you, on this computer and your phone."
+          >
+            <PushSection fallback={<NotificationsSection />} />
+          </Section>
+          <Section
+            id="telegram"
+            title="Telegram"
+            description="Approve, take over and talk to your teammates from your phone."
+          >
+            <TelegramSection />
+          </Section>
+        </>
+      );
+    case "connections":
+      return (
+        <>
+          <Section
+            id="connections"
+            title="Connections"
+            description="Your Gmail, Calendar and Notion, and other services your teammates use through MCP, like GitHub or your own API."
+          >
+            <ConnectionsSection />
+          </Section>
+          <Section
+            id="email"
+            title="Email"
+            description="An address for every teammate. Forward them receipts, threads and requests; they answer from their own address."
+          >
+            <EmailSection />
+          </Section>
+          <Section
+            id="browsing"
+            title="Browsing"
+            description="Websites often block cloud IPs. The desktop app can route the computer's browser through your home connection."
+          >
+            <BrowsingSection />
+          </Section>
+        </>
+      );
+    case "security":
+      return (
+        <>
+          <Section id="password" title="Password" description="The password you sign in with.">
+            <PasswordSection startWithReset={hash === "set-password"} />
+          </Section>
+          <Section
+            id="passkeys"
+            title="Passkeys"
+            description="Sign in with Touch ID or your phone instead of a password. A passkey also gets you in if you forget your password."
+          >
+            <PasskeySection />
+          </Section>
+        </>
+      );
+  }
+}
+
+export function SettingsView() {
+  const hash = useHash();
+  const group = groupFor(hash);
+  // A link to one section (#email) opens its group, then shows that section.
+  useEffect(() => {
+    if (!hash || hash === group) return;
+    document.getElementById(hash)?.scrollIntoView({ block: "start" });
+  }, [hash, group]);
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-8 md:grid-cols-[176px_minmax(0,1fr)] md:gap-12">
+      <SettingsNav current={group} />
+      <div
+        key={group}
+        className={cn("flex min-w-0 flex-col gap-10", group === "security" && "max-w-[600px]")}
+        data-testid={`settings-${group}`}
       >
-        <ProfileEditor />
-      </Section>
-      <Section
-        title="ChatGPT"
-        description="Your teammates run on your ChatGPT plan through Codex on the computer."
-      >
-        <ChatgptSection />
-      </Section>
-      <Section
-        title="When your plan runs out"
-        description="Teammates use your ChatGPT plan first. If its limit is reached, they can continue on an OpenAI API key, up to a monthly cap."
-      >
-        <FallbackSection />
-      </Section>
-      <Section
-        id="browsing"
-        title="Browsing"
-        description="Websites often block cloud IPs. The desktop app can route the computer's browser through your home connection."
-      >
-        <BrowsingSection />
-      </Section>
-      <Section title="Usage" description="Tokens your teammates used this month.">
-        <UsageSection />
-      </Section>
-      <Section
-        title="Timezone"
-        description="Used for schedules, and so your teammates know what time it is for you."
-      >
-        <TimezoneSection />
-      </Section>
-      <Section
-        id="email"
-        title="Email"
-        description="An address for every teammate. Forward them receipts, threads and requests; they answer from their own address."
-      >
-        <EmailSection />
-      </Section>
-      <Section
-        id="connections"
-        title="Connections"
-        description="Your Gmail, Calendar and Notion, and other services your teammates use through MCP, like GitHub or your own API."
-      >
-        <ConnectionsSection />
-      </Section>
-      <Section
-        id="telegram"
-        title="Telegram"
-        description="Approve, take over and talk to your teammates from your phone."
-      >
-        <TelegramSection />
-      </Section>
-      <Section
-        id="notifications"
-        title="Notifications"
-        description="Know when a teammate finishes or needs you, on this computer and your phone."
-      >
-        <PushSection fallback={<NotificationsSection />} />
-      </Section>
-      <Section
-        title="Passkeys"
-        description="Sign in with Touch ID or your phone instead of a password."
-      >
-        <PasskeySection />
-      </Section>
-      <Section title="Appearance">
-        <AppearanceSection />
-      </Section>
+        <GroupContent group={group} hash={hash} />
+      </div>
     </div>
   );
 }

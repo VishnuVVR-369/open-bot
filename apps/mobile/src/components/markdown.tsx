@@ -46,6 +46,19 @@ class AppRenderer extends Renderer {
     );
   }
 
+  /**
+   * Inline code: monospace in the text's own color, nothing behind it. Android can't round or pad
+   * a span's background, and a square slab taller than the text looks broken, so the font alone
+   * says it's code, on the paragraph's line height so the line doesn't grow.
+   */
+  override codespan(text: string, styles?: TextStyle): ReactNode {
+    return (
+      <Text key={this.getKey()} style={styles}>
+        {text}
+      </Text>
+    );
+  }
+
   override list(
     ordered: boolean,
     li: ReactNode[],
@@ -107,7 +120,8 @@ export function Markdown({ text, tone = "default" }: { text: string; tone?: "def
     const heading = { fontFamily: fonts.heading, fontWeight: "600" as const, color: ink };
     return {
       text: body,
-      paragraph: { marginVertical: space(1), padding: 0 },
+      // The library pads paragraphs vertically (and paddingVertical beats padding), so zero it.
+      paragraph: { marginVertical: space(1.5), paddingVertical: 0 },
       strong: { ...body, fontWeight: "600" },
       em: { ...body, fontStyle: "italic" },
       link: { ...body, fontStyle: "normal", textDecorationLine: "underline" },
@@ -118,9 +132,12 @@ export function Markdown({ text, tone = "default" }: { text: string; tone?: "def
       codespan: {
         fontFamily: fonts.mono,
         fontStyle: "normal",
-        fontSize: 13,
-        color: colors.foreground,
-        backgroundColor: colors.muted,
+        // 0.92em of the body, on the body's line height, with no background.
+        fontSize: tone === "muted" ? 13 : 13.8,
+        lineHeight: tone === "muted" ? 20 : 22,
+        color: ink,
+        // The library fills it with the theme's code color; a slab taller than the text looks broken.
+        backgroundColor: "transparent",
       },
       code: {
         backgroundColor: colors.muted,
@@ -153,8 +170,10 @@ export function Markdown({ text, tone = "default" }: { text: string; tone?: "def
       },
     },
   });
+  // Each block keeps a little room around it; the reply's own edges don't, so whatever sits
+  // above and below sets the spacing.
   return (
-    <View>
+    <View style={{ marginVertical: -space(1.5) }}>
       {elements.map((element, index) => (
         <Fragment key={index}>{element}</Fragment>
       ))}

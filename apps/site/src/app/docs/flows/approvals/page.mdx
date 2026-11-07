@@ -12,11 +12,11 @@ Approvals put you in the loop for the consequential ones, without making you app
 Each teammate has one of three autonomy levels (`bots.autonomy`).
 It controls two things: Codex's own approval policy, and the approval rules written into the teammate's `AGENTS.md`.
 
-| Level        | Label in the app         | Codex policy | The teammate is told to                                                                                                                                                                                      |
-| ------------ | ------------------------ | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `full`       | Full auto                | `never`      | Work without asking, except before deleting important data.                                                                                                                                                  |
-| `risky`      | Ask before risky actions | `never`      | Call `request_approval` before sending messages, posting or publishing, deleting data, and changing settings, permissions or anything in production. Reading, research, drafting and preparing need nothing. |
-| `everything` | Ask before every command | `untrusted`  | Expect an approval prompt before every shell command and file change, and call `request_approval` before consequential desktop actions.                                                                      |
+| Level        | Label in the app          | Codex policy | The teammate is told to                                                                                                                                                                                      |
+| ------------ | ------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `full`       | Works on its own          | `never`      | Work without asking, except before deleting important data.                                                                                                                                                  |
+| `risky`      | Asks before risky actions | `never`      | Call `request_approval` before sending messages, posting or publishing, deleting data, and changing settings, permissions or anything in production. Reading, research, drafting and preparing need nothing. |
+| `everything` | Asks before every command | `untrusted`  | Expect an approval prompt before every shell command and file change, and call `request_approval` before consequential desktop actions.                                                                      |
 
 Payments, emails and changes to your accounts don't depend on these instructions.
 `start_purchase`, `send_email` and the Gmail, Calendar and Notion tools ask you themselves (an email from a `full` teammate sends right away, unless its task read your accounts).

@@ -3,7 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNowStrict } from "date-fns";
 import { BUILT_IN_SKILLS } from "@open-bot/shared";
-import { FileText, Pencil, Sparkles, Trash2, Users } from "lucide-react";
+import { ArrowRight, FileText, Pencil, Sparkles, Trash2, UserRound, Users } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { BotAvatar } from "@/components/bot-avatar";
@@ -98,8 +98,12 @@ function BuiltInSkill({ skill }: { skill: (typeof BUILT_IN_SKILLS)[number] }) {
           Every teammate
         </span>
         {link && (
-          <Link href={link.href} className="font-medium text-foreground/80 hover:text-foreground">
+          <Link
+            href={link.href}
+            className="inline-flex items-center gap-1 rounded-sm font-medium text-foreground/80 underline-offset-[3px] transition-colors outline-none hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/12"
+          >
             {link.label}
+            <ArrowRight className="size-3.5" />
           </Link>
         )}
       </div>
@@ -171,9 +175,14 @@ export function SkillsList({ botId }: { botId?: string }) {
               data-testid="skill"
             >
               <div className="flex items-start gap-3">
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-subtle text-muted-foreground">
-                  <Sparkles className="size-4" />
-                </span>
+                {/* A skill one teammate keeps wears their tile; a shared one stays neutral. */}
+                {owner ? (
+                  <BotAvatar name={owner.name} color={owner.color} emoji={owner.emoji} size="md" />
+                ) : (
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-subtle text-muted-foreground">
+                    <Sparkles className="size-4" />
+                  </span>
+                )}
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                   <span className="truncate pr-14 font-mono text-[14px] font-medium">
                     /{skill.name}
@@ -197,12 +206,7 @@ export function SkillsList({ botId }: { botId?: string }) {
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pl-12 text-[12.5px] text-muted-foreground">
                 {owner ? (
                   <span className="flex items-center gap-1.5">
-                    <BotAvatar
-                      name={owner.name}
-                      color={owner.color}
-                      emoji={owner.emoji}
-                      size="xs"
-                    />
+                    <UserRound className="size-3.5" />
                     Only {owner.name}
                   </span>
                 ) : (

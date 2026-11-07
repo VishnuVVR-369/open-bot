@@ -1,18 +1,17 @@
-import type { ApprovalView, BotSummary } from "@open-bot/api";
+import type { ApprovalView } from "@open-bot/api";
 import { router } from "expo-router";
 import { Check, ChevronRight, ShieldCheck, WifiOff } from "lucide-react-native";
 import { useCallback, useMemo, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
-import { ApprovalAvatar, ApprovalStatusChip, ApprovalTitle } from "@/components/approval-parts";
-import { botActivity } from "@/components/bot-avatar";
-import { ConnectionNotice } from "@/components/connection-notice";
+import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
+import { ApprovalRow } from "@/components/approval-row";
+import { ApproveWhileAwayNote, ConnectionNotice } from "@/components/connection-notice";
 import { ListRow, Separator } from "@/components/list-row";
 import { Card, Section } from "@/components/section";
 import { LoadError, Loading } from "@/components/states";
 import { Text } from "@/components/text";
-import { shortenPaths } from "@/lib/approval-text";
 import { groupByDay, recently, type DayGroup } from "@/lib/day-groups";
 import { useOnline } from "@/lib/network";
+import { hasFirebase } from "@/push/firebase";
 import { phoneClock, phoneDayClock } from "@/lib/phone-clock";
 import { useApprovalRules, useApprovals, useTeammates } from "@/lib/queries";
 import { ago } from "@/lib/time";
@@ -24,51 +23,6 @@ function decidedWhen(iso: string, group: DayGroup): string {
   if (group === "Today" || group === "Yesterday") return phoneClock(iso);
   if (group === "Earlier this week") return phoneDayClock(iso);
   return ago(iso);
-}
-
-function ApprovalRow({
-  approval,
-  bot,
-  meta,
-  behind,
-}: {
-  approval: ApprovalView;
-  bot: BotSummary | undefined;
-  meta: string;
-  /** The card's color, which the avatar's badge cuts into. */
-  behind: string;
-}) {
-  const colors = useColors();
-  const pending = approval.status === "pending";
-  return (
-    <Pressable
-      testID="approval"
-      onPress={() => router.push(`/approvals/${approval.id}`)}
-      android_ripple={{ color: colors.muted }}
-      style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.subtle }]}
-      accessibilityRole="button"
-      accessibilityHint={pending ? "Opens the request to approve or deny it" : undefined}
-    >
-      <ApprovalAvatar
-        bot={bot}
-        kind={approval.kind}
-        pending={pending}
-        activity={pending && bot ? botActivity(bot) : "idle"}
-        behind={behind}
-      />
-      <View style={styles.text}>
-        <ApprovalTitle title={shortenPaths(approval.title)} numberOfLines={2} />
-        <Text variant="small" muted numberOfLines={1}>
-          {bot?.name ?? "Former teammate"} · {meta}
-        </Text>
-      </View>
-      {pending ? (
-        <ChevronRight size={18} color={colors.attentionInk} />
-      ) : (
-        <ApprovalStatusChip status={approval.status} />
-      )}
-    </Pressable>
-  );
 }
 
 /** Nothing waiting: say so plainly, so an empty list reads as done and not as broken. */
@@ -86,7 +40,8 @@ function CaughtUp() {
       <View style={{ flex: 1, gap: 2 }}>
         <Text variant="heading">You&apos;re all caught up</Text>
         <Text variant="small" muted>
-          Nothing needs your OK. New requests show up here and on your lock screen.
+          Nothing needs your approval. New requests show up here
+          {hasFirebase ? " and on your lock screen." : " and in the bell."}
         </Text>
       </View>
     </View>
@@ -144,14 +99,15 @@ export default function Approvals() {
         <View style={{ gap: space(2.5) }}>
           <View style={styles.needsHead}>
             <View style={[styles.dot, { backgroundColor: colors.attention }]} />
-            <Text
-              variant="caption"
-              style={[styles.overline, { color: colors.attentionInk }]}
-              accessibilityRole="header"
-            >
-              NEEDS YOU · {pending.length}
+            <Text variant="section" style={{ color: colors.foreground }} accessibilityRole="header">
+              Needs you ({pending.length})
             </Text>
           </View>
+          {online && (
+            <View style={styles.away}>
+              <ApproveWhileAwayNote />
+            </View>
+          )}
           {!online && (
             <View style={[styles.offline, { backgroundColor: colors.subtle }]}>
               <WifiOff size={14} color={colors.mutedForeground} />
@@ -230,24 +186,16 @@ export default function Approvals() {
 
 const styles = StyleSheet.create({
   content: { padding: space(4), paddingTop: space(2), gap: space(6), paddingBottom: space(8) },
+  // In line with the "Needs you" heading above it.
+  away: { paddingHorizontal: space(1) },
   needsHead: {
     flexDirection: "row",
     alignItems: "center",
     gap: space(2),
     paddingHorizontal: space(1),
   },
-  overline: { letterSpacing: 0.6, fontWeight: "700" },
   dot: { width: 8, height: 8, borderRadius: radius.full },
   card: { borderWidth: 1, borderRadius: radius.xl, overflow: "hidden" },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space(3),
-    paddingHorizontal: space(4),
-    paddingVertical: space(3),
-    minHeight: 72,
-  },
-  text: { flex: 1, gap: 2 },
   caughtUp: {
     flexDirection: "row",
     alignItems: "center",
@@ -263,9 +211,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  // The width of the avatars above, so the text lines up with theirs.
   tile: {
-    width: 48,
-    height: 48,
+    width: 44,
+    height: 44,
     borderRadius: radius.xl,
     alignItems: "center",
     justifyContent: "center",

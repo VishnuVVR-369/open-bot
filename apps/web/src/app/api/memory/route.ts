@@ -86,7 +86,22 @@ export const GET = authed(async (request: Request) => {
           "cache-control": "no-store",
         },
       });
-    return NextResponse.json(items);
+    // Which teammate saved each memory, so the list can name them.
+    const runIds = [...new Set(items.flatMap((i) => (i.source.runId ? [i.source.runId] : [])))];
+    const runs = runIds.length
+      ? await pool.query<{ id: string; bot_id: string; chat_id: string }>(
+          "select id,bot_id,chat_id from runs where id=any($1::uuid[])",
+          [runIds],
+        )
+      : { rows: [] };
+    return NextResponse.json(
+      items.map((item) => {
+        const run = runs.rows.find((r) => r.id === item.source.runId);
+        return run
+          ? { ...item, source: { ...item.source, botId: run.bot_id, chatId: run.chat_id } }
+          : item;
+      }),
+    );
   } catch (error) {
     if (error instanceof MemoryError)
       return NextResponse.json({ error: error.message }, { status: error.status });

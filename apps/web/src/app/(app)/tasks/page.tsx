@@ -8,7 +8,7 @@ export default function TasksPage() {
   return (
     <Page
       title="Tasks"
-      description="What the team is working on. Give a task to a teammate and ask them to start, or hand a goal to your chief of staff to split up."
+      description="What the team is working on. Assign a task, or give your chief of staff a goal."
       actions={<NewTaskButton />}
       width="wide"
     >

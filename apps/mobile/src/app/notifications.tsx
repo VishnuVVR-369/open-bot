@@ -5,6 +5,7 @@ import { router, Stack, useFocusEffect } from "expo-router";
 import {
   AlertTriangle,
   Bell,
+  Check,
   CircleDollarSign,
   Hand,
   MessageSquare,
@@ -14,8 +15,9 @@ import {
 } from "lucide-react-native";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Pressable, RefreshControl, SectionList, StyleSheet, View } from "react-native";
-import { AvatarBadge, ON_ATTENTION } from "@/components/approval-parts";
-import { BotAvatar, botActivity } from "@/components/bot-avatar";
+import { ApprovalStatusChip, AvatarBadge, ON_ATTENTION } from "@/components/approval-parts";
+import { BotAvatar } from "@/components/bot-avatar";
+import { FilterChips } from "@/components/filter-chips";
 import { Separator } from "@/components/list-row";
 import { Empty, LoadError, Loading } from "@/components/states";
 import { Text } from "@/components/text";
@@ -23,10 +25,18 @@ import { api } from "@/lib/api";
 import { groupByDay } from "@/lib/day-groups";
 import { haptics } from "@/lib/haptics";
 import { notificationHref } from "@/lib/links";
-import { collapseRepeats } from "@/lib/notification-groups";
-import { useHome, useNotifications, useTeammates } from "@/lib/queries";
+import { phoneClock } from "@/lib/phone-clock";
+import {
+  collapseRepeats,
+  notificationState,
+  notificationText,
+  stillNeedsYou,
+  type NotificationState,
+} from "@/lib/notification-groups";
+import { useApprovals, useHome, useNotifications, useTeammates } from "@/lib/queries";
 import { queryKeys } from "@/lib/query";
 import { ago } from "@/lib/time";
+import { useSafeBottom } from "@/lib/use-safe-bottom";
 import { radius, space, useColors } from "@/theme";
 import { mix } from "@/theme/mix";
 
@@ -44,9 +54,17 @@ const ICONS: Record<string, LucideIcon> = {
 const NEEDS_YOU = new Set(["approval", "takeover_request", "cap_reached", "egress_unanswered"]);
 const FAILED = new Set(["run_failed"]);
 
-const AVATAR = 40;
+const AVATAR = 36;
 
-/** Who it's from: the teammate's face (with what they're up to), or a tile for the app itself. */
+const FILTERS = [
+  { key: "all", label: "All" },
+  { key: "needs", label: "Needs you" },
+] as const;
+
+/**
+ * Who it's from: the teammate's face, or a tile for the app itself. The badge says what kind of
+ * event it was. It never shows what the teammate is doing now: the row is about then, not now.
+ */
 function Leading({ notification, bot }: { notification: NotificationView; bot?: BotSummary }) {
   const colors = useColors();
   const Icon = ICONS[notification.kind] ?? Bell;
@@ -66,15 +84,7 @@ function Leading({ notification, bot }: { notification: NotificationView; bot?: 
         <Icon size={20} color={signal ? signal.ink : colors.foreground} />
       </View>
     );
-  const avatar = (
-    <BotAvatar
-      name={bot.name}
-      color={bot.color}
-      emoji={bot.emoji}
-      size="md"
-      activity={botActivity(bot)}
-    />
-  );
+  const avatar = <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="md" />;
   if (!signal) return avatar;
   return (
     <AvatarBadge
@@ -91,19 +101,42 @@ function Leading({ notification, bot }: { notification: NotificationView; bot?: 
 
 /** What teammates told you, newest first, as the bell on the web shows it. */
 export default function Notifications() {
+  const bottom = useSafeBottom();
   const colors = useColors();
   const queryClient = useQueryClient();
   const query = useNotifications();
   const { data: bots = [] } = useTeammates();
   const [refreshing, setRefreshing] = useState(false);
-  const notifications = query.data ?? [];
+  const notifications = useMemo(() => query.data ?? [], [query.data]);
   const unread = notifications.filter((notification) => !notification.readAt);
   const { data: home } = useHome();
   // What the bell counts can include ones too old for the list.
   const anyUnread = unread.length > 0 || (home?.unreadNotifications ?? 0) > 0;
+  const { data: approvals = [] } = useApprovals();
+  const [filter, setFilter] = useState<"all" | "needs">("all");
+  // Where each request stands now: pending, or how it was decided.
+  const states = useMemo(() => {
+    const result = new Map<string, NotificationState | null>();
+    for (const notification of notifications)
+      result.set(
+        notification.id,
+        notificationState(notification, approvals, home?.takeoverRequests ?? []),
+      );
+    return result;
+  }, [notifications, approvals, home?.takeoverRequests]);
   const sections = useMemo(
-    () => groupByDay(collapseRepeats(query.data ?? []), (row) => row.items[0]!.createdAt),
-    [query.data],
+    () =>
+      groupByDay(
+        collapseRepeats(
+          filter === "needs"
+            ? notifications.filter((notification) =>
+                stillNeedsYou(notification, states.get(notification.id) ?? null),
+              )
+            : notifications,
+        ),
+        (row) => row.items[0]!.createdAt,
+      ),
+    [notifications, filter, states],
   );
   const seen = useRef({ newest: notifications[0]?.id, anyUnread });
   seen.current = { newest: notifications[0]?.id, anyUnread };
@@ -168,7 +201,7 @@ export default function Notifications() {
         sections={sections}
         keyExtractor={(row) => row.key}
         stickySectionHeadersEnabled={false}
-        contentContainerStyle={{ flexGrow: 1, paddingBottom: space(6) }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: bottom }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -182,25 +215,52 @@ export default function Notifications() {
           />
         }
         renderSectionHeader={({ section }) => (
-          <Text variant="caption" muted style={styles.section} accessibilityRole="header">
-            {section.title.toUpperCase()}
+          <Text variant="overline" muted style={styles.section} accessibilityRole="header">
+            {section.title}
           </Text>
         )}
         ItemSeparatorComponent={() => <Separator inset={space(4) + AVATAR + space(3)} />}
-        ListEmptyComponent={
-          <Empty
-            icon={<Bell size={28} color={colors.mutedForeground} />}
-            title="Nothing yet"
-            body="When a teammate finishes something or needs you, it shows up here."
-          />
+        ListHeaderComponent={
+          notifications.length > 0 ? (
+            <FilterChips options={FILTERS} value={filter} onChange={setFilter} />
+          ) : undefined
         }
-        renderItem={({ item: row }) => {
+        ListEmptyComponent={
+          filter === "needs" ? (
+            <Empty
+              icon={<Check size={28} color={colors.mutedForeground} />}
+              title="Nothing needs you"
+              body="Requests waiting on you show up here until you decide them."
+            />
+          ) : (
+            <Empty
+              icon={<Bell size={28} color={colors.mutedForeground} />}
+              title="Nothing yet"
+              body="When a teammate finishes something or needs you, it shows up here."
+            />
+          )
+        }
+        renderItem={({ item: row, section }) => {
           const notification = row.items[0]!;
+          // The header already says "Yesterday", so its rows give the time of day instead.
+          const when =
+            section.title === "Yesterday"
+              ? phoneClock(notification.createdAt)
+              : ago(notification.createdAt);
           const bot = bots.find((candidate) => candidate.id === notification.botId);
           const unreadIds = row.items.filter((item) => !item.readAt).map((item) => item.id);
           const isUnread = unreadIds.length > 0;
-          const body = plainText(notification.body);
+          const { title, body: rawBody } = notificationText(notification);
+          const body = plainText(rawBody);
           const count = row.items.length;
+          const state = states.get(notification.id) ?? null;
+          const stateLabel = !state
+            ? null
+            : state.status !== "pending"
+              ? undefined
+              : state.kind === "takeover"
+                ? "Takeover pending"
+                : "Approval pending";
           return (
             <Pressable
               onPress={() => {
@@ -215,10 +275,11 @@ export default function Notifications() {
               accessibilityRole="button"
               accessibilityLabel={[
                 isUnread ? "Unread" : null,
-                notification.title,
+                title,
                 count > 1 ? `${count} times` : null,
                 body,
-                ago(notification.createdAt),
+                state ? (stateLabel ?? state.status) : null,
+                when,
               ]
                 .filter(Boolean)
                 .join(", ")}
@@ -232,7 +293,7 @@ export default function Notifications() {
                     numberOfLines={2}
                     style={[styles.title, { fontWeight: isUnread ? "600" : "400" }]}
                   >
-                    {notification.title}
+                    {title}
                   </Text>
                   {count > 1 && (
                     <View style={[styles.count, { backgroundColor: colors.subtle }]}>
@@ -247,7 +308,7 @@ export default function Notifications() {
                       muted={!isUnread}
                       style={isUnread ? { fontWeight: "600" } : undefined}
                     >
-                      {ago(notification.createdAt)}
+                      {when}
                     </Text>
                     <View
                       style={[
@@ -262,6 +323,15 @@ export default function Notifications() {
                     {body}
                   </Text>
                 ) : null}
+                {state && (
+                  <View style={styles.state}>
+                    <ApprovalStatusChip
+                      status={state.status}
+                      size="sm"
+                      label={stateLabel ?? undefined}
+                    />
+                  </View>
+                )}
               </View>
             </Pressable>
           );
@@ -273,8 +343,6 @@ export default function Notifications() {
 
 const styles = StyleSheet.create({
   section: {
-    letterSpacing: 0.6,
-    fontWeight: "500",
     paddingHorizontal: space(4),
     paddingTop: space(5),
     paddingBottom: space(2),
@@ -288,6 +356,7 @@ const styles = StyleSheet.create({
     minHeight: 64,
   },
   titleRow: { flexDirection: "row", alignItems: "flex-start", gap: space(2) },
+  state: { flexDirection: "row", marginTop: space(1.5) },
   title: { flex: 1 },
   // The time and the unread dot share the title's first line.
   when: { flexDirection: "row", alignItems: "center", gap: space(1.5), height: 20 },

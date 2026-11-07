@@ -267,17 +267,15 @@ export function ScheduleDialog({
               </p>
               <label className="mt-1 flex cursor-pointer items-start justify-between gap-4 rounded-lg border px-3.5 py-3">
                 <span className="flex flex-col gap-0.5">
-                  <span className="text-[14px] font-medium">
-                    Only tell me when there&apos;s news
-                  </span>
+                  <span className="text-[14px] font-medium">Only tell me if something changed</span>
                   <span className="text-[12.5px] text-muted-foreground">
-                    For checks that often find nothing. Quiet runs don&apos;t notify you.
+                    For checks that often find nothing. A run that finds nothing new stays quiet.
                   </span>
                 </span>
                 <Switch
                   checked={quiet}
                   onCheckedChange={setQuiet}
-                  aria-label="Only tell me when there's news"
+                  aria-label="Only tell me if something changed"
                 />
               </label>
             </div>

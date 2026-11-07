@@ -132,7 +132,10 @@ export function EmailSection() {
       </div>
 
       {data.addresses.length > 0 && (
-        <ul className="flex flex-col divide-y rounded-xl border bg-card" aria-label="Addresses">
+        <ul
+          className="flex flex-col divide-y divide-border/70 rounded-xl border bg-card"
+          aria-label="Addresses"
+        >
           {data.addresses.map((entry) => (
             <li
               key={entry.botId}

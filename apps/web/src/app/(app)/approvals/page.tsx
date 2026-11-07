@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: "Approvals" };
 
 export default function ApprovalsPage() {
   return (
-    <Page title="Approvals" description="Consequential actions wait here until you decide.">
+    <Page title="Approvals" description="Risky actions wait here until you decide.">
       <ApprovalsView />
     </Page>
   );

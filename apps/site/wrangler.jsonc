@@ -3,6 +3,7 @@
 {
   "name": "open-bot",
   "compatibility_date": "2026-10-30",
+  "previews": {},
   "assets": {
     "directory": "./out",
     "not_found_handling": "404-page",

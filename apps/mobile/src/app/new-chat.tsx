@@ -6,7 +6,7 @@ import { Check, ChevronRight, Users } from "lucide-react-native";
 import { useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { BotAvatar, botActivity, botStatusText } from "@/components/bot-avatar";
+import { activityText, BotAvatar, botActivity } from "@/components/bot-avatar";
 import { Button } from "@/components/button";
 import { ListRow, Separator } from "@/components/list-row";
 import { Card, Section } from "@/components/section";
@@ -17,7 +17,7 @@ import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/errors";
 import { haptics } from "@/lib/haptics";
 import { queryKeys } from "@/lib/query";
-import { useTeammates } from "@/lib/queries";
+import { useComputerOffline, useTeammates } from "@/lib/queries";
 import { lastActive } from "@/lib/time";
 import { useKeyboardHeight } from "@/lib/use-keyboard";
 import { radius, space, useColors } from "@/theme";
@@ -29,6 +29,7 @@ export default function NewChat() {
   const keyboard = useKeyboardHeight();
   const queryClient = useQueryClient();
   const { data: bots, error, isLoading, refetch } = useTeammates();
+  const computerOffline = useComputerOffline();
   const [mode, setMode] = useState<"direct" | "group">("direct");
   const [title, setTitle] = useState("");
   const [picked, setPicked] = useState<string[]>([]);
@@ -86,14 +87,19 @@ export default function NewChat() {
               color={bot.color}
               emoji={bot.emoji}
               size="lg"
-              activity={botActivity(bot)}
+              activity={botActivity(bot, computerOffline)}
             />
           }
           title={bot.name}
+          // A picker: who they are, unless they're busy with something right now.
           subtitle={
-            !bot.activeRun && bot.lastActiveAt
-              ? `${bot.role} · ${lastActive(bot.lastActiveAt)}`
-              : botStatusText(bot)
+            bot.activeRun && !computerOffline
+              ? activityText(botActivity(bot), bot.activeRun.waitingFor)
+              : bot.activeRun?.status === "waiting"
+                ? activityText("waiting", bot.activeRun.waitingFor)
+                : bot.lastActiveAt
+                  ? `${bot.role} · ${lastActive(bot.lastActiveAt)}`
+                  : bot.role
           }
           testID="pick-teammate"
           aside={
@@ -173,8 +179,8 @@ export default function NewChat() {
         ) : (
           <>
             <View style={{ gap: space(2) }}>
-              <Text variant="caption" muted style={styles.overline}>
-                GROUP NAME
+              <Text variant="overline" muted style={styles.overline}>
+                Group name
               </Text>
               <TextField
                 value={title}
@@ -245,7 +251,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  overline: { letterSpacing: 0.6, fontWeight: "500", paddingHorizontal: space(1) },
+  overline: { paddingHorizontal: space(1) },
   problem: { paddingHorizontal: space(1) },
   check: {
     width: 24,

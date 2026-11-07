@@ -8,7 +8,7 @@ export default function PagesPage() {
   return (
     <Page
       title="Pages"
-      description="Explainers, comparisons and dashboards your teammates made for you. Ask for one in any chat."
+      description="Explainers, comparisons and dashboards your teammates made. Ask for one in any chat."
       width="wide"
     >
       <PagesView />

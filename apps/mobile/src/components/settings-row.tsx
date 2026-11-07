@@ -98,6 +98,7 @@ export function SettingsRow({
 export function SettingsSwitch({
   value,
   onChange,
+  disabled,
   testID,
   ...row
 }: {
@@ -106,24 +107,28 @@ export function SettingsSwitch({
   subtitle?: string;
   value: boolean;
   onChange: (value: boolean) => void;
+  disabled?: boolean;
   testID?: string;
 }) {
   const colors = useColors();
   return (
     <Pressable
       onPress={() => onChange(!value)}
+      disabled={disabled}
       android_ripple={{ color: colors.muted }}
       accessibilityRole="switch"
-      accessibilityState={{ checked: value }}
+      accessibilityState={{ checked: value, disabled }}
       accessibilityLabel={row.title}
       testID={testID}
     >
       <SettingsRow
         {...row}
+        disabled={disabled}
         aside={
           <Toggle
             value={value}
             onValueChange={onChange}
+            disabled={disabled}
             // The row is the control; the switch only shows its state to TalkBack once.
             importantForAccessibility="no-hide-descendants"
           />
@@ -154,7 +159,8 @@ export function Segmented<T extends string>({
     >
       {options.map((option) => {
         const selected = option.value === value;
-        const ink = selected ? colors.foreground : colors.mutedForeground;
+        // The choice is filled with ink, like a selected filter chip, so it reads at a glance.
+        const ink = selected ? colors.primaryForeground : colors.mutedForeground;
         return (
           <Pressable
             key={option.value}
@@ -165,11 +171,7 @@ export function Segmented<T extends string>({
             testID={testID ? `${testID}-${option.value}` : undefined}
             style={[
               styles.segment,
-              selected && {
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-                elevation: 1,
-              },
+              selected && { backgroundColor: colors.primary, borderColor: colors.primary },
             ]}
           >
             {option.icon(ink)}

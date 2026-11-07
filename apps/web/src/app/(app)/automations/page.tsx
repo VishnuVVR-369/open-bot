@@ -8,7 +8,7 @@ export default function AutomationsPage() {
   return (
     <Page
       title="Automations"
-      description="Teammates get to work on their own: at the times you set, when a page changes, when mail arrives, before a meeting, or when another service calls them. It all runs while your laptop is closed."
+      description="Work your teammates start on their own, on a schedule or when something happens."
       actions={<NewAutomationMenu />}
     >
       <AutomationsView />

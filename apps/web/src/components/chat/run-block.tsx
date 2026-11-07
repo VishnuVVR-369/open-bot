@@ -4,6 +4,7 @@ import {
   formatDollars,
   isNothingToReport,
   isRunActive,
+  shellScript,
   type ComputerItem,
   type TimelineItem,
 } from "@open-bot/shared";
@@ -11,6 +12,7 @@ import { format } from "date-fns";
 import {
   AlertTriangle,
   ArrowRightLeft,
+  Brain,
   CalendarClock,
   CalendarDays,
   Check,
@@ -22,6 +24,7 @@ import {
   Mail,
   MessageCircleQuestion,
   MessageCircleReply,
+  MoreHorizontal,
   Network,
   RotateCcw,
   ShieldCheck,
@@ -31,10 +34,16 @@ import {
   Webhook,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { BotAvatar } from "@/components/bot-avatar";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { retryRun } from "@/lib/actions";
@@ -69,7 +78,10 @@ function replyText(run: RunView): string {
     .join("\n\n");
 }
 
-/** Copies the reply. Sits in the header, shown on hover like the time, so it takes no room. */
+/** A reply action: a 32px target with a 16px glyph, quiet until you point at the reply. */
+const ACTION = "size-8 text-muted-foreground [&_svg:not([class*='size-'])]:size-4";
+
+/** Copies the reply. */
 function CopyReply({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   return (
@@ -77,9 +89,9 @@ function CopyReply({ text }: { text: string }) {
       <TooltipTrigger asChild>
         <Button
           variant="ghost"
-          size="icon-xs"
+          size="icon"
           aria-label="Copy reply"
-          className={cn("text-muted-foreground", REVEAL_ON_RUN_HOVER)}
+          className={cn(ACTION, REVEAL_ON_RUN_HOVER)}
           onClick={async () => {
             await navigator.clipboard.writeText(text);
             setCopied(true);
@@ -94,9 +106,16 @@ function CopyReply({ text }: { text: string }) {
   );
 }
 
-/** Reads the reply aloud, or stops reading it. */
-function ReadAloud({ runId, text }: { runId: string; text: string }) {
+/**
+ * The reply's less common actions, by name: which memories it was given, and reading it aloud.
+ * While it's being read, a stop button stays in the row.
+ */
+function MoreActions({ runId, text }: { runId: string; text: string }) {
   const { supported, speaking } = useReadAloud();
+  const [memoryOpen, setMemoryOpen] = useState(false);
+  // Picked in the menu: the popover opens once the menu has closed, or the closing would dismiss it.
+  const openMemory = useRef(false);
+  const reading = speaking === runId;
   // A reply that leaves the screen stops being read, since its stop button goes with it.
   useEffect(
     () => () => {
@@ -104,30 +123,79 @@ function ReadAloud({ runId, text }: { runId: string; text: string }) {
     },
     [runId],
   );
-  if (!supported) return null;
-  const reading = speaking === runId;
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          aria-label={reading ? "Stop reading" : "Read aloud"}
-          aria-pressed={reading}
-          className={cn("text-muted-foreground", reading ? "text-foreground" : REVEAL_ON_RUN_HOVER)}
-          onClick={() => (reading ? stopReading() : readAloud(runId, text))}
-          data-testid="read-aloud"
-        >
-          {reading ? <Square className="fill-current" /> : <Volume2 />}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{reading ? "Stop reading" : "Read aloud"}</TooltipContent>
-    </Tooltip>
+    <>
+      {reading && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Stop reading"
+              aria-pressed
+              className={cn(ACTION, "text-foreground")}
+              onClick={stopReading}
+              data-testid="stop-reading"
+            >
+              <Square className="size-3.5 fill-current" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Stop reading</TooltipContent>
+        </Tooltip>
+      )}
+      <RunMemory runId={runId} open={memoryOpen} onOpenChange={setMemoryOpen}>
+        <span className="flex">
+          <DropdownMenu>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="More actions"
+                    className={cn(ACTION, memoryOpen ? "text-foreground" : REVEAL_ON_RUN_HOVER)}
+                    data-testid="reply-more"
+                  >
+                    <MoreHorizontal />
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent>More</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent
+              align="start"
+              className="w-56"
+              onCloseAutoFocus={(event) => {
+                if (!openMemory.current) return;
+                // The memory popover takes over from the menu, focus and all.
+                event.preventDefault();
+                openMemory.current = false;
+                setMemoryOpen(true);
+              }}
+            >
+              <DropdownMenuItem onSelect={() => (openMemory.current = true)}>
+                <Brain />
+                What they remembered
+              </DropdownMenuItem>
+              {supported && text && (
+                <DropdownMenuItem
+                  onSelect={() => (reading ? stopReading() : readAloud(runId, text))}
+                  data-testid="read-aloud"
+                >
+                  {reading ? <Square className="fill-current" /> : <Volume2 />}
+                  {reading ? "Stop reading" : "Read aloud"}
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </span>
+      </RunMemory>
+    </>
   );
 }
 
 /** When the run started and, once done, how long it took and what it used. */
-function RunTime({ run }: { run: RunView }) {
+function RunTime({ run, showDuration = true }: { run: RunView; showDuration?: boolean }) {
   const took =
     run.startedAt && run.completedAt
       ? new Date(run.completedAt).getTime() - new Date(run.startedAt).getTime()
@@ -141,12 +209,12 @@ function RunTime({ run }: { run: RunView }) {
   ].filter(Boolean);
   const time = (
     <time
-      className={cn("text-[12px] whitespace-nowrap text-muted-foreground/80", REVEAL_ON_RUN_HOVER)}
+      className="text-[12px] whitespace-nowrap text-muted-foreground"
       dateTime={run.createdAt}
       data-testid="run-time"
     >
-      {format(new Date(run.createdAt), "HH:mm")}
-      {took !== null && ` · ${formatDuration(took)}`}
+      {format(new Date(run.createdAt), "h:mm a")}
+      {showDuration && took !== null && ` · ${formatDuration(took)}`}
     </time>
   );
   if (details.length === 0) return time;
@@ -154,7 +222,7 @@ function RunTime({ run }: { run: RunView }) {
     <Tooltip>
       <TooltipTrigger asChild>{time}</TooltipTrigger>
       <TooltipContent data-testid="run-stats">
-        {format(new Date(run.createdAt), "EEE d MMM, HH:mm")} · {details.join(" · ")}
+        {format(new Date(run.createdAt), "EEE, MMM d, h:mm a")} · {details.join(" · ")}
       </TooltipContent>
     </Tooltip>
   );
@@ -201,6 +269,57 @@ function segment(items: TimelineItem[]): Segment[] {
   return segments;
 }
 
+/** Tools whose call is itself a request for your approval: the approval card says it all. */
+const ASKS_APPROVAL = new Set(["request_approval", "start_purchase", "send_email"]);
+
+/**
+ * Steps the pending approval right after them already states, like "Asked to pay $842.30" above
+ * the payment card. A tool that asks blocks on the answer, so it is still running, or it is one of
+ * the tools that exist to ask.
+ */
+function restatedSteps(items: TimelineItem[]): Set<string> {
+  const ids = new Set<string>();
+  const shown = items.filter((item) => item.kind !== "computer");
+  shown.forEach((item, index) => {
+    const next = shown[index + 1];
+    if (
+      item.kind === "tool" &&
+      next?.kind === "approval" &&
+      next.decision === "pending" &&
+      (item.status === "running" || ASKS_APPROVAL.has(item.name))
+    )
+      ids.add(item.id);
+  });
+  return ids;
+}
+
+/**
+ * Approved commands that ran right after their approval. The command step says it once, marked as
+ * approved, instead of an approval line followed by the same command again.
+ */
+function approvedCommands(items: TimelineItem[]): {
+  approvals: Set<string>;
+  commands: Set<string>;
+} {
+  const approvals = new Set<string>();
+  const commands = new Set<string>();
+  const shown = items.filter((item) => item.kind !== "computer");
+  shown.forEach((item, index) => {
+    const next = shown[index + 1];
+    if (
+      item.kind === "approval" &&
+      item.decision === "approved" &&
+      item.approvalKind === "command" &&
+      next?.kind === "command" &&
+      item.title.trim() === shellScript(next.command).trim()
+    ) {
+      approvals.add(item.id);
+      commands.add(next.id);
+    }
+  });
+  return { approvals, commands };
+}
+
 /** Items that always stay visible, even when the steps are collapsed. */
 function isPinned(item: TimelineItem): boolean {
   return (
@@ -242,7 +361,7 @@ function AutomationLabel({
         {title}
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[min(32rem,calc(100vw-2rem))] gap-2 p-0">
-        <div className="border-b px-3.5 py-2.5 text-[12px] font-medium tracking-wide text-muted-foreground uppercase">
+        <div className="border-b px-3.5 py-2.5 text-[12.5px] font-medium text-muted-foreground">
           What started this
         </div>
         <div className="max-h-80 overflow-y-auto px-3.5 pb-3">
@@ -370,15 +489,9 @@ function Elapsed({ since }: { since: string }) {
 }
 
 function WorkingLine({ run }: { run: RunView }) {
-  const { status, waitingFor } = run.timeline;
-  if (status === "waiting") {
-    return (
-      <div className="flex items-center gap-2 text-[13px] text-waiting">
-        <span className="size-2 rounded-full bg-waiting" />
-        {waitingFor === "takeover" ? "Waiting for you to take over" : "Waiting for your approval"}
-      </div>
-    );
-  }
+  const { status } = run.timeline;
+  // The approval or takeover card above already says what the run needs from you.
+  if (status === "waiting") return null;
   const label =
     status === "queued" ? "Up next" : status === "starting" ? "Getting ready" : "Working";
   return (
@@ -386,7 +499,7 @@ function WorkingLine({ run }: { run: RunView }) {
       <span
         className={cn(
           "size-2 rounded-full",
-          status === "queued" ? "bg-muted-foreground/50" : "animate-tally bg-live",
+          status === "queued" ? "bg-idle" : "animate-tally bg-working",
         )}
       />
       <span>{label}</span>
@@ -395,7 +508,12 @@ function WorkingLine({ run }: { run: RunView }) {
   );
 }
 
-function renderItem(item: TimelineItem, botId: string, bot: BotSummary | undefined) {
+function renderItem(
+  item: TimelineItem,
+  botId: string,
+  bot: BotSummary | undefined,
+  approved = false,
+) {
   switch (item.kind) {
     case "message":
       return item.phase === "final" ? (
@@ -406,7 +524,7 @@ function renderItem(item: TimelineItem, botId: string, bot: BotSummary | undefin
     case "reasoning":
       return item.text ? <ReasoningStep item={item} /> : null;
     case "command":
-      return <CommandStep item={item} />;
+      return <CommandStep item={item} approved={approved} />;
     case "file_change":
       return <FileChangeStep item={item} />;
     case "tool":
@@ -447,6 +565,7 @@ export function RunBlock({
   bot,
   bots,
   superseded = false,
+  latest = false,
 }: {
   run: RunView;
   chatId: string;
@@ -454,16 +573,58 @@ export function RunBlock({
   bots: BotSummary[];
   /** The same bot ran again after this, so there's nothing to retry. */
   superseded?: boolean;
+  /** The last entry in the chat: its actions always show. */
+  latest?: boolean;
 }) {
   const active = isRunActive(run.timeline.status);
-  const items = run.timeline.items;
+  const allItems = run.timeline.items;
+  const { items, approved } = useMemo(() => {
+    const restated = restatedSteps(allItems);
+    const merged = approvedCommands(allItems);
+    const hidden = new Set([...restated, ...merged.approvals]);
+    return {
+      items: hidden.size ? allItems.filter((item) => !hidden.has(item.id)) : allItems,
+      approved: merged.commands,
+    };
+  }, [allItems]);
   const segments = useMemo(() => segment(items), [items]);
-  const stepCount = items.filter((item) => !isPinned(item)).length;
-  const collapsible = !active && stepCount > 3;
+  // A stretch of computer use is one step, as it shows as one strip.
+  const stepCount = segments.filter(
+    (part) =>
+      part.kind === "desktop" ||
+      (!isPinned(part.item) && !(part.item.kind === "reasoning" && !part.item.text)),
+  ).length;
+  // A finished run folds its steps into one line, the same as on the phone, so the chat reads as a
+  // conversation; what you need to see (the reply, a pending approval, an error, a page) stays out.
+  // A run that is still going shows its steps as they happen.
+  const collapsible = !active && stepCount > 0;
   const [expanded, setExpanded] = useState(false);
   const showSteps = !collapsible || expanded;
+  const took =
+    run.startedAt && run.completedAt
+      ? new Date(run.completedAt).getTime() - new Date(run.startedAt).getTime()
+      : null;
   const name = bot?.name ?? "Former teammate";
   const reply = replyText(run);
+  // A reply's actions sit in one row under it, the same with a mouse or a finger.
+  const actions = !active && (
+    <span
+      className={cn(
+        "-ml-2 flex items-center gap-0.5 [&_button:not([aria-pressed=true]):not([aria-expanded=true])]:text-faint",
+        // The latest reply's row is part of it. An earlier reply's row, shown on hover, sits in the
+        // space after it instead of holding that space open between every message. On a touch
+        // screen every row shows, so each keeps its place.
+        latest ? "-mt-1" : "absolute top-full left-0 -mt-1 pointer-coarse:static",
+      )}
+      data-testid="run-actions"
+    >
+      {reply && <CopyReply text={reply} />}
+      {reply && run.timeline.status === "completed" && bot && (
+        <ReplyFeedback run={run} botName={name} chatId={chatId} />
+      )}
+      <MoreActions runId={run.id} text={reply} />
+    </span>
+  );
 
   // A routine that looked and found nothing needs no more than a line.
   if (!active && run.trigger === "schedule" && isNothingToReport(reply)) {
@@ -492,6 +653,7 @@ export function RunBlock({
     <article
       id={`run-${run.id}`}
       className="group/run flex scroll-mt-6 gap-3"
+      data-latest={latest || undefined}
       data-testid="run"
       data-status={run.timeline.status}
     >
@@ -502,9 +664,9 @@ export function RunBlock({
         size="md"
         className="mt-0.5"
       />
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
+      <div className="relative flex min-w-0 flex-1 flex-col gap-2">
         <header className="flex h-6 items-center gap-2 text-[13px]">
-          <span className="font-heading text-[14.5px] font-semibold">{name}</span>
+          <span className="text-[14px] font-semibold">{name}</span>
           <TriggerLabel run={run} bots={bots} />
           {run.authMode === "api_key" && (
             <span className="flex items-center gap-1 rounded-full bg-subtle px-2 py-px text-[11.5px] text-muted-foreground">
@@ -512,28 +674,22 @@ export function RunBlock({
               API key
             </span>
           )}
-          <RunTime run={run} />
-          {!active && reply && (
-            <span className="flex items-center">
-              <CopyReply text={reply} />
-              <ReadAloud runId={run.id} text={reply} />
-              {run.timeline.status === "completed" && bot && (
-                <ReplyFeedback run={run} botName={name} chatId={chatId} />
-              )}
-            </span>
-          )}
+          <RunTime run={run} showDuration={!collapsible} />
         </header>
 
         {collapsible && (
           <button
+            type="button"
             onClick={() => setExpanded((value) => !value)}
-            className="flex items-center gap-1.5 self-start rounded-md text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+            className="-ml-1 flex h-7 items-center gap-1.5 self-start rounded-md px-1 text-[13px] text-muted-foreground transition-colors hover:text-foreground aria-expanded:text-foreground/80"
             aria-expanded={expanded}
+            data-testid="run-steps"
           >
             <ChevronDown
               className={cn("size-3.5 transition-transform", !expanded && "-rotate-90")}
             />
-            {expanded ? "Hide" : "Show"} {stepCount} {stepCount === 1 ? "step" : "steps"}
+            {took !== null ? `Worked for ${formatDuration(took)}` : "Worked"} · {stepCount}{" "}
+            {stepCount === 1 ? "step" : "steps"}
           </button>
         )}
 
@@ -547,7 +703,7 @@ export function RunBlock({
               ) : null;
             }
             if (!showSteps && !isPinned(part.item)) return null;
-            const content = renderItem(part.item, run.botId, bot);
+            const content = renderItem(part.item, run.botId, bot, approved.has(part.item.id));
             if (!content) return null;
             const spaced =
               part.item.kind === "message" ||
@@ -566,7 +722,6 @@ export function RunBlock({
         </div>
 
         {active && <WorkingLine run={run} />}
-        <RunMemory runId={run.id} />
         {run.timeline.status === "interrupted" && (
           <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
             <Square className="size-3" />
@@ -577,6 +732,7 @@ export function RunBlock({
           (run.timeline.status === "failed" || run.timeline.status === "interrupted") && (
             <RetryRun runId={run.id} />
           )}
+        {actions}
       </div>
     </article>
   );
