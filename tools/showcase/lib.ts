@@ -11,10 +11,9 @@ import {
   usageEntries,
   type schema,
 } from "@open-bot/db";
-import { getTableName, type InferInsertModel } from "drizzle-orm";
+import { eq, getTableName, type InferInsertModel } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { PgTable } from "drizzle-orm/pg-core";
-import type pg from "pg";
 
 /* ------------------------------------------------------------------ Time */
 
@@ -139,7 +138,7 @@ export function nextLaunchDay() {
 export class Db {
   readonly counts: Record<string, number> = {};
 
-  constructor(readonly orm: NodePgDatabase<typeof schema> & { $client: pg.Client }) {}
+  constructor(readonly orm: NodePgDatabase<typeof schema>) {}
 
   async insert<T extends PgTable>(
     table: T,
@@ -149,10 +148,6 @@ export class Db {
     const name = getTableName(table);
     this.counts[name] = (this.counts[name] ?? 0) + 1;
     return row;
-  }
-
-  query(sql: string, params?: unknown[]) {
-    return this.orm.$client.query(sql, params);
   }
 }
 
@@ -582,11 +577,10 @@ export class Seeder {
       const completed = this.completions.get(chatId);
       const unread = this.unread.has(chatId) && completed;
       const readAt = unread ? plus(completed, -3 * HOUR) : last > NOW ? NOW : plus(last, 1000);
-      await this.db.query("update chats set last_activity_at = $2, read_at = $3 where id = $1", [
-        chatId,
-        last,
-        readAt > NOW ? NOW : readAt,
-      ]);
+      await this.db.orm
+        .update(chats)
+        .set({ lastActivityAt: last, readAt: readAt > NOW ? NOW : readAt })
+        .where(eq(chats.id, chatId));
     }
   }
 }

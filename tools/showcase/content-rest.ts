@@ -1,11 +1,13 @@
 // Everything around the conversations: automations, accounts, tasks, skills, vault, memory,
 // notifications, pages, usage and settings.
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import type { InferInsertModel } from "drizzle-orm";
+import { eq, inArray, sql, type InferInsertModel } from "drizzle-orm";
 import {
   accounts,
+  bots as botsTable,
   connections,
   credentials,
+  emailSettings,
   emails,
   instructionProposals,
   lessons,
@@ -19,6 +21,7 @@ import {
   pages,
   purchases,
   schedules,
+  settings,
   skills,
   tasks,
   triggers,
@@ -1249,12 +1252,16 @@ export async function seedMemory(ctx: SeedContext) {
   // doesn't copy it into a second, raw-Markdown note.
   const aboutMe = `Founder and CEO of Kestrel, a privacy-first web analytics tool. Based in San Francisco, on Pacific time. Shipping Kestrel 2.0, then Lisbon for the Atlantic Product Summit.`;
   await db.insert(memoryImports, { key: "legacy:profile" });
-  await db.query(
-    `insert into settings (id, monthly_cap_micros, timezone, about_me, about_me_updated_at)
-     values (1, 20000000, $1, $2, $3)
-     on conflict (id) do update set monthly_cap_micros = 20000000, timezone = $1, about_me = $2, about_me_updated_at = $3`,
-    [TIMEZONE, aboutMe, ago({ d: 4 })],
-  );
+  const profile: Partial<InferInsertModel<typeof settings>> = {
+    monthlyCapMicros: 20_000_000,
+    timezone: TIMEZONE,
+    aboutMe,
+    aboutMeUpdatedAt: ago({ d: 4 }),
+  };
+  await db.orm
+    .insert(settings)
+    .values({ id: 1, ...profile })
+    .onConflictDoUpdate({ target: settings.id, set: profile });
 
   // A lesson is a row of its own and also a pinned memory, the way the app keeps them together.
   const lesson = async (bot, run, text, daysAgo) => {
@@ -1323,13 +1330,16 @@ export async function seedMemory(ctx: SeedContext) {
   await lesson(iris, null, "Name the exact cost or recipient in every approval request.", {
     d: 14,
   });
-  await db.query("update bots set lessons_changed_at = now() where id = any($1::uuid[])", [
-    [juno.id, kit.id, mira.id, scout.id, iris.id],
-  ]);
+  await db.orm
+    .update(botsTable)
+    .set({ lessonsChangedAt: sql`now()` })
+    .where(inArray(botsTable.id, [juno.id, kit.id, mira.id, scout.id, iris.id]));
 
   // A teammate suggesting a rewrite of its own instructions.
-  const miraDef = (await db.query("select instructions from bots where id = $1", [mira.id])).rows[0]
-    .instructions;
+  const [{ instructions: miraDef }] = await db.orm
+    .select({ instructions: botsTable.instructions })
+    .from(botsTable)
+    .where(eq(botsTable.id, mira.id));
   await db.insert(instructionProposals, {
     id: randomUUID(),
     botId: mira.id,
@@ -1614,9 +1624,12 @@ export async function seedUsageAndSettings(ctx: SeedContext) {
     device: "Pixel 9",
     lastSentAt: ago({ h: 1 }),
   });
-  await db.query(
-    `insert into email_settings (id, domain, inbound_token, last_received_at) values (1, 'kestrel.team', $1, $2)
-     on conflict (id) do update set domain = 'kestrel.team', last_received_at = $2`,
-    [randomBytes(18).toString("base64url"), ago({ h: 5, m: 10 })],
-  );
+  const mailDomain: Partial<InferInsertModel<typeof emailSettings>> = {
+    domain: "kestrel.team",
+    lastReceivedAt: ago({ h: 5, m: 10 }),
+  };
+  await db.orm
+    .insert(emailSettings)
+    .values({ id: 1, inboundToken: randomBytes(18).toString("base64url"), ...mailDomain })
+    .onConflictDoUpdate({ target: emailSettings.id, set: mailDomain });
 }
