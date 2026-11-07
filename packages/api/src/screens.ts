@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { screenOperationSchema, typeOnScreenSchema } from "@open-bot/shared";
+import {
+  computerLifecycleSchema,
+  screenOperationSchema,
+  typeOnScreenSchema,
+} from "@open-bot/shared";
 import { botSummarySchema } from "./views";
 
 export { screenOperationSchema, typeOnScreenSchema };
@@ -13,6 +17,7 @@ export const screenViewSchema = z.object({
   id: z.string(),
   bot: botSummarySchema,
   online: z.boolean(),
+  lifecycle: computerLifecycleSchema.nullable().optional(),
   running: z.boolean(),
   lease: z
     .union([

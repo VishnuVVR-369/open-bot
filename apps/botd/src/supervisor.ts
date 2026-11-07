@@ -30,9 +30,16 @@ const MAX_BACKOFF_MS = 15_000;
 export class Supervisor extends EventEmitter<{ state: [string, ProcessState] }> {
   private readonly processes = new Map<
     string,
-    { spec: ProcessSpec; child: ChildProcess | null; state: ProcessState; failures: number }
+    {
+      spec: ProcessSpec;
+      child: ChildProcess | null;
+      group: ChildProcess | null;
+      state: ProcessState;
+      failures: number;
+    }
   >();
   private stopping = false;
+  private readonly transitions = new Map<string, Promise<void>>();
 
   constructor(private readonly log: (message: string) => void) {
     super();
@@ -50,10 +57,35 @@ export class Supervisor extends EventEmitter<{ state: [string, ProcessState] }> 
     return this.processes.get(name)?.state === "running";
   }
 
-  async start(spec: ProcessSpec): Promise<void> {
+  pid(name: string): number | undefined {
+    return this.processes.get(name)?.child?.pid;
+  }
+
+  start(spec: ProcessSpec): Promise<void> {
+    return this.serial(spec.name, () => this.startProcess(spec));
+  }
+
+  private serial(name: string, work: () => Promise<void>): Promise<void> {
+    const next = (this.transitions.get(name) ?? Promise.resolve()).catch(() => {}).then(work);
+    this.transitions.set(name, next);
+    void next
+      .finally(() => {
+        if (this.transitions.get(name) === next) this.transitions.delete(name);
+      })
+      .catch(() => {});
+    return next;
+  }
+
+  private async startProcess(spec: ProcessSpec): Promise<void> {
     const existing = this.processes.get(spec.name);
     if (existing && (existing.state === "running" || existing.state === "starting")) return;
-    const entry = existing ?? { spec, child: null, state: "stopped" as ProcessState, failures: 0 };
+    const entry = existing ?? {
+      spec,
+      child: null,
+      group: null,
+      state: "stopped" as ProcessState,
+      failures: 0,
+    };
     entry.spec = spec;
     this.processes.set(spec.name, entry);
     await this.launch(spec.name);
@@ -80,6 +112,8 @@ export class Supervisor extends EventEmitter<{ state: [string, ProcessState] }> 
       detached: true,
     });
     entry.child = child;
+    entry.group = child;
+    child.on("error", (error) => this.log(`[${name}] ${String(error)}`));
     spec.onSpawn?.(child);
     const prefix = `[${name}] `;
     child.stdout?.on("data", (chunk: Buffer) => this.log(prefix + chunk.toString().trimEnd()));
@@ -100,7 +134,12 @@ export class Supervisor extends EventEmitter<{ state: [string, ProcessState] }> 
       this.setState(name, "crashed");
       entry.failures += 1;
       const delay = Math.min(MAX_BACKOFF_MS, 500 * 2 ** (entry.failures - 1));
-      setTimeout(() => void this.launch(name), delay);
+      setTimeout(() => {
+        if (this.processes.get(name) === entry && !this.stopping && !entry.child)
+          void this.serial(name, async () => {
+            if (this.processes.get(name) === entry && !entry.child) await this.launch(name);
+          }).catch((error: unknown) => this.log(`${prefix}restart failed: ${String(error)}`));
+      }, delay).unref();
     });
 
     try {
@@ -114,25 +153,31 @@ export class Supervisor extends EventEmitter<{ state: [string, ProcessState] }> 
       }
     } catch (error) {
       this.log(`${prefix}did not become ready: ${String(error)}`);
-      killGroup(child, "SIGTERM");
+      await terminate([child]);
+      throw error;
     }
   }
 
   /** Stop a process and forget it. */
-  async stop(name: string): Promise<void> {
+  stop(name: string): Promise<void> {
+    return this.serial(name, () => this.stopProcess(name));
+  }
+
+  private async stopProcess(name: string): Promise<void> {
     const entry = this.processes.get(name);
     if (!entry) return;
-    this.processes.delete(name);
-    const child = entry.child;
-    entry.child = null;
+    const child = entry.child ?? entry.group;
+    // Remove only after verified termination. Failed shutdown must remain visible and retryable.
+    entry.spec = { ...entry.spec, restart: "never" };
     if (child) await terminate([child]);
+    this.processes.delete(name);
+    entry.child = null;
     this.emit("state", name, "stopped");
   }
 
   async stopAll(): Promise<void> {
     this.stopping = true;
-    const children = [...this.processes.values()].map((entry) => entry.child);
-    await terminate(children.filter((child): child is ChildProcess => child !== null));
+    await Promise.all([...this.processes.keys()].map((name) => this.stop(name)));
   }
 }
 
@@ -146,19 +191,30 @@ function killGroup(child: ChildProcess, signal: NodeJS.Signals) {
 }
 
 /** SIGTERM the processes' groups, then SIGKILL whatever is still running after a grace period. */
-async function terminate(children: ChildProcess[]): Promise<void> {
-  const exited = children.map(
-    (child) =>
-      new Promise<void>((resolve) => {
-        if (child.exitCode !== null || child.signalCode !== null) resolve();
-        else child.once("exit", () => resolve());
-      }),
-  );
+export async function terminate(children: ChildProcess[]): Promise<void> {
+  const alive = (child: ChildProcess) => {
+    if (!child.pid) return false;
+    try {
+      process.kill(-child.pid, 0);
+      return true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ESRCH") return false;
+      // A process group in an exit/permission transition is not verified dead. Keep waiting;
+      // a persistent inability to verify it still fails the bounded shutdown below.
+      if ((error as NodeJS.ErrnoException).code === "EPERM") return true;
+      throw error;
+    }
+  };
   for (const child of children) killGroup(child, "SIGTERM");
-  const timeout = new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), 3_000));
-  if ((await Promise.race([Promise.all(exited), timeout])) === "timeout") {
-    for (const child of children) killGroup(child, "SIGKILL");
-  }
+  const wait = async (ms: number) => {
+    const deadline = Date.now() + ms;
+    while (children.some(alive) && Date.now() < deadline)
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    return !children.some(alive);
+  };
+  if (await wait(3_000)) return;
+  for (const child of children) if (alive(child)) killGroup(child, "SIGKILL");
+  if (!(await wait(3_000))) throw new Error("Process groups did not exit after SIGKILL");
 }
 
 /** Poll until `check` succeeds or the timeout passes. */

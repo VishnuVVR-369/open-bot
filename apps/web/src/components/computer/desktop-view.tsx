@@ -109,7 +109,7 @@ export function DesktopView({
           rfbClosed = true;
           if (disposed) return;
           setStatus("offline");
-          retry = setTimeout(() => setAttempt((n) => n + 1), 2_000);
+          if (mode === "control") retry = setTimeout(() => setAttempt((n) => n + 1), 2_000);
         });
         rfb.addEventListener("clipboard", (event) => {
           const text = (event.detail as { text?: string }).text;
@@ -125,7 +125,7 @@ export function DesktopView({
       } catch {
         if (disposed) return;
         setStatus("offline");
-        retry = setTimeout(() => setAttempt((n) => n + 1), 3_000);
+        if (mode === "control") retry = setTimeout(() => setAttempt((n) => n + 1), 3_000);
       }
     })();
 

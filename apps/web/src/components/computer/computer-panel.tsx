@@ -71,7 +71,10 @@ function releaseScreen(state: AppState, screenId: string): AppState {
 export function useComputer(initial?: AppState) {
   const { data } = useAppState(initial);
   const state = data ?? initial;
-  const online = Boolean(state?.computer.online && state.computer.workerOnline);
+  const lifecycle = state?.computer.lifecycle;
+  const online = Boolean(
+    state?.computer.workerOnline && (state.computer.online || lifecycle?.enabled),
+  );
   const screens = state?.computer.health?.screens ?? [];
   const requests = state?.takeoverRequests ?? [];
 
@@ -105,6 +108,7 @@ export function useComputer(initial?: AppState) {
 
   return {
     state,
+    lifecycle,
     online,
     workerOnline: state?.computer.workerOnline ?? false,
     egress: state?.computer.egress,
@@ -288,7 +292,7 @@ export function ScreenGlass({
   className?: string;
   handleRef?: React.RefObject<DesktopHandle | null>;
 }) {
-  const { screen, workerOnline, online } = useComputer(initial);
+  const { screen, workerOnline, online, lifecycle } = useComputer(initial);
   const info = screen(screenId);
   const youHaveControl = info?.activity === "you";
   const running = info?.status?.state === "running";
@@ -317,6 +321,40 @@ export function ScreenGlass({
             ? "It reconnects on its own. If it doesn't, check the computer container."
             : "Start everything with pnpm dev, and this screen connects by itself."}
         </span>
+      </>
+    );
+  } else if (
+    lifecycle?.enabled &&
+    (lifecycle.phase === "idle" ||
+      lifecycle.phase === "waking" ||
+      lifecycle.phase === "quiescing" ||
+      lifecycle.error)
+  ) {
+    const waking = lifecycle.phase === "waking";
+    placeholder = (
+      <>
+        {waking ? (
+          <Loader2 className="mb-1 size-5 animate-spin" />
+        ) : (
+          <Moon className="mb-1 size-5" />
+        )}
+        <span role="status" className="text-[14px] font-medium text-bezel-foreground">
+          {lifecycle.error
+            ? "Computer error"
+            : waking
+              ? "Waking computer…"
+              : lifecycle.phase === "quiescing"
+                ? "Computer going idle"
+                : "Computer idle"}
+        </span>
+        <span className="max-w-72 text-[12.5px]">
+          {lifecycle.error ?? "Your next task or Wake screen will start it."}
+        </span>
+        {!waking && (
+          <div className="mt-2.5">
+            <WakeButton screenId={screenId} />
+          </div>
+        )}
       </>
     );
   } else if (info && !running) {

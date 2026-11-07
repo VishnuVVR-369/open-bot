@@ -157,6 +157,7 @@ export class SkillService {
 
   /** Write every skill to the computer and remove the ones that were deleted. */
   async syncAll(): Promise<void> {
+    if (this.ctx.lifecycle?.resting && !this.ctx.lifecycle.inScope) return;
     const all = await this.ctx.db.select().from(skills);
     const botRows = await this.ctx.db
       .select({ id: bots.id, slug: bots.slug })

@@ -237,6 +237,7 @@ export function createHttpServer(deps: HttpDeps): http.Server {
       computer: {
         online: ctx.computer.online,
         health: ctx.computer.health,
+        lifecycle: ctx.lifecycle?.status ?? null,
       },
       codex: ctx.codex.status,
       egress: egress.status,
@@ -867,7 +868,22 @@ export function createHttpServer(deps: HttpDeps): http.Server {
         route.names.map((name, i) => [name, decodeURIComponent(match[i + 1]!)]),
       );
       try {
-        send(response, 200, await route.handler(request, params, url));
+        const computerOperation =
+          /^\/internal\/(files\/|uploads(?:\/|$)|screens\/|takeover\/.*\/code-context|pages\/publish|codex\/(device-login|auth-source|logout)|connections\/.*\/test|bots\/.*\/sync)/.test(
+            url.pathname,
+          );
+        const cancelled = new AbortController();
+        response.once("close", () => {
+          if (!response.writableEnded) cancelled.abort(new Error("Request cancelled"));
+        });
+        const work = () => route.handler(request, params, url);
+        send(
+          response,
+          200,
+          await (computerOperation && ctx.lifecycle
+            ? ctx.lifecycle.run(url.pathname, work, cancelled.signal)
+            : work()),
+        );
       } catch (error) {
         // Never echo an error from code entry: it could carry the code from the request body.
         if (url.pathname === "/internal/screens/code") {
@@ -909,6 +925,13 @@ export function createHttpServer(deps: HttpDeps): http.Server {
       }
       if (!isScreenId(screen)) {
         socket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
+        return;
+      }
+      if (
+        !ctx.computer.online ||
+        !ctx.computer.health?.screens.some((s) => s.id === screen && s.state === "running")
+      ) {
+        socket.end("HTTP/1.1 409 Conflict\r\n\r\n");
         return;
       }
       if (mode === "control" && !isOwnerLease(ctx.computer.lease(screen))) {

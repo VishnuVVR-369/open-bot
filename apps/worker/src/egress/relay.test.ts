@@ -315,6 +315,44 @@ async function setup(
 }
 
 describe("egress relay", () => {
+  it("pauses only the computer tunnel and keeps desktop/phone agents attached through stale reconnect timers", async () => {
+    const env = await setup();
+    env.desktop();
+    const phone = env.rawAgent({ kind: "phone", id: PHONE_ID, name: "Phone", generation: 1 });
+    await until(
+      () => env.relay.status.agents.length >= 1 && env.relay.computerConnected,
+      "agents and computer",
+    );
+    const before = env.tunnels.length;
+    env.relay.pauseComputer();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(env.relay.computerConnected).toBe(false);
+    expect(env.relay.status.agents.some((agent) => agent.kind === "desktop")).toBe(true);
+    expect(phone.socket.readyState).toBe(WebSocket.OPEN);
+    expect(env.tunnels.length).toBe(before);
+    await env.relay.resumeComputer();
+    await until(() => env.relay.computerConnected, "computer resumes");
+    expect(env.relay.status.agents.some((agent) => agent.kind === "desktop")).toBe(true);
+  });
+
+  it("reloads durable routing and revocations before resuming a sleeping computer", async () => {
+    const env = await setup();
+    const phone = env.rawAgent({ kind: "phone", id: PHONE_ID, name: "Phone", generation: 1 });
+    await until(() => env.relay.status.agents.some((a) => a.kind === "phone"), "phone attached");
+    env.relay.pauseComputer();
+    // Simulate a saved edit whose notification was lost. Periodic reconciliation is not enough.
+    env.store.mode = "require";
+    env.store.phones = [];
+    await env.relay.resumeComputer();
+    await until(
+      () => env.relay.computerConnected && env.router.state.mode === "require",
+      "fresh configuration applied",
+    );
+    await until(() => phone.socket.readyState !== WebSocket.OPEN, "revoked phone disconnected");
+    expect(env.relay.status.agents.some((a) => a.kind === "phone")).toBe(false);
+    expect(env.router.state.agentOnline).toBe(false);
+  });
+
   it("carries connections through the desktop, with a status that matches the API schema", async () => {
     const env = await setup();
     const port = await echoServer();

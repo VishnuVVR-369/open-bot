@@ -17,6 +17,7 @@ import type {
   TypeOnScreen,
 } from "@open-bot/shared";
 import WebSocket from "ws";
+import type { ComputerLifecycle } from "./computer-lifecycle";
 import type { Logger } from "./logger";
 
 export type LeaseReleaseReason = "handed_back" | "user_idle" | "user_disconnected";
@@ -35,6 +36,9 @@ export class ComputerClient extends EventEmitter<{
   /** Who holds each running screen, by screen (bot) id. */
   private readonly leases = new Map<string, LeaseHolder>();
   private stopped = false;
+  lifecycle?: ComputerLifecycle;
+  private generation = 0;
+  private reconnectTimer: NodeJS.Timeout | null = null;
   private reconnectDelay = 1_000;
 
   constructor(
@@ -74,24 +78,37 @@ export class ComputerClient extends EventEmitter<{
 
   start(): void {
     this.stopped = false;
-    this.connectEvents();
+    if (!this.eventsSocket) this.connectEvents();
   }
 
   stop(): void {
     this.stopped = true;
-    this.eventsSocket?.close();
+    this.generation++;
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+    const socket = this.eventsSocket;
+    this.eventsSocket = null;
+    socket?.terminate();
+    this.lastHealth = null;
+    this.leases.clear();
   }
 
   private connectEvents() {
     if (this.stopped) return;
-    const socket = new WebSocket(this.wsUrl("/events"));
+    const generation = this.generation;
+    const socket = new WebSocket(this.wsUrl("/events"), { handshakeTimeout: 10_000 });
     this.eventsSocket = socket;
     socket.on("open", () => {
+      if (this.stopped || generation !== this.generation) {
+        socket.terminate();
+        return;
+      }
       this.reconnectDelay = 1_000;
       this.log.info("connected to the computer");
       this.emit("connected");
     });
     socket.on("message", (data) => {
+      if (this.stopped || generation !== this.generation || this.eventsSocket !== socket) return;
       const event = JSON.parse(data.toString()) as ComputerEvent;
       if (event.type === "lease") {
         this.setLease(event.screenId, event.holder, event.reason ?? "acquired");
@@ -113,7 +130,10 @@ export class ComputerClient extends EventEmitter<{
         this.emit("health", null);
       }
       if (!this.stopped) {
-        setTimeout(() => this.connectEvents(), this.reconnectDelay);
+        this.reconnectTimer = setTimeout(() => {
+          this.reconnectTimer = null;
+          if (generation === this.generation) this.connectEvents();
+        }, this.reconnectDelay);
         this.reconnectDelay = Math.min(this.reconnectDelay * 2, 10_000);
       }
     });
@@ -128,11 +148,24 @@ export class ComputerClient extends EventEmitter<{
     body?: unknown,
     timeoutMs = 60_000,
   ): Promise<T> {
+    if (this.lifecycle?.enabled && !this.lifecycle.inScope)
+      return this.lifecycle.run(path, () =>
+        this.rawCall<T>(method, path, body, AbortSignal.timeout(timeoutMs)),
+      );
+    return this.rawCall<T>(method, path, body, AbortSignal.timeout(timeoutMs));
+  }
+
+  async rawCall<T>(
+    method: "GET" | "POST",
+    path: string,
+    body?: unknown,
+    signal = AbortSignal.timeout(10_000),
+  ): Promise<T> {
     const response = await fetch(new URL(path, this.baseUrl), {
       method,
       headers: { authorization: `Bearer ${this.token}`, "content-type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
-      signal: AbortSignal.timeout(timeoutMs),
+      signal: this.lifecycle?.signal ? AbortSignal.any([signal, this.lifecycle.signal]) : signal,
     });
     if (!response.ok)
       throw new Error(`botd ${path} returned ${response.status}: ${await response.text()}`);
@@ -167,7 +200,7 @@ export class ComputerClient extends EventEmitter<{
 
   /** Start a bot's screen without using it, so you can watch it. */
   startScreen(screenId: string): Promise<unknown> {
-    return this.call("POST", "/screens/start", { screenId });
+    return this.call("POST", "/screens/start", { screenId }, 180_000);
   }
 
   /** A bot was removed: stop its screen and delete its browser profile. */
@@ -184,6 +217,7 @@ export class ComputerClient extends EventEmitter<{
       "POST",
       "/lease/user/take",
       { screenId },
+      180_000,
     );
     // Update right away, so your control connection is accepted without waiting for the event.
     this.setLease(screenId, result.holder, "preempted");
@@ -229,6 +263,10 @@ export class ComputerClient extends EventEmitter<{
   }
 
   fetchHealth(): Promise<ComputerHealth> {
+    if (this.lifecycle?.enabled && !this.lifecycle.inScope) {
+      if (this.lastHealth) return Promise.resolve(this.lastHealth);
+      return Promise.reject(new Error("Computer is idle; status is cached"));
+    }
     return this.call("GET", "/health", undefined, 5_000);
   }
 }

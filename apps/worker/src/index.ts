@@ -1,4 +1,5 @@
 import { CHANNELS, computers, createDb, createPool, settings } from "@open-bot/db";
+import { ComputerLifecycle } from "./computer-lifecycle";
 import { CodexManager } from "./codex";
 import { ComputerClient } from "./computer";
 import { createNotification, publishApp, type Context } from "./context";
@@ -165,6 +166,116 @@ egress.setHooks({
   onAvailable: (id, seq) => wake.available(id, seq),
   onChange: () => wake.evaluate(),
 });
+const lifecycle = new ComputerLifecycle(
+  env.COMPUTER_LIFECYCLE_ENABLED,
+  {
+    wake: async (owner, signal) => {
+      // Liveness, capability and ensure calls are idempotent. User actions are never retried here.
+      for (;;) {
+        signal.throwIfAborted();
+        try {
+          await computer.rawCall("GET", "/healthz", undefined, signal);
+          let capabilities: { version: number; enabled: boolean };
+          try {
+            capabilities = await computer.rawCall(
+              "GET",
+              "/lifecycle/capabilities",
+              undefined,
+              signal,
+            );
+          } catch (error) {
+            if (!String(error).includes("returned 404")) throw error;
+            log.warn("Computer has no lifecycle capability; retaining eager connections");
+            return false;
+          }
+          if (capabilities.version !== 1 || !capabilities.enabled) {
+            log.warn("Computer lifecycle is disabled or incompatible; retaining eager connections");
+            return false;
+          }
+          await computer.rawCall("POST", "/lifecycle/lease", { owner, demand: 1 }, signal);
+          await computer.rawCall("POST", "/lifecycle/ensure", { owner }, signal);
+          return true;
+        } catch (error) {
+          if (/returned (401|403|400)/.test(String(error))) throw error;
+          await new Promise<void>((resolve, reject) => {
+            const done = () => {
+              signal.removeEventListener("abort", abort);
+              resolve();
+            };
+            const timer = setTimeout(done, 500);
+            const abort = () => {
+              clearTimeout(timer);
+              reject(signal.reason);
+            };
+            signal.addEventListener("abort", abort, { once: true });
+          });
+        }
+      }
+    },
+    restore: async (signal) => {
+      computer.start();
+      await egress.resumeComputer();
+      while (
+        !computer.online ||
+        !egress.computerConnected ||
+        !computer.health?.egress.configured ||
+        !computer.health.egress.tunnelConnected ||
+        computer.health.egress.mode !== egress.currentMode ||
+        computer.health.egress.agentOnline !== egress.status.agentOnline
+      ) {
+        signal.throwIfAborted();
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      await codex.resume(signal);
+      signal.throwIfAborted();
+      if (codex.status.account) {
+        await codex.rateLimits(true).catch(() => {});
+        await skills.syncAll();
+      }
+      signal.throwIfAborted();
+    },
+    quiesce: async (owner) => {
+      codex.setIdleIntent(true);
+      try {
+        await computer.rawCall("POST", "/lifecycle/lease", { owner, demand: 0 });
+        await computer.rawCall(
+          "POST",
+          "/lifecycle/quiesce",
+          { owner },
+          AbortSignal.timeout(60_000),
+        );
+      } catch (error) {
+        codex.setIdleIntent(false);
+        throw error;
+      }
+    },
+    pause: () => {
+      codex.pause();
+      computer.stop();
+      egress.pauseComputer();
+    },
+    renew: (owner, demand) => computer.rawCall("POST", "/lifecycle/lease", { owner, demand }),
+    busy: () =>
+      sessions.size > 0 || codex.status.login !== null || computer.heldScreens().length > 0,
+    changed: (status) => {
+      log.info("computer lifecycle", {
+        phase: status.phase,
+        demand: status.demand,
+        error: status.error,
+      });
+      void publishApp(ctx, { type: "computer" }).catch((error: unknown) =>
+        log.warn("lifecycle status publish failed", { error: errorMessage(error) }),
+      );
+    },
+  },
+  env.COMPUTER_IDLE_MINUTES * 60_000,
+);
+codex.on("disconnected", () => lifecycle.connectionLost());
+ctx.lifecycle = lifecycle;
+computer.lifecycle = lifecycle;
+codex.lifecycle = lifecycle;
+if (lifecycle.enabled) egress.pauseComputer();
+
 const telegram = new TelegramService(ctx, executor, approvals, uploads);
 
 await executor.recover();
@@ -172,17 +283,19 @@ await executor.recoverSteers();
 
 computer.on("health", () => void publishApp(ctx, { type: "computer" }));
 computer.on("connected", () => {
-  codex.start();
-  executor.pump();
+  if (!lifecycle.enabled) {
+    codex.start();
+    executor.pump();
+  }
 });
 codex.on("status", () => void publishApp(ctx, { type: "auth" }));
 codex.on("status", (status) => {
-  if (status.account) executor.pump();
+  if (status.account && !lifecycle.enabled) executor.pump();
 });
 // Write the saved skills to the computer once Codex is reachable, so they're there after a rebuild.
 let skillsSynced = false;
 codex.on("status", (status) => {
-  if (!status.connected || skillsSynced) return;
+  if (lifecycle.enabled || !status.connected || skillsSynced) return;
   skillsSynced = true;
   void skills.syncAll().catch((error: unknown) => {
     skillsSynced = false;
@@ -190,7 +303,7 @@ codex.on("status", (status) => {
   });
 });
 
-computer.start();
+if (!lifecycle.enabled) computer.start();
 // Finishes takeovers a restart or a partly failed hand-back left behind.
 const reconcileTakeovers = () =>
   void takeovers
@@ -308,6 +421,7 @@ server.listen(env.WORKER_PORT, () => log.info(`worker listening on :${env.WORKER
 async function shutdown(signal: string) {
   log.info(`received ${signal}, shutting down`);
   server.close();
+  lifecycle.stop();
   await memory.stop();
   schedules.stop();
   triggers.stop();

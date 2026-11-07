@@ -206,6 +206,7 @@ function ChatgptSection() {
             </span>
             <span className="text-[13px] text-muted-foreground">
               {codex.account?.email ?? codex.error ?? "Sign in to let your teammates work."}
+              {codex.stale && codex.account ? " · Cached while computer is idle" : ""}
             </span>
           </div>
         </div>

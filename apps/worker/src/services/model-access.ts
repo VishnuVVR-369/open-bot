@@ -100,7 +100,7 @@ export class ModelAccess {
   async markPlanLimited(): Promise<Date> {
     let until = new Date(Date.now() + FALLBACK_LIMIT_MS);
     try {
-      const limits = await this.ctx.codex.rateLimits();
+      const limits = await this.ctx.codex.rateLimits(true);
       const windows = [limits?.rateLimits.primary, limits?.rateLimits.secondary].filter(
         (window): window is NonNullable<typeof window> => Boolean(window?.resetsAt),
       );

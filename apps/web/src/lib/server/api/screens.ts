@@ -20,7 +20,8 @@ export async function listScreens(): Promise<ScreenView[]> {
     return {
       id: bot.id,
       bot,
-      online: status?.computer.online ?? false,
+      online: Boolean(status?.computer.online || status?.computer.lifecycle?.enabled),
+      lifecycle: status?.computer.lifecycle ?? null,
       running: screen?.state === "running",
       lease: screen?.lease ?? null,
       requests: requests
@@ -43,7 +44,7 @@ export async function handBackScreen({
   return { ok: true as const };
 }
 export async function wakeScreen({ screenId }: ApiInputs["screens"]["wake"]) {
-  await worker("POST", `/internal/screens/${screenId}/wake`, undefined, 60_000);
+  await worker("POST", `/internal/screens/${screenId}/wake`, undefined, 300_000);
   return { ok: true as const };
 }
 export async function reportScreenActivity({ screenId }: ApiInputs["screens"]["activity"]) {
@@ -60,7 +61,7 @@ export const codeContext = ({ takeoverId }: ApiInputs["takeovers"]["codeContext"
     `/internal/takeover/${takeoverId}/code-context`,
   );
 export const typeOnScreen = (input: ApiInputs["screenOperations"]["type"]) =>
-  worker<ApiOutputs["screenOperations"]["type"]>("POST", "/internal/screens/code", input, 60_000);
+  worker<ApiOutputs["screenOperations"]["type"]>("POST", "/internal/screens/code", input, 180_000);
 export const getScreenOperation = ({ operationId }: ApiInputs["screenOperations"]["get"]) =>
   worker<ApiOutputs["screenOperations"]["get"]>(
     "GET",

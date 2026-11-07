@@ -1,0 +1,1343 @@
+{
+  "baselineCommit": "4936b842dc41fef998367f9fc4407dfae832dca5",
+  "localTwentyCyclesAfterStorageFix": {
+    "started": "2026-11-07T04:11:51.696Z",
+    "cycles": [
+      {
+        "cycle": 1,
+        "browserReadyMs": 2821,
+        "totalCycleMs": 9953
+      },
+      {
+        "cycle": 2,
+        "browserReadyMs": 2835,
+        "totalCycleMs": 10030
+      },
+      {
+        "cycle": 3,
+        "browserReadyMs": 2813,
+        "totalCycleMs": 10008
+      },
+      {
+        "cycle": 4,
+        "browserReadyMs": 2858,
+        "totalCycleMs": 10090
+      },
+      {
+        "cycle": 5,
+        "browserReadyMs": 2825,
+        "totalCycleMs": 10003
+      },
+      {
+        "cycle": 6,
+        "browserReadyMs": 2816,
+        "totalCycleMs": 10043
+      },
+      {
+        "cycle": 7,
+        "browserReadyMs": 2858,
+        "totalCycleMs": 10000
+      },
+      {
+        "cycle": 8,
+        "browserReadyMs": 2842,
+        "totalCycleMs": 10041
+      },
+      {
+        "cycle": 9,
+        "browserReadyMs": 2912,
+        "totalCycleMs": 10097
+      },
+      {
+        "cycle": 10,
+        "browserReadyMs": 2845,
+        "totalCycleMs": 10014
+      },
+      {
+        "cycle": 11,
+        "browserReadyMs": 2842,
+        "totalCycleMs": 13628
+      },
+      {
+        "cycle": 12,
+        "browserReadyMs": 2888,
+        "totalCycleMs": 17250
+      },
+      {
+        "cycle": 13,
+        "browserReadyMs": 2851,
+        "totalCycleMs": 17191
+      },
+      {
+        "cycle": 14,
+        "browserReadyMs": 2831,
+        "totalCycleMs": 17191
+      },
+      {
+        "cycle": 15,
+        "browserReadyMs": 2858,
+        "totalCycleMs": 13694
+      },
+      {
+        "cycle": 16,
+        "browserReadyMs": 2887,
+        "totalCycleMs": 13669
+      },
+      {
+        "cycle": 17,
+        "browserReadyMs": 2917,
+        "totalCycleMs": 19123
+      },
+      {
+        "cycle": 18,
+        "browserReadyMs": 3028,
+        "totalCycleMs": 22815
+      },
+      {
+        "cycle": 19,
+        "browserReadyMs": 2909,
+        "totalCycleMs": 22715
+      },
+      {
+        "cycle": 20,
+        "browserReadyMs": 2894,
+        "totalCycleMs": 22657
+      }
+    ],
+    "memory": [
+      {
+        "label": "idle initial",
+        "rssKiBAndProcesses": "84356 5"
+      },
+      {
+        "label": "zero screens awake",
+        "rssKiBAndProcesses": "270864 10"
+      },
+      {
+        "label": "one screen",
+        "rssKiBAndProcesses": "1813568 37"
+      },
+      {
+        "label": "quiesced",
+        "rssKiBAndProcesses": "97236 5"
+      },
+      {
+        "label": "after 5 cycles",
+        "rssKiBAndProcesses": "111112 5"
+      },
+      {
+        "label": "after 10 cycles",
+        "rssKiBAndProcesses": "104852 5"
+      },
+      {
+        "label": "after 15 cycles",
+        "rssKiBAndProcesses": "106272 5"
+      },
+      {
+        "label": "after 20 cycles",
+        "rssKiBAndProcesses": "106928 5"
+      }
+    ],
+    "assertions": [
+      "conversation thread and prior messages resume after restart",
+      "scheduler wakes idle computer and runs exactly once",
+      "20 application quiesce/wake cycles",
+      "concurrent wake",
+      "file persistence",
+      "HttpOnly cookie persistence",
+      "localStorage persistence",
+      "cached account retained",
+      "computer transports disconnected",
+      "idle status and bot edits do not wake"
+    ],
+    "browserReadyP95Ms": 2917,
+    "finished": "2026-11-07T04:17:02.412Z"
+  },
+  "latestResourceConversationSchedulingChecks": {
+    "started": "2026-11-07T04:38:28.515Z",
+    "cycles": [
+      {
+        "cycle": 1,
+        "browserReadyMs": 2882,
+        "totalCycleMs": 10129
+      },
+      {
+        "cycle": 2,
+        "browserReadyMs": 2873,
+        "totalCycleMs": 10115
+      },
+      {
+        "cycle": 3,
+        "browserReadyMs": 2892,
+        "totalCycleMs": 10151
+      }
+    ],
+    "memory": [
+      {
+        "label": "idle initial",
+        "cgroupBytesAndRssKiBAndProcesses": "35926016\n82656 5"
+      },
+      {
+        "label": "zero screens awake",
+        "cgroupBytesAndRssKiBAndProcesses": "87314432\n265968 10"
+      },
+      {
+        "label": "one screen",
+        "cgroupBytesAndRssKiBAndProcesses": "459407360\n1808244 37"
+      },
+      {
+        "label": "quiesced",
+        "cgroupBytesAndRssKiBAndProcesses": "171282432\n91908 5"
+      },
+      {
+        "label": "two leased screens",
+        "cgroupBytesAndRssKiBAndProcesses": "803942400\n3022268 58"
+      },
+      {
+        "label": "two screens plus page checker",
+        "cgroupBytesAndRssKiBAndProcesses": "1060921344\n4200144 71"
+      }
+    ],
+    "assertions": [
+      "two leased screens plus one page checker",
+      "third-screen cancellation leaves existing screens intact",
+      "conversation thread and prior messages resume after restart",
+      "scheduler wakes idle computer and runs exactly once",
+      "3 application quiesce/wake cycles",
+      "concurrent wake",
+      "file persistence",
+      "HttpOnly cookie persistence",
+      "localStorage persistence",
+      "cached account retained",
+      "computer transports disconnected",
+      "idle status and bot edits do not wake"
+    ],
+    "browserReadyP95Ms": 2892,
+    "finished": "2026-11-07T04:39:49.286Z"
+  },
+  "webAndMobileContract": {
+    "at": "2026-11-07T04:32:50.841Z",
+    "phases": ["waking", "awake", "grace", "quiescing", "idle"],
+    "browserCanvasMounted": true,
+    "browserCanvasUnmountedOnSleep": true,
+    "cachedAccount": true,
+    "mobileApiIdleWakeAvailable": true,
+    "pageErrors": []
+  },
+  "backgroundProtection": {
+    "botJobRefusedQuiesce": true,
+    "desktopJobRefusedQuiesce": true,
+    "quiesceSucceededAfterBothExited": true
+  },
+  "testCounts": {
+    "botd": 58,
+    "workerUnit": 129,
+    "workerDatabaseIntegration": 90,
+    "mobile": 172,
+    "webUnit": 16,
+    "webDatabaseIntegration": 6,
+    "agent": 5
+  },
+  "railway": {
+    "projectId": "ffe4f999-838d-41fe-b21b-1703469a7039",
+    "environmentId": "52dce811-6c4d-49ab-9db9-ef29d85510aa",
+    "firstWarmWake": [
+      {
+        "at": "2026-11-07T04:29:22.859Z",
+        "botId": "69560dbe-ff66-4b89-ad09-9677273b87e6",
+        "chatId": "ccaa2382-2fcd-473f-8e69-8a63a7f7be29",
+        "path": "/home/bot/shared/sleep-rollout-69560dbe-ff66-4b89-ad09-9677273b87e6.txt",
+        "workspaceSyncedWhileIdle": false,
+        "computeReadyMs": 2598,
+        "browserReadyMs": 6159,
+        "fileVerified": true,
+        "lifecycle": {
+          "enabled": true,
+          "phase": "grace",
+          "error": null,
+          "demand": [],
+          "changedAt": "2026-11-07T04:29:22.856Z"
+        },
+        "accountType": "chatgpt",
+        "egress": {
+          "computerConnected": true,
+          "agents": [
+            {
+              "kind": "desktop",
+              "role": "active"
+            }
+          ]
+        },
+        "sentinelSha256": "50519fe85c25ccbb1b94cadb875380b25581d37e37618dd8ba0dabf8266c628e"
+      }
+    ],
+    "latestWarmWake": [
+      {
+        "at": "2026-11-07T04:41:53.731Z",
+        "botId": "69560dbe-ff66-4b89-ad09-9677273b87e6",
+        "computeReadyMs": 2530,
+        "browserReadyMs": 5312,
+        "sentinelPreserved": true,
+        "lifecycle": {
+          "enabled": true,
+          "phase": "grace",
+          "error": null,
+          "demand": [],
+          "changedAt": "2026-11-07T04:41:53.728Z"
+        },
+        "accountType": "chatgpt",
+        "desktopAgents": 1
+      }
+    ],
+    "quietObservationBeforeFinalWorkerRollout": [
+      {
+        "at": "2026-11-07T04:42:23.426Z",
+        "sample": 0,
+        "phase": "grace",
+        "error": null,
+        "online": true,
+        "accountCached": true,
+        "stale": false,
+        "limitsCached": true,
+        "computerTunnel": true,
+        "desktopAgents": 1,
+        "idleSince": null,
+        "quietSeconds": 0
+      },
+      {
+        "at": "2026-11-07T04:43:23.449Z",
+        "sample": 2,
+        "phase": "grace",
+        "error": null,
+        "online": true,
+        "accountCached": true,
+        "stale": false,
+        "limitsCached": true,
+        "computerTunnel": true,
+        "desktopAgents": 1,
+        "idleSince": null,
+        "quietSeconds": 0
+      },
+      {
+        "at": "2026-11-07T04:44:23.466Z",
+        "sample": 4,
+        "phase": "grace",
+        "error": null,
+        "online": true,
+        "accountCached": true,
+        "stale": false,
+        "limitsCached": true,
+        "computerTunnel": true,
+        "desktopAgents": 1,
+        "idleSince": null,
+        "quietSeconds": 0
+      },
+      {
+        "at": "2026-11-07T04:45:23.484Z",
+        "sample": 6,
+        "phase": "grace",
+        "error": null,
+        "online": true,
+        "accountCached": true,
+        "stale": false,
+        "limitsCached": true,
+        "computerTunnel": true,
+        "desktopAgents": 1,
+        "idleSince": null,
+        "quietSeconds": 0
+      },
+      {
+        "at": "2026-11-07T04:46:23.500Z",
+        "sample": 8,
+        "phase": "grace",
+        "error": null,
+        "online": true,
+        "accountCached": true,
+        "stale": false,
+        "limitsCached": true,
+        "computerTunnel": true,
+        "desktopAgents": 1,
+        "idleSince": null,
+        "quietSeconds": 0
+      },
+      {
+        "at": "2026-11-07T04:47:23.506Z",
+        "sample": 10,
+        "phase": "idle",
+        "error": null,
+        "online": false,
+        "accountCached": true,
+        "stale": true,
+        "limitsCached": true,
+        "computerTunnel": false,
+        "desktopAgents": 1,
+        "idleSince": "2026-11-07T04:46:53.890Z",
+        "quietSeconds": 30
+      },
+      {
+        "at": "2026-11-07T04:48:23.522Z",
+        "sample": 12,
+        "phase": "idle",
+        "error": null,
+        "online": false,
+        "accountCached": true,
+        "stale": true,
+        "limitsCached": true,
+        "computerTunnel": false,
+        "desktopAgents": 1,
+        "idleSince": "2026-11-07T04:46:53.890Z",
+        "quietSeconds": 90
+      },
+      {
+        "at": "2026-11-07T04:49:23.542Z",
+        "sample": 14,
+        "phase": "idle",
+        "error": null,
+        "online": false,
+        "accountCached": true,
+        "stale": true,
+        "limitsCached": true,
+        "computerTunnel": false,
+        "desktopAgents": 0,
+        "idleSince": "2026-11-07T04:46:53.890Z",
+        "quietSeconds": 150
+      },
+      {
+        "at": "2026-11-07T04:50:23.557Z",
+        "sample": 16,
+        "phase": "idle",
+        "error": null,
+        "online": false,
+        "accountCached": true,
+        "stale": true,
+        "limitsCached": true,
+        "computerTunnel": false,
+        "desktopAgents": 0,
+        "idleSince": "2026-11-07T04:46:53.890Z",
+        "quietSeconds": 210
+      }
+    ],
+    "quietObservationBeforeFinalCancellationGuard": [
+      {
+        "cleanupComplete": true,
+        "at": "2026-11-07T07:07:55.278Z",
+        "botId": "69560dbe-ff66-4b89-ad09-9677273b87e6",
+        "deletedBots": 1,
+        "sentinelRemoved": true,
+        "browserProfileRemoved": true,
+        "workspaceRemoved": true
+      },
+      {
+        "testAgentConnected": true,
+        "at": "2026-11-07T07:07:55.296Z",
+        "agentId": "sleep-rollout-verification-20261107"
+      },
+      {
+        "at": "2026-11-07T07:07:55.299Z",
+        "sample": 0,
+        "phase": "grace",
+        "error": null,
+        "online": true,
+        "accountCached": true,
+        "stale": false,
+        "limitsCached": true,
+        "computerTunnel": true,
+        "testAgentAttached": true,
+        "openFrames": 0,
+        "idleSince": null,
+        "quietSeconds": 0
+      },
+      {
+        "at": "2026-11-07T07:08:55.318Z",
+        "sample": 2,
+        "phase": "grace",
+        "error": null,
+        "online": true,
+        "accountCached": true,
+        "stale": false,
+        "limitsCached": true,
+        "computerTunnel": true,
+        "testAgentAttached": true,
+        "openFrames": 0,
+        "idleSince": null,
+        "quietSeconds": 0
+      },
+      {
+        "at": "2026-11-07T07:09:55.337Z",
+        "sample": 4,
+        "phase": "grace",
+        "error": null,
+        "online": true,
+        "accountCached": true,
+        "stale": false,
+        "limitsCached": true,
+        "computerTunnel": true,
+        "testAgentAttached": true,
+        "openFrames": 0,
+        "idleSince": null,
+        "quietSeconds": 0
+      },
+      {
+        "at": "2026-11-07T07:10:55.350Z",
+        "sample": 6,
+        "phase": "grace",
+        "error": null,
+        "online": true,
+        "accountCached": true,
+        "stale": false,
+        "limitsCached": true,
+        "computerTunnel": true,
+        "testAgentAttached": true,
+        "openFrames": 0,
+        "idleSince": null,
+        "quietSeconds": 0
+      },
+      {
+        "at": "2026-11-07T07:11:55.367Z",
+        "sample": 8,
+        "phase": "grace",
+        "error": null,
+        "online": true,
+        "accountCached": true,
+        "stale": false,
+        "limitsCached": true,
+        "computerTunnel": true,
+        "testAgentAttached": true,
+        "openFrames": 0,
+        "idleSince": null,
+        "quietSeconds": 0
+      },
+      {
+        "at": "2026-11-07T07:12:55.380Z",
+        "sample": 10,
+        "phase": "idle",
+        "error": null,
+        "online": false,
+        "accountCached": true,
+        "stale": true,
+        "limitsCached": true,
+        "computerTunnel": false,
+        "testAgentAttached": true,
+        "openFrames": 0,
+        "idleSince": "2026-11-07T07:12:55.346Z",
+        "quietSeconds": 0
+      },
+      {
+        "at": "2026-11-07T07:13:55.388Z",
+        "sample": 12,
+        "phase": "idle",
+        "error": null,
+        "online": false,
+        "accountCached": true,
+        "stale": true,
+        "limitsCached": true,
+        "computerTunnel": false,
+        "testAgentAttached": true,
+        "openFrames": 0,
+        "idleSince": "2026-11-07T07:12:55.346Z",
+        "quietSeconds": 60
+      },
+      {
+        "at": "2026-11-07T07:14:55.403Z",
+        "sample": 14,
+        "phase": "idle",
+        "error": null,
+        "online": false,
+        "accountCached": true,
+        "stale": true,
+        "limitsCached": true,
+        "computerTunnel": false,
+        "testAgentAttached": true,
+        "openFrames": 0,
+        "idleSince": "2026-11-07T07:12:55.346Z",
+        "quietSeconds": 120
+      },
+      {
+        "at": "2026-11-07T07:15:55.411Z",
+        "sample": 16,
+        "phase": "idle",
+        "error": null,
+        "online": false,
+        "accountCached": true,
+        "stale": true,
+        "limitsCached": true,
+        "computerTunnel": false,
+        "testAgentAttached": true,
+        "openFrames": 0,
+        "idleSince": "2026-11-07T07:12:55.346Z",
+        "quietSeconds": 180
+      },
+      {
+        "at": "2026-11-07T07:16:55.420Z",
+        "sample": 18,
+        "phase": "idle",
+        "error": null,
+        "online": false,
+        "accountCached": true,
+        "stale": true,
+        "limitsCached": true,
+        "computerTunnel": false,
+        "testAgentAttached": true,
+        "openFrames": 0,
+        "idleSince": "2026-11-07T07:12:55.346Z",
+        "quietSeconds": 240
+      },
+      {
+        "at": "2026-11-07T07:17:55.442Z",
+        "sample": 20,
+        "phase": "idle",
+        "error": null,
+        "online": false,
+        "accountCached": true,
+        "stale": true,
+        "limitsCached": true,
+        "computerTunnel": false,
+        "testAgentAttached": true,
+        "openFrames": 0,
+        "idleSince": "2026-11-07T07:12:55.346Z",
+        "quietSeconds": 300
+      },
+      {
+        "at": "2026-11-07T07:18:55.454Z",
+        "sample": 22,
+        "phase": "idle",
+        "error": null,
+        "online": false,
+        "accountCached": true,
+        "stale": true,
+        "limitsCached": true,
+        "computerTunnel": false,
+        "testAgentAttached": true,
+        "openFrames": 0,
+        "idleSince": "2026-11-07T07:12:55.346Z",
+        "quietSeconds": 360
+      },
+      {
+        "at": "2026-11-07T07:19:55.464Z",
+        "sample": 24,
+        "phase": "idle",
+        "error": null,
+        "online": false,
+        "accountCached": true,
+        "stale": true,
+        "limitsCached": true,
+        "computerTunnel": false,
+        "testAgentAttached": true,
+        "openFrames": 0,
+        "idleSince": "2026-11-07T07:12:55.346Z",
+        "quietSeconds": 420
+      },
+      {
+        "at": "2026-11-07T07:20:55.472Z",
+        "sample": 26,
+        "phase": "idle",
+        "error": null,
+        "online": false,
+        "accountCached": true,
+        "stale": true,
+        "limitsCached": true,
+        "computerTunnel": false,
+        "testAgentAttached": true,
+        "openFrames": 0,
+        "idleSince": "2026-11-07T07:12:55.346Z",
+        "quietSeconds": 480
+      },
+      {
+        "at": "2026-11-07T07:21:55.480Z",
+        "sample": 28,
+        "phase": "idle",
+        "error": null,
+        "online": false,
+        "accountCached": true,
+        "stale": true,
+        "limitsCached": true,
+        "computerTunnel": false,
+        "testAgentAttached": true,
+        "openFrames": 0,
+        "idleSince": "2026-11-07T07:12:55.346Z",
+        "quietSeconds": 540
+      },
+      {
+        "at": "2026-11-07T07:22:55.489Z",
+        "sample": 30,
+        "phase": "idle",
+        "error": null,
+        "online": false,
+        "accountCached": true,
+        "stale": true,
+        "limitsCached": true,
+        "computerTunnel": false,
+        "testAgentAttached": true,
+        "openFrames": 0,
+        "idleSince": "2026-11-07T07:12:55.346Z",
+        "quietSeconds": 600
+      },
+      {
+        "at": "2026-11-07T07:23:55.497Z",
+        "sample": 32,
+        "phase": "idle",
+        "error": null,
+        "online": false,
+        "accountCached": true,
+        "stale": true,
+        "limitsCached": true,
+        "computerTunnel": false,
+        "testAgentAttached": true,
+        "openFrames": 0,
+        "idleSince": "2026-11-07T07:12:55.346Z",
+        "quietSeconds": 660
+      },
+      {
+        "at": "2026-11-07T07:24:55.505Z",
+        "sample": 34,
+        "phase": "idle",
+        "error": null,
+        "online": false,
+        "accountCached": true,
+        "stale": true,
+        "limitsCached": true,
+        "computerTunnel": false,
+        "testAgentAttached": true,
+        "openFrames": 0,
+        "idleSince": "2026-11-07T07:12:55.346Z",
+        "quietSeconds": 720
+      },
+      {
+        "quietComplete": true,
+        "at": "2026-11-07T07:24:55.506Z",
+        "idleSince": "2026-11-07T07:12:55.346Z",
+        "quietSeconds": 720,
+        "testAgentConnected": true,
+        "testAgentAttached": true,
+        "openFrames": 0
+      }
+    ],
+    "quietObservation": [
+      {
+        "testAgentConnected": true,
+        "at": "2026-11-07T07:22:31.343Z",
+        "agentId": "sleep-rollout-verification-final-20261107"
+      },
+      {
+        "at": "2026-11-07T07:22:31.388Z",
+        "sample": 0,
+        "phase": "idle",
+        "error": null,
+        "online": false,
+        "accountCached": true,
+        "stale": true,
+        "limitsCached": true,
+        "computerTunnel": false,
+        "testAgentAttached": true,
+        "openFrames": 0,
+        "idleSince": "2026-11-07T07:22:31.388Z",
+        "quietSeconds": 0
+      },
+      {
+        "at": "2026-11-07T07:23:31.405Z",
+        "sample": 2,
+        "phase": "idle",
+        "error": null,
+        "online": false,
+        "accountCached": true,
+        "stale": true,
+        "limitsCached": true,
+        "computerTunnel": false,
+        "testAgentAttached": true,
+        "openFrames": 0,
+        "idleSince": "2026-11-07T07:22:31.388Z",
+        "quietSeconds": 60
+      },
+      {
+        "at": "2026-11-07T07:24:31.429Z",
+        "sample": 4,
+        "phase": "idle",
+        "error": null,
+        "online": false,
+        "accountCached": true,
+        "stale": true,
+        "limitsCached": true,
+        "computerTunnel": false,
+        "testAgentAttached": true,
+        "openFrames": 0,
+        "idleSince": "2026-11-07T07:22:31.388Z",
+        "quietSeconds": 120
+      },
+      {
+        "at": "2026-11-07T07:25:31.443Z",
+        "sample": 6,
+        "phase": "idle",
+        "error": null,
+        "online": false,
+        "accountCached": true,
+        "stale": true,
+        "limitsCached": true,
+        "computerTunnel": false,
+        "testAgentAttached": true,
+        "openFrames": 0,
+        "idleSince": "2026-11-07T07:22:31.388Z",
+        "quietSeconds": 180
+      },
+      {
+        "at": "2026-11-07T07:26:31.490Z",
+        "sample": 8,
+        "phase": "idle",
+        "error": null,
+        "online": false,
+        "accountCached": true,
+        "stale": true,
+        "limitsCached": true,
+        "computerTunnel": false,
+        "testAgentAttached": true,
+        "openFrames": 0,
+        "idleSince": "2026-11-07T07:22:31.388Z",
+        "quietSeconds": 240
+      },
+      {
+        "at": "2026-11-07T07:27:31.502Z",
+        "sample": 10,
+        "phase": "idle",
+        "error": null,
+        "online": false,
+        "accountCached": true,
+        "stale": true,
+        "limitsCached": true,
+        "computerTunnel": false,
+        "testAgentAttached": true,
+        "openFrames": 0,
+        "idleSince": "2026-11-07T07:22:31.388Z",
+        "quietSeconds": 300
+      },
+      {
+        "at": "2026-11-07T07:28:31.511Z",
+        "sample": 12,
+        "phase": "idle",
+        "error": null,
+        "online": false,
+        "accountCached": true,
+        "stale": true,
+        "limitsCached": true,
+        "computerTunnel": false,
+        "testAgentAttached": true,
+        "openFrames": 0,
+        "idleSince": "2026-11-07T07:22:31.388Z",
+        "quietSeconds": 360
+      },
+      {
+        "at": "2026-11-07T07:29:31.520Z",
+        "sample": 14,
+        "phase": "idle",
+        "error": null,
+        "online": false,
+        "accountCached": true,
+        "stale": true,
+        "limitsCached": true,
+        "computerTunnel": false,
+        "testAgentAttached": true,
+        "openFrames": 0,
+        "idleSince": "2026-11-07T07:22:31.388Z",
+        "quietSeconds": 420
+      },
+      {
+        "at": "2026-11-07T07:30:31.529Z",
+        "sample": 16,
+        "phase": "idle",
+        "error": null,
+        "online": false,
+        "accountCached": true,
+        "stale": true,
+        "limitsCached": true,
+        "computerTunnel": false,
+        "testAgentAttached": true,
+        "openFrames": 0,
+        "idleSince": "2026-11-07T07:22:31.388Z",
+        "quietSeconds": 480
+      },
+      {
+        "at": "2026-11-07T07:31:31.543Z",
+        "sample": 18,
+        "phase": "idle",
+        "error": null,
+        "online": false,
+        "accountCached": true,
+        "stale": true,
+        "limitsCached": true,
+        "computerTunnel": false,
+        "testAgentAttached": true,
+        "openFrames": 0,
+        "idleSince": "2026-11-07T07:22:31.388Z",
+        "quietSeconds": 540
+      },
+      {
+        "at": "2026-11-07T07:32:31.552Z",
+        "sample": 20,
+        "phase": "idle",
+        "error": null,
+        "online": false,
+        "accountCached": true,
+        "stale": true,
+        "limitsCached": true,
+        "computerTunnel": false,
+        "testAgentAttached": true,
+        "openFrames": 0,
+        "idleSince": "2026-11-07T07:22:31.388Z",
+        "quietSeconds": 600
+      },
+      {
+        "at": "2026-11-07T07:33:31.562Z",
+        "sample": 22,
+        "phase": "idle",
+        "error": null,
+        "online": false,
+        "accountCached": true,
+        "stale": true,
+        "limitsCached": true,
+        "computerTunnel": false,
+        "testAgentAttached": true,
+        "openFrames": 0,
+        "idleSince": "2026-11-07T07:22:31.388Z",
+        "quietSeconds": 660
+      },
+      {
+        "at": "2026-11-07T07:34:31.572Z",
+        "sample": 24,
+        "phase": "idle",
+        "error": null,
+        "online": false,
+        "accountCached": true,
+        "stale": true,
+        "limitsCached": true,
+        "computerTunnel": false,
+        "testAgentAttached": true,
+        "openFrames": 0,
+        "idleSince": "2026-11-07T07:22:31.388Z",
+        "quietSeconds": 720
+      },
+      {
+        "quietComplete": true,
+        "at": "2026-11-07T07:34:31.572Z",
+        "idleSince": "2026-11-07T07:22:31.388Z",
+        "quietSeconds": 720,
+        "testAgentConnected": true,
+        "testAgentAttached": true,
+        "openFrames": 0
+      }
+    ],
+    "providerSnapshots": [
+      {
+        "observedAt": "2026-11-07 07:03:47 UTC",
+        "services": [
+          {
+            "name": "worker",
+            "state": "online",
+            "deploymentId": "06ef2353-01e7-4682-a583-fd3c01dd0a76",
+            "replicaStatus": {
+              "crashed": 0,
+              "running": 1,
+              "total": 1
+            }
+          },
+          {
+            "name": "computer",
+            "state": "sleeping",
+            "deploymentId": "4478637b-6ef0-4468-af45-ed6cf0013529",
+            "replicaStatus": null
+          },
+          {
+            "name": "web",
+            "state": "online",
+            "deploymentId": "ddce30da-9b75-4672-885f-9723532295d9",
+            "replicaStatus": {
+              "crashed": 0,
+              "running": 1,
+              "total": 1
+            }
+          },
+          {
+            "name": "Postgres",
+            "state": "online",
+            "deploymentId": "6e6d1672-085c-4271-a702-22fffa684459",
+            "replicaStatus": {
+              "crashed": 0,
+              "running": 1,
+              "total": 1
+            }
+          },
+          {
+            "name": "pages",
+            "state": "online",
+            "deploymentId": "6f168e86-0124-4003-b80c-42000cb95cc1",
+            "replicaStatus": {
+              "crashed": 0,
+              "running": 1,
+              "total": 1
+            }
+          }
+        ]
+      },
+      {
+        "observedAt": "2026-11-07 07:25:06 UTC",
+        "services": [
+          {
+            "name": "computer",
+            "state": "online",
+            "deploymentId": "26882f21-d59f-4d20-a305-c54cd29b3a8f",
+            "replicaStatus": {
+              "crashed": 0,
+              "running": 1,
+              "total": 1
+            }
+          },
+          {
+            "name": "worker",
+            "state": "online",
+            "deploymentId": "06ef2353-01e7-4682-a583-fd3c01dd0a76",
+            "replicaStatus": {
+              "crashed": 0,
+              "running": 1,
+              "total": 1
+            }
+          },
+          {
+            "name": "web",
+            "state": "online",
+            "deploymentId": "ddce30da-9b75-4672-885f-9723532295d9",
+            "replicaStatus": {
+              "crashed": 0,
+              "running": 1,
+              "total": 1
+            }
+          },
+          {
+            "name": "Postgres",
+            "state": "online",
+            "deploymentId": "6e6d1672-085c-4271-a702-22fffa684459",
+            "replicaStatus": {
+              "crashed": 0,
+              "running": 1,
+              "total": 1
+            }
+          },
+          {
+            "name": "pages",
+            "state": "online",
+            "deploymentId": "6f168e86-0124-4003-b80c-42000cb95cc1",
+            "replicaStatus": {
+              "crashed": 0,
+              "running": 1,
+              "total": 1
+            }
+          }
+        ]
+      },
+      {
+        "observedAt": "2026-11-07 07:28:17 UTC",
+        "services": [
+          {
+            "name": "computer",
+            "state": "sleeping",
+            "deploymentId": "26882f21-d59f-4d20-a305-c54cd29b3a8f",
+            "replicaStatus": null
+          },
+          {
+            "name": "worker",
+            "state": "online",
+            "deploymentId": "06ef2353-01e7-4682-a583-fd3c01dd0a76",
+            "replicaStatus": {
+              "crashed": 0,
+              "running": 1,
+              "total": 1
+            }
+          },
+          {
+            "name": "web",
+            "state": "online",
+            "deploymentId": "ddce30da-9b75-4672-885f-9723532295d9",
+            "replicaStatus": {
+              "crashed": 0,
+              "running": 1,
+              "total": 1
+            }
+          },
+          {
+            "name": "Postgres",
+            "state": "online",
+            "deploymentId": "6e6d1672-085c-4271-a702-22fffa684459",
+            "replicaStatus": {
+              "crashed": 0,
+              "running": 1,
+              "total": 1
+            }
+          },
+          {
+            "name": "pages",
+            "state": "online",
+            "deploymentId": "6f168e86-0124-4003-b80c-42000cb95cc1",
+            "replicaStatus": {
+              "crashed": 0,
+              "running": 1,
+              "total": 1
+            }
+          }
+        ]
+      },
+      {
+        "observedAt": "2026-11-07 07:34:52 UTC",
+        "services": [
+          {
+            "name": "computer",
+            "state": "sleeping",
+            "deploymentId": "26882f21-d59f-4d20-a305-c54cd29b3a8f",
+            "replicaStatus": null
+          },
+          {
+            "name": "worker",
+            "state": "online",
+            "deploymentId": "06ef2353-01e7-4682-a583-fd3c01dd0a76",
+            "replicaStatus": {
+              "crashed": 0,
+              "running": 1,
+              "total": 1
+            }
+          },
+          {
+            "name": "web",
+            "state": "online",
+            "deploymentId": "ddce30da-9b75-4672-885f-9723532295d9",
+            "replicaStatus": {
+              "crashed": 0,
+              "running": 1,
+              "total": 1
+            }
+          },
+          {
+            "name": "Postgres",
+            "state": "online",
+            "deploymentId": "6e6d1672-085c-4271-a702-22fffa684459",
+            "replicaStatus": {
+              "crashed": 0,
+              "running": 1,
+              "total": 1
+            }
+          },
+          {
+            "name": "pages",
+            "state": "online",
+            "deploymentId": "6f168e86-0124-4003-b80c-42000cb95cc1",
+            "replicaStatus": {
+              "crashed": 0,
+              "running": 1,
+              "total": 1
+            }
+          }
+        ]
+      }
+    ],
+    "coldWake": {
+      "at": "2026-11-07T07:03:56.540Z",
+      "botId": "69560dbe-ff66-4b89-ad09-9677273b87e6",
+      "computeReadyMs": 3831,
+      "browserReadyMs": 6807,
+      "sentinelPreserved": true,
+      "lifecycle": {
+        "enabled": true,
+        "phase": "grace",
+        "error": null,
+        "demand": [],
+        "changedAt": "2026-11-07T07:03:56.536Z"
+      },
+      "accountType": "chatgpt",
+      "desktopAgents": 0
+    },
+    "cleanup": {
+      "cleanupComplete": true,
+      "at": "2026-11-07T07:34:53.985Z",
+      "botId": "69560dbe-ff66-4b89-ad09-9677273b87e6",
+      "deletedBots": 1,
+      "sentinelRemoved": true,
+      "browserProfileRemoved": true,
+      "workspaceRemoved": true,
+      "cleanupVerified": true,
+      "verificationBotAbsent": true,
+      "temporaryAgentsRemoved": true,
+      "phase": "idle",
+      "lifecycleError": null,
+      "computerTunnel": false
+    },
+    "finalConfiguration": [
+      {
+        "name": "computer",
+        "serviceId": "31a3f39e-c7bd-4510-8a03-9d43d478d710",
+        "deployment": {
+          "createdAt": "2026-11-07T07:20:08.403Z",
+          "id": "26882f21-d59f-4d20-a305-c54cd29b3a8f",
+          "status": "SUCCESS",
+          "url": null
+        },
+        "serverless": true,
+        "regions": {
+          "sfo": {
+            "numReplicas": 1
+          }
+        },
+        "volumes": [
+          {
+            "id": "0489eea9-1830-4998-82c7-02a552208b7e",
+            "mountPath": "/home",
+            "name": "computer-volume",
+            "region": "sfo",
+            "sizeMB": 5000,
+            "state": "live"
+          }
+        ]
+      },
+      {
+        "name": "worker",
+        "serviceId": "f2a3b487-d74b-43de-9c08-cc9054ca0f32",
+        "deployment": {
+          "createdAt": "2026-11-07T04:48:04.538Z",
+          "id": "06ef2353-01e7-4682-a583-fd3c01dd0a76",
+          "status": "SUCCESS",
+          "url": null
+        },
+        "serverless": false,
+        "regions": {
+          "sfo": {
+            "numReplicas": 1
+          }
+        },
+        "volumes": []
+      },
+      {
+        "name": "Postgres",
+        "serviceId": "b30eb52e-ce4f-44c6-b2e1-f3b6c27bfdc3",
+        "deployment": {
+          "createdAt": "2026-11-07T04:11:21.863Z",
+          "id": "6e6d1672-085c-4271-a702-22fffa684459",
+          "status": "SUCCESS",
+          "url": null
+        },
+        "serverless": false,
+        "regions": {
+          "sfo": {
+            "numReplicas": 1
+          }
+        },
+        "volumes": [
+          {
+            "id": "5dfc857f-dffa-4df9-b739-e9e44c5764fb",
+            "mountPath": "/var/lib/postgresql/data",
+            "name": "postgres-volume",
+            "region": "sfo",
+            "sizeMB": 5000,
+            "state": "live"
+          }
+        ]
+      },
+      {
+        "name": "web",
+        "serviceId": "1368a074-f109-42f3-a2fe-779bf30df194",
+        "deployment": {
+          "createdAt": "2026-11-07T04:17:28.392Z",
+          "id": "ddce30da-9b75-4672-885f-9723532295d9",
+          "status": "SUCCESS",
+          "url": null
+        },
+        "serverless": false,
+        "regions": {
+          "sfo": {
+            "numReplicas": 1
+          }
+        },
+        "volumes": []
+      },
+      {
+        "name": "pages",
+        "serviceId": "5b0c7f01-3fb6-4e4e-b2ee-5caa74e3ac93",
+        "deployment": {
+          "createdAt": "2026-11-06T20:54:04.708Z",
+          "id": "6f168e86-0124-4003-b80c-42000cb95cc1",
+          "status": "SUCCESS",
+          "url": null
+        },
+        "serverless": false,
+        "regions": {
+          "sfo": {
+            "numReplicas": 1
+          }
+        },
+        "volumes": []
+      }
+    ]
+  },
+  "billingBaseline": {
+    "billingPeriod": {
+      "end": "2026-11-30T14:06:42+00:00",
+      "start": "2026-10-30T14:06:42+00:00"
+    },
+    "currentUsageDollars": 2.248221866978005,
+    "period": "current",
+    "project": {
+      "deletedAt": null,
+      "id": "ffe4f999-838d-41fe-b21b-1703469a7039",
+      "name": "open-bot"
+    },
+    "services": [
+      {
+        "backupDollars": 0.0,
+        "cpuDollars": 0.0028652186959876543,
+        "egressDollars": 0.0016730184,
+        "id": "31a3f39e-c7bd-4510-8a03-9d43d478d710",
+        "memoryDollars": 1.1742383259338272,
+        "name": "computer",
+        "totalDollars": 1.19281276121538,
+        "volumeDollars": 0.01403619818556515
+      },
+      {
+        "backupDollars": -0.0,
+        "cpuDollars": 0.0044681952083333335,
+        "egressDollars": 0.0004542671,
+        "id": "f2a3b487-d74b-43de-9c08-cc9054ca0f32",
+        "memoryDollars": 0.43313202706962967,
+        "name": "worker",
+        "totalDollars": 0.43805448937796304,
+        "volumeDollars": -0.0
+      },
+      {
+        "backupDollars": -0.0,
+        "cpuDollars": 0.0012571090972222222,
+        "egressDollars": 0.0009025790000000001,
+        "id": "1368a074-f109-42f3-a2fe-779bf30df194",
+        "memoryDollars": 0.426678192671605,
+        "name": "web",
+        "totalDollars": 0.42883788076882723,
+        "volumeDollars": -0.0
+      },
+      {
+        "backupDollars": 0.0,
+        "cpuDollars": 0.005950165748456792,
+        "egressDollars": 4.364e-7,
+        "id": "b30eb52e-ce4f-44c6-b2e1-f3b6c27bfdc3",
+        "memoryDollars": 0.12141246179555558,
+        "name": "Postgres",
+        "totalDollars": 0.13376406898626733,
+        "volumeDollars": 0.006401005042254969
+      },
+      {
+        "backupDollars": -0.0,
+        "cpuDollars": 4.600428240740741e-5,
+        "egressDollars": 6.146e-7,
+        "id": "5b0c7f01-3fb6-4e4e-b2ee-5caa74e3ac93",
+        "memoryDollars": 0.054706047747160494,
+        "name": "pages",
+        "totalDollars": 0.054752666629567896,
+        "volumeDollars": -0.0
+      }
+    ],
+    "workspace": {
+      "id": "78f690de-7faa-4ff4-9f0b-90ccd3aea220",
+      "name": "Vishnuvardhan Reddy's Projects"
+    }
+  },
+  "billingNote": "This is a period-to-date baseline, not measured post-change savings. No monthly savings are claimed."
+}

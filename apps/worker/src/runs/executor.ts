@@ -167,7 +167,12 @@ export class RunExecutor {
   async syncWorkspace(
     bot: Pick<Bot, "id" | "slug" | "name" | "role" | "instructions" | "autonomy">,
   ): Promise<string> {
+    // Configuration may have changed while the computer woke. Always project the latest revision.
+    const [latest] = await this.ctx.db.select().from(bots).where(eq(bots.id, bot.id));
+    if (!latest || latest.archivedAt) throw new Error("Teammate is no longer available");
+    Object.assign(bot, latest);
     const client = await this.ctx.codex.ready();
+    await this.skills.syncAll();
     const workspace = COMPUTER_PATHS.workspace(bot.slug);
     const rules = await this.approvals.rulesFor(bot.id);
 

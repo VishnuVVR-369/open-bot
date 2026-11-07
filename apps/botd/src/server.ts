@@ -19,12 +19,14 @@ import {
 } from "@open-bot/shared";
 import { WebSocket, WebSocketServer } from "ws";
 import { ActionAbortedError, Desktop } from "./desktop";
+import type { ComputeLifecycle } from "./lifecycle";
 import type { EgressRouter } from "./egress";
 import type { PageChecker } from "./pages";
 import type { Screen, ScreenManager } from "./screens";
 
 export interface ServerDeps {
   token: string;
+  lifecycle?: ComputeLifecycle;
   screens: ScreenManager;
   egress: EgressRouter;
   health: () => ComputerHealth;
@@ -96,7 +98,10 @@ export function createServer(deps: ServerDeps): {
   setInterval(() => broadcast({ type: "health", health: deps.health() }), 5_000).unref();
 
   /** The run's own screen, once it holds it. */
-  async function screenForRun(run: RunIdentity): Promise<Screen | ComputerActionError> {
+  async function screenForRun(
+    run: RunIdentity,
+    signal?: AbortSignal,
+  ): Promise<Screen | ComputerActionError> {
     // Every bot works on its own screen, and a swarm helper on one of its own.
     const screenId = run.screenId ?? run.botId;
     if (!isScreenId(screenId))
@@ -105,7 +110,8 @@ export function createServer(deps: ServerDeps): {
     try {
       // Before the screen starts, so its first connections can wait for a phone.
       deps.egress.noteDemand(screenId);
-      screen = await screens.ensure(screenId);
+      screen = await screens.ensure(screenId, signal);
+      signal?.throwIfAborted();
     } catch (error) {
       return {
         ok: false,
@@ -114,6 +120,7 @@ export function createServer(deps: ServerDeps): {
       };
     }
     const acquired = await screen.lease.acquireForRun(run);
+    signal?.throwIfAborted();
     if (acquired === "user_has_control") {
       return { ok: false, code: "user_has_control", message: USER_HAS_CONTROL_MESSAGE };
     }
@@ -129,7 +136,10 @@ export function createServer(deps: ServerDeps): {
     return screen;
   }
 
-  async function performAction(body: unknown): Promise<ComputerActionResult | ComputerActionError> {
+  async function performAction(
+    body: unknown,
+    signal?: AbortSignal,
+  ): Promise<ComputerActionResult | ComputerActionError> {
     const { run, action: rawAction } = body as { run?: RunIdentity; action?: unknown };
     if (!run?.runId || !isScreenId(run.botId)) {
       return { ok: false, code: "invalid_action", message: "Missing run identity" };
@@ -143,7 +153,7 @@ export function createServer(deps: ServerDeps): {
       };
     }
     const action = parsed.data;
-    const screen = await screenForRun(run);
+    const screen = await screenForRun(run, signal);
     if (!("lease" in screen)) return screen;
     const { lease, desktop } = screen;
     try {
@@ -174,7 +184,10 @@ export function createServer(deps: ServerDeps): {
   }
 
   /** The readable content of the page in front on the run's screen. */
-  async function performRead(body: unknown): Promise<ComputerReadResult | ComputerActionError> {
+  async function performRead(
+    body: unknown,
+    signal?: AbortSignal,
+  ): Promise<ComputerReadResult | ComputerActionError> {
     const { run, selector } = body as { run?: RunIdentity; selector?: unknown };
     if (!run?.runId || !isScreenId(run.botId)) {
       return { ok: false, code: "invalid_action", message: "Missing run identity" };
@@ -185,7 +198,7 @@ export function createServer(deps: ServerDeps): {
     ) {
       return { ok: false, code: "invalid_action", message: "selector must be a CSS selector" };
     }
-    const screen = await screenForRun(run);
+    const screen = await screenForRun(run, signal);
     if (!("lease" in screen)) return screen;
     try {
       const page = await screen.readPage(selector);
@@ -208,7 +221,10 @@ export function createServer(deps: ServerDeps): {
    * Type a vault secret into whatever has focus on the run's screen. A login only fills on its own
    * site, so a misleading page can't collect it. Nothing about the secret is logged or returned.
    */
-  async function performFill(body: unknown): Promise<ComputerFillResult | ComputerActionError> {
+  async function performFill(
+    body: unknown,
+    signal?: AbortSignal,
+  ): Promise<ComputerFillResult | ComputerActionError> {
     const { run, secret, site } = body as Partial<ComputerFillRequest>;
     if (!run?.runId || !isScreenId(run.botId)) {
       return { ok: false, code: "invalid_action", message: "Missing run identity" };
@@ -216,7 +232,7 @@ export function createServer(deps: ServerDeps): {
     if (typeof secret !== "string" || !secret || secret.length > 500) {
       return { ok: false, code: "invalid_action", message: "Nothing to fill" };
     }
-    const screen = await screenForRun(run);
+    const screen = await screenForRun(run, signal);
     if (!("lease" in screen)) return screen;
     let pages: string[];
     try {
@@ -244,6 +260,7 @@ export function createServer(deps: ServerDeps): {
       }
     }
     try {
+      signal?.throwIfAborted();
       await screen.desktop.typeSecret(secret);
       if (isOwnerLease(screen.lease.holder)) throw new ActionAbortedError();
       return { ok: true, pages };
@@ -259,27 +276,60 @@ export function createServer(deps: ServerDeps): {
     const url = new URL(request.url ?? "/", "http://botd");
     if (url.pathname === "/healthz") {
       const health = deps.health();
-      send(response, health.ok ? 200 : 503, { ok: health.ok });
+      send(response, deps.lifecycle?.enabled || health.ok ? 200 : 503, {
+        ok: deps.lifecycle?.enabled || health.ok,
+      });
       return;
     }
     if (!authorized(request, deps.token)) {
       send(response, 401, { error: "unauthorized" });
       return;
     }
+    let endActivity: (() => void) | undefined;
+    const cancellation = new AbortController();
+    response.once("close", () => {
+      if (!response.writableEnded) cancellation.abort(new Error("Request cancelled"));
+    });
     try {
+      if (!url.pathname.startsWith("/lifecycle/") && url.pathname !== "/health")
+        endActivity = deps.lifecycle?.begin();
       const route = `${request.method} ${url.pathname}`;
       switch (route) {
+        case "GET /lifecycle/capabilities":
+          send(response, 200, deps.lifecycle?.status ?? { version: 1, enabled: false });
+          return;
+        case "POST /lifecycle/lease":
+        case "POST /lifecycle/ensure":
+        case "POST /lifecycle/quiesce": {
+          if (!deps.lifecycle?.enabled) {
+            send(response, 409, { error: "Lifecycle disabled" });
+            return;
+          }
+          const { owner, demand } = (await readJson(request)) as {
+            owner?: unknown;
+            demand?: unknown;
+          };
+          if (typeof owner !== "string" || !owner || owner.length > 100)
+            throw new BadRequest("Invalid owner");
+          if (route.endsWith("/lease")) {
+            if (typeof demand !== "number") throw new BadRequest("Invalid demand");
+            deps.lifecycle.lease(owner, demand);
+          } else if (route.endsWith("/ensure")) await deps.lifecycle.ensure(owner);
+          else await deps.lifecycle.quiesce(owner);
+          send(response, 200, deps.lifecycle.status);
+          return;
+        }
         case "GET /health":
           send(response, 200, deps.health());
           return;
         case "POST /computer/action":
-          send(response, 200, await performAction(await readJson(request)));
+          send(response, 200, await performAction(await readJson(request), cancellation.signal));
           return;
         case "POST /computer/fill":
-          send(response, 200, await performFill(await readJson(request)));
+          send(response, 200, await performFill(await readJson(request), cancellation.signal));
           return;
         case "POST /computer/read":
-          send(response, 200, await performRead(await readJson(request)));
+          send(response, 200, await performRead(await readJson(request), cancellation.signal));
           return;
         case "POST /computer/code-context": {
           const { screenId } = (await readJson(request)) as { screenId?: unknown };
@@ -297,7 +347,7 @@ export function createServer(deps: ServerDeps): {
         case "POST /screens/start": {
           const { screenId } = (await readJson(request)) as { screenId?: unknown };
           deps.egress.noteDemand(screenIdOf(screenId));
-          const screen = await screens.ensure(screenIdOf(screenId));
+          const screen = await screens.ensure(screenIdOf(screenId), cancellation.signal);
           send(response, 200, screen.status());
           return;
         }
@@ -309,7 +359,7 @@ export function createServer(deps: ServerDeps): {
         }
         case "POST /computer/screenshot": {
           const { screenId } = (await readJson(request)) as { screenId?: unknown };
-          const screen = await screens.ensure(screenIdOf(screenId));
+          const screen = await screens.ensure(screenIdOf(screenId), cancellation.signal);
           const image = await screen.desktop.screenshot();
           send(response, 200, { screenshot: image.toString("base64") });
           return;
@@ -329,7 +379,7 @@ export function createServer(deps: ServerDeps): {
         case "POST /lease/user/take": {
           const { screenId } = (await readJson(request)) as { screenId?: unknown };
           deps.egress.noteDemand(screenIdOf(screenId));
-          const screen = await screens.ensure(screenIdOf(screenId));
+          const screen = await screens.ensure(screenIdOf(screenId), cancellation.signal);
           if (!screens.codeAvailable(screen.id)) {
             send(response, 409, { error: "Code entry is in progress." });
             return;
@@ -372,6 +422,8 @@ export function createServer(deps: ServerDeps): {
       }
       deps.log(`[http] ${request.method} ${url.pathname} failed: ${String(error)}`);
       send(response, 500, { error: error instanceof Error ? error.message : String(error) });
+    } finally {
+      endActivity?.();
     }
   });
 
@@ -385,6 +437,10 @@ export function createServer(deps: ServerDeps): {
     const url = new URL(request.url ?? "/", "http://botd");
     if (!authorized(request, deps.token)) {
       socket.end("HTTP/1.1 401 Unauthorized\r\n\r\n");
+      return;
+    }
+    if (deps.lifecycle && !deps.lifecycle.admitting) {
+      socket.end("HTTP/1.1 503 Service Unavailable\r\n\r\n");
       return;
     }
     if (url.pathname === "/vnc") {
@@ -409,7 +465,7 @@ export function createServer(deps: ServerDeps): {
           ws.on("close", () => eventClients.delete(ws));
           return;
         case "/codex":
-          bridgeWebSocket(ws, deps.codexUrl, deps.log);
+          bridgeWebSocket(ws, deps.codexUrl, deps.log, deps.lifecycle);
           return;
         case "/egress":
           deps.egress.attachTunnel(ws);
@@ -490,17 +546,32 @@ function bridgeTcp(ws: WebSocket, port: number, log: (message: string) => void) 
 }
 
 /** Pipe a websocket to another websocket (used for the Codex app-server). */
-function bridgeWebSocket(client: WebSocket, target: string, log: (message: string) => void) {
+function bridgeWebSocket(
+  client: WebSocket,
+  target: string,
+  log: (message: string) => void,
+  lifecycle?: ComputeLifecycle,
+) {
+  const connection = randomUUID();
   const upstream = new WebSocket(target, {
     perMessageDeflate: false,
     maxPayload: 512 * 1024 * 1024,
   });
   const pending: { data: WebSocket.RawData; isBinary: boolean }[] = [];
   upstream.on("open", () => {
-    for (const message of pending) upstream.send(message.data, { binary: message.isBinary });
+    if (client.readyState !== WebSocket.OPEN) {
+      pending.length = 0;
+      upstream.close();
+      return;
+    }
+    for (const message of pending) {
+      lifecycle?.rpc(connection, true, message.data.toString());
+      upstream.send(message.data, { binary: message.isBinary });
+    }
     pending.length = 0;
   });
   upstream.on("message", (data, isBinary) => {
+    lifecycle?.rpc(connection, false, data.toString());
     if (client.readyState === WebSocket.OPEN) client.send(data, { binary: isBinary });
   });
   upstream.on("close", (code, reason) => {
@@ -513,8 +584,14 @@ function bridgeWebSocket(client: WebSocket, target: string, log: (message: strin
     client.close(1011, "Codex is not reachable");
   });
   client.on("message", (data, isBinary) => {
-    if (upstream.readyState === WebSocket.OPEN) upstream.send(data, { binary: isBinary });
-    else pending.push({ data, isBinary });
+    if (lifecycle && !lifecycle.admitting) {
+      client.close(1013, "Computer is quiescing");
+      return;
+    }
+    if (upstream.readyState === WebSocket.OPEN) {
+      lifecycle?.rpc(connection, true, data.toString());
+      upstream.send(data, { binary: isBinary });
+    } else pending.push({ data, isBinary });
   });
   client.on("close", () => upstream.close());
 }

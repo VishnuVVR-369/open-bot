@@ -114,7 +114,7 @@ export class CookieSync {
   private serial(work: () => Promise<void>): Promise<void> {
     const next = this.queue.then(work, work);
     this.queue = next.catch((error: unknown) => this.log(`[cookies] ${String(error)}`));
-    return this.queue;
+    return next;
   }
 
   /** A browser started: it gets every cookie in the jar, and the jar gets the ones only it has. */
@@ -156,14 +156,15 @@ export class CookieSync {
    * Copy what changed in any browser since the last sync to the others.
    * Every browser is read first, so a sign-in anywhere wins over a stale copy disappearing elsewhere.
    */
-  sync(): Promise<void> {
+  sync(strict = false): Promise<void> {
     return this.serial(async () => {
       const reads: { id: string; browser: Attached; current: Map<string, Cookie> }[] = [];
       for (const [id, browser] of [...this.browsers]) {
         try {
           const cookies = await browser.store.getCookies();
           reads.push({ id, browser, current: new Map(cookies.map((c) => [keyOf(c), pick(c)])) });
-        } catch {
+        } catch (error) {
+          if (strict) throw error;
           // The browser is closing. It is detached when it exits.
         }
       }
@@ -236,7 +237,18 @@ export class CookieSync {
     }, PERSIST_DELAY_MS);
   }
 
-  async persist(): Promise<void> {
+  async flush(): Promise<void> {
+    await this.sync(true);
+    await this.persist();
+  }
+
+  persist(): Promise<void> {
+    return this.serial(() => this.persistNow());
+  }
+
+  private async persistNow(): Promise<void> {
+    if (this.persistTimer) clearTimeout(this.persistTimer);
+    this.persistTimer = null;
     if (!this.file) return;
     const temp = `${this.file}.tmp`;
     await writeFile(temp, JSON.stringify([...this.jar.values()]), { mode: 0o600 });

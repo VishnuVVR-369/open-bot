@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { EventEmitter } from "node:events";
 import { CodexClient, type ServerNotification, type ServerRequest, type v2 } from "@open-bot/agent";
+import type { ComputerLifecycle } from "./computer-lifecycle";
 import type { ComputerClient } from "./computer";
 import { refreshHostLogin } from "./host-login";
 import { errorMessage, type Logger } from "./logger";
@@ -9,6 +10,7 @@ export type ChatgptAuthSource = "device" | "host";
 
 export interface CodexStatus {
   connected: boolean;
+  stale?: boolean;
   authSource: ChatgptAuthSource;
   account: { type: "chatgpt" | "apiKey"; email: string | null; planType: string | null } | null;
   /** A device-code login in progress. */
@@ -48,15 +50,24 @@ function jwtExpiry(token: string): number | null {
  * reconnects, and routes thread events to the run that owns the thread.
  */
 export class CodexManager extends EventEmitter<{ status: [CodexStatus]; disconnected: [] }> {
+  lifecycle?: ComputerLifecycle;
+  private generation = 0;
   private client: CodexClient | null = null;
   private connecting: Promise<CodexClient> | null = null;
   private readonly handlers = new Map<string, ThreadHandler>();
   private readonly loadedThreads = new Set<string>();
   private state: CodexStatus;
   private stopped = false;
+  private idleIntent = false;
+  setIdleIntent(value: boolean): void {
+    this.idleIntent = value;
+    if (!value && !this.stopped && !this.client?.isOpen) this.scheduleReconnect();
+  }
   private retryTimer: NodeJS.Timeout | null = null;
   private hostRefresh: Promise<void> | null = null;
   private lastHostRefresh = 0;
+  private cachedRateLimits: v2.GetAccountRateLimitsResponse | null = null;
+  private releaseLoginDemand: (() => void) | undefined;
 
   constructor(
     private readonly computer: ComputerClient,
@@ -83,6 +94,26 @@ export class CodexManager extends EventEmitter<{ status: [CodexStatus]; disconne
     void this.ready().catch(() => {});
   }
 
+  async resume(signal?: AbortSignal): Promise<void> {
+    this.stopped = false;
+    this.idleIntent = false;
+    const client = await this.connectOnly(signal);
+    if (!client.isOpen) throw new Error("Codex disconnected during wake");
+  }
+
+  pause(): void {
+    this.stopped = true;
+    this.generation++;
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = null;
+    const client = this.client;
+    this.client = null;
+    this.connecting = null;
+    this.loadedThreads.clear();
+    client?.close();
+    this.update({ connected: false, stale: true });
+  }
+
   stop(): void {
     this.stopped = true;
     if (this.retryTimer) clearTimeout(this.retryTimer);
@@ -91,6 +122,8 @@ export class CodexManager extends EventEmitter<{ status: [CodexStatus]; disconne
 
   /** A connected, signed-in client. Connects first if needed. */
   async ready(): Promise<CodexClient> {
+    if (this.lifecycle?.enabled && !this.lifecycle.inScope)
+      await this.lifecycle.run("codex:ready", async () => {});
     if (this.client?.isOpen && this.state.account) return this.client;
     if (this.client?.isOpen && !this.state.account) {
       await this.signIn(this.client);
@@ -99,7 +132,7 @@ export class CodexManager extends EventEmitter<{ status: [CodexStatus]; disconne
         this.state.error ?? "Codex is not signed in to ChatGPT. Sign in on the Settings page.",
       );
     }
-    this.connecting ??= this.connect().finally(() => (this.connecting = null));
+    this.connecting ??= this.newConnection();
     const client = await this.connecting;
     if (!this.state.account) {
       throw new Error(
@@ -109,36 +142,64 @@ export class CodexManager extends EventEmitter<{ status: [CodexStatus]; disconne
     return client;
   }
 
-  private async connect(): Promise<CodexClient> {
-    const client = await CodexClient.connect(this.computer.wsUrl("/codex"), (request) =>
-      this.onServerRequest(request),
+  private newConnection(signal?: AbortSignal): Promise<CodexClient> {
+    const pending = this.connect(signal).finally(() => {
+      if (this.connecting === pending) this.connecting = null;
+    });
+    return pending;
+  }
+
+  private async connect(signal?: AbortSignal): Promise<CodexClient> {
+    const generation = this.generation;
+    const client = await CodexClient.connect(
+      this.computer.wsUrl("/codex"),
+      (request) => this.onServerRequest(request),
+      undefined,
+      signal,
     ).catch((error: unknown) => {
-      this.update({
-        connected: false,
-        error: `Can't reach Codex on the computer: ${errorMessage(error)}`,
-      });
-      this.scheduleReconnect();
+      if (generation === this.generation) {
+        this.update({
+          connected: false,
+          error: `Can't reach Codex on the computer: ${errorMessage(error)}`,
+        });
+        this.lifecycle?.connectionLost();
+        this.scheduleReconnect();
+      }
       throw error;
     });
+    if (generation !== this.generation || this.stopped) {
+      client.close();
+      throw new Error("Stale Codex connection discarded");
+    }
+    const request = client.request.bind(client) as CodexClient["request"];
+    client.request = ((method, params) =>
+      this.lifecycle
+        ? this.lifecycle.run(`codex:${method}`, () => request(method, params))
+        : request(method, params)) as CodexClient["request"];
     this.client = client;
     this.loadedThreads.clear();
-    client.on("notification", (notification) => this.onNotification(notification));
+    client.on("notification", (notification) => {
+      if (this.client === client) this.onNotification(notification);
+    });
     client.on("close", () => {
       if (this.client !== client) return;
       this.client = null;
       this.loadedThreads.clear();
-      this.update({ connected: false, account: null });
+      this.update({
+        connected: false,
+        ...(this.stopped || this.idleIntent ? { stale: true } : { account: null }),
+      });
       this.emit("disconnected");
       this.scheduleReconnect();
     });
-    this.update({ connected: true, error: null });
+    this.update({ connected: true, stale: false, error: null });
     this.log.info("connected to Codex");
     await this.signIn(client);
     return client;
   }
 
   private scheduleReconnect() {
-    if (this.stopped || this.retryTimer) return;
+    if (this.stopped || this.idleIntent || this.retryTimer) return;
     this.retryTimer = setTimeout(() => {
       this.retryTimer = null;
       if (!this.client?.isOpen) void this.ready().catch(() => {});
@@ -199,6 +260,7 @@ export class CodexManager extends EventEmitter<{ status: [CodexStatus]; disconne
 
   private async signIn(client: CodexClient): Promise<void> {
     const authSource = await this.getAuthSource();
+    if (this.client !== client) return;
     this.update({ authSource });
     try {
       if (authSource === "host") {
@@ -214,12 +276,13 @@ export class CodexManager extends EventEmitter<{ status: [CodexStatus]; disconne
         this.update({ error: "Codex is not signed in to ChatGPT. Sign in on the Settings page." });
       }
     } catch (error) {
-      this.update({ account: null, error: errorMessage(error) });
+      if (this.client === client) this.update({ account: null, error: errorMessage(error) });
     }
   }
 
   private async refreshAccount(client: CodexClient) {
     const { account } = await client.request("account/read", {});
+    if (this.client !== client) return;
     if (!account || account.type === "amazonBedrock") {
       this.update({ account: null });
       return;
@@ -241,15 +304,27 @@ export class CodexManager extends EventEmitter<{ status: [CodexStatus]; disconne
     return this.state;
   }
 
-  private async connectOnly(): Promise<CodexClient> {
-    this.connecting ??= this.connect().finally(() => (this.connecting = null));
+  private async connectOnly(signal?: AbortSignal): Promise<CodexClient> {
+    if (this.lifecycle?.enabled && !this.lifecycle.inScope)
+      await this.lifecycle.run("codex:connect", async () => {});
+    if (this.client?.isOpen) return this.client;
+    this.connecting ??= this.newConnection(signal);
     return this.connecting;
   }
 
   /** Start a device-code login. Codex stores the result in the computer, so it survives restarts. */
   async startDeviceLogin(): Promise<{ verificationUrl: string; userCode: string }> {
     const client = this.client?.isOpen ? this.client : await this.connectOnly();
-    const response = await client.request("account/login/start", { type: "chatgptDeviceCode" });
+    this.releaseLoginDemand?.();
+    this.releaseLoginDemand = await this.lifecycle?.hold("device-login");
+    let response;
+    try {
+      response = await client.request("account/login/start", { type: "chatgptDeviceCode" });
+    } catch (error) {
+      this.releaseLoginDemand?.();
+      this.releaseLoginDemand = undefined;
+      throw error;
+    }
     if (response.type !== "chatgptDeviceCode") throw new Error("Unexpected login response");
     const login = { verificationUrl: response.verificationUrl, userCode: response.userCode };
     this.update({ login, error: null });
@@ -259,13 +334,19 @@ export class CodexManager extends EventEmitter<{ status: [CodexStatus]; disconne
   async logout(): Promise<void> {
     const client = this.client?.isOpen ? this.client : await this.connectOnly();
     await client.request("account/logout", {});
-    this.update({ account: null });
+    this.releaseLoginDemand?.();
+    this.releaseLoginDemand = undefined;
+    this.cachedRateLimits = null;
+    this.update({ account: null, login: null, stale: false });
   }
 
-  async rateLimits(): Promise<v2.GetAccountRateLimitsResponse | null> {
+  async rateLimits(refresh = false): Promise<v2.GetAccountRateLimitsResponse | null> {
+    // Settings/foreground polling must neither wake the computer nor extend its grace period.
+    if (this.lifecycle?.enabled && !refresh) return this.cachedRateLimits;
     const client = this.client;
-    if (!client?.isOpen || !this.state.account) return null;
-    return client.request("account/rateLimits/read", {});
+    if (!client?.isOpen || !this.state.account) return this.cachedRateLimits;
+    this.cachedRateLimits = await client.request("account/rateLimits/read", {});
+    return this.cachedRateLimits;
   }
 
   /** Route a thread's events to a run. Returns a function that removes the route. */
@@ -288,6 +369,10 @@ export class CodexManager extends EventEmitter<{ status: [CodexStatus]; disconne
     switch (notification.method) {
       case "account/updated":
       case "account/login/completed":
+        if (notification.method === "account/login/completed") {
+          this.releaseLoginDemand?.();
+          this.releaseLoginDemand = undefined;
+        }
         if (this.client) void this.refreshAccount(this.client).catch(() => {});
         if (notification.method === "account/login/completed" && !notification.params.success) {
           this.update({ login: null, error: notification.params.error ?? "Sign-in failed" });

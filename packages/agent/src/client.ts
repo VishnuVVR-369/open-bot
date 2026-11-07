@@ -106,19 +106,34 @@ export class CodexClient extends EventEmitter<{
     url: string,
     handleServerRequest: ServerRequestHandler,
     clientInfo = { name: "open-bot", title: "open-bot", version: "0.1.0" },
+    signal?: AbortSignal,
   ): Promise<CodexClient> {
-    const socket = new WebSocket(url, { perMessageDeflate: false, maxPayload: 512 * 1024 * 1024 });
-    await new Promise<void>((resolve, reject) => {
-      socket.once("open", () => resolve());
-      socket.once("error", reject);
+    signal?.throwIfAborted();
+    const socket = new WebSocket(url, {
+      perMessageDeflate: false,
+      maxPayload: 512 * 1024 * 1024,
+      handshakeTimeout: 10_000,
     });
-    const client = new CodexClient(socket, handleServerRequest);
-    await client.rawRequest("initialize", {
-      clientInfo,
-      capabilities: { experimentalApi: true, requestAttestation: false },
-    });
-    client.send({ method: "initialized" });
-    return client;
+    const abort = () => socket.terminate();
+    signal?.addEventListener("abort", abort, { once: true });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        socket.once("open", () => resolve());
+        socket.once("error", reject);
+      });
+      const client = new CodexClient(socket, handleServerRequest);
+      await client.rawRequest("initialize", {
+        clientInfo,
+        capabilities: { experimentalApi: true, requestAttestation: false },
+      });
+      client.send({ method: "initialized" });
+      return client;
+    } catch (error) {
+      socket.terminate();
+      throw error;
+    } finally {
+      signal?.removeEventListener("abort", abort);
+    }
   }
 
   get isOpen(): boolean {

@@ -5,6 +5,11 @@ import { z } from "zod";
 const schema = z.object({
   DATABASE_URL: z.string().default("postgres://openbot:openbot@127.0.0.1:54329/openbot"),
   /** Where botd listens. Locally the computer container publishes it on localhost. */
+  COMPUTER_IDLE_MINUTES: z.coerce.number().positive().max(60).default(5),
+  COMPUTER_LIFECYCLE_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
   BOTD_URL: z.string().default("http://127.0.0.1:7070"),
   BOTD_TOKEN: z.string().min(16).default("dev-botd-token-change-me"),
   /** Shared secret for the web server's calls to the worker and for signing VNC and egress tokens. */

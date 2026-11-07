@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 440" role="img" aria-labelledby="title desc">
+<title id="title">Local computer sleep verification</title>
+<desc id="desc">Twenty application wake cycles and measured local container memory across browser workloads. These are local measurements, not Railway billing estimates.</desc>
+<rect width="960" height="440" fill="#fbfcfe"/>
+<g font-family="system-ui,sans-serif" fill="#182331">
+<text x="32" y="35" font-size="21" font-weight="650">Local computer sleep verification</text>
+<text x="32" y="60" font-size="13" fill="#596675">20 completed cycles · files, cookies, local storage, conversation and scheduling checked</text>
+<text x="40" y="100" font-size="15" font-weight="600">Browser-ready time per cycle</text>
+<text x="520" y="100" font-size="15" font-weight="600">Container memory.current</text>
+<line x1="65" x2="450" y1="300" y2="300" stroke="#dce3eb"/>
+<text x="37" y="304" font-size="11">0s</text>
+<line x1="65" x2="450" y1="260" y2="260" stroke="#dce3eb"/>
+<text x="37" y="264" font-size="11">1s</text>
+<line x1="65" x2="450" y1="220" y2="220" stroke="#dce3eb"/>
+<text x="37" y="224" font-size="11">2s</text>
+<line x1="65" x2="450" y1="180" y2="180" stroke="#dce3eb"/>
+<text x="37" y="184" font-size="11">3s</text>
+<line x1="65" x2="450" y1="140" y2="140" stroke="#dce3eb"/>
+<text x="37" y="144" font-size="11">4s</text>
+<polyline points="65.0,187.2 85.3,186.6 105.5,187.5 125.8,185.7 146.1,187.0 166.3,187.4 186.6,185.7 206.8,186.3 227.1,183.5 247.4,186.2 267.6,186.3 287.9,184.5 308.2,186.0 328.4,186.8 348.7,185.7 368.9,184.5 389.2,183.3 409.5,178.9 429.7,183.6 450.0,184.2" fill="none" stroke="#2977bd" stroke-width="2.5"/>
+<circle cx="65.0" cy="187.2" r="3" fill="#2977bd"/>
+<circle cx="85.3" cy="186.6" r="3" fill="#2977bd"/>
+<circle cx="105.5" cy="187.5" r="3" fill="#2977bd"/>
+<circle cx="125.8" cy="185.7" r="3" fill="#2977bd"/>
+<circle cx="146.1" cy="187.0" r="3" fill="#2977bd"/>
+<circle cx="166.3" cy="187.4" r="3" fill="#2977bd"/>
+<circle cx="186.6" cy="185.7" r="3" fill="#2977bd"/>
+<circle cx="206.8" cy="186.3" r="3" fill="#2977bd"/>
+<circle cx="227.1" cy="183.5" r="3" fill="#2977bd"/>
+<circle cx="247.4" cy="186.2" r="3" fill="#2977bd"/>
+<circle cx="267.6" cy="186.3" r="3" fill="#2977bd"/>
+<circle cx="287.9" cy="184.5" r="3" fill="#2977bd"/>
+<circle cx="308.2" cy="186.0" r="3" fill="#2977bd"/>
+<circle cx="328.4" cy="186.8" r="3" fill="#2977bd"/>
+<circle cx="348.7" cy="185.7" r="3" fill="#2977bd"/>
+<circle cx="368.9" cy="184.5" r="3" fill="#2977bd"/>
+<circle cx="389.2" cy="183.3" r="3" fill="#2977bd"/>
+<circle cx="409.5" cy="178.9" r="3" fill="#2977bd"/>
+<circle cx="429.7" cy="183.6" r="3" fill="#2977bd"/>
+<circle cx="450.0" cy="184.2" r="3" fill="#2977bd"/>
+<text x="61.0" y="320" font-size="11">1</text>
+<text x="142.1" y="320" font-size="11">5</text>
+<text x="243.4" y="320" font-size="11">10</text>
+<text x="344.7" y="320" font-size="11">15</text>
+<text x="446.0" y="320" font-size="11">20</text>
+<text x="65" y="347" font-size="13">p95: 2.917s · maximum: 3.028s · 0 failed cycles</text>
+<text x="520" y="149" font-size="12">Codex, no screens</text>
+<rect x="662" y="133" width="14.9" height="24" rx="4" fill="#659ac8"/>
+<text x="685.9" y="150" font-size="12">0.087 GB</text>
+<text x="520" y="189" font-size="12">One screen</text>
+<rect x="662" y="173" width="78.5" height="24" rx="4" fill="#659ac8"/>
+<text x="749.5" y="190" font-size="12">0.459 GB</text>
+<text x="520" y="229" font-size="12">Two screens</text>
+<rect x="662" y="213" width="137.3" height="24" rx="4" fill="#659ac8"/>
+<text x="808.3" y="230" font-size="12">0.804 GB</text>
+<text x="520" y="269" font-size="12">Two + page check</text>
+<rect x="662" y="253" width="181.2" height="24" rx="4" fill="#659ac8"/>
+<text x="852.2" y="270" font-size="12">1.061 GB</text>
+<text x="520" y="309" font-size="12">Quiesced</text>
+<rect x="662" y="293" width="29.3" height="24" rx="4" fill="#258b70"/>
+<text x="700.3" y="310" font-size="12">0.171 GB</text>
+<text x="520" y="347" font-size="12" fill="#596675">Includes reclaimable file cache; memory limits unchanged.</text>
+<text x="32" y="395" font-size="12" fill="#596675">Application quiesce/wake cycles are distinct from provider sleep. Railway sleep is checked separately.</text>
+</g></svg>

@@ -186,60 +186,67 @@ export class RunSession {
     const { ctx, run } = this;
     const log = ctx.log.child("run");
     let outcome: Outcome;
+    let releaseDemand: (() => void) | undefined;
     try {
-      await ctx.db.update(runs).set({ startedAt: new Date() }).where(eq(runs.id, run.id));
-      await this.setStatus("starting");
-      this.agentsFile = await this.services.prepareWorkspace();
-      this.client = await ctx.codex.ready();
-      const onDisconnect = () =>
-        this.finish?.({ status: "failed", error: "Lost the connection to the computer." });
-      ctx.codex.on("disconnected", onDisconnect);
-      this.cleanup.push(() => ctx.codex.off("disconnected", onDisconnect));
+      try {
+        await ctx.db.update(runs).set({ startedAt: new Date() }).where(eq(runs.id, run.id));
+        await this.setStatus("starting");
+        releaseDemand = await ctx.lifecycle?.hold(`run:${run.id}`);
+        if (this.cancelled) throw new Error("Run cancelled while waking the computer");
+        this.agentsFile = await this.services.prepareWorkspace();
+        this.client = await ctx.codex.ready();
+        const onDisconnect = () =>
+          this.finish?.({ status: "failed", error: "Lost the connection to the computer." });
+        ctx.codex.on("disconnected", onDisconnect);
+        this.cleanup.push(() => ctx.codex.off("disconnected", onDisconnect));
 
-      const prompt = await this.services.buildPrompt(this);
-      const input: v2.UserInput[] = [
-        { type: "text", text: prompt, text_elements: [] },
-        ...(await this.services.skillInputs(run.prompt, this.bot.id)),
-      ];
-      for (const attachment of run.attachments) {
-        if (attachment.mime.startsWith("image/"))
-          input.push({ type: "localImage", path: attachment.path });
-      }
-
-      let access = await this.services.model.decide();
-      outcome = await this.attempt(this.client, input, access);
-      // The plan ran out during this run: note until when, and retry once on the API key if allowed.
-      if (outcome.usageLimit && this.authMode === "plan" && !this.cancelled) {
-        await this.services.model.markPlanLimited();
-        access = await this.services.model.decide();
-        if (access.decision.mode === "blocked") {
-          outcome = await this.attempt(this.client, input, access);
-        } else if (access.decision.mode === "api_key") {
-          this.putItem({
-            id: `fallback-${run.id}`,
-            kind: "tool",
-            name: "model_fallback",
-            label: "Your ChatGPT plan hit its limit, so this continues on your OpenAI API key",
-            args: {},
-            status: "completed",
-            startedAt: this.now(),
-            completedAt: this.now(),
-          });
-          outcome = await this.attempt(this.client, input, access);
+        const prompt = await this.services.buildPrompt(this);
+        const input: v2.UserInput[] = [
+          { type: "text", text: prompt, text_elements: [] },
+          ...(await this.services.skillInputs(run.prompt, this.bot.id)),
+        ];
+        for (const attachment of run.attachments) {
+          if (attachment.mime.startsWith("image/"))
+            input.push({ type: "localImage", path: attachment.path });
         }
+
+        let access = await this.services.model.decide();
+        outcome = await this.attempt(this.client, input, access);
+        // The plan ran out during this run: note until when, and retry once on the API key if allowed.
+        if (outcome.usageLimit && this.authMode === "plan" && !this.cancelled) {
+          await this.services.model.markPlanLimited();
+          access = await this.services.model.decide();
+          if (access.decision.mode === "blocked") {
+            outcome = await this.attempt(this.client, input, access);
+          } else if (access.decision.mode === "api_key") {
+            this.putItem({
+              id: `fallback-${run.id}`,
+              kind: "tool",
+              name: "model_fallback",
+              label: "Your ChatGPT plan hit its limit, so this continues on your OpenAI API key",
+              args: {},
+              status: "completed",
+              startedAt: this.now(),
+              completedAt: this.now(),
+            });
+            outcome = await this.attempt(this.client, input, access);
+          }
+        }
+      } catch (error) {
+        log.error("run failed", { runId: run.id, error: errorMessage(error) });
+        outcome = { status: "failed", error: errorMessage(error) };
+      } finally {
+        for (const fn of this.cleanup) fn();
+        this.cleanup = [];
       }
-    } catch (error) {
-      log.error("run failed", { runId: run.id, error: errorMessage(error) });
-      outcome = { status: "failed", error: errorMessage(error) };
+      await this.complete(outcome);
+      if (outcome.status === "completed" && this.services.memory.ai.config.extractionUrl) {
+        await this.services.memory.store
+          .queueExtraction(run.id)
+          .catch(() => ctx.log.warn("Could not queue memory extraction."));
+      }
     } finally {
-      for (const fn of this.cleanup) fn();
-      this.cleanup = [];
-    }
-    await this.complete(outcome);
-    if (outcome.status === "completed" && this.services.memory.ai.config.extractionUrl) {
-      await this.services.memory.store
-        .queueExtraction(run.id)
-        .catch(() => ctx.log.warn("Could not queue memory extraction."));
+      releaseDemand?.();
     }
   }
 

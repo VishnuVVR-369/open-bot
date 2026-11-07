@@ -101,7 +101,11 @@ import { worker } from "./worker";
 import { plainText } from "../utils";
 
 interface WorkerStatus {
-  computer: { online: boolean; health: ComputerView["health"] };
+  computer: {
+    online: boolean;
+    health: ComputerView["health"];
+    lifecycle?: ComputerView["lifecycle"];
+  };
   codex: CodexStatusView;
   egress: EgressStatusView;
 }
@@ -368,6 +372,7 @@ export async function getAppState(user: { name: string; email: string }): Promis
     skills: skillList.map(({ instructions: _, ...summary }) => summary),
     computer: {
       workerOnline: status !== null,
+      lifecycle: status?.computer.lifecycle ?? null,
       online: status?.computer.online ?? false,
       health: status?.computer.health ?? null,
       egress: status?.egress ?? OFFLINE_EGRESS_STATUS,

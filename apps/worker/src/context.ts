@@ -16,6 +16,7 @@ import type { EventEmitter } from "node:events";
 import { sql } from "drizzle-orm";
 import type { ApprovalKind, RunEventPayload } from "@open-bot/shared";
 import type pg from "pg";
+import type { ComputerLifecycle } from "./computer-lifecycle";
 import type { CodexManager } from "./codex";
 import type { ComputerClient } from "./computer";
 import type { Env } from "./env";
@@ -63,6 +64,7 @@ export interface Context {
   db: Db;
   pool: pg.Pool;
   computer: ComputerClient;
+  lifecycle?: ComputerLifecycle;
   codex: CodexManager;
   log: Logger;
   events: EventEmitter<WorkerEvents>;
