@@ -23,8 +23,13 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
+      # Every apps/... or packages/... path named in a Markdown or MDX file must exist.
+      - run: pnpm check:doc-paths
       - run: pnpm typecheck
       - run: pnpm test
+      - run: pnpm test:scripts
+      # The generated noVNC viewer in apps/mobile must match its source and @novnc/novnc.
+      - run: pnpm --filter @open-bot/mobile check:viewer
 
   integration:
     name: Integration tests (Postgres)

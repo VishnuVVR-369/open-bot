@@ -4,7 +4,7 @@ export const metadata = docMetadata("/docs/reference/tools");
 
 # Teammate tools
 
-Besides Codex's built-in shell, file and web search tools, every teammate has the 52 dynamic tools below, plus 28 tools for [your accounts](#your-accounts) in three namespaces.
+Besides Codex's built-in shell, file and web search tools, every teammate has the dynamic tools below, plus the tools for [your accounts](#your-accounts), one namespace per account integration.
 They are defined in `apps/worker/src/tools/definitions.ts` and handled in `apps/worker/src/tools/handlers.ts`, with the teammate tools in `apps/worker/src/tools/bots.ts` and the account tools in `apps/worker/src/accounts/`.
 
 ## How tools are served
@@ -13,7 +13,7 @@ They are defined in `apps/worker/src/tools/definitions.ts` and handled in `apps/
 - The worker validates arguments against each tool's JSON schema, and returns readable errors the model can act on.
 - Each call becomes a timeline item, recorded by the handler with more detail than Codex's generic item.
 - Before every call, the handler checks that the teammate's memory hasn't changed since the run started. If it has, the turn is interrupted.
-- Tool definitions and the developer instructions are versioned together with `TOOLS_VERSION` (currently 19). Changing either requires a bump, which starts fresh threads.
+- Tool definitions and the developer instructions are versioned together with `TOOLS_VERSION` in `apps/worker/src/tools/definitions.ts`. Changing either requires a bump, which starts fresh threads.
 
 Arguments marked with `?` are optional.
 **Helpers** are swarm helper runs, which can't use the tools marked "no".

@@ -162,42 +162,9 @@ Passkeys keep working.
 
 ## Tests
 
-Start the local stack first, then run:
-
 ```sh
-pnpm verify                                     # lint, typecheck, unit and integration tests (needs Docker)
-pnpm lint && pnpm typecheck && pnpm test         # checks and unit tests
-pnpm test:integration                           # every *.integration.test.ts against disposable Postgres
-pnpm test:memory -- --e2e                       # memory database and browser tests
-pnpm test:owner-reset                          # the owner password reset command in disposable Postgres
-E2E_EMAIL=you@example.com E2E_PASSWORD=... pnpm e2e --grep-invert @agent   # fast end-to-end tests
-E2E_EMAIL=you@example.com E2E_PASSWORD=... pnpm e2e --grep @agent          # real teammates at work (slow, uses your plan)
+pnpm verify                                     # lint, doc paths, typecheck, unit and integration tests (needs Docker)
+E2E_EMAIL=you@example.com E2E_PASSWORD=... pnpm e2e --grep-invert @agent   # end-to-end tests against the running stack
 ```
 
-### Telegram tests
-
-These use a fake Telegram server, so you don't need a real bot:
-
-```sh
-TELEGRAM_API_BASE_URL=http://127.0.0.1:4797 pnpm --filter @open-bot/worker dev
-E2E_TELEGRAM=1 E2E_EMAIL=you@example.com E2E_PASSWORD=... pnpm e2e --grep Telegram
-```
-
-### Account tests
-
-These use a fake Google and Notion, so you don't need a Google Cloud project or real accounts.
-Start the web app and the worker pointed at the fake, with no accounts connected:
-
-```sh
-GOOGLE_BASE_URL=http://127.0.0.1:4796 NOTION_MCP_URL=http://127.0.0.1:4796/mcp pnpm dev
-E2E_ACCOUNTS=1 E2E_EMAIL=you@example.com E2E_PASSWORD=... pnpm e2e e2e/accounts.spec.ts
-```
-
-### Plan fallback tests
-
-These pretend your plan ran out, so you can test the switch to your API key without using up your plan:
-
-```sh
-OPEN_BOT_PLAN_BASE_URL=http://host.docker.internal:4799/plan OPENAI_API_BASE_URL=http://host.docker.internal:4799/api pnpm --filter @open-bot/worker dev
-E2E_PLAN_REHEARSAL=1 E2E_EMAIL=you@example.com E2E_PASSWORD=... pnpm e2e --grep rehearsal
-```
+The full list of suites, what each needs, the stand-ins for outside services and how to run them is in the Development docs: `apps/site/src/app/docs/development/page.mdx` (`/docs/development` on the site).

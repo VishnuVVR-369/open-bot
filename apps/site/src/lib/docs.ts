@@ -91,6 +91,12 @@ export const docs: DocSection[] = [
         description:
           "The Electron shell and the multiplexed tunnel that sends browser traffic out through your Mac.",
       },
+      {
+        href: "/docs/architecture/mobile",
+        title: "Android app",
+        description:
+          "The Expo client: its parts, session and lock, live stream, push, WebView viewers and phone connection.",
+      },
     ],
   },
   {

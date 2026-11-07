@@ -7,6 +7,8 @@ export const metadata = docMetadata("/docs/reference/configuration");
 open-bot is configured with environment variables.
 In development, the web app, the worker and the pages service all read the repository's root `.env`, copied from `.env.example`.
 Every value has a development default except `OWNER_EMAIL`.
+`BETTER_AUTH_SECRET` is the one exception in the code: it is read by the sign-in library and has no default, so `.env.example` supplies a placeholder.
+The variables for tests and tooling are listed apart, under [Test and tooling variables](#test-and-tooling-variables).
 
 <Callout kind="warning">
   The defaults for `BETTER_AUTH_SECRET`, `WORKER_SECRET`, `BOTD_TOKEN`, `ENCRYPTION_KEY` and
@@ -26,35 +28,40 @@ Every value has a development default except `OWNER_EMAIL`.
 
 ## Web app
 
-| Variable                    | Default                 | Purpose                                                                                  |
-| --------------------------- | ----------------------- | ---------------------------------------------------------------------------------------- |
-| `OWNER_EMAIL`               | none                    | The only email that can create the account                                               |
-| `BETTER_AUTH_SECRET`        | none                    | Signs sessions                                                                           |
-| `BETTER_AUTH_URL`           | `http://localhost:3000` | The app's public URL. Also the passkey relying party.                                    |
-| `WORKER_URL`                | `http://127.0.0.1:4001` | Where the web server reaches the worker                                                  |
-| `NEXT_PUBLIC_WORKER_WS_URL` | `ws://localhost:4001`   | Where browsers and the desktop app reach the worker's websockets. Built into the client. |
-| `PAGES_URL`                 | `http://127.0.0.1:3400` | The pages service's public URL, which page links and downloads point at                  |
+| Variable                    | Default                 | Purpose                                                                                                                                                                                                    |
+| --------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OWNER_EMAIL`               | none                    | The only email that can create the account. `scripts/ops/owner-reset-password.mjs` also uses it as the default owner.                                                                                      |
+| `BETTER_AUTH_SECRET`        | none                    | Signs sessions. Read by the sign-in library itself.                                                                                                                                                        |
+| `BETTER_AUTH_URL`           | `http://localhost:3000` | The app's public URL. Also the passkey relying party.                                                                                                                                                      |
+| `WORKER_URL`                | `http://127.0.0.1:4001` | Where the web server reaches the worker                                                                                                                                                                    |
+| `NEXT_PUBLIC_WORKER_WS_URL` | `ws://localhost:4001`   | Where browsers and the desktop app reach the worker's websockets. Built into the client.                                                                                                                   |
+| `PAGES_URL`                 | `http://127.0.0.1:3400` | The pages service's public URL, which page links and downloads point at                                                                                                                                    |
+| `ANDROID_CERT_SHA256`       | empty                   | Comma-separated SHA-256 fingerprints (`AB:CD:...`) of the certificates the Android app is signed with. Passkeys from the app are accepted only for these. Only the release key belongs here in production. |
+| `OPENBOT_NEXT_DIST_DIR`     | `.next`                 | The web app's Next.js output folder. Set it to run a second dev server beside the first, as the showcase does with `.next-showcase`.                                                                       |
 
 ## Worker
 
 Parsed with zod in `apps/worker/src/env.ts`.
+`DATABASE_URL`, `WORKER_SECRET`, `ENCRYPTION_KEY` and `BOTD_TOKEN` are the [shared secrets](#shared-secrets) above, and the worker also reads the [memory AI](#memory-ai) variables.
 
-| Variable                   | Default                                       | Purpose                                                             |
-| -------------------------- | --------------------------------------------- | ------------------------------------------------------------------- |
-| `WORKER_PORT`              | `4001`                                        | HTTP and websocket port                                             |
-| `BOTD_URL`                 | `http://127.0.0.1:7070`                       | Where botd listens. Locally, Compose maps it from port 7000.        |
-| `APP_URL`                  | `BETTER_AUTH_URL`, or `http://localhost:3000` | Webhook URLs start with it                                          |
-| `MAX_CONCURRENT_RUNS`      | `4`                                           | Runs executing at once, across all teammates                        |
-| `WATCH_ALLOW_PRIVATE_URLS` | `false` in production, `true` otherwise       | Let page watches fetch private and local addresses                  |
-| `HOST_CODEX_AUTH_FILE`     | `~/.codex/auth.json`                          | Development: the login the computer borrows                         |
-| `HOST_CODEX_BIN`           | `codex`                                       | Development: the Codex CLI used to refresh that login               |
-| `OPENAI_API_BASE_URL`      | `https://api.openai.com/v1`                   | Where API key traffic goes                                          |
-| `TELEGRAM_API_BASE_URL`    | `https://api.telegram.org`                    | The Telegram Bot API. Tests point it at a stand-in.                 |
-| `OPEN_BOT_PLAN_BASE_URL`   | unset                                         | Testing only: send plan traffic to a mock, to rehearse the fallback |
+| Variable                     | Default                                       | Purpose                                                                                                                    |
+| ---------------------------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `WORKER_PORT`                | `4001`                                        | HTTP and websocket port                                                                                                    |
+| `BOTD_URL`                   | `http://127.0.0.1:7070`                       | Where botd listens. Locally, Compose maps it from port 7000.                                                               |
+| `APP_URL`                    | `BETTER_AUTH_URL`, or `http://localhost:3000` | Webhook URLs start with it                                                                                                 |
+| `MAX_CONCURRENT_RUNS`        | `4`                                           | Runs executing at once, across all teammates                                                                               |
+| `WATCH_ALLOW_PRIVATE_URLS`   | `false` in production, `true` otherwise       | Let page watches fetch private and local addresses                                                                         |
+| `HOST_CODEX_AUTH_FILE`       | `~/.codex/auth.json`                          | Development: the login the computer borrows. Give an absolute path: `~` is not expanded.                                   |
+| `HOST_CODEX_BIN`             | `codex`                                       | Development: the Codex CLI used to refresh that login                                                                      |
+| `OPENAI_API_BASE_URL`        | `https://api.openai.com/v1`                   | Where API key traffic goes: the OpenAI API, or a compatible proxy                                                          |
+| `COMPUTER_LIFECYCLE_ENABLED` | `false`                                       | Let the computer sleep when idle and wake on demand. Set the same value on the computer.                                   |
+| `COMPUTER_IDLE_MINUTES`      | `5`                                           | With the lifecycle on: minutes without work before the computer goes to sleep. Above 0, at most 60.                        |
+| `FCM_SERVICE_ACCOUNT_JSON`   | unset                                         | The Firebase service account JSON, on one line, used to send phone notifications. Without it, phones get no notifications. |
 
 ### Memory AI
 
 Optional, and off unless the URLs are set.
+Read by the worker, through `memoryAIConfig` in `packages/memory/src/jobs.ts`.
 See [Memory](/docs/flows/memory#optional-ai).
 
 | Variable                        | Default | Purpose                                                  |
@@ -62,7 +69,7 @@ See [Memory](/docs/flows/memory#optional-ai).
 | `MEMORY_EMBEDDING_URL`          | empty   | An OpenAI-compatible `/embeddings` URL                   |
 | `MEMORY_EMBEDDING_MODEL`        | empty   | The embedding model                                      |
 | `MEMORY_EMBEDDING_DIMENSIONS`   | `768`   | Vector size, 1 to 4096                                   |
-| `MEMORY_SEMANTIC_MAX_DISTANCE`  | `0.4`   | The cosine-distance cutoff for semantic matches          |
+| `MEMORY_SEMANTIC_MAX_DISTANCE`  | `0.4`   | The cosine-distance cutoff for semantic matches, 0 to 2  |
 | `MEMORY_EXTRACTION_URL`         | empty   | An OpenAI-compatible `/chat/completions` URL             |
 | `MEMORY_EXTRACTION_MODEL`       | empty   | The extraction model                                     |
 | `MEMORY_AI_API_KEY`             | empty   | A bearer token for those two endpoints only              |
@@ -84,40 +91,55 @@ The redirect URIs are built from `BETTER_AUTH_URL`, the app's public URL:
 The Google one goes in your OAuth client, and Settings shows it with a copy button.
 If the app's URL changes, add the new URI to your Google client; the app registers with Notion again by itself for a new URI.
 
-These two variables are for tests only, and must be set the same in the web app and the worker:
-
-| Variable          | Default                      | Purpose                                                                                                                                                    |
-| ----------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GOOGLE_BASE_URL` | unset: Google's real servers | Send Google sign-in, Gmail and Calendar traffic to a stand-in, under `/o/oauth2/v2/auth`, `/token`, `/revoke`, `/userinfo`, `/gmail/v1` and `/calendar/v3` |
-| `NOTION_MCP_URL`  | `https://mcp.notion.com/mcp` | Use a stand-in for Notion's hosted MCP server and its sign-in                                                                                              |
+`GOOGLE_BASE_URL` and `NOTION_MCP_URL` exist for tests only, and are listed under [Stand-ins for outside services](#stand-ins-for-outside-services).
 
 ## Pages service
 
 See [The pages service](/docs/architecture/pages).
 
-| Variable       | Default                                                        | Purpose                                                                 |
-| -------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `PORT`         | `3400`                                                         | HTTP port                                                               |
-| `PAGES_URL`    | `https://$RAILWAY_PUBLIC_DOMAIN`, or `http://127.0.0.1:<PORT>` | Its own public URL, which the runtime and `/lib` addresses use          |
-| `APP_URL`      | `http://localhost:3000`                                        | The app's origins, comma-separated: the only ones that may frame a page |
-| `PAGE_LIB_DIR` | `dist/lib` next to the server, or the page kit's build         | Where `/lib` is served from                                             |
+| Variable                | Default                                                        | Purpose                                                                 |
+| ----------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `PORT`                  | `3400`                                                         | HTTP port                                                               |
+| `PAGES_URL`             | `https://$RAILWAY_PUBLIC_DOMAIN`, or `http://127.0.0.1:<PORT>` | Its own public URL, which the runtime and `/lib` addresses use          |
+| `RAILWAY_PUBLIC_DOMAIN` | unset                                                          | Set by Railway. Builds `PAGES_URL` when that is not set.                |
+| `APP_URL`               | `http://localhost:3000`                                        | The app's origins, comma-separated: the only ones that may frame a page |
+| `PAGE_LIB_DIR`          | `dist/lib` next to the server, or the page kit's build         | Where `/lib` is served from                                             |
 
 `PAGES_SECRET` has a development default only outside production.
 In production, the pages service refuses to start without it.
 
 ## The computer (botd)
 
-| Variable                    | Default             | Purpose                                                                                               |
-| --------------------------- | ------------------- | ----------------------------------------------------------------------------------------------------- |
-| `BOTD_TOKEN`                | none                | Required                                                                                              |
-| `MAX_SCREENS`               | `4`                 | Screens running at once                                                                               |
-| `SCREEN_IDLE_MINUTES`       | `20`                | A screen nobody used for this long stops                                                              |
-| `APPLY_GUARD_EXTRA_DOMAINS` | empty               | Comma-separated extra domains for the apply guard. Compose sets `host.docker.internal` for the tests. |
-| `BOTS_GID`                  | `1100`              | The shared `bots` group, set in the image                                                             |
-| `PAGE_LIB_DIR`              | `/opt/page-kit/lib` | Where the page preview server serves `/lib` from. The image copies the page kit there.                |
+The computer does not read the repository's `.env`.
+Locally, `docker-compose.yml` passes it only `BOTD_TOKEN` and `APPLY_GUARD_EXTRA_DOMAINS` (taken from your shell or `.env` when set), so set any other variable below in a Compose override.
+On Railway, set them on the `computer` service.
+
+| Variable                     | Default                            | Purpose                                                                                                   |
+| ---------------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `BOTD_TOKEN`                 | none                               | Required, at least 16 characters                                                                          |
+| `COMPUTER_LIFECYCLE_ENABLED` | `false`                            | The computer can sleep and wake. Also lowers the screen defaults below. Set the same value on the worker. |
+| `MAX_SCREENS`                | `4`, or `2` with the lifecycle on  | Screens running at once                                                                                   |
+| `SCREEN_IDLE_MINUTES`        | `20`, or `3` with the lifecycle on | A screen nobody used for this long stops                                                                  |
+| `APPLY_GUARD_EXTRA_DOMAINS`  | empty                              | Comma-separated extra domains for the apply guard. Compose sets `host.docker.internal` for the tests.     |
+| `BOTS_GID`                   | `1100`                             | The shared `bots` group, set in the image                                                                 |
+| `PAGE_LIB_DIR`               | `/opt/page-kit/lib`                | Where the page preview server serves `/lib` from. The image copies the page kit there.                    |
 
 botd's own ports are fixed: 7000 for its API, 4500 for Codex (localhost), 1080 for SOCKS (localhost) and 7080 for the page preview server (localhost).
 The Codex version is the image's `CODEX_VERSION` build argument.
+botd sets `OPEN_BOT_CHROMIUM_ARGS` itself for each screen's browser, and `/etc/chromium.d/open-bot` reads it.
+It is not a setting.
+
+## Mobile app build
+
+Read when the Android app is built or started, by `apps/mobile/app.config.ts` and `apps/mobile/src/lib/config.ts`.
+`EXPO_PUBLIC_*` values are built into the JavaScript bundle, so set them before `pnpm start` or a release build.
+See `apps/mobile/README.md`.
+
+| Variable               | Default                            | Purpose                                                                                                                      |
+| ---------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `EXPO_PUBLIC_APP_URL`  | `https://openbot.up.railway.app`   | The open-bot web app the phone talks to                                                                                      |
+| `APP_VARIANT`          | unset                              | `development` builds `dev.openbot.mobile.dev` ("open-bot dev") beside the signed app, without Firebase. Unset for a release. |
+| `GOOGLE_SERVICES_JSON` | `apps/mobile/google-services.json` | Path to the Firebase config for push notifications. Without a usable file, the build has no Firebase.                        |
 
 ## Desktop app
 
@@ -127,6 +149,25 @@ The Codex version is the image's `CODEX_VERSION` build argument.
 
 The shell's environment may carry `ELECTRON_RUN_AS_NODE=1` when launched from some tools, which stops Electron from opening a window.
 Unset it to run the desktop app.
+
+## Site build
+
+The public site and these docs are a static export, built from `apps/site`.
+The two URLs are baked into the static files.
+See `apps/site/README.md`.
+
+| Variable                | Default                 | Purpose                                                                                                        |
+| ----------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_SITE_URL`  | `http://localhost:3200` | The site's public URL, used for page metadata, `robots.txt` and the sitemap                                    |
+| `NEXT_PUBLIC_MEDIA_URL` | `http://localhost:3201` | The media bucket's public URL. Also allowed in the site's `_headers` by `apps/site/scripts/write-headers.mjs`. |
+| `WORKERS_CI`            | unset                   | Set by Cloudflare's builds. While it (or `CF_PAGES`) is set, the build fails unless both URLs above are set.   |
+| `CF_PAGES`              | unset                   | Set by Cloudflare Pages builds, with the same effect as `WORKERS_CI`                                           |
+
+## Standard variables
+
+`NODE_ENV=production` makes the web app and the worker refuse the public development secrets, makes the pages service require `PAGES_SECRET`, and turns `WATCH_ALLOW_PRIVATE_URLS` off by default.
+`PORT` is read by the pages service only.
+The web app and the worker use their own port settings.
 
 ## Settings in the app
 
@@ -146,13 +187,122 @@ Some configuration lives in the database, changed in Settings rather than in the
 | Google OAuth client ID and secret, and Notion's registered client | `oauth_clients`, secrets encrypted                        |
 | Gmail, Google Calendar and Notion sign-ins                        | `accounts`, tokens encrypted, and their `connections`     |
 
-## Tests
+## Test and tooling variables
 
-| Variable                    | Used by                                                                                         |
-| --------------------------- | ----------------------------------------------------------------------------------------------- |
-| `E2E_EMAIL`, `E2E_PASSWORD` | Playwright: the owner account to sign in with                                                   |
-| `E2E_BASE_URL`              | Playwright: the web app, default `http://localhost:3000`                                        |
-| `E2E_TELEGRAM=1`            | Run the Telegram tests (with the worker pointed at the stand-in)                                |
-| `E2E_PLAN_REHEARSAL=1`      | Run the plan fallback rehearsal                                                                 |
-| `TEST_DATABASE_URL`         | `pnpm test:integration`: the Postgres server each integration suite creates its own database on |
-| `MEMORY_TEST_DATABASE_URL`  | The memory suite's isolated database                                                            |
+None of these belong in `.env.example`, and none matter to a running deployment.
+They are read by test suites, test scripts and developer tooling.
+Most suites also read the runtime variables above, with the same development defaults.
+
+<Callout kind="warning">
+  Variables marked "real service" make a test reach something outside your machine. Everything else
+  stays on localhost or in a disposable container.
+</Callout>
+
+### Integration tests
+
+Run with `pnpm test:integration`.
+
+| Variable                        | Read by                                                        | Purpose                                                                                                                                                                                             |
+| ------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TEST_DATABASE_URL`             | `packages/db/src/testing.ts`, `scripts/test/*.sh`, CI          | The Postgres server each `*.integration.test.ts` suite creates its own database on. When unset, the suites skip; on CI, unset is an error. `scripts/test/pg.sh` starts a throwaway one with Docker. |
+| `TEST_PG_DATABASE`              | `scripts/test/pg.sh`                                           | The database name on that throwaway server. Default `postgres`. The memory suite uses `openbot_memory_test`.                                                                                        |
+| `OWNER_RESET_TEST_DATABASE_URL` | `scripts/ops/owner-reset-password.test.mjs`                    | The database for the owner password reset test. `pnpm test:owner-reset` sets it from `TEST_DATABASE_URL`, which must end in `openbot_owner_reset_test`.                                             |
+| `CI`                            | `packages/db/src/testing.ts`, `apps/site/playwright.config.ts` | Set by CI. Makes a missing `TEST_DATABASE_URL` an error, and stops the site e2e from reusing running servers.                                                                                       |
+| `UPDATE_VECTORS`                | `packages/egress/src/vectors.test.ts`                          | Set to `1` (`pnpm --filter @open-bot/egress vectors`) to rewrite the egress test vectors instead of checking them                                                                                   |
+
+### End-to-end tests
+
+Run with `pnpm e2e` against a running stack (`playwright.config.ts`, `e2e/`).
+The specs also read `DATABASE_URL`, `WORKER_URL`, `WORKER_SECRET`, `BOTD_URL` and `BOTD_TOKEN`, with the development defaults, and write to that database directly, so point them at a development stack only.
+Tests tagged `@agent` run real bots on the computer and use your ChatGPT plan.
+
+| Variable                                   | Read by                                                                 | Purpose                                                                                                                                                      |
+| ------------------------------------------ | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `E2E_EMAIL`, `E2E_PASSWORD`                | `e2e/helpers.ts`, `scripts/test/mobile-ui.mjs`                          | The owner account to sign in with. `E2E_EMAIL` falls back to `OWNER_EMAIL`.                                                                                  |
+| `E2E_BASE_URL`                             | `playwright.config.ts`, `e2e/api.spec.ts`, `scripts/test/mobile-ui.mjs` | The web app. Default `http://localhost:3000`.                                                                                                                |
+| `E2E_TELEGRAM=1`                           | `e2e/telegram.spec.ts`                                                  | Run the Telegram tests. Start the worker with `TELEGRAM_API_BASE_URL` pointed at the mock.                                                                   |
+| `E2E_PLAN_REHEARSAL=1`                     | `e2e/fallback-rehearsal.spec.ts`                                        | Run the plan fallback rehearsal. Start the worker with `OPEN_BOT_PLAN_BASE_URL` pointed at a server that reports a usage limit.                              |
+| `E2E_ACCOUNTS=1`                           | `e2e/accounts.spec.ts`                                                  | Run the Gmail, Calendar and Notion tests. Start the web app and the worker with `GOOGLE_BASE_URL` and `NOTION_MCP_URL` pointed at the stand-in on port 4796. |
+| `E2E_TRACKER_MCP_URL`, `E2E_TRACKER_TOKEN` | `e2e/job-scout.spec.ts`                                                 | Real service: a real Application tracker's MCP address and a token for a test user. The full Job Scout test skips without both.                              |
+
+### Stand-ins for outside services
+
+Unset, each of these means the real service.
+Set one only to a local stand-in, and set it on every process that talks to that service.
+
+| Variable                 | Read by     | Default                      | Purpose                                                                                                                                                                                                 |
+| ------------------------ | ----------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GOOGLE_BASE_URL`        | web, worker | unset: Google's real servers | Send Google sign-in, Gmail and Calendar traffic to a stand-in, under `/o/oauth2/v2/auth`, `/token`, `/revoke`, `/userinfo`, `/gmail/v1` and `/calendar/v3`. Set the same in the web app and the worker. |
+| `NOTION_MCP_URL`         | web, worker | `https://mcp.notion.com/mcp` | Use a stand-in for Notion's hosted MCP server and its sign-in. Set the same in the web app and the worker.                                                                                              |
+| `TELEGRAM_API_BASE_URL`  | worker      | `https://api.telegram.org`   | The Telegram Bot API                                                                                                                                                                                    |
+| `OPEN_BOT_PLAN_BASE_URL` | worker      | unset: ChatGPT               | Send plan traffic to a Responses-compatible server instead of ChatGPT, to rehearse the fallback. `scripts/test/computer-sleep.sh` points it at its fixture.                                             |
+| `FCM_API_BASE_URL`       | worker      | `https://fcm.googleapis.com` | Firebase Cloud Messaging's API                                                                                                                                                                          |
+
+### Memory suite
+
+Run with `pnpm test:memory`, and add `--e2e` for the Playwright spec.
+
+| Variable                   | Read by                                                                                    | Purpose                                                                                                        |
+| -------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `MEMORY_TEST_DATABASE_URL` | `scripts/dev/memory-worker-smoke.mjs`, `e2e/memory.spec.ts`, `playwright.memory.config.ts` | The isolated database, named `openbot_memory_test`. `scripts/test/memory.sh` sets it from `TEST_DATABASE_URL`. |
+| `MEMORY_E2E_PORT`          | `playwright.memory.config.ts`                                                              | The port of the web dev server the memory spec starts. Default `3137`.                                         |
+
+### Pocket inbox
+
+Run with `pnpm test:pocket-inbox`.
+
+| Variable                   | Read by                                                   | Purpose                                                                                                                                  |
+| -------------------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `POCKET_TEST_DATABASE_URL` | `playwright.pocket.config.ts`, `e2e/pocket-inbox.spec.ts` | A local database named `openbot_pocket_test`. Anything else is refused. `scripts/test/pocket-inbox.sh` sets it from `TEST_DATABASE_URL`. |
+| `POCKET_TEST_PORT`         | `playwright.pocket.config.ts`                             | The port of the web dev server the spec starts. Default `3141`.                                                                          |
+| `POCKET_TEST_EVIDENCE_DIR` | `e2e/pocket-inbox.spec.ts`                                | Optional. A folder where the spec writes JSON evidence of what it saw.                                                                   |
+
+### Computer sleep
+
+Run with `pnpm test:computer-sleep`.
+It needs Docker and the computer image (`pnpm computer:build`), and starts its own computer, Postgres and worker, never touching the normal Compose project.
+
+| Variable                     | Read by                                                                         | Purpose                                                                                           |
+| ---------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `COMPUTER_TEST_IMAGE`        | `scripts/test/computer-sleep.sh`                                                | The computer image to run. Default `open-bot-computer:dev`.                                       |
+| `SLEEP_TEST_WORKER_PORT`     | `scripts/test/computer-sleep.sh`                                                | The test worker's port. Default `14092`.                                                          |
+| `SLEEP_TEST_LOG`             | `scripts/test/computer-sleep.sh`                                                | Where the test worker logs. Default `/tmp/openbot-sleep-worker.log`.                              |
+| `SLEEP_TEST_FIXTURE_PORT`    | `scripts/test/computer-sleep.sh`, `apps/worker/scripts/computer-sleep-smoke.ts` | The fake model server the test runs. Default `14799` from the script.                             |
+| `SLEEP_TEST_WORKER_URL`      | both smoke scripts in `apps/worker/scripts/`                                    | The test worker. The web smoke defaults to `http://127.0.0.1:14097`.                              |
+| `SLEEP_TEST_COMPUTER_URL`    | `apps/worker/scripts/computer-sleep-smoke.ts`                                   | The test computer's botd                                                                          |
+| `SLEEP_TEST_CONTAINER`       | `apps/worker/scripts/computer-sleep-smoke.ts`                                   | The container to read memory use from with `docker exec`                                          |
+| `SLEEP_TEST_CYCLES`          | `apps/worker/scripts/computer-sleep-smoke.ts`                                   | Sleep and wake cycles to run. Default `20`.                                                       |
+| `SLEEP_TEST_RESOURCE_CHECKS` | `apps/worker/scripts/computer-sleep-smoke.ts`                                   | When set, also check screen limits with more teammates                                            |
+| `SLEEP_TEST_REPORT`          | `apps/worker/scripts/computer-sleep-smoke.ts`                                   | Where the JSON report goes. Default `/tmp/openbot-sleep-smoke.json`.                              |
+| `SLEEP_TEST_APP_URL`         | `apps/worker/scripts/computer-sleep-web-smoke.ts`                               | The web app for the browser smoke. Default `http://127.0.0.1:13001`. Only `127.0.0.1` is allowed. |
+
+### Mobile UI tests and tooling
+
+Run with `pnpm test:mobile-ui`, which drives the real Android app with Maestro against your local stack.
+Only the push transport is injected.
+It also reads `E2E_EMAIL`, `E2E_PASSWORD`, `E2E_BASE_URL`, `WORKER_URL`, `WORKER_SECRET`, `BOTD_URL` and `BOTD_TOKEN`, and refuses a database or app that is not local.
+See `apps/mobile/README.md`.
+
+| Variable                          | Read by                                                            | Purpose                                                                                                                    |
+| --------------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `MOBILE_E2E_DATABASE_URL`         | `scripts/test/mobile-ui.mjs`                                       | The local database the fixtures go in. Default: the development database.                                                  |
+| `MOBILE_E2E_DEVICE`               | `scripts/test/mobile-ui.mjs`                                       | The `adb` device id of the emulator or phone, when more than one is attached                                               |
+| `MOBILE_E2E_FLOW`                 | `scripts/test/mobile-ui.mjs`                                       | A flow under `apps/mobile/maestro/` to run alone. Default `pocket-inbox.yaml`.                                             |
+| `MOBILE_E2E_MANUAL=1`             | `scripts/test/mobile-ui.mjs`                                       | Keep the fixtures after the flow for manual checks. POST `/finish` to the printed fixture URL to clean up.                 |
+| `MAESTRO_BIN`                     | `scripts/test/mobile-ui.mjs`                                       | The Maestro executable, if it is not on `PATH`                                                                             |
+| `MAESTRO_NO_REINSTALL=1`          | `scripts/test/mobile-ui.mjs`                                       | Reuse Maestro's driver apps on the device from an earlier run with the same Maestro version                                |
+| `EXPO_PUBLIC_E2E_NOTIFICATIONS=1` | `apps/mobile/index.ts`, `apps/mobile/src/testing/notifications.ts` | Set on the Metro session of a development build to accept locally injected test notifications. Release bundles exclude it. |
+| `ANDROID_HOME`                    | `apps/mobile/scripts/egress-pair-dev.mjs`                          | The Android SDK, to find `adb`. Default `/opt/homebrew/share/android-commandlinetools`.                                    |
+| `ANDROID_SERIAL`                  | `apps/mobile/scripts/egress-pair-dev.mjs`                          | The device to pair with, when `--serial` is not given                                                                      |
+
+### Showcase
+
+Demo data and screenshots for design review, in `tools/showcase`.
+It runs the web app on port 3200, which `apps/site` dev also uses, so never run both.
+The seed only ever touches a database named `openbot_showcase`, and also reads `ENCRYPTION_KEY`.
+
+| Variable                | Read by                                               | Purpose                                                                                                                          |
+| ----------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `SHOWCASE_DATABASE_URL` | `tools/showcase/seed.ts`                              | The Postgres server to create `openbot_showcase` on. Default: the server in `DATABASE_URL`. CI sets it from `TEST_DATABASE_URL`. |
+| `SHOWCASE_URL`          | `tools/showcase/auth.mjs`, `tools/showcase/shoot.mjs` | The showcase web app. Default `http://localhost:3200`.                                                                           |
+| `SHOWCASE_STATE`        | `tools/showcase/shoot.mjs`                            | The saved sign-in used for screenshots. Default `/tmp/ui/showcase-auth.json`.                                                    |
