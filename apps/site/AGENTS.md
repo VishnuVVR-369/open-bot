@@ -26,7 +26,8 @@ Product behavior belongs in the other workspaces; this one only describes it.
 ## Invariants
 
 - A new docs page needs its `page.mdx` and an entry in `apps/site/src/lib/docs.ts`.
-- Cloudflare builds this site on every PR, and a red Cloudflare check is a real failure.
+- Cloudflare builds this site only when a push changes it (build watch paths, see `apps/site/README.md`), and a red Cloudflare check is a real failure.
+- If the site starts importing a workspace package or another repo file, add that path to the watch paths.
 - The output is static; do not add server-only features.
 - The tour stream lives in a Cloudflare R2 bucket, not in `apps/site/public/media`.
 - Port 3200 is shared with the showcase web app, so never run both.
