@@ -427,6 +427,7 @@ async function shutdown(signal: string) {
   triggers.stop();
   accountTriggers.stop();
   accountActions.stop();
+  await accountActions.idle();
   await integrations.stop();
   push.stop();
   fcm.stop();
