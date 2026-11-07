@@ -1,0 +1,46 @@
+# Plans the Railway project in .railway/ against production and posts the diff on the PR.
+# The plan is pinned as an artifact; railway-apply.yml applies exactly that plan on merge.
+name: Railway plan
+
+on:
+  pull_request:
+    paths:
+      - ".railway/**"
+      - ".github/workflows/railway-plan.yml"
+
+permissions:
+  contents: read
+  pull-requests: write
+  # Lets the Railway GitHub App post the plan comment as the Railway bot.
+  id-token: write
+
+concurrency:
+  group: railway-plan-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    name: Plan Railway changes
+    # Fork PRs get no secrets.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # The workspace includes the desktop app; the plan never needs Electron itself.
+      ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+    steps:
+      - uses: actions/checkout@v4
+      # Installed here, with the same cache as ci.yml, so `railway/iac` resolves for the plan.
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: railwayapp/config@f1f0c715716fe035319b0a716b95c6e83e0f6595 # main, 2026-10-13: v1.2.0 plus pnpm support
+        with:
+          command: plan
+          railway-token: ${{ secrets.RAILWAY_TOKEN }}
+          # The version .railway/ was last planned with locally.
+          cli-version: 5.71.0
+          package-manager: none

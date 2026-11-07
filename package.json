@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "turbo run dev --parallel --filter=@open-bot/web --filter=@open-bot/worker --filter=@open-bot/pages",
     "build": "turbo run build",
-    "typecheck": "turbo run typecheck && tsc -p e2e",
+    "typecheck": "turbo run typecheck && tsc -p e2e && tsc -p .railway",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -28,8 +28,9 @@
     "check:doc-paths": "node scripts/check/doc-paths.mjs",
     "check:vocabulary": "node scripts/check/vocabulary.mjs",
     "test:scripts": "node --test scripts/check/*.test.mjs",
-    "verify": "pnpm lint && pnpm check:doc-paths && pnpm check:vocabulary && pnpm typecheck && pnpm test && pnpm test:scripts && pnpm test:integration",
-    "verify:affected": "pnpm lint && pnpm check:doc-paths && pnpm check:vocabulary && turbo run typecheck test --affected && tsc -p e2e && pnpm test:scripts && bash scripts/test/integration.sh --affected"
+    "test:railway": "node --test .railway/watch-paths.test.ts",
+    "verify": "pnpm lint && pnpm check:doc-paths && pnpm check:vocabulary && pnpm typecheck && pnpm test && pnpm test:scripts && pnpm test:railway && pnpm test:integration",
+    "verify:affected": "pnpm lint && pnpm check:doc-paths && pnpm check:vocabulary && turbo run typecheck test --affected && tsc -p e2e && tsc -p .railway && pnpm test:scripts && pnpm test:railway && bash scripts/test/integration.sh --affected"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -49,6 +50,7 @@
     "micromark-extension-mdxjs": "3.0.0",
     "pg": "^8.23.1",
     "prettier": "^3.9.10",
+    "railway": "3.16.0",
     "turbo": "^2.11.7",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.71.2",

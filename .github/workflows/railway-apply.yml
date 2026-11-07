@@ -1,0 +1,37 @@
+# Applies the plan railway-plan.yml pinned for the merged PR. It never re-plans: if production
+# changed since the plan, or .railway/ differs from what was planned, it fails and the change
+# must be planned again (reopen the PR, or open a new one).
+name: Railway apply
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".railway/**"
+
+# pull-requests: read finds the merged PR for the pushed commit; actions: read downloads its plan.
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+
+# Applies run one at a time and are never cancelled halfway.
+concurrency:
+  group: railway-apply
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply Railway changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: railwayapp/config@f1f0c715716fe035319b0a716b95c6e83e0f6595 # main, 2026-10-13: v1.2.0 plus pnpm support
+        with:
+          command: apply
+          railway-token: ${{ secrets.RAILWAY_TOKEN }}
+          cli-version: 5.71.0
+          # Destructive changes (deleting a service, volume or database) fail instead of applying.
+          # Make them by hand with `railway config apply` after reviewing the plan.
+          confirm-destructive: "false"

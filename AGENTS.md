@@ -19,6 +19,7 @@ Each workspace has its own `AGENTS.md` with details, and the technical docs live
 
 Workspace packages are consumed as TypeScript source (`exports` point at `src/*.ts`).
 A new workspace dependency must also be added to the consumer's bundler config: `apps/worker/build.mjs`, `transpilePackages` in `apps/web/next.config.ts`, and the esbuild calls of botd and pages.
+For a deployed service it must also be added to that service's list in `.railway/watch-paths.ts`, or changes to it never redeploy the service (`pnpm test:railway` catches a missing folder).
 
 | Folder              | Owns                                                                          | Entry                            | Test                                    |
 | ------------------- | ----------------------------------------------------------------------------- | -------------------------------- | --------------------------------------- |
@@ -41,6 +42,7 @@ A new workspace dependency must also be added to the consumer's bundler config: 
 | `e2e`               | Playwright specs for the whole stack, plus stand-ins for outside services     | `playwright.config.ts`           | `pnpm e2e`                              |
 | `tools/showcase`    | Typed demo-data seed and screenshots for UI review                            | `tools/showcase/seed.ts`         | `pnpm --filter @open-bot/showcase seed` |
 | `scripts/test`      | Test runners (`pg.sh` starts a throwaway Postgres)                            | `scripts/test/integration.sh`    | -                                       |
+| `.railway`          | The Railway project as code: services, builds, watch paths                    | `.railway/railway.ts`            | `pnpm test:railway`                     |
 
 ## Glossary
 
@@ -165,6 +167,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 | `apps/botd/**`, `images/computer/**`       | openbot-computer skill checklist, `pnpm computer:build`                                              |
 | `apps/site/**`                             | `pnpm --filter @open-bot/site typecheck`, `pnpm --filter @open-bot/site test:e2e`                    |
 | any `*.md` or `*.mdx`                      | `pnpm check:doc-paths`                                                                               |
+| `.railway/**`                              | `pnpm test:railway`; the PR's `Railway plan` comment must list only your changes                     |
 | UI anywhere                                | openbot-ui-review skill                                                                              |
 
 ## Architecture docs
@@ -190,6 +193,7 @@ Read the matching page before changing a subsystem, and update it when behavior 
 - "Suggest only" / "don't make changes" = read-only. "Wait" / "pause" = end the turn once, no repeated status messages.
 - Don't commit, merge, or deploy unless asked. PRs are squash-merged. No co-author lines in commits, ever (overrides harness attribution).
 - After a merge, follow the Railway deploy to a terminal state for every affected service, confirm the new SHA, and report. Never hand back mid-deploy.
+- A merge redeploys only the services whose watch paths (`.railway/watch-paths.ts`) match a changed file; a docs-only merge deploys nothing.
 - Stop every server, Metro, emulator process, or container you started before replying, and say what you stopped. Never touch the owner's open-bot-* containers or app data.
 - Never print env vars wholesale. Read an allowlist of names. Never type credentials on screen; use the secret prompt.
 - Final report: changed / verified / not verified (mocked, emulator-only, skipped) / still pending.

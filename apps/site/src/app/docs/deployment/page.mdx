@@ -24,6 +24,27 @@ The same shape works on any host that runs containers with a private network and
 
 The four services built from the repository use its root as their root directory, because they need the shared workspace packages and the root lockfile.
 
+### Deploy only what changed
+
+With the root as every service's root directory, any push to the deploy branch would rebuild all four services.
+Each service instead has watch paths: a push redeploys it only when it changes a file the service builds from.
+
+| Service    | Redeploys on changes to                                                                                      |
+| ---------- | ------------------------------------------------------------------------------------------------------------ |
+| `web`      | `apps/web` and the `shared`, `api`, `db`, `accounts` and `memory` packages                                   |
+| `worker`   | `apps/worker` and the `shared`, `api`, `db`, `accounts`, `memory`, `agent`, `egress` and `page-kit` packages |
+| `pages`    | `apps/pages` and the `shared`, `db` and `page-kit` packages                                                  |
+| `computer` | `images/computer`, `apps/botd` and the `shared`, `egress` and `page-kit` packages                            |
+
+Changes to the root `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml` or `tsconfig.base.json` redeploy every service.
+`AGENTS.md`, `CLAUDE.md` and test files never trigger a deploy, so a docs-only push deploys nothing.
+
+The project is described as code in `.railway/railway.ts`, with the folder lists in `.railway/watch-paths.ts`.
+A test checks the lists against the workspace dependency graph and the computer's Dockerfile, so a missing package fails CI rather than silently skipping deploys.
+Railway doesn't read the file during deploys.
+A pull request that changes it gets the plan as a comment, and merging applies that plan through GitHub Actions, with a Railway project token in the `RAILWAY_TOKEN` secret.
+To ship a variable change, redeploy the service from Railway.
+
 <Callout kind="warning" title="One worker, one computer">
   The worker keeps in-memory state: run sessions, approval waiters, timers, Telegram long polling
   and websockets. It is not designed to run as more than one replica. The computer holds every
