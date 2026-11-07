@@ -133,8 +133,11 @@ class NetworkTest {
 
   @Test
   fun `a destination that resets reports an error, then a close`() {
+    val reset = Inbox<Unit>()
     val server =
       LocalServer { socket ->
+          // Wait for the client to connect and install its handlers before sending the reset.
+          reset.take()
           socket.setSoLinger(true, 0)
           socket.close()
         }
@@ -145,6 +148,7 @@ class NetworkTest {
       socket.start(recorder)
       socket.resume()
     }
+    reset.put(Unit)
     val first = recorder.events.take()
     // A reset arriving before anything is read can surface as a plain end on some systems.
     if (first is Event.Error) assertEquals(Event.Close(true), recorder.events.take())
