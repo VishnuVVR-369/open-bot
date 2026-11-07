@@ -131,8 +131,8 @@ Its id is the teammate's id, or a swarm task's id for a helper.
 
 - **Start.** `ScreenManager.ensure(id)` starts a screen the first time its teammate acts on the desktop, or when you take it over or wake it from the app. Watching never starts a screen, so an open tab doesn't keep one running. Concurrent starts of the same screen share one promise.
 - **Slots.** A screen takes the lowest free slot (0 to 31), which fixes its display number and VNC ports.
-- **Making room.** At most `MAX_SCREENS` (default 4) run at once. Starting another stops idle screens first: those nobody holds, preferring ones nobody watches, then the least recently used. A screen a run or you hold is never stopped.
-- **Idle stop.** A screen nobody has used for `SCREEN_IDLE_MINUTES` (default 20) stops.
+- **Making room.** At most `MAX_SCREENS` run at once (default 4, or 2 when `COMPUTER_LIFECYCLE_ENABLED` lets the computer sleep). Starting another stops idle screens first: those nobody holds, preferring ones nobody watches, then the least recently used. A screen a run or you hold is never stopped.
+- **Idle stop.** A screen nobody has used for `SCREEN_IDLE_MINUTES` stops (default 20, or 3 when the computer may sleep).
 - **Stop.** The browser stops first, so it saves its tabs. Then everything that draws on the display.
 - **Forget.** Removing a teammate stops its screen and deletes its profile directory.
 

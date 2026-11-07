@@ -1,0 +1,179 @@
+import { docMetadata } from "@/lib/docs";
+
+export const metadata = docMetadata("/docs/architecture/mobile");
+
+# The Android app
+
+The Android app is an Expo (React Native) client for one open-bot deployment.
+What it does for you is covered in [The Android app](/docs/flows/android-app).
+This page covers how it is built: where its parts live, how it signs in, how it stays live, how pushes reach it, and how it keeps untrusted web content away from your session.
+Building and device testing are in `apps/mobile/README.md`.
+
+The app is a client only.
+It imports the shared contract in `packages/api`, never web code, and it has no database or worker of its own.
+
+## The parts
+
+| Part                | Code                                                         | Does                                                                                                                            |
+| ------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| Screens             | `apps/mobile/src/app`                                        | Expo Router routes: five tabs in `(tabs)`, and a stack for a chat, teammate, approval, page, screen, search, settings and so on |
+| Root layout         | `apps/mobile/src/app/_layout.tsx`                            | Providers, the signed-in guard, the app lock, push registration and the live stream                                             |
+| Client logic        | `apps/mobile/src/lib`                                        | The API client, session, react-query keys, the live stream, uploads, history merging, the lock. Platform-free parts have tests  |
+| Push                | `apps/mobile/src/push`                                       | Notification channels, rendering data messages, action buttons, inline reply, device registration                               |
+| Computer viewer     | `apps/mobile/src/computer`                                   | The noVNC client and its generated HTML (`viewer-html.ts`)                                                                      |
+| Components          | `apps/mobile/src/components`                                 | Shared UI. `chat` is the timeline and composer, `computer` is the WebView lifecycle, token fetch and code sheet                 |
+| Theme               | `apps/mobile/src/theme`                                      | The light and dark palettes and color mixing                                                                                    |
+| Phone connection    | `apps/mobile/modules/egress`                                 | A Kotlin foreground service, FCM wake handling and the pairing credential. The protocol core is in `modules/egress/core`        |
+| Other native pieces | `apps/mobile/modules/passkey`, `share-intent`, `sms-consent` | Android Credential Manager, receiving shared text, and SMS User Consent                                                         |
+| Config plugins      | `apps/mobile/plugins`                                        | Release signing, the status bar icon and the native theme                                                                       |
+| Config              | `apps/mobile/app.config.ts`                                  | One Expo config for two variants, picked by `APP_VARIANT`                                                                       |
+
+`APP_VARIANT=development` builds `open-bot dev` (`dev.openbot.mobile.dev`), which installs next to the real app and gets no Firebase config.
+Any other value builds `dev.openbot.mobile`, which has push when a `google-services.json` exists.
+`EXPO_PUBLIC_APP_URL` sets the deployment, and defaults to the production one (`src/lib/config.ts`).
+The worker's address is never configured on the phone, because the server hands it out with each token.
+
+## Navigation and the guard
+
+`_layout.tsx` reads the Better Auth session and wraps the screens in two `Stack.Protected` groups.
+The signed-in group holds the tabs and every other screen, and the signed-out group holds only `sign-in`.
+When the session disappears, the navigator drops back to sign-in with nothing left on the stack.
+Tabs are Home, Chats, Approvals, Computer and Pages.
+`unstable_settings.anchor = "(tabs)"` keeps the tabs behind a screen opened from a link or a notification, so Back always has somewhere to go.
+
+## Sign-in and session
+
+`src/lib/auth.ts` creates a Better Auth client with the Expo plugin.
+The session cookie is kept in SecureStore, which is backed by the Android Keystore.
+`sessionCookie()` hands that cookie to everything that is not Better Auth itself.
+
+Every request puts the cookie in a `cookie` header and sets `credentials: "omit"`, so `fetch` never adds a stale cookie of its own.
+A 401 on any query calls the unauthorized handler, which runs `signOut()`.
+Sign-out unregisters this phone's push token first (that needs the session), then ends the session, then clears the query cache and presence.
+
+Passkeys use the local `modules/passkey` module over Android's Credential Manager (`src/lib/passkey.ts`).
+Passkeys only work in builds signed with a key whose fingerprint is listed in `ANDROID_CERT_SHA256` on the web service.
+Debug builds use password sign-in.
+
+The app lock (`src/lib/lock.ts`) asks for the phone's fingerprint or PIN on open and after five minutes in the background.
+It guards the phone, not the account, since the session itself lasts 30 days.
+It is skipped when Settings turns it off, when the phone has no screen lock, and after a password sign-in in the same run.
+While locked, `ComputerAccess` stays false, so no screen can connect behind the lock screen.
+
+## Data
+
+Reads and writes go through oRPC.
+`src/lib/api.ts` calls `createApiClient` from `packages/api`, which targets `/api/rpc`.
+The contract is `packages/api/src/contract.ts`, and the server side is `apps/web/src/lib/server/api/router.ts`.
+Requests time out after five minutes.
+
+`src/lib/query.ts` owns the react-query client and the keys (`queryKeys`).
+Queries stay fresh for 10 seconds and retry twice, only for errors `isRetryable` accepts.
+`keysForAppEvent()` maps a stream event type (`approvals`, `chats`, `bots`, `pages`, `screens` and so on) to the keys it makes stale.
+`keysForPush()` does the same for a push.
+A new feature adds its keys in `queryKeys`, and its refresh rule in one of those two functions.
+
+A few things are plain HTTP on the web app, because they carry bytes or streams, with the session cookie in the header:
+
+| Route                                    | Used for                                                                                                 | Mobile code                                        |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `GET /api/stream`                        | The live stream                                                                                          | `src/lib/live-stream.ts`, `src/lib/realtime.tsx`   |
+| `PUT /api/uploads/<id>`                  | Attachments, as raw bytes with name, type, size and SHA-256 headers, so a retry with the same id is safe | `src/lib/uploads.ts`, `src/lib/upload-protocol.ts` |
+| `GET /api/files/download`                | Files on the computer, shown or saved                                                                    | `src/lib/files.ts`                                 |
+| `GET /api/artifacts/<id>`                | The last screenshot of a screen while the computer is offline                                            | `src/components/computer/last-frames.tsx`          |
+| `GET /api/pages/versions/<id>/thumbnail` | Page card pictures, in light or dark                                                                     | `src/lib/pages.ts`                                 |
+| `GET /api/desktop/token`                 | A short-lived token for the screen viewer                                                                | `src/components/computer/desktop-view.tsx`         |
+
+## Live updates
+
+`RealtimeProvider` keeps one server-sent event stream open while the app is in front.
+`createLiveStream()` in `src/lib/live-stream.ts` takes `fetch` and timers as arguments, so it is tested in Node.
+
+- The stream carries `ready`, `app` and `run` events, in the shape defined in `packages/api/src/live.ts`.
+- App-wide events can't be replayed, so every `ready` invalidates all queries. Individual `app` events invalidate the keys from `keysForAppEvent()`.
+- Run events can be replayed. The open chat connects with `?chat=<id>&after=<cursor>`, and the stream skips any event at or below its cursor. Cursors survive a reconnect because the provider owns them.
+- If no data arrives for 45 seconds (the server sends a comment every 20), the stream aborts and reconnects. Backoff runs from 1 to 15 seconds and resets on `ready`.
+- Coming back to the app, or coming back online, reconnects at once. Going to the background closes the stream, and push takes over.
+- A 401 stops the stream and signs you out.
+
+For a chat, `src/lib/chat-history.ts` merges a bounded history snapshot with the events buffered while it loaded.
+`applyLiveEvent()` from `packages/api/src/live.ts` applies each event to the timeline.
+Each run keeps a watermark, the last event id its snapshot already includes, so a newer page can't move the replay point past a run it left out.
+`connected` from the provider drives the "Reconnecting" notice, so stale data is never shown as live.
+
+## Push notifications
+
+The worker sends FCM **data messages**, never notification messages (`apps/worker/src/services/fcm.ts`).
+The app draws every notification itself with Notifee, which is how approvals get buttons and replies get an inline editor.
+Data messages have a `type` of `notification`, `dismiss`, `egress-needed` or `run-progress`.
+
+- `index.ts` imports `src/push/background.ts` before the router, so the handlers exist when Android starts a headless JS task for a message or a button press with the app closed.
+- `handlePushData()` skips a push for the chat you are looking at, and re-checks a pending approval over RPC first, so a late push never asks about something already decided.
+- `planNotification()` in `src/push/payload.ts` picks the channel and the actions. Approve and Deny decide without opening the app. A purchase gets only Review, which opens the app, where the phone's authentication check is required. Message notifications get an inline Reply that sends to the teammate who wrote them.
+- A tap opens the route in the notification's `url`. `src/lib/links.ts` builds the same routes for items in the notification list.
+- `usePushNotifications()` creates the channels, asks for permission, and registers the FCM token with `push.registerDevice`. Without Firebase config, `hasFirebase` is false and none of this runs.
+
+## The computer viewer
+
+A screen is shown in a WebView that loads `viewerHtml` from `src/computer/viewer-html.ts`.
+That file is generated by `scripts/build-viewer.mjs`, which bundles `src/computer/viewer.ts` and noVNC into one HTML string with its own content security policy.
+Do not edit it by hand.
+Run `pnpm --filter @open-bot/mobile build:viewer` after changing the viewer, and `check:viewer` to confirm it is current.
+
+The WebView never gets your session.
+`desktop-view.tsx` fetches `/api/desktop/token` with the cookie in the app's own JavaScript, and posts the returned worker URL and 60-second VNC token into the WebView.
+It refuses a non-`wss://` URL outside development builds.
+The WebView has shared and third-party cookies off, blocks navigation away from `about:blank`, and ignores new windows.
+Messages carry a version and a generation, and a message from an older connection is dropped.
+Control mode retries on its own, and the worker enforces who may take over (see [Screens and takeover](/docs/flows/screens-and-takeover)).
+
+## The pages viewer
+
+A page opens in a second WebView, on the pages origin instead of the app's.
+The app asks `pages.open` for a link, which is short-lived and signed by the web app, and loads it as the WebView's `uri`.
+`isLinkFresh()` replaces a link that is nearly out before it is used, and an expired-link answer from the pages service triggers one automatic retry.
+
+That WebView is set up so a page can't reach anything of yours:
+
+- Cookies are off, along with DOM storage and file access, and the view is `incognito`.
+- Only the page's own URL (or a place in it) may load. Any other top-level link is handed to `parsePageMessage()` and opened outside the app, and sub-frames are refused.
+- The only messages the app acts on come from the page runtime. `open` accepts only `https:`, `http:` and `mailto:` URLs, and `ask` only prefills a question that you send yourself.
+
+The origin, CSP and link signing are covered in [The pages service](/docs/architecture/pages).
+
+## The phone connection
+
+`modules/egress` lets the phone carry teammates' browsing, as the desktop app does (see [Desktop app and egress](/docs/architecture/desktop-and-egress)).
+JavaScript pairs the phone with `egress.registerDevice` and sets the mode and rules.
+After that the work runs in `EgressService`, a `specialUse` foreground service, without React Native.
+
+- `EgressMessagingService` and `EgressMessagingReceiver` take over FCM handling from React Native Firebase. They handle `egress-needed` natively, so a wake never starts JavaScript. All other messages pass through to the normal path.
+- A `wake` stage starts the service silently. An `ask` stage shows a notification to tap. `BootReceiver` restarts it at boot in `always` mode.
+- The service calls web routes under `/api/egress/device` with its own device credential, not a session.
+- The protocol itself is the Kotlin project in `modules/egress/core`. Its tests run against the shared vectors in `packages/egress/test-vectors`, so it can't drift from the TypeScript agent.
+- Development builds have no Firebase, so `DebugWakeReceiver` takes the same data from `adb shell am broadcast`. The manifest requires `android.permission.DUMP`, so only the shell can send it. `apps/mobile/scripts/egress-pair-dev.mjs` pairs a development build without the app's screens.
+- `scripts/check-egress-manifest.mjs` checks the merged manifest of both variants in CI.
+
+## What the code enforces
+
+- The session cookie lives in SecureStore and is sent only in headers from app JavaScript. No WebView receives it.
+- Both WebViews have a narrow allowed set of navigations and messages, and the viewer's HTML has its own CSP.
+- The app lock gates the screen viewer, and a purchase approval needs the phone's authentication check.
+- Notification injection for tests exists only when `__DEV__` is true and `EXPO_PUBLIC_E2E_NOTIFICATIONS=1`. It reads an `openbot://` link, runs the same `handlePushData()` as a real push, and is not loaded in release bundles.
+- Release builds are signed with your own key. A release build fails without that key, rather than falling back to the debug key.
+- The manifest blocks overlay and storage permissions. Photos and files come from Android's pickers.
+
+## Testing
+
+| Layer               | Command                                    | Covers                                                                                    |
+| ------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| Unit                | `pnpm --filter @open-bot/mobile test`      | vitest over `src/**/*.test.ts`: live stream, history, links, push payloads, uploads, lock |
+| Types               | `pnpm --filter @open-bot/mobile typecheck` | The app, with the shared contract                                                         |
+| Kotlin core         | `./gradlew test` in `modules/egress/core`  | Frames, mux, IP policy and the shared vectors                                             |
+| Device flows        | `pnpm test:mobile-ui`                      | Maestro flows in `apps/mobile/maestro`, against a local stack                             |
+| Worker side of push | `pnpm test:integration`                    | FCM fan-out and retry-safe uploads against a disposable database                          |
+
+CI has two Android jobs in `.github/workflows/ci.yml`, one per variant.
+Each runs `expo prebuild`, builds a debug APK, and checks the merged manifest.
+The normal variant also runs `:app:lintVitalRelease`.
+A separate job runs the Kotlin core tests.

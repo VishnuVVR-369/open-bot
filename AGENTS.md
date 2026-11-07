@@ -98,7 +98,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 **Add a database table or column**
 
 1. Edit `packages/db/src/schema.ts`. Keep changes additive (nullable or defaulted): the old web and worker keep running until the deploy finishes.
-2. `pnpm db:generate --name <snake_name>` writes `packages/db/drizzle/NNNN_<name>.sql` plus the `meta/` snapshot and journal. Commit all three.
+2. `pnpm db:generate --name <snake_name>` writes `packages/db/drizzle/<NNNN>_<name>.sql` plus the `meta/` snapshot and journal. Commit all three.
 3. Read the SQL. Add backfills by hand before it ships, separated by `--> statement-breakpoint`. Never edit a migration that has shipped.
 4. `pnpm db:migrate` locally, `pnpm test:integration`. On Railway the worker's pre-deploy step runs migrations; if one fails, Railway stays on the old commit.
 
@@ -142,7 +142,8 @@ Paths are relative to the repo root; symbols are in parentheses.
 - Treat a flaky test as a possible real race first. Sync on observable events, never sleeps or reruns.
 - Every PR check must pass, including Cloudflare. Treat any red check as a real failure.
 - Skip tests that need >10 min of waiting or physical user action. List them as untested. Batch any phone action into one ask.
-- `pnpm verify` runs lint, typecheck, unit and integration tests; integration tests start their own Postgres in Docker unless `TEST_DATABASE_URL` is set.
+- `pnpm verify` runs lint, the doc path check, typecheck, unit, script and integration tests; integration tests start their own Postgres in Docker unless `TEST_DATABASE_URL` is set.
+- The full list of suites and what each needs is in `apps/site/src/app/docs/development/page.mdx`; every environment variable is in `apps/site/src/app/docs/reference/configuration/page.mdx`.
 
 | Changed path                               | Run                                                                                                  |
 | ------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
@@ -154,6 +155,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 | `apps/mobile/**` native or `app.config.ts` | prebuild and release lint (openbot-mobile skill)                                                     |
 | `apps/botd/**`, `images/computer/**`       | openbot-computer skill checklist, `pnpm computer:build`                                              |
 | `apps/site/**`                             | `pnpm --filter @open-bot/site typecheck`, `pnpm --filter @open-bot/site test:e2e`                    |
+| any `*.md` or `*.mdx`                      | `pnpm check:doc-paths`                                                                               |
 | UI anywhere                                | openbot-ui-review skill                                                                              |
 
 ## Architecture docs
@@ -161,7 +163,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 Read the matching page before changing a subsystem, and update it when behavior changes.
 
 - System overview: `apps/site/src/app/docs/architecture/page.mdx`
-- Web app, worker, computer, agent runtime, data, pages, desktop and egress: `apps/site/src/app/docs/architecture/*/page.mdx`
+- Web app, worker, computer, agent runtime, data, pages, desktop and egress, Android app: `apps/site/src/app/docs/architecture/*/page.mdx`
 - End-to-end flows (chat turn, screens and takeover, approvals, automations, teamwork, memory, accounts, pages, ...): `apps/site/src/app/docs/flows/*/page.mdx`
 - Tools, internal HTTP API, configuration: `apps/site/src/app/docs/reference/*/page.mdx`
 - Commands, tests, stand-ins and conventions: `apps/site/src/app/docs/development/page.mdx`

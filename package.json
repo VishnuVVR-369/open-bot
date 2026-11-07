@@ -25,8 +25,10 @@
     "test:pocket-inbox": "bash scripts/test/pocket-inbox.sh",
     "test:computer-sleep": "bash scripts/test/computer-sleep.sh",
     "test:mobile-ui": "node scripts/test/mobile-ui.mjs",
-    "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:integration",
-    "verify:affected": "pnpm lint && turbo run typecheck test --affected && tsc -p e2e && bash scripts/test/integration.sh --affected"
+    "check:doc-paths": "node scripts/check/doc-paths.mjs",
+    "test:scripts": "node --test scripts/check/*.test.mjs",
+    "verify": "pnpm lint && pnpm check:doc-paths && pnpm typecheck && pnpm test && pnpm test:scripts && pnpm test:integration",
+    "verify:affected": "pnpm lint && pnpm check:doc-paths && turbo run typecheck test --affected && tsc -p e2e && pnpm test:scripts && bash scripts/test/integration.sh --affected"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

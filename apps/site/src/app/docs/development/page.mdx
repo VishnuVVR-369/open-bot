@@ -12,29 +12,32 @@ This page maps the repository, lists the checks and test suites, and collects th
 ```text
 open-bot/
 ├── apps/
-│   ├── web/          Next.js app: pages, server actions, read routes, the SSE stream
-│   ├── worker/       Node service: runs, tools, services, the internal API
+│   ├── web/          Next.js app: pages, server actions, read routes, the SSE stream, the phone's RPC
+│   ├── worker/       Node service: runs, tools, services, the internal API, the egress relay
 │   ├── botd/         The daemon inside the computer, bundled into the image
 │   ├── desktop/      Electron shell and egress agent
 │   ├── pages/        Serves published pages on an origin of their own
-│   ├── mobile/       Expo Android app; setup and UI tests in apps/mobile/README.md
+│   ├── mobile/       Expo Android app; setup and device tests in apps/mobile/README.md
 │   └── site/         This site: the landing page, the tour and these docs
 ├── packages/
-│   ├── db/           Drizzle schema, migrations, NOTIFY channels
+│   ├── db/           Drizzle schema, migrations, NOTIFY channels, the test database helper
 │   ├── shared/       Types and pure logic shared by every app
 │   ├── api/          Shared web/phone RPC contract and serializable views
+│   ├── accounts/     OAuth flows and the token store for Google and Notion
 │   ├── agent/        Codex app-server client and generated protocol types
 │   ├── egress/       Tunnel framing, multiplexer, SOCKS server, agent
 │   ├── page-kit/     The pages' styles, scripts, libraries, runtime and /page skill
 │   └── memory/       The memory service and its background jobs
 ├── images/computer/  The computer's Dockerfile and its filesystem overlay
-├── e2e/              Playwright end-to-end tests for the whole stack
-├── scripts/          The memory test harness
+├── e2e/              Playwright end-to-end tests for the whole stack, and stand-ins
+├── tools/showcase/   Typed demo data and screenshots for UI review
+├── scripts/          test/ runners, check/ repository checks, ops/ and dev/ tools
 └── docker-compose.yml  Postgres and the computer for local development
 ```
 
 Workspace packages export TypeScript source, not built JavaScript.
-The web app compiles them through Next.js, the worker and botd bundle them with esbuild, and tests run them directly.
+The web app compiles them through Next.js, the worker, botd and pages bundle them with esbuild, and tests run them directly.
+Every app and package has an `AGENTS.md` with its entry points, invariants and tests.
 
 ## Commands
 
@@ -48,20 +51,50 @@ The web app compiles them through Next.js, the worker and botd bundle them with 
 | `pnpm format`, `pnpm format:check`    | Prettier                                                         |
 | `pnpm typecheck`                      | `tsc` in every package (and `next typegen` for the Next.js apps) |
 | `pnpm test`                           | Vitest unit tests in every package                               |
-| `pnpm e2e`                            | Playwright against the running stack                             |
-| `pnpm verify`                         | Lint, typecheck, unit and integration tests in one command       |
-| `pnpm test:integration`               | Every `*.integration.test.ts` against a disposable Postgres      |
-| `pnpm test:memory -- --e2e`           | The isolated memory suite                                        |
-| `pnpm test:mobile-ui`                 | Android Maestro flows; see `apps/mobile/README.md`               |
+| `pnpm verify`                         | Everything below that needs only Docker, in one command          |
+| `pnpm verify:affected`                | The same, limited to what changed since `main`                   |
 
 ## Tests
+
+This is the complete list of test suites and checks.
+CI runs every row marked "CI" on each pull request.
+
+| Command                                               | Covers                                                                         | Needs                           | CI  |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------- | --- |
+| `pnpm lint`, `pnpm typecheck`, `pnpm test`            | ESLint, types (including every Playwright config) and unit tests               | Nothing                         | CI  |
+| `pnpm check:doc-paths`                                | Every `apps/...` or `packages/...` path named in a Markdown or MDX file exists | Nothing                         | CI  |
+| `pnpm test:scripts`                                   | Unit tests for the repository checks in `scripts/check`                        | Nothing                         | CI  |
+| `pnpm --filter @open-bot/mobile check:viewer`         | The generated noVNC viewer matches its source                                  | Nothing                         | CI  |
+| `pnpm test:integration`                               | Every `*.integration.test.ts` against real Postgres                            | Docker, or `TEST_DATABASE_URL`  | CI  |
+| `pnpm --filter @open-bot/showcase seed`               | The typed demo data inserts against the current schema                         | Postgres, Chromium              | CI  |
+| `./gradlew test` in `apps/mobile/modules/egress/core` | The phone's Kotlin tunnel core against the shared test vectors                 | JDK 17                          | CI  |
+| Android debug and release lint builds                 | Both app variants build, and the merged manifest passes its checks             | JDK 17, Android SDK             | CI  |
+| `pnpm --filter @open-bot/site test:e2e`               | This site, built and served the way it is deployed                             | Encoded media, Playwright       |     |
+| `pnpm test:memory -- --e2e`                           | Memory database, provider and browser tests                                    | Docker, Playwright              |     |
+| `pnpm test:pocket-inbox`                              | The pocket inbox web and RPC spec on its own database                          | Docker, Playwright              |     |
+| `pnpm test:owner-reset`                               | The owner password reset command                                               | Docker                          |     |
+| `pnpm test:computer-sleep`                            | Computer sleep and wake with a real computer container and the built worker    | Docker, the computer image      |     |
+| `pnpm e2e`                                            | Playwright against the running local stack                                     | The local stack, an owner login |     |
+| `pnpm test:mobile-ui`                                 | Android Maestro flows                                                          | A device or emulator, Maestro   |     |
 
 ### Unit tests
 
 Vitest, next to the code they test (`*.test.ts`).
 The pure logic in `@open-bot/shared` is covered most: approval rules, schedules, page diffing, the timeline reducer, templates, vault and budgets, connections, email parsing, Telegram formatting, model access and pricing.
 The worker and botd test their trickiest parts directly: the lease, the cookie jar's merge rules, the Codex client, the event mapper, instructions and push payloads.
-`packages/egress` has contract tests for the framing, flow control and SOCKS.
+`packages/egress` has contract tests for the framing, flow control and SOCKS, and writes the test vectors the Kotlin core reads (`pnpm --filter @open-bot/egress vectors`).
+
+### Integration tests
+
+`pnpm test:integration` runs every `*.integration.test.ts` against real Postgres: teammate management, the phone API, uploads, pages, account sign-ins, actions and triggers, screen operations and memory.
+Each suite creates its own fresh database on the server named by `TEST_DATABASE_URL`, applies every migration, and drops it afterwards (`@open-bot/db/testing`), so suites run in parallel.
+Without `TEST_DATABASE_URL`, the command starts a throwaway pgvector container (`scripts/test/pg.sh`) and removes it when it finishes.
+CI runs them against a Postgres service; there a missing `TEST_DATABASE_URL` fails the run instead of skipping.
+
+### The memory suite
+
+`pnpm test:memory -- --e2e` creates its own pgvector container, applies every migration, runs database and provider tests against a deterministic local HTTP server, smoke-tests the compiled worker, and exercises the memory UI at desktop and phone widths.
+It removes only its own container.
 
 ### End-to-end tests
 
@@ -77,27 +110,54 @@ E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e --grep @agent          # rea
 - Tests run serially (`workers: 1`), because they share one computer and one database.
 - `e2e/global-teardown.ts` deletes test teammates by a name pattern. New test name prefixes must be added to it.
 
-Stand-ins replace outside services, so no test needs a real account:
+Stand-ins replace outside services, so the default run needs no outside account:
 
-| Stand-in                            | Replaces                                                     | Used with                                                               |
-| ----------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------- |
-| `e2e/telegram-mock.ts` (port 4797)  | The Telegram Bot API                                         | `TELEGRAM_API_BASE_URL`, `E2E_TELEGRAM=1`                               |
-| The plan rehearsal mock (port 4799) | ChatGPT and the OpenAI API, answering like an exhausted plan | `OPEN_BOT_PLAN_BASE_URL`, `OPENAI_API_BASE_URL`, `E2E_PLAN_REHEARSAL=1` |
-| `e2e/mcp-stand-in.ts`               | An MCP server                                                | Connection tests                                                        |
-| `e2e/job-scout-stand-ins.ts`        | Job portals and a tracker                                    | Job Scout and the apply guard                                           |
-| A plain-HTTP push service           | Web Push endpoints                                           | Push tests                                                              |
+| Stand-in                               | Replaces                                                       | Used with                                                               |
+| -------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `e2e/telegram-mock.ts` (port 4797)     | The Telegram Bot API                                           | `TELEGRAM_API_BASE_URL`, `E2E_TELEGRAM=1`                               |
+| `e2e/accounts-stand-in.ts` (port 4796) | Google sign-in, Gmail, Google Calendar and Notion's MCP server | `GOOGLE_BASE_URL`, `NOTION_MCP_URL`, `E2E_ACCOUNTS=1`                   |
+| The plan rehearsal mock (port 4799)    | ChatGPT and the OpenAI API, answering like an exhausted plan   | `OPEN_BOT_PLAN_BASE_URL`, `OPENAI_API_BASE_URL`, `E2E_PLAN_REHEARSAL=1` |
+| `e2e/mcp-stand-in.ts`                  | An MCP server                                                  | Connection tests                                                        |
+| `e2e/job-scout-stand-ins.ts`           | Job portals and a tracker                                      | Job Scout and the apply guard                                           |
+| A plain-HTTP push service              | Web Push endpoints                                             | Push tests                                                              |
 
-### The memory suite
+Two kinds of test do use real accounts, and both are opt-in:
 
-`pnpm test:memory -- --e2e` creates its own pgvector container, applies every migration, runs database and provider tests against a deterministic local HTTP server, smoke-tests the compiled worker, and exercises the memory UI at desktop and phone widths.
-It removes only its own container.
+- `@agent` tests use your ChatGPT plan.
+- One Job Scout test files postings into a real Application tracker. It runs only with `E2E_TRACKER_MCP_URL` and `E2E_TRACKER_TOKEN` set.
 
-### Integration tests
+To run the suites that need a stand-in, start the services pointed at it:
 
-`pnpm test:integration` runs every `*.integration.test.ts` against real Postgres: teammate management, the phone API, uploads, pages, account sign-ins, actions and triggers, screen operations and memory.
-Each suite creates its own fresh database on the server named by `TEST_DATABASE_URL`, applies every migration, and drops it afterwards (`@open-bot/db/testing`), so suites run in parallel.
-Without `TEST_DATABASE_URL`, the command starts a throwaway pgvector container (`scripts/test/pg.sh`) and removes it when it finishes.
-CI runs them against a Postgres service; there a missing `TEST_DATABASE_URL` fails the run instead of skipping.
+```sh title="Telegram"
+TELEGRAM_API_BASE_URL=http://127.0.0.1:4797 pnpm --filter @open-bot/worker dev
+E2E_TELEGRAM=1 E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e --grep Telegram
+```
+
+```sh title="Accounts (with no accounts connected)"
+GOOGLE_BASE_URL=http://127.0.0.1:4796 NOTION_MCP_URL=http://127.0.0.1:4796/mcp pnpm dev
+E2E_ACCOUNTS=1 E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e e2e/accounts.spec.ts
+```
+
+```sh title="Plan fallback"
+OPEN_BOT_PLAN_BASE_URL=http://host.docker.internal:4799/plan OPENAI_API_BASE_URL=http://host.docker.internal:4799/api pnpm --filter @open-bot/worker dev
+E2E_PLAN_REHEARSAL=1 E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e --grep rehearsal
+```
+
+Every variable the tests read is listed in [Configuration](/docs/reference/configuration).
+
+### Self-contained runners
+
+These start their own throwaway containers and never touch your app database or your computer:
+
+- `pnpm test:pocket-inbox` runs the pocket inbox Playwright spec against its own database and web server, with no worker, model or device.
+- `pnpm test:owner-reset` runs the owner password reset command (`scripts/ops/owner-reset-password.mjs`) end to end.
+- `pnpm test:computer-sleep` runs a real computer container, Postgres and the built worker in their own containers, and checks that the computer goes idle, keeps its browser state across sleep, and wakes for work. It needs the computer image (`pnpm computer:build`).
+
+### The Android app
+
+`pnpm test:mobile-ui` runs the Maestro flows on a device or emulator with the development build.
+Its setup, variables and the notification tests are in `apps/mobile/README.md`.
+The app's unit tests run with `pnpm --filter @open-bot/mobile test`, and its Kotlin tunnel core with `./gradlew test` in `apps/mobile/modules/egress/core`.
 
 ### This site
 
@@ -105,6 +165,9 @@ CI runs them against a Postgres service; there a missing `TEST_DATABASE_URL` fai
 pnpm --filter @open-bot/site dev        # http://localhost:3200
 pnpm --filter @open-bot/site test:e2e   # builds and serves it the way it is deployed
 ```
+
+The end-to-end run needs the encoded tour first (`pnpm --filter @open-bot/site media:encode`).
+`pnpm typecheck` covers this site, and Cloudflare builds it on every pull request.
 
 ## Conventions
 
