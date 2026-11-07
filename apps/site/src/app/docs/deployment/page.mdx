@@ -41,7 +41,8 @@ Changes to the root `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml` or `
 
 The project is described as code in `.railway/railway.ts`, with the folder lists in `.railway/watch-paths.ts`.
 A test checks the lists against the workspace dependency graph and the computer's Dockerfile, so a missing package fails CI rather than silently skipping deploys.
-Railway reads the file only when you run `railway config plan` and `railway config apply`, so apply after merging a change to it.
+Railway doesn't read the file during deploys.
+A pull request that changes it gets the plan as a comment, and merging applies that plan through GitHub Actions, with a Railway project token in the `RAILWAY_TOKEN` secret.
 To ship a variable change, redeploy the service from Railway.
 
 <Callout kind="warning" title="One worker, one computer">

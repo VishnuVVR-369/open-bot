@@ -1,0 +1,38 @@
+# Plans the Railway project in .railway/ against production and posts the diff on the PR.
+# The plan is pinned as an artifact; railway-apply.yml applies exactly that plan on merge.
+name: Railway plan
+
+on:
+  pull_request:
+    paths:
+      - ".railway/**"
+      - ".github/workflows/railway-plan.yml"
+
+permissions:
+  contents: read
+  pull-requests: write
+  # Lets the Railway GitHub App post the plan comment as the Railway bot.
+  id-token: write
+
+concurrency:
+  group: railway-plan-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    name: Plan Railway changes
+    # Fork PRs get no secrets.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # The workspace includes the desktop app; the plan never needs Electron itself.
+      ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: railwayapp/config@9e17d413dbe219f19d62538d9c06b5dbb5e9abf8 # v1.2.0
+        with:
+          command: plan
+          railway-token: ${{ secrets.RAILWAY_TOKEN }}
+          # The version .railway/ was last planned with locally.
+          cli-version: 5.71.0

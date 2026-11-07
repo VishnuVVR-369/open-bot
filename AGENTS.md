@@ -167,7 +167,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 | `apps/botd/**`, `images/computer/**`       | openbot-computer skill checklist, `pnpm computer:build`                                              |
 | `apps/site/**`                             | `pnpm --filter @open-bot/site typecheck`, `pnpm --filter @open-bot/site test:e2e`                    |
 | any `*.md` or `*.mdx`                      | `pnpm check:doc-paths`                                                                               |
-| `.railway/**`                              | `pnpm test:railway`, `railway config plan` (only your changes), CI applies it on merge               |
+| `.railway/**`                              | `pnpm test:railway`; the PR's `Railway plan` comment must list only your changes                     |
 | UI anywhere                                | openbot-ui-review skill                                                                              |
 
 ## Architecture docs

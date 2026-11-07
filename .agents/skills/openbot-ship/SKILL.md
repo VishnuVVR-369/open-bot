@@ -17,7 +17,7 @@ description: Use before opening a PR, merging, deploying open-bot to Railway, or
 
 - Only when asked. Squash merge.
 - Merging to `main` auto-deploys only the Railway services (`web`, `worker`, `computer`, `pages`) whose watch paths in `.railway/watch-paths.ts` match a changed file. A docs-only merge deploys nothing. `Postgres` only changes when migrations run.
-- Changed `.railway/`? Run `railway config plan` before the PR (it must list only your changes) and `railway config apply` after the merge. Railway does not read that folder on its own.
+- Changed `.railway/`? The `Railway plan` workflow comments the plan on the PR; it must list only your changes. After the merge, follow the `Railway apply` workflow to success, then the deploys it causes. If apply fails, read `.railway/README.md`.
 - The worker's pre-deploy step runs DB migrations. If it fails, Railway stays on the old commit.
 - Wait for every affected service to reach a final state, confirm it runs the merged commit, and check startup logs (see `railway-cli-ssh`). Report the result. Never hand back mid-deploy.
 

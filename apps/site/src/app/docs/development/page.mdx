@@ -65,6 +65,7 @@ CI runs every row marked "CI" on each pull request.
 | `pnpm check:doc-paths`                                | Every `apps/...` or `packages/...` code span and every relative link or image in a Markdown or MDX file exists | Nothing                         | CI  |
 | `pnpm check:vocabulary`                               | No file gains a use of a legacy name (bot, primary, desktop takeover); see the glossary in `AGENTS.md`         | Nothing                         | CI  |
 | `pnpm test:scripts`                                   | Unit tests for the repository checks in `scripts/check`                                                        | Nothing                         | CI  |
+| `pnpm test:railway`                                   | Railway watch paths in `.railway/watch-paths.ts` match each service's dependencies and Dockerfile              | Nothing                         | CI  |
 | `pnpm --filter @open-bot/mobile check:viewer`         | The generated noVNC viewer matches its source                                                                  | Nothing                         | CI  |
 | `pnpm test:integration`                               | Every `*.integration.test.ts` against real Postgres                                                            | Docker, or `TEST_DATABASE_URL`  | CI  |
 | `pnpm --filter @open-bot/showcase seed`               | The typed demo data inserts against the current schema                                                         | Postgres, Chromium              | CI  |

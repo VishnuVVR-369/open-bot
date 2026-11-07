@@ -30,6 +30,8 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm test:scripts
+      # Railway watch paths must match each service's workspace dependencies (.railway/).
+      - run: pnpm test:railway
       # The generated noVNC viewer in apps/mobile must match its source and @novnc/novnc.
       - run: pnpm --filter @open-bot/mobile check:viewer
 
