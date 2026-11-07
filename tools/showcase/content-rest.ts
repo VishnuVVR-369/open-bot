@@ -179,7 +179,9 @@ export async function seedConnections(ctx: SeedContext) {
     },
   });
 
-  const mcp = async (row) =>
+  const mcp = async (
+    row: RowWithDefaults<typeof connections, "id" | "kind" | "enabled" | "createdAt" | "updatedAt">,
+  ) =>
     db.insert(connections, {
       id: randomUUID(),
       kind: "mcp",
@@ -766,7 +768,12 @@ export async function seedTasksAndSkills(ctx: SeedContext) {
   const { launch, freeze } = ctx.dates;
   const day = (n) => isoDay(fromNow({ d: n }));
   let position = 0;
-  const task = (row) =>
+  const task = (
+    row: RowWithDefaults<
+      typeof tasks,
+      "id" | "notes" | "position" | "createdBy" | "createdAt" | "updatedAt"
+    >,
+  ) =>
     db.insert(tasks, {
       id: randomUUID(),
       notes: "",
@@ -855,7 +862,7 @@ export async function seedTasksAndSkills(ctx: SeedContext) {
     createdByBotId: iris.id,
   });
   // Done
-  const done = (title, owner, daysAgo, extra = {}) =>
+  const done = (title, owner, daysAgo, extra: Partial<InferInsertModel<typeof tasks>> = {}) =>
     task({
       title,
       status: "done",
@@ -874,7 +881,9 @@ export async function seedTasksAndSkills(ctx: SeedContext) {
   await done("Send the beta thank-you email to the 412 testers", null, 9);
 
   /* ------------------------------ skills */
-  const skill = (row) =>
+  const skill = (
+    row: RowWithDefaults<typeof skills, "id" | "createdBy" | "botId" | "createdAt" | "updatedAt">,
+  ) =>
     db.insert(skills, {
       id: randomUUID(),
       createdBy: "user",
@@ -1013,7 +1022,7 @@ export async function seedVault(ctx: SeedContext) {
     ago({ d: 2 }),
   );
 
-  const purchase = (row) =>
+  const purchase = (row: RowWithDefaults<typeof purchases, "id" | "createdAt" | "updatedAt">) =>
     db.insert(purchases, {
       id: randomUUID(),
       createdAt: ago({ d: 2 }),
@@ -1082,7 +1091,9 @@ export async function seedVault(ctx: SeedContext) {
 export async function seedMemory(ctx: SeedContext) {
   const { db, bots, R } = ctx;
   const { iris, scout, kit, mira, juno } = bots;
-  const memory = async (row) => {
+  const memory = async (
+    row: Partial<InferInsertModel<typeof memoryItems>> & { content: string },
+  ) => {
     const id = randomUUID();
     const state = row.state ?? "active";
     const created = row.createdAt ?? ago({ d: 10 });
@@ -1470,7 +1481,8 @@ export async function seedPages(ctx: SeedContext) {
 export async function seedNotifications(ctx: SeedContext) {
   const { db, bots, chats, R, pageIds } = ctx;
   const { iris, scout, kit, mira, juno } = bots;
-  const n = (row) => db.insert(notifications, { id: randomUUID(), body: "", readAt: null, ...row });
+  const n = (row: RowWithDefaults<typeof notifications, "id" | "body" | "readAt">) =>
+    db.insert(notifications, { id: randomUUID(), body: "", readAt: null, ...row });
   await n({
     kind: "approval",
     title: "Mira needs your approval",

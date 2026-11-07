@@ -16,6 +16,7 @@ describe("stopping services", () => {
 
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => {
+    vi.clearAllMocks();
     vi.useRealTimers();
     events.removeAllListeners();
   });
@@ -60,32 +61,52 @@ describe("stopping services", () => {
   });
 
   it("starts no sweep or poll for work that finishes after stopping", async () => {
-    // A sweep is in flight when shutdown starts; asked to run again, and its work ends after stop().
+    // A sweep is in flight when shutdown starts and has been asked to run again; its first query
+    // answers only after stop(), and every later query finds nothing, so the sweep completes.
     let release!: () => void;
-    const update = vi.fn(
-      () =>
-        new Promise<never>((_, reject) => {
-          release = () => reject(new Error("finished after stop"));
-        }),
-    );
+    const held = new Promise<void>((resolve) => (release = resolve));
+    // Each sweep starts by expiring old actions, so that query counts the sweeps.
+    let sweeps = 0;
+    // Drizzle's fluent builder: each step returns the query, which is awaited at the end.
+    const query = (result: () => Promise<unknown>) => {
+      const step = () => chain;
+      const chain = {
+        set: (values: { status?: string }) => {
+          if (values.status === "expired" && sweeps++ === 0) result = () => held.then(() => []);
+          return chain;
+        },
+        from: step,
+        where: step,
+        orderBy: step,
+        limit: step,
+        returning: step,
+        then: (ok: (rows: unknown) => unknown, fail: (error: unknown) => unknown) =>
+          result().then(ok, fail),
+      };
+      return chain;
+    };
+    const none = () => Promise.resolve([]);
+    const update = vi.fn(() => query(none));
+    const db = { update, select: () => query(none) };
     const actions = new AccountActions(
-      ...([
-        { events, log, db: { update } },
-        null,
-        null,
-        null,
-        null,
-      ] as unknown as ConstructorParameters<typeof AccountActions>),
+      ...([{ events, log, db }, null, null, null, null] as unknown as ConstructorParameters<
+        typeof AccountActions
+      >),
     );
     actions.start();
     actions.kick();
     actions.stop();
     release();
-    await vi.waitFor(() => expect(log.error).toHaveBeenCalled());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sweeps).toBe(1);
+    const updates = update.mock.calls.length;
     actions.kick();
     (actions as unknown as { schedulePoll(id: string, ms: number): void }).schedulePoll("a1", 10);
+    expect(vi.getTimerCount()).toBe(0);
     await vi.advanceTimersByTimeAsync(60_000);
-    expect(update).toHaveBeenCalledTimes(1);
+    expect(sweeps).toBe(1);
+    expect(update).toHaveBeenCalledTimes(updates);
+    expect(log.error).not.toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(0);
   });
 
