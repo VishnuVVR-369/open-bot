@@ -735,7 +735,7 @@ export function ScreenControls({
                 await queryClient.invalidateQueries({ queryKey: queryKeys.state });
               }}
             >
-              Dismiss
+              Not now
             </Button>
           </div>
         </div>

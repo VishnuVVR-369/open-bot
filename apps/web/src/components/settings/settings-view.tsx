@@ -1,6 +1,11 @@
 "use client";
 
-import { EGRESS_OPTIONS, formatDollars, type EgressModeSetting } from "@open-bot/shared";
+import {
+  EGRESS_OPTIONS,
+  formatDollars,
+  relativeTime,
+  type EgressModeSetting,
+} from "@open-bot/shared";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNowStrict } from "date-fns";
 import {
@@ -8,6 +13,7 @@ import {
   BellRing,
   Brain,
   Check,
+  ChevronRight,
   Copy,
   ExternalLink,
   KeyRound,
@@ -19,6 +25,7 @@ import {
   ShieldCheck,
   Sun,
   SunMoon,
+  Trash2,
   UserRound,
 } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -31,8 +38,20 @@ import {
   type ReactNode,
 } from "react";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -52,6 +71,7 @@ import {
   startChatgptLogin,
 } from "@/lib/actions";
 import { authClient } from "@/lib/auth-client";
+import { passkeyLabel } from "@/lib/passkey-name";
 import { getJson } from "@/lib/client/api";
 import { queryKeys, useAppState } from "@/lib/client/queries";
 import type { ModelAccessView, UsageView } from "@/lib/types";
@@ -112,8 +132,8 @@ function Choice({
       disabled={disabled}
       onClick={onSelect}
       className={cn(
-        "flex items-start gap-3 rounded-xl bg-card shadow-raised px-4 py-3 text-left transition-colors hover:bg-muted/40 disabled:opacity-60",
-        checked && "border-foreground/50 bg-muted/40",
+        "flex items-start gap-3 rounded-xl border bg-card px-4 py-3 text-left transition-colors hover:bg-muted/40 disabled:opacity-60",
+        checked && "border-foreground/60 bg-muted/40",
       )}
     >
       <span
@@ -150,11 +170,11 @@ function Meter({ label, window }: { label: string; window: RateWindow }) {
             ` · resets ${formatDistanceToNowStrict(new Date(window.resetsAt * 1000), { addSuffix: true })}`}
         </span>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-subtle">
+      <div className="h-1.5 overflow-hidden rounded-full bg-foreground/8">
         <div
           className={cn(
             "h-full rounded-full",
-            used > 85 ? "bg-destructive" : used > 60 ? "bg-attention" : "bg-foreground",
+            used >= 100 ? "bg-destructive" : used > 80 ? "bg-attention" : "bg-foreground/45",
           )}
           style={{ width: `${used}%` }}
         />
@@ -207,7 +227,7 @@ function ChatgptSection() {
 
   return (
     <>
-      <div className="flex items-center justify-between gap-4 rounded-xl bg-card shadow-raised px-4 py-3.5">
+      <div className="flex items-center justify-between gap-4 rounded-xl border bg-card px-4 py-3.5">
         <div className="flex items-center gap-3">
           <span
             className={cn("size-2.5 rounded-full", codex.account ? "bg-done" : "bg-destructive")}
@@ -244,7 +264,7 @@ function ChatgptSection() {
       </div>
 
       {(primary || secondary) && (
-        <div className="flex flex-col gap-3 rounded-xl bg-card shadow-raised px-4 py-3.5">
+        <div className="flex flex-col gap-3 rounded-xl border bg-card px-4 py-3.5">
           {primary && (
             <Meter
               label={windowLabel(primary.windowDurationMins, "Short-term limit")}
@@ -290,7 +310,7 @@ function ChatgptSection() {
       </div>
 
       {codex.authSource === "device" && !codex.account && (
-        <div className="flex flex-col gap-3 rounded-xl bg-card shadow-raised px-4 py-4">
+        <div className="flex flex-col gap-3 rounded-xl border bg-card px-4 py-4">
           {login ? (
             <>
               <p className="text-[14px]">Open the link, sign in to ChatGPT, and enter this code:</p>
@@ -345,7 +365,7 @@ function BrowsingSection() {
   const [pending, startTransition] = useTransition();
   return (
     <>
-      <div className="flex items-center gap-3 rounded-xl bg-card shadow-raised px-4 py-3.5">
+      <div className="flex items-center gap-3 rounded-xl border bg-card px-4 py-3.5">
         <Laptop className="size-4 text-muted-foreground" />
         <span className="flex-1 text-[14px]">
           {egress?.agentOnline
@@ -474,21 +494,83 @@ function NotificationsSection() {
   );
 }
 
+type Passkey = NonNullable<ReturnType<typeof authClient.useListPasskeys>["data"]>[number];
+
+function PasskeyRow({ passkey, onRemoved }: { passkey: Passkey; onRemoved: () => void }) {
+  const label = passkeyLabel(passkey.name);
+  return (
+    <li className="flex min-h-14 items-center gap-3 py-2 pr-2 pl-4 text-[14px]">
+      <KeyRound className="size-4 shrink-0 text-muted-foreground" />
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <time
+        dateTime={new Date(passkey.createdAt).toISOString()}
+        title={new Date(passkey.createdAt).toLocaleString()}
+        className="shrink-0 text-[12.5px] text-muted-foreground"
+      >
+        Added {relativeTime(passkey.createdAt)}
+      </time>
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Remove ${label}`}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <Trash2 />
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove this passkey?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {label} can't sign you in anymore. Remove it from the device too, in its password
+              settings.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={async () => {
+                const result = await authClient.passkey.deletePasskey({ id: passkey.id });
+                if (result?.error)
+                  toast.error(result.error.message ?? "The passkey wasn't removed.");
+                else toast("Passkey removed");
+                onRemoved();
+              }}
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </li>
+  );
+}
+
 function PasskeySection() {
   const passkeys = authClient.useListPasskeys();
   const [pending, setPending] = useState(false);
   return (
     <div className="flex flex-col gap-3">
+      {passkeys.data && passkeys.data.length === 0 && (
+        <p
+          className="flex items-center gap-3 rounded-xl border px-4 py-3 text-[14px] text-muted-foreground"
+          data-testid="no-passkeys"
+        >
+          <KeyRound className="size-4" />
+          No passkeys yet
+        </p>
+      )}
       {passkeys.data && passkeys.data.length > 0 && (
-        <ul className="divide-y divide-border/70 rounded-xl bg-card shadow-raised">
+        <ul className="divide-y divide-border/70 rounded-xl border bg-card" data-testid="passkeys">
           {passkeys.data.map((passkey) => (
-            <li key={passkey.id} className="flex items-center gap-3 px-4 py-2.5 text-[14px]">
-              <KeyRound className="size-4 text-muted-foreground" />
-              <span className="flex-1">{passkey.name || "Passkey"}</span>
-              <span className="text-[12.5px] text-muted-foreground">
-                Added {formatDistanceToNowStrict(new Date(passkey.createdAt), { addSuffix: true })}
-              </span>
-            </li>
+            <PasskeyRow
+              key={passkey.id}
+              passkey={passkey}
+              onRemoved={() => void passkeys.refetch()}
+            />
           ))}
         </ul>
       )}
@@ -498,9 +580,8 @@ function PasskeySection() {
         disabled={pending}
         onClick={async () => {
           setPending(true);
-          const result = await authClient.passkey.addPasskey({
-            name: navigator.platform || "This device",
-          });
+          // The server names it after where it's kept, or this browser.
+          const result = await authClient.passkey.addPasskey();
           setPending(false);
           if (result?.error) toast.error(result.error.message ?? "The passkey wasn't added.");
           else {
@@ -534,6 +615,7 @@ function FallbackSection() {
   const data = access.data;
   if (!data) return <SectionState error={access.error} onRetry={() => void access.refetch()} />;
   const capDollars = data.capMicros / 1_000_000;
+  const capChanged = cap !== null && cap !== "" && Number(cap) !== capDollars;
   const used = data.capMicros > 0 ? Math.min(100, (data.spendMicros / data.capMicros) * 100) : 100;
 
   return (
@@ -543,7 +625,7 @@ function FallbackSection() {
           "flex items-start gap-3 rounded-xl px-4 py-3.5",
           data.planLimitedUntil && !offline
             ? "border border-attention/40 bg-attention/[0.07]"
-            : "bg-card shadow-raised",
+            : "border bg-card",
         )}
         data-testid="fallback-status"
       >
@@ -579,7 +661,7 @@ function FallbackSection() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-2 rounded-xl bg-card shadow-raised px-4 py-3.5">
+      <div className="flex flex-col gap-2 rounded-xl border bg-card px-4 py-3.5">
         <span className="text-[14px] font-medium">OpenAI API key</span>
         {data.keyHint ? (
           <div className="flex items-center gap-3">
@@ -637,7 +719,7 @@ function FallbackSection() {
         )}
       </div>
 
-      <div className="flex flex-col gap-3 rounded-xl bg-card shadow-raised px-4 py-3.5">
+      <div className="flex flex-col gap-3 rounded-xl border bg-card px-4 py-3.5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span className="text-[14px] font-medium">Monthly cap</span>
           <form
@@ -653,15 +735,27 @@ function FallbackSection() {
               });
             }}
           >
-            <span className="text-[14px] text-muted-foreground">$</span>
-            <Input
-              inputMode="decimal"
-              value={cap ?? String(capDollars)}
-              onChange={(event) => setCap(event.target.value.replace(/[^0-9.]/g, ""))}
-              className="w-24 text-right tabular-nums"
-              aria-label="Monthly cap in dollars"
-            />
-            <Button type="submit" variant="outline" size="sm" disabled={pending || cap === null}>
+            <span className="relative">
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[14px] text-muted-foreground"
+              >
+                $
+              </span>
+              <Input
+                inputMode="decimal"
+                value={cap ?? String(capDollars)}
+                onChange={(event) => setCap(event.target.value.replace(/[^0-9.]/g, ""))}
+                className="w-28 pl-6 tabular-nums"
+                aria-label="Monthly cap in dollars"
+              />
+            </span>
+            <Button
+              type="submit"
+              variant={capChanged ? "default" : "outline"}
+              size="sm"
+              disabled={pending || !capChanged}
+            >
               Save
             </Button>
           </form>
@@ -673,11 +767,11 @@ function FallbackSection() {
               {formatDollars(data.spendMicros)} of {formatDollars(data.capMicros)}
             </span>
           </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-subtle">
+          <div className="h-1.5 overflow-hidden rounded-full bg-foreground/8">
             <div
               className={cn(
                 "h-full rounded-full",
-                used >= 100 ? "bg-destructive" : used > 75 ? "bg-attention" : "bg-foreground",
+                used >= 100 ? "bg-destructive" : used > 80 ? "bg-attention" : "bg-foreground/45",
               )}
               style={{ width: `${used}%` }}
             />
@@ -703,7 +797,7 @@ function UsageSection() {
     return <p className="text-[14px] text-muted-foreground">No work yet this month.</p>;
   const total = usage.data.reduce((sum, row) => sum + row.inputTokens + row.outputTokens, 0);
   return (
-    <div className="overflow-hidden rounded-xl bg-card shadow-raised">
+    <div className="overflow-hidden rounded-xl border bg-card">
       <table className="w-full text-[13.5px]">
         <thead className="bg-subtle/60 text-left text-[12px] text-muted-foreground">
           <tr>
@@ -739,6 +833,38 @@ function UsageSection() {
         {compactNumber(total)} tokens this month. API key spend is under When your plan runs out.
       </p>
     </div>
+  );
+}
+
+/** Who's signed in: the owner's mark, name and email, at the top of Account. */
+function ProfileBlock() {
+  const { data: state } = useAppState();
+  if (!state) return <Skeleton className="h-[72px] w-full rounded-xl" />;
+  const { name, email } = state.user;
+  return (
+    <section
+      aria-label="Your account"
+      className="flex items-center gap-4 rounded-xl border bg-card px-4 py-4"
+      data-testid="profile-block"
+    >
+      <span
+        aria-hidden
+        className="flex size-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-b from-foreground/85 to-foreground text-[17px] font-semibold text-background"
+      >
+        {name.slice(0, 1).toUpperCase()}
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-[15px] font-medium">{name}</span>
+        <span className="truncate text-[13.5px] text-muted-foreground">{email}</span>
+      </span>
+      <a
+        href="#security"
+        className="flex shrink-0 items-center gap-0.5 rounded-md text-[13px] font-medium text-foreground/80 underline-offset-[3px] outline-none hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/12"
+      >
+        Password and passkeys
+        <ChevronRight className="size-3.5 text-muted-foreground" />
+      </a>
+    </section>
   );
 }
 
@@ -781,7 +907,12 @@ const GROUPS: { id: GroupId; label: string; icon: typeof UserRound; sections: st
   { id: "appearance", label: "Appearance", icon: SunMoon, sections: [] },
   { id: "notifications", label: "Notifications", icon: Bell, sections: ["telegram"] },
   { id: "connections", label: "Connections", icon: Plug, sections: ["email", "browsing"] },
-  { id: "security", label: "Security", icon: ShieldCheck, sections: ["password", "passkeys"] },
+  {
+    id: "security",
+    label: "Security",
+    icon: ShieldCheck,
+    sections: ["password", "set-password", "passkeys"],
+  },
 ];
 
 function subscribeHash(onChange: () => void) {
@@ -817,8 +948,9 @@ function SettingsNav({ current }: { current: GroupId }) {
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "flex h-9 items-center gap-2.5 rounded-lg px-3 text-[14px] whitespace-nowrap transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/12",
+                  // The sidebar's selected style: a raised surface, not a gray fill.
                   active
-                    ? "bg-foreground/[0.06] font-medium text-foreground"
+                    ? "bg-surface font-medium text-foreground shadow-raised dark:bg-sidebar-accent"
                     : "text-muted-foreground hover:bg-subtle hover:text-foreground",
                 )}
               >
@@ -833,11 +965,12 @@ function SettingsNav({ current }: { current: GroupId }) {
   );
 }
 
-function GroupContent({ group }: { group: GroupId }) {
+function GroupContent({ group, hash }: { group: GroupId; hash: string }) {
   switch (group) {
     case "account":
       return (
         <>
+          <ProfileBlock />
           <Section
             id="chatgpt"
             title="ChatGPT"
@@ -932,12 +1065,8 @@ function GroupContent({ group }: { group: GroupId }) {
     case "security":
       return (
         <>
-          <Section
-            id="password"
-            title="Password"
-            description="Change the password you sign in with. You need the current one."
-          >
-            <PasswordSection />
+          <Section id="password" title="Password" description="The password you sign in with.">
+            <PasswordSection startWithReset={hash === "set-password"} />
           </Section>
           <Section
             id="passkeys"
@@ -962,8 +1091,12 @@ export function SettingsView() {
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-8 md:grid-cols-[176px_minmax(0,1fr)] md:gap-12">
       <SettingsNav current={group} />
-      <div key={group} className="flex min-w-0 flex-col gap-10" data-testid={`settings-${group}`}>
-        <GroupContent group={group} />
+      <div
+        key={group}
+        className={cn("flex min-w-0 flex-col gap-10", group === "security" && "max-w-[600px]")}
+        data-testid={`settings-${group}`}
+      >
+        <GroupContent group={group} hash={hash} />
       </div>
     </div>
   );

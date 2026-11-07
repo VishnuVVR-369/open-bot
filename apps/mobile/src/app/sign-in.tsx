@@ -1,3 +1,4 @@
+import { RECOVERY_COPY, resetPasswordCommand } from "@open-bot/shared";
 import { CircleAlert, Eye, EyeOff, KeyRound, Server } from "lucide-react-native";
 import { useRef, useState, type ComponentRef, type ReactNode, type Ref } from "react";
 import {
@@ -12,12 +13,14 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AppMark } from "@/components/app-mark";
 import { Button } from "@/components/button";
+import { CopyCommand } from "@/components/copy-command";
 import { Sheet } from "@/components/sheet";
 import { Text } from "@/components/text";
 import { authClient } from "@/lib/auth";
 import { APP_URL } from "@/lib/config";
 import { haptics } from "@/lib/haptics";
 import { signInWithPasskey } from "@/lib/passkey";
+import { requestPasswordReset, takePasswordResetRequest } from "@/lib/password";
 import { queryClient } from "@/lib/query";
 import { fonts, radius, space, useColors } from "@/theme";
 import { mix } from "@/theme/mix";
@@ -80,30 +83,39 @@ function Field({
 }
 
 /**
- * What to do without your password. open-bot sends no email, so there's no reset link: a passkey
- * gets you in to change it, and otherwise whoever runs the server resets it there.
+ * What to do without your password, in the web's words (`RECOVERY_COPY`). open-bot sends no
+ * email, so there's no reset link: a passkey gets you in and opens the new-password form in
+ * Settings, and without one the reset command on the server sets it.
  */
 function ForgotPassword({
   open,
+  email,
   onClose,
   onPasskey,
 }: {
   open: boolean;
+  email: string;
   onClose: () => void;
   onPasskey: () => void;
 }) {
   const colors = useColors();
   return (
-    <Sheet open={open} onClose={onClose} title="Forgot your password?" testID="forgot-sheet">
+    <Sheet
+      open={open}
+      onClose={onClose}
+      title={RECOVERY_COPY.title}
+      description={RECOVERY_COPY.intro}
+      testID="forgot-sheet"
+    >
       <View style={styles.forgot}>
         <View style={styles.way}>
           <View style={[styles.wayIcon, { backgroundColor: colors.subtle }]}>
             <KeyRound size={18} color={colors.foreground} />
           </View>
           <View style={{ flex: 1, gap: 2 }}>
-            <Text variant="label">Sign in with your passkey</Text>
-            <Text variant="small" muted>
-              Then change it in Settings on the web.
+            <Text variant="label">{RECOVERY_COPY.passkeyHeading}</Text>
+            <Text variant="small" muted style={styles.wayBody}>
+              {RECOVERY_COPY.passkeyBody}
             </Text>
           </View>
         </View>
@@ -111,19 +123,18 @@ function ForgotPassword({
           <View style={[styles.wayIcon, { backgroundColor: colors.subtle }]}>
             <Server size={18} color={colors.foreground} />
           </View>
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text variant="label">No passkey?</Text>
-            <Text variant="small" muted>
-              Ask whoever runs your open-bot server to run{" "}
-              <Text variant="mono" style={{ fontSize: 13 }}>
-                pnpm owner:reset-password
-              </Text>{" "}
-              there.
-            </Text>
+          <View style={{ flex: 1, gap: space(2) }}>
+            <View style={{ gap: 2 }}>
+              <Text variant="label">{RECOVERY_COPY.serverHeading}</Text>
+              <Text variant="small" muted style={styles.wayBody}>
+                {RECOVERY_COPY.serverBody}
+              </Text>
+            </View>
+            <CopyCommand command={resetPasswordCommand(email)} testID="reset-command" />
           </View>
         </View>
         <Button
-          title="Sign in with a passkey"
+          title={RECOVERY_COPY.passkeyAction}
           icon={<KeyRound size={18} color={colors.primaryForeground} />}
           onPress={onPasskey}
           style={styles.cta}
@@ -168,13 +179,18 @@ export default function SignIn() {
     }
   }
 
-  async function signInWithAPasskey() {
+  /** `reset`: from "Forgot password?", so Settings opens the new-password form once you're in. */
+  async function signInWithAPasskey(reset = false) {
     setPending("passkey");
     setError(null);
+    if (reset) requestPasswordReset();
     const result = await signInWithPasskey();
     if (result.ok) queryClient.clear();
-    // No message: you cancelled it, which needs no telling.
-    else if (result.message) fail(result.message);
+    else {
+      takePasswordResetRequest();
+      // No message: you cancelled it, which needs no telling.
+      if (result.message) fail(result.message);
+    }
     setPending(null);
   }
 
@@ -305,10 +321,11 @@ export default function SignIn() {
       </KeyboardAvoidingView>
       <ForgotPassword
         open={forgot}
+        email={email}
         onClose={() => setForgot(false)}
         onPasskey={() => {
           setForgot(false);
-          void signInWithAPasskey();
+          void signInWithAPasskey(true);
         }}
       />
     </SafeAreaView>
@@ -352,7 +369,8 @@ const styles = StyleSheet.create({
   or: { flexDirection: "row", alignItems: "center", gap: space(3) },
   rule: { flex: 1, height: 1 },
   labelRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  forgot: { gap: space(4), paddingHorizontal: space(5), paddingTop: space(1) },
+  forgot: { gap: space(5), paddingHorizontal: space(5), paddingTop: space(2) },
+  wayBody: { fontSize: 14, lineHeight: 20 },
   way: { flexDirection: "row", alignItems: "flex-start", gap: space(3) },
   wayIcon: {
     width: 36,

@@ -1,5 +1,5 @@
 import type { BotSummary } from "@open-bot/api";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { Animated, Easing, Text, View } from "react-native";
 import { useReducedMotion } from "@/lib/motion";
 import { fonts, useColors, type Colors } from "@/theme";
@@ -18,6 +18,8 @@ const SIZES = {
   md: { box: 36, radius: 11, font: 18 },
   // List rows.
   lg: { box: 44, radius: 13, font: 22 },
+  // Each of a group's two faces in a list row.
+  group: { box: 31, radius: 9, font: 17 },
   // A profile's hero.
   xl: { box: 88, radius: 26, font: 44 },
 } as const;
@@ -30,31 +32,54 @@ function initials(name: string) {
   return (words[0] ?? "?").slice(0, 1).toUpperCase();
 }
 
-/** `computerOffline` (from `useComputerOffline`) turns work in progress into `paused`. */
+/**
+ * The words for a teammate's status, the same on every surface (Home, the Computer tab, chat
+ * headers) and the same as the web's (apps/web/src/lib/status.ts). The line under a teammate's
+ * name says only this, never their job.
+ */
+export const STATUS = {
+  approval: "Needs your approval",
+  takeover: "Needs you to take over",
+  working: "Working",
+  /** Online, but waiting for a free turn on the computer. */
+  upNext: "Up next",
+  /** The computer is offline, so nothing they do can move. */
+  paused: "Paused",
+  idle: "Idle",
+} as const;
+
+/** "Paused" with its reason, for a place that doesn't already say the computer is offline. */
+export const PAUSED_OFFLINE = "Paused, computer offline";
+
+/**
+ * What a teammate is doing. Waiting on you still needs you, offline or not; everyone else is
+ * paused while the computer (from `useComputerOffline`) is offline, with work or without.
+ */
 export function botActivity(
   bot: Pick<BotSummary, "activeRun">,
   computerOffline = false,
 ): BotActivity {
   const run = bot.activeRun;
+  if (run?.status === "waiting") return "waiting";
+  if (computerOffline) return "paused";
   if (!run) return "idle";
-  if (run.status === "waiting") return "waiting";
   if (run.status === "queued") return "queued";
-  return computerOffline ? "paused" : "working";
+  return "working";
 }
 
-/** The words for what a teammate is up to, the same everywhere; null when they're free. */
-export function activityText(activity: BotActivity, waitingFor?: string | null): string | null {
+/** The words for what a teammate is up to, from the fixed list in `STATUS`. */
+export function activityText(activity: BotActivity, waitingFor?: string | null): string {
   switch (activity) {
     case "waiting":
       return needsYouText(waitingFor);
     case "working":
-      return "Working on it…";
+      return STATUS.working;
     case "paused":
-      return "Paused, computer offline";
+      return STATUS.paused;
     case "queued":
-      return "Up next";
+      return STATUS.upNext;
     case "idle":
-      return null;
+      return STATUS.idle;
   }
 }
 
@@ -67,20 +92,102 @@ export function activityColor(activity: BotActivity, colors: Colors): string {
 
 /** The one phrase for each thing a teammate can be waiting on you for, everywhere in the app. */
 export function needsYouText(waitingFor: string | null | undefined): string {
-  return waitingFor === "takeover" ? "Needs you to take over" : "Needs your approval";
+  return waitingFor === "takeover" ? STATUS.takeover : STATUS.approval;
 }
 
-export function botStatusText(
-  bot: Pick<BotSummary, "activeRun" | "role">,
-  computerOffline = false,
-): string {
-  return activityText(botActivity(bot, computerOffline), bot.activeRun?.waitingFor) ?? bot.role;
+/**
+ * A teammate's status as a line: a small light and the words. The light is amber when they need
+ * you, blue while working, gray while paused or up next, and an empty ring while they're free.
+ * `children` replaces the words (the chat header adds who and why).
+ */
+export function StatusLine({
+  activity,
+  waitingFor,
+  size = "small",
+  children,
+  testID,
+}: {
+  activity: BotActivity;
+  waitingFor?: string | null;
+  size?: "small" | "caption";
+  children?: ReactNode;
+  testID?: string;
+}) {
+  const colors = useColors();
+  const color = activityColor(activity, colors);
+  const light =
+    activity === "waiting"
+      ? colors.attention
+      : activity === "working"
+        ? colors.working
+        : colors.mutedForeground;
+  const dot = size === "caption" ? 6 : 7;
+  const caption = size === "caption";
+  return (
+    <View
+      style={{ flexDirection: "row", alignItems: "center", gap: caption ? 5 : 6, flexShrink: 1 }}
+    >
+      <View
+        style={{
+          width: dot,
+          height: dot,
+          borderRadius: dot / 2,
+          ...(activity === "idle"
+            ? { borderWidth: 1.5, borderColor: light }
+            : { backgroundColor: light }),
+        }}
+      />
+      <Text
+        numberOfLines={1}
+        testID={testID}
+        style={{
+          flexShrink: 1,
+          fontFamily: fonts.sans,
+          fontSize: caption ? 12.5 : 14,
+          lineHeight: caption ? 16 : 19,
+          fontWeight: activity === "waiting" ? "500" : "400",
+          color,
+        }}
+      >
+        {children ?? activityText(activity, waitingFor)}
+      </Text>
+    </View>
+  );
+}
+
+/** The lead teammate's mark beside their name, the web's small "Lead" badge. */
+export function LeadBadge() {
+  const colors = useColors();
+  return (
+    <View
+      style={{
+        backgroundColor: colors.subtle,
+        borderRadius: 999,
+        paddingHorizontal: 6,
+        paddingVertical: 1,
+      }}
+      accessibilityLabel="Lead"
+    >
+      <Text
+        allowFontScaling={false}
+        style={{
+          fontFamily: fonts.sans,
+          fontSize: 11,
+          lineHeight: 15,
+          fontWeight: "500",
+          color: colors.mutedForeground,
+        }}
+      >
+        Lead
+      </Text>
+    </View>
+  );
 }
 
 const ACTIVITY_LABEL: Record<BotActivity, string> = {
   idle: "",
   working: "working",
-  paused: "paused, computer offline",
+  paused: "paused",
   waiting: "needs you",
   queued: "up next",
 };
@@ -197,7 +304,10 @@ export function BotAvatar({
   );
 }
 
-/** Up to three teammates' faces, overlapping, for a group chat. */
+/**
+ * Two teammates' faces for a group chat, offset diagonally so both stay readable: the front one
+ * sits in a ring of whatever is behind it, and covers only a corner of the one at the back.
+ */
 export function GroupAvatar({
   members,
   size = "lg",
@@ -209,7 +319,7 @@ export function GroupAvatar({
   ring?: string;
 }) {
   const colors = useColors();
-  const box = SIZES[size].box;
+  const box = GROUP[size].box;
   const shown = members.slice(0, 2);
   if (shown.length < 2)
     return shown[0] ? (
@@ -217,8 +327,9 @@ export function GroupAvatar({
     ) : (
       <View style={{ width: box, height: box }} />
     );
-  const inner = size === "lg" ? "sm" : "xs";
-  const innerBox = SIZES[inner].box;
+  const inner = GROUP[size].tile;
+  const tile = SIZES[inner];
+  const edge = 2;
   return (
     <View style={{ width: box, height: box }}>
       <View style={{ position: "absolute", top: 0, left: 0 }}>
@@ -227,13 +338,13 @@ export function GroupAvatar({
       <View
         style={{
           position: "absolute",
-          right: 0,
-          bottom: 0,
-          borderRadius: SIZES[inner].radius + 2,
-          borderWidth: 2,
+          right: -edge,
+          bottom: -edge,
+          borderRadius: tile.radius + edge,
+          borderWidth: edge,
           borderColor: ring ?? colors.background,
-          width: innerBox + 4,
-          height: innerBox + 4,
+          width: tile.box + edge * 2,
+          height: tile.box + edge * 2,
           alignItems: "center",
           justifyContent: "center",
         }}
@@ -243,3 +354,9 @@ export function GroupAvatar({
     </View>
   );
 }
+
+/** A group's two tiles and the box they share: about 70% of the box each. */
+const GROUP = {
+  md: { box: 42, tile: "sm" },
+  lg: { box: 46, tile: "group" },
+} as const;

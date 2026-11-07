@@ -14,12 +14,13 @@ import {
   type ApprovalRisk,
 } from "@open-bot/shared";
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, CircleAlert, CreditCard, Mail, ShieldAlert, TriangleAlert } from "lucide-react";
+import { Check, CloudOff, CreditCard, Mail, ShieldAlert, TriangleAlert } from "lucide-react";
 import { useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { decideApproval } from "@/lib/actions";
-import { queryKeys } from "@/lib/client/queries";
+import { queryKeys, useAppState } from "@/lib/client/queries";
+import { isComputerOnline } from "@/lib/status";
 import { InlineCode } from "@/components/inline-code";
 import { cn } from "@/lib/utils";
 import { ActionPreview, previewIcon } from "./action-preview";
@@ -65,7 +66,7 @@ export function ApprovalIcon({
 
 /** A few words on what's at stake: "Spends money", "Sends an email", "Can't be undone". */
 export function RiskChip({ risk, className }: { risk: ApprovalRisk; className?: string }) {
-  const Icon = risk.tone === "destructive" ? TriangleAlert : CircleAlert;
+  // One mark for "at stake" everywhere, as on the phone: the triangle.
   return (
     <span
       title={risk.text}
@@ -80,7 +81,7 @@ export function RiskChip({ risk, className }: { risk: ApprovalRisk; className?: 
       )}
       data-testid="risk-chip"
     >
-      <Icon className="size-3" />
+      <TriangleAlert className="size-3" />
       {risk.label}
     </span>
   );
@@ -197,6 +198,9 @@ export function ApprovalDecision({
 }) {
   const [pending, startTransition] = useTransition();
   const queryClient = useQueryClient();
+  const { data: state } = useAppState();
+  // Deciding works offline; an approved action just waits for the computer.
+  const offline = Boolean(state) && !isComputerOnline(state);
   const decide = (decision: "approved" | "denied", alwaysAllow?: string) =>
     startTransition(async () => {
       const result = await decideApproval(
@@ -245,6 +249,15 @@ export function ApprovalDecision({
           disabled={pending}
           onConfirm={async (pattern) => decide("approved", pattern)}
         />
+      )}
+      {offline && (
+        <span
+          className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground sm:ml-1"
+          data-testid="approval-offline"
+        >
+          <CloudOff className="size-3.5 shrink-0" />
+          Approved actions run when the computer is back.
+        </span>
       )}
     </div>
   );

@@ -71,7 +71,26 @@ export function ComputerOfflineNotice({ style }: { style?: StyleProp<ViewStyle> 
   );
 }
 
+/**
+ * Beside approval buttons while the computer is offline: deciding still works, and this says
+ * what approving will really do.
+ */
+export function ApproveWhileAwayNote({ center = false }: { center?: boolean }) {
+  const colors = useColors();
+  const offline = useComputerOffline();
+  if (!offline) return null;
+  return (
+    <View style={[styles.away, center && { justifyContent: "center" }]} testID="approve-offline">
+      <CloudOff size={13} color={colors.mutedForeground} />
+      <Text variant="caption" muted style={{ flexShrink: 1 }}>
+        Approved actions run when the computer is back.
+      </Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  away: { flexDirection: "row", alignItems: "center", gap: space(1.5) },
   computer: {
     flexDirection: "row",
     alignItems: "center",

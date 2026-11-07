@@ -5,8 +5,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { BotAvatar } from "@/components/bot-avatar";
 import { useAppState } from "@/lib/client/queries";
-import { botActivity, botNeedsText, PAUSED_OFFLINE } from "@/lib/status";
-import type { ChatSummary } from "@/lib/types";
+import { STATUS, teammateStatus, type TeammateStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
 import {
   ScreenControls,
@@ -31,34 +30,20 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Whether a screen's line asks something of you, which is the only time it turns amber. */
-function needsYou(info: ScreenInfo): boolean {
-  return (
-    info.activity === "you" ||
-    (info.activity !== "working" && info.requests.length > 0) ||
-    (info.activity === "offline" && botNeedsText(info.bot) !== null)
-  );
-}
-
-function screenLine(info: ScreenInfo, chat: ChatSummary | undefined): string {
-  switch (info.activity) {
-    case "you":
-      return "You have control";
-    case "working":
-      return chat?.kind === "group"
-        ? `Working in ${chat.title}`
-        : chat?.kind === "scheduled"
-          ? "Running a routine"
-          : "Working on your request";
-    case "idle":
-      return info.requests.length ? "Needs you to take over" : "Idle";
-    case "asleep":
-      return info.requests.length ? "Needs you to take over" : "Asleep";
-    case "offline":
-      // What still stands while the computer is away: a request for you, or work waiting for it.
-      if (info.requests.length) return "Needs you to take over";
-      return botNeedsText(info.bot) ?? (info.bot.activeRun ? PAUSED_OFFLINE : "Offline");
-  }
+/**
+ * A screen's line in the list, in the same words as everywhere else. Two things are particular
+ * to screens: you holding one, and a teammate asking you to take one over.
+ */
+function screenStatus(info: ScreenInfo): Pick<TeammateStatus, "activity" | "needsYou"> & {
+  label: string;
+} {
+  if (info.activity === "you")
+    return { label: "You have control", activity: "idle", needsYou: true };
+  if (info.requests.length > 0 && info.activity !== "working")
+    return { label: STATUS.takeover, activity: "waiting", needsYou: true };
+  if (info.activity === "working")
+    return { label: STATUS.working, activity: "working", needsYou: false };
+  return teammateStatus(info.bot, info.activity !== "offline");
 }
 
 type HealthSignal = "done" | "idle" | "failed";
@@ -93,24 +78,61 @@ function healthRows({
   ];
 }
 
+/** The computer's state in a word, next to the page title. Details are in Health. */
+function HealthPill({ signal, label }: { signal: HealthSignal; label: string }) {
+  return (
+    <a
+      href="#health"
+      className="flex h-6 items-center gap-1.5 rounded-full bg-subtle px-2.5 text-[12px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+      data-testid="computer-health"
+    >
+      <span
+        className={cn(
+          "size-1.5 rounded-full",
+          signal === "done" && "bg-done",
+          signal === "idle" && "bg-idle",
+          signal === "failed" && "bg-destructive",
+        )}
+      />
+      {label}
+    </a>
+  );
+}
+
 /**
- * The computer is offline. There is no screen to show, so the page says so on its own surface
- * instead of a large black frame, and the take over request (if any) follows below it.
+ * The computer is offline, so there is no screen to show. The selected teammate's screen says
+ * what waits for it, on the page's own surface instead of a large black frame.
  */
-function ComputerAway({ names }: { names: string[] }) {
+function ScreenAway({ info }: { info: ScreenInfo }) {
+  const name = info.bot.name;
+  const status = screenStatus(info);
+  const line =
+    status.label === STATUS.takeover
+      ? `${name} is waiting for you to take over.`
+      : status.label === STATUS.approval
+        ? `${name} is waiting for your approval. The screen shows here when the computer is back.`
+        : `${name}'s work is paused. The screen shows here when the computer is back.`;
   return (
     <section
-      aria-label="Computer"
+      aria-label={`${name}'s screen`}
       className="flex flex-col items-center gap-2 rounded-2xl bg-card px-8 py-12 text-center shadow-raised"
       data-testid="computer-offline"
     >
-      <span className="mb-1 flex size-11 items-center justify-center rounded-xl bg-subtle text-muted-foreground">
-        <CloudOff className="size-5" />
-      </span>
-      <h1 className="text-[18px] font-semibold">The computer is offline</h1>
-      <p className="max-w-md text-[14px] leading-relaxed text-muted-foreground">
-        {names.length === 1 ? `${names[0]} pauses` : "Your teammates pause"} computer work until
-        it&apos;s back. It reconnects on its own, and their screens show here again.
+      <BotAvatar
+        name={name}
+        color={info.bot.color}
+        emoji={info.bot.emoji}
+        size="lg"
+        activity={status.activity}
+        className="mb-1 [--avatar-ring:var(--card)]"
+      />
+      <h2 className="text-[18px] font-semibold">{name}&rsquo;s screen</h2>
+      <p className="max-w-md text-[14px] leading-relaxed text-pretty text-muted-foreground">
+        {line}
+      </p>
+      <p className="mt-3 flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
+        <CloudOff className="size-3.5" />
+        The computer is offline. It reconnects on its own.
       </p>
     </section>
   );
@@ -137,13 +159,39 @@ export function ComputerPage({ initialScreen }: { initialScreen: string | null }
     window.history.replaceState(window.history.state, "", url);
   }, [screenId]);
 
+  const rows = healthRows({
+    online,
+    agent: online ? health?.agent : undefined,
+    running: online ? running : 0,
+    screens: botIds.length,
+  });
+  const pill =
+    rows[1]!.signal === "failed"
+      ? { signal: "failed" as const, label: "Agent runtime crashed" }
+      : online
+        ? {
+            signal: "done" as const,
+            label: `Online · ${running} of ${botIds.length} screens running`,
+          }
+        : { signal: "idle" as const, label: "Offline" };
+  const selected = screenId ? screen(screenId) : null;
+
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto grid w-full max-w-[1600px] gap-8 px-5 py-6 sm:px-8 lg:grid-cols-[minmax(0,1fr)_300px]">
+      {/* The same frame and title as every other page (see components/page.tsx), with a side rail. */}
+      <div className="mx-auto grid w-full max-w-[1600px] gap-x-8 gap-y-8 px-5 py-8 sm:px-10 sm:py-12 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <header className="flex min-h-9 flex-wrap items-center gap-x-3 gap-y-1.5 lg:col-span-2">
+          <h1 className="text-[28px] leading-tight font-semibold">Computer</h1>
+          {state && <HealthPill signal={pill.signal} label={pill.label} />}
+        </header>
         <div className="flex min-w-0 flex-col gap-4">
-          {state && !online ? <ComputerAway names={state.bots.map((bot) => bot.name)} /> : null}
           {state && !online ? (
-            screenId && <ScreenControls screenId={screenId} expand={false} />
+            selected && (
+              <>
+                <ScreenAway info={selected} />
+                <ScreenControls screenId={selected.bot.id} expand={false} />
+              </>
+            )
           ) : screenId ? (
             <>
               <ScreenFrame screenId={screenId} handleRef={handleRef} />
@@ -174,22 +222,21 @@ export function ComputerPage({ initialScreen }: { initialScreen: string | null }
               {botIds.map((id) => {
                 const info = screen(id);
                 if (!info) return null;
-                const selected = id === screenId;
-                const chat = info.bot.activeRun
-                  ? state?.chats.find((c) => c.id === info.bot.activeRun!.chatId)
-                  : undefined;
+                const isSelected = id === screenId;
+                const status = screenStatus(info);
                 return (
                   <li key={id}>
                     <button
                       role="tab"
-                      aria-selected={selected}
+                      aria-selected={isSelected}
                       onClick={() => setPicked(id)}
                       className={cn(
                         "flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors",
-                        selected
+                        isSelected
                           ? "border-foreground/15 bg-card shadow-xs"
                           : "border-transparent hover:bg-muted",
                       )}
+                      title={`${info.bot.name}, ${info.bot.role}`}
                       data-testid={`screen-row-${info.bot.slug}`}
                     >
                       <BotAvatar
@@ -197,17 +244,9 @@ export function ComputerPage({ initialScreen }: { initialScreen: string | null }
                         color={info.bot.color}
                         emoji={info.bot.emoji}
                         size="sm"
-                        activity={
-                          info.activity === "working"
-                            ? "working"
-                            : info.requests.length && info.activity !== "you"
-                              ? "waiting"
-                              : info.activity === "offline"
-                                ? botActivity(info.bot, false)
-                                : "idle"
-                        }
+                        activity={status.activity}
                         className={
-                          selected
+                          isSelected
                             ? "[--avatar-ring:var(--card)]"
                             : "[--avatar-ring:var(--surface)]"
                         }
@@ -217,10 +256,10 @@ export function ComputerPage({ initialScreen }: { initialScreen: string | null }
                         <span
                           className={cn(
                             "truncate text-[12.5px] text-muted-foreground",
-                            needsYou(info) && "text-attention-ink",
+                            status.needsYou && "text-attention-ink",
                           )}
                         >
-                          {screenLine(info, chat)}
+                          {status.label}
                         </span>
                       </span>
                       {info.activity === "you" && <Hand className="size-3.5 text-attention-ink" />}
@@ -248,28 +287,25 @@ export function ComputerPage({ initialScreen }: { initialScreen: string | null }
               )}
               <span className="flex flex-col gap-0.5">
                 <span className="text-[14px] font-medium">
-                  {home ? "Through your home internet" : "On the computer's own internet"}
+                  {home ? "Your home internet" : "The computer's own internet"}
                 </span>
-                <span className="text-[12.5px] text-muted-foreground">
+                <span className="text-[12.5px] leading-snug text-pretty text-muted-foreground">
                   {home && egress?.stats
-                    ? `${egress.stats.openStreams} open connections · ${formatBytes(egress.stats.bytesIn + egress.stats.bytesOut)} passed through`
-                    : egress?.mode === "off"
-                      ? "Websites see the cloud computer, not your home. You can change this in Settings."
-                      : "Open the open-bot desktop app and websites see your home internet instead, which some sites trust more."}
+                    ? `Sites see your home connection. ${egress.stats.openStreams} open connections, ${formatBytes(egress.stats.bytesIn + egress.stats.bytesOut)} passed through.`
+                    : home
+                      ? "Sites see your home connection, by way of your desktop app."
+                      : egress?.mode === "off"
+                        ? "Sites see the computer's internet. You can browse from your home connection instead in Settings."
+                        : "Sites see the computer's internet. Open the desktop app to browse from your home connection instead."}
                 </span>
               </span>
             </Link>
           </section>
 
-          <section className="flex flex-col gap-2.5">
+          <section className="flex scroll-mt-6 flex-col gap-2.5" id="health">
             <SectionTitle>Health</SectionTitle>
             <ul className="flex flex-col divide-y divide-border/70 rounded-xl bg-card shadow-raised">
-              {healthRows({
-                online,
-                agent: online ? health?.agent : undefined,
-                running: online ? running : 0,
-                screens: botIds.length,
-              }).map((row) => (
+              {rows.map((row) => (
                 <li
                   key={row.label}
                   className="flex items-center justify-between px-3.5 py-2 text-[13px]"

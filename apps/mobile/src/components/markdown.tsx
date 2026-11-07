@@ -46,6 +46,22 @@ class AppRenderer extends Renderer {
     );
   }
 
+  /**
+   * Inline code: a soft tint of the text color with a little air on each side. Android can't round
+   * or pad a span inside a paragraph, so the air is a narrow no-break space in the body font, and
+   * the span keeps the paragraph's line height so the line doesn't grow.
+   */
+  override codespan(text: string, styles?: TextStyle): ReactNode {
+    const pad = { fontFamily: fonts.sans, fontSize: 15 };
+    return (
+      <Text key={this.getKey()} style={styles}>
+        <Text style={pad}>{"\u202F"}</Text>
+        {text}
+        <Text style={pad}>{"\u202F"}</Text>
+      </Text>
+    );
+  }
+
   override list(
     ordered: boolean,
     li: ReactNode[],
@@ -118,9 +134,12 @@ export function Markdown({ text, tone = "default" }: { text: string; tone?: "def
       codespan: {
         fontFamily: fonts.mono,
         fontStyle: "normal",
-        fontSize: 13,
-        color: colors.foreground,
-        backgroundColor: colors.muted,
+        // 0.9em of the body, on the body's line height.
+        fontSize: tone === "muted" ? 12.5 : 13.5,
+        lineHeight: tone === "muted" ? 20 : 22,
+        color: ink,
+        // 6% of the text color in light, 10% in dark: a tint, not a slab.
+        backgroundColor: `${ink}${scheme === "dark" ? "1A" : "0F"}`,
       },
       code: {
         backgroundColor: colors.muted,
@@ -137,7 +156,7 @@ export function Markdown({ text, tone = "default" }: { text: string; tone?: "def
       tableRow: { borderColor: colors.border },
       table: { borderColor: colors.border, borderWidth: 1, borderRadius: radius.md },
     };
-  }, [colors, ink, tone]);
+  }, [colors, ink, tone, scheme]);
   const lineHeight = tone === "muted" ? 20 : 22;
   const renderer = useMemo(() => new AppRenderer(ink, lineHeight), [ink, lineHeight]);
   const elements = useMarkdown(text, {

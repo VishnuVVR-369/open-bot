@@ -14,6 +14,7 @@ import { StyleSheet, View } from "react-native";
 import { ActionPreview, previewIcon } from "@/components/action-preview";
 import { AlwaysAllowSheet } from "@/components/always-allow-sheet";
 import { ApprovalTitle, DetailRows } from "@/components/approval-parts";
+import { ApproveWhileAwayNote } from "@/components/connection-notice";
 import { Button } from "@/components/button";
 import { CodeScroll } from "@/components/code-scroll";
 import { Text } from "@/components/text";
@@ -224,6 +225,7 @@ export function ApprovalCard({
           testID="approve"
         />
       </View>
+      {online && <ApproveWhileAwayNote />}
       {canAlwaysAllow(rule) && (
         <Button
           title="Always allow…"

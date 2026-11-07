@@ -77,10 +77,7 @@ const BUILT_IN_LINKS: Record<string, { href: string; label: string }> = {
 function BuiltInSkill({ skill }: { skill: (typeof BUILT_IN_SKILLS)[number] }) {
   const link = BUILT_IN_LINKS[skill.name];
   return (
-    <li
-      className="flex flex-col gap-3 rounded-xl bg-card shadow-raised p-4"
-      data-testid="built-in-skill"
-    >
+    <li className="flex flex-col gap-3 rounded-xl border bg-card p-4" data-testid="built-in-skill">
       <div className="flex items-start gap-3">
         <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-subtle text-muted-foreground">
           <FileText className="size-4" />
@@ -174,7 +171,7 @@ export function SkillsList({ botId }: { botId?: string }) {
           return (
             <li
               key={skill.id}
-              className="group relative flex flex-col gap-3 rounded-xl bg-card shadow-raised p-4 transition-shadow hover:shadow-float"
+              className="group relative flex flex-col gap-3 rounded-xl border bg-card p-4 transition-colors hover:border-foreground/20"
               data-testid="skill"
             >
               <div className="flex items-start gap-3">

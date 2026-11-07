@@ -16,11 +16,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  activityColor,
+  activityText,
   BotAvatar,
   botActivity,
-  botStatusText,
   GroupAvatar,
+  PAUSED_OFFLINE,
+  StatusLine,
+  type BotActivity,
 } from "@/components/bot-avatar";
 import { Composer } from "@/components/chat/composer";
 import { RunBlock } from "@/components/chat/run-block";
@@ -94,6 +96,21 @@ export default function ChatScreen() {
   const liveBot = bot && (allBots.find((candidate) => candidate.id === bot.id) ?? bot);
   // What the teammate is doing matters here only when it's this chat they're doing it in.
   const liveRun = liveBot?.activeRun?.chatId === chatId ? liveBot.activeRun : null;
+  // The header's status: what they're doing in this chat, paused while the computer is offline
+  // (said here, as there's no offline notice on this screen), or when they were last active.
+  const headerActivity: BotActivity = liveRun
+    ? botActivity(liveBot!, computerOffline)
+    : computerOffline
+      ? "paused"
+      : "idle";
+  const headerStatus =
+    headerActivity === "paused"
+      ? PAUSED_OFFLINE
+      : headerActivity === "idle"
+        ? liveBot?.lastActiveAt
+          ? lastActive(liveBot.lastActiveAt)
+          : (bot?.role ?? "")
+        : activityText(headerActivity, liveRun?.waitingFor);
   const title = !chat
     ? ""
     : chat.kind === "scheduled"
@@ -141,7 +158,7 @@ export default function ChatScreen() {
       ? `Add a note for ${activeName ?? "your teammate"}…`
       : `Add to what ${activeName ?? "your teammate"} is doing…`
     : isGroup
-      ? "Message the group, @ to pick who…"
+      ? "Message the group, @ to mention"
       : `Message ${bot?.name ?? "your teammate"}…`;
 
   // A run is superseded once the same teammate has run again after it, so it has no Try again.
@@ -221,7 +238,7 @@ export default function ChatScreen() {
                     testID="chat-header"
                   >
                     {isGroup ? (
-                      <GroupAvatar members={members} size="md" ring={colors.surface} />
+                      <GroupAvatar members={members} size="md" ring={colors.background} />
                     ) : (
                       liveBot && (
                         <BotAvatar
@@ -229,7 +246,7 @@ export default function ChatScreen() {
                           color={liveBot.color}
                           emoji={liveBot.emoji}
                           size="md"
-                          activity={liveRun ? botActivity(liveBot, computerOffline) : "idle"}
+                          activity={headerActivity}
                         />
                       )
                     )}
@@ -241,28 +258,21 @@ export default function ChatScreen() {
                       >
                         {title}
                       </Text>
-                      <Text
-                        variant="caption"
-                        numberOfLines={1}
-                        muted={!liveRun}
-                        style={
-                          liveRun && liveBot
-                            ? {
-                                color: activityColor(botActivity(liveBot, computerOffline), colors),
-                              }
-                            : undefined
-                        }
-                      >
-                        {isGroup
-                          ? members.map((member) => member.name).join(", ")
-                          : `${chat && namedForTopic(chat, liveBot) ? `${liveBot!.name} · ` : ""}${
-                              liveRun
-                                ? botStatusText(liveBot!, computerOffline)
-                                : liveBot?.lastActiveAt
-                                  ? lastActive(liveBot.lastActiveAt)
-                                  : (bot?.role ?? "")
-                            }`}
-                      </Text>
+                      {isGroup ? (
+                        computerOffline ? (
+                          <StatusLine activity="paused" size="caption">
+                            Paused · {members.map((member) => member.name).join(", ")}
+                          </StatusLine>
+                        ) : (
+                          <Text variant="caption" muted numberOfLines={1}>
+                            {members.map((member) => member.name).join(", ")}
+                          </Text>
+                        )
+                      ) : (
+                        <StatusLine activity={headerActivity} size="caption" testID="chat-status">
+                          {`${chat && namedForTopic(chat, liveBot) ? `${liveBot!.name} · ` : ""}${headerStatus}`}
+                        </StatusLine>
+                      )}
                     </View>
                   </Pressable>
                 ),
@@ -294,10 +304,11 @@ export default function ChatScreen() {
           <Loading />
         ) : gone ? (
           <NotFound
-            icon={<MessageCircle size={28} color={colors.mutedForeground} />}
-            title="Chat not found"
-            body="It isn't in your chats anymore."
-            onBack={goBack}
+            icon={MessageCircle}
+            title="This chat is unavailable"
+            body="It may have been deleted, or the link may be wrong."
+            action="Go to Chats"
+            onAction={() => router.navigate("/chats")}
           />
         ) : error || !chat ? (
           <LoadError
@@ -315,7 +326,8 @@ export default function ChatScreen() {
             renderItem={renderItem}
             ItemSeparatorComponent={Gap}
             ListFooterComponent={
-              <View style={styles.older}>
+              // Room for the spinner only while there's more to load, so a short chat starts at the top.
+              <View style={hasMore || loadingOlder ? styles.older : undefined}>
                 {loadingOlder && <ActivityIndicator size="small" color={colors.mutedForeground} />}
               </View>
             }
@@ -323,7 +335,12 @@ export default function ChatScreen() {
               if (hasMore) void loadOlder();
             }}
             onEndReachedThreshold={0.4}
-            contentContainerStyle={[styles.timeline, data.length === 0 && { flex: 1 }]}
+            // A short conversation starts at the top, under the header, not at the composer:
+            // the list is inverted, so "flex-end" is the top.
+            contentContainerStyle={[
+              styles.timeline,
+              data.length === 0 ? { flex: 1 } : { flexGrow: 1, justifyContent: "flex-end" },
+            ]}
             onScroll={(event) => {
               // Inverted: the offset grows as you scroll back in time.
               const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
@@ -584,8 +601,9 @@ function goBack() {
   else router.replace("/chats");
 }
 
+/** The room between turns: more than inside one, so each exchange reads as a unit. */
 function Gap() {
-  return <View style={{ height: space(5) }} />;
+  return <View style={{ height: space(7) }} />;
 }
 
 /** A pause this long between two turns earns a time stamp, as in a messaging app. */

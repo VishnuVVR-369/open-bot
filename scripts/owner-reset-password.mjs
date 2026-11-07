@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Sets a new sign-in password for open-bot's owner, for when it's forgotten and there's no
-// passkey to get back in with. open-bot sends no email, so this is the recovery path: it needs
+// passkey (with a passkey, Settings > Security sets a new one without the old). open-bot sends no email, so this is the recovery path: it needs
 // the server itself (its environment and database), which only the owner has.
 //
 //   pnpm owner:reset-password you@example.com

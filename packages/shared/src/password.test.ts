@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { passwordChangeError, passwordChangeProblem } from "./password";
+import { newPasswordProblem, passwordChangeError, passwordChangeProblem } from "./password";
 
 describe("passwordChangeProblem", () => {
   const good = { current: "old-password-1", next: "new-password-2", confirm: "new-password-2" };
@@ -35,5 +35,20 @@ describe("passwordChangeError", () => {
 
   it("falls back to a general line for anything else", () => {
     expect(passwordChangeError(undefined)).toBe("The password wasn't changed. Try again.");
+  });
+});
+
+describe("newPasswordProblem", () => {
+  it("needs no current password", () => {
+    expect(newPasswordProblem({ next: "new-password-2", confirm: "new-password-2" })).toBeNull();
+  });
+
+  it("still checks length and the second copy", () => {
+    expect(newPasswordProblem({ next: "short", confirm: "short" })).toBe(
+      "Use at least 10 characters for the new password.",
+    );
+    expect(newPasswordProblem({ next: "new-password-2", confirm: "new-password-3" })).toBe(
+      "The new passwords don't match.",
+    );
   });
 });

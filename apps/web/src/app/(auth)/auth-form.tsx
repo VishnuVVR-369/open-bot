@@ -1,12 +1,14 @@
 "use client";
 
-import { KeyRound, Loader2 } from "lucide-react";
+import { RECOVERY_COPY, resetPasswordCommand } from "@open-bot/shared";
+import { Eye, EyeOff, KeyRound, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
+import { CopyCommand } from "@/components/copy-command";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -14,18 +16,27 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
-import { PASSWORD_MIN_LENGTH } from "@/lib/password";
+import { PASSWORD_MIN_LENGTH } from "@open-bot/shared";
 
-/** The command that sets a new owner password from the server; scripts/owner-reset-password.mjs. */
-const RESET_COMMAND = "pnpm owner:reset-password";
+/** Where a passkey sign-in from "Forgot password?" lands: the form for a new password. */
+const SET_PASSWORD = "/settings#set-password";
 
 /**
  * There's no email to send a reset link with, so this says the two ways back in: a passkey,
- * then a new password in Settings, or the reset command on the server open-bot runs on.
+ * which also lets you set a new password right after, or the reset command on the server.
  */
-function ForgotPassword({ onPasskey, disabled }: { onPasskey: () => void; disabled: boolean }) {
+function ForgotPassword({
+  email,
+  onPasskey,
+  disabled,
+}: {
+  email: string;
+  onPasskey: () => void;
+  disabled: boolean;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -37,35 +48,29 @@ function ForgotPassword({ onPasskey, disabled }: { onPasskey: () => void; disabl
           Forgot password?
         </button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[440px]">
+      <DialogContent className="gap-5 sm:max-w-[460px]">
         <DialogHeader>
-          <DialogTitle>Forgot your password?</DialogTitle>
-          <DialogDescription>
-            open-bot doesn&apos;t send email, so there&apos;s no reset link. There are two ways back
-            in.
-          </DialogDescription>
+          <DialogTitle>{RECOVERY_COPY.title}</DialogTitle>
+          <DialogDescription>{RECOVERY_COPY.intro}</DialogDescription>
         </DialogHeader>
-        <ol className="flex flex-col gap-4 text-[14px]">
-          <li className="flex flex-col gap-1">
-            <span className="font-medium">With a passkey</span>
-            <span className="text-muted-foreground">
-              Sign in with it, then set a new password in Settings, under Security.
-            </span>
-          </li>
-          <li className="flex flex-col gap-1.5">
-            <span className="font-medium">On the server</span>
-            <span className="text-muted-foreground">
-              Where open-bot runs, open a terminal in its folder and run this with your email. It
-              asks for a new password and signs out every device.
-            </span>
-            <code className="rounded-lg border bg-subtle px-3 py-2 font-mono text-[12.5px] break-all">
-              {RESET_COMMAND} you@example.com
-            </code>
-          </li>
-        </ol>
+        <div className="flex flex-col gap-5 text-[14px]">
+          <section className="flex flex-col gap-1">
+            <h3 className="font-medium">{RECOVERY_COPY.passkeyHeading}</h3>
+            <p className="text-muted-foreground">{RECOVERY_COPY.passkeyBody}</p>
+          </section>
+          <section className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1">
+              <h3 className="font-medium">{RECOVERY_COPY.serverHeading}</h3>
+              <p className="text-muted-foreground">{RECOVERY_COPY.serverBody}</p>
+            </div>
+            <CopyCommand command={resetPasswordCommand(email)} />
+          </section>
+        </div>
         <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="outline">{RECOVERY_COPY.close}</Button>
+          </DialogClose>
           <Button
-            variant="outline"
             onClick={() => {
               setOpen(false);
               onPasskey();
@@ -73,12 +78,38 @@ function ForgotPassword({ onPasskey, disabled }: { onPasskey: () => void; disabl
             disabled={disabled}
           >
             <KeyRound />
-            Sign in with a passkey
+            {RECOVERY_COPY.passkeyAction}
           </Button>
-          <Button onClick={() => setOpen(false)}>Done</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** A password field with a button that shows what you typed. */
+function PasswordInput({
+  mode,
+  ...props
+}: { mode: "login" | "setup" } & ComponentProps<typeof Input>) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="relative">
+      <Input
+        {...props}
+        type={visible ? "text" : "password"}
+        autoComplete={mode === "setup" ? "new-password" : "current-password"}
+        className="pr-10"
+      />
+      <button
+        type="button"
+        onClick={() => setVisible((value) => !value)}
+        aria-label={visible ? "Hide password" : "Show password"}
+        aria-pressed={visible}
+        className="absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-r-lg text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/12"
+      >
+        {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+      </button>
+    </div>
   );
 }
 
@@ -86,20 +117,21 @@ export function AuthForm({ mode }: { mode: "login" | "setup" }) {
   const router = useRouter();
   const [pending, setPending] = useState<"password" | "passkey" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
 
   async function onSubmit(form: FormData) {
     setPending("password");
     setError(null);
-    const email = String(form.get("email") ?? "").trim();
+    const address = String(form.get("email") ?? "").trim();
     const password = String(form.get("password") ?? "");
     const result =
       mode === "setup"
         ? await authClient.signUp.email({
-            email,
+            email: address,
             password,
             name: String(form.get("name") ?? "").trim() || "You",
           })
-        : await authClient.signIn.email({ email, password });
+        : await authClient.signIn.email({ email: address, password });
     if (result.error) {
       setError(result.error.message ?? "That didn't work. Check your email and password.");
       setPending(null);
@@ -109,7 +141,8 @@ export function AuthForm({ mode }: { mode: "login" | "setup" }) {
     router.refresh();
   }
 
-  async function onPasskey() {
+  /** Signs in with a passkey, then goes home, or to setting a new password. */
+  async function onPasskey(next = "/") {
     setPending("passkey");
     setError(null);
     const result = await authClient.signIn.passkey();
@@ -118,7 +151,7 @@ export function AuthForm({ mode }: { mode: "login" | "setup" }) {
       setPending(null);
       return;
     }
-    router.replace("/");
+    router.replace(next);
     router.refresh();
   }
 
@@ -144,6 +177,9 @@ export function AuthForm({ mode }: { mode: "login" | "setup" }) {
             name="email"
             type="email"
             autoComplete="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
             required
             autoFocus={mode === "login"}
           />
@@ -152,14 +188,17 @@ export function AuthForm({ mode }: { mode: "login" | "setup" }) {
           <div className="flex items-baseline justify-between gap-3">
             <Label htmlFor="password">Password</Label>
             {mode === "login" && (
-              <ForgotPassword onPasskey={() => void onPasskey()} disabled={pending !== null} />
+              <ForgotPassword
+                email={email}
+                onPasskey={() => void onPasskey(SET_PASSWORD)}
+                disabled={pending !== null}
+              />
             )}
           </div>
-          <Input
+          <PasswordInput
+            mode={mode}
             id="password"
             name="password"
-            type="password"
-            autoComplete={mode === "setup" ? "new-password" : "current-password"}
             minLength={PASSWORD_MIN_LENGTH}
             required
           />
@@ -183,7 +222,12 @@ export function AuthForm({ mode }: { mode: "login" | "setup" }) {
         </Button>
       </form>
       {mode === "login" && (
-        <Button variant="outline" size="lg" onClick={onPasskey} disabled={pending !== null}>
+        <Button
+          variant="outline"
+          size="lg"
+          onClick={() => void onPasskey()}
+          disabled={pending !== null}
+        >
           {pending === "passkey" ? <Loader2 className="animate-spin" /> : <KeyRound />}
           Sign in with a passkey
         </Button>

@@ -127,7 +127,10 @@ export function ApprovalsView() {
   const { data: state } = useAppState();
   const botFor = (approval: ApprovalView) => state?.bots.find((b) => b.id === approval.botId);
   const pending = (data ?? []).filter((approval) => approval.status === "pending");
-  const decided = (data ?? []).filter((approval) => approval.status !== "pending");
+  // Most recently decided first, the way the phone lists them.
+  const decided = (data ?? [])
+    .filter((approval) => approval.status !== "pending")
+    .sort((a, b) => (b.decidedAt ?? b.createdAt).localeCompare(a.decidedAt ?? a.createdAt));
   if (isLoading) return <Skeleton className="h-40 w-full rounded-xl" />;
   return (
     <div className="flex flex-col gap-10">
@@ -150,9 +153,9 @@ export function ApprovalsView() {
       {decided.length > 0 && (
         <section className="flex flex-col gap-3">
           <h2 className="font-heading text-[15px] font-semibold tracking-[-0.01em] text-foreground">
-            History
+            Decided
           </h2>
-          <ul className="flex flex-col divide-y overflow-hidden rounded-xl bg-card shadow-raised">
+          <ul className="flex flex-col divide-y overflow-hidden rounded-xl border bg-card">
             {decided.map((approval) => (
               <DecidedApproval key={approval.id} approval={approval} bot={botFor(approval)} />
             ))}

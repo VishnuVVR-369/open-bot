@@ -4,6 +4,7 @@ import {
   eventChangeLabel,
   eventTime,
   previewNote,
+  previewText,
   type AccountActionPreview,
 } from "@open-bot/shared";
 import {
@@ -16,7 +17,7 @@ import {
   TriangleAlert,
   Users,
 } from "lucide-react";
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 /** The icon an approval for this action shows. */
@@ -44,35 +45,21 @@ function Note({ children }: { children: ReactNode }) {
 }
 
 /**
- * An email's body, cut to about six lines so Approve and Deny stay in view, with a button
+ * An email's body, cut to its first few lines so Approve and Deny stay in view, with a button
  * to read the rest. The button only shows when the body is actually cut.
  */
 function EmailBody({ body }: { body: string }) {
-  const ref = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
-  const [cut, setCut] = useState(false);
-  useLayoutEffect(() => {
-    const node = ref.current;
-    if (!node || open) return;
-    const measure = () => setCut(node.scrollHeight > node.clientHeight + 1);
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [body, open]);
+  const preview = previewText(body);
   return (
     <div className="flex flex-col items-start gap-1.5 border-t pt-2.5">
       <div
-        ref={ref}
-        className={cn(
-          "w-full font-sans text-[13px] leading-relaxed break-words whitespace-pre-wrap text-foreground/90",
-          !open && "line-clamp-6",
-        )}
+        className="w-full font-sans text-[13px] leading-relaxed break-words whitespace-pre-wrap text-foreground/90"
         data-testid="email-body"
       >
-        {body || "(empty)"}
+        {(open ? body.trim() : preview.text) || "(empty)"}
       </div>
-      {(cut || open) && (
+      {preview.cut && (
         <button
           type="button"
           onClick={() => setOpen((value) => !value)}

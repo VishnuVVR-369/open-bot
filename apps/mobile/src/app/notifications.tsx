@@ -14,6 +14,7 @@ import {
 } from "lucide-react-native";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Pressable, RefreshControl, SectionList, StyleSheet, View } from "react-native";
+import { BottomScrim } from "@/components/bottom-scrim";
 import { AvatarBadge, ON_ATTENTION } from "@/components/approval-parts";
 import { BotAvatar } from "@/components/bot-avatar";
 import { Separator } from "@/components/list-row";
@@ -271,6 +272,7 @@ export default function Notifications() {
           );
         }}
       />
+      <BottomScrim />
     </>
   );
 }

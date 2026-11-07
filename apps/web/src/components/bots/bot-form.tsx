@@ -108,6 +108,14 @@ export function BotForm({
     setValues((current) => ({ ...current, [key]: value }));
 
   const complete = Boolean(values.name.trim() && values.role.trim());
+  // What a new teammate still needs before it can be created, said beside the disabled button.
+  const missing = complete
+    ? null
+    : !values.name.trim() && !values.role.trim()
+      ? "Add a name and a job to continue"
+      : !values.name.trim()
+        ? "Add a name to continue"
+        : "Add a job to continue";
   const canSubmit = !pending && complete && (!editing || dirty);
   // Nothing to save on a teammate: the bar only says so, and stays at the end of the form.
   const idle = Boolean(editing) && !dirty && !pending && !justSaved;
@@ -160,7 +168,7 @@ export function BotForm({
 
   return (
     <form
-      className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_280px]"
+      className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_300px]"
       onSubmit={(event) => {
         event.preventDefault();
         if (canSubmit) submit();
@@ -250,7 +258,7 @@ export function BotForm({
               id="bot-role"
               value={values.role}
               onChange={(e) => set("role", e.target.value)}
-              placeholder="research assistant"
+              placeholder="Research assistant"
               maxLength={80}
               required
             />
@@ -264,8 +272,9 @@ export function BotForm({
             value={values.instructions}
             onChange={(e) => set("instructions", e.target.value)}
             placeholder="Describe the job: what to do, how you like it done, and what to stay away from."
-            // Instructions are a Markdown file; a code face keeps its headings and lists lined up.
-            className="min-h-36 px-3.5 py-3 font-mono text-[13px] leading-[1.7] md:text-[13px]"
+            // Instructions are a Markdown file, but read and written as prose: the text face, with
+            // room between lines so lists and "## Headings" stay easy to scan.
+            className="min-h-36 px-3.5 py-3 font-sans text-[14.5px] leading-[22px] md:text-[14.5px]"
             spellCheck
           />
           <p className="text-[12.5px] text-muted-foreground">
@@ -283,7 +292,7 @@ export function BotForm({
                 anytime in Automations.
               </span>
             </div>
-            <div className="flex flex-col divide-y divide-border/70 rounded-xl bg-card shadow-raised">
+            <div className="flex flex-col divide-y divide-border/70 rounded-xl border bg-card">
               {template.starters.map((starter) => {
                 const on = starterIds.includes(starter.id);
                 return (
@@ -331,8 +340,8 @@ export function BotForm({
                 <label
                   key={option.value}
                   className={cn(
-                    "flex cursor-pointer items-start gap-3 rounded-xl bg-card shadow-raised px-4 py-3 transition-colors hover:bg-muted/40",
-                    checked && "bg-muted/40 ring-[1.5px] ring-foreground/70",
+                    "flex cursor-pointer items-start gap-3 rounded-xl border bg-card px-4 py-3 transition-colors hover:bg-muted/40",
+                    checked && "border-foreground/70 bg-muted/40 ring-[0.5px] ring-foreground/70",
                   )}
                 >
                   <input
@@ -362,22 +371,36 @@ export function BotForm({
         </fieldset>
       </div>
 
-      <aside className="flex flex-col gap-6 lg:sticky lg:top-8 lg:self-start">
-        <div className="flex flex-col items-center gap-3 rounded-2xl bg-card shadow-raised px-6 py-8 text-center">
+      {/* How they look: the avatar as it will show, with its color and emoji right under it. A
+          teammate's page already has their name and job in its header, so only a new one repeats
+          them here. */}
+      <aside
+        className="flex flex-col gap-6 rounded-2xl border bg-card p-5 lg:sticky lg:top-8 lg:self-start"
+        data-testid="avatar-card"
+      >
+        <div className="flex flex-col items-center gap-3 pt-2 text-center">
           <BotAvatar
             name={values.name || "?"}
             color={values.color}
             emoji={values.emoji}
             size="xl"
           />
-          <div className="flex flex-col gap-0.5">
-            <span className="font-heading text-lg font-semibold">{values.name || "Unnamed"}</span>
-            <span className="text-[13px] text-muted-foreground">{values.role || "No job yet"}</span>
-          </div>
+          {!editing && (
+            <div className="flex flex-col gap-0.5">
+              <span className="font-heading text-lg font-semibold">{values.name || "Unnamed"}</span>
+              <span className="text-[13px] text-muted-foreground">
+                {values.role || "No job yet"}
+              </span>
+            </div>
+          )}
         </div>
-        <div className="flex flex-col gap-2.5">
+        <div className="flex flex-col gap-2.5 border-t pt-5">
           <Label>Color</Label>
-          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Color">
+          <div
+            className="flex flex-wrap justify-between gap-y-2"
+            role="radiogroup"
+            aria-label="Color"
+          >
             {BOT_COLORS.map((color) => (
               <button
                 type="button"
@@ -386,12 +409,12 @@ export function BotForm({
                 aria-checked={values.color === color}
                 aria-label={color}
                 onClick={() => set("color", color)}
-                className="flex size-7 items-center justify-center rounded-full ring-offset-2 ring-offset-surface transition-transform hover:scale-110 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                className="flex size-7 items-center justify-center rounded-full ring-offset-2 ring-offset-card transition-transform hover:scale-110 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                 style={{
                   backgroundColor: color,
                   boxShadow:
                     values.color === color
-                      ? `0 0 0 2px var(--surface), 0 0 0 4px ${color}`
+                      ? `0 0 0 2px var(--card), 0 0 0 4px ${color}`
                       : undefined,
                 }}
               >
@@ -415,7 +438,7 @@ export function BotForm({
                 <button
                   type="button"
                   onClick={() => set("emoji", "")}
-                  className="rounded-sm font-medium text-foreground/80 underline-offset-[3px] outline-none hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/12"
+                  className="rounded-sm text-[13px] font-medium text-foreground underline decoration-foreground/30 underline-offset-[3px] outline-none hover:decoration-foreground focus-visible:ring-[3px] focus-visible:ring-ring/12"
                 >
                   Use initials instead
                 </button>
@@ -442,9 +465,15 @@ export function BotForm({
       >
         <span className="flex min-w-0 flex-1 items-center gap-2 text-[13.5px]" aria-live="polite">
           {!editing ? (
-            <span className="text-muted-foreground max-sm:hidden">
-              You can change all of this later.
-            </span>
+            missing ? (
+              <span className="text-muted-foreground" data-testid="missing">
+                {missing}
+              </span>
+            ) : (
+              <span className="text-muted-foreground max-sm:hidden">
+                You can change all of this later.
+              </span>
+            )
           ) : pending ? (
             <span className="text-muted-foreground">Saving…</span>
           ) : dirty ? (

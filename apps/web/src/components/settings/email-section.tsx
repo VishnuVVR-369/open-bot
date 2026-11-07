@@ -133,7 +133,7 @@ export function EmailSection() {
 
       {data.addresses.length > 0 && (
         <ul
-          className="flex flex-col divide-y divide-border/70 rounded-xl bg-card shadow-raised"
+          className="flex flex-col divide-y divide-border/70 rounded-xl border bg-card"
           aria-label="Addresses"
         >
           {data.addresses.map((entry) => (

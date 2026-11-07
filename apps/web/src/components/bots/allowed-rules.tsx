@@ -70,7 +70,7 @@ export function AllowedRules({ name, rules }: { name: string; rules: AllowedRule
         </span>
       </div>
       {rules.length > 0 && (
-        <ul className="flex flex-col divide-y divide-border/70 rounded-xl bg-card shadow-raised">
+        <ul className="flex flex-col divide-y divide-border/70 rounded-xl border bg-card">
           {rules.map((rule) => {
             const Icon = ICONS[rule.kind];
             return (

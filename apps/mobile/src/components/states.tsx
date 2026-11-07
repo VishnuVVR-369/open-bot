@@ -1,3 +1,4 @@
+import type { LucideIcon } from "lucide-react-native";
 import type { ReactNode } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { Button } from "@/components/button";
@@ -48,30 +49,37 @@ export function LoadError({
 
 /**
  * Something you opened isn't there (it was archived or deleted, or the link is old). Trying
- * again won't bring it back, so the only action is the way back. Chats and teammates share it.
+ * again won't bring it back, so the one action names where it takes you. Chats and teammates
+ * share it.
  */
 export function NotFound({
-  icon,
+  icon: Icon,
   title,
   body,
-  onBack,
+  action,
+  onAction,
 }: {
-  icon: ReactNode;
+  icon: LucideIcon;
   title: string;
   body: string;
-  onBack: () => void;
+  /** Where the button goes, said plainly: "Go to Chats". */
+  action: string;
+  onAction: () => void;
 }) {
+  const colors = useColors();
   return (
     <View style={styles.center} testID="not-found">
-      {icon}
-      <Text variant="heading" style={{ marginTop: space(2), textAlign: "center" }}>
+      <View style={[styles.tile, { backgroundColor: colors.subtle, borderColor: colors.border }]}>
+        <Icon size={28} color={colors.mutedForeground} />
+      </View>
+      <Text variant="heading" style={{ marginTop: space(3), textAlign: "center" }}>
         {title}
       </Text>
-      <Text muted style={styles.body}>
+      <Text muted textBreakStrategy="balanced" style={styles.body}>
         {body}
       </Text>
       <View style={styles.actions}>
-        <Button title="Back" variant="outline" onPress={onBack} testID="back" />
+        <Button title={action} onPress={onAction} style={styles.wide} testID="not-found-action" />
       </View>
     </View>
   );
@@ -113,4 +121,13 @@ const styles = StyleSheet.create({
   },
   body: { textAlign: "center", maxWidth: 300 },
   actions: { flexDirection: "row", gap: space(2.5), marginTop: space(2) },
+  tile: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  wide: { minWidth: 160 },
 });

@@ -2,7 +2,7 @@ import type { BotSummary, ChatSummary } from "@open-bot/api";
 import { plainText } from "@open-bot/shared";
 import { safe } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
-import { router } from "expo-router";
+import { router, useNavigation } from "expo-router";
 import {
   Archive,
   CalendarClock,
@@ -11,16 +11,17 @@ import {
   MessagesSquare,
   SquarePen,
 } from "lucide-react-native";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useState } from "react";
 import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, View } from "react-native";
 import {
-  activityColor,
   activityText,
   BotAvatar,
   GroupAvatar,
+  StatusLine,
   type BotActivity,
 } from "@/components/bot-avatar";
 import { ComputerOfflineNotice, ConnectionNotice } from "@/components/connection-notice";
+import { HeaderActions, HeaderButton } from "@/components/header-actions";
 import { Separator } from "@/components/list-row";
 import { Sheet, SheetItem } from "@/components/sheet";
 import { Empty, LoadError, Loading } from "@/components/states";
@@ -89,7 +90,7 @@ function ChatRow({
   const bot = bots.find((candidate) => candidate.id === chat.botId);
   const KindIcon = chat.kind === "scheduled" ? CalendarClock : chat.kind === "inbox" ? Mail : null;
   const activity = chatActivity(chat, bot, computerOffline);
-  const live = activityText(activity, bot?.activeRun?.waitingFor);
+  const live = chat.active ? activityText(activity, bot?.activeRun?.waitingFor) : null;
   const members = chat.memberIds.flatMap((id) => bots.filter((entry) => entry.id === id));
   const title = chatTitle(chat, bot);
   const subtitle = plainText(chatSubtitle(chat, bot, bots));
@@ -139,37 +140,35 @@ function ChatRow({
         )}
       </View>
       <View style={{ flex: 1, gap: 2 }}>
-        <View style={styles.titleRow}>
+        {/* Titles are often the task itself, so they get a second line before they're cut. */}
+        <View style={[styles.titleRow, { alignItems: "flex-start" }]}>
           <Text
             variant="label"
-            numberOfLines={1}
-            style={[{ flex: 1, fontSize: 16 }, chat.unread && { fontWeight: "700" }]}
+            numberOfLines={2}
+            style={[
+              { flex: 1, fontSize: 16, lineHeight: 21 },
+              chat.unread && { fontWeight: "700" },
+            ]}
           >
             {title}
           </Text>
           <Text
             variant="caption"
             muted={!chat.unread}
-            style={chat.unread ? { fontWeight: "600" } : undefined}
+            style={[styles.when, chat.unread && { fontWeight: "600" }]}
           >
             {ago(chat.lastActivityAt)}
           </Text>
         </View>
         <View style={styles.titleRow}>
           {live ? (
-            <Text
-              variant="small"
-              numberOfLines={1}
-              style={{
-                flex: 1,
-                fontSize: 14,
-                fontWeight: "500",
-                color: activityColor(activity, colors),
-              }}
-              testID="chat-live"
-            >
-              {live}
-            </Text>
+            <View style={{ flex: 1 }}>
+              <StatusLine
+                activity={activity}
+                waitingFor={bot?.activeRun?.waitingFor}
+                testID="chat-live"
+              />
+            </View>
           ) : (
             <Text
               variant="small"
@@ -202,6 +201,28 @@ export default function Chats() {
   const [menuFor, setMenuFor] = useState<ChatSummary | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const computerOffline = useComputerOffline();
+  const navigation = useNavigation();
+  // New chat lives in the header, beside search, so nothing floats over the list's rows.
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <HeaderActions
+          leading={
+            <HeaderButton
+              label="New chat"
+              onPress={() => {
+                haptics.tap();
+                router.push("/new-chat");
+              }}
+              testID="new-chat"
+            >
+              <SquarePen size={22} color={colors.foreground} />
+            </HeaderButton>
+          }
+        />
+      ),
+    });
+  }, [navigation, colors.foreground]);
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await chats.refetch();
@@ -303,8 +324,7 @@ export default function Chats() {
           </View>
         }
         ItemSeparatorComponent={Separator}
-        // Room for the New chat button and 24dp more, so the last chat clears it.
-        contentContainerStyle={{ flexGrow: 1, paddingBottom: 56 + space(4) + space(6) }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: space(6) }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -337,19 +357,6 @@ export default function Chats() {
           />
         )}
       />
-      <Pressable
-        onPress={() => {
-          haptics.tap();
-          router.push("/new-chat");
-        }}
-        accessibilityRole="button"
-        accessibilityLabel="New chat"
-        android_ripple={{ color: colors.muted, borderless: false }}
-        style={[styles.fab, { backgroundColor: colors.primary, shadowColor: "#000000" }]}
-        testID="new-chat"
-      >
-        <SquarePen size={22} color={colors.primaryForeground} />
-      </Pressable>
       <Sheet
         open={menuFor !== null}
         onClose={() => setMenuFor(null)}
@@ -419,21 +426,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   unread: { width: 9, height: 9, borderRadius: 5 },
-  // The standard 56dp compose button: big enough to find, small enough to keep off the previews.
-  fab: {
-    position: "absolute",
-    right: space(4),
-    bottom: space(4),
-    width: 56,
-    height: 56,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 16,
-    overflow: "hidden",
-    elevation: 6,
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
-  },
+  // The time sits on the title's first line, even when the title wraps.
+  when: { lineHeight: 21 },
   notice: { marginHorizontal: space(4), marginTop: space(2), marginBottom: space(1) },
 });

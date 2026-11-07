@@ -1,33 +1,115 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
-import { useState } from "react";
+import { resetPasswordCommand } from "@open-bot/shared";
+import { KeyRound, Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 import { useAppState } from "@/lib/client/queries";
-import { PASSWORD_MIN_LENGTH, passwordChangeError, passwordChangeProblem } from "@/lib/password";
+import {
+  newPasswordProblem,
+  PASSKEY_RESET_MINUTES,
+  PASSWORD_MIN_LENGTH,
+  passwordChangeError,
+  passwordChangeProblem,
+} from "@open-bot/shared";
+import { CopyCommand } from "@/components/copy-command";
+
+type Mode = "change" | "reset";
+
+function Field({
+  id,
+  label,
+  autoComplete,
+  value,
+  onChange,
+  hint,
+}: {
+  id: string;
+  label: string;
+  autoComplete: string;
+  value: string;
+  onChange: (value: string) => void;
+  hint?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        id={id}
+        type="password"
+        autoComplete={autoComplete}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        aria-describedby={hint ? `${id}-hint` : undefined}
+        required
+      />
+      {hint && (
+        <p id={`${id}-hint`} className="text-[12.5px] text-muted-foreground">
+          {hint}
+        </p>
+      )}
+    </div>
+  );
+}
 
 /**
- * Change the sign-in password: the current one, then the new one twice. Goes through
- * better-auth's own change-password call, which also signs out every other device.
+ * The sign-in password. Change it with the current one, or, when that's forgotten, set a new one
+ * after confirming with a passkey: right after a passkey sign-in no prompt is needed, otherwise
+ * the passkey is asked for on save. Either way every other device is signed out.
  */
-export function PasswordSection() {
+export function PasswordSection({ startWithReset = false }: { startWithReset?: boolean }) {
   const { data: state } = useAppState();
+  const passkeys = authClient.useListPasskeys();
+  const hasPasskey = (passkeys.data?.length ?? 0) > 0;
+  const [chosen, setMode] = useState<Mode>(startWithReset ? "reset" : "change");
+  // Without a passkey there's nothing to confirm with, so it's the current password or the command.
+  const mode: Mode = chosen === "reset" && passkeys.data?.length === 0 ? "change" : chosen;
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  // Right after a passkey sign-in, the passkey doesn't need asking for again.
+  const [ready, setReady] = useState(false);
 
-  async function submit() {
+  useEffect(() => {
+    if (startWithReset) setMode("reset");
+  }, [startWithReset]);
+  useEffect(() => {
+    if (mode !== "reset") return;
+    let live = true;
+    void authClient.passkeyReset.status().then((result) => {
+      if (live) setReady(Boolean(result.data?.ready));
+    });
+    return () => {
+      live = false;
+    };
+  }, [mode]);
+
+  function switchTo(value: Mode) {
+    setMode(value);
+    setError(null);
+    setCurrent("");
+  }
+
+  function done(message: string) {
+    setCurrent("");
+    setNext("");
+    setConfirm("");
+    setReady(false);
+    setMode("change");
+    toast(message, {
+      description: "Your other devices, the phone app included, were signed out.",
+    });
+  }
+
+  async function change() {
     const problem = passwordChangeProblem({ current, next, confirm });
-    if (problem) {
-      setError(problem);
-      return;
-    }
+    if (problem) return setError(problem);
     setPending(true);
     setError(null);
     const result = await authClient.changePassword({
@@ -36,25 +118,39 @@ export function PasswordSection() {
       revokeOtherSessions: true,
     });
     setPending(false);
-    if (result.error) {
-      setError(passwordChangeError(result.error.code));
-      return;
+    if (result.error) return setError(passwordChangeError(result.error.code));
+    done("Password changed");
+  }
+
+  async function reset() {
+    const problem = newPasswordProblem({ next, confirm });
+    if (problem) return setError(problem);
+    setPending(true);
+    setError(null);
+    if (!ready) {
+      const signIn = await authClient.signIn.passkey();
+      if (signIn?.error) {
+        setPending(false);
+        return setError("The passkey wasn't confirmed, so nothing changed.");
+      }
     }
-    setCurrent("");
-    setNext("");
-    setConfirm("");
-    toast("Password changed", {
-      description: "Your other devices, the phone app included, were signed out.",
-    });
+    const result = await authClient.passkeyReset.setPassword({ newPassword: next });
+    setPending(false);
+    if (result.error) {
+      setReady(false);
+      return setError(passwordChangeError(result.error.code));
+    }
+    done("New password set");
   }
 
   return (
     <form
-      className="flex max-w-md flex-col gap-4 rounded-xl bg-card px-4 py-4 shadow-raised"
+      id="set-password"
+      className="flex scroll-mt-8 flex-col gap-4 rounded-xl border bg-card p-4 sm:p-5"
       data-testid="change-password"
       onSubmit={(event) => {
         event.preventDefault();
-        void submit();
+        void (mode === "change" ? change() : reset());
       }}
     >
       {/* Lets a password manager tell which account the new password belongs to. */}
@@ -66,44 +162,45 @@ export function PasswordSection() {
         readOnly
         hidden
       />
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="current-password">Current password</Label>
-        <Input
+      {mode === "reset" && (
+        <div className="flex items-start gap-3" data-testid="passkey-reset-note">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-subtle text-muted-foreground">
+            <KeyRound className="size-4" />
+          </span>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[14px] font-medium">Set a new password</span>
+            <span className="text-[13px] text-muted-foreground">
+              {ready
+                ? `You signed in with your passkey, so you don't need the old password. This works for ${PASSKEY_RESET_MINUTES} minutes after signing in.`
+                : "Your passkey confirms it's you, so you don't need the old password. You'll be asked for it when you save."}
+            </span>
+          </div>
+        </div>
+      )}
+      {mode === "change" && (
+        <Field
           id="current-password"
-          type="password"
+          label="Current password"
           autoComplete="current-password"
           value={current}
-          onChange={(event) => setCurrent(event.target.value)}
-          required
+          onChange={setCurrent}
         />
-      </div>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="new-password">New password</Label>
-        <Input
-          id="new-password"
-          type="password"
-          autoComplete="new-password"
-          minLength={PASSWORD_MIN_LENGTH}
-          value={next}
-          onChange={(event) => setNext(event.target.value)}
-          aria-describedby="new-password-hint"
-          required
-        />
-        <p id="new-password-hint" className="text-[12.5px] text-muted-foreground">
-          At least {PASSWORD_MIN_LENGTH} characters.
-        </p>
-      </div>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="confirm-password">New password again</Label>
-        <Input
-          id="confirm-password"
-          type="password"
-          autoComplete="new-password"
-          value={confirm}
-          onChange={(event) => setConfirm(event.target.value)}
-          required
-        />
-      </div>
+      )}
+      <Field
+        id="new-password"
+        label="New password"
+        autoComplete="new-password"
+        value={next}
+        onChange={setNext}
+        hint={`At least ${PASSWORD_MIN_LENGTH} characters.`}
+      />
+      <Field
+        id="confirm-password"
+        label="New password again"
+        autoComplete="new-password"
+        value={confirm}
+        onChange={setConfirm}
+      />
       {error && (
         <p
           role="alert"
@@ -114,10 +211,48 @@ export function PasswordSection() {
       )}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <Button type="submit" disabled={pending}>
-          {pending && <Loader2 className="animate-spin" />}
-          Change password
+          {pending ? (
+            <Loader2 className="animate-spin" />
+          ) : (
+            mode === "reset" && !ready && <KeyRound />
+          )}
+          {mode === "change"
+            ? "Change password"
+            : ready
+              ? "Set new password"
+              : "Confirm with passkey and save"}
         </Button>
         <span className="text-[12.5px] text-muted-foreground">Signs out your other devices.</span>
+      </div>
+      <div className="-mx-4 -mb-4 border-t px-4 py-3 text-[13px] text-muted-foreground sm:-mx-5 sm:-mb-5 sm:px-5">
+        {mode === "reset" ? (
+          <button
+            type="button"
+            onClick={() => switchTo("change")}
+            className="rounded-sm font-medium text-foreground/80 underline-offset-[3px] outline-none hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/12"
+          >
+            Use your current password instead
+          </button>
+        ) : hasPasskey ? (
+          <span>
+            Forgot it?{" "}
+            <button
+              type="button"
+              onClick={() => switchTo("reset")}
+              className="rounded-sm font-medium text-foreground/80 underline-offset-[3px] outline-none hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/12"
+              data-testid="use-passkey-instead"
+            >
+              Use your passkey instead
+            </button>
+          </span>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <span>
+              Forgot it? Add a passkey below to reset it from here, or run this where open-bot runs:
+            </span>
+            <CopyCommand command={resetPasswordCommand(state?.user.email)} />
+          </div>
+        )}
       </div>
     </form>
   );

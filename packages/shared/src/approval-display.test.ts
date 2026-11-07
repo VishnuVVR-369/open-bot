@@ -7,6 +7,7 @@ import {
   approveLabel,
   commandSummary,
   detailFields,
+  previewText,
 } from "./approval-display";
 
 describe("approveLabel", () => {
@@ -151,5 +152,28 @@ describe("approvalHeadline", () => {
     expect(
       approvalHeadline({ kind: "purchase", title: "Pay $842.30 to TAP", detail: "Round trip" }),
     ).toEqual({ title: "Pay $842.30 to TAP", command: null });
+  });
+});
+
+describe("previewText", () => {
+  it("keeps a short text whole", () => {
+    expect(previewText("Hi Priya,\n\nSee you Thursday.")).toEqual({
+      text: "Hi Priya,\n\nSee you Thursday.",
+      cut: false,
+    });
+  });
+
+  it("drops the period before the ellipsis", () => {
+    const body = "Hi Priya,\n\nA corner with a door would be perfect.\n\nThanks,\nAlex";
+    expect(previewText(body, { maxLines: 3 })).toEqual({
+      text: "Hi Priya,\n\nA corner with a door would be perfect…",
+      cut: true,
+    });
+  });
+
+  it("cuts a long line at a word", () => {
+    const { text, cut } = previewText("word ".repeat(100), { maxChars: 42 });
+    expect(cut).toBe(true);
+    expect(text).toBe(`${"word ".repeat(8).trim()}…`);
   });
 });

@@ -144,23 +144,30 @@ export function CommandStep({ item, approved = false }: { item: CommandItem; app
       running={item.status === "running"}
       failed={failed && item.status !== "running"}
       summary={
-        <>
-          <span className={cn(!failed && "text-foreground/85")}>
-            {commandSummary(item.command)}
-          </span>
-          {failed && item.exitCode !== null && (
-            <span className="ml-1.5">· didn&apos;t work (exit {item.exitCode})</span>
-          )}
-          {approved && (
-            <span className="ml-1.5 inline-flex items-center gap-1 text-muted-foreground">
-              · <Check className="size-3 text-done" aria-hidden />
-              you approved
+        // What it did always shows in full; the raw command gets what room is left, on one line.
+        // The whole command is in the detail.
+        <span className="flex min-w-0 items-baseline">
+          <span className="max-w-full shrink-0 truncate">
+            <span className={cn(!failed && "text-foreground/85")}>
+              {commandSummary(item.command)}
             </span>
-          )}
-          <span className="ml-2 font-mono text-[12px] text-faint" data-testid="step-command">
-            {command}
+            {failed && item.exitCode !== null && (
+              <span className="ml-1.5">· didn&apos;t work (exit {item.exitCode})</span>
+            )}
+            {approved && (
+              <span className="ml-1.5 inline-flex items-center gap-1 text-muted-foreground">
+                · <Check className="size-3 text-done" aria-hidden />
+                you approved
+              </span>
+            )}
           </span>
-        </>
+          <span
+            className="ml-2 min-w-0 flex-1 truncate font-mono text-[11.5px] text-faint"
+            data-testid="step-command"
+          >
+            {command.replace(/\s+/g, " ")}
+          </span>
+        </span>
       }
       detail={
         <pre className="max-h-72 overflow-auto rounded-lg bg-subtle px-3 py-2 font-mono text-[12px] leading-relaxed whitespace-pre-wrap text-foreground/85">
@@ -377,22 +384,19 @@ export function ApprovalCard({ item, botName }: { item: ApprovalItem; botName: s
       className={cn("flex flex-col gap-3 rounded-xl p-4", NEEDS_YOU_SURFACE)}
       data-testid="approval-card"
     >
-      <div className="flex items-start gap-2.5">
-        <ApprovalIcon approval={approval} className="mt-[3px] size-4 shrink-0 text-attention-ink" />
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1">
-          <span className="text-[14.5px] leading-snug font-medium">
-            <ApprovalTitle approval={approval} />
-          </span>
-          {risk && <RiskChip risk={risk} />}
-        </div>
+      {/* One mark beside the title, the risk chip's triangle, as on the phone. Without a risk,
+          the kind of action leads instead. */}
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
+        {!risk && (
+          <ApprovalIcon approval={approval} className="size-4 shrink-0 text-attention-ink" />
+        )}
+        <span className="text-[14.5px] leading-snug font-medium">
+          <ApprovalTitle approval={approval} />
+        </span>
+        {risk && <RiskChip risk={risk} />}
       </div>
-      <ApprovalDetail approval={approval} className="ml-6.5" />
-      <ApprovalDecision
-        approvalId={item.approvalId}
-        approval={approval}
-        botName={botName}
-        className="ml-6.5"
-      />
+      <ApprovalDetail approval={approval} />
+      <ApprovalDecision approvalId={item.approvalId} approval={approval} botName={botName} />
     </div>
   );
 }

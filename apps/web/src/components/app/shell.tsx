@@ -8,9 +8,11 @@ import { Wordmark } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useComputer } from "@/components/computer/computer-panel";
+import { useAppState } from "@/lib/client/queries";
 import type { AppState } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { CommandMenuProvider } from "./command-menu";
+import { NotificationsButton } from "./notifications";
 import { Sidebar } from "./sidebar";
 
 /**
@@ -57,6 +59,8 @@ function ControlBanner({ initial }: { initial: AppState }) {
 export function Shell({ initial, children }: { initial: AppState; children: ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const pathname = usePathname();
+  const { data } = useAppState(initial);
+  const unread = (data ?? initial).unreadNotifications;
   useEffect(() => setMenuOpen(false), [pathname]);
 
   return (
@@ -86,6 +90,9 @@ export function Shell({ initial, children }: { initial: AppState; children: Reac
                 <Link href="/">
                   <Wordmark />
                 </Link>
+                <span className="flex-1" />
+                {/* The bell is on every screen, as it is at the top of the sidebar. */}
+                <NotificationsButton count={unread} />
               </header>
               {/* On wide screens the page is a sheet of paper resting on the desk. */}
               <main className="min-h-0 flex-1 overflow-hidden bg-surface lg:my-2 lg:mr-2 lg:rounded-[14px] lg:shadow-canvas">
@@ -94,7 +101,11 @@ export function Shell({ initial, children }: { initial: AppState; children: Reac
             </div>
           </div>
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
-            <SheetContent side="left" className="w-[284px] p-0" showCloseButton={false}>
+            <SheetContent
+              side="left"
+              className="p-0 data-[side=left]:w-[min(312px,85vw)]"
+              showCloseButton={false}
+            >
               <SheetTitle className="sr-only">Menu</SheetTitle>
               <Sidebar
                 initial={initial}

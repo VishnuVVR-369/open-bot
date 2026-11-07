@@ -26,7 +26,7 @@ const page = await context.newPage();
 try {
   await page.goto("/login", { waitUntil: "networkidle" });
   await page.getByLabel("Email").fill(EMAIL);
-  await page.getByLabel("Password").fill(PASSWORD);
+  await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.waitForURL(`${BASE}/`, { timeout: 120_000 });
   await page.evaluate(() => {

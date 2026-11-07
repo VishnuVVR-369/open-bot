@@ -10,7 +10,7 @@ import { isOffline } from "@/lib/client/api";
 export function OfflineNote({ children }: { children: ReactNode }) {
   return (
     <div
-      className="flex items-start gap-3 rounded-xl border border-dashed px-4 py-3.5"
+      className="flex items-start gap-3 rounded-xl border bg-subtle/60 px-4 py-3.5"
       data-testid="offline-note"
     >
       <CloudOff className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
@@ -32,7 +32,7 @@ export const OFFLINE_RETRY = {
 /** A section that couldn't load for another reason: say so, and offer to try again. */
 export function SectionError({ error, onRetry }: { error: Error; onRetry: () => void }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-xl border border-dashed px-4 py-3 text-[13.5px]">
+    <div className="flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-[13.5px]">
       <span className="text-muted-foreground">Couldn&apos;t load this. {error.message}</span>
       <Button variant="outline" size="sm" onClick={onRetry}>
         Try again

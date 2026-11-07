@@ -5,7 +5,7 @@ import { Check, ChevronRight, ShieldCheck, WifiOff } from "lucide-react-native";
 import { useCallback, useMemo, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { ApprovalAvatar, ApprovalStatusChip, ApprovalTitle } from "@/components/approval-parts";
-import { ConnectionNotice } from "@/components/connection-notice";
+import { ApproveWhileAwayNote, ConnectionNotice } from "@/components/connection-notice";
 import { ListRow, Separator } from "@/components/list-row";
 import { Card, Section } from "@/components/section";
 import { LoadError, Loading } from "@/components/states";
@@ -13,6 +13,7 @@ import { Text } from "@/components/text";
 import { shortenPaths } from "@/lib/approval-text";
 import { groupByDay, recently, type DayGroup } from "@/lib/day-groups";
 import { useOnline } from "@/lib/network";
+import { hasFirebase } from "@/push/firebase";
 import { phoneClock, phoneDayClock } from "@/lib/phone-clock";
 import { useApprovalRules, useApprovals, useTeammates } from "@/lib/queries";
 import { ago } from "@/lib/time";
@@ -108,7 +109,8 @@ function CaughtUp() {
       <View style={{ flex: 1, gap: 2 }}>
         <Text variant="heading">You&apos;re all caught up</Text>
         <Text variant="small" muted>
-          Nothing needs your approval. New requests show up here and on your lock screen.
+          Nothing needs your approval. New requests show up here
+          {hasFirebase ? " and on your lock screen." : " and in the bell."}
         </Text>
       </View>
     </View>
@@ -170,6 +172,11 @@ export default function Approvals() {
               Needs you ({pending.length})
             </Text>
           </View>
+          {online && (
+            <View style={styles.away}>
+              <ApproveWhileAwayNote />
+            </View>
+          )}
           {!online && (
             <View style={[styles.offline, { backgroundColor: colors.subtle }]}>
               <WifiOff size={14} color={colors.mutedForeground} />
@@ -248,6 +255,8 @@ export default function Approvals() {
 
 const styles = StyleSheet.create({
   content: { padding: space(4), paddingTop: space(2), gap: space(6), paddingBottom: space(8) },
+  // In line with the "Needs you" heading above it.
+  away: { paddingHorizontal: space(1) },
   needsHead: {
     flexDirection: "row",
     alignItems: "center",

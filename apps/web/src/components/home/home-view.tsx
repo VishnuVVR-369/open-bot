@@ -19,20 +19,21 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useSyncExternalStore } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import { BotAvatar } from "@/components/bot-avatar";
-import { ComputerPanel, useComputer } from "@/components/computer/computer-panel";
-import { Briefing } from "@/components/home/briefing";
+import { ComputerOffline, ComputerPanel, useComputer } from "@/components/computer/computer-panel";
+import { Briefing, useBriefingItems } from "@/components/home/briefing";
 import { PageThumbnail } from "@/components/pages/page-thumbnail";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useActivity, useAppState, usePages, useProfile, useSchedules } from "@/lib/client/queries";
 import {
   botActivity,
-  botNeedsText,
-  botSubtitle,
   isComputerOnline,
-  PAUSED_OFFLINE,
+  runIsHeldBack,
+  STATUS,
+  teammateStatus,
+  WAITING_FOR_COMPUTER,
 } from "@/lib/status";
 import type { AppState } from "@/lib/types";
 import { chatHref, cn, plainText } from "@/lib/utils";
@@ -93,6 +94,10 @@ export function teamSummary(
   return "Your teammates are ready when you are.";
 }
 
+/** The amber row of something you can act on. */
+const NEEDS_ROW =
+  "flex items-center gap-3 rounded-xl border border-attention/40 bg-attention/[0.07] px-4 py-3 transition-colors hover:bg-attention/[0.12]";
+
 function NeedsYou() {
   const { data: state } = useAppState();
   if (!state) return null;
@@ -110,60 +115,75 @@ function NeedsYou() {
     proposals.length === 0
   )
     return null;
+
+  const approvals = state.pendingApprovals > 0 && (
+    <Link href="/approvals" className={NEEDS_ROW} data-testid="home-approvals">
+      <ShieldAlert className="size-4 shrink-0 text-attention-ink" />
+      <span className="flex-1 text-[14px] font-medium">
+        {state.pendingApprovals === 1
+          ? "1 action needs your approval"
+          : `${state.pendingApprovals} actions need your approval`}
+      </span>
+      <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
+    </Link>
+  );
+  // A take over you can do now comes first; one that waits for the computer goes after what you can do.
+  const takeovers = requests.map((request) => (
+    <Link
+      key={request.id}
+      href={`/computer?screen=${request.screenId}`}
+      className={cn(NEEDS_ROW, "items-start")}
+      data-testid="home-takeover-request"
+    >
+      <Hand className="mt-0.5 size-4 shrink-0 text-attention-ink" />
+      {online ? (
+        <span className="min-w-0 flex-1 text-[14px] text-pretty">
+          <span className="font-medium">{request.botName} needs you to take over:</span>{" "}
+          <span className="text-muted-foreground">{request.reason}</span>
+        </span>
+      ) : (
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5 text-[14px]">
+          <span className="truncate">
+            <span className="font-medium">{request.botName} needs you to take over:</span>{" "}
+            <span className="text-muted-foreground">{request.reason}</span>
+          </span>
+          <span className="text-[13px] text-pretty text-attention-ink">
+            Take over once the computer is back.
+          </span>
+        </span>
+      )}
+      <ArrowRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+    </Link>
+  ));
   return (
     <section className="flex flex-col gap-2.5" aria-label="Needs you">
       <h2 className="font-heading text-[15px] font-semibold tracking-[-0.01em] text-foreground">
         Needs you
       </h2>
       <div className="flex flex-col gap-2">
-        {requests.map((request) => (
-          <Link
-            key={request.id}
-            href={`/computer?screen=${request.screenId}`}
-            className="flex items-center gap-3 rounded-xl border border-attention/40 bg-attention/[0.07] px-4 py-3 transition-colors hover:bg-attention/[0.12]"
-            data-testid="home-takeover-request"
-          >
-            <Hand className="size-4 shrink-0 text-attention-ink" />
-            <span className="flex min-w-0 flex-1 flex-col gap-1 text-[14px]">
-              <span>
-                <span className="font-medium">{request.botName} needs you to take over:</span>{" "}
-                <span className="text-muted-foreground">{request.reason}</span>
-              </span>
-              {!online && (
-                <span className="text-[13px] text-attention-ink">
-                  You can take over once the computer is back.
-                </span>
-              )}
-            </span>
-            <ArrowRight className="size-4 text-muted-foreground" />
-          </Link>
-        ))}
-        {state.pendingApprovals > 0 && (
-          <Link
-            href="/approvals"
-            className="flex items-center gap-3 rounded-xl border border-attention/40 bg-attention/[0.07] px-4 py-3 transition-colors hover:bg-attention/[0.12]"
-          >
-            <ShieldAlert className="size-4 shrink-0 text-attention-ink" />
-            <span className="flex-1 text-[14px] font-medium">
-              {state.pendingApprovals === 1
-                ? "1 action needs your approval"
-                : `${state.pendingApprovals} actions need your approval`}
-            </span>
-            <ArrowRight className="size-4 text-muted-foreground" />
-          </Link>
+        {online ? (
+          <>
+            {takeovers}
+            {approvals}
+          </>
+        ) : (
+          <>
+            {approvals}
+            {takeovers}
+          </>
         )}
         {proposals.map((proposal) => (
           <Link
             key={proposal.id}
             href={`/bots/${proposal.bot.id}`}
-            className="flex items-center gap-3 rounded-xl bg-card shadow-raised px-4 py-3 transition-colors hover:bg-muted/40"
+            className="flex items-center gap-3 rounded-xl bg-card px-4 py-3 shadow-raised transition-colors hover:bg-muted/40"
             data-testid="proposal-link"
           >
             <Sparkles className="size-4 shrink-0 text-muted-foreground" />
             <span className="flex-1 text-[14px] font-medium">
               {proposal.bot.name} suggests new instructions
             </span>
-            <ArrowRight className="size-4 text-muted-foreground" />
+            <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
           </Link>
         ))}
       </div>
@@ -276,7 +296,7 @@ function Teammates() {
       ) : (
         <div className="grid gap-2 sm:grid-cols-2">
           {bots.map((bot) => {
-            const activity = botActivity(bot, online);
+            const status = teammateStatus(bot, online);
             return (
               <Link
                 key={bot.id}
@@ -289,14 +309,18 @@ function Teammates() {
                   color={bot.color}
                   emoji={bot.emoji}
                   size="md"
-                  activity={activity}
+                  activity={status.activity}
                   className="[--avatar-ring:var(--card)]"
                 />
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <span className="flex items-center gap-1.5">
-                    <span className="truncate text-[14px] font-semibold">{bot.name}</span>
+                  <span className="flex min-w-0 items-baseline gap-1.5">
+                    <span className="shrink-0 text-[14px] font-semibold">{bot.name}</span>
+                    {/* Their job, where there is room; the line below is only their status. */}
+                    <span className="min-w-0 truncate text-[12.5px] text-muted-foreground">
+                      {bot.role}
+                    </span>
                     {bot.isPrimary && (
-                      <span className="rounded-full bg-subtle px-1.5 py-px text-[11px] font-medium text-muted-foreground">
+                      <span className="shrink-0 self-center rounded-full bg-subtle px-1.5 py-px text-[11px] font-medium text-muted-foreground">
                         Lead
                       </span>
                     )}
@@ -304,10 +328,10 @@ function Teammates() {
                   <span
                     className={cn(
                       "truncate text-[12.5px] text-muted-foreground",
-                      botNeedsText(bot) && "text-attention-ink",
+                      status.needsYou && "text-attention-ink",
                     )}
                   >
-                    {botSubtitle(bot, online)}
+                    {status.label}
                   </span>
                 </span>
                 <ArrowRight className="size-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
@@ -346,7 +370,7 @@ function SideHeading({ title, href, label }: { title: string; href: string; labe
 }
 
 /** The next few scheduled runs, so you know what your teammates will do without asking. */
-function ComingUp() {
+function ComingUp({ now }: { now: number | null }) {
   const { data: state } = useAppState();
   const { data: schedules } = useSchedules();
   const online = isComputerOnline(state);
@@ -375,17 +399,14 @@ function ComingUp() {
                 </span>
               </span>
               <span className="shrink-0 text-[12.5px] text-muted-foreground tabular-nums">
-                {nextRunLabel(new Date(schedule.nextRunAt!))}
+                {now !== null && runIsHeldBack(schedule.nextRunAt!, now, online)
+                  ? WAITING_FOR_COMPUTER
+                  : nextRunLabel(new Date(schedule.nextRunAt!))}
               </span>
             </li>
           );
         })}
       </ol>
-      {!online && (
-        <p className="px-1 text-[12.5px] text-muted-foreground">
-          These wait while the computer is offline.
-        </p>
-      )}
     </section>
   );
 }
@@ -411,11 +432,12 @@ function RecentPages() {
               className="group flex min-w-0 flex-col overflow-hidden rounded-xl bg-card shadow-raised transition-shadow hover:shadow-float"
             >
               <PageThumbnail versionId={page.versionId} />
-              <span className="flex min-w-0 flex-col gap-0.5 px-3 py-2.5">
-                <span className="truncate text-[13.5px] font-medium group-hover:underline">
+              {/* A title may take two lines; the byline sits at the bottom, level with its neighbor's. */}
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5 px-3 py-2.5">
+                <span className="line-clamp-2 text-[13.5px] leading-snug font-medium text-pretty group-hover:underline">
                   {page.title}
                 </span>
-                <span className="truncate text-[12.5px] text-muted-foreground">
+                <span className="mt-auto truncate text-[12.5px] text-muted-foreground">
                   {bot?.name ?? "Former teammate"} ·{" "}
                   {formatDistanceToNowStrict(new Date(page.updatedAt), { addSuffix: true })}
                 </span>
@@ -430,9 +452,16 @@ function RecentPages() {
 
 function Activity() {
   const { data: state } = useAppState();
-  const { data, isLoading } = useActivity();
+  const { data: all, isLoading } = useActivity();
+  const briefed = useBriefingItems();
   const online = isComputerOnline(state);
+  // What the briefing above already tells you isn't repeated here.
+  const data = useMemo(() => {
+    const shown = new Set(briefed.map((item) => item.runId));
+    return all?.filter((item) => !shown.has(item.runId));
+  }, [all, briefed]);
   if (!state || state.bots.length === 0) return null;
+  if (briefed.length > 0 && !isLoading && !data?.length) return null;
   return (
     <section className="flex flex-col gap-3" aria-label="Recent activity">
       <h2 className="font-heading text-[15px] font-semibold tracking-[-0.01em] text-foreground">
@@ -527,7 +556,7 @@ function Activity() {
                           {item.status === "waiting"
                             ? "Needs you"
                             : paused
-                              ? PAUSED_OFFLINE
+                              ? STATUS.paused
                               : item.status === "queued"
                                 ? "Up next"
                                 : "Working on it"}
@@ -561,6 +590,8 @@ export function HomeView() {
   const offline = Boolean(state) && !online;
   const minute = useMinute();
   const now = minute === null ? null : new Date(minute * 60_000);
+  const botIds = state?.bots.map((bot) => bot.id) ?? [];
+  const botNames = state?.bots.map((bot) => bot.name) ?? [];
   return (
     <div className="h-full overflow-y-auto">
       <div
@@ -584,21 +615,31 @@ export function HomeView() {
                 <span className="invisible">Welcome</span>
               )}
             </h1>
-            <p className="h-[22px] text-[14.5px] text-muted-foreground">
+            <p className="min-h-[22px] text-[14.5px] text-pretty text-muted-foreground">
               {state && teamSummary(state)}
             </p>
           </div>
+          {/* Where the side column falls below, the offline notice stays up top. */}
+          {offline && botIds.length > 0 && (
+            <ComputerOffline botNames={botNames} className="-mt-2 xl:hidden" />
+          )}
           <NeedsYou />
           <Briefing />
           <ProfileNudge />
           <Teammates />
-          <Activity />
+          {!offline && <Activity />}
         </div>
         <div className="flex min-w-0 flex-col gap-8 xl:self-start">
           {/* Takeover requests are already in "Needs you", so the panel leaves them out. */}
-          <ComputerPanel botIds={state?.bots.map((bot) => bot.id) ?? []} showRequests={false} />
-          <ComingUp />
+          <ComputerPanel
+            botIds={botIds}
+            showRequests={false}
+            className={offline ? "max-xl:hidden" : undefined}
+          />
+          <ComingUp now={minute === null ? null : minute * 60_000} />
           <RecentPages />
+          {/* The offline card is short, so recent activity fills the side column instead. */}
+          {offline && <Activity />}
         </div>
       </div>
     </div>

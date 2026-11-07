@@ -41,7 +41,7 @@ import { FilePreview } from "@/components/files/file-preview";
 import { archiveChat, markChatRead, newDirectChat } from "@/lib/actions";
 import { useAppState } from "@/lib/client/queries";
 import { fileKind, fileUrl } from "@/lib/files";
-import { botActivity, PAUSED_OFFLINE } from "@/lib/status";
+import { teammateStatus } from "@/lib/status";
 import type { BotSummary, MessageView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Composer, type ComposerHandle } from "./composer";
@@ -273,6 +273,8 @@ export function ChatView({ chatId }: { chatId: string }) {
 
   const isGroup = chat?.kind === "group";
   const bot = !isGroup ? members[0] : undefined;
+  // While the computer's state is still loading, nobody is shown as paused.
+  const status = bot && !isGroup && !helper ? teammateStatus(bot, !offline) : null;
   const title = chat
     ? chat.kind === "scheduled"
       ? `${bot?.name ?? ""} · Scheduled`
@@ -341,23 +343,32 @@ export function ChatView({ chatId }: { chatId: string }) {
                     color={bot.color}
                     emoji={bot.emoji}
                     size="sm"
-                    activity={botActivity(bot, !offline)}
+                    activity={status?.activity}
                   />
                 )
               )}
-              <div className="flex min-w-0 flex-col">
+              <div
+                className="flex min-w-0 flex-col"
+                title={bot && !isGroup ? `${bot.name}, ${bot.role}` : undefined}
+              >
                 <h1 className="truncate text-[15px] leading-tight font-semibold">{title}</h1>
-                <span className="truncate text-[12.5px] leading-tight text-muted-foreground">
-                  {!helper && !isGroup && bot && botActivity(bot, !offline) === "paused"
-                    ? PAUSED_OFFLINE
-                    : helper
-                      ? `${bot?.name ?? "A teammate"}'s helper in ${helper.swarmTitle}`
-                      : isGroup
-                        ? members.map((member) => member.name).join(", ")
-                        : chat.kind === "direct" && bot && chat.title !== bot.name
-                          ? // Titled after its topic, so say who it's with.
-                            `${bot.name} · ${bot.role}`
-                          : bot?.role}
+                <span
+                  className="truncate text-[12.5px] leading-tight text-muted-foreground"
+                  data-testid="chat-status"
+                >
+                  {helper ? (
+                    `${bot?.name ?? "A teammate"}'s helper in ${helper.swarmTitle}`
+                  ) : isGroup ? (
+                    members.map((member) => member.name).join(", ")
+                  ) : bot && status ? (
+                    <>
+                      {/* Titled after its topic, so say who it's with. */}
+                      {chat.kind === "direct" && chat.title !== bot.name && `${bot.name} · `}
+                      <span className={cn(status.needsYou && "text-attention-ink")}>
+                        {status.label}
+                      </span>
+                    </>
+                  ) : null}
                 </span>
               </div>
               <span className="flex-1" />

@@ -2,7 +2,17 @@
 
 import { isRunActive } from "@open-bot/shared";
 import { format } from "date-fns";
-import { Check, CircleSlash, Clock, Ellipsis, Loader2, Pencil, Trash2, X } from "lucide-react";
+import {
+  Check,
+  CircleSlash,
+  Clock,
+  CloudOff,
+  Ellipsis,
+  Loader2,
+  Pencil,
+  Trash2,
+  X,
+} from "lucide-react";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import {
@@ -174,6 +184,30 @@ export function useCanRun(): boolean {
   return !state || Boolean(state.computer.online && state.computer.workerOnline);
 }
 
+/** Said once at the top of Automations while nothing can run, instead of on every row. */
+export function OfflineBanner() {
+  return (
+    <div
+      className="flex items-start gap-3 rounded-xl border bg-subtle/60 px-4 py-3"
+      data-testid="automations-offline"
+    >
+      <CloudOff className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+      <p className="text-[13.5px]">
+        <span className="font-medium">The computer is offline.</span>{" "}
+        <span className="text-muted-foreground">
+          Schedules and watches wait, and run when it&apos;s back.
+        </span>
+      </p>
+    </div>
+  );
+}
+
+/** Why a row's run button is off while the computer is offline. */
+export const OFFLINE_ACTION = "Works once the computer is back";
+
+/** The rows of one kind of automation: one surface, divided, not a stack of cards. */
+export const ROWS = "flex flex-col divide-y rounded-xl border bg-card";
+
 /** "Paused" or "Done" beside an automation's title, so an off row still reads clearly. */
 export function StateBadge({ children }: { children: ReactNode }) {
   return (
@@ -195,28 +229,47 @@ export function RowAction({
   onClick,
   disabled,
   labeled,
+  unavailable,
   children,
 }: {
   label: string;
   onClick?: () => void;
   disabled?: boolean;
   labeled?: boolean;
+  /** Why the action can't be used right now, shown on hover; disables it. */
+  unavailable?: string;
   children: ReactNode;
 }) {
-  if (labeled)
-    return (
+  if (labeled) {
+    const button = (
       <Button
         variant="ghost"
         size="sm"
         aria-label={label}
         className="text-muted-foreground hover:text-foreground max-sm:size-8 max-sm:px-0"
         onClick={onClick}
-        disabled={disabled}
+        disabled={disabled || Boolean(unavailable)}
       >
         {children}
         <span className="max-sm:sr-only">{label}</span>
       </Button>
     );
+    if (!unavailable) return button;
+    // A disabled button gets no hover, so the reason hangs on a wrapper that does.
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            tabIndex={0}
+            className="rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/12"
+          >
+            {button}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>{unavailable}</TooltipContent>
+      </Tooltip>
+    );
+  }
   return (
     <Tooltip>
       <TooltipTrigger asChild>

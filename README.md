@@ -142,7 +142,12 @@ pnpm --filter @open-bot/desktop dev
 
 open-bot has one account, the owner's, and sends no email, so there is no reset link.
 Change your password in Settings, under Security; you need the current one.
-If you forget it, sign in with a passkey and change it there.
+
+If you forget it and have a passkey, choose "Forgot password?" on the sign-in page, then "Sign in with a passkey".
+You land on the form for a new password, and you don't need the old one.
+This works for 10 minutes after a passkey sign-in where the device checked it's you (Touch ID, a PIN), and only in that same session.
+Setting the password signs out every other device.
+Already signed in? Under Security, choose "Use your passkey instead" and confirm with the passkey when you save.
 
 Without a passkey, reset it from the server.
 In a terminal in the open-bot folder, with the same environment the app runs with (`.env` locally, or a shell on the web service in the cloud, like `railway ssh --service web`):

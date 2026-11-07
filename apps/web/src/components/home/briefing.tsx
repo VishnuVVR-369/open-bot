@@ -31,6 +31,9 @@ function clock(date: Date) {
   return format(date, isToday(date) ? "h:mm a" : "EEE h:mm a");
 }
 
+/** Where every time in the briefing ends, so a failure's time lines up with the replies'. */
+const TIME_INSET = "sm:pr-3";
+
 function Item({ item }: { item: BriefingItem }) {
   const Icon =
     item.trigger in TRIGGER_ICONS
@@ -40,20 +43,22 @@ function Item({ item }: { item: BriefingItem }) {
     <li>
       <Link
         href={chatHref(item.chatId, item.runId)}
-        className="group flex items-baseline gap-2 rounded-md py-1 text-[13.5px] leading-snug"
+        className={cn(
+          "group flex items-baseline gap-2 rounded-md py-1 text-[13.5px] leading-snug",
+          TIME_INSET,
+        )}
         data-testid="briefing-item"
       >
-        {Icon ? (
-          <Icon className="size-3.5 shrink-0 translate-y-0.5 text-muted-foreground" />
-        ) : (
-          <span className="size-3.5 shrink-0" />
-        )}
         {/*
           Two lines, so the outcome at the end of a reply survives. On a narrow screen the time
-          goes under the line instead of taking width from it.
+          goes under the line instead of taking width from it. The text starts under the name;
+          a scheduled or triggered reply says so with a small icon in its first line.
         */}
         <span className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-2">
           <span className="line-clamp-2 min-w-0 flex-1 group-hover:underline">
+            {Icon && (
+              <Icon className="mr-1.5 inline size-3.5 -translate-y-px text-muted-foreground" />
+            )}
             {item.automationTitle && <span className="font-medium">{item.automationTitle}: </span>}
             {plainText(item.preview ?? "Done")}
           </span>
@@ -66,9 +71,6 @@ function Item({ item }: { item: BriefingItem }) {
   );
 }
 
-/** A failure's action: under its text on a phone, on its right from small screens up. */
-const ACTION_PLACE = "col-start-2 justify-self-start sm:col-start-3 sm:row-start-1 sm:self-center";
-
 /** Runs the request again and opens its chat to follow along. */
 function RetryButton({ item }: { item: BriefingItem }) {
   const router = useRouter();
@@ -77,7 +79,7 @@ function RetryButton({ item }: { item: BriefingItem }) {
     <Button
       variant="outline"
       size="sm"
-      className={ACTION_PLACE}
+      className="self-start"
       disabled={retrying}
       data-testid="briefing-retry"
       onClick={() =>
@@ -112,7 +114,7 @@ function Failure({
 }) {
   return (
     <li
-      className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-2.5 rounded-lg bg-subtle px-3 py-2.5 sm:grid-cols-[auto_minmax(0,1fr)_auto] dark:bg-white/[0.03]"
+      className="flex items-start gap-3 rounded-lg bg-subtle px-3 py-2.5 dark:bg-white/[0.03]"
       data-testid="briefing-failure"
     >
       <AlertCircle className="mt-0.5 size-4 shrink-0 text-destructive" />
@@ -128,20 +130,23 @@ function Failure({
         <span className="truncate text-[12.5px] text-muted-foreground">
           {item.automationTitle ?? item.chatTitle}
         </span>
-        <span className="mt-0.5 line-clamp-3 text-[13px] leading-snug text-foreground/85">
+        <span className="mt-0.5 line-clamp-3 text-[13px] leading-snug text-pretty text-foreground/85">
           {failureLine(item.preview && plainText(item.preview))}
           {!computerOnline && (
             <span className="text-muted-foreground"> You can retry once the computer is back.</span>
           )}
         </span>
+        {/* The action sits under the text, so the time stays in line with every other time. */}
+        <div className="mt-2">
+          {computerOnline ? (
+            <RetryButton item={item} />
+          ) : (
+            <Button variant="outline" size="sm" asChild>
+              <Link href={chatHref(item.chatId, item.runId)}>Open chat</Link>
+            </Button>
+          )}
+        </div>
       </div>
-      {computerOnline ? (
-        <RetryButton item={item} />
-      ) : (
-        <Button variant="outline" size="sm" className={ACTION_PLACE} asChild>
-          <Link href={chatHref(item.chatId, item.runId)}>Open chat</Link>
-        </Button>
-      )}
     </li>
   );
 }
@@ -149,17 +154,24 @@ function Failure({
 const newestFirst = (a: BriefingItem, b: BriefingItem) =>
   b.completedAt.localeCompare(a.completedAt);
 
-/** What your teammates finished while you were away: what failed first, then by teammate, newest first. */
-export function Briefing() {
+/** What finished while you were away, or nothing when the briefing isn't showing. */
+export function useBriefingItems(): BriefingItem[] {
   const since = useBriefingSince();
-  const { data: state } = useAppState();
-  const computerOnline = isComputerOnline(state);
   const { data: items } = useQuery({
     queryKey: ["briefing", since],
     queryFn: () => getJson<BriefingItem[]>(`/api/briefing?since=${since}`),
     enabled: since !== null,
   });
-  if (!since || !state || !items?.length) return null;
+  return since !== null && items ? items : [];
+}
+
+/** What your teammates finished while you were away: what failed first, then by teammate, newest first. */
+export function Briefing() {
+  const since = useBriefingSince();
+  const { data: state } = useAppState();
+  const computerOnline = isComputerOnline(state);
+  const items = useBriefingItems();
+  if (!since || !state || !items.length) return null;
 
   const failures = items.filter((item) => item.status === "failed").sort(newestFirst);
   const finished = items.filter((item) => item.status !== "failed").sort(newestFirst);
@@ -241,7 +253,7 @@ export function Briefing() {
                   {extra > 0 && bot && (
                     <Link
                       href={`/bots/${bot.id}?tab=chats`}
-                      className="self-start py-1 pl-5.5 text-[12.5px] text-muted-foreground hover:text-foreground hover:underline"
+                      className="self-start py-1 text-[12.5px] text-muted-foreground hover:text-foreground hover:underline"
                     >
                       and {extra} more
                     </Link>

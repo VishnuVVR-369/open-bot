@@ -39,13 +39,9 @@ export function Button({
     ghost: { bg: "transparent", fg: colors.foreground, border: "transparent" },
     destructive: { bg: colors.surface, fg: colors.destructive, border: colors.input },
   }[variant];
-  // An unavailable primary button steps back to a quiet fill instead of a faded slab of ink,
-  // which reads as grey on grey in the dark.
+  // An unavailable button keeps its look and fades, so a primary one still reads as the main
+  // action (a quiet gray fill looked like another input field in the dark).
   const unavailable = disabled && !busy;
-  if (unavailable && variant === "primary") {
-    look.bg = colors.disabled;
-    look.fg = colors.disabledForeground;
-  }
   const inactive = disabled || busy;
   return (
     <Pressable
@@ -61,7 +57,7 @@ export function Button({
           backgroundColor: look.bg,
           borderColor: look.border,
           // Busy is still at work, so only an unavailable button fades.
-          opacity: unavailable ? (variant === "primary" ? 1 : 0.5) : pressed ? 0.85 : 1,
+          opacity: unavailable ? (variant === "primary" ? 0.38 : 0.5) : pressed ? 0.85 : 1,
         },
         style,
       ]}

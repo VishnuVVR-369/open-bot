@@ -666,7 +666,8 @@ export const RunBlock = memo(function RunBlock({
 });
 
 const styles = StyleSheet.create({
-  run: { gap: space(1.5) },
+  // Who's speaking sits close to their work (about 8dp, with the step toggle's own padding).
+  run: { gap: space(0.5) },
   header: { flexDirection: "row", alignItems: "center", gap: space(2), minHeight: 28 },
   body: { gap: space(1) },
   quiet: { flexDirection: "row", alignItems: "center", gap: space(2.5) },
@@ -682,7 +683,8 @@ const styles = StyleSheet.create({
     paddingRight: space(3),
     marginLeft: -space(1.5),
   },
-  spaced: { marginVertical: space(1) },
+  // The answer starts about 12dp under the steps toggle, and a card gets a little room after it.
+  spaced: { marginBottom: space(1) },
   working: { flexDirection: "row", alignItems: "center", gap: space(2), minHeight: 24 },
   dot: { width: 8, height: 8, borderRadius: 4 },
   card: { borderWidth: 1, borderRadius: radius.xl, padding: space(4), gap: space(2) },

@@ -1,6 +1,6 @@
 "use client";
 
-import { describeCron } from "@open-bot/shared";
+import { describeCron, relativeTime } from "@open-bot/shared";
 import { format, formatDistanceToNowStrict } from "date-fns";
 import { Play } from "lucide-react";
 import { useState } from "react";
@@ -9,11 +9,13 @@ import { BotAvatar } from "@/components/bot-avatar";
 import { Switch } from "@/components/ui/switch";
 import { deleteSchedule, runScheduleNow, setScheduleEnabled } from "@/lib/actions";
 import { useScheduleRuns } from "@/lib/client/queries";
+import { runIsHeldBack, WAITING_FOR_COMPUTER } from "@/lib/status";
 import type { BotSummary, ScheduleView } from "@/lib/types";
 import { ScheduleDialog } from "./schedule-dialog";
 import {
   DetailLabel,
   LAST_RUN_TEXT,
+  OFFLINE_ACTION,
   RowAction,
   RowMenu,
   RunHistory,
@@ -61,7 +63,7 @@ export function ScheduleRow({
   const canRun = useCanRun();
 
   return (
-    <li className="rounded-xl bg-card shadow-raised" data-testid="schedule">
+    <li data-testid="schedule">
       <div className="flex flex-wrap items-start gap-4 px-4 py-3.5 sm:items-center">
         {bot && <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="md" />}
         <button
@@ -86,22 +88,15 @@ export function ScheduleRow({
             {cadence(schedule)}
             {schedule.enabled &&
               schedule.nextRunAt &&
-              (canRun ? (
-                <>
-                  {" "}
-                  · next{" "}
-                  {formatDistanceToNowStrict(new Date(schedule.nextRunAt), { addSuffix: true })}
-                </>
-              ) : (
-                " · won't run while the computer is offline"
-              ))}
+              (runIsHeldBack(schedule.nextRunAt, Date.now(), canRun)
+                ? ` · ${WAITING_FOR_COMPUTER.toLowerCase()}`
+                : ` · next ${formatDistanceToNowStrict(new Date(schedule.nextRunAt), { addSuffix: true })}`)}
             {schedule.quiet && " · tells you only if something changed"}
           </span>
           {schedule.lastRun && (
             <span className="text-[12.5px] text-muted-foreground">
               {LAST_RUN_TEXT[schedule.lastRun.status] ?? "Last run"}
-              {schedule.lastRunAt &&
-                ` ${formatDistanceToNowStrict(new Date(schedule.lastRunAt), { addSuffix: true })}`}
+              {schedule.lastRunAt && ` ${relativeTime(schedule.lastRunAt)}`}
             </span>
           )}
         </button>
@@ -109,6 +104,7 @@ export function ScheduleRow({
           <RowAction
             label="Run now"
             labeled
+            unavailable={canRun ? undefined : OFFLINE_ACTION}
             onClick={async () => {
               const result = await runScheduleNow(schedule.id);
               if (!result.ok) toast.error(result.error);

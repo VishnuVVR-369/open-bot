@@ -156,7 +156,7 @@ export function PushSection({ fallback }: { fallback: React.ReactNode }) {
 
   return (
     <div className="flex flex-col gap-4" data-testid="push-section">
-      <label className="flex cursor-pointer items-start justify-between gap-4 rounded-xl bg-card shadow-raised px-4 py-3.5">
+      <label className="flex cursor-pointer items-start justify-between gap-4 rounded-xl border bg-card px-4 py-3.5">
         <span className="flex flex-col gap-0.5">
           <span className="text-[14px] font-medium">Notifications on this device</span>
           <span className="text-[13px] text-muted-foreground">
@@ -181,7 +181,7 @@ export function PushSection({ fallback }: { fallback: React.ReactNode }) {
       )}
       {devices.length > 0 && (
         <div className="flex flex-col gap-2">
-          <ul className="flex flex-col divide-y divide-border/70 rounded-xl bg-card shadow-raised">
+          <ul className="flex flex-col divide-y divide-border/70 rounded-xl border bg-card">
             {[...devices.filter((device) => device.endpoint === endpoint), ...others].map(
               (device) => {
                 const mine = device.endpoint === endpoint;

@@ -6,7 +6,7 @@ import { Check, ChevronRight, Users } from "lucide-react-native";
 import { useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { BotAvatar, botActivity, botStatusText } from "@/components/bot-avatar";
+import { activityText, BotAvatar, botActivity } from "@/components/bot-avatar";
 import { Button } from "@/components/button";
 import { ListRow, Separator } from "@/components/list-row";
 import { Card, Section } from "@/components/section";
@@ -91,10 +91,15 @@ export default function NewChat() {
             />
           }
           title={bot.name}
+          // A picker: who they are, unless they're busy with something right now.
           subtitle={
-            !bot.activeRun && bot.lastActiveAt
-              ? `${bot.role} · ${lastActive(bot.lastActiveAt)}`
-              : botStatusText(bot, computerOffline)
+            bot.activeRun && !computerOffline
+              ? activityText(botActivity(bot), bot.activeRun.waitingFor)
+              : bot.activeRun?.status === "waiting"
+                ? activityText("waiting", bot.activeRun.waitingFor)
+                : bot.lastActiveAt
+                  ? `${bot.role} · ${lastActive(bot.lastActiveAt)}`
+                  : bot.role
           }
           testID="pick-teammate"
           aside={

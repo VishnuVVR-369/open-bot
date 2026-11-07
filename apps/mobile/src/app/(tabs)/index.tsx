@@ -13,7 +13,6 @@ import {
   CalendarClock,
   CalendarDays,
   ChevronRight,
-  Crown,
   Eye,
   Hand,
   History,
@@ -25,7 +24,7 @@ import {
   Webhook,
   X,
 } from "lucide-react-native";
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Pressable,
   RefreshControl,
@@ -40,6 +39,8 @@ import {
   BotAvatar,
   botActivity,
   GroupAvatar,
+  LeadBadge,
+  StatusLine,
   type BotActivity,
 } from "@/components/bot-avatar";
 import { ComputerOfflineNotice, ConnectionNotice } from "@/components/connection-notice";
@@ -59,6 +60,7 @@ import {
   usePages,
   useTeammates,
 } from "@/lib/queries";
+import { takePasswordResetRequest } from "@/lib/password";
 import { phoneDayClock } from "@/lib/phone-clock";
 import { screenHref } from "@/lib/screens";
 import { ago } from "@/lib/time";
@@ -93,15 +95,28 @@ const RECENT = 4;
  */
 function statusLine(home: Home, bots: BotSummary[], computerOffline = false): string {
   const needs = home.pendingApprovals + home.takeoverRequests.length;
-  const activity = bots.map((bot) => ({ bot, activity: botActivity(bot, computerOffline) }));
-  const working = activity.filter((entry) => entry.activity === "working");
-  const paused = activity.filter((entry) => entry.activity === "paused");
   if (needs > 0) return `${plural(needs, "thing")} ${needs === 1 ? "needs" : "need"} you.`;
-  if (working.length === 1) return `${working[0]!.bot.name} is working on something.`;
+  if (computerOffline) return "Nothing needs you. Work picks up when the computer is back.";
+  const working = bots.filter((bot) => botActivity(bot) === "working");
+  if (working.length === 1) return `${working[0]!.name} is working on something.`;
   if (working.length > 1) return `${plural(working.length, "teammate")} are working right now.`;
-  if (paused.length === 1) return `${paused[0]!.bot.name}'s work is paused.`;
-  if (paused.length > 1) return `${plural(paused.length, "teammate")}'s work is paused.`;
   return "All quiet. Your teammates are ready when you are.";
+}
+
+/** The most of a takeover's reason Home shows: about three lines on a phone. */
+const REASON_CHARS = 150;
+
+/** `text` cut to at most `max` characters at a word boundary, with an ellipsis when cut. */
+export function clipWords(text: string, max: number): string {
+  const clean = text.replace(/\s+/g, " ").trim();
+  if (clean.length <= max) return clean;
+  const cut = clean.slice(0, max + 1);
+  const space = cut.lastIndexOf(" ");
+  const kept = (space > max * 0.6 ? cut.slice(0, space) : clean.slice(0, max)).replace(
+    /[\s,.;:!?-]+$/,
+    "",
+  );
+  return `${kept}…`;
 }
 
 /** Something that needs you, in a tinted card of its own, with who's asking. */
@@ -191,36 +206,7 @@ function NeedsYou({
   return (
     <Section title="Needs you">
       <View style={{ gap: space(2) }}>
-        {home.takeoverRequests.map((request) => {
-          const bot = bots.find((entry) => entry.id === request.botId);
-          return (
-            <Callout
-              key={request.id}
-              leading={
-                bot ? (
-                  <BotAvatar {...bot} size="md" />
-                ) : (
-                  <Hand size={20} color={colors.attentionInk} />
-                )
-              }
-              onPress={() => router.push(screenHref(request.screenId, request.id))}
-              // The screen can't be driven while the computer is away, only read about.
-              action={computerOffline ? "View request" : "Open"}
-              quiet={computerOffline}
-              testID="takeover-request"
-            >
-              <Text variant="label">{request.botName} needs you to take over</Text>
-              <Text variant="small" muted numberOfLines={2}>
-                {request.reason}
-              </Text>
-              {computerOffline && (
-                <Text variant="small" style={{ fontWeight: "500" }} testID="takeover-later">
-                  You can take over once the computer is back.
-                </Text>
-              )}
-            </Callout>
-          );
-        })}
+        {/* What you can decide right now first; a takeover that waits for the computer after. */}
         {home.pendingApprovals > 0 && (
           <Callout
             leading={
@@ -259,6 +245,42 @@ function NeedsYou({
             )}
           </Callout>
         )}
+        {home.takeoverRequests.map((request) => {
+          const bot = bots.find((entry) => entry.id === request.botId);
+          return (
+            <Callout
+              key={request.id}
+              leading={
+                bot ? (
+                  <BotAvatar {...bot} size="md" />
+                ) : (
+                  <Hand size={20} color={colors.attentionInk} />
+                )
+              }
+              onPress={() => router.push(screenHref(request.screenId, request.id))}
+              // The screen can't be driven while the computer is away, only read about.
+              action={computerOffline ? "View request" : "Open"}
+              quiet={computerOffline}
+              testID="takeover-request"
+            >
+              <Text variant="label">{request.botName} needs you to take over</Text>
+              {request.reason ? (
+                <Text variant="small" muted style={styles.calloutBody}>
+                  {clipWords(request.reason, REASON_CHARS)}
+                </Text>
+              ) : null}
+              {computerOffline && (
+                <Text
+                  variant="small"
+                  style={[styles.calloutBody, { color: colors.attentionInk }]}
+                  testID="takeover-later"
+                >
+                  You can take over once the computer is back.
+                </Text>
+              )}
+            </Callout>
+          );
+        })}
       </View>
     </Section>
   );
@@ -459,7 +481,10 @@ function latestChat(bot: BotSummary, chats: ChatSummary[]): ChatSummary | undefi
   );
 }
 
-/** One teammate: their face and state, and the last thing said between you. */
+/**
+ * One teammate: their face, name and job, and their status from the fixed list (the same words as
+ * the web and the Computer tab). When you last talked is on the right.
+ */
 function TeammateRow({
   bot,
   chat,
@@ -477,9 +502,6 @@ function TeammateRow({
   const activity = botActivity(bot, computerOffline);
   const unread = Boolean(chat?.unread);
   const state = activityText(activity, bot.activeRun?.waitingFor);
-  const preview = chat?.preview
-    ? `${chat.preview.botId ? "" : "You: "}${chat.preview.text}`
-    : `Say hi to ${bot.name}, your ${bot.role}.`;
   return (
     <Pressable
       onPress={onPress}
@@ -493,8 +515,8 @@ function TeammateRow({
         bot.name,
         bot.isPrimary ? "lead" : null,
         state,
+        bot.role,
         unread ? "unread" : null,
-        preview,
       ]
         .filter(Boolean)
         .join(", ")}
@@ -515,7 +537,7 @@ function TeammateRow({
           >
             {bot.name}
           </Text>
-          {bot.isPrimary && <Crown size={13} color={colors.mutedForeground} />}
+          {bot.isPrimary && <LeadBadge />}
           <Text variant="small" muted numberOfLines={1} style={{ flexShrink: 1 }}>
             {bot.role}
           </Text>
@@ -530,29 +552,9 @@ function TeammateRow({
           )}
         </View>
         <View style={styles.previewRow}>
-          {state ? (
-            <Text
-              variant="small"
-              numberOfLines={1}
-              style={{
-                flex: 1,
-                fontSize: 14,
-                fontWeight: "500",
-                color: activityColor(activity, colors),
-              }}
-            >
-              {state}
-            </Text>
-          ) : (
-            <Text
-              variant="small"
-              numberOfLines={1}
-              muted={!unread}
-              style={{ flex: 1, fontSize: 14, lineHeight: 19 }}
-            >
-              {plainText(preview)}
-            </Text>
-          )}
+          <View style={{ flex: 1 }}>
+            <StatusLine activity={activity} waitingFor={bot.activeRun?.waitingFor} />
+          </View>
           {unread && <View style={[styles.unread, { backgroundColor: colors.foreground }]} />}
         </View>
       </View>
@@ -708,7 +710,7 @@ function Pages({ pages, bots }: { pages: PageSummary[]; bots: BotSummary[] }) {
       title="Pages"
       action={
         <Pressable
-          onPress={() => router.push("/pages")}
+          onPress={() => router.navigate("/pages")}
           accessibilityRole="button"
           hitSlop={12}
           style={styles.seeAll}
@@ -745,6 +747,10 @@ export default function HomeScreen() {
   const pages = usePages();
   const computerOffline = useComputerOffline();
   const { awaySince } = usePresence();
+  // Signed in with a passkey from "Forgot password?": straight on to setting a new one.
+  useEffect(() => {
+    if (takePasswordResetRequest()) router.push("/settings?password=new");
+  }, []);
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -798,6 +804,7 @@ export default function HomeScreen() {
         <ComputerOfflineNotice />
       </View>
       <NeedsYou home={data} bots={bots} computerOffline={computerOffline} />
+      {bots.length > 0 && <OnDesktop home={data} bots={bots} />}
       {awaySince && <Briefing items={data.briefing} bots={bots} since={awaySince} />}
       {bots.length === 0 ? (
         <Empty
@@ -808,7 +815,6 @@ export default function HomeScreen() {
       ) : (
         <>
           <Teammates bots={bots} chats={chats.data ?? []} computerOffline={computerOffline} />
-          <OnDesktop home={data} bots={bots} />
           <Pages pages={pages.data ?? []} bots={bots} />
           {recent.length > 0 && (
             <Section
@@ -847,7 +853,7 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: space(4), paddingTop: space(1), gap: space(7), paddingBottom: space(10) },
+  content: { padding: space(4), paddingTop: space(1), gap: space(7), paddingBottom: space(8) },
   callout: {
     flexDirection: "row",
     alignItems: "center",
@@ -866,6 +872,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   calloutQuiet: { alignSelf: "flex-start", borderWidth: 1, marginTop: space(2.5) },
+  calloutBody: { fontSize: 14, lineHeight: 19 },
   // The greeting sits a little closer to what follows than sections do to each other.
   greeting: { gap: space(4), marginBottom: -space(1) },
   desktopRow: {

@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ShieldCheck, X } from "lucide-react-native";
 import { useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { BottomScrim } from "@/components/bottom-scrim";
 import { BotAvatar } from "@/components/bot-avatar";
 import { Separator } from "@/components/list-row";
 import { Card } from "@/components/section";
@@ -72,64 +73,67 @@ export default function ApprovalRules() {
       />
     );
   return (
-    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottom }]}>
-      <Text variant="small" muted style={styles.intro}>
-        Teammates do these without asking. Remove one to be asked again.
-      </Text>
-      {sections.map((section) => {
-        const botName = section.bot?.name ?? "Former teammate";
-        return (
-          <View key={section.botId} style={{ gap: space(2.5) }}>
-            <View style={styles.head}>
-              <BotAvatar
-                name={section.bot?.name ?? "?"}
-                color={section.bot?.color ?? colors.mutedForeground}
-                emoji={section.bot?.emoji}
-                size="sm"
-              />
-              <Text variant="label">{botName}</Text>
-            </View>
-            <Card>
-              {section.data.map((rule, index) => (
-                <View key={rule.id}>
-                  {index > 0 && <Separator inset={space(4)} />}
-                  <View style={styles.row} testID="approval-rule">
-                    <View style={{ flex: 1, gap: space(1) }}>
-                      <Text variant="caption" muted>
-                        {KIND[rule.kind]}
-                      </Text>
-                      {rule.kind !== "file_change" && (
-                        <Text variant={rule.kind === "command" ? "mono" : "label"} selectable>
-                          {rule.kind === "account_write"
-                            ? (accountTool(rule.pattern)?.label ?? rule.pattern)
-                            : rule.pattern}
+    <View style={{ flex: 1 }}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottom }]}>
+        <Text variant="small" muted style={styles.intro}>
+          Teammates do these without asking. Remove one to be asked again.
+        </Text>
+        {sections.map((section) => {
+          const botName = section.bot?.name ?? "Former teammate";
+          return (
+            <View key={section.botId} style={{ gap: space(2.5) }}>
+              <View style={styles.head}>
+                <BotAvatar
+                  name={section.bot?.name ?? "?"}
+                  color={section.bot?.color ?? colors.mutedForeground}
+                  emoji={section.bot?.emoji}
+                  size="sm"
+                />
+                <Text variant="label">{botName}</Text>
+              </View>
+              <Card>
+                {section.data.map((rule, index) => (
+                  <View key={rule.id}>
+                    {index > 0 && <Separator inset={space(4)} />}
+                    <View style={styles.row} testID="approval-rule">
+                      <View style={{ flex: 1, gap: space(1) }}>
+                        <Text variant="caption" muted>
+                          {KIND[rule.kind]}
                         </Text>
+                        {rule.kind !== "file_change" && (
+                          <Text variant={rule.kind === "command" ? "mono" : "label"} selectable>
+                            {rule.kind === "account_write"
+                              ? (accountTool(rule.pattern)?.label ?? rule.pattern)
+                              : rule.pattern}
+                          </Text>
+                        )}
+                      </View>
+                      {removing === rule.id ? (
+                        <View style={styles.remove}>
+                          <ActivityIndicator size="small" color={colors.mutedForeground} />
+                        </View>
+                      ) : (
+                        <Pressable
+                          onPress={() => remove(rule, section.bot?.name ?? "This teammate")}
+                          android_ripple={{ color: colors.muted, borderless: true, radius: 22 }}
+                          style={styles.remove}
+                          accessibilityRole="button"
+                          accessibilityLabel="Remove"
+                          testID="remove-rule"
+                        >
+                          <X size={18} color={colors.mutedForeground} />
+                        </Pressable>
                       )}
                     </View>
-                    {removing === rule.id ? (
-                      <View style={styles.remove}>
-                        <ActivityIndicator size="small" color={colors.mutedForeground} />
-                      </View>
-                    ) : (
-                      <Pressable
-                        onPress={() => remove(rule, section.bot?.name ?? "This teammate")}
-                        android_ripple={{ color: colors.muted, borderless: true, radius: 22 }}
-                        style={styles.remove}
-                        accessibilityRole="button"
-                        accessibilityLabel="Remove"
-                        testID="remove-rule"
-                      >
-                        <X size={18} color={colors.mutedForeground} />
-                      </Pressable>
-                    )}
                   </View>
-                </View>
-              ))}
-            </Card>
-          </View>
-        );
-      })}
-    </ScrollView>
+                ))}
+              </Card>
+            </View>
+          );
+        })}
+      </ScrollView>
+      <BottomScrim />
+    </View>
   );
 }
 

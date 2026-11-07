@@ -202,7 +202,7 @@ export function Spending({ botId, name }: { botId: string; name: string }) {
           </span>
         </div>
         {data.purchases.length > 0 && (
-          <ul className="flex flex-col divide-y divide-border/70 rounded-xl bg-card shadow-raised">
+          <ul className="flex flex-col divide-y divide-border/70 rounded-xl border bg-card">
             {data.purchases.map((purchase) => {
               const status = STATUS[purchase.status];
               return (

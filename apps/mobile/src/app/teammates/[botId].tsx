@@ -4,7 +4,6 @@ import { router, Stack, useLocalSearchParams } from "expo-router";
 import {
   CalendarClock,
   ChevronRight,
-  Crown,
   Hand,
   Mail,
   MessageCircle,
@@ -18,13 +17,16 @@ import type { ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, useColorScheme, View } from "react-native";
 import { ApprovalTitle } from "@/components/approval-parts";
 import {
-  activityColor,
   activityText,
   BotAvatar,
   botActivity,
   GroupAvatar,
+  LeadBadge,
   needsYouText,
+  PAUSED_OFFLINE,
+  StatusLine,
 } from "@/components/bot-avatar";
+import { BottomScrim } from "@/components/bottom-scrim";
 import { Card, Section } from "@/components/section";
 import { LoadError, Loading, NotFound } from "@/components/states";
 import { Text } from "@/components/text";
@@ -211,15 +213,18 @@ export default function TeammateScreen() {
   if (!bot)
     return (
       <NotFound
-        icon={<Users size={28} color={colors.mutedForeground} />}
-        title="Teammate not found"
-        body="They aren't on your team anymore."
-        onBack={goBack}
+        icon={Users}
+        title="This teammate is unavailable"
+        body="They may have been removed, or the link may be wrong."
+        action="Go to Home"
+        onAction={() => router.navigate("/")}
       />
     );
 
   const activity = botActivity(bot, computerOffline);
-  const status = activity === "idle" ? null : activityText(activity, bot.activeRun?.waitingFor);
+  // No offline notice on this screen, so "Paused" says why.
+  const status =
+    activity === "paused" ? PAUSED_OFFLINE : activityText(activity, bot.activeRun?.waitingFor);
   const all = chats.data ?? [];
   const theirs = all
     .filter(
@@ -259,124 +264,120 @@ export default function TeammateScreen() {
   };
 
   return (
-    <ScrollView
-      contentContainerStyle={[styles.content, { paddingBottom: bottom }]}
-      testID="teammate-profile"
-    >
-      <Stack.Screen options={{ title: "" }} />
-      <View style={styles.hero}>
-        <BotAvatar {...bot} size="xl" activity={activity} />
-        <View style={{ alignItems: "center", gap: space(1) }}>
-          <View style={styles.nameRow}>
-            <Text variant="title" style={{ fontSize: 28, lineHeight: 34 }}>
-              {bot.name}
-            </Text>
-            {bot.isPrimary && <Crown size={18} color={colors.mutedForeground} />}
-          </View>
-          <Text muted style={{ fontSize: 16, textAlign: "center" }}>
-            {bot.isPrimary ? `Lead · ${bot.role}` : bot.role}
-          </Text>
-          {activity === "idle" && bot.lastActiveAt ? (
-            <Text variant="small" muted testID="last-active">
-              {lastActive(bot.lastActiveAt)}
-            </Text>
-          ) : null}
-          {/* Waiting on you is the banner below; this line is for work in progress. */}
-          {status && activity !== "waiting" && (
-            <Text
-              variant="small"
-              style={{ fontWeight: "500", color: activityColor(activity, colors) }}
-              testID="profile-activity"
-            >
-              {status}
-            </Text>
-          )}
-        </View>
-        {takeover ? (
-          <PendingBanner
-            kind="takeover"
-            title={takeover.reason ?? `${bot.name} needs you on the screen`}
-            onPress={() => router.push(screenHref(takeover.screenId, takeover.id))}
-          />
-        ) : approval ? (
-          <PendingBanner
-            kind="approval"
-            title={approval.title}
-            onPress={() => router.push(`/approvals/${approval.id}`)}
-          />
-        ) : null}
-        <View style={styles.actions}>
-          <Action
-            icon={<MessageCircle size={20} color={colors.primaryForeground} />}
-            label={continuing ? "Continue chat" : "Message"}
-            onPress={message}
-            primary
-            testID="profile-message"
-          />
-          <Action
-            icon={<SquarePen size={20} color={colors.foreground} />}
-            label="New chat"
-            onPress={() => newChat.mutate(bot.id)}
-          />
-          <Action
-            icon={<Monitor size={20} color={colors.foreground} />}
-            label="Screen"
-            onPress={() => router.push(screenHref(bot.id))}
-            testID="profile-screen"
-          />
-        </View>
-      </View>
-
-      <Section title="How they work">
-        <Card>
-          <View style={styles.about}>
-            <Text variant="label">{autonomy?.label ?? bot.autonomy}</Text>
-            {autonomy && (
-              <Text variant="small" muted>
-                {autonomy.description}
+    <View style={{ flex: 1 }}>
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingBottom: bottom }]}
+        testID="teammate-profile"
+      >
+        <Stack.Screen options={{ title: "" }} />
+        <View style={styles.hero}>
+          <BotAvatar {...bot} size="xl" activity={activity} />
+          <View style={{ alignItems: "center", gap: space(1) }}>
+            <View style={styles.nameRow}>
+              <Text variant="title" style={{ fontSize: 28, lineHeight: 34 }}>
+                {bot.name}
               </Text>
+              {bot.isPrimary && <LeadBadge />}
+            </View>
+            <Text muted style={{ fontSize: 16, textAlign: "center" }}>
+              {bot.role}
+            </Text>
+            {/* Waiting on you is the banner below; this line is their status otherwise. */}
+            {activity !== "waiting" && (
+              <View style={{ marginTop: space(0.5) }}>
+                <StatusLine activity={activity} testID="profile-activity">
+                  {activity === "idle" && bot.lastActiveAt ? lastActive(bot.lastActiveAt) : status}
+                </StatusLine>
+              </View>
             )}
           </View>
-          <Row
-            first={false}
-            leading={
-              <View style={[styles.icon, { backgroundColor: colors.subtle }]}>
-                <ShieldCheck size={18} color={colors.done} />
-              </View>
-            }
-            title="Always allowed"
-            subtitle={
-              ruleCount === 0
-                ? "Nothing yet. Use Always allow on an approval."
-                : `${ruleCount} ${ruleCount === 1 ? "rule" : "rules"}: ${bot.name} doesn't ask about these`
-            }
-            onPress={() => router.push("/approval-rules")}
-          />
-        </Card>
-      </Section>
+          {takeover ? (
+            <PendingBanner
+              kind="takeover"
+              title={takeover.reason ?? `${bot.name} needs you on the screen`}
+              onPress={() => router.push(screenHref(takeover.screenId, takeover.id))}
+            />
+          ) : approval ? (
+            <PendingBanner
+              kind="approval"
+              title={approval.title}
+              onPress={() => router.push(`/approvals/${approval.id}`)}
+            />
+          ) : null}
+          <View style={styles.actions}>
+            <Action
+              icon={<MessageCircle size={20} color={colors.primaryForeground} />}
+              label={continuing ? "Continue chat" : "Message"}
+              onPress={message}
+              primary
+              testID="profile-message"
+            />
+            <Action
+              icon={<SquarePen size={20} color={colors.foreground} />}
+              label="New chat"
+              onPress={() => newChat.mutate(bot.id)}
+            />
+            <Action
+              icon={<Monitor size={20} color={colors.foreground} />}
+              label="Screen"
+              onPress={() => router.push(screenHref(bot.id))}
+              testID="profile-screen"
+            />
+          </View>
+        </View>
 
-      {theirs.length > 0 && (
-        <Section title="Conversations">
+        <Section title="How they work">
           <Card>
-            {theirs.map((chat, index) => (
-              <Row
-                key={chat.id}
-                first={index === 0}
-                leading={leadingFor(chat)}
-                title={chat.kind === "group" ? chat.title : chatTitle(chat, bot)}
-                subtitle={plainText(chatSubtitle(chat, bot, bots))}
-                aside={
-                  <Text variant="caption" muted>
-                    {ago(chat.lastActivityAt)}
-                  </Text>
-                }
-                onPress={() => router.push(`/chats/${chat.id}`)}
-              />
-            ))}
+            <View style={styles.about}>
+              <Text variant="label">{autonomy?.label ?? bot.autonomy}</Text>
+              {autonomy && (
+                <Text variant="small" muted>
+                  {autonomy.description}
+                </Text>
+              )}
+            </View>
+            <Row
+              first={false}
+              leading={
+                <View style={[styles.icon, { backgroundColor: colors.subtle }]}>
+                  <ShieldCheck size={18} color={colors.done} />
+                </View>
+              }
+              title="Always allowed"
+              subtitle={
+                ruleCount === 0
+                  ? "Nothing yet. Use Always allow on an approval."
+                  : `${ruleCount} ${ruleCount === 1 ? "rule" : "rules"}: ${bot.name} doesn't ask about these`
+              }
+              onPress={() => router.push("/approval-rules")}
+            />
           </Card>
         </Section>
-      )}
-    </ScrollView>
+
+        {theirs.length > 0 && (
+          <Section title="Conversations">
+            <Card>
+              {theirs.map((chat, index) => (
+                <Row
+                  key={chat.id}
+                  first={index === 0}
+                  leading={leadingFor(chat)}
+                  title={chat.kind === "group" ? chat.title : chatTitle(chat, bot)}
+                  subtitle={plainText(chatSubtitle(chat, bot, bots))}
+                  aside={
+                    <Text variant="caption" muted>
+                      {ago(chat.lastActivityAt)}
+                    </Text>
+                  }
+                  onPress={() => router.push(`/chats/${chat.id}`)}
+                />
+              ))}
+            </Card>
+          </Section>
+        )}
+      </ScrollView>
+      <BottomScrim />
+    </View>
   );
 }
 

@@ -32,7 +32,9 @@
     ".next/memory-e2e/types/**/*.ts",
     ".next/memory-e2e/dev/types/**/*.ts",
     ".next/pocket-e2e/types/**/*.ts",
-    ".next/pocket-e2e/dev/types/**/*.ts"
+    ".next/pocket-e2e/dev/types/**/*.ts",
+    ".next-showcase/types/**/*.ts",
+    ".next-showcase/dev/types/**/*.ts"
   ],
   "exclude": ["node_modules"]
 }

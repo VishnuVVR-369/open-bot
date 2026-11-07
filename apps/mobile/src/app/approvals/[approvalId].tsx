@@ -25,6 +25,7 @@ import {
 } from "@/components/approval-parts";
 import { Button } from "@/components/button";
 import { CodeScroll } from "@/components/code-scroll";
+import { ApproveWhileAwayNote } from "@/components/connection-notice";
 import { ListRow } from "@/components/list-row";
 import { Card } from "@/components/section";
 import { LoadError, Loading } from "@/components/states";
@@ -277,6 +278,7 @@ export default function ApprovalScreen() {
             },
           ]}
         >
+          {online && <ApproveWhileAwayNote center />}
           {!online && (
             <View style={styles.offline}>
               <WifiOff size={14} color={colors.mutedForeground} />

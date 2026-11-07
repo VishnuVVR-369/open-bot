@@ -11,6 +11,18 @@ const SIZES = {
   xl: "size-16 rounded-[17px] text-[24px]",
 } as const;
 
+/**
+ * Emoji at about 58% of the tile, the size they read at on the phone. Initials stay smaller:
+ * letters fill their box, emoji leave air around the drawing.
+ */
+const EMOJI_SIZES = {
+  xs: "text-[12px]",
+  sm: "text-[16px]",
+  md: "text-[21px]",
+  lg: "text-[28px]",
+  xl: "text-[37px]",
+} as const;
+
 function initials(name: string) {
   const words = name.trim().split(/\s+/).filter(Boolean);
   if (words.length >= 2) return (words[0]![0]! + words[1]![0]!).toUpperCase();
@@ -51,7 +63,12 @@ export function BotAvatar({
           boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${color} 26%, transparent), inset 0 1px 0 color-mix(in oklab, white 35%, transparent)`,
         }}
       >
-        {emoji ? <span className="leading-none">{emoji}</span> : initials(name)}
+        {emoji ? (
+          // A line box of exactly the glyph's size, so flexbox centers the drawing, not its text line.
+          <span className={cn("block leading-[1] font-normal", EMOJI_SIZES[size])}>{emoji}</span>
+        ) : (
+          initials(name)
+        )}
       </span>
       {activity !== "idle" && (
         <span

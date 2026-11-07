@@ -48,7 +48,8 @@ export default function AuthLayout({ children }: LayoutProps<"/">) {
         </div>
         <aside
           aria-hidden
-          className="relative m-2 hidden w-[46%] max-w-[640px] flex-col justify-center overflow-hidden rounded-[14px] bg-bezel p-12 text-bezel-foreground lg:flex"
+          // Flush with the sheet's edges, like the form side: the sheet's own corners round it.
+          className="relative hidden w-[46%] max-w-[640px] flex-col justify-center overflow-hidden bg-bezel p-14 text-bezel-foreground lg:flex"
         >
           <div className="absolute inset-0 bg-[radial-gradient(rgb(255_255_255/0.06)_1px,transparent_1px)] [mask-image:radial-gradient(ellipse_at_70%_30%,black_10%,transparent_70%)] bg-[size:18px_18px]" />
           <div className="absolute -top-40 -right-40 size-[520px] rounded-full bg-[radial-gradient(closest-side,rgb(255_255_255/0.07),transparent)]" />

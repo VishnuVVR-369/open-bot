@@ -11,9 +11,9 @@ import { usePages, useTeammates } from "@/lib/queries";
 import { useSafeBottom } from "@/lib/use-safe-bottom";
 import { radius, space, useColors } from "@/theme";
 
-/** Every page teammates have published, pinned first. Hold one to pin or delete it. */
+/** Every page teammates have published, pinned first, as a tab. Hold one to pin or delete it. */
 export default function PagesScreen() {
-  const bottom = useSafeBottom();
+  const bottom = useSafeBottom({ tabs: true });
   const colors = useColors();
   const pages = usePages();
   const teammates = useTeammates();

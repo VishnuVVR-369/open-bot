@@ -29,6 +29,7 @@ import {
   View,
   type TextInputInstance,
 } from "react-native";
+import { BottomScrim } from "@/components/bottom-scrim";
 import { BotAvatar, botActivity, GroupAvatar } from "@/components/bot-avatar";
 import { Button } from "@/components/button";
 import { Empty } from "@/components/states";
@@ -532,6 +533,7 @@ export default function Search() {
           </Pressable>
         )}
       />
+      <BottomScrim />
     </View>
   );
 }

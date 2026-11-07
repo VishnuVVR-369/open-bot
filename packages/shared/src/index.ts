@@ -22,3 +22,6 @@ export * from "./files";
 export * from "./screen-operations";
 export * from "./pages";
 export * from "./accounts";
+export * from "./recovery";
+export * from "./relative-time";
+export * from "./password";

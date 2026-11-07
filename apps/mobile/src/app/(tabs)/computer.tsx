@@ -3,7 +3,7 @@ import { router } from "expo-router";
 import { ChevronRight, CloudOff, Monitor } from "lucide-react-native";
 import { useMemo, useState } from "react";
 import { Alert, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
-import { BotAvatar } from "@/components/bot-avatar";
+import { BotAvatar, StatusLine } from "@/components/bot-avatar";
 import { Button } from "@/components/button";
 import { ScreenCard, type ScreenAction } from "@/components/computer/screen-card";
 import { ConnectionNotice } from "@/components/connection-notice";
@@ -52,8 +52,8 @@ function OfflineBanner({ onRetry, retrying }: { onRetry: () => void; retrying: b
 }
 
 /**
- * An offline screen, as one quiet row: whose it is and that it's offline. A teammate waiting for
- * you to take over still says so, in amber, with when you can.
+ * An offline screen, as one quiet row: whose it is and their status in the same words as Home.
+ * The banner above says why everyone is paused; a teammate waiting for you still says so, in amber.
  */
 function OfflineRow({ screen, first }: { screen: ScreenView; first: boolean }) {
   const colors = useColors();
@@ -74,16 +74,9 @@ function OfflineRow({ screen, first }: { screen: ScreenView; first: boolean }) {
         title={screen.bot.name}
         subtitle={
           request ? (
-            <Text
-              variant="small"
-              numberOfLines={1}
-              style={{ color: colors.attentionInk, fontWeight: "500" }}
-              testID="screen-needs-you"
-            >
-              Needs you to take over, once it&apos;s back
-            </Text>
+            <StatusLine activity="waiting" waitingFor="takeover" testID="screen-needs-you" />
           ) : (
-            "Offline"
+            <StatusLine activity="paused" testID="screen-paused" />
           )
         }
         aside={<ChevronRight size={18} color={colors.mutedForeground} />}

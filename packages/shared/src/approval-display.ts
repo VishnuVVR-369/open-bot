@@ -330,3 +330,23 @@ export function approvalHeadline(approval: ApprovalFacts): {
     ? { title: commandSummary(command), command }
     : { title: approval.title, command: null };
 }
+
+/**
+ * The start of a long text, for a preview that opens to the rest: at most `maxLines` lines and
+ * about `maxChars` characters, cut at a word, ending in one ellipsis with no period or comma
+ * before it ("would be perfect…", never "perfect.…"). `cut` says whether anything was left out.
+ */
+export function previewText(
+  text: string,
+  { maxLines = 6, maxChars = 320 }: { maxLines?: number; maxChars?: number } = {},
+): { text: string; cut: boolean } {
+  const whole = text.trim();
+  let shown = whole.split("\n").slice(0, maxLines).join("\n");
+  if (shown.length > maxChars) {
+    const room = shown.slice(0, maxChars + 1);
+    const space = room.search(/\s\S*$/);
+    shown = space > maxChars / 2 ? room.slice(0, space) : room.slice(0, maxChars);
+  }
+  if (shown.length >= whole.length) return { text: whole, cut: false };
+  return { text: `${shown.replace(/[\s.,;:!?…-]+$/u, "")}…`, cut: true };
+}

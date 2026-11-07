@@ -12,11 +12,11 @@ setup("sign in as the owner", async ({ page }) => {
   if (page.url().includes("/setup")) {
     await page.getByLabel("Your name").fill("Owner");
     await page.getByLabel("Email").fill(owner.email);
-    await page.getByLabel("Password").fill(owner.password);
+    await page.getByLabel("Password", { exact: true }).fill(owner.password);
     await page.getByRole("button", { name: "Create account" }).click();
   } else {
     await page.getByLabel("Email").fill(owner.email);
-    await page.getByLabel("Password").fill(owner.password);
+    await page.getByLabel("Password", { exact: true }).fill(owner.password);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
   }
   await page.waitForURL("/");

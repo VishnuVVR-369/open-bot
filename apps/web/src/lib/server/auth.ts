@@ -7,10 +7,11 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
 import { count } from "drizzle-orm";
-import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "../password";
-import { BASE_URL, passkeyConfig, TRUSTED_ORIGINS } from "./auth-config";
+import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@open-bot/shared";
+import { BASE_URL, defaultPasskeyName, passkeyConfig, TRUSTED_ORIGINS } from "./auth-config";
 import { db } from "./db";
 import { serverEnv } from "./env";
+import { noteUserVerification, passkeyReset } from "./passkey-reset";
 
 export const auth = betterAuth({
   baseURL: BASE_URL,
@@ -32,7 +33,21 @@ export const auth = betterAuth({
   session: { expiresIn: 60 * 60 * 24 * 30, updateAge: 60 * 60 * 24 },
   trustedOrigins: TRUSTED_ORIGINS,
   plugins: [
-    passkey(passkeyConfig()),
+    passkey({
+      ...passkeyConfig(),
+      // Name a passkey the browser didn't name; the phone app sends its model.
+      registration: {
+        afterVerification: ({ ctx, verification }) => ({
+          name: defaultPasskeyName({
+            aaguid: verification.registrationInfo?.aaguid,
+            userAgent: ctx.headers?.get("user-agent"),
+          }),
+        }),
+      },
+      // A passkey sign-in that verified you opens a short window to set a new password.
+      authentication: { afterVerification: noteUserVerification },
+    }),
+    passkeyReset(),
     // The phone app: its requests carry their origin in `expo-origin`.
     expo(),
     nextCookies(),

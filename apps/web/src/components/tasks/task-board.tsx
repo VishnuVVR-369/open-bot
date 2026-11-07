@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { createTask, updateTask } from "@/lib/actions";
 import { queryKeys, useAppState, useApprovals, useTasks } from "@/lib/client/queries";
 import type { BotSummary, TaskView } from "@/lib/types";
+import { isComputerOnline, STATUS } from "@/lib/status";
 import { cn } from "@/lib/utils";
 import { STATUS_LABELS, TaskDialog } from "./task-dialog";
 
@@ -47,8 +48,17 @@ function Due({ dueOn, done }: { dueOn: string; done: boolean }) {
   );
 }
 
-/** What a task waits on from you, when its chat is blocked on you. */
-type Blocker = "approval" | "takeover";
+/**
+ * What holds a task up: you (an approval, a take over), or the computer being offline while a
+ * teammate is on it.
+ */
+type Blocker = "approval" | "takeover" | "paused";
+
+const BLOCKER_TEXT: Record<Blocker, string> = {
+  approval: "Waiting for approval",
+  takeover: "Waiting for you to take over",
+  paused: STATUS.paused,
+};
 
 /** The owner's own mark, as the sidebar shows it: their initial on a round ink tile. */
 function YouAvatar({ name }: { name: string }) {
@@ -82,7 +92,7 @@ function Card({
 }) {
   const [over, setOver] = useState(false);
   const done = task.status === "done";
-  const notes = task.notes.trim().split("\n")[0];
+  const notes = task.notes.trim().replace(/\s+/g, " ");
   return (
     <li
       draggable
@@ -106,12 +116,25 @@ function Card({
       <button
         type="button"
         onClick={onOpen}
-        className="flex w-full cursor-grab flex-col gap-2 rounded-[10px] bg-card px-3.5 py-3 text-left shadow-raised transition-shadow hover:shadow-float active:cursor-grabbing"
+        // Dark mode lifts cards a step above their column, which sits close to the card color.
+        className="flex w-full cursor-grab flex-col gap-2 rounded-[10px] bg-card px-3.5 py-3 text-left shadow-raised transition-shadow hover:shadow-float active:cursor-grabbing dark:bg-popover"
       >
         {blocker && (
-          <span className="flex items-center gap-1.5 text-[12px] font-medium text-attention-ink">
-            <span className="size-1.5 rounded-full bg-attention" />
-            {blocker === "approval" ? "Needs your approval" : "Needs you to take over"}
+          <span
+            className={cn(
+              "flex items-center gap-1.5 text-[12px] font-medium",
+              blocker === "paused" ? "text-muted-foreground" : "text-attention-ink",
+            )}
+            title={blocker === "paused" ? "Paused while the computer is offline" : undefined}
+            data-testid="task-state"
+          >
+            <span
+              className={cn(
+                "size-1.5 rounded-full",
+                blocker === "paused" ? "bg-idle" : "bg-attention",
+              )}
+            />
+            {BLOCKER_TEXT[blocker]}
           </span>
         )}
         <span className="flex items-start gap-2">
@@ -119,11 +142,13 @@ function Card({
           <span className={cn("flex min-w-0 flex-col gap-0.5", done && "text-muted-foreground")}>
             <span className="text-[13.5px] leading-snug font-medium break-words">{task.title}</span>
             {notes && !done && (
-              <span className="line-clamp-1 text-[12.5px] text-muted-foreground">{notes}</span>
+              <span className="line-clamp-2 text-[12.5px] leading-snug text-muted-foreground">
+                {notes}
+              </span>
             )}
           </span>
         </span>
-        <span className={cn("flex flex-wrap items-center gap-x-2.5 gap-y-1", done && "pl-6")}>
+        <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
           {owner ? (
             <span className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
               <BotAvatar name={owner.name} color={owner.color} emoji={owner.emoji} size="xs" />
@@ -212,12 +237,17 @@ export function TaskBoard() {
   const { data: approvals } = useApprovals();
   const bots = state?.bots ?? [];
   /** A task whose chat waits on you says so on its card. */
+  const online = !state || isComputerOnline(state);
   const blockerOf = (task: TaskView): Blocker | null => {
-    if (task.status === "done" || !task.chatId) return null;
-    if (approvals?.some((a) => a.status === "pending" && a.chatId === task.chatId))
-      return "approval";
-    if (state?.takeoverRequests.some((request) => request.chatId === task.chatId))
-      return "takeover";
+    if (task.status === "done") return null;
+    if (task.chatId) {
+      if (approvals?.some((a) => a.status === "pending" && a.chatId === task.chatId))
+        return "approval";
+      if (state?.takeoverRequests.some((request) => request.chatId === task.chatId))
+        return "takeover";
+    }
+    // A teammate's task in progress can't move while the computer is offline.
+    if (!online && task.status === "doing" && task.ownerBotId) return "paused";
     return null;
   };
   const refresh = () => void queryClient.invalidateQueries({ queryKey: queryKeys.tasks });

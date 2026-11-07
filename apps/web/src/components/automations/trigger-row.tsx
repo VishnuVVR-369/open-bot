@@ -5,9 +5,9 @@ import {
   describeInterval,
   describeLead,
   isAccountTrigger,
+  relativeTime,
   type TriggerKind,
 } from "@open-bot/shared";
-import { formatDistanceToNowStrict } from "date-fns";
 import {
   CalendarDays,
   Copy,
@@ -37,6 +37,7 @@ import { cn } from "@/lib/utils";
 import {
   DetailLabel,
   LAST_RUN_TEXT,
+  OFFLINE_ACTION,
   RowAction,
   RowMenu,
   RunHistory,
@@ -46,7 +47,7 @@ import {
 import { TriggerDialog } from "./trigger-dialog";
 import { copyWebhookUrl, isLocalOrigin, webhookUrl } from "./webhook-url";
 
-const ago = (iso: string) => formatDistanceToNowStrict(new Date(iso), { addSuffix: true });
+const ago = (iso: string) => relativeTime(iso);
 
 /** The page, without the scheme, for a compact line. */
 function shortUrl(url: string) {
@@ -219,14 +220,6 @@ function StatusLine({ trigger }: { trigger: TriggerView }) {
 }
 
 function CheckLine({ trigger }: { trigger: TriggerView }) {
-  const canRun = useCanRun();
-  // A watch or account trigger can't wake anyone while the computer is offline.
-  if (!canRun && trigger.enabled && trigger.kind !== "webhook")
-    return (
-      <span className="text-[12.5px] text-muted-foreground">
-        Won&apos;t run while the computer is offline
-      </span>
-    );
   if (trigger.lastError)
     return (
       <span
@@ -274,10 +267,11 @@ export function TriggerRow({
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [busy, startBusy] = useTransition();
+  const canRun = useCanRun();
   const KindIcon = KIND_ICONS[trigger.kind];
 
   return (
-    <li className="rounded-xl bg-card shadow-raised" data-testid={trigger.kind}>
+    <li data-testid={trigger.kind}>
       <div className="flex flex-wrap items-start gap-4 px-4 py-3.5 sm:items-center">
         {bot && (
           <span className="relative shrink-0">
@@ -314,6 +308,7 @@ export function TriggerRow({
               label="Check now"
               labeled
               disabled={busy}
+              unavailable={canRun ? undefined : OFFLINE_ACTION}
               onClick={() =>
                 startBusy(async () => {
                   const result = await checkTriggerNow(trigger.id);
@@ -337,6 +332,7 @@ export function TriggerRow({
               label="Send a test"
               labeled
               disabled={busy || !trigger.enabled}
+              unavailable={canRun ? undefined : OFFLINE_ACTION}
               onClick={() =>
                 startBusy(async () => {
                   const result = await testWebhook(trigger.id);

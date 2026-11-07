@@ -1,7 +1,7 @@
 import { safe } from "@orpc/client";
 import Constants from "expo-constants";
 import * as LocalAuthentication from "expo-local-authentication";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import {
   BellOff,
   BellRing,
@@ -10,6 +10,7 @@ import {
   Globe,
   Info,
   KeyRound,
+  LockKeyhole,
   LogOut,
   Moon,
   Smartphone,
@@ -19,7 +20,9 @@ import {
 } from "lucide-react-native";
 import { useEffect, useState } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
+import { BottomScrim } from "@/components/bottom-scrim";
 import { Separator } from "@/components/list-row";
+import { PasswordSheet } from "@/components/password-sheet";
 import { Card, Section } from "@/components/section";
 import { Segmented, SETTINGS_INSET, SettingsRow, SettingsSwitch } from "@/components/settings-row";
 import { Text } from "@/components/text";
@@ -69,6 +72,9 @@ export default function Settings() {
   const [testResult, setTestResult] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [passkeyResult, setPasskeyResult] = useState<string | null>(null);
+  // "?password=new": you just signed in with a passkey from "Forgot password?".
+  const { password } = useLocalSearchParams<{ password?: string }>();
+  const [passwordOpen, setPasswordOpen] = useState(password === "new");
   const name = session?.user.name?.trim() || "You";
   const host = new URL(APP_URL).host;
 
@@ -120,169 +126,182 @@ export default function Settings() {
   }
 
   return (
-    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottom }]}>
-      <Section title="Account">
-        <Card>
-          <View style={styles.account}>
-            <View style={[styles.initial, { backgroundColor: colors.primary }]}>
-              <Text
-                allowFontScaling={false}
-                style={[styles.initialText, { color: colors.primaryForeground }]}
-              >
-                {name[0]!.toUpperCase()}
-              </Text>
-            </View>
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text variant="heading" numberOfLines={1}>
-                {name}
-              </Text>
-              {session?.user.email ? (
-                <Text variant="small" muted numberOfLines={1}>
-                  {session.user.email}
+    <View style={{ flex: 1 }}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottom }]}>
+        <Section title="Account">
+          <Card>
+            <View style={styles.account}>
+              <View style={[styles.initial, { backgroundColor: colors.primary }]}>
+                <Text
+                  allowFontScaling={false}
+                  style={[styles.initialText, { color: colors.primaryForeground }]}
+                >
+                  {name[0]!.toUpperCase()}
                 </Text>
-              ) : null}
+              </View>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text variant="heading" numberOfLines={1}>
+                  {name}
+                </Text>
+                {session?.user.email ? (
+                  <Text variant="small" muted numberOfLines={1}>
+                    {session.user.email}
+                  </Text>
+                ) : null}
+              </View>
             </View>
-          </View>
-        </Card>
-      </Section>
+          </Card>
+        </Section>
 
-      <Section title="Appearance">
-        <Card>
-          <View style={styles.theme}>
-            <Text variant="label">Theme</Text>
-            <Segmented
-              options={APPEARANCES}
-              value={preferences.appearance}
+        <Section title="Appearance">
+          <Card>
+            <View style={styles.theme}>
+              <Text variant="label">Theme</Text>
+              <Segmented
+                options={APPEARANCES}
+                value={preferences.appearance}
+                onChange={(value) => {
+                  haptics.tap();
+                  setPreference("appearance", value);
+                }}
+                testID="appearance"
+              />
+            </View>
+          </Card>
+        </Section>
+
+        <Section title="Feedback">
+          <Card>
+            <SettingsSwitch
+              icon={(color) => <Vibrate size={18} color={color} />}
+              title="Haptics"
+              subtitle="A light touch when you tap, approve or deny"
+              value={preferences.haptics}
               onChange={(value) => {
+                setPreference("haptics", value);
+                // Feel it right away when it's turned on.
                 haptics.tap();
-                setPreference("appearance", value);
               }}
-              testID="appearance"
+              testID="haptics"
             />
-          </View>
-        </Card>
-      </Section>
+          </Card>
+        </Section>
 
-      <Section title="Feedback">
-        <Card>
-          <SettingsSwitch
-            icon={(color) => <Vibrate size={18} color={color} />}
-            title="Haptics"
-            subtitle="A light touch when you tap, approve or deny"
-            value={preferences.haptics}
-            onChange={(value) => {
-              setPreference("haptics", value);
-              // Feel it right away when it's turned on.
-              haptics.tap();
-            }}
-            testID="haptics"
-          />
-        </Card>
-      </Section>
+        <Section title="Notifications">
+          <Card>
+            {hasFirebase ? (
+              <SettingsRow
+                icon={(color) => <BellRing size={18} color={color} />}
+                title="Send a test notification"
+                subtitle={
+                  testResult ?? "Approvals and replies come to this phone, even when it's closed"
+                }
+                busy={testing}
+                onPress={() => void sendTest()}
+                testID="test-notification"
+              />
+            ) : (
+              <SettingsRow
+                icon={(color) => <BellOff size={18} color={color} />}
+                title="Phone alerts"
+                subtitle="Phone alerts aren't available in this build yet. Approvals and replies show here and in the bell."
+                testID="test-notification"
+              />
+            )}
+          </Card>
+        </Section>
 
-      <Section title="Notifications">
-        <Card>
-          {hasFirebase ? (
-            <SettingsRow
-              icon={(color) => <BellRing size={18} color={color} />}
-              title="Send a test notification"
+        <Section title="Security">
+          <Card>
+            <SettingsSwitch
+              icon={(color) => <Fingerprint size={18} color={color} />}
+              title="App lock"
               subtitle={
-                testResult ?? "Approvals and replies come to this phone, even when it's closed"
+                canLock === false
+                  ? "Set up a screen lock on this phone to lock open-bot"
+                  : "Asks for your fingerprint when you open open-bot, and after 5 minutes away"
               }
-              busy={testing}
-              onPress={() => void sendTest()}
-              testID="test-notification"
+              value={canLock !== false && preferences.appLock}
+              disabled={canLock !== true}
+              onChange={(value) => void changeAppLock(value)}
+              testID="app-lock"
             />
-          ) : (
+            <Separator inset={SETTINGS_INSET} />
             <SettingsRow
-              icon={(color) => <BellOff size={18} color={color} />}
-              title="No phone notifications in this build"
-              subtitle="This version of the app can't send them. Approvals and replies still show up here in the app and in the bell."
-              testID="test-notification"
+              icon={(color) => <LockKeyhole size={18} color={color} />}
+              title="Change password"
+              subtitle="Signs out your other devices"
+              onPress={() => setPasswordOpen(true)}
+              aside={<ChevronRight size={18} color={colors.mutedForeground} />}
+              testID="change-password"
             />
-          )}
-        </Card>
-      </Section>
+            <Separator inset={SETTINGS_INSET} />
+            <SettingsRow
+              icon={(color) => <KeyRound size={18} color={color} />}
+              title="Add a passkey"
+              subtitle={
+                passkeyResult ??
+                "Sign in with your fingerprint instead of your password, here or on the web"
+              }
+              busy={adding}
+              onPress={() => void add()}
+              aside={<ChevronRight size={18} color={colors.mutedForeground} />}
+              testID="add-passkey"
+            />
+            <Separator inset={SETTINGS_INSET} />
+            <SettingsRow
+              icon={(color) => <ShieldCheck size={18} color={color} />}
+              title="Always allowed"
+              subtitle={
+                rules?.length
+                  ? `${rules.length} ${rules.length === 1 ? "rule" : "rules"} teammates don't ask about`
+                  : "What teammates may do without asking"
+              }
+              onPress={() => router.push("/approval-rules")}
+              aside={<ChevronRight size={18} color={colors.mutedForeground} />}
+              testID="settings-approval-rules"
+            />
+          </Card>
+        </Section>
 
-      <Section title="Security">
+        <Section title="About">
+          <Card>
+            <SettingsRow
+              icon={(color) => <Info size={18} color={color} />}
+              title="Version"
+              aside={
+                <Text variant="small" muted selectable>
+                  {Constants.expoConfig?.version ?? "Unknown"}
+                  {__DEV__ ? " (dev)" : ""}
+                </Text>
+              }
+            />
+            <Separator inset={SETTINGS_INSET} />
+            <SettingsRow
+              icon={(color) => <Globe size={18} color={color} />}
+              title="Server"
+              aside={
+                <Text variant="small" muted numberOfLines={1} selectable style={styles.value}>
+                  {host}
+                </Text>
+              }
+            />
+          </Card>
+        </Section>
+
         <Card>
-          <SettingsSwitch
-            icon={(color) => <Fingerprint size={18} color={color} />}
-            title="App lock"
-            subtitle={
-              canLock === false
-                ? "Set up a screen lock on this phone to lock open-bot"
-                : "Asks for your fingerprint when you open open-bot, and after 5 minutes away"
-            }
-            value={canLock !== false && preferences.appLock}
-            disabled={canLock !== true}
-            onChange={(value) => void changeAppLock(value)}
-            testID="app-lock"
-          />
-          <Separator inset={SETTINGS_INSET} />
           <SettingsRow
-            icon={(color) => <KeyRound size={18} color={color} />}
-            title="Add a passkey"
-            subtitle={
-              passkeyResult ??
-              "Sign in with your fingerprint instead of your password, here or on the web"
-            }
-            busy={adding}
-            onPress={() => void add()}
-            aside={<ChevronRight size={18} color={colors.mutedForeground} />}
-            testID="add-passkey"
-          />
-          <Separator inset={SETTINGS_INSET} />
-          <SettingsRow
-            icon={(color) => <ShieldCheck size={18} color={color} />}
-            title="Always allowed"
-            subtitle={
-              rules?.length
-                ? `${rules.length} ${rules.length === 1 ? "rule" : "rules"} teammates don't ask about`
-                : "What teammates may do without asking"
-            }
-            onPress={() => router.push("/approval-rules")}
-            aside={<ChevronRight size={18} color={colors.mutedForeground} />}
-            testID="settings-approval-rules"
+            icon={(color) => <LogOut size={18} color={color} />}
+            title="Sign out"
+            destructive
+            onPress={confirmSignOut}
+            testID="sign-out"
           />
         </Card>
-      </Section>
-
-      <Section title="About">
-        <Card>
-          <SettingsRow
-            icon={(color) => <Info size={18} color={color} />}
-            title="Version"
-            aside={
-              <Text variant="small" muted selectable>
-                {Constants.expoConfig?.version ?? "Unknown"}
-                {__DEV__ ? " (dev)" : ""}
-              </Text>
-            }
-          />
-          <Separator inset={SETTINGS_INSET} />
-          <SettingsRow
-            icon={(color) => <Globe size={18} color={color} />}
-            title="Server"
-            aside={
-              <Text variant="small" muted numberOfLines={1} selectable style={styles.value}>
-                {host}
-              </Text>
-            }
-          />
-        </Card>
-      </Section>
-
-      <Card>
-        <SettingsRow
-          icon={(color) => <LogOut size={18} color={color} />}
-          title="Sign out"
-          destructive
-          onPress={confirmSignOut}
-          testID="sign-out"
-        />
-      </Card>
-    </ScrollView>
+      </ScrollView>
+      <BottomScrim />
+      <PasswordSheet open={passwordOpen} onClose={() => setPasswordOpen(false)} />
+    </View>
   );
 }
 

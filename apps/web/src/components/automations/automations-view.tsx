@@ -30,6 +30,7 @@ import { queryKeys, useAppState, useSchedules, useTriggers } from "@/lib/client/
 import { ScheduleDialog } from "./schedule-dialog";
 import { ScheduleRow } from "./schedules-list";
 import { TriggerDialog } from "./trigger-dialog";
+import { OfflineBanner, ROWS, useCanRun } from "./shared";
 import { TriggerRow } from "./trigger-row";
 
 type Kind = "schedule" | "watch" | "webhook" | "gmail" | "calendar";
@@ -198,7 +199,7 @@ function Section({
           </div>
         </div>
       ) : (
-        <ul className="flex flex-col gap-2.5">{children}</ul>
+        <ul className={ROWS}>{children}</ul>
       )}
     </section>
   );
@@ -214,7 +215,7 @@ function CheckIn({ botId, name }: { botId: string; name: string }) {
   );
   return (
     <label
-      className="flex cursor-pointer items-start gap-3.5 rounded-xl bg-card shadow-raised px-4 py-3.5"
+      className="flex cursor-pointer items-start gap-3.5 rounded-xl border bg-card px-4 py-3.5"
       data-testid="check-in"
     >
       <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-subtle text-muted-foreground">
@@ -258,6 +259,7 @@ export function AutomationsView({ botId }: { botId?: string }) {
   const { data: triggers, isLoading: loadingTriggers } = useTriggers();
   const { data: state } = useAppState();
   const queryClient = useQueryClient();
+  const canRun = useCanRun();
   const [open, setOpen] = useState<Kind | null>(null);
   const botOf = (id: string) => state?.bots.find((bot) => bot.id === id);
   const mine = <T extends { botId: string }>(rows: T[] | undefined) =>
@@ -283,6 +285,7 @@ export function AutomationsView({ botId }: { botId?: string }) {
 
   return (
     <div className="flex flex-col gap-9">
+      {!canRun && <OfflineBanner />}
       {botId && (
         <div className="-mb-3 flex flex-col gap-4">
           <div className="flex justify-end">

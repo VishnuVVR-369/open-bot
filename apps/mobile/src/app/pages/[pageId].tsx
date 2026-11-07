@@ -358,7 +358,7 @@ export default function PageScreen() {
           title="This page was deleted"
           body="Its teammate can make it again if you ask."
           action={
-            <Button title="All pages" variant="outline" onPress={() => router.replace("/pages")} />
+            <Button title="All pages" variant="outline" onPress={() => router.navigate("/pages")} />
           }
         />
       </>
@@ -625,7 +625,7 @@ export default function PageScreen() {
           onPress={() => {
             setMenuOpen(false);
             confirmDeletePage(data, () =>
-              router.canGoBack() ? router.back() : router.replace("/pages"),
+              router.canGoBack() ? router.back() : router.navigate("/pages"),
             );
           }}
           testID="page-delete"

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  CloudOff,
   FileText,
   FolderClosed,
   KeyRound,
@@ -37,7 +38,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { authClient } from "@/lib/auth-client";
 import { useAppState } from "@/lib/client/queries";
-import { botActivity, botNeedsText, botSubtitle, isComputerOnline } from "@/lib/status";
+import { COMPUTER_OFFLINE_LINE, isComputerOnline, teammateStatus } from "@/lib/status";
 import type { AppState } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useCommandMenu } from "./command-menu";
@@ -127,7 +128,7 @@ const PRIMARY_NAV: NavEntry[] = [
   { href: "/approvals", icon: ShieldCheck, label: "Approvals" },
 ];
 
-/** Tools you set up and come back to now and then. In the phone menu they follow your chats. */
+/** Tools you set up and come back to now and then. */
 const TOOLS_NAV: NavEntry[] = [
   { href: "/automations", icon: Zap, label: "Automations" },
   { href: "/skills", icon: Sparkles, label: "Skills" },
@@ -164,7 +165,6 @@ export function Sidebar({
   const currentChatId = pathname.startsWith("/chats/") ? pathname.split("/")[2] : null;
   const currentChat = state.chats.find((chat) => chat.id === currentChatId);
   const computerOnline = isComputerOnline(state);
-  // As a drawer on a phone, your teammates and chats come before the tools, so they are in reach.
   const drawer = Boolean(onClose);
   const navItem = (entry: NavEntry) => (
     <NavItem
@@ -213,23 +213,40 @@ export function Sidebar({
         <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-2.5 pt-1 pb-8">
           <div className="flex flex-col gap-0.5">
             <SearchItem onNavigate={onNavigate} />
-            {(drawer ? PRIMARY_NAV : [...PRIMARY_NAV, ...TOOLS_NAV]).map(navItem)}
+            {/* In the phone menu every place fits in two columns, so none hides below the fold. */}
+            <div className={cn("flex flex-col gap-0.5", drawer && "grid grid-cols-2")}>
+              {[...PRIMARY_NAV, ...TOOLS_NAV].map(navItem)}
+            </div>
           </div>
 
           <div className="flex flex-col gap-0.5">
             <SectionHeader
               title="Teammates"
               action={
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon-xs" asChild>
-                      <Link href="/bots/new" onClick={onNavigate} aria-label="New teammate">
-                        <Plus />
-                      </Link>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="right">New teammate</TooltipContent>
-                </Tooltip>
+                <span className="flex min-w-0 items-center gap-1">
+                  {!computerOnline && state.bots.length > 0 && (
+                    // Said once, beside the heading, so each row below can just say "Paused".
+                    <Link
+                      href="/computer"
+                      onClick={onNavigate}
+                      className="flex h-6 min-w-0 items-center gap-1.5 rounded-md px-1.5 text-[12px] text-muted-foreground transition-colors hover:bg-sidebar-accent/70 hover:text-foreground"
+                      data-testid="sidebar-computer-offline"
+                    >
+                      <CloudOff className="size-3.5 shrink-0" strokeWidth={1.8} />
+                      <span className="truncate">{COMPUTER_OFFLINE_LINE}</span>
+                    </Link>
+                  )}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon-xs" asChild>
+                        <Link href="/bots/new" onClick={onNavigate} aria-label="New teammate">
+                          <Plus />
+                        </Link>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">New teammate</TooltipContent>
+                  </Tooltip>
+                </span>
               }
             />
             {state.bots.length === 0 && (
@@ -246,24 +263,28 @@ export function Sidebar({
               const active =
                 (currentChat?.kind !== "group" && currentChat?.botId === bot.id) ||
                 pathname === `/bots/${bot.id}`;
+              const status = teammateStatus(bot, computerOnline);
               return (
                 <Link
                   key={bot.id}
                   href={href}
                   onClick={onNavigate}
                   aria-current={active ? "page" : undefined}
+                  // The line under the name is status only; their job shows on hover.
+                  title={`${bot.name}, ${bot.role}`}
                   className={cn(
                     "flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-[background-color,box-shadow] hover:bg-sidebar-accent/70",
                     active &&
                       "bg-surface shadow-raised [--avatar-ring:var(--surface)] hover:bg-surface dark:bg-sidebar-accent dark:[--avatar-ring:var(--sidebar-accent)]",
                   )}
+                  data-testid={`sidebar-bot-${bot.slug}`}
                 >
                   <BotAvatar
                     name={bot.name}
                     color={bot.color}
                     emoji={bot.emoji}
                     size="sm"
-                    activity={botActivity(bot, computerOnline)}
+                    activity={status.activity}
                   />
                   <span className="flex min-w-0 flex-col">
                     <span className="truncate text-[13.5px] leading-tight font-medium">
@@ -272,10 +293,11 @@ export function Sidebar({
                     <span
                       className={cn(
                         "truncate text-[12px] leading-tight text-muted-foreground",
-                        botNeedsText(bot) && "text-attention-ink",
+                        status.needsYou && "text-attention-ink",
                       )}
+                      data-testid="bot-status"
                     >
-                      {botSubtitle(bot, computerOnline)}
+                      {status.label}
                     </span>
                   </span>
                 </Link>
@@ -325,12 +347,6 @@ export function Sidebar({
                   </Link>
                 );
               })}
-            </div>
-          )}
-          {drawer && (
-            <div className="flex flex-col gap-0.5">
-              <SectionHeader title="Tools" />
-              {TOOLS_NAV.map(navItem)}
             </div>
           )}
         </div>

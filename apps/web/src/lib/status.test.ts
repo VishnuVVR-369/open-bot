@@ -1,27 +1,80 @@
 import { describe, expect, it } from "vitest";
-import { botActivity, botSubtitle, failureLine, isComputerOnline, PAUSED_OFFLINE } from "./status";
+import {
+  botActivity,
+  botNeedsText,
+  failureLine,
+  isComputerOnline,
+  runIsHeldBack,
+  STATUS,
+  teammateStatus,
+} from "./status";
 
-const run = (status: "running" | "queued" | "waiting", waitingFor: "approval" | null = null) => ({
-  activeRun: { id: "r", chatId: "c", status, waitingFor },
-  role: "Research assistant",
+type Waiting = "approval" | "takeover" | null;
+const bot = (status: "running" | "queued" | "waiting" | null, waitingFor: Waiting = null) => ({
+  activeRun: status ? { id: "r", chatId: "c", status, waitingFor } : null,
 });
 
-describe("botActivity", () => {
-  it("pauses work in progress while the computer is offline", () => {
-    expect(botActivity(run("running"))).toBe("working");
-    expect(botActivity(run("running"), false)).toBe("paused");
-    expect(botActivity(run("queued"), false)).toBe("paused");
+describe("teammateStatus", () => {
+  it("says what they are doing while the computer is online", () => {
+    expect(teammateStatus(bot("running"))).toEqual({
+      label: STATUS.working,
+      activity: "working",
+      needsYou: false,
+    });
+    expect(teammateStatus(bot("queued")).label).toBe(STATUS.upNext);
+    expect(teammateStatus(bot(null))).toEqual({
+      label: STATUS.idle,
+      activity: "idle",
+      needsYou: false,
+    });
   });
 
-  it("still says a teammate needs you while offline", () => {
-    expect(botActivity(run("waiting", "approval"), false)).toBe("waiting");
-    expect(botSubtitle(run("waiting", "approval"), false)).toBe("Needs your approval");
+  it("pauses everyone who doesn't need you while the computer is offline", () => {
+    for (const status of ["running", "queued", null] as const) {
+      expect(teammateStatus(bot(status), false)).toEqual({
+        label: STATUS.paused,
+        activity: "paused",
+        needsYou: false,
+      });
+    }
   });
 
-  it("says why the work isn't moving", () => {
-    expect(botSubtitle(run("running"), false)).toBe(PAUSED_OFFLINE);
-    expect(botSubtitle(run("running"), true)).toBe("Research assistant");
-    expect(botSubtitle({ activeRun: null, role: "Writer" }, false)).toBe("Writer");
+  it("still says a teammate needs you, online or not", () => {
+    for (const online of [true, false]) {
+      expect(teammateStatus(bot("waiting", "approval"), online)).toEqual({
+        label: STATUS.approval,
+        activity: "waiting",
+        needsYou: true,
+      });
+      expect(teammateStatus(bot("waiting", "takeover"), online).label).toBe(STATUS.takeover);
+    }
+  });
+
+  it("only ever uses the fixed words", () => {
+    const words = new Set<string>(Object.values(STATUS));
+    for (const status of ["running", "queued", "waiting", null] as const)
+      for (const waitingFor of ["approval", "takeover", null] as const)
+        for (const online of [true, false])
+          expect(words.has(teammateStatus(bot(status, waitingFor), online).label)).toBe(true);
+  });
+});
+
+describe("botActivity and botNeedsText", () => {
+  it("agree with the status line", () => {
+    expect(botActivity(bot("running"), false)).toBe("paused");
+    expect(botActivity(bot(null), false)).toBe("paused");
+    expect(botActivity(bot("waiting", "approval"), false)).toBe("waiting");
+    expect(botNeedsText(bot("waiting", "takeover"))).toBe(STATUS.takeover);
+    expect(botNeedsText(bot("running"))).toBeNull();
+  });
+});
+
+describe("runIsHeldBack", () => {
+  const now = Date.parse("2026-11-06T19:00:00Z");
+  it("holds back a run whose time has passed while the computer is offline", () => {
+    expect(runIsHeldBack("2026-11-06T16:00:00Z", now, false)).toBe(true);
+    expect(runIsHeldBack("2026-11-07T16:00:00Z", now, false)).toBe(false);
+    expect(runIsHeldBack("2026-11-06T16:00:00Z", now, true)).toBe(false);
   });
 });
 
