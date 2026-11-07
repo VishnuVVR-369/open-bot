@@ -1,18 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
-import { fileURLToPath } from "node:url";
 import { eq } from "drizzle-orm";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  bots,
-  createDb,
-  createPool,
-  notifications,
-  pages,
-  pageVersions,
-  type Db,
-} from "@open-bot/db";
+import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
+import { bots, notifications, pages, pageVersions, type Db } from "@open-bot/db";
 import type { PageCheckResult, PageIssue } from "@open-bot/shared";
 import { verifyPageVersion } from "@open-bot/shared/page-links";
 import type { Context } from "../context";
@@ -36,7 +27,7 @@ import {
   searchPages,
 } from "../../../web/src/lib/server/api/pages";
 
-const url = process.env.MOBILE_API_TEST_DATABASE_URL;
+const url = testDatabaseServer();
 
 function check(html: string, issues: PageIssue[] = []): PageCheckResult {
   const data = Buffer.from(html);
@@ -71,8 +62,8 @@ function memoryFiles() {
 }
 
 describe.skipIf(!url)("pages with Postgres", () => {
-  const pool = createPool(url ?? "postgres://unused");
-  const db = createDb(pool);
+  const database = testDatabase(url);
+  const { pool, db } = database;
   const computer = { checkPage: vi.fn() };
   const ctx = { db, pool, computer, events: new EventEmitter() } as unknown as Context;
   let files: ReturnType<typeof memoryFiles>;
@@ -108,11 +99,7 @@ describe.skipIf(!url)("pages with Postgres", () => {
   }
 
   beforeAll(async () => {
-    if (!url || new URL(url).pathname !== "/openbot_mobile_api_test")
-      throw new Error("Use the disposable mobile API test database (pnpm test:mobile-api).");
-    await migrate(db, {
-      migrationsFolder: fileURLToPath(new URL("../../../../packages/db/drizzle", import.meta.url)),
-    });
+    await database.create();
   });
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -131,7 +118,7 @@ describe.skipIf(!url)("pages with Postgres", () => {
     service = new PageService(ctx, files.api);
   });
   afterAll(async () => {
-    await pool.end();
+    await database.drop();
   });
 
   it("adds versions to the page published from the same file", async () => {

@@ -1,6 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
-import { fileURLToPath } from "node:url";
 import { AccountStore } from "@open-bot/accounts";
 import {
   accountActions,
@@ -9,15 +8,13 @@ import {
   bots,
   chats,
   connections,
-  createDb,
-  createPool,
   oauthClients,
   runs,
 } from "@open-bot/db";
 import { ACCOUNT_CONNECTION_KINDS, GOOGLE_SCOPES } from "@open-bot/shared";
 import { and, eq } from "drizzle-orm";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import type { Context } from "../context";
 import { ApprovalService } from "../services/approvals";
 import { SessionRegistry } from "../services/registry";
@@ -27,15 +24,15 @@ import { ProviderError } from "./http";
 import { Integrations } from "./registry";
 import type { ActionOutcome, ActionRunner, IntegrationAdapter } from "./types";
 
-const url = process.env.MOBILE_API_TEST_DATABASE_URL;
+const url = testDatabaseServer();
 
 /** The executor's sweep, which start() runs every 30 seconds, called directly to await it. */
 const sweep = (actions: AccountActions) =>
   (actions as unknown as { sweep(): Promise<void> }).sweep();
 
 describe.skipIf(!url)("account actions with Postgres", () => {
-  const pool = createPool(url ?? "postgres://unused");
-  const db = createDb(pool);
+  const database = testDatabase(url);
+  const { pool, db } = database;
   const key = randomBytes(32).toString("base64");
   const ctx = {
     db,
@@ -82,13 +79,7 @@ describe.skipIf(!url)("account actions with Postgres", () => {
   };
 
   beforeAll(async () => {
-    if (!url || new URL(url).pathname !== "/openbot_mobile_api_test")
-      throw new Error(
-        "Use the disposable openbot_mobile_api_test database (pnpm test:mobile-api).",
-      );
-    await migrate(db, {
-      migrationsFolder: fileURLToPath(new URL("../../../../packages/db/drizzle", import.meta.url)),
-    });
+    await database.create();
   });
 
   beforeEach(async () => {
@@ -157,7 +148,7 @@ describe.skipIf(!url)("account actions with Postgres", () => {
   });
 
   afterAll(async () => {
-    await pool.end();
+    await database.drop();
   });
 
   async function action(values: Partial<typeof accountActions.$inferInsert> = {}) {

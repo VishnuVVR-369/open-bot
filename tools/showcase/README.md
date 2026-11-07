@@ -14,13 +14,14 @@ Every date is relative to the moment you seed, so labels like "2h ago" always re
 ## 1. Seed the database
 
 ```bash
-node --env-file=.env scripts/showcase/seed.mjs
+pnpm --filter @open-bot/showcase seed
 ```
 
 This drops and recreates `openbot_showcase`, runs the Drizzle migrations against it, and inserts everything.
 It refuses to run against any database that is not named `openbot_showcase`.
 It is idempotent: running it again resets to the same state (with fresh timestamps).
 It needs Postgres up (`pnpm infra:up`) and Playwright's Chromium, which it uses to render the fake screenshots and page thumbnails.
+Every insert is typed against the Drizzle schema, so `pnpm typecheck` fails when a schema change breaks the seed, and CI seeds a fresh database on every pull request.
 
 The owner account is inserted directly, with the password hashed by better-auth's own `hashPassword`.
 That needs no running server, and the real login form accepts it.
@@ -55,13 +56,13 @@ What each variable is for:
 
 Process environment wins over the `.env` files, so everything else (secrets, encryption key) comes from your normal `.env`.
 
-Starting `next dev` rewrites `apps/web/tsconfig.json` (it adds `.next-showcase` to `include` and reformats arrays).
-Undo it with `git checkout apps/web/tsconfig.json` if you have no other changes to that file.
+`next dev` adds the type folders of any output folder missing from `apps/web/tsconfig.json`'s `include`, and rewrites the file to do it.
+`.next-showcase` is already listed there, so the file stays untouched; a new `OPENBOT_NEXT_DIST_DIR` needs its two entries added the same way.
 
 ## 3. Sign in and save a Playwright storage state
 
 ```bash
-node scripts/showcase/auth.mjs            # writes /tmp/ui/showcase-auth.json
+node tools/showcase/auth.mjs            # writes /tmp/ui/showcase-auth.json
 ```
 
 This signs in through the real form at `http://localhost:3200/login`.
@@ -82,9 +83,9 @@ const context = await browser.newContext({
 ## 4. Screenshot every page
 
 ```bash
-node scripts/showcase/shoot.mjs /tmp/ui/showcase            # light
-node scripts/showcase/shoot.mjs /tmp/ui/showcase --dark     # dark
-node scripts/showcase/shoot.mjs /tmp/ui/showcase --only=home,tasks
+node tools/showcase/shoot.mjs /tmp/ui/showcase            # light
+node tools/showcase/shoot.mjs /tmp/ui/showcase --dark     # dark
+node tools/showcase/shoot.mjs /tmp/ui/showcase --only=home,tasks
 ```
 
 This visits Home, Approvals, Tasks, Automations, Skills, Pages (and a page viewer), Vault, Files, Computer, Settings, every teammate and the main chats.

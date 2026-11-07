@@ -24,7 +24,7 @@ import {
 import { errorMessage } from "../logger";
 import type { RunSession } from "../runs/session";
 import type { SessionRegistry } from "./registry";
-import { ScreenBusy, withScreenLock } from "./screen-operations";
+import { ScreenBusy, withScreenLock } from "./screen-lock";
 
 const REQUEST_WAIT_MS = 10 * 60_000;
 

@@ -64,7 +64,7 @@ async function seedChat(count: number) {
 }
 
 test.describe("isolated pocket inbox regression", () => {
-  test.skip(!databaseUrl, "Use bash scripts/test-pocket-inbox.sh for a disposable local stack.");
+  test.skip(!databaseUrl, "Use pnpm test:pocket-inbox for a disposable local stack.");
 
   test.beforeAll(async ({ request, baseURL }) => {
     const existing = await db.query('select id from "user"');

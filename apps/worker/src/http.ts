@@ -29,11 +29,8 @@ import type { RunExecutor } from "./runs/executor";
 import type { ApprovalService } from "./services/approvals";
 import type { MemoryCoordinator } from "./services/memory";
 import type { ScheduleService } from "./services/schedules";
-import {
-  ScreenBusy,
-  withScreenLock,
-  type ScreenOperationService,
-} from "./services/screen-operations";
+import { ScreenBusy, withScreenLock } from "./services/screen-lock";
+import type { ScreenOperationService } from "./services/screen-operations";
 import { SkillError, type SkillService } from "./services/skills";
 import type { TakeoverService } from "./services/takeovers";
 import { TelegramError, type TelegramService } from "./services/telegram";
@@ -112,8 +109,8 @@ async function readJson<T>(request: IncomingMessage, schema: z.ZodType<T>): Prom
 }
 
 /** A path parameter that must be an id. */
-function uuid(value: string | undefined): string {
-  if (!value || !z.string().uuid().safeParse(value).success) throw new HttpError(404, "Not found");
+function uuid(value: string | undefined, notFound = "Not found"): string {
+  if (!value || !z.string().uuid().safeParse(value).success) throw new HttpError(404, notFound);
   return value;
 }
 
@@ -678,12 +675,10 @@ export function createHttpServer(deps: HttpDeps): http.Server {
       }
     },
     "POST /internal/connections/:id/test": async (_request, params) => {
-      if (!/^[0-9a-f-]{36}$/i.test(params.id!)) throw new HttpError(404, "No such connection.");
-      return connections.test(params.id!);
+      return connections.test(uuid(params.id, "No such connection."));
     },
     "POST /internal/swarms/:id/stop": async (_request, params) => {
-      if (!/^[0-9a-f-]{36}$/i.test(params.id!)) throw new HttpError(404, "No such swarm.");
-      await swarms.stop(params.id!);
+      await swarms.stop(uuid(params.id, "No such swarm."));
       return ok;
     },
     "POST /internal/schedules/:id/run": async (_request, params) => {

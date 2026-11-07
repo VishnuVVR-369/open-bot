@@ -1,5 +1,5 @@
-// Runs scripts/owner-reset-password.mjs the way the owner would, against the disposable database
-// scripts/test-owner-reset.sh starts. Run it through that script: pnpm test:owner-reset
+// Runs scripts/ops/owner-reset-password.mjs the way the owner would, against the disposable database
+// scripts/test/owner-reset.sh starts. Run it through that script: pnpm test:owner-reset
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
@@ -7,7 +7,7 @@ import path from "node:path";
 import { after, before, test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const web = createRequire(path.join(root, "apps/web/package.json"));
 const { hashPassword, verifyPassword } = await import(
   pathToFileURL(web.resolve("better-auth/crypto")).href
@@ -16,13 +16,13 @@ const { default: pg } = await import(pathToFileURL(web.resolve("pg")).href);
 
 const DATABASE_URL = process.env.OWNER_RESET_TEST_DATABASE_URL;
 if (!DATABASE_URL || !/owner_reset_test/.test(DATABASE_URL))
-  throw new Error("Run this through scripts/test-owner-reset.sh, against its disposable database.");
+  throw new Error("Run this through scripts/test/owner-reset.sh, against its disposable database.");
 
 const OWNER = "owner@example.com";
 const client = new pg.Client({ connectionString: DATABASE_URL });
 
 function reset(args, input, env = {}) {
-  return spawnSync(process.execPath, ["scripts/owner-reset-password.mjs", ...args], {
+  return spawnSync(process.execPath, ["scripts/ops/owner-reset-password.mjs", ...args], {
     cwd: root,
     input,
     encoding: "utf8",

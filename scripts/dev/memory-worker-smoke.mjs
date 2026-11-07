@@ -1,3 +1,5 @@
+// Starts the built worker (apps/worker/dist/worker.mjs) against a migrated memory test database
+// and checks it starts and answers its authenticated status endpoint. Run it through scripts/test/memory.sh (pnpm test:memory).
 import { spawn } from "node:child_process";
 import { createServer } from "node:net";
 import { fileURLToPath } from "node:url";
@@ -14,7 +16,7 @@ const port = address.port;
 await new Promise((resolve) => portServer.close(resolve));
 const child = spawn(
   process.execPath,
-  [fileURLToPath(new URL("../apps/worker/dist/worker.mjs", import.meta.url))],
+  [fileURLToPath(new URL("../../apps/worker/dist/worker.mjs", import.meta.url))],
   {
     env: {
       ...process.env,

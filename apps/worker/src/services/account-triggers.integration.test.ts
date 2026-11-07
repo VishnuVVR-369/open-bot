@@ -2,28 +2,18 @@ import { randomBytes } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { fileURLToPath } from "node:url";
 import { AccountStore } from "@open-bot/accounts";
-import {
-  bots,
-  chats,
-  connections,
-  createDb,
-  createPool,
-  runs,
-  triggerFirings,
-  triggers,
-} from "@open-bot/db";
+import { bots, chats, connections, runs, triggerFirings, triggers } from "@open-bot/db";
 import { ACCOUNT_TRIGGER_NOTE, GOOGLE_SCOPES } from "@open-bot/shared";
 import { eq } from "drizzle-orm";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import type { Context } from "../context";
 import { AccountAccess } from "../accounts/access";
 import { AccountTriggers } from "./account-triggers";
 import { ACCOUNT_TRIGGER_RUNS_PER_HOUR, TriggerService } from "./triggers";
 
-const url = process.env.MOBILE_API_TEST_DATABASE_URL;
+const url = testDatabaseServer();
 
 /** The check start() runs every 30 seconds, called directly to await it. */
 const tick = (service: AccountTriggers) => (service as unknown as { tick(): Promise<void> }).tick();
@@ -162,8 +152,8 @@ class FakeGoogle {
 }
 
 describe.skipIf(!url)("Gmail and Calendar triggers with Postgres", () => {
-  const pool = createPool(url ?? "postgres://unused");
-  const db = createDb(pool);
+  const database = testDatabase(url);
+  const { pool, db } = database;
   const key = randomBytes(32).toString("base64");
   const ctx = {
     db,
@@ -181,13 +171,7 @@ describe.skipIf(!url)("Gmail and Calendar triggers with Postgres", () => {
   let fixture: { botId: string; gmailId: string; calendarId: string };
 
   beforeAll(async () => {
-    if (!url || new URL(url).pathname !== "/openbot_mobile_api_test")
-      throw new Error(
-        "Use the disposable openbot_mobile_api_test database (pnpm test:mobile-api).",
-      );
-    await migrate(db, {
-      migrationsFolder: fileURLToPath(new URL("../../../../packages/db/drizzle", import.meta.url)),
-    });
+    await database.create();
     server = createServer((request, response) => {
       const parsed = new URL(request.url ?? "/", "http://stand-in");
       const { status, body } = google.handle(parsed.pathname, parsed.searchParams);
@@ -254,7 +238,7 @@ describe.skipIf(!url)("Gmail and Calendar triggers with Postgres", () => {
   afterAll(async () => {
     delete process.env.GOOGLE_BASE_URL;
     await new Promise((resolve) => server?.close(resolve));
-    await pool.end();
+    await database.drop();
   });
 
   async function trigger(values: Partial<typeof triggers.$inferInsert> = {}) {

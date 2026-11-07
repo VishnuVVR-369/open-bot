@@ -1,18 +1,15 @@
 import { beforeAll, beforeEach, afterAll, describe, it, expect } from "vitest";
-import pg from "pg";
-import { createDb } from "@open-bot/db";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
-import { fileURLToPath } from "node:url";
+import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import { randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import { MemoryService } from "./index";
 import { MemoryAI, MemoryJobs, type MemoryAIConfig } from "./jobs";
 import { memoryInputSchema } from "@open-bot/shared";
 
-const connectionString = process.env.MEMORY_TEST_DATABASE_URL;
-const suite = connectionString ? describe : describe.skip;
-suite("memory with real Postgres", () => {
-  const pool = new pg.Pool({ connectionString });
+const databaseServer = testDatabaseServer();
+describe.skipIf(!databaseServer)("memory with real Postgres", () => {
+  const database = testDatabase(databaseServer);
+  const { pool } = database;
   const memory = new MemoryService(pool);
   let bot: string, peer: string, run: string, message: string, server: Server, url: string;
   let response: unknown = { data: [{ embedding: [1, 0, 0] }] };
@@ -30,14 +27,7 @@ suite("memory with real Postgres", () => {
     dailyRequestLimit: 100,
   });
   beforeAll(async () => {
-    if (
-      !connectionString ||
-      !/^openbot_memory_test(?:_[a-z0-9]+)?$/.test(new URL(connectionString).pathname.slice(1))
-    )
-      throw new Error("Memory tests require an isolated openbot_memory_test database.");
-    await migrate(createDb(pool), {
-      migrationsFolder: fileURLToPath(new URL("../../db/drizzle", import.meta.url)),
-    });
+    await database.create();
     server = createServer(async (req, res) => {
       requestCount++;
       for await (const _ of req) {
@@ -88,7 +78,7 @@ suite("memory with real Postgres", () => {
   });
   afterAll(async () => {
     if (server) await new Promise<void>((resolve) => server.close(() => resolve()));
-    await pool.end();
+    await database.drop();
   });
 
   it("saves atomically with source, revision, job and generation", async () => {

@@ -82,6 +82,11 @@ export class Integrations {
     return adapter;
   }
 
+  /** Releases every adapter's timers and connections, at shutdown. */
+  async stop(): Promise<void> {
+    await Promise.all([...this.byKind.values()].map((adapter) => adapter.stop?.()));
+  }
+
   /** The adapter of the integration a tool (`namespace.tool`) belongs to. */
   forTool(tool: string): IntegrationAdapter | undefined {
     const info = accountTool(tool);

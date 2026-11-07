@@ -1,6 +1,6 @@
 // Screenshots every page of the showcase app and reports console and server errors.
 //
-//   node scripts/showcase/shoot.mjs [outDir] [--dark] [--only=name,name]
+//   node tools/showcase/shoot.mjs [outDir] [--dark] [--only=name,name]
 //
 // Needs the showcase server on :3200 and a storage state from auth.mjs.
 import { createRequire } from "node:module";

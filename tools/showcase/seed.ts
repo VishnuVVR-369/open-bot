@@ -1,6 +1,6 @@
 // Builds the showcase database: realistic demo data for design review screenshots.
 //
-//   node --env-file=.env scripts/showcase/seed.mjs
+//   pnpm --filter @open-bot/showcase seed
 //
 // It only ever touches the database named `openbot_showcase`. The real development database
 // (`openbot`) is used only to find the Postgres server and its credentials, and is never opened.
@@ -9,6 +9,8 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { account, schema, user } from "@open-bot/db";
+import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import {
   announcementPage,
@@ -17,8 +19,8 @@ import {
   pricingComparisonPage,
   renderScreens,
   renderThumbnails,
-} from "./assets.mjs";
-import { seedConversations, seedTeam } from "./content-chats.mjs";
+} from "./assets";
+import { seedConversations, seedTeam } from "./content-chats";
 import {
   seedAutomations,
   seedConnections,
@@ -28,8 +30,8 @@ import {
   seedTasksAndSkills,
   seedUsageAndSettings,
   seedVault,
-} from "./content-rest.mjs";
-import { Db, Seeder, ago, fmtDay, fmtShort, nextLaunchDay } from "./lib.mjs";
+} from "./content-rest";
+import { Db, Seeder, ago, fmtDay, fmtShort, nextLaunchDay } from "./lib";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const SHOWCASE_DB = "openbot_showcase";
@@ -182,14 +184,14 @@ const pageIds = Object.fromEntries(
 const encryptionKey = process.env.ENCRYPTION_KEY ?? "ZGV2LWVuY3J5cHRpb24ta2V5LTMyLWJ5dGVzLWxvbmc=";
 const client = new pg.Client({ connectionString: DATABASE_URL });
 await client.connect();
-const db = new Db(client);
+const db = new Db(drizzle(client, { schema }));
 
 try {
   await client.query("begin");
 
   // The owner. The password hash is better-auth's own, so the real sign-in form accepts it.
   const userId = randomBytes(16).toString("hex");
-  await db.insert("user", {
+  await db.insert(user, {
     id: userId,
     name: OWNER.name,
     email: OWNER.email,
@@ -197,7 +199,7 @@ try {
     createdAt: ago({ d: 36 }),
     updatedAt: ago({ d: 36 }),
   });
-  await db.insert("account", {
+  await db.insert(account, {
     id: randomBytes(16).toString("hex"),
     accountId: userId,
     providerId: "credential",

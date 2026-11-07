@@ -1,5 +1,7 @@
 // Teammates and their conversations: direct chats, group chats, runs, approvals, swarm, takeover.
 import { randomUUID } from "node:crypto";
+import type { InferInsertModel } from "drizzle-orm";
+import { bots, desktopTakeovers, swarmTasks, swarms } from "@open-bot/db";
 import {
   ago,
   approval,
@@ -7,7 +9,6 @@ import {
   files,
   fmtDay,
   handoff,
-  json,
   msg,
   note,
   pageItem,
@@ -18,9 +19,13 @@ import {
   takeoverRequest,
   think,
   tool,
-} from "./lib.mjs";
+  type SeedContext,
+} from "./lib";
 
-export const BOT_DEFS = [
+export const BOT_DEFS: (Omit<InferInsertModel<typeof bots>, "id" | "slug" | "createdAt"> & {
+  key: string;
+  created: Parameters<typeof ago>[0];
+})[] = [
   {
     key: "iris",
     name: "Iris",
@@ -139,13 +144,13 @@ Your job is to keep Alex's week moving: plan, delegate, follow up, and make sure
   },
 ];
 
-export async function seedTeam(ctx) {
+export async function seedTeam(ctx: SeedContext) {
   const { db } = ctx;
   ctx.bots = {};
   for (const def of BOT_DEFS) {
     const id = randomUUID();
     const created = ago(def.created);
-    await db.insert("bots", {
+    await db.insert(bots, {
       id,
       name: def.name,
       slug: def.name.toLowerCase(),
@@ -167,7 +172,7 @@ export async function seedTeam(ctx) {
 
 /* ------------------------------------------------------------------ Conversations */
 
-export async function seedConversations(ctx) {
+export async function seedConversations(ctx: SeedContext) {
   const { s, bots, dates, pageIds, R } = ctx;
   const { iris, scout, kit, mira, juno } = bots;
   const { launch, freeze, confStart, outbound: outboundDate, back: backDate } = dates;
@@ -501,7 +506,7 @@ I put the plan together on a page: [Lisbon trip itinerary](/pages/${pageIds.itin
     ],
   });
   R.scoutHotels = hotelsExchange.runs[0];
-  await ctx.db.insert("swarms", {
+  await ctx.db.insert(swarms, {
     id: swarmId,
     botId: scout.id,
     chatId: scoutFlights.id,
@@ -525,7 +530,7 @@ I put the plan together on a page: [Lisbon trip itinerary](/pages/${pageIds.itin
         msg(hotelResults[index]),
       ],
     });
-    await ctx.db.insert("swarm_tasks", {
+    await ctx.db.insert(swarmTasks, {
       id: helper.taskId,
       swarmId,
       position: index,
@@ -974,10 +979,10 @@ I led with the news and kept the four features as a list so they scan. The voice
     text: "The intro is way too long. Three sentences max, and lose 'we cannot wait for you to try it'. Otherwise good.",
     extra: {
       redoOfRunId: R.junoDraft1.id,
-      feedbackRequest: json({
+      feedbackRequest: {
         text: "The intro is way too long. Three sentences max, and lose 'we cannot wait for you to try it'. Otherwise good.",
         remember: true,
-      }),
+      },
     },
     replies: [
       {
@@ -1039,7 +1044,7 @@ I also saved a note for myself: your intros should stay under three sentences.`)
     ],
   });
   R.junoCms = cmsExchange.runs[0];
-  await ctx.db.insert("desktop_takeovers", {
+  await ctx.db.insert(desktopTakeovers, {
     screenId: juno.id,
     status: "requested",
     requestedByRunId: R.junoCms.id,

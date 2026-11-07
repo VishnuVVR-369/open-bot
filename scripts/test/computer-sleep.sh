@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
+# Computer sleep and wake, end to end: a real computer container, Postgres and the built worker.
+# Needs Docker and the computer image (pnpm computer:build). Independent containers and storage
+# only; never touches the normal compose project or Railway.
 set -euo pipefail
-# Independent containers/storage only. Never touches the normal compose project or Railway.
-root="$(cd "$(dirname "$0")/.." && pwd)"
+root="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$root"
 computer="openbot-sleep-test-computer-$$"
 database="openbot-sleep-test-db-$$"

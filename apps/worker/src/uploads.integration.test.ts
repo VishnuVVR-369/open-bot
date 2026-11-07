@@ -1,19 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
-import { fileURLToPath } from "node:url";
 import { eq, inArray } from "drizzle-orm";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  bots,
-  chats,
-  createDb,
-  createPool,
-  messages,
-  runs,
-  uploads,
-  lockUploads,
-  type Db,
-} from "@open-bot/db";
+import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
+import { bots, chats, messages, runs, uploads, lockUploads, type Db } from "@open-bot/db";
 import {
   INCOMPLETE_TTL_MS,
   UNUSED_TTL_MS,
@@ -41,7 +30,7 @@ function deferred() {
   return { promise, resolve };
 }
 
-const url = process.env.MOBILE_API_TEST_DATABASE_URL;
+const url = testDatabaseServer();
 
 /** A computer's files in memory, counting writes, with failures on demand. */
 function memoryFiles() {
@@ -90,19 +79,13 @@ function file(text: string, name = "photo.jpg") {
 
 /** Uploading attachments exactly once per id, however often (and however concurrently) it's tried. */
 describe.skipIf(!url)("uploads with Postgres", () => {
-  const pool = createPool(url ?? "postgres://unused");
-  const db = createDb(pool);
+  const database = testDatabase(url);
+  const { pool, db } = database;
   let files: ReturnType<typeof memoryFiles>;
   let service: UploadService;
 
   beforeAll(async () => {
-    if (!url || new URL(url).pathname !== "/openbot_mobile_api_test")
-      throw new Error(
-        "Use the disposable openbot_mobile_api_test database (pnpm test:mobile-api).",
-      );
-    await migrate(db, {
-      migrationsFolder: fileURLToPath(new URL("../../../packages/db/drizzle", import.meta.url)),
-    });
+    await database.create();
   });
   beforeEach(async () => {
     await pool.query("truncate uploads, chats, bots restart identity cascade");
@@ -111,7 +94,7 @@ describe.skipIf(!url)("uploads with Postgres", () => {
     service = new UploadService(db, files.api, { warn: vi.fn() });
   });
   afterAll(async () => {
-    await pool.end();
+    await database.drop();
   });
 
   it("writes a file once, at a path that comes from its id", async () => {

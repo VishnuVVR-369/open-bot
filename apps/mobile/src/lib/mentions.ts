@@ -1,14 +1,14 @@
 /**
- * @mentions in a group chat, the same way the web composer reads them: `@Name` anywhere in the
- * message addresses that teammate. Platform-free, so it's tested in Node.
+ * @mentions in a group chat: `@Name` anywhere in the message addresses that teammate. Which
+ * teammates a message mentions is read the same way as on the web, by shared's `mentionedIds`.
+ * Platform-free, so it's tested in Node.
  */
+export { mentionedIds } from "@open-bot/shared";
 
 interface Member {
   id: string;
   name: string;
 }
-
-const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** The partial name being typed after an `@` just before the caret, or null. */
 export function mentionQuery(text: string, caret: number): string | null {
@@ -35,11 +35,4 @@ export function insertMention(
   const before = text.slice(0, caret).replace(/@([\w-]*)$/, `@${member.name} `);
   const after = text.slice(caret).replace(/^ /, "");
   return { text: before + after, caret: before.length };
-}
-
-/** The teammates a message mentions. */
-export function mentionedIds(text: string, members: Member[]): string[] {
-  return members
-    .filter((member) => new RegExp(`(^|\\s)@${escape(member.name)}(\\b|$)`, "i").test(text))
-    .map((member) => member.id);
 }

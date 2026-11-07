@@ -22,7 +22,7 @@ This block is written and re-added by `turbo` before repository-scoped commands 
 ## Environment
 
 - Node 24, pnpm from package.json, JDK 17 for Android. Prod URL: https://openbot.up.railway.app.
-- Local ports: web 3000, worker 4001, Metro 8081, pages 3400. Port 3200 is shared by apps/site dev and the showcase web app (scripts/showcase), so never run both. Check for an existing process before starting one.
+- Local ports: web 3000, worker 4001, Metro 8081, pages 3400. Port 3200 is shared by apps/site dev and the showcase web app (tools/showcase), so never run both. Check for an existing process before starting one.
 - docs/ is gitignored. Never reference it from code or tracked files. Durable knowledge goes in skills or tracked READMEs.
 - Local docker is more permissive than Railway (seccomp, user namespaces). Anything touching the computer must be judged against Railway constraints.
 
@@ -33,6 +33,18 @@ This block is written and re-added by `turbo` before repository-scoped commands 
 - Treat a flaky test as a possible real race first. Sync on observable events, never sleeps or reruns.
 - Every PR check must pass, including Cloudflare. Treat any red check as a real failure.
 - Skip tests that need >10 min of waiting or physical user action. List them as untested. Batch any phone action into one ask.
+- `pnpm verify` runs lint, typecheck, unit and integration tests; integration tests start their own Postgres in Docker unless `TEST_DATABASE_URL` is set.
+
+| Changed path                               | Run                                                                                                  |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| any TS                                     | `pnpm verify:affected`                                                                               |
+| `packages/db/src/schema.ts`                | `pnpm db:generate`, review the SQL, `pnpm test:integration`                                          |
+| `packages/egress/**`                       | `pnpm --filter @open-bot/egress vectors`, then `./gradlew test` in `apps/mobile/modules/egress/core` |
+| `apps/worker/**` deps or bundling          | `pnpm --filter @open-bot/worker build && node apps/worker/dist/worker.mjs`                           |
+| `apps/pages/**`, `packages/page-kit/**`    | `pnpm --filter @open-bot/pages build && node apps/pages/dist/pages.mjs`                              |
+| `apps/mobile/**` native or `app.config.ts` | prebuild and release lint (openbot-mobile skill)                                                     |
+| `apps/botd/**`                             | openbot-computer skill checklist                                                                     |
+| UI anywhere                                | openbot-ui-review skill                                                                              |
 
 ## Workflow and scope
 

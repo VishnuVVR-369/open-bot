@@ -1,7 +1,6 @@
 import { EventEmitter } from "node:events";
-import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import { eq } from "drizzle-orm";
 import {
   approvalRules,
@@ -10,8 +9,6 @@ import {
   chats,
   connections,
   configurationRevision,
-  createDb,
-  createPool,
   runs,
   schedules as scheduleRows,
   settings,
@@ -32,11 +29,11 @@ import { TriggerService } from "../services/triggers";
 import { TEAMMATE_RULES } from "./bots";
 import { ToolHandlers } from "./handlers";
 
-const url = process.env.BOT_MANAGEMENT_TEST_DATABASE_URL;
+const url = testDatabaseServer();
 
 describe.skipIf(!url)("bot management with Postgres", () => {
-  const pool = createPool(url ?? "postgres://unused");
-  const db = createDb(pool);
+  const database = testDatabase(url);
+  const { pool, db } = database;
   const request = vi.fn(async (method: string) =>
     method === "fs/readDirectory" ? { entries: [] } : {},
   );
@@ -72,11 +69,7 @@ describe.skipIf(!url)("bot management with Postgres", () => {
   const handlers = new ToolHandlers(...dependencies);
 
   beforeAll(async () => {
-    if (!url || new URL(url).pathname !== "/openbot_bot_management_test")
-      throw new Error("Use the disposable openbot_bot_management_test database (pnpm test:bots).");
-    await migrate(db, {
-      migrationsFolder: fileURLToPath(new URL("../../../../packages/db/drizzle", import.meta.url)),
-    });
+    await database.create();
     await db.insert(settings).values({ id: 1, timezone: "Asia/Kolkata" }).onConflictDoNothing();
     vi.spyOn(schedules, "kick").mockImplementation(() => {});
     vi.spyOn(triggers, "kick").mockImplementation(() => {});
@@ -89,7 +82,7 @@ describe.skipIf(!url)("bot management with Postgres", () => {
   afterAll(async () => {
     schedules.stop();
     triggers.stop();
-    await pool.end();
+    await database.drop();
   });
 
   async function fixture(autonomy: "full" | "risky" | "everything" = "full") {

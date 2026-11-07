@@ -292,9 +292,16 @@ export class NotionTools implements IntegrationAdapter {
   );
   readonly kind = "notion" as const;
   private readonly clients = new Map<string, Promise<OpenClient>>();
+  private readonly idleTimer: NodeJS.Timeout;
 
   constructor(private readonly ctx: Context) {
-    setInterval(() => this.closeIdle(), 60_000).unref();
+    this.idleTimer = setInterval(() => this.closeIdle(), 60_000).unref();
+  }
+
+  /** Stops the idle sweep and closes every open Notion session. */
+  async stop(): Promise<void> {
+    clearInterval(this.idleTimer);
+    await Promise.all([...this.clients.keys()].map((accountId) => this.drop(accountId)));
   }
 
   private connect(accountId: string, tokens: TokenSource): Promise<OpenClient> {

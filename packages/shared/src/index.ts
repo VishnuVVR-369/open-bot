@@ -26,3 +26,4 @@ export * from "./recovery";
 export * from "./relative-time";
 export * from "./password";
 export * from "./status";
+export * from "./mentions";

@@ -195,8 +195,3 @@ ${sections.map((section) => `${section}\n\n`).join("")}## Memory
 Saved memory is provided with each task. Use the memory tools to recall or change it. MEMORY.md is a generated export; file edits are not saved.
 `;
 }
-
-export const INITIAL_MEMORY = `# Memory
-
-Durable notes about the user and how they like things done.
-`;

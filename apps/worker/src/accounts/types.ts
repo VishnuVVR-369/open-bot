@@ -104,6 +104,8 @@ export interface IntegrationAdapter {
   /** A refusal from the service, said for the teammate, with the fix where there is one. */
   problem(error: ProviderError): string;
   readonly runner: ActionRunner;
+  /** Releases timers and connections at shutdown, for adapters that hold any. */
+  stop?(): Promise<void>;
 }
 
 /** An adapter's class: its tools are known before any instance, since every thread gets them. */

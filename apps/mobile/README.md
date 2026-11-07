@@ -145,7 +145,7 @@ Run `pnpm test` for platform-free logic and mounted React hook regressions, and 
 
 ## Pocket inbox tests
 
-From the repository root, `pnpm test:mobile-api` checks durable dispatch, FCM fan-out and retry-safe uploads against disposable Postgres.
+From the repository root, `pnpm test:integration` checks durable dispatch, FCM fan-out and retry-safe uploads against disposable Postgres.
 The normal database is not contacted by that command.
 `pnpm e2e --grep-invert @agent` checks the web and RPC regression against the running local stack.
 

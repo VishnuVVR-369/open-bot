@@ -1,5 +1,19 @@
 // Helpers for the showcase seed: time, ids, SQL inserts and the builders for chats and runs.
 import { createCipheriv, createHash, randomBytes, randomUUID } from "node:crypto";
+import {
+  approvals,
+  artifacts,
+  chatMembers,
+  chats,
+  messages,
+  runEvents,
+  runs,
+  usageEntries,
+  type schema,
+} from "@open-bot/db";
+import { eq, getTableName, type InferInsertModel } from "drizzle-orm";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { PgTable } from "drizzle-orm/pg-core";
 
 /* ------------------------------------------------------------------ Time */
 
@@ -120,38 +134,52 @@ export function nextLaunchDay() {
 
 /* ------------------------------------------------------------------ SQL */
 
-/** Marks a value to be stored as JSON (jsonb), whatever its shape. */
-export class J {
-  constructor(value) {
-    this.value = value;
-  }
-}
-export const json = (value) => new J(value);
-
-const snake = (key) => key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
-
+/** Inserts typed against the Drizzle schema, so a renamed or removed column fails `pnpm typecheck`. */
 export class Db {
-  constructor(client) {
-    this.client = client;
-    this.counts = {};
-  }
+  readonly counts: Record<string, number> = {};
 
-  async insert(table, row) {
-    const keys = Object.keys(row).filter((key) => row[key] !== undefined);
-    const columns = keys.map((key) => `"${snake(key)}"`).join(", ");
-    const placeholders = keys.map((_, i) => `$${i + 1}`).join(", ");
-    const values = keys.map((key) =>
-      row[key] instanceof J ? JSON.stringify(row[key].value) : row[key],
-    );
-    await this.client.query(`insert into "${table}" (${columns}) values (${placeholders})`, values);
-    this.counts[table] = (this.counts[table] ?? 0) + 1;
+  constructor(readonly orm: NodePgDatabase<typeof schema>) {}
+
+  async insert<T extends PgTable>(
+    table: T,
+    row: InferInsertModel<T>,
+  ): Promise<InferInsertModel<T>> {
+    await this.orm.insert(table).values(row as never);
+    const name = getTableName(table);
+    this.counts[name] = (this.counts[name] ?? 0) + 1;
     return row;
   }
-
-  query(sql, params) {
-    return this.client.query(sql, params);
-  }
 }
+
+/** A row for a helper that fills in the `Filled` columns itself: those become optional. */
+export type RowWithDefaults<T extends PgTable, Filled extends keyof InferInsertModel<T>> = Omit<
+  InferInsertModel<T>,
+  Filled
+> &
+  Partial<Pick<InferInsertModel<T>, Filled>>;
+
+/** What every seeding step shares. Typed, so each step's inserts are checked against the schema. */
+export type SeedContext = {
+  db: Db;
+  s: Seeder;
+  encryptionKey: string;
+  shots: Map<string, Buffer>;
+  thumbs: Map<string, Buffer>;
+  pageHtml: Record<string, string[]>;
+  pageIds: Record<string, { id: string; versions: string[] }>;
+  dates: Record<"launch" | "freeze" | "confStart" | "confEnd" | "outbound" | "back", Date>;
+  // The story's cast and the rows later steps refer back to, filled in as seeding goes.
+  bots?: Record<string, Ref>;
+  chats: Record<string, Ref>;
+  // Runs, approval items and lists one chat's story hands to another; shapes vary by entry.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  R: Record<string, any>;
+  conn?: Record<string, string>;
+  pageRows?: Record<string, Ref>;
+};
+
+/** A row seeded earlier that a later step points at. */
+type Ref = { id: string; [field: string]: unknown };
 
 /* ------------------------------------------------------------------ Secrets */
 
@@ -197,7 +225,11 @@ export const cmd = (
   failed: exit !== 0,
 });
 export const files = (changes, dur = 2200) => ({ kind: "file_change", changes, dur });
-export const tool = (name, label, { result, args = {}, error } = {}) => ({
+export const tool = (
+  name,
+  label,
+  { result, args = {}, error }: { result?: unknown; args?: object; error?: string } = {},
+) => ({
   kind: "tool",
   name,
   label,
@@ -259,11 +291,14 @@ function shellQuote(script) {
 /* ------------------------------------------------------------------ Seeding chats and runs */
 
 export class Seeder {
-  /**
-   * @param {Db} db
-   * @param {{ shots: Map<string, Buffer>, encryptionKey: string }} context
-   */
-  constructor(db, context) {
+  readonly db: Db;
+  readonly shots: Map<string, Buffer>;
+  readonly activity: Map<string, Date>;
+  readonly completions: Map<string, Date>;
+  readonly unread: Set<string>;
+  runCount: number;
+
+  constructor(db: Db, context: { shots: Map<string, Buffer>; encryptionKey: string }) {
     this.db = db;
     this.shots = context.shots;
     this.activity = new Map(); // chatId -> latest activity
@@ -285,9 +320,17 @@ export class Seeder {
     members = [],
     createdAt,
     unread = false,
+  }: {
+    kind?: InferInsertModel<typeof chats>["kind"];
+    title: string;
+    titled?: boolean;
+    bot?: { id: string };
+    members?: { id: string }[];
+    createdAt: Date;
+    unread?: boolean;
   }) {
     const id = randomUUID();
-    await this.db.insert("chats", {
+    await this.db.insert(chats, {
       id,
       kind,
       title,
@@ -298,7 +341,7 @@ export class Seeder {
       readAt: createdAt,
     });
     for (const member of members)
-      await this.db.insert("chat_members", { chatId: id, botId: member.id, createdAt });
+      await this.db.insert(chatMembers, { chatId: id, botId: member.id, createdAt });
     this.touch(id, createdAt);
     if (unread) this.unread.add(id);
     return { id, kind, title };
@@ -308,16 +351,26 @@ export class Seeder {
     chat,
     text,
     at,
-    { mentions = [], attachments = [], via = "app", extra = {} } = {},
+    {
+      mentions = [],
+      attachments = [],
+      via = "app",
+      extra = {},
+    }: {
+      mentions?: { id: string }[];
+      attachments?: InferInsertModel<typeof messages>["attachments"];
+      via?: InferInsertModel<typeof messages>["via"];
+      extra?: Partial<InferInsertModel<typeof messages>>;
+    } = {},
   ) {
     const id = randomUUID();
-    await this.db.insert("messages", {
+    await this.db.insert(messages, {
       id,
       chatId: chat.id,
       role: "user",
       text,
-      attachments: json(attachments),
-      mentions: json(mentions.map((bot) => bot.id)),
+      attachments: attachments,
+      mentions: mentions.map((bot) => bot.id),
       via,
       dispatchStatus: "dispatched",
       createdAt: at,
@@ -359,7 +412,7 @@ export class Seeder {
     events.push({ at: startedAt, payload: { type: "status", status: "running" } });
 
     const approvalsToInsert = [];
-    const artifactsToInsert = [];
+    const artifactsToInsert: InferInsertModel<typeof artifacts>[] = [];
     items.forEach((raw, index) => {
       const { dur = 2000, shot, failed, ...item } = raw;
       const last = index === items.length - 1;
@@ -412,7 +465,7 @@ export class Seeder {
         .map((item) => item.text)
         .join("\n\n") || null;
 
-    await this.db.insert("runs", {
+    await this.db.insert(runs, {
       id,
       chatId: chat.id,
       botId: bot.id,
@@ -430,7 +483,7 @@ export class Seeder {
       finalText,
       rating,
       readOutsideData,
-      attachments: json([]),
+      attachments: [],
       createdAt: at,
       startedAt,
       completedAt,
@@ -448,15 +501,15 @@ export class Seeder {
       },
     });
     for (const event of events)
-      await this.db.insert("run_events", {
+      await this.db.insert(runEvents, {
         runId: id,
         chatId: chat.id,
-        payload: json(event.payload),
+        payload: event.payload,
         createdAt: event.at,
       });
-    for (const artifact of artifactsToInsert) await this.db.insert("artifacts", artifact);
+    for (const artifact of artifactsToInsert) await this.db.insert(artifacts, artifact);
     for (const { item, begin, end } of approvalsToInsert) {
-      await this.db.insert("approvals", {
+      await this.db.insert(approvals, {
         id: item.approvalId,
         runId: id,
         botId: bot.id,
@@ -464,11 +517,11 @@ export class Seeder {
         kind: item.approvalKind,
         title: item.title,
         detail: item.detail,
-        payload: json({
+        payload: {
           ...(item.subject ? { subject: item.subject } : {}),
           ...(item.askEveryTime ? { askEveryTime: true } : {}),
           ...(item.preview ? { preview: item.preview } : {}),
-        }),
+        },
         status: item.decision,
         itemId: item.id,
         createdAt: begin,
@@ -476,7 +529,7 @@ export class Seeder {
       });
     }
     if (authMode === "api_key" || status !== "queued") {
-      await this.db.insert("usage_entries", {
+      await this.db.insert(usageEntries, {
         runId: id,
         botId: bot.id,
         authMode,
@@ -524,11 +577,10 @@ export class Seeder {
       const completed = this.completions.get(chatId);
       const unread = this.unread.has(chatId) && completed;
       const readAt = unread ? plus(completed, -3 * HOUR) : last > NOW ? NOW : plus(last, 1000);
-      await this.db.query("update chats set last_activity_at = $2, read_at = $3 where id = $1", [
-        chatId,
-        last,
-        readAt > NOW ? NOW : readAt,
-      ]);
+      await this.db.orm
+        .update(chats)
+        .set({ lastActivityAt: last, readAt: readAt > NOW ? NOW : readAt })
+        .where(eq(chats.id, chatId));
     }
   }
 }

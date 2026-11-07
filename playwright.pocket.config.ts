@@ -1,6 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 
-// Run with bash scripts/test-pocket-inbox.sh; evidence output is opt-in via POCKET_TEST_EVIDENCE_DIR.
+// Run with pnpm test:pocket-inbox; evidence output is opt-in via POCKET_TEST_EVIDENCE_DIR.
 const databaseUrl = process.env.POCKET_TEST_DATABASE_URL;
 if (
   !databaseUrl ||

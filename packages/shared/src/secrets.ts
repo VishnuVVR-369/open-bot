@@ -29,3 +29,28 @@ export function secretHint(secret: string): string {
 }
 
 export const DEV_ENCRYPTION_KEY = "ZGV2LWVuY3J5cHRpb24ta2V5LTMyLWJ5dGVzLWxvbmc=";
+
+/**
+ * The development defaults for the secrets web, worker and computer share. They are public (in this
+ * repository), so production refuses to start with any of them.
+ */
+export const DEV_SECRETS = {
+  WORKER_SECRET: "dev-worker-secret-change-me",
+  ENCRYPTION_KEY: DEV_ENCRYPTION_KEY,
+  BOTD_TOKEN: "dev-botd-token-change-me",
+} as const;
+
+/** Throws in production when a secret in use is still its public development default. */
+export function assertNoDevSecrets(
+  inUse: Partial<Record<keyof typeof DEV_SECRETS, string>>,
+  nodeEnv: string | undefined,
+): void {
+  if (nodeEnv !== "production") return;
+  const defaults = Object.entries(inUse)
+    .filter(([name, value]) => value === DEV_SECRETS[name as keyof typeof DEV_SECRETS])
+    .map(([name]) => name);
+  if (defaults.length)
+    throw new Error(
+      `Set ${defaults.join(", ")} in production: the development default is public, so it protects nothing.`,
+    );
+}

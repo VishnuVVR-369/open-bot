@@ -38,21 +38,21 @@ The web app compiles them through Next.js, the worker and botd bundle them with 
 
 ## Commands
 
-| Command                               | What it does                                                       |
-| ------------------------------------- | ------------------------------------------------------------------ |
-| `pnpm dev`                            | The web app, the worker and the pages service, with reload         |
-| `pnpm infra:up`                       | Postgres and the computer in Docker, waiting until healthy         |
-| `pnpm computer:build`                 | Rebuilds the computer image (after changing botd or the image)     |
-| `pnpm db:migrate`, `pnpm db:generate` | Apply migrations, or generate one from the schema                  |
-| `pnpm lint`                           | ESLint over the repository, with no warnings allowed               |
-| `pnpm format`, `pnpm format:check`    | Prettier                                                           |
-| `pnpm typecheck`                      | `tsc` in every package (and `next typegen` for the Next.js apps)   |
-| `pnpm test`                           | Vitest unit tests in every package                                 |
-| `pnpm e2e`                            | Playwright against the running stack                               |
-| `pnpm test:memory -- --e2e`           | The isolated memory suite                                          |
-| `pnpm test:bots`                      | Teammate management against a disposable Postgres                  |
-| `pnpm test:mobile-api`                | Mobile API and pages integration tests against disposable Postgres |
-| `pnpm test:mobile-ui`                 | Android Maestro flows; see `apps/mobile/README.md`                 |
+| Command                               | What it does                                                     |
+| ------------------------------------- | ---------------------------------------------------------------- |
+| `pnpm dev`                            | The web app, the worker and the pages service, with reload       |
+| `pnpm infra:up`                       | Postgres and the computer in Docker, waiting until healthy       |
+| `pnpm computer:build`                 | Rebuilds the computer image (after changing botd or the image)   |
+| `pnpm db:migrate`, `pnpm db:generate` | Apply migrations, or generate one from the schema                |
+| `pnpm lint`                           | ESLint over the repository, with no warnings allowed             |
+| `pnpm format`, `pnpm format:check`    | Prettier                                                         |
+| `pnpm typecheck`                      | `tsc` in every package (and `next typegen` for the Next.js apps) |
+| `pnpm test`                           | Vitest unit tests in every package                               |
+| `pnpm e2e`                            | Playwright against the running stack                             |
+| `pnpm verify`                         | Lint, typecheck, unit and integration tests in one command       |
+| `pnpm test:integration`               | Every `*.integration.test.ts` against a disposable Postgres      |
+| `pnpm test:memory -- --e2e`           | The isolated memory suite                                        |
+| `pnpm test:mobile-ui`                 | Android Maestro flows; see `apps/mobile/README.md`               |
 
 ## Tests
 
@@ -92,11 +92,12 @@ Stand-ins replace outside services, so no test needs a real account:
 `pnpm test:memory -- --e2e` creates its own pgvector container, applies every migration, runs database and provider tests against a deterministic local HTTP server, smoke-tests the compiled worker, and exercises the memory UI at desktop and phone widths.
 It removes only its own container.
 
-### Teammate management
+### Integration tests
 
-`pnpm test:bots` starts its own throwaway pgvector container, applies every migration, and runs `apps/worker/src/tools/bots.integration.test.ts` against it.
-It covers creating and editing teammates through their tools and the web app's routes: concurrent creates, stale edits, approvals and Always allow, late approvals, connection access, and swarm helpers.
-It refuses any database but its own, and removes the container when it finishes.
+`pnpm test:integration` runs every `*.integration.test.ts` against real Postgres: teammate management, the phone API, uploads, pages, account sign-ins, actions and triggers, screen operations and memory.
+Each suite creates its own fresh database on the server named by `TEST_DATABASE_URL`, applies every migration, and drops it afterwards (`@open-bot/db/testing`), so suites run in parallel.
+Without `TEST_DATABASE_URL`, the command starts a throwaway pgvector container (`scripts/test/pg.sh`) and removes it when it finishes.
+CI runs them against a Postgres service; there a missing `TEST_DATABASE_URL` fails the run instead of skipping.
 
 ### This site
 
