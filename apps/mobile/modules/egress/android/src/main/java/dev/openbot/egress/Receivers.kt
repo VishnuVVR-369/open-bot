@@ -57,7 +57,7 @@ class BootReceiver : BroadcastReceiver() {
  * - `dev.openbot.egress.DEBUG_WAKE` with `--es stage wake --es sentAt <ISO time>`: the same data
  *   as a wake push, through the same code.
  * - `dev.openbot.egress.DEBUG_PAIR` with `--es secret … --ei generation … --es appUrl …
- *   [--es phoneMode always]`: pair without the app's screens (scripts/egress-pair-dev.mjs).
+ *   [--es phoneMode always]`: pair without the app's screens (apps/mobile/scripts/egress-pair-dev.mjs).
  */
 class DebugWakeReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {

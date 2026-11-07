@@ -166,6 +166,12 @@ export const docs: DocSection[] = [
         title: "Notifications and channels",
         description: "In-app and push notifications, Telegram, and an email address per teammate.",
       },
+      {
+        href: "/docs/flows/android-app",
+        title: "The Android app",
+        description:
+          "Home, chats, approvals from the notification shade, screens, pages and sharing on your phone.",
+      },
     ],
   },
   {

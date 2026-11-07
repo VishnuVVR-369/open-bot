@@ -37,5 +37,6 @@ The native phone-egress code is here, but the tunnel protocol itself belongs in 
 ## Docs
 
 - `apps/mobile/README.md`
+- `apps/site/src/app/docs/flows/android-app/page.mdx`
 - `apps/site/src/app/docs/architecture/desktop-and-egress/page.mdx`
 - `apps/site/src/app/docs/flows/screens-and-takeover/page.mdx`
