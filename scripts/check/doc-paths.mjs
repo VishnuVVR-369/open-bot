@@ -131,6 +131,12 @@ function documents(root) {
     .sort();
 }
 
+/** Where a parse error is: its own line, its range's start, or the `(3:1-3:7)` in its message. */
+export function errorLine(error) {
+  const fromReason = /\((\d+):\d+(?:-\d+:\d+)?\)/.exec(error.reason ?? "");
+  return error.line ?? error.place?.start?.line ?? (fromReason ? Number(fromReason[1]) : 1);
+}
+
 export function check(root) {
   const ignored = gitIgnored(root);
   const problems = [];
@@ -140,8 +146,9 @@ export function check(root) {
     try {
       references = referencedPaths(text, { mdx: file.endsWith(".mdx") });
     } catch (error) {
-      const at = error.place?.line ?? error.line ?? 1;
-      problems.push(`${file}:${at}: cannot be parsed: ${error.reason ?? error.message}`);
+      problems.push(
+        `${file}:${errorLine(error)}: cannot be parsed: ${error.reason ?? error.message}`,
+      );
       continue;
     }
     for (const { line, path: reference, kind } of references) {

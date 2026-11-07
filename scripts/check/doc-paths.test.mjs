@@ -16,7 +16,7 @@ describe("referencedPaths", () => {
     assert.deepEqual(paths(text), ["1:apps/web/src/app", "1:packages/db"]);
   });
 
-  it("reads double-backtick spans, spans across lines and spans in tables", () => {
+  it("reads double-backtick spans, spans across lines and spans in table-like lines", () => {
     const text = [
       "``apps/double.ts`` and `` `apps/padded.ts` ``",
       "a `",
@@ -29,6 +29,16 @@ describe("referencedPaths", () => {
       "2:apps/multi.ts",
       "5:packages/in-table.ts",
     ]);
+  });
+
+  it("finds code spans, links and images in GFM table cells", () => {
+    const text = [
+      "| Path | Link |",
+      "| ---- | ---- |",
+      "| `apps/cell.ts` | [doc](cell.md) |",
+      "| x | ![shot](cell.png) |",
+    ].join("\n");
+    assert.deepEqual(paths(text), ["3:apps/cell.ts", "3:cell.md", "4:cell.png"]);
   });
 
   it("drops a span broken mid-path, because its content then has a space", () => {
@@ -212,7 +222,7 @@ describe("check", () => {
     const found = problems("");
     rmSync(path.join(root, "BROKEN.mdx"));
     assert.equal(found.length, 1);
-    assert.match(found[0], /^BROKEN\.mdx:\d+: cannot be parsed: /);
+    assert.match(found[0], /^BROKEN\.mdx:3: cannot be parsed: Expected a closing tag for `<Note>`/);
   });
 
   it("rejects links that leave the repository", () => {
