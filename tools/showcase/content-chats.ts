@@ -1,5 +1,6 @@
 // Teammates and their conversations: direct chats, group chats, runs, approvals, swarm, takeover.
 import { randomUUID } from "node:crypto";
+import type { InferInsertModel } from "drizzle-orm";
 import { bots, desktopTakeovers, swarmTasks, swarms } from "@open-bot/db";
 import {
   ago,
@@ -18,9 +19,13 @@ import {
   takeoverRequest,
   think,
   tool,
+  type SeedContext,
 } from "./lib";
 
-export const BOT_DEFS = [
+export const BOT_DEFS: (Omit<InferInsertModel<typeof bots>, "id" | "slug" | "createdAt"> & {
+  key: string;
+  created: Parameters<typeof ago>[0];
+})[] = [
   {
     key: "iris",
     name: "Iris",
@@ -139,7 +144,7 @@ Your job is to keep Alex's week moving: plan, delegate, follow up, and make sure
   },
 ];
 
-export async function seedTeam(ctx) {
+export async function seedTeam(ctx: SeedContext) {
   const { db } = ctx;
   ctx.bots = {};
   for (const def of BOT_DEFS) {
@@ -167,7 +172,7 @@ export async function seedTeam(ctx) {
 
 /* ------------------------------------------------------------------ Conversations */
 
-export async function seedConversations(ctx) {
+export async function seedConversations(ctx: SeedContext) {
   const { s, bots, dates, pageIds, R } = ctx;
   const { iris, scout, kit, mira, juno } = bots;
   const { launch, freeze, confStart, outbound: outboundDate, back: backDate } = dates;

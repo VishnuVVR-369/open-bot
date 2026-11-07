@@ -59,6 +59,36 @@ describe("stopping services", () => {
     expect(listeners()).toBe(0);
   });
 
+  it("starts no sweep or poll for work that finishes after stopping", async () => {
+    // A sweep is in flight when shutdown starts; asked to run again, and its work ends after stop().
+    let release!: () => void;
+    const update = vi.fn(
+      () =>
+        new Promise<never>((_, reject) => {
+          release = () => reject(new Error("finished after stop"));
+        }),
+    );
+    const actions = new AccountActions(
+      ...([
+        { events, log, db: { update } },
+        null,
+        null,
+        null,
+        null,
+      ] as unknown as ConstructorParameters<typeof AccountActions>),
+    );
+    actions.start();
+    actions.kick();
+    actions.stop();
+    release();
+    await vi.waitFor(() => expect(log.error).toHaveBeenCalled());
+    actions.kick();
+    (actions as unknown as { schedulePoll(id: string, ms: number): void }).schedulePoll("a1", 10);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it("stops Notion's idle sweep through the integrations", async () => {
     const integrations = new Integrations([new NotionTools({ events, log } as unknown as Context)]);
     expect(vi.getTimerCount()).toBe(1);

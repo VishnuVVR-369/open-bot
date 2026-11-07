@@ -156,6 +156,36 @@ export class Db {
   }
 }
 
+/** A row for a helper that fills in the `Filled` columns itself: those become optional. */
+export type RowWithDefaults<T extends PgTable, Filled extends keyof InferInsertModel<T>> = Omit<
+  InferInsertModel<T>,
+  Filled
+> &
+  Partial<Pick<InferInsertModel<T>, Filled>>;
+
+/** What every seeding step shares. Typed, so each step's inserts are checked against the schema. */
+export type SeedContext = {
+  db: Db;
+  s: Seeder;
+  encryptionKey: string;
+  shots: Map<string, Buffer>;
+  thumbs: Map<string, Buffer>;
+  pageHtml: Record<string, string[]>;
+  pageIds: Record<string, { id: string; versions: string[] }>;
+  dates: Record<"launch" | "freeze" | "confStart" | "confEnd" | "outbound" | "back", Date>;
+  // The story's cast and the rows later steps refer back to, filled in as seeding goes.
+  bots?: Record<string, Ref>;
+  chats: Record<string, Ref>;
+  // Runs, approval items and lists one chat's story hands to another; shapes vary by entry.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  R: Record<string, any>;
+  conn?: Record<string, string>;
+  pageRows?: Record<string, Ref>;
+};
+
+/** A row seeded earlier that a later step points at. */
+type Ref = { id: string; [field: string]: unknown };
+
 /* ------------------------------------------------------------------ Secrets */
 
 /** The same AES-256-GCM sealing the app uses for secrets at rest (iv.tag.data, base64url). */

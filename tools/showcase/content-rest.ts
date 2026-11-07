@@ -1,6 +1,7 @@
 // Everything around the conversations: automations, accounts, tasks, skills, vault, memory,
 // notifications, pages, usage and settings.
 import { createHash, randomBytes, randomUUID } from "node:crypto";
+import type { InferInsertModel } from "drizzle-orm";
 import {
   accounts,
   connections,
@@ -35,13 +36,15 @@ import {
   plus,
   seal,
   TIMEZONE,
+  type SeedContext,
+  type RowWithDefaults,
 } from "./lib";
 
 const WEEKDAYS = [1, 2, 3, 4, 5];
 
 /* ------------------------------------------------------------------ Accounts and connections */
 
-export async function seedConnections(ctx) {
+export async function seedConnections(ctx: SeedContext) {
   const { db, encryptionKey, bots } = ctx;
   const { iris, kit, mira, scout } = bots;
   ctx.conn = {};
@@ -114,7 +117,20 @@ export async function seedConnections(ctx) {
     createdAt: ago({ d: 18 }),
   });
 
-  const accountConnection = async (row) => {
+  const accountConnection = async (
+    row: RowWithDefaults<
+      typeof connections,
+      | "id"
+      | "transport"
+      | "args"
+      | "secretNames"
+      | "enabled"
+      | "askBeforeActing"
+      | "settings"
+      | "createdAt"
+      | "updatedAt"
+    >,
+  ) => {
     const id = randomUUID();
     await db.insert(connections, {
       id,
@@ -241,7 +257,15 @@ Two decisions waiting for you: the embargo time for press, and whether to hold t
 Mira flagged an invoice from Northhost: $212.40, same as last month.`,
 ];
 
-async function scheduledRuns(ctx, chat, bot, schedule, texts, occurrences, extra = {}) {
+async function scheduledRuns(
+  ctx: SeedContext,
+  chat,
+  bot,
+  schedule,
+  texts,
+  occurrences,
+  extra = {},
+) {
   const { s } = ctx;
   const runs = [];
   for (const [index, at] of occurrences.entries()) {
@@ -263,7 +287,7 @@ async function scheduledRuns(ctx, chat, bot, schedule, texts, occurrences, extra
   return runs;
 }
 
-export async function seedAutomations(ctx) {
+export async function seedAutomations(ctx: SeedContext) {
   const { db, s, bots } = ctx;
   const { iris, scout, kit, mira, juno } = bots;
   const msgItem = (text) => ({ kind: "message", text, phase: "final", dur: 4000 });
@@ -286,7 +310,24 @@ export async function seedAutomations(ctx) {
   const miraInbox = await chatFor(mira, "inbox", "Email");
   ctx.chats.miraInbox = miraInbox;
 
-  const makeSchedule = async (bot, row, spec, extra = {}) => {
+  const makeSchedule = async (
+    bot,
+    row: RowWithDefaults<
+      typeof schedules,
+      | "id"
+      | "botId"
+      | "kind"
+      | "timezone"
+      | "enabled"
+      | "quiet"
+      | "createdBy"
+      | "nextRunAt"
+      | "lastRunAt"
+      | "createdAt"
+    >,
+    spec,
+    extra: Partial<InferInsertModel<typeof schedules>> = {},
+  ) => {
     const id = randomUUID();
     const occurrences = spec ? lastOccurrences(spec, 3) : [];
     await db.insert(schedules, {
@@ -633,7 +674,7 @@ Needs a reply today. Both mornings are free on your calendar after 11.`),
     text,
     runId = null,
     replyToId = null,
-  }) => {
+  }: Partial<InferInsertModel<typeof emails>> & { at: Date }) => {
     const id = randomUUID();
     await db.insert(emails, {
       id,
@@ -719,7 +760,7 @@ I drafted a reply that apologizes briefly, confirms the refund of **$228**, and 
 
 /* ------------------------------------------------------------------ Tasks, skills, vault, purchases */
 
-export async function seedTasksAndSkills(ctx) {
+export async function seedTasksAndSkills(ctx: SeedContext) {
   const { db, bots, chats } = ctx;
   const { iris, scout, kit, mira, juno } = bots;
   const { launch, freeze } = ctx.dates;
@@ -895,10 +936,16 @@ Add each follow-up to the task board with the right owner.`,
   });
 }
 
-export async function seedVault(ctx) {
+export async function seedVault(ctx: SeedContext) {
   const { db, bots, encryptionKey, chats, R } = ctx;
   const { iris, scout, kit, mira, juno } = bots;
-  const item = async (row, secret) => {
+  const item = async (
+    row: RowWithDefaults<
+      typeof vaultItems,
+      "id" | "domain" | "botIds" | "lastUsedAt" | "createdAt" | "updatedAt" | "encrypted"
+    >,
+    secret,
+  ) => {
     const id = randomUUID();
     await db.insert(vaultItems, {
       id,
@@ -1032,7 +1079,7 @@ export async function seedVault(ctx) {
 
 /* ------------------------------------------------------------------ Memory, profile, lessons */
 
-export async function seedMemory(ctx) {
+export async function seedMemory(ctx: SeedContext) {
   const { db, bots, R } = ctx;
   const { iris, scout, kit, mira, juno } = bots;
   const memory = async (row) => {
@@ -1289,7 +1336,7 @@ export async function seedMemory(ctx) {
 
 /* ------------------------------------------------------------------ Pages */
 
-export async function seedPages(ctx) {
+export async function seedPages(ctx: SeedContext) {
   const { db, bots, pageIds, pageHtml, thumbs, chats, R } = ctx;
   const { iris, scout, juno } = bots;
   const specs = [
@@ -1420,7 +1467,7 @@ export async function seedPages(ctx) {
 
 /* ------------------------------------------------------------------ Notifications, usage, credentials */
 
-export async function seedNotifications(ctx) {
+export async function seedNotifications(ctx: SeedContext) {
   const { db, bots, chats, R, pageIds } = ctx;
   const { iris, scout, kit, mira, juno } = bots;
   const n = (row) => db.insert(notifications, { id: randomUUID(), body: "", readAt: null, ...row });
@@ -1519,7 +1566,7 @@ export async function seedNotifications(ctx) {
   });
 }
 
-export async function seedUsageAndSettings(ctx) {
+export async function seedUsageAndSettings(ctx: SeedContext) {
   const { db, bots, encryptionKey } = ctx;
   const all = Object.values(bots) as { id: string }[];
   // Spread some extra usage across the month so the totals look lived in.

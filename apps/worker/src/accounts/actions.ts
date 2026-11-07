@@ -107,6 +107,8 @@ export class AccountActions {
     { runId: string; resolve: (row: ActionRow | null) => void }
   >();
   private sweeping = false;
+  /** Set at shutdown: work that finishes afterwards starts no new sweep or poll. */
+  private stopped = false;
   private again = false;
   private readonly polls = new Map<string, NodeJS.Timeout>();
   private sweepTimer: NodeJS.Timeout | undefined;
@@ -140,6 +142,7 @@ export class AccountActions {
 
   /** Stops sweeping and polling, and stops listening. A sweep already running finishes. */
   stop(): void {
+    this.stopped = true;
     this.ctx.events.off("approvalDecided", this.onDecided);
     this.ctx.events.off("runFinished", this.onRunFinished);
     clearInterval(this.sweepTimer);
@@ -531,6 +534,7 @@ export class AccountActions {
   }
 
   private schedulePoll(actionId: string, delayMs: number): void {
+    if (this.stopped) return;
     clearTimeout(this.polls.get(actionId));
     this.polls.set(
       actionId,
@@ -560,6 +564,7 @@ export class AccountActions {
 
   /** Look at everything that needs doing, now. Runs one sweep at a time. */
   kick(): void {
+    if (this.stopped) return;
     if (this.sweeping) {
       this.again = true;
       return;
@@ -570,7 +575,7 @@ export class AccountActions {
         do {
           this.again = false;
           await this.sweep();
-        } while (this.again);
+        } while (this.again && !this.stopped);
       } catch (error) {
         this.ctx.log.error("account actions sweep failed", { error: errorMessage(error) });
       } finally {
