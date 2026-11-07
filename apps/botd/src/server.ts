@@ -19,7 +19,7 @@ import {
 } from "@open-bot/shared";
 import { WebSocket, WebSocketServer } from "ws";
 import { ActionAbortedError, Desktop } from "./desktop";
-import type { ComputeLifecycle } from "./lifecycle";
+import { ComputerBusy, type ComputeLifecycle } from "./lifecycle";
 import type { EgressRouter } from "./egress";
 import type { PageChecker } from "./pages";
 import type { Screen, ScreenManager } from "./screens";
@@ -418,6 +418,11 @@ export function createServer(deps: ServerDeps): {
       }
       if (error instanceof BadRequest) {
         send(response, 400, { error: error.message });
+        return;
+      }
+      if (error instanceof ComputerBusy) {
+        deps.log(`[lifecycle] stayed awake: ${error.message}`);
+        send(response, 409, { error: error.message });
         return;
       }
       deps.log(`[http] ${request.method} ${url.pathname} failed: ${String(error)}`);

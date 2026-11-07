@@ -1,7 +1,7 @@
 import { CHANNELS, computers, createDb, createPool, settings } from "@open-bot/db";
 import { ComputerLifecycle } from "./computer-lifecycle";
 import { CodexManager } from "./codex";
-import { ComputerClient } from "./computer";
+import { BotdError, ComputerClient } from "./computer";
 import { createNotification, publishApp, type Context } from "./context";
 import { databaseStore } from "./egress/store";
 import { EgressRelay } from "./egress/relay";
@@ -244,8 +244,14 @@ const lifecycle = new ComputerLifecycle(
           { owner },
           AbortSignal.timeout(60_000),
         );
+        return true;
       } catch (error) {
         codex.setIdleIntent(false);
+        // botd answers 409 while work is still running there, such as a download.
+        if (error instanceof BotdError && error.status === 409) {
+          log.info("computer stays awake: work is still running", { error: errorMessage(error) });
+          return false;
+        }
         throw error;
       }
     },
@@ -257,6 +263,7 @@ const lifecycle = new ComputerLifecycle(
     renew: (owner, demand) => computer.rawCall("POST", "/lifecycle/lease", { owner, demand }),
     busy: () =>
       sessions.size > 0 || codex.status.login !== null || computer.heldScreens().length > 0,
+    warn: (message, error) => log.warn(message, { error: errorMessage(error) }),
     changed: (status) => {
       log.info("computer lifecycle", {
         phase: status.phase,

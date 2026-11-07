@@ -74,6 +74,7 @@ import { authClient } from "@/lib/auth-client";
 import { passkeyLabel } from "@/lib/passkey-name";
 import { getJson } from "@/lib/client/api";
 import { queryKeys, useAppState } from "@/lib/client/queries";
+import { isComputerOnline } from "@/lib/status";
 import type { ModelAccessView, UsageView } from "@/lib/types";
 import { cn, compactNumber } from "@/lib/utils";
 import { ConnectionsSection } from "@/components/settings/connections-section";
@@ -610,7 +611,7 @@ function FallbackSection() {
   const { data: state } = useAppState();
   // Nothing runs while the computer is offline, so the plan is what teammates use, not what
   // they're running on.
-  const offline = Boolean(state && !(state.computer.online && state.computer.workerOnline));
+  const offline = Boolean(state && !isComputerOnline(state));
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["model-access"] });
   const data = access.data;
   if (!data) return <SectionState error={access.error} onRetry={() => void access.refetch()} />;

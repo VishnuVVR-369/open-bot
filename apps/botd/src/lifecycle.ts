@@ -1,3 +1,6 @@
+/** The computer declined to stop because work is still running. The controller retries later. */
+export class ComputerBusy extends Error {}
+
 /** botd never stops compute merely because its controller disconnected or its lease expired. */
 export class ComputeLifecycle {
   private owner: { id: string; expires: number; demand: number } | null = null;
@@ -111,7 +114,7 @@ export class ComputeLifecycle {
         background: await this.deps.busy(),
       };
       if (Object.values(busy).some(Boolean))
-        throw new Error(`Computer still has active or unknown work: ${JSON.stringify(busy)}`);
+        throw new ComputerBusy(`Computer still has active or unknown work: ${JSON.stringify(busy)}`);
       await this.deps.stop();
       this.phase = "idle";
       // A successful full process shutdown is the only point where old RPC state can be forgotten.

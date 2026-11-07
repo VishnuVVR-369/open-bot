@@ -5,6 +5,7 @@ export type ComputerPhase = "idle" | "waking" | "awake" | "grace" | "quiescing";
 export interface LifecycleStatus {
   enabled: boolean;
   phase: ComputerPhase;
+  /** Why the computer isn't available, in words for the user. */
   error: string | null;
   demand: string[];
   changedAt: string;
@@ -13,11 +14,14 @@ export interface LifecycleHooks {
   /** Only retryable lifecycle calls belong here. Never retry user actions. */
   wake(owner: string, signal: AbortSignal): Promise<boolean>;
   restore(signal: AbortSignal): Promise<void>;
-  quiesce(owner: string): Promise<void>;
+  /** False when the computer stays awake because work is still running on it. */
+  quiesce(owner: string): Promise<boolean>;
   pause(): void;
   renew(owner: string, demand: number): Promise<void>;
   busy(): boolean;
   changed(status: LifecycleStatus): void;
+  /** A lifecycle step failed in a way the user needn't see. */
+  warn(message: string, error: unknown): void;
 }
 
 /** One owner, shared wake, and admission serialized against shutdown. No idle computer polling. */
@@ -141,8 +145,8 @@ export class ComputerLifecycle {
       }
     } catch (error) {
       this.hooks.pause();
-      this.update("idle", `Computer wake failed: ${String(error)}`);
-      throw new Error(this.state.error!, { cause: error });
+      this.update("idle", "The computer didn't wake up. Your next task or Wake screen will try again.");
+      throw new Error(`Computer wake failed: ${String(error)}`, { cause: error });
     } finally {
       scope.active = false;
     }
@@ -154,7 +158,8 @@ export class ComputerLifecycle {
     try {
       await this.hooks.renew(this.owner, this.demands.size);
     } catch (error) {
-      this.update(this.state.phase, `Controller lease: ${String(error)}`);
+      // The computer stays usable. Keeping the lease is retried with the next renewal.
+      this.hooks.warn("computer lease renewal failed", error);
     } finally {
       this.renewing = false;
     }
@@ -182,13 +187,18 @@ export class ComputerLifecycle {
     const stopping = (async () => {
       try {
         // Admission is now closed. New callers wait for the acknowledgement then wake again.
-        await this.hooks.quiesce(this.owner);
+        if (!(await this.hooks.quiesce(this.owner))) {
+          // Work is still running there, which is normal. Try again after another grace period.
+          this.update("awake");
+          return;
+        }
         this.hooks.pause();
         if (this.renewal) clearInterval(this.renewal);
         this.renewal = null;
         this.update("idle");
       } catch (error) {
-        this.update("awake", `Computer refused sleep: ${String(error)}`);
+        this.hooks.warn("computer did not go idle", error);
+        this.update("awake");
       }
     })();
     this.transition = stopping;
@@ -214,7 +224,10 @@ export class ComputerLifecycle {
     if (this.renewal) clearInterval(this.renewal);
     this.timer = null;
     this.renewal = null;
-    this.update("idle", "Computer connection lost. The next operation will reconnect.");
+    this.update(
+      "idle",
+      "The connection to the computer dropped. Your next task or Wake screen will reconnect.",
+    );
     this.hooks.pause();
   }
 

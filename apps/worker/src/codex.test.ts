@@ -53,13 +53,16 @@ describe("Codex intentional idle", () => {
       },
       quiesce: async () => {
         codex.setIdleIntent(true);
-        for (const socket of server.clients) socket.close();
-        await new Promise((resolve) => setTimeout(resolve, 25));
+        const sockets = [...server.clients];
+        for (const socket of sockets) socket.close();
+        await Promise.all(sockets.map((socket) => once(socket, "close")));
+        return true;
       },
       pause: () => codex.pause(),
       renew: async () => {},
       busy: () => false,
       changed: vi.fn(),
+      warn: vi.fn(),
     });
     codex.lifecycle = lifecycle;
     cleanup.push(() => {

@@ -12,11 +12,12 @@ function setup(overrides: Partial<LifecycleHooks> = {}) {
   const hooks: LifecycleHooks = {
     wake: vi.fn(async () => true),
     restore: vi.fn(async () => {}),
-    quiesce: vi.fn(async () => {}),
+    quiesce: vi.fn(async () => true),
     pause: vi.fn(),
     renew: vi.fn(async () => {}),
     busy: () => false,
     changed: vi.fn(),
+    warn: vi.fn(),
     ...overrides,
   };
   const lifecycle = new ComputerLifecycle(true, hooks, 100, 1_000);
@@ -89,6 +90,7 @@ describe("computer lifecycle admission", () => {
         order.push("stop");
         await stopping.promise;
         order.push("stopped");
+        return true;
       },
     });
     await lifecycle.run("first", async () => {});
@@ -104,22 +106,53 @@ describe("computer lifecycle admission", () => {
     lifecycle.stop();
   });
 
-  it("busy and failed quiesce retain connections; failed wake releases demand and can retry", async () => {
+  it("a computer that stays awake for running work is not an error, and sleeps once it's done", async () => {
     const { lifecycle, hooks } = setup({
-      quiesce: vi.fn(async () => {
-        throw new Error("download busy");
-      }),
+      quiesce: vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true),
     });
     await lifecycle.run("first", async () => {});
     await lifecycle.idle();
     expect(hooks.pause).not.toHaveBeenCalled();
-    expect(lifecycle.status.error).toContain("download busy");
+    expect(hooks.warn).not.toHaveBeenCalled();
+    expect(lifecycle.status).toMatchObject({ phase: "grace", error: null });
+    await lifecycle.idle();
+    expect(hooks.quiesce).toHaveBeenCalledTimes(2);
+    expect(lifecycle.status).toMatchObject({ phase: "idle", error: null });
     lifecycle.stop();
+  });
+
+  it("failed quiesce and lease renewal keep the computer usable without showing an error", async () => {
+    vi.useFakeTimers();
+    const { lifecycle, hooks } = setup({
+      quiesce: vi.fn(async () => {
+        throw new Error("botd /lifecycle/quiesce returned 500");
+      }),
+      renew: vi.fn(async () => {
+        throw new Error("botd /lifecycle/lease returned 502");
+      }),
+    });
+    await lifecycle.run("first", async () => {});
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(hooks.renew).toHaveBeenCalled();
+    expect(hooks.pause).not.toHaveBeenCalled();
+    expect(hooks.warn).toHaveBeenCalledWith("computer lease renewal failed", expect.any(Error));
+    expect(hooks.warn).toHaveBeenCalledWith("computer did not go idle", expect.any(Error));
+    expect(lifecycle.status).toMatchObject({ phase: "grace", error: null });
+    lifecycle.stop();
+  });
+
+  it("failed wake releases demand, tells the user in plain words, and can retry", async () => {
     const retry = setup({
       wake: vi.fn().mockRejectedValueOnce(new Error("502")).mockResolvedValue(true),
     });
-    await expect(retry.lifecycle.run("failed", async () => {})).rejects.toThrow("502");
-    expect(retry.lifecycle.status.demand).toEqual([]);
+    await expect(retry.lifecycle.run("failed", async () => {})).rejects.toThrow(
+      "Computer wake failed: Error: 502",
+    );
+    expect(retry.lifecycle.status).toMatchObject({
+      phase: "idle",
+      demand: [],
+      error: "The computer didn't wake up. Your next task or Wake screen will try again.",
+    });
     await retry.lifecycle.run("retry", async () => {});
     expect(retry.lifecycle.status.phase).toBe("grace");
     retry.lifecycle.stop();
@@ -178,11 +211,12 @@ it("bounds the complete wake and releases demand if restore never answers", asyn
   const hooks: LifecycleHooks = {
     wake: async () => true,
     restore: () => new Promise(() => {}),
-    quiesce: async () => {},
+    quiesce: async () => true,
     pause: vi.fn(),
     renew: async () => {},
     busy: () => false,
     changed: vi.fn(),
+    warn: vi.fn(),
   };
   const lifecycle = new ComputerLifecycle(true, hooks, 100, 25);
   await expect(lifecycle.run("file", async () => {})).rejects.toThrow("Computer wake failed");

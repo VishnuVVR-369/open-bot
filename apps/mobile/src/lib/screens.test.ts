@@ -91,6 +91,20 @@ describe("screen state", () => {
       screenState(view("a", { requests: [{ id: "t", reason: "Sign in", createdAt: "" }] })),
     ).toEqual({ kind: "needs-you", reason: "Sign in", requestId: "t" });
   });
+  it("reports a computer error only while the computer is idle", () => {
+    const lifecycle = (phase: "idle" | "awake", error: string | null) => ({
+      enabled: true,
+      phase,
+      error,
+      demand: [],
+      changedAt: "2026-11-04T10:00:00Z",
+    });
+    expect(
+      screenStatus(view("a", { lifecycle: lifecycle("idle", "The computer didn't wake up.") })),
+    ).toBe("Computer error — tap Wake to retry");
+    expect(screenStatus(view("a", { lifecycle: lifecycle("idle", null) }))).toBe("Computer idle");
+    expect(screenStatus(view("a", { lifecycle: lifecycle("awake", "stale") }))).toBe("Asleep");
+  });
   it("puts requests first, then your screen, and keeps the rest in order", () => {
     const screens = [
       view("asleep"),

@@ -22,6 +22,17 @@ import type { Logger } from "./logger";
 
 export type LeaseReleaseReason = "handed_back" | "user_idle" | "user_disconnected";
 
+/** botd answered a request with an error status. */
+export class BotdError extends Error {
+  constructor(
+    path: string,
+    readonly status: number,
+    body: string,
+  ) {
+    super(`botd ${path} returned ${status}: ${body}`);
+  }
+}
+
 /**
  * Talks to botd inside the computer: desktop actions, each screen's lease, and its event stream.
  * Emits `lease` when a screen's lease changes and `health` when the computer's health changes.
@@ -167,8 +178,7 @@ export class ComputerClient extends EventEmitter<{
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: this.lifecycle?.signal ? AbortSignal.any([signal, this.lifecycle.signal]) : signal,
     });
-    if (!response.ok)
-      throw new Error(`botd ${path} returned ${response.status}: ${await response.text()}`);
+    if (!response.ok) throw new BotdError(path, response.status, await response.text());
     return (await response.json()) as T;
   }
 

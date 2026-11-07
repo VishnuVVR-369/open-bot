@@ -88,6 +88,21 @@ describe("isComputerOnline", () => {
     expect(isComputerOnline(state(false, true))).toBe(false);
     expect(isComputerOnline(undefined)).toBe(false);
   });
+
+  it("counts a computer that is asleep, and wakes for the next task, as online", () => {
+    const asleep = (workerOnline: boolean, enabled: boolean) => ({
+      computer: {
+        workerOnline,
+        online: false,
+        lifecycle: { enabled, phase: "idle" as const, error: null, demand: [], changedAt: "" },
+        health: null,
+        egress: {} as never,
+      },
+    });
+    expect(isComputerOnline(asleep(true, true))).toBe(true);
+    expect(isComputerOnline(asleep(true, false))).toBe(false);
+    expect(isComputerOnline(asleep(false, true))).toBe(false);
+  });
 });
 
 describe("failureLine", () => {
