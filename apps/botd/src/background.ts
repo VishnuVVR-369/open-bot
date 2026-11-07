@@ -1,6 +1,6 @@
 import { dirname } from "node:path";
 
-/** A bot process as /proc shows it without ptrace: its parent and its command line. */
+/** A process of the bot user as /proc shows it without ptrace: its parent and command line. */
 export interface ProcessView {
   pid: number;
   parent: number;
@@ -11,7 +11,7 @@ export interface ProcessView {
 const CODE_MODE_HOST = "codex-code-mode-host";
 
 /**
- * The first bot process that is work rather than Codex itself, if any.
+ * The first process of the bot user that is work rather than Codex itself, if any.
  *
  * Codex itself is npm's launcher, the native app-server it runs, and the code-mode host that
  * app-server starts. The host stays up between turns, so it can't mean work on its own: a cell

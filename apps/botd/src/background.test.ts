@@ -16,7 +16,7 @@ const native: ProcessView = {
 };
 const host: ProcessView = { pid: 296, parent: 220, args: [`${BIN}/codex-code-mode-host`] };
 
-describe("background bot processes", () => {
+describe("background processes of the bot user", () => {
   it("treats Codex, its native app-server and its code-mode host as no work", () => {
     expect(backgroundProcess([launcher, native], launcher.pid)).toBeUndefined();
     expect(backgroundProcess([launcher, native, host], launcher.pid)).toBeUndefined();
@@ -39,7 +39,7 @@ describe("background bot processes", () => {
     expect(backgroundProcess([launcher, native, second, underSecond], launcher.pid)).toBe(second);
   });
 
-  it("counts every bot process as work when Codex isn't running", () => {
+  it("counts every process of the bot user as work when Codex isn't running", () => {
     expect(backgroundProcess([native, host], undefined)).toBe(native);
     expect(backgroundProcess([], undefined)).toBeUndefined();
   });

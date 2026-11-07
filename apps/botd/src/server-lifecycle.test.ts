@@ -161,7 +161,7 @@ it("answers 409 when work blocks sleep, and 500 when stopping itself fails", asy
   expect(busy.status).toBe(409);
   expect(((await busy.json()) as { error: string }).error).toContain('"demand":1');
   lifecycle.lease("worker", 0);
-  stop.mockRejectedValueOnce(new Error("Timed out waiting for bot processes to exit"));
+  stop.mockRejectedValueOnce(new Error("Timed out waiting for the bot user's processes to exit"));
   expect((await quiesce()).status).toBe(500);
   expect((await quiesce()).status).toBe(200);
   expect(stop).toHaveBeenCalledTimes(2);

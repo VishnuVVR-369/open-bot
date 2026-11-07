@@ -6,7 +6,7 @@
     "bot": 7
   },
   "apps/botd/src/index.ts": {
-    "bot": 31
+    "bot": 28
   },
   "apps/botd/src/lease.test.ts": {
     "bot": 6
