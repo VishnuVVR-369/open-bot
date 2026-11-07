@@ -1,5 +1,5 @@
 import { ChevronDown } from "lucide-react-native";
-import { createContext, useContext, useId, useLayoutEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useId, useRef, useState } from "react";
 import {
   Pressable,
   StyleSheet,
@@ -17,12 +17,18 @@ import { mix } from "@/theme/mix";
 
 /**
  * Lets an opened message keep its first line where it was. The chat list is inverted, so a row
- * that grows pushes up from its bottom edge; the list scrolls by `grownBy` to undo that.
+ * that grows would push up from its bottom edge. `open` pins the rows older than `row`, then
+ * calls `then` to open the message; `opened` releases the pin once the open message is committed.
  */
-export const KeepTopContext = createContext<(grownBy: number) => void>(() => {});
+export type KeepTop = { open: (row: number, then: () => void) => void; opened: () => void };
 
-/** Where the text's lines end: all of them, and the first `FOLDED_LINES`. */
-type Extent = { lines: number; full: number; folded: number };
+export const KeepTopContext = createContext<KeepTop | null>(null);
+
+/** The chat list row a message is in, for `KeepTopContext`. */
+export const RowContext = createContext<number | null>(null);
+
+/** How many lines the text takes, and where its first `FOLDED_LINES` end. */
+type Extent = { lines: number; folded: number };
 
 /**
  * Text that folds to its first few lines when it's long, fading into `background` above a
@@ -41,17 +47,16 @@ export function FoldableText({
 }) {
   const { fontScale } = useWindowDimensions();
   const keepTop = useContext(KeepTopContext);
+  const row = useContext(RowContext);
   const [extent, setExtent] = useState<Extent | null>(null);
   const [open, setOpen] = useState(false);
-  const grownBy = useRef(0);
-  const gradient = `fold${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
-
-  // Opening runs before the frame is drawn, so the message never visibly jumps up first.
-  useLayoutEffect(() => {
-    if (!open || !grownBy.current) return;
-    keepTop(grownBy.current);
-    grownBy.current = 0;
+  const pinned = useRef(false);
+  useEffect(() => {
+    if (!open || !pinned.current) return;
+    pinned.current = false;
+    keepTop?.opened();
   }, [open, keepTop]);
+  const gradient = `fold${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
 
   const candidate = mightFold(text);
   if (!candidate)
@@ -73,11 +78,7 @@ export function FoldableText({
     const last = lines.at(-1);
     const cut = lines[FOLDED_LINES - 1];
     if (!last) return;
-    setExtent({
-      lines: lines.length,
-      full: last.y + last.height,
-      folded: cut ? cut.y + cut.height : last.y + last.height,
-    });
+    setExtent({ lines: lines.length, folded: cut ? cut.y + cut.height : last.y + last.height });
   };
 
   return (
@@ -104,8 +105,13 @@ export function FoldableText({
         <Pressable
           onPress={() => {
             haptics.tap();
-            if (!open && extent) grownBy.current = extent.full - extent.folded;
-            setOpen(!open);
+            if (open) setOpen(false);
+            else if (keepTop && row !== null)
+              keepTop.open(row, () => {
+                pinned.current = true;
+                setOpen(true);
+              });
+            else setOpen(true);
           }}
           accessibilityRole="button"
           accessibilityState={{ expanded: open }}
