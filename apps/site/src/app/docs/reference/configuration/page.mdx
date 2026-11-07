@@ -51,7 +51,7 @@ Parsed with zod in `apps/worker/src/env.ts`.
 | `APP_URL`                    | `BETTER_AUTH_URL`, or `http://localhost:3000` | Webhook URLs start with it                                                                                                 |
 | `MAX_CONCURRENT_RUNS`        | `4`                                           | Runs executing at once, across all teammates                                                                               |
 | `WATCH_ALLOW_PRIVATE_URLS`   | `false` in production, `true` otherwise       | Let page watches fetch private and local addresses                                                                         |
-| `HOST_CODEX_AUTH_FILE`       | `~/.codex/auth.json`                          | Development: the login the computer borrows                                                                                |
+| `HOST_CODEX_AUTH_FILE`       | `~/.codex/auth.json`                          | Development: the login the computer borrows. Give an absolute path: `~` is not expanded.                                   |
 | `HOST_CODEX_BIN`             | `codex`                                       | Development: the Codex CLI used to refresh that login                                                                      |
 | `OPENAI_API_BASE_URL`        | `https://api.openai.com/v1`                   | Where API key traffic goes: the OpenAI API, or a compatible proxy                                                          |
 | `COMPUTER_LIFECYCLE_ENABLED` | `false`                                       | Let the computer sleep when idle and wake on demand. Set the same value on the computer.                                   |
@@ -109,6 +109,9 @@ See [The pages service](/docs/architecture/pages).
 In production, the pages service refuses to start without it.
 
 ## The computer (botd)
+
+The computer does not read the repository's `.env`.
+Locally, `docker-compose.yml` passes it only `BOTD_TOKEN`, so set any other variable below in a Compose override; on Railway, set them on the `computer` service.
 
 | Variable                     | Default                            | Purpose                                                                                                   |
 | ---------------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------- |
