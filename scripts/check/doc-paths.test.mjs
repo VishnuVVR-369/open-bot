@@ -50,11 +50,11 @@ describe("referencedPaths", () => {
 
   it("finds inline links with parentheses, angle brackets, and single- or double-quoted titles", () => {
     const text = [
-      "[page](apps/web/src/app/(app)/bots/page.tsx)",
+      "[page](apps/web/src/app/(app)/teammates/page.tsx)",
       "[angled](<my file.md>) [titled](a.md 'Title') [quoted](b.md \"Title\")",
     ].join("\n");
     assert.deepEqual(paths(text), [
-      "1:apps/web/src/app/(app)/bots/page.tsx",
+      "1:apps/web/src/app/(app)/teammates/page.tsx",
       "2:my file.md",
       "2:a.md",
       "2:b.md",
@@ -144,8 +144,8 @@ describe("linkPath", () => {
 describe("toGlob", () => {
   it("turns placeholders into wildcards and keeps route folders literal", () => {
     assert.equal(
-      toGlob("apps/web/src/app/(app)/bots/[botId]/<x>.tsx"),
-      "apps/web/src/app/(app)/bots/[[]botId]/*.tsx",
+      toGlob("apps/web/src/app/(app)/teammates/[teammateId]/<x>.tsx"),
+      "apps/web/src/app/(app)/teammates/[[]teammateId]/*.tsx",
     );
   });
 });
