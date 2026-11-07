@@ -28,6 +28,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AvatarStack, BotAvatar, StatusLine, type BotActivity } from "@/components/bot-avatar";
 import { Composer } from "@/components/chat/composer";
+import { KeepTopContext } from "@/components/chat/foldable-text";
 import { RunBlock } from "@/components/chat/run-block";
 import { UserMessage } from "@/components/chat/user-message";
 import { Button } from "@/components/button";
@@ -87,6 +88,11 @@ export default function ChatScreen() {
   const measure = useCallback((next: Partial<typeof extent.current>) => {
     const current = (extent.current = { ...extent.current, ...next });
     setUnder(current.offset + current.layout < current.content - 1);
+  }, []);
+  // An opened message grows from its bottom edge in this inverted list; scrolling back in time by
+  // as much keeps its first line where you were reading.
+  const keepTop = useCallback((grownBy: number) => {
+    list.current?.scrollToOffset({ offset: extent.current.offset + grownBy, animated: false });
   }, []);
   const scrollRetry = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollAttempts = useRef(0);
@@ -335,79 +341,86 @@ export default function ChatScreen() {
             onBack={goBack}
           />
         ) : (
-          <FlatList
-            ref={list}
-            data={data}
-            inverted
-            keyExtractor={(entry) => (entry.type === "message" ? entry.message.id : entry.run.id)}
-            renderItem={renderItem}
-            ItemSeparatorComponent={Gap}
-            ListFooterComponent={
-              // Room for the spinner only while there's more to load, so a short chat starts at the top.
-              <View style={hasMore || loadingOlder ? styles.older : undefined}>
-                {loadingOlder && <ActivityIndicator size="small" color={colors.mutedForeground} />}
-              </View>
-            }
-            onEndReached={() => {
-              if (hasMore) void loadOlder();
-            }}
-            onEndReachedThreshold={0.4}
-            // A short conversation starts at the top, under the header, not at the composer:
-            // the list is inverted, so "flex-end" is the top.
-            contentContainerStyle={[
-              styles.timeline,
-              data.length === 0 ? { flex: 1 } : { flexGrow: 1, justifyContent: "flex-end" },
-            ]}
-            onScroll={(event) => {
-              // Inverted: the offset grows as you scroll back in time.
-              const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
-              const up = contentOffset.y > 600;
-              if (up !== scrolledUp) setScrolledUp(up);
-              measure({
-                offset: contentOffset.y,
-                layout: layoutMeasurement.height,
-                content: contentSize.height,
-              });
-            }}
-            onLayout={(event) => measure({ layout: event.nativeEvent.layout.height })}
-            onContentSizeChange={(_width, height) => measure({ content: height })}
-            scrollEventThrottle={100}
-            keyboardDismissMode="interactive"
-            keyboardShouldPersistTaps="handled"
-            onScrollToIndexFailed={({ index, averageItemLength }) => {
-              // Move the render window toward an unmeasured row before trying its exact index.
-              list.current?.scrollToOffset({ offset: averageItemLength * index, animated: false });
-              if (scrollRetry.current) clearTimeout(scrollRetry.current);
-              if (scrollAttempts.current++ >= 8) return;
-              scrollRetry.current = setTimeout(() => {
-                scrollRetry.current = null;
-                list.current?.scrollToIndex({ index, viewPosition: 1, animated: false });
-              }, 200);
-            }}
-            ListEmptyComponent={
-              <View style={styles.empty}>
-                <Empty
-                  icon={
-                    bot ? (
-                      <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="lg" />
-                    ) : (
-                      <Users size={28} color={colors.mutedForeground} />
-                    )
-                  }
-                  title={
-                    isGroup
-                      ? "Start the conversation"
-                      : `Give ${bot?.name ?? "them"} something to do`
-                  }
-                  body={
-                    isGroup
-                      ? "Your message goes to the lead teammate. They pass work to each other."
-                      : `${bot?.name ?? "Your teammate"} works on the shared computer while you're away.`
-                  }
-                />
-              </View>
-            }
-          />
+          <KeepTopContext.Provider value={keepTop}>
+            <FlatList
+              ref={list}
+              data={data}
+              inverted
+              keyExtractor={(entry) => (entry.type === "message" ? entry.message.id : entry.run.id)}
+              renderItem={renderItem}
+              ItemSeparatorComponent={Gap}
+              ListFooterComponent={
+                // Room for the spinner only while there's more to load, so a short chat starts at the top.
+                <View style={hasMore || loadingOlder ? styles.older : undefined}>
+                  {loadingOlder && (
+                    <ActivityIndicator size="small" color={colors.mutedForeground} />
+                  )}
+                </View>
+              }
+              onEndReached={() => {
+                if (hasMore) void loadOlder();
+              }}
+              onEndReachedThreshold={0.4}
+              // A short conversation starts at the top, under the header, not at the composer:
+              // the list is inverted, so "flex-end" is the top.
+              contentContainerStyle={[
+                styles.timeline,
+                data.length === 0 ? { flex: 1 } : { flexGrow: 1, justifyContent: "flex-end" },
+              ]}
+              onScroll={(event) => {
+                // Inverted: the offset grows as you scroll back in time.
+                const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
+                const up = contentOffset.y > 600;
+                if (up !== scrolledUp) setScrolledUp(up);
+                measure({
+                  offset: contentOffset.y,
+                  layout: layoutMeasurement.height,
+                  content: contentSize.height,
+                });
+              }}
+              onLayout={(event) => measure({ layout: event.nativeEvent.layout.height })}
+              onContentSizeChange={(_width, height) => measure({ content: height })}
+              scrollEventThrottle={100}
+              keyboardDismissMode="interactive"
+              keyboardShouldPersistTaps="handled"
+              onScrollToIndexFailed={({ index, averageItemLength }) => {
+                // Move the render window toward an unmeasured row before trying its exact index.
+                list.current?.scrollToOffset({
+                  offset: averageItemLength * index,
+                  animated: false,
+                });
+                if (scrollRetry.current) clearTimeout(scrollRetry.current);
+                if (scrollAttempts.current++ >= 8) return;
+                scrollRetry.current = setTimeout(() => {
+                  scrollRetry.current = null;
+                  list.current?.scrollToIndex({ index, viewPosition: 1, animated: false });
+                }, 200);
+              }}
+              ListEmptyComponent={
+                <View style={styles.empty}>
+                  <Empty
+                    icon={
+                      bot ? (
+                        <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="lg" />
+                      ) : (
+                        <Users size={28} color={colors.mutedForeground} />
+                      )
+                    }
+                    title={
+                      isGroup
+                        ? "Start the conversation"
+                        : `Give ${bot?.name ?? "them"} something to do`
+                    }
+                    body={
+                      isGroup
+                        ? "Your message goes to the lead teammate. They pass work to each other."
+                        : `${bot?.name ?? "Your teammate"} works on the shared computer while you're away.`
+                    }
+                  />
+                </View>
+              }
+            />
+          </KeepTopContext.Provider>
         )}
         {under && !loading && !gone && (
           // The header stays opaque; a hairline marks where the conversation runs under it.

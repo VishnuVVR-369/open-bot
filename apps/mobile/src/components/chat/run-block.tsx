@@ -36,6 +36,7 @@ import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 import { BotAvatar, needsYouText } from "@/components/bot-avatar";
 import { Button } from "@/components/button";
+import { FoldableText } from "@/components/chat/foldable-text";
 import { Markdown } from "@/components/markdown";
 import { Text } from "@/components/text";
 import { diffStats } from "@/lib/format";
@@ -409,9 +410,12 @@ function ItemView({
       return (
         <View style={styles.steered}>
           <View style={[styles.steeredBubble, { backgroundColor: colors.subtle }]}>
-            <Text style={{ fontSize: 14.5 }} selectable>
-              {item.text}
-            </Text>
+            <FoldableText
+              text={item.text}
+              style={{ color: colors.foreground, fontSize: 14.5, lineHeight: 22 }}
+              background={colors.subtle}
+              foreground={colors.foreground}
+            />
           </View>
         </View>
       );
