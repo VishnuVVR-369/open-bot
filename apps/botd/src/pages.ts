@@ -20,6 +20,7 @@ import {
   type PageIssue,
 } from "@open-bot/shared";
 import { CdpPipe, type CdpEvent } from "./cdp";
+import { terminate } from "./supervisor";
 import { asUser, type SystemUser } from "./users";
 
 /**
@@ -34,7 +35,7 @@ const PREVIEW_ORIGIN = `http://127.0.0.1:${PAGE_PREVIEW_PORT}`;
 const PAGE_ROOTS = [`${COMPUTER_PATHS.botsRoot}/`, `${COMPUTER_PATHS.shared}/`];
 const MAX_ISSUES = 20;
 const CHECK_TIMEOUT_MS = 40_000;
-const MAX_CONCURRENT_CHECKS = 2;
+const MAX_CONCURRENT_CHECKS = 1;
 
 export class PageFileError extends Error {}
 
@@ -302,6 +303,9 @@ function describeUrl(url: string): string {
  */
 export class PageChecker {
   private running = 0;
+  get busy(): boolean {
+    return this.running > 0 || this.queue.length > 0;
+  }
   private readonly queue: (() => void)[] = [];
 
   constructor(
@@ -325,8 +329,9 @@ export class PageChecker {
     try {
       return await this.render(data, html);
     } finally {
-      this.running -= 1;
-      this.queue.shift()?.();
+      const next = this.queue.shift();
+      if (next) next();
+      else this.running -= 1;
     }
   }
 
@@ -336,7 +341,6 @@ export class PageChecker {
       return;
     }
     await new Promise<void>((resolve) => this.queue.push(resolve));
-    this.running += 1;
   }
 
   private async render(data: Buffer, html: string): Promise<PageCheckResult | PageCheckError> {
@@ -376,7 +380,10 @@ export class PageChecker {
         ...(this.browserSandbox ? [] : ["--no-sandbox"]),
         "about:blank",
       ]);
-      browser = spawn(command, args, { stdio: ["ignore", "ignore", "ignore", "pipe", "pipe"] });
+      browser = spawn(command, args, {
+        detached: true,
+        stdio: ["ignore", "ignore", "ignore", "pipe", "pipe"],
+      });
       const child = browser;
       const exited = new Promise<never>((_, reject) =>
         child.once("exit", () => reject(new Error("The browser closed while checking the page."))),
@@ -396,7 +403,7 @@ export class PageChecker {
       clearTimeout(deadline);
       release();
       cdp?.close();
-      browser?.kill("SIGKILL");
+      if (browser) await terminate([browser]);
       await rm(profile, { recursive: true, force: true }).catch(() => {});
     }
   }

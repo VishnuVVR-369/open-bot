@@ -113,3 +113,20 @@ describe("CodexClient", () => {
     expect(client.isOpen).toBe(false);
   });
 });
+
+it("cancels an unresponsive initialization within the shared wake deadline", async () => {
+  const server = new WebSocketServer({ port: 0 });
+  servers.push(server);
+  const url = await new Promise<string>((resolve) =>
+    server.on("listening", () =>
+      resolve(`ws://127.0.0.1:${(server.address() as AddressInfo).port}`),
+    ),
+  );
+  // Accept the transport but deliberately never answer initialize.
+  const controller = new AbortController();
+  const connecting = CodexClient.connect(url, async () => ({}), undefined, controller.signal);
+  const rejected = expect(connecting).rejects.toThrow();
+  setTimeout(() => controller.abort(new Error("wake deadline")), 25);
+  await rejected;
+  for (const socket of server.clients) socket.terminate();
+});

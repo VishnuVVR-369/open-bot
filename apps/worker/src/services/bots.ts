@@ -299,6 +299,7 @@ export class BotService {
 
   /** Writes the workspace now; if the computer is away, it is written before the next run. */
   private async sync(bot: Bot): Promise<boolean> {
+    if (this.ctx.lifecycle?.resting) return false;
     try {
       await this.syncWorkspace(bot);
       return true;

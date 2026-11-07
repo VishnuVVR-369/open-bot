@@ -15,7 +15,7 @@ export async function worker<T = unknown>(
   method: "GET" | "POST",
   path: string,
   body?: unknown,
-  timeoutMs = 30_000,
+  timeoutMs = 300_000,
 ): Promise<T> {
   let response: Response;
   try {
@@ -27,7 +27,10 @@ export async function worker<T = unknown>(
       signal: AbortSignal.timeout(timeoutMs),
     });
   } catch {
-    throw new WorkerError(503, "The worker isn't running. Start it with `pnpm dev`.");
+    throw new WorkerError(
+      503,
+      "The operation did not respond in time. Check its status before trying again.",
+    );
   }
   const data = (await response.json().catch(() => ({}))) as { error?: string };
   if (!response.ok)

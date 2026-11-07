@@ -177,3 +177,13 @@ export function isScreenId(value: unknown): value is string {
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value)
   );
 }
+
+/** Compute availability is separate from authentication and provider-confirmed sleep. */
+export const computerLifecycleSchema = z.object({
+  enabled: z.boolean(),
+  phase: z.enum(["idle", "waking", "awake", "grace", "quiescing"]),
+  error: z.string().nullable(),
+  demand: z.array(z.string()),
+  changedAt: z.string(),
+});
+export type ComputerLifecycleStatus = z.infer<typeof computerLifecycleSchema>;

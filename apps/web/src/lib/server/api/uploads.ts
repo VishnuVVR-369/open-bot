@@ -39,7 +39,7 @@ export async function putUpload(
       // Streams the phone's upload through without holding it here first.
       ...(body instanceof Buffer ? {} : { duplex: "half" }),
       cache: "no-store",
-      signal: AbortSignal.timeout(180_000),
+      signal: AbortSignal.timeout(300_000),
     } as RequestInit);
   } catch {
     throw new WorkerError(503, "open-bot couldn't reach the computer. Try again in a moment.");

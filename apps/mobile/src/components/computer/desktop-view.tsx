@@ -95,7 +95,7 @@ export function DesktopView({
       } catch {
         if (disposed) return;
         setStatus("Unavailable");
-        retry.current = setTimeout(() => setAttempt((n) => n + 1), 3000);
+        if (mode === "control") retry.current = setTimeout(() => setAttempt((n) => n + 1), 3000);
       }
     })();
     return () => {
@@ -126,7 +126,7 @@ export function DesktopView({
       setStatus(retrying());
       void queryClient.invalidateQueries({ queryKey: queryKeys.screens });
       if (retry.current) clearTimeout(retry.current);
-      retry.current = setTimeout(() => setAttempt((n) => n + 1), 2000);
+      if (mode === "control") retry.current = setTimeout(() => setAttempt((n) => n + 1), 2000);
     }
     if (
       data.type === "activity" &&

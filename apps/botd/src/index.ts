@@ -1,5 +1,6 @@
-import { access, chmod, chown, mkdir, writeFile } from "node:fs/promises";
+import { access, chmod, chown, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { COMPUTER_PATHS, isOwnerLease, type ComputerHealth } from "@open-bot/shared";
+import { ComputeLifecycle } from "./lifecycle";
 import { CodeScreens } from "./code-screens";
 import { CookieSync } from "./cookies";
 import { EgressRouter } from "./egress";
@@ -87,6 +88,7 @@ if (!browserSandbox) {
   );
 }
 
+const lifecycleEnabled = process.env.COMPUTER_LIFECYCLE_ENABLED === "true";
 const supervisor = new Supervisor(log);
 let broadcastHealth = () => {};
 const egress = new EgressRouter({
@@ -101,9 +103,10 @@ const egress = new EgressRouter({
 });
 const cookies = new CookieSync(`${STATE_DIR}/cookies.json`, log);
 const codeScreens = new CodeScreens(`${STATE_DIR}/code-screens`);
-const screens = new ScreenManager(
+const screens: ScreenManager = new ScreenManager(
   {
     supervisor,
+    workActive: () => lifecycleEnabled && lifecycle.hasWork,
     cookies,
     codeScreens,
     desktopUser,
@@ -118,14 +121,117 @@ const screens = new ScreenManager(
     log,
   },
   {
-    maxRunning: Number(process.env.MAX_SCREENS ?? 4),
-    idleMs: Number(process.env.SCREEN_IDLE_MINUTES ?? 20) * 60_000,
+    maxRunning: Number(process.env.MAX_SCREENS ?? (lifecycleEnabled ? 2 : 4)),
+    idleMs: Number(process.env.SCREEN_IDLE_MINUTES ?? (lifecycleEnabled ? 3 : 20)) * 60_000,
   },
 );
 
 /** Drafts of pages, as teammates (and their browsers) see them, and the checker that renders them. */
 const pagePreview = new PagePreviewServer(process.env.PAGE_LIB_DIR ?? "/opt/page-kit/lib", log);
 const pageChecker = new PageChecker(pagePreview, desktopUser, browserSandbox, log);
+
+// Record only Codex's launcher and native app-server. Other bot processes block quiesce,
+// including detached jobs reparented to tini. Failure to inspect /proc blocks sleep.
+async function botProcesses(uid = botUser.uid): Promise<Set<string>> {
+  const pids = new Set<string>();
+  for (const pid of await readdir("/proc")) {
+    if (!/^\d+$/.test(pid)) continue;
+    const status = await readFile(`/proc/${pid}/status`, "utf8").catch(
+      (error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT" || error.code === "ESRCH") return "";
+        throw error;
+      },
+    );
+    if (new RegExp(`^Uid:\\s+${uid}\\s`, "m").test(status) && !/^State:\s+Z/m.test(status))
+      pids.add(pid);
+  }
+  return pids;
+}
+async function hasBackgroundProcesses(): Promise<boolean> {
+  const launcher = supervisor.pid("codex");
+  for (const pid of await botProcesses()) {
+    if (Number(pid) === launcher) continue;
+    // npm's Codex launcher has one native child. Other children (shells, MCP servers,
+    // detached downloads, jobs) are independent demand and must finish before shutdown.
+    const [status, command] = await Promise.all([
+      readFile(`/proc/${pid}/status`, "utf8").catch(() => ""),
+      readFile(`/proc/${pid}/cmdline`, "utf8").catch(() => ""),
+    ]);
+    if (!status) continue; // It exited while enumerating.
+    const args = command.split("\0");
+    const parent = Number(status.match(/^PPid:\s+(\d+)/m)?.[1]);
+    if (parent === launcher && args[0]?.endsWith("/codex") && args[1] === "app-server") continue;
+    log(`[lifecycle] background bot process ${pid}: ${args[0]?.split("/").at(-1) ?? "unknown"}`);
+    return true;
+  }
+  const infrastructure = new Set([
+    "Xvfb",
+    "xfce4-session",
+    "dbus-launch",
+    "dbus-daemon",
+    "xfconfd",
+    "xfwm4",
+    "xfsettingsd",
+    "xfce4-panel",
+    "thunar",
+    "Thunar",
+    "xfdesktop",
+    "wrapper-2.0",
+    "x11vnc",
+    "chromium",
+    "chrome_crashpad_handler",
+  ]);
+  for (const pid of await botProcesses(desktopUser.uid)) {
+    // Containers commonly lack CAP_SYS_PTRACE, so /proc/<desktop-pid>/exe is unreadable
+    // even by root. cmdline remains readable and is sufficient for conservative job detection.
+    const command = await readFile(`/proc/${pid}/cmdline`, "utf8").catch(
+      (error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT" || error.code === "ESRCH") return "";
+        throw error;
+      },
+    );
+    const executable = command.split("\0")[0]?.split(/\s/)[0];
+    if (!executable) continue;
+    const name = executable.split("/").at(-1)!;
+    if (
+      (executable.includes("/") && !executable.startsWith("/usr/")) ||
+      !infrastructure.has(name)
+    ) {
+      log(`[lifecycle] background desktop process ${pid}: ${name}`);
+      return true;
+    }
+  }
+  return false;
+}
+async function startCodex() {
+  await supervisor.start({
+    name: "codex",
+    command: "codex",
+    args: ["app-server", "--listen", `ws://127.0.0.1:${PORTS.codex}`],
+    user: botUser,
+    env: { CODEX_HOME: COMPUTER_PATHS.codexHome, TERM: "xterm-256color" },
+    cwd: COMPUTER_PATHS.botsRoot,
+    restart: "always",
+    ready: () =>
+      waitFor(
+        async () => (await fetch(`http://127.0.0.1:${PORTS.codex}/readyz`)).ok,
+        30_000,
+        "the Codex app-server",
+      ),
+  });
+}
+const lifecycle: ComputeLifecycle = new ComputeLifecycle(lifecycleEnabled, {
+  start: startCodex,
+  ready: () => supervisor.isRunning("codex"),
+  busy: async () => screens.busy || pageChecker.busy || (await hasBackgroundProcesses()),
+  stop: async () => {
+    await cookies.flush();
+    await screens.stopAll();
+    await supervisor.stop("codex");
+    if ((await botProcesses()).size) throw new Error("Bot processes still running");
+    await cookies.persist();
+  },
+});
 
 function health(): ComputerHealth {
   const agent = supervisor.state("codex");
@@ -146,27 +252,14 @@ async function main() {
   await codeScreens.load();
   await cookies.load();
 
-  await supervisor.start({
-    name: "codex",
-    command: "codex",
-    args: ["app-server", "--listen", `ws://127.0.0.1:${PORTS.codex}`],
-    user: botUser,
-    env: { CODEX_HOME: COMPUTER_PATHS.codexHome, TERM: "xterm-256color" },
-    cwd: COMPUTER_PATHS.botsRoot,
-    restart: "always",
-    ready: () =>
-      waitFor(
-        async () => (await fetch(`http://127.0.0.1:${PORTS.codex}/readyz`)).ok,
-        30_000,
-        "the Codex app-server",
-      ),
-  });
+  if (!lifecycleEnabled) await startCodex();
 
   egress.listen(PORTS.socks);
   await pagePreview.listen();
 
   const { server, broadcastHealth: broadcast } = createServer({
     token: token!,
+    lifecycle,
     screens,
     egress,
     health,
@@ -176,9 +269,24 @@ async function main() {
   });
   server.listen(PORTS.botd, "0.0.0.0", () => log(`botd listening on :${PORTS.botd}`));
 
-  setInterval(() => screens.sweep(), 5_000).unref();
+  let sweeping = false;
+  setInterval(() => {
+    if (sweeping) return;
+    sweeping = true;
+    void (async () => {
+      if (!lifecycleEnabled || !(await hasBackgroundProcesses())) screens.sweep();
+    })()
+      .catch((error: unknown) => log(`[screens] idle sweep deferred: ${String(error)}`))
+      .finally(() => {
+        sweeping = false;
+      });
+  }, 5_000).unref();
   // Every bot's browser stays signed in to the same sites.
-  setInterval(() => void cookies.sync(), 2_000).unref();
+  setInterval(
+    () =>
+      void cookies.sync().catch((error: unknown) => log(`[cookies] sync failed: ${String(error)}`)),
+    2_000,
+  ).unref();
   screens.on("lease", (screenId, { holder, reason }) =>
     log(
       `[lease] ${screenId.slice(0, 8)}: ${holder ? (isOwnerLease(holder) ? "you" : holder.botName) : "free"} (${reason})`,
@@ -195,11 +303,14 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.on(signal, () => {
     log(`received ${signal}, stopping`);
     void cookies
-      .persist()
-      .catch(() => {})
+      .flush()
       .then(() => screens.stopAll())
       .then(() => supervisor.stopAll())
-      .then(() => process.exit(0));
+      .then(() => process.exit(0))
+      .catch((error: unknown) => {
+        log(`shutdown failed: ${String(error)}`);
+        process.exit(1);
+      });
   });
 }
 

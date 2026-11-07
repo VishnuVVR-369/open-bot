@@ -133,6 +133,9 @@ interface Route {
 export class EgressRelay {
   private readonly timings: RelayTimings;
   private computer: WebSocket | null = null;
+  private computerPaused = false;
+  private computerGeneration = 0;
+  private openingComputer: WebSocket | null = null;
   private computerMissedPongs = 0;
   private computerTimer: NodeJS.Timeout | null = null;
   private readonly routes = new Map<number, Route>();
@@ -163,7 +166,7 @@ export class EgressRelay {
     this.mode = modes.mode;
     this.phoneMode = modes.phoneMode;
     await this.loadPhones();
-    this.connectComputer();
+    if (!this.computerPaused) this.connectComputer();
     this.intervals.push(
       setInterval(() => this.heartbeat(), this.timings.heartbeatMs),
       setInterval(() => void this.reconcile(), this.timings.reconcileMs),
@@ -171,8 +174,47 @@ export class EgressRelay {
     for (const interval of this.intervals) interval.unref();
   }
 
+  /** Pause only the computer tunnel. Desktop/phone sockets and heartbeats stay attached. */
+  pauseComputer(): void {
+    this.computerPaused = true;
+    this.computerGeneration++;
+    if (this.computerTimer) clearTimeout(this.computerTimer);
+    this.computerTimer = null;
+    const computer = this.computer;
+    this.computer = null;
+    this.openingComputer?.terminate();
+    this.openingComputer = null;
+    computer?.terminate();
+    this.dropComputerStreams();
+    this.changed();
+  }
+
+  async resumeComputer(): Promise<void> {
+    const generation = this.computerGeneration;
+    // Reconcile durable policy before any browser is admitted, even if an edit's notification
+    // was missed while sleeping. A revoked phone must never carry the first post-wake request.
+    const modes = await this.options.store.loadModes();
+    await this.loadPhones();
+    if (generation !== this.computerGeneration || this.stopped)
+      throw new Error("Stale egress resume discarded");
+    this.mode = modes.mode;
+    this.phoneMode = modes.phoneMode;
+    for (const agent of [...this.agents.values()]) {
+      if (agent.claim.kind !== "phone") continue;
+      const phone = this.phones.find((phone) => phone.id === agent.claim.id);
+      if (!phone || phone.generation !== agent.claim.generation) {
+        agent.socket.close(CLOSE_REVOKED, "revoked");
+        this.detach(agent);
+      }
+    }
+    this.computerPaused = false;
+    this.refresh(true);
+    if (!this.computer && !this.openingComputer) this.connectComputer();
+  }
+
   stop(): void {
     this.stopped = true;
+    this.pauseComputer();
     for (const interval of this.intervals) clearInterval(interval);
     if (this.computerTimer) clearTimeout(this.computerTimer);
     this.computer?.close();
@@ -474,7 +516,7 @@ export class EgressRelay {
   /** A standby agent's grace is over: reset what it still carries, and let a phone go. */
   private drainOver(agent: Agent): void {
     agent.drainTimer = null;
-    if (agent.detached || agent === this.active) return;
+    if (this.computerPaused || agent.detached || agent === this.active) return;
     if (agent.claim.kind === "phone") this.release(agent);
     else for (const route of [...agent.streams.values()]) this.abandon(route);
   }
@@ -484,7 +526,13 @@ export class EgressRelay {
    * your Mac in `fallback`: then it waits out the grace in case the Mac drops again.
    */
   private releaseIfDrained(agent: Agent): void {
-    if (agent.claim.kind !== "phone" || agent === this.active || agent.role === "release") return;
+    if (
+      this.computerPaused ||
+      agent.claim.kind !== "phone" ||
+      agent === this.active ||
+      agent.role === "release"
+    )
+      return;
     if (agent.streams.size > 0) return;
     const waitingForMac =
       this.mode !== "off" && this.phoneMode === "fallback" && this.active?.claim.kind === "desktop";
@@ -621,13 +669,19 @@ export class EgressRelay {
   /* -------------------------------------------------------------- computer */
 
   private connectComputer(): void {
-    if (this.stopped) return;
-    const socket = new WebSocket(this.options.computerUrl(), { perMessageDeflate: false });
+    if (this.stopped || this.computerPaused || this.openingComputer || this.computer) return;
+    const generation = this.computerGeneration;
+    const socket = new WebSocket(this.options.computerUrl(), {
+      perMessageDeflate: false,
+      handshakeTimeout: 10_000,
+    });
+    this.openingComputer = socket;
     socket.on("open", () => {
-      if (this.stopped) {
-        socket.close();
+      if (this.stopped || this.computerPaused || generation !== this.computerGeneration) {
+        socket.terminate();
         return;
       }
+      this.openingComputer = null;
       this.computer = socket;
       this.computerMissedPongs = 0;
       // `config` is always the first message on a tunnel connection.
@@ -648,13 +702,18 @@ export class EgressRelay {
       if (this.computer === socket) this.computerMissedPongs = 0;
     });
     socket.on("close", () => {
+      if (this.openingComputer === socket) this.openingComputer = null;
+      if (generation !== this.computerGeneration) return;
       if (this.computer === socket) {
         this.computer = null;
         this.dropComputerStreams();
         this.changed();
       }
-      if (!this.stopped)
-        this.computerTimer = setTimeout(() => this.connectComputer(), this.timings.computerRetryMs);
+      if (!this.stopped && !this.computerPaused)
+        this.computerTimer = setTimeout(() => {
+          this.computerTimer = null;
+          if (generation === this.computerGeneration) this.connectComputer();
+        }, this.timings.computerRetryMs);
     });
     socket.on("error", () => {});
   }

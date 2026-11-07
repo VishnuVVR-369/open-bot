@@ -1,3 +1,4 @@
+import type { ComputerLifecycleStatus } from "@open-bot/shared";
 import type {
   AccountCapability,
   AccountProvider,
@@ -40,6 +41,7 @@ import type {
 
 export interface CodexStatusView {
   connected: boolean;
+  stale?: boolean;
   authSource: "device" | "host";
   account: { type: "chatgpt" | "apiKey"; email: string | null; planType: string | null } | null;
   login: { verificationUrl: string; userCode: string } | null;
@@ -47,6 +49,7 @@ export interface CodexStatusView {
 }
 
 export interface ComputerView {
+  lifecycle?: ComputerLifecycleStatus | null;
   workerOnline: boolean;
   online: boolean;
   health: ComputerHealth | null;
