@@ -47,7 +47,9 @@ A new workspace dependency must also be added to the consumer's bundler config: 
 Use the canonical term in new code, UI copy and docs.
 Older code still uses some banned synonyms; those get renamed later, so don't add new uses and don't rename them in unrelated work.
 `pnpm check:vocabulary` (`scripts/check/vocabulary.mjs`, run in CI) fails when a file gains a use of a legacy name: it counts them per file against `scripts/check/vocabulary-baseline.json`, which may only shrink.
-After removing uses, run `pnpm check:vocabulary --update` and commit the smaller baseline.
+After removing uses or moving a file, run `pnpm check:vocabulary --update` and commit the new baseline.
+`--update` refuses to raise any term's total; `--allow-growth` is only for a reviewed change, such as a stricter rule.
+`pnpm check:vocabulary --show <file>` lists a file's uses.
 A line that must keep a legacy word, such as a third-party API name, can end with a `vocabulary: allow` comment.
 
 | Canonical term  | Meaning                                                                              | Do not use for it (legacy names in code)                                                       |

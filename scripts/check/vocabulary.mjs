@@ -3,27 +3,32 @@
 // names like `botId` and `isPrimary` that are renamed later; this check counts each banned term per
 // file and fails when a file uses one more often than `vocabulary-baseline.json` allows, or when the
 // baseline is higher than the code (run `pnpm check:vocabulary --update` after removing uses).
+// `--update` refuses to raise a term's total across the repository, so moving a file works but a new
+// use does not; `--allow-growth` is for reviewed changes only, such as a stricter rule.
 // A line that must keep a banned word (a third-party API, say) can end with `vocabulary: allow`.
-// Needs only git and Node.
+// Known limit: a two-word phrase split across lines ("desktop" ending one comment line and
+// "takeover" starting the next) is not seen. Needs only git and Node.
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-/** Each rule matches the words of one identifier, already split and lowercased. */
+const isBot = (word) => word === "bot" || word === "bots";
+
+/** Each rule matches the words of one identifier or phrase, already split and lowercased. */
 export const RULES = [
   {
     term: "bot",
     use: "teammate",
-    matches: (words) => words.includes("bot") || words.includes("bots"),
+    matches: (words) => words.some(isBot),
   },
   {
     term: "primary teammate",
     use: "lead",
     matches: (words, token) =>
       /^(isPrimary|is_primary|IS_PRIMARY)$/.test(token) ||
-      (words.includes("primary") && (words.includes("bot") || words.includes("bots"))) ||
-      (words[0] === "set" && words[1] === "primary"),
+      /^set_?primary/i.test(token) ||
+      words.some((word, i) => word === "primary" && isBot(words[i + 1] ?? "")),
   },
   {
     term: "desktop takeover",
@@ -35,12 +40,14 @@ export const RULES = [
 
 /** Text that contains a banned word but means something else, removed before matching. */
 const NOT_VOCABULARY = [
-  /open[-_]?bot/gi, // The product: open-bot, @open-bot/*, OPEN_BOT_*, openBotDesktop.
   /\/home\/bot\b/g, // The computer's Linux user.
   /\bbot user\b/gi,
   /\bbot:bot\b/g,
-  /BotFather/g, // Telegram's own name.
+  /\bBotFather\b/g, // Telegram's own name.
 ];
+
+/** An identifier, or a hyphenated word like `open-bot` or `desktop-takeover`; Unicode-aware. */
+const TOKEN = /[\p{L}_$][\p{L}\p{N}_$]*(?:-[\p{L}\p{N}_$]+)*/gu;
 
 /** Code files only: docs prose and the database's migration history are out of scope. */
 const INCLUDE = ["*.ts", "*.tsx", "*.mts", "*.cts", "*.js", "*.mjs", "*.cjs", "*.kt"];
@@ -60,28 +67,60 @@ export function standInName(file) {
   return /^e2e\//.test(file) && /(mock|fake)/i.test(path.basename(file));
 }
 
-/** `botId` -> ["bot", "id"], `BOT_ID` -> ["bot", "id"], `BotSummary` -> ["bot", "summary"]. */
+/**
+ * `botId` -> ["bot", "id"], `BOT2_ID` -> ["bot", "2", "id"], `HTTPBotClient` -> ["http", "bot",
+ * "client"]. The product's name stays one word: `openBotDesktop` -> ["open-bot", "desktop"], while
+ * `reopenBot` -> ["reopen", "bot"].
+ */
 export function words(token) {
-  return token
-    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+  const split = token
+    .replace(/([\p{Ll}\p{N}])(\p{Lu})/gu, "$1 $2")
+    .replace(/(\p{Lu}+)(\p{Lu}\p{Ll})/gu, "$1 $2")
+    .replace(/(\p{L})(\p{N})/gu, "$1 $2")
+    .replace(/(\p{N})(\p{L})/gu, "$1 $2")
     .split(/[\s_$-]+/)
     .filter(Boolean)
     .map((word) => word.toLowerCase());
+  const out = [];
+  for (const word of split) {
+    if (word === "bot" && out.at(-1) === "open") out[out.length - 1] = "open-bot";
+    else out.push(word);
+  }
+  return out;
 }
 
-/** The banned terms in one file's text, with the lines they are on. */
+/**
+ * The banned terms in one file's text, with the lines they are on. Each identifier is checked on
+ * its own, and so is each pair of words separated only by spaces, so prose such as "desktop
+ * takeover" counts once without counting a single word twice.
+ */
 export function findTerms(text) {
   const found = [];
   text.split("\n").forEach((raw, index) => {
     if (/vocabulary: allow\b/.test(raw)) return;
     let line = raw;
     for (const pattern of NOT_VOCABULARY) line = line.replace(pattern, " ");
-    for (const [token] of line.matchAll(/[A-Za-z_$][\w$]*/g)) {
+    let previous = null;
+    for (const match of line.matchAll(TOKEN)) {
+      const token = match[0];
       const split = words(token);
       for (const rule of RULES) {
         if (rule.matches(split, token)) found.push({ term: rule.term, line: index + 1, token });
       }
+      if (previous && /^[ \t]+$/.test(line.slice(previous.end, match.index))) {
+        const last = previous.words.at(-1);
+        const first = split[0];
+        for (const rule of RULES) {
+          if (
+            rule.matches([last, first], "") &&
+            !rule.matches([last], "") &&
+            !rule.matches([first], "")
+          ) {
+            found.push({ term: rule.term, line: index + 1, token: `${previous.token} ${token}` });
+          }
+        }
+      }
+      previous = { token, words: split, end: match.index + token.length };
     }
   });
   return found;
@@ -106,7 +145,7 @@ function files(root) {
     .sort();
 }
 
-/** `{ file: { term: count } }` for every file that uses a banned term. */
+/** `{ file: { term: count } }` for every tracked or untracked, not ignored, file that uses a banned term. */
 export function measure(root) {
   const result = {};
   for (const file of files(root)) {
@@ -117,14 +156,14 @@ export function measure(root) {
   return result;
 }
 
+const MAX_LINES = 8;
+
 /** Where to look: the lines when there are few, otherwise how to list them. */
 function where(file, lines) {
   if (lines.length === 0) return "Rename the file.";
   if (lines.length <= MAX_LINES) return `Lines: ${lines.join(", ")}`;
   return `List them with pnpm check:vocabulary --show ${file}`;
 }
-
-const MAX_LINES = 8;
 
 /** Compares the code with the baseline; returns problems for the developer to fix. */
 export function compare(actual, baseline, readFile) {
@@ -155,6 +194,22 @@ export function compare(actual, baseline, readFile) {
   return problems;
 }
 
+function totals(result) {
+  const sums = {};
+  for (const counts of Object.values(result)) {
+    for (const [term, count] of Object.entries(counts)) sums[term] = (sums[term] ?? 0) + count;
+  }
+  return sums;
+}
+
+/** Terms whose repository-wide total would rise if the baseline became `actual`. */
+export function growth(actual, baseline) {
+  const before = totals(baseline);
+  return Object.entries(totals(actual))
+    .filter(([term, count]) => count > (before[term] ?? 0))
+    .map(([term, count]) => `"${term}" ${before[term] ?? 0} -> ${count}`);
+}
+
 function sorted(result) {
   return Object.fromEntries(
     Object.keys(result)
@@ -170,34 +225,54 @@ function sorted(result) {
   );
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+function main(argv) {
   const root = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
-  const actual = measure(root);
   const baselinePath = path.join(root, BASELINE);
-  if (process.argv.includes("--update")) {
-    writeFileSync(baselinePath, `${JSON.stringify(sorted(actual), null, 2)}\n`);
-    process.stdout.write(`Wrote ${BASELINE}. Review the diff: it should only shrink.\n`);
-    process.exit(0);
-  }
-  const show = process.argv.indexOf("--show");
+  const readBaseline = () =>
+    existsSync(baselinePath) ? JSON.parse(readFileSync(baselinePath, "utf8")) : {};
+
+  const show = argv.indexOf("--show");
   if (show >= 0) {
-    const file = process.argv[show + 1] ?? "";
-    for (const found of findTerms(readFileSync(path.resolve(file), "utf8"))) {
+    const file = argv[show + 1];
+    if (!file || !existsSync(file)) {
+      process.stderr.write("Usage: pnpm check:vocabulary --show <file>\n");
+      return 2;
+    }
+    for (const found of findTerms(readFileSync(file, "utf8"))) {
       process.stdout.write(`${file}:${found.line}: ${found.token} (${found.term})\n`);
     }
-    process.exit(0);
+    return 0;
   }
-  const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
-  const problems = compare(actual, baseline, (file) => readFileSync(path.join(root, file), "utf8"));
+
+  const actual = measure(root);
+  if (argv.includes("--update")) {
+    const grown = growth(actual, readBaseline());
+    if (grown.length > 0 && !argv.includes("--allow-growth")) {
+      process.stderr.write(
+        `Not updating ${BASELINE}: legacy uses would grow (${grown.join(", ")}).\n` +
+          "Use the canonical terms in new code. Pass --allow-growth only for a reviewed change, such as a stricter rule.\n",
+      );
+      return 1;
+    }
+    writeFileSync(baselinePath, `${JSON.stringify(sorted(actual), null, 2)}\n`);
+    process.stdout.write(`Wrote ${BASELINE}. Review the diff before committing it.\n`);
+    return 0;
+  }
+
+  const problems = compare(actual, readBaseline(), (file) =>
+    readFileSync(path.join(root, file), "utf8"),
+  );
   if (problems.length > 0) {
     process.stderr.write(
       `${problems.join("\n")}\n\nSee the glossary in AGENTS.md for the canonical terms.\n`,
     );
-    process.exit(1);
+    return 1;
   }
-  const total = Object.values(actual).reduce(
-    (sum, counts) => sum + Object.values(counts).reduce((a, b) => a + b, 0),
-    0,
-  );
+  const total = Object.values(totals(actual)).reduce((a, b) => a + b, 0);
   process.stdout.write(`No new legacy vocabulary (${total} legacy uses left to rename).\n`);
+  return 0;
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  process.exitCode = main(process.argv.slice(2));
 }
