@@ -11,7 +11,7 @@ description: Use before opening a PR, merging, deploying open-bot to Railway, or
 - Run commands with `set -o pipefail` so a pipe never hides a failure.
 - Changed deps, bundling, or a workspace import? Build and start the real artifact: `node apps/worker/dist/worker.mjs`, `node apps/pages/dist/pages.mjs`. Missing bundled modules (`ERR_MODULE_NOT_FOUND`) only show up here.
 - Changed native Android code or config? CI builds debug only. Run a release build or `./gradlew lintRelease` locally.
-- The Cloudflare Workers/Pages GitHub check always fails. Ignore it unless asked.
+- Every PR check must pass, including Cloudflare. Treat any red check as a real failure.
 
 ## Merge and deploy
 

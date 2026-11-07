@@ -31,7 +31,7 @@ This block is written and re-added by `turbo` before repository-scoped commands 
 - Pick checks by the boundary you changed. If you touched deps, bundling, or native config, run the built artifact (node dist/worker.mjs, pages build, Android release lint), not just source tests.
 - A new test must fail without the fix. Bypass turbo cache (--force) when results must prove something. Use `set -o pipefail`.
 - Treat a flaky test as a possible real race first. Sync on observable events, never sleeps or reruns.
-- The Cloudflare Workers/Pages GitHub check is known-red. Ignore it unless asked. CI gate = lint, typecheck, tests.
+- Every PR check must pass, including Cloudflare. Treat any red check as a real failure.
 - Skip tests that need >10 min of waiting or physical user action. List them as untested. Batch any phone action into one ask.
 
 ## Workflow and scope
