@@ -1,103 +1,9 @@
 # open-bot for Android
 
-Your teammates on your phone: a home briefing, chats with live replies and attachments, search, and approvals you can decide from the notification shade.
-It's an Expo app (React Native) that talks to your open-bot deployment through the same API the web app uses (`packages/api`).
-It's installed over USB; there's no Play Store listing.
-
-## Using the pocket inbox
-
-Home leads with what needs you, then your teammates, then a briefing of work finished while you were away.
-Each teammate's avatar shows what they're doing: a soft pulse while they work, an amber ring and mark while they wait for you, and a dashed ring while they're up next.
-Teammates who need you sort first; tap one to open your latest chat with them, or hold to open their profile.
-A teammate's profile has Message, New chat and Screen, how much they do on their own, their Always allow rules, and every conversation they're in.
-Use Computer to watch or take over a teammate's screen; suggested instructions are still reviewed on the web.
-Chats shows unread dots, previews and who is working; filter by Unread, Direct, Groups or Scheduled when there are any.
-Hold a chat to mark it read or archive it.
-Use New chat for a direct conversation or a group, and @-mention teammates to choose who answers.
-A teammate names a new chat after its topic once that's clear, and the chat list then says whose reply it is; a name you give is never replaced.
-The chat menu lets you rename or archive a conversation; archiving keeps its history.
-Tap a chat's title to open the teammate's profile.
-When a teammate is idle, the chat header, their profile and New chat show when they last worked, such as "Active 5m ago".
-
-In a chat, a teammate's work folds into one line, such as "Worked for 21s · 5 steps", with the steps a tap away.
-While they work, one line says what they're doing right now, and long command output folds after 14 lines.
-Code scrolls sideways with a fade at the edge, and every code block has a copy button.
-Unsent text is kept per chat on the phone, so leaving for an approval or another app doesn't lose it.
-
-Attach a photo, take one with the camera, or pick a file from the composer.
-Failed uploads can be retried or removed before sending.
-Images, Markdown, text and CSV/TSV files open in the app; tables scroll in both directions.
-PDFs and other formats open in a compatible app on the phone.
-The microphone adds dictation to the current draft; leaving that composer cancels recognition.
-The latest reply shows copy, read aloud and ratings under it; hold any reply, or use its More button, for the same actions plus its time and usage.
-Feedback offers an option to remember a lesson or try again.
-You can steer a working teammate with another message, stop it, or retry a failed or stopped turn.
-
-Use the header's search and notification buttons to find earlier work.
-Search finds teammates, chats, messages and pages; links to a teammate's reply load older history before scrolling to it.
-If loading history fails, use Retry to continue.
-Loaded history stays in place when newer replies arrive.
-A chat becomes read across devices after fresh history has loaded while it is visible; failed refreshes keep it unread.
-
-Approvals supports Approve, Deny and Always allow, with saved rules one tap away at the top.
-Requests that spend money, send email or delete things carry a short warning, in the chat and on the request itself.
-Past decisions are grouped by day.
-Notification approvals can be decided without opening the app; purchases use Review and require the phone's authentication check before approval.
-Reply on a message notification sends directly to its teammate, including in a group chat.
-
-Settings, from your initial on Home, has Light, Dark or System appearance and a switch for haptics.
-Animations follow Android's Remove animations setting.
-
-## The computer on your phone
-
-Computer lists every teammate's screen, including sleeping screens, its current holder, and requests for you; screens that need you come first.
-Each screen has one action right on the list: Wake, Watch, or Take over.
-Watching a sleeping screen does not start it; use Wake or Take over.
-The live viewer is noVNC bundled inside the app, with a fresh short-lived VNC token for every connection.
-Your session cookie stays on the React Native side and is never passed to the WebView.
-
-Tap to click, hold for a right click, and drag with two fingers to scroll.
-Pinch zooms the local screen; Fit, which appears once the screen connects, resets it.
-Use Trackpad for relative cursor movement and precise taps.
-The keyboard bar provides Esc, Tab, Ctrl, Alt, arrows, Enter, and Paste from phone.
-In portrait the screen fits the width; in landscape it fills the height beside the controls.
-Rotating during takeover locks landscape until you hand back or leave the screen.
-Back opens the hand-back sheet, where you can leave an optional note or stay in control.
-
-Takeover requests open the screen from Home, chat, or a notification.
-The notification offers Take over and Type the code.
-Type the code is for a 4-to-8-digit one-time code, with a live preview and the focused site's name.
-The app can request Android's consent to fill a code from one incoming SMS; it never requests SMS-reading permissions or sends the code without your tap.
-Manual entry remains available if consent is denied, Play services is unavailable, or the SMS is ambiguous.
-
-Code entry blocks the teammate's desktop tools, including screenshots, until botd verifies the code is gone from the browser's fields and page text.
-If it is still visible, you keep control and can clear it before handing back.
-An uncertain response is recovered by its operation id; the app never blindly repeats typing.
-After a computer restart, affected screens stay paused; explicit recovery discards their browser pages before returning control.
-The submitted code is not stored in operation records, logs, or botd state.
-
-## Pages
-
-Pages are explainers, comparisons and dashboards your teammates build as HTML and publish for you.
-A page a teammate publishes shows in the chat as a card with its picture; tap it to open the version it published.
-Home lists the latest pages under your teammates, and All pages opens the full list, pinned ones first.
-Hold a page to pin it to the top or delete it.
-Search finds pages by their title and summary.
-
-A page opens in a viewer that loads it from open-bot's separate pages service, with a link that works for a few minutes.
-Your session cookie is never passed to that WebView, cookies and storage are off, and the page can't reach the network.
-Links in a page open in a browser tab, never inside the viewer.
-The viewer follows the app's light or dark appearance and gets a fresh link when that changes or when an old link has run out.
-Tap the title to switch versions, and when a teammate publishes a newer version while you read, a banner offers it.
-Select text in a page and tap Ask about this, or use the Ask button in the header, to ask its teammate a question or for a change.
-The question goes to the chat the page was made in, or the teammate's own chat, with the page, version and passage attached.
-The menu also opens the page in the browser, goes to its chat, pins it or deletes it.
-A notification about a published page opens the page.
-
-Share a link or text from any app (like a LinkedIn post) and pick open-bot to send it to a teammate.
-Choose Make a page explaining this (which runs the built-in /page skill), Summarize it for me, or Just send it, add an optional note, and pick who gets it.
-The message goes to that teammate's direct chat, and the chat opens.
-A share waits until you're signed in and past the app lock.
+The Expo app (React Native) for open-bot: your teammates, chats, approvals, the computer's screens and pages on your phone.
+It talks to your open-bot deployment through the same RPC contract the web app serves (`packages/api`), and is installed over USB; there is no Play Store listing.
+What the app does for its user is described on the site, in `apps/site/src/app/docs/flows/android-app/page.mdx`.
+This README is for building, configuring and testing it.
 
 ## What you need
 
@@ -256,17 +162,27 @@ Debug builds use password sign-in unless their signing certificate is explicitly
 
 The phone can carry teammates' browsing when your Mac is offline (or always, if you choose), through a native foreground service in the local Expo module [`modules/egress`](modules/egress).
 A high-priority FCM data message wakes it without starting React Native; its protocol core is a plain Kotlin project in `modules/egress/core`, tested with `./gradlew test` there against the vectors in `packages/egress/test-vectors`.
-Development builds have no Firebase, so they take the same wake data from adb (see [MOBILE-TESTING.md](../../docs/MOBILE-TESTING.md)).
+
+Development builds have no Firebase, so a `DebugWakeReceiver` takes the same data from adb instead, and runs the same code.
+It exists only in the development variant, and only the shell can reach it.
+Pair a development build with the local stack without the app's screens, then send it a wake:
+
+```sh
+cd apps/mobile
+node scripts/egress-pair-dev.mjs [--serial <adb serial>] [--mode fallback|always]
+adb shell am broadcast -f 0x20 -a dev.openbot.egress.DEBUG_WAKE -p dev.openbot.mobile.dev \
+  --es stage wake --es sentAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+```
 
 ## How it fits together
 
-- `src/app`: Expo Router screens for sign-in, Home, Chats, Approvals, new direct/group chats, notifications, search, file previews, approval rules and Settings.
-- `src/app/(tabs)/computer.tsx` and `src/app/screens/[screenId].tsx`: screens list, live view, touch takeover, keyboard and hand-back.
-- `src/computer/viewer.ts`: the browser client; `pnpm build:viewer` bundles noVNC into the generated local HTML module, and `pnpm check:viewer` checks it is current.
-- `src/components/computer`: WebView lifecycle and token handling, plus the code sheet and operation recovery.
-- `modules/sms-consent`: Android's SMS User Consent receiver and activity-result handling; only an unambiguous code reaches JavaScript.
-- `src/lib/api.ts`: the typed API client; the session cookie lives in SecureStore (`src/lib/auth.ts`).
-- `src/lib/realtime.tsx` and `src/lib/live-stream.ts`: the live stream while the app is open, which resumes the open chat from its last event after a reconnect.
-- `src/lib/lock.ts`: asks for your fingerprint on open and after five minutes away.
+- `src/app`: Expo Router screens. The tabs in `src/app/(tabs)` are Home, Chats, Approvals, Computer and Pages; the stack adds a chat, a page, a screen, a teammate, an approval, search, notifications, file previews, approval rules, new chat, share and Settings.
+- `src/app/(tabs)/computer.tsx` and `src/app/screens/[screenId].tsx`: the screens list, live view, touch takeover, keyboard and hand-back.
+- `src/computer/viewer.ts`: the browser client; `pnpm build:viewer` bundles noVNC into the generated `src/computer/viewer-html.ts`, and `pnpm check:viewer` checks it is current.
+- `src/components`: shared UI; `src/components/chat` renders the timeline and composer, `src/components/computer` the WebView lifecycle, token handling, the code sheet and operation recovery.
+- `src/lib`: platform-free logic with co-located tests. `api.ts` is the typed API client (the session cookie lives in SecureStore, `auth.ts`), `queries.ts` and `query.ts` hold the react-query hooks and keys, `realtime.tsx` and `live-stream.ts` the live stream (resuming the open chat from its last event after a reconnect), and `lock.ts` the fingerprint lock on open and after five minutes away.
 - `src/push`: notification channels, rendering pushes (also while the app is closed, in `background.ts`), Approve and Deny, purchase Review and inline Reply.
+- `src/theme`: the palette, light and dark, and color mixing.
+- `modules/egress`: the phone connection (see above). `modules/passkey`: Android Credential Manager for passkeys. `modules/share-intent`: receiving shares from other apps. `modules/sms-consent`: Android's SMS User Consent, which passes only an unambiguous code to JavaScript.
 - `plugins/`: config plugins for release signing, the status bar icon, and the native theme (alerts and the text cursor use the app's palette and fonts).
+- `maestro/`: the Maestro UI flows run by `pnpm test:mobile-ui` from the repository root.

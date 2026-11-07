@@ -36,7 +36,9 @@ import okhttp3.OkHttpClient
 
 /**
  * The phone connection: a `specialUse` foreground service that runs the egress agent while the
- * owner's rules allow it, without React Native. See docs/mobile-phase-3-plan.md, section 7.
+ * owner's rules allow it, without React Native. A wake push, the boot receiver or the app's own
+ * controls start it; it stops when the rules no longer allow it or the agent goes idle. The
+ * module's overview is the "Phone connection" section of apps/mobile/README.md.
  *
  * Everything here runs on the main thread; the agent has its own.
  */
