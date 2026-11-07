@@ -30,9 +30,17 @@ jobs:
       ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
     steps:
       - uses: actions/checkout@v4
-      - uses: railwayapp/config@9e17d413dbe219f19d62538d9c06b5dbb5e9abf8 # v1.2.0
+      # Installed here, with the same cache as ci.yml, so `railway/iac` resolves for the plan.
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: railwayapp/config@f1f0c715716fe035319b0a716b95c6e83e0f6595 # main, 2026-10-13: v1.2.0 plus pnpm support
         with:
           command: plan
           railway-token: ${{ secrets.RAILWAY_TOKEN }}
           # The version .railway/ was last planned with locally.
           cli-version: 5.71.0
+          package-manager: none
