@@ -11,25 +11,134 @@ This block is written and re-added by `turbo` before repository-scoped commands 
 
 # open-bot
 
+Personal AI teammates: each teammate is a Codex agent that works on a shared Linux computer, chats with the owner, and asks before risky actions.
+This file is the map.
+Each workspace has its own `AGENTS.md` with details, and the technical docs live in `apps/site/src/app/docs/` (see "Architecture docs" below).
+
+## Repo map
+
+Workspace packages are consumed as TypeScript source (`exports` point at `src/*.ts`).
+A new workspace dependency must also be added to the consumer's bundler config: `apps/worker/build.mjs`, `transpilePackages` in `apps/web/next.config.ts`, and the esbuild calls of botd and pages.
+
+| Folder              | Owns                                                                          | Entry                            | Test                                    |
+| ------------------- | ----------------------------------------------------------------------------- | -------------------------------- | --------------------------------------- |
+| `apps/web`          | Next.js app: UI, server actions, read routes, SSE stream, oRPC for mobile     | `apps/web/src/app`               | `pnpm --filter @open-bot/web test`      |
+| `apps/worker`       | Runs teammates: run queue, tools, services, internal HTTP API, egress relay   | `apps/worker/src/index.ts`       | `pnpm --filter @open-bot/worker test`   |
+| `apps/botd`         | Daemon inside the computer: screens, Chromium, VNC, Codex proxy, leases       | `apps/botd/src/index.ts`         | `pnpm --filter @open-bot/botd test`     |
+| `apps/pages`        | Serves published pages on their own origin                                    | `apps/pages/src/index.ts`        | `pnpm --filter @open-bot/pages test`    |
+| `apps/mobile`       | Expo Android app, native modules (egress, passkey, share intent, SMS consent) | `apps/mobile/src/app`            | `pnpm --filter @open-bot/mobile test`   |
+| `apps/desktop`      | Electron Mac app: egress agent and notifications                              | `apps/desktop/src/main.ts`       | typecheck only                          |
+| `apps/site`         | Landing page and the technical docs (Cloudflare)                              | `apps/site/src/app`              | `pnpm --filter @open-bot/site test:e2e` |
+| `packages/shared`   | Isomorphic types, zod schemas and pure logic; Node-only helpers by subpath    | `packages/shared/src/index.ts`   | `pnpm --filter @open-bot/shared test`   |
+| `packages/api`      | oRPC contract and serializable views shared by web and mobile                 | `packages/api/src/contract.ts`   | `pnpm --filter @open-bot/api test`      |
+| `packages/db`       | Drizzle schema, migrations, pool, NOTIFY channels and app events              | `packages/db/src/schema.ts`      | `pnpm test:integration`                 |
+| `packages/accounts` | OAuth flows and the token store for Google and Notion                         | `packages/accounts/src/index.ts` | `pnpm test:integration`                 |
+| `packages/memory`   | Versioned memory and its background jobs                                      | `packages/memory/src/index.ts`   | `pnpm test:memory`                      |
+| `packages/egress`   | Tunnel framing, mux, IP policy, SOCKS; vectors shared with Kotlin             | `packages/egress/src/index.ts`   | `pnpm --filter @open-bot/egress test`   |
+| `packages/page-kit` | Page CSS/JS, bundled libraries, page runtime and the `/page` skill            | `packages/page-kit/src/index.ts` | `pnpm --filter @open-bot/page-kit test` |
+| `packages/agent`    | Codex app-server client; `src/protocol` is generated, never edit it           | `packages/agent/src/client.ts`   | `pnpm --filter @open-bot/agent test`    |
+| `images/computer`   | The computer's Docker image and filesystem overlay                            | `images/computer/Dockerfile`     | `pnpm computer:build`                   |
+| `e2e`               | Playwright specs for the whole stack, plus stand-ins for outside services     | `playwright.config.ts`           | `pnpm e2e`                              |
+| `tools/showcase`    | Typed demo-data seed and screenshots for UI review                            | `tools/showcase/seed.ts`         | `pnpm --filter @open-bot/showcase seed` |
+| `scripts/test`      | Test runners (`pg.sh` starts a throwaway Postgres)                            | `scripts/test/integration.sh`    | -                                       |
+
 ## Glossary
 
-- "Computer" = the botd container (apps/botd) on Railway, with a persistent /home volume.
-- "Browser" = Chromium run by botd inside the computer, never the user's Mac browser.
-- "Screen" = a desktop session on the computer. "Teammate" = a bot.
-- Apps: web (Next.js), worker, botd, pages (separate origin), site (Cloudflare docs/landing), mobile (Expo Android), desktop.
-- Shared contracts live in packages/api; integrations in packages/shared/src/accounts + packages/accounts. Reuse them; don't add parallel abstractions.
+Use the canonical term in new code, UI copy and docs.
+Older code still uses some banned synonyms; those get renamed later, so don't add new uses and don't rename them in unrelated work.
 
-## Environment
+| Canonical term  | Meaning                                                                              | Do not use for it (legacy names in code)                                                       |
+| --------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| teammate        | One AI agent the owner works with                                                    | bot (`bots` table, `botId`, `BotSummary`, `/bots/[botId]`)                                     |
+| lead            | The teammate that answers group chats when nobody is mentioned                       | primary (`isPrimary`, `is_primary`, `setPrimaryBot`)                                           |
+| computer        | The botd container on Railway, with a persistent `/home` volume                      | -                                                                                              |
+| browser         | Chromium run by botd inside the computer, never the owner's own browser              | -                                                                                              |
+| screen          | A desktop session on the computer, one per teammate                                  | desktop                                                                                        |
+| screen takeover | The owner controlling a screen; the teammate waits until it is handed back           | desktop takeover (`desktopTakeovers`, `desktop_takeovers`)                                     |
+| lease           | Who holds a screen's input right now (teammate, owner or nobody)                     | -                                                                                              |
+| desktop app     | The Electron app in `apps/desktop`; "desktop" means only this                        | -                                                                                              |
+| integration     | Umbrella for anything a teammate uses outside the computer: connections and accounts | -                                                                                              |
+| connection      | An MCP server integration                                                            | -                                                                                              |
+| account         | An OAuth integration (Google, Notion)                                                | `accounts` table, planned `account_connections`; Better Auth's `account` is sign-in, unrelated |
+| automation      | Umbrella for schedules, page watches, webhooks and account triggers                  | schedule or trigger as the umbrella (`/schedules` only redirects)                              |
+| page            | An HTML page a teammate publishes, served by `apps/pages`                            | -                                                                                              |
+| run / turn      | One queued unit of teammate work / one Codex turn inside it                          | -                                                                                              |
+| stand-in        | A test double for an outside service                                                 | mock, fake, fixture (`e2e/telegram-mock.ts`)                                                   |
 
-- Node 24, pnpm from package.json, JDK 17 for Android. Prod URL: https://openbot.up.railway.app.
-- Local ports: web 3000, worker 4001, Metro 8081, pages 3400. Port 3200 is shared by apps/site dev and the showcase web app (tools/showcase), so never run both. Check for an existing process before starting one.
-- docs/ is gitignored. Never reference it from code or tracked files. Durable knowledge goes in skills or tracked READMEs.
-- Local docker is more permissive than Railway (seccomp, user namespaces). Anything touching the computer must be judged against Railway constraints.
+## Where to make common changes
+
+These list today's files in order.
+Paths are relative to the repo root; symbols are in parentheses.
+
+**Add an agent tool** (non-account)
+
+1. `apps/worker/src/tools/definitions.ts`: add a `tool(...)` spec to the right group array (`CONTROL_TOOLS`, `PAGE_TOOLS`, ...) and bump `TOOLS_VERSION`. Without the bump, existing threads never see the tool.
+2. `apps/worker/src/tools/handlers.ts`: a zod args schema, a `case` in `ToolHandlers.handle()`, a timeline item via `session.putItem(this.toolItem(...))`, `publishApp` if the UI shows the change, and `HELPER_FORBIDDEN` if swarm helpers must not call it. Nothing checks definitions against the switch; a missing case fails only at call time.
+3. A new service is a constructor parameter: wire it in `apps/worker/src/index.ts` and `apps/worker/src/tools/bots.integration.test.ts`.
+4. Optional: rules in `DEVELOPER_INSTRUCTIONS` (`apps/worker/src/instructions.ts`, bump `TOOLS_VERSION` again), `TOOL_ICONS` in `apps/web/src/components/chat/items.tsx`, `ASKS_APPROVAL` in `apps/web/src/components/chat/run-block.tsx`. Mobile renders every tool generically.
+5. Document it in `apps/site/src/app/docs/reference/tools/page.mdx`.
+
+**Add a worker internal route** (called by web)
+
+1. `apps/worker/src/http.ts`: add `"METHOD /internal/..."` to `routes` in `createHttpServer`; parse with `readJson(request, schema)`, check ids with `uuid()`, throw `HttpError`. Routes match in insertion order. Auth (`x-worker-secret`) is automatic.
+2. If it touches the computer, add it to the `computerOperation` regex in the same file, or it will not wake the computer.
+3. Call it from web with `worker<T>(method, path, body)` (`apps/web/src/lib/server/worker.ts`) in `apps/web/src/lib/actions.ts` or `apps/web/src/lib/server/api/*`.
+4. Document it in `apps/site/src/app/docs/reference/http-api/page.mdx`.
+
+**Add a field to a teammate** (web and mobile)
+
+1. `packages/db/src/schema.ts` (`bots`, with a default), then the migration recipe below.
+2. `packages/shared/src/bot-management.ts` (`botProfileSchema`, `botCreation()`), `packages/shared/src/bundle.ts` (optional or defaulted so old exports import).
+3. `packages/api/src/views.ts` (`botSummarySchema`) if lists or mobile need it; `apps/web/src/lib/server/queries.ts` (`listBots`).
+4. Worker: `apps/worker/src/services/bots.ts` (`list`, `get`), `apps/worker/src/tools/definitions.ts` (`profileProperties`), `apps/worker/src/tools/bots.ts` (`PROFILE_LABELS`).
+5. Web: `apps/web/src/lib/actions.ts` (`duplicateBot`, `importTeammate`), `apps/web/src/app/api/bots/[botId]/export/route.ts`, `apps/web/src/components/bots/bot-form.tsx` (`BotFormValues`), `apps/web/src/app/(app)/bots/new/page.tsx`, `apps/web/src/app/(app)/bots/[botId]/page.tsx`.
+6. Mobile (display only; the contract has no teammate edit procedure): `apps/mobile/src/app/teammates/[botId].tsx`.
+7. Ship web and worker together: the worker's schemas are strict and reject unknown keys.
+
+**Add a database table or column**
+
+1. Edit `packages/db/src/schema.ts`. Keep changes additive (nullable or defaulted): the old web and worker keep running until the deploy finishes.
+2. `pnpm db:generate --name <snake_name>` writes `packages/db/drizzle/NNNN_<name>.sql` plus the `meta/` snapshot and journal. Commit all three.
+3. Read the SQL. Add backfills by hand before it ships, separated by `--> statement-breakpoint`. Never edit a migration that has shipped.
+4. `pnpm db:migrate` locally, `pnpm test:integration`. On Railway the worker's pre-deploy step runs migrations; if one fails, Railway stays on the old commit.
+
+**Add an account provider** (OAuth)
+
+1. `packages/shared/src/accounts/<provider>.ts`: provider and integration definitions; register them in `packages/shared/src/accounts/registry.ts`.
+2. `packages/accounts/src/<provider>.ts` (a `ProviderAdapter`), registered in `PROVIDER_ADAPTERS` (`packages/accounts/src/providers.ts`); endpoints with an env override in `packages/accounts/src/endpoints.ts`.
+3. `apps/worker/src/accounts/<integration>.ts`, added to `ADAPTERS` in `apps/worker/src/accounts/registry.ts`. The worker refuses to start if adapters and definitions disagree. Bump `TOOLS_VERSION`.
+4. Web: `CLIENT_GUIDES` in `apps/web/src/components/settings/provider-guides.tsx` for owner-supplied OAuth clients; icons in `accounts-section.tsx` and `items.tsx` if new.
+5. A stand-in in `e2e/accounts-stand-in.ts`, and docs in `apps/site/src/app/docs/flows/accounts/page.mdx`.
+
+**Add a page-kit library**
+
+1. `packages/page-kit/package.json` (exact version), `packages/page-kit/scripts/build.mjs` (`files`), `packages/page-kit/src/index.ts` (`PAGE_LIBRARIES`; the `/page` skill lists it automatically).
+2. Optional theming in `packages/page-kit/src/kit/kit.js` and `page.css`. `packages/page-kit/src/kit.test.ts` checks every `/lib` path.
+3. The computer image bundles page-kit too, so the computer must redeploy. Pages have no "type"; libraries are the extension point.
+
+**Add a web screen**
+
+1. `apps/web/src/app/(app)/<route>/page.tsx` (thin, wraps `<Page>`), and a `"use client"` view in `apps/web/src/components/<area>/`.
+2. A read in `apps/web/src/lib/server/queries.ts`, a GET route in `apps/web/src/app/api/<route>/route.ts` wrapped in `authed()`, and a hook in `apps/web/src/lib/client/queries.ts`.
+3. Nav: `apps/web/src/components/app/sidebar.tsx` and `apps/web/src/components/app/command-menu.tsx`.
+
+**Add a mobile screen**
+
+1. A file in `apps/mobile/src/app/` plus its `Tabs.Screen` in `(tabs)/_layout.tsx` or `Stack.Screen` in `_layout.tsx`.
+2. Data: a view in `packages/api/src/views.ts`, a procedure in `packages/api/src/contract.ts`, its handler in `apps/web/src/lib/server/api/router.ts`, a hook in `apps/mobile/src/lib/queries.ts` and a key in `apps/mobile/src/lib/query.ts` (`keysForAppEvent`).
+3. Search entry in `apps/mobile/src/app/search.tsx` (`PAGES`); notification links in `apps/mobile/src/lib/links.ts` and the worker's `nativeUrl()` in `apps/worker/src/services/fcm.ts`.
+
+**Add a realtime event** (UI refresh after a change)
+
+1. Add the type to `AppEvent` in `packages/db/src/index.ts`.
+2. Publish with `publishApp(ctx, { type })` in the worker or `publish(type)` (`apps/web/src/lib/server/publish.ts`, untyped) in web.
+3. Invalidate: `apps/web/src/lib/client/realtime.tsx` (web) and `keysForAppEvent` in `apps/mobile/src/lib/query.ts` (mobile).
+4. Run timeline events are a different path: `RunEventWriter` or `appendRunEvent()`, reduced by `applyRunEvent` in `packages/shared/src/timeline.ts`.
 
 ## Verification
 
-- Pick checks by the boundary you changed. If you touched deps, bundling, or native config, run the built artifact (node dist/worker.mjs, pages build, Android release lint), not just source tests.
-- A new test must fail without the fix. Bypass turbo cache (--force) when results must prove something. Use `set -o pipefail`.
+- Pick checks by the boundary you changed. If you touched deps, bundling, or native config, run the built artifact, not just source tests.
+- A new test must fail without the fix. Bypass the turbo cache (`--force`) when results must prove something. Use `set -o pipefail`.
 - Treat a flaky test as a possible real race first. Sync on observable events, never sleeps or reruns.
 - Every PR check must pass, including Cloudflare. Treat any red check as a real failure.
 - Skip tests that need >10 min of waiting or physical user action. List them as untested. Batch any phone action into one ask.
@@ -43,8 +152,27 @@ This block is written and re-added by `turbo` before repository-scoped commands 
 | `apps/worker/**` deps or bundling          | `pnpm --filter @open-bot/worker build && node apps/worker/dist/worker.mjs`                           |
 | `apps/pages/**`, `packages/page-kit/**`    | `pnpm --filter @open-bot/pages build && node apps/pages/dist/pages.mjs`                              |
 | `apps/mobile/**` native or `app.config.ts` | prebuild and release lint (openbot-mobile skill)                                                     |
-| `apps/botd/**`                             | openbot-computer skill checklist                                                                     |
+| `apps/botd/**`, `images/computer/**`       | openbot-computer skill checklist, `pnpm computer:build`                                              |
+| `apps/site/**`                             | `pnpm --filter @open-bot/site typecheck`, `pnpm --filter @open-bot/site test:e2e`                    |
 | UI anywhere                                | openbot-ui-review skill                                                                              |
+
+## Architecture docs
+
+Read the matching page before changing a subsystem, and update it when behavior changes.
+
+- System overview: `apps/site/src/app/docs/architecture/page.mdx`
+- Web app, worker, computer, agent runtime, data, pages, desktop and egress: `apps/site/src/app/docs/architecture/*/page.mdx`
+- End-to-end flows (chat turn, screens and takeover, approvals, automations, teamwork, memory, accounts, pages, ...): `apps/site/src/app/docs/flows/*/page.mdx`
+- Tools, internal HTTP API, configuration: `apps/site/src/app/docs/reference/*/page.mdx`
+- Commands, tests, stand-ins and conventions: `apps/site/src/app/docs/development/page.mdx`
+- Security model: `apps/site/src/app/docs/security/page.mdx`
+
+## Environment
+
+- Node 24, pnpm from `package.json`, JDK 17 for Android. Prod URL: https://openbot.up.railway.app.
+- Local ports: web 3000, worker 4001, Metro 8081, pages 3400. Port 3200 is shared by `apps/site` dev and the showcase web app (`tools/showcase`), so never run both. Check for an existing process before starting one.
+- `docs/` is gitignored. Never reference it from code or tracked files. Durable knowledge goes in skills, AGENTS.md files or the site docs.
+- Local Docker is more permissive than Railway (seccomp, user namespaces). Anything touching the computer must be judged against Railway constraints.
 
 ## Workflow and scope
 
