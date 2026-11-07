@@ -1,0 +1,11 @@
+// React Native's application CMake already discovers ccache. Native libraries
+// have their own CMake projects, so give those a compiler launcher as well.
+// Keep this CI-only: Expo prebuild and local builds need no generated-file edits.
+allprojects {
+    pluginManager.withPlugin('com.android.library') {
+        android.defaultConfig.externalNativeBuild.cmake.arguments.addAll([
+            '-DCMAKE_C_COMPILER_LAUNCHER=ccache',
+            '-DCMAKE_CXX_COMPILER_LAUNCHER=ccache',
+        ])
+    }
+}

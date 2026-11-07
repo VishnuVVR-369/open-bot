@@ -10,6 +10,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  android-changes:
+    name: Detect Android changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      android: ${{ steps.changes.outputs.android }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node --test scripts/ci/android-changes.test.mjs
+      - id: changes
+        run: node scripts/ci/android-changes.mjs
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.sha }}
+
   check:
     name: Lint, typecheck and unit tests
     runs-on: ubuntu-latest
@@ -68,6 +88,9 @@ jobs:
 
   egress-core:
     name: Phone egress core (Kotlin)
+    needs: android-changes
+    # Detection failures must run the checks, never silently skip them.
+    if: ${{ !cancelled() && (needs.android-changes.result != 'success' || needs.android-changes.outputs.android != 'false') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -86,6 +109,9 @@ jobs:
 
   android:
     name: Android app (${{ matrix.variant }})
+    needs: android-changes
+    # Expand the matrix even when builds are skipped, preserving required check names.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
@@ -105,20 +131,64 @@ jobs:
     defaults:
       run:
         working-directory: apps/mobile
+    env:
+      ANDROID_REQUIRED: ${{ needs.android-changes.result != 'success' || needs.android-changes.outputs.android != 'false' }}
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_COMPILERCHECK: content
+      CCACHE_MAXSIZE: 500M
     steps:
+      - name: Report Android build selection
+        run: echo "Android checks required $ANDROID_REQUIRED"
       - uses: actions/checkout@v4
+        if: ${{ env.ANDROID_REQUIRED == 'true' }}
       - uses: pnpm/action-setup@v4
+        if: ${{ env.ANDROID_REQUIRED == 'true' }}
       - uses: actions/setup-node@v4
+        if: ${{ env.ANDROID_REQUIRED == 'true' }}
         with:
           node-version: 24
           cache: pnpm
       - uses: actions/setup-java@v4
+        if: ${{ env.ANDROID_REQUIRED == 'true' }}
         with:
           distribution: temurin
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
+        if: ${{ env.ANDROID_REQUIRED == 'true' }}
+      - name: Install ccache
+        if: ${{ env.ANDROID_REQUIRED == 'true' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y ccache
+          echo "CCACHE_DIR=$RUNNER_TEMP/ccache" >> "$GITHUB_ENV"
+      - name: Restore native compiler cache
+        if: ${{ env.ANDROID_REQUIRED == 'true' }}
+        id: ccache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.variant }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.variant }}-${{ hashFiles('pnpm-lock.yaml') }}-
+            ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.variant }}-
+      - run: ccache --zero-stats
+        if: ${{ env.ANDROID_REQUIRED == 'true' }}
       - run: pnpm install --frozen-lockfile
+        if: ${{ env.ANDROID_REQUIRED == 'true' }}
       - run: env ${{ matrix.env }} npx expo prebuild --platform android --no-install
-      - run: env ${{ matrix.env }} ./gradlew :app:assembleDebug ${{ matrix.tasks }} -PreactNativeArchitectures=x86_64
+        if: ${{ env.ANDROID_REQUIRED == 'true' }}
+      - run: env ${{ matrix.env }} ./gradlew :app:assembleDebug ${{ matrix.tasks }} -PreactNativeArchitectures=x86_64 --build-cache --init-script ../../../scripts/ci/android-ccache.gradle
+        if: ${{ env.ANDROID_REQUIRED == 'true' }}
         working-directory: apps/mobile/android
       - run: node scripts/check-egress-manifest.mjs android/app/build/intermediates/merged_manifests/debug/processDebugManifest/AndroidManifest.xml ${{ matrix.checks }}
+        if: ${{ env.ANDROID_REQUIRED == 'true' }}
+      - name: Native compiler cache statistics
+        if: ${{ always() && env.ANDROID_REQUIRED == 'true' && steps.ccache.outcome == 'success' }}
+        run: ccache --show-stats
+      # PRs only read main's caches; successful main builds warm both variants.
+      - name: Save native compiler cache
+        if: ${{ env.ANDROID_REQUIRED == 'true' && github.ref == 'refs/heads/main' && steps.ccache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ${{ steps.ccache.outputs.cache-primary-key }}
