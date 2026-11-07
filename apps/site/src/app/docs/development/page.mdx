@@ -171,11 +171,13 @@ The end-to-end run needs the encoded tour first (`pnpm --filter @open-bot/site m
 
 ### Android CI
 
-The Android matrix builds both the development and Firebase variants and keeps release lint on the Firebase variant.
-Gradle runs with `--build-cache`; `gradle/actions/setup-gradle` persists task outputs as well as dependencies, with successful `main` builds warming the cache for PRs.
+The Android matrix in `.github/workflows/ci.yml` builds x86_64 debug APKs for the development and Firebase (`normal`) variants, checks both merged manifests, and runs `:app:lintVitalRelease` for the Firebase variant.
+Gradle runs with `--build-cache`; `gradle/actions/setup-gradle` persists task outputs as well as dependencies.
 A separate, size-limited `ccache` cache reuses native C/C++ compilation for each variant.
 React Native discovers it for the app; `scripts/ci/android-ccache.gradle` configures compiler launchers for native library projects.
-PRs only restore these caches; successful `main` builds save them. Cache statistics are printed after each native build.
+PRs only restore these caches from `main`.
+On `main`, the Gradle action saves state in its post-job hook even after a build failure; the explicit `ccache` save step runs only after successful build and manifest checks.
+Cache statistics are printed after each native build.
 
 `scripts/ci/android-changes.mjs` compares the full PR diff and follows mobile's transitive workspace dependencies, plus the Kotlin egress vectors.
 Mobile inputs, root build configuration, CI scripts and workflow changes run the Android and Kotlin jobs.

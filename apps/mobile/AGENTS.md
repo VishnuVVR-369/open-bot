@@ -32,7 +32,7 @@ The native phone-egress code is here, but the tunnel protocol itself belongs in 
 - Kotlin core: `./gradlew test` in `apps/mobile/modules/egress/core`.
 - Device flows: `pnpm test:mobile-ui` and the Maestro flows in `apps/mobile/maestro`.
 - Pocket inbox: `pnpm test:pocket-inbox` and `pnpm test:integration` (`apps/worker/src/services/fcm.integration.test.ts`, `apps/worker/src/uploads.integration.test.ts`).
-- Built artifact: `npx expo prebuild --platform android` then `./gradlew :app:assembleDebug :app:lintVitalRelease` in `apps/mobile/android`, as the Android job in `.github/workflows/ci.yml` does.
+- Built artifact: follow `apps/mobile/README.md` for local builds and release checks. CI coverage and skip rules are in [Android CI](../site/src/app/docs/development/page.mdx#android-ci).
 
 ## Docs
 

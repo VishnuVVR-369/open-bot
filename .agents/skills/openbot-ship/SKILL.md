@@ -10,7 +10,7 @@ description: Use before opening a PR, merging, deploying open-bot to Railway, or
 - Run `pnpm lint`, `pnpm typecheck`, `pnpm test`. Add `--force` to turbo runs when the result must prove something; cache hits prove nothing.
 - Run commands with `set -o pipefail` so a pipe never hides a failure.
 - Changed deps, bundling, or a workspace import? Build and start the real artifact: `node apps/worker/dist/worker.mjs`, `node apps/pages/dist/pages.mjs`. Missing bundled modules (`ERR_MODULE_NOT_FOUND`) only show up here.
-- Changed native Android code or config? CI builds debug only. Run a release build or `./gradlew lintRelease` locally.
+- Changed native Android code or config? Review [Android CI coverage](../../../apps/site/src/app/docs/development/page.mdx#android-ci), then run a release build or `./gradlew lintRelease` locally.
 - Every PR check must pass, including Cloudflare. Treat any red check as a real failure.
 
 ## Merge and deploy
