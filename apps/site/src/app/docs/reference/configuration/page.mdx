@@ -111,7 +111,8 @@ In production, the pages service refuses to start without it.
 ## The computer (botd)
 
 The computer does not read the repository's `.env`.
-Locally, `docker-compose.yml` passes it only `BOTD_TOKEN`, so set any other variable below in a Compose override; on Railway, set them on the `computer` service.
+Locally, `docker-compose.yml` passes it only `BOTD_TOKEN` and `APPLY_GUARD_EXTRA_DOMAINS` (taken from your shell or `.env` when set), so set any other variable below in a Compose override.
+On Railway, set them on the `computer` service.
 
 | Variable                     | Default                            | Purpose                                                                                                   |
 | ---------------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------- |

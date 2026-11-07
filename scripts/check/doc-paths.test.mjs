@@ -5,9 +5,10 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, describe, it } from "node:test";
-import { check, codeSpanPath, linkPath, prose, referencedPaths, toGlob } from "./doc-paths.mjs";
+import { check, codeSpanPath, linkPath, referencedPaths, toGlob } from "./doc-paths.mjs";
 
-const paths = (text) => referencedPaths(text).map((found) => `${found.line}:${found.path}`);
+const paths = (text, options) =>
+  referencedPaths(text, options).map((found) => `${found.line}:${found.path}`);
 
 describe("referencedPaths", () => {
   it("finds code spans rooted at apps/ or packages/, with line numbers", () => {
@@ -63,8 +64,8 @@ describe("referencedPaths", () => {
   });
 });
 
-describe("prose", () => {
-  it("blanks fenced blocks, including longer and tilde fences", () => {
+describe("referencedPaths, Markdown structure", () => {
+  it("skips fenced blocks, including longer and tilde fences", () => {
     const text = ["```sh", "`apps/a`", "```", "````md", "```", "`apps/b`", "````", "`apps/c`"];
     assert.deepEqual(paths(text.join("\n")), ["8:apps/c"]);
   });
@@ -74,13 +75,39 @@ describe("prose", () => {
     assert.deepEqual(paths(text), ["5:apps/after"]);
   });
 
-  it("recognizes fences inside blockquotes", () => {
-    const text = ["> ```sh", "> cat `apps/inside`", "> ```", "`apps/after`"].join("\n");
-    assert.deepEqual(paths(text), ["4:apps/after"]);
+  it("closes a fence inside a blockquote when the blockquote ends", () => {
+    assert.deepEqual(paths("> ```sh\n> cat `apps/inside`\n> ```\n`apps/after`"), ["4:apps/after"]);
+    assert.deepEqual(paths("> ~~~\n> example\n\n[bad](missing.md)"), ["4:missing.md"]);
   });
 
-  it("keeps line numbers", () => {
-    assert.equal(prose("a\n```\nb\n```\nc").split("\n").length, 5);
+  it("does not pair backticks across paragraphs or from an escaped backtick", () => {
+    assert.deepEqual(paths("a ` b\n\n[bad](missing.md)\n\nc ` d"), ["3:missing.md"]);
+    assert.deepEqual(paths("\\`not code [bad](missing.md) `apps/real.ts`"), [
+      "1:missing.md",
+      "1:apps/real.ts",
+    ]);
+  });
+
+  it("finds reference definitions in blockquotes and with the destination on the next line", () => {
+    assert.deepEqual(paths("> [a]: quoted.md\n\n[b]:\n  next-line.md\n\n[a] [b]"), [
+      "1:quoted.md",
+      "3:next-line.md",
+    ]);
+  });
+
+  it("unescapes link destinations", () => {
+    assert.deepEqual(paths("[page](apps/web/src/app/\\(app\\)/page.tsx)"), [
+      "1:apps/web/src/app/(app)/page.tsx",
+    ]);
+  });
+
+  it("checks image targets", () => {
+    assert.deepEqual(paths("![shot](shots/home.png)"), ["1:shots/home.png"]);
+  });
+
+  it("reads MDX, skipping JSX and expressions", () => {
+    const text = 'import X from "./x";\n\n<Note>See `apps/in-jsx.ts`.</Note>\n\n{"`apps/expr`"}';
+    assert.deepEqual(paths(text, { mdx: true }), ["3:apps/in-jsx.ts"]);
   });
 });
 
@@ -178,6 +205,14 @@ describe("check", () => {
       "TRACKED.md:1: nonexistent.md does not exist",
       "TRACKED.md:1: *.md does not exist",
     ]);
+  });
+
+  it("reports an MDX file that cannot be parsed instead of skipping it", () => {
+    write("BROKEN.mdx", "ok\n\n<Note>\n");
+    const found = problems("");
+    rmSync(path.join(root, "BROKEN.mdx"));
+    assert.equal(found.length, 1);
+    assert.match(found[0], /^BROKEN\.mdx:\d+: cannot be parsed: /);
   });
 
   it("rejects links that leave the repository", () => {
