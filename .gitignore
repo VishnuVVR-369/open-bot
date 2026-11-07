@@ -15,3 +15,4 @@ e2e/.auth
 /docs/
 /apps/desktop/release/
 .next-showcase
+.claude/settings.local.json
