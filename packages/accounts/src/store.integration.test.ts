@@ -1,16 +1,15 @@
 import { randomBytes } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { fileURLToPath } from "node:url";
-import { accounts, createDb, createPool, oauthClients } from "@open-bot/db";
+import { accounts, oauthClients } from "@open-bot/db";
 import { eq } from "drizzle-orm";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import type { OAuthClient } from "./clients";
 import type { TokenResponse } from "./oauth";
 import { AccountIdentityError, AccountStore, AccountUnavailableError } from "./store";
 
-const url = process.env.ACCOUNTS_TEST_DATABASE_URL;
+const url = testDatabaseServer();
 
 /** What the stand-in token endpoint answers, and what it was asked. */
 interface TokenEndpoint {
@@ -21,8 +20,8 @@ interface TokenEndpoint {
 }
 
 describe.skipIf(!url)("account tokens with Postgres", () => {
-  const pool = createPool(url ?? "postgres://unused");
-  const db = createDb(pool);
+  const database = testDatabase(url);
+  const { db } = database;
   const key = randomBytes(32).toString("base64");
   const client = {
     clientId: "test-client.apps.googleusercontent.com",
@@ -58,11 +57,7 @@ describe.skipIf(!url)("account tokens with Postgres", () => {
     ).account;
 
   beforeAll(async () => {
-    if (!url || new URL(url).pathname !== "/openbot_accounts_test")
-      throw new Error("Use the disposable openbot_accounts_test database (pnpm test:accounts).");
-    await migrate(db, {
-      migrationsFolder: fileURLToPath(new URL("../../db/drizzle", import.meta.url)),
-    });
+    await database.create();
     server = createServer((request, response) => {
       let body = "";
       request.on("data", (chunk: Buffer) => (body += chunk.toString()));
@@ -97,7 +92,7 @@ describe.skipIf(!url)("account tokens with Postgres", () => {
   afterAll(async () => {
     delete process.env.GOOGLE_BASE_URL;
     await new Promise((resolve) => server?.close(resolve));
-    await pool.end();
+    await database.drop();
   });
 
   it("uses a fresh token without asking Google", async () => {

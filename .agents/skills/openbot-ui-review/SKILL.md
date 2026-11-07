@@ -7,7 +7,7 @@ description: Use for open-bot UI changes that need screenshots, demo data, or a 
 
 ## Demo data
 
-- Use the showcase stack in `scripts/showcase/README.md`, never the owner's data. It runs web on :3200 and pages on :3401 against its own `openbot_showcase` database.
+- Use the showcase stack in `tools/showcase/README.md`, never the owner's data. It runs web on :3200 and pages on :3401 against its own `openbot_showcase` database.
 - `apps/site` dev also uses port 3200. Don't run both at once.
 - Reseeding changes IDs. Look IDs up when capturing; never hard-code them.
 - Set the timezone the showcase expects (`TZ=America/Los_Angeles`, also on the emulator) and restore it afterwards.

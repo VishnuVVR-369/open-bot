@@ -874,7 +874,3 @@ export function toolsFor(): v2.DynamicToolSpec[] {
     ...ACCOUNT_TOOL_SPECS,
   ];
 }
-
-export const DESKTOP_TOOL_NAMES = new Set(
-  DESKTOP_TOOLS.map((spec) => ("name" in spec ? spec.name : "")),
-);

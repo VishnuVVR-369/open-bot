@@ -1,0 +1,23 @@
+{
+  "name": "@open-bot/showcase",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "seed": "tsx --env-file-if-exists=../../.env seed.ts",
+    "auth": "node auth.mjs",
+    "shoot": "node shoot.mjs",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@open-bot/db": "workspace:*",
+    "drizzle-orm": "^0.45.4",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/pg": "^8.15.6",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3"
+  }
+}

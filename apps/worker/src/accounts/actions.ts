@@ -109,6 +109,19 @@ export class AccountActions {
   private sweeping = false;
   private again = false;
   private readonly polls = new Map<string, NodeJS.Timeout>();
+  private sweepTimer: NodeJS.Timeout | undefined;
+  private readonly onDecided = (approvalId: string) => {
+    void this.decided(approvalId).catch((error: unknown) =>
+      this.ctx.log.error("could not act on an account decision", { error: errorMessage(error) }),
+    );
+  };
+  private readonly onRunFinished = (run: { id: string }) => {
+    for (const [id, waiter] of [...this.waiters])
+      if (waiter.runId === run.id) {
+        this.waiters.delete(id);
+        waiter.resolve(null);
+      }
+  };
 
   constructor(
     private readonly ctx: Context,
@@ -119,20 +132,19 @@ export class AccountActions {
   ) {}
 
   start(): void {
-    this.ctx.events.on("approvalDecided", (approvalId) => {
-      void this.decided(approvalId).catch((error: unknown) =>
-        this.ctx.log.error("could not act on an account decision", { error: errorMessage(error) }),
-      );
-    });
-    this.ctx.events.on("runFinished", (run) => {
-      for (const [id, waiter] of [...this.waiters])
-        if (waiter.runId === run.id) {
-          this.waiters.delete(id);
-          waiter.resolve(null);
-        }
-    });
+    this.ctx.events.on("approvalDecided", this.onDecided);
+    this.ctx.events.on("runFinished", this.onRunFinished);
     this.kick();
-    setInterval(() => this.kick(), SWEEP_MS).unref();
+    this.sweepTimer = setInterval(() => this.kick(), SWEEP_MS).unref();
+  }
+
+  /** Stops sweeping and polling, and stops listening. A sweep already running finishes. */
+  stop(): void {
+    this.ctx.events.off("approvalDecided", this.onDecided);
+    this.ctx.events.off("runFinished", this.onRunFinished);
+    clearInterval(this.sweepTimer);
+    for (const timer of this.polls.values()) clearTimeout(timer);
+    this.polls.clear();
   }
 
   /**

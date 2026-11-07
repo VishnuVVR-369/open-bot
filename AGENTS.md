@@ -22,7 +22,7 @@ This block is written and re-added by `turbo` before repository-scoped commands 
 ## Environment
 
 - Node 24, pnpm from package.json, JDK 17 for Android. Prod URL: https://openbot.up.railway.app.
-- Local ports: web 3000, worker 4001, Metro 8081, pages 3400. Port 3200 is shared by apps/site dev and the showcase web app (scripts/showcase), so never run both. Check for an existing process before starting one.
+- Local ports: web 3000, worker 4001, Metro 8081, pages 3400. Port 3200 is shared by apps/site dev and the showcase web app (tools/showcase), so never run both. Check for an existing process before starting one.
 - docs/ is gitignored. Never reference it from code or tracked files. Durable knowledge goes in skills or tracked READMEs.
 - Local docker is more permissive than Railway (seccomp, user namespaces). Anything touching the computer must be judged against Railway constraints.
 

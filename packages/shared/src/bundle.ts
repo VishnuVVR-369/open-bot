@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { botProfileSchema } from "./bot-management";
 import { MAX_LESSON_CHARS } from "./bots";
 import { MAX_WATCH_MINUTES, MIN_WATCH_MINUTES } from "./triggers";
 import { SKILL_NAME_PATTERN } from "./skills";
@@ -15,16 +16,12 @@ export const teammateBundleSchema = z.object({
   version: z.literal(BUNDLE_VERSION, {
     error: "This teammate file is from a newer open-bot. Update open-bot to import it.",
   }),
-  teammate: z.object({
-    name: z.string().trim().min(1).max(40),
-    role: z.string().trim().min(1).max(80),
-    instructions: z.string().max(20_000).default(""),
-    emoji: z.string().max(16).default(""),
-    color: z
-      .string()
-      .regex(/^#[0-9a-fA-F]{6}$/)
-      .optional(),
-    autonomy: z.enum(["full", "risky", "everything"]).default("risky"),
+  // The profile's own rules, so an imported teammate can always be saved from the form.
+  teammate: botProfileSchema.extend({
+    instructions: botProfileSchema.shape.instructions.default(""),
+    emoji: botProfileSchema.shape.emoji.default(""),
+    color: botProfileSchema.shape.color.optional(),
+    autonomy: botProfileSchema.shape.autonomy.default("risky"),
   }),
   skills: z
     .array(

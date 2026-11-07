@@ -1,10 +1,10 @@
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import { fileURLToPath } from "node:url";
+import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import { readToken } from "@open-bot/shared/tokens";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-const url = process.env.MOBILE_API_TEST_DATABASE_URL;
+const url = testDatabaseServer();
 const WORKER_SECRET = "egress-device-test-secret";
 const PHONE = "6f1c1f3e-8a5b-4c39-9a51-1c1e1d0f0a01";
 
@@ -13,6 +13,7 @@ const PHONE = "6f1c1f3e-8a5b-4c39-9a51-1c1e1d0f0a01";
  * disposable database, with a stand-in worker that records what it's told.
  */
 describe.skipIf(!url)("egress device credential", () => {
+  const database = testDatabase(url);
   const workerCalls: { path: string; body: unknown }[] = [];
   const worker = http.createServer((request, response) => {
     let body = "";
@@ -34,30 +35,21 @@ describe.skipIf(!url)("egress device credential", () => {
   };
 
   beforeAll(async () => {
-    if (!url || new URL(url).pathname !== "/openbot_mobile_api_test")
-      throw new Error(
-        "Use the disposable openbot_mobile_api_test database (pnpm test:mobile-api).",
-      );
+    await database.create();
     await new Promise<void>((resolve) => worker.listen(0, "127.0.0.1", resolve));
-    process.env.DATABASE_URL = url;
+    process.env.DATABASE_URL = database.url;
     process.env.WORKER_URL = `http://127.0.0.1:${(worker.address() as AddressInfo).port}`;
     process.env.WORKER_SECRET = WORKER_SECRET;
     process.env.NEXT_PUBLIC_WORKER_WS_URL = "ws://worker.test";
-    const [egress, token, unavailable, pushToken, db, schema, migrator] = await Promise.all([
+    const [egress, token, unavailable, pushToken, db, schema] = await Promise.all([
       import("./api/egress"),
       import("@/app/api/egress/device/token/route"),
       import("@/app/api/egress/device/unavailable/route"),
       import("@/app/api/egress/device/push-token/route"),
       import("./db"),
       import("@open-bot/db"),
-      import("drizzle-orm/node-postgres/migrator"),
     ]);
     modules = { egress, token, unavailable, pushToken, db, schema };
-    await migrator.migrate(db.db, {
-      migrationsFolder: fileURLToPath(
-        new URL("../../../../../packages/db/drizzle", import.meta.url),
-      ),
-    });
   });
   beforeEach(async () => {
     await modules.db.db.delete(modules.schema.egressDevices);
@@ -70,6 +62,7 @@ describe.skipIf(!url)("egress device credential", () => {
   afterAll(async () => {
     worker.close();
     await modules?.db.pool.end();
+    await database.drop();
   });
 
   function call(

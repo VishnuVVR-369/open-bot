@@ -1,3 +1,6 @@
+// The phone app against the local stack: real Android UI and RPC, only the FCM transport injected.
+// Needs the local web app and database, an emulator or phone with the dev build, Maestro, and
+// E2E_EMAIL + E2E_PASSWORD for the local owner. See the openbot-mobile skill.
 import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -8,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import pg from "pg";
 
 /** Real Android UI and RPC against the local stack; only the FCM transport is injected. */
-const root = fileURLToPath(new URL("../", import.meta.url));
+const root = fileURLToPath(new URL("../../", import.meta.url));
 const appUrl = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 const databaseUrl =
   process.env.MOBILE_E2E_DATABASE_URL ?? "postgres://openbot:openbot@127.0.0.1:54329/openbot";

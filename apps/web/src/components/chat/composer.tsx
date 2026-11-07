@@ -4,6 +4,7 @@ import {
   BUILT_IN_SKILLS,
   MAX_UPLOAD_BYTES,
   MAX_UPLOAD_LABEL,
+  mentionedIds,
   type RunStatus,
 } from "@open-bot/shared";
 import {
@@ -259,11 +260,7 @@ export function Composer({
   function submit() {
     if (!canSend) return;
     const attachments = uploads.map((upload) => upload.attachment!).filter(Boolean);
-    const mentions = isGroup
-      ? members
-          .filter((member) => new RegExp(`(^|\\s)@${member.name}(\\b|$)`, "i").test(text))
-          .map((member) => member.id)
-      : [];
+    const mentions = isGroup ? mentionedIds(text, members) : [];
     const draft = text;
     // Sending the same message again after a failure reuses its id, so it's never saved twice.
     const key = JSON.stringify([chat.id, draft, attachments, mentions]);

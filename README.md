@@ -165,11 +165,10 @@ Passkeys keep working.
 Start the local stack first, then run:
 
 ```sh
+pnpm verify                                     # lint, typecheck, unit and integration tests (needs Docker)
 pnpm lint && pnpm typecheck && pnpm test         # checks and unit tests
+pnpm test:integration                           # every *.integration.test.ts against disposable Postgres
 pnpm test:memory -- --e2e                       # memory database and browser tests
-pnpm test:bots                                 # bot management integration tests in disposable Postgres
-pnpm test:accounts                             # account sign-ins and token refresh in disposable Postgres
-pnpm test:mobile-api                           # phone API, account actions and Gmail/Calendar triggers in disposable Postgres
 pnpm test:owner-reset                          # the owner password reset command in disposable Postgres
 E2E_EMAIL=you@example.com E2E_PASSWORD=... pnpm e2e --grep-invert @agent   # fast end-to-end tests
 E2E_EMAIL=you@example.com E2E_PASSWORD=... pnpm e2e --grep @agent          # real teammates at work (slow, uses your plan)

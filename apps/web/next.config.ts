@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   // Isolated regression stacks must not share the active development server's lock or output.
+  // List a new folder's type globs in tsconfig.json's `include`, or `next dev` rewrites that file.
   distDir: process.env.OPENBOT_NEXT_DIST_DIR ?? ".next",
   transpilePackages: [
     "@open-bot/accounts",

@@ -13,11 +13,11 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-// The same limits as sign-in: apps/web/src/lib/password.ts.
+// The same limits as sign-in: packages/shared/src/password.ts.
 const PASSWORD_MIN_LENGTH = 10;
 const PASSWORD_MAX_LENGTH = 128;
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const web = createRequire(path.join(root, "apps/web/package.json"));
 
 const USAGE = `Set a new password for open-bot's owner.

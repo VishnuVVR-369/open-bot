@@ -133,7 +133,7 @@ em{font-style:normal;background:#0f766e;color:#fff;border-radius:6px;padding:3px
 }
 
 function pricingPage() {
-  const tier = (name, price, bullets, hot) =>
+  const tier = (name, price, bullets, hot = false) =>
     `<div class="tier ${hot ? "hot" : ""}"><h3>${name}</h3><div class="price">${price}<small>/mo</small></div><ul>${bullets.map((b) => `<li>${b}</li>`).join("")}</ul><div class="cta">Start free trial</div></div>`;
   return browser({
     url: "tallyfox.example.com/pricing",
@@ -262,7 +262,7 @@ export function itineraryPage({ days }) {
 }
 
 export function pricingComparisonPage() {
-  const rows = [
+  const rows: [string, number, number, string, string][] = [
     ["Tallyfox", 34, 100, "Funnels, API", "#ea580c"],
     ["Pinwheel Analytics", 29, 150, "Heatmaps", "#0ea5e9"],
     ["Quillmetrics", 49, 250, "Session replay", "#a855f7"],

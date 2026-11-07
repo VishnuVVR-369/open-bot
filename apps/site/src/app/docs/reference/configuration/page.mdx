@@ -148,12 +148,11 @@ Some configuration lives in the database, changed in Settings rather than in the
 
 ## Tests
 
-| Variable                       | Used by                                                                                                           |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| `E2E_EMAIL`, `E2E_PASSWORD`    | Playwright: the owner account to sign in with                                                                     |
-| `E2E_BASE_URL`                 | Playwright: the web app, default `http://localhost:3000`                                                          |
-| `E2E_TELEGRAM=1`               | Run the Telegram tests (with the worker pointed at the stand-in)                                                  |
-| `E2E_PLAN_REHEARSAL=1`         | Run the plan fallback rehearsal                                                                                   |
-| `MEMORY_TEST_DATABASE_URL`     | The memory suite's isolated database                                                                              |
-| `ACCOUNTS_TEST_DATABASE_URL`   | `pnpm test:accounts`: the credential store's throwaway database                                                   |
-| `MOBILE_API_TEST_DATABASE_URL` | `pnpm test:mobile-api`: the throwaway database for the phone API, account actions and Gmail and Calendar triggers |
+| Variable                    | Used by                                                                                         |
+| --------------------------- | ----------------------------------------------------------------------------------------------- |
+| `E2E_EMAIL`, `E2E_PASSWORD` | Playwright: the owner account to sign in with                                                   |
+| `E2E_BASE_URL`              | Playwright: the web app, default `http://localhost:3000`                                        |
+| `E2E_TELEGRAM=1`            | Run the Telegram tests (with the worker pointed at the stand-in)                                |
+| `E2E_PLAN_REHEARSAL=1`      | Run the plan fallback rehearsal                                                                 |
+| `TEST_DATABASE_URL`         | `pnpm test:integration`: the Postgres server each integration suite creates its own database on |
+| `MEMORY_TEST_DATABASE_URL`  | The memory suite's isolated database                                                            |

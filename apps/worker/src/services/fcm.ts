@@ -159,22 +159,32 @@ export class FcmService {
       this.ctx.log.info("FCM_SERVICE_ACCOUNT_JSON is not set; phones won't get notifications");
       return;
     }
-    this.ctx.events.on("notification", (event) => {
-      void this.sendAll(nativeNotification(event)).catch((error: unknown) =>
-        this.ctx.log.warn("native push failed", { error: errorMessage(error) }),
-      );
-    });
-    this.ctx.events.on("approvalDecided", (approvalId) => {
-      void this.sendAll(nativeDismiss(approvalId)).catch((error: unknown) =>
-        this.ctx.log.warn("native dismiss failed", { error: errorMessage(error) }),
-      );
-    });
-    this.ctx.events.on("takeoverEnded", (id) => {
-      void this.sendAll(nativeDismiss(id)).catch(() =>
-        this.ctx.log.warn("native takeover dismiss deferred"),
-      );
-    });
+    this.ctx.events.on("notification", this.onNotification);
+    this.ctx.events.on("approvalDecided", this.onApprovalDecided);
+    this.ctx.events.on("takeoverEnded", this.onTakeoverEnded);
   }
+
+  stop() {
+    this.ctx.events.off("notification", this.onNotification);
+    this.ctx.events.off("approvalDecided", this.onApprovalDecided);
+    this.ctx.events.off("takeoverEnded", this.onTakeoverEnded);
+  }
+
+  private readonly onNotification = (event: NotificationEvent) => {
+    void this.sendAll(nativeNotification(event)).catch((error: unknown) =>
+      this.ctx.log.warn("native push failed", { error: errorMessage(error) }),
+    );
+  };
+  private readonly onApprovalDecided = (approvalId: string) => {
+    void this.sendAll(nativeDismiss(approvalId)).catch((error: unknown) =>
+      this.ctx.log.warn("native dismiss failed", { error: errorMessage(error) }),
+    );
+  };
+  private readonly onTakeoverEnded = (id: string) => {
+    void this.sendAll(nativeDismiss(id)).catch(() =>
+      this.ctx.log.warn("native takeover dismiss deferred"),
+    );
+  };
 
   async register(input: { token: string; platform: "android"; device: string }): Promise<void> {
     await this.ctx.db

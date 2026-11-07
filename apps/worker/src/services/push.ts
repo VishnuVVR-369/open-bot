@@ -56,14 +56,20 @@ export interface Subscription {
 export class PushService {
   private keys: { publicKey: string; privateKey: string } | null = null;
 
+  private readonly onNotification = (event: NotificationEvent) => {
+    void this.sendAll(pushPayload(event)).catch((error: unknown) =>
+      this.ctx.log.warn("push failed", { error: errorMessage(error) }),
+    );
+  };
+
   constructor(private readonly ctx: Context) {}
 
   start() {
-    this.ctx.events.on("notification", (event) => {
-      void this.sendAll(pushPayload(event)).catch((error: unknown) =>
-        this.ctx.log.warn("push failed", { error: errorMessage(error) }),
-      );
-    });
+    this.ctx.events.on("notification", this.onNotification);
+  }
+
+  stop() {
+    this.ctx.events.off("notification", this.onNotification);
   }
 
   private async vapid(): Promise<{ publicKey: string; privateKey: string }> {

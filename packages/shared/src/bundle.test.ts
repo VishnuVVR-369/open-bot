@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { botProfileSchema } from "./bot-management";
 import { BUNDLE_FORMAT, BUNDLE_VERSION, teammateBundleSchema } from "./bundle";
 
 const minimal = {
@@ -20,6 +21,17 @@ describe("teammateBundleSchema", () => {
     expect(wrongFormat.error?.issues[0]?.message).toBe("This isn't an open-bot teammate file.");
     const newer = teammateBundleSchema.safeParse({ ...minimal, version: 2 });
     expect(newer.error?.issues[0]?.message).toMatch(/newer open-bot/);
+  });
+
+  it("accepts only a teammate the profile form could save", () => {
+    const profile = { ...minimal.teammate, instructions: "", color: "#123456", autonomy: "full" };
+    for (const emoji of ["🦊", "👩🏽‍💻", "x".repeat(8)])
+      expect(
+        teammateBundleSchema.safeParse({ ...minimal, teammate: { ...profile, emoji } }).success,
+      ).toBe(botProfileSchema.safeParse({ ...profile, emoji }).success);
+    // Longer than the form allows, so it couldn't be edited after an import.
+    const long = { ...minimal, teammate: { ...profile, emoji: "x".repeat(9) } };
+    expect(teammateBundleSchema.safeParse(long).success).toBe(false);
   });
 
   it("refuses bad parts", () => {

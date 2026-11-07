@@ -1,30 +1,20 @@
 import { EventEmitter } from "node:events";
-import { fileURLToPath } from "node:url";
 import { and, eq } from "drizzle-orm";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  bots,
-  chatMembers,
-  chats,
-  createDb,
-  createPool,
-  messageDispatches,
-  messages,
-  runs,
-} from "@open-bot/db";
+import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
+import { bots, chatMembers, chats, messageDispatches, messages, runs } from "@open-bot/db";
 import type { Context } from "../context";
 import { MemoryService } from "@open-bot/memory";
 import { SessionRegistry } from "../services/registry";
 import { RunExecutor } from "./executor";
 import type { RunSession } from "./session";
 
-const url = process.env.MOBILE_API_TEST_DATABASE_URL;
+const url = testDatabaseServer();
 
 /** Delivering messages exactly once, however often (and however concurrently) it's attempted. */
 describe.skipIf(!url)("message dispatch with Postgres", () => {
-  const pool = createPool(url ?? "postgres://unused");
-  const db = createDb(pool);
+  const database = testDatabase(url);
+  const { pool, db } = database;
   const ctx = {
     db,
     pool,
@@ -42,20 +32,14 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
   );
 
   beforeAll(async () => {
-    if (!url || new URL(url).pathname !== "/openbot_mobile_api_test")
-      throw new Error(
-        "Use the disposable openbot_mobile_api_test database (pnpm test:mobile-api).",
-      );
-    await migrate(db, {
-      migrationsFolder: fileURLToPath(new URL("../../../../packages/db/drizzle", import.meta.url)),
-    });
+    await database.create();
   });
   beforeEach(async () => {
     await pool.query("truncate bots, chats restart identity cascade");
     for (const session of sessions.all()) sessions.remove(session.run.id);
   });
   afterAll(async () => {
-    await pool.end();
+    await database.drop();
   });
 
   async function bot(name: string) {

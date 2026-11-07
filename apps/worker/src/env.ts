@@ -1,22 +1,23 @@
 import os from "node:os";
 import path from "node:path";
+import { assertNoDevSecrets, DEV_SECRETS } from "@open-bot/shared/secrets";
 import { z } from "zod";
 
 const schema = z.object({
   DATABASE_URL: z.string().default("postgres://openbot:openbot@127.0.0.1:54329/openbot"),
-  /** Where botd listens. Locally the computer container publishes it on localhost. */
   COMPUTER_IDLE_MINUTES: z.coerce.number().positive().max(60).default(5),
   COMPUTER_LIFECYCLE_ENABLED: z
     .enum(["true", "false"])
     .default("false")
     .transform((value) => value === "true"),
+  /** Where botd listens. Locally the computer container publishes it on localhost. */
   BOTD_URL: z.string().default("http://127.0.0.1:7070"),
-  BOTD_TOKEN: z.string().min(16).default("dev-botd-token-change-me"),
+  BOTD_TOKEN: z.string().min(16).default(DEV_SECRETS.BOTD_TOKEN),
   /** Shared secret for the web server's calls to the worker and for signing VNC and egress tokens. */
-  WORKER_SECRET: z.string().min(16).default("dev-worker-secret-change-me"),
+  WORKER_SECRET: z.string().min(16).default(DEV_SECRETS.WORKER_SECRET),
   WORKER_PORT: z.coerce.number().default(4001),
   /** Encrypts stored credentials (the OpenAI API key). 32 bytes, base64. */
-  ENCRYPTION_KEY: z.string().default("ZGV2LWVuY3J5cHRpb24ta2V5LTMyLWJ5dGVzLWxvbmc="),
+  ENCRYPTION_KEY: z.string().default(DEV_SECRETS.ENCRYPTION_KEY),
   /** Development: the Codex login on this machine, used read-only for the computer's ChatGPT session. */
   HOST_CODEX_AUTH_FILE: z.string().default(path.join(os.homedir(), ".codex", "auth.json")),
   /** Development: the Codex CLI on this machine, used to refresh that login when it gets old. */
@@ -54,4 +55,12 @@ const schema = z.object({
 });
 
 export const env = schema.parse(process.env);
+assertNoDevSecrets(
+  {
+    WORKER_SECRET: env.WORKER_SECRET,
+    ENCRYPTION_KEY: env.ENCRYPTION_KEY,
+    BOTD_TOKEN: env.BOTD_TOKEN,
+  },
+  process.env.NODE_ENV,
+);
 export type Env = typeof env;

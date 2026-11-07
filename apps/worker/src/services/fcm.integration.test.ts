@@ -2,14 +2,13 @@ import { createVerify, generateKeyPairSync } from "node:crypto";
 import { EventEmitter } from "node:events";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import { fileURLToPath } from "node:url";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { createDb, createPool, egressDevices, nativePushDevices } from "@open-bot/db";
+import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
+import { egressDevices, nativePushDevices } from "@open-bot/db";
 import type { Context, NotificationEvent } from "../context";
 import { FcmService, nativeEgressPush } from "./fcm";
 
-const url = process.env.MOBILE_API_TEST_DATABASE_URL;
+const url = testDatabaseServer();
 
 interface Sent {
   token: string;
@@ -19,8 +18,8 @@ interface Sent {
 
 /** Phone notifications through a stand-in for Google's token endpoint and the FCM v1 API. */
 describe.skipIf(!url)("FCM fan-out", () => {
-  const pool = createPool(url ?? "postgres://unused");
-  const db = createDb(pool);
+  const database = testDatabase(url);
+  const { pool, db } = database;
   const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
   const sent: Sent[] = [];
   /** Tokens the stand-in says were unregistered. */
@@ -80,13 +79,7 @@ describe.skipIf(!url)("FCM fan-out", () => {
   const events = new EventEmitter();
 
   beforeAll(async () => {
-    if (!url || new URL(url).pathname !== "/openbot_mobile_api_test")
-      throw new Error(
-        "Use the disposable openbot_mobile_api_test database (pnpm test:mobile-api).",
-      );
-    await migrate(db, {
-      migrationsFolder: fileURLToPath(new URL("../../../../packages/db/drizzle", import.meta.url)),
-    });
+    await database.create();
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
     const ctx = {
@@ -115,7 +108,7 @@ describe.skipIf(!url)("FCM fan-out", () => {
   });
   afterAll(async () => {
     server.close();
-    await pool.end();
+    await database.drop();
   });
 
   const approval: NotificationEvent = {

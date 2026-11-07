@@ -2,18 +2,40 @@
 // notifications, pages, usage and settings.
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import {
+  accounts,
+  connections,
+  credentials,
+  emails,
+  instructionProposals,
+  lessons,
+  memoryImports,
+  memoryItems,
+  memoryRevisions,
+  nativePushDevices,
+  notifications,
+  oauthClients,
+  pageVersions,
+  pages,
+  purchases,
+  schedules,
+  skills,
+  tasks,
+  triggers,
+  usageEntries,
+  vaultItems,
+} from "@open-bot/db";
+import {
   ago,
   fmtDay,
   fromNow,
   isoDay,
-  json,
   lastOccurrences,
   memoryFingerprint,
   nextOccurrence,
   plus,
   seal,
   TIMEZONE,
-} from "./lib.mjs";
+} from "./lib";
 
 const WEEKDAYS = [1, 2, 3, 4, 5];
 
@@ -25,7 +47,7 @@ export async function seedConnections(ctx) {
   ctx.conn = {};
 
   const googleClient = randomUUID();
-  await db.insert("oauth_clients", {
+  await db.insert(oauthClients, {
     id: googleClient,
     provider: "google",
     source: "owner",
@@ -35,7 +57,7 @@ export async function seedConnections(ctx) {
     createdAt: ago({ d: 20 }),
   });
   const notionClient = randomUUID();
-  await db.insert("oauth_clients", {
+  await db.insert(oauthClients, {
     id: notionClient,
     provider: "notion",
     source: "registered",
@@ -56,7 +78,7 @@ export async function seedConnections(ctx) {
       encryptionKey,
     );
   const googleAccount = randomUUID();
-  await db.insert("accounts", {
+  await db.insert(accounts, {
     id: googleAccount,
     provider: "google",
     externalId: "109834571290348172345",
@@ -78,7 +100,7 @@ export async function seedConnections(ctx) {
     createdAt: ago({ d: 20 }),
   });
   const notionAccount = randomUUID();
-  await db.insert("accounts", {
+  await db.insert(accounts, {
     id: notionAccount,
     provider: "notion",
     externalId: "ws_91ab3c:user_4d2e7f",
@@ -94,14 +116,14 @@ export async function seedConnections(ctx) {
 
   const accountConnection = async (row) => {
     const id = randomUUID();
-    await db.insert("connections", {
+    await db.insert(connections, {
       id,
       transport: null,
       args: [],
       secretNames: [],
       enabled: true,
       askBeforeActing: true,
-      settings: json({}),
+      settings: {},
       createdAt: ago({ d: 20 }),
       updatedAt: ago({ d: 5 }),
       ...row,
@@ -132,17 +154,17 @@ export async function seedConnections(ctx) {
     capabilities: ["read", "write"],
     botIds: null,
     askBeforeActing: false,
-    settings: json({
+    settings: {
       area: {
         id: "1a2b3c4d5e6f4a7b8c9d0e1f2a3b4c5d",
         title: "Teammates",
         url: "https://www.notion.so/kestrel/Teammates-1a2b3c4d5e6f4a7b8c9d0e1f2a3b4c5d",
       },
-    }),
+    },
   });
 
   const mcp = async (row) =>
-    db.insert("connections", {
+    db.insert(connections, {
       id: randomUUID(),
       kind: "mcp",
       enabled: true,
@@ -267,7 +289,7 @@ export async function seedAutomations(ctx) {
   const makeSchedule = async (bot, row, spec, extra = {}) => {
     const id = randomUUID();
     const occurrences = spec ? lastOccurrences(spec, 3) : [];
-    await db.insert("schedules", {
+    await db.insert(schedules, {
       id,
       botId: bot.id,
       kind: "cron",
@@ -452,7 +474,7 @@ Neither ships to production. I can open a PR bumping both if you want it.`,
 
   /* ------------------------------ triggers */
   const tallyfox = randomUUID();
-  await db.insert("triggers", {
+  await db.insert(triggers, {
     id: tallyfox,
     botId: scout.id,
     kind: "watch",
@@ -485,7 +507,7 @@ That widens the gap with Kestrel 2.0 at $25 for 200k pageviews. I would not chan
 
   const release = randomUUID();
   const releaseToken = randomBytes(18).toString("base64url");
-  await db.insert("triggers", {
+  await db.insert(triggers, {
     id: release,
     botId: kit.id,
     kind: "webhook",
@@ -520,7 +542,7 @@ That widens the gap with Kestrel 2.0 at $25 for 200k pageviews. I would not chan
   });
 
   const investorMail = randomUUID();
-  await db.insert("triggers", {
+  await db.insert(triggers, {
     id: investorMail,
     botId: mira.id,
     kind: "gmail",
@@ -551,7 +573,7 @@ Needs a reply today. Both mornings are free on your calendar after 11.`),
   });
 
   const prep = randomUUID();
-  await db.insert("triggers", {
+  await db.insert(triggers, {
     id: prep,
     botId: iris.id,
     kind: "calendar",
@@ -584,7 +606,7 @@ Needs a reply today. Both mornings are free on your calendar after 11.`),
     ],
   });
 
-  await db.insert("triggers", {
+  await db.insert(triggers, {
     id: randomUUID(),
     botId: juno.id,
     kind: "watch",
@@ -604,7 +626,7 @@ Needs a reply today. Both mornings are free on your calendar after 11.`),
   const mail = async ({
     at,
     direction = "in",
-    status,
+    status = undefined,
     from,
     to,
     subject,
@@ -613,7 +635,7 @@ Needs a reply today. Both mornings are free on your calendar after 11.`),
     replyToId = null,
   }) => {
     const id = randomUUID();
-    await db.insert("emails", {
+    await db.insert(emails, {
       id,
       botId: mira.id,
       direction,
@@ -704,7 +726,7 @@ export async function seedTasksAndSkills(ctx) {
   const day = (n) => isoDay(fromNow({ d: n }));
   let position = 0;
   const task = (row) =>
-    db.insert("tasks", {
+    db.insert(tasks, {
       id: randomUUID(),
       notes: "",
       position: (position += 1),
@@ -812,7 +834,7 @@ export async function seedTasksAndSkills(ctx) {
 
   /* ------------------------------ skills */
   const skill = (row) =>
-    db.insert("skills", {
+    db.insert(skills, {
       id: randomUUID(),
       createdBy: "user",
       botId: null,
@@ -878,7 +900,7 @@ export async function seedVault(ctx) {
   const { iris, scout, kit, mira, juno } = bots;
   const item = async (row, secret) => {
     const id = randomUUID();
-    await db.insert("vault_items", {
+    await db.insert(vaultItems, {
       id,
       domain: null,
       botIds: null,
@@ -945,7 +967,7 @@ export async function seedVault(ctx) {
   );
 
   const purchase = (row) =>
-    db.insert("purchases", {
+    db.insert(purchases, {
       id: randomUUID(),
       createdAt: ago({ d: 2 }),
       updatedAt: ago({ d: 2 }),
@@ -1017,7 +1039,7 @@ export async function seedMemory(ctx) {
     const id = randomUUID();
     const state = row.state ?? "active";
     const created = row.createdAt ?? ago({ d: 10 });
-    await db.insert("memory_items", {
+    await db.insert(memoryItems, {
       id,
       botId: row.botId ?? null,
       kind: row.kind ?? "fact",
@@ -1028,22 +1050,22 @@ export async function seedMemory(ctx) {
       state,
       pinned: row.pinned ?? false,
       expiresAt: row.expiresAt ?? null,
-      source: json(row.source ?? { type: "user" }),
+      source: row.source ?? { type: "user" },
       createdAt: created,
       updatedAt: created,
     });
-    await db.insert("memory_revisions", {
+    await db.insert(memoryRevisions, {
       memoryId: id,
       revision: 1,
       content: row.content,
-      snapshot: json({
+      snapshot: {
         pinned: row.pinned ?? false,
         key: row.key ?? null,
         kind: row.kind ?? "fact",
         expiresAt: row.expiresAt ?? null,
         state,
-      }),
-      source: json(row.source ?? { type: "user" }),
+      },
+      source: row.source ?? { type: "user" },
       createdAt: created,
     });
   };
@@ -1168,7 +1190,7 @@ export async function seedMemory(ctx) {
   // The "about you" text, marked as already imported into memory so that opening Settings
   // doesn't copy it into a second, raw-Markdown note.
   const aboutMe = `Founder and CEO of Kestrel, a privacy-first web analytics tool. Based in San Francisco, on Pacific time. Shipping Kestrel 2.0, then Lisbon for the Atlantic Product Summit.`;
-  await db.insert("memory_imports", { key: "legacy:profile" });
+  await db.insert(memoryImports, { key: "legacy:profile" });
   await db.query(
     `insert into settings (id, monthly_cap_micros, timezone, about_me, about_me_updated_at)
      values (1, 20000000, $1, $2, $3)
@@ -1181,28 +1203,28 @@ export async function seedMemory(ctx) {
     const id = randomUUID();
     const createdAt = ago(daysAgo);
     const source = run ? { type: "feedback", runId: run.id } : { type: "import" };
-    await db.insert("lessons", { id, botId: bot.id, runId: run?.id ?? null, text, createdAt });
-    await db.insert("memory_items", {
+    await db.insert(lessons, { id, botId: bot.id, runId: run?.id ?? null, text, createdAt });
+    await db.insert(memoryItems, {
       id,
       botId: bot.id,
       kind: "lesson",
       content: text,
       fingerprint: memoryFingerprint(text),
       pinned: true,
-      source: json(source),
+      source: source,
       legacyKey: `legacy:lesson:${id}`,
       createdAt,
       updatedAt: createdAt,
     });
-    await db.insert("memory_revisions", {
+    await db.insert(memoryRevisions, {
       memoryId: id,
       revision: 1,
       content: text,
-      snapshot: json({ pinned: true, key: null, kind: "lesson", expiresAt: null, state: "active" }),
-      source: json(source),
+      snapshot: { pinned: true, key: null, kind: "lesson", expiresAt: null, state: "active" },
+      source: source,
       createdAt,
     });
-    await db.insert("memory_imports", { key: `legacy:lesson:${id}` });
+    await db.insert(memoryImports, { key: `legacy:lesson:${id}` });
   };
   await lesson(
     juno,
@@ -1250,7 +1272,7 @@ export async function seedMemory(ctx) {
   // A teammate suggesting a rewrite of its own instructions.
   const miraDef = (await db.query("select instructions from bots where id = $1", [mira.id])).rows[0]
     .instructions;
-  await db.insert("instruction_proposals", {
+  await db.insert(instructionProposals, {
     id: randomUUID(),
     botId: mira.id,
     current: miraDef,
@@ -1346,7 +1368,7 @@ export async function seedPages(ctx) {
     const latest = ids.versions.length - 1;
     const createdFirst = ago(spec.created[0]);
     const updated = ago(spec.created[latest]);
-    await db.insert("pages", {
+    await db.insert(pages, {
       id: ids.id,
       botId: spec.bot.id,
       chatId: spec.chat.id,
@@ -1366,7 +1388,7 @@ export async function seedPages(ctx) {
         .replace(/<[^>]+>/g, " ")
         .replace(/\s+/g, " ")
         .trim();
-      await db.insert("page_versions", {
+      await db.insert(pageVersions, {
         id: versionId,
         pageId: ids.id,
         number: index + 1,
@@ -1381,7 +1403,7 @@ export async function seedPages(ctx) {
         text,
         thumbnail: thumbs.get(`${spec.key}${index + 1}:light`),
         thumbnailDark: thumbs.get(`${spec.key}${index + 1}:dark`),
-        issues: json(
+        issues:
           index === 0 && spec.key === "pricing"
             ? [
                 {
@@ -1390,7 +1412,6 @@ export async function seedPages(ctx) {
                 },
               ]
             : [],
-        ),
         createdAt: ago(spec.created[index]),
       });
     }
@@ -1402,8 +1423,7 @@ export async function seedPages(ctx) {
 export async function seedNotifications(ctx) {
   const { db, bots, chats, R, pageIds } = ctx;
   const { iris, scout, kit, mira, juno } = bots;
-  const n = (row) =>
-    db.insert("notifications", { id: randomUUID(), body: "", readAt: null, ...row });
+  const n = (row) => db.insert(notifications, { id: randomUUID(), body: "", readAt: null, ...row });
   await n({
     kind: "approval",
     title: "Mira needs your approval",
@@ -1501,7 +1521,7 @@ export async function seedNotifications(ctx) {
 
 export async function seedUsageAndSettings(ctx) {
   const { db, bots, encryptionKey } = ctx;
-  const all = Object.values(bots);
+  const all = Object.values(bots) as { id: string }[];
   // Spread some extra usage across the month so the totals look lived in.
   const monthStart = new Date(
     Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1, 2),
@@ -1512,7 +1532,7 @@ export async function seedUsageAndSettings(ctx) {
     const apiKey = i % 3 === 0;
     const input = 90_000 + ((i * 53_000) % 420_000);
     const output = 2_000 + ((i * 3_100) % 28_000);
-    await db.insert("usage_entries", {
+    await db.insert(usageEntries, {
       id: randomUUID(),
       botId: bot.id,
       authMode: apiKey ? "api_key" : "plan",
@@ -1524,12 +1544,12 @@ export async function seedUsageAndSettings(ctx) {
       createdAt: new Date(monthStart.getTime() + Math.round((span * (i + 1)) / 37)),
     });
   }
-  await db.insert("credentials", {
+  await db.insert(credentials, {
     kind: "openai_api_key",
     encrypted: seal("sk-showcase-not-a-real-key-cafe", encryptionKey),
     hint: "sk-…cafe",
   });
-  await db.insert("native_push_devices", {
+  await db.insert(nativePushDevices, {
     token: "showcase-fcm-token-pixel",
     platform: "android",
     device: "Pixel 9",

@@ -1291,7 +1291,6 @@ export async function setMonthlyCap(dollars: number) {
   });
 }
 
-/** Tokens per teammate since the start of this month. */
 export type { Autonomy };
 
 /* ------------------------------------------------------------------ Versioned memory */

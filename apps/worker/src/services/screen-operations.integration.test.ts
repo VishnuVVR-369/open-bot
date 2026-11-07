@@ -1,27 +1,20 @@
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
-import { fileURLToPath } from "node:url";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { eq } from "drizzle-orm";
 import { beforeAll, beforeEach, afterAll, describe, expect, it, vi } from "vitest";
-import {
-  bots,
-  createDb,
-  createPool,
-  desktopTakeovers,
-  screenOperations,
-  takeoverDeliveries,
-} from "@open-bot/db";
+import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
+import { bots, desktopTakeovers, screenOperations, takeoverDeliveries } from "@open-bot/db";
 import type { Context } from "../context";
 import type { TakeoverService } from "./takeovers";
-import { ScreenOperationService, withScreenLock } from "./screen-operations";
+import { withScreenLock } from "./screen-lock";
+import { ScreenOperationService } from "./screen-operations";
 import { TakeoverService as RealTakeoverService } from "./takeovers";
 import { SessionRegistry } from "./registry";
 
-const url = process.env.MOBILE_API_TEST_DATABASE_URL;
+const url = testDatabaseServer();
 describe.skipIf(!url)("screen operations with Postgres", () => {
-  const pool = createPool(url ?? "postgres://unused");
-  const db = createDb(pool);
+  const database = testDatabase(url);
+  const { pool, db } = database;
   let service: ScreenOperationService;
   let screenId: string;
   let takeoverId: string;
@@ -29,11 +22,7 @@ describe.skipIf(!url)("screen operations with Postgres", () => {
   const takeovers = { recordTake: vi.fn(), handBack: vi.fn() };
   const ctx = { db, pool, computer, events: new EventEmitter() } as unknown as Context;
   beforeAll(async () => {
-    if (!url || new URL(url).pathname !== "/openbot_mobile_api_test")
-      throw new Error("Use the disposable mobile API test database.");
-    await migrate(db, {
-      migrationsFolder: fileURLToPath(new URL("../../../../packages/db/drizzle", import.meta.url)),
-    });
+    await database.create();
   });
   beforeEach(async () => {
     vi.resetAllMocks();
@@ -56,7 +45,7 @@ describe.skipIf(!url)("screen operations with Postgres", () => {
     service = new ScreenOperationService(ctx, takeovers as unknown as TakeoverService);
   });
   afterAll(async () => {
-    await pool.end();
+    await database.drop();
   });
   const input = () => ({
     operationId: randomUUID(),
@@ -230,8 +219,8 @@ describe.skipIf(!url)("screen operations with Postgres", () => {
 });
 
 describe.skipIf(!url)("takeover returns with Postgres", () => {
-  const pool = createPool(url ?? "postgres://unused");
-  const db = createDb(pool);
+  const database = testDatabase(url);
+  const { pool, db } = database;
   const events = new EventEmitter();
   const health = { screens: [] as { id: string; lease: unknown }[] };
   const computer = Object.assign(new EventEmitter(), {
@@ -241,11 +230,7 @@ describe.skipIf(!url)("takeover returns with Postgres", () => {
   const ctx = { db, pool, computer, events } as unknown as Context;
   let screenId: string;
   beforeAll(async () => {
-    if (!url || new URL(url).pathname !== "/openbot_mobile_api_test")
-      throw new Error("Use the disposable mobile API test database.");
-    await migrate(db, {
-      migrationsFolder: fileURLToPath(new URL("../../../../packages/db/drizzle", import.meta.url)),
-    });
+    await database.create();
   });
   beforeEach(async () => {
     await pool.query("truncate bots cascade");
@@ -263,7 +248,7 @@ describe.skipIf(!url)("takeover returns with Postgres", () => {
     });
   });
   afterAll(async () => {
-    await pool.end();
+    await database.drop();
   });
 
   it("delivers takeovers that ended together as one return", async () => {

@@ -610,7 +610,6 @@ export class RunSession {
     }
   }
 
-  /** Sends the answer to a teammate's question back to them, in the chat they asked from. */
   /** A quiet routine's run that found nothing worth telling you. */
   private async quietWithNothingToReport(text: string | null): Promise<boolean> {
     const { run, ctx } = this;
@@ -622,6 +621,7 @@ export class RunSession {
     return schedule?.quiet ?? false;
   }
 
+  /** Sends the answer to a teammate's question back to them, in the chat they asked from. */
   private async answerBack(status: Outcome["status"], text: string | null, error?: string) {
     const { ctx, run, bot } = this;
     if (!run.parentRunId) return;

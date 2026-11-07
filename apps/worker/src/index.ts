@@ -426,6 +426,10 @@ async function shutdown(signal: string) {
   schedules.stop();
   triggers.stop();
   accountTriggers.stop();
+  accountActions.stop();
+  await integrations.stop();
+  push.stop();
+  fcm.stop();
   telegram.stop();
   egress.stop();
   codex.stop();

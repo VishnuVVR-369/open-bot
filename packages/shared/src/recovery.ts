@@ -8,7 +8,7 @@ import { PASSKEY_RESET_MINUTES } from "./password";
  * The passkey is the short path, so it always comes first; the command sits under "Other ways".
  */
 
-/** The script behind it is scripts/owner-reset-password.mjs. */
+/** The script behind it is scripts/ops/owner-reset-password.mjs. */
 export const RESET_PASSWORD_COMMAND = "pnpm owner:reset-password";
 
 /** The full command, with your email when it's known. */

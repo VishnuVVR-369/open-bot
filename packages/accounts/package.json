@@ -8,7 +8,7 @@
   },
   "scripts": {
     "typecheck": "tsc -p .",
-    "test": "vitest run"
+    "test:integration": "vitest run .integration.test.ts"
   },
   "dependencies": {
     "@open-bot/db": "workspace:*",

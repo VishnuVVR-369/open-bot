@@ -1,6 +1,6 @@
 // Signs in as the showcase owner through the real login form and saves a Playwright storage state.
 //
-//   node scripts/showcase/auth.mjs [output.json]
+//   node tools/showcase/auth.mjs [output.json]
 //
 // The state also carries the "last active" marks the app keeps in localStorage, set to ten hours
 // ago, so Home shows its "While you were away" briefing in screenshots.

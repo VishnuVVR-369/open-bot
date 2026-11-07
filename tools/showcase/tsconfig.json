@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "lib": ["ES2023", "DOM"],
+    // Demo data, not app code: the point is checking every insert's columns and value types
+    // against the Drizzle schema, so the story's helpers may stay untyped.
+    "strict": false,
+    "noUncheckedIndexedAccess": false
+  },
+  "include": ["*.ts"]
+}
