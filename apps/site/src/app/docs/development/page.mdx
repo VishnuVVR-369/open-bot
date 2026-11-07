@@ -170,6 +170,24 @@ pnpm --filter @open-bot/site test:e2e   # builds and serves it the way it is dep
 The end-to-end run needs the encoded tour first (`pnpm --filter @open-bot/site media:encode`).
 `pnpm typecheck` covers this site, and Cloudflare builds it on every pull request.
 
+### Android CI
+
+The Android matrix in `.github/workflows/ci.yml` builds x86_64 debug APKs for the development and Firebase (`normal`) variants, checks both merged manifests, and runs `:app:lintVitalRelease` for the Firebase variant.
+Gradle runs with `--build-cache`; `gradle/actions/setup-gradle` persists task outputs as well as dependencies.
+A separate, size-limited `ccache` cache reuses native C/C++ compilation for each variant.
+React Native discovers it for the app; `scripts/ci/android-ccache.gradle` configures compiler launchers for native library projects.
+PRs only restore these caches from `main`.
+On `main`, the Gradle action saves state in its post-job hook even after a build failure; the explicit `ccache` save step runs only after successful build and manifest checks.
+Cache statistics are printed after each native build.
+
+`scripts/ci/android-changes.mjs` compares the full PR diff and follows mobile's transitive workspace dependencies, plus the Kotlin egress vectors.
+Mobile inputs, root build configuration, CI scripts and workflow changes run the Android and Kotlin jobs.
+Unrelated workspace changes and root Markdown documentation skip Kotlin and the expensive Android build steps.
+The Android matrix still reports both variant check names, so required checks cannot be left pending by a skipped matrix.
+Missing history, unreadable dependency manifests or a failed detection job run the checks conservatively.
+Every push to `main` runs the full matrix, even for documentation changes.
+The detector's Git-based regression tests run with `node --test scripts/ci/android-changes.test.mjs` before CI decides which jobs to skip.
+
 ## Conventions
 
 These are easy to miss and cost time when forgotten.
