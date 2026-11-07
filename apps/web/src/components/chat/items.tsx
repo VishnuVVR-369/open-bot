@@ -135,7 +135,7 @@ export function ReasoningStep({ item }: { item: ReasoningItem }) {
 }
 
 /** A shell command: what it does in plain words, then the command itself in a code face. */
-export function CommandStep({ item }: { item: CommandItem }) {
+export function CommandStep({ item, approved = false }: { item: CommandItem; approved?: boolean }) {
   const command = shellScript(item.command);
   const failed = item.status === "failed" || (item.exitCode !== null && item.exitCode !== 0);
   return (
@@ -150,6 +150,12 @@ export function CommandStep({ item }: { item: CommandItem }) {
           </span>
           {failed && item.exitCode !== null && (
             <span className="ml-1.5">· didn&apos;t work (exit {item.exitCode})</span>
+          )}
+          {approved && (
+            <span className="ml-1.5 inline-flex items-center gap-1 text-muted-foreground">
+              · <Check className="size-3 text-done" aria-hidden />
+              you approved
+            </span>
           )}
           <span className="ml-2 font-mono text-[12px] text-faint" data-testid="step-command">
             {command}

@@ -174,11 +174,13 @@ export function ApprovalCard({
         <View
           style={[
             styles.risk,
+            // A surface fill with a signal border, like the web: it stays legible on the amber card.
             {
-              backgroundColor:
+              backgroundColor: colors.surface,
+              borderColor:
                 risk.tone === "destructive"
-                  ? mix(colors.destructive, colors.surface, 0.1)
-                  : mix(colors.attention, colors.surface, 0.18),
+                  ? mix(colors.destructive, colors.surface, 0.55)
+                  : mix(colors.attention, colors.surface, 0.7),
             },
           ]}
         >
@@ -265,6 +267,7 @@ const styles = StyleSheet.create({
     gap: space(1.5),
     alignSelf: "flex-start",
     borderRadius: radius.full,
+    borderWidth: 1,
     paddingHorizontal: space(2.5),
     paddingVertical: space(1),
   },

@@ -728,7 +728,7 @@ One thing to know: reminders that land in the hour that doesn't exist (2:30 on s
             { ms: 2400, cwd: "/home/bot/bots/kit/tidepool" },
           ),
           tool("github.create_pull_request", "Opened pull request #58 on tidepool", {
-            result: "alexrivera/tidepool#58",
+            result: "Keep wall-clock time across DST in recurrences",
           }),
           msg(`Pushed, and the PR is open: **[#58 Keep wall-clock time across DST in recurrences](https://github.com/alexrivera/tidepool/pull/58)**.
 

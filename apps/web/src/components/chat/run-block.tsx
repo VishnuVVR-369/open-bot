@@ -4,6 +4,7 @@ import {
   formatDollars,
   isNothingToReport,
   isRunActive,
+  shellScript,
   type ComputerItem,
   type TimelineItem,
 } from "@open-bot/shared";
@@ -228,6 +229,33 @@ function restatedSteps(items: TimelineItem[]): Set<string> {
   return ids;
 }
 
+/**
+ * Approved commands that ran right after their approval. The command step says it once, marked as
+ * approved, instead of an approval line followed by the same command again.
+ */
+function approvedCommands(items: TimelineItem[]): {
+  approvals: Set<string>;
+  commands: Set<string>;
+} {
+  const approvals = new Set<string>();
+  const commands = new Set<string>();
+  const shown = items.filter((item) => item.kind !== "computer");
+  shown.forEach((item, index) => {
+    const next = shown[index + 1];
+    if (
+      item.kind === "approval" &&
+      item.decision === "approved" &&
+      item.approvalKind === "command" &&
+      next?.kind === "command" &&
+      item.title.trim() === shellScript(next.command).trim()
+    ) {
+      approvals.add(item.id);
+      commands.add(next.id);
+    }
+  });
+  return { approvals, commands };
+}
+
 /** Items that always stay visible, even when the steps are collapsed. */
 function isPinned(item: TimelineItem): boolean {
   return (
@@ -416,7 +444,12 @@ function WorkingLine({ run }: { run: RunView }) {
   );
 }
 
-function renderItem(item: TimelineItem, botId: string, bot: BotSummary | undefined) {
+function renderItem(
+  item: TimelineItem,
+  botId: string,
+  bot: BotSummary | undefined,
+  approved = false,
+) {
   switch (item.kind) {
     case "message":
       return item.phase === "final" ? (
@@ -427,7 +460,7 @@ function renderItem(item: TimelineItem, botId: string, bot: BotSummary | undefin
     case "reasoning":
       return item.text ? <ReasoningStep item={item} /> : null;
     case "command":
-      return <CommandStep item={item} />;
+      return <CommandStep item={item} approved={approved} />;
     case "file_change":
       return <FileChangeStep item={item} />;
     case "tool":
@@ -481,9 +514,14 @@ export function RunBlock({
 }) {
   const active = isRunActive(run.timeline.status);
   const allItems = run.timeline.items;
-  const items = useMemo(() => {
+  const { items, approved } = useMemo(() => {
     const restated = restatedSteps(allItems);
-    return restated.size ? allItems.filter((item) => !restated.has(item.id)) : allItems;
+    const merged = approvedCommands(allItems);
+    const hidden = new Set([...restated, ...merged.approvals]);
+    return {
+      items: hidden.size ? allItems.filter((item) => !hidden.has(item.id)) : allItems,
+      approved: merged.commands,
+    };
   }, [allItems]);
   const segments = useMemo(() => segment(items), [items]);
   const stepCount = items.filter((item) => !isPinned(item)).length;
@@ -587,7 +625,7 @@ export function RunBlock({
               ) : null;
             }
             if (!showSteps && !isPinned(part.item)) return null;
-            const content = renderItem(part.item, run.botId, bot);
+            const content = renderItem(part.item, run.botId, bot, approved.has(part.item.id));
             if (!content) return null;
             const spaced =
               part.item.kind === "message" ||
