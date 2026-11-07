@@ -46,6 +46,9 @@ A new workspace dependency must also be added to the consumer's bundler config: 
 
 Use the canonical term in new code, UI copy and docs.
 Older code still uses some banned synonyms; those get renamed later, so don't add new uses and don't rename them in unrelated work.
+`pnpm check:vocabulary` (`scripts/check/vocabulary.mjs`, run in CI) fails when a file gains a use of a legacy name: it counts them per file against `scripts/check/vocabulary-baseline.json`, which may only shrink.
+After removing uses, run `pnpm check:vocabulary --update` and commit the smaller baseline.
+A line that must keep a legacy word, such as a third-party API name, can end with a `vocabulary: allow` comment.
 
 | Canonical term  | Meaning                                                                              | Do not use for it (legacy names in code)                                                       |
 | --------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
@@ -64,6 +67,10 @@ Older code still uses some banned synonyms; those get renamed later, so don't ad
 | page            | An HTML page a teammate publishes, served by `apps/pages`                            | -                                                                                              |
 | run / turn      | One queued unit of teammate work / one Codex turn inside it                          | -                                                                                              |
 | stand-in        | A test double for an outside service                                                 | mock, fake, fixture (`e2e/telegram-mock.ts`)                                                   |
+
+The guard checks code files for bot, primary (meaning the lead), desktop takeover, and `e2e/` files named mock or fake; the other terms are kept by review.
+The owner has approved the renames, which happen after feature slicing so files move once: `bots` and `bot_id` to teammates, `is_primary` to lead, `desktop_takeovers` to `screen_takeovers`, and the integrations `accounts` table to `account_connections`.
+Database renames use `ALTER TABLE ... RENAME` migrations with a plan for the window between migration and deploy, and renamed web routes keep redirects for bookmarks and phone deep links.
 
 ## Where to make common changes
 

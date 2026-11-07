@@ -1,0 +1,783 @@
+{
+  "apps/botd/src/code-screens.test.ts": {
+    "bot": 6
+  },
+  "apps/botd/src/egress.test.ts": {
+    "bot": 7
+  },
+  "apps/botd/src/index.ts": {
+    "bot": 31
+  },
+  "apps/botd/src/lease.test.ts": {
+    "bot": 6
+  },
+  "apps/botd/src/lease.ts": {
+    "bot": 5
+  },
+  "apps/botd/src/pages.test.ts": {
+    "bot": 1
+  },
+  "apps/botd/src/pages.ts": {
+    "bot": 1
+  },
+  "apps/botd/src/screens.ts": {
+    "bot": 14
+  },
+  "apps/botd/src/server-lifecycle.test.ts": {
+    "bot": 2
+  },
+  "apps/botd/src/server.ts": {
+    "bot": 7
+  },
+  "apps/mobile/src/app/(tabs)/approvals.tsx": {
+    "bot": 8
+  },
+  "apps/mobile/src/app/(tabs)/chats.tsx": {
+    "bot": 34
+  },
+  "apps/mobile/src/app/(tabs)/computer.tsx": {
+    "bot": 7
+  },
+  "apps/mobile/src/app/(tabs)/index.tsx": {
+    "bot": 148,
+    "primary teammate": 2
+  },
+  "apps/mobile/src/app/(tabs)/pages.tsx": {
+    "bot": 6
+  },
+  "apps/mobile/src/app/_layout.tsx": {
+    "bot": 1
+  },
+  "apps/mobile/src/app/approval-rules.tsx": {
+    "bot": 26
+  },
+  "apps/mobile/src/app/approvals/[approvalId].tsx": {
+    "bot": 12
+  },
+  "apps/mobile/src/app/chats/[chatId].tsx": {
+    "bot": 52
+  },
+  "apps/mobile/src/app/new-chat.tsx": {
+    "bot": 37
+  },
+  "apps/mobile/src/app/notifications.tsx": {
+    "bot": 18
+  },
+  "apps/mobile/src/app/pages/[pageId].tsx": {
+    "bot": 14
+  },
+  "apps/mobile/src/app/screens/[screenId].tsx": {
+    "bot": 1
+  },
+  "apps/mobile/src/app/search.tsx": {
+    "bot": 67
+  },
+  "apps/mobile/src/app/share.tsx": {
+    "bot": 24,
+    "primary teammate": 1
+  },
+  "apps/mobile/src/app/teammates/[botId].tsx": {
+    "bot": 44,
+    "primary teammate": 1
+  },
+  "apps/mobile/src/components/always-allow-sheet.tsx": {
+    "bot": 9
+  },
+  "apps/mobile/src/components/approval-parts.tsx": {
+    "bot": 12
+  },
+  "apps/mobile/src/components/approval-row.tsx": {
+    "bot": 7
+  },
+  "apps/mobile/src/components/bot-avatar.tsx": {
+    "bot": 19
+  },
+  "apps/mobile/src/components/chat/approval-card.tsx": {
+    "bot": 5
+  },
+  "apps/mobile/src/components/chat/composer.test.ts": {
+    "bot": 3
+  },
+  "apps/mobile/src/components/chat/composer.tsx": {
+    "bot": 7
+  },
+  "apps/mobile/src/components/chat/run-actions.tsx": {
+    "bot": 9
+  },
+  "apps/mobile/src/components/chat/run-block.tsx": {
+    "bot": 38
+  },
+  "apps/mobile/src/components/chat/swarm-card.tsx": {
+    "bot": 4
+  },
+  "apps/mobile/src/components/computer/last-frames.tsx": {
+    "bot": 8
+  },
+  "apps/mobile/src/components/computer/screen-card.tsx": {
+    "bot": 11
+  },
+  "apps/mobile/src/components/computer/screen-notice.tsx": {
+    "bot": 10
+  },
+  "apps/mobile/src/components/page-row.tsx": {
+    "bot": 10
+  },
+  "apps/mobile/src/lib/approval-text.ts": {
+    "bot": 1
+  },
+  "apps/mobile/src/lib/chat-status.ts": {
+    "bot": 3
+  },
+  "apps/mobile/src/lib/chats.test.ts": {
+    "bot": 19
+  },
+  "apps/mobile/src/lib/chats.ts": {
+    "bot": 21
+  },
+  "apps/mobile/src/lib/links.ts": {
+    "bot": 3
+  },
+  "apps/mobile/src/lib/live-stream.test.ts": {
+    "bot": 6
+  },
+  "apps/mobile/src/lib/notification-groups.test.ts": {
+    "bot": 5
+  },
+  "apps/mobile/src/lib/notification-groups.ts": {
+    "bot": 8
+  },
+  "apps/mobile/src/lib/pages.test.ts": {
+    "bot": 9
+  },
+  "apps/mobile/src/lib/pages.ts": {
+    "bot": 13
+  },
+  "apps/mobile/src/lib/queries.ts": {
+    "bot": 2
+  },
+  "apps/mobile/src/lib/query.ts": {
+    "bot": 1
+  },
+  "apps/mobile/src/lib/realtime.test.ts": {
+    "bot": 1
+  },
+  "apps/mobile/src/lib/screens.test.ts": {
+    "bot": 5,
+    "primary teammate": 1
+  },
+  "apps/mobile/src/lib/screens.ts": {
+    "bot": 4
+  },
+  "apps/mobile/src/lib/use-chat-reading.test.ts": {
+    "bot": 3
+  },
+  "apps/mobile/src/lib/use-chat.test.ts": {
+    "bot": 3
+  },
+  "apps/mobile/src/push/notifications.test.ts": {
+    "bot": 2
+  },
+  "apps/mobile/src/push/notifications.ts": {
+    "bot": 11
+  },
+  "apps/mobile/src/push/payload.test.ts": {
+    "bot": 6
+  },
+  "apps/mobile/src/push/payload.ts": {
+    "bot": 10
+  },
+  "apps/site/src/components/docs/diagrams.tsx": {
+    "bot": 6
+  },
+  "apps/site/src/lib/docs.ts": {
+    "bot": 1
+  },
+  "apps/web/src/app/(app)/bots/[botId]/page.tsx": {
+    "bot": 92,
+    "primary teammate": 2
+  },
+  "apps/web/src/app/(app)/bots/new/page.tsx": {
+    "bot": 12
+  },
+  "apps/web/src/app/(auth)/layout.tsx": {
+    "bot": 7
+  },
+  "apps/web/src/app/api/bots/[botId]/export/route.ts": {
+    "bot": 19
+  },
+  "apps/web/src/app/api/bots/[botId]/lessons/route.ts": {
+    "bot": 5
+  },
+  "apps/web/src/app/api/bots/[botId]/spending/route.ts": {
+    "bot": 5
+  },
+  "apps/web/src/app/api/inbound/email/[token]/route.ts": {
+    "bot": 2
+  },
+  "apps/web/src/app/api/memory/route.ts": {
+    "bot": 9
+  },
+  "apps/web/src/app/api/stream/route.ts": {
+    "bot": 1
+  },
+  "apps/web/src/components/access-picker.tsx": {
+    "bot": 15
+  },
+  "apps/web/src/components/app/command-menu.tsx": {
+    "bot": 48
+  },
+  "apps/web/src/components/app/new-group-dialog.tsx": {
+    "bot": 18
+  },
+  "apps/web/src/components/app/shell.tsx": {
+    "bot": 2
+  },
+  "apps/web/src/components/app/sidebar.tsx": {
+    "bot": 34
+  },
+  "apps/web/src/components/approvals/always-allow.tsx": {
+    "bot": 17
+  },
+  "apps/web/src/components/approvals/approval-parts.tsx": {
+    "bot": 9
+  },
+  "apps/web/src/components/approvals/approvals-view.tsx": {
+    "bot": 32
+  },
+  "apps/web/src/components/automations/automations-view.tsx": {
+    "bot": 53
+  },
+  "apps/web/src/components/automations/schedule-dialog.tsx": {
+    "bot": 32
+  },
+  "apps/web/src/components/automations/schedules-list.tsx": {
+    "bot": 15
+  },
+  "apps/web/src/components/automations/trigger-dialog.tsx": {
+    "bot": 37
+  },
+  "apps/web/src/components/automations/trigger-row.tsx": {
+    "bot": 26
+  },
+  "apps/web/src/components/bot-avatar.tsx": {
+    "bot": 3
+  },
+  "apps/web/src/components/bots/bot-danger-zone.tsx": {
+    "bot": 9,
+    "primary teammate": 7
+  },
+  "apps/web/src/components/bots/bot-form.tsx": {
+    "bot": 33
+  },
+  "apps/web/src/components/bots/chat-list.tsx": {
+    "bot": 6
+  },
+  "apps/web/src/components/bots/duplicate-bot.tsx": {
+    "bot": 15
+  },
+  "apps/web/src/components/bots/lessons-list.tsx": {
+    "bot": 3
+  },
+  "apps/web/src/components/bots/memory-editor.tsx": {
+    "bot": 4
+  },
+  "apps/web/src/components/bots/spending.tsx": {
+    "bot": 8
+  },
+  "apps/web/src/components/chat/chat-view.tsx": {
+    "bot": 76
+  },
+  "apps/web/src/components/chat/composer.tsx": {
+    "bot": 21
+  },
+  "apps/web/src/components/chat/desktop-strip.tsx": {
+    "bot": 1
+  },
+  "apps/web/src/components/chat/items.tsx": {
+    "bot": 14
+  },
+  "apps/web/src/components/chat/reply-feedback.tsx": {
+    "bot": 6
+  },
+  "apps/web/src/components/chat/run-block.tsx": {
+    "bot": 52
+  },
+  "apps/web/src/components/chat/swarm-card.tsx": {
+    "bot": 4
+  },
+  "apps/web/src/components/computer/computer-page.tsx": {
+    "bot": 29
+  },
+  "apps/web/src/components/computer/computer-panel.tsx": {
+    "bot": 85
+  },
+  "apps/web/src/components/computer/desktop-view.tsx": {
+    "bot": 1
+  },
+  "apps/web/src/components/files/files-view.tsx": {
+    "bot": 27
+  },
+  "apps/web/src/components/home/briefing.tsx": {
+    "bot": 41
+  },
+  "apps/web/src/components/home/home-view.tsx": {
+    "bot": 89,
+    "primary teammate": 1
+  },
+  "apps/web/src/components/memory/memory-manager.tsx": {
+    "bot": 13
+  },
+  "apps/web/src/components/pages/page-viewer.tsx": {
+    "bot": 30
+  },
+  "apps/web/src/components/pages/pages-view.tsx": {
+    "bot": 27
+  },
+  "apps/web/src/components/settings/accounts-section.tsx": {
+    "bot": 15
+  },
+  "apps/web/src/components/settings/connections-section.tsx": {
+    "bot": 9
+  },
+  "apps/web/src/components/settings/email-section.tsx": {
+    "bot": 1
+  },
+  "apps/web/src/components/settings/profile-editor.tsx": {
+    "bot": 1
+  },
+  "apps/web/src/components/settings/settings-view.tsx": {
+    "bot": 5
+  },
+  "apps/web/src/components/settings/telegram-section.tsx": {
+    "bot": 8
+  },
+  "apps/web/src/components/skills/skill-dialog.tsx": {
+    "bot": 19
+  },
+  "apps/web/src/components/skills/skills-list.tsx": {
+    "bot": 24
+  },
+  "apps/web/src/components/tasks/task-board.tsx": {
+    "bot": 18
+  },
+  "apps/web/src/components/tasks/task-dialog.tsx": {
+    "bot": 32
+  },
+  "apps/web/src/components/vault/vault-dialog.tsx": {
+    "bot": 2
+  },
+  "apps/web/src/components/vault/vault-view.tsx": {
+    "bot": 26
+  },
+  "apps/web/src/lib/actions.ts": {
+    "bot": 138,
+    "primary teammate": 6
+  },
+  "apps/web/src/lib/client/queries.ts": {
+    "bot": 12
+  },
+  "apps/web/src/lib/files.test.ts": {
+    "bot": 2
+  },
+  "apps/web/src/lib/server/accounts.ts": {
+    "bot": 14
+  },
+  "apps/web/src/lib/server/api/approvals.ts": {
+    "bot": 7
+  },
+  "apps/web/src/lib/server/api/chats.ts": {
+    "bot": 18
+  },
+  "apps/web/src/lib/server/api/home.ts": {
+    "bot": 7
+  },
+  "apps/web/src/lib/server/api/pages.ts": {
+    "bot": 8
+  },
+  "apps/web/src/lib/server/api/router.ts": {
+    "bot": 2
+  },
+  "apps/web/src/lib/server/api/runs.ts": {
+    "bot": 12
+  },
+  "apps/web/src/lib/server/api/screens.ts": {
+    "bot": 13,
+    "desktop takeover": 3
+  },
+  "apps/web/src/lib/server/queries.ts": {
+    "bot": 147,
+    "desktop takeover": 17,
+    "primary teammate": 2
+  },
+  "apps/web/src/lib/server/teammates.ts": {
+    "bot": 17
+  },
+  "apps/web/src/lib/server/views.ts": {
+    "bot": 2
+  },
+  "apps/web/src/lib/status.test.ts": {
+    "bot": 22
+  },
+  "apps/web/src/lib/status.ts": {
+    "bot": 12
+  },
+  "apps/web/src/lib/types.ts": {
+    "bot": 23
+  },
+  "apps/worker/scripts/computer-sleep-smoke.ts": {
+    "bot": 25
+  },
+  "apps/worker/scripts/computer-sleep-web-smoke.ts": {
+    "bot": 5
+  },
+  "apps/worker/src/accounts/access.ts": {
+    "bot": 12
+  },
+  "apps/worker/src/accounts/actions.integration.test.ts": {
+    "bot": 22
+  },
+  "apps/worker/src/accounts/actions.ts": {
+    "bot": 19
+  },
+  "apps/worker/src/accounts/notion.ts": {
+    "bot": 1
+  },
+  "apps/worker/src/accounts/tools.ts": {
+    "bot": 3
+  },
+  "apps/worker/src/computer.ts": {
+    "bot": 6
+  },
+  "apps/worker/src/context.ts": {
+    "bot": 9
+  },
+  "apps/worker/src/egress/relay.test.ts": {
+    "bot": 2
+  },
+  "apps/worker/src/egress/wake.test.ts": {
+    "bot": 5
+  },
+  "apps/worker/src/env.ts": {
+    "bot": 1
+  },
+  "apps/worker/src/http.ts": {
+    "bot": 55
+  },
+  "apps/worker/src/index.ts": {
+    "bot": 9
+  },
+  "apps/worker/src/instructions.test.ts": {
+    "bot": 4
+  },
+  "apps/worker/src/instructions.ts": {
+    "bot": 26
+  },
+  "apps/worker/src/runs/dispatch.integration.test.ts": {
+    "bot": 22
+  },
+  "apps/worker/src/runs/executor.ts": {
+    "bot": 104,
+    "primary teammate": 3
+  },
+  "apps/worker/src/runs/memory.test.ts": {
+    "bot": 8
+  },
+  "apps/worker/src/runs/session.ts": {
+    "bot": 66
+  },
+  "apps/worker/src/services/account-triggers.integration.test.ts": {
+    "bot": 13
+  },
+  "apps/worker/src/services/account-triggers.ts": {
+    "bot": 2
+  },
+  "apps/worker/src/services/approvals.ts": {
+    "bot": 30
+  },
+  "apps/worker/src/services/bots.ts": {
+    "bot": 141,
+    "primary teammate": 1
+  },
+  "apps/worker/src/services/connections.ts": {
+    "bot": 5
+  },
+  "apps/worker/src/services/email.ts": {
+    "bot": 46
+  },
+  "apps/worker/src/services/fcm.integration.test.ts": {
+    "bot": 3
+  },
+  "apps/worker/src/services/fcm.ts": {
+    "bot": 4
+  },
+  "apps/worker/src/services/memory.ts": {
+    "bot": 17
+  },
+  "apps/worker/src/services/pages.integration.test.ts": {
+    "bot": 12
+  },
+  "apps/worker/src/services/pages.ts": {
+    "bot": 22
+  },
+  "apps/worker/src/services/push.test.ts": {
+    "bot": 1
+  },
+  "apps/worker/src/services/registry.ts": {
+    "bot": 4
+  },
+  "apps/worker/src/services/schedules.ts": {
+    "bot": 30
+  },
+  "apps/worker/src/services/screen-operations.integration.test.ts": {
+    "bot": 8,
+    "desktop takeover": 15
+  },
+  "apps/worker/src/services/screen-operations.ts": {
+    "bot": 1,
+    "desktop takeover": 7
+  },
+  "apps/worker/src/services/skills.ts": {
+    "bot": 69
+  },
+  "apps/worker/src/services/swarms.ts": {
+    "bot": 11
+  },
+  "apps/worker/src/services/takeovers.ts": {
+    "bot": 35,
+    "desktop takeover": 34
+  },
+  "apps/worker/src/services/tasks.ts": {
+    "bot": 41
+  },
+  "apps/worker/src/services/telegram.ts": {
+    "bot": 70,
+    "primary teammate": 1
+  },
+  "apps/worker/src/services/triggers.ts": {
+    "bot": 44
+  },
+  "apps/worker/src/services/vault.ts": {
+    "bot": 39
+  },
+  "apps/worker/src/tools/bots.integration.test.ts": {
+    "bot": 132,
+    "primary teammate": 1
+  },
+  "apps/worker/src/tools/bots.ts": {
+    "bot": 109
+  },
+  "apps/worker/src/tools/definitions.ts": {
+    "bot": 59
+  },
+  "apps/worker/src/tools/handlers.ts": {
+    "bot": 188
+  },
+  "apps/worker/src/uploads.integration.test.ts": {
+    "bot": 7
+  },
+  "e2e/accounts-stand-in.ts": {
+    "bot": 3
+  },
+  "e2e/accounts.spec.ts": {
+    "bot": 5
+  },
+  "e2e/agent.spec.ts": {
+    "bot": 9
+  },
+  "e2e/api.spec.ts": {
+    "bot": 24
+  },
+  "e2e/auth.setup.ts": {
+    "bot": 5
+  },
+  "e2e/automations.spec.ts": {
+    "bot": 4
+  },
+  "e2e/briefing.spec.ts": {
+    "bot": 1
+  },
+  "e2e/check-ins.spec.ts": {
+    "bot": 18
+  },
+  "e2e/computer.spec.ts": {
+    "bot": 13
+  },
+  "e2e/email.spec.ts": {
+    "bot": 10
+  },
+  "e2e/feedback.spec.ts": {
+    "bot": 15
+  },
+  "e2e/global-teardown.ts": {
+    "bot": 10
+  },
+  "e2e/helpers.ts": {
+    "bot": 6
+  },
+  "e2e/job-scout.spec.ts": {
+    "bot": 15
+  },
+  "e2e/memory.spec.ts": {
+    "bot": 31
+  },
+  "e2e/pages.spec.ts": {
+    "bot": 42
+  },
+  "e2e/pocket-inbox.spec.ts": {
+    "bot": 15
+  },
+  "e2e/profile.spec.ts": {
+    "bot": 1
+  },
+  "e2e/teammates.spec.ts": {
+    "bot": 25
+  },
+  "e2e/teamwork.spec.ts": {
+    "bot": 5
+  },
+  "e2e/telegram-mock.ts": {
+    "bot": 12,
+    "mock (test double)": 1
+  },
+  "e2e/telegram.spec.ts": {
+    "bot": 7
+  },
+  "e2e/vault.spec.ts": {
+    "bot": 16
+  },
+  "packages/accounts/src/notion.ts": {
+    "bot": 1
+  },
+  "packages/api/src/contract.ts": {
+    "bot": 4
+  },
+  "packages/api/src/live.test.ts": {
+    "bot": 3
+  },
+  "packages/api/src/screens.ts": {
+    "bot": 5
+  },
+  "packages/api/src/views.ts": {
+    "bot": 22,
+    "primary teammate": 1
+  },
+  "packages/db/src/index.ts": {
+    "bot": 1
+  },
+  "packages/db/src/schema.ts": {
+    "bot": 151,
+    "desktop takeover": 4,
+    "primary teammate": 2
+  },
+  "packages/egress/src/ip-policy.ts": {
+    "bot": 1
+  },
+  "packages/memory/src/index.ts": {
+    "bot": 127
+  },
+  "packages/memory/src/jobs.ts": {
+    "bot": 7
+  },
+  "packages/memory/src/memory.integration.test.ts": {
+    "bot": 87
+  },
+  "packages/memory/src/memory.test.ts": {
+    "bot": 3
+  },
+  "packages/shared/src/apply-guard.test.ts": {
+    "bot": 1
+  },
+  "packages/shared/src/apply-guard.ts": {
+    "bot": 2
+  },
+  "packages/shared/src/approval-rules.ts": {
+    "bot": 1
+  },
+  "packages/shared/src/bot-management.test.ts": {
+    "bot": 23,
+    "primary teammate": 1
+  },
+  "packages/shared/src/bot-management.ts": {
+    "bot": 33
+  },
+  "packages/shared/src/bots.test.ts": {
+    "bot": 6
+  },
+  "packages/shared/src/bots.ts": {
+    "bot": 13
+  },
+  "packages/shared/src/bundle.test.ts": {
+    "bot": 3
+  },
+  "packages/shared/src/bundle.ts": {
+    "bot": 8
+  },
+  "packages/shared/src/computer.ts": {
+    "bot": 14
+  },
+  "packages/shared/src/files.ts": {
+    "bot": 1
+  },
+  "packages/shared/src/index.ts": {
+    "bot": 2
+  },
+  "packages/shared/src/memory.ts": {
+    "bot": 6
+  },
+  "packages/shared/src/pages.test.ts": {
+    "bot": 6
+  },
+  "packages/shared/src/pages.ts": {
+    "bot": 2
+  },
+  "packages/shared/src/skills.test.ts": {
+    "bot": 1
+  },
+  "packages/shared/src/skills.ts": {
+    "bot": 1
+  },
+  "packages/shared/src/status.test.ts": {
+    "bot": 18
+  },
+  "packages/shared/src/status.ts": {
+    "bot": 5
+  },
+  "packages/shared/src/templates.test.ts": {
+    "bot": 1
+  },
+  "packages/shared/src/templates.ts": {
+    "bot": 1
+  },
+  "packages/shared/src/text.test.ts": {
+    "bot": 2
+  },
+  "packages/shared/src/timeline.ts": {
+    "bot": 4
+  },
+  "packages/shared/src/triggers.test.ts": {
+    "bot": 1
+  },
+  "packages/shared/src/triggers.ts": {
+    "bot": 4
+  },
+  "playwright.config.ts": {
+    "bot": 1
+  },
+  "scripts/test/mobile-ui.mjs": {
+    "bot": 26
+  },
+  "tools/showcase/content-chats.ts": {
+    "bot": 63,
+    "desktop takeover": 2,
+    "primary teammate": 3
+  },
+  "tools/showcase/content-rest.ts": {
+    "bot": 130
+  },
+  "tools/showcase/lib.ts": {
+    "bot": 23
+  },
+  "tools/showcase/shoot.mjs": {
+    "bot": 13
+  }
+}
