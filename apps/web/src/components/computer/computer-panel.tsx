@@ -15,6 +15,7 @@ import {
   Moon,
   MousePointer2,
   Power,
+  TriangleAlert,
   Undo2,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
@@ -34,6 +35,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { dismissTakeoverRequest, handBackScreen, takeOverScreen, wakeScreen } from "@/lib/actions";
 import { queryKeys, useAppState } from "@/lib/client/queries";
+import { isComputerOnline } from "@/lib/status";
 import type { AppState, BotSummary, TakeoverRequestSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { DesktopView, type DesktopConnection, type DesktopHandle } from "./desktop-view";
@@ -73,9 +75,7 @@ export function useComputer(initial?: AppState) {
   const { data } = useAppState(initial);
   const state = data ?? initial;
   const lifecycle = state?.computer.lifecycle;
-  const online = Boolean(
-    state?.computer.workerOnline && (state.computer.online || lifecycle?.enabled),
-  );
+  const online = isComputerOnline(state);
   const screens = state?.computer.health?.screens ?? [];
   const requests = state?.takeoverRequests ?? [];
 
@@ -373,21 +373,24 @@ export function ScreenGlass({
     );
   } else if (
     lifecycle?.enabled &&
-    (lifecycle.phase === "idle" ||
-      lifecycle.phase === "waking" ||
-      lifecycle.phase === "quiescing" ||
-      lifecycle.error)
+    (lifecycle.phase === "idle" || lifecycle.phase === "waking" || lifecycle.phase === "quiescing")
   ) {
+    // While the computer is awake its screens show as usual. An error only explains why it's idle.
     const waking = lifecycle.phase === "waking";
+    const error = lifecycle.phase === "idle" ? lifecycle.error : null;
     placeholder = (
       <>
-        {waking ? (
-          <Loader2 className="mb-1 size-5 animate-spin" />
-        ) : (
-          <Moon className="mb-1 size-5" />
-        )}
+        <GlassIcon>
+          {waking ? (
+            <Loader2 className="animate-spin" />
+          ) : error ? (
+            <TriangleAlert className="text-destructive" />
+          ) : (
+            <Moon />
+          )}
+        </GlassIcon>
         <span role="status" className="text-[14px] font-medium text-bezel-foreground">
-          {lifecycle.error
+          {error
             ? "Computer error"
             : waking
               ? "Waking computer…"
@@ -395,13 +398,19 @@ export function ScreenGlass({
                 ? "Computer going idle"
                 : "Computer idle"}
         </span>
-        <span className="max-w-72 text-[12.5px]">
-          {lifecycle.error ?? "Your next task or Wake screen will start it."}
-        </span>
         {!waking && (
-          <div className="mt-2.5">
-            <WakeButton screenId={screenId} />
-          </div>
+          <>
+            {/* Three lines at most, so the Wake button stays on a phone-sized screen. */}
+            <span
+              title={error ?? undefined}
+              className="line-clamp-3 max-w-72 text-[12.5px] leading-relaxed [overflow-wrap:anywhere]"
+            >
+              {error ?? "Your next task or Wake screen will start it."}
+            </span>
+            <div className="mt-2.5">
+              <WakeButton screenId={screenId} />
+            </div>
+          </>
         )}
       </>
     );

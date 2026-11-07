@@ -143,3 +143,26 @@ it("never performs a run action cancelled while waiting for screen admission", a
   await lifecycle.quiesce("worker");
   expect(stop).toHaveBeenCalledTimes(1);
 });
+
+it("answers 409 when work blocks sleep, and 500 when stopping itself fails", async () => {
+  const { lifecycle, stop, url } = await fixture("ws://127.0.0.1:9");
+  const endpoint = new URL(url);
+  endpoint.protocol = "http:";
+  endpoint.pathname = "/lifecycle/quiesce";
+  endpoint.search = "";
+  const quiesce = () =>
+    fetch(endpoint, {
+      method: "POST",
+      headers: { authorization: "Bearer test-token", "content-type": "application/json" },
+      body: JSON.stringify({ owner: "worker" }),
+    });
+  lifecycle.lease("worker", 1);
+  const busy = await quiesce();
+  expect(busy.status).toBe(409);
+  expect(((await busy.json()) as { error: string }).error).toContain('"demand":1');
+  lifecycle.lease("worker", 0);
+  stop.mockRejectedValueOnce(new Error("Timed out waiting for bot processes to exit"));
+  expect((await quiesce()).status).toBe(500);
+  expect((await quiesce()).status).toBe(200);
+  expect(stop).toHaveBeenCalledTimes(2);
+});

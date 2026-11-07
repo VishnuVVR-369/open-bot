@@ -1,5 +1,6 @@
 import { access, chmod, chown, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { COMPUTER_PATHS, isOwnerLease, type ComputerHealth } from "@open-bot/shared";
+import { backgroundProcess, type ProcessView } from "./background";
 import { ComputeLifecycle } from "./lifecycle";
 import { CodeScreens } from "./code-screens";
 import { CookieSync } from "./cookies";
@@ -130,8 +131,7 @@ const screens: ScreenManager = new ScreenManager(
 const pagePreview = new PagePreviewServer(process.env.PAGE_LIB_DIR ?? "/opt/page-kit/lib", log);
 const pageChecker = new PageChecker(pagePreview, desktopUser, browserSandbox, log);
 
-// Record only Codex's launcher and native app-server. Other bot processes block quiesce,
-// including detached jobs reparented to tini. Failure to inspect /proc blocks sleep.
+// Every live bot process. Failure to inspect /proc blocks sleep.
 async function botProcesses(uid = botUser.uid): Promise<Set<string>> {
   const pids = new Set<string>();
   for (const pid of await readdir("/proc")) {
@@ -148,20 +148,24 @@ async function botProcesses(uid = botUser.uid): Promise<Set<string>> {
   return pids;
 }
 async function hasBackgroundProcesses(): Promise<boolean> {
-  const launcher = supervisor.pid("codex");
-  for (const pid of await botProcesses()) {
-    if (Number(pid) === launcher) continue;
-    // npm's Codex launcher has one native child. Other children (shells, MCP servers,
-    // detached downloads, jobs) are independent demand and must finish before shutdown.
-    const [status, command] = await Promise.all([
-      readFile(`/proc/${pid}/status`, "utf8").catch(() => ""),
-      readFile(`/proc/${pid}/cmdline`, "utf8").catch(() => ""),
-    ]);
-    if (!status) continue; // It exited while enumerating.
-    const args = command.split("\0");
-    const parent = Number(status.match(/^PPid:\s+(\d+)/m)?.[1]);
-    if (parent === launcher && args[0]?.endsWith("/codex") && args[1] === "app-server") continue;
-    log(`[lifecycle] background bot process ${pid}: ${args[0]?.split("/").at(-1) ?? "unknown"}`);
+  const views = await Promise.all(
+    [...(await botProcesses())].map(async (pid): Promise<ProcessView | null> => {
+      const [status, command] = await Promise.all([
+        readFile(`/proc/${pid}/status`, "utf8").catch(() => ""),
+        readFile(`/proc/${pid}/cmdline`, "utf8").catch(() => ""),
+      ]);
+      if (!status) return null; // It exited while enumerating.
+      const parent = Number(status.match(/^PPid:\s+(\d+)/m)?.[1]);
+      return { pid: Number(pid), parent, args: command.split("\0") };
+    }),
+  );
+  const work = backgroundProcess(
+    views.filter((view) => view !== null),
+    supervisor.pid("codex"),
+  );
+  if (work) {
+    const name = work.args[0]?.split("/").at(-1) || "unknown";
+    log(`[lifecycle] background bot process ${work.pid}: ${name}`);
     return true;
   }
   const infrastructure = new Set([
@@ -228,7 +232,9 @@ const lifecycle: ComputeLifecycle = new ComputeLifecycle(lifecycleEnabled, {
     await cookies.flush();
     await screens.stopAll();
     await supervisor.stop("codex");
-    if ((await botProcesses()).size) throw new Error("Bot processes still running");
+    // Stopping Codex's process group ends its code-mode host too, but the host has a group of
+    // its own, so it can still be exiting when the group stop returns.
+    await waitFor(async () => (await botProcesses()).size === 0, 5_000, "bot processes to exit");
     await cookies.persist();
   },
 });

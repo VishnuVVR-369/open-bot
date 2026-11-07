@@ -18,11 +18,13 @@ export function runIsHeldBack(nextRunAt: string, now: number, computerOnline: bo
 export const COMPUTER_OFFLINE_LINE = "Computer offline";
 
 /**
- * Whether the computer can do work right now: the worker is up and connected to it. While it
- * isn't, nothing a teammate started can move forward, so nothing should claim it is working.
+ * Whether the computer can do work right now: the worker is up, and connected to the computer or
+ * able to wake it, since a computer that sleeps while idle wakes for the next task. While it
+ * can't, nothing a teammate started can move forward, so nothing should claim it is working.
  */
 export function isComputerOnline(state: Pick<AppState, "computer"> | undefined): boolean {
-  return Boolean(state?.computer.online && state.computer.workerOnline);
+  const computer = state?.computer;
+  return Boolean(computer?.workerOnline && (computer.online || computer.lifecycle?.enabled));
 }
 
 /** What a teammate is doing, for their status light. */

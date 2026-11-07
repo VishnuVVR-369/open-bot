@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { ComputeLifecycle } from "./lifecycle";
+import { ComputeLifecycle, ComputerBusy } from "./lifecycle";
 function setup() {
   let now = 0;
   const deps = {
@@ -45,7 +45,7 @@ describe("botd compute lifecycle", () => {
     end();
     end();
     deps.busy.mockResolvedValueOnce(true);
-    await expect(lifecycle.quiesce("worker")).rejects.toThrow("active");
+    await expect(lifecycle.quiesce("worker")).rejects.toBeInstanceOf(ComputerBusy);
     lifecycle.lease("worker", 1);
     await expect(lifecycle.quiesce("worker")).rejects.toThrow("active");
     expect(deps.stop).not.toHaveBeenCalled();
@@ -57,6 +57,7 @@ describe("botd compute lifecycle", () => {
     const quiesce = lifecycle.quiesce("worker");
     expect(() => lifecycle.begin()).toThrow("stopping");
     await expect(quiesce).rejects.toThrow("child alive");
+    await expect(quiesce).rejects.not.toBeInstanceOf(ComputerBusy);
     expect(lifecycle.status.phase).toBe("awake");
   });
   it("live turns and unknown RPC outcomes survive disconnect and block stopping", async () => {

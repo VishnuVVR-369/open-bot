@@ -36,6 +36,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAppState } from "@/lib/client/queries";
+import { isComputerOnline } from "@/lib/status";
 import type { ScheduleRunView } from "@/lib/types";
 import { chatHref } from "@/lib/utils";
 
@@ -181,7 +182,7 @@ export function RowMenu({
  */
 export function useCanRun(): boolean {
   const { data: state } = useAppState();
-  return !state || Boolean(state.computer.online && state.computer.workerOnline);
+  return !state || isComputerOnline(state);
 }
 
 /** Said once at the top of Automations while nothing can run, instead of on every row. */

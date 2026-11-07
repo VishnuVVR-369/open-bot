@@ -27,7 +27,7 @@ export function screenState(screen: ScreenView): ScreenState {
 export function screenStatus(screen: ScreenView): string {
   const lifecycle = screen.lifecycle;
   if (lifecycle?.enabled) {
-    if (lifecycle.error) return "Computer error — tap Wake to retry";
+    if (lifecycle.error && lifecycle.phase === "idle") return "Computer error — tap Wake to retry";
     if (lifecycle.phase === "waking") return "Waking computer…";
     if (lifecycle.phase === "quiescing") return "Computer going idle";
     if (lifecycle.phase === "idle") return "Computer idle";
