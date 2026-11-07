@@ -138,6 +138,7 @@ jobs:
       CCACHE_MAXSIZE: 500M
     steps:
       - name: Report Android build selection
+        working-directory: ${{ github.workspace }}
         run: echo "Android checks required $ANDROID_REQUIRED"
       - uses: actions/checkout@v4
         if: ${{ env.ANDROID_REQUIRED == 'true' }}
