@@ -417,7 +417,7 @@ export class Seeder {
     events.push({ at: startedAt, payload: { type: "status", status: "running" } });
 
     const approvalsToInsert = [];
-    const artifactsToInsert = [];
+    const artifactsToInsert: InferInsertModel<typeof artifacts>[] = [];
     items.forEach((raw, index) => {
       const { dur = 2000, shot, failed, ...item } = raw;
       const last = index === items.length - 1;

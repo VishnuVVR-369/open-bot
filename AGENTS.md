@@ -33,6 +33,18 @@ This block is written and re-added by `turbo` before repository-scoped commands 
 - Treat a flaky test as a possible real race first. Sync on observable events, never sleeps or reruns.
 - Every PR check must pass, including Cloudflare. Treat any red check as a real failure.
 - Skip tests that need >10 min of waiting or physical user action. List them as untested. Batch any phone action into one ask.
+- `pnpm verify` runs lint, typecheck, unit and integration tests; integration tests start their own Postgres in Docker unless `TEST_DATABASE_URL` is set.
+
+| Changed path                               | Run                                                                                                  |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| any TS                                     | `pnpm verify:affected`                                                                               |
+| `packages/db/src/schema.ts`                | `pnpm db:generate`, review the SQL, `pnpm test:integration`                                          |
+| `packages/egress/**`                       | `pnpm --filter @open-bot/egress vectors`, then `./gradlew test` in `apps/mobile/modules/egress/core` |
+| `apps/worker/**` deps or bundling          | `pnpm --filter @open-bot/worker build && node apps/worker/dist/worker.mjs`                           |
+| `apps/pages/**`, `packages/page-kit/**`    | `pnpm --filter @open-bot/pages build && node apps/pages/dist/pages.mjs`                              |
+| `apps/mobile/**` native or `app.config.ts` | prebuild and release lint (openbot-mobile skill)                                                     |
+| `apps/botd/**`                             | openbot-computer skill checklist                                                                     |
+| UI anywhere                                | openbot-ui-review skill                                                                              |
 
 ## Workflow and scope
 
