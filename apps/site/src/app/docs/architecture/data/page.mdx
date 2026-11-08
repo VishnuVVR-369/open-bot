@@ -203,7 +203,7 @@ Here they are grouped by what they're for:
 - Timestamps are `timestamptz`.
 - Structured values (attachments, timeline payloads, approval payloads) are `jsonb` with a TypeScript type attached with `$type<>()`.
 - Deleting a teammate archives it (`bots.archived_at`). Rows that belong to it cascade or set null as each foreign key says.
-- Secrets are never stored in plain text. `encryptSecret()` in `@open-bot/domain` uses AES-256-GCM with a random 12-byte IV, and stores `iv.tag.ciphertext` in base64url.
+- Secrets are never stored in plain text. `encryptSecret()` in `@open-bot/domain/server` uses AES-256-GCM with a random 12-byte IV, and stores `iv.tag.ciphertext` in base64url.
 
 ### Migrations
 

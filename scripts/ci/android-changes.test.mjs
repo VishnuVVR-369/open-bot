@@ -41,8 +41,8 @@ test("follows transitive mobile workspace dependencies and Kotlin vectors", () =
   assert.deepEqual([...androidInputs(root)].sort(), [
     "apps/mobile",
     "packages/api",
-    "packages/egress",
     "packages/domain",
+    "packages/egress",
   ]);
 });
 

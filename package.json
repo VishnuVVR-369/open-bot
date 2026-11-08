@@ -27,7 +27,7 @@
     "test:mobile-ui": "node scripts/test/mobile-ui.mjs",
     "check:doc-paths": "node scripts/check/doc-paths.mjs",
     "check:vocabulary": "node scripts/check/vocabulary.mjs",
-    "test:scripts": "node --test scripts/check/*.test.mjs",
+    "test:scripts": "node --test scripts/check/*.test.mjs scripts/ci/*.test.mjs",
     "test:railway": "node --test .railway/watch-paths.test.ts",
     "verify": "pnpm lint && pnpm check:doc-paths && pnpm check:vocabulary && pnpm typecheck && pnpm test && pnpm test:scripts && pnpm test:railway && pnpm test:integration",
     "verify:affected": "pnpm lint && pnpm check:doc-paths && pnpm check:vocabulary && turbo run typecheck test --affected && tsc -p e2e && tsc -p .railway && pnpm test:scripts && pnpm test:railway && bash scripts/test/integration.sh --affected"
