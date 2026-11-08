@@ -6,8 +6,11 @@ import type { Contract } from "./contract";
 export type ApiClient = ContractRouterClient<Contract>;
 
 export interface ApiClientOptions {
-  /** Where the app is, like `https://openbot.up.railway.app`. */
-  appUrl: string;
+  /**
+   * Where the app is, like `https://openbot.up.railway.app`, or a function that says, for a
+   * browser that only knows once it runs (`() => location.origin`).
+   */
+  appUrl: string | (() => string);
   /** Headers for every request, such as the session cookie. Called per request. */
   headers?: () => Record<string, string> | Promise<Record<string, string>>;
   /** A fetch to use instead of the global one. */
@@ -18,7 +21,10 @@ export interface ApiClientOptions {
 export function createApiClient(options: ApiClientOptions): ApiClient {
   const custom = options.fetch;
   const link = new RPCLink({
-    url: `${options.appUrl.replace(/\/+$/, "")}/api/rpc`,
+    url: () => {
+      const appUrl = typeof options.appUrl === "string" ? options.appUrl : options.appUrl();
+      return `${appUrl.replace(/\/+$/, "")}/api/rpc`;
+    },
     headers: async () => (options.headers ? await options.headers() : {}),
     ...(custom ? { fetch: (request: Request, init: RequestInit) => custom(request, init) } : {}),
   });

@@ -1,6 +1,6 @@
 import pg from "pg";
 import { expect, test, type Page } from "./fixtures";
-import { createTeammate, sendMessage, uniqueName, waitForLastRun } from "./helpers";
+import { apiFor, createTeammate, sendMessage, uniqueName, waitForLastRun } from "./helpers";
 import { ordersService } from "./mcp-stand-in";
 
 const pool = new pg.Pool({
@@ -43,7 +43,7 @@ test("connect a service through MCP and see its tools", async ({ page }) => {
     expect(service.seen.authorization).toContain("Bearer orders-token-123");
 
     // The token never comes back to the browser, and an edit keeps it.
-    const listed = await (await page.request.get("/api/connections")).text();
+    const listed = JSON.stringify(await apiFor(page).connections.list());
     expect(listed).not.toContain("orders-token-123");
     expect(listed).toContain("Authorization");
     service.seen.authorization.length = 0;

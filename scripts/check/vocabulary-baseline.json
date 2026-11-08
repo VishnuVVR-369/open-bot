@@ -199,11 +199,11 @@
     "bot": 1
   },
   "apps/web/src/app/(app)/bots/[botId]/page.tsx": {
-    "bot": 92,
+    "bot": 76,
     "primary teammate": 2
   },
   "apps/web/src/app/(app)/bots/new/page.tsx": {
-    "bot": 12
+    "bot": 5
   },
   "apps/web/src/app/(auth)/layout.tsx": {
     "bot": 7
@@ -211,17 +211,11 @@
   "apps/web/src/app/api/bots/[botId]/export/route.ts": {
     "bot": 19
   },
-  "apps/web/src/app/api/bots/[botId]/lessons/route.ts": {
-    "bot": 5
-  },
-  "apps/web/src/app/api/bots/[botId]/spending/route.ts": {
-    "bot": 5
-  },
   "apps/web/src/app/api/inbound/email/[token]/route.ts": {
     "bot": 1
   },
   "apps/web/src/app/api/memory/route.ts": {
-    "bot": 9
+    "bot": 8
   },
   "apps/web/src/app/api/stream/route.ts": {
     "bot": 1
@@ -331,7 +325,7 @@
     "primary teammate": 1
   },
   "apps/web/src/components/memory/memory-manager.tsx": {
-    "bot": 13
+    "bot": 14
   },
   "apps/web/src/components/pages/page-viewer.tsx": {
     "bot": 30
@@ -376,11 +370,11 @@
     "bot": 26
   },
   "apps/web/src/lib/actions.ts": {
-    "bot": 127,
+    "bot": 121,
     "primary teammate": 6
   },
   "apps/web/src/lib/client/queries.ts": {
-    "bot": 12
+    "bot": 4
   },
   "apps/web/src/lib/files.test.ts": {
     "bot": 2
@@ -394,14 +388,17 @@
   "apps/web/src/lib/server/api/chats.ts": {
     "bot": 18
   },
-  "apps/web/src/lib/server/api/home.ts": {
+  "apps/web/src/lib/server/api/memory.ts": {
     "bot": 7
   },
   "apps/web/src/lib/server/api/pages.ts": {
     "bot": 8
   },
+  "apps/web/src/lib/server/api/router.integration.test.ts": {
+    "bot": 23
+  },
   "apps/web/src/lib/server/api/router.ts": {
-    "bot": 2
+    "bot": 4
   },
   "apps/web/src/lib/server/api/runs.ts": {
     "bot": 12
@@ -411,7 +408,7 @@
     "desktop takeover": 3
   },
   "apps/web/src/lib/server/queries.ts": {
-    "bot": 147,
+    "bot": 159,
     "desktop takeover": 17,
     "primary teammate": 2
   },
@@ -428,7 +425,7 @@
     "bot": 12
   },
   "apps/web/src/lib/types.ts": {
-    "bot": 21
+    "bot": 1
   },
   "apps/worker/scripts/computer-sleep-smoke.ts": {
     "bot": 25
@@ -609,7 +606,7 @@
     "bot": 24
   },
   "e2e/auth.setup.ts": {
-    "bot": 5
+    "bot": 4
   },
   "e2e/automations.spec.ts": {
     "bot": 4
@@ -618,22 +615,22 @@
     "bot": 1
   },
   "e2e/check-ins.spec.ts": {
-    "bot": 18
+    "bot": 16
   },
   "e2e/computer.spec.ts": {
     "bot": 13
   },
   "e2e/email.spec.ts": {
-    "bot": 10
+    "bot": 9
   },
   "e2e/feedback.spec.ts": {
-    "bot": 15
+    "bot": 14
   },
   "e2e/global-teardown.ts": {
     "bot": 10
   },
   "e2e/helpers.ts": {
-    "bot": 6
+    "bot": 5
   },
   "e2e/job-scout.spec.ts": {
     "bot": 15
@@ -642,7 +639,7 @@
     "bot": 31
   },
   "e2e/pages.spec.ts": {
-    "bot": 42
+    "bot": 41
   },
   "e2e/pocket-inbox.spec.ts": {
     "bot": 15
@@ -669,8 +666,20 @@
   "packages/accounts/src/notion.ts": {
     "bot": 1
   },
-  "packages/api/src/contract.ts": {
+  "packages/api/src/automations.ts": {
     "bot": 4
+  },
+  "packages/api/src/contract.ts": {
+    "bot": 7
+  },
+  "packages/api/src/events.ts": {
+    "bot": 1
+  },
+  "packages/api/src/home.ts": {
+    "bot": 4
+  },
+  "packages/api/src/integrations.ts": {
+    "bot": 2
   },
   "packages/api/src/live.test.ts": {
     "bot": 3
@@ -678,15 +687,27 @@
   "packages/api/src/screens.ts": {
     "bot": 3
   },
+  "packages/api/src/settings.ts": {
+    "bot": 2
+  },
+  "packages/api/src/skills.ts": {
+    "bot": 3
+  },
+  "packages/api/src/tasks.ts": {
+    "bot": 3
+  },
+  "packages/api/src/teammates.ts": {
+    "bot": 1
+  },
+  "packages/api/src/vault.ts": {
+    "bot": 1
+  },
   "packages/api/src/views.ts": {
-    "bot": 22,
+    "bot": 21,
     "primary teammate": 1
   },
   "packages/api/src/worker/contract.ts": {
     "bot": 14
-  },
-  "packages/db/src/index.ts": {
-    "bot": 1
   },
   "packages/db/src/schema.ts": {
     "bot": 151,
@@ -719,6 +740,9 @@
   },
   "packages/domain/src/computer/protocol.ts": {
     "bot": 4
+  },
+  "packages/domain/src/events/app-events.ts": {
+    "bot": 1
   },
   "packages/domain/src/memory/memory.ts": {
     "bot": 6

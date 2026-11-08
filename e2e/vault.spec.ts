@@ -1,7 +1,14 @@
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { expect, test, type Page } from "./fixtures";
-import { botIdOf, createTeammate, sendMessage, uniqueName, waitForLastRun } from "./helpers";
+import {
+  apiFor,
+  botIdOf,
+  createTeammate,
+  sendMessage,
+  uniqueName,
+  waitForLastRun,
+} from "./helpers";
 
 const botd = process.env.BOTD_URL ?? "http://127.0.0.1:7070";
 const botdToken = process.env.BOTD_TOKEN ?? "dev-botd-token-change-me";
@@ -64,7 +71,7 @@ test("keep logins and cards in the vault without showing them again", async ({ p
   await expect(cardRow).toContainText("Visa •••• 4242");
 
   // Nothing secret comes back to the browser.
-  const listed = await (await page.request.get("/api/vault")).text();
+  const listed = JSON.stringify(await apiFor(page).vault.list());
   expect(listed).not.toContain(password);
   expect(listed).not.toContain("4242424242424242");
 
@@ -273,9 +280,8 @@ test("@agent a teammate signs in and pays from the vault without seeing either",
     );
 
     // Neither secret went through the teammate: nothing it saw or said contains them.
-    const chat = await (
-      await page.request.get(page.url().replace(/\/chats\//, "/api/chats/"))
-    ).text();
+    const chatId = new URL(page.url()).pathname.split("/").pop()!;
+    const chat = JSON.stringify(await apiFor(page).chats.get({ chatId }));
     expect(chat).not.toContain(account.password);
     expect(chat).not.toContain(card);
     expect(chat).not.toContain("5555 5555 5555 4444");

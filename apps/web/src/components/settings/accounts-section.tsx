@@ -68,7 +68,8 @@ import {
   setConnectionEnabled,
   startAccountConnect,
 } from "@/lib/actions";
-import { queryKeys, useAccountsSetup, useAppState } from "@/lib/client/queries";
+import { useAccountsSetup, useAppState } from "@/lib/client/queries";
+import { refreshForAppEvent } from "@/lib/client/refresh";
 import type {
   AccountsSetupView,
   ConnectionTestView,
@@ -105,7 +106,7 @@ function canSummary(kind: AccountConnectionKind, capabilities: AccountCapability
 
 function useRefresh() {
   const queryClient = useQueryClient();
-  return () => queryClient.invalidateQueries({ queryKey: queryKeys.connections });
+  return () => refreshForAppEvent(queryClient, { type: "connections" });
 }
 
 /** Go to the provider's sign-in page. */

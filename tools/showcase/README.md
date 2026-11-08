@@ -116,7 +116,7 @@ It prints console errors and 5xx responses for each page.
 
 These need the worker or the computer container, which the showcase does not start:
 
-- Computer and Files pages show "The worker isn't running", and `/api/files/list` answers 503.
+- Computer and Files pages show "The worker isn't running", and the `files.list` procedure answers 503.
 - Settings: the Telegram and push sections call the worker and answer 503, so the Next.js dev overlay shows a red issue badge at the bottom left.
 - Live desktop streams in the screen panel. Screenshots in runs are rendered by `assets.mjs` and are mock pages, not real browsing.
 - Anything that changes over time without the worker, such as the running Scout run, which stays "Working" and counts up.

@@ -13,7 +13,8 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { setBudget } from "@/lib/actions";
-import { queryKeys, useSpending, useVault } from "@/lib/client/queries";
+import { useSpending, useVault } from "@/lib/client/queries";
+import { orpc } from "@/lib/client/rpc";
 import type { PurchaseView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -107,7 +108,9 @@ export function Spending({ botId, name }: { botId: string; name: string }) {
         return;
       }
       toast(enabled ? "Budget saved" : `${name} can't pay for things now`);
-      await queryClient.invalidateQueries({ queryKey: queryKeys.spending(botId) });
+      await queryClient.invalidateQueries({
+        queryKey: orpc.teammates.spending.key({ input: { botId } }),
+      });
     });
   }
 

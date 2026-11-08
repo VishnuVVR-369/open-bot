@@ -61,6 +61,13 @@ export const workerStatusSchema = z.object({
 });
 export type WorkerStatus = z.infer<typeof workerStatusSchema>;
 
+/** The key browsers subscribe to web push with, and the browsers subscribed. */
+export const pushStatusSchema = z.object({
+  publicKey: z.string(),
+  devices: z.array(z.object({ endpoint: z.string(), device: z.string(), createdAt: z.string() })),
+});
+export type PushStatus = z.infer<typeof pushStatusSchema>;
+
 /** The Telegram connection and the account linked to it. */
 export const telegramStatusSchema = z.object({
   connected: z.boolean(),

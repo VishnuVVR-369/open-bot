@@ -29,6 +29,6 @@ export async function markNotificationsRead({
         upTo,
       ),
     );
-  await publish("notification");
+  await publish({ type: "notification" });
   return { ok: true as const };
 }

@@ -35,7 +35,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { createSchedule, updateSchedule } from "@/lib/actions";
-import { queryKeys, useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/lib/client/queries";
+import { orpc } from "@/lib/client/rpc";
 import type { ScheduleView } from "@/lib/types";
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -135,7 +136,7 @@ export function ScheduleDialog({
         description: kind === "cron" ? (summary ?? cron) : "It runs once at the time you picked.",
       });
       setOpen(false);
-      await queryClient.invalidateQueries({ queryKey: queryKeys.schedules });
+      await queryClient.invalidateQueries({ queryKey: orpc.schedules.key() });
     });
   }
 

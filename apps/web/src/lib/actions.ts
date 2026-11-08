@@ -22,7 +22,6 @@ import {
   isValidTimeZone,
   MAX_UPLOAD_BYTES,
   MAX_UPLOAD_LABEL,
-  BOT_COLORS,
   botProfileSchema,
   DAILY_CHECK_IN,
   slugify,
@@ -71,7 +70,7 @@ import {
   startAuthorization,
   updateAccountConnection,
 } from "./server/accounts";
-import { emailSettingsRow } from "./server/queries";
+import { emailSettingsRow, nextTeammateColor } from "./server/queries";
 import { insertTeammateParts, teammateParts } from "./server/teammates";
 import { worker } from "./server/worker";
 import type { MessageView } from "./types";
@@ -237,10 +236,10 @@ export async function duplicateBot(botId: string, input: { name: string; copyMem
       }
     }
     await Promise.all([
-      publish("bots"),
-      publish("skills"),
-      publish("schedules"),
-      publish("triggers"),
+      publish({ type: "bots" }),
+      publish({ type: "skills" }),
+      publish({ type: "schedules" }),
+      publish({ type: "triggers" }),
     ]);
     return { ...created, memoryCopied };
   });
@@ -268,13 +267,7 @@ export async function importTeammate(file: string) {
       );
     }
     const { teammate, ...parts } = parsed.data;
-    const used = new Set(
-      (await db.select({ color: bots.color }).from(bots).where(isNull(bots.archivedAt))).map(
-        (row) => row.color,
-      ),
-    );
-    const color =
-      teammate.color ?? BOT_COLORS.find((candidate) => !used.has(candidate)) ?? BOT_COLORS[0]!;
+    const color = teammate.color ?? (await nextTeammateColor());
     const slug = await uniqueSlug(teammate.name);
     const timezone = await userTimeZone();
     const existing = await db.select({ id: bots.id }).from(bots).where(isNull(bots.archivedAt));
@@ -302,11 +295,11 @@ export async function importTeammate(file: string) {
     });
     await syncBot(created.botId);
     await Promise.all([
-      publish("bots"),
-      publish("skills"),
-      publish("schedules"),
-      publish("triggers"),
-      publish("lessons"),
+      publish({ type: "bots" }),
+      publish({ type: "skills" }),
+      publish({ type: "schedules" }),
+      publish({ type: "triggers" }),
+      publish({ type: "lessons" }),
     ]);
     return {
       ...created,
@@ -320,7 +313,7 @@ export async function setPrimaryBot(botId: string) {
   return guarded(async () => {
     await db.update(bots).set({ isPrimary: false }).where(ne(bots.id, botId));
     await db.update(bots).set({ isPrimary: true }).where(eq(bots.id, botId));
-    await publish("bots");
+    await publish({ type: "bots" });
   });
 }
 
@@ -346,7 +339,7 @@ export async function archiveBot(botId: string) {
     await notify(pool, CHANNELS.worker, "cancel");
     // Their screen stops and its browser history goes; sign-ins stay shared with the other screens.
     await worker.screens.forget({ screenId: botId }).catch(() => {});
-    await publish("bots");
+    await publish({ type: "bots" });
   });
 }
 
@@ -524,7 +517,7 @@ export async function acceptProposal(proposalId: string) {
       return proposal.botId;
     });
     await syncBot(botId);
-    await publish("bots");
+    await publish({ type: "bots" });
   });
 }
 
@@ -539,7 +532,7 @@ export async function dismissProposal(proposalId: string) {
           eq(instructionProposals.status, "pending"),
         ),
       );
-    await publish("bots");
+    await publish({ type: "bots" });
   });
 }
 
@@ -677,14 +670,14 @@ export async function saveVaultItem(input: z.input<typeof vaultInput>) {
     };
     if (existing) await db.update(vaultItems).set(values).where(eq(vaultItems.id, existing.id));
     else await db.insert(vaultItems).values(values);
-    await publish("vault");
+    await publish({ type: "vault" });
   });
 }
 
 export async function deleteVaultItem(id: string) {
   return guarded(async () => {
     await db.delete(vaultItems).where(eq(vaultItems.id, z.string().uuid().parse(id)));
-    await publish("vault");
+    await publish({ type: "vault" });
   });
 }
 
@@ -706,7 +699,7 @@ export async function setBudget(
       .update(bots)
       .set({ monthlyBudgetCents: budgetCents, autoApproveCents })
       .where(eq(bots.id, z.string().uuid().parse(botId)));
-    await publish("purchases");
+    await publish({ type: "purchases" });
   });
 }
 
@@ -735,7 +728,7 @@ export async function saveEmailSettings(input: { domain: string; token: string }
           set: { encrypted, hint: secretHint(token) },
         });
     }
-    await publish("email");
+    await publish({ type: "email" });
     // Teammates learn their address in their instructions.
     for (const bot of await db.select({ id: bots.id }).from(bots).where(isNull(bots.archivedAt)))
       await syncBot(bot.id).catch(() => {});
@@ -745,7 +738,7 @@ export async function saveEmailSettings(input: { domain: string; token: string }
 export async function removeEmailToken() {
   return guarded(async () => {
     await db.delete(credentials).where(eq(credentials.kind, "postmark_token"));
-    await publish("email");
+    await publish({ type: "email" });
   });
 }
 
@@ -810,7 +803,7 @@ export async function saveConnection(input: z.input<typeof connectionInput>) {
     const [row] = existing
       ? await db.update(connections).set(values).where(eq(connections.id, existing.id)).returning()
       : await db.insert(connections).values(values).returning();
-    await publish("connections");
+    await publish({ type: "connections" });
     return { id: row!.id };
   });
 }
@@ -840,7 +833,7 @@ export async function setConnectionEnabled(id: string, enabled: boolean) {
     if (!row) throw new Error("That connection is gone.");
     if (row.kind !== "mcp") return setAccountConnectionEnabled(id, enabled);
     await db.update(connections).set({ enabled }).where(eq(connections.id, id));
-    await publish("connections");
+    await publish({ type: "connections" });
   });
 }
 
@@ -857,7 +850,7 @@ export async function deleteConnection(id: string) {
     if (!row) return { warning: null };
     if (row.kind !== "mcp") return removeAccountConnection(id);
     await db.delete(connections).where(eq(connections.id, id));
-    await publish("connections");
+    await publish({ type: "connections" });
     return { warning: null };
   });
 }
@@ -968,7 +961,7 @@ export async function setScheduleEnabled(scheduleId: string, enabled: boolean) {
 export async function deleteSchedule(scheduleId: string) {
   return guarded(async () => {
     await db.delete(schedules).where(eq(schedules.id, scheduleId));
-    await publish("schedules");
+    await publish({ type: "schedules" });
   });
 }
 
@@ -1189,14 +1182,14 @@ export async function saveApiKey(apiKey: string) {
       .insert(credentials)
       .values({ kind: "openai_api_key", encrypted, hint: secretHint(key) })
       .onConflictDoUpdate({ target: credentials.kind, set: { encrypted, hint: secretHint(key) } });
-    await publish("auth");
+    await publish({ type: "auth" });
   });
 }
 
 export async function removeApiKey() {
   return guarded(async () => {
     await db.delete(credentials).where(eq(credentials.kind, "openai_api_key"));
-    await publish("auth");
+    await publish({ type: "auth" });
   });
 }
 
@@ -1207,7 +1200,7 @@ export async function setMonthlyCap(dollars: number) {
       .update(settings)
       .set({ monthlyCapMicros: Math.round(value * 1_000_000) })
       .where(eq(settings.id, 1));
-    await publish("auth");
+    await publish({ type: "auth" });
   });
 }
 

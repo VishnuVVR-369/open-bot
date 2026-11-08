@@ -25,6 +25,7 @@ import {
   codexStatusSchema,
   connectionTestSchema,
   fileListingSchema,
+  pushStatusSchema,
   telegramStatusSchema,
   triggerCheckSchema,
   workerStatusSchema,
@@ -292,14 +293,7 @@ export const workerContract = {
   },
   push: {
     /** The key browsers subscribe with, and the browsers subscribed. */
-    status: base.route({ method: "GET", path: "/internal/push" }).output(
-      z.object({
-        publicKey: z.string(),
-        devices: z.array(
-          z.object({ endpoint: z.string(), device: z.string(), createdAt: z.string() }),
-        ),
-      }),
-    ),
+    status: base.route({ method: "GET", path: "/internal/push" }).output(pushStatusSchema),
     subscribe: base
       .route({ method: "POST", path: "/internal/push/subscribe" })
       .input(

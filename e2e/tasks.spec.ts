@@ -1,12 +1,9 @@
 import { expect, test, type Page } from "./fixtures";
-import { createTeammate, uniqueName, waitForLastRun, worker } from "./helpers";
+import { apiFor, createTeammate, uniqueName, waitForLastRun, worker } from "./helpers";
 
 /** Deletes the board's tasks whose titles contain `marker`, so tests leave the board as it was. */
 async function removeTasks(page: Page, marker: string) {
-  const tasks = (await (await page.request.get("/api/tasks")).json()) as {
-    id: string;
-    title: string;
-  }[];
+  const tasks = await apiFor(page).tasks.list();
   for (const task of tasks.filter((entry) => entry.title.includes(marker)))
     await worker.tasks.remove({ taskId: task.id });
 }

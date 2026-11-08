@@ -81,7 +81,7 @@ describe("runIsHeldBack", () => {
 describe("isComputerOnline", () => {
   it("needs both the worker and the computer", () => {
     const state = (workerOnline: boolean, online: boolean) => ({
-      computer: { workerOnline, online, health: null, egress: {} as never },
+      computer: { workerOnline, online, lifecycle: null, health: null, egress: {} as never },
     });
     expect(isComputerOnline(state(true, true))).toBe(true);
     expect(isComputerOnline(state(true, false))).toBe(false);

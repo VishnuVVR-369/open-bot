@@ -19,7 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { saveVaultItem } from "@/lib/actions";
-import { queryKeys } from "@/lib/client/queries";
+import { orpc } from "@/lib/client/rpc";
 import type { VaultItemView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -169,7 +169,7 @@ export function VaultDialog({
         description: "Teammates fill it in on the computer without seeing it.",
       });
       setOpen(false);
-      await queryClient.invalidateQueries({ queryKey: queryKeys.vault });
+      await queryClient.invalidateQueries({ queryKey: orpc.vault.key() });
     });
   }
 

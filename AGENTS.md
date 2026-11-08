@@ -23,7 +23,7 @@ For a deployed service it must also be added to that service's list in `.railway
 
 | Folder              | Owns                                                                          | Entry                            | Test                                    |
 | ------------------- | ----------------------------------------------------------------------------- | -------------------------------- | --------------------------------------- |
-| `apps/web`          | Next.js app: UI, server actions, read routes, SSE stream, oRPC for mobile     | `apps/web/src/app`               | `pnpm --filter @open-bot/web test`      |
+| `apps/web`          | Next.js app: UI, server actions, the oRPC API for browser and mobile, SSE     | `apps/web/src/app`               | `pnpm --filter @open-bot/web test`      |
 | `apps/worker`       | Runs teammates: run queue, tools, services, internal HTTP API, egress relay   | `apps/worker/src/index.ts`       | `pnpm --filter @open-bot/worker test`   |
 | `apps/botd`         | Daemon inside the computer: screens, Chromium, VNC, Codex proxy, leases       | `apps/botd/src/index.ts`         | `pnpm --filter @open-bot/botd test`     |
 | `apps/pages`        | Serves published pages on their own origin                                    | `apps/pages/src/index.ts`        | `pnpm --filter @open-bot/pages test`    |
@@ -138,7 +138,8 @@ Paths are relative to the repo root; symbols are in parentheses.
 **Add a web screen**
 
 1. `apps/web/src/app/(app)/<route>/page.tsx` (thin, wraps `<Page>`), and a `"use client"` view in `apps/web/src/components/<area>/`.
-2. A read in `apps/web/src/lib/server/queries.ts`, a GET route in `apps/web/src/app/api/<route>/route.ts` wrapped in `authed()`, and a hook in `apps/web/src/lib/client/queries.ts`.
+2. A read in `apps/web/src/lib/server/queries.ts`, a procedure in `packages/api/src/contract.ts` with its view schema, its handler in `apps/web/src/lib/server/api/router.ts`, and a hook in `apps/web/src/lib/client/queries.ts` (`orpc.<path>.queryOptions()`).
+   Say which app events refresh it in `APP_EVENT_REFRESHES` (`packages/api/src/events.ts`).
 3. Nav: `apps/web/src/components/app/sidebar.tsx` and `apps/web/src/components/app/command-menu.tsx`.
 
 **Add a mobile screen**
@@ -149,10 +150,12 @@ Paths are relative to the repo root; symbols are in parentheses.
 
 **Add a realtime event** (UI refresh after a change)
 
-1. Add the type to `AppEvent` in `packages/db/src/index.ts`.
-2. Publish with `publishApp(ctx, { type })` in the worker or `publish(type)` (`apps/web/src/lib/server/publish.ts`, untyped) in web.
-3. Invalidate: `apps/web/src/lib/client/realtime.tsx` (web) and `keysForAppEvent` in `apps/mobile/src/lib/query.ts` (mobile).
-4. Run timeline events are a different path: `RunEventWriter` or `appendRunEvent()`, reduced by `applyRunEvent` in `packages/domain/src/timeline/timeline.ts`.
+1. Add the type to `APP_EVENT_TYPES` in `packages/domain/src/events/app-events.ts`.
+2. Say which procedures it refreshes in `APP_EVENT_REFRESHES` (`packages/api/src/events.ts`); it won't compile until you do.
+   The web app applies it as is.
+3. Publish with `publishApp(ctx, { type })` in the worker or `publish({ type })` (`apps/web/src/lib/server/publish.ts`) in web.
+4. Mobile still has its own keys: add the type to `keysForAppEvent` in `apps/mobile/src/lib/query.ts`.
+5. Run timeline events are a different path: `RunEventWriter` or `appendRunEvent()`, reduced by `applyRunEvent` in `packages/domain/src/timeline/timeline.ts`.
 
 ## Verification
 

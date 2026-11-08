@@ -3,10 +3,9 @@
 import { applyLiveEvent, endsRun, liveChatFromSnapshot, type LiveChat } from "@open-bot/api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getJson } from "@/lib/client/api";
-import { queryKeys } from "@/lib/client/queries";
+import { orpc } from "@/lib/client/rpc";
 import { setVisibleChat, useRealtime } from "@/lib/client/realtime";
-import type { ChatData, ChatEntry, MessageView, StreamRunEvent } from "@/lib/types";
+import type { ChatEntry, MessageView, StreamRunEvent } from "@/lib/types";
 
 type ChatState = LiveChat;
 
@@ -16,10 +15,7 @@ const BUFFER = 2_000;
 export function useChat(chatId: string) {
   const queryClient = useQueryClient();
   const { watchChat } = useRealtime();
-  const query = useQuery({
-    queryKey: queryKeys.chat(chatId),
-    queryFn: () => getJson<ChatData>(`/api/chats/${chatId}`),
-  });
+  const query = useQuery(orpc.chats.get.queryOptions({ input: { chatId } }));
   const [state, setState] = useState<ChatState | null>(null);
   const [optimistic, setOptimistic] = useState<MessageView[]>([]);
   const buffer = useRef<StreamRunEvent[]>([]);
@@ -29,7 +25,7 @@ export function useChat(chatId: string) {
     if (refetchTimer.current) return;
     refetchTimer.current = setTimeout(() => {
       refetchTimer.current = null;
-      void queryClient.invalidateQueries({ queryKey: queryKeys.chat(chatId) });
+      void queryClient.invalidateQueries({ queryKey: orpc.chats.get.key({ input: { chatId } }) });
     }, 150);
   }, [chatId, queryClient]);
 

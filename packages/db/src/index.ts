@@ -25,7 +25,7 @@ export function createDb(pool: pg.Pool): Db {
 /**
  * Postgres NOTIFY channels.
  * - `chat`: payload is a chat id; something in that chat changed (events, messages, runs).
- * - `app`: payload is JSON `AppEvent`; something app-wide changed.
+ * - `app`: payload is JSON `AppEvent` (`@open-bot/domain`); something app-wide changed.
  * - `worker`: payload is a `WorkerSignal`; wakes the worker.
  */
 export const CHANNELS = {
@@ -33,29 +33,6 @@ export const CHANNELS = {
   app: "openbot_app",
   worker: "openbot_worker",
 } as const;
-
-export type AppEvent =
-  | { type: "memory" }
-  | { type: "lease" }
-  | { type: "computer" }
-  | { type: "notification"; id: string }
-  | { type: "approvals" }
-  | { type: "takeovers" }
-  | { type: "bots" }
-  | { type: "chats" }
-  | { type: "schedules" }
-  | { type: "triggers" }
-  | { type: "profile" }
-  | { type: "lessons" }
-  | { type: "tasks" }
-  | { type: "telegram" }
-  | { type: "skills" }
-  | { type: "vault" }
-  | { type: "connections" }
-  | { type: "email" }
-  | { type: "purchases" }
-  | { type: "pages" }
-  | { type: "auth" };
 
 export type WorkerSignal = "runs" | "schedules" | "triggers" | "cancel" | "accounts";
 

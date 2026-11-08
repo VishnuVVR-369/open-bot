@@ -18,41 +18,49 @@ This page lists them, so you can find where any request is handled.
 | `POST /api/inbound/email/:token`         | The token   | Postmark's inbound email webhook                                        |
 | `/api/auth/*`                            | Better Auth | Sign-in, sign-up (owner only), passkeys, sessions                       |
 
-### Read routes
+### The API
 
-The remaining routes need the owner's session.
-These read routes back the web client's TanStack Query cache; the stream sends SSE and file routes can return bytes:
+The browser and the Android app read through one typed API, the oRPC contract in `packages/api/src/contract.ts`, served at `/api/rpc/*` by `apps/web/src/lib/server/api/router.ts`.
+Its procedures, inputs, outputs and errors are the authoritative reference; the view schemas sit next to it in `packages/api/src` (`views.ts`, `home.ts`, `automations.ts`, ...).
+Every procedure needs the owner's session, and browsers may only call it from the app's own pages.
+The server validates every output against its schema, so a query that drifts from its view fails loudly instead of handing the client the wrong shape.
 
-| Path                                                                            | Returns                                                                       |
-| ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `GET /api/state`                                                                | The app shell's state: teammates, chats, the computer, sign-in status, counts |
-| `GET /api/stream?chat=&after=`                                                  | Server-sent events (see [Web app](/docs/architecture/web-app#live-updates))   |
-| `GET /api/chats/:chatId`                                                        | A chat's messages and runs, with its event cursor                             |
-| `GET /api/runs/:runId`                                                          | One run with its timeline                                                     |
-| `GET /api/artifacts/:id`                                                        | A screenshot or upload                                                        |
-| `GET /api/activity`, `/api/briefing`                                            | Home's activity and "While you were away"                                     |
-| `GET /api/approvals`, `/api/notifications`                                      | The inbox and notifications                                                   |
-| `GET /api/schedules`, `/api/schedules/:id/runs`                                 | Schedules and their recent runs                                               |
-| `GET /api/triggers`, `/api/triggers/:id/runs`                                   | Watches and webhooks, and their recent runs                                   |
-| `GET /api/tasks`, `/api/skills`, `/api/vault`, `/api/connections`, `/api/email` | Each page's data                                                              |
-| `GET /api/bots/:id/lessons`, `/api/bots/:id/spending`, `/api/bots/:id/export`   | A teammate's lessons, spending, and an export file                            |
-| `GET /api/memory`                                                               | Memory items, history and export                                              |
-| `GET /api/profile`, `/api/usage`, `/api/model-access`, `/api/rate-limits`       | About you, usage, plan or key, and plan limits                                |
-| `GET /api/telegram`, `/api/push`                                                | Telegram and push status                                                      |
-| `GET /api/search?q=`                                                            | ⌘K search across teammates, chats and messages                                |
-| `GET /api/search/pages?q=`                                                      | ⌘K search across pages' titles, summaries and text                            |
-| `GET /api/pages`, `/api/pages/:id`                                              | The page library, and one page with its versions                              |
-| `GET /api/pages/versions/:id/link?theme=&ask=1`                                 | A 10-minute signed link to a version, on the pages service                    |
-| `GET /api/pages/versions/:id/thumbnail`, `/download`                            | A version's thumbnail, and its HTML as a download                             |
-| `GET /api/files/list`, `/api/files/download`                                    | The computer's files under `/home/bot`                                        |
-| `GET /api/desktop/token`                                                        | A 60-second VNC token and the worker's websocket URL                          |
-| `GET /api/desktop/egress-token`                                                 | A 120-second egress token and URL, for the desktop app                        |
+| Namespace                                          | Reads                                                                      |
+| -------------------------------------------------- | -------------------------------------------------------------------------- |
+| `app.state`                                        | The web app shell's state: teammates, chats, skills, the computer, badges  |
+| `home.get`                                         | What needs you, recent work, and what finished since you were last here    |
+| `chats`, `teammates`, `approvals`, `notifications` | Chats and their messages, teammates' lessons and spending, the inbox       |
+| `schedules`, `triggers`                            | Automations and their recent runs                                          |
+| `tasks`, `skills`, `vault`, `memory`, `profile`    | Each page's data; memory with its history and what a reply was given       |
+| `connections`, `accounts`, `email`, `telegram`     | Integrations, and how to set them up                                       |
+| `push`, `settings`                                 | Push status, usage, the API key fallback, plan limits                      |
+| `pages`, `search`, `files`, `screens`              | The page library, ⌘K search, the computer's files, screens and last frames |
 
-### Writes and the phone API
+`files.list`, `telegram.status`, `push.status` and `settings.rateLimits` ask the worker, and fail with status 503 while it can't be reached, which the browser shows as offline.
 
-The browser uses server actions in `apps/web/src/lib/actions.ts`.
-The Android app calls the authenticated RPC handler at `/api/rpc/*`, including `pages.list`, `pages.get`, `pages.open`, `pages.pin` and `pages.remove`; its authoritative procedures, inputs, outputs and errors are the schemas in `packages/api/src/contract.ts` and `views.ts`.
-Both entry points use services in `apps/web/src/lib/server/api/`.
+### Files, streams and tokens
+
+The remaining routes need the owner's session too.
+They stay plain HTTP because they stream or return bytes:
+
+| Path                                                 | Returns                                                                     |
+| ---------------------------------------------------- | --------------------------------------------------------------------------- |
+| `GET /api/stream?chat=&after=`                       | Server-sent events (see [Web app](/docs/architecture/web-app#live-updates)) |
+| `GET /api/artifacts/:id`                             | A screenshot or upload                                                      |
+| `GET /api/bots/:id/export`                           | A teammate as an export file                                                |
+| `GET /api/memory?botId=`                             | Memory as a Markdown file                                                   |
+| `GET /api/pages/versions/:id/thumbnail`, `/download` | A version's thumbnail, and its HTML as a download                           |
+| `GET /api/files/download`                            | A file from the computer under `/home/bot`                                  |
+| `GET /api/desktop/token`                             | A 60-second VNC token and the worker's websocket URL                        |
+| `GET /api/desktop/egress-token`                      | A 120-second egress token and URL, for the desktop app                      |
+
+The JSON reads these procedures replaced, such as `GET /api/state`, answer 401 until 2026-12-01 (`apps/web/src/lib/retired-routes.ts`).
+A tab still running code from before sends itself to sign in on a 401, which takes a signed-in owner home on current code.
+
+### Writes
+
+The browser writes with server actions in `apps/web/src/lib/actions.ts`; the Android app writes through the API.
+Both use the services in `apps/web/src/lib/server/api/`.
 
 `PUT /api/uploads/:uploadId` accepts raw attachment bytes with the owner's session and an allowed origin (or no Origin header for native clients).
 The upload metadata headers are defined by `UPLOAD_HEADERS` in the API contract; see [Saving the message](/docs/flows/chat-turn#saving-the-message) for attachment acceptance and cleanup.

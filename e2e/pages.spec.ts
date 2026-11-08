@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "./fixtures";
-import { createTeammate, sendMessage, uniqueName, waitForLastRun, worker } from "./helpers";
+import { apiFor, createTeammate, sendMessage, uniqueName, waitForLastRun, worker } from "./helpers";
 
 const workerUrl = process.env.WORKER_URL ?? "http://127.0.0.1:4001";
 const workerSecret = process.env.WORKER_SECRET ?? "dev-worker-secret-change-me";
@@ -56,9 +56,7 @@ async function publish(body: Record<string, unknown>) {
 async function teammate(page: Page) {
   const name = uniqueName("Tess");
   await createTeammate(page, name, "page tester");
-  const state = (await (await page.request.get("/api/state")).json()) as {
-    bots: { id: string; name: string; slug: string }[];
-  };
+  const state = await apiFor(page).app.state();
   const bot = state.bots.find((candidate) => candidate.name === name)!;
   return { ...bot, folder: `/home/bot/bots/${bot.slug}` };
 }
@@ -115,7 +113,7 @@ test("a published page opens in the library, isolated from the app, with its ver
   expect(
     await frame.evaluate(
       (origin) =>
-        fetch(`${origin}/api/state`).then(
+        fetch(`${origin}/api/rpc/app/state`, { method: "POST" }).then(
           () => "reached",
           () => "blocked",
         ),
@@ -200,9 +198,7 @@ test("a published page opens in the library, isolated from the app, with its ver
   await page.waitForURL(`/pages/${first.data.pageId}`);
 
   // Deleting it removes it everywhere; its links stop working.
-  const { url } = (await (
-    await page.request.get(`/api/pages/versions/${second.data.versionId}/link`)
-  ).json()) as { url: string };
+  const { url } = await apiFor(page).pages.open({ versionId: second.data.versionId! });
   await page.getByRole("button", { name: "Page options" }).click();
   await page.getByRole("menuitem", { name: "Delete" }).click();
   await page.getByRole("button", { name: "Delete", exact: true }).click();
@@ -226,10 +222,10 @@ test("page links are signed and expire", async ({ page }) => {
     title: `E2E Links ${bot.slug}`,
   });
   expect(published.status, published.data.error).toBe(200);
-  const response = await page.request.get(
-    `/api/pages/versions/${published.data.versionId}/link?theme=dark`,
-  );
-  const { url, expiresAt } = (await response.json()) as { url: string; expiresAt: string };
+  const { url, expiresAt } = await apiFor(page).pages.open({
+    versionId: published.data.versionId!,
+    theme: "dark",
+  });
   expect(Date.parse(expiresAt) - Date.now()).toBeGreaterThan(5 * 60_000);
   expect(Date.parse(expiresAt) - Date.now()).toBeLessThanOrEqual(10 * 60_000 + 5_000);
 
@@ -256,9 +252,11 @@ test("page links are signed and expire", async ({ page }) => {
     expect(await refused.text()).toContain("This link has expired");
   }
   // Without the session, the app won't sign one.
-  const signedOut = await fetch(
-    new URL(`/api/pages/versions/${published.data.versionId}/link`, page.url()),
-  );
+  const signedOut = await fetch(new URL("/api/rpc/pages/open", page.url()), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ json: { versionId: published.data.versionId } }),
+  });
   expect(signedOut.status).toBe(401);
 });
 

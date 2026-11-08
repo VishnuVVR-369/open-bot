@@ -4,7 +4,6 @@ import {
   notify,
   runEvents,
   runs,
-  type AppEvent,
   type Db,
   type Queryable,
   type NotificationKind,
@@ -14,7 +13,7 @@ import {
 import type { Attachment } from "@open-bot/db";
 import type { EventEmitter } from "node:events";
 import { sql } from "drizzle-orm";
-import type { ApprovalKind, RunEventPayload } from "@open-bot/domain";
+import type { AppEvent, ApprovalKind, RunEventPayload } from "@open-bot/domain";
 import type pg from "pg";
 import type { ComputerLifecycle } from "./computer-lifecycle";
 import type { CodexManager } from "./codex";

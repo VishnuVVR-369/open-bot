@@ -197,7 +197,7 @@ export async function completeAuthorization(input: {
     });
     if (grantChanged) await cancelForAccount(account.id);
     const connectionId = await upsertConnection(account.id, account.display, purpose);
-    await publish("connections");
+    await publish({ type: "connections" });
     return {
       connectionId,
       missing: missingCapabilities(purpose.kind, purpose.capabilities, account.scopes),
@@ -334,7 +334,7 @@ export async function updateAccountConnection(input: {
       await cancelPending(tx, row.id, "You changed this connection after it was asked for.");
   });
   if (changed) await wakeAccounts();
-  await publish("connections");
+  await publish({ type: "connections" });
   return { needsConsent: false };
 }
 
@@ -369,7 +369,7 @@ export async function cancelPending(tx: Tx | typeof db, connectionId: string, re
 /** Wake the worker's account actions, to report what was cancelled. */
 export async function wakeAccounts(): Promise<void> {
   await notify(pool, CHANNELS.worker, "accounts").catch(() => undefined);
-  await publish("approvals");
+  await publish({ type: "approvals" });
 }
 
 /**
@@ -393,7 +393,7 @@ export async function removeAccountConnection(id: string): Promise<{ warning: st
       .limit(1);
     if (!stillUsed) warning = (await accountStore.revoke(row.accountId)).warning;
   }
-  await publish("connections");
+  await publish({ type: "connections" });
   return { warning };
 }
 
@@ -407,7 +407,7 @@ export async function setAccountConnectionEnabled(id: string, enabled: boolean):
     if (!enabled) await cancelPending(tx, id, "You turned this connection off.");
   });
   if (!enabled) await wakeAccounts();
-  await publish("connections");
+  await publish({ type: "connections" });
 }
 
 /**
@@ -460,5 +460,5 @@ export async function saveOwnerClient(input: {
     clientSecret: client.clientSecret,
     hint: adapter.ownerClientHint?.(client) ?? null,
   });
-  await publish("connections");
+  await publish({ type: "connections" });
 }

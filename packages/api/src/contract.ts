@@ -1,17 +1,32 @@
-import {
-  oc,
-  type InferContractRouterInputs,
-  type InferContractRouterOutputs,
-} from "@orpc/contract";
-import { MAX_LESSON_CHARS } from "@open-bot/domain";
+import type { InferContractRouterInputs, InferContractRouterOutputs } from "@orpc/contract";
+import { MAX_LESSON_CHARS, memoryItemSchema, memoryRevisionSchema } from "@open-bot/domain";
 import { z } from "zod";
+import { automationRunViewSchema, scheduleViewSchema, triggerViewSchema } from "./automations";
+import { base, id, ok } from "./base";
 import {
   egressDeviceViewSchema,
   egressModeSchema,
   egressStatusSchema,
   phoneEgressModeSchema,
 } from "./egress";
-import { screenViewSchema, screenOperationSchema, typeOnScreenSchema } from "./screens";
+import { appStateSchema, homeSchema } from "./home";
+import {
+  accountsSetupViewSchema,
+  connectionViewSchema,
+  emailStatusViewSchema,
+} from "./integrations";
+import { memoryRunRefSchema } from "./memory";
+import {
+  screenFrameSchema,
+  screenViewSchema,
+  screenOperationSchema,
+  typeOnScreenSchema,
+} from "./screens";
+import { modelAccessViewSchema, profileViewSchema, usageViewSchema } from "./settings";
+import { skillViewSchema } from "./skills";
+import { taskViewSchema } from "./tasks";
+import { lessonViewSchema, spendingViewSchema } from "./teammates";
+import { vaultItemViewSchema } from "./vault";
 import {
   approvalRuleSchema,
   approvalStatusSchema,
@@ -20,7 +35,6 @@ import {
   botSummarySchema,
   chatDataSchema,
   chatSummarySchema,
-  homeSchema,
   messageViewSchema,
   notificationViewSchema,
   pageDetailSchema,
@@ -29,32 +43,24 @@ import {
   searchResultSchema,
   uploadViewSchema,
 } from "./views";
+import {
+  codexRateLimitsSchema,
+  fileListingSchema,
+  pushStatusSchema,
+  telegramStatusSchema,
+} from "./worker/views";
+
+export { API_ERRORS } from "./base";
 
 /**
- * The open-bot API, shared by the web app (which implements it at `/api/rpc`) and the phone (which
- * calls it). Only the contract lives here, never server code, so the phone can import it.
+ * The open-bot API, shared by the web app (which implements it at `/api/rpc`, and reads through
+ * it in the browser) and the phone (which calls it). Only the contract lives here, never server
+ * code, so the phone can import it.
  *
  * Every procedure needs the owner's session. Retryable operations take a client-generated id; a
  * retry with the same id returns the first result, and the same id with a different request is a
  * `CONFLICT`.
  */
-
-const id = z.string().uuid();
-
-/** Errors a caller is expected to handle, beyond the common ones (`UNAUTHORIZED`, `BAD_REQUEST`). */
-export const API_ERRORS = {
-  NOT_FOUND: { status: 404, message: "That's gone." },
-  /** A retry reused a client id for a different request. */
-  CONFLICT: { status: 409, message: "That id was already used for something else." },
-  /** Decided differently somewhere else, or expired. `data.status` says how it ended. */
-  ALREADY_DECIDED: {
-    status: 409,
-    message: "This was already decided.",
-    data: z.object({ status: approvalStatusSchema }),
-  },
-} as const;
-
-const base = oc.errors(API_ERRORS);
 
 export const sendMessageInputSchema = z.object({
   /** A new UUID per message; reuse it to retry the same send. */
@@ -72,8 +78,6 @@ export const decideApprovalInputSchema = z.object({
   /** Approve, and stop asking about what this pattern matches. */
   alwaysAllow: z.object({ pattern: z.string().max(300) }).nullable(),
 });
-
-const ok = z.object({ ok: z.literal(true) });
 
 export const feedbackInputSchema = z.object({
   runId: id,
@@ -106,8 +110,17 @@ export const UPLOAD_HEADERS = {
 } as const;
 
 export const contract = {
+  app: {
+    /**
+     * What the web app's shell shows on every screen: your team, chats, the computer, skills and
+     * what needs you.
+     */
+    state: base.output(appStateSchema),
+  },
   screens: {
     list: base.output(z.array(screenViewSchema)),
+    /** Each screen's last captured frame, by screen id, to show while the computer sleeps. */
+    frames: base.output(z.record(z.string(), screenFrameSchema)),
     takeOver: base.input(z.object({ screenId: id })).output(ok),
     handBack: base
       .input(
@@ -144,6 +157,76 @@ export const contract = {
   teammates: {
     /** Your teammates (not archived), oldest first, with what each is doing now. */
     list: base.output(z.array(botSummarySchema)),
+    /** What a teammate learned from your feedback, newest first. */
+    lessons: base.input(z.object({ botId: id })).output(z.array(lessonViewSchema)),
+    /** A teammate's monthly budget, what it spent, and its latest purchases. */
+    spending: base.input(z.object({ botId: id })).output(spendingViewSchema),
+  },
+  schedules: {
+    list: base.output(z.array(scheduleViewSchema)),
+    /** A schedule's latest runs, newest first. */
+    runs: base.input(z.object({ scheduleId: id })).output(z.array(automationRunViewSchema)),
+  },
+  triggers: {
+    /** Page watches, webhooks, and Gmail and Calendar triggers. */
+    list: base.output(z.array(triggerViewSchema)),
+    /** A trigger's latest runs, newest first. */
+    runs: base.input(z.object({ triggerId: id })).output(z.array(automationRunViewSchema)),
+  },
+  skills: {
+    list: base.output(z.array(skillViewSchema)),
+  },
+  tasks: {
+    /** The team's board, in board order. */
+    list: base.output(z.array(taskViewSchema)),
+  },
+  vault: {
+    /** Logins and cards, without their secrets. */
+    list: base.output(z.array(vaultItemViewSchema)),
+  },
+  profile: {
+    /** What every teammate knows about you. */
+    get: base.output(profileViewSchema),
+  },
+  memory: {
+    /** Memories you can see and edit, matching `query`: one teammate's, or everyone's with null. */
+    list: base
+      .input(z.object({ botId: id.nullable(), query: z.string().max(200) }))
+      .output(z.array(memoryItemSchema)),
+    /** Every revision of a memory, newest first. */
+    history: base.input(z.object({ memoryId: id })).output(z.array(memoryRevisionSchema)),
+    /** The memories a reply was given. */
+    forRun: base.input(z.object({ runId: id })).output(z.array(memoryRunRefSchema)),
+  },
+  files: {
+    /**
+     * A folder on the computer, inside `/home/bot`. Wakes the computer if it sleeps; fails with
+     * `SERVICE_UNAVAILABLE` while it can't be reached.
+     */
+    list: base.input(z.object({ path: z.string().max(4096) })).output(fileListingSchema),
+  },
+  connections: {
+    /** MCP servers and accounts teammates use, without their secrets. */
+    list: base.output(z.array(connectionViewSchema)),
+  },
+  accounts: {
+    /** What connecting an account needs, per provider, and the accounts signed in. */
+    setup: base.output(accountsSetupViewSchema),
+  },
+  email: {
+    status: base.output(emailStatusViewSchema),
+  },
+  telegram: {
+    /** Fails with `SERVICE_UNAVAILABLE` while the worker can't be reached. */
+    status: base.output(telegramStatusSchema),
+  },
+  settings: {
+    /** The API key fallback and what it spent this month. */
+    modelAccess: base.output(modelAccessViewSchema),
+    /** Tokens each teammate used this month. */
+    usage: base.output(z.array(usageViewSchema)),
+    /** ChatGPT's usage limits as last read. */
+    rateLimits: base.output(codexRateLimitsSchema.shape.rateLimits),
   },
   chats: {
     /** Your chats, most recent activity first. */
@@ -212,6 +295,8 @@ export const contract = {
   pages: {
     /** Every page, pinned first, then the most recently updated. */
     list: base.output(z.array(pageSummarySchema)),
+    /** Pages whose title, summary or text has the words, newest first. */
+    search: base.input(z.object({ query: z.string().max(200) })).output(z.array(pageSummarySchema)),
     get: base.input(z.object({ pageId: id })).output(pageDetailSchema),
     /**
      * An address that shows a version for the next few minutes, on the pages origin (never the
@@ -282,6 +367,8 @@ export const contract = {
       .output(ok),
   },
   push: {
+    /** The key browsers subscribe with, and the browsers subscribed. */
+    status: base.output(pushStatusSchema),
     /** Send notifications to this phone, by its Firebase Cloud Messaging token. */
     registerDevice: base
       .input(

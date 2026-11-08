@@ -8,7 +8,8 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { markNotificationsRead } from "@/lib/actions";
-import { queryKeys, useNotifications } from "@/lib/client/queries";
+import { useNotifications } from "@/lib/client/queries";
+import { orpc } from "@/lib/client/rpc";
 import { cn, notificationHref, plainText } from "@/lib/utils";
 
 export function NotificationsButton({ count }: { count: number }) {
@@ -26,7 +27,7 @@ export function NotificationsButton({ count }: { count: number }) {
     setOpen(next);
     if (!next && count > 0) {
       await markNotificationsRead();
-      await queryClient.invalidateQueries({ queryKey: queryKeys.state });
+      await queryClient.invalidateQueries({ queryKey: orpc.app.state.key() });
     }
   }
 

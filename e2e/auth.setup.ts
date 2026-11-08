@@ -1,5 +1,5 @@
 import { expect, test as setup } from "@playwright/test";
-import { owner } from "./helpers";
+import { apiFor, owner } from "./helpers";
 
 setup("sign in as the owner", async ({ page }) => {
   setup.setTimeout(180_000);
@@ -33,10 +33,7 @@ setup("sign in as the owner", async ({ page }) => {
     await page.goto(route);
     await page.waitForLoadState("networkidle").catch(() => {});
   }
-  const state = (await (await page.request.get("/api/state")).json()) as {
-    bots: { id: string }[];
-    chats: { id: string }[];
-  };
+  const state = await apiFor(page).app.state();
   if (state.bots[0]) await page.goto(`/bots/${state.bots[0].id}`);
   if (state.chats[0]) await page.goto(`/chats/${state.chats[0].id}`);
 });

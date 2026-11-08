@@ -12,7 +12,7 @@ This page maps the repository, lists the checks and test suites, and collects th
 ```text
 open-bot/
 ├── apps/
-│   ├── web/          Next.js app: pages, server actions, read routes, the SSE stream, the phone's RPC
+│   ├── web/          Next.js app: pages, server actions, the API (oRPC) for browser and phone, the SSE stream
 │   ├── worker/       Node service: runs, tools, services, the internal API, the egress relay
 │   ├── botd/         The daemon inside the computer, bundled into the image
 │   ├── desktop/      Electron shell and egress agent
@@ -88,7 +88,7 @@ The worker and botd test their trickiest parts directly: the lease, the cookie j
 
 ### Integration tests
 
-`pnpm test:integration` runs every `*.integration.test.ts` against real Postgres: teammate management, the phone API, uploads, pages, account sign-ins, actions and triggers, screen operations and memory.
+`pnpm test:integration` runs every `*.integration.test.ts` against real Postgres: teammate management, the phone API, every web API read, uploads, pages, account sign-ins, actions and triggers, screen operations and memory.
 Each suite creates its own fresh database on the server named by `TEST_DATABASE_URL`, applies every migration, and drops it afterwards (`@open-bot/db/testing`), so suites run in parallel.
 Without `TEST_DATABASE_URL`, the command starts a throwaway pgvector container (`scripts/test/pg.sh`) and removes it when it finishes.
 CI runs them against a Postgres service; there a missing `TEST_DATABASE_URL` fails the run instead of skipping.
@@ -209,7 +209,8 @@ These are easy to miss and cost time when forgotten.
 
 ### Web app
 
-- **Browser reads use `GET` routes.** Next.js runs server actions one at a time per client, so reads done as actions queue behind each other. The phone's RPC and upload entry points are documented in [Internal APIs](/docs/reference/http-api#writes-and-the-phone-api).
+- **Browser reads use the API.** Client components query oRPC procedures (`orpc` in `apps/web/src/lib/client/rpc.ts`) with TanStack Query, never server actions: Next.js runs those one at a time per client, so reads done as actions queue behind each other.
+  The API and the upload route are documented in [Internal APIs](/docs/reference/http-api#the-api).
 - **Hydration errors fail tests.** E2E specs import `test` from `e2e/fixtures.ts`, which fails any test whose page logs a hydration error. Relative times from server data use the `TimeAgo` component.
 
 ### The computer

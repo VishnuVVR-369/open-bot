@@ -68,7 +68,7 @@ The service returns the saved message even if dispatch is temporarily unavailabl
 The worker's reconciler picks up pending messages when it can, so retrying after a lost response does not send the message twice.
 
 Attachments are uploaded first through the worker's `UploadService` (`apps/worker/src/uploads.ts`), which writes them to `/home/bot/shared/uploads` through Codex's file API and verifies the stored bytes before accepting them.
-The browser's upload action and the phone's raw upload route share this service; the transport contract is on [Internal APIs](/docs/reference/http-api#writes-and-the-phone-api).
+The browser's upload action and the phone's raw upload route share this service; the transport contract is on [Internal APIs](/docs/reference/http-api#writes).
 Message acceptance checks completed upload records in the same transaction that saves the message.
 The locking invariant shared with upload writes and cleanup is documented on `lockUploads` in `packages/db/src/upload-locks.ts`, with race regressions in `apps/worker/src/uploads.integration.test.ts`.
 The message stores attachment metadata and paths, not file bytes.

@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { giveFeedback, rateRun } from "@/lib/actions";
-import { queryKeys } from "@/lib/client/queries";
+import { orpc } from "@/lib/client/rpc";
 import type { RunView } from "@/lib/types";
 import { cn, REVEAL_ON_RUN_HOVER } from "@/lib/utils";
 
@@ -79,7 +79,8 @@ export function ReplyFeedback({
   const switchId = useId();
   const anchor = useRef<HTMLSpanElement>(null);
 
-  const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.chat(chatId) });
+  const refresh = () =>
+    queryClient.invalidateQueries({ queryKey: orpc.chats.get.key({ input: { chatId: chatId } }) });
 
   function rate(next: Rating) {
     const before = rating;

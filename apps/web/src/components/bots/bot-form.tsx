@@ -21,7 +21,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { createBot, importTeammate, updateBot } from "@/lib/actions";
-import { queryKeys } from "@/lib/client/queries";
+import { orpc } from "@/lib/client/rpc";
 import { cn } from "@/lib/utils";
 
 export interface BotFormValues {
@@ -158,7 +158,7 @@ export function BotForm({
             ? `Their ${result.data.paused === 1 ? "automation is" : `${result.data.paused} automations are`} off. Turn them on in Automations.`
             : undefined,
       });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.state });
+      await queryClient.invalidateQueries({ queryKey: orpc.app.state.key() });
       router.push(`/chats/${result.data.chatId}`);
     });
   }
@@ -195,7 +195,7 @@ export function BotForm({
         toast("Saved", {
           description: `${values.name} uses the new settings from the next message.`,
         });
-        await queryClient.invalidateQueries({ queryKey: queryKeys.state });
+        await queryClient.invalidateQueries({ queryKey: orpc.app.state.key() });
         router.refresh();
         return;
       }
@@ -222,7 +222,7 @@ export function BotForm({
             description: "Change or pause them anytime in Automations.",
           },
         );
-      await queryClient.invalidateQueries({ queryKey: queryKeys.state });
+      await queryClient.invalidateQueries({ queryKey: orpc.app.state.key() });
       router.push(`/chats/${result.data.chatId}`);
     });
   }

@@ -1,6 +1,5 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
 import { format, formatDistanceToNowStrict, isToday } from "date-fns";
 import { AlertCircle, CalendarClock, Eye, History, RotateCcw, Webhook, X } from "lucide-react";
 import Link from "next/link";
@@ -10,9 +9,8 @@ import { toast } from "sonner";
 import { BotAvatar } from "@/components/bot-avatar";
 import { Button } from "@/components/ui/button";
 import { retryRun } from "@/lib/actions";
-import { getJson } from "@/lib/client/api";
 import { dismissBriefing, useBriefingSince } from "@/lib/client/presence";
-import { useAppState } from "@/lib/client/queries";
+import { useAppState, useHome } from "@/lib/client/queries";
 import { failureLine, isComputerOnline } from "@/lib/status";
 import type { BriefingItem } from "@/lib/types";
 import { chatHref, cn, plainText } from "@/lib/utils";
@@ -157,12 +155,8 @@ const newestFirst = (a: BriefingItem, b: BriefingItem) =>
 /** What finished while you were away, or nothing when the briefing isn't showing. */
 export function useBriefingItems(): BriefingItem[] {
   const since = useBriefingSince();
-  const { data: items } = useQuery({
-    queryKey: ["briefing", since],
-    queryFn: () => getJson<BriefingItem[]>(`/api/briefing?since=${since}`),
-    enabled: since !== null,
-  });
-  return since !== null && items ? items : [];
+  const { data: home, isPlaceholderData } = useHome(since);
+  return since !== null && home && !isPlaceholderData ? home.briefing : [];
 }
 
 /** What your teammates finished while you were away: what failed first, then by teammate, newest first. */

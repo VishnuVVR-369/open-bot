@@ -1,21 +1,28 @@
 "use client";
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { usePresence } from "@/lib/client/presence";
-import { queryKeys } from "@/lib/client/queries";
+import { isUnauthorized } from "@/lib/client/errors";
 import { RealtimeProvider } from "@/lib/client/realtime";
+import { orpc } from "@/lib/client/rpc";
 import type { AppState } from "@/lib/types";
 
 export function Providers({ initial, children }: { initial: AppState; children: ReactNode }) {
   const [queryClient] = useState(() => {
     const client = new QueryClient({
+      queryCache: new QueryCache({
+        // The session is gone (signed out elsewhere, or expired): sign in again.
+        onError: (error) => {
+          if (isUnauthorized(error)) window.location.href = "/login";
+        },
+      }),
       defaultOptions: { queries: { staleTime: 5_000, refetchOnWindowFocus: true, retry: 1 } },
     });
     // Seed the app state the server already loaded, so nothing flashes empty on first paint.
-    client.setQueryData(queryKeys.state, initial);
+    client.setQueryData(orpc.app.state.queryKey(), initial);
     return client;
   });
   usePresence();

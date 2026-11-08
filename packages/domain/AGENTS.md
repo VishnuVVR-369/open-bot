@@ -11,6 +11,7 @@ One folder per feature under `packages/domain/src`, each with an `index.ts` barr
 - `teammates`: profile options, creation and edit schemas (`management.ts`), export bundles, templates, status.
 - `computer`: botd's wire protocol (`protocol.ts`), screen operations, disk paths, file kinds.
 - `egress`: the owner's settings for which devices carry the browser's traffic.
+- `events`: the app events announced to open tabs and phones (`appEventSchema`).
 - `timeline` and `chats`: run timeline items and their reducer, and mentions.
 - `approvals`: always-allow rules, how approvals are shown, and the job-application guard.
 - `automations`: schedules and triggers.

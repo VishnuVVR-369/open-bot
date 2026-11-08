@@ -13,11 +13,14 @@ import {
   type ReactNode,
 } from "react";
 import { toast } from "sonner";
+import { parseAppEvent } from "@open-bot/domain";
+import { isOutdated } from "../deployment";
 import type { NotificationView, StreamRunEvent } from "../types";
 import { setTimezone } from "../actions";
-import { getJson } from "./api";
 import { notificationHref, plainText } from "../utils";
-import { queryKeys } from "./queries";
+import { deploymentReloader } from "./deployment";
+import { refreshAfterOutage, refreshForAppEvent, refreshSnapshots } from "./refresh";
+import { orpc } from "./rpc";
 
 type RunListener = (event: StreamRunEvent) => void;
 
@@ -57,12 +60,15 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   const [connected, setConnected] = useState(false);
   const invalidateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seenNotifications = useRef(new Set<string>());
+  /** The stream dropped, so the events sent meanwhile were never seen. */
+  const missedEvents = useRef(false);
 
+  // Events come in bursts (a run starting touches several things), so the snapshots refresh once.
   const invalidateState = useCallback(() => {
     if (invalidateTimer.current) return;
     invalidateTimer.current = setTimeout(() => {
       invalidateTimer.current = null;
-      void queryClient.invalidateQueries({ queryKey: queryKeys.state });
+      void refreshSnapshots(queryClient);
     }, 120);
   }, [queryClient]);
 
@@ -70,11 +76,9 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
     async (id: string) => {
       if (seenNotifications.current.has(id)) return;
       seenNotifications.current.add(id);
-      const list = await queryClient.fetchQuery({
-        queryKey: queryKeys.notifications,
-        queryFn: () => getJson<NotificationView[]>("/api/notifications"),
-        staleTime: 0,
-      });
+      const list = await queryClient.fetchQuery(
+        orpc.notifications.list.queryOptions({ staleTime: 0 }),
+      );
       const notification = list.find((entry) => entry.id === id);
       if (!notification) return;
       const href = notificationHref(notification);
@@ -104,50 +108,31 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
     }
     const source = new EventSource(`/api/stream?${params}`);
     source.addEventListener("open", () => setConnected(true));
-    source.addEventListener("error", () => setConnected(false));
-    source.addEventListener("ready", () => {
+    source.addEventListener("error", () => {
+      setConnected(false);
+      missedEvents.current = true;
+    });
+    source.addEventListener("ready", (message) => {
+      const { deployment } = JSON.parse((message as MessageEvent<string>).data) as {
+        deployment?: unknown;
+      };
+      if (isOutdated(deployment)) deploymentReloader().outdated(deployment as string);
+      else deploymentReloader().current();
       setConnected(true);
-      // Anything could have changed while disconnected.
       invalidateState();
+      // Anything could have changed while the stream was down, and its events are gone.
+      if (missedEvents.current) {
+        missedEvents.current = false;
+        void refreshAfterOutage(queryClient);
+      }
     });
     source.addEventListener("app", (message) => {
-      const event = JSON.parse((message as MessageEvent<string>).data) as {
-        type: string;
-        id?: string;
-      };
       invalidateState();
-      if (event.type === "chats") {
-        // Runs starting and finishing show up in activity and in automations' history.
-        void queryClient.invalidateQueries({ queryKey: queryKeys.activity });
-        void queryClient.invalidateQueries({ queryKey: queryKeys.schedules });
-        void queryClient.invalidateQueries({ queryKey: queryKeys.triggers });
-      }
-      if (event.type === "notification") {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.notifications });
-        if (event.id) void onNotification(event.id);
-      }
-      if (event.type === "approvals")
-        void queryClient.invalidateQueries({ queryKey: queryKeys.approvals });
-      if (event.type === "schedules")
-        void queryClient.invalidateQueries({ queryKey: queryKeys.schedules });
-      if (event.type === "telegram")
-        void queryClient.invalidateQueries({ queryKey: queryKeys.telegram });
-      if (event.type === "tasks") void queryClient.invalidateQueries({ queryKey: queryKeys.tasks });
-      if (event.type === "memory") void queryClient.invalidateQueries({ queryKey: ["memory"] });
-      if (event.type === "lessons") void queryClient.invalidateQueries({ queryKey: ["lessons"] });
-      if (event.type === "vault") void queryClient.invalidateQueries({ queryKey: queryKeys.vault });
-      if (event.type === "email") void queryClient.invalidateQueries({ queryKey: queryKeys.email });
-      if (event.type === "connections")
-        void queryClient.invalidateQueries({ queryKey: queryKeys.connections });
-      if (event.type === "purchases")
-        void queryClient.invalidateQueries({ queryKey: ["spending"] });
-      if (event.type === "profile")
-        void queryClient.invalidateQueries({ queryKey: queryKeys.profile });
-      if (event.type === "triggers")
-        void queryClient.invalidateQueries({ queryKey: queryKeys.triggers });
-      if (event.type === "skills")
-        void queryClient.invalidateQueries({ queryKey: queryKeys.skills });
-      if (event.type === "pages") void queryClient.invalidateQueries({ queryKey: queryKeys.pages });
+      // An event this version doesn't know (from a newer server) only refreshes the snapshots.
+      const event = parseAppEvent(JSON.parse((message as MessageEvent<string>).data));
+      if (!event) return;
+      void refreshForAppEvent(queryClient, event);
+      if (event.type === "notification" && event.id) void onNotification(event.id);
     });
     source.addEventListener("run", (message) => {
       const event = JSON.parse((message as MessageEvent<string>).data) as StreamRunEvent;
@@ -162,7 +147,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   }, [target, invalidateState, onNotification, queryClient]);
 
   useEffect(() => {
-    const state = queryClient.getQueryData<{ timezone?: string }>(queryKeys.state);
+    const state = queryClient.getQueryData(orpc.app.state.queryKey());
     const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     if (
       state?.timezone === "UTC" &&
@@ -172,7 +157,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
     ) {
       localStorage.setItem("open-bot:timezone-set", "1");
       void setTimezone(browserZone).then(() =>
-        queryClient.invalidateQueries({ queryKey: queryKeys.state }),
+        queryClient.invalidateQueries({ queryKey: orpc.app.state.key() }),
       );
     }
   }, [queryClient]);

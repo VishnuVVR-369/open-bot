@@ -1,6 +1,6 @@
 "use client";
 
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, skipToken, useQuery } from "@tanstack/react-query";
 import { formatDistanceToNowStrict } from "date-fns";
 import {
   FileText,
@@ -41,7 +41,7 @@ import {
   CommandList,
   CommandShortcut,
 } from "@/components/ui/command";
-import { getJson } from "@/lib/client/api";
+import { orpc } from "@/lib/client/rpc";
 import { useAppState } from "@/lib/client/queries";
 import {
   excerptLine,
@@ -52,7 +52,6 @@ import {
   rankFound,
 } from "@/lib/search-match";
 import { chatHref } from "@/lib/utils";
-import type { PageSummary, SearchResultView } from "@/lib/types";
 
 const CommandMenuContext = createContext<{ open: () => void }>({ open: () => {} });
 
@@ -147,22 +146,25 @@ function CommandMenu({
   const { resolvedTheme, setTheme } = useTheme();
   const [query, setQuery] = useState("");
   const searchFor = useDebounced(query.trim(), 200);
-  const { data: results, isFetching } = useQuery({
-    queryKey: ["search", searchFor],
-    queryFn: () => getJson<SearchResultView[]>(`/api/search?q=${encodeURIComponent(searchFor)}`),
-    enabled: open && searchFor.length >= 2,
-    staleTime: 10_000,
-    // Keep the last results while you type, so the list doesn't flicker.
-    placeholderData: keepPreviousData,
-  });
+  // The API takes 200 characters at most; more never narrows a search further.
+  const searchInput =
+    open && searchFor.length >= 2 ? { query: searchFor.slice(0, 200) } : skipToken;
+  const { data: results, isFetching } = useQuery(
+    orpc.search.messages.queryOptions({
+      input: searchInput,
+      staleTime: 10_000,
+      // Keep the last results while you type, so the list doesn't flicker.
+      placeholderData: keepPreviousData,
+    }),
+  );
 
-  const { data: foundPages } = useQuery({
-    queryKey: ["search", "pages", searchFor],
-    queryFn: () => getJson<PageSummary[]>(`/api/search/pages?q=${encodeURIComponent(searchFor)}`),
-    enabled: open && searchFor.length >= 2,
-    staleTime: 10_000,
-    placeholderData: keepPreviousData,
-  });
+  const { data: foundPages } = useQuery(
+    orpc.pages.search.queryOptions({
+      input: searchInput,
+      staleTime: 10_000,
+      placeholderData: keepPreviousData,
+    }),
+  );
 
   useEffect(() => {
     if (!open) setQuery("");
