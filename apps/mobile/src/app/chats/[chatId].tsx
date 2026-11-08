@@ -15,7 +15,7 @@ import {
   SquarePen,
   Users,
 } from "lucide-react-native";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -28,6 +28,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AvatarStack, BotAvatar, StatusLine, type BotActivity } from "@/components/bot-avatar";
 import { Composer } from "@/components/chat/composer";
+import { KeepTopContext, RowContext, type KeepTop } from "@/components/chat/foldable-text";
 import { RunBlock } from "@/components/chat/run-block";
 import { UserMessage } from "@/components/chat/user-message";
 import { Button } from "@/components/button";
@@ -88,6 +89,27 @@ export default function ChatScreen() {
     const current = (extent.current = { ...extent.current, ...next });
     setUnder(current.offset + current.layout < current.content - 1);
   }, []);
+  // An opened message would grow from its bottom edge in this inverted list. Pinning older rows
+  // keeps its first line where you were reading: Android corrects the scroll natively, after
+  // layout and before drawing. The pin must be on screen before the message opens and stay until
+  // the opened message is, so each step waits for the commit before it to mount.
+  // The pin names a native child of the list: the rows it has rendered, in order, then the footer.
+  // Rows it has virtualized away leave no view, though a spacer might, so the pin goes two
+  // rendered rows past the message, which is always an older row or the footer.
+  const rendered = useRef(new Set<number>()).current;
+  const [pin, setPin] = useState<{ child: number; open: () => void } | null>(null);
+  useEffect(() => (pin ? afterMount(pin.open) : undefined), [pin]);
+  const keepTop = useMemo<KeepTop>(
+    () => ({
+      open: (row, open) => {
+        let before = 0;
+        for (const index of rendered) if (index < row) before++;
+        setPin({ child: Math.min(before + 2, rendered.size), open });
+      },
+      opened: () => void afterMount(() => setPin(null)),
+    }),
+    [rendered],
+  );
   const scrollRetry = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollAttempts = useRef(0);
   useEffect(
@@ -214,7 +236,7 @@ export default function ChatScreen() {
       const older = data[index + 1];
       const stamp = timeStamp(entry.at, older?.at);
       return (
-        <View>
+        <Row index={index} rendered={rendered}>
           {stamp && <TimeStamp text={stamp} />}
           {entry.type === "message" ? (
             <UserMessage message={entry.message} />
@@ -229,10 +251,10 @@ export default function ChatScreen() {
               latest={entry.type === "run" && entry.run.id === latestRunId}
             />
           )}
-        </View>
+        </Row>
       );
     },
-    [runs, chatId, allBots, superseded, data, isGroup, latestRunId],
+    [runs, chatId, allBots, superseded, data, isGroup, latestRunId, rendered],
   );
 
   return (
@@ -335,79 +357,89 @@ export default function ChatScreen() {
             onBack={goBack}
           />
         ) : (
-          <FlatList
-            ref={list}
-            data={data}
-            inverted
-            keyExtractor={(entry) => (entry.type === "message" ? entry.message.id : entry.run.id)}
-            renderItem={renderItem}
-            ItemSeparatorComponent={Gap}
-            ListFooterComponent={
-              // Room for the spinner only while there's more to load, so a short chat starts at the top.
-              <View style={hasMore || loadingOlder ? styles.older : undefined}>
-                {loadingOlder && <ActivityIndicator size="small" color={colors.mutedForeground} />}
-              </View>
-            }
-            onEndReached={() => {
-              if (hasMore) void loadOlder();
-            }}
-            onEndReachedThreshold={0.4}
-            // A short conversation starts at the top, under the header, not at the composer:
-            // the list is inverted, so "flex-end" is the top.
-            contentContainerStyle={[
-              styles.timeline,
-              data.length === 0 ? { flex: 1 } : { flexGrow: 1, justifyContent: "flex-end" },
-            ]}
-            onScroll={(event) => {
-              // Inverted: the offset grows as you scroll back in time.
-              const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
-              const up = contentOffset.y > 600;
-              if (up !== scrolledUp) setScrolledUp(up);
-              measure({
-                offset: contentOffset.y,
-                layout: layoutMeasurement.height,
-                content: contentSize.height,
-              });
-            }}
-            onLayout={(event) => measure({ layout: event.nativeEvent.layout.height })}
-            onContentSizeChange={(_width, height) => measure({ content: height })}
-            scrollEventThrottle={100}
-            keyboardDismissMode="interactive"
-            keyboardShouldPersistTaps="handled"
-            onScrollToIndexFailed={({ index, averageItemLength }) => {
-              // Move the render window toward an unmeasured row before trying its exact index.
-              list.current?.scrollToOffset({ offset: averageItemLength * index, animated: false });
-              if (scrollRetry.current) clearTimeout(scrollRetry.current);
-              if (scrollAttempts.current++ >= 8) return;
-              scrollRetry.current = setTimeout(() => {
-                scrollRetry.current = null;
-                list.current?.scrollToIndex({ index, viewPosition: 1, animated: false });
-              }, 200);
-            }}
-            ListEmptyComponent={
-              <View style={styles.empty}>
-                <Empty
-                  icon={
-                    bot ? (
-                      <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="lg" />
-                    ) : (
-                      <Users size={28} color={colors.mutedForeground} />
-                    )
-                  }
-                  title={
-                    isGroup
-                      ? "Start the conversation"
-                      : `Give ${bot?.name ?? "them"} something to do`
-                  }
-                  body={
-                    isGroup
-                      ? "Your message goes to the lead teammate. They pass work to each other."
-                      : `${bot?.name ?? "Your teammate"} works on the shared computer while you're away.`
-                  }
-                />
-              </View>
-            }
-          />
+          <KeepTopContext.Provider value={keepTop}>
+            <FlatList
+              ref={list}
+              data={data}
+              inverted
+              maintainVisibleContentPosition={pin ? { minIndexForVisible: pin.child } : undefined}
+              // Clipping detaches rows off screen, which would shift the pin's child index.
+              removeClippedSubviews={false}
+              keyExtractor={(entry) => (entry.type === "message" ? entry.message.id : entry.run.id)}
+              renderItem={renderItem}
+              ItemSeparatorComponent={Gap}
+              ListFooterComponent={
+                // Room for the spinner only while there's more to load, so a short chat starts at the top.
+                <View style={hasMore || loadingOlder ? styles.older : undefined}>
+                  {loadingOlder && (
+                    <ActivityIndicator size="small" color={colors.mutedForeground} />
+                  )}
+                </View>
+              }
+              onEndReached={() => {
+                if (hasMore) void loadOlder();
+              }}
+              onEndReachedThreshold={0.4}
+              // A short conversation starts at the top, under the header, not at the composer:
+              // the list is inverted, so "flex-end" is the top.
+              contentContainerStyle={[
+                styles.timeline,
+                data.length === 0 ? { flex: 1 } : { flexGrow: 1, justifyContent: "flex-end" },
+              ]}
+              onScroll={(event) => {
+                // Inverted: the offset grows as you scroll back in time.
+                const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
+                const up = contentOffset.y > 600;
+                if (up !== scrolledUp) setScrolledUp(up);
+                measure({
+                  offset: contentOffset.y,
+                  layout: layoutMeasurement.height,
+                  content: contentSize.height,
+                });
+              }}
+              onLayout={(event) => measure({ layout: event.nativeEvent.layout.height })}
+              onContentSizeChange={(_width, height) => measure({ content: height })}
+              scrollEventThrottle={100}
+              keyboardDismissMode="interactive"
+              keyboardShouldPersistTaps="handled"
+              onScrollToIndexFailed={({ index, averageItemLength }) => {
+                // Move the render window toward an unmeasured row before trying its exact index.
+                list.current?.scrollToOffset({
+                  offset: averageItemLength * index,
+                  animated: false,
+                });
+                if (scrollRetry.current) clearTimeout(scrollRetry.current);
+                if (scrollAttempts.current++ >= 8) return;
+                scrollRetry.current = setTimeout(() => {
+                  scrollRetry.current = null;
+                  list.current?.scrollToIndex({ index, viewPosition: 1, animated: false });
+                }, 200);
+              }}
+              ListEmptyComponent={
+                <View style={styles.empty}>
+                  <Empty
+                    icon={
+                      bot ? (
+                        <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="lg" />
+                      ) : (
+                        <Users size={28} color={colors.mutedForeground} />
+                      )
+                    }
+                    title={
+                      isGroup
+                        ? "Start the conversation"
+                        : `Give ${bot?.name ?? "them"} something to do`
+                    }
+                    body={
+                      isGroup
+                        ? "Your message goes to the lead teammate. They pass work to each other."
+                        : `${bot?.name ?? "Your teammate"} works on the shared computer while you're away.`
+                    }
+                  />
+                </View>
+              }
+            />
+          </KeepTopContext.Provider>
         )}
         {under && !loading && !gone && (
           // The header stays opaque; a hairline marks where the conversation runs under it.
@@ -685,6 +717,38 @@ function ChatContext({
 function goBack() {
   if (router.canGoBack()) router.back();
   else router.replace("/chats");
+}
+
+/** A row of the chat list, which tells its messages where they are and the list that it's there. */
+function Row({
+  index,
+  rendered,
+  children,
+}: {
+  index: number;
+  rendered: Set<number>;
+  children: ReactNode;
+}) {
+  useEffect(() => {
+    rendered.add(index);
+    return () => void rendered.delete(index);
+  }, [index, rendered]);
+  return (
+    <RowContext.Provider value={index}>
+      <View>{children}</View>
+    </RowContext.Provider>
+  );
+}
+
+/**
+ * Runs `run` once everything React has committed so far is on screen. Android mounts a commit on
+ * the next frame, and the second frame callback comes after that one. Returns a cancel.
+ */
+function afterMount(run: () => void): () => void {
+  let frame = requestAnimationFrame(() => {
+    frame = requestAnimationFrame(run);
+  });
+  return () => cancelAnimationFrame(frame);
 }
 
 /** The room between turns (about 24dp): more than inside one, so each exchange reads as a unit. */

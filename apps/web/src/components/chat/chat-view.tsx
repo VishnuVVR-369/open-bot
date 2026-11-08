@@ -46,6 +46,7 @@ import { chatStatus } from "@/lib/status";
 import type { BotSummary, MessageView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Composer, type ComposerHandle } from "./composer";
+import { CollapsibleText } from "./collapsible-text";
 import { MessageText } from "./message-text";
 import { RenameChatDialog } from "./rename-chat";
 import { RunBlock } from "./run-block";
@@ -99,7 +100,9 @@ function UserMessage({ message }: { message: MessageView }) {
         </div>
       )}
       <div className="max-w-[85%] rounded-[18px] rounded-br-[6px] bg-[color-mix(in_oklab,var(--foreground)_6.5%,var(--surface))] px-4 py-2.5 text-[14.5px] leading-relaxed whitespace-pre-wrap text-foreground">
-        <MessageText text={message.text} />
+        <CollapsibleText watch={message.text}>
+          <MessageText text={message.text} />
+        </CollapsibleText>
       </div>
     </div>
   );

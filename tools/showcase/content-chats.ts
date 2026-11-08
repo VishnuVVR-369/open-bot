@@ -919,7 +919,22 @@ Alex`,
   ctx.chats.junoPost = junoPost;
   const postA = await s.exchange(junoPost, {
     at: ago({ d: 3, h: 5 }),
-    text: "Draft the announcement post for Kestrel 2.0. Plain and confident, about 600 words. Funnels, speed, EU hosting, the API, and how v1 users migrate.",
+    // Long enough to fold behind "Show more", so reviews see that state.
+    text: `Draft the announcement post for Kestrel 2.0. Plain and confident, about 600 words.
+
+What it has to cover:
+Funnels and goals: the headline feature. Show one real funnel, signup to first dashboard, with the drop-off numbers from our own workspace.
+Speed: dashboards load in under a second now, even on a year of data. Say how we did it in one sentence, no more.
+EU hosting: new workspaces can pick Frankfurt. Existing ones can move from settings, with no downtime.
+The API: every chart is now an endpoint. Link the docs and show one curl example.
+Migration: v1 users move over on their own on ${launchDay}. Nothing breaks, saved reports come along, and old links redirect.
+
+Tone:
+Follow the brand voice file. No exclamation marks, no "seamless".
+Lead with what changed for the reader, then why we built it.
+End with one clear next step, not three.
+
+Send it to me by Thursday, so Dana can read it before the freeze.`,
     replies: [
       {
         bot: juno,

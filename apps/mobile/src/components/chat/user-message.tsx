@@ -3,6 +3,7 @@ import { fileKind } from "@open-bot/shared";
 import { RotateCcw } from "lucide-react-native";
 import { memo } from "react";
 import { StyleSheet, View } from "react-native";
+import { FoldableText } from "@/components/chat/foldable-text";
 import { FileChip } from "@/components/file-chip";
 import { ImageThumb } from "@/components/image-thumb";
 import { Text } from "@/components/text";
@@ -34,12 +35,12 @@ export const UserMessage = memo(function UserMessage({ message }: { message: Mes
       )}
       {message.text ? (
         <View style={[styles.bubble, { backgroundColor: colors.bubble }]}>
-          <Text
+          <FoldableText
+            text={message.text}
             style={{ color: colors.bubbleForeground, fontSize: 15.5, lineHeight: 22 }}
-            selectable
-          >
-            {message.text}
-          </Text>
+            background={colors.bubble}
+            foreground={colors.bubbleForeground}
+          />
         </View>
       ) : null}
     </View>
