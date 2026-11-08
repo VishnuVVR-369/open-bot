@@ -173,6 +173,8 @@ describe("ComputerClient", () => {
     const socket = botd.connected[0]!;
     const healthy = once(computer, "health");
     socket.send("not json");
+    // A type that can't become a string must not throw out of the socket's message handler.
+    socket.send('{"type":{"toString":null}}');
     socket.send(JSON.stringify({ type: "lease", screenId: SCREEN, holder: { kind: "robot" } }));
     socket.send(JSON.stringify({ type: "health", health: { ...HEALTH, screens: "none" } }));
     socket.send(JSON.stringify({ type: "health", health: HEALTH }));
@@ -180,7 +182,7 @@ describe("ComputerClient", () => {
     expect(computer.health).toEqual(HEALTH);
     expect(computer.online).toBe(true);
     expect(leases).toEqual([]);
-    expect(log.warn).toHaveBeenCalledTimes(3);
+    expect(log.warn).toHaveBeenCalledTimes(4);
     const since = "2026-11-08T00:00:00.000Z";
     const leased = once(computer, "lease");
     socket.send(

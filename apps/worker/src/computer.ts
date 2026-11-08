@@ -172,8 +172,10 @@ export class ComputerClient extends EventEmitter<{
     }
     const parsed = computerEventSchema.safeParse(json);
     if (parsed.success) return parsed.data;
+    // Only a string is logged as the type: the event is untrusted, so nothing else is converted.
+    const type = typeof json === "object" && json && "type" in json ? json.type : undefined;
     this.log.warn("computer sent an event that doesn't fit the contract", {
-      type: typeof json === "object" && json && "type" in json ? String(json.type) : undefined,
+      type: typeof type === "string" ? type : undefined,
       error: parsed.error.issues
         .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
         .join("; "),
