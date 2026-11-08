@@ -1,5 +1,5 @@
 import { mkdir, open, readdir, unlink } from "node:fs/promises";
-import { isOwnerLease, isScreenId, type CodeEntryResult } from "@open-bot/shared";
+import { isOwnerLease, isScreenId, type CodeEntryResult } from "@open-bot/domain";
 import type { ReleaseGuard } from "./lease";
 import type { Screen } from "./screens";
 

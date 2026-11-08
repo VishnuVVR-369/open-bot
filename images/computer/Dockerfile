@@ -5,12 +5,12 @@ FROM node:24-trixie-slim AS build
 RUN corepack enable
 WORKDIR /src
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
-COPY packages/shared/package.json packages/shared/
+COPY packages/domain/package.json packages/domain/
 COPY packages/egress/package.json packages/egress/
 COPY packages/page-kit/package.json packages/page-kit/
 COPY apps/botd/package.json apps/botd/
 RUN pnpm install --frozen-lockfile --filter @open-bot/botd... --filter @open-bot/page-kit
-COPY packages/shared packages/shared
+COPY packages/domain packages/domain
 COPY packages/egress packages/egress
 COPY packages/page-kit packages/page-kit
 COPY apps/botd apps/botd

@@ -1,6 +1,6 @@
 "use client";
 
-import { relativeTime } from "@open-bot/shared";
+import { relativeTime } from "@open-bot/domain";
 import { useEffect, useState } from "react";
 
 /**

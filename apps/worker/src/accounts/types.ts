@@ -1,5 +1,5 @@
 import type { accountActions } from "@open-bot/db";
-import type { AccountActionPreview, AccountConnectionKind, ActionEffect } from "@open-bot/shared";
+import type { AccountActionPreview, AccountConnectionKind, ActionEffect } from "@open-bot/domain";
 import type { Context } from "../context";
 import type { RunSession } from "../runs/session";
 import type { AccountAccess, ResolvedConnection } from "./access";

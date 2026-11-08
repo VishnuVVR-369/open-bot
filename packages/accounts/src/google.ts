@@ -1,4 +1,4 @@
-import { secretHint } from "@open-bot/shared/secrets";
+import { secretHint } from "@open-bot/domain/server";
 import { googleEndpoints } from "./endpoints";
 import { OAuthError, revokeToken, tokenRequest } from "./oauth";
 import type { ProviderAdapter } from "./provider";

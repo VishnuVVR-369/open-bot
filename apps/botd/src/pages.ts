@@ -18,7 +18,7 @@ import {
   type PageCheckError,
   type PageCheckResult,
   type PageIssue,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { CdpPipe, type CdpEvent } from "./cdp";
 import { terminate } from "./supervisor";
 import { asUser, type SystemUser } from "./users";

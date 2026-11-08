@@ -7,7 +7,7 @@ import type {
   Home,
   PageSummary,
 } from "@open-bot/api";
-import { isRunActive, plainText } from "@open-bot/shared";
+import { isRunActive, plainText } from "@open-bot/domain";
 import { router, type Href } from "expo-router";
 import {
   AlertCircle,

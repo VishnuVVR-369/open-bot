@@ -125,7 +125,7 @@ describe("codeSpanPath", () => {
   it("strips line references and a trailing slash", () => {
     assert.equal(codeSpanPath("apps/worker/src/http.ts:871"), "apps/worker/src/http.ts");
     assert.equal(codeSpanPath("apps/worker/src/http.ts:222-837"), "apps/worker/src/http.ts");
-    assert.equal(codeSpanPath("packages/shared/"), "packages/shared");
+    assert.equal(codeSpanPath("packages/domain/"), "packages/domain");
   });
 
   it("ignores commands, other roots and elided paths", () => {

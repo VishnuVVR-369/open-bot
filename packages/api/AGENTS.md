@@ -3,7 +3,7 @@
 The oRPC contract and serializable views shared by the web app and the Android app.
 It holds shapes only, with no handlers.
 Handlers go in `apps/web/src/lib/server/api/router.ts` and the queries behind them in `apps/web`.
-Shared domain logic goes in `packages/shared`.
+Shared domain logic goes in `packages/domain`.
 
 ## Entry points
 
@@ -17,7 +17,7 @@ Shared domain logic goes in `packages/shared`.
 ## Invariants
 
 - Everything exported must be serializable and safe for React Native, with no Node imports.
-- The only dependencies are `@open-bot/shared`, zod and oRPC.
+- The only dependencies are `@open-bot/domain`, zod and oRPC.
 - Adding a procedure needs a handler in `apps/web/src/lib/server/api/router.ts`.
 - The worker bundler resolves this package for its types, so new deps must be declared (`apps/worker/build.mjs`).
 - The stream format in `live.ts` is a public contract with the phone: do not change event names without shipping both sides.

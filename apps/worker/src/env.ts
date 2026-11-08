@@ -1,6 +1,6 @@
 import os from "node:os";
 import path from "node:path";
-import { assertNoDevSecrets, DEV_SECRETS } from "@open-bot/shared/secrets";
+import { assertNoDevSecrets, DEV_SECRETS } from "@open-bot/domain/server";
 import { z } from "zod";
 
 const schema = z.object({

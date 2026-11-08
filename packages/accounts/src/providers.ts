@@ -1,4 +1,4 @@
-import type { AccountProvider } from "@open-bot/shared";
+import type { AccountProvider } from "@open-bot/domain";
 import { google } from "./google";
 import { notion } from "./notion";
 import type { ProviderAdapter } from "./provider";

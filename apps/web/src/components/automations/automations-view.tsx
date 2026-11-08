@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { DAILY_CHECK_IN } from "@open-bot/shared";
+import { DAILY_CHECK_IN } from "@open-bot/domain";
 import {
   CalendarClock,
   CalendarDays,

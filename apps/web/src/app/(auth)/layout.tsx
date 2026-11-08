@@ -1,4 +1,4 @@
-import { BOT_COLORS, TEAMMATE_TEMPLATES } from "@open-bot/shared";
+import { BOT_COLORS, TEAMMATE_TEMPLATES } from "@open-bot/domain";
 import { Check } from "lucide-react";
 import { BotAvatar } from "@/components/bot-avatar";
 import { Logo, Wordmark } from "@/components/logo";

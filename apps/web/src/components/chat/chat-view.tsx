@@ -1,6 +1,6 @@
 "use client";
 
-import { isRunActive } from "@open-bot/shared";
+import { isRunActive } from "@open-bot/domain";
 import {
   ArrowDown,
   ArrowRight,

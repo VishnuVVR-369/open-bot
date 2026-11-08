@@ -1,5 +1,5 @@
 import type { v2 } from "@open-bot/agent";
-import { MAX_SWARM_TASKS, SCREEN } from "@open-bot/shared";
+import { MAX_SWARM_TASKS, SCREEN } from "@open-bot/domain";
 import { ACCOUNT_TOOL_SPECS } from "../accounts/registry";
 
 /**

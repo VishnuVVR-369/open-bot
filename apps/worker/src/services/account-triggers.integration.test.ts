@@ -4,7 +4,7 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { AccountStore } from "@open-bot/accounts";
 import { bots, chats, connections, runs, triggerFirings, triggers } from "@open-bot/db";
-import { ACCOUNT_TRIGGER_NOTE, GOOGLE_SCOPES } from "@open-bot/shared";
+import { ACCOUNT_TRIGGER_NOTE, GOOGLE_SCOPES } from "@open-bot/domain";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";

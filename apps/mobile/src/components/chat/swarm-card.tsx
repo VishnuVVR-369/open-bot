@@ -1,4 +1,4 @@
-import { plainText, type SwarmItem, type SwarmTaskState } from "@open-bot/shared";
+import { plainText, type SwarmItem, type SwarmTaskState } from "@open-bot/domain";
 import { safe } from "@orpc/client";
 import { router } from "expo-router";
 import { Check, ChevronRight, Clock, Network, Square, X } from "lucide-react-native";

@@ -1,4 +1,4 @@
-import { BOT_COLORS } from "@open-bot/shared";
+import { BOT_COLORS } from "@open-bot/domain";
 import { bots } from "@open-bot/db";
 import { isNull } from "drizzle-orm";
 import type { Metadata } from "next";

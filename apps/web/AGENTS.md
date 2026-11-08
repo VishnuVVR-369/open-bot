@@ -12,7 +12,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 The Next.js app the owner uses: pages and components, server actions, GET read routes, the SSE stream and the oRPC endpoint for the mobile app.
 It does not run teammates or touch the computer; that is the worker (`apps/worker`) and botd (`apps/botd`), reached through `apps/web/src/lib/server/worker.ts`.
-Shared types and the mobile contract belong in `packages/shared` and `packages/api`.
+Shared types and the mobile contract belong in `packages/domain` and `packages/api`.
 
 ## Entry points
 

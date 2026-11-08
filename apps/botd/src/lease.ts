@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { isOwnerLease, type LeaseHolder, type RunIdentity } from "@open-bot/shared";
+import { isOwnerLease, type LeaseHolder, type RunIdentity } from "@open-bot/domain";
 
 /**
  * Decides whether a code-protected screen may be released: true only once the code is gone.

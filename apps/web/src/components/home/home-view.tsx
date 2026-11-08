@@ -1,6 +1,6 @@
 "use client";
 
-import { approvalShortTitle, BOT_COLORS, isRunActive, TEAMMATE_TEMPLATES } from "@open-bot/shared";
+import { approvalShortTitle, BOT_COLORS, isRunActive, TEAMMATE_TEMPLATES } from "@open-bot/domain";
 import { format, formatDistanceToNowStrict, isToday, isTomorrow } from "date-fns";
 import {
   AlertCircle,

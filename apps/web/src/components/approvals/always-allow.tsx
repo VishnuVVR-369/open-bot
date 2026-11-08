@@ -8,7 +8,7 @@ import {
   simpleCommands,
   suggestedRule,
   type RuleKind,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { Loader2, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";

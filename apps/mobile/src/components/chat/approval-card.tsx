@@ -1,4 +1,4 @@
-import { approvalRisk, approveLabel, type ApprovalItem, type ApprovalRisk } from "@open-bot/shared";
+import { approvalRisk, approveLabel, type ApprovalItem, type ApprovalRisk } from "@open-bot/domain";
 import {
   AlertTriangle,
   Check,

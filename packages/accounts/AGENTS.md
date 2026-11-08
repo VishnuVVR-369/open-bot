@@ -1,7 +1,7 @@
 # packages/accounts
 
 OAuth flows and the encrypted token store for Google and Notion, in Node with the database.
-Provider and integration definitions (labels, scopes, tools) go in `packages/shared/src/accounts`.
+Provider and integration definitions (labels, scopes, tools) go in `packages/domain/src/integrations/accounts`.
 Calls to Gmail, Calendar and Notion, and the teammate tools, go in `apps/worker/src/accounts`.
 
 ## Entry points
@@ -14,14 +14,14 @@ Calls to Gmail, Calendar and Notion, and the teammate tools, go in `apps/worker/
 
 ## Why accounts are split in three
 
-- `packages/shared/src/accounts`: isomorphic definitions, readable by web and mobile.
+- `packages/domain/src/integrations/accounts`: isomorphic definitions, readable by web and mobile.
 - `packages/accounts`: the OAuth flows and token store, which need Node and the database.
 - `apps/worker/src/accounts`: runtime adapters that serve the tools.
 - Teammates get tools, never provider tokens or client secrets.
 
 ## Invariants
 
-- Tokens and client secrets are encrypted with `encryptSecret` from `@open-bot/shared/secrets` before they are stored.
+- Tokens and client secrets are encrypted with `encryptSecret` from `@open-bot/domain/server` before they are stored.
 - A refresh can fail permanently; the store then raises `AccountUnavailableError` and the account needs a reconnect.
 - Tokens within two minutes of expiry are refreshed first (`REFRESH_MARGIN_MS` in `packages/accounts/src/store.ts`).
 - Provider-specific behavior stays behind `ProviderAdapter`; the store and callers do not branch on provider.

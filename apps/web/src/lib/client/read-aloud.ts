@@ -1,6 +1,6 @@
 "use client";
 
-import { speakable } from "@open-bot/shared";
+import { speakable } from "@open-bot/domain";
 import { useSyncExternalStore } from "react";
 
 export { speakable };

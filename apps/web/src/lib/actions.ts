@@ -46,11 +46,11 @@ import {
   type EgressModeSetting,
   type PhoneEgressSetting,
   type TriggerKind,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
-import { decryptSecret, encryptSecret, secretHint } from "@open-bot/shared/secrets";
-import { memoryInputSchema, memoryEditSchema, memoryReferenceSchema } from "@open-bot/shared";
+import { decryptSecret, encryptSecret, secretHint } from "@open-bot/domain/server";
+import { memoryInputSchema, memoryEditSchema, memoryReferenceSchema } from "@open-bot/domain";
 import {
   decideApprovalInputSchema,
   egressModeSchema,

@@ -114,7 +114,9 @@ export class ComputeLifecycle {
         background: await this.deps.busy(),
       };
       if (Object.values(busy).some(Boolean))
-        throw new ComputerBusy(`Computer still has active or unknown work: ${JSON.stringify(busy)}`);
+        throw new ComputerBusy(
+          `Computer still has active or unknown work: ${JSON.stringify(busy)}`,
+        );
       await this.deps.stop();
       this.phase = "idle";
       // A successful full process shutdown is the only point where old RPC state can be forgotten.

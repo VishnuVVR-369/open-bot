@@ -1,5 +1,5 @@
 import { UPLOAD_HEADERS, uploadViewSchema, type Attachment } from "@open-bot/api";
-import { MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from "@open-bot/shared";
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from "@open-bot/domain";
 
 /**
  * Talking to `PUT /api/uploads/<id>`, without the platform: what to send, and what an answer

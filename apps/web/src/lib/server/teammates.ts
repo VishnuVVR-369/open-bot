@@ -1,6 +1,6 @@
 import "server-only";
 import { approvalRules, lessons, schedules, skills, triggers } from "@open-bot/db";
-import { BUNDLE_FORMAT, BUNDLE_VERSION, nextCronRun, type TeammateBundle } from "@open-bot/shared";
+import { BUNDLE_FORMAT, BUNDLE_VERSION, nextCronRun, type TeammateBundle } from "@open-bot/domain";
 import { and, asc, eq, isNotNull } from "drizzle-orm";
 import { db } from "./db";
 

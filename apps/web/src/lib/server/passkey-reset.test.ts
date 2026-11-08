@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { PASSKEY_RESET_MINUTES } from "@open-bot/shared";
+import { PASSKEY_RESET_MINUTES } from "@open-bot/domain";
 import { noteUserVerification, openResetWindow } from "./passkey-reset";
 
 function signIn() {

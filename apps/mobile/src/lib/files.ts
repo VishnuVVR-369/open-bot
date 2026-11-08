@@ -1,4 +1,4 @@
-import { fileKind } from "@open-bot/shared";
+import { fileKind } from "@open-bot/domain";
 import { Directory, File, Paths } from "expo-file-system";
 import { sessionCookie } from "./auth";
 import { APP_URL } from "./config";

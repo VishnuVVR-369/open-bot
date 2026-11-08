@@ -1,5 +1,5 @@
 import { CHANNELS, notify, runEvents, type Db } from "@open-bot/db";
-import type { RunEventPayload } from "@open-bot/shared";
+import type { RunEventPayload } from "@open-bot/domain";
 import type pg from "pg";
 
 const DELTA_FLUSH_MS = 120;

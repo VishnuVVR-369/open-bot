@@ -3,7 +3,7 @@ import {
   type InferContractRouterInputs,
   type InferContractRouterOutputs,
 } from "@orpc/contract";
-import { MAX_LESSON_CHARS } from "@open-bot/shared";
+import { MAX_LESSON_CHARS } from "@open-bot/domain";
 import { z } from "zod";
 import {
   egressDeviceViewSchema,

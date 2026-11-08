@@ -3,7 +3,7 @@ import {
   computerLifecycleSchema,
   screenOperationSchema,
   typeOnScreenSchema,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { botSummarySchema } from "./views";
 
 export { screenOperationSchema, typeOnScreenSchema };

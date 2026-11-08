@@ -1,5 +1,5 @@
 import { credentials, pushSubscriptions } from "@open-bot/db";
-import { decryptSecret, encryptSecret } from "@open-bot/shared/secrets";
+import { decryptSecret, encryptSecret } from "@open-bot/domain/server";
 import { eq } from "drizzle-orm";
 import webpush from "web-push";
 import type { Context, NotificationEvent } from "../context";

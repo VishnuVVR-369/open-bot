@@ -1,4 +1,4 @@
-import type { ComputerLifecycleStatus } from "@open-bot/shared";
+import type { ComputerLifecycleStatus } from "@open-bot/domain";
 import type {
   AccountCapability,
   AccountProvider,
@@ -7,7 +7,7 @@ import type {
   ConnectionKind,
   RunStatus,
   TriggerKind,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 
 /** What the UI reads; shared by route handlers and client components. */
 

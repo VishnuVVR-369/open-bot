@@ -15,7 +15,7 @@ import type {
   PageCheckResult,
   RunIdentity,
   TypeOnScreen,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import WebSocket from "ws";
 import type { ComputerLifecycle } from "./computer-lifecycle";
 import type { Logger } from "./logger";

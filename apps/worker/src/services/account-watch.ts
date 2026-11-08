@@ -2,7 +2,7 @@
  * The pure parts of Gmail and Calendar triggers: which mail is new, which events are due, and the
  * keys that keep anything from waking a teammate twice.
  */
-import type { CalendarEventFilter } from "@open-bot/shared";
+import type { CalendarEventFilter } from "@open-bot/domain";
 
 /** One entry of Gmail's history.list, as much of it as triggers read. */
 export interface HistoryRecord {

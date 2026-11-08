@@ -8,7 +8,7 @@ import {
 } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
 import * as z from "zod";
-import { PASSKEY_RESET_MINUTES, PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@open-bot/shared";
+import { PASSKEY_RESET_MINUTES, PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@open-bot/domain";
 
 /**
  * A new password without the current one, for a session that has just proven a passkey.

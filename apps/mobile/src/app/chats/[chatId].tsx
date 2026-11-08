@@ -1,6 +1,6 @@
 import type { ChatEntry, ChatSummary } from "@open-bot/api";
-import type { ChatStatus } from "@open-bot/shared";
-import { isRunActive } from "@open-bot/shared";
+import type { ChatStatus } from "@open-bot/domain";
+import { isRunActive } from "@open-bot/domain";
 import { safe } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { router, Stack, useLocalSearchParams } from "expo-router";

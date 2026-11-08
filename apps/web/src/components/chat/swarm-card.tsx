@@ -1,6 +1,6 @@
 "use client";
 
-import type { SwarmItem, SwarmTaskState } from "@open-bot/shared";
+import type { SwarmItem, SwarmTaskState } from "@open-bot/domain";
 import { Check, Clock, Loader2, Network, Square, X } from "lucide-react";
 import Link from "next/link";
 import { useTransition } from "react";

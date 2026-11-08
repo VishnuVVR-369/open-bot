@@ -1,6 +1,6 @@
 "use client";
 
-import { MAX_LESSON_CHARS } from "@open-bot/shared";
+import { MAX_LESSON_CHARS } from "@open-bot/domain";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, ThumbsDown, ThumbsUp } from "lucide-react";
 import { useRouter } from "next/navigation";

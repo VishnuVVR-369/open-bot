@@ -1,6 +1,6 @@
 import { credentials, settings, usageEntries } from "@open-bot/db";
-import { decideAuthMode, formatDollars, type AuthDecision } from "@open-bot/shared";
-import { decryptSecret } from "@open-bot/shared/secrets";
+import { decideAuthMode, formatDollars, type AuthDecision } from "@open-bot/domain";
+import { decryptSecret } from "@open-bot/domain/server";
 import { and, eq, gte, sql } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
 import { errorMessage } from "../logger";

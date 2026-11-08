@@ -1,5 +1,5 @@
 import type { ChatSummary } from "@open-bot/api";
-import { AUTONOMY_OPTIONS, plainText } from "@open-bot/shared";
+import { AUTONOMY_OPTIONS, plainText } from "@open-bot/domain";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import {
   CalendarClock,

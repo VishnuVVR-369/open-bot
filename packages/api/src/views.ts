@@ -1,4 +1,4 @@
-import type { RunTimelineState } from "@open-bot/shared";
+import type { RunTimelineState } from "@open-bot/domain";
 import { z } from "zod";
 
 /**
@@ -102,7 +102,7 @@ export const runTriggerSchema = z.enum([
 ]);
 
 /**
- * A run's timeline, folded from its run events by `applyRunEvent` in `@open-bot/shared`. The
+ * A run's timeline, folded from its run events by `applyRunEvent` in `@open-bot/domain`. The
  * worker writes these items and the shared types describe them, so they're passed through as is.
  */
 const timelineSchema = z.custom<RunTimelineState>(

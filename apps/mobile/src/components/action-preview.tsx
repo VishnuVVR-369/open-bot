@@ -3,7 +3,7 @@ import {
   eventTime,
   previewNote,
   type AccountActionPreview,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import * as WebBrowser from "expo-web-browser";
 import {
   CalendarDays,

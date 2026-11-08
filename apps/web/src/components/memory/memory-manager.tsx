@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { type MemoryItem, type MemoryRevision } from "@open-bot/shared";
+import { type MemoryItem, type MemoryRevision } from "@open-bot/domain";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";

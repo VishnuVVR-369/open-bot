@@ -1,6 +1,6 @@
 "use client";
 
-import { cardBrand, cardDigits } from "@open-bot/shared";
+import { cardBrand, cardDigits } from "@open-bot/domain";
 import { useQueryClient } from "@tanstack/react-query";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { useEffect, useId, useState, useTransition, type ReactNode } from "react";

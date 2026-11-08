@@ -1,7 +1,7 @@
 "use client";
 
 import type { ScreenFrame as LastFrame } from "@open-bot/api";
-import { relativeTime } from "@open-bot/shared";
+import { relativeTime } from "@open-bot/domain";
 import { useQuery } from "@tanstack/react-query";
 import { CloudOff, Globe, Hand, Home } from "lucide-react";
 import Link from "next/link";

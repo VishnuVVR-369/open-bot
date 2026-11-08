@@ -1,5 +1,5 @@
 import type { BotSummary, NotificationView } from "@open-bot/api";
-import { plainText } from "@open-bot/shared";
+import { plainText } from "@open-bot/domain";
 import { useQueryClient } from "@tanstack/react-query";
 import { router, Stack, useFocusEffect } from "expo-router";
 import {

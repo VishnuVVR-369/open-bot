@@ -1,4 +1,4 @@
-import { fileKind } from "@open-bot/shared";
+import { fileKind } from "@open-bot/domain";
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { Stack, useLocalSearchParams } from "expo-router";

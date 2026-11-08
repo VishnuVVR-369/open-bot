@@ -1,7 +1,7 @@
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import { UPLOAD_HEADERS, type UploadView } from "@open-bot/api";
-import { MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from "@open-bot/shared";
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from "@open-bot/domain";
 import { serverEnv } from "../env";
 import { worker, WorkerError } from "../worker";
 

@@ -1,4 +1,4 @@
-import { RECOVERY_COPY } from "@open-bot/shared";
+import { RECOVERY_COPY } from "@open-bot/domain";
 import { safe } from "@orpc/client";
 import Constants from "expo-constants";
 import * as LocalAuthentication from "expo-local-authentication";

@@ -11,15 +11,15 @@ This page covers where pages are stored, how they are served and checked, and wh
 
 ## The parts
 
-| Part                | Code                                   | Does                                                                             |
-| ------------------- | -------------------------------------- | -------------------------------------------------------------------------------- |
-| Pages service       | `apps/pages`                           | Serves published versions and `/lib`, on an origin of its own                    |
-| Page kit            | `packages/page-kit`                    | The kit, the runtime, the vendored libraries, the `/page` skill and its template |
-| Preview and checker | `apps/botd/src/pages.ts`               | Serves drafts on the computer and checks them in a headless browser              |
-| `PageService`       | `apps/worker/src/services/pages.ts`    | Publishes checked files as versions, and restores them for editing               |
-| Web API             | `apps/web/src/lib/server/api/pages.ts` | Lists, signs links, pins, deletes, thumbnails and downloads                      |
-| Shared rules        | `packages/shared/src/pages.ts`         | The CSP, response headers, limits, the Ask message and its parser                |
-| Link signing        | `packages/shared/src/page-links.ts`    | Signs and verifies the short-lived links                                         |
+| Part                | Code                                       | Does                                                                             |
+| ------------------- | ------------------------------------------ | -------------------------------------------------------------------------------- |
+| Pages service       | `apps/pages`                               | Serves published versions and `/lib`, on an origin of its own                    |
+| Page kit            | `packages/page-kit`                        | The kit, the runtime, the vendored libraries, the `/page` skill and its template |
+| Preview and checker | `apps/botd/src/pages.ts`                   | Serves drafts on the computer and checks them in a headless browser              |
+| `PageService`       | `apps/worker/src/services/pages.ts`        | Publishes checked files as versions, and restores them for editing               |
+| Web API             | `apps/web/src/lib/server/api/pages.ts`     | Lists, signs links, pins, deletes, thumbnails and downloads                      |
+| Shared rules        | `packages/domain/src/pages/pages.ts`       | The CSP, response headers, limits, the Ask message and its parser                |
+| Link signing        | `packages/domain/src/server/page-links.ts` | Signs and verifies the short-lived links                                         |
 
 ## Storage
 

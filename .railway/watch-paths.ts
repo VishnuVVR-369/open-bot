@@ -13,7 +13,7 @@ export const SERVICE_FOLDERS: Record<DeployedService, readonly string[]> = {
     "packages/api",
     "packages/db",
     "packages/memory",
-    "packages/shared",
+    "packages/domain",
   ],
   worker: [
     "apps/worker",
@@ -24,15 +24,15 @@ export const SERVICE_FOLDERS: Record<DeployedService, readonly string[]> = {
     "packages/egress",
     "packages/memory",
     "packages/page-kit",
-    "packages/shared",
+    "packages/domain",
   ],
-  pages: ["apps/pages", "packages/db", "packages/page-kit", "packages/shared"],
+  pages: ["apps/pages", "packages/db", "packages/page-kit", "packages/domain"],
   computer: [
     "images/computer",
     "apps/botd",
     "packages/egress",
     "packages/page-kit",
-    "packages/shared",
+    "packages/domain",
   ],
 };
 

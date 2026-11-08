@@ -13,7 +13,7 @@ import {
   TRIGGER_CONNECTION_KIND,
   WATCH_INTERVALS,
   type TriggerKind,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import Link from "next/link";

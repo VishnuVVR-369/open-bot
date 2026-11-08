@@ -7,7 +7,7 @@ import {
   isAccountTrigger,
   relativeTime,
   type TriggerKind,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import {
   CalendarDays,
   Copy,

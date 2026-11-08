@@ -1,5 +1,5 @@
 import type { RunView } from "@open-bot/api";
-import { compactNumber, formatDollars, formatDuration, MAX_LESSON_CHARS } from "@open-bot/shared";
+import { compactNumber, formatDollars, formatDuration, MAX_LESSON_CHARS } from "@open-bot/domain";
 import { safe } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
 import * as Clipboard from "expo-clipboard";

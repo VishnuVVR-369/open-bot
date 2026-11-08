@@ -9,7 +9,7 @@ import {
   isAccountConnectionKind,
   type AccountConnectionKind,
   type ToolItem,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Context } from "../context";

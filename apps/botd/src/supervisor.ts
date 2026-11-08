@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
-import type { ProcessState } from "@open-bot/shared";
+import type { ProcessState } from "@open-bot/domain";
 import { asUser, type SystemUser } from "./users";
 
 export type { ProcessState };

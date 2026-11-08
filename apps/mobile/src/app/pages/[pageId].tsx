@@ -1,5 +1,5 @@
 import type { BotSummary, ChatSummary, PageDetail } from "@open-bot/api";
-import { pageQuestionText } from "@open-bot/shared";
+import { pageQuestionText } from "@open-bot/domain";
 import { safe } from "@orpc/client";
 import { useQuery } from "@tanstack/react-query";
 import * as Crypto from "expo-crypto";

@@ -188,7 +188,7 @@ A site that keeps its login in local storage needs signing in on each screen.
 
 Teammates must never submit a job application.
 On every browser, botd enables the DevTools `Fetch` domain for request URLs matching `*apply*` (in three spellings, because the patterns are case-sensitive), so only those requests pause.
-For each paused request, `blockedApplication()` in `@open-bot/shared` applies a deliberately broad rule:
+For each paused request, `blockedApplication()` in `@open-bot/domain` applies a deliberately broad rule:
 
 - `GET`, `HEAD` and `OPTIONS` always pass, so reading job postings works.
 - Any other method passes unless the path or query mentions "apply" and the host is a guarded portal: `linkedin.com`, `naukri.com` or their subdomains, plus any domain in `APPLY_GUARD_EXTRA_DOMAINS`.

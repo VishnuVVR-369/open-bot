@@ -7,7 +7,7 @@ import {
   hasMemorySaveIntent,
   hasMemoryForgetIntent,
   type MemoryItem,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { fingerprint } from "./index";
 import { extractionSchema, memoryAIConfig } from "./jobs";
 

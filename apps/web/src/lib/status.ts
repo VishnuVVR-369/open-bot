@@ -1,10 +1,10 @@
-import { teammateStatus } from "@open-bot/shared";
+import { teammateStatus } from "@open-bot/domain";
 import type { BotActivity } from "@/components/bot-avatar";
 import type { AppState, BotSummary } from "./types";
 
-// The words and the rules for a teammate's status are shared with the phone (packages/shared).
-export { chatStatus, STATUS, teammateStatus } from "@open-bot/shared";
-export type { ChatStatus, StatusLabel, TeammateStatus } from "@open-bot/shared";
+// The words and the rules for a teammate's status are shared with the phone (packages/domain).
+export { chatStatus, STATUS, teammateStatus } from "@open-bot/domain";
+export type { ChatStatus, StatusLabel, TeammateStatus } from "@open-bot/domain";
 
 /** A scheduled run whose time has come while the computer is offline. */
 export const WAITING_FOR_COMPUTER = "Waiting for the computer";

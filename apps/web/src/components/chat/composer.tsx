@@ -6,7 +6,7 @@ import {
   MAX_UPLOAD_LABEL,
   mentionedIds,
   type RunStatus,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import {
   ArrowUp,
   CloudOff,

@@ -1,4 +1,4 @@
-import { RECOVERY_COPY, resetPasswordCommand } from "@open-bot/shared";
+import { RECOVERY_COPY, resetPasswordCommand } from "@open-bot/domain";
 import { CircleAlert, KeyRound } from "lucide-react-native";
 import { useRef, useState, type ComponentProps, type ReactNode } from "react";
 import {

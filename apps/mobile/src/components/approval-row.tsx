@@ -1,5 +1,5 @@
 import type { ApprovalView, BotSummary } from "@open-bot/api";
-import { approvalShortTitle, commandParts, commandSummary } from "@open-bot/shared";
+import { approvalShortTitle, commandParts, commandSummary } from "@open-bot/domain";
 import { router } from "expo-router";
 import { ChevronRight } from "lucide-react-native";
 import { Pressable, StyleSheet, View } from "react-native";

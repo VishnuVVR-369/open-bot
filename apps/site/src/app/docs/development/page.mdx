@@ -64,7 +64,7 @@ CI runs every row marked "CI" on each pull request.
 | `pnpm lint`, `pnpm typecheck`, `pnpm test`            | ESLint, types (including every Playwright config) and unit tests                                               | Nothing                         | CI  |
 | `pnpm check:doc-paths`                                | Every `apps/...` or `packages/...` code span and every relative link or image in a Markdown or MDX file exists | Nothing                         | CI  |
 | `pnpm check:vocabulary`                               | No file gains a use of a legacy name (bot, primary, desktop takeover); see the glossary in `AGENTS.md`         | Nothing                         | CI  |
-| `pnpm test:scripts`                                   | Unit tests for the repository checks in `scripts/check`                                                        | Nothing                         | CI  |
+| `pnpm test:scripts`                                   | Unit tests for the repository checks in `scripts/check` and the CI helpers in `scripts/ci`                     | Nothing                         | CI  |
 | `pnpm test:railway`                                   | Railway watch paths in `.railway/watch-paths.ts` match each service's dependencies and Dockerfile              | Nothing                         | CI  |
 | `pnpm --filter @open-bot/mobile check:viewer`         | The generated noVNC viewer matches its source                                                                  | Nothing                         | CI  |
 | `pnpm test:integration`                               | Every `*.integration.test.ts` against real Postgres                                                            | Docker, or `TEST_DATABASE_URL`  | CI  |
@@ -82,7 +82,7 @@ CI runs every row marked "CI" on each pull request.
 ### Unit tests
 
 Vitest, next to the code they test (`*.test.ts`).
-The pure logic in `@open-bot/shared` is covered most: approval rules, schedules, page diffing, the timeline reducer, templates, vault and budgets, connections, email parsing, Telegram formatting, model access and pricing.
+The pure logic in `@open-bot/domain` is covered most: approval rules, schedules, page diffing, the timeline reducer, templates, vault and budgets, connections, email parsing, Telegram formatting, model access and pricing.
 The worker and botd test their trickiest parts directly: the lease, the cookie jar's merge rules, the Codex client, the event mapper, instructions and push payloads.
 `packages/egress` has contract tests for the framing, flow control and SOCKS, and writes the test vectors the Kotlin core reads (`pnpm --filter @open-bot/egress vectors`).
 

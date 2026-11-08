@@ -14,8 +14,8 @@ import {
   MAX_UPLOAD_BYTES,
   typeOnScreenSchema,
   undeletablePath,
-} from "@open-bot/shared";
-import { LEGACY_DESKTOP_AGENT, readToken, verifyToken } from "@open-bot/shared/tokens";
+} from "@open-bot/domain";
+import { LEGACY_DESKTOP_AGENT, readToken, verifyToken } from "@open-bot/domain/server";
 import { and, asc, eq, gt, isNull, sql } from "drizzle-orm";
 import WebSocket, { WebSocketServer } from "ws";
 import { z } from "zod";

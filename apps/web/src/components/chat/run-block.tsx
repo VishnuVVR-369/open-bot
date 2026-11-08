@@ -7,7 +7,7 @@ import {
   shellScript,
   type ComputerItem,
   type TimelineItem,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { format } from "date-fns";
 import {
   AlertTriangle,

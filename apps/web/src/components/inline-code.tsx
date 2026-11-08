@@ -1,4 +1,4 @@
-import { shellScript } from "@open-bot/shared";
+import { shellScript } from "@open-bot/domain";
 
 /** Text with `backtick` spans shown as code, like approval titles. */
 export function InlineCode({ text }: { text: string }) {

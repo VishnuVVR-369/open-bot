@@ -12,7 +12,7 @@ import {
   type ApprovalFacts,
   type ApprovalKind,
   type ApprovalRisk,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Check,

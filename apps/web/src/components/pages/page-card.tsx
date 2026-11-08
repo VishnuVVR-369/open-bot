@@ -1,6 +1,6 @@
 "use client";
 
-import type { PageItem } from "@open-bot/shared";
+import type { PageItem } from "@open-bot/domain";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { PageThumbnail } from "./page-thumbnail";

@@ -6,7 +6,7 @@ import {
   parseLocalDateTime,
   QUIET_NOTE,
   validateCron,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { and, asc, eq, isNull, lte } from "drizzle-orm";
 import { enqueueRun, publishApp, type Context } from "../context";
 import { errorMessage } from "../logger";

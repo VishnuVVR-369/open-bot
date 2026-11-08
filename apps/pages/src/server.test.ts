@@ -1,7 +1,7 @@
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { fileURLToPath } from "node:url";
-import { signPageVersion } from "@open-bot/shared/page-links";
+import { signPageVersion } from "@open-bot/domain/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createPagesHandler } from "./server";
 

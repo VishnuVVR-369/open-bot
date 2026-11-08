@@ -5,7 +5,7 @@ import {
   shellScript,
   splitComputerPaths,
   type TimelineItem,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import {
   AlertTriangle,
   ArrowRightLeft,

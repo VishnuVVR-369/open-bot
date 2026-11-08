@@ -1,4 +1,4 @@
-import { fileKind } from "@open-bot/shared";
+import { fileKind } from "@open-bot/domain";
 import { router } from "expo-router";
 import {
   FileCode,

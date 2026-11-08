@@ -1,4 +1,4 @@
-import type { TeammateActivity } from "@open-bot/shared";
+import type { TeammateActivity } from "@open-bot/domain";
 import { cn } from "@/lib/utils";
 
 /** `paused`: they have work, but it waits for the computer to come back. */

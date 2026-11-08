@@ -1,5 +1,5 @@
 import type { ApprovalRule } from "@open-bot/api";
-import { accountTool, type RuleKind } from "@open-bot/shared";
+import { accountTool, type RuleKind } from "@open-bot/domain";
 import { safe } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { ShieldCheck, X } from "lucide-react-native";

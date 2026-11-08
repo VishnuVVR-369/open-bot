@@ -1,4 +1,4 @@
-import type { ActionEffect } from "@open-bot/shared";
+import type { ActionEffect } from "@open-bot/domain";
 import { describe, expect, it } from "vitest";
 import { approvalFor, calendarEffect, notionEffect, notionId, notionParent } from "./effects";
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { formatMoney } from "@open-bot/shared";
+import { formatMoney } from "@open-bot/domain";
 import { useQueryClient } from "@tanstack/react-query";
 import { CreditCard, Loader2 } from "lucide-react";
 import Link from "next/link";

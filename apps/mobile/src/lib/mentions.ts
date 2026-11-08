@@ -3,7 +3,7 @@
  * teammates a message mentions is read the same way as on the web, by shared's `mentionedIds`.
  * Platform-free, so it's tested in Node.
  */
-export { mentionedIds } from "@open-bot/shared";
+export { mentionedIds } from "@open-bot/domain";
 
 interface Member {
   id: string;

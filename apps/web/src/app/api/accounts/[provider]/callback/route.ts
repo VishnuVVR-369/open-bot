@@ -1,4 +1,4 @@
-import { isAccountProvider } from "@open-bot/shared";
+import { isAccountProvider } from "@open-bot/domain";
 import { NextResponse } from "next/server";
 import { completeAuthorization } from "@/lib/server/accounts";
 import { BASE_URL } from "@/lib/server/auth-config";

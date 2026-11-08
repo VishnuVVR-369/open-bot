@@ -1,5 +1,5 @@
 import type { BotSummary, ChatSummary } from "@open-bot/api";
-import { plainText } from "@open-bot/shared";
+import { plainText } from "@open-bot/domain";
 import { safe } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { router, useNavigation } from "expo-router";

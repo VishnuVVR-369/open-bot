@@ -166,7 +166,7 @@ The worker is the only process that decrypts their tokens, and makes every call 
 
 | Part             | File                     | Responsibility                                                                                                                   |
 | ---------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| `Integrations`   | `registry.ts`            | One adapter per integration, its tool specs checked at start against the integration's definition in `@open-bot/shared`          |
+| `Integrations`   | `registry.ts`            | One adapter per integration, its tool specs checked at start against the integration's definition in `@open-bot/domain`          |
 | `AccountAccess`  | `access.ts`              | Which connections a teammate may use, checking capabilities and granted scopes, tokens, and telling you once when a sign-in ends |
 | `AccountTools`   | `tools.ts`               | Routes each integration's tools to its adapter: checks access, runs reads, hands every change to the executor                    |
 | Gmail            | `gmail.ts`, `mime.ts`    | Gmail's REST API, building and freezing MIME, HTML to text                                                                       |
@@ -200,7 +200,7 @@ The executor wakes on `NOTIFY openbot_worker, 'accounts'` (sent when you decide)
 
 Every integration is described once, and the rest of the app reads that description:
 
-1. **The sign-in provider**, if it is new: its entry in `AUTH_PROVIDERS` in `packages/shared/src/accounts/` (label, base scopes, whether you paste in your own OAuth client or it registers one), and its `ProviderAdapter` in `packages/accounts` (authorization URL, token exchange, identity, refresh and revoke). A provider whose client you paste in also gets its setup steps in `apps/web/src/components/settings/provider-guides.tsx`.
+1. **The sign-in provider**, if it is new: its entry in `AUTH_PROVIDERS` in `packages/domain/src/integrations/accounts/` (label, base scopes, whether you paste in your own OAuth client or it registers one), and its `ProviderAdapter` in `packages/accounts` (authorization URL, token exchange, identity, refresh and revoke). A provider whose client you paste in also gets its setup steps in `apps/web/src/components/settings/provider-guides.tsx`.
 2. **The integration**: its definition next to the provider's, with its capabilities and the scopes each needs, its tools, any settings, and guidance for teammates. Settings, the connect dialog and teammates' instructions are drawn from it.
 3. **Its worker adapter**: a class in `apps/worker/src/accounts/` with the tool specs, `call()`, `probe()` for the connection test, and the runner for its changes, added to `ADAPTERS` in `registry.ts`.
 

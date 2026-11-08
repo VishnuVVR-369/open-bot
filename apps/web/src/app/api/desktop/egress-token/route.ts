@@ -1,4 +1,4 @@
-import { LEGACY_DESKTOP_AGENT, issueToken } from "@open-bot/shared/tokens";
+import { LEGACY_DESKTOP_AGENT, issueToken } from "@open-bot/domain/server";
 import { NextResponse } from "next/server";
 import { serverEnv } from "@/lib/server/env";
 import { authed } from "@/lib/server/route";

@@ -4,7 +4,7 @@ import {
   type ScreenOperation,
   type ScreenOperationStatus,
   type TypeOnScreen,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { eq, inArray } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
 import { ScreenBusy, withScreenLock } from "./screen-lock";

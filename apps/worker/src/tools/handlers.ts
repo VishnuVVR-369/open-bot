@@ -23,14 +23,14 @@ import {
   TRIGGER_CONNECTION_KIND,
   type ComputerAction,
   type ToolItem,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { and, desc, eq, ilike, inArray, isNull, or } from "drizzle-orm";
 import { z } from "zod";
 import { createNotification, enqueueRun, publishApp, type Context } from "../context";
 import { errorMessage } from "../logger";
 import type { RunSession } from "../runs/session";
 import type { MemoryCoordinator } from "../services/memory";
-import { memoryInputSchema, memoryReferenceSchema, hasMemoryForgetIntent } from "@open-bot/shared";
+import { memoryInputSchema, memoryReferenceSchema, hasMemoryForgetIntent } from "@open-bot/domain";
 import { MemoryError } from "@open-bot/memory";
 import type { ApprovalService } from "../services/approvals";
 import type { ScheduleService } from "../services/schedules";

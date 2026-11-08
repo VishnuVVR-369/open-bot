@@ -1,5 +1,5 @@
 import type { MessageView } from "@open-bot/api";
-import { fileKind } from "@open-bot/shared";
+import { fileKind } from "@open-bot/domain";
 import { RotateCcw } from "lucide-react-native";
 import { memo } from "react";
 import { StyleSheet, View } from "react-native";

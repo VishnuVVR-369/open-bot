@@ -145,7 +145,10 @@ export class ComputerLifecycle {
       }
     } catch (error) {
       this.hooks.pause();
-      this.update("idle", "The computer didn't wake up. Your next task or Wake screen will try again.");
+      this.update(
+        "idle",
+        "The computer didn't wake up. Your next task or Wake screen will try again.",
+      );
       throw new Error(`Computer wake failed: ${String(error)}`, { cause: error });
     } finally {
       scope.active = false;

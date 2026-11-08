@@ -1,6 +1,6 @@
 import { googleEndpoints } from "@open-bot/accounts";
 import { settings } from "@open-bot/db";
-import { outsideData, type AccountActionPreview } from "@open-bot/shared";
+import { outsideData, type AccountActionPreview } from "@open-bot/domain";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Context } from "../context";

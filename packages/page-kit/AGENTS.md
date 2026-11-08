@@ -1,7 +1,7 @@
 # packages/page-kit
 
 What every page can load: the runtime, the page kit CSS and JS, fonts, vendored libraries, and the built-in `/page` skill.
-Serving pages and signing links go in `apps/pages` and `packages/shared/src/page-links.ts`, and page storage goes in the worker.
+Serving pages and signing links go in `apps/pages` and `packages/domain/src/server/page-links.ts`, and page storage goes in the worker.
 
 ## Entry points
 

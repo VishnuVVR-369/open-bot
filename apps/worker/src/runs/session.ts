@@ -17,7 +17,7 @@ import {
   shellScript,
   type RunStatus,
   type TimelineItem,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { and, eq, isNull } from "drizzle-orm";
 import { createNotification, enqueueRun, publishApp, type Context } from "../context";
 import { DEVELOPER_INSTRUCTIONS } from "../instructions";

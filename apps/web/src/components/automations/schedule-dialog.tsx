@@ -6,7 +6,7 @@ import {
   describeCron,
   formatLocalDateTime,
   type Cadence,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus } from "lucide-react";
 import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";

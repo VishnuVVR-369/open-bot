@@ -5,7 +5,7 @@ import {
   type ChatNaming,
   type ChatStatus,
   type TeammateActivity,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 
 /**
  * A chat's own status, for its header: what is happening in this chat, never what its teammates

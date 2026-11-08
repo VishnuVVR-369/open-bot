@@ -1,5 +1,5 @@
 import type { ScreenView } from "@open-bot/api";
-import { isOwnerLease } from "@open-bot/shared";
+import { isOwnerLease } from "@open-bot/domain";
 
 /**
  * What a screen is doing, from your side: what to say about it and which action comes first.

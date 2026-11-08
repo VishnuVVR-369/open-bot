@@ -17,7 +17,7 @@ import {
   type BotProfile,
   type CreateBotInput,
   type CreatedBot,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
 import { errorMessage } from "../logger";

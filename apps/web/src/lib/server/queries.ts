@@ -43,7 +43,7 @@ import {
   ACCOUNT_PROVIDERS,
   authProvider,
   integrationSettings,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import {
   and,
   asc,

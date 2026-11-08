@@ -14,7 +14,7 @@
     "typecheck": "tsc -p ."
   },
   "dependencies": {
-    "@open-bot/shared": "workspace:*",
+    "@open-bot/domain": "workspace:*",
     "drizzle-orm": "^0.45.4",
     "pg": "^8.23.1"
   },

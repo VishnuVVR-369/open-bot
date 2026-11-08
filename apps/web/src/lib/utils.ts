@@ -1,7 +1,7 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
-export { compactNumber, formatDuration, plainText } from "@open-bot/shared";
+export { compactNumber, formatDuration, plainText } from "@open-bot/domain";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

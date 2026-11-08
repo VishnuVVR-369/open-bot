@@ -43,7 +43,7 @@ Settings shows a URL and a code, you approve it in your browser, and Codex store
 
 ## Choosing plan or key for a run
 
-<Figure caption="decideAuthMode() in @open-bot/shared. It is pure, so it is unit tested without a database. The plan is always the default.">
+<Figure caption="decideAuthMode() in @open-bot/domain. It is pure, so it is unit tested without a database. The plan is always the default.">
   <ModelAccessDiagram />
 </Figure>
 
@@ -122,7 +122,7 @@ API key usage is priced at the model's list prices:
 | Cached input | $0.10                    |
 | Output       | $10.00                   |
 
-```ts title="costMicros() in packages/shared/src/model-access.ts"
+```ts title="costMicros() in packages/domain/src/models/access.ts"
 // $1 per million tokens is exactly one millionth of a dollar per token.
 const cached = Math.min(usage.cachedInputTokens, usage.inputTokens);
 return Math.round((usage.inputTokens - cached) * 2 + cached * 0.1 + usage.outputTokens * 10);

@@ -3,7 +3,7 @@ import {
   approvalRisk as sharedRisk,
   approveLabel as sharedLabel,
   commandParts,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { approvalFacts, detailRows, sendsEmail, shortenPaths, titleParts } from "./approval-text";
 
 /** The shared helpers, read through the phone's adapter, as the screens call them. */

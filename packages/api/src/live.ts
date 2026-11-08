@@ -1,4 +1,4 @@
-import { applyRunEvent, type RunEventPayload } from "@open-bot/shared";
+import { applyRunEvent, type RunEventPayload } from "@open-bot/domain";
 import type { ChatData, ChatEntry, RunView } from "./views";
 
 /**

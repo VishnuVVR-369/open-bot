@@ -8,7 +8,7 @@ import {
   type Autonomy,
   type BotCreationPlan,
   type BotProfile,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Context } from "../context";

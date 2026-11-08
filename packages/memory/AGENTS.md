@@ -1,7 +1,7 @@
 # packages/memory
 
 Versioned memory for teammates: saving, revisions, search and the background jobs that extract and embed.
-Tool wiring and routes go in `apps/worker`, memory tables in `packages/db`, shared memory types in `packages/shared/src/memory.ts`.
+Tool wiring and routes go in `apps/worker`, memory tables in `packages/db`, shared memory types in `packages/domain/src/memory/memory.ts`.
 
 ## Entry points
 

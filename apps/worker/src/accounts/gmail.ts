@@ -1,5 +1,5 @@
 import { googleEndpoints } from "@open-bot/accounts";
-import { outsideData, type AccountActionPreview } from "@open-bot/shared";
+import { outsideData, type AccountActionPreview } from "@open-bot/domain";
 import { z } from "zod";
 import type { Context } from "../context";
 import { AccountToolError, type ResolvedConnection } from "./access";

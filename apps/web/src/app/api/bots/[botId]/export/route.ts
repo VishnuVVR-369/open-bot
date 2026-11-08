@@ -1,5 +1,5 @@
 import { bots } from "@open-bot/db";
-import { bundleFileName } from "@open-bot/shared";
+import { bundleFileName } from "@open-bot/domain";
 import { and, eq, isNull } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/server/db";
