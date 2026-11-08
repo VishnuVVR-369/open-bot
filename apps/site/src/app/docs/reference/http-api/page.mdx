@@ -161,22 +161,33 @@ A path or input field is removed only once no deployed web app calls it.
 
 Base URL `BOTD_URL` (port 7000, private).
 Every route except `/healthz` requires `Authorization: Bearer <BOTD_TOKEN>`, or `?token=` on websockets.
+The routes are `botdContract` in `packages/api/src/botd/contract.ts`, an oRPC contract with the request and answer schema of each.
+botd (`apps/botd/src/router.ts`) checks every request against it and answers `400` for one that doesn't fit; the worker (`ComputerClient` in `apps/worker/src/computer.ts`) checks every answer and every event.
+Errors are `{ error, code }` with the status: `400` bad input, `401` no token, `409` refused for now, `500` failed.
+Routes marked ☀ work on the computer: the worker wakes the computer for them, and botd counts them as activity until they finish, so it can't quiesce under them.
 
-| Route                       | Purpose                                                                                                      |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `GET /healthz`              | Liveness, unauthenticated                                                                                    |
-| `GET /health`               | `ComputerHealth`: Codex state, screens with leases, egress                                                   |
-| `POST /computer/action`     | `{ run, action }`: perform a desktop action and return a screenshot, the pointer, and any apply guard blocks |
-| `POST /computer/read`       | `{ run, selector? }`: the front page's text and links                                                        |
-| `POST /computer/fill`       | `{ run, secret, site }`: type a vault secret, after checking the site                                        |
-| `POST /computer/screenshot` | A screenshot without an action                                                                               |
-| `POST /screens/start`       | Start a screen without using it                                                                              |
-| `POST /screens/forget`      | Stop a screen and delete its profile                                                                         |
-| `POST /lease/run/release`   | Release a run's lease when it ends                                                                           |
-| `POST /lease/user/take`     | Give you a screen's lease, preempting a run                                                                  |
-| `POST /lease/user/release`  | Release your lease (`handed_back`, `user_idle`, `user_disconnected`)                                         |
-| `POST /lease/user/touch`    | Record your input                                                                                            |
-| `POST /pages/check`         | `{ path }`: check a page in a headless browser; see [The checker](/docs/architecture/pages#the-checker)      |
+| Route                           | Purpose                                                                                                      |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `GET /healthz`                  | Liveness, unauthenticated; `503` while the computer is unhealthy, unless the lifecycle manages it            |
+| `GET /health`                   | `ComputerHealth`: Codex state, screens with leases, egress                                                   |
+| `GET /lifecycle/capabilities`   | `{ version, enabled, phase? }`: whether botd's sleep state machine is on                                     |
+| `POST /lifecycle/lease`         | `{ owner, demand }`: claim the lifecycle and say how much work the worker has                                |
+| `POST /lifecycle/ensure`        | `{ owner }`: start what was stopped for sleep                                                                |
+| `POST /lifecycle/quiesce`       | `{ owner }`: stop everything so the computer can sleep; `409` while work still runs                          |
+| `POST /computer/action` ☀       | `{ run, action }`: perform a desktop action and return a screenshot, the pointer, and any apply guard blocks |
+| `POST /computer/read` ☀         | `{ run, selector? }`: the front page's text and links                                                        |
+| `POST /computer/fill` ☀         | `{ run, secret, site }`: type a vault secret, after checking the site                                        |
+| `POST /computer/code-context` ☀ | `{ screenId }`: the site of the focused field, before a one-time code is typed                               |
+| `POST /computer/type` ☀         | `{ screenId, takeoverId, operationId, expectedSite, pressEnter, text }`: type a one-time code                |
+| `POST /screens/start` ☀         | Start a screen without using it                                                                              |
+| `POST /screens/forget` ☀        | Stop a screen and delete its profile                                                                         |
+| `POST /lease/run/release` ☀     | Release a run's lease when it ends                                                                           |
+| `POST /lease/user/take` ☀       | Give you a screen's lease, preempting a run; `409` while a code is being typed                               |
+| `POST /lease/user/release` ☀    | Release your lease (`handed_back`, `user_idle`, `user_disconnected`)                                         |
+| `POST /lease/user/touch` ☀      | Record your input                                                                                            |
+| `POST /pages/check` ☀           | `{ path }`: check a page in a headless browser; see [The checker](/docs/architecture/pages#the-checker)      |
+
+Errors from `/computer/fill` and `/computer/type` never repeat their input, which carries a secret.
 
 | Websocket            | Purpose                                                |
 | -------------------- | ------------------------------------------------------ |
@@ -189,13 +200,13 @@ botd also serves drafts of pages on `127.0.0.1:7080`, for the computer's own bro
 
 ### Action errors
 
-`/computer/*` routes return `{ ok: false, code, message }` on failure, and the message goes to the model as the tool's result:
+`/computer/action`, `/computer/read` and `/computer/fill` answer `200` with `{ ok: false, code, message }` when they can't do what the teammate asked, and the message goes to the model as the tool's result:
 
 | Code               | Meaning                                                               |
 | ------------------ | --------------------------------------------------------------------- |
 | `user_has_control` | You hold the screen, or took it during the action                     |
 | `desktop_busy`     | Another run of the same teammate holds the screen, after waiting 30 s |
-| `invalid_action`   | The action or identity failed validation                              |
+| `invalid_action`   | There was no secret to fill, or it was too long                       |
 | `wrong_site`       | A vault login didn't match every visible page                         |
 | `failed`           | Anything else, like a screen that couldn't start                      |
 

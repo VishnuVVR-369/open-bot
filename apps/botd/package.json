@@ -9,9 +9,12 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@open-bot/api": "workspace:*",
     "@open-bot/domain": "workspace:*",
     "@open-bot/egress": "workspace:*",
     "@open-bot/page-kit": "workspace:*",
+    "@orpc/openapi": "^1.16.1",
+    "@orpc/server": "^1.16.1",
     "ws": "^8.22.0"
   },
   "devDependencies": {

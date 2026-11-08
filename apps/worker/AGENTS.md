@@ -10,7 +10,7 @@ Shared types and pure logic go in `packages/domain`, and schema changes go in `p
 - `apps/worker/src/http.ts`: the HTTP server, shared-secret auth and the raw upload route; `apps/worker/src/ws.ts` has the VNC and egress websockets.
 - `apps/worker/src/rpc/router.ts`: the internal API (`workerContract` in `packages/api/src/worker/contract.ts`), each procedure calling a service; `apps/worker/src/rpc/handler.ts` wakes the computer around procedures that need it and maps errors (`apps/worker/src/rpc/errors.ts`).
 - `apps/worker/src/tools/definitions.ts` and `apps/worker/src/tools/handlers.ts`: tool specs (`TOOLS_VERSION`) and `ToolHandlers.handle()`, with `DEVELOPER_INSTRUCTIONS` in `apps/worker/src/instructions.ts`.
-- `apps/worker/src/computer-lifecycle.ts` and `apps/worker/src/computer.ts`: computer sleep and wake, and the client for botd.
+- `apps/worker/src/computer-lifecycle.ts` and `apps/worker/src/computer.ts`: computer sleep and wake, and `ComputerClient`, which calls botd through `botdContract` (`@open-bot/api/botd`) and validates every answer and event.
 - `apps/worker/build.mjs`: esbuild bundle to `apps/worker/dist/worker.mjs`.
 - For adding a tool, route, account or event, see "Where to make common changes" in the root `AGENTS.md`.
 

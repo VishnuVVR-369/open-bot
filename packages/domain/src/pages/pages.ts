@@ -3,6 +3,8 @@
  * published as versions you open in the apps. Nothing here needs Node, so the phone can use it.
  */
 
+import { z } from "zod";
+
 /** The largest page a teammate can publish. Images go inside the file, as data URLs or SVG. */
 export const MAX_PAGE_BYTES = 5 * 1024 * 1024;
 export const MAX_PAGE_LABEL = "5 MB";
@@ -147,34 +149,34 @@ export function pageQuestionText(input: {
 }
 
 /** A finding from checking a page: errors stop it from being published; warnings don't. */
-export interface PageIssue {
-  level: "error" | "warning";
-  message: string;
-}
+export const pageIssueSchema = z.object({
+  level: z.enum(["error", "warning"]),
+  message: z.string(),
+});
+export type PageIssue = z.infer<typeof pageIssueSchema>;
 
 /** A page that was checked on the computer, as the worker gets it back. */
-export interface PageCheckResult {
-  ok: true;
+export const pageCheckResultSchema = z.object({
+  ok: z.literal(true),
   /** The exact file that was checked, so the version stored is the one you saw. */
-  htmlBase64: string;
-  size: number;
-  sha256: string;
+  htmlBase64: z.string(),
+  size: z.number(),
+  sha256: z.string(),
   /** The page's <title>, if it has one. */
-  title: string;
+  title: z.string(),
   /** The text you'd read, for search and for teammates to read back later. */
-  text: string;
-  issues: PageIssue[];
+  text: z.string(),
+  issues: z.array(pageIssueSchema),
   /** JPEG screenshots of the top of the page, at each width. */
-  screenshots: { phone: string; desktop: string };
+  screenshots: z.object({ phone: z.string(), desktop: z.string() }),
   /** Small JPEGs of the top of the page at laptop width, for cards: light, and dark. */
-  thumbnail: string;
-  thumbnailDark: string;
-}
+  thumbnail: z.string(),
+  thumbnailDark: z.string(),
+});
+export type PageCheckResult = z.infer<typeof pageCheckResultSchema>;
 
-export interface PageCheckError {
-  ok: false;
-  message: string;
-}
+export const pageCheckErrorSchema = z.object({ ok: z.literal(false), message: z.string() });
+export type PageCheckError = z.infer<typeof pageCheckErrorSchema>;
 
 /** A page's path on the computer: an HTML file in a workspace or the shared folder. */
 export const PAGE_SOURCE_PATH =

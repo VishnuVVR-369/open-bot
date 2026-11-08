@@ -31,7 +31,7 @@ For a deployed service it must also be added to that service's list in `.railway
 | `apps/desktop`      | Electron Mac app: egress agent and notifications                              | `apps/desktop/src/main.ts`       | typecheck only                          |
 | `apps/site`         | Landing page and the technical docs (Cloudflare)                              | `apps/site/src/app`              | `pnpm --filter @open-bot/site test:e2e` |
 | `packages/domain`   | Isomorphic types, zod schemas and pure logic; Node-only helpers in `/server`  | `packages/domain/src/index.ts`   | `pnpm --filter @open-bot/domain test`   |
-| `packages/api`      | oRPC contract and serializable views shared by web and mobile                 | `packages/api/src/contract.ts`   | `pnpm --filter @open-bot/api test`      |
+| `packages/api`      | oRPC contracts (web and mobile, worker internal, botd) and serializable views | `packages/api/src/contract.ts`   | `pnpm --filter @open-bot/api test`      |
 | `packages/db`       | Drizzle schema, migrations, pool, NOTIFY channels and app events              | `packages/db/src/schema.ts`      | `pnpm test:integration`                 |
 | `packages/accounts` | OAuth flows and the token store for Google and Notion                         | `packages/accounts/src/index.ts` | `pnpm test:integration`                 |
 | `packages/memory`   | Versioned memory and its background jobs                                      | `packages/memory/src/index.ts`   | `pnpm test:memory`                      |
@@ -95,6 +95,14 @@ Paths are relative to the repo root; symbols are in parentheses.
 2. `apps/worker/src/rpc/router.ts`: implement it by calling a service. Put rules in the service, and throw the service's own error class; `apps/worker/src/rpc/errors.ts` maps error classes to statuses in one place. Auth (`x-worker-secret`) is automatic.
 3. Call it from web with the typed client: `worker.<domain>.<procedure>(input)` (`apps/web/src/lib/server/worker.ts`) in `apps/web/src/lib/actions.ts` or `apps/web/src/lib/server/api/*`. Failures are `WorkerError` with the worker's status and message.
 4. Document it in `apps/site/src/app/docs/reference/http-api/page.mdx`.
+
+**Add a botd route** (called by the worker)
+
+1. Shapes botd sends or takes go in `packages/domain/src/computer/protocol.ts` as zod schemas.
+2. `packages/api/src/botd/contract.ts`: add a procedure to `botdContract` with its `route`, input and output. Build it with `work` if it touches the computer, or it will not wake it and botd will not count it as activity; never for a status read.
+3. `apps/botd/src/router.ts`: implement it. Throw `ORPCError` with a status for a refusal; `apps/botd/src/rpc.ts` maps every other error in one place.
+4. `apps/worker/src/computer.ts`: call it with `this.botd.<domain>.<procedure>(input)` behind a `ComputerClient` method. The answer is already validated; failures are `BotdError` with botd's status.
+5. The computer and the worker deploy separately: keep old paths and input fields until no deployed worker sends them. Test it in `apps/botd/src/contract.test.ts` and document it in `apps/site/src/app/docs/reference/http-api/page.mdx`.
 
 **Add a field to a teammate** (web and mobile)
 

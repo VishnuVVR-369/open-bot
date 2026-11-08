@@ -1,5 +1,8 @@
+import { z } from "zod";
+
 /** Where the computer's browser traffic leaves from. */
-export type EgressModeSetting = "off" | "prefer" | "require";
+export const egressModeSchema = z.enum(["off", "prefer", "require"]);
+export type EgressModeSetting = z.infer<typeof egressModeSchema>;
 
 export const EGRESS_OPTIONS: { value: EgressModeSetting; label: string; description: string }[] = [
   {
@@ -22,7 +25,8 @@ export const EGRESS_OPTIONS: { value: EgressModeSetting; label: string; descript
 ];
 
 /** When your phone carries the computer's browser traffic. */
-export type PhoneEgressSetting = "off" | "fallback" | "always";
+export const phoneEgressModeSchema = z.enum(["off", "fallback", "always"]);
+export type PhoneEgressSetting = z.infer<typeof phoneEgressModeSchema>;
 
 export const PHONE_EGRESS_OPTIONS: {
   value: PhoneEgressSetting;

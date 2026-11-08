@@ -5,7 +5,9 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./worker": "./src/worker/index.ts"
+    "./worker": "./src/worker/index.ts",
+    "./botd": "./src/botd/index.ts",
+    "./desktop": "./src/desktop.ts"
   },
   "scripts": {
     "typecheck": "tsc -p .",
