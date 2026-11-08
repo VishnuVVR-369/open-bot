@@ -30,6 +30,7 @@ export const SERVICE_FOLDERS: Record<DeployedService, readonly string[]> = {
   computer: [
     "images/computer",
     "apps/botd",
+    "packages/api",
     "packages/egress",
     "packages/page-kit",
     "packages/domain",

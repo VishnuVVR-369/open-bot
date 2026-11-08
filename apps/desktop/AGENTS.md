@@ -18,9 +18,9 @@ It has no UI of its own beyond the tray, and it does not hold app logic: screens
 - Only the app's own origin (`OPEN_BOT_URL`) stays in the window; other links open in the default browser.
 - The preload exposes nothing beyond the platform string.
 - Permissions are granted only to the app's own origin, and only for notifications, the clipboard and fullscreen.
-- The egress agent signs in with the app's session cookie via `/api/desktop/egress-token`, so there is nothing to pair.
+- The egress agent signs in with the app's session cookie via `/api/desktop/egress-token`, so there is nothing to pair. Its answer is `desktopEgressTokenSchema` (`packages/api/src/desktop.ts`), which the web route produces and the app checks; installed apps call that path, so it stays.
 - Closing the window hides it and the tray keeps egress running; only an explicit quit stops it.
-- `@open-bot/egress` is a devDependency because esbuild bundles it into `dist/main.cjs`.
+- `@open-bot/egress` and `@open-bot/api` are devDependencies because esbuild bundles them into `dist/main.cjs`; import only `@open-bot/api/desktop`, which needs nothing but zod.
 
 ## Tests
 

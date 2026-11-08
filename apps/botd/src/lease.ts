@@ -1,22 +1,22 @@
 import { EventEmitter } from "node:events";
-import { isOwnerLease, type LeaseHolder, type RunIdentity } from "@open-bot/domain";
+import {
+  isOwnerLease,
+  type LeaseChangeReason,
+  type LeaseHolder,
+  type LeaseReleaseReason,
+  type RunIdentity,
+} from "@open-bot/domain";
 
 /**
  * Decides whether a code-protected screen may be released: true only once the code is gone.
  * `clear` asks it to clear the code first; `reason` says whether you asked or a timeout did.
  */
-export type ReleaseGuard = (
-  clear: boolean,
-  reason: "handed_back" | "user_idle" | "user_disconnected",
-) => Promise<boolean>;
-
-export type LeaseReleaseReason =
-  "handed_back" | "user_idle" | "user_disconnected" | "run_finished" | "run_idle" | "preempted";
+export type ReleaseGuard = (clear: boolean, reason: LeaseReleaseReason) => Promise<boolean>;
 
 export interface LeaseChange {
   holder: LeaseHolder;
   previous: LeaseHolder;
-  reason: LeaseReleaseReason | "acquired";
+  reason: LeaseChangeReason;
 }
 
 export interface LeaseOptions {
@@ -107,7 +107,7 @@ export class DesktopLease extends EventEmitter<{
     }
   }
 
-  releaseRun(runId: string, reason: LeaseReleaseReason = "run_finished"): boolean {
+  releaseRun(runId: string, reason: LeaseChangeReason = "run_finished"): boolean {
     if (this.current?.kind === "run" && this.current.runId === runId) {
       this.set(null, reason);
       return true;
@@ -136,9 +136,7 @@ export class DesktopLease extends EventEmitter<{
     return previous;
   }
 
-  releaseByUser(
-    reason: "handed_back" | "user_idle" | "user_disconnected" = "handed_back",
-  ): boolean {
+  releaseByUser(reason: LeaseReleaseReason = "handed_back"): boolean {
     if (!isOwnerLease(this.current) || this.releaseGuard) return false;
     this.set(null, reason);
     return true;
@@ -160,10 +158,7 @@ export class DesktopLease extends EventEmitter<{
       this.set({ ...holder, kind: "user-code", pausedForSafety: recovered }, "acquired");
   }
 
-  async releaseSafely(
-    reason: "handed_back" | "user_idle" | "user_disconnected" = "handed_back",
-    clear = false,
-  ): Promise<boolean> {
+  async releaseSafely(reason: LeaseReleaseReason = "handed_back", clear = false): Promise<boolean> {
     if (!isOwnerLease(this.current) || this.releasing) return false;
     if (!this.releaseGuard) return this.releaseByUser(reason);
     this.releasing = true;

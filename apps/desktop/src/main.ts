@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { DESKTOP_DEVICE_ID, desktopEgressTokenSchema } from "@open-bot/api/desktop";
 import { EgressAgent, type AgentRole, type AgentStatus } from "@open-bot/egress";
 import {
   app,
@@ -97,7 +98,7 @@ function deviceId(): string {
   const file = path.join(app.getPath("userData"), "device.json");
   try {
     const { id } = JSON.parse(readFileSync(file, "utf8")) as { id?: unknown };
-    if (typeof id === "string" && /^[\w-]{8,64}$/.test(id)) return id;
+    if (typeof id === "string" && DESKTOP_DEVICE_ID.test(id)) return id;
   } catch {
     // First run, or an unreadable file: make a new id.
   }
@@ -125,7 +126,9 @@ const agent = new EgressAgent({
     } as RequestInit);
     if (response.status === 401) throw new Error("Sign in to open-bot first");
     if (!response.ok) throw new Error(`The app returned ${response.status}`);
-    const { url, token } = (await response.json()) as { url: string; token: string };
+    const answer = desktopEgressTokenSchema.safeParse(await response.json().catch(() => null));
+    if (!answer.success) throw new Error("The app's answer wasn't an egress token; update the app");
+    const { url, token } = answer.data;
     return `${url}?token=${encodeURIComponent(token)}`;
   },
   onStatus: (status, detail) => {

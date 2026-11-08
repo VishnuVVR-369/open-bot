@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { LeaseHolder } from "./protocol";
+import { leaseHolderSchema } from "./protocol";
 
 export const screenOperationStatusSchema = z.enum([
   "received",
@@ -38,8 +38,9 @@ export type ScreenOperation = z.infer<typeof screenOperationSchema>;
  * What botd reports after typing a code. `previous` is who held the screen before code entry
  * took it, so an interrupted run can continue after the hand-back.
  */
-export interface CodeEntryResult {
-  status: "safe" | "needs_owner" | "failed" | "unknown";
-  reason: string | null;
-  previous?: LeaseHolder;
-}
+export const codeEntryResultSchema = z.object({
+  status: z.enum(["safe", "needs_owner", "failed", "unknown"]),
+  reason: z.string().nullable(),
+  previous: leaseHolderSchema.optional(),
+});
+export type CodeEntryResult = z.infer<typeof codeEntryResultSchema>;

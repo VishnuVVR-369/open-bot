@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { EventEmitter } from "node:events";
+import { BOTD_SOCKETS } from "@open-bot/api/botd";
 import type { CodexStatus } from "@open-bot/api/worker";
 import { CodexClient, type ServerNotification, type ServerRequest, type v2 } from "@open-bot/agent";
 import type { ComputerLifecycle } from "./computer-lifecycle";
@@ -144,7 +145,7 @@ export class CodexManager extends EventEmitter<{ status: [CodexStatus]; disconne
   private async connect(signal?: AbortSignal): Promise<CodexClient> {
     const generation = this.generation;
     const client = await CodexClient.connect(
-      this.computer.wsUrl("/codex"),
+      this.computer.wsUrl(BOTD_SOCKETS.codex),
       (request) => this.onServerRequest(request),
       undefined,
       signal,

@@ -1,3 +1,4 @@
+import { BOTD_SOCKETS, type LifecycleCapabilities } from "@open-bot/api/botd";
 import { CHANNELS, computers, createDb, createPool, settings } from "@open-bot/db";
 import { ComputerLifecycle } from "./computer-lifecycle";
 import { CodexManager } from "./codex";
@@ -42,6 +43,10 @@ import { AccountTools } from "./accounts/tools";
 import { eq } from "drizzle-orm";
 import { EventEmitter } from "node:events";
 
+/** botd's lifecycle calls (lease, quiesce) give up after this. */
+const CONTROL_CALL = { context: { timeoutMs: 10_000 } };
+/** A wake's calls can wait this long; the wake's own signal usually ends them sooner. */
+const WAKE_CALL_MS = 120_000;
 const log = createLogger();
 // A stray rejection should be logged, not take down every running task.
 process.on("unhandledRejection", (reason) =>
@@ -130,7 +135,7 @@ const executor = new RunExecutor(
 );
 const egress = new EgressRelay({
   store: databaseStore(db),
-  computerUrl: () => computer.wsUrl("/egress"),
+  computerUrl: () => computer.wsUrl(BOTD_SOCKETS.egress),
   log: log.child("egress"),
   publish: () => void publishApp(ctx, { type: "computer" }),
 });
@@ -176,18 +181,15 @@ const lifecycle = new ComputerLifecycle(
       // Liveness, capability and ensure calls are idempotent. User actions are never retried here.
       for (;;) {
         signal.throwIfAborted();
+        // Each call waits as long as the wake does: the first one may be what wakes Railway's service.
+        const call = { signal, context: { timeoutMs: WAKE_CALL_MS } };
         try {
-          await computer.rawCall("GET", "/healthz", undefined, signal);
-          let capabilities: { version: number; enabled: boolean };
+          await computer.botd.healthz(undefined, call);
+          let capabilities: LifecycleCapabilities;
           try {
-            capabilities = await computer.rawCall(
-              "GET",
-              "/lifecycle/capabilities",
-              undefined,
-              signal,
-            );
+            capabilities = await computer.botd.lifecycle.capabilities(undefined, call);
           } catch (error) {
-            if (!String(error).includes("returned 404")) throw error;
+            if (!(error instanceof BotdError && error.status === 404)) throw error;
             log.warn("Computer has no lifecycle capability; retaining eager connections");
             return false;
           }
@@ -195,11 +197,12 @@ const lifecycle = new ComputerLifecycle(
             log.warn("Computer lifecycle is disabled or incompatible; retaining eager connections");
             return false;
           }
-          await computer.rawCall("POST", "/lifecycle/lease", { owner, demand: 1 }, signal);
-          await computer.rawCall("POST", "/lifecycle/ensure", { owner }, signal);
+          await computer.botd.lifecycle.lease({ owner, demand: 1 }, call);
+          await computer.botd.lifecycle.ensure({ owner }, call);
           return true;
         } catch (error) {
-          if (/returned (401|403|400)/.test(String(error))) throw error;
+          // A request botd refuses as such won't succeed by asking again.
+          if (error instanceof BotdError && [400, 401, 403].includes(error.status)) throw error;
           await new Promise<void>((resolve, reject) => {
             const done = () => {
               signal.removeEventListener("abort", abort);
@@ -240,13 +243,8 @@ const lifecycle = new ComputerLifecycle(
     quiesce: async (owner) => {
       codex.setIdleIntent(true);
       try {
-        await computer.rawCall("POST", "/lifecycle/lease", { owner, demand: 0 });
-        await computer.rawCall(
-          "POST",
-          "/lifecycle/quiesce",
-          { owner },
-          AbortSignal.timeout(60_000),
-        );
+        await computer.botd.lifecycle.lease({ owner, demand: 0 }, CONTROL_CALL);
+        await computer.botd.lifecycle.quiesce({ owner }, { context: { timeoutMs: 60_000 } });
         return true;
       } catch (error) {
         codex.setIdleIntent(false);
@@ -263,7 +261,9 @@ const lifecycle = new ComputerLifecycle(
       computer.stop();
       egress.pauseComputer();
     },
-    renew: (owner, demand) => computer.rawCall("POST", "/lifecycle/lease", { owner, demand }),
+    renew: async (owner, demand) => {
+      await computer.botd.lifecycle.lease({ owner, demand }, CONTROL_CALL);
+    },
     busy: () =>
       sessions.size > 0 || codex.status.login !== null || computer.heldScreens().length > 0,
     warn: (message, error) => log.warn(message, { error: errorMessage(error) }),

@@ -11,8 +11,8 @@
     "typecheck": "tsc -p .",
     "package": "node build.mjs && electron-builder --mac --publish never"
   },
-  "dependencies": {},
   "devDependencies": {
+    "@open-bot/api": "workspace:*",
     "@open-bot/egress": "workspace:*",
     "@types/node": "^24.19.2",
     "electron": "^44.7.0",

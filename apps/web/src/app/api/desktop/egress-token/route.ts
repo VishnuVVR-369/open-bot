@@ -1,3 +1,4 @@
+import { DESKTOP_DEVICE_ID, type DesktopEgressToken } from "@open-bot/api/desktop";
 import { LEGACY_DESKTOP_AGENT, issueToken } from "@open-bot/domain/server";
 import { NextResponse } from "next/server";
 import { serverEnv } from "@/lib/server/env";
@@ -11,11 +12,11 @@ export const GET = authed(async (request: Request) => {
   const params = new URL(request.url).searchParams;
   const id = params.get("device")?.trim() ?? "";
   const name = params.get("name")?.trim().slice(0, 80) || "Mac";
-  const agent = /^[\w-]{8,64}$/.test(id)
+  const agent = DESKTOP_DEVICE_ID.test(id)
     ? { kind: "desktop" as const, id, name }
     : LEGACY_DESKTOP_AGENT;
   return NextResponse.json({
     url: `${serverEnv.workerWsUrl}/egress/agent`,
     token: issueToken("egress", serverEnv.workerSecret, 120, { agent }),
-  });
+  } satisfies DesktopEgressToken);
 });

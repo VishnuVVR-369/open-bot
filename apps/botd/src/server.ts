@@ -1,28 +1,20 @@
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
 import net from "node:net";
+import { BOTD_SOCKETS, botdContract } from "@open-bot/api/botd";
 import {
-  computerActionSchema,
-  domainMatches,
   isOwnerLease,
   isScreenId,
-  typeOnScreenSchema,
-  USER_HAS_CONTROL_MESSAGE,
-  type ComputerActionError,
-  type ComputerActionResult,
   type ComputerEvent,
-  type ComputerFillRequest,
-  type ComputerFillResult,
   type ComputerHealth,
-  type ComputerReadResult,
-  type RunIdentity,
 } from "@open-bot/domain";
 import { WebSocket, WebSocketServer } from "ws";
-import { ActionAbortedError, Desktop } from "./desktop";
-import { ComputerBusy, type ComputeLifecycle } from "./lifecycle";
+import type { ComputeLifecycle } from "./lifecycle";
 import type { EgressRouter } from "./egress";
 import type { PageChecker } from "./pages";
-import type { Screen, ScreenManager } from "./screens";
+import { createRouter } from "./router";
+import { createRpcHandler } from "./rpc";
+import type { ScreenManager } from "./screens";
 
 export interface ServerDeps {
   token: string;
@@ -35,14 +27,8 @@ export interface ServerDeps {
   log: (message: string) => void;
 }
 
-class BadRequest extends Error {}
-
-function screenIdOf(value: unknown): string {
-  if (!isScreenId(value)) throw new BadRequest("A valid screen id is required");
-  return value;
-}
-
-const MAX_BODY_BYTES = 256 * 1024;
+/** The one path that needs no token: Railway's health check calls it. */
+const HEALTHZ_PATH = botdContract.healthz["~orpc"].route.path;
 
 function authorized(request: IncomingMessage, token: string): boolean {
   const url = new URL(request.url ?? "/", "http://botd");
@@ -52,17 +38,6 @@ function authorized(request: IncomingMessage, token: string): boolean {
   const a = Buffer.from(supplied);
   const b = Buffer.from(token);
   return a.length === b.length && timingSafeEqual(a, b);
-}
-
-async function readJson(request: IncomingMessage): Promise<unknown> {
-  const chunks: Buffer[] = [];
-  let size = 0;
-  for await (const chunk of request) {
-    size += (chunk as Buffer).length;
-    if (size > MAX_BODY_BYTES) throw new Error("Request body too large");
-    chunks.push(chunk as Buffer);
-  }
-  return chunks.length ? JSON.parse(Buffer.concat(chunks).toString("utf8")) : {};
 }
 
 function send(response: ServerResponse, status: number, body: unknown) {
@@ -97,338 +72,23 @@ export function createServer(deps: ServerDeps): {
   screens.on("changed", () => broadcast({ type: "health", health: deps.health() }));
   setInterval(() => broadcast({ type: "health", health: deps.health() }), 5_000).unref();
 
-  /** The run's own screen, once it holds it. */
-  async function screenForRun(
-    run: RunIdentity,
-    signal?: AbortSignal,
-  ): Promise<Screen | ComputerActionError> {
-    // Every bot works on its own screen, and a swarm helper on one of its own.
-    const screenId = run.screenId ?? run.botId;
-    if (!isScreenId(screenId))
-      return { ok: false, code: "invalid_action", message: "Unknown screen" };
-    let screen: Screen;
-    try {
-      // Before the screen starts, so its first connections can wait for a phone.
-      deps.egress.noteDemand(screenId);
-      screen = await screens.ensure(screenId, signal);
-      signal?.throwIfAborted();
-    } catch (error) {
-      return {
-        ok: false,
-        code: "failed",
-        message: `Your screen couldn't start: ${error instanceof Error ? error.message : String(error)}`,
-      };
-    }
-    const acquired = await screen.lease.acquireForRun(run);
-    signal?.throwIfAborted();
-    if (acquired === "user_has_control") {
-      return { ok: false, code: "user_has_control", message: USER_HAS_CONTROL_MESSAGE };
-    }
-    if (acquired === "desktop_busy") {
-      return {
-        ok: false,
-        code: "desktop_busy",
-        message:
-          "You're using your screen in another chat right now. Do other work and try the desktop again later.",
-      };
-    }
-    screens.touch(screen);
-    return screen;
-  }
-
-  async function performAction(
-    body: unknown,
-    signal?: AbortSignal,
-  ): Promise<ComputerActionResult | ComputerActionError> {
-    const { run, action: rawAction } = body as { run?: RunIdentity; action?: unknown };
-    if (!run?.runId || !isScreenId(run.botId)) {
-      return { ok: false, code: "invalid_action", message: "Missing run identity" };
-    }
-    const parsed = computerActionSchema.safeParse(rawAction);
-    if (!parsed.success) {
-      return {
-        ok: false,
-        code: "invalid_action",
-        message: parsed.error.issues.map((i) => i.message).join("; "),
-      };
-    }
-    const action = parsed.data;
-    const screen = await screenForRun(run, signal);
-    if (!("lease" in screen)) return screen;
-    const { lease, desktop } = screen;
-    try {
-      await desktop.perform(action);
-      const settle = Desktop.settleMs(action);
-      if (settle) await new Promise((resolve) => setTimeout(resolve, settle));
-      // Taking over during the action means the bot must not see the screen anymore.
-      if (isOwnerLease(lease.holder)) throw new ActionAbortedError();
-      const [image, cursor] = await Promise.all([desktop.screenshot(), desktop.cursor()]);
-      if (isOwnerLease(lease.holder)) throw new ActionAbortedError();
-      const blocked = screen.takeBlocked();
-      return {
-        ok: true,
-        screenshot: image.toString("base64"),
-        cursor,
-        ...(blocked.length && { blocked }),
-      };
-    } catch (error) {
-      if (error instanceof ActionAbortedError || isOwnerLease(lease.holder)) {
-        return { ok: false, code: "user_has_control", message: USER_HAS_CONTROL_MESSAGE };
-      }
-      return {
-        ok: false,
-        code: "failed",
-        message: error instanceof Error ? error.message : String(error),
-      };
-    }
-  }
-
-  /** The readable content of the page in front on the run's screen. */
-  async function performRead(
-    body: unknown,
-    signal?: AbortSignal,
-  ): Promise<ComputerReadResult | ComputerActionError> {
-    const { run, selector } = body as { run?: RunIdentity; selector?: unknown };
-    if (!run?.runId || !isScreenId(run.botId)) {
-      return { ok: false, code: "invalid_action", message: "Missing run identity" };
-    }
-    if (
-      selector !== undefined &&
-      (typeof selector !== "string" || !selector || selector.length > 500)
-    ) {
-      return { ok: false, code: "invalid_action", message: "selector must be a CSS selector" };
-    }
-    const screen = await screenForRun(run, signal);
-    if (!("lease" in screen)) return screen;
-    try {
-      const page = await screen.readPage(selector);
-      if (isOwnerLease(screen.lease.holder)) {
-        return { ok: false, code: "user_has_control", message: USER_HAS_CONTROL_MESSAGE };
-      }
-      if ("error" in page) return { ok: false, code: "failed", message: page.error };
-      const blocked = screen.takeBlocked();
-      return { ok: true, ...page, ...(blocked.length && { blocked }) };
-    } catch (error) {
-      return {
-        ok: false,
-        code: "failed",
-        message: error instanceof Error ? error.message : String(error),
-      };
-    }
-  }
-
-  /**
-   * Type a vault secret into whatever has focus on the run's screen. A login only fills on its own
-   * site, so a misleading page can't collect it. Nothing about the secret is logged or returned.
-   */
-  async function performFill(
-    body: unknown,
-    signal?: AbortSignal,
-  ): Promise<ComputerFillResult | ComputerActionError> {
-    const { run, secret, site } = body as Partial<ComputerFillRequest>;
-    if (!run?.runId || !isScreenId(run.botId)) {
-      return { ok: false, code: "invalid_action", message: "Missing run identity" };
-    }
-    if (typeof secret !== "string" || !secret || secret.length > 500) {
-      return { ok: false, code: "invalid_action", message: "Nothing to fill" };
-    }
-    const screen = await screenForRun(run, signal);
-    if (!("lease" in screen)) return screen;
-    let pages: string[];
-    try {
-      pages = await screen.visiblePages();
-    } catch {
-      pages = [];
-    }
-    if (site) {
-      const hosts = pages.map((page) => {
-        try {
-          return new URL(page).hostname;
-        } catch {
-          return "";
-        }
-      });
-      if (hosts.length === 0 || !hosts.every((host) => domainMatches(host, site))) {
-        return {
-          ok: false,
-          code: "wrong_site",
-          message:
-            hosts.length === 0
-              ? `The browser isn't showing a page. Open the ${site} sign-in page first.`
-              : `The browser is showing ${hosts.filter(Boolean).join(", ") || "a page without an address"}, not ${site}, so it wasn't filled. Open the ${site} sign-in page and click the field first.`,
-        };
-      }
-    }
-    try {
-      signal?.throwIfAborted();
-      await screen.desktop.typeSecret(secret);
-      if (isOwnerLease(screen.lease.holder)) throw new ActionAbortedError();
-      return { ok: true, pages };
-    } catch (error) {
-      if (error instanceof ActionAbortedError || isOwnerLease(screen.lease.holder)) {
-        return { ok: false, code: "user_has_control", message: USER_HAS_CONTROL_MESSAGE };
-      }
-      return { ok: false, code: "failed", message: "Typing it on the screen failed." };
-    }
-  }
+  const rpc = createRpcHandler(createRouter(deps), deps);
 
   const server = http.createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", "http://botd");
-    if (url.pathname === "/healthz") {
-      const health = deps.health();
-      send(response, deps.lifecycle?.enabled || health.ok ? 200 : 503, {
-        ok: deps.lifecycle?.enabled || health.ok,
-      });
+    // Only the liveness check is open: Railway's health check has no token.
+    if (url.pathname !== HEALTHZ_PATH && !authorized(request, deps.token)) {
+      send(response, 401, { error: "unauthorized", code: "UNAUTHORIZED" });
       return;
     }
-    if (!authorized(request, deps.token)) {
-      send(response, 401, { error: "unauthorized" });
-      return;
-    }
-    let endActivity: (() => void) | undefined;
-    const cancellation = new AbortController();
-    response.once("close", () => {
-      if (!response.writableEnded) cancellation.abort(new Error("Request cancelled"));
-    });
     try {
-      if (!url.pathname.startsWith("/lifecycle/") && url.pathname !== "/health")
-        endActivity = deps.lifecycle?.begin();
-      const route = `${request.method} ${url.pathname}`;
-      switch (route) {
-        case "GET /lifecycle/capabilities":
-          send(response, 200, deps.lifecycle?.status ?? { version: 1, enabled: false });
-          return;
-        case "POST /lifecycle/lease":
-        case "POST /lifecycle/ensure":
-        case "POST /lifecycle/quiesce": {
-          if (!deps.lifecycle?.enabled) {
-            send(response, 409, { error: "Lifecycle disabled" });
-            return;
-          }
-          const { owner, demand } = (await readJson(request)) as {
-            owner?: unknown;
-            demand?: unknown;
-          };
-          if (typeof owner !== "string" || !owner || owner.length > 100)
-            throw new BadRequest("Invalid owner");
-          if (route.endsWith("/lease")) {
-            if (typeof demand !== "number") throw new BadRequest("Invalid demand");
-            deps.lifecycle.lease(owner, demand);
-          } else if (route.endsWith("/ensure")) await deps.lifecycle.ensure(owner);
-          else await deps.lifecycle.quiesce(owner);
-          send(response, 200, deps.lifecycle.status);
-          return;
-        }
-        case "GET /health":
-          send(response, 200, deps.health());
-          return;
-        case "POST /computer/action":
-          send(response, 200, await performAction(await readJson(request), cancellation.signal));
-          return;
-        case "POST /computer/fill":
-          send(response, 200, await performFill(await readJson(request), cancellation.signal));
-          return;
-        case "POST /computer/read":
-          send(response, 200, await performRead(await readJson(request), cancellation.signal));
-          return;
-        case "POST /computer/code-context": {
-          const { screenId } = (await readJson(request)) as { screenId?: unknown };
-          const screen = screens.get(screenIdOf(screenId));
-          send(response, 200, { site: screen ? await screen.codeSite() : null });
-          return;
-        }
-        case "POST /computer/type": {
-          const body = (await readJson(request)) as Record<string, unknown>;
-          const input = typeOnScreenSchema.safeParse(body);
-          if (!input.success) throw new BadRequest("Invalid code request");
-          send(response, 200, await screens.typeCode(screenIdOf(body.screenId), input.data));
-          return;
-        }
-        case "POST /screens/start": {
-          const { screenId } = (await readJson(request)) as { screenId?: unknown };
-          deps.egress.noteDemand(screenIdOf(screenId));
-          const screen = await screens.ensure(screenIdOf(screenId), cancellation.signal);
-          send(response, 200, screen.status());
-          return;
-        }
-        case "POST /screens/forget": {
-          const { screenId } = (await readJson(request)) as { screenId?: unknown };
-          await screens.forget(screenIdOf(screenId));
-          send(response, 200, { ok: true });
-          return;
-        }
-        case "POST /computer/screenshot": {
-          const { screenId } = (await readJson(request)) as { screenId?: unknown };
-          const screen = await screens.ensure(screenIdOf(screenId), cancellation.signal);
-          const image = await screen.desktop.screenshot();
-          send(response, 200, { screenshot: image.toString("base64") });
-          return;
-        }
-        case "POST /pages/check": {
-          const { path } = (await readJson(request)) as { path?: unknown };
-          if (typeof path !== "string" || !path || path.length > 1000)
-            throw new BadRequest("A page path is required");
-          send(response, 200, await deps.pages.check(path));
-          return;
-        }
-        case "POST /lease/run/release": {
-          const { runId } = (await readJson(request)) as { runId?: string };
-          send(response, 200, { released: runId ? screens.releaseRun(runId) : false });
-          return;
-        }
-        case "POST /lease/user/take": {
-          const { screenId } = (await readJson(request)) as { screenId?: unknown };
-          deps.egress.noteDemand(screenIdOf(screenId));
-          const screen = await screens.ensure(screenIdOf(screenId), cancellation.signal);
-          if (!screens.codeAvailable(screen.id)) {
-            send(response, 409, { error: "Code entry is in progress." });
-            return;
-          }
-          send(response, 200, { previous: screen.lease.takeByUser(), holder: screen.lease.holder });
-          return;
-        }
-        case "POST /lease/user/release": {
-          const { screenId, reason, clearCode } = (await readJson(request)) as {
-            screenId?: unknown;
-            reason?: "handed_back" | "user_idle" | "user_disconnected";
-            clearCode?: boolean;
-          };
-          const screen = screens.get(screenIdOf(screenId));
-          send(response, 200, {
-            released: screen
-              ? await screen.lease.releaseSafely(reason ?? "handed_back", clearCode === true)
-              : !screens.list().some((s) => s.id === screenId && isOwnerLease(s.lease)),
-          });
-          return;
-        }
-        case "POST /lease/user/touch": {
-          const { screenId } = (await readJson(request)) as { screenId?: unknown };
-          const screen = screens.get(screenIdOf(screenId));
-          screen?.lease.touchUser();
-          send(response, 200, { holder: screen?.lease.holder ?? null });
-          return;
-        }
-        default:
-          send(response, 404, { error: "not found" });
-      }
+      const { matched } = await rpc.handle(request, response, { context: {} });
+      if (!matched) send(response, 404, { error: "not found", code: "NOT_FOUND" });
     } catch (error) {
-      if (url.pathname === "/computer/type") {
-        send(response, 500, { error: "Code entry outcome unknown. Check the screen." });
-        return;
-      }
-      if (error instanceof BadRequest) {
-        send(response, 400, { error: error.message });
-        return;
-      }
-      if (error instanceof ComputerBusy) {
-        deps.log(`[lifecycle] stayed awake: ${error.message}`);
-        send(response, 409, { error: error.message });
-        return;
-      }
       deps.log(`[http] ${request.method} ${url.pathname} failed: ${String(error)}`);
-      send(response, 500, { error: error instanceof Error ? error.message : String(error) });
-    } finally {
-      endActivity?.();
+      if (!response.headersSent)
+        send(response, 500, { error: "botd failed", code: "INTERNAL_SERVER_ERROR" });
+      else response.destroy();
     }
   });
 
@@ -448,13 +108,13 @@ export function createServer(deps: ServerDeps): {
       socket.end("HTTP/1.1 503 Service Unavailable\r\n\r\n");
       return;
     }
-    if (url.pathname === "/vnc") {
+    if (url.pathname === BOTD_SOCKETS.vnc) {
       void upgradeVnc(request, socket, head, url);
       return;
     }
     wss.handleUpgrade(request, socket, head, (ws) => {
       switch (url.pathname) {
-        case "/events":
+        case BOTD_SOCKETS.events:
           eventClients.add(ws);
           for (const screen of screens.list())
             ws.send(
@@ -469,10 +129,10 @@ export function createServer(deps: ServerDeps): {
           );
           ws.on("close", () => eventClients.delete(ws));
           return;
-        case "/codex":
+        case BOTD_SOCKETS.codex:
           bridgeWebSocket(ws, deps.codexUrl, deps.log, deps.lifecycle);
           return;
-        case "/egress":
+        case BOTD_SOCKETS.egress:
           deps.egress.attachTunnel(ws);
           return;
         default:

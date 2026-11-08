@@ -1,3 +1,4 @@
+import { egressModeSchema, phoneEgressModeSchema } from "@open-bot/domain";
 import { z } from "zod";
 
 /**
@@ -5,8 +6,7 @@ import { z } from "zod";
  * The worker builds this; the web app and the phone show it.
  */
 
-export const egressModeSchema = z.enum(["off", "prefer", "require"]);
-export const phoneEgressModeSchema = z.enum(["off", "fallback", "always"]);
+export { egressModeSchema, phoneEgressModeSchema };
 export const unavailableReasonSchema = z.enum([
   "wifi-only",
   "data-cap",

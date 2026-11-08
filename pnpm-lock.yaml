@@ -77,6 +77,9 @@ importers:
 
   apps/botd:
     dependencies:
+      '@open-bot/api':
+        specifier: workspace:*
+        version: link:../../packages/api
       '@open-bot/domain':
         specifier: workspace:*
         version: link:../../packages/domain
@@ -86,6 +89,12 @@ importers:
       '@open-bot/page-kit':
         specifier: workspace:*
         version: link:../../packages/page-kit
+      '@orpc/openapi':
+        specifier: ^1.16.1
+        version: 1.16.1(ws@8.22.0)
+      '@orpc/server':
+        specifier: ^1.16.1
+        version: 1.16.1(ws@8.22.0)
       ws:
         specifier: ^8.22.0
         version: 8.22.0
@@ -108,6 +117,9 @@ importers:
 
   apps/desktop:
     devDependencies:
+      '@open-bot/api':
+        specifier: workspace:*
+        version: link:../../packages/api
       '@open-bot/egress':
         specifier: workspace:*
         version: link:../../packages/egress

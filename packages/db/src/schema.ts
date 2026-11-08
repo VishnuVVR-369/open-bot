@@ -1,4 +1,4 @@
-import type { ScreenOperationStatus } from "@open-bot/domain";
+import type { LeaseReleaseReason, ScreenOperationStatus } from "@open-bot/domain";
 import type {
   AccountActionPreview,
   AccountActionStatus,
@@ -541,7 +541,8 @@ export const approvalRules = pgTable(
 );
 
 export type TakeoverStatus = "requested" | "active" | "ended" | "dismissed";
-export type TakeoverEndReason = "handed_back" | "user_idle" | "user_disconnected";
+/** How a takeover ended: the reasons botd gives for releasing your hold on a screen. */
+export type TakeoverEndReason = LeaseReleaseReason;
 
 export const desktopTakeovers = pgTable(
   "desktop_takeovers",
