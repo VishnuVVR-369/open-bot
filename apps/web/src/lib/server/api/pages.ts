@@ -2,7 +2,7 @@ import "server-only";
 import type { ApiInputs, PageDetail, PageLink, PageSummary } from "@open-bot/api";
 import { pages, pageVersions } from "@open-bot/db";
 import { pageViewQuery } from "@open-bot/domain";
-import { PAGE_LINK_TTL_SECONDS, pageVersionUrl } from "@open-bot/domain/page-links";
+import { PAGE_LINK_TTL_SECONDS, pageVersionUrl } from "@open-bot/domain/server";
 import { desc, eq, sql } from "drizzle-orm";
 import { db } from "../db";
 import { serverEnv } from "../env";

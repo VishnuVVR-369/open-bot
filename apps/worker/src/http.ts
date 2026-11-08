@@ -15,7 +15,7 @@ import {
   typeOnScreenSchema,
   undeletablePath,
 } from "@open-bot/domain";
-import { LEGACY_DESKTOP_AGENT, readToken, verifyToken } from "@open-bot/domain/tokens";
+import { LEGACY_DESKTOP_AGENT, readToken, verifyToken } from "@open-bot/domain/server";
 import { and, asc, eq, gt, isNull, sql } from "drizzle-orm";
 import WebSocket, { WebSocketServer } from "ws";
 import { z } from "zod";

@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { v2 } from "@open-bot/agent";
 import { connections } from "@open-bot/db";
 import { mcpServersConfig, type ConnectionConfig } from "@open-bot/domain";
-import { decryptSecret } from "@open-bot/domain/secrets";
+import { decryptSecret } from "@open-bot/domain/server";
 import { and, asc, eq, isNull, or, sql } from "drizzle-orm";
 import type { Context } from "../context";
 import { errorMessage } from "../logger";

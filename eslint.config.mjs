@@ -1,6 +1,7 @@
 import js from "@eslint/js";
 import reactHooks from "eslint-plugin-react-hooks";
 import globals from "globals";
+import { builtinModules } from "node:module";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
@@ -49,6 +50,51 @@ export default tseslint.config(
     rules: {
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn",
+    },
+  },
+  {
+    // @open-bot/domain runs in browsers and React Native; only its server folder may use Node.
+    files: ["packages/domain/src/**/*.ts"],
+    ignores: ["packages/domain/src/server/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              regex: `^(node:.*|(${builtinModules.join("|")})(/.*)?)$`,
+              message: "packages/domain is isomorphic. Put Node-only code in src/server.",
+            },
+            {
+              regex: "(^|/)server(/.*)?$",
+              message:
+                "packages/domain is isomorphic and must not import its Node-only server folder.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // Code that runs on a phone or in the browser can't load node:crypto.
+    files: [
+      "apps/mobile/**/*.{ts,tsx}",
+      "packages/api/**/*.ts",
+      "apps/web/src/components/**/*.{ts,tsx}",
+      "apps/web/src/lib/client/**/*.{ts,tsx}",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@open-bot/domain/server",
+              message: "@open-bot/domain/server is Node-only. Use it from server code.",
+            },
+          ],
+        },
+      ],
     },
   },
   {

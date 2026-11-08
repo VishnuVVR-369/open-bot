@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { readLibFile } from "@open-bot/page-kit/serve";
-import { verifyPageVersion } from "@open-bot/domain/page-links";
+import { verifyPageVersion } from "@open-bot/domain/server";
 import {
   injectPageRuntime,
   PAGE_RESPONSE_HEADERS,

@@ -13,7 +13,7 @@ import {
   type Attachment,
 } from "@open-bot/db";
 import { newLinkCode, splitTelegram, telegramHtml, TELEGRAM_MAX_CHARS } from "@open-bot/domain";
-import { decryptSecret, encryptSecret, secretHint } from "@open-bot/domain/secrets";
+import { decryptSecret, encryptSecret, secretHint } from "@open-bot/domain/server";
 import { and, asc, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { publishApp, type Context, type NotificationEvent } from "../context";
 import { errorMessage } from "../logger";

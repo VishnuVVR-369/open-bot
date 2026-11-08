@@ -5,7 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import { bots, notifications, pages, pageVersions, type Db } from "@open-bot/db";
 import type { PageCheckResult, PageIssue } from "@open-bot/domain";
-import { verifyPageVersion } from "@open-bot/domain/page-links";
+import { verifyPageVersion } from "@open-bot/domain/server";
 import type { Context } from "../context";
 import { PageError, PageService, type PageFiles } from "./pages";
 

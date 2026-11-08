@@ -5,9 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./tokens": "./src/tokens.ts",
-    "./secrets": "./src/secrets.ts",
-    "./page-links": "./src/page-links.ts"
+    "./server": "./src/server/index.ts"
   },
   "scripts": {
     "typecheck": "tsc -p .",

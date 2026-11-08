@@ -30,7 +30,7 @@ For a deployed service it must also be added to that service's list in `.railway
 | `apps/mobile`       | Expo Android app, native modules (egress, passkey, share intent, SMS consent) | `apps/mobile/src/app`            | `pnpm --filter @open-bot/mobile test`   |
 | `apps/desktop`      | Electron Mac app: egress agent and notifications                              | `apps/desktop/src/main.ts`       | typecheck only                          |
 | `apps/site`         | Landing page and the technical docs (Cloudflare)                              | `apps/site/src/app`              | `pnpm --filter @open-bot/site test:e2e` |
-| `packages/domain`   | Isomorphic types, zod schemas and pure logic; Node-only helpers by subpath    | `packages/domain/src/index.ts`   | `pnpm --filter @open-bot/domain test`   |
+| `packages/domain`   | Isomorphic types, zod schemas and pure logic; Node-only helpers in `/server`  | `packages/domain/src/index.ts`   | `pnpm --filter @open-bot/domain test`   |
 | `packages/api`      | oRPC contract and serializable views shared by web and mobile                 | `packages/api/src/contract.ts`   | `pnpm --filter @open-bot/api test`      |
 | `packages/db`       | Drizzle schema, migrations, pool, NOTIFY channels and app events              | `packages/db/src/schema.ts`      | `pnpm test:integration`                 |
 | `packages/accounts` | OAuth flows and the token store for Google and Notion                         | `packages/accounts/src/index.ts` | `pnpm test:integration`                 |
@@ -99,7 +99,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 **Add a field to a teammate** (web and mobile)
 
 1. `packages/db/src/schema.ts` (`bots`, with a default), then the migration recipe below.
-2. `packages/domain/src/bot-management.ts` (`botProfileSchema`, `botCreation()`), `packages/domain/src/bundle.ts` (optional or defaulted so old exports import).
+2. `packages/domain/src/teammates/management.ts` (`botProfileSchema`, `botCreation()`), `packages/domain/src/teammates/bundle.ts` (optional or defaulted so old exports import).
 3. `packages/api/src/views.ts` (`botSummarySchema`) if lists or mobile need it; `apps/web/src/lib/server/queries.ts` (`listBots`).
 4. Worker: `apps/worker/src/services/bots.ts` (`list`, `get`), `apps/worker/src/tools/definitions.ts` (`profileProperties`), `apps/worker/src/tools/bots.ts` (`PROFILE_LABELS`).
 5. Web: `apps/web/src/lib/actions.ts` (`duplicateBot`, `importTeammate`), `apps/web/src/app/api/bots/[botId]/export/route.ts`, `apps/web/src/components/bots/bot-form.tsx` (`BotFormValues`), `apps/web/src/app/(app)/bots/new/page.tsx`, `apps/web/src/app/(app)/bots/[botId]/page.tsx`.
@@ -115,7 +115,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 
 **Add an account provider** (OAuth)
 
-1. `packages/domain/src/accounts/<provider>.ts`: provider and integration definitions; register them in `packages/domain/src/accounts/registry.ts`.
+1. `packages/domain/src/integrations/accounts/<provider>.ts`: provider and integration definitions; register them in `packages/domain/src/integrations/accounts/registry.ts`.
 2. `packages/accounts/src/<provider>.ts` (a `ProviderAdapter`), registered in `PROVIDER_ADAPTERS` (`packages/accounts/src/providers.ts`); endpoints with an env override in `packages/accounts/src/endpoints.ts`.
 3. `apps/worker/src/accounts/<integration>.ts`, added to `ADAPTERS` in `apps/worker/src/accounts/registry.ts`. The worker refuses to start if adapters and definitions disagree. Bump `TOOLS_VERSION`.
 4. Web: `CLIENT_GUIDES` in `apps/web/src/components/settings/provider-guides.tsx` for owner-supplied OAuth clients; icons in `accounts-section.tsx` and `items.tsx` if new.
@@ -144,7 +144,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 1. Add the type to `AppEvent` in `packages/db/src/index.ts`.
 2. Publish with `publishApp(ctx, { type })` in the worker or `publish(type)` (`apps/web/src/lib/server/publish.ts`, untyped) in web.
 3. Invalidate: `apps/web/src/lib/client/realtime.tsx` (web) and `keysForAppEvent` in `apps/mobile/src/lib/query.ts` (mobile).
-4. Run timeline events are a different path: `RunEventWriter` or `appendRunEvent()`, reduced by `applyRunEvent` in `packages/domain/src/timeline.ts`.
+4. Run timeline events are a different path: `RunEventWriter` or `appendRunEvent()`, reduced by `applyRunEvent` in `packages/domain/src/timeline/timeline.ts`.
 
 ## Verification
 

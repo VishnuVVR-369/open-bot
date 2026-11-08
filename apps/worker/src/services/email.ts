@@ -15,7 +15,7 @@ import {
   type InboundEmail,
   type ToolItem,
 } from "@open-bot/domain";
-import { decryptSecret } from "@open-bot/domain/secrets";
+import { decryptSecret } from "@open-bot/domain/server";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import {
   appendRunEvent,

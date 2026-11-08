@@ -49,7 +49,7 @@ import {
 } from "@open-bot/domain";
 import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
-import { decryptSecret, encryptSecret, secretHint } from "@open-bot/domain/secrets";
+import { decryptSecret, encryptSecret, secretHint } from "@open-bot/domain/server";
 import { memoryInputSchema, memoryEditSchema, memoryReferenceSchema } from "@open-bot/domain";
 import {
   decideApprovalInputSchema,

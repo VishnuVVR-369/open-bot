@@ -12,7 +12,7 @@ import {
   type LoginSecret,
   type VaultField,
 } from "@open-bot/domain";
-import { decryptSecret } from "@open-bot/domain/secrets";
+import { decryptSecret } from "@open-bot/domain/server";
 import { and, desc, eq, gte, gt, inArray, isNull, or, sql } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
 import type { RunSession } from "../runs/session";

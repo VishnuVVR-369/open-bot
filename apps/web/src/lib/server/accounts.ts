@@ -32,7 +32,7 @@ import {
   type AccountProvider,
   type ConnectionSettings,
 } from "@open-bot/domain";
-import { decryptSecret, encryptSecret } from "@open-bot/domain/secrets";
+import { decryptSecret, encryptSecret } from "@open-bot/domain/server";
 import { and, eq, inArray, lt, sql } from "drizzle-orm";
 import { BASE_URL } from "./auth-config";
 import { db, pool } from "./db";

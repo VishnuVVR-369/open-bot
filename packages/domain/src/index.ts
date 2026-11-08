@@ -1,29 +1,20 @@
+/**
+ * Isomorphic types, zod schemas and pure logic, one folder per feature. Safe for the browser and
+ * React Native; Node-only helpers are in `./server`, exported as `@open-bot/domain/server`.
+ */
+export * from "./approvals";
+export * from "./auth";
+export * from "./automations";
+export * from "./channels";
+export * from "./chats";
 export * from "./computer";
-export * from "./timeline";
-export * from "./bots";
-export * from "./bot-management";
-export * from "./schedule";
-export * from "./model-access";
-export * from "./skills";
-export * from "./approval-rules";
-export * from "./approval-display";
-export * from "./triggers";
-export * from "./telegram";
-export * from "./templates";
-export * from "./bundle";
-export * from "./diff";
-export * from "./vault";
-export * from "./connections";
-export * from "./email";
-export * from "./apply-guard";
+export * from "./egress";
+export * from "./integrations";
 export * from "./memory";
-export * from "./text";
-export * from "./files";
-export * from "./screen-operations";
+export * from "./models";
 export * from "./pages";
-export * from "./accounts";
-export * from "./recovery";
-export * from "./relative-time";
-export * from "./password";
-export * from "./status";
-export * from "./mentions";
+export * from "./skills";
+export * from "./teammates";
+export * from "./text";
+export * from "./timeline";
+export * from "./vault";

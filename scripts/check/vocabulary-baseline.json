@@ -669,80 +669,77 @@
     "desktop takeover": 4,
     "primary teammate": 2
   },
-  "packages/domain/src/apply-guard.test.ts": {
+  "packages/domain/src/approvals/apply-guard.test.ts": {
     "bot": 1
   },
-  "packages/domain/src/apply-guard.ts": {
+  "packages/domain/src/approvals/apply-guard.ts": {
     "bot": 2
   },
-  "packages/domain/src/approval-rules.ts": {
+  "packages/domain/src/approvals/rules.ts": {
     "bot": 1
   },
-  "packages/domain/src/bot-management.test.ts": {
-    "bot": 23,
-    "primary teammate": 1
-  },
-  "packages/domain/src/bot-management.ts": {
-    "bot": 33
-  },
-  "packages/domain/src/bots.test.ts": {
-    "bot": 6
-  },
-  "packages/domain/src/bots.ts": {
-    "bot": 13
-  },
-  "packages/domain/src/bundle.test.ts": {
-    "bot": 3
-  },
-  "packages/domain/src/bundle.ts": {
-    "bot": 8
-  },
-  "packages/domain/src/computer.ts": {
-    "bot": 14
-  },
-  "packages/domain/src/files.ts": {
+  "packages/domain/src/automations/triggers.test.ts": {
     "bot": 1
   },
-  "packages/domain/src/index.ts": {
-    "bot": 2
-  },
-  "packages/domain/src/memory.ts": {
-    "bot": 6
-  },
-  "packages/domain/src/pages.test.ts": {
-    "bot": 6
-  },
-  "packages/domain/src/pages.ts": {
-    "bot": 2
-  },
-  "packages/domain/src/skills.test.ts": {
-    "bot": 1
-  },
-  "packages/domain/src/skills.ts": {
-    "bot": 1
-  },
-  "packages/domain/src/status.test.ts": {
-    "bot": 18
-  },
-  "packages/domain/src/status.ts": {
-    "bot": 5
-  },
-  "packages/domain/src/templates.test.ts": {
-    "bot": 1
-  },
-  "packages/domain/src/templates.ts": {
-    "bot": 1
-  },
-  "packages/domain/src/text.test.ts": {
-    "bot": 2
-  },
-  "packages/domain/src/timeline.ts": {
+  "packages/domain/src/automations/triggers.ts": {
     "bot": 4
   },
-  "packages/domain/src/triggers.test.ts": {
+  "packages/domain/src/computer/files.ts": {
     "bot": 1
   },
-  "packages/domain/src/triggers.ts": {
+  "packages/domain/src/computer/paths.test.ts": {
+    "bot": 5
+  },
+  "packages/domain/src/computer/paths.ts": {
+    "bot": 8
+  },
+  "packages/domain/src/computer/protocol.ts": {
+    "bot": 14
+  },
+  "packages/domain/src/memory/memory.ts": {
+    "bot": 6
+  },
+  "packages/domain/src/pages/pages.test.ts": {
+    "bot": 6
+  },
+  "packages/domain/src/pages/pages.ts": {
+    "bot": 2
+  },
+  "packages/domain/src/skills/skills.test.ts": {
+    "bot": 1
+  },
+  "packages/domain/src/skills/skills.ts": {
+    "bot": 1
+  },
+  "packages/domain/src/teammates/bundle.test.ts": {
+    "bot": 2
+  },
+  "packages/domain/src/teammates/bundle.ts": {
+    "bot": 6
+  },
+  "packages/domain/src/teammates/management.test.ts": {
+    "bot": 22,
+    "primary teammate": 1
+  },
+  "packages/domain/src/teammates/management.ts": {
+    "bot": 32
+  },
+  "packages/domain/src/teammates/profile.ts": {
+    "bot": 5
+  },
+  "packages/domain/src/teammates/status.test.ts": {
+    "bot": 18
+  },
+  "packages/domain/src/teammates/status.ts": {
+    "bot": 5
+  },
+  "packages/domain/src/teammates/templates.test.ts": {
+    "bot": 1
+  },
+  "packages/domain/src/text/text.test.ts": {
+    "bot": 2
+  },
+  "packages/domain/src/timeline/timeline.ts": {
     "bot": 4
   },
   "packages/egress/src/ip-policy.ts": {

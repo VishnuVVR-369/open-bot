@@ -1,7 +1,7 @@
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
-import { readToken } from "@open-bot/domain/tokens";
+import { readToken } from "@open-bot/domain/server";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 const url = testDatabaseServer();
