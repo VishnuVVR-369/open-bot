@@ -16,7 +16,7 @@ import {
   type ComputerHealth,
   type ComputerReadResult,
   type RunIdentity,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { WebSocket, WebSocketServer } from "ws";
 import { ActionAbortedError, Desktop } from "./desktop";
 import { ComputerBusy, type ComputeLifecycle } from "./lifecycle";

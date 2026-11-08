@@ -1,6 +1,6 @@
 "use client";
 
-import { RECOVERY_COPY } from "@open-bot/shared";
+import { RECOVERY_COPY } from "@open-bot/domain";
 import { Check, Copy } from "lucide-react";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";

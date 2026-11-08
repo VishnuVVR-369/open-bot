@@ -7,7 +7,7 @@ import {
   normalizeMemory,
   hasMemorySaveIntent,
   type MemoryItem,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import type { Context } from "../context";
 import type { RunSession } from "../runs/session";
 

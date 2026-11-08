@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { isOwnerLease } from "@open-bot/shared";
+import { isOwnerLease } from "@open-bot/domain";
 import * as Clipboard from "expo-clipboard";
 import * as Orientation from "expo-screen-orientation";
 import { Stack, useLocalSearchParams, usePreventRemove } from "expo-router";

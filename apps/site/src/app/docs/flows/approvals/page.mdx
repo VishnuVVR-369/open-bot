@@ -133,7 +133,7 @@ When a run ends, its pending `command` and `file_change` approvals become `expir
 Rules are listed on the teammate's page, where you can remove them.
 They are also written into `AGENTS.md` and into every prompt, so the teammate knows it doesn't need `request_approval` for them.
 
-Matching (`rulesCover()` in `packages/shared/src/approval-rules.ts`) depends on the kind:
+Matching (`rulesCover()` in `packages/domain/src/approval-rules.ts`) depends on the kind:
 
 - **file_change**: one rule covers every file change.
 - **account_write**: the rule names a tool, like `notion.update_page`, and covers that tool's changes that follow the teammate's autonomy. Nothing others see is ever covered.

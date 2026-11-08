@@ -1,6 +1,6 @@
 "use client";
 
-import { describeCron, relativeTime } from "@open-bot/shared";
+import { describeCron, relativeTime } from "@open-bot/domain";
 import { format, formatDistanceToNowStrict } from "date-fns";
 import { Play } from "lucide-react";
 import { useState } from "react";

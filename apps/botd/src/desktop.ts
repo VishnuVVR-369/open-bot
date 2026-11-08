@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { chown, mkdir, readFile, rm } from "node:fs/promises";
-import type { ComputerAction } from "@open-bot/shared";
+import type { ComputerAction } from "@open-bot/domain";
 import { asUser, type SystemUser } from "./users";
 
 export class ActionAbortedError extends Error {

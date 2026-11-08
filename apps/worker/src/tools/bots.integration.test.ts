@@ -15,7 +15,7 @@ import {
   skills as skillRows,
   triggers as triggerRows,
 } from "@open-bot/db";
-import { TEAMMATE_TEMPLATES } from "@open-bot/shared";
+import { TEAMMATE_TEMPLATES } from "@open-bot/domain";
 import type { v2 } from "@open-bot/agent";
 import type { Context } from "../context";
 import type { RunSession } from "../runs/session";

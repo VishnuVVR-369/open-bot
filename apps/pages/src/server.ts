@@ -1,12 +1,12 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { readLibFile } from "@open-bot/page-kit/serve";
-import { verifyPageVersion } from "@open-bot/shared/page-links";
+import { verifyPageVersion } from "@open-bot/domain/page-links";
 import {
   injectPageRuntime,
   PAGE_RESPONSE_HEADERS,
   PAGE_RUNTIME_PATH,
   pageContentSecurityPolicy,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 
 export interface PagesConfig {
   /** Where this service is reached, like https://openbot-pages.up.railway.app. */

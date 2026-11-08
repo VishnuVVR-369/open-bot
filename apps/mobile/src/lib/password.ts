@@ -1,8 +1,8 @@
-import { passwordChangeError } from "@open-bot/shared";
+import { passwordChangeError } from "@open-bot/domain";
 import { authClient } from "./auth";
 
 /**
- * The owner's sign-in password. The limits and words are shared with the web (@open-bot/shared);
+ * The owner's sign-in password. The limits and words are shared with the web (@open-bot/domain);
  * this is the server's two ways to set it: with the current one, or within the short window a passkey
  * sign-in opens (apps/web/src/lib/server/passkey-reset.ts), when the current one is forgotten.
  */

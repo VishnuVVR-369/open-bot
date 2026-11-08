@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { ScreenOperation } from "@open-bot/shared";
+import type { ScreenOperation } from "@open-bot/domain";
 import { useContext, useEffect, useState } from "react";
 import { View } from "react-native";
 import * as Crypto from "expo-crypto";

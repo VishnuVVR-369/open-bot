@@ -8,7 +8,7 @@ import {
   type Db,
   type Tx,
 } from "@open-bot/db";
-import { COMPUTER_PATHS, MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from "@open-bot/shared";
+import { COMPUTER_PATHS, MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from "@open-bot/domain";
 import { and, eq, inArray, lt, notExists, or, sql } from "drizzle-orm";
 import type { Context } from "./context";
 import { errorMessage } from "./logger";

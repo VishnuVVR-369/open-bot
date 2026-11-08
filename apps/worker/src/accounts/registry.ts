@@ -4,7 +4,7 @@ import {
   integration,
   integrationByNamespace,
   type AccountConnectionKind,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import type { Context } from "../context";
 import { CalendarTools } from "./calendar";
 import { GmailTools } from "./gmail";

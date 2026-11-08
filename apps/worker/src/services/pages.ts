@@ -4,7 +4,7 @@ import {
   MAX_PAGE_SUMMARY,
   MAX_PAGE_TITLE,
   type PageCheckResult,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { and, desc, eq } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { dirname } from "node:path";

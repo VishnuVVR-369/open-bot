@@ -11,7 +11,7 @@ import {
   SCREEN,
   type PageContent,
   type ScreenStatus,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { CdpPipe, type CdpEvent } from "./cdp";
 import { codeProbe } from "./code-probe";
 import type { CodeScreens } from "./code-screens";

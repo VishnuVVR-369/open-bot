@@ -13,7 +13,7 @@ import {
   type ToolItem,
   type UserMessageItem,
   type WebSearchItem,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRightLeft,

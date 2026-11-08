@@ -1,4 +1,4 @@
-import type { PageItem } from "@open-bot/shared";
+import type { PageItem } from "@open-bot/domain";
 import { router } from "expo-router";
 import { ArrowUpRight } from "lucide-react-native";
 import { Pressable, StyleSheet, View } from "react-native";

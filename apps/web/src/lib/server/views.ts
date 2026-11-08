@@ -1,7 +1,7 @@
 import "server-only";
 import type { ApprovalView, MessageView } from "@open-bot/api";
 import type { approvals, messages } from "@open-bot/db";
-import type { AccountActionPreview } from "@open-bot/shared";
+import type { AccountActionPreview } from "@open-bot/domain";
 
 /** Database rows as the API and the UI read them. */
 

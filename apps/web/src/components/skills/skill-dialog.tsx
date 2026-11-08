@@ -1,6 +1,6 @@
 "use client";
 
-import { toSkillName } from "@open-bot/shared";
+import { toSkillName } from "@open-bot/domain";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus, Users } from "lucide-react";
 import { useEffect, useState, useTransition, type ReactNode } from "react";

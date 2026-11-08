@@ -6,7 +6,7 @@ import {
   previewNote,
   previewText,
   type AccountActionPreview,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import {
   CalendarDays,
   ChevronDown,

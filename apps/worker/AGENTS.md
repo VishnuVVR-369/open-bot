@@ -2,7 +2,7 @@
 
 The always-on Node service that runs teammates: the run queue, agent tools, services, the internal HTTP API and the egress relay.
 It does not render UI or hold user sessions (that is `apps/web`), and it does not run processes inside the computer (that is `apps/botd`).
-Shared types and pure logic go in `packages/shared`, and schema changes go in `packages/db`.
+Shared types and pure logic go in `packages/domain`, and schema changes go in `packages/db`.
 
 ## Entry points
 

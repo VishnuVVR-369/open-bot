@@ -13,8 +13,8 @@
   },
   "dependencies": {
     "@open-bot/db": "workspace:*",
+    "@open-bot/domain": "workspace:*",
     "@open-bot/page-kit": "workspace:*",
-    "@open-bot/shared": "workspace:*",
     "drizzle-orm": "^0.45.4",
     "pg": "^8.23.1"
   },

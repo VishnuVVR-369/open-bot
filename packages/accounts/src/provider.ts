@@ -1,4 +1,4 @@
-import type { AccountProvider, AccountStatus } from "@open-bot/shared";
+import type { AccountProvider, AccountStatus } from "@open-bot/domain";
 import type { OAuthClient, OAuthClients } from "./clients";
 import type { TokenResponse } from "./oauth";
 

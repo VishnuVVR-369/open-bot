@@ -1,4 +1,4 @@
-import { approvalRisk, approveLabel, commandParts } from "@open-bot/shared";
+import { approvalRisk, approveLabel, commandParts } from "@open-bot/domain";
 import { useQuery } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import {

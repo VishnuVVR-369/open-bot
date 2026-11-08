@@ -14,7 +14,7 @@ import {
   type EgressMode,
   type PhoneMode,
 } from "@open-bot/egress";
-import type { EgressAgentClaim } from "@open-bot/shared/tokens";
+import type { EgressAgentClaim } from "@open-bot/domain/tokens";
 import { afterEach, describe, expect, it } from "vitest";
 import WebSocket, { WebSocketServer } from "ws";
 // The real computer side, as botd runs it.

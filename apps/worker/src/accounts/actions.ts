@@ -9,7 +9,7 @@ import {
   rulesCover,
   type AccountActionStatus,
   type ToolItem,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { and, asc, eq, isNotNull, isNull, lte, sql } from "drizzle-orm";
 import { appendRunEvent, enqueueRun, publishApp, type Context } from "../context";
 import { errorMessage } from "../logger";

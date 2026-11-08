@@ -1,4 +1,4 @@
-import type { ActionEffect } from "@open-bot/shared";
+import type { ActionEffect } from "@open-bot/domain";
 
 /**
  * How an action reaches the world decides whether it asks you first. It is worked out here from

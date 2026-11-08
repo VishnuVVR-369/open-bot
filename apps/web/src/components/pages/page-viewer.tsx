@@ -1,6 +1,6 @@
 "use client";
 
-import { pageQuestionText, parsePageAskMessage } from "@open-bot/shared";
+import { pageQuestionText, parsePageAskMessage } from "@open-bot/domain";
 import {
   ArrowLeft,
   Check,

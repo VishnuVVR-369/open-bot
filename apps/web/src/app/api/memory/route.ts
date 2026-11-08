@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { MemoryError } from "@open-bot/memory";
 import { z } from "zod";
-import { memoryMarkdown, type MemoryItem } from "@open-bot/shared";
+import { memoryMarkdown, type MemoryItem } from "@open-bot/domain";
 import { authed } from "@/lib/server/route";
 import { memoryReady } from "@/lib/server/memory";
 import { pool } from "@/lib/server/db";

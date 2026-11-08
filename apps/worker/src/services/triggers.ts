@@ -22,7 +22,7 @@ import {
   watchChange,
   WEBHOOK_PAYLOAD_NOTE,
   type TriggerKind,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { and, count, eq, gte, lte } from "drizzle-orm";
 import { enqueueRun, publishApp, type Context } from "../context";
 import { errorMessage } from "../logger";

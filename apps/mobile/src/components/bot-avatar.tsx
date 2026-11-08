@@ -1,5 +1,5 @@
 import type { BotSummary } from "@open-bot/api";
-import { STATUS, teammateStatus, type TeammateActivity } from "@open-bot/shared";
+import { STATUS, teammateStatus, type TeammateActivity } from "@open-bot/domain";
 import { useEffect, useRef, type ReactNode } from "react";
 import { Animated, Easing, Text, View } from "react-native";
 import { useReducedMotion } from "@/lib/motion";
@@ -35,7 +35,7 @@ function initials(name: string) {
 
 /**
  * The words for a teammate's status, the same on every surface (Home, the Computer tab, chat
- * headers) and the same as the web's: one list, in packages/shared. The line under a teammate's
+ * headers) and the same as the web's: one list, in packages/domain. The line under a teammate's
  * name says only this, never their job.
  */
 export { STATUS };
@@ -44,7 +44,7 @@ export { STATUS };
 export const PAUSED_OFFLINE = `${STATUS.paused}, computer offline`;
 
 /**
- * What a teammate is doing, by the shared rule (packages/shared `teammateStatus`): waiting on you
+ * What a teammate is doing, by the shared rule (packages/domain `teammateStatus`): waiting on you
  * still needs you, offline or not; everyone else is paused while the computer (from
  * `useComputerOffline`) is offline.
  */

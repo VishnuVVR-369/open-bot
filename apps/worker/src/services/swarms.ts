@@ -1,5 +1,5 @@
 import { chats, runs, swarms, swarmTasks, type SwarmTaskStatus } from "@open-bot/db";
-import { MAX_SWARM_TASKS, type SwarmItem } from "@open-bot/shared";
+import { MAX_SWARM_TASKS, type SwarmItem } from "@open-bot/domain";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { appendRunEvent, enqueueRun, publishApp, signalWorker, type Context } from "../context";
 import { errorMessage } from "../logger";

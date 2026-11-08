@@ -6,7 +6,7 @@ import {
   describeCron,
   TEAMMATE_TEMPLATES,
   type Autonomy,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { useQueryClient } from "@tanstack/react-query";
 import { Check, CircleCheck, Loader2, Upload } from "lucide-react";
 import { useRouter } from "next/navigation";

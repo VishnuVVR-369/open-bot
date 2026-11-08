@@ -1,5 +1,5 @@
 import type { v2 } from "@open-bot/agent";
-import { integration, type AccountConnectionKind } from "@open-bot/shared";
+import { integration, type AccountConnectionKind } from "@open-bot/domain";
 
 /** How an integration's tools are described to teammates: JSON Schema, in one namespace. */
 

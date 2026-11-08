@@ -5,7 +5,7 @@ import {
   formatDollars,
   relativeTime,
   type EgressModeSetting,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNowStrict } from "date-fns";
 import {

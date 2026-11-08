@@ -1,4 +1,4 @@
-import { newPasswordProblem, PASSWORD_MIN_LENGTH, passwordChangeProblem } from "@open-bot/shared";
+import { newPasswordProblem, PASSWORD_MIN_LENGTH, passwordChangeProblem } from "@open-bot/domain";
 import { KeyRound } from "lucide-react-native";
 import { useEffect, useRef, useState } from "react";
 import { Alert, Pressable, StyleSheet, View, type TextInputInstance } from "react-native";

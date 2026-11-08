@@ -1,5 +1,5 @@
 import { access, chmod, chown, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
-import { COMPUTER_PATHS, isOwnerLease, type ComputerHealth } from "@open-bot/shared";
+import { COMPUTER_PATHS, isOwnerLease, type ComputerHealth } from "@open-bot/domain";
 import { backgroundProcess, type ProcessView } from "./background";
 import { ComputeLifecycle } from "./lifecycle";
 import { CodeScreens } from "./code-screens";
@@ -234,7 +234,11 @@ const lifecycle: ComputeLifecycle = new ComputeLifecycle(lifecycleEnabled, {
     await supervisor.stop("codex");
     // Stopping Codex's process group ends its code-mode host too, but the host has a group of
     // its own, so it can still be exiting when the group stop returns.
-    await waitFor(async () => (await botProcesses()).size === 0, 5_000, "the bot user's processes to exit");
+    await waitFor(
+      async () => (await botProcesses()).size === 0,
+      5_000,
+      "the bot user's processes to exit",
+    );
     await cookies.persist();
   },
 });

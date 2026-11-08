@@ -13,7 +13,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-// The same limits as sign-in: packages/shared/src/password.ts.
+// The same limits as sign-in: packages/domain/src/password.ts.
 const PASSWORD_MIN_LENGTH = 10;
 const PASSWORD_MAX_LENGTH = 128;
 

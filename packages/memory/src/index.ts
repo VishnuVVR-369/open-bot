@@ -10,7 +10,7 @@ import {
   type MemoryItem,
   type MemoryRevision,
   type MemorySource,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 
 export class MemoryError extends Error {
   constructor(

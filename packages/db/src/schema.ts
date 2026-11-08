@@ -1,4 +1,4 @@
-import type { ScreenOperationStatus } from "@open-bot/shared";
+import type { ScreenOperationStatus } from "@open-bot/domain";
 import type {
   AccountActionPreview,
   AccountActionStatus,
@@ -17,7 +17,7 @@ import type {
   RunEventPayload,
   RunStatus,
   TriggerKind,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import {
   bigint,
   check,

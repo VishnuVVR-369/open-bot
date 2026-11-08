@@ -1,6 +1,6 @@
 "use client";
 
-import { RECOVERY_COPY, resetPasswordCommand } from "@open-bot/shared";
+import { RECOVERY_COPY, resetPasswordCommand } from "@open-bot/domain";
 import { KeyRound, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -18,7 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
-import { PASSWORD_MIN_LENGTH } from "@open-bot/shared";
+import { PASSWORD_MIN_LENGTH } from "@open-bot/domain";
 
 /** Where a passkey sign-in from "Forgot password?" lands: the form for a new password. */
 const SET_PASSWORD = "/settings#set-password";

@@ -1,5 +1,5 @@
 import * as Clipboard from "expo-clipboard";
-import { RECOVERY_COPY } from "@open-bot/shared";
+import { RECOVERY_COPY } from "@open-bot/domain";
 import { Check, Copy } from "lucide-react-native";
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";

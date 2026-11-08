@@ -6,7 +6,7 @@ import {
   simpleCommands,
   suggestedRule,
   type RuleKind,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { ShieldCheck } from "lucide-react-native";
 import { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";

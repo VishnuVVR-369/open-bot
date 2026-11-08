@@ -1,5 +1,5 @@
 import type { BotSummary, ChatSummary, PageLink, PageSummary } from "@open-bot/api";
-import { parsePageAskMessage, type PageAskMessage } from "@open-bot/shared";
+import { parsePageAskMessage, type PageAskMessage } from "@open-bot/domain";
 import type { Href } from "expo-router";
 import { APP_URL } from "./config";
 

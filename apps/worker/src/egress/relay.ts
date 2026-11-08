@@ -10,7 +10,7 @@ import {
   type PhoneMode,
   type UnavailableReason,
 } from "@open-bot/egress";
-import type { EgressAgentClaim } from "@open-bot/shared/tokens";
+import type { EgressAgentClaim } from "@open-bot/domain/tokens";
 import WebSocket from "ws";
 
 /** What the relay needs from the database. */

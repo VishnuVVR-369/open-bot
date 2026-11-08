@@ -1,5 +1,5 @@
 import type { RunView } from "@open-bot/api";
-import { isRunActive } from "@open-bot/shared";
+import { isRunActive } from "@open-bot/domain";
 
 export function completedRepliesKey(runs: Record<string, RunView>): string {
   return JSON.stringify(

@@ -87,7 +87,7 @@ A comment line every 20 seconds keeps proxies from closing the connection.
 - A `notification` event fetches the notification and shows a toast, and an OS notification when allowed and the chat isn't already open.
 - `run` events go to the chat that is watching. The provider remembers the last event id per chat and drops anything older, so a reconnect never applies an event twice.
 
-`useChat` then folds events into the chat view with `applyRunEvent` from `@open-bot/shared`.
+`useChat` then folds events into the chat view with `applyRunEvent` from `@open-bot/domain`.
 It's a pure reducer shared by the server (to build the first snapshot) and the client (to apply live events), so both always agree.
 Events that arrive before the snapshot loads are buffered and applied after it, skipping any already included in the snapshot's cursor.
 

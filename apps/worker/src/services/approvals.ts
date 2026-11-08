@@ -7,7 +7,7 @@ import {
   type ApprovalKind,
   type Queryable,
 } from "@open-bot/db";
-import type { RuleKind } from "@open-bot/shared";
+import type { RuleKind } from "@open-bot/domain";
 import {
   DEFERRED_APPROVAL_KINDS,
   ruleAllowed,
@@ -18,7 +18,7 @@ import {
   rulesCover,
   type AccountActionPreview,
   type ApprovalItem,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 import {
   appendRunEvent,

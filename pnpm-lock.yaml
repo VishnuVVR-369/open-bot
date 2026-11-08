@@ -77,15 +77,15 @@ importers:
 
   apps/botd:
     dependencies:
+      '@open-bot/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@open-bot/egress':
         specifier: workspace:*
         version: link:../../packages/egress
       '@open-bot/page-kit':
         specifier: workspace:*
         version: link:../../packages/page-kit
-      '@open-bot/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       ws:
         specifier: ^8.22.0
         version: 8.22.0
@@ -150,9 +150,9 @@ importers:
       '@open-bot/api':
         specifier: workspace:*
         version: link:../../packages/api
-      '@open-bot/shared':
+      '@open-bot/domain':
         specifier: workspace:*
-        version: link:../../packages/shared
+        version: link:../../packages/domain
       '@orpc/client':
         specifier: ^1.16.1
         version: 1.16.1
@@ -313,12 +313,12 @@ importers:
       '@open-bot/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@open-bot/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@open-bot/page-kit':
         specifier: workspace:*
         version: link:../../packages/page-kit
-      '@open-bot/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       drizzle-orm:
         specifier: ^0.45.4
         version: 0.45.4(@types/pg@8.23.1)(kysely@0.29.6)(pg@8.23.1)
@@ -429,12 +429,12 @@ importers:
       '@open-bot/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@open-bot/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@open-bot/memory':
         specifier: workspace:*
         version: link:../../packages/memory
-      '@open-bot/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       '@orpc/server':
         specifier: ^1.16.1
         version: 1.16.1(ws@8.22.0)
@@ -556,6 +556,9 @@ importers:
       '@open-bot/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@open-bot/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@open-bot/egress':
         specifier: workspace:*
         version: link:../../packages/egress
@@ -565,9 +568,6 @@ importers:
       '@open-bot/page-kit':
         specifier: workspace:*
         version: link:../../packages/page-kit
-      '@open-bot/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       cron-parser:
         specifier: ^5.10.2
         version: 5.10.2
@@ -617,9 +617,9 @@ importers:
       '@open-bot/db':
         specifier: workspace:*
         version: link:../db
-      '@open-bot/shared':
+      '@open-bot/domain':
         specifier: workspace:*
-        version: link:../shared
+        version: link:../domain
       drizzle-orm:
         specifier: ^0.45.4
         version: 0.45.4(@types/pg@8.23.1)(kysely@0.29.6)(pg@8.23.1)
@@ -661,9 +661,9 @@ importers:
 
   packages/api:
     dependencies:
-      '@open-bot/shared':
+      '@open-bot/domain':
         specifier: workspace:*
-        version: link:../shared
+        version: link:../domain
       '@orpc/client':
         specifier: ^1.16.1
         version: 1.16.1
@@ -683,9 +683,9 @@ importers:
 
   packages/db:
     dependencies:
-      '@open-bot/shared':
+      '@open-bot/domain':
         specifier: workspace:*
-        version: link:../shared
+        version: link:../domain
       drizzle-orm:
         specifier: ^0.45.4
         version: 0.45.4(@types/pg@8.23.1)(kysely@0.29.6)(pg@8.23.1)
@@ -709,6 +709,25 @@ importers:
         specifier: ~6.0.3
         version: 6.0.3
 
+  packages/domain:
+    dependencies:
+      cron-parser:
+        specifier: ^5.10.2
+        version: 5.10.2
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@types/node':
+        specifier: ^24.19.2
+        version: 24.19.2
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^5.0.4
+        version: 5.0.4(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15))
+
   packages/egress:
     devDependencies:
       '@types/node':
@@ -726,9 +745,9 @@ importers:
       '@open-bot/db':
         specifier: workspace:*
         version: link:../db
-      '@open-bot/shared':
+      '@open-bot/domain':
         specifier: workspace:*
-        version: link:../shared
+        version: link:../domain
       pg:
         specifier: ^8.23.1
         version: 8.23.1
@@ -781,25 +800,6 @@ importers:
       mermaid:
         specifier: 12.2.0
         version: 12.2.0
-      typescript:
-        specifier: ~6.0.3
-        version: 6.0.3
-      vitest:
-        specifier: ^5.0.4
-        version: 5.0.4(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15))
-
-  packages/shared:
-    dependencies:
-      cron-parser:
-        specifier: ^5.10.2
-        version: 5.10.2
-      zod:
-        specifier: ^4.6.7
-        version: 4.6.7
-    devDependencies:
-      '@types/node':
-        specifier: ^24.19.2
-        version: 24.19.2
       typescript:
         specifier: ~6.0.3
         version: 6.0.3

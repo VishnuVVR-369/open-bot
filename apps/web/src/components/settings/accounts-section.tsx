@@ -13,7 +13,7 @@ import {
   type AccountCapability,
   type AccountConnectionKind,
   type IntegrationIcon,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import {
   CalendarDays,
   Copy,

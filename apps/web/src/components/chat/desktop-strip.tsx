@@ -1,6 +1,6 @@
 "use client";
 
-import { SCREEN, type ComputerAction, type ComputerItem } from "@open-bot/shared";
+import { SCREEN, type ComputerAction, type ComputerItem } from "@open-bot/domain";
 import { ChevronLeft, ChevronRight, Monitor, Pause, Play } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";

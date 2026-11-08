@@ -1,4 +1,4 @@
-import type { EgressAgentClaim } from "@open-bot/shared/tokens";
+import type { EgressAgentClaim } from "@open-bot/domain/tokens";
 import { z } from "zod";
 
 /** The device an egress token names. A phone's claim must carry its pairing generation. */

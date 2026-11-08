@@ -1,5 +1,5 @@
 import "server-only";
-import { assertNoDevSecrets, DEV_SECRETS } from "@open-bot/shared/secrets";
+import { assertNoDevSecrets, DEV_SECRETS } from "@open-bot/domain/secrets";
 
 export const serverEnv = {
   ownerEmail: (process.env.OWNER_EMAIL ?? "").trim().toLowerCase(),

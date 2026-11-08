@@ -1,4 +1,4 @@
-import type { AccountProvider } from "@open-bot/shared";
+import type { AccountProvider } from "@open-bot/domain";
 import type { ReactNode } from "react";
 
 /**

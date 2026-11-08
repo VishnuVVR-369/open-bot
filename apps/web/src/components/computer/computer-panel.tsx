@@ -1,6 +1,6 @@
 "use client";
 
-import { isOwnerLease, type LeaseHolder, type ScreenStatus } from "@open-bot/shared";
+import { isOwnerLease, type LeaseHolder, type ScreenStatus } from "@open-bot/domain";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   ChevronDown,

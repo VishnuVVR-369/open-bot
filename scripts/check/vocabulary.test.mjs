@@ -61,7 +61,7 @@ describe("findTerms", () => {
 
   it("ignores the product name, the Linux user and Telegram's BotFather", () => {
     const text = [
-      'import { x } from "@open-bot/shared";',
+      'import { x } from "@open-bot/domain";',
       "process.env.OPEN_BOT_PLAN_BASE_URL; window.openBotDesktop;",
       'const home = "/home/bot/.codex"; // runs as the bot user, chown bot:bot',
       "Talk to BotFather.",

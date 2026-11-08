@@ -7,7 +7,7 @@ import {
   runs,
   settings,
 } from "@open-bot/db";
-import { COMPUTER_PATHS, emailAddress } from "@open-bot/shared";
+import { COMPUTER_PATHS, emailAddress } from "@open-bot/domain";
 import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, ne, sql } from "drizzle-orm";
 import { announceRun, appendRunEvent, insertRun, publishApp, type Context } from "../context";
 import { agentsMarkdown, allowedList, redoPrompt } from "../instructions";

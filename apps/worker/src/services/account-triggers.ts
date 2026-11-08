@@ -9,7 +9,7 @@ import {
   outsideData,
   TRIGGER_CONNECTION_KIND,
   type AccountTriggerKind,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { and, count, eq, gte, inArray, like, lt, lte } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
 import { errorMessage } from "../logger";

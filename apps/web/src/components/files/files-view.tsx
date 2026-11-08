@@ -1,6 +1,6 @@
 "use client";
 
-import { MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL, undeletablePath } from "@open-bot/shared";
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL, undeletablePath } from "@open-bot/domain";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNowStrict } from "date-fns";
 import {

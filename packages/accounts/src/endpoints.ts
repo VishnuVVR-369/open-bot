@@ -1,4 +1,4 @@
-import type { AccountProvider } from "@open-bot/shared";
+import type { AccountProvider } from "@open-bot/domain";
 
 /**
  * Where the providers live. Tests point these at a stand-in with `GOOGLE_BASE_URL` and

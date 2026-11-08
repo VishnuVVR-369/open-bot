@@ -11,7 +11,7 @@ import {
   oauthClients,
   runs,
 } from "@open-bot/db";
-import { ACCOUNT_CONNECTION_KINDS, GOOGLE_SCOPES } from "@open-bot/shared";
+import { ACCOUNT_CONNECTION_KINDS, GOOGLE_SCOPES } from "@open-bot/domain";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";

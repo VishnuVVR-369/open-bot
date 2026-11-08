@@ -11,7 +11,7 @@ import {
   isAccountConnectionKind,
   type AccountCapability,
   type AccountConnectionKind,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { and, asc, eq, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { createNotification, publishApp, type Context } from "../context";
 import type { AccountAccessLine } from "../instructions";

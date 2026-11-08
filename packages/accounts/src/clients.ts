@@ -1,6 +1,6 @@
 import { accounts, oauthClients, type Db } from "@open-bot/db";
-import type { AccountProvider } from "@open-bot/shared";
-import { decryptSecret, encryptSecret } from "@open-bot/shared/secrets";
+import type { AccountProvider } from "@open-bot/domain";
+import { decryptSecret, encryptSecret } from "@open-bot/domain/secrets";
 import { and, eq, isNotNull, isNull, notExists, sql } from "drizzle-orm";
 
 type Row = typeof oauthClients.$inferSelect;

@@ -1,6 +1,6 @@
 "use client";
 
-import { RECOVERY_COPY, resetPasswordCommand } from "@open-bot/shared";
+import { RECOVERY_COPY, resetPasswordCommand } from "@open-bot/domain";
 import { KeyRound, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -13,7 +13,7 @@ import {
   PASSWORD_MIN_LENGTH,
   passwordChangeError,
   passwordChangeProblem,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { CopyCommand } from "@/components/copy-command";
 import { PasswordInput } from "@/components/password-input";
 

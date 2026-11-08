@@ -5,7 +5,7 @@ import {
   outsideData,
   type AccountActionPreview,
   type ActionEffect,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import {
   StreamableHTTPClientTransport,

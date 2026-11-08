@@ -1,6 +1,6 @@
 import type pg from "pg";
 import { z } from "zod";
-import { normalizeMemory, type MemoryKind } from "@open-bot/shared";
+import { normalizeMemory, type MemoryKind } from "@open-bot/domain";
 import { MemoryService } from "./index";
 
 export interface MemoryAIConfig {

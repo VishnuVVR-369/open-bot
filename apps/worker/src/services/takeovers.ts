@@ -12,7 +12,7 @@ import {
   isRunActive,
   type LeaseHolder,
   type TakeoverRequestItem,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import {
   appendRunEvent,

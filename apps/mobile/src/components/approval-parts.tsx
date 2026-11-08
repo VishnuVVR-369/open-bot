@@ -1,5 +1,5 @@
 import type { ApprovalView, BotSummary } from "@open-bot/api";
-import type { ApprovalRisk } from "@open-bot/shared";
+import type { ApprovalRisk } from "@open-bot/domain";
 import { Check, CircleDashed, Clock, OctagonAlert, TriangleAlert, X } from "lucide-react-native";
 import type { ReactNode } from "react";
 import { StyleSheet, View, type TextProps } from "react-native";

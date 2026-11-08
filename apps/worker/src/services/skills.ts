@@ -13,7 +13,7 @@ import {
   skillInputSchema,
   skillMarkdown,
   type SkillInput,
-} from "@open-bot/shared";
+} from "@open-bot/domain";
 import { and, eq, isNull, or } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
 

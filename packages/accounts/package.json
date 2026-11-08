@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@open-bot/db": "workspace:*",
-    "@open-bot/shared": "workspace:*",
+    "@open-bot/domain": "workspace:*",
     "drizzle-orm": "^0.45.4"
   },
   "devDependencies": {

@@ -2,7 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNowStrict } from "date-fns";
-import { BUILT_IN_SKILLS } from "@open-bot/shared";
+import { BUILT_IN_SKILLS } from "@open-bot/domain";
 import { ArrowRight, FileText, Pencil, Sparkles, Trash2, UserRound, Users } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";

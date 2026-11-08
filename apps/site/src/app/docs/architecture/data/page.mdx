@@ -203,7 +203,7 @@ Here they are grouped by what they're for:
 - Timestamps are `timestamptz`.
 - Structured values (attachments, timeline payloads, approval payloads) are `jsonb` with a TypeScript type attached with `$type<>()`.
 - Deleting a teammate archives it (`bots.archived_at`). Rows that belong to it cascade or set null as each foreign key says.
-- Secrets are never stored in plain text. `encryptSecret()` in `@open-bot/shared` uses AES-256-GCM with a random 12-byte IV, and stores `iv.tag.ciphertext` in base64url.
+- Secrets are never stored in plain text. `encryptSecret()` in `@open-bot/domain` uses AES-256-GCM with a random 12-byte IV, and stores `iv.tag.ciphertext` in base64url.
 
 ### Migrations
 
@@ -243,7 +243,7 @@ The query is on the [Worker](/docs/architecture/worker#claiming-work) page.
 `run_events` is append-only.
 Each row has the run id, the chat id (so a chat's events are one index scan), and a jsonb `payload` of one of four types:
 
-```ts title="RunEventPayload (packages/shared/src/timeline.ts)"
+```ts title="RunEventPayload (packages/domain/src/timeline.ts)"
 type RunEventPayload =
   | { type: "status"; status: RunStatus; error?: string; waitingFor?: "approval" | "takeover" }
   | { type: "item"; item: TimelineItem } // insert or replace an item by id
@@ -258,7 +258,7 @@ Items are written whole whenever they change, and the reducer replaces them by i
 Deltas only append text.
 This keeps the reducer simple and makes the log easy to read in SQL.
 
-`applyRunEvent(state, payload)` in `@open-bot/shared` folds events into a run's timeline.
+`applyRunEvent(state, payload)` in `@open-bot/domain` folds events into a run's timeline.
 It is pure and shared: the web app uses it on the server to build a chat's first snapshot, and in the browser to apply live events.
 
 ### Why a log

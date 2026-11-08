@@ -1,5 +1,5 @@
 import type { v2 } from "@open-bot/agent";
-import type { TimelineItem } from "@open-bot/shared";
+import type { TimelineItem } from "@open-bot/domain";
 
 type ThreadItem = v2.ThreadItem;
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { lineDiff } from "@open-bot/shared";
+import { lineDiff } from "@open-bot/domain";
 import { Loader2, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useTransition } from "react";

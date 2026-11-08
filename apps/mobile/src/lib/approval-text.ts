@@ -1,4 +1,4 @@
-import type { ApprovalFacts } from "@open-bot/shared";
+import type { ApprovalFacts } from "@open-bot/domain";
 
 /** A title split where it quotes code in backticks, as "Run `pwd`" does. */
 export function titleParts(title: string): { text: string; code: boolean }[] {

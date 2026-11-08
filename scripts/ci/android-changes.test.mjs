@@ -19,8 +19,8 @@ git("config", "user.email", "ci@example.com");
 git("config", "user.name", "CI test");
 for (const [directory, name, dependencies] of [
   ["apps/mobile", "@open-bot/mobile", { "@open-bot/api": "workspace:*" }],
-  ["packages/api", "@open-bot/api", { "@open-bot/shared": "workspace:*" }],
-  ["packages/shared", "@open-bot/shared", {}],
+  ["packages/api", "@open-bot/api", { "@open-bot/domain": "workspace:*" }],
+  ["packages/domain", "@open-bot/domain", {}],
   ["packages/egress", "@open-bot/egress", {}],
   ["apps/web", "@open-bot/web", {}],
 ])
@@ -42,7 +42,7 @@ test("follows transitive mobile workspace dependencies and Kotlin vectors", () =
     "apps/mobile",
     "packages/api",
     "packages/egress",
-    "packages/shared",
+    "packages/domain",
   ]);
 });
 
@@ -59,7 +59,7 @@ test("mobile, shared sources, vectors and global build inputs run Android", () =
   for (const file of [
     "apps/mobile/src/app/index.tsx",
     "packages/api/src/contract.ts",
-    "packages/shared/src/index.ts",
+    "packages/domain/src/index.ts",
     "packages/egress/test-vectors/frame.json",
     "pnpm-lock.yaml",
     "pnpm-workspace.yaml",
@@ -86,16 +86,16 @@ test("renames out of mobile and deletions still run Android", () => {
   git("commit", "--quiet", "-m", "move");
   assert.equal(needsAndroid(root, before, "HEAD"), true);
   const previous = git("rev-parse", "HEAD");
-  git("rm", "packages/shared/src/index.ts");
+  git("rm", "packages/domain/src/index.ts");
   git("commit", "--quiet", "-m", "delete");
   assert.equal(needsAndroid(root, previous, "HEAD"), true);
 });
 
 test("discovers new transitive dependencies and handles dependency cycles", () => {
   write(
-    "packages/shared/package.json",
+    "packages/domain/package.json",
     JSON.stringify({
-      name: "@open-bot/shared",
+      name: "@open-bot/domain",
       optionalDependencies: { "@open-bot/new": "workspace:*" },
     }),
   );
@@ -137,6 +137,6 @@ test("CLI writes a skipped PR result and always builds on pushes to main", () =>
 test("missing history or manifests fall back to running checks", () => {
   assert.equal(needsAndroid(root, "", "HEAD"), true);
   assert.equal(needsAndroid(root, "invalid-ref", "HEAD"), true);
-  write("packages/shared/package.json", "invalid json");
+  write("packages/domain/package.json", "invalid json");
   assert.equal(needsAndroid(root, base, "HEAD"), true);
 });

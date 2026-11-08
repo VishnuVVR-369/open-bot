@@ -1,6 +1,6 @@
 "use client";
 
-import { accountTool, noRulesYet, type RuleKind } from "@open-bot/shared";
+import { accountTool, noRulesYet, type RuleKind } from "@open-bot/domain";
 import { FilePen, MousePointerClick, Plug, SquareTerminal, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";

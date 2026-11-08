@@ -1,4 +1,4 @@
-import { ACCOUNT_CONNECTION_KINDS, integration } from "@open-bot/shared";
+import { ACCOUNT_CONNECTION_KINDS, integration } from "@open-bot/domain";
 import { describe, expect, it, vi } from "vitest";
 import { ACCOUNT_TOOL_SPECS, Integrations, isAccountNamespace, specProblem } from "./registry";
 import { namespace, tool } from "./schema";

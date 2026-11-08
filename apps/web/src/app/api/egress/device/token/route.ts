@@ -1,5 +1,5 @@
 import { computers, egressDevices } from "@open-bot/db";
-import { issueToken } from "@open-bot/shared/tokens";
+import { issueToken } from "@open-bot/domain/tokens";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/server/db";

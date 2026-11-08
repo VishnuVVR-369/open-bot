@@ -1,4 +1,4 @@
-import { speakable } from "@open-bot/shared";
+import { speakable } from "@open-bot/domain";
 import * as Speech from "expo-speech";
 import { useSyncExternalStore } from "react";
 

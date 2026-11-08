@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
     "@open-bot/accounts",
     "@open-bot/api",
     "@open-bot/db",
-    "@open-bot/shared",
+    "@open-bot/domain",
     "@open-bot/memory",
   ],
   serverExternalPackages: ["pg"],

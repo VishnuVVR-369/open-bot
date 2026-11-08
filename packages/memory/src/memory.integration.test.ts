@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import { MemoryService } from "./index";
 import { MemoryAI, MemoryJobs, type MemoryAIConfig } from "./jobs";
-import { memoryInputSchema } from "@open-bot/shared";
+import { memoryInputSchema } from "@open-bot/domain";
 
 const databaseServer = testDatabaseServer();
 describe.skipIf(!databaseServer)("memory with real Postgres", () => {

@@ -1,4 +1,4 @@
-import type { RuleKind } from "@open-bot/shared";
+import type { RuleKind } from "@open-bot/domain";
 import { safe, isDefinedError } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
 import * as LocalAuthentication from "expo-local-authentication";
