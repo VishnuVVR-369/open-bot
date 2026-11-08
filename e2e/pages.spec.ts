@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "./fixtures";
-import { createTeammate, sendMessage, uniqueName, waitForLastRun, workerApi } from "./helpers";
+import { createTeammate, sendMessage, uniqueName, waitForLastRun, worker } from "./helpers";
 
 const workerUrl = process.env.WORKER_URL ?? "http://127.0.0.1:4001";
 const workerSecret = process.env.WORKER_SECRET ?? "dev-worker-secret-change-me";
@@ -30,7 +30,7 @@ function pageHtml(heading: string, lede: string) {
 }
 
 async function writeFile(path: string, text: string) {
-  await workerApi("/internal/files/write", {
+  await worker.files.write({
     path,
     dataBase64: Buffer.from(text).toString("base64"),
   });

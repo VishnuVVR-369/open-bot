@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import type { TelegramStatus } from "@open-bot/api/worker";
 import {
   approvals,
   bots,
@@ -66,15 +67,7 @@ interface TgUpdate {
 
 type InlineKeyboard = { text: string; callback_data?: string; url?: string }[][];
 
-export interface TelegramStatus {
-  connected: boolean;
-  botUsername: string | null;
-  tokenHint: string | null;
-  linked: boolean;
-  linkedName: string | null;
-  /** Why the connection isn't working, when it isn't. */
-  problem: string | null;
-}
+export type { TelegramStatus };
 
 function displayName(user: TgUser | undefined): string {
   if (!user) return "you";

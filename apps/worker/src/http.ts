@@ -1,85 +1,27 @@
 import { timingSafeEqual } from "node:crypto";
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
-import { approvals as approvalsTable, bots, runs, settings } from "@open-bot/db";
-import {
-  botProfileChangesSchema,
-  COMPUTER_PATHS,
-  createBotSchema,
-  isOwnerLease,
-  isRunActive,
-  isPageSourcePath,
-  isScreenId,
-  MAX_PAGE_SUMMARY,
-  MAX_PAGE_TITLE,
-  MAX_UPLOAD_BYTES,
-  typeOnScreenSchema,
-  undeletablePath,
-} from "@open-bot/domain";
-import { LEGACY_DESKTOP_AGENT, readToken, verifyToken } from "@open-bot/domain/server";
-import { and, asc, eq, gt, isNull, sql } from "drizzle-orm";
-import WebSocket, { WebSocketServer } from "ws";
+import { WORKER_SECRET_HEADER } from "@open-bot/api/worker";
+import { MAX_UPLOAD_BYTES } from "@open-bot/domain";
 import { z } from "zod";
-import { enqueueRun, publishApp, type Context } from "./context";
-import { egressAgentClaimSchema } from "./egress/claims";
-import type { EgressRelay } from "./egress/relay";
-import type { WakeController } from "./egress/wake";
 import { errorMessage } from "./logger";
-import { sanitizeFileName, UploadError, type UploadService } from "./uploads";
-import type { RunExecutor } from "./runs/executor";
-import type { ApprovalService } from "./services/approvals";
-import type { MemoryCoordinator } from "./services/memory";
-import type { ScheduleService } from "./services/schedules";
-import { ScreenBusy, withScreenLock } from "./services/screen-lock";
-import type { ScreenOperationService } from "./services/screen-operations";
-import { SkillError, type SkillService } from "./services/skills";
-import type { TakeoverService } from "./services/takeovers";
-import { TelegramError, type TelegramService } from "./services/telegram";
-import type { PushService } from "./services/push";
-import type { FcmService } from "./services/fcm";
-import type { ConnectionService } from "./services/connections";
-import { EmailError, type EmailService } from "./services/email";
-import type { SwarmService } from "./services/swarms";
-import { TaskError, type TaskService } from "./services/tasks";
-import type { AccountTriggers } from "./services/account-triggers";
-import { TriggerError, type TriggerService } from "./services/triggers";
-import { BotError, type BotService } from "./services/bots";
-import { PageError, type PageService } from "./services/pages";
+import { createRpcHandler } from "./rpc/handler";
+import { createWorkerRouter, type WorkerServices } from "./rpc/router";
+import { rpcError, toRpcError } from "./rpc/errors";
+import { handleUpgrades } from "./ws";
 
-export interface HttpDeps {
-  bots: BotService;
-  ctx: Context;
-  executor: RunExecutor;
-  approvals: ApprovalService;
-  takeovers: TakeoverService;
-  screenOperations: ScreenOperationService;
-  schedules: ScheduleService;
-  skills: SkillService;
-  memory: MemoryCoordinator;
-  triggers: TriggerService;
-  accountTriggers: AccountTriggers;
-  tasks: TaskService;
-  push: PushService;
-  fcm: FcmService;
-  swarms: SwarmService;
-  connections: ConnectionService;
-  email: EmailService;
-  telegram: TelegramService;
-  egress: EgressRelay;
-  wake: WakeController;
-  uploads: UploadService;
-  pages: PageService;
+export type HttpDeps = WorkerServices;
+
+function send(response: ServerResponse, status: number, body: unknown) {
+  response.writeHead(status, { "content-type": "application/json" });
+  response.end(JSON.stringify(body));
 }
 
-class HttpError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
-    super(message);
-  }
+function sameSecret(a: string | string[] | undefined, b: string): boolean {
+  if (typeof a !== "string") return false;
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  return left.length === right.length && timingSafeEqual(left, right);
 }
-
-const MAX_BODY = 60 * 1024 * 1024;
 
 /** A raw request body, like a file being uploaded. */
 async function readBody(request: IncomingMessage, limit: number): Promise<Buffer> {
@@ -87,761 +29,68 @@ async function readBody(request: IncomingMessage, limit: number): Promise<Buffer
   let size = 0;
   for await (const chunk of request) {
     size += (chunk as Buffer).length;
-    if (size > limit) throw new HttpError(413, "Request too large");
+    if (size > limit) throw rpcError(413, "Request too large");
     chunks.push(chunk as Buffer);
   }
   return Buffer.concat(chunks);
 }
 
-async function readJson<T>(request: IncomingMessage, schema: z.ZodType<T>): Promise<T> {
-  const chunks: Buffer[] = [];
-  let size = 0;
-  for await (const chunk of request) {
-    size += (chunk as Buffer).length;
-    if (size > MAX_BODY) throw new HttpError(413, "Request too large");
-    chunks.push(chunk as Buffer);
-  }
-  const raw = chunks.length ? JSON.parse(Buffer.concat(chunks).toString("utf8")) : {};
-  const parsed = schema.safeParse(raw);
-  if (!parsed.success)
-    throw new HttpError(400, parsed.error.issues.map((i) => i.message).join("; "));
-  return parsed.data;
-}
+const UPLOAD_PATH = /^\/internal\/uploads\/([^/]+)$/;
 
-/** A path parameter that must be an id. */
-function uuid(value: string | undefined, notFound = "Not found"): string {
-  if (!value || !z.string().uuid().safeParse(value).success) throw new HttpError(404, notFound);
-  return value;
-}
-
-function send(response: ServerResponse, status: number, body: unknown) {
-  response.writeHead(status, { "content-type": "application/json" });
-  response.end(JSON.stringify(body));
-}
-
-function sameSecret(a: string | undefined, b: string): boolean {
-  if (!a) return false;
-  const left = Buffer.from(a);
-  const right = Buffer.from(b);
-  return left.length === right.length && timingSafeEqual(left, right);
-}
-
-/** Only files inside the computer's home folders can be read or listed. */
-function safePath(path: string): string {
-  const normalized = path.replace(/\/+$/, "") || "/";
-  if (!normalized.startsWith("/home/bot/") && normalized !== "/home/bot")
-    throw new HttpError(400, "Path must be inside /home/bot");
-  if (normalized.split("/").includes("..")) throw new HttpError(400, "Invalid path");
-  if (normalized.startsWith(COMPUTER_PATHS.codexHome))
-    throw new HttpError(403, "That folder is private to Codex");
-  return normalized;
-}
-
-const triggerBody = z.object({
-  botId: z.string().uuid(),
-  kind: z.enum(["watch", "webhook", "gmail", "calendar"]),
-  title: z.string().max(200),
-  prompt: z.string().max(8000),
-  url: z.string().max(2000).nullable().optional(),
-  intervalMinutes: z.number().int().nullable().optional(),
-  lookFor: z.string().max(400).nullable().optional(),
-  connectionId: z.string().uuid().nullable().optional(),
-  query: z.string().max(1000).nullable().optional(),
-  leadMinutes: z.number().int().nullable().optional(),
+const uploadMeta = z.object({
+  name: z.string().trim().min(1, "The file needs a name.").max(255),
+  mime: z.string().max(255),
+  size: z.coerce.number().int().nonnegative(),
+  sha256: z.string(),
 });
 
-/** Turn a trigger's validation errors into 400s. */
-async function triggerCall<T>(call: () => Promise<T>): Promise<T> {
-  try {
-    return await call();
-  } catch (error) {
-    if (error instanceof TriggerError) throw new HttpError(400, error.message);
-    throw error;
-  }
-}
-
-/** Turn task problems into 400s. */
-async function taskCall<T>(call: () => Promise<T>): Promise<T> {
-  try {
-    return await call();
-  } catch (error) {
-    if (error instanceof TaskError) throw new HttpError(400, error.message);
-    throw error;
-  }
-}
-
-/** Turn Telegram's errors into 400s. */
-async function telegramCall<T>(call: () => Promise<T>): Promise<T> {
-  try {
-    return await call();
-  } catch (error) {
-    if (error instanceof TelegramError) throw new HttpError(400, error.message);
-    throw error;
-  }
-}
-
+/**
+ * The worker's HTTP server: `/healthz`, the internal API (`workerContract`) for the web app, the
+ * raw upload route, and the WebSockets in `ws.ts`. Everything but `/healthz` and the WebSockets
+ * (which check their own signed tokens) needs `x-worker-secret`.
+ */
 export function createHttpServer(deps: HttpDeps): http.Server {
-  /** Retries in progress, by the run being retried. */
-  const retrying = new Map<string, Promise<void>>();
-  const {
-    ctx,
-    executor,
-    approvals,
-    takeovers,
-    screenOperations,
-    schedules,
-    skills,
-    triggers,
-    accountTriggers,
-    tasks,
-    push,
-    fcm,
-    swarms,
-    connections,
-    email,
-    telegram,
-    egress,
-    wake,
-  } = deps;
-  const ok = { ok: true };
+  const { ctx } = deps;
+  const rpc = createRpcHandler(createWorkerRouter(deps), ctx);
 
-  /** A screen is a bot's, so its id must be a bot's. */
-  async function screenOf(id: string): Promise<string> {
-    if (!isScreenId(id)) throw new HttpError(400, "Invalid screen");
-    const [bot] = await ctx.db.select({ id: bots.id }).from(bots).where(eq(bots.id, id));
-    if (!bot) throw new HttpError(404, "No such teammate");
-    return bot.id;
-  }
-
-  const routes: Record<
-    string,
-    (request: IncomingMessage, params: Record<string, string>, url: URL) => Promise<unknown>
-  > = {
-    // The web app creates and edits teammates through the same service as the teammates' tools.
-    "POST /internal/bots": async (request) =>
-      deps.bots.create(await readJson(request, createBotSchema)),
-    "POST /internal/bots/:id": async (request, params) => {
-      const body = await readJson(
-        request,
-        z.object({
-          changes: botProfileChangesSchema,
-          expected_revision: z.string().min(1).max(128),
-        }),
-      );
-      return deps.bots.update(uuid(params.id), body.changes, body.expected_revision);
-    },
-    "GET /internal/status": async () => ({
-      computer: {
-        online: ctx.computer.online,
-        health: ctx.computer.health,
-        lifecycle: ctx.lifecycle?.status ?? null,
-      },
-      codex: ctx.codex.status,
-      egress: egress.status,
-    }),
-    "POST /internal/messages/:id/dispatch": async (_request, params) => {
-      await executor.dispatchMessage(params.id!);
-      return ok;
-    },
-    "POST /internal/runs/:id/retry": async (_request, params) => {
-      const [run] = await ctx.db.select().from(runs).where(eq(runs.id, params.id!));
-      if (!run) throw new HttpError(404, "Run not found");
-      if (isRunActive(run.status)) throw new HttpError(409, "That run is still going.");
-      const [bot] = await ctx.db.select().from(bots).where(eq(bots.id, run.botId));
-      if (!bot || bot.archivedAt) throw new HttpError(409, "That teammate is archived.");
-      // One retry at a time per run, so a repeated tap or request finds the first one's run.
-      const previous = retrying.get(run.id) ?? Promise.resolve();
-      const next = previous.then(async () => {
-        // Asked again after it already ran again: that's the retry, don't start another.
-        // Compared in Postgres, which keeps microseconds that a JavaScript date drops.
-        const [later] = await ctx.db
-          .select({ id: runs.id })
-          .from(runs)
-          .where(
-            and(
-              eq(runs.chatId, run.chatId),
-              eq(runs.botId, run.botId),
-              gt(runs.createdAt, sql`(select created_at from runs where id = ${run.id})`),
-            ),
-          )
-          .orderBy(asc(runs.createdAt))
-          .limit(1);
-        if (later) return { runId: later.id };
-        // The same request again, in the same chat; the bot's thread still has what happened.
-        const runId = await enqueueRun(ctx, {
-          chatId: run.chatId,
-          botId: run.botId,
-          trigger: run.trigger,
-          prompt: run.prompt,
-          attachments: run.attachments,
-          scheduleId: run.scheduleId,
-        });
-        await publishApp(ctx, { type: "chats" });
-        return { runId };
+  /**
+   * `PUT /internal/uploads/{id}`: an attachment for a message, as raw bytes, outside the contract
+   * so it streams instead of being parsed; see UploadService. Retries reuse the id.
+   */
+  async function putUpload(request: IncomingMessage, response: ServerResponse, id: string) {
+    const header = (name: string) => {
+      const value = request.headers[name];
+      return typeof value === "string" ? decodeURIComponent(value) : "";
+    };
+    const work = async () => {
+      if (!z.string().uuid().safeParse(id).success) throw rpcError(404, "Not found");
+      const meta = uploadMeta.safeParse({
+        name: header("x-upload-name"),
+        mime: header("x-upload-mime") || "application/octet-stream",
+        size: header("x-upload-size"),
+        sha256: header("x-upload-sha256").toLowerCase(),
       });
-      const settled = next.then(
-        () => {},
-        () => {},
-      );
-      retrying.set(run.id, settled);
-      void settled.then(() => {
-        if (retrying.get(run.id) === settled) retrying.delete(run.id);
-      });
-      return next;
-    },
-    "POST /internal/runs/cancel": async () => {
-      await executor.processCancellations();
-      return ok;
-    },
-    "POST /internal/approvals/:id/decide": async (request, params) => {
-      const { decision, alwaysAllow } = await readJson(
-        request,
-        z.object({
-          decision: z.enum(["approved", "denied"]),
-          alwaysAllow: z
-            .object({ pattern: z.string().max(300) })
-            .nullable()
-            .optional(),
-        }),
-      );
-      if (alwaysAllow && decision === "approved") {
-        const problem = await approvals.invalidRule(params.id!, alwaysAllow.pattern);
-        if (problem) throw new HttpError(400, problem);
-      }
-      const decided = await approvals.decide(uuid(params.id), decision, alwaysAllow ?? undefined);
-      // Decided here, or already decided elsewhere (or expired): say how it ended.
-      const [row] = await ctx.db
-        .select({ status: approvalsTable.status })
-        .from(approvalsTable)
-        .where(eq(approvalsTable.id, uuid(params.id)));
-      if (!row) throw new HttpError(404, "That approval is gone.");
-      return { decided, status: row.status };
-    },
-    "POST /internal/approval-rules/:id/delete": async (_request, params) => {
-      await approvals.removeRule(params.id!);
-      return ok;
-    },
-    "POST /internal/screens/:id/wake": async (_request, params) => {
-      await ctx.computer.startScreen(await screenOf(params.id!));
-      return ok;
-    },
-    "POST /internal/screens/:id/forget": async (_request, params) => {
-      await ctx.computer.forgetScreen(await screenOf(params.id!));
-      return ok;
-    },
-    "POST /internal/screens/:id/take": async (_request, params) => {
-      const id = await screenOf(params.id!);
-      await withScreenLock(ctx, id, () => takeovers.take(id));
-      return ok;
-    },
-    "POST /internal/screens/:id/hand-back": async (request, params) => {
-      const { note, clearCode } = await readJson(
-        request,
-        z.object({
-          note: z.string().max(2000).nullable().optional(),
-          clearCode: z.boolean().optional(),
-        }),
-      );
-      const id = await screenOf(params.id!);
-      await withScreenLock(ctx, id, () => takeovers.handBack(id, note ?? null, clearCode));
-      return ok;
-    },
-    "POST /internal/screens/:id/touch": async (_request, params) => {
-      await ctx.computer.touchUser(await screenOf(params.id!));
-      return ok;
-    },
-    "POST /internal/screens/code": async (request) =>
-      screenOperations.type(await readJson(request, typeOnScreenSchema)),
-    "GET /internal/screen-operations/:id": async (_request, params) =>
-      screenOperations.get(uuid(params.id)),
-    "POST /internal/screen-operations/:id/cancel": async (_request, params) =>
-      screenOperations.cancel(uuid(params.id)),
-    "GET /internal/takeover/:id/code-context": async (_request, params) =>
-      screenOperations.context(uuid(params.id)),
-    "POST /internal/takeover/:id/dismiss": async (_request, params) => {
-      await takeovers.dismiss(params.id!);
-      return ok;
-    },
-    "POST /internal/bots/:id/sync": async (_request, params) => {
-      const [bot] = await ctx.db.select().from(bots).where(eq(bots.id, params.id!));
-      if (!bot) throw new HttpError(404, "Bot not found");
-      await executor.syncWorkspace(bot);
-      return ok;
-    },
-    "GET /internal/files/list": async (_request, _params, url) => {
-      const path = safePath(url.searchParams.get("path") ?? COMPUTER_PATHS.botsRoot);
-      const client = await ctx.codex.ready();
-      const { entries } = await client.request("fs/readDirectory", { path });
-      const detailed = await Promise.all(
-        entries
-          .filter((entry) => !entry.fileName.startsWith("."))
-          .map(async (entry) => {
-            const meta = await client
-              .request("fs/getMetadata", { path: `${path}/${entry.fileName}` })
-              .catch(() => null);
-            return {
-              name: entry.fileName,
-              path: `${path}/${entry.fileName}`,
-              isDirectory: entry.isDirectory,
-              modifiedAt: meta?.modifiedAtMs ? new Date(meta.modifiedAtMs).toISOString() : null,
-            };
-          }),
-      );
-      return { path, entries: detailed };
-    },
-    "GET /internal/files/read": async (_request, _params, url) => {
-      const path = safePath(url.searchParams.get("path") ?? "");
-      const client = await ctx.codex.ready();
-      try {
-        const { dataBase64 } = await client.request("fs/readFile", { path });
-        return { path, dataBase64 };
-      } catch (error) {
-        if (/no such file|not found/i.test(String(error)))
-          throw new HttpError(404, "That file isn't there anymore.");
-        throw error;
-      }
-    },
-    "POST /internal/files/write": async (request) => {
-      const body = await readJson(request, z.object({ path: z.string(), dataBase64: z.string() }));
-      const path = safePath(body.path);
-      const client = await ctx.codex.ready();
-      await client.request("fs/writeFile", { path, dataBase64: body.dataBase64 });
-      return ok;
-    },
-    // Check and publish a page from a file on the computer, the way publish_page does but outside
-    // a run: for setting up pages, and for tests that need a real one.
-    "POST /internal/pages/publish": async (request) => {
-      const body = await readJson(
-        request,
-        z.object({
-          botId: z.string().uuid(),
-          chatId: z.string().uuid().nullable().default(null),
-          path: z
-            .string()
-            .refine(isPageSourcePath, "Use an .html file in a workspace or the shared folder."),
-          title: z.string().trim().min(1).max(MAX_PAGE_TITLE),
-          summary: z.string().max(MAX_PAGE_SUMMARY).default(""),
-          note: z.string().max(1000).default(""),
-          pageId: z.string().uuid().optional(),
-        }),
-      );
-      try {
-        const { page, version, check } = await deps.pages.checkAndPublish({
-          ...body,
-          runId: null,
-        });
-        return {
-          pageId: page.id,
-          versionId: version.id,
-          version: version.number,
-          warnings: check.issues.map((issue) => issue.message),
-        };
-      } catch (error) {
-        if (error instanceof PageError) throw new HttpError(400, error.message);
-        throw error;
-      }
-    },
-    // An attachment for a message, as raw bytes; see UploadService. Retries reuse the id.
-    "PUT /internal/uploads/:id": async (request, params) => {
-      const header = (name: string) => {
-        const value = request.headers[name];
-        return typeof value === "string" ? decodeURIComponent(value) : "";
-      };
-      const meta = z
-        .object({
-          name: z.string().trim().min(1, "The file needs a name.").max(255),
-          mime: z.string().max(255),
-          size: z.coerce.number().int().nonnegative(),
-          sha256: z.string(),
-        })
-        .safeParse({
-          name: header("x-upload-name"),
-          mime: header("x-upload-mime") || "application/octet-stream",
-          size: header("x-upload-size"),
-          sha256: header("x-upload-sha256").toLowerCase(),
-        });
-      if (!meta.success)
-        throw new HttpError(400, meta.error.issues.map((i) => i.message).join("; "));
+      if (!meta.success) throw rpcError(400, meta.error.issues.map((i) => i.message).join("; "));
       const data = await readBody(request, MAX_UPLOAD_BYTES + 1024);
-      try {
-        return await deps.uploads.put({ id: uuid(params.id), ...meta.data, data });
-      } catch (error) {
-        if (error instanceof UploadError) throw new HttpError(error.status, error.message);
-        throw error;
-      }
-    },
-    "GET /internal/uploads/:id": async (_request, params) => {
-      const upload = await deps.uploads.status(uuid(params.id));
-      if (!upload) throw new HttpError(404, "That upload isn't here.");
-      return upload;
-    },
-    "POST /internal/files/put": async (request) => {
-      const body = await readJson(
-        request,
-        z.object({ dir: z.string(), name: z.string().min(1), dataBase64: z.string() }),
+      return deps.uploads.put({ id, ...meta.data, data });
+    };
+    const cancelled = new AbortController();
+    response.once("close", () => {
+      if (!response.writableEnded) cancelled.abort(new Error("Request cancelled"));
+    });
+    try {
+      const path = `/internal/uploads/${id}`;
+      send(
+        response,
+        200,
+        await (ctx.lifecycle ? ctx.lifecycle.run(path, work, cancelled.signal) : work()),
       );
-      const dir = safePath(body.dir);
-      const client = await ctx.codex.ready();
-      const { entries } = await client.request("fs/readDirectory", { path: dir });
-      const taken = new Set(entries.map((entry) => entry.fileName));
-      // Never overwrite: "notes.md" becomes "notes (2).md" when the name is taken.
-      const name = sanitizeFileName(body.name);
-      const dot = name.lastIndexOf(".");
-      const [stem, ext] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
-      let fileName = name;
-      for (let i = 2; taken.has(fileName); i += 1) fileName = `${stem} (${i})${ext}`;
-      const path = `${dir}/${fileName}`;
-      await client.request("fs/writeFile", { path, dataBase64: body.dataBase64 });
-      return { path };
-    },
-    "POST /internal/files/remove": async (request) => {
-      const body = await readJson(request, z.object({ path: z.string() }));
-      const path = safePath(body.path);
-      const active = await ctx.db
-        .select({ slug: bots.slug })
-        .from(bots)
-        .where(isNull(bots.archivedAt));
-      const problem = undeletablePath(
-        path,
-        active.map((bot) => bot.slug),
-      );
-      if (problem) throw new HttpError(403, problem);
-      const client = await ctx.codex.ready();
-      await client.request("fs/remove", { path, recursive: true });
-      return ok;
-    },
-    "POST /internal/schedules": async (request) => {
-      const body = await readJson(
-        request,
-        z.object({
-          botId: z.string().uuid(),
-          title: z.string().min(1).max(80),
-          prompt: z.string().min(1).max(4000),
-          cron: z.string().nullable(),
-          at: z.string().nullable(),
-          timezone: z.string().nullable(),
-          quiet: z.boolean().optional(),
-        }),
-      );
-      try {
-        const schedule = await schedules.create({ ...body, createdBy: "user" });
-        return { id: schedule.id };
-      } catch (error) {
-        throw new HttpError(400, errorMessage(error));
-      }
-    },
-    "POST /internal/schedules/:id": async (request, params) => {
-      const body = await readJson(
-        request,
-        z.object({
-          botId: z.string().uuid(),
-          title: z.string().min(1).max(80),
-          prompt: z.string().min(1).max(4000),
-          cron: z.string().nullable(),
-          at: z.string().nullable(),
-          timezone: z.string().nullable(),
-          quiet: z.boolean().optional(),
-        }),
-      );
-      try {
-        const schedule = await schedules.update(params.id!, body);
-        return { id: schedule.id };
-      } catch (error) {
-        throw new HttpError(400, errorMessage(error));
-      }
-    },
-    "GET /internal/push": async () => ({
-      publicKey: await push.publicKey(),
-      devices: (await push.devices()).map((row) => ({
-        endpoint: row.endpoint,
-        device: row.device,
-        createdAt: row.createdAt.toISOString(),
-      })),
-    }),
-    "POST /internal/push/subscribe": async (request) => {
-      const body = await readJson(
-        request,
-        z.object({
-          subscription: z.object({
-            endpoint: z.string().url().max(2000),
-            keys: z.object({ p256dh: z.string().max(200), auth: z.string().max(100) }),
-          }),
-          device: z.string().max(200).default(""),
-        }),
-      );
-      try {
-        await push.subscribe(body.subscription, body.device);
-      } catch (error) {
-        throw new HttpError(400, errorMessage(error));
-      }
-      return ok;
-    },
-    "POST /internal/push/unsubscribe": async (request) => {
-      const body = await readJson(request, z.object({ endpoint: z.string() }));
-      await push.unsubscribe(body.endpoint);
-      return ok;
-    },
-    "POST /internal/push/test": async () => {
-      const [browsers, phones] = await Promise.all([
-        push.sendAll({
-          title: "open-bot",
-          body: "Notifications work on this device.",
-          url: "/settings#notifications",
-          tag: "push-test",
-        }),
-        fcm.sendAll({
-          data: {
-            type: "notification",
-            kind: "test",
-            title: "open-bot",
-            body: "Notifications work on this phone.",
-            tag: "push-test",
-            url: "/",
-          },
-          priority: "normal",
-        }),
-      ]);
-      return { sent: browsers + phones };
-    },
-    "POST /internal/push/native/register": async (request) => {
-      const body = await readJson(
-        request,
-        z.object({
-          token: z.string().min(1).max(4096),
-          platform: z.literal("android"),
-          device: z.string().max(200).default(""),
-        }),
-      );
-      await fcm.register(body);
-      return ok;
-    },
-    "POST /internal/push/native/unregister": async (request) => {
-      const body = await readJson(request, z.object({ token: z.string().min(1).max(4096) }));
-      await fcm.unregister(body.token);
-      return ok;
-    },
-    "POST /internal/tasks": async (request) => {
-      const body = await readJson(
-        request,
-        z.object({
-          title: z.string(),
-          notes: z.string().optional(),
-          ownerBotId: z.string().uuid().nullable().optional(),
-          dueOn: z.string().nullable().optional(),
-        }),
-      );
-      const task = await taskCall(() => tasks.create({ ...body, createdBy: "user" }));
-      return { id: task.id };
-    },
-    "POST /internal/tasks/:id": async (request, params) => {
-      const body = await readJson(
-        request,
-        z.object({
-          title: z.string().optional(),
-          notes: z.string().optional(),
-          status: z.enum(["todo", "doing", "done"]).optional(),
-          ownerBotId: z.string().uuid().nullable().optional(),
-          dueOn: z.string().nullable().optional(),
-          position: z.number().finite().optional(),
-        }),
-      );
-      await taskCall(() => tasks.update(params.id!, body));
-      return ok;
-    },
-    "POST /internal/tasks/:id/delete": async (_request, params) => {
-      await tasks.remove(params.id!);
-      return ok;
-    },
-    "POST /internal/tasks/:id/start": async (_request, params) => {
-      const task = await taskCall(() => tasks.start(params.id!, null));
-      return { chatId: task.chatId };
-    },
-    "POST /internal/schedules/:id/enabled": async (request, params) => {
-      const body = await readJson(request, z.object({ enabled: z.boolean() }));
-      try {
-        await schedules.setEnabled(params.id!, body.enabled);
-        return ok;
-      } catch (error) {
-        throw new HttpError(400, errorMessage(error));
-      }
-    },
-    "POST /internal/email/inbound/:token": async (request, params) => {
-      const payload = await readJson(request, z.unknown());
-      try {
-        return { ok: true, ...(await email.inbound(params.token!, payload)) };
-      } catch (error) {
-        if (error instanceof EmailError) throw new HttpError(404, "Not found.");
-        throw error;
-      }
-    },
-    "POST /internal/connections/:id/test": async (_request, params) => {
-      return connections.test(uuid(params.id, "No such connection."));
-    },
-    "POST /internal/swarms/:id/stop": async (_request, params) => {
-      await swarms.stop(uuid(params.id, "No such swarm."));
-      return ok;
-    },
-    "POST /internal/schedules/:id/run": async (_request, params) => {
-      await schedules.runNow(params.id!);
-      return ok;
-    },
-    "POST /internal/triggers": async (request) => {
-      const body = await readJson(request, triggerBody);
-      const row = await triggerCall(() => triggers.create(body, { kind: "user" }));
-      return { id: row.id, hookPath: row.token ? `/api/hooks/${row.token}` : null };
-    },
-    "POST /internal/triggers/:id": async (request, params) => {
-      const body = await readJson(request, triggerBody);
-      return { id: (await triggerCall(() => triggers.update(params.id!, body))).id };
-    },
-    "POST /internal/triggers/:id/enabled": async (request, params) => {
-      const { enabled } = await readJson(request, z.object({ enabled: z.boolean() }));
-      await triggerCall(() => triggers.setEnabled(params.id!, enabled));
-      return ok;
-    },
-    "POST /internal/triggers/:id/delete": async (_request, params) => {
-      await triggers.remove(params.id!);
-      return ok;
-    },
-    "POST /internal/triggers/:id/check": async (_request, params) =>
-      triggerCall(async () => {
-        const kind = await triggers.kindOf(params.id!);
-        return kind === "gmail" || kind === "calendar"
-          ? accountTriggers.checkNow(params.id!)
-          : triggers.checkNow(params.id!);
-      }),
-    "POST /internal/triggers/:id/rotate": async (_request, params) => ({
-      token: await triggerCall(() => triggers.rotateToken(params.id!)),
-    }),
-    "POST /internal/hooks/:token": async (request, params) => {
-      const body = await readJson(
-        request,
-        z.object({
-          method: z.string().max(10),
-          contentType: z.string().max(200),
-          body: z.string().max(512 * 1024),
-          query: z.string().max(4000),
-        }),
-      );
-      const result = await triggers.fireWebhook(params.token!, body);
-      if ("error" in result) throw new HttpError(result.status, result.error);
-      return result;
-    },
-    "GET /internal/telegram": async () => telegram.status(),
-    "POST /internal/telegram/connect": async (request) => {
-      const { token } = await readJson(request, z.object({ token: z.string().max(200) }));
-      return telegramCall(() => telegram.connect(token));
-    },
-    "POST /internal/telegram/link-code": async () => telegramCall(() => telegram.linkCode()),
-    "POST /internal/telegram/test": async () => {
-      await telegramCall(() => telegram.sendTest());
-      return ok;
-    },
-    "POST /internal/telegram/unlink": async () => {
-      await telegram.unlink();
-      return ok;
-    },
-    "POST /internal/telegram/disconnect": async () => {
-      await telegram.disconnect();
-      return ok;
-    },
-    "POST /internal/skills": async (request) => {
-      const body = await readJson(
-        request,
-        z.object({
-          id: z.string().uuid().nullable().optional(),
-          name: z.string(),
-          description: z.string(),
-          instructions: z.string(),
-          botId: z.string().uuid().nullable(),
-        }),
-      );
-      try {
-        const skill = await skills.save(body, { kind: "user" }, body.id ?? undefined);
-        return { id: skill.id };
-      } catch (error) {
-        if (error instanceof SkillError) throw new HttpError(400, error.message);
-        throw error;
-      }
-    },
-    "POST /internal/skills/:id/delete": async (_request, params) => {
-      await skills.remove(params.id!);
-      return ok;
-    },
-    "POST /internal/codex/device-login": async () => ctx.codex.startDeviceLogin(),
-    "POST /internal/codex/auth-source": async (request) => {
-      const { source } = await readJson(request, z.object({ source: z.enum(["device", "host"]) }));
-      await ctx.db
-        .insert(settings)
-        .values({ id: 1, chatgptAuthSource: source })
-        .onConflictDoUpdate({ target: settings.id, set: { chatgptAuthSource: source } });
-      if (source === "device") await ctx.codex.logout().catch(() => {});
-      const status = await ctx.codex.reauthenticate();
-      await publishApp(ctx, { type: "auth" });
-      return status;
-    },
-    "POST /internal/codex/logout": async () => {
-      await ctx.codex.logout();
-      await publishApp(ctx, { type: "auth" });
-      return ok;
-    },
-    "GET /internal/codex/rate-limits": async () => ({ rateLimits: await ctx.codex.rateLimits() }),
-    "POST /internal/egress/mode": async (request) => {
-      const { mode } = await readJson(
-        request,
-        z.object({ mode: z.enum(["off", "prefer", "require"]) }),
-      );
-      await egress.setMode(mode);
-      return ok;
-    },
-    "POST /internal/egress/phone-mode": async (request) => {
-      const { mode } = await readJson(
-        request,
-        z.object({ mode: z.enum(["off", "fallback", "always"]) }),
-      );
-      await egress.setPhoneMode(mode);
-      return ok;
-    },
-    "POST /internal/egress/devices/changed": async () => {
-      await egress.reloadPhones();
-      return ok;
-    },
-    "POST /internal/egress/devices/:id/unavailable": async (request, params) => {
-      const { reason, generation, seq } = await readJson(
-        request,
-        z.object({
-          reason: z.enum(["wifi-only", "data-cap", "low-battery", "low-power-standby", "stopped"]),
-          generation: z.number().int().positive(),
-          seq: z.number().int().nonnegative().optional(),
-        }),
-      );
-      const id = uuid(params.id);
-      // Only from the pairing that is current: an old one can't silence a new one.
-      const phone = egress.pairedPhones.find((row) => row.id === id);
-      if (phone?.generation === generation) wake.unavailable(id, reason, seq);
-      return ok;
-    },
-    "POST /internal/egress/devices/:id/revoked": async (request, params) => {
-      const { generation } = await readJson(
-        request,
-        z.object({ generation: z.number().int().nonnegative() }),
-      );
-      await egress.revoke(uuid(params.id), generation);
-      return ok;
-    },
-  };
-
-  const compiled = Object.entries(routes).map(([key, handler]) => {
-    const [method, pattern] = key.split(" ") as [string, string];
-    const names: string[] = [];
-    const regex = new RegExp(
-      `^${pattern.replace(/:(\w+)/g, (_, name: string) => {
-        names.push(name);
-        return "([^/]+)";
-      })}$`,
-    );
-    return { method, regex, names, handler };
-  });
+    } catch (error) {
+      const failure = toRpcError(error);
+      if (failure.status >= 500) ctx.log.error("upload failed", { id, error: errorMessage(error) });
+      send(response, failure.status, { error: failure.message, code: failure.code });
+    }
+  }
 
   const server = http.createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", "http://worker");
@@ -849,134 +98,19 @@ export function createHttpServer(deps: HttpDeps): http.Server {
       send(response, 200, { ok: true });
       return;
     }
-    if (
-      !sameSecret(request.headers["x-worker-secret"] as string | undefined, ctx.env.WORKER_SECRET)
-    ) {
-      send(response, 401, { error: "unauthorized" });
+    if (!sameSecret(request.headers[WORKER_SECRET_HEADER], ctx.env.WORKER_SECRET)) {
+      send(response, 401, { error: "unauthorized", code: "UNAUTHORIZED" });
       return;
     }
-    for (const route of compiled) {
-      if (route.method !== request.method) continue;
-      const match = route.regex.exec(url.pathname);
-      if (!match) continue;
-      const params = Object.fromEntries(
-        route.names.map((name, i) => [name, decodeURIComponent(match[i + 1]!)]),
-      );
-      try {
-        const computerOperation =
-          /^\/internal\/(files\/|uploads(?:\/|$)|screens\/|takeover\/.*\/code-context|pages\/publish|codex\/(device-login|auth-source|logout)|connections\/.*\/test|bots\/.*\/sync)/.test(
-            url.pathname,
-          );
-        const cancelled = new AbortController();
-        response.once("close", () => {
-          if (!response.writableEnded) cancelled.abort(new Error("Request cancelled"));
-        });
-        const work = () => route.handler(request, params, url);
-        send(
-          response,
-          200,
-          await (computerOperation && ctx.lifecycle
-            ? ctx.lifecycle.run(url.pathname, work, cancelled.signal)
-            : work()),
-        );
-      } catch (error) {
-        // Never echo an error from code entry: it could carry the code from the request body.
-        if (url.pathname === "/internal/screens/code") {
-          if (error instanceof HttpError && error.status === 400)
-            send(response, 400, { error: "That code request is invalid. Nothing was typed." });
-          else send(response, 500, { error: "Code entry outcome unknown. Check the screen." });
-          return;
-        }
-        const status =
-          error instanceof ScreenBusy
-            ? 409
-            : error instanceof HttpError || error instanceof BotError
-              ? error.status
-              : 500;
-        if (status >= 500)
-          ctx.log.error("request failed", { path: url.pathname, error: errorMessage(error) });
-        send(response, status, { error: errorMessage(error) });
-      }
+    const upload = request.method === "PUT" ? UPLOAD_PATH.exec(url.pathname) : null;
+    if (upload) {
+      await putUpload(request, response, decodeURIComponent(upload[1]!));
       return;
     }
-    send(response, 404, { error: "not found" });
+    const { matched } = await rpc.handle(request, response, { context: { path: url.pathname } });
+    if (!matched) send(response, 404, { error: "not found", code: "NOT_FOUND" });
   });
 
-  const wss = new WebSocketServer({
-    noServer: true,
-    perMessageDeflate: false,
-    handleProtocols: (protocols) => (protocols.has("binary") ? "binary" : false),
-  });
-
-  server.on("upgrade", (request, socket, head) => {
-    const url = new URL(request.url ?? "/", "http://worker");
-    const token = url.searchParams.get("token") ?? "";
-    if (url.pathname === "/vnc") {
-      const mode = url.searchParams.get("mode") === "control" ? "control" : "view";
-      const screen = url.searchParams.get("screen");
-      if (!verifyToken(token, "vnc", ctx.env.WORKER_SECRET)) {
-        socket.end("HTTP/1.1 401 Unauthorized\r\n\r\n");
-        return;
-      }
-      if (!isScreenId(screen)) {
-        socket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
-        return;
-      }
-      if (
-        !ctx.computer.online ||
-        !ctx.computer.health?.screens.some((s) => s.id === screen && s.state === "running")
-      ) {
-        socket.end("HTTP/1.1 409 Conflict\r\n\r\n");
-        return;
-      }
-      if (mode === "control" && !isOwnerLease(ctx.computer.lease(screen))) {
-        socket.end("HTTP/1.1 403 Forbidden\r\n\r\n");
-        return;
-      }
-      wss.handleUpgrade(request, socket, head, (client) => proxyVnc(client, ctx, screen, mode));
-      return;
-    }
-    if (url.pathname === "/egress/agent") {
-      const claims = readToken(token, "egress", ctx.env.WORKER_SECRET);
-      // Tokens from a web server older than phone egress name no device: the desktop app.
-      const agent = egressAgentClaimSchema.safeParse(claims?.agent ?? LEGACY_DESKTOP_AGENT);
-      if (!claims || !agent.success) {
-        socket.end("HTTP/1.1 401 Unauthorized\r\n\r\n");
-        return;
-      }
-      wss.handleUpgrade(request, socket, head, (client) => {
-        void egress.attachAgent(client, agent.data);
-      });
-      return;
-    }
-    socket.end("HTTP/1.1 404 Not Found\r\n\r\n");
-  });
-
+  handleUpgrades(server, ctx, deps.egress);
   return server;
-}
-
-/** Proxy a browser's noVNC connection to a screen's view-only or control VNC server. */
-function proxyVnc(client: WebSocket, ctx: Context, screen: string, mode: "view" | "control") {
-  const upstream = new WebSocket(ctx.computer.wsUrl("/vnc", { screen, mode }), {
-    perMessageDeflate: false,
-  });
-  const pending: Buffer[] = [];
-  upstream.on("open", () => {
-    for (const chunk of pending) upstream.send(chunk);
-    pending.length = 0;
-  });
-  upstream.on("message", (data) => {
-    if (client.readyState === WebSocket.OPEN) client.send(data, { binary: true });
-  });
-  upstream.on("close", (code, reason) => {
-    const forwardable = code === 1000 || (code >= 3000 && code <= 4999);
-    client.close(forwardable ? code : 1011, reason);
-  });
-  upstream.on("error", () => client.close(1011, "The computer's desktop is not reachable"));
-  client.on("message", (data) => {
-    const chunk = Buffer.isBuffer(data) ? data : Buffer.from(data as ArrayBuffer);
-    if (upstream.readyState === WebSocket.OPEN) upstream.send(chunk);
-    else pending.push(chunk);
-  });
-  client.on("close", () => upstream.close());
 }

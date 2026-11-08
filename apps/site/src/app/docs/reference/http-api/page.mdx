@@ -63,6 +63,18 @@ Base URL `WORKER_URL` (port 4001).
 Every route except `/healthz` requires `x-worker-secret: <WORKER_SECRET>`.
 Bodies and responses are JSON, except upload request bodies, which are raw bytes.
 
+The routes below are one typed contract, `workerContract` in `packages/api/src/worker/contract.ts`, with each procedure's path, input and output schemas.
+The worker implements it in `apps/worker/src/rpc/router.ts`, and the web app calls it with the typed client in `apps/web/src/lib/server/worker.ts`, so changing a response is a type error in the web app.
+A procedure's input is its path parameters merged with the JSON body, or with the query string for `GET`.
+Errors are `{ error, code }` with the HTTP status, and `error` is a message the web app can show.
+
+Procedures marked `wakesComputer` in the contract wake a sleeping computer first, and keep it awake until they finish; in the tables below, they are marked with ☀.
+A request the web app gives up on stops waiting for the computer.
+Reading status never wakes it.
+
+The paths are a contract between deployed versions too: Railway deploys the web app and the worker separately, so for a few minutes either can be older.
+A path or input field is removed only once no deployed web app calls it.
+
 ### Runs and messages
 
 | Route                                  | Purpose                                                          |
@@ -74,20 +86,23 @@ Bodies and responses are JSON, except upload request bodies, which are raw bytes
 | `POST /internal/runs/cancel`           | Process cancellations now                                        |
 | `POST /internal/bots`                  | Create a teammate with its chat, skills and starter automations  |
 | `POST /internal/bots/:id`              | Change profile fields, with `expected_revision` (409 when stale) |
-| `POST /internal/bots/:id/sync`         | Rewrite a teammate's workspace after an edit                     |
+| `POST /internal/bots/:id/sync` ☀       | Rewrite a teammate's workspace after an edit                     |
 
 ### Approvals and screens
 
-| Route                                      | Purpose                                                  |
-| ------------------------------------------ | -------------------------------------------------------- |
-| `POST /internal/approvals/:id/decide`      | Approve or deny, optionally with an Always allow pattern |
-| `POST /internal/approval-rules/:id/delete` | Remove an Always allow rule                              |
-| `POST /internal/screens/:id/wake`          | Start a screen to watch it                               |
-| `POST /internal/screens/:id/take`          | Take over a screen                                       |
-| `POST /internal/screens/:id/hand-back`     | Hand it back, with an optional note                      |
-| `POST /internal/screens/:id/touch`         | Report your input, to keep control from timing out       |
-| `POST /internal/screens/:id/forget`        | Stop a screen and delete its profile                     |
-| `POST /internal/takeover/:id/dismiss`      | Dismiss a teammate's request to take over                |
+| Route                                            | Purpose                                                   |
+| ------------------------------------------------ | --------------------------------------------------------- |
+| `POST /internal/approvals/:id/decide`            | Approve or deny, optionally with an Always allow pattern  |
+| `POST /internal/approval-rules/:id/delete`       | Remove an Always allow rule                               |
+| `POST /internal/screens/:id/wake` ☀              | Start a screen to watch it                                |
+| `POST /internal/screens/:id/take` ☀              | Take over a screen                                        |
+| `POST /internal/screens/:id/hand-back` ☀         | Hand it back, with an optional note                       |
+| `POST /internal/screens/:id/touch` ☀             | Report your input, to keep control from timing out        |
+| `POST /internal/screens/:id/forget` ☀            | Stop a screen and delete its profile                      |
+| `POST /internal/screens/code` ☀                  | Type a one-time code; its errors never repeat the request |
+| `GET /internal/takeover/:id/code-context` ☀      | The screen and site a code for this takeover would go to  |
+| `POST /internal/takeover/:id/dismiss`            | Dismiss a teammate's request to take over                 |
+| `GET /internal/screen-operations/:id`, `/cancel` | How a code entry went, and cancelling one                 |
 
 ### Automations, tasks and skills
 
@@ -104,32 +119,36 @@ Bodies and responses are JSON, except upload request bodies, which are raw bytes
 
 ### Files
 
-| Route                                                      | Purpose                                                                                   |
-| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `GET /internal/files/list`, `/internal/files/read`         | Browse and read files under `/home/bot`                                                   |
-| `POST /internal/files/write`, `/upload`, `/put`, `/remove` | Write, upload and delete. Folders the computer needs and active workspaces are protected. |
+| Route                                                | Purpose                                                                           |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `GET /internal/files/list`, `/internal/files/read` ☀ | Browse and read files under `/home/bot`                                           |
+| `POST /internal/files/write`, `/put`, `/remove` ☀    | Write, add and delete. Folders the computer needs and active workspaces are kept. |
+| `PUT /internal/uploads/:id` ☀                        | A message attachment, as raw bytes; a retry with the same id stores it once       |
+| `GET /internal/uploads/:id`                          | How an upload went                                                                |
 
-Retryable attachments use `PUT /internal/uploads/:id` and `GET /internal/uploads/:id` for status, implemented in `apps/worker/src/uploads.ts`.
+`PUT /internal/uploads/:id` is the one route outside the contract, so a large file streams through instead of being parsed; it is in `apps/worker/src/http.ts`, and uploads themselves in `apps/worker/src/uploads.ts`.
 
 ### Pages
 
-| Route                          | Purpose                                                                                                                             |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `POST /internal/pages/publish` | Check and publish a page from a file on the computer, the way `publish_page` does but outside a run. `400` with the check's errors. |
+| Route                            | Purpose                                                                                                                             |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /internal/pages/publish` ☀ | Check and publish a page from a file on the computer, the way `publish_page` does but outside a run. `400` with the check's errors. |
 
 ### Integrations and settings
 
 | Route                                                                                                        | Purpose                                                          |
 | ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
-| `POST /internal/codex/device-login`                                                                          | Start a device-code ChatGPT login on the computer                |
-| `POST /internal/codex/auth-source`                                                                           | Switch between borrowing the host's login and the computer's own |
-| `POST /internal/codex/logout`                                                                                | Sign the computer out                                            |
-| `GET /internal/codex/rate-limits`                                                                            | The plan's usage windows                                         |
-| `POST /internal/egress/mode`                                                                                 | Set the egress mode                                              |
-| `POST /internal/connections/:id/test`                                                                        | Test an MCP connection                                           |
+| `POST /internal/codex/device-login` ☀                                                                        | Start a device-code ChatGPT login on the computer                |
+| `POST /internal/codex/auth-source` ☀                                                                         | Switch between borrowing the host's login and the computer's own |
+| `POST /internal/codex/logout` ☀                                                                              | Sign the computer out                                            |
+| `GET /internal/codex/rate-limits`                                                                            | The plan's usage windows, as last read                           |
+| `POST /internal/egress/mode`, `/internal/egress/phone-mode`                                                  | Set the egress mode, and when phones carry traffic               |
+| `POST /internal/egress/devices/changed`, `/devices/:id/unavailable`, `/devices/:id/revoked`                  | Paired phones changed, can't carry traffic now, or were unpaired |
+| `POST /internal/connections/:id/test` ☀                                                                      | Test an MCP connection or an account                             |
 | `POST /internal/email/inbound/:token`                                                                        | Receive an email (called by the web app)                         |
 | `GET /internal/telegram`, `POST /internal/telegram/connect`, `/link-code`, `/test`, `/unlink`, `/disconnect` | Telegram                                                         |
-| `GET /internal/push`, `POST /internal/push/subscribe`, `/unsubscribe`, `/test`                               | Push notifications                                               |
+| `GET /internal/push`, `POST /internal/push/subscribe`, `/unsubscribe`, `/test`                               | Browser push notifications                                       |
+| `POST /internal/push/native/register`, `/internal/push/native/unregister`                                    | Phone notifications through Firebase Cloud Messaging             |
 
 ### Websockets
 

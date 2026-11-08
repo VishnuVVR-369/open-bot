@@ -1,5 +1,5 @@
 import "server-only";
-import type { ApiInputs, ApiOutputs, ScreenFrame, ScreenView } from "@open-bot/api";
+import type { ApiInputs, ScreenFrame, ScreenView } from "@open-bot/api";
 import { artifacts, desktopTakeovers, runs } from "@open-bot/db";
 import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "../db";
@@ -54,7 +54,7 @@ export async function listScreens(): Promise<ScreenView[]> {
 }
 
 export async function takeOverScreen({ screenId }: ApiInputs["screens"]["takeOver"]) {
-  await worker("POST", `/internal/screens/${screenId}/take`);
+  await worker.screens.take({ screenId });
   return { ok: true as const };
 }
 export async function handBackScreen({
@@ -62,35 +62,26 @@ export async function handBackScreen({
   note,
   clearCode,
 }: ApiInputs["screens"]["handBack"]) {
-  await worker("POST", `/internal/screens/${screenId}/hand-back`, { note, clearCode });
+  await worker.screens.handBack({ screenId, note, clearCode });
   return { ok: true as const };
 }
 export async function wakeScreen({ screenId }: ApiInputs["screens"]["wake"]) {
-  await worker("POST", `/internal/screens/${screenId}/wake`, undefined, 300_000);
+  await worker.screens.wake({ screenId });
   return { ok: true as const };
 }
 export async function reportScreenActivity({ screenId }: ApiInputs["screens"]["activity"]) {
-  await worker("POST", `/internal/screens/${screenId}/touch`);
+  await worker.screens.touch({ screenId });
   return { ok: true as const };
 }
 export async function dismissTakeoverRequest({ takeoverId }: ApiInputs["takeovers"]["dismiss"]) {
-  await worker("POST", `/internal/takeover/${takeoverId}/dismiss`);
+  await worker.takeovers.dismiss({ takeoverId });
   return { ok: true as const };
 }
-export const codeContext = ({ takeoverId }: ApiInputs["takeovers"]["codeContext"]) =>
-  worker<ApiOutputs["takeovers"]["codeContext"]>(
-    "GET",
-    `/internal/takeover/${takeoverId}/code-context`,
-  );
+export const codeContext = (input: ApiInputs["takeovers"]["codeContext"]) =>
+  worker.takeovers.codeContext(input);
 export const typeOnScreen = (input: ApiInputs["screenOperations"]["type"]) =>
-  worker<ApiOutputs["screenOperations"]["type"]>("POST", "/internal/screens/code", input, 180_000);
-export const getScreenOperation = ({ operationId }: ApiInputs["screenOperations"]["get"]) =>
-  worker<ApiOutputs["screenOperations"]["get"]>(
-    "GET",
-    `/internal/screen-operations/${operationId}`,
-  );
-export const cancelScreenOperation = ({ operationId }: ApiInputs["screenOperations"]["cancel"]) =>
-  worker<ApiOutputs["screenOperations"]["cancel"]>(
-    "POST",
-    `/internal/screen-operations/${operationId}/cancel`,
-  );
+  worker.screens.typeCode(input, { context: { timeoutMs: 180_000 } });
+export const getScreenOperation = (input: ApiInputs["screenOperations"]["get"]) =>
+  worker.screenOperations.get(input);
+export const cancelScreenOperation = (input: ApiInputs["screenOperations"]["cancel"]) =>
+  worker.screenOperations.cancel(input);

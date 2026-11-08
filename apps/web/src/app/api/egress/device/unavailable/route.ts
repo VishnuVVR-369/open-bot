@@ -13,7 +13,8 @@ export const POST = deviceRoute(async (device, request) => {
       seq: z.number().int().nonnegative().optional(),
     })
     .parse(await request.json().catch(() => null));
-  await worker("POST", `/internal/egress/devices/${device.id}/unavailable`, {
+  await worker.egress.deviceUnavailable({
+    deviceId: device.id,
     reason,
     generation: device.generation,
     ...(seq === undefined ? {} : { seq }),

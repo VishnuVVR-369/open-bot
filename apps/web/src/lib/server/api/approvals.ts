@@ -26,11 +26,7 @@ export async function getApproval(approvalId: string): Promise<ApprovalView> {
 export async function decideApproval(
   input: ApiInputs["approvals"]["decide"],
 ): Promise<{ status: ApprovalStatus }> {
-  const { status } = await worker<{ decided: boolean; status: ApprovalStatus }>(
-    "POST",
-    `/internal/approvals/${input.approvalId}/decide`,
-    { decision: input.decision, alwaysAllow: input.alwaysAllow },
-  );
+  const { status } = await worker.approvals.decide(input);
   if (status === input.decision) return { status };
   if (status === "pending") throw new Error("The approval couldn't be decided. Try again.");
   throw new ApiError("ALREADY_DECIDED", OUTCOME[status], { status });
@@ -54,6 +50,6 @@ export async function listApprovalRules(): Promise<ApprovalRule[]> {
 }
 
 export async function removeApprovalRule({ ruleId }: ApiInputs["approvals"]["removeRule"]) {
-  await worker("POST", `/internal/approval-rules/${ruleId}/delete`);
+  await worker.approvals.removeRule({ ruleId });
   return { ok: true as const };
 }

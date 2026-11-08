@@ -1,3 +1,4 @@
+import { createWorkerClient } from "@open-bot/api/worker";
 import pg from "pg";
 
 const TEST_BOT_NAMES =
@@ -12,17 +13,11 @@ const TEST_UPLOADS =
 const workerUrl = process.env.WORKER_URL ?? "http://127.0.0.1:4001";
 const botdUrl = process.env.BOTD_URL ?? "http://127.0.0.1:7070";
 
-async function worker<T>(path: string, body?: unknown): Promise<T | null> {
-  const response = await fetch(`${workerUrl}${path}`, {
-    method: body === undefined ? "GET" : "POST",
-    headers: {
-      "x-worker-secret": process.env.WORKER_SECRET ?? "dev-worker-secret-change-me",
-      "content-type": "application/json",
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  }).catch(() => null);
-  return response?.ok ? ((await response.json()) as T) : null;
-}
+/** Cleanup is best effort: a worker that is down leaves nothing to clean on the computer. */
+const worker = createWorkerClient({
+  url: workerUrl,
+  secret: process.env.WORKER_SECRET ?? "dev-worker-secret-change-me",
+});
 
 async function forgetScreen(screenId: string) {
   await fetch(`${botdUrl}/screens/forget`, {
@@ -65,14 +60,12 @@ export default async function globalTeardown() {
     );
     for (const { id, slug } of rows) {
       await forgetScreen(id);
-      await worker("/internal/files/remove", { path: `/home/bot/bots/${slug}` });
+      await worker.files.remove({ path: `/home/bot/bots/${slug}` }).catch(() => {});
     }
-    const uploads = await worker<{ entries: { name: string; path: string }[] }>(
-      `/internal/files/list?path=${encodeURIComponent("/home/bot/shared/uploads")}`,
-    );
+    const uploads = await worker.files.list({ path: "/home/bot/shared/uploads" }).catch(() => null);
     for (const entry of uploads?.entries ?? []) {
       if (TEST_UPLOADS.test(entry.name))
-        await worker("/internal/files/remove", { path: entry.path });
+        await worker.files.remove({ path: entry.path }).catch(() => {});
     }
   } finally {
     await pool.end();

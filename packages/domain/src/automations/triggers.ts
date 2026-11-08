@@ -1,9 +1,12 @@
+import { z } from "zod";
+
 /**
  * Triggers wake a teammate when something happens instead of at a time: a web page changes
  * (a watch), a service calls the teammate's webhook URL, new mail arrives in your Gmail, or an
  * event on your calendar is about to start.
  */
-export type TriggerKind = "watch" | "webhook" | "gmail" | "calendar";
+export const triggerKindSchema = z.enum(["watch", "webhook", "gmail", "calendar"]);
+export type TriggerKind = z.infer<typeof triggerKindSchema>;
 
 /** Triggers on your own accounts, which watch a connection instead of a page or a URL. */
 export type AccountTriggerKind = "gmail" | "calendar";

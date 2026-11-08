@@ -24,7 +24,6 @@ import {
   MAX_UPLOAD_LABEL,
   BOT_COLORS,
   botProfileSchema,
-  type CreatedBot,
   DAILY_CHECK_IN,
   slugify,
   teammateBundleSchema,
@@ -45,7 +44,6 @@ import {
   type Autonomy,
   type EgressModeSetting,
   type PhoneEgressSetting,
-  type TriggerKind,
 } from "@open-bot/domain";
 import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
@@ -76,7 +74,8 @@ import {
 import { emailSettingsRow } from "./server/queries";
 import { insertTeammateParts, teammateParts } from "./server/teammates";
 import { worker } from "./server/worker";
-import type { CodexStatusView, ConnectionTestView, MessageView, TelegramStatusView } from "./types";
+import type { MessageView } from "./types";
+import type { ScheduleInput, TriggerInput, WorkerInputs } from "@open-bot/api/worker";
 
 export type ActionResult<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -118,7 +117,7 @@ async function userTimeZone(): Promise<string> {
 async function syncBot(botId: string) {
   await (await memoryReady()).importLegacy();
   // The workspace is written again before the bot's next run, so a stopped computer isn't fatal here.
-  await worker("POST", `/internal/bots/${botId}/sync`).catch(() => {});
+  await worker.teammates.sync({ teammateId: botId }).catch(() => {});
 }
 
 /**
@@ -131,7 +130,7 @@ export async function createBot(
 ) {
   return guarded(async () => {
     const profile = botProfileSchema.parse(input);
-    return worker<CreatedBot>("POST", "/internal/bots", {
+    return worker.teammates.create({
       ...profile,
       template_id: starters.templateId ?? undefined,
       starter_ids: starters.ids,
@@ -149,9 +148,10 @@ export async function updateBot(
   revision: string,
 ) {
   return guarded(async () => {
-    await worker("POST", `/internal/bots/${z.string().uuid().parse(botId)}`, {
+    await worker.teammates.update({
+      teammateId: botId,
       changes: botProfileSchema.parse(input),
-      expected_revision: z.string().min(1).max(128).parse(revision),
+      expected_revision: revision,
     });
   });
 }
@@ -345,7 +345,7 @@ export async function archiveBot(botId: string) {
       );
     await notify(pool, CHANNELS.worker, "cancel");
     // Their screen stops and its browser history goes; sign-ins stay shared with the other screens.
-    await worker("POST", `/internal/screens/${botId}/forget`).catch(() => {});
+    await worker.screens.forget({ screenId: botId }).catch(() => {});
     await publish("bots");
   });
 }
@@ -422,15 +422,13 @@ export async function uploadFile(dir: string, form: FormData): Promise<ActionRes
     const file = form.get("file");
     if (!(file instanceof File)) throw new Error("No file was attached.");
     if (file.size > MAX_UPLOAD_BYTES) throw new Error(`Files can be up to ${MAX_UPLOAD_LABEL}.`);
-    const { path } = await worker<{ path: string }>(
-      "POST",
-      "/internal/files/put",
+    const { path } = await worker.files.put(
       {
         dir,
         name: file.name,
         dataBase64: Buffer.from(await file.arrayBuffer()).toString("base64"),
       },
-      120_000,
+      { context: { timeoutMs: 120_000 } },
     );
     return path;
   });
@@ -438,7 +436,7 @@ export async function uploadFile(dir: string, form: FormData): Promise<ActionRes
 
 export async function removeFile(path: string) {
   return guarded(async () => {
-    await worker("POST", "/internal/files/remove", { path });
+    await worker.files.remove({ path });
   });
 }
 
@@ -547,42 +545,28 @@ export async function dismissProposal(proposalId: string) {
 
 /* ------------------------------------------------------------------ Tasks */
 
-export async function createTask(input: {
-  title: string;
-  notes?: string;
-  ownerBotId?: string | null;
-  dueOn?: string | null;
-}) {
-  return guarded(async () => worker<{ id: string }>("POST", "/internal/tasks", input));
+export async function createTask(input: WorkerInputs["tasks"]["create"]) {
+  return guarded(async () => worker.tasks.create(input));
 }
 
 export async function updateTask(
   taskId: string,
-  patch: {
-    title?: string;
-    notes?: string;
-    status?: "todo" | "doing" | "done";
-    ownerBotId?: string | null;
-    dueOn?: string | null;
-    position?: number;
-  },
+  patch: Omit<WorkerInputs["tasks"]["update"], "taskId">,
 ) {
   return guarded(async () => {
-    await worker("POST", `/internal/tasks/${taskId}`, patch);
+    await worker.tasks.update({ ...patch, taskId });
   });
 }
 
 export async function deleteTask(taskId: string) {
   return guarded(async () => {
-    await worker("POST", `/internal/tasks/${taskId}/delete`);
+    await worker.tasks.remove({ taskId });
   });
 }
 
 /** Asks the task's owner to work on it now. */
 export async function startTask(taskId: string) {
-  return guarded(async () =>
-    worker<{ chatId: string | null }>("POST", `/internal/tasks/${taskId}/start`),
-  );
+  return guarded(async () => worker.tasks.start({ taskId }));
 }
 
 /* ------------------------------------------------------------------ Approvals and screens */
@@ -949,67 +933,35 @@ export async function saveAccountConnection(input: z.input<typeof accountConnect
 /** Connect to the service from the computer, and list what it offers. */
 export async function testConnection(id: string) {
   return guarded(async () =>
-    worker<ConnectionTestView>(
-      "POST",
-      `/internal/connections/${z.string().uuid().parse(id)}/test`,
-      undefined,
-      90_000,
-    ),
+    worker.connections.test({ connectionId: id }, { context: { timeoutMs: 90_000 } }),
   );
 }
 
 /* ------------------------------------------------------------------ Skills */
 
-export async function saveSkill(input: {
-  id: string | null;
-  name: string;
-  description: string;
-  instructions: string;
-  botId: string | null;
-}) {
-  return guarded(async () => worker<{ id: string }>("POST", "/internal/skills", input));
+export async function saveSkill(input: WorkerInputs["skills"]["save"]) {
+  return guarded(async () => worker.skills.save(input));
 }
 
 export async function deleteSkill(skillId: string) {
   return guarded(async () => {
-    await worker("POST", `/internal/skills/${skillId}/delete`);
+    await worker.skills.remove({ skillId });
   });
 }
 
 /* ------------------------------------------------------------------ Schedules */
 
-export async function createSchedule(input: {
-  botId: string;
-  title: string;
-  prompt: string;
-  cron: string | null;
-  at: string | null;
-  timezone: string;
-  quiet?: boolean;
-}) {
-  return guarded(async () => worker<{ id: string }>("POST", "/internal/schedules", input));
+export async function createSchedule(input: ScheduleInput) {
+  return guarded(async () => worker.schedules.create(input));
 }
 
-export async function updateSchedule(
-  scheduleId: string,
-  input: {
-    botId: string;
-    title: string;
-    prompt: string;
-    cron: string | null;
-    at: string | null;
-    timezone: string;
-    quiet?: boolean;
-  },
-) {
-  return guarded(async () =>
-    worker<{ id: string }>("POST", `/internal/schedules/${scheduleId}`, input),
-  );
+export async function updateSchedule(scheduleId: string, input: ScheduleInput) {
+  return guarded(async () => worker.schedules.update({ ...input, scheduleId }));
 }
 
 export async function setScheduleEnabled(scheduleId: string, enabled: boolean) {
   return guarded(async () => {
-    await worker("POST", `/internal/schedules/${scheduleId}/enabled`, { enabled });
+    await worker.schedules.setEnabled({ scheduleId, enabled });
   });
 }
 
@@ -1039,14 +991,14 @@ export async function setCheckIn(botId: string, on: boolean) {
       );
     if (!on) {
       for (const row of existing)
-        await worker("POST", `/internal/schedules/${row.id}/enabled`, { enabled: false });
+        await worker.schedules.setEnabled({ scheduleId: row.id, enabled: false });
       return;
     }
     if (existing[0]) {
-      await worker("POST", `/internal/schedules/${existing[0].id}/enabled`, { enabled: true });
+      await worker.schedules.setEnabled({ scheduleId: existing[0].id, enabled: true });
       return;
     }
-    await worker("POST", "/internal/schedules", {
+    await worker.schedules.create({
       botId: id,
       title: DAILY_CHECK_IN.title,
       prompt: DAILY_CHECK_IN.prompt,
@@ -1060,65 +1012,43 @@ export async function setCheckIn(botId: string, on: boolean) {
 
 export async function runScheduleNow(scheduleId: string) {
   return guarded(async () => {
-    await worker("POST", `/internal/schedules/${scheduleId}/run`);
+    await worker.schedules.runNow({ scheduleId });
   });
 }
 
 /* ------------------------------------------------------------------ Watches and webhooks */
 
-export interface TriggerInput {
-  botId: string;
-  kind: TriggerKind;
-  title: string;
-  prompt: string;
-  url?: string | null;
-  intervalMinutes?: number | null;
-  lookFor?: string | null;
-  connectionId?: string | null;
-  query?: string | null;
-  leadMinutes?: number | null;
-}
-
 export async function createTrigger(input: TriggerInput) {
-  return guarded(async () =>
-    worker<{ id: string; hookPath: string | null }>("POST", "/internal/triggers", input),
-  );
+  return guarded(async () => worker.triggers.create(input));
 }
 
 export async function updateTrigger(triggerId: string, input: TriggerInput) {
-  return guarded(async () =>
-    worker<{ id: string }>("POST", `/internal/triggers/${triggerId}`, input),
-  );
+  return guarded(async () => worker.triggers.update({ ...input, triggerId }));
 }
 
 export async function setTriggerEnabled(triggerId: string, enabled: boolean) {
   return guarded(async () => {
-    await worker("POST", `/internal/triggers/${triggerId}/enabled`, { enabled });
+    await worker.triggers.setEnabled({ triggerId, enabled });
   });
 }
 
 export async function deleteTrigger(triggerId: string) {
   return guarded(async () => {
-    await worker("POST", `/internal/triggers/${triggerId}/delete`);
+    await worker.triggers.remove({ triggerId });
   });
 }
 
 /** Check a watched page now. */
 export async function checkTriggerNow(triggerId: string) {
   return guarded(async () =>
-    worker<{ ok: boolean; changed: boolean; summary: string }>(
-      "POST",
-      `/internal/triggers/${triggerId}/check`,
-      undefined,
-      45_000,
-    ),
+    worker.triggers.check({ triggerId }, { context: { timeoutMs: 45_000 } }),
   );
 }
 
 /** Give a webhook a new URL. The old one stops working. */
 export async function rotateWebhook(triggerId: string) {
   return guarded(async () => {
-    await worker("POST", `/internal/triggers/${triggerId}/rotate`);
+    await worker.triggers.rotateToken({ triggerId });
   });
 }
 
@@ -1127,7 +1057,8 @@ export async function testWebhook(triggerId: string) {
   return guarded(async () => {
     const [row] = await db.select().from(triggers).where(eq(triggers.id, triggerId));
     if (!row?.token) throw new Error("That webhook no longer exists.");
-    return worker<{ runId: string }>("POST", `/internal/hooks/${row.token}`, {
+    return worker.hooks.fire({
+      token: row.token,
       method: "POST",
       contentType: "application/json",
       body: JSON.stringify({ test: true, message: "A test request from the open-bot app" }),
@@ -1139,35 +1070,28 @@ export async function testWebhook(triggerId: string) {
 /* ------------------------------------------------------------------ Telegram */
 
 export async function connectTelegram(token: string) {
-  return guarded(async () =>
-    worker<TelegramStatusView>("POST", "/internal/telegram/connect", { token }),
-  );
+  return guarded(async () => worker.telegram.connect({ token }));
 }
 
 export async function telegramLinkCode() {
-  return guarded(async () =>
-    worker<{ code: string; url: string; expiresAt: string }>(
-      "POST",
-      "/internal/telegram/link-code",
-    ),
-  );
+  return guarded(async () => worker.telegram.linkCode());
 }
 
 export async function sendTelegramTest() {
   return guarded(async () => {
-    await worker("POST", "/internal/telegram/test");
+    await worker.telegram.sendTest();
   });
 }
 
 export async function unlinkTelegram() {
   return guarded(async () => {
-    await worker("POST", "/internal/telegram/unlink");
+    await worker.telegram.unlink();
   });
 }
 
 export async function disconnectTelegram() {
   return guarded(async () => {
-    await worker("POST", "/internal/telegram/disconnect");
+    await worker.telegram.disconnect();
   });
 }
 
@@ -1178,18 +1102,18 @@ export async function subscribePush(
   device: string,
 ) {
   return guarded(async () => {
-    await worker("POST", "/internal/push/subscribe", { subscription, device });
+    await worker.push.subscribe({ subscription, device });
   });
 }
 
 export async function unsubscribePush(endpoint: string) {
   return guarded(async () => {
-    await worker("POST", "/internal/push/unsubscribe", { endpoint });
+    await worker.push.unsubscribe({ endpoint });
   });
 }
 
 export async function sendPushTest() {
-  return guarded(async () => worker<{ sent: number }>("POST", "/internal/push/test"));
+  return guarded(async () => worker.push.test());
 }
 
 /* ------------------------------------------------------------------ Notifications */
@@ -1235,20 +1159,16 @@ export async function getSettings() {
 }
 
 export async function setChatgptAuthSource(source: "device" | "host") {
-  return guarded(async () =>
-    worker<CodexStatusView>("POST", "/internal/codex/auth-source", { source }),
-  );
+  return guarded(async () => worker.codex.setAuthSource({ source }));
 }
 
 export async function startChatgptLogin() {
-  return guarded(async () =>
-    worker<{ verificationUrl: string; userCode: string }>("POST", "/internal/codex/device-login"),
-  );
+  return guarded(async () => worker.codex.deviceLogin());
 }
 
 export async function signOutChatgpt() {
   return guarded(async () => {
-    await worker("POST", "/internal/codex/logout");
+    await worker.codex.logout();
   });
 }
 

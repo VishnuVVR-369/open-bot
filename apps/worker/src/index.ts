@@ -8,6 +8,9 @@ import { EgressRelay } from "./egress/relay";
 import { WakeController } from "./egress/wake";
 import { env } from "./env";
 import { createHttpServer } from "./http";
+import { CodexAccountService } from "./services/codex-account";
+import { FileService } from "./services/files";
+import { RetryService } from "./services/retries";
 import { computerFiles, UploadService } from "./uploads";
 import { PushService } from "./services/push";
 import { FcmService, nativeEgressPush } from "./services/fcm";
@@ -401,14 +404,15 @@ setInterval(
 
 const server = createHttpServer({
   ctx,
-  bots: botService,
+  teammates: botService,
   executor,
+  retries: new RetryService(ctx),
   approvals,
   takeovers,
   screenOperations,
+  files: new FileService(ctx),
   schedules,
   skills,
-  memory,
   triggers,
   accountTriggers,
   tasks,
@@ -422,6 +426,7 @@ const server = createHttpServer({
   wake,
   uploads,
   pages,
+  codexAccount: new CodexAccountService(ctx),
 });
 server.listen(env.WORKER_PORT, () => log.info(`worker listening on :${env.WORKER_PORT}`));
 

@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures";
-import { createTeammate, sendMessage, uniqueName, waitForLastRun, workerApi } from "./helpers";
+import { createTeammate, sendMessage, uniqueName, waitForLastRun, worker } from "./helpers";
 
 // Bigger than the 1 MB a Server Action accepts by default.
 const twoMegabytes = Buffer.alloc(2 * 1024 * 1024, 7);
@@ -33,14 +33,14 @@ test("attach a file over 1 MB to a message", async ({ page }) => {
 });
 
 async function writeFile(path: string, text: string) {
-  await workerApi("/internal/files/write", {
+  await worker.files.write({
     path,
     dataBase64: Buffer.from(text).toString("base64"),
   });
 }
 
 async function removeFile(path: string) {
-  await workerApi("/internal/files/remove", { path }).catch(() => {});
+  await worker.files.remove({ path }).catch(() => {});
 }
 
 test("preview a table, a note and a missing file", async ({ page }) => {

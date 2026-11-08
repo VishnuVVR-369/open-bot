@@ -21,7 +21,7 @@ export function hashDeviceSecret(secret: string): string {
 
 /** Tell the worker that paired phones changed, so it wakes the right ones. Best effort. */
 async function devicesChanged(): Promise<void> {
-  await worker("POST", "/internal/egress/devices/changed").catch(() => {});
+  await worker.egress.devicesChanged().catch(() => {});
 }
 
 export async function getEgressStatus(): Promise<EgressStatusView> {
@@ -30,12 +30,12 @@ export async function getEgressStatus(): Promise<EgressStatusView> {
 }
 
 export async function setEgressMode({ mode }: Inputs["setMode"]) {
-  await worker("POST", "/internal/egress/mode", { mode });
+  await worker.egress.setMode({ mode });
   return { ok: true as const };
 }
 
 export async function setPhoneEgressMode({ mode }: Inputs["setPhoneMode"]) {
-  await worker("POST", "/internal/egress/phone-mode", { mode });
+  await worker.egress.setPhoneMode({ mode });
   return { ok: true as const };
 }
 
@@ -88,9 +88,7 @@ export async function registerEgressDevice({
     })
     .returning({ generation: egressDevices.generation });
   // A re-pairing must also drop a connection the previous generation still has open.
-  await worker("POST", `/internal/egress/devices/${deviceId}/revoked`, {
-    generation: row!.generation - 1,
-  }).catch(() => {});
+  await worker.egress.deviceRevoked({ deviceId, generation: row!.generation - 1 }).catch(() => {});
   await devicesChanged();
   return { secret, generation: row!.generation };
 }
@@ -112,9 +110,7 @@ export async function revokeEgressDevice({ deviceId, generation }: Inputs["revok
     )
     .returning({ generation: egressDevices.generation });
   if (row) {
-    await worker("POST", `/internal/egress/devices/${deviceId}/revoked`, {
-      generation: row.generation,
-    }).catch(() => {});
+    await worker.egress.deviceRevoked({ deviceId, generation: row.generation }).catch(() => {});
     await devicesChanged();
   }
   return { ok: true as const };

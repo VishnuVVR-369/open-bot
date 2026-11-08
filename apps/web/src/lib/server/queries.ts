@@ -70,7 +70,6 @@ import type {
   ChatData,
   ChatEntry,
   ChatSummary,
-  CodexStatusView,
   AccountsSetupView,
   AccountView,
   ConnectionView,
@@ -78,7 +77,6 @@ import type {
   LessonView,
   ProposalView,
   TaskView,
-  ComputerView,
   ModelAccessView,
   NotificationView,
   RunView,
@@ -97,22 +95,14 @@ import type {
 import { toApprovalView, toMessageView } from "./views";
 import { accountRedirectUri, accountStore } from "./accounts";
 import { db } from "./db";
+import type { WorkerStatus } from "@open-bot/api/worker";
 import { worker } from "./worker";
 import { plainText } from "../utils";
 
-interface WorkerStatus {
-  computer: {
-    online: boolean;
-    health: ComputerView["health"];
-    lifecycle?: ComputerView["lifecycle"];
-  };
-  codex: CodexStatusView;
-  egress: EgressStatusView;
-}
-
+/** The worker's status, or null when it doesn't answer quickly. */
 export async function workerStatus(): Promise<WorkerStatus | null> {
   try {
-    const status = await worker<WorkerStatus>("GET", "/internal/status", undefined, 2_500);
+    const status = await worker.status.get(undefined, { context: { timeoutMs: 2_500 } });
     return { ...status, egress: withEgressDefaults(status.egress) };
   } catch {
     return null;

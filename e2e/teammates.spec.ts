@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures";
-import { botIdOf, createTeammate, uniqueName, workerApi } from "./helpers";
+import { botIdOf, createTeammate, uniqueName, worker } from "./helpers";
 
 test("create, edit and archive a teammate", async ({ page }) => {
   const name = uniqueName("Tess");
@@ -43,7 +43,7 @@ test("duplicate a teammate with their skills and memory", async ({ page }) => {
   await createTeammate(page, name, "qa assistant");
   const id = await botIdOf(page, name);
   const skill = `e2e-${Math.random().toString(36).slice(2, 7)}`;
-  await workerApi("/internal/skills", {
+  await worker.skills.save({
     name: skill,
     description: "Only for the original",
     instructions: "Reply with ok.",

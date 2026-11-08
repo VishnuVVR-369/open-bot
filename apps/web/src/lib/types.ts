@@ -31,6 +31,15 @@ export type {
   StreamRunEvent,
   TakeoverRequest as TakeoverRequestSummary,
 } from "@open-bot/api";
+// The worker's views come from its contract, so a change there is a type error here.
+export type {
+  CodexRateLimits as CodexRateLimitsView,
+  CodexStatus as CodexStatusView,
+  ConnectionTest as ConnectionTestView,
+  RateLimitWindow as RateLimitWindowView,
+  TelegramStatus as TelegramStatusView,
+} from "@open-bot/api/worker";
+import type { CodexStatus as CodexStatusView } from "@open-bot/api/worker";
 import type {
   BotSummary,
   ChatSummary,
@@ -38,15 +47,6 @@ import type {
   RunView,
   TakeoverRequest,
 } from "@open-bot/api";
-
-export interface CodexStatusView {
-  connected: boolean;
-  stale?: boolean;
-  authSource: "device" | "host";
-  account: { type: "chatgpt" | "apiKey"; email: string | null; planType: string | null } | null;
-  login: { verificationUrl: string; userCode: string } | null;
-  error: string | null;
-}
 
 export interface ComputerView {
   lifecycle?: ComputerLifecycleStatus | null;
@@ -124,17 +124,6 @@ export interface ScheduleView {
   nextRunAt: string | null;
   lastRunAt: string | null;
   lastRun: { id: string; status: RunStatus; chatId: string } | null;
-}
-
-/** Your Telegram bot and the account linked to it. */
-export interface TelegramStatusView {
-  connected: boolean;
-  botUsername: string | null;
-  tokenHint: string | null;
-  linked: boolean;
-  linkedName: string | null;
-  /** Why the connection isn't working, when it isn't. */
-  problem: string | null;
 }
 
 /** What every teammate knows about you. */
@@ -321,14 +310,6 @@ export interface ProviderSetupView {
 export interface AccountsSetupView {
   providers: ProviderSetupView[];
   accounts: AccountView[];
-}
-
-/** What connecting to a service found. */
-export interface ConnectionTestView {
-  ok: boolean;
-  status: string | null;
-  tools: { name: string; description: string }[];
-  error: string | null;
 }
 
 /** Email for teammates: the domain, Postmark, and each teammate's address. */

@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { lookup } from "node:dns/promises";
+import type { TriggerCheck, TriggerInput as TriggerFormInput } from "@open-bot/api/worker";
 import { accounts, bots, connections, runs, triggers } from "@open-bot/db";
 import {
   describeGmailQuery,
@@ -44,21 +45,8 @@ const MAX_PAYLOAD_CHARS = 20_000;
 
 export class TriggerError extends Error {}
 
-export interface TriggerInput {
-  botId: string;
-  kind: TriggerKind;
-  title: string;
-  prompt: string;
-  url?: string | null;
-  intervalMinutes?: number | null;
-  lookFor?: string | null;
-  /** Gmail and Calendar: the connection to watch. */
-  connectionId?: string | null;
-  /** Gmail: the search new mail must match (empty for all of it). Calendar: `all` or `guests`. */
-  query?: string | null;
-  /** Calendar: how many minutes before an event to wake the teammate. */
-  leadMinutes?: number | null;
-}
+/** A trigger as the owner or a teammate sets it up; see `triggerInputSchema`. */
+export type TriggerInput = TriggerFormInput;
 
 /** What a trigger saves, after its input is checked. */
 interface TriggerFields {
@@ -72,11 +60,7 @@ interface TriggerFields {
   leadMinutes: number | null;
 }
 
-export interface CheckResult {
-  ok: boolean;
-  changed: boolean;
-  summary: string;
-}
+export type CheckResult = TriggerCheck;
 
 function newToken(): string {
   return randomBytes(24).toString("base64url");

@@ -13,7 +13,7 @@ export const POST = deviceRoute(async (device, request) => {
     .parse(await request.json().catch(() => null));
   if (token !== device.pushToken) {
     await db.update(egressDevices).set({ pushToken: token }).where(eq(egressDevices.id, device.id));
-    await worker("POST", "/internal/egress/devices/changed").catch(() => {});
+    await worker.egress.devicesChanged().catch(() => {});
   }
   return NextResponse.json({ ok: true });
 });
