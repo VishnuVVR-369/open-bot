@@ -75,7 +75,12 @@ import { passkeyLabel } from "@/lib/passkey-name";
 import { getJson } from "@/lib/client/api";
 import { queryKeys, useAppState } from "@/lib/client/queries";
 import { isComputerOnline } from "@/lib/status";
-import type { ModelAccessView, UsageView } from "@/lib/types";
+import type {
+  CodexRateLimitsView,
+  ModelAccessView,
+  RateLimitWindowView,
+  UsageView,
+} from "@/lib/types";
 import { cn, compactNumber } from "@/lib/utils";
 import { ConnectionsSection } from "@/components/settings/connections-section";
 import { EmailSection } from "@/components/settings/email-section";
@@ -153,13 +158,7 @@ function Choice({
   );
 }
 
-interface RateWindow {
-  usedPercent: number;
-  windowDurationMins: number | null;
-  resetsAt: number | null;
-}
-
-function Meter({ label, window }: { label: string; window: RateWindow }) {
+function Meter({ label, window }: { label: string; window: RateLimitWindowView }) {
   const used = Math.min(100, Math.max(0, window.usedPercent));
   return (
     <div className="flex flex-col gap-1.5">
@@ -199,12 +198,7 @@ function ChatgptSection() {
   const [login, setLogin] = useState<{ verificationUrl: string; userCode: string } | null>(null);
   const limits = useQuery({
     queryKey: ["rate-limits"],
-    queryFn: async () => {
-      const result = await getJson<{ rateLimits: unknown }>("/api/rate-limits");
-      return result.rateLimits as {
-        rateLimits?: { primary: RateWindow | null; secondary: RateWindow | null };
-      } | null;
-    },
+    queryFn: async () => (await getJson<CodexRateLimitsView>("/api/rate-limits")).rateLimits,
     enabled: Boolean(codex?.account),
     refetchInterval: 60_000,
   });
@@ -223,8 +217,8 @@ function ChatgptSection() {
     );
   }
 
-  const primary = limits.data?.rateLimits?.primary;
-  const secondary = limits.data?.rateLimits?.secondary;
+  const primary = limits.data?.rateLimits.primary;
+  const secondary = limits.data?.rateLimits.secondary;
 
   return (
     <>

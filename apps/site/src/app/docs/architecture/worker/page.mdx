@@ -33,7 +33,7 @@ The worker reacts to three kinds of input:
 
 | Input                   | Examples                                                                                                                      | Handled by                     |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
-| HTTP from the web app   | `POST /internal/messages/:id/dispatch`, `POST /internal/approvals/:id/decide`                                                 | `src/http.ts`                  |
+| HTTP from the web app   | `POST /internal/messages/:id/dispatch`, `POST /internal/approvals/:id/decide`                                                 | `src/rpc/router.ts`            |
 | `NOTIFY openbot_worker` | `runs`, `schedules`, `triggers`, `accounts`, `cancel`                                                                         | the listener in `src/index.ts` |
 | Timers                  | the scheduler every 10 s, page watches and account triggers every 30 s, account actions every 30 s, a safety sweep every 15 s | each service                   |
 
@@ -208,12 +208,15 @@ The worker refuses to start when an integration has no adapter, or its tools dif
 
 ## The internal HTTP API
 
-`src/http.ts` is a plain `node:http` server with a small route table.
+`src/http.ts` is a plain `node:http` server.
 
 - `GET /healthz` is open and returns `{ ok: true }`.
 - Every other request needs the `x-worker-secret` header, compared in constant time.
-- Route handlers return JSON. An `HttpError` sets the status, and anything else is a 500 with the message.
-- Websocket upgrades on `/vnc` and `/egress/agent` check a signed token from the query string instead.
+- The routes are `workerContract` (`packages/api/src/worker/contract.ts`), served by oRPC's OpenAPI handler at fixed `/internal/...` paths, so a web app from the previous deploy can still call them.
+- `src/rpc/router.ts` implements each procedure by calling services; rules about what is allowed live in the services, where the teammates' tools use them too.
+- `src/rpc/handler.ts` runs around every procedure: one marked `wakesComputer` runs inside the lifecycle, so it wakes the computer and keeps it awake until it finishes, and whatever a procedure throws becomes a status and a message in `src/rpc/errors.ts`, the only place a service's error becomes a status.
+- `PUT /internal/uploads/:id` streams raw bytes, so it is handled in `src/http.ts` outside the contract.
+- Websocket upgrades on `/vnc` and `/egress/agent` (`src/ws.ts`) check a signed token from the query string instead.
 
 The full list is in [Internal APIs](/docs/reference/http-api#the-worker).
 

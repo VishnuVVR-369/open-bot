@@ -53,6 +53,9 @@ export interface Subscription {
  * Push notifications to installed apps and browsers, even when open-bot isn't open. The keys that
  * sign them are made once and kept encrypted.
  */
+/** A subscription a browser can't be notified at; the message says why. */
+export class PushError extends Error {}
+
 export class PushService {
   private keys: { publicKey: string; privateKey: string } | null = null;
 
@@ -106,7 +109,7 @@ export class PushService {
   async subscribe(subscription: Subscription, device: string): Promise<void> {
     const endpoint = new URL(subscription.endpoint);
     if (endpoint.protocol !== "https:" && !this.ctx.env.WATCH_ALLOW_PRIVATE_URLS)
-      throw new Error("Push services use https.");
+      throw new PushError("Push services use https.");
     await this.ctx.db
       .insert(pushSubscriptions)
       .values({

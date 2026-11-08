@@ -650,7 +650,7 @@ describe.skipIf(!url)("bot management with Postgres", () => {
   });
 
   it("uses the same service for authenticated UI create/update routes and rejects stale UI edits", async () => {
-    const server = createHttpServer({ ctx, bots: service } as unknown as HttpDeps);
+    const server = createHttpServer({ ctx, teammates: service } as unknown as HttpDeps);
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     try {
       const address = server.address();

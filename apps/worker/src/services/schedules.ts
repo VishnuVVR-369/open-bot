@@ -13,6 +13,9 @@ import { errorMessage } from "../logger";
 
 export type Schedule = typeof schedules.$inferSelect;
 
+/** A schedule that can't be saved or run as asked; the message says why. */
+export class ScheduleError extends Error {}
+
 const TICK_MS = 10_000;
 
 /** The bot's "Scheduled" chat, where its routines and reminders run. */
@@ -48,17 +51,23 @@ export class ScheduleService {
   /** When a schedule runs, from a cron expression or a local date and time. */
   private async timing(input: { cron: string | null; at: string | null; timezone: string | null }) {
     const timezone = input.timezone ?? (await this.defaultTimeZone());
-    if (!isValidTimeZone(timezone)) throw new Error(`Unknown timezone ${timezone}`);
+    if (!isValidTimeZone(timezone)) throw new ScheduleError(`Unknown timezone ${timezone}`);
     if (Boolean(input.cron) === Boolean(input.at))
-      throw new Error("Give exactly one of cron (recurring) or at (one time).");
+      throw new ScheduleError("Give exactly one of cron (recurring) or at (one time).");
     if (input.cron) {
       const problem = validateCron(input.cron, timezone);
-      if (problem) throw new Error(problem);
+      if (problem) throw new ScheduleError(problem);
       const nextRunAt = nextCronRun(input.cron, timezone);
       return { kind: "cron" as const, cron: input.cron, runAt: null, nextRunAt, timezone };
     }
-    const nextRunAt = parseLocalDateTime(input.at!, timezone);
-    if (nextRunAt.getTime() < Date.now() - 60_000) throw new Error("That time is in the past.");
+    let nextRunAt: Date;
+    try {
+      nextRunAt = parseLocalDateTime(input.at!, timezone);
+    } catch (error) {
+      throw new ScheduleError(errorMessage(error));
+    }
+    if (nextRunAt.getTime() < Date.now() - 60_000)
+      throw new ScheduleError("That time is in the past.");
     return { kind: "once" as const, cron: null, runAt: nextRunAt, nextRunAt, timezone };
   }
 
@@ -115,7 +124,7 @@ export class ScheduleService {
     },
   ): Promise<Schedule> {
     const [existing] = await this.ctx.db.select().from(schedules).where(eq(schedules.id, id));
-    if (!existing) throw new Error("That schedule no longer exists.");
+    if (!existing) throw new ScheduleError("That schedule no longer exists.");
     const timing = await this.timing(input);
     const finishedReminder = existing.kind === "once" && !existing.enabled && existing.lastRunAt;
     const enabled = timing.kind === "once" && finishedReminder ? true : existing.enabled;
@@ -140,11 +149,13 @@ export class ScheduleService {
   /** Pause or resume. A reminder whose time has passed can't be resumed; it would never run. */
   async setEnabled(id: string, enabled: boolean): Promise<Schedule> {
     const [row] = await this.ctx.db.select().from(schedules).where(eq(schedules.id, id));
-    if (!row) throw new Error("That schedule no longer exists.");
+    if (!row) throw new ScheduleError("That schedule no longer exists.");
     let nextRunAt = row.nextRunAt;
     if (enabled && row.kind === "cron" && row.cron) nextRunAt = nextCronRun(row.cron, row.timezone);
     if (enabled && row.kind === "once" && row.runAt && row.runAt.getTime() < Date.now())
-      throw new Error("That reminder's time has passed. Give it a new time to run it again.");
+      throw new ScheduleError(
+        "That reminder's time has passed. Give it a new time to run it again.",
+      );
     const [updated] = await this.ctx.db
       .update(schedules)
       .set({ enabled, nextRunAt: enabled ? (nextRunAt ?? row.runAt) : nextRunAt })
@@ -185,7 +196,7 @@ export class ScheduleService {
   /** Run a schedule now, without changing when it runs next. */
   async runNow(id: string): Promise<void> {
     const [row] = await this.ctx.db.select().from(schedules).where(eq(schedules.id, id));
-    if (!row) throw new Error("Schedule not found");
+    if (!row) throw new ScheduleError("Schedule not found");
     await this.fire(row);
   }
 

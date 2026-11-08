@@ -7,7 +7,8 @@ Shared types and pure logic go in `packages/domain`, and schema changes go in `p
 ## Entry points
 
 - `apps/worker/src/index.ts`: process entry that builds the context, services and HTTP server.
-- `apps/worker/src/http.ts`: internal routes (`routes` in `createHttpServer`), shared-secret auth and the `computerOperation` wake rule.
+- `apps/worker/src/http.ts`: the HTTP server, shared-secret auth and the raw upload route; `apps/worker/src/ws.ts` has the VNC and egress websockets.
+- `apps/worker/src/rpc/router.ts`: the internal API (`workerContract` in `packages/api/src/worker/contract.ts`), each procedure calling a service; `apps/worker/src/rpc/handler.ts` wakes the computer around procedures that need it and maps errors (`apps/worker/src/rpc/errors.ts`).
 - `apps/worker/src/tools/definitions.ts` and `apps/worker/src/tools/handlers.ts`: tool specs (`TOOLS_VERSION`) and `ToolHandlers.handle()`, with `DEVELOPER_INSTRUCTIONS` in `apps/worker/src/instructions.ts`.
 - `apps/worker/src/computer-lifecycle.ts` and `apps/worker/src/computer.ts`: computer sleep and wake, and the client for botd.
 - `apps/worker/build.mjs`: esbuild bundle to `apps/worker/dist/worker.mjs`.
@@ -18,7 +19,8 @@ Shared types and pure logic go in `packages/domain`, and schema changes go in `p
 - Bump `TOOLS_VERSION` whenever tool definitions or `DEVELOPER_INSTRUCTIONS` change, or existing threads keep the old set.
 - `apps/worker/build.mjs` keeps only Node built-ins and the worker's own declared dependencies external, and bundles everything else.
 - A new import in a workspace package may need a dependency declared here or it is bundled, so run the built artifact.
-- Routes that touch the computer must match `computerOperation` in `apps/worker/src/http.ts`, or they will not wake it.
+- Procedures that touch the computer must be marked `wakesComputer` (the `computer` builder) in `packages/api/src/worker/contract.ts`, or they will not wake it.
+- Internal API paths and input fields stay until no deployed web app calls them: the web app and the worker deploy separately.
 - The lifecycle does no idle polling of the computer, and reading status must not wake it.
 - `RunEventWriter` is the only way a session writes run events.
 - Swarm helpers are refused tools listed in `HELPER_FORBIDDEN`.
@@ -28,7 +30,7 @@ Shared types and pure logic go in `packages/domain`, and schema changes go in `p
 
 - Unit: `pnpm --filter @open-bot/worker test`.
 - Integration: `pnpm test:integration` from the root (starts Postgres), or `pnpm --filter @open-bot/worker test:integration` with `TEST_DATABASE_URL` set.
-- Integration suites: all eight `*.integration.test.ts` files under `apps/worker/src` (`git ls-files 'apps/worker/**/*.integration.test.ts'`).
+- Integration suites: all nine `*.integration.test.ts` files under `apps/worker/src` (`git ls-files 'apps/worker/**/*.integration.test.ts'`).
 - Built artifact: `pnpm --filter @open-bot/worker build && node apps/worker/dist/worker.mjs`.
 - Sleep and wake: `pnpm test:computer-sleep`.
 - E2E: `pnpm e2e` (for example `e2e/agent.spec.ts`, `e2e/computer.spec.ts`, `e2e/swarm.spec.ts`).

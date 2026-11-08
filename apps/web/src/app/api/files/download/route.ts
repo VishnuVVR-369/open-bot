@@ -27,10 +27,7 @@ export const GET = authed(async (request: Request) => {
   const url = new URL(request.url);
   const path = url.searchParams.get("path") ?? "";
   const inline = url.searchParams.get("inline") === "1";
-  const { dataBase64 } = await worker<{ dataBase64: string }>(
-    "GET",
-    `/internal/files/read?path=${encodeURIComponent(path)}`,
-  );
+  const { dataBase64 } = await worker.files.read({ path });
   const name = path.split("/").pop() ?? "file";
   return new Response(Buffer.from(dataBase64, "base64"), {
     headers: {

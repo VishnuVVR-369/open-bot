@@ -1,22 +1,14 @@
 import { readFile } from "node:fs/promises";
 import { EventEmitter } from "node:events";
+import type { CodexStatus } from "@open-bot/api/worker";
 import { CodexClient, type ServerNotification, type ServerRequest, type v2 } from "@open-bot/agent";
 import type { ComputerLifecycle } from "./computer-lifecycle";
 import type { ComputerClient } from "./computer";
 import { refreshHostLogin } from "./host-login";
 import { errorMessage, type Logger } from "./logger";
 
-export type ChatgptAuthSource = "device" | "host";
-
-export interface CodexStatus {
-  connected: boolean;
-  stale?: boolean;
-  authSource: ChatgptAuthSource;
-  account: { type: "chatgpt" | "apiKey"; email: string | null; planType: string | null } | null;
-  /** A device-code login in progress. */
-  login: { verificationUrl: string; userCode: string } | null;
-  error: string | null;
-}
+export type { CodexStatus };
+export type ChatgptAuthSource = CodexStatus["authSource"];
 
 export interface ThreadHandler {
   onNotification(notification: ServerNotification): void;

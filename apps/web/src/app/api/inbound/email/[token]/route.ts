@@ -25,11 +25,9 @@ export async function POST(
     return NextResponse.json({ error: "Send the email as JSON." }, { status: 400 });
   }
   try {
-    const result = await worker<{ botId: string | null }>(
-      "POST",
-      `/internal/email/inbound/${encodeURIComponent(token)}`,
-      payload,
-      60_000,
+    const result = await worker.email.inbound(
+      { params: { token }, body: payload },
+      { context: { timeoutMs: 60_000 } },
     );
     return NextResponse.json({ ok: true, delivered: result.botId !== null });
   } catch (error) {

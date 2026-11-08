@@ -80,6 +80,13 @@ export class BotService {
     return bot;
   }
 
+  /** A teammate, archived or not: an archived one's screen and workspace are still cleaned up. */
+  async findTeammate(id: string): Promise<Bot> {
+    const [teammate] = await this.ctx.db.select().from(bots).where(eq(bots.id, id));
+    if (!teammate) throw new BotError(404, "No such teammate.");
+    return teammate;
+  }
+
   async list() {
     const rows = await this.ctx.db
       .select({

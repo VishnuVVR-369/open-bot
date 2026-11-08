@@ -1,3 +1,4 @@
+import { createWorkerClient } from "@open-bot/api/worker";
 import { expect, type Locator, type Page } from "@playwright/test";
 
 export const owner = {
@@ -5,19 +6,11 @@ export const owner = {
   password: process.env.E2E_PASSWORD ?? "",
 };
 
-/** Calls the worker's internal API, for setup the UI doesn't need to cover. */
-export async function workerApi<T>(path: string, body?: unknown): Promise<T> {
-  const response = await fetch(`${process.env.WORKER_URL ?? "http://127.0.0.1:4001"}${path}`, {
-    method: body === undefined ? "GET" : "POST",
-    headers: {
-      "x-worker-secret": process.env.WORKER_SECRET ?? "dev-worker-secret-change-me",
-      "content-type": "application/json",
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  if (!response.ok) throw new Error(`${path} returned ${response.status}`);
-  return (await response.json()) as T;
-}
+/** The worker's internal API, for setup the UI doesn't need to cover. */
+export const worker = createWorkerClient({
+  url: process.env.WORKER_URL ?? "http://127.0.0.1:4001",
+  secret: process.env.WORKER_SECRET ?? "dev-worker-secret-change-me",
+});
 
 /** Create a teammate through the form and land in their chat. */
 export async function createTeammate(

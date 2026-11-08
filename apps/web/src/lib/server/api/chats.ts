@@ -177,7 +177,7 @@ export async function sendMessage(input: Inputs["send"]): Promise<MessageView> {
   });
 
   if (row.dispatchStatus === "pending") {
-    await worker("POST", `/internal/messages/${row.id}/dispatch`).catch((error: unknown) => {
+    await worker.messages.dispatch({ messageId: row.id }).catch((error: unknown) => {
       // Saved, so it isn't lost: the worker dispatches pending messages when it can.
       console.warn("dispatch deferred to the worker's reconciler", {
         messageId: row!.id,

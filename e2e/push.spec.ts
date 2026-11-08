@@ -1,7 +1,7 @@
 import { createECDH, randomBytes } from "node:crypto";
 import http from "node:http";
 import { expect, test } from "./fixtures";
-import { workerApi } from "./helpers";
+import { worker } from "./helpers";
 
 const PORT = 4796;
 
@@ -89,7 +89,7 @@ test("get push notifications on this device", async ({ page, context }) => {
     await expect(page.getByTestId("push-device")).toHaveCount(0);
     await expect(toggle).toHaveAttribute("aria-checked", "false");
   } finally {
-    await workerApi("/internal/push/unsubscribe", { endpoint }).catch(() => {});
+    await worker.push.unsubscribe({ endpoint }).catch(() => {});
     await service.stop();
   }
 });

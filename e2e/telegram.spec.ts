@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import pg from "pg";
 import { expect, test, type Page } from "./fixtures";
-import { createTeammate, uniqueName, waitForLastRun, workerApi } from "./helpers";
+import { createTeammate, uniqueName, waitForLastRun, worker } from "./helpers";
 import { MOCK_BOT, MOCK_TOKEN, TelegramMock, USER } from "./telegram-mock";
 
 const MOCK_PORT = 4797;
@@ -26,7 +26,7 @@ async function eventually<T>(find: () => T | undefined, timeout = 240_000): Prom
 }
 
 test("Telegram setup explains the steps and checks the token", async ({ page }) => {
-  const status = await workerApi<{ connected: boolean }>("/internal/telegram");
+  const status = await worker.telegram.status();
   test.skip(status.connected, "A Telegram bot is connected; leave it alone.");
   await page.goto("/settings#telegram");
   const section = page.locator("#telegram");
@@ -59,7 +59,7 @@ test.describe("Telegram, against a stand-in", () => {
   });
 
   test.afterAll(async () => {
-    await workerApi("/internal/telegram/disconnect", {}).catch(() => {});
+    await worker.telegram.disconnect().catch(() => {});
     await page.close();
     await telegram.stop();
   });

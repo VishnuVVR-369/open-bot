@@ -22,16 +22,13 @@ async function receive(
   if (Buffer.byteLength(body) > MAX_BODY_BYTES)
     return NextResponse.json({ error: "The request body is too large." }, { status: 413 });
   try {
-    const result = await worker<{ runId: string }>(
-      "POST",
-      `/internal/hooks/${encodeURIComponent(token)}`,
-      {
-        method: request.method,
-        contentType: request.headers.get("content-type") ?? "",
-        body,
-        query: new URL(request.url).search.replace(/^\?/, ""),
-      },
-    );
+    const result = await worker.hooks.fire({
+      token,
+      method: request.method,
+      contentType: request.headers.get("content-type") ?? "",
+      body,
+      query: new URL(request.url).search.replace(/^\?/, ""),
+    });
     return NextResponse.json({ ok: true, runId: result.runId }, { status: 202 });
   } catch (error) {
     const status = error instanceof WorkerError ? error.status : 500;

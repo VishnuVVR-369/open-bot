@@ -91,9 +91,9 @@ Paths are relative to the repo root; symbols are in parentheses.
 
 **Add a worker internal route** (called by web)
 
-1. `apps/worker/src/http.ts`: add `"METHOD /internal/..."` to `routes` in `createHttpServer`; parse with `readJson(request, schema)`, check ids with `uuid()`, throw `HttpError`. Routes match in insertion order. Auth (`x-worker-secret`) is automatic.
-2. If it touches the computer, add it to the `computerOperation` regex in the same file, or it will not wake the computer.
-3. Call it from web with `worker<T>(method, path, body)` (`apps/web/src/lib/server/worker.ts`) in `apps/web/src/lib/actions.ts` or `apps/web/src/lib/server/api/*`.
+1. `packages/api/src/worker/contract.ts`: add a procedure to `workerContract` with its `route` (`/internal/...`), input and output schemas. Use `computer` instead of `base` if it touches the computer, or it will not wake it; never for a status read.
+2. `apps/worker/src/rpc/router.ts`: implement it by calling a service. Put rules in the service, and throw the service's own error class; `apps/worker/src/rpc/errors.ts` maps error classes to statuses in one place. Auth (`x-worker-secret`) is automatic.
+3. Call it from web with the typed client: `worker.<domain>.<procedure>(input)` (`apps/web/src/lib/server/worker.ts`) in `apps/web/src/lib/actions.ts` or `apps/web/src/lib/server/api/*`. Failures are `WorkerError` with the worker's status and message.
 4. Document it in `apps/site/src/app/docs/reference/http-api/page.mdx`.
 
 **Add a field to a teammate** (web and mobile)

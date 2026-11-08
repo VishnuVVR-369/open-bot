@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "./fixtures";
-import { createTeammate, uniqueName, waitForLastRun, workerApi } from "./helpers";
+import { createTeammate, uniqueName, waitForLastRun, worker } from "./helpers";
 
 /** Deletes the board's tasks whose titles contain `marker`, so tests leave the board as it was. */
 async function removeTasks(page: Page, marker: string) {
@@ -8,7 +8,7 @@ async function removeTasks(page: Page, marker: string) {
     title: string;
   }[];
   for (const task of tasks.filter((entry) => entry.title.includes(marker)))
-    await workerApi(`/internal/tasks/${task.id}/delete`, {});
+    await worker.tasks.remove({ taskId: task.id });
 }
 
 test("plan work on the task board", async ({ page }) => {

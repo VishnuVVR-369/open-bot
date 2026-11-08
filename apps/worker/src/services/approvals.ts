@@ -55,6 +55,16 @@ const ACCOUNT_KINDS: readonly ApprovalKind[] = ["account_write", "account_outwar
  * Approval requests: Codex's own (commands and file changes, which wait as long as the turn lives)
  * and the bots' request_approval tool (which waits up to 10 minutes, then continues in a new run).
  */
+/** An owner's decision that can't be recorded; the message says why. */
+export class ApprovalError extends Error {
+  constructor(
+    readonly status: 400 | 404,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 export class ApprovalService {
   /** Runs waiting for a decision, by approval id. */
   private readonly waiters = new Map<
@@ -460,6 +470,28 @@ export class ApprovalService {
     }
     await publishApp(this.ctx, { type: "approvals" });
     return true;
+  }
+
+  /**
+   * The owner's decision, from the app. Says how the approval ended: as decided here, or as it was
+   * decided elsewhere first, or expired.
+   */
+  async decideAsOwner(
+    approvalId: string,
+    decision: Decision,
+    alwaysAllow?: { pattern: string } | null,
+  ): Promise<{ decided: boolean; status: (typeof approvals.$inferSelect)["status"] }> {
+    if (alwaysAllow && decision === "approved") {
+      const problem = await this.invalidRule(approvalId, alwaysAllow.pattern);
+      if (problem) throw new ApprovalError(400, problem);
+    }
+    const decided = await this.decide(approvalId, decision, alwaysAllow ?? undefined);
+    const [row] = await this.ctx.db
+      .select({ status: approvals.status })
+      .from(approvals)
+      .where(eq(approvals.id, approvalId));
+    if (!row) throw new ApprovalError(404, "That approval is gone.");
+    return { decided, status: row.status };
   }
 
   /** Why an "always allow" pattern can't be saved for an approval, or null when it can. */

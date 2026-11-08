@@ -11,7 +11,7 @@ type Inputs = ApiInputs["runs"];
 
 /** Run a failed or stopped request again; asking twice finds the first retry. */
 export async function retryRun({ runId }: Inputs["retry"]): Promise<{ runId: string }> {
-  return worker<{ runId: string }>("POST", `/internal/runs/${runId}/retry`);
+  return worker.runs.retry({ runId });
 }
 
 export async function cancelRun({ runId }: Inputs["cancel"]) {
@@ -21,7 +21,7 @@ export async function cancelRun({ runId }: Inputs["cancel"]) {
     .where(eq(runs.id, runId))
     .returning({ id: runs.id });
   if (!run) throw new ApiError("NOT_FOUND", "That reply is gone.");
-  await worker("POST", "/internal/runs/cancel");
+  await worker.runs.processCancellations();
   return { ok: true as const };
 }
 
@@ -59,7 +59,7 @@ export async function giveFeedback(input: Inputs["feedback"]) {
       .where(eq(messages.clientId, input.redo.clientId));
     if (sent) {
       if (!matches(sent)) throw conflict();
-      await worker("POST", `/internal/messages/${sent.id}/dispatch`).catch(() => {});
+      await worker.messages.dispatch({ messageId: sent.id }).catch(() => {});
       return { ok: true as const };
     }
   }
@@ -116,7 +116,7 @@ export async function giveFeedback(input: Inputs["feedback"]) {
     messageId = saved.id;
   }
   await db.update(runs).set({ rating: "down" }).where(eq(runs.id, run.id));
-  await worker("POST", `/internal/messages/${messageId}/dispatch`).catch((error: unknown) => {
+  await worker.messages.dispatch({ messageId }).catch((error: unknown) => {
     // Saved, so it isn't lost: the worker dispatches pending messages when it can.
     console.warn("dispatch deferred to the worker's reconciler", {
       messageId,
@@ -127,6 +127,6 @@ export async function giveFeedback(input: Inputs["feedback"]) {
 }
 
 export async function stopSwarm({ swarmId }: ApiInputs["swarms"]["stop"]) {
-  await worker("POST", `/internal/swarms/${swarmId}/stop`);
+  await worker.swarms.stop({ swarmId });
   return { ok: true as const };
 }

@@ -87,19 +87,30 @@ export const updateBotSchema = z
   .strict();
 
 /** A new teammate, and anything it should have started with but didn't get. */
-export interface CreatedBot {
-  botId: string;
-  name: string;
-  chatId: string;
-  chatPath: string;
-  revision: string;
+export const createdTeammateSchema = z.object({
+  botId: z.string(),
+  name: z.string(),
+  chatId: z.string(),
+  chatPath: z.string(),
+  revision: z.string(),
   /** How many skills and schedules it started with. */
-  skills: number;
-  schedules: number;
-  failed: { kind: "skill" | "schedule"; name: string; error: string }[];
+  skills: z.number().int(),
+  schedules: z.number().int(),
+  failed: z.array(
+    z.object({ kind: z.enum(["skill", "schedule"]), name: z.string(), error: z.string() }),
+  ),
   /** False when the computer was away; its workspace is written before its first run instead. */
-  workspaceSynced: boolean;
-}
+  workspaceSynced: z.boolean(),
+});
+export type CreatedBot = z.infer<typeof createdTeammateSchema>;
+
+/** A teammate after an edit, with the revision to send with the next one. */
+export const updatedTeammateSchema = z.object({
+  botId: z.string(),
+  revision: z.string(),
+  workspaceSynced: z.boolean(),
+});
+export type UpdatedTeammate = z.infer<typeof updatedTeammateSchema>;
 
 /** Everything a new teammate starts with, resolved from its template and the request. */
 export interface BotCreationPlan {

@@ -5,7 +5,7 @@ import {
   sendMessage,
   uniqueName,
   waitForLastRun,
-  workerApi,
+  worker,
 } from "./helpers";
 
 const LESSON = "Always end every reply with the word PINEAPPLE on its own line.";
@@ -84,9 +84,7 @@ test("@agent rate a reply, teach a lesson, and see it used in a new chat", async
   await expect(page.getByText(`Give ${name} something to do`)).toBeVisible();
   await sendMessage(page, "What is 2 + 2? Answer in one short sentence.");
   await waitForLastRun(page, ["completed"]);
-  const agents = await workerApi<{ dataBase64: string }>(
-    `/internal/files/read?path=/home/bot/bots/${slug}/AGENTS.md`,
-  );
+  const agents = await worker.files.read({ path: `/home/bot/bots/${slug}/AGENTS.md` });
   expect(Buffer.from(agents.dataBase64, "base64").toString()).not.toContain(LESSON);
   await expect(page.getByTestId("run").last()).toContainText("PINEAPPLE");
 

@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import type { ConnectionTest } from "@open-bot/api/worker";
 import type { v2 } from "@open-bot/agent";
 import { connections } from "@open-bot/db";
 import { mcpServersConfig, type ConnectionConfig } from "@open-bot/domain";
@@ -15,12 +16,7 @@ function codexConfig(rows: ConnectionConfig[]): CodexConfig {
   return { mcp_servers: mcpServersConfig(rows) } as unknown as CodexConfig;
 }
 
-export interface ConnectionTest {
-  ok: boolean;
-  status: string | null;
-  tools: { name: string; description: string }[];
-  error: string | null;
-}
+export type { ConnectionTest };
 
 /** What went wrong connecting, in words, instead of the MCP client's transport errors. */
 function readable(error: string, row: Row): string {

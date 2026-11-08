@@ -66,5 +66,5 @@ export async function uploadFormFile(file: File): Promise<UploadView> {
 }
 
 export async function uploadStatus(uploadId: string): Promise<UploadView> {
-  return worker<UploadView>("GET", `/internal/uploads/${uploadId}`);
+  return worker.uploads.status({ uploadId });
 }
