@@ -6,13 +6,13 @@ import {
   settings,
   triggers,
   configurationRevision,
-  lockTeammateCreation,
+  lockTeam,
 } from "@open-bot/db";
 import {
   BOT_COLORS,
   botCreation,
   botProfileChangesSchema,
-  slugify,
+  newTeammateSlot,
   TEAMMATE_TEMPLATES,
   type BotCreationPlan,
   type BotProfile,
@@ -209,16 +209,12 @@ export class BotService {
     const plan = "profile" in input ? input : await this.plan(input);
     const { profile } = plan;
     const created = await this.ctx.db.transaction(async (tx) => {
-      // Serialises slug allocation and the first-teammate choice across concurrent creates.
-      await lockTeammateCreation(tx);
-      const rows = await tx.select({ slug: bots.slug, archivedAt: bots.archivedAt }).from(bots);
-      const taken = new Set(rows.map((row) => row.slug));
-      const base = slugify(profile.name);
-      let slug = base;
-      for (let n = 2; taken.has(slug); n += 1) slug = `${base}-${n}`;
+      await lockTeam(tx);
+      const team = await tx.select({ slug: bots.slug, archivedAt: bots.archivedAt }).from(bots);
+      const { slug, first } = newTeammateSlot(team, profile.name);
       const [bot] = await tx
         .insert(bots)
-        .values({ ...profile, slug, isPrimary: !rows.some((row) => !row.archivedAt) })
+        .values({ ...profile, slug, isPrimary: first })
         .returning();
       const [chat] = await tx
         .insert(chats)

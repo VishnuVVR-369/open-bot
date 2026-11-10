@@ -7,6 +7,8 @@ Better Auth's `account` table is sign-in and is unrelated to the integrations `a
 ## Entry points
 
 - `packages/db/src/index.ts`: `createPool`, `createDb`, `notify`, `CHANNELS`, `AppEvent`, `WorkerSignal`, plus the schema.
+- `packages/db/src/upload-locks.ts` and `packages/db/src/team-lock.ts`: advisory locks the web app and the worker share.
+  `lockTeam` is taken by creating and archiving a teammate and by choosing the lead; keep its key, since the two deploy separately.
 - `@open-bot/db/schema` is `packages/db/src/schema.ts`, the single source of truth for tables.
 - `@open-bot/db/testing` is `packages/db/src/testing.ts`: a fresh migrated database per integration suite.
 - `packages/db/src/migrate.ts` applies `packages/db/drizzle/*.sql`; `packages/db/drizzle.config.ts` configures drizzle-kit.

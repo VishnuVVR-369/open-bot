@@ -4,7 +4,7 @@ import {
   bots as teammates,
   CHANNELS,
   chats,
-  lockTeammateCreation,
+  lockTeam,
   notify,
   runs,
   schedules,
@@ -12,7 +12,7 @@ import {
   triggers,
   type Tx,
 } from "@open-bot/db";
-import { slugify, teammateBundleSchema } from "@open-bot/domain";
+import { newTeammateSlot, teammateBundleSchema } from "@open-bot/domain";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db, pool } from "../db";
 import { memoryReady } from "../memory";
@@ -25,21 +25,13 @@ import { ApiError } from "./errors";
 type Inputs = ApiInputs["teammates"];
 type Outputs = ApiOutputs["teammates"];
 
-/**
- * Where a new teammate goes: its name as a URL slug no other teammate has, like `scout-2`, and
- * whether it leads, which the first one does. Held under the lock every creation takes, the
- * worker's too, until the transaction ends.
- */
-async function newTeammateSlot(tx: Tx, name: string): Promise<{ slug: string; first: boolean }> {
-  await lockTeammateCreation(tx);
-  const rows = await tx
+/** Take the team lock, then decide where a new teammate goes, as the worker's create does. */
+async function claimSlot(tx: Tx, name: string): Promise<{ slug: string; first: boolean }> {
+  await lockTeam(tx);
+  const team = await tx
     .select({ slug: teammates.slug, archivedAt: teammates.archivedAt })
     .from(teammates);
-  const taken = new Set(rows.map((row) => row.slug));
-  const base = slugify(name);
-  let slug = base;
-  for (let n = 2; taken.has(slug); n += 1) slug = `${base}-${n}`;
-  return { slug, first: !rows.some((row) => !row.archivedAt) };
+  return newTeammateSlot(team, name);
 }
 
 /** A step after the change is saved: if it fails, the change still happened, so it's logged. */
@@ -112,7 +104,7 @@ export async function duplicateTeammate({
   const timezone = await ownerTimeZone();
 
   const created = await db.transaction(async (tx) => {
-    const { slug } = await newTeammateSlot(tx, name);
+    const { slug } = await claimSlot(tx, name);
     const [copy] = await tx
       .insert(teammates)
       .values({
@@ -163,13 +155,13 @@ export async function duplicateTeammate({
   await syncWorkspace(created.teammateId);
   let memoryCopied = !copyMemory;
   if (copyMemory)
-    memoryCopied = await (
-      await memoryReady()
-    )
-      .copyBot(source.id, created.teammateId)
-      .then(() => true)
-      .catch(() => false);
-  await publishTeamChanged();
+    memoryCopied = await memoryReady()
+      .then((memory) => memory.copyBot(source.id, created.teammateId))
+      .then(
+        () => true,
+        () => false,
+      );
+  await afterSaving("refreshing open pages", publishTeamChanged);
   return { ...created, memoryCopied };
 }
 
@@ -197,7 +189,7 @@ export async function importTeammate({ file }: Inputs["import"]): Promise<Output
   const timezone = await ownerTimeZone();
 
   const created = await db.transaction(async (tx) => {
-    const { slug, first } = await newTeammateSlot(tx, teammate.name);
+    const { slug, first } = await claimSlot(tx, teammate.name);
     const [row] = await tx
       .insert(teammates)
       .values({
@@ -220,7 +212,7 @@ export async function importTeammate({ file }: Inputs["import"]): Promise<Output
     return { teammateId: row!.id, chatId: chat!.id };
   });
   await syncWorkspace(created.teammateId);
-  await publishTeamChanged();
+  await afterSaving("refreshing open pages", publishTeamChanged);
   return {
     ...created,
     name: teammate.name,
@@ -230,18 +222,21 @@ export async function importTeammate({ file }: Inputs["import"]): Promise<Output
 
 export async function setLead({ teammateId }: Inputs["setLead"]): Promise<{ ok: true }> {
   await db.transaction(async (tx) => {
-    // One statement over every teammate, so two at once queue on the same rows in the same order
-    // instead of deadlocking, and the later one sees the earlier one's lead.
-    const rows = await tx
+    // Under the team lock nobody else archives or adds a teammate, or picks a lead, meanwhile.
+    await lockTeam(tx);
+    const [lead] = await tx
+      .select({ id: teammates.id })
+      .from(teammates)
+      .where(and(eq(teammates.id, teammateId), isNull(teammates.archivedAt)));
+    if (!lead) throw new ApiError("NOT_FOUND", "That teammate no longer exists.");
+    // Only the rows that change, so the other teammates keep their revisions.
+    const leads = sql`(${teammates.id} = ${teammateId})`;
+    await tx
       .update(teammates)
-      .set({
-        isPrimary: sql`(${teammates.id} = ${teammateId} and ${teammates.archivedAt} is null)`,
-      })
-      .returning({ lead: teammates.isPrimary });
-    if (!rows.some((row) => row.lead))
-      throw new ApiError("NOT_FOUND", "That teammate no longer exists.");
+      .set({ isPrimary: leads })
+      .where(sql`${teammates.isPrimary} <> ${leads}`);
   });
-  await publish({ type: "bots" });
+  await afterSaving("refreshing open pages", () => publish({ type: "bots" }));
   return { ok: true };
 }
 
@@ -252,6 +247,7 @@ export async function setLead({ teammateId }: Inputs["setLead"]): Promise<{ ok: 
 export async function archiveTeammate({ teammateId }: Inputs["archive"]): Promise<{ ok: true }> {
   const now = new Date();
   await db.transaction(async (tx) => {
+    await lockTeam(tx);
     await tx
       .update(teammates)
       .set({ archivedAt: now, isPrimary: false })
@@ -276,6 +272,6 @@ export async function archiveTeammate({ teammateId }: Inputs["archive"]): Promis
     notify(pool, CHANNELS.worker, "cancel"),
   );
   await worker.screens.forget({ screenId: teammateId }).catch(() => {});
-  await publish({ type: "bots" });
+  await afterSaving("refreshing open pages", () => publish({ type: "bots" }));
   return { ok: true };
 }

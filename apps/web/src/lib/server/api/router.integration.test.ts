@@ -332,13 +332,20 @@ describe.skipIf(!url)("API reads, end to end", () => {
     autonomy: "risky" as const,
   };
 
-  type TeammateRow = { id: string; name: string; slug: string; archived: boolean; lead: boolean };
+  type TeammateRow = {
+    id: string;
+    name: string;
+    slug: string;
+    archived: boolean;
+    lead: boolean;
+    updatedAt: string;
+  };
 
   /** Every teammate as stored, and whether it leads. */
   async function teammateRows(): Promise<TeammateRow[]> {
     const { sql } = await import("drizzle-orm");
     const { rows } = await database.db.execute<TeammateRow>(
-      sql`select id, name, slug, archived_at is not null as archived, is_primary as lead from bots`, // vocabulary: allow
+      sql`select id, name, slug, archived_at is not null as archived, is_primary as lead, updated_at::text as "updatedAt" from bots`, // vocabulary: allow
     );
     return rows;
   }
@@ -373,6 +380,16 @@ describe.skipIf(!url)("API reads, end to end", () => {
         code: "NOT_FOUND",
         message: "That teammate no longer exists.",
       });
+    expect(await leads()).toEqual(["Scout"]);
+  });
+
+  it("changes only the old and the new lead, so other teammates keep their revisions", async () => {
+    const { teammateId: kit } = await api.teammates.import({ file: teammateFile("Kit") });
+    const { teammateId: other } = await api.teammates.import({ file: teammateFile("Bystander") });
+    const before = (await teammate(other)).updatedAt;
+    await api.teammates.setLead({ teammateId: kit });
+    await api.teammates.setLead({ teammateId: ids.teammate });
+    expect((await teammate(other)).updatedAt).toBe(before);
     expect(await leads()).toEqual(["Scout"]);
   });
 
@@ -579,5 +596,17 @@ describe.skipIf(!url)("API reads, end to end", () => {
     } finally {
       answers.clear();
     }
+  });
+
+  // Last: it empties the team.
+  it("lets only one of two teammates imported at once into an empty team lead", async () => {
+    const s = await import("@open-bot/db");
+    await database.db.update(s.bots).set({ archivedAt: new Date(), isPrimary: false }); // vocabulary: allow
+    expect(await leads()).toEqual([]);
+    const imported = await Promise.all(
+      ["Ada", "Bea"].map((name) => api.teammates.import({ file: teammateFile(name) })),
+    );
+    expect(imported).toHaveLength(2);
+    expect(await leads()).toHaveLength(1);
   });
 });
