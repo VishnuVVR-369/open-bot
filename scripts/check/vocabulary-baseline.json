@@ -370,7 +370,7 @@
     "bot": 26
   },
   "apps/web/src/lib/actions.ts": {
-    "bot": 121,
+    "bot": 116,
     "primary teammate": 6
   },
   "apps/web/src/lib/client/queries.ts": {

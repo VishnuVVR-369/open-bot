@@ -95,20 +95,6 @@ export const feedbackInputSchema = z.object({
   redo: z.object({ clientId: id }).nullable(),
 });
 
-/**
- * Attachments are uploaded as raw bytes with `PUT /api/uploads/<uploadId>`, with the headers
- * below, then sent with a message. Retrying an upload with the same id never stores it twice.
- */
-export const UPLOAD_HEADERS = {
-  /** The file's name, URI-encoded. */
-  name: "x-upload-name",
-  mime: "x-upload-mime",
-  /** The size in bytes. */
-  size: "x-upload-size",
-  /** The SHA-256 of the file, in hex. */
-  sha256: "x-upload-sha256",
-} as const;
-
 export const contract = {
   app: {
     /**

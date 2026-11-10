@@ -6,7 +6,8 @@ import { TimeAgo } from "@/components/time-ago";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { newDirectChat } from "@/lib/actions";
+import { attempt } from "@/lib/client/mutate";
+import { api } from "@/lib/client/rpc";
 
 export function ChatList({
   chats,
@@ -26,7 +27,7 @@ export function ChatList({
         <Button
           variant="outline"
           onClick={async () => {
-            const result = await newDirectChat(botId);
+            const result = await attempt(api.chats.newDirect({ botId }));
             if (result.ok) router.push(`/chats/${result.data.chatId}`);
             else toast.error(result.error);
           }}

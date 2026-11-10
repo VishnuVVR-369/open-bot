@@ -26,9 +26,9 @@ import {
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { decideApproval } from "@/lib/actions";
+import { attempt } from "@/lib/client/mutate";
 import { useAppState } from "@/lib/client/queries";
-import { orpc } from "@/lib/client/rpc";
+import { api, orpc } from "@/lib/client/rpc";
 import { isComputerOnline } from "@/lib/status";
 import { InlineCode } from "@/components/inline-code";
 import { cn } from "@/lib/utils";
@@ -229,10 +229,12 @@ export function ApprovalDecision({
   const offline = Boolean(state) && !isComputerOnline(state);
   const decide = (decision: "approved" | "denied", alwaysAllow?: string) =>
     startTransition(async () => {
-      const result = await decideApproval(
-        approvalId,
-        decision,
-        alwaysAllow === undefined ? null : { pattern: alwaysAllow },
+      const result = await attempt(
+        api.approvals.decide({
+          approvalId,
+          decision,
+          alwaysAllow: alwaysAllow === undefined ? null : { pattern: alwaysAllow },
+        }),
       );
       if (!result.ok) toast.error(result.error);
       else if (alwaysAllow !== undefined)

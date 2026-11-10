@@ -17,7 +17,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createGroupChat } from "@/lib/actions";
+import { attempt } from "@/lib/client/mutate";
+import { api } from "@/lib/client/rpc";
 import type { BotSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -36,7 +37,7 @@ export function NewGroupDialog({ bots }: { bots: BotSummary[] }) {
 
   function submit() {
     startTransition(async () => {
-      const result = await createGroupChat({ title, botIds: selected });
+      const result = await attempt(api.chats.createGroup({ title, botIds: selected }));
       if (!result.ok) {
         toast.error(result.error);
         return;

@@ -46,7 +46,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { retryRun } from "@/lib/actions";
+import { attempt } from "@/lib/client/mutate";
+import { api } from "@/lib/client/rpc";
 import { readAloud, readingNow, stopReading, useReadAloud } from "@/lib/client/read-aloud";
 import type { BotSummary, RunView } from "@/lib/types";
 import { cn, compactNumber, formatDuration, REVEAL_ON_RUN_HOVER } from "@/lib/utils";
@@ -239,7 +240,7 @@ function RetryRun({ runId }: { runId: string }) {
       disabled={retrying}
       onClick={() =>
         startRetry(async () => {
-          const result = await retryRun(runId);
+          const result = await attempt(api.runs.retry({ runId }));
           if (!result.ok) toast.error("Couldn't try again", { description: result.error });
         })
       }

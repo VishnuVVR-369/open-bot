@@ -14,7 +14,6 @@ import {
   vaultItems,
   connections,
   emailSettings,
-  type Attachment,
 } from "@open-bot/db";
 import {
   isAccountConnectionKind,
@@ -41,23 +40,11 @@ import {
   type CardSecret,
   type LoginSecret,
   type Autonomy,
-  type EgressModeSetting,
-  type PhoneEgressSetting,
 } from "@open-bot/domain";
 import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
 import { decryptSecret, encryptSecret, secretHint } from "@open-bot/domain/server";
 import { memoryInputSchema, memoryEditSchema, memoryReferenceSchema } from "@open-bot/domain";
-import {
-  decideApprovalInputSchema,
-  egressModeSchema,
-  feedbackInputSchema,
-  phoneEgressModeSchema,
-  sendMessageInputSchema,
-  type ApiInputs,
-} from "@open-bot/api";
-import { randomUUID } from "node:crypto";
-import * as api from "./server/api/services";
 import { memoryReady } from "./server/memory";
 import { publish } from "./server/publish";
 import { db, pool } from "./server/db";
@@ -73,7 +60,6 @@ import {
 import { emailSettingsRow, nextTeammateColor } from "./server/queries";
 import { insertTeammateParts, teammateParts } from "./server/teammates";
 import { worker } from "./server/worker";
-import type { MessageView } from "./types";
 import type { ScheduleInput, TriggerInput, WorkerInputs } from "@open-bot/api/worker";
 
 export type ActionResult<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
@@ -343,71 +329,7 @@ export async function archiveBot(botId: string) {
   });
 }
 
-/* ------------------------------------------------------------------ Chats and messages */
-
-export async function newDirectChat(botId: string) {
-  return guarded(() => api.newDirectChat({ botId: z.string().uuid().parse(botId) }));
-}
-
-export async function createGroupChat(input: { title: string; botIds: string[] }) {
-  return guarded(() =>
-    api.createGroupChat(
-      z
-        .object({
-          title: z.string().trim().min(1, "Name the group.").max(60),
-          botIds: z.array(z.string().uuid()).min(2, "Pick at least two teammates."),
-        })
-        .parse(input),
-    ),
-  );
-}
-
-export async function renameChat(chatId: string, title: string) {
-  return guarded(async () => {
-    await api.renameChat({
-      chatId: z.string().uuid().parse(chatId),
-      title: z.string().trim().min(1).max(60).parse(title),
-    });
-  });
-}
-
-export async function archiveChat(chatId: string) {
-  return guarded(async () => {
-    await api.archiveChat({ chatId: z.string().uuid().parse(chatId) });
-  });
-}
-
-/** You're looking at the chat: its replies aren't unread anymore, here or on the phone. */
-export async function markChatRead(chatId: string) {
-  return guarded(async () => {
-    await api.markChatRead({ chatId: z.string().uuid().parse(chatId) });
-  });
-}
-
-export async function pinPage(pageId: string, pinned: boolean) {
-  return guarded(() => api.pinPage({ pageId: z.string().uuid().parse(pageId), pinned }));
-}
-
-export async function removePage(pageId: string) {
-  return guarded(() => api.removePage({ pageId: z.string().uuid().parse(pageId) }));
-}
-
-export async function sendMessage(
-  input: ApiInputs["chats"]["send"],
-): Promise<ActionResult<MessageView>> {
-  return guarded(() => api.sendMessage(sendMessageInputSchema.parse(input)));
-}
-
-export async function uploadAttachment(form: FormData): Promise<ActionResult<Attachment>> {
-  return guarded(async () => {
-    const file = form.get("file");
-    if (!(file instanceof File)) throw new Error("No file was attached.");
-    if (file.size > MAX_UPLOAD_BYTES) throw new Error(`Files can be up to ${MAX_UPLOAD_LABEL}.`);
-    const upload = await api.uploadFormFile(file);
-    if (!upload.attachment) throw new Error("The upload didn't finish. Try again.");
-    return upload.attachment;
-  });
-}
+/* ------------------------------------------------------------------ Files */
 
 /** Put a file you picked into a folder on the computer. A taken name gets a number. */
 export async function uploadFile(dir: string, form: FormData): Promise<ActionResult<string>> {
@@ -433,54 +355,7 @@ export async function removeFile(path: string) {
   });
 }
 
-export async function retryRun(runId: string) {
-  return guarded(async () => {
-    await api.retryRun({ runId: z.string().uuid().parse(runId) });
-  });
-}
-
-export async function stopSwarm(swarmId: string) {
-  return guarded(async () => {
-    await api.stopSwarm({ swarmId: z.string().uuid().parse(swarmId) });
-  });
-}
-
-export async function cancelRun(runId: string) {
-  return guarded(async () => {
-    await api.cancelRun({ runId: z.string().uuid().parse(runId) });
-  });
-}
-
-/* ------------------------------------------------------------------ Feedback */
-
-const runId = z.string().uuid("That reply is gone.");
-
-export async function rateRun(id: string, rating: "up" | "down" | null) {
-  return guarded(async () => {
-    await api.rateRun({
-      runId: runId.parse(id),
-      rating: z.enum(["up", "down"]).nullable().parse(rating),
-    });
-  });
-}
-
-export async function giveFeedback(input: {
-  runId: string;
-  text: string;
-  remember: boolean;
-  redo: boolean;
-}) {
-  return guarded(async () => {
-    await api.giveFeedback(
-      feedbackInputSchema.parse({
-        runId: runId.parse(input.runId),
-        text: input.text,
-        remember: input.remember,
-        redo: input.redo ? { clientId: randomUUID() } : null,
-      }),
-    );
-  });
-}
+/* ------------------------------------------------------------------ Lessons */
 
 export async function deleteLesson(id: string) {
   return guarded(async () => {
@@ -560,46 +435,6 @@ export async function deleteTask(taskId: string) {
 /** Asks the task's owner to work on it now. */
 export async function startTask(taskId: string) {
   return guarded(async () => worker.tasks.start({ taskId }));
-}
-
-/* ------------------------------------------------------------------ Approvals and screens */
-
-export async function decideApproval(
-  approvalId: string,
-  decision: "approved" | "denied",
-  alwaysAllow: { pattern: string } | null = null,
-) {
-  return guarded(async () => {
-    await api.decideApproval(
-      decideApprovalInputSchema.parse({ approvalId, decision, alwaysAllow }),
-    );
-  });
-}
-
-export async function removeApprovalRule(ruleId: string) {
-  return guarded(async () => {
-    await api.removeApprovalRule({ ruleId: z.string().uuid().parse(ruleId) });
-  });
-}
-
-export async function takeOverScreen(screenId: string) {
-  return guarded(() => api.takeOverScreen({ screenId: z.string().uuid().parse(screenId) }));
-}
-export async function handBackScreen(screenId: string, note: string | null, clearCode = false) {
-  return guarded(() =>
-    api.handBackScreen({ screenId: z.string().uuid().parse(screenId), note, clearCode }),
-  );
-}
-export async function wakeScreen(screenId: string) {
-  return guarded(() => api.wakeScreen({ screenId: z.string().uuid().parse(screenId) }));
-}
-export async function dismissTakeoverRequest(takeoverId: string) {
-  return guarded(() =>
-    api.dismissTakeoverRequest({ takeoverId: z.string().uuid().parse(takeoverId) }),
-  );
-}
-export async function reportScreenActivity(screenId: string) {
-  return guarded(() => api.reportScreenActivity({ screenId: z.string().uuid().parse(screenId) }));
 }
 
 /* ------------------------------------------------------------------ Vault */
@@ -1109,33 +944,7 @@ export async function sendPushTest() {
   return guarded(async () => worker.push.test());
 }
 
-/* ------------------------------------------------------------------ Notifications */
-
-export async function markNotificationsRead(ids?: string[]) {
-  return guarded(async () => {
-    await api.markNotificationsRead({ ids: z.array(z.string().uuid()).optional().parse(ids) });
-  });
-}
-
 /* ------------------------------------------------------------------ Settings */
-
-export async function setEgressMode(mode: EgressModeSetting) {
-  return guarded(async () => {
-    await api.setEgressMode({ mode: egressModeSchema.parse(mode) });
-  });
-}
-
-export async function setPhoneEgress(mode: PhoneEgressSetting) {
-  return guarded(async () => {
-    await api.setPhoneEgressMode({ mode: phoneEgressModeSchema.parse(mode) });
-  });
-}
-
-export async function revokeEgressDevice(deviceId: string) {
-  return guarded(async () => {
-    await api.revokeEgressDevice({ deviceId: z.string().uuid().parse(deviceId) });
-  });
-}
 
 export async function setTimezone(timezone: string) {
   return guarded(async () => {

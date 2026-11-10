@@ -54,7 +54,7 @@ The example: you ask Milo, your travel planner, "Find me a nonstop flight to Lis
 
 ## Saving the message
 
-The web composer calls the `sendMessage` server action; the phone calls `chats.send` through RPC.
+The web composer and the phone both call `chats.send` through the API.
 Both check your session and use `apps/web/src/lib/server/api/chats.ts` to save the text, uploaded attachments and teammates you @-mentioned.
 The client-generated message id makes retries safe: the same request returns the saved message, while reusing its id for different content is a conflict.
 After saving, the service asks the worker to dispatch it:

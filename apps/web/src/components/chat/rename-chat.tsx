@@ -12,7 +12,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { renameChat } from "@/lib/actions";
+import { attempt } from "@/lib/client/mutate";
+import { api } from "@/lib/client/rpc";
 
 export function RenameChatDialog({
   chat,
@@ -43,7 +44,7 @@ export function RenameChatDialog({
             const next = title.trim();
             if (!next || pending) return;
             startTransition(async () => {
-              const result = await renameChat(chat.id, next);
+              const result = await attempt(api.chats.rename({ chatId: chat.id, title: next }));
               if (!result.ok) {
                 toast.error(result.error);
                 return;

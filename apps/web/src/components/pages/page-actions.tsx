@@ -12,7 +12,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { pinPage, removePage } from "@/lib/actions";
+import { attempt } from "@/lib/client/mutate";
 import { refreshForAppEvent } from "@/lib/client/refresh";
 import { api, orpc } from "@/lib/client/rpc";
 
@@ -20,7 +20,7 @@ import { api, orpc } from "@/lib/client/rpc";
 export function usePinPage() {
   const queryClient = useQueryClient();
   return async (pageId: string, pinned: boolean) => {
-    const result = await pinPage(pageId, pinned);
+    const result = await attempt(api.pages.pin({ pageId, pinned }));
     if (!result.ok) toast.error(result.error);
     await refreshForAppEvent(queryClient, { type: "pages" });
   };
@@ -83,7 +83,7 @@ export function DeletePageDialog({
           <AlertDialogAction
             variant="destructive"
             onClick={async () => {
-              const result = await removePage(page.id);
+              const result = await attempt(api.pages.remove({ pageId: page.id }));
               if (!result.ok) {
                 toast.error(result.error);
                 return;

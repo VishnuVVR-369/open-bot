@@ -39,7 +39,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { DuplicateBotDialog } from "@/components/bots/duplicate-bot";
 import { FileIcon } from "@/components/files/file-chip";
 import { FilePreview } from "@/components/files/file-preview";
-import { archiveChat, markChatRead, newDirectChat } from "@/lib/actions";
+import { attempt } from "@/lib/client/mutate";
+import { api } from "@/lib/client/rpc";
 import { useAppState } from "@/lib/client/queries";
 import { fileKind, fileUrl } from "@/lib/files";
 import { chatStatus } from "@/lib/status";
@@ -231,7 +232,7 @@ export function ChatView({ chatId }: { chatId: string }) {
   useEffect(() => {
     if (loading || error) return;
     const mark = () => {
-      if (document.visibilityState === "visible") void markChatRead(chatId);
+      if (document.visibilityState === "visible") void attempt(api.chats.markRead({ chatId }));
     };
     mark();
     document.addEventListener("visibilitychange", mark);
@@ -302,7 +303,7 @@ export function ChatView({ chatId }: { chatId: string }) {
     : "";
 
   async function startNewChat(botId: string) {
-    const result = await newDirectChat(botId);
+    const result = await attempt(api.chats.newDirect({ botId }));
     if (result.ok) router.push(`/chats/${result.data.chatId}`);
     else toast.error(result.error);
   }
@@ -481,7 +482,7 @@ export function ChatView({ chatId }: { chatId: string }) {
                   <DropdownMenuItem
                     variant="destructive"
                     onSelect={async () => {
-                      const result = await archiveChat(chat.id);
+                      const result = await attempt(api.chats.archive({ chatId: chat.id }));
                       if (!result.ok) {
                         toast.error(result.error);
                         return;

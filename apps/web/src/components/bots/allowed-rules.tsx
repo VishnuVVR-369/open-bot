@@ -7,7 +7,8 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { removeApprovalRule } from "@/lib/actions";
+import { attempt } from "@/lib/client/mutate";
+import { api } from "@/lib/client/rpc";
 
 export interface AllowedRule {
   id: string;
@@ -51,7 +52,7 @@ export function AllowedRules({ name, rules }: { name: string; rules: AllowedRule
   function remove(rule: AllowedRule) {
     setRemoving(rule.id);
     startTransition(async () => {
-      const result = await removeApprovalRule(rule.id);
+      const result = await attempt(api.approvals.removeRule({ ruleId: rule.id }));
       if (!result.ok) toast.error(result.error);
       else toast(`${name} will ask again`, { description: "From their next message." });
       router.refresh();

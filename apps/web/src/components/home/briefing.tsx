@@ -8,7 +8,8 @@ import { useTransition } from "react";
 import { toast } from "sonner";
 import { BotAvatar } from "@/components/bot-avatar";
 import { Button } from "@/components/ui/button";
-import { retryRun } from "@/lib/actions";
+import { attempt } from "@/lib/client/mutate";
+import { api } from "@/lib/client/rpc";
 import { dismissBriefing, useBriefingSince } from "@/lib/client/presence";
 import { useAppState, useHome } from "@/lib/client/queries";
 import { failureLine, isComputerOnline } from "@/lib/status";
@@ -82,7 +83,7 @@ function RetryButton({ item }: { item: BriefingItem }) {
       data-testid="briefing-retry"
       onClick={() =>
         startRetry(async () => {
-          const result = await retryRun(item.runId);
+          const result = await attempt(api.runs.retry({ runId: item.runId }));
           if (!result.ok) {
             toast.error("Couldn't try again", { description: result.error });
             return;

@@ -7,9 +7,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { markNotificationsRead } from "@/lib/actions";
+import { attempt } from "@/lib/client/mutate";
 import { useNotifications } from "@/lib/client/queries";
-import { orpc } from "@/lib/client/rpc";
+import { api, orpc } from "@/lib/client/rpc";
 import { cn, notificationHref, plainText } from "@/lib/utils";
 
 export function NotificationsButton({ count }: { count: number }) {
@@ -26,7 +26,7 @@ export function NotificationsButton({ count }: { count: number }) {
   async function onOpenChange(next: boolean) {
     setOpen(next);
     if (!next && count > 0) {
-      await markNotificationsRead();
+      await attempt(api.notifications.markRead({}));
       await queryClient.invalidateQueries({ queryKey: orpc.app.state.key() });
     }
   }

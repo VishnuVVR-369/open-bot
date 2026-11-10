@@ -1,7 +1,7 @@
 import "server-only";
 import { API_ERRORS, contract } from "@open-bot/api";
 import { MemoryError } from "@open-bot/memory";
-import { implement, ORPCError } from "@orpc/server";
+import { implement, ORPCError, ValidationError } from "@orpc/server";
 import { z } from "zod";
 import { auth } from "../auth";
 import {
@@ -48,6 +48,17 @@ const STATUS_CODES: Record<number, string> = {
 
 /** Errors as callers see them: the same messages the web shows, with a code to act on. */
 function toRpcError(error: unknown): ORPCError<string, unknown> {
+  // Input the contract refused: say what the schema says ("Name the chat."), not that it failed.
+  if (
+    error instanceof ORPCError &&
+    error.code === "BAD_REQUEST" &&
+    error.cause instanceof ValidationError
+  )
+    return new ORPCError("BAD_REQUEST", {
+      message: error.cause.issues.map((issue) => issue.message).join(". "),
+      data: error.data,
+      cause: error.cause,
+    });
   if (error instanceof ORPCError) return error;
   if (error instanceof ApiError) {
     // A defined error only counts as one with the status the contract gives it.

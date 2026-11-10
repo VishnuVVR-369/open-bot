@@ -1,12 +1,7 @@
 "use client";
 
-import {
-  BUILT_IN_SKILLS,
-  MAX_UPLOAD_BYTES,
-  MAX_UPLOAD_LABEL,
-  mentionedIds,
-  type RunStatus,
-} from "@open-bot/domain";
+import { cantAttach } from "@open-bot/api";
+import { BUILT_IN_SKILLS, mentionedIds, type RunStatus } from "@open-bot/domain";
 import {
   ArrowUp,
   CloudOff,
@@ -36,7 +31,9 @@ import { toast } from "sonner";
 import { BotAvatar } from "@/components/bot-avatar";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { cancelRun, sendMessage, uploadAttachment } from "@/lib/actions";
+import { attempt } from "@/lib/client/mutate";
+import { api } from "@/lib/client/rpc";
+import { describeFile, uploadAttachment } from "@/lib/client/uploads";
 import { useDictation } from "@/lib/client/dictation";
 import { useAppState } from "@/lib/client/queries";
 import type { BotSummary, ChatSummary, MessageView, SkillSummary } from "@/lib/types";
@@ -125,38 +122,26 @@ export function Composer({
 
   const addFiles = useCallback((files: FileList | File[]) => {
     for (const file of Array.from(files)) {
-      if (file.size > MAX_UPLOAD_BYTES) {
-        toast.error(`Couldn't attach ${file.name}`, {
-          description: `Files can be up to ${MAX_UPLOAD_LABEL}.`,
-        });
+      const { name } = describeFile(file);
+      const refused = cantAttach(file);
+      if (refused) {
+        toast.error(`Couldn't attach ${name}`, { description: refused });
         continue;
       }
       const id = crypto.randomUUID();
-      setUploads((current) => [
-        ...current,
-        { id, name: file.name || "pasted-image.png", status: "uploading" },
-      ]);
-      const form = new FormData();
-      form.set(
-        "file",
-        file.name ? file : new File([file], "pasted-image.png", { type: file.type }),
-      );
-      const failed = (reason: string) => {
-        toast.error(`Couldn't attach ${file.name}`, { description: reason });
-        setUploads((current) => current.filter((upload) => upload.id !== id));
-      };
-      uploadAttachment(form).then(
-        (result) => {
-          if (!result.ok) return failed(result.error);
-          setUploads((current) =>
-            current.map((upload) =>
-              upload.id === id ? { ...upload, status: "done", attachment: result.data } : upload,
-            ),
-          );
-        },
-        // The request itself failed, like a dropped connection.
-        () => failed("The upload didn't go through. Try again."),
-      );
+      setUploads((current) => [...current, { id, name, status: "uploading" }]);
+      void uploadAttachment(file).then((result) => {
+        if (!result.ok) {
+          toast.error(`Couldn't attach ${name}`, { description: result.error });
+          setUploads((current) => current.filter((upload) => upload.id !== id));
+          return;
+        }
+        setUploads((current) =>
+          current.map((upload) =>
+            upload.id === id ? { ...upload, status: "done", attachment: result.data } : upload,
+          ),
+        );
+      });
     }
   }, []);
 
@@ -270,13 +255,9 @@ export function Composer({
     setText("");
     setUploads([]);
     startSending(async () => {
-      const result = await sendMessage({
-        clientId,
-        chatId: chat.id,
-        text: draft,
-        attachments,
-        mentions,
-      });
+      const result = await attempt(
+        api.chats.send({ clientId, chatId: chat.id, text: draft, attachments, mentions }),
+      );
       if (!result.ok) {
         failedSend.current = { key, clientId };
         toast.error("Couldn't send", { description: result.error });
@@ -603,7 +584,7 @@ export function Composer({
                   disabled={stopping}
                   onClick={() =>
                     startStopping(async () => {
-                      const result = await cancelRun(activeRun.id);
+                      const result = await attempt(api.runs.cancel({ runId: activeRun.id }));
                       if (!result.ok) toast.error(result.error);
                     })
                   }

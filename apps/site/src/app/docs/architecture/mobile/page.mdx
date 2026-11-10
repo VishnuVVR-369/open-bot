@@ -75,14 +75,14 @@ A new feature adds its keys in `queryKeys`, and its refresh rule in one of those
 
 A few things are plain HTTP on the web app, because they carry bytes or streams, with the session cookie in the header:
 
-| Route                                    | Used for                                                                                                 | Mobile code                                        |
-| ---------------------------------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| `GET /api/stream`                        | The live stream                                                                                          | `src/lib/live-stream.ts`, `src/lib/realtime.tsx`   |
-| `PUT /api/uploads/<id>`                  | Attachments, as raw bytes with name, type, size and SHA-256 headers, so a retry with the same id is safe | `src/lib/uploads.ts`, `src/lib/upload-protocol.ts` |
-| `GET /api/files/download`                | Files on the computer, shown or saved                                                                    | `src/lib/files.ts`                                 |
-| `GET /api/artifacts/<id>`                | The last screenshot of a screen while the computer is offline                                            | `src/components/computer/last-frames.tsx`          |
-| `GET /api/pages/versions/<id>/thumbnail` | Page card pictures, in light or dark                                                                     | `src/lib/pages.ts`                                 |
-| `GET /api/desktop/token`                 | A short-lived token for the screen viewer                                                                | `src/components/computer/desktop-view.tsx`         |
+| Route                                    | Used for                                                                                                 | Mobile code                                         |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `GET /api/stream`                        | The live stream                                                                                          | `src/lib/live-stream.ts`, `src/lib/realtime.tsx`    |
+| `PUT /api/uploads/<id>`                  | Attachments, as raw bytes with name, type, size and SHA-256 headers, so a retry with the same id is safe | `src/lib/uploads.ts`, `packages/api/src/uploads.ts` |
+| `GET /api/files/download`                | Files on the computer, shown or saved                                                                    | `src/lib/files.ts`                                  |
+| `GET /api/artifacts/<id>`                | The last screenshot of a screen while the computer is offline                                            | `src/components/computer/last-frames.tsx`           |
+| `GET /api/pages/versions/<id>/thumbnail` | Page card pictures, in light or dark                                                                     | `src/lib/pages.ts`                                  |
+| `GET /api/desktop/token`                 | A short-lived token for the screen viewer                                                                | `src/components/computer/desktop-view.tsx`          |
 
 ## Live updates
 

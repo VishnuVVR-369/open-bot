@@ -19,7 +19,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { stopSwarm } from "@/lib/actions";
+import { attempt } from "@/lib/client/mutate";
+import { api } from "@/lib/client/rpc";
 import { cn, plainText } from "@/lib/utils";
 
 const STATE: Record<SwarmTaskState, { label: string; className: string }> = {
@@ -157,7 +158,7 @@ export function SwarmCard({ item, botName }: { item: SwarmItem; botName: string 
                   variant="destructive"
                   onClick={() =>
                     startTransition(async () => {
-                      const result = await stopSwarm(item.swarmId);
+                      const result = await attempt(api.swarms.stop({ swarmId: item.swarmId }));
                       if (!result.ok) toast.error(result.error);
                     })
                   }
