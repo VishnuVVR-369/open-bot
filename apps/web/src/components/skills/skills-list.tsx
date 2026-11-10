@@ -21,9 +21,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { deleteSkill } from "@/lib/actions";
 import { useAppState, useSkills } from "@/lib/client/queries";
-import { orpc } from "@/lib/client/rpc";
+import { attempt } from "@/lib/client/mutate";
+import { api, orpc } from "@/lib/client/rpc";
 import type { SkillView } from "@/lib/types";
 import { SkillDialog } from "./skill-dialog";
 
@@ -53,7 +53,7 @@ function DeleteSkill({ skill }: { skill: SkillView }) {
           <AlertDialogAction
             variant="destructive"
             onClick={async () => {
-              const result = await deleteSkill(skill.id);
+              const result = await attempt(api.skills.remove({ skillId: skill.id }));
               if (!result.ok) toast.error(result.error);
               await Promise.all([
                 queryClient.invalidateQueries({ queryKey: orpc.skills.key() }),

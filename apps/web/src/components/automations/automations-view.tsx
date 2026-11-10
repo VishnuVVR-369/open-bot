@@ -25,9 +25,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { setCheckIn } from "@/lib/actions";
 import { useAppState, useSchedules, useTriggers } from "@/lib/client/queries";
-import { orpc } from "@/lib/client/rpc";
+import { attempt } from "@/lib/client/mutate";
+import { api, orpc } from "@/lib/client/rpc";
 import { ScheduleDialog } from "./schedule-dialog";
 import { ScheduleRow } from "./schedules-list";
 import { TriggerDialog } from "./trigger-dialog";
@@ -237,7 +237,9 @@ function CheckIn({ botId, name }: { botId: string; name: string }) {
           aria-label="Daily check-in"
           onCheckedChange={(checked) =>
             startTransition(async () => {
-              const result = await setCheckIn(botId, checked);
+              const result = await attempt(
+                api.schedules.setCheckIn({ teammateId: botId, on: checked }),
+              );
               if (!result.ok) toast.error(result.error);
               else
                 toast(checked ? "Daily check-in on" : "Daily check-in off", {

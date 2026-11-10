@@ -131,24 +131,52 @@ export const router = os.router({
       if (!spending) throw new ApiError("NOT_FOUND", "No such teammate.");
       return spending;
     }),
+    create: os.teammates.create.handler(({ input }) => api.createTeammate(input)),
+    update: os.teammates.update.handler(({ input }) => api.updateTeammate(input)),
+    duplicate: os.teammates.duplicate.handler(({ input }) => api.duplicateTeammate(input)),
+    import: os.teammates.import.handler(({ input }) => api.importTeammate(input)),
+    setLead: os.teammates.setLead.handler(({ input }) => api.setLead(input)),
+    archive: os.teammates.archive.handler(({ input }) => api.archiveTeammate(input)),
   },
   schedules: {
     list: os.schedules.list.handler(() => listSchedules()),
     runs: os.schedules.runs.handler(({ input }) =>
       listAutomationRuns({ scheduleId: input.scheduleId }),
     ),
+    create: os.schedules.create.handler(({ input }) => worker.schedules.create(input)),
+    update: os.schedules.update.handler(({ input }) => worker.schedules.update(input)),
+    setEnabled: os.schedules.setEnabled.handler(({ input }) => worker.schedules.setEnabled(input)),
+    remove: os.schedules.remove.handler(({ input }) => api.removeSchedule(input)),
+    runNow: os.schedules.runNow.handler(({ input }) => worker.schedules.runNow(input)),
+    setCheckIn: os.schedules.setCheckIn.handler(({ input }) => api.setCheckIn(input)),
   },
   triggers: {
     list: os.triggers.list.handler(() => listTriggers()),
     runs: os.triggers.runs.handler(({ input }) =>
       listAutomationRuns({ triggerId: input.triggerId }),
     ),
+    create: os.triggers.create.handler(({ input }) => worker.triggers.create(input)),
+    update: os.triggers.update.handler(({ input }) => worker.triggers.update(input)),
+    setEnabled: os.triggers.setEnabled.handler(({ input }) => worker.triggers.setEnabled(input)),
+    remove: os.triggers.remove.handler(({ input }) => worker.triggers.remove(input)),
+    // Looking at a page can take a while.
+    check: os.triggers.check.handler(({ input }) =>
+      worker.triggers.check(input, { context: { timeoutMs: 45_000 } }),
+    ),
+    rotateToken: os.triggers.rotateToken.handler(({ input }) => worker.triggers.rotateToken(input)),
+    test: os.triggers.test.handler(({ input }) => api.testWebhook(input)),
   },
   skills: {
     list: os.skills.list.handler(() => listSkills()),
+    save: os.skills.save.handler(({ input }) => worker.skills.save(input)),
+    remove: os.skills.remove.handler(({ input }) => worker.skills.remove(input)),
   },
   tasks: {
     list: os.tasks.list.handler(() => listTasks()),
+    create: os.tasks.create.handler(({ input }) => worker.tasks.create(input)),
+    update: os.tasks.update.handler(({ input }) => worker.tasks.update(input)),
+    remove: os.tasks.remove.handler(({ input }) => worker.tasks.remove(input)),
+    start: os.tasks.start.handler(({ input }) => worker.tasks.start(input)),
   },
   vault: {
     list: os.vault.list.handler(() => listVaultItems()),
@@ -163,6 +191,7 @@ export const router = os.router({
   },
   files: {
     list: os.files.list.handler(({ input }) => worker.files.list({ path: input.path })),
+    remove: os.files.remove.handler(({ input }) => worker.files.remove(input)),
   },
   connections: {
     list: os.connections.list.handler(() => listConnections()),
@@ -175,6 +204,18 @@ export const router = os.router({
   },
   telegram: {
     status: os.telegram.status.handler(() => worker.telegram.status()),
+    connect: os.telegram.connect.handler(({ input }) => worker.telegram.connect(input)),
+    linkCode: os.telegram.linkCode.handler(() => worker.telegram.linkCode()),
+    sendTest: os.telegram.sendTest.handler(() => worker.telegram.sendTest()),
+    unlink: os.telegram.unlink.handler(() => worker.telegram.unlink()),
+    disconnect: os.telegram.disconnect.handler(() => worker.telegram.disconnect()),
+  },
+  chatgpt: {
+    setAuthSource: os.chatgpt.setAuthSource.handler(({ input }) =>
+      worker.codex.setAuthSource(input),
+    ),
+    startLogin: os.chatgpt.startLogin.handler(() => worker.codex.deviceLogin()),
+    signOut: os.chatgpt.signOut.handler(() => worker.codex.logout()),
   },
   settings: {
     modelAccess: os.settings.modelAccess.handler(() => getModelAccess()),
@@ -238,6 +279,8 @@ export const router = os.router({
       api.unregisterPushDevice(input),
     ),
     test: os.push.test.handler(() => api.sendTestPush()),
+    subscribe: os.push.subscribe.handler(({ input }) => worker.push.subscribe(input)),
+    unsubscribe: os.push.unsubscribe.handler(({ input }) => worker.push.unsubscribe(input)),
   },
   egress: {
     status: os.egress.status.handler(() => api.getEgressStatus()),

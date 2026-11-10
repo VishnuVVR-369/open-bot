@@ -18,9 +18,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { duplicateBot } from "@/lib/actions";
 import { useAppState } from "@/lib/client/queries";
-import { orpc } from "@/lib/client/rpc";
+import { attempt } from "@/lib/client/mutate";
+import { api, orpc } from "@/lib/client/rpc";
 
 /** "Iris 2", or the next number no teammate uses yet. */
 function copyName(name: string, taken: string[]): string {
@@ -61,7 +61,9 @@ export function DuplicateBotDialog({
 
   function submit() {
     startTransition(async () => {
-      const result = await duplicateBot(bot.id, { name, copyMemory });
+      const result = await attempt(
+        api.teammates.duplicate({ teammateId: bot.id, name, copyMemory }),
+      );
       if (!result.ok) {
         toast.error("Couldn't duplicate the teammate", { description: result.error });
         return;

@@ -7,9 +7,9 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { TimeAgo } from "@/components/time-ago";
-import { sendPushTest, subscribePush, unsubscribePush } from "@/lib/actions";
 import { isOffline } from "@/lib/client/errors";
-import { orpc } from "@/lib/client/rpc";
+import { attempt } from "@/lib/client/mutate";
+import { api, orpc } from "@/lib/client/rpc";
 import { useComputerOnline } from "@/lib/client/queries";
 import { OFFLINE_RETRY, OfflineNote, SectionError } from "./section-state";
 
@@ -127,7 +127,9 @@ export function PushSection({ fallback }: { fallback: React.ReactNode }) {
           endpoint: string;
           keys: { p256dh: string; auth: string };
         };
-        const result = await subscribePush(json, deviceName(navigator.userAgent));
+        const result = await attempt(
+          api.push.subscribe({ subscription: json, device: deviceName(navigator.userAgent) }),
+        );
         if (!result.ok) throw new Error(result.error);
         setEndpoint(json.endpoint);
         await refresh();
@@ -144,7 +146,7 @@ export function PushSection({ fallback }: { fallback: React.ReactNode }) {
       const worker = await navigator.serviceWorker.getRegistration("/");
       const subscription = await worker?.pushManager.getSubscription();
       await subscription?.unsubscribe();
-      if (endpoint) await unsubscribePush(endpoint);
+      if (endpoint) await attempt(api.push.unsubscribe({ endpoint }));
       setEndpoint(null);
       await refresh();
     });
@@ -204,7 +206,10 @@ export function PushSection({ fallback }: { fallback: React.ReactNode }) {
                         size="icon-sm"
                         aria-label={`Stop notifications to ${device.device || "this browser"}`}
                         onClick={async () => {
-                          await unsubscribePush(device.endpoint);
+                          const result = await attempt(
+                            api.push.unsubscribe({ endpoint: device.endpoint }),
+                          );
+                          if (!result.ok) toast.error(result.error);
                           await refresh();
                         }}
                       >
@@ -223,7 +228,7 @@ export function PushSection({ fallback }: { fallback: React.ReactNode }) {
             disabled={pending}
             onClick={() =>
               startTransition(async () => {
-                const result = await sendPushTest();
+                const result = await attempt(api.push.test());
                 if (!result.ok) toast.error("Couldn't send it", { description: result.error });
                 else
                   toast(

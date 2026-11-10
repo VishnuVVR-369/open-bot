@@ -2,15 +2,9 @@
 
 import {
   bots,
-  CHANNELS,
-  chats,
-  notify,
-  runs,
-  schedules,
   credentials,
   instructionProposals,
   settings,
-  triggers,
   vaultItems,
   connections,
   emailSettings,
@@ -19,12 +13,6 @@ import {
   isAccountConnectionKind,
   isAccountProvider,
   isValidTimeZone,
-  MAX_UPLOAD_BYTES,
-  MAX_UPLOAD_LABEL,
-  botProfileSchema,
-  DAILY_CHECK_IN,
-  slugify,
-  teammateBundleSchema,
   cardHint,
   connectionName,
   invalidCard,
@@ -41,7 +29,7 @@ import {
   type LoginSecret,
   type Autonomy,
 } from "@open-bot/domain";
-import { and, eq, inArray, isNull, ne } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { decryptSecret, encryptSecret, secretHint } from "@open-bot/domain/server";
 import { memoryInputSchema, memoryEditSchema, memoryReferenceSchema } from "@open-bot/domain";
@@ -57,10 +45,9 @@ import {
   startAuthorization,
   updateAccountConnection,
 } from "./server/accounts";
-import { emailSettingsRow, nextTeammateColor } from "./server/queries";
-import { insertTeammateParts, teammateParts } from "./server/teammates";
+import { syncWorkspace } from "./server/api/teammates";
+import { emailSettingsRow } from "./server/queries";
 import { worker } from "./server/worker";
-import type { ScheduleInput, TriggerInput, WorkerInputs } from "@open-bot/api/worker";
 
 export type ActionResult<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -73,286 +60,6 @@ async function guarded<T>(fn: () => Promise<T>): Promise<ActionResult<T>> {
       return { ok: false, error: error.issues.map((i) => i.message).join(". ") };
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
-}
-
-/* ------------------------------------------------------------------ Bots */
-
-async function uniqueSlug(name: string, excludeId?: string): Promise<string> {
-  const base = slugify(name);
-  const taken = new Set(
-    (
-      await db
-        .select({ slug: bots.slug })
-        .from(bots)
-        .where(excludeId ? ne(bots.id, excludeId) : undefined)
-    ).map((row) => row.slug),
-  );
-  if (!taken.has(base)) return base;
-  for (let i = 2; ; i += 1) if (!taken.has(`${base}-${i}`)) return `${base}-${i}`;
-}
-
-async function userTimeZone(): Promise<string> {
-  const [row] = await db
-    .select({ timezone: settings.timezone })
-    .from(settings)
-    .where(eq(settings.id, 1));
-  return row?.timezone ?? "UTC";
-}
-
-async function syncBot(botId: string) {
-  await (await memoryReady()).importLegacy();
-  // The workspace is written again before the bot's next run, so a stopped computer isn't fatal here.
-  await worker.teammates.sync({ teammateId: botId }).catch(() => {});
-}
-
-/**
- * Creates a teammate, with its template's skills and the starter automations you kept. The worker
- * does it, the same way as when a teammate creates one.
- */
-export async function createBot(
-  input: z.input<typeof botProfileSchema>,
-  starters: { templateId: string | null; ids: string[] } = { templateId: null, ids: [] },
-) {
-  return guarded(async () => {
-    const profile = botProfileSchema.parse(input);
-    return worker.teammates.create({
-      ...profile,
-      template_id: starters.templateId ?? undefined,
-      starter_ids: starters.ids,
-    });
-  });
-}
-
-/**
- * Saves the form. `revision` is the teammate as the form loaded it, so a change made since (by
- * you elsewhere, or by a teammate) isn't silently overwritten.
- */
-export async function updateBot(
-  botId: string,
-  input: z.input<typeof botProfileSchema>,
-  revision: string,
-) {
-  return guarded(async () => {
-    await worker.teammates.update({
-      teammateId: botId,
-      changes: botProfileSchema.parse(input),
-      expected_revision: revision,
-    });
-  });
-}
-
-/**
- * A new teammate set up like another one: the same job, instructions and carefulness, their own
- * skills, what they may do without asking, and their schedules and page watches, paused so nothing
- * runs twice. Webhooks stay with the original, since services call their URLs. Chats stay with the
- * original too. Memory is copied when asked.
- */
-export async function duplicateBot(botId: string, input: { name: string; copyMemory: boolean }) {
-  return guarded(async () => {
-    const name = botProfileSchema.shape.name.parse(input.name);
-    const [source] = await db
-      .select()
-      .from(bots)
-      .where(and(eq(bots.id, botId), isNull(bots.archivedAt)));
-    if (!source) throw new Error("That teammate no longer exists.");
-    const slug = await uniqueSlug(name);
-    const parts = await teammateParts(botId);
-    const timezone = await userTimeZone();
-
-    const created = await db.transaction(async (tx) => {
-      const [bot] = await tx
-        .insert(bots)
-        .values({
-          name,
-          slug,
-          role: source.role,
-          instructions: source.instructions,
-          color: source.color,
-          emoji: source.emoji,
-          autonomy: source.autonomy,
-          isPrimary: false,
-        })
-        .returning({ id: bots.id });
-      const [chat] = await tx
-        .insert(chats)
-        .values({ kind: "direct", title: name, botId: bot!.id })
-        .returning({ id: chats.id });
-
-      await insertTeammateParts(
-        tx,
-        bot!.id,
-        // Lessons are learned, like memory, so they come along with it.
-        { ...parts, lessons: input.copyMemory ? parts.lessons : [] },
-        timezone,
-      );
-      // Reminders still to come are copied too, paused like the rest.
-      const reminders = await tx
-        .select()
-        .from(schedules)
-        .where(and(eq(schedules.botId, botId), eq(schedules.kind, "once")));
-      const upcoming = reminders.filter(
-        (reminder) => (reminder.runAt?.getTime() ?? 0) > Date.now(),
-      );
-      if (upcoming.length > 0) {
-        await tx.insert(schedules).values(
-          upcoming.map((reminder) => ({
-            botId: bot!.id,
-            title: reminder.title,
-            prompt: reminder.prompt,
-            kind: "once" as const,
-            runAt: reminder.runAt,
-            nextRunAt: reminder.runAt,
-            timezone: reminder.timezone,
-            enabled: false,
-            createdBy: "user" as const,
-          })),
-        );
-      }
-      return { botId: bot!.id, chatId: chat!.id };
-    });
-
-    await syncBot(created.botId);
-    let memoryCopied = !input.copyMemory;
-    if (input.copyMemory) {
-      try {
-        await (await memoryReady()).copyBot(source.id, created.botId);
-        memoryCopied = true;
-      } catch {
-        memoryCopied = false;
-      }
-    }
-    await Promise.all([
-      publish({ type: "bots" }),
-      publish({ type: "skills" }),
-      publish({ type: "schedules" }),
-      publish({ type: "triggers" }),
-    ]);
-    return { ...created, memoryCopied };
-  });
-}
-
-/**
- * A new teammate from an exported file. Its routines and page watches start paused; its chats,
- * memory notes and webhooks were never in the file.
- */
-export async function importTeammate(file: string) {
-  return guarded(async () => {
-    let json: unknown;
-    try {
-      json = JSON.parse(file);
-    } catch {
-      throw new Error("This isn't an open-bot teammate file.");
-    }
-    const parsed = teammateBundleSchema.safeParse(json);
-    if (!parsed.success) {
-      const issue = parsed.error.issues[0];
-      throw new Error(
-        issue?.path.length
-          ? `The file has a problem at ${issue.path.join(".")}: ${issue.message}`
-          : (issue?.message ?? "The file couldn't be read."),
-      );
-    }
-    const { teammate, ...parts } = parsed.data;
-    const color = teammate.color ?? (await nextTeammateColor());
-    const slug = await uniqueSlug(teammate.name);
-    const timezone = await userTimeZone();
-    const existing = await db.select({ id: bots.id }).from(bots).where(isNull(bots.archivedAt));
-
-    const created = await db.transaction(async (tx) => {
-      const [bot] = await tx
-        .insert(bots)
-        .values({
-          name: teammate.name,
-          slug,
-          role: teammate.role,
-          instructions: teammate.instructions,
-          color,
-          emoji: teammate.emoji,
-          autonomy: teammate.autonomy,
-          isPrimary: existing.length === 0,
-        })
-        .returning({ id: bots.id });
-      const [chat] = await tx
-        .insert(chats)
-        .values({ kind: "direct", title: teammate.name, botId: bot!.id })
-        .returning({ id: chats.id });
-      await insertTeammateParts(tx, bot!.id, parts, timezone);
-      return { botId: bot!.id, chatId: chat!.id };
-    });
-    await syncBot(created.botId);
-    await Promise.all([
-      publish({ type: "bots" }),
-      publish({ type: "skills" }),
-      publish({ type: "schedules" }),
-      publish({ type: "triggers" }),
-      publish({ type: "lessons" }),
-    ]);
-    return {
-      ...created,
-      name: teammate.name,
-      paused: parts.routines.length + parts.watches.length,
-    };
-  });
-}
-
-export async function setPrimaryBot(botId: string) {
-  return guarded(async () => {
-    await db.update(bots).set({ isPrimary: false }).where(ne(bots.id, botId));
-    await db.update(bots).set({ isPrimary: true }).where(eq(bots.id, botId));
-    await publish({ type: "bots" });
-  });
-}
-
-export async function archiveBot(botId: string) {
-  return guarded(async () => {
-    const now = new Date();
-    await db.update(bots).set({ archivedAt: now, isPrimary: false }).where(eq(bots.id, botId));
-    await db
-      .update(chats)
-      .set({ archivedAt: now })
-      .where(and(eq(chats.botId, botId), isNull(chats.archivedAt)));
-    await db.update(schedules).set({ enabled: false }).where(eq(schedules.botId, botId));
-    await db.update(triggers).set({ enabled: false }).where(eq(triggers.botId, botId));
-    await db
-      .update(runs)
-      .set({ cancelRequestedAt: now })
-      .where(
-        and(
-          eq(runs.botId, botId),
-          inArray(runs.status, ["queued", "starting", "running", "waiting"]),
-        ),
-      );
-    await notify(pool, CHANNELS.worker, "cancel");
-    // Their screen stops and its browser history goes; sign-ins stay shared with the other screens.
-    await worker.screens.forget({ screenId: botId }).catch(() => {});
-    await publish({ type: "bots" });
-  });
-}
-
-/* ------------------------------------------------------------------ Files */
-
-/** Put a file you picked into a folder on the computer. A taken name gets a number. */
-export async function uploadFile(dir: string, form: FormData): Promise<ActionResult<string>> {
-  return guarded(async () => {
-    const file = form.get("file");
-    if (!(file instanceof File)) throw new Error("No file was attached.");
-    if (file.size > MAX_UPLOAD_BYTES) throw new Error(`Files can be up to ${MAX_UPLOAD_LABEL}.`);
-    const { path } = await worker.files.put(
-      {
-        dir,
-        name: file.name,
-        dataBase64: Buffer.from(await file.arrayBuffer()).toString("base64"),
-      },
-      { context: { timeoutMs: 120_000 } },
-    );
-    return path;
-  });
-}
-
-export async function removeFile(path: string) {
-  return guarded(async () => {
-    await worker.files.remove({ path });
-  });
 }
 
 /* ------------------------------------------------------------------ Lessons */
@@ -391,7 +98,7 @@ export async function acceptProposal(proposalId: string) {
         .where(eq(bots.id, proposal.botId));
       return proposal.botId;
     });
-    await syncBot(botId);
+    await syncWorkspace(botId);
     await publish({ type: "bots" });
   });
 }
@@ -409,32 +116,6 @@ export async function dismissProposal(proposalId: string) {
       );
     await publish({ type: "bots" });
   });
-}
-
-/* ------------------------------------------------------------------ Tasks */
-
-export async function createTask(input: WorkerInputs["tasks"]["create"]) {
-  return guarded(async () => worker.tasks.create(input));
-}
-
-export async function updateTask(
-  taskId: string,
-  patch: Omit<WorkerInputs["tasks"]["update"], "taskId">,
-) {
-  return guarded(async () => {
-    await worker.tasks.update({ ...patch, taskId });
-  });
-}
-
-export async function deleteTask(taskId: string) {
-  return guarded(async () => {
-    await worker.tasks.remove({ taskId });
-  });
-}
-
-/** Asks the task's owner to work on it now. */
-export async function startTask(taskId: string) {
-  return guarded(async () => worker.tasks.start({ taskId }));
 }
 
 /* ------------------------------------------------------------------ Vault */
@@ -566,7 +247,7 @@ export async function saveEmailSettings(input: { domain: string; token: string }
     await publish({ type: "email" });
     // Teammates learn their address in their instructions.
     for (const bot of await db.select({ id: bots.id }).from(bots).where(isNull(bots.archivedAt)))
-      await syncBot(bot.id).catch(() => {});
+      await syncWorkspace(bot.id).catch(() => {});
   });
 }
 
@@ -765,185 +446,6 @@ export async function testConnection(id: string) {
   );
 }
 
-/* ------------------------------------------------------------------ Skills */
-
-export async function saveSkill(input: WorkerInputs["skills"]["save"]) {
-  return guarded(async () => worker.skills.save(input));
-}
-
-export async function deleteSkill(skillId: string) {
-  return guarded(async () => {
-    await worker.skills.remove({ skillId });
-  });
-}
-
-/* ------------------------------------------------------------------ Schedules */
-
-export async function createSchedule(input: ScheduleInput) {
-  return guarded(async () => worker.schedules.create(input));
-}
-
-export async function updateSchedule(scheduleId: string, input: ScheduleInput) {
-  return guarded(async () => worker.schedules.update({ ...input, scheduleId }));
-}
-
-export async function setScheduleEnabled(scheduleId: string, enabled: boolean) {
-  return guarded(async () => {
-    await worker.schedules.setEnabled({ scheduleId, enabled });
-  });
-}
-
-export async function deleteSchedule(scheduleId: string) {
-  return guarded(async () => {
-    await db.delete(schedules).where(eq(schedules.id, scheduleId));
-    await publish({ type: "schedules" });
-  });
-}
-
-/**
- * Turn a teammate's daily check-in on or off: every morning it looks over its area and tells you
- * only what needs you. Turning it on resumes a paused one rather than adding another.
- */
-export async function setCheckIn(botId: string, on: boolean) {
-  return guarded(async () => {
-    const id = z.string().uuid().parse(botId);
-    const existing = await db
-      .select({ id: schedules.id, enabled: schedules.enabled })
-      .from(schedules)
-      .where(
-        and(
-          eq(schedules.botId, id),
-          eq(schedules.title, DAILY_CHECK_IN.title),
-          eq(schedules.quiet, true),
-        ),
-      );
-    if (!on) {
-      for (const row of existing)
-        await worker.schedules.setEnabled({ scheduleId: row.id, enabled: false });
-      return;
-    }
-    if (existing[0]) {
-      await worker.schedules.setEnabled({ scheduleId: existing[0].id, enabled: true });
-      return;
-    }
-    await worker.schedules.create({
-      botId: id,
-      title: DAILY_CHECK_IN.title,
-      prompt: DAILY_CHECK_IN.prompt,
-      cron: DAILY_CHECK_IN.cron,
-      at: null,
-      timezone: await userTimeZone(),
-      quiet: true,
-    });
-  });
-}
-
-export async function runScheduleNow(scheduleId: string) {
-  return guarded(async () => {
-    await worker.schedules.runNow({ scheduleId });
-  });
-}
-
-/* ------------------------------------------------------------------ Watches and webhooks */
-
-export async function createTrigger(input: TriggerInput) {
-  return guarded(async () => worker.triggers.create(input));
-}
-
-export async function updateTrigger(triggerId: string, input: TriggerInput) {
-  return guarded(async () => worker.triggers.update({ ...input, triggerId }));
-}
-
-export async function setTriggerEnabled(triggerId: string, enabled: boolean) {
-  return guarded(async () => {
-    await worker.triggers.setEnabled({ triggerId, enabled });
-  });
-}
-
-export async function deleteTrigger(triggerId: string) {
-  return guarded(async () => {
-    await worker.triggers.remove({ triggerId });
-  });
-}
-
-/** Check a watched page now. */
-export async function checkTriggerNow(triggerId: string) {
-  return guarded(async () =>
-    worker.triggers.check({ triggerId }, { context: { timeoutMs: 45_000 } }),
-  );
-}
-
-/** Give a webhook a new URL. The old one stops working. */
-export async function rotateWebhook(triggerId: string) {
-  return guarded(async () => {
-    await worker.triggers.rotateToken({ triggerId });
-  });
-}
-
-/** Call a webhook with a sample request, as a service would. */
-export async function testWebhook(triggerId: string) {
-  return guarded(async () => {
-    const [row] = await db.select().from(triggers).where(eq(triggers.id, triggerId));
-    if (!row?.token) throw new Error("That webhook no longer exists.");
-    return worker.hooks.fire({
-      token: row.token,
-      method: "POST",
-      contentType: "application/json",
-      body: JSON.stringify({ test: true, message: "A test request from the open-bot app" }),
-      query: "",
-    });
-  });
-}
-
-/* ------------------------------------------------------------------ Telegram */
-
-export async function connectTelegram(token: string) {
-  return guarded(async () => worker.telegram.connect({ token }));
-}
-
-export async function telegramLinkCode() {
-  return guarded(async () => worker.telegram.linkCode());
-}
-
-export async function sendTelegramTest() {
-  return guarded(async () => {
-    await worker.telegram.sendTest();
-  });
-}
-
-export async function unlinkTelegram() {
-  return guarded(async () => {
-    await worker.telegram.unlink();
-  });
-}
-
-export async function disconnectTelegram() {
-  return guarded(async () => {
-    await worker.telegram.disconnect();
-  });
-}
-
-/* ------------------------------------------------------------------ Push notifications */
-
-export async function subscribePush(
-  subscription: { endpoint: string; keys: { p256dh: string; auth: string } },
-  device: string,
-) {
-  return guarded(async () => {
-    await worker.push.subscribe({ subscription, device });
-  });
-}
-
-export async function unsubscribePush(endpoint: string) {
-  return guarded(async () => {
-    await worker.push.unsubscribe({ endpoint });
-  });
-}
-
-export async function sendPushTest() {
-  return guarded(async () => worker.push.test());
-}
-
 /* ------------------------------------------------------------------ Settings */
 
 export async function setTimezone(timezone: string) {
@@ -957,20 +459,6 @@ export async function getSettings() {
   return guarded(async () => {
     const [row] = await db.select().from(settings).where(eq(settings.id, 1));
     return { timezone: row?.timezone ?? "UTC", monthlyCapMicros: row?.monthlyCapMicros ?? 0 };
-  });
-}
-
-export async function setChatgptAuthSource(source: "device" | "host") {
-  return guarded(async () => worker.codex.setAuthSource({ source }));
-}
-
-export async function startChatgptLogin() {
-  return guarded(async () => worker.codex.deviceLogin());
-}
-
-export async function signOutChatgpt() {
-  return guarded(async () => {
-    await worker.codex.logout();
   });
 }
 

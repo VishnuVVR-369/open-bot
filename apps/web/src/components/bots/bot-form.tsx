@@ -7,6 +7,7 @@ import {
   TEAMMATE_TEMPLATES,
   type Autonomy,
 } from "@open-bot/domain";
+import { MAX_TEAMMATE_FILE } from "@open-bot/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { Check, CircleCheck, Loader2, Upload } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -20,8 +21,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { createBot, importTeammate, updateBot } from "@/lib/actions";
-import { orpc } from "@/lib/client/rpc";
+import { attempt } from "@/lib/client/mutate";
+import { api, orpc } from "@/lib/client/rpc";
 import { cn } from "@/lib/utils";
 
 export interface BotFormValues {
@@ -143,11 +144,11 @@ export function BotForm({
 
   function importFile(file: File) {
     startImport(async () => {
-      if (file.size > 2_000_000) {
+      if (file.size > MAX_TEAMMATE_FILE) {
         toast.error("Couldn't import it", { description: "Teammate files are smaller than that." });
         return;
       }
-      const result = await importTeammate(await file.text());
+      const result = await attempt(api.teammates.import({ file: await file.text() }));
       if (!result.ok) {
         toast.error("Couldn't import it", { description: result.error });
         return;
@@ -184,7 +185,13 @@ export function BotForm({
   function submit() {
     startTransition(async () => {
       if (editing) {
-        const result = await updateBot(editing.botId, values, editing.revision);
+        const result = await attempt(
+          api.teammates.update({
+            teammateId: editing.botId,
+            profile: values,
+            revision: editing.revision,
+          }),
+        );
         if (!result.ok) {
           toast.error(result.error);
           return;
@@ -199,7 +206,9 @@ export function BotForm({
         router.refresh();
         return;
       }
-      const result = await createBot(values, { templateId, ids: starterIds });
+      const result = await attempt(
+        api.teammates.create({ profile: values, templateId, starterIds }),
+      );
       if (!result.ok) {
         toast.error(result.error);
         return;

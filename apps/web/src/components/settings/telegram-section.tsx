@@ -6,16 +6,10 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  connectTelegram,
-  disconnectTelegram,
-  sendTelegramTest,
-  telegramLinkCode,
-  unlinkTelegram,
-} from "@/lib/actions";
 import { isOffline } from "@/lib/client/errors";
 import { useComputerOnline } from "@/lib/client/queries";
-import { orpc } from "@/lib/client/rpc";
+import { attempt } from "@/lib/client/mutate";
+import { api, orpc } from "@/lib/client/rpc";
 import { cn } from "@/lib/utils";
 import { OFFLINE_RETRY, OfflineNote, SectionError } from "./section-state";
 
@@ -103,7 +97,7 @@ export function TelegramSection() {
               disabled={pending}
               onClick={() =>
                 startTransition(async () => {
-                  const result = await sendTelegramTest();
+                  const result = await attempt(api.telegram.sendTest());
                   if (!result.ok) toast.error("Couldn't send it", { description: result.error });
                   else toast("Sent a message to your Telegram");
                 })
@@ -126,7 +120,7 @@ export function TelegramSection() {
             disabled={pending}
             onClick={() =>
               startTransition(async () => {
-                const result = await unlinkTelegram();
+                const result = await attempt(api.telegram.unlink());
                 if (!result.ok) toast.error(result.error);
                 setLink(null);
                 await refresh();
@@ -142,7 +136,7 @@ export function TelegramSection() {
             disabled={pending}
             onClick={() =>
               startTransition(async () => {
-                const result = await disconnectTelegram();
+                const result = await attempt(api.telegram.disconnect());
                 if (!result.ok) toast.error(result.error);
                 setLink(null);
                 await refresh();
@@ -190,7 +184,7 @@ export function TelegramSection() {
             onSubmit={(event) => {
               event.preventDefault();
               startTransition(async () => {
-                const result = await connectTelegram(token);
+                const result = await attempt(api.telegram.connect({ token }));
                 if (!result.ok) {
                   toast.error("Couldn't connect", { description: result.error });
                   return;
@@ -254,7 +248,7 @@ export function TelegramSection() {
                 disabled={pending}
                 onClick={() =>
                   startTransition(async () => {
-                    const result = await telegramLinkCode();
+                    const result = await attempt(api.telegram.linkCode());
                     if (!result.ok) toast.error(result.error);
                     else setLink(result.data);
                   })
@@ -268,7 +262,7 @@ export function TelegramSection() {
                 disabled={pending}
                 onClick={() =>
                   startTransition(async () => {
-                    await disconnectTelegram();
+                    await attempt(api.telegram.disconnect());
                     await refresh();
                   })
                 }

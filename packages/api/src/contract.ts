@@ -1,7 +1,21 @@
 import type { InferContractRouterInputs, InferContractRouterOutputs } from "@orpc/contract";
-import { MAX_LESSON_CHARS, memoryItemSchema, memoryRevisionSchema } from "@open-bot/domain";
+import {
+  botProfileSchema as profileSchema,
+  createdTeammateSchema,
+  MAX_LESSON_CHARS,
+  memoryItemSchema,
+  memoryRevisionSchema,
+  skillInputSchema,
+  updatedTeammateSchema,
+} from "@open-bot/domain";
 import { z } from "zod";
-import { automationRunViewSchema, scheduleViewSchema, triggerViewSchema } from "./automations";
+import {
+  automationRunViewSchema,
+  scheduleInputSchema,
+  scheduleViewSchema,
+  triggerInputSchema,
+  triggerViewSchema,
+} from "./automations";
 import { base, id, ok } from "./base";
 import {
   egressDeviceViewSchema,
@@ -24,7 +38,7 @@ import {
 } from "./screens";
 import { modelAccessViewSchema, profileViewSchema, usageViewSchema } from "./settings";
 import { skillViewSchema } from "./skills";
-import { taskViewSchema } from "./tasks";
+import { taskChangesSchema, taskInputSchema, taskViewSchema } from "./tasks";
 import { lessonViewSchema, spendingViewSchema } from "./teammates";
 import { vaultItemViewSchema } from "./vault";
 import {
@@ -45,9 +59,11 @@ import {
 } from "./views";
 import {
   codexRateLimitsSchema,
+  codexStatusSchema,
   fileListingSchema,
   pushStatusSchema,
   telegramStatusSchema,
+  triggerCheckSchema,
 } from "./worker/views";
 
 export { API_ERRORS } from "./base";
@@ -64,6 +80,9 @@ export { API_ERRORS } from "./base";
 
 /** The most teammates one group chat can have. */
 export const MAX_GROUP_TEAMMATES = 20;
+
+/** The biggest teammate file that can be imported, in characters. */
+export const MAX_TEAMMATE_FILE = 2_000_000;
 
 export const sendMessageInputSchema = z.object({
   /** A new UUID per message; reuse it to retry the same send. */
@@ -150,24 +169,111 @@ export const contract = {
     lessons: base.input(z.object({ botId: id })).output(z.array(lessonViewSchema)),
     /** A teammate's monthly budget, what it spent, and its latest purchases. */
     spending: base.input(z.object({ botId: id })).output(spendingViewSchema),
+    /**
+     * A new teammate, with its template's skills and the starter automations you kept, made by the
+     * same service as when a teammate creates one.
+     */
+    create: base
+      .input(
+        z.object({
+          profile: profileSchema,
+          templateId: z.string().min(1).nullable(),
+          starterIds: z.array(z.string().max(80)).max(20),
+        }),
+      )
+      .output(createdTeammateSchema),
+    /**
+     * Save the profile. `revision` is the teammate as you loaded it: a change made since, by you
+     * elsewhere or by a teammate, fails with `STATE_CONFLICT` instead of being overwritten.
+     */
+    update: base
+      .input(
+        z.object({ teammateId: id, profile: profileSchema, revision: z.string().min(1).max(128) }),
+      )
+      .output(updatedTeammateSchema),
+    /**
+     * A new teammate set up like another: the same job, instructions and carefulness, their own
+     * skills and approval rules, and their routines and page watches, paused. Webhooks and chats
+     * stay with the original. Memory and lessons come along with `copyMemory`.
+     */
+    duplicate: base
+      .input(z.object({ teammateId: id, name: profileSchema.shape.name, copyMemory: z.boolean() }))
+      .output(z.object({ teammateId: z.string(), chatId: z.string(), memoryCopied: z.boolean() })),
+    /** A new teammate from an exported file; its routines and page watches start paused. */
+    import: base
+      .input(
+        z.object({
+          file: z.string().max(MAX_TEAMMATE_FILE, "Teammate files are smaller than that."),
+        }),
+      )
+      .output(
+        z.object({
+          teammateId: z.string(),
+          chatId: z.string(),
+          name: z.string(),
+          /** How many routines and watches came in paused. */
+          paused: z.number().int().nonnegative(),
+        }),
+      ),
+    /** Make this teammate the lead, who answers group chats when nobody is mentioned. */
+    setLead: base.input(z.object({ teammateId: id })).output(ok),
+    /** Archive a teammate: its chats are archived, its automations paused, its work stopped. */
+    archive: base.input(z.object({ teammateId: id })).output(ok),
   },
   schedules: {
     list: base.output(z.array(scheduleViewSchema)),
     /** A schedule's latest runs, newest first. */
     runs: base.input(z.object({ scheduleId: id })).output(z.array(automationRunViewSchema)),
+    create: base.input(scheduleInputSchema).output(z.object({ id: z.string() })),
+    update: base
+      .input(scheduleInputSchema.extend({ scheduleId: id }))
+      .output(z.object({ id: z.string() })),
+    setEnabled: base.input(z.object({ scheduleId: id, enabled: z.boolean() })).output(ok),
+    remove: base.input(z.object({ scheduleId: id })).output(ok),
+    /** Run it now, without changing when it runs next. */
+    runNow: base.input(z.object({ scheduleId: id })).output(ok),
+    /**
+     * A teammate's daily check-in, on or off: every morning it looks over its area and tells you
+     * only what needs you. Turning it on resumes a paused one rather than adding another.
+     */
+    setCheckIn: base.input(z.object({ teammateId: id, on: z.boolean() })).output(ok),
   },
   triggers: {
     /** Page watches, webhooks, and Gmail and Calendar triggers. */
     list: base.output(z.array(triggerViewSchema)),
     /** A trigger's latest runs, newest first. */
     runs: base.input(z.object({ triggerId: id })).output(z.array(automationRunViewSchema)),
+    create: base
+      .input(triggerInputSchema)
+      .output(z.object({ id: z.string(), hookPath: z.string().nullable() })),
+    update: base
+      .input(triggerInputSchema.extend({ triggerId: id }))
+      .output(z.object({ id: z.string() })),
+    setEnabled: base.input(z.object({ triggerId: id, enabled: z.boolean() })).output(ok),
+    remove: base.input(z.object({ triggerId: id })).output(ok),
+    /** Look at the watched page, mail or calendar now. */
+    check: base.input(z.object({ triggerId: id })).output(triggerCheckSchema),
+    /** Give a webhook a new URL. The old one stops working. */
+    rotateToken: base.input(z.object({ triggerId: id })).output(z.object({ token: z.string() })),
+    /** Call a webhook with a sample request, as a service would. */
+    test: base.input(z.object({ triggerId: id })).output(z.object({ runId: z.string() })),
   },
   skills: {
     list: base.output(z.array(skillViewSchema)),
+    /** Create a skill, or with `id`, change one. */
+    save: base
+      .input(skillInputSchema.extend({ id: id.nullable().optional() }))
+      .output(z.object({ id: z.string() })),
+    remove: base.input(z.object({ skillId: id })).output(ok),
   },
   tasks: {
     /** The team's board, in board order. */
     list: base.output(z.array(taskViewSchema)),
+    create: base.input(taskInputSchema).output(z.object({ id: z.string() })),
+    update: base.input(taskChangesSchema.extend({ taskId: id })).output(ok),
+    remove: base.input(z.object({ taskId: id })).output(ok),
+    /** Hand the task to its teammate in a new chat. */
+    start: base.input(z.object({ taskId: id })).output(z.object({ chatId: z.string().nullable() })),
   },
   vault: {
     /** Logins and cards, without their secrets. */
@@ -193,6 +299,11 @@ export const contract = {
      * `SERVICE_UNAVAILABLE` while it can't be reached.
      */
     list: base.input(z.object({ path: z.string().max(4096) })).output(fileListingSchema),
+    /**
+     * Delete a file or folder. Refused for folders the system needs, like an active teammate's
+     * workspace. Adding a file is `PUT /api/files/upload`, which takes its bytes.
+     */
+    remove: base.input(z.object({ path: z.string().min(1).max(4096) })).output(ok),
   },
   connections: {
     /** MCP servers and accounts teammates use, without their secrets. */
@@ -208,6 +319,23 @@ export const contract = {
   telegram: {
     /** Fails with `SERVICE_UNAVAILABLE` while the worker can't be reached. */
     status: base.output(telegramStatusSchema),
+    /** Connect Telegram with the token BotFather gave you. */
+    connect: base.input(z.object({ token: z.string().max(200) })).output(telegramStatusSchema),
+    /** A code to send from the Telegram account to link, and the chat link to send it in. */
+    linkCode: base.output(z.object({ code: z.string(), url: z.string(), expiresAt: z.string() })),
+    sendTest: base.output(ok),
+    /** Forget the linked Telegram account; the token stays connected. */
+    unlink: base.output(ok),
+    disconnect: base.output(ok),
+  },
+  chatgpt: {
+    /** Sign in with a device code, or with the login of the Mac running the stack. */
+    setAuthSource: base
+      .input(z.object({ source: z.enum(["device", "host"]) }))
+      .output(codexStatusSchema),
+    /** Start a device-code sign-in: open the URL and enter the code. */
+    startLogin: base.output(z.object({ verificationUrl: z.string(), userCode: z.string() })),
+    signOut: base.output(ok),
   },
   settings: {
     /** The API key fallback and what it spent this month. */
@@ -377,6 +505,20 @@ export const contract = {
       .output(z.object({ ok: z.literal(true) })),
     /** Send a test notification to every device. */
     test: base.output(z.object({ sent: z.number().int().nonnegative() })),
+    /** Send notifications to this browser, by its Web Push subscription. */
+    subscribe: base
+      .input(
+        z.object({
+          subscription: z.object({
+            endpoint: z.string().url().max(2000),
+            keys: z.object({ p256dh: z.string().max(200), auth: z.string().max(100) }),
+          }),
+          /** The browser, in words, like "Chrome on Mac". */
+          device: z.string().max(200),
+        }),
+      )
+      .output(ok),
+    unsubscribe: base.input(z.object({ endpoint: z.string().max(2000) })).output(ok),
   },
 };
 

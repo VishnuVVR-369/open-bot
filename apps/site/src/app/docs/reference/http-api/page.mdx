@@ -24,6 +24,7 @@ The browser and the Android app read through one typed API, the oRPC contract in
 Its procedures, inputs, outputs and errors are the authoritative reference; the view schemas sit next to it in `packages/api/src` (`views.ts`, `home.ts`, `automations.ts`, ...).
 Every procedure needs the owner's session, and browsers may only call it from the app's own pages.
 The server validates every output against its schema, so a query that drifts from its view fails loudly instead of handing the client the wrong shape.
+A call may send up to 8 MB, which the biggest input, a 2 MB teammate file, fits with room for JSON; a bigger body answers 413 before anything reads the rest of it.
 
 | Namespace                                          | Reads                                                                      |
 | -------------------------------------------------- | -------------------------------------------------------------------------- |
@@ -59,8 +60,10 @@ A tab still running code from before sends itself to sign in on a 401, which tak
 
 ### Writes
 
-Chats, messages, runs and feedback, approvals, screens, pages, notifications and the egress mode are written through the API, by the browser and the Android app alike.
-The browser's other writes are still server actions in `apps/web/src/lib/actions.ts`, until they move to the API.
+Chats, messages, runs and feedback, approvals, screens, pages, notifications, the egress mode, teammates, automations, tasks, skills, files, Telegram, push devices and the ChatGPT sign-in are written through the API, by the browser and the Android app alike.
+Most of these procedures pass the call to the worker; duplicating, importing, archiving and choosing the lead are done by the web app in one database transaction each.
+Creating a teammate, in the web app or the worker, archiving one and choosing the lead all take one advisory lock (`lockTeam` in `packages/db`), so two at once never share a slug or leave two leads.
+The browser's other writes (settings, the vault, integrations and memory) are still server actions in `apps/web/src/lib/actions.ts`, until they move to the API.
 Both use the services in `apps/web/src/lib/server/api/`.
 In the browser, `attempt()` in `apps/web/src/lib/client/mutate.ts` turns a call into `{ ok, data }` or `{ ok, error }` with the server's own message.
 Input a procedure refuses answers 400 with its schema's messages, such as "Name the chat.", and the zod issues in `data.issues`.
@@ -69,6 +72,10 @@ Browsers may only write from the app's own pages.
 `crossSiteRefusal()` in `apps/web/src/lib/server/origin.ts` answers 403 to a write whose `Origin` is another site, for the API and every `authed()` route; a request with no `Origin`, from the phone, may write.
 The API answers a GET only for a procedure whose route says GET, and none does, so a link or image on another site can never reach a write.
 `apps/web/src/app/api/routes.test.ts` fails when a route that takes writes skips that check without saying why.
+
+`PUT /api/files/upload?dir=` puts a file into a folder on the computer, as the raw request body with its URI-encoded name in `x-upload-name`, up to 40 MB.
+It reads no further than the limit, answers `{ path }`, and gives a taken name a number, so the browser sends it once rather than retrying.
+Deleting a file is the `files.remove` procedure.
 
 `PUT /api/uploads/:uploadId` accepts raw attachment bytes with the owner's session.
 The browser and the phone upload the same way, with `uploadWithRetries` in `packages/api/src/uploads.ts`: one id for every attempt, and before sending again it asks `uploads.status` whether the last attempt arrived.

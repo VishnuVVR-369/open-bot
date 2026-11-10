@@ -10,9 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { createTask, updateTask } from "@/lib/actions";
 import { useAppState, useApprovals, useTasks } from "@/lib/client/queries";
-import { orpc } from "@/lib/client/rpc";
+import { attempt } from "@/lib/client/mutate";
+import { api, orpc } from "@/lib/client/rpc";
 import type { BotSummary, TaskView } from "@/lib/types";
 import { isComputerOnline, STATUS } from "@/lib/status";
 import { cn } from "@/lib/utils";
@@ -212,7 +212,7 @@ function QuickAdd({ onAdded }: { onAdded: () => void }) {
       onSubmit={async (event) => {
         event.preventDefault();
         if (!title.trim()) return;
-        const result = await createTask({ title });
+        const result = await attempt(api.tasks.create({ title }));
         if (!result.ok) {
           toast.error("Couldn't add it", { description: result.error });
           return;
@@ -276,7 +276,7 @@ export function TaskBoard() {
     queryClient.setQueryData(orpc.tasks.list.queryKey(), (current) =>
       current?.map((task) => (task.id === id ? { ...task, status, position } : task)),
     );
-    const result = await updateTask(id, { status, position });
+    const result = await attempt(api.tasks.update({ taskId: id, status, position }));
     if (!result.ok) toast.error("Couldn't move it", { description: result.error });
     refresh();
   }

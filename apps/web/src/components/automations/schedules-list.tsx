@@ -7,8 +7,9 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { BotAvatar } from "@/components/bot-avatar";
 import { Switch } from "@/components/ui/switch";
-import { deleteSchedule, runScheduleNow, setScheduleEnabled } from "@/lib/actions";
+import { attempt } from "@/lib/client/mutate";
 import { useScheduleRuns } from "@/lib/client/queries";
+import { api } from "@/lib/client/rpc";
 import { runIsHeldBack, WAITING_FOR_COMPUTER } from "@/lib/status";
 import type { BotSummary, ScheduleView } from "@/lib/types";
 import { ScheduleDialog } from "./schedule-dialog";
@@ -106,7 +107,7 @@ export function ScheduleRow({
             labeled
             unavailable={canRun ? undefined : OFFLINE_ACTION}
             onClick={async () => {
-              const result = await runScheduleNow(schedule.id);
+              const result = await attempt(api.schedules.runNow({ scheduleId: schedule.id }));
               if (!result.ok) toast.error(result.error);
               else
                 toast(`Started “${schedule.title}”`, {
@@ -123,7 +124,9 @@ export function ScheduleRow({
               checked={schedule.enabled}
               aria-label="On"
               onCheckedChange={async (checked) => {
-                const result = await setScheduleEnabled(schedule.id, checked);
+                const result = await attempt(
+                  api.schedules.setEnabled({ scheduleId: schedule.id, enabled: checked }),
+                );
                 if (!result.ok) toast.error(result.error);
                 refresh();
               }}
@@ -134,7 +137,7 @@ export function ScheduleRow({
             deleteDescription="It won't run again. Past runs stay in the Scheduled chat."
             onEdit={() => setEditing(true)}
             onDelete={async () => {
-              const result = await deleteSchedule(schedule.id);
+              const result = await attempt(api.schedules.remove({ scheduleId: schedule.id }));
               if (!result.ok) toast.error(result.error);
               refresh();
             }}

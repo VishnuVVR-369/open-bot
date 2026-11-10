@@ -12,13 +12,14 @@ import {
   MAX_PAGE_TITLE,
   screenOperationSchema,
   skillInputSchema,
-  triggerKindSchema,
   typeOnScreenSchema,
   updatedTeammateSchema,
 } from "@open-bot/domain";
 import { z } from "zod";
+import { scheduleInputSchema, triggerInputSchema } from "../automations";
 import { decideApprovalInputSchema } from "../contract";
 import { egressModeSchema, phoneEgressModeSchema, unavailableReasonSchema } from "../egress";
+import { taskChangesSchema, taskInputSchema } from "../tasks";
 import { approvalStatusSchema, uploadViewSchema } from "../views";
 import {
   codexRateLimitsSchema,
@@ -61,41 +62,14 @@ const computer = base.meta({ wakesComputer: true });
 const id = z.string().uuid();
 const ok = z.object({ ok: z.literal(true) });
 
-/** A routine (cron) or a reminder (at) a teammate runs, as the owner sets it up. */
-export const scheduleInputSchema = z.object({
-  botId: id,
-  title: z.string().min(1).max(80),
-  prompt: z.string().min(1).max(4000),
-  cron: z.string().nullable(),
-  at: z.string().nullable(),
-  /** Null uses the owner's time zone. */
-  timezone: z.string().nullable(),
-  /** Only tell the owner when there's news. Left out on an edit, it stays as it was. */
-  quiet: z.boolean().optional(),
-});
-export type ScheduleInput = z.infer<typeof scheduleInputSchema>;
-
-/** A watch, webhook, Gmail or Calendar trigger, as the owner sets it up. */
-export const triggerInputSchema = z.object({
-  botId: id,
-  kind: triggerKindSchema,
-  title: z.string().max(200),
-  prompt: z.string().max(8000),
-  /** Watches: the page to look at. */
-  url: z.string().max(2000).nullable().optional(),
-  intervalMinutes: z.number().int().nullable().optional(),
-  /** Watches: what change to wake for, in words. */
-  lookFor: z.string().max(400).nullable().optional(),
-  /** Gmail and Calendar: the connection to watch. */
-  connectionId: id.nullable().optional(),
-  /** Gmail: the search new mail must match (empty for all of it). Calendar: `all` or `guests`. */
-  query: z.string().max(1000).nullable().optional(),
-  /** Calendar: how many minutes before an event to wake the teammate. */
-  leadMinutes: z.number().int().nullable().optional(),
-});
-export type TriggerInput = z.infer<typeof triggerInputSchema>;
-
-export const taskStatusSchema = z.enum(["todo", "doing", "done"]);
+// The owner's inputs, shared with the app's API; still exported here for the worker.
+export {
+  scheduleInputSchema,
+  triggerInputSchema,
+  type ScheduleInput,
+  type TriggerInput,
+} from "../automations";
+export { taskStatusSchema } from "../tasks";
 
 export const workerContract = {
   status: {
@@ -332,28 +306,11 @@ export const workerContract = {
   tasks: {
     create: base
       .route({ method: "POST", path: "/internal/tasks" })
-      .input(
-        z.object({
-          title: z.string(),
-          notes: z.string().optional(),
-          ownerBotId: id.nullable().optional(),
-          dueOn: z.string().nullable().optional(),
-        }),
-      )
+      .input(taskInputSchema)
       .output(z.object({ id: z.string() })),
     update: base
       .route({ method: "POST", path: "/internal/tasks/{taskId}" })
-      .input(
-        z.object({
-          taskId: id,
-          title: z.string().optional(),
-          notes: z.string().optional(),
-          status: taskStatusSchema.optional(),
-          ownerBotId: id.nullable().optional(),
-          dueOn: z.string().nullable().optional(),
-          position: z.number().finite().optional(),
-        }),
-      )
+      .input(taskChangesSchema.extend({ taskId: id }))
       .output(ok),
     remove: base
       .route({ method: "POST", path: "/internal/tasks/{taskId}/delete" })

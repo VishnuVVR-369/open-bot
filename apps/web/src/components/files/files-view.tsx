@@ -29,12 +29,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { removeFile, uploadFile } from "@/lib/actions";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { FileListing } from "@open-bot/api/worker";
 import { isOffline } from "@/lib/client/errors";
 import { useAppState, useComputerOnline } from "@/lib/client/queries";
-import { orpc } from "@/lib/client/rpc";
+import { attempt } from "@/lib/client/mutate";
+import { api, orpc } from "@/lib/client/rpc";
+import { uploadToFolder } from "@/lib/client/uploads";
 import { BotAvatar } from "@/components/bot-avatar";
 import { FileIcon } from "@/components/files/file-chip";
 import { FilePreview } from "@/components/files/file-preview";
@@ -84,7 +85,7 @@ function DeleteEntry({
           <AlertDialogAction
             variant="destructive"
             onClick={async () => {
-              const result = await removeFile(entry.path);
+              const result = await attempt(api.files.remove({ path: entry.path }));
               if (!result.ok)
                 toast.error(`Couldn't delete ${entry.name}`, { description: result.error });
               onDeleted();
@@ -133,15 +134,10 @@ export function FilesView() {
     let done = 0;
     // One at a time, so each stays under the upload size limit.
     for (const file of ok) {
-      const form = new FormData();
-      form.set("file", file);
-      const result = await uploadFile(path, form).catch(() => null);
+      const result = await uploadToFolder(path, file);
       setUploading((n) => n - 1);
-      if (result?.ok) done += 1;
-      else
-        toast.error(`Couldn't upload ${file.name}`, {
-          description: result?.error ?? "The upload didn't go through. Try again.",
-        });
+      if (result.ok) done += 1;
+      else toast.error(`Couldn't upload ${file.name}`, { description: result.error });
     }
     if (done > 0) toast(done === 1 ? "Uploaded 1 file" : `Uploaded ${done} files`);
     refresh();

@@ -63,4 +63,37 @@ describe("the API route", () => {
     expect((await POST(post(null))).status).toBe(200);
     expect(archived).toEqual([chatId, chatId]);
   });
+
+  it("refuses a body over 8 MB without holding it, said or streamed", async () => {
+    const { POST } = await import("./route");
+    const limit = 8 * 1024 * 1024;
+    const said = new Request(url, {
+      method: "POST",
+      headers: {
+        host: "app.test",
+        "content-type": "application/json",
+        "content-length": String(limit + 1),
+      },
+      body: "{}",
+    });
+    expect((await POST(said)).status).toBe(413);
+
+    let sent = 0;
+    const streamed = new Request(url, {
+      method: "POST",
+      headers: { host: "app.test", "content-type": "application/json" },
+      body: new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (sent > 4 * limit) return controller.close();
+          sent += 1024 * 1024;
+          controller.enqueue(new Uint8Array(1024 * 1024).fill(32));
+        },
+      }),
+      // @ts-expect-error Node needs it for a streamed body.
+      duplex: "half",
+    });
+    expect((await POST(streamed)).status).toBe(413);
+    expect(sent).toBeLessThan(2 * limit);
+    expect(archived).toEqual([]);
+  });
 });
