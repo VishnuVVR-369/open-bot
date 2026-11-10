@@ -296,4 +296,12 @@ describe.skipIf(!url)("API reads, end to end", () => {
       code: "BAD_REQUEST",
     });
   });
+
+  it("says what's wrong with refused input in the schema's words", async () => {
+    await expect(api.chats.rename({ chatId: ids.chat, title: "  " })).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: "Name the chat.",
+      data: { issues: [expect.objectContaining({ path: ["title"] })] },
+    });
+  });
 });

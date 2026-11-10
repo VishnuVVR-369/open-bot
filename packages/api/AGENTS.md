@@ -17,6 +17,7 @@ Shared domain logic goes in `packages/domain`.
   The web app applies it in `apps/web/src/lib/client/refresh.ts`.
 - `packages/api/src/client.ts` has `createApiClient`, a typed client for `<appUrl>/api/rpc`.
 - `packages/api/src/live.ts` has the server-sent event parser and the chat stream types.
+- `packages/api/src/uploads.ts` is the client side of `PUT /api/uploads/<id>`: headers, answers and `uploadWithRetries`, shared by the web app and the phone.
 - `packages/api/src/screens.ts` and `packages/api/src/egress.ts` have the screen and egress views.
 
 ## Invariants
@@ -31,7 +32,7 @@ Shared domain logic goes in `packages/domain`.
 
 ## Tests
 
-- `pnpm --filter @open-bot/api test` runs `packages/api/src/live.test.ts` and any other unit tests.
+- `pnpm --filter @open-bot/api test` runs `packages/api/src/live.test.ts`, `packages/api/src/uploads.test.ts` and any other unit tests.
 - `apps/web/src/lib/server/api/router.integration.test.ts` calls every read through the web router on a throwaway database, so a view that disagrees with its query fails there.
 - `pnpm --filter @open-bot/api typecheck` checks types.
 - `e2e/api.spec.ts` drives the contract through the real stack.

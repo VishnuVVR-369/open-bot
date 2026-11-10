@@ -24,7 +24,7 @@ The example: you ask Milo, your travel planner, "Find me a nonstop flight to Lis
     ]}
     steps={[
       { section: "Save and queue" },
-      { from: "you", to: "web", label: "sendMessage() action" },
+      { from: "you", to: "web", label: "chats.send (API)" },
       { from: "web", to: "pg", label: "insert message" },
       { from: "web", to: "worker", label: "POST dispatch" },
       { from: "worker", to: "pg", label: "insert queued run, NOTIFY runs" },
@@ -54,7 +54,7 @@ The example: you ask Milo, your travel planner, "Find me a nonstop flight to Lis
 
 ## Saving the message
 
-The web composer calls the `sendMessage` server action; the phone calls `chats.send` through RPC.
+The web composer and the phone both call `chats.send` through the API.
 Both check your session and use `apps/web/src/lib/server/api/chats.ts` to save the text, uploaded attachments and teammates you @-mentioned.
 The client-generated message id makes retries safe: the same request returns the saved message, while reusing its id for different content is a conflict.
 After saving, the service asks the worker to dispatch it:
@@ -68,7 +68,7 @@ The service returns the saved message even if dispatch is temporarily unavailabl
 The worker's reconciler picks up pending messages when it can, so retrying after a lost response does not send the message twice.
 
 Attachments are uploaded first through the worker's `UploadService` (`apps/worker/src/uploads.ts`), which writes them to `/home/bot/shared/uploads` through Codex's file API and verifies the stored bytes before accepting them.
-The browser's upload action and the phone's raw upload route share this service; the transport contract is on [Internal APIs](/docs/reference/http-api#writes).
+The browser and the phone both send raw bytes to `PUT /api/uploads/<id>`, which streams them to this service; the transport contract is on [Internal APIs](/docs/reference/http-api#writes).
 Message acceptance checks completed upload records in the same transaction that saves the message.
 The locking invariant shared with upload writes and cleanup is documented on `lockUploads` in `packages/db/src/upload-locks.ts`, with race regressions in `apps/worker/src/uploads.integration.test.ts`.
 The message stores attachment metadata and paths, not file bytes.
@@ -211,7 +211,7 @@ Back in the executor, the session is removed and `pump()` claims the next queued
 
 | What happened                                 | What you see                                                                                            |
 | --------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| The worker isn't running                      | The action fails with "The worker isn't running". The message is saved.                                 |
+| The worker isn't running                      | The message is saved and sent; the worker dispatches it when it's back.                                 |
 | Codex isn't signed in                         | The run fails with "Codex is not signed in to ChatGPT. Sign in on the Settings page."                   |
 | The connection to the computer drops mid-turn | The run fails with "Lost the connection to the computer."                                               |
 | The worker restarts mid-turn                  | On start, the run is marked `interrupted`: "The worker restarted while this was running."               |

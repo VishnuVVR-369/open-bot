@@ -14,3 +14,4 @@ export { createApiClient, type ApiClient, type ApiClientOptions } from "./client
 export * from "./live";
 export * from "./screens";
 export * from "./egress";
+export * from "./uploads";

@@ -2,7 +2,6 @@ import { UPLOAD_HEADERS } from "@open-bot/api";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { putUpload } from "@/lib/server/api/uploads";
-import { allowedOrigin } from "@/lib/server/origin";
 import { authed } from "@/lib/server/route";
 
 export const dynamic = "force-dynamic";
@@ -31,11 +30,6 @@ function decoded(value: string | null): string {
  */
 export const PUT = authed(
   async (request: Request, { params }: { params: Promise<{ uploadId: string }> }) => {
-    if (!allowedOrigin(request.headers.get("origin"), request.headers.get("host")))
-      return NextResponse.json(
-        { error: "Requests from other sites aren't allowed." },
-        { status: 403 },
-      );
     const parsed = meta.safeParse({
       uploadId: (await params).uploadId,
       name: decoded(request.headers.get(UPLOAD_HEADERS.name)),

@@ -2,7 +2,8 @@
 
 import { Loader2, MonitorOff } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { reportScreenActivity } from "@/lib/actions";
+import { attempt } from "@/lib/client/mutate";
+import { api } from "@/lib/client/rpc";
 import { cn } from "@/lib/utils";
 
 type Rfb = {
@@ -49,7 +50,7 @@ export function DesktopView({
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<DesktopConnection>("connecting");
-  const [attempt, setAttempt] = useState(0);
+  const [connection, setConnection] = useState(0);
   const onStatusRef = useRef(onStatus);
   onStatusRef.current = onStatus;
 
@@ -109,7 +110,7 @@ export function DesktopView({
           rfbClosed = true;
           if (disposed) return;
           setStatus("offline");
-          if (mode === "control") retry = setTimeout(() => setAttempt((n) => n + 1), 2_000);
+          if (mode === "control") retry = setTimeout(() => setConnection((n) => n + 1), 2_000);
         });
         rfb.addEventListener("clipboard", (event) => {
           const text = (event.detail as { text?: string }).text;
@@ -125,7 +126,7 @@ export function DesktopView({
       } catch {
         if (disposed) return;
         setStatus("offline");
-        if (mode === "control") retry = setTimeout(() => setAttempt((n) => n + 1), 3_000);
+        if (mode === "control") retry = setTimeout(() => setConnection((n) => n + 1), 3_000);
       }
     })();
 
@@ -135,7 +136,7 @@ export function DesktopView({
       if (rfb && !rfbClosed) rfb.disconnect();
       if (handleRef) handleRef.current = null;
     };
-  }, [screenId, mode, attempt, handleRef]);
+  }, [screenId, mode, connection, handleRef]);
 
   // While you have control, tell the computer you're active, so it doesn't hand control back for inactivity.
   useEffect(() => {
@@ -147,7 +148,7 @@ export function DesktopView({
       const now = Date.now();
       if (now - last < ACTIVITY_INTERVAL_MS) return;
       last = now;
-      void reportScreenActivity(screenId);
+      void attempt(api.screens.activity({ screenId }));
     };
     const events = ["pointerdown", "pointermove", "keydown", "wheel"] as const;
     for (const type of events) host.addEventListener(type, onInput, { passive: true });

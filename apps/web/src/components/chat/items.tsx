@@ -59,8 +59,8 @@ import {
 import { CollapsibleText } from "./collapsible-text";
 import { MessageText } from "./message-text";
 import { Button } from "@/components/ui/button";
-import { dismissTakeoverRequest } from "@/lib/actions";
-import { orpc } from "@/lib/client/rpc";
+import { attempt } from "@/lib/client/mutate";
+import { api, orpc } from "@/lib/client/rpc";
 import { cn } from "@/lib/utils";
 import { Markdown } from "./markdown";
 
@@ -469,7 +469,9 @@ export function TakeoverRequestCard({
               size="sm"
               variant="ghost"
               onClick={async () => {
-                const result = await dismissTakeoverRequest(item.takeoverRequestId);
+                const result = await attempt(
+                  api.takeovers.dismiss({ takeoverId: item.takeoverRequestId }),
+                );
                 if (!result.ok) toast.error(result.error);
                 await queryClient.invalidateQueries({ queryKey: orpc.app.state.key() });
               }}

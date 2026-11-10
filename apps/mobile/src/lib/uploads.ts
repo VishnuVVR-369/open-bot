@@ -1,22 +1,17 @@
-import { safe } from "@orpc/client";
+import { uploadHeaders, uploadUrl, uploadWithRetries, type UploadAnswer } from "@open-bot/api";
 import * as Crypto from "expo-crypto";
 import { File, UploadType } from "expo-file-system";
 import { api } from "./api";
 import { sessionCookie } from "./auth";
 import { APP_URL } from "./config";
-import {
-  MAX_ATTEMPTS,
-  readUploadAnswer,
-  retryDelay,
-  uploadHeaders,
-  uploadUrl,
-  type PickedFile,
-  type UploadAnswer,
-} from "./upload-protocol";
 
-export type { PickedFile };
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+/** A file picked on the phone, read from disk when it's sent. */
+export interface PickedFile {
+  uri: string;
+  name: string;
+  mime: string;
+  size: number;
+}
 
 /**
  * Upload a picked file as an attachment, straight from disk, with progress. It keeps one id for
@@ -39,40 +34,22 @@ export async function uploadAttachment(
   } catch {
     return { kind: "failed", message: "Couldn't read this file. Pick it again." };
   }
-  let last: UploadAnswer = { kind: "retry", message: "The upload didn't go through." };
-
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
-    if (options.signal.aborted) return { kind: "failed", message: "Cancelled." };
-    if (attempt > 0) {
-      await sleep(retryDelay(attempt - 1));
-      if (options.signal.aborted) return { kind: "failed", message: "Cancelled." };
-      // The last answer was lost, but the file may have arrived: don't send it again if so.
-      const status = await safe(api.uploads.status({ uploadId }));
-      if (status.data?.status === "complete" && status.data.attachment)
-        return { kind: "complete", attachment: status.data.attachment };
-    }
-    const cookie = await sessionCookie();
-    if (options.signal.aborted) return { kind: "failed", message: "Cancelled." };
-    const task = file.createUploadTask(uploadUrl(APP_URL, uploadId), {
-      signal: options.signal,
-      httpMethod: "PUT",
-      uploadType: UploadType.BINARY_CONTENT,
-      headers: { ...headers, ...(cookie ? { cookie } : {}) },
-      onProgress: ({ bytesSent, totalBytes }) =>
-        options.onProgress(totalBytes > 0 ? Math.min(1, bytesSent / totalBytes) : 0),
-    });
-    try {
-      const result = await task.uploadAsync();
-      last = result
-        ? readUploadAnswer(result.status, result.body)
-        : { kind: "retry", message: "The upload didn't go through." };
-    } catch {
-      if (options.signal.aborted) return { kind: "failed", message: "Cancelled." };
-      last = { kind: "retry", message: "Couldn't reach open-bot. Trying again." };
-    }
-    if (last.kind !== "retry") return last;
-  }
-  return last.kind === "retry"
-    ? { kind: "failed", message: "The upload didn't go through. Check your connection." }
-    : last;
+  const url = uploadUrl(APP_URL, uploadId);
+  return uploadWithRetries({
+    signal: options.signal,
+    status: () => api.uploads.status({ uploadId }),
+    send: async () => {
+      const cookie = await sessionCookie();
+      if (options.signal.aborted) throw new Error("Cancelled.");
+      const task = file.createUploadTask(url, {
+        signal: options.signal,
+        httpMethod: "PUT",
+        uploadType: UploadType.BINARY_CONTENT,
+        headers: { ...headers, ...(cookie ? { cookie } : {}) },
+        onProgress: ({ bytesSent, totalBytes }) =>
+          options.onProgress(totalBytes > 0 ? Math.min(1, bytesSent / totalBytes) : 0),
+      });
+      return (await task.uploadAsync()) ?? null;
+    },
+  });
 }

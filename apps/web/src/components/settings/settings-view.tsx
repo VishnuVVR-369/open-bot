@@ -65,15 +65,15 @@ import {
   saveApiKey,
   setMonthlyCap,
   setChatgptAuthSource,
-  setEgressMode,
   setTimezone,
   signOutChatgpt,
   startChatgptLogin,
 } from "@/lib/actions";
+import { attempt } from "@/lib/client/mutate";
 import { authClient } from "@/lib/auth-client";
 import { passkeyLabel } from "@/lib/passkey-name";
 import { useAppState } from "@/lib/client/queries";
-import { orpc } from "@/lib/client/rpc";
+import { api, orpc } from "@/lib/client/rpc";
 import { isComputerOnline } from "@/lib/status";
 import type { RateLimitWindowView } from "@/lib/types";
 import { cn, compactNumber } from "@/lib/utils";
@@ -383,7 +383,9 @@ function BrowsingSection() {
             description={option.description}
             onSelect={() =>
               startTransition(async () => {
-                const result = await setEgressMode(option.value as EgressModeSetting);
+                const result = await attempt(
+                  api.egress.setMode({ mode: option.value as EgressModeSetting }),
+                );
                 if (!result.ok) toast.error(result.error);
                 await queryClient.invalidateQueries({ queryKey: orpc.app.state.key() });
               })

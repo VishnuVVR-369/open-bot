@@ -12,8 +12,9 @@ import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { giveFeedback, rateRun } from "@/lib/actions";
-import { orpc } from "@/lib/client/rpc";
+import { inOrder } from "@/lib/client/in-order";
+import { attempt } from "@/lib/client/mutate";
+import { api, orpc } from "@/lib/client/rpc";
 import type { RunView } from "@/lib/types";
 import { cn, REVEAL_ON_RUN_HOVER } from "@/lib/utils";
 
@@ -76,25 +77,41 @@ export function ReplyFeedback({
   const [text, setText] = useState("");
   const [remember, setRemember] = useState(true);
   const [pending, startTransition] = useTransition();
+  // Sending the same "do it again" after a failure reuses its id, so it's never asked twice.
+  const failedRedo = useRef<{ key: string; clientId: string } | null>(null);
   const switchId = useId();
   const anchor = useRef<HTMLSpanElement>(null);
 
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: orpc.chats.get.key({ input: { chatId: chatId } }) });
 
+  // Quick clicks (up, then clear) are saved in the order you made them, and only the newest
+  // answer changes what you see.
+  const [writeRating] = useState(inOrder);
+
   function rate(next: Rating) {
-    const before = rating;
     setPicked({ rating: next });
-    void rateRun(run.id, next).then(async (result) => {
-      if (result.ok) return refresh();
-      setPicked({ rating: before });
-      toast.error("Couldn't save that", { description: result.error });
-    });
+    void writeRating(() => attempt(api.runs.rate({ runId: run.id, rating: next }))).then(
+      async ({ value: result, newest }) => {
+        if (!newest) return;
+        if (result.ok) return refresh();
+        // Show what's saved, rather than guessing what it was before.
+        setPicked(null);
+        toast.error("Couldn't save that", { description: result.error });
+        await refresh();
+      },
+    );
   }
 
   function send(redo: boolean) {
     startTransition(async () => {
-      const result = await giveFeedback({ runId: run.id, text, remember, redo });
+      const key = JSON.stringify([run.id, text, remember]);
+      const clientId =
+        failedRedo.current?.key === key ? failedRedo.current.clientId : crypto.randomUUID();
+      const result = await attempt(
+        api.runs.feedback({ runId: run.id, text, remember, redo: redo ? { clientId } : null }),
+      );
+      failedRedo.current = !result.ok && redo ? { key, clientId } : null;
       if (!result.ok) {
         toast.error("Couldn't send your feedback", { description: result.error });
         return;

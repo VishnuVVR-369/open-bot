@@ -33,9 +33,9 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { dismissTakeoverRequest, handBackScreen, takeOverScreen, wakeScreen } from "@/lib/actions";
+import { attempt } from "@/lib/client/mutate";
 import { useAppState } from "@/lib/client/queries";
-import { orpc } from "@/lib/client/rpc";
+import { api, orpc } from "@/lib/client/rpc";
 import { releaseScreenNow } from "@/lib/client/screens";
 import { isComputerOnline } from "@/lib/status";
 import type { AppState, BotSummary, TakeoverRequestSummary } from "@/lib/types";
@@ -251,7 +251,7 @@ function WakeButton({ screenId }: { screenId: string }) {
       data-testid="wake-screen"
       onClick={() =>
         startTransition(async () => {
-          const result = await wakeScreen(screenId);
+          const result = await attempt(api.screens.wake({ screenId }));
           if (!result.ok) toast.error(result.error);
           await queryClient.invalidateQueries({ queryKey: orpc.app.state.key() });
         })
@@ -553,7 +553,9 @@ function HandBackButton({
   function submit(clearCode = false) {
     startTransition(async () => {
       await releaseScreenNow(queryClient, screenId);
-      const result = await handBackScreen(screenId, note.trim() || null, clearCode);
+      const result = await attempt(
+        api.screens.handBack({ screenId, note: note.trim() || null, clearCode }),
+      );
       if (!result.ok) {
         toast.error(result.error);
         await queryClient.invalidateQueries({ queryKey: orpc.app.state.key() });
@@ -652,7 +654,7 @@ export function TakeOverButton({
       disabled={pending}
       onClick={() =>
         startTransition(async () => {
-          const result = await takeOverScreen(screenId);
+          const result = await attempt(api.screens.takeOver({ screenId }));
           if (!result.ok) {
             toast.error(result.error);
             return;
@@ -717,7 +719,7 @@ export function ScreenControls({
               variant="ghost"
               size="sm"
               onClick={async () => {
-                const result = await dismissTakeoverRequest(request.id);
+                const result = await attempt(api.takeovers.dismiss({ takeoverId: request.id }));
                 if (!result.ok) toast.error(result.error);
                 await queryClient.invalidateQueries({ queryKey: orpc.app.state.key() });
               }}

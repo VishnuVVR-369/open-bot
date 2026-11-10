@@ -37,8 +37,9 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { sendMessage } from "@/lib/actions";
+import { attempt } from "@/lib/client/mutate";
 import { useAppState, usePage, usePageLink } from "@/lib/client/queries";
+import { api } from "@/lib/client/rpc";
 import type { BotSummary, ChatSummary, PageDetail } from "@/lib/types";
 import { chatHref, cn } from "@/lib/utils";
 import { DeletePageDialog, downloadPage, openPageInTab, usePinPage } from "./page-actions";
@@ -89,20 +90,22 @@ function AskPanel({
     const draft = text.trim();
     if (!draft || sending) return;
     startSending(async () => {
-      const result = await sendMessage({
-        clientId: clientId.current,
-        chatId: chat.id,
-        text: pageQuestionText({
-          pageId: page.id,
-          title: page.title,
-          version,
-          quote: question.quote,
-          section: question.section,
-          text: draft,
+      const result = await attempt(
+        api.chats.send({
+          clientId: clientId.current,
+          chatId: chat.id,
+          text: pageQuestionText({
+            pageId: page.id,
+            title: page.title,
+            version,
+            quote: question.quote,
+            section: question.section,
+            text: draft,
+          }),
+          attachments: [],
+          mentions: chat.kind === "group" ? [bot.id] : [],
         }),
-        attachments: [],
-        mentions: chat.kind === "group" ? [bot.id] : [],
-      });
+      );
       if (!result.ok) {
         toast.error("Couldn't send", { description: result.error });
         return;

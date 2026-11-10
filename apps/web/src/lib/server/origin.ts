@@ -14,3 +14,17 @@ export function allowedOrigin(origin: string | null, host: string | null): boole
     return false;
   }
 }
+
+/** Methods a browser lets any site send with your cookies, which must never change anything. */
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+/**
+ * The answer for a write a page on another site sent with the owner's cookies, or null when the
+ * request may go on. Every route that changes something on the owner's session goes through it:
+ * the API (`/api/rpc`) and `authed()` routes.
+ */
+export function crossSiteRefusal(request: Request): Response | null {
+  if (SAFE_METHODS.has(request.method)) return null;
+  if (allowedOrigin(request.headers.get("origin"), request.headers.get("host"))) return null;
+  return Response.json({ error: "Requests from other sites aren't allowed." }, { status: 403 });
+}

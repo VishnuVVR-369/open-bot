@@ -62,6 +62,9 @@ export { API_ERRORS } from "./base";
  * `CONFLICT`.
  */
 
+/** The most teammates one group chat can have. */
+export const MAX_GROUP_TEAMMATES = 20;
+
 export const sendMessageInputSchema = z.object({
   /** A new UUID per message; reuse it to retry the same send. */
   clientId: id,
@@ -94,20 +97,6 @@ export const feedbackInputSchema = z.object({
    */
   redo: z.object({ clientId: id }).nullable(),
 });
-
-/**
- * Attachments are uploaded as raw bytes with `PUT /api/uploads/<uploadId>`, with the headers
- * below, then sent with a message. Retrying an upload with the same id never stores it twice.
- */
-export const UPLOAD_HEADERS = {
-  /** The file's name, URI-encoded. */
-  name: "x-upload-name",
-  mime: "x-upload-mime",
-  /** The size in bytes. */
-  size: "x-upload-size",
-  /** The SHA-256 of the file, in hex. */
-  sha256: "x-upload-sha256",
-} as const;
 
 export const contract = {
   app: {
@@ -242,7 +231,10 @@ export const contract = {
       .input(
         z.object({
           title: z.string().trim().min(1, "Name the group.").max(60),
-          botIds: z.array(id).min(2, "Pick at least two teammates.").max(20),
+          botIds: z
+            .array(id)
+            .min(2, "Pick at least two teammates.")
+            .max(MAX_GROUP_TEAMMATES, `A group can have up to ${MAX_GROUP_TEAMMATES} teammates.`),
         }),
       )
       .output(z.object({ chatId: z.string() })),

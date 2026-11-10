@@ -59,11 +59,20 @@ A tab still running code from before sends itself to sign in on a 401, which tak
 
 ### Writes
 
-The browser writes with server actions in `apps/web/src/lib/actions.ts`; the Android app writes through the API.
+Chats, messages, runs and feedback, approvals, screens, pages, notifications and the egress mode are written through the API, by the browser and the Android app alike.
+The browser's other writes are still server actions in `apps/web/src/lib/actions.ts`, until they move to the API.
 Both use the services in `apps/web/src/lib/server/api/`.
+In the browser, `attempt()` in `apps/web/src/lib/client/mutate.ts` turns a call into `{ ok, data }` or `{ ok, error }` with the server's own message.
+Input a procedure refuses answers 400 with its schema's messages, such as "Name the chat.", and the zod issues in `data.issues`.
 
-`PUT /api/uploads/:uploadId` accepts raw attachment bytes with the owner's session and an allowed origin (or no Origin header for native clients).
-The upload metadata headers are defined by `UPLOAD_HEADERS` in the API contract; see [Saving the message](/docs/flows/chat-turn#saving-the-message) for attachment acceptance and cleanup.
+Browsers may only write from the app's own pages.
+`crossSiteRefusal()` in `apps/web/src/lib/server/origin.ts` answers 403 to a write whose `Origin` is another site, for the API and every `authed()` route; a request with no `Origin`, from the phone, may write.
+The API answers a GET only for a procedure whose route says GET, and none does, so a link or image on another site can never reach a write.
+`apps/web/src/app/api/routes.test.ts` fails when a route that takes writes skips that check without saying why.
+
+`PUT /api/uploads/:uploadId` accepts raw attachment bytes with the owner's session.
+The browser and the phone upload the same way, with `uploadWithRetries` in `packages/api/src/uploads.ts`: one id for every attempt, and before sending again it asks `uploads.status` whether the last attempt arrived.
+The metadata headers are `UPLOAD_HEADERS` in the same file; see [Saving the message](/docs/flows/chat-turn#saving-the-message) for attachment acceptance and cleanup.
 
 ## The worker
 

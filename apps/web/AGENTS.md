@@ -17,10 +17,11 @@ Shared types and the mobile contract belong in `packages/domain` and `packages/a
 ## Entry points
 
 - `apps/web/src/app` is the App Router tree: `(app)` pages, `(auth)` sign-in, and `api/*` routes.
-- `apps/web/src/lib/actions.ts` holds every server action (`"use server"`).
+- `apps/web/src/lib/actions.ts` holds the server actions (`"use server"`) whose writes haven't moved to the API yet; add no new ones.
 - `apps/web/src/app/api/stream/route.ts` is the SSE stream, fed by `apps/web/src/lib/server/realtime.ts`.
 - `apps/web/src/app/api/rpc/[[...rest]]` serves the oRPC router in `apps/web/src/lib/server/api/router.ts` for the browser and mobile.
 - `apps/web/src/lib/client/rpc.ts` is the browser's typed client (`api`) and its TanStack Query helpers (`orpc`); `apps/web/src/lib/client/errors.ts` tells offline, signed-out and not-found failures apart.
+- `apps/web/src/lib/client/mutate.ts` has `attempt()` for writes, and `apps/web/src/lib/client/uploads.ts` uploads attachments.
 - `apps/web/src/proxy.ts` and `apps/web/src/instrumentation.ts` run at the edge of requests and at boot.
 - `apps/web/next.config.ts` lists `transpilePackages` and the 41 MB server action body limit.
 
@@ -33,8 +34,10 @@ Shared types and the mobile contract belong in `packages/domain` and `packages/a
   App events refresh queries by `APP_EVENT_REFRESHES` in `packages/api/src/events.ts`.
 - Routes in `apps/web/src/app/api/*/route.ts` are only for streams, bytes (downloads, uploads, thumbnails), tokens and outside callers (webhooks, OAuth); a JSON read is a procedure.
 - Server components read through functions in `apps/web/src/lib/server`, never `db` directly.
-- Server actions are for writes and wrap their body in `guarded()` (`apps/web/src/lib/actions.ts`), which requires the user and returns `ActionResult`.
-- Route handlers are wrapped in `authed()` (`apps/web/src/lib/server/route.ts`).
+- Browser writes go through the API too: `attempt(api.chats.archive({ chatId }))` (`apps/web/src/lib/client/mutate.ts`) returns `{ ok, data }` or `{ ok, error }`.
+  The remaining server actions wrap their body in `guarded()` (`apps/web/src/lib/actions.ts`); they move to procedures, so add no new ones.
+- Route handlers are wrapped in `authed()` (`apps/web/src/lib/server/route.ts`), which also refuses writes from other sites.
+  A route that takes writes without `authed()` must be listed, with why, in `apps/web/src/app/api/routes.test.ts`.
 - Every oRPC procedure goes through the session middleware in `apps/web/src/lib/server/api/router.ts`.
 - `apps/web/src/components/ui` is shadcn output (`apps/web/components.json`); do not edit it by hand, and eslint ignores it.
 - A new workspace dependency must be added to `transpilePackages` in `apps/web/next.config.ts`.
@@ -44,7 +47,7 @@ Shared types and the mobile contract belong in `packages/domain` and `packages/a
 
 ## Tests
 
-- Unit: `pnpm --filter @open-bot/web test` (vitest, skips integration suites).
+- Unit: `pnpm --filter @open-bot/web test` (vitest, skips integration suites), including the cross-site checks in `apps/web/src/app/api/routes.test.ts` and `apps/web/src/app/api/rpc/[[...rest]]/route.test.ts`.
 - Types: `pnpm --filter @open-bot/web typecheck`.
 - Integration: `pnpm test:integration` runs `apps/web/src/lib/server/egress-device.integration.test.ts` and `apps/web/src/lib/server/api/router.integration.test.ts` (every API read) against a throwaway Postgres.
 - End to end: `pnpm e2e` runs the Playwright specs in `e2e/` against a local stack, for example `e2e/pocket-inbox.spec.ts` and `e2e/api.spec.ts`.
