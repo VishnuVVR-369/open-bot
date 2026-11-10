@@ -237,7 +237,9 @@ function CheckIn({ botId, name }: { botId: string; name: string }) {
           aria-label="Daily check-in"
           onCheckedChange={(checked) =>
             startTransition(async () => {
-              const result = await attempt(api.schedules.setCheckIn({ teammateId: botId, on: checked }));
+              const result = await attempt(
+                api.schedules.setCheckIn({ teammateId: botId, on: checked }),
+              );
               if (!result.ok) toast.error(result.error);
               else
                 toast(checked ? "Daily check-in on" : "Daily check-in off", {

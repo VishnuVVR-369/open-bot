@@ -163,9 +163,7 @@ export const router = os.router({
     check: os.triggers.check.handler(({ input }) =>
       worker.triggers.check(input, { context: { timeoutMs: 45_000 } }),
     ),
-    rotateToken: os.triggers.rotateToken.handler(({ input }) =>
-      worker.triggers.rotateToken(input),
-    ),
+    rotateToken: os.triggers.rotateToken.handler(({ input }) => worker.triggers.rotateToken(input)),
     test: os.triggers.test.handler(({ input }) => api.testWebhook(input)),
   },
   skills: {

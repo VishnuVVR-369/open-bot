@@ -4,14 +4,16 @@ import {
   bots as teammates,
   CHANNELS,
   chats,
+  lockTeammateCreation,
   notify,
   runs,
   schedules,
   settings,
   triggers,
+  type Tx,
 } from "@open-bot/db";
 import { slugify, teammateBundleSchema } from "@open-bot/domain";
-import { and, eq, inArray, isNull, ne } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db, pool } from "../db";
 import { memoryReady } from "../memory";
 import { publish } from "../publish";
@@ -23,14 +25,30 @@ import { ApiError } from "./errors";
 type Inputs = ApiInputs["teammates"];
 type Outputs = ApiOutputs["teammates"];
 
-/** The teammate's name as a URL slug no other teammate has, like `scout-2`. */
-async function uniqueSlug(name: string): Promise<string> {
+/**
+ * Where a new teammate goes: its name as a URL slug no other teammate has, like `scout-2`, and
+ * whether it leads, which the first one does. Held under the lock every creation takes, the
+ * worker's too, until the transaction ends.
+ */
+async function newTeammateSlot(tx: Tx, name: string): Promise<{ slug: string; first: boolean }> {
+  await lockTeammateCreation(tx);
+  const rows = await tx
+    .select({ slug: teammates.slug, archivedAt: teammates.archivedAt })
+    .from(teammates);
+  const taken = new Set(rows.map((row) => row.slug));
   const base = slugify(name);
-  const taken = new Set(
-    (await db.select({ slug: teammates.slug }).from(teammates)).map((row) => row.slug),
-  );
-  if (!taken.has(base)) return base;
-  for (let i = 2; ; i += 1) if (!taken.has(`${base}-${i}`)) return `${base}-${i}`;
+  let slug = base;
+  for (let n = 2; taken.has(slug); n += 1) slug = `${base}-${n}`;
+  return { slug, first: !rows.some((row) => !row.archivedAt) };
+}
+
+/** A step after the change is saved: if it fails, the change still happened, so it's logged. */
+async function afterSaving(step: string, run: () => Promise<unknown>) {
+  try {
+    await run();
+  } catch (error) {
+    console.warn(`teammate saved, but ${step} failed`, error);
+  }
 }
 
 async function ownerTimeZone(): Promise<string> {
@@ -43,7 +61,9 @@ async function ownerTimeZone(): Promise<string> {
 
 /** Write the teammate's workspace now; before its next run is soon enough if the computer's away. */
 export async function syncWorkspace(teammateId: string) {
-  await (await memoryReady()).importLegacy();
+  await afterSaving("importing its legacy memory", async () =>
+    (await memoryReady()).importLegacy(),
+  );
   await worker.teammates.sync({ teammateId }).catch(() => {});
 }
 
@@ -88,11 +108,11 @@ export async function duplicateTeammate({
     .from(teammates)
     .where(and(eq(teammates.id, teammateId), isNull(teammates.archivedAt)));
   if (!source) throw new ApiError("NOT_FOUND", "That teammate no longer exists.");
-  const slug = await uniqueSlug(name);
   const parts = await teammateParts(teammateId);
   const timezone = await ownerTimeZone();
 
   const created = await db.transaction(async (tx) => {
+    const { slug } = await newTeammateSlot(tx, name);
     const [copy] = await tx
       .insert(teammates)
       .values({
@@ -143,7 +163,9 @@ export async function duplicateTeammate({
   await syncWorkspace(created.teammateId);
   let memoryCopied = !copyMemory;
   if (copyMemory)
-    memoryCopied = await (await memoryReady())
+    memoryCopied = await (
+      await memoryReady()
+    )
       .copyBot(source.id, created.teammateId)
       .then(() => true)
       .catch(() => false);
@@ -172,14 +194,10 @@ export async function importTeammate({ file }: Inputs["import"]): Promise<Output
   if (problem) throw new ApiError("BAD_REQUEST", problem);
   const { teammate, ...parts } = teammateBundleSchema.parse(JSON.parse(file));
   const color = teammate.color ?? (await nextTeammateColor());
-  const slug = await uniqueSlug(teammate.name);
   const timezone = await ownerTimeZone();
 
   const created = await db.transaction(async (tx) => {
-    const existing = await tx
-      .select({ id: teammates.id })
-      .from(teammates)
-      .where(isNull(teammates.archivedAt));
+    const { slug, first } = await newTeammateSlot(tx, teammate.name);
     const [row] = await tx
       .insert(teammates)
       .values({
@@ -191,7 +209,7 @@ export async function importTeammate({ file }: Inputs["import"]): Promise<Output
         emoji: teammate.emoji,
         autonomy: teammate.autonomy,
         // The first teammate leads.
-        isPrimary: existing.length === 0,
+        isPrimary: first,
       })
       .returning({ id: teammates.id });
     const [chat] = await tx
@@ -212,13 +230,16 @@ export async function importTeammate({ file }: Inputs["import"]): Promise<Output
 
 export async function setLead({ teammateId }: Inputs["setLead"]): Promise<{ ok: true }> {
   await db.transaction(async (tx) => {
-    const [lead] = await tx
+    // One statement over every teammate, so two at once queue on the same rows in the same order
+    // instead of deadlocking, and the later one sees the earlier one's lead.
+    const rows = await tx
       .update(teammates)
-      .set({ isPrimary: true })
-      .where(and(eq(teammates.id, teammateId), isNull(teammates.archivedAt)))
-      .returning({ id: teammates.id });
-    if (!lead) throw new ApiError("NOT_FOUND", "That teammate no longer exists.");
-    await tx.update(teammates).set({ isPrimary: false }).where(ne(teammates.id, teammateId));
+      .set({
+        isPrimary: sql`(${teammates.id} = ${teammateId} and ${teammates.archivedAt} is null)`,
+      })
+      .returning({ lead: teammates.isPrimary });
+    if (!rows.some((row) => row.lead))
+      throw new ApiError("NOT_FOUND", "That teammate no longer exists.");
   });
   await publish({ type: "bots" });
   return { ok: true };
@@ -251,7 +272,9 @@ export async function archiveTeammate({ teammateId }: Inputs["archive"]): Promis
         ),
       );
   });
-  await notify(pool, CHANNELS.worker, "cancel");
+  await afterSaving("telling the worker to stop its runs", () =>
+    notify(pool, CHANNELS.worker, "cancel"),
+  );
   await worker.screens.forget({ screenId: teammateId }).catch(() => {});
   await publish({ type: "bots" });
   return { ok: true };

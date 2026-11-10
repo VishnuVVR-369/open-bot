@@ -40,6 +40,9 @@ export const PUT = authed(async (request: Request) => {
   }
   if (!dir || !name)
     return NextResponse.json({ error: "Say which folder and file name." }, { status: 400 });
+  // What a file system takes: a path up to 4096 bytes, a name up to 255.
+  if (dir.length > 4096 || Buffer.byteLength(name) > 255)
+    return NextResponse.json({ error: "That file name is too long." }, { status: 400 });
   if (Number(request.headers.get("content-length") ?? 0) > MAX_UPLOAD_BYTES) return tooBig();
   if (!request.body) return NextResponse.json({ error: "No file was sent." }, { status: 400 });
   const data = await readCapped(request.body);

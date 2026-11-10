@@ -6,6 +6,7 @@ import {
   settings,
   triggers,
   configurationRevision,
+  lockTeammateCreation,
 } from "@open-bot/db";
 import {
   BOT_COLORS,
@@ -18,7 +19,7 @@ import {
   type CreateBotInput,
   type CreatedBot,
 } from "@open-bot/domain";
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
 import { errorMessage } from "../logger";
 import type { Bot } from "../runs/session";
@@ -33,9 +34,6 @@ export class BotError extends Error {
     super(message);
   }
 }
-
-/** Serialises slug allocation and the first-teammate choice across concurrent creates. */
-const CREATE_LOCK = 78123401;
 
 /** A connection as teammates see it: no credentials, with a revision for safe edits. */
 export interface ConnectionSummary {
@@ -211,7 +209,8 @@ export class BotService {
     const plan = "profile" in input ? input : await this.plan(input);
     const { profile } = plan;
     const created = await this.ctx.db.transaction(async (tx) => {
-      await tx.execute(sql`select pg_advisory_xact_lock(${CREATE_LOCK})`);
+      // Serialises slug allocation and the first-teammate choice across concurrent creates.
+      await lockTeammateCreation(tx);
       const rows = await tx.select({ slug: bots.slug, archivedAt: bots.archivedAt }).from(bots);
       const taken = new Set(rows.map((row) => row.slug));
       const base = slugify(profile.name);

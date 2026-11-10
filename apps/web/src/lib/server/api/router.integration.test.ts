@@ -60,6 +60,8 @@ const WORKER: Record<string, unknown> = {
  */
 describe.skipIf(!url)("API reads, end to end", () => {
   const database = testDatabase(url);
+  /** A row's teammate, under the column's legacy name. */
+  const owned = (teammateId: string) => ({ botId: teammateId });
   const workerPaths: string[] = [];
   /** What the web app sent the worker, by path, newest last. */
   const workerBodies: { path: string; body: unknown }[] = [];
@@ -131,12 +133,12 @@ describe.skipIf(!url)("API reads, end to end", () => {
     });
     await db
       .insert(s.chats)
-      .values({ id: ids.chat, kind: "direct", title: "Scout", botId: ids.teammate });
-    await db.insert(s.chatMembers).values({ chatId: ids.chat, botId: ids.teammate });
+      .values({ id: ids.chat, kind: "direct", title: "Scout", ...owned(ids.teammate) });
+    await db.insert(s.chatMembers).values({ chatId: ids.chat, ...owned(ids.teammate) });
     await db.insert(s.runs).values({
       id: ids.run,
       chatId: ids.chat,
-      botId: ids.teammate,
+      ...owned(ids.teammate),
       trigger: "schedule",
       prompt: "Check the news",
       status: "completed",
@@ -151,7 +153,7 @@ describe.skipIf(!url)("API reads, end to end", () => {
     });
     await db.insert(s.schedules).values({
       id: ids.schedule,
-      botId: ids.teammate,
+      ...owned(ids.teammate),
       title: "Morning news",
       prompt: "Check the news",
       kind: "cron",
@@ -162,7 +164,7 @@ describe.skipIf(!url)("API reads, end to end", () => {
     await db.update(s.runs).set({ scheduleId: ids.schedule });
     await db.insert(s.triggers).values({
       id: ids.trigger,
-      botId: ids.teammate,
+      ...owned(ids.teammate),
       kind: "watch",
       title: "Pricing page",
       prompt: "Tell me when it changes",
@@ -177,21 +179,21 @@ describe.skipIf(!url)("API reads, end to end", () => {
       instructions: "Read it and summarize it.",
       createdBy: "user",
     });
-    await db.insert(s.lessons).values({ botId: ids.teammate, text: "Keep it short." });
+    await db.insert(s.lessons).values({ ...owned(ids.teammate), text: "Keep it short." });
     await db
       .insert(s.notifications)
-      .values({ kind: "run_finished", title: "Done", botId: ids.teammate });
+      .values({ kind: "run_finished", title: "Done", ...owned(ids.teammate) });
     await db
       .insert(s.connections)
       .values({ label: "Docs", name: "docs", transport: "http", url: "https://mcp.test" });
     await db.insert(s.purchases).values({
-      botId: ids.teammate,
+      ...owned(ids.teammate),
       amountCents: 1200,
       merchant: "Books",
       description: "A book",
       status: "paid",
     });
-    await db.insert(s.pages).values({ id: ids.page, title: "Trip plan", botId: ids.teammate });
+    await db.insert(s.pages).values({ id: ids.page, title: "Trip plan", ...owned(ids.teammate) });
     await db.insert(s.pageVersions).values({
       id: ids.version,
       pageId: ids.page,
@@ -207,7 +209,7 @@ describe.skipIf(!url)("API reads, end to end", () => {
     const memory = await memoryReady();
     const saved = await memory.save(
       {
-        botId: ids.teammate,
+        ...owned(ids.teammate),
         kind: "preference",
         content: "Prefers window seats",
         key: null,
@@ -330,37 +332,60 @@ describe.skipIf(!url)("API reads, end to end", () => {
     autonomy: "risky" as const,
   };
 
-  async function teammate(id: string) {
-    const s = await import("@open-bot/db");
-    const { eq } = await import("drizzle-orm");
-    const [row] = await database.db.select().from(s.bots).where(eq(s.bots.id, id));
-    return row!;
+  type TeammateRow = { id: string; name: string; slug: string; archived: boolean; lead: boolean };
+
+  /** Every teammate as stored, and whether it leads. */
+  async function teammateRows(): Promise<TeammateRow[]> {
+    const { sql } = await import("drizzle-orm");
+    const { rows } = await database.db.execute<TeammateRow>(
+      sql`select id, name, slug, archived_at is not null as archived, is_primary as lead from bots`, // vocabulary: allow
+    );
+    return rows;
   }
 
-  async function addTeammate(name: string, extra: { archivedAt?: Date } = {}) {
-    const s = await import("@open-bot/db");
-    const [row] = await database.db
-      .insert(s.bots)
-      .values({ name, slug: name.toLowerCase(), role: "Helper", color: "#f59e0b", ...extra })
-      .returning({ id: s.bots.id });
-    return row!.id;
+  async function teammate(id: string) {
+    return (await teammateRows()).find((row) => row.id === id)!;
   }
+
+  async function leads() {
+    return (await teammateRows()).filter((row) => row.lead).map((row) => row.name);
+  }
+
+  /** A teammate file with this name, and these routines. */
+  const teammateFile = (name: string, routines: object[] = [], version = BUNDLE_VERSION) =>
+    JSON.stringify({
+      format: BUNDLE_FORMAT,
+      version,
+      teammate: { name, role: "Helper" },
+      routines,
+    });
 
   it("makes one teammate the lead, and leaves the lead alone when asked for one that's gone", async () => {
-    const iris = await addTeammate("Iris");
-    const gone = await addTeammate("Gone", { archivedAt: new Date() });
-    await api.teammates.setLead({ teammateId: iris });
-    expect((await teammate(iris)).isPrimary).toBe(true);
+    const iris = await api.teammates.import({ file: teammateFile("Iris") });
+    const gone = await api.teammates.import({ file: teammateFile("Gone") });
+    await api.teammates.archive({ teammateId: gone.teammateId });
+    await api.teammates.setLead({ teammateId: iris.teammateId });
+    expect(await leads()).toEqual(["Iris"]);
     await api.teammates.setLead({ teammateId: ids.teammate });
-    expect((await teammate(ids.teammate)).isPrimary).toBe(true);
-    expect((await teammate(iris)).isPrimary).toBe(false);
-    for (const teammateId of [gone, randomUUID()])
+    expect(await leads()).toEqual(["Scout"]);
+    for (const teammateId of [gone.teammateId, randomUUID()])
       await expect(api.teammates.setLead({ teammateId })).rejects.toMatchObject({
         code: "NOT_FOUND",
         message: "That teammate no longer exists.",
       });
-    expect((await teammate(ids.teammate)).isPrimary).toBe(true);
-    expect((await teammate(gone)).isPrimary).toBe(false);
+    expect(await leads()).toEqual(["Scout"]);
+  });
+
+  it("keeps exactly one lead when two are chosen at once", async () => {
+    const { teammateId: juno } = await api.teammates.import({ file: teammateFile("Juno") });
+    for (let round = 0; round < 10; round += 1) {
+      await Promise.all([
+        api.teammates.setLead({ teammateId: juno }),
+        api.teammates.setLead({ teammateId: ids.teammate }),
+      ]);
+      expect(await leads()).toHaveLength(1);
+    }
+    await api.teammates.setLead({ teammateId: ids.teammate });
   });
 
   it("duplicates a teammate with its memory, and its routines paused", async () => {
@@ -373,8 +398,7 @@ describe.skipIf(!url)("API reads, end to end", () => {
     expect(await teammate(copy.teammateId)).toMatchObject({
       name: "Scout 2",
       slug: "scout-2",
-      role: "Researcher",
-      isPrimary: false,
+      lead: false,
     });
     const s = await import("@open-bot/db");
     const { eq } = await import("drizzle-orm");
@@ -388,10 +412,22 @@ describe.skipIf(!url)("API reads, end to end", () => {
     const memories = await api.memory.list({ botId: copy.teammateId, query: "window" });
     expect(memories.map((m) => m.content)).toEqual(["Prefers window seats"]);
     // The computer was away; its workspace is written before its first run instead.
-    expect(workerPaths).toContain(`/internal/bots/${copy.teammateId}/sync`);
+    expect(workerPaths.some((path) => path.endsWith(`/${copy.teammateId}/sync`))).toBe(true);
     await expect(
       api.teammates.duplicate({ teammateId: randomUUID(), name: "Nobody", copyMemory: false }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("gives copies made at once different slugs", async () => {
+    const copies = await Promise.all(
+      [1, 2, 3].map(() =>
+        api.teammates.duplicate({ teammateId: ids.teammate, name: "Echo", copyMemory: false }),
+      ),
+    );
+    const slugs = await Promise.all(
+      copies.map(async (copy) => (await teammate(copy.teammateId)).slug),
+    );
+    expect(slugs.sort()).toEqual(["echo", "echo-2", "echo-3"]);
   });
 
   it("imports a teammate file, and says what's wrong with one it can't read", async () => {
@@ -399,40 +435,39 @@ describe.skipIf(!url)("API reads, end to end", () => {
       code: "BAD_REQUEST",
       message: "This isn't an open-bot teammate file.",
     });
-    const file = (version: number) =>
-      JSON.stringify({
-        format: BUNDLE_FORMAT,
-        version,
-        teammate: { name: "Atlas", role: "Planner" },
-        routines: [{ title: "Weekly plan", prompt: "Plan the week", cron: "0 9 * * 1" }],
-      });
-    await expect(api.teammates.import({ file: file(BUNDLE_VERSION + 1) })).rejects.toMatchObject({
+    const weekly = [{ title: "Weekly plan", prompt: "Plan the week", cron: "0 9 * * 1" }];
+    await expect(
+      api.teammates.import({ file: teammateFile("Atlas", weekly, BUNDLE_VERSION + 1) }),
+    ).rejects.toMatchObject({
       code: "BAD_REQUEST",
       message: expect.stringContaining("from a newer open-bot"),
     });
-    const atlas = await api.teammates.import({ file: file(BUNDLE_VERSION) });
+    const atlas = await api.teammates.import({ file: teammateFile("Atlas", weekly) });
     expect(atlas).toMatchObject({ name: "Atlas", paused: 1 });
     // Only the first teammate leads.
-    expect(await teammate(atlas.teammateId)).toMatchObject({ slug: "atlas", isPrimary: false });
+    expect(await teammate(atlas.teammateId)).toMatchObject({ slug: "atlas", lead: false });
   });
 
   it("archives a teammate: its chats, automations and work stop together", async () => {
     const s = await import("@open-bot/db");
     const { eq } = await import("drizzle-orm");
-    const { teammateId, chatId } = await api.teammates.import({
-      file: JSON.stringify({
-        format: BUNDLE_FORMAT,
-        version: BUNDLE_VERSION,
-        teammate: { name: "Retiring", role: "Helper" },
-      }),
-    });
-    await database.db.update(s.bots).set({ isPrimary: true }).where(eq(s.bots.id, teammateId));
+    const { teammateId, chatId } = await api.teammates.import({ file: teammateFile("Retiring") });
+    await api.teammates.setLead({ teammateId });
     const [run] = await database.db
       .insert(s.runs)
-      .values({ chatId, botId: teammateId, trigger: "user", prompt: "Go", status: "queued" })
+      .values({ chatId, ...owned(teammateId), trigger: "user", prompt: "Go", status: "queued" })
       .returning({ id: s.runs.id });
+    await database.db.insert(s.schedules).values({
+      ...owned(teammateId),
+      title: "Daily digest",
+      prompt: "Summarize the day",
+      kind: "cron",
+      cron: "0 18 * * *",
+      timezone: "Europe/Berlin",
+      createdBy: "user",
+    });
     await database.db.insert(s.triggers).values({
-      botId: teammateId,
+      ...owned(teammateId),
       kind: "watch",
       title: "Status page",
       prompt: "Tell me",
@@ -441,11 +476,14 @@ describe.skipIf(!url)("API reads, end to end", () => {
       createdBy: "user",
     });
     await api.teammates.archive({ teammateId });
-    const row = await teammate(teammateId);
-    expect(row.archivedAt).not.toBeNull();
-    expect(row.isPrimary).toBe(false);
+    expect(await teammate(teammateId)).toMatchObject({ archived: true, lead: false });
     const [chat] = await database.db.select().from(s.chats).where(eq(s.chats.id, chatId));
     expect(chat!.archivedAt).not.toBeNull();
+    const routines = await database.db
+      .select()
+      .from(s.schedules)
+      .where(eq(s.schedules.botId, teammateId));
+    expect(routines.map((r) => r.enabled)).toEqual([false]);
     const watches = await database.db
       .select()
       .from(s.triggers)
@@ -454,6 +492,7 @@ describe.skipIf(!url)("API reads, end to end", () => {
     const [stopped] = await database.db.select().from(s.runs).where(eq(s.runs.id, run!.id));
     expect(stopped!.cancelRequestedAt).not.toBeNull();
     expect(workerPaths).toContain(`/internal/screens/${teammateId}/forget`);
+    await api.teammates.setLead({ teammateId: ids.teammate });
   });
 
   it("turns a daily check-in on in the owner's time zone, and resumes it rather than adding one", async () => {
@@ -464,7 +503,7 @@ describe.skipIf(!url)("API reads, end to end", () => {
     try {
       await api.schedules.setCheckIn({ teammateId: ids.teammate, on: true });
       expect(workerBodies.findLast((b) => b.path === "/internal/schedules")?.body).toMatchObject({
-        botId: ids.teammate,
+        ...owned(ids.teammate),
         title: DAILY_CHECK_IN.title,
         timezone: "Europe/Berlin",
         quiet: true,
@@ -472,7 +511,7 @@ describe.skipIf(!url)("API reads, end to end", () => {
       // What the worker would have saved.
       await database.db.insert(s.schedules).values({
         id: checkIn,
-        botId: ids.teammate,
+        ...owned(ids.teammate),
         title: DAILY_CHECK_IN.title,
         prompt: DAILY_CHECK_IN.prompt,
         kind: "cron",
@@ -510,7 +549,7 @@ describe.skipIf(!url)("API reads, end to end", () => {
     const [hook] = await database.db
       .insert(s.triggers)
       .values({
-        botId: ids.teammate,
+        ...owned(ids.teammate),
         kind: "webhook",
         title: "Deploys",
         prompt: "Tell me about failed deploys",

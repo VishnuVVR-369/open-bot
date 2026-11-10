@@ -397,7 +397,7 @@
     "bot": 8
   },
   "apps/web/src/lib/server/api/router.integration.test.ts": {
-    "bot": 23
+    "bot": 20
   },
   "apps/web/src/lib/server/api/router.ts": {
     "bot": 4

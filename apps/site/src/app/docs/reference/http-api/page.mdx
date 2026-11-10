@@ -24,6 +24,7 @@ The browser and the Android app read through one typed API, the oRPC contract in
 Its procedures, inputs, outputs and errors are the authoritative reference; the view schemas sit next to it in `packages/api/src` (`views.ts`, `home.ts`, `automations.ts`, ...).
 Every procedure needs the owner's session, and browsers may only call it from the app's own pages.
 The server validates every output against its schema, so a query that drifts from its view fails loudly instead of handing the client the wrong shape.
+A call may send up to 8 MB, which the biggest input, a 2 MB teammate file, fits with room for JSON; a bigger body answers 413 before anything reads the rest of it.
 
 | Namespace                                          | Reads                                                                      |
 | -------------------------------------------------- | -------------------------------------------------------------------------- |
@@ -61,6 +62,7 @@ A tab still running code from before sends itself to sign in on a 401, which tak
 
 Chats, messages, runs and feedback, approvals, screens, pages, notifications, the egress mode, teammates, automations, tasks, skills, files, Telegram, push devices and the ChatGPT sign-in are written through the API, by the browser and the Android app alike.
 Most of these procedures pass the call to the worker; duplicating, importing, archiving and choosing the lead are done by the web app in one database transaction each.
+A new teammate is created under the same advisory lock in the web app and the worker (`lockTeammateCreation` in `packages/db`), so two at once never share a slug or both become the lead.
 The browser's other writes (settings, the vault, integrations and memory) are still server actions in `apps/web/src/lib/actions.ts`, until they move to the API.
 Both use the services in `apps/web/src/lib/server/api/`.
 In the browser, `attempt()` in `apps/web/src/lib/client/mutate.ts` turns a call into `{ ok, data }` or `{ ok, error }` with the server's own message.

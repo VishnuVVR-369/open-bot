@@ -7,6 +7,7 @@ import {
   TEAMMATE_TEMPLATES,
   type Autonomy,
 } from "@open-bot/domain";
+import { MAX_TEAMMATE_FILE } from "@open-bot/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { Check, CircleCheck, Loader2, Upload } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -143,7 +144,7 @@ export function BotForm({
 
   function importFile(file: File) {
     startImport(async () => {
-      if (file.size > 2_000_000) {
+      if (file.size > MAX_TEAMMATE_FILE) {
         toast.error("Couldn't import it", { description: "Teammate files are smaller than that." });
         return;
       }

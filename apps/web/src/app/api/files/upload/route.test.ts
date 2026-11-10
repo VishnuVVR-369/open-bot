@@ -1,14 +1,22 @@
 import { MAX_UPLOAD_BYTES } from "@open-bot/domain";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const put = vi.hoisted(() => vi.fn());
-
-vi.mock("@/lib/server/session", () => ({ sessionOrNull: async () => ({ user: { id: "owner" } }) }));
-vi.mock("@/lib/server/auth-config", () => ({ TRUSTED_ORIGINS: ["https://app.test"] }));
-vi.mock("@/lib/server/worker", () => ({
-  WorkerError: class extends Error {},
-  worker: { files: { put } },
+const { put, session, WorkerError } = vi.hoisted(() => ({
+  put: vi.fn(),
+  session: { current: { user: { id: "owner" } } as object | null },
+  WorkerError: class extends Error {
+    constructor(
+      readonly status: number,
+      message: string,
+    ) {
+      super(message);
+    }
+  },
 }));
+
+vi.mock("@/lib/server/session", () => ({ sessionOrNull: async () => session.current }));
+vi.mock("@/lib/server/auth-config", () => ({ TRUSTED_ORIGINS: ["https://app.test"] }));
+vi.mock("@/lib/server/worker", () => ({ WorkerError, worker: { files: { put } } }));
 
 const { PUT } = await import("./route");
 
@@ -46,6 +54,7 @@ function endless(bytes: number) {
 }
 
 beforeEach(() => {
+  session.current = { user: { id: "owner" } };
   put.mockReset();
   put.mockResolvedValue({ path: "/home/notes/plan v2.md" });
 });
@@ -96,6 +105,29 @@ describe("PUT /api/files/upload", () => {
     expect(state.cancelled).toBe(true);
     expect(state.sent()).toBeLessThan(MAX_UPLOAD_BYTES + 3 * 1024 * 1024);
     expect(put).not.toHaveBeenCalled();
+  });
+
+  it("refuses a name too long for a file system", async () => {
+    const response = await PUT(upload("x", { name: encodeURIComponent(`${"é".repeat(128)}.md`) }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "That file name is too long." });
+    expect(put).not.toHaveBeenCalled();
+  });
+
+  it("refuses someone signed out before reading what they send", async () => {
+    session.current = null;
+    const { stream, state } = endless(MAX_UPLOAD_BYTES);
+    const response = await PUT(upload(stream));
+    expect(response.status).toBe(401);
+    expect(state.sent()).toBeLessThanOrEqual(1024 * 1024);
+    expect(put).not.toHaveBeenCalled();
+  });
+
+  it("says why the computer couldn't take it, with the worker's status", async () => {
+    put.mockRejectedValue(new WorkerError(503, "The computer is offline."));
+    const response = await PUT(upload("# Plan"));
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: "The computer is offline." });
   });
 
   it("refuses a write from another site", async () => {

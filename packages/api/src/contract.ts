@@ -81,6 +81,9 @@ export { API_ERRORS } from "./base";
 /** The most teammates one group chat can have. */
 export const MAX_GROUP_TEAMMATES = 20;
 
+/** The biggest teammate file that can be imported, in characters. */
+export const MAX_TEAMMATE_FILE = 2_000_000;
+
 export const sendMessageInputSchema = z.object({
   /** A new UUID per message; reuse it to retry the same send. */
   clientId: id,
@@ -175,7 +178,7 @@ export const contract = {
         z.object({
           profile: profileSchema,
           templateId: z.string().min(1).nullable(),
-          starterIds: z.array(z.string()).max(20),
+          starterIds: z.array(z.string().max(80)).max(20),
         }),
       )
       .output(createdTeammateSchema),
@@ -198,7 +201,11 @@ export const contract = {
       .output(z.object({ teammateId: z.string(), chatId: z.string(), memoryCopied: z.boolean() })),
     /** A new teammate from an exported file; its routines and page watches start paused. */
     import: base
-      .input(z.object({ file: z.string().max(5_000_000, "That file is too big to be a teammate.") }))
+      .input(
+        z.object({
+          file: z.string().max(MAX_TEAMMATE_FILE, "Teammate files are smaller than that."),
+        }),
+      )
       .output(
         z.object({
           teammateId: z.string(),

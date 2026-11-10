@@ -4,6 +4,7 @@ import * as schema from "./schema";
 
 export * from "./schema";
 export { lockUploads } from "./upload-locks";
+export { lockTeammateCreation } from "./teammate-locks";
 export { configurationRevision } from "./configuration";
 export { schema };
 

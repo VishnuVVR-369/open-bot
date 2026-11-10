@@ -310,9 +310,7 @@ export const workerContract = {
       .output(z.object({ id: z.string() })),
     update: base
       .route({ method: "POST", path: "/internal/tasks/{taskId}" })
-      .input(
-        taskChangesSchema.extend({ taskId: id }),
-      )
+      .input(taskChangesSchema.extend({ taskId: id }))
       .output(ok),
     remove: base
       .route({ method: "POST", path: "/internal/tasks/{taskId}/delete" })

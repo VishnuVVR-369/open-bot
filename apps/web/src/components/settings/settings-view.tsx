@@ -60,12 +60,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import {
-  removeApiKey,
-  saveApiKey,
-  setMonthlyCap,
-  setTimezone,
-} from "@/lib/actions";
+import { removeApiKey, saveApiKey, setMonthlyCap, setTimezone } from "@/lib/actions";
 import { attempt } from "@/lib/client/mutate";
 import { authClient } from "@/lib/auth-client";
 import { passkeyLabel } from "@/lib/passkey-name";
