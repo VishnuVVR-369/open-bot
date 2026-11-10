@@ -105,6 +105,12 @@ export async function duplicateTeammate({
 
   const created = await db.transaction(async (tx) => {
     const { slug } = await claimSlot(tx, name);
+    // Archiving takes the team lock too, so the source is still on the team if it's here now.
+    const [still] = await tx
+      .select({ id: teammates.id })
+      .from(teammates)
+      .where(and(eq(teammates.id, teammateId), isNull(teammates.archivedAt)));
+    if (!still) throw new ApiError("NOT_FOUND", "That teammate no longer exists.");
     const [copy] = await tx
       .insert(teammates)
       .values({
@@ -248,6 +254,16 @@ export async function archiveTeammate({ teammateId }: Inputs["archive"]): Promis
   const now = new Date();
   await db.transaction(async (tx) => {
     await lockTeam(tx);
+    // Its runs before its row, the order a memory write takes them in, so the two can't deadlock.
+    await tx
+      .update(runs)
+      .set({ cancelRequestedAt: now })
+      .where(
+        and(
+          eq(runs.botId, teammateId),
+          inArray(runs.status, ["queued", "starting", "running", "waiting"]),
+        ),
+      );
     await tx
       .update(teammates)
       .set({ archivedAt: now, isPrimary: false })
@@ -258,15 +274,6 @@ export async function archiveTeammate({ teammateId }: Inputs["archive"]): Promis
       .where(and(eq(chats.botId, teammateId), isNull(chats.archivedAt)));
     await tx.update(schedules).set({ enabled: false }).where(eq(schedules.botId, teammateId));
     await tx.update(triggers).set({ enabled: false }).where(eq(triggers.botId, teammateId));
-    await tx
-      .update(runs)
-      .set({ cancelRequestedAt: now })
-      .where(
-        and(
-          eq(runs.botId, teammateId),
-          inArray(runs.status, ["queued", "starting", "running", "waiting"]),
-        ),
-      );
   });
   await afterSaving("telling the worker to stop its runs", () =>
     notify(pool, CHANNELS.worker, "cancel"),

@@ -512,6 +512,42 @@ describe.skipIf(!url)("API reads, end to end", () => {
     await api.teammates.setLead({ teammateId: ids.teammate });
   });
 
+  it("archives a teammate while a memory write holds its runs, without deadlocking", async () => {
+    const s = await import("@open-bot/db");
+    const { pool } = await import("../db");
+    const { teammateId, chatId } = await api.teammates.import({ file: teammateFile("Busy") });
+    await database.db
+      .insert(s.runs)
+      .values({ chatId, ...owned(teammateId), trigger: "user", prompt: "Go", status: "running" });
+    // A memory write's order (packages/memory, `changed()`): the teammate's runs, then its row.
+    const memoryWrite = await pool.connect();
+    try {
+      await memoryWrite.query("begin");
+      await memoryWrite.query(
+        "update runs set cancel_requested_at = now() where bot_id = $1", // vocabulary: allow
+        [teammateId],
+      );
+      const archiving = api.teammates.archive({ teammateId });
+      // Wait until archiving waits on a lock the memory write holds.
+      for (;;) {
+        const { rows } = await pool.query<{ waiting: number }>(
+          "select count(*)::int as waiting from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'",
+        );
+        if (rows[0]!.waiting > 0) break;
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+      await memoryWrite.query(
+        "update bots set lessons_changed_at = now() where id = $1", // vocabulary: allow
+        [teammateId],
+      );
+      await memoryWrite.query("commit");
+      await archiving;
+    } finally {
+      memoryWrite.release();
+    }
+    expect(await teammate(teammateId)).toMatchObject({ archived: true });
+  });
+
   it("turns a daily check-in on in the owner's time zone, and resumes it rather than adding one", async () => {
     const s = await import("@open-bot/db");
     const checkIn = randomUUID();
