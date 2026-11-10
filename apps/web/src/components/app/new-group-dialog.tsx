@@ -1,5 +1,6 @@
 "use client";
 
+import { MAX_GROUP_TEAMMATES } from "@open-bot/api";
 import { Check, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -29,9 +30,15 @@ export function NewGroupDialog({ bots }: { bots: BotSummary[] }) {
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
+  const full = selected.length >= MAX_GROUP_TEAMMATES;
+
   function toggle(id: string) {
     setSelected((current) =>
-      current.includes(id) ? current.filter((x) => x !== id) : [...current, id],
+      current.includes(id)
+        ? current.filter((x) => x !== id)
+        : current.length < MAX_GROUP_TEAMMATES
+          ? [...current, id]
+          : current,
     );
   }
 
@@ -85,9 +92,10 @@ export function NewGroupDialog({ bots }: { bots: BotSummary[] }) {
                     key={bot.id}
                     role="checkbox"
                     aria-checked={checked}
+                    disabled={full && !checked}
                     onClick={() => toggle(bot.id)}
                     className={cn(
-                      "flex items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors hover:bg-muted",
+                      "flex items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-50",
                       checked && "border-foreground/40 bg-muted",
                     )}
                   >
@@ -108,6 +116,11 @@ export function NewGroupDialog({ bots }: { bots: BotSummary[] }) {
                 );
               })}
             </div>
+            {full && (
+              <p className="text-xs text-muted-foreground">
+                A group can have up to {MAX_GROUP_TEAMMATES} teammates.
+              </p>
+            )}
           </div>
         </div>
         <DialogFooter>

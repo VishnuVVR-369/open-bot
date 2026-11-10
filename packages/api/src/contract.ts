@@ -62,6 +62,9 @@ export { API_ERRORS } from "./base";
  * `CONFLICT`.
  */
 
+/** The most teammates one group chat can have. */
+export const MAX_GROUP_TEAMMATES = 20;
+
 export const sendMessageInputSchema = z.object({
   /** A new UUID per message; reuse it to retry the same send. */
   clientId: id,
@@ -228,7 +231,10 @@ export const contract = {
       .input(
         z.object({
           title: z.string().trim().min(1, "Name the group.").max(60),
-          botIds: z.array(id).min(2, "Pick at least two teammates.").max(20),
+          botIds: z
+            .array(id)
+            .min(2, "Pick at least two teammates.")
+            .max(MAX_GROUP_TEAMMATES, `A group can have up to ${MAX_GROUP_TEAMMATES} teammates.`),
         }),
       )
       .output(z.object({ chatId: z.string() })),
