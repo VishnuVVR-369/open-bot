@@ -26,7 +26,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { setCheckIn } from "@/lib/actions";
-import { queryKeys, useAppState, useSchedules, useTriggers } from "@/lib/client/queries";
+import { useAppState, useSchedules, useTriggers } from "@/lib/client/queries";
+import { orpc } from "@/lib/client/rpc";
 import { ScheduleDialog } from "./schedule-dialog";
 import { ScheduleRow } from "./schedules-list";
 import { TriggerDialog } from "./trigger-dialog";
@@ -244,7 +245,7 @@ function CheckIn({ botId, name }: { botId: string; name: string }) {
                     ? `${name} checks in at 9 every morning, and stays quiet when there's nothing.`
                     : undefined,
                 });
-              await queryClient.invalidateQueries({ queryKey: queryKeys.schedules });
+              await queryClient.invalidateQueries({ queryKey: orpc.schedules.key() });
             })
           }
         />
@@ -271,9 +272,9 @@ export function AutomationsView({ botId }: { botId?: string }) {
     (row) => row.kind === "gmail" || row.kind === "calendar",
   );
   const refreshSchedules = () =>
-    void queryClient.invalidateQueries({ queryKey: queryKeys.schedules });
+    void queryClient.invalidateQueries({ queryKey: orpc.schedules.key() });
   const refreshTriggers = () =>
-    void queryClient.invalidateQueries({ queryKey: queryKeys.triggers });
+    void queryClient.invalidateQueries({ queryKey: orpc.triggers.key() });
 
   if (loadingSchedules || loadingTriggers)
     return (

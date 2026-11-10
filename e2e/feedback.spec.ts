@@ -1,5 +1,6 @@
 import { expect, test } from "./fixtures";
 import {
+  apiFor,
   botIdOf,
   createTeammate,
   sendMessage,
@@ -75,9 +76,7 @@ test("@agent rate a reply, teach a lesson, and see it used in a new chat", async
   await page.keyboard.press("Escape");
 
   const botId = await botIdOf(page, name);
-  const state = (await (await page.request.get("/api/state")).json()) as {
-    bots: { id: string; slug: string }[];
-  };
+  const state = await apiFor(page).app.state();
   const slug = state.bots.find((bot) => bot.id === botId)!.slug;
   await page.goto(chatUrl);
   await page.getByRole("button", { name: "New chat" }).click();

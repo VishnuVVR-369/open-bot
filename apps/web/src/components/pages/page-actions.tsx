@@ -13,9 +13,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { pinPage, removePage } from "@/lib/actions";
-import { getJson } from "@/lib/client/api";
-import { pageLinkUrl, queryKeys } from "@/lib/client/queries";
-import type { PageLink } from "@/lib/types";
+import { refreshForAppEvent } from "@/lib/client/refresh";
+import { api, orpc } from "@/lib/client/rpc";
 
 /** Pin or unpin, then refresh the lists that show it. */
 export function usePinPage() {
@@ -23,7 +22,7 @@ export function usePinPage() {
   return async (pageId: string, pinned: boolean) => {
     const result = await pinPage(pageId, pinned);
     if (!result.ok) toast.error(result.error);
-    await queryClient.invalidateQueries({ queryKey: queryKeys.pages });
+    await refreshForAppEvent(queryClient, { type: "pages" });
   };
 }
 
@@ -35,7 +34,7 @@ export async function openPageInTab(versionId: string, theme: "light" | "dark") 
   const tab = window.open("about:blank", "_blank");
   if (tab) tab.opener = null;
   try {
-    const link = await getJson<PageLink>(pageLinkUrl(versionId, { theme }));
+    const link = await api.pages.open({ versionId, theme });
     if (tab) tab.location.href = link.url;
     else window.location.href = link.url;
   } catch (error) {
@@ -90,8 +89,10 @@ export function DeletePageDialog({
                 return;
               }
               onDeleted?.();
-              queryClient.removeQueries({ queryKey: queryKeys.page(page.id) });
-              await queryClient.invalidateQueries({ queryKey: queryKeys.pages });
+              queryClient.removeQueries({
+                queryKey: orpc.pages.get.key({ input: { pageId: page.id } }),
+              });
+              await refreshForAppEvent(queryClient, { type: "pages" });
             }}
           >
             Delete

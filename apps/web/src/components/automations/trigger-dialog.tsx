@@ -41,7 +41,8 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { createTrigger, updateTrigger } from "@/lib/actions";
-import { queryKeys, useAppState, useConnections } from "@/lib/client/queries";
+import { useAppState, useConnections } from "@/lib/client/queries";
+import { orpc } from "@/lib/client/rpc";
 import type { ConnectionView, TriggerView } from "@/lib/types";
 import { copyWebhookUrl } from "./webhook-url";
 
@@ -224,7 +225,7 @@ export function TriggerDialog({
         return;
       }
       setOpen(false);
-      await queryClient.invalidateQueries({ queryKey: queryKeys.triggers });
+      await queryClient.invalidateQueries({ queryKey: orpc.triggers.key() });
       if (existing) toast("Saved");
       else if (kind === "watch")
         toast("Watching the page", {

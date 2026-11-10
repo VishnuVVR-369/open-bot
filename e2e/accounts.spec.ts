@@ -14,6 +14,7 @@ import {
 } from "./accounts-stand-in";
 import { expect, test, type Page } from "./fixtures";
 import {
+  apiFor,
   approve,
   botIdOf,
   createTeammate,
@@ -195,8 +196,8 @@ test.describe("Accounts, against a stand-in for Google and Notion", () => {
     expect(standIn.google.tokenRequests).toEqual(["authorization_code"]);
 
     // Tokens and the client secret stay on the server.
-    const listed = await (await page.request.get("/api/connections")).text();
-    const setupView = await (await page.request.get("/api/accounts/setup")).text();
+    const listed = JSON.stringify(await apiFor(page).connections.list());
+    const setupView = JSON.stringify(await apiFor(page).accounts.setup());
     for (const secret of [...standIn.google.accessTokens.keys(), GOOGLE_CLIENT.clientSecret]) {
       expect(listed).not.toContain(secret);
       expect(setupView).not.toContain(secret);

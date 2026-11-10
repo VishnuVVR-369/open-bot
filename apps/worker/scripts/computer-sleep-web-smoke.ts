@@ -26,10 +26,18 @@ const page = await context.newPage();
 const errors: string[] = [];
 const phases: string[] = [];
 page.on("pageerror", (error) => errors.push(error.message));
+// The shell polls its state through the API; oRPC wraps each answer in `{ json }`.
 page.on("response", async (r) => {
-  if (new URL(r.url()).pathname !== "/api/state" || !r.ok()) return;
-  const state = await r.json().catch(() => null);
-  if (state?.computer?.lifecycle?.phase) phases.push(state.computer.lifecycle.phase);
+  if (new URL(r.url()).pathname !== "/api/rpc/app/state" || !r.ok()) return;
+  const body = await r.json().catch(() => null);
+  const phase = body?.json?.computer?.lifecycle?.phase;
+  if (phase) phases.push(phase);
+});
+const api = createApiClient({
+  appUrl,
+  headers: async () => ({
+    cookie: (await context.cookies()).map((c) => `${c.name}=${c.value}`).join("; "),
+  }),
 });
 try {
   await page.goto(appUrl);
@@ -41,8 +49,8 @@ try {
   await expect(page).toHaveURL(appUrl + "/");
   await page.goto(appUrl + "/computer?screen=" + botId);
   await expect(page.getByText("Computer idle", { exact: true })).toBeVisible({ timeout: 15000 });
-  const idleState = await (await page.request.get(appUrl + "/api/state")).json();
-  assert.equal(idleState.computer.lifecycle.phase, "idle");
+  const idleState = await api.app.state();
+  assert.equal(idleState.computer.lifecycle?.phase, "idle");
   await page.getByTestId("wake-screen").click();
   await expect(page.getByTestId("computer-screen").locator("canvas")).toBeVisible({
     timeout: 30000,
@@ -50,18 +58,14 @@ try {
   await page.screenshot({ path: "/tmp/openbot-sleep-web-ready.png" });
   await expect(page.getByText("Computer idle", { exact: true })).toBeVisible({ timeout: 30000 });
   await expect(page.getByTestId("computer-screen").locator("canvas")).toHaveCount(0);
-  const cookies = (await context.cookies())
-    .map((cookie) => `${cookie.name}=${cookie.value}`)
-    .join("; ");
-  const api = createApiClient({ appUrl, headers: () => ({ cookie: cookies }) });
   const screens = await api.screens.list();
   const screen = screens.find((s) => s.id === botId);
   assert.equal(screen?.lifecycle?.phase, "idle");
   assert.equal(screen?.running, false);
   assert.equal(screen?.online, true, "mobile contract offers an explicit wake while idle");
-  const after = await (await page.request.get(appUrl + "/api/state")).json();
-  assert.equal(after.codex.stale, true);
-  assert(after.codex.account, "authentication remains cached in the web response");
+  const after = await api.app.state();
+  assert.equal(after.codex?.stale, true);
+  assert(after.codex?.account, "authentication remains cached in the web response");
   assert.equal(errors.length, 0, errors.join("\n"));
   const result = {
     at: new Date().toISOString(),

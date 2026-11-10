@@ -11,7 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { createTask, updateTask } from "@/lib/actions";
-import { queryKeys, useAppState, useApprovals, useTasks } from "@/lib/client/queries";
+import { useAppState, useApprovals, useTasks } from "@/lib/client/queries";
+import { orpc } from "@/lib/client/rpc";
 import type { BotSummary, TaskView } from "@/lib/types";
 import { isComputerOnline, STATUS } from "@/lib/status";
 import { cn } from "@/lib/utils";
@@ -268,11 +269,11 @@ export function TaskBoard() {
     if (!online && task.status === "doing" && task.ownerBotId) return "paused";
     return null;
   };
-  const refresh = () => void queryClient.invalidateQueries({ queryKey: queryKeys.tasks });
+  const refresh = () => void queryClient.invalidateQueries({ queryKey: orpc.tasks.key() });
 
   /** Moves a task, showing it in place right away. */
   async function move(id: string, status: TaskView["status"], position: number) {
-    queryClient.setQueryData<TaskView[]>(queryKeys.tasks, (current) =>
+    queryClient.setQueryData(orpc.tasks.list.queryKey(), (current) =>
       current?.map((task) => (task.id === id ? { ...task, status, position } : task)),
     );
     const result = await updateTask(id, { status, position });
@@ -479,7 +480,7 @@ export function NewTaskButton() {
         bots={state?.bots ?? []}
         open={open}
         onOpenChange={setOpen}
-        onSaved={() => void queryClient.invalidateQueries({ queryKey: queryKeys.tasks })}
+        onSaved={() => void queryClient.invalidateQueries({ queryKey: orpc.tasks.key() })}
       />
     </>
   );

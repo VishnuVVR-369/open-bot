@@ -9,6 +9,7 @@ export * from "./channels";
 export * from "./chats";
 export * from "./computer";
 export * from "./egress";
+export * from "./events";
 export * from "./integrations";
 export * from "./memory";
 export * from "./models";

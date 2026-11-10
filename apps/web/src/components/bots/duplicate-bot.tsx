@@ -19,7 +19,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { duplicateBot } from "@/lib/actions";
-import { queryKeys, useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/lib/client/queries";
+import { orpc } from "@/lib/client/rpc";
 
 /** "Iris 2", or the next number no teammate uses yet. */
 function copyName(name: string, taken: string[]): string {
@@ -65,7 +66,7 @@ export function DuplicateBotDialog({
         toast.error("Couldn't duplicate the teammate", { description: result.error });
         return;
       }
-      await queryClient.invalidateQueries({ queryKey: queryKeys.state });
+      await queryClient.invalidateQueries({ queryKey: orpc.app.state.key() });
       setOpen(false);
       if (result.data.memoryCopied) {
         toast(`${name.trim()} is ready`, {

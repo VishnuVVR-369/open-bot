@@ -121,14 +121,14 @@ export async function pinPage({ pageId, pinned }: ApiInputs["pages"]["pin"]) {
     .where(eq(pages.id, pageId))
     .returning({ id: pages.id });
   if (!row) throw new ApiError("NOT_FOUND", "That page was deleted.");
-  await publish("pages");
+  await publish({ type: "pages" });
   return { ok: true as const };
 }
 
 export async function removePage({ pageId }: ApiInputs["pages"]["remove"]) {
   // Its versions go with it; chat cards and notifications that pointed at it say it's gone.
   await db.delete(pages).where(eq(pages.id, pageId));
-  await publish("pages");
+  await publish({ type: "pages" });
   return { ok: true as const };
 }
 

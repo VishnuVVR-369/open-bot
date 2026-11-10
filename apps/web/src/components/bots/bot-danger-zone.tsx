@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { archiveBot, setPrimaryBot } from "@/lib/actions";
-import { queryKeys } from "@/lib/client/queries";
+import { orpc } from "@/lib/client/rpc";
 
 export function BotDangerZone({
   botId,
@@ -51,7 +51,7 @@ export function BotDangerZone({
             startTransition(async () => {
               const result = await setPrimaryBot(botId);
               if (!result.ok) toast.error(result.error);
-              await queryClient.invalidateQueries({ queryKey: queryKeys.state });
+              await queryClient.invalidateQueries({ queryKey: orpc.app.state.key() });
               router.refresh();
             })
           }
@@ -90,7 +90,7 @@ export function BotDangerZone({
                       toast.error(result.error);
                       return;
                     }
-                    await queryClient.invalidateQueries({ queryKey: queryKeys.state });
+                    await queryClient.invalidateQueries({ queryKey: orpc.app.state.key() });
                     router.push("/");
                   })
                 }

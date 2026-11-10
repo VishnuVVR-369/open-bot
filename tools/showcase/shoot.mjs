@@ -35,9 +35,11 @@ const context = await browser.newContext({
   locale: "en-US",
 });
 
-const api = async (route) => (await context.request.get(route)).json();
-const state = await api("/api/state");
-const pages = await api("/api/pages").catch(() => []);
+/** Calls the app's API (`@open-bot/api`) as the signed-in browser does. */
+const rpc = async (procedure) =>
+  (await (await context.request.post(`/api/rpc/${procedure}`, { data: {} })).json()).json;
+const state = await rpc("app/state");
+const pages = (await rpc("pages/list").catch(() => [])) ?? [];
 const chatByTitle = (text) => state.chats.find((chat) => chat.title.includes(text));
 
 const targets = [

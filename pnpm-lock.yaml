@@ -447,9 +447,15 @@ importers:
       '@open-bot/memory':
         specifier: workspace:*
         version: link:../../packages/memory
+      '@orpc/client':
+        specifier: ^1.16.1
+        version: 1.16.1
       '@orpc/server':
         specifier: ^1.16.1
         version: 1.16.1(ws@8.22.0)
+      '@orpc/tanstack-query':
+        specifier: ^1.16.1
+        version: 1.16.1(@orpc/client@1.16.1)(@tanstack/query-core@5.104.2)
       '@tanstack/react-query':
         specifier: ^5
         version: 5.104.2(react@19.3.0)
@@ -2904,6 +2910,12 @@ packages:
 
   '@orpc/standard-server@1.16.1':
     resolution: {integrity: sha512-f8Ejzey83F/EXA1kugCyuPcE0TFJyUtxopEZ3vr/aqAOFdr45tIFlQl/v1VkpZAKmt3RP9KiAZGyesv5rhJltA==}
+
+  '@orpc/tanstack-query@1.16.1':
+    resolution: {integrity: sha512-fMl+DVGqCwxqg4U1WBt6EtdVNhZ4ODQlNBaTSiCCIBcAaePJZD1pBDTJ1epMJ67zG62KHEH10frKuLIwBMngjQ==}
+    peerDependencies:
+      '@orpc/client': 1.16.1
+      '@tanstack/query-core': '>=5.80.2'
 
   '@oxc-project/types@0.153.0':
     resolution: {integrity: sha512-jSNrRIyvPVLL5E1z/tS5zLAprosGz/FuI1PWwEOz59j3E4TTTzSpqKb/RDGqJhhW0QHYISGXxq582wGx6T11Tw==}
@@ -11453,6 +11465,14 @@ snapshots:
   '@orpc/standard-server@1.16.1':
     dependencies:
       '@orpc/shared': 1.16.1
+    transitivePeerDependencies:
+      - '@opentelemetry/api'
+
+  '@orpc/tanstack-query@1.16.1(@orpc/client@1.16.1)(@tanstack/query-core@5.104.2)':
+    dependencies:
+      '@orpc/client': 1.16.1
+      '@orpc/shared': 1.16.1
+      '@tanstack/query-core': 5.104.2
     transitivePeerDependencies:
       - '@opentelemetry/api'
 

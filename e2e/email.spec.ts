@@ -3,7 +3,7 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 import pg from "pg";
 import { expect, test, type Page } from "./fixtures";
-import { approve, botIdOf, createTeammate, uniqueName, waitForLastRun } from "./helpers";
+import { apiFor, approve, botIdOf, createTeammate, uniqueName, waitForLastRun } from "./helpers";
 
 const pool = new pg.Pool({
   connectionString:
@@ -137,9 +137,7 @@ test("@agent a teammate answers an email from its own address, after you approve
     expect(await delivered.json()).toEqual({ ok: true, delivered: true });
 
     // It arrives in the teammate's Email chat, and the reply waits for your approval.
-    const state = (await (await page.request.get("/api/state")).json()) as {
-      chats: { id: string; kind: string; botId: string | null }[];
-    };
+    const state = await apiFor(page).app.state();
     const inbox = state.chats.find((chat) => chat.kind === "inbox" && chat.botId === botId)!;
     await page.goto(`/chats/${inbox.id}`);
     await expect(page.getByRole("heading", { name: `${name} · Email` })).toBeVisible();

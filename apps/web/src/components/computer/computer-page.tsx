@@ -7,7 +7,7 @@ import { CloudOff, Globe, Hand, Home } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { BotAvatar } from "@/components/bot-avatar";
-import { getJson } from "@/lib/client/api";
+import { orpc } from "@/lib/client/rpc";
 import { useAppState } from "@/lib/client/queries";
 import { STATUS, teammateStatus, type TeammateStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
@@ -105,12 +105,7 @@ function HealthPill({ signal, label }: { signal: HealthSignal; label: string }) 
 
 /** Each screen's last captured frame, by screen id, for while the computer is offline. */
 function useScreenFrames(enabled: boolean) {
-  return useQuery({
-    queryKey: ["screens", "frames"],
-    queryFn: () => getJson<Record<string, LastFrame>>("/api/screens/frames"),
-    enabled,
-    staleTime: 60_000,
-  });
+  return useQuery(orpc.screens.frames.queryOptions({ enabled, staleTime: 60_000 }));
 }
 
 /**

@@ -8,14 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { TimeAgo } from "@/components/time-ago";
 import { sendPushTest, subscribePush, unsubscribePush } from "@/lib/actions";
-import { getJson, isOffline } from "@/lib/client/api";
+import { isOffline } from "@/lib/client/errors";
+import { orpc } from "@/lib/client/rpc";
 import { useComputerOnline } from "@/lib/client/queries";
 import { OFFLINE_RETRY, OfflineNote, SectionError } from "./section-state";
-
-interface PushStatus {
-  publicKey: string;
-  devices: { endpoint: string; device: string; createdAt: string }[];
-}
 
 const noop = () => () => {};
 
@@ -74,15 +70,15 @@ export function PushSection({ fallback }: { fallback: React.ReactNode }) {
   const supported = useSyncExternalStore(noop, pushSupported, () => null);
   const queryClient = useQueryClient();
   const online = useComputerOnline();
-  const status = useQuery({
-    queryKey: ["push"],
-    queryFn: () => getJson<PushStatus>("/api/push"),
-    enabled: supported === true && online !== false,
-    ...OFFLINE_RETRY,
-  });
+  const status = useQuery(
+    orpc.push.status.queryOptions({
+      enabled: supported === true && online !== false,
+      ...OFFLINE_RETRY,
+    }),
+  );
   const [endpoint, setEndpoint] = useState<string | null | undefined>(undefined);
   const [pending, startTransition] = useTransition();
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ["push"] });
+  const refresh = () => queryClient.invalidateQueries({ queryKey: orpc.push.status.key() });
 
   // What this browser is subscribed with, if anything.
   useEffect(() => {

@@ -23,13 +23,14 @@ import { BotAvatar } from "@/components/bot-avatar";
 import { TimeAgo } from "@/components/time-ago";
 import { ComputerOffline, ComputerPanel, useComputer } from "@/components/computer/computer-panel";
 import { Briefing, useBriefingItems } from "@/components/home/briefing";
+import { useBriefingSince } from "@/lib/client/presence";
 import { PageThumbnail } from "@/components/pages/page-thumbnail";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  useActivity,
   useApprovals,
   useAppState,
+  useHome,
   usePages,
   useProfile,
   useSchedules,
@@ -588,7 +589,9 @@ function activityOutcome(
 
 function Activity() {
   const { data: state } = useAppState();
-  const { data: all, isLoading } = useActivity();
+  const since = useBriefingSince();
+  const { data: home, isLoading } = useHome(since);
+  const all = home?.activity;
   const briefed = useBriefingItems();
   const online = isComputerOnline(state);
   // What the briefing above already tells you isn't repeated here.

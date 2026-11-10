@@ -10,9 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { removeEmailToken, saveEmailSettings } from "@/lib/actions";
-import { getJson } from "@/lib/client/api";
-import { queryKeys } from "@/lib/client/queries";
-import type { EmailStatusView } from "@/lib/types";
+import { orpc } from "@/lib/client/rpc";
 
 function CopyButton({ text, label }: { text: string; label: string }) {
   return (
@@ -38,10 +36,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 /** An email address for every teammate, through Postmark. */
 export function EmailSection() {
   const queryClient = useQueryClient();
-  const status = useQuery({
-    queryKey: queryKeys.email,
-    queryFn: () => getJson<EmailStatusView>("/api/email"),
-  });
+  const status = useQuery(orpc.email.status.queryOptions());
   const [domain, setDomain] = useState("");
   const [token, setToken] = useState("");
   const [pending, startTransition] = useTransition();
@@ -67,7 +62,7 @@ export function EmailSection() {
       }
       setToken("");
       toast("Email saved");
-      await queryClient.invalidateQueries({ queryKey: queryKeys.email });
+      await queryClient.invalidateQueries({ queryKey: orpc.email.key() });
     });
   }
 
@@ -161,7 +156,7 @@ export function EmailSection() {
             onClick={async () => {
               const result = await removeEmailToken();
               if (!result.ok) toast.error(result.error);
-              await queryClient.invalidateQueries({ queryKey: queryKeys.email });
+              await queryClient.invalidateQueries({ queryKey: orpc.email.key() });
             }}
           >
             Stop sending

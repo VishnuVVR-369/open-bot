@@ -31,18 +31,15 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { removeFile, uploadFile } from "@/lib/actions";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getJson, isOffline } from "@/lib/client/api";
-import { queryKeys, useAppState, useComputerOnline } from "@/lib/client/queries";
+import type { FileListing } from "@open-bot/api/worker";
+import { isOffline } from "@/lib/client/errors";
+import { useAppState, useComputerOnline } from "@/lib/client/queries";
+import { orpc } from "@/lib/client/rpc";
 import { BotAvatar } from "@/components/bot-avatar";
 import { FileIcon } from "@/components/files/file-chip";
 import { FilePreview } from "@/components/files/file-preview";
 import { fileKind, fileUrl } from "@/lib/files";
 import { cn } from "@/lib/utils";
-
-interface Listing {
-  path: string;
-  entries: { name: string; path: string; isDirectory: boolean; modifiedAt: string | null }[];
-}
 
 const ROOT = "/home/bot";
 
@@ -56,7 +53,7 @@ function DeleteEntry({
   label,
   onDeleted,
 }: {
-  entry: Listing["entries"][number];
+  entry: FileListing["entries"][number];
   label: string;
   onDeleted: () => void;
 }) {
@@ -108,11 +105,9 @@ export function FilesView() {
   const setPreviewing = (path: string) => setPreview({ path, open: true });
   const { data: state } = useAppState();
   const online = useComputerOnline();
-  const { data, isLoading, error } = useQuery({
-    queryKey: queryKeys.files(path),
-    queryFn: () => getJson<Listing>(`/api/files/list?path=${encodeURIComponent(path)}`),
-    enabled: online !== false,
-  });
+  const { data, isLoading, error } = useQuery(
+    orpc.files.list.queryOptions({ input: { path }, enabled: online !== false }),
+  );
   const offline = online === false || isOffline(error);
   const parts = path.slice(ROOT.length).split("/").filter(Boolean);
   const botBySlug = (slug: string) => state?.bots.find((bot) => bot.slug === slug);
@@ -122,7 +117,8 @@ export function FilesView() {
   const [uploading, setUploading] = useState(0);
   const [dragging, setDragging] = useState(false);
   const canUpload = path !== ROOT;
-  const refresh = () => void queryClient.invalidateQueries({ queryKey: queryKeys.files(path) });
+  const refresh = () =>
+    void queryClient.invalidateQueries({ queryKey: orpc.files.list.key({ input: { path } }) });
 
   async function upload(files: FileList | File[]) {
     const list = Array.from(files);

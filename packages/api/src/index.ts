@@ -1,5 +1,15 @@
 export * from "./contract";
 export * from "./views";
+export * from "./home";
+export * from "./automations";
+export * from "./teammates";
+export * from "./skills";
+export * from "./tasks";
+export * from "./vault";
+export * from "./settings";
+export * from "./integrations";
+export * from "./memory";
+export * from "./events";
 export { createApiClient, type ApiClient, type ApiClientOptions } from "./client";
 export * from "./live";
 export * from "./screens";

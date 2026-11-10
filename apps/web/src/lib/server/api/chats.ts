@@ -26,7 +26,7 @@ export async function newDirectChat({ botId }: Inputs["newDirect"]): Promise<{ c
     .insert(chats)
     .values({ kind: "direct", title: bot.name, botId })
     .returning({ id: chats.id });
-  await publish("chats");
+  await publish({ type: "chats" });
   return { chatId: chat!.id };
 }
 
@@ -47,7 +47,7 @@ export async function createGroupChat({ title, botIds }: Inputs["createGroup"]) 
     await tx.insert(chatMembers).values(unique.map((botId) => ({ chatId: chat!.id, botId })));
     return chat!.id;
   });
-  await publish("chats");
+  await publish({ type: "chats" });
   return { chatId };
 }
 
@@ -62,13 +62,13 @@ async function updateChat(chatId: string, values: Partial<typeof chats.$inferIns
 
 export async function renameChat({ chatId, title }: Inputs["rename"]) {
   await updateChat(chatId, { title, titled: true });
-  await publish("chats");
+  await publish({ type: "chats" });
   return { ok: true as const };
 }
 
 export async function archiveChat({ chatId }: Inputs["archive"]) {
   await updateChat(chatId, { archivedAt: new Date() });
-  await publish("chats");
+  await publish({ type: "chats" });
   return { ok: true as const };
 }
 
@@ -87,7 +87,7 @@ export async function markChatRead({ chatId }: Inputs["markRead"]) {
   if (!before) throw new ApiError("NOT_FOUND", "That chat no longer exists.");
   await updateChat(chatId, { readAt: new Date() });
   // Only lists that showed it as unread need to change.
-  if (before.lastReply && before.lastReply > before.readAt) await publish("chats");
+  if (before.lastReply && before.lastReply > before.readAt) await publish({ type: "chats" });
   return { ok: true as const };
 }
 

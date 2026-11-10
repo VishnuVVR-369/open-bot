@@ -305,20 +305,6 @@ export const takeoverRequestSchema = z.object({
 });
 export type TakeoverRequest = z.infer<typeof takeoverRequestSchema>;
 
-/** Home: what needs you, what happened while you were away, and recent work. */
-export const homeSchema = z.object({
-  user: z.object({ name: z.string() }),
-  pendingApprovals: z.number().int().nonnegative(),
-  takeoverRequests: z.array(takeoverRequestSchema),
-  /** Teammates that suggested new instructions, waiting for you on the web. */
-  proposals: z.array(z.object({ id: z.string(), botId: z.string() })),
-  unreadNotifications: z.number().int().nonnegative(),
-  /** Finished since `awaySince`, newest first; empty without it. */
-  briefing: z.array(briefingItemSchema),
-  activity: z.array(activityItemSchema),
-});
-export type Home = z.infer<typeof homeSchema>;
-
 /** A message or a teammate's reply that matched a search. */
 export const searchResultSchema = z.object({
   id: z.string(),

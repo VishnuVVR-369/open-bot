@@ -27,7 +27,8 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { saveSkill } from "@/lib/actions";
-import { queryKeys, useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/lib/client/queries";
+import { orpc } from "@/lib/client/rpc";
 import type { SkillView } from "@/lib/types";
 
 const EVERYONE = "everyone";
@@ -95,8 +96,8 @@ export function SkillDialog({
       });
       setOpen(false);
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.skills }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.state }),
+        queryClient.invalidateQueries({ queryKey: orpc.skills.key() }),
+        queryClient.invalidateQueries({ queryKey: orpc.app.state.key() }),
       ]);
     });
   }

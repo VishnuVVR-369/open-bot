@@ -15,8 +15,12 @@ It serves the browser UI and the Android app's API: it reads Postgres directly, 
 
 - **Pages** (`src/app/(app)/*`) are server components. They check the session and render the first view from Postgres, so a page is useful before any client code runs.
 - **Server actions** (`src/lib/actions.ts`) handle browser writes: create a teammate, send a message, decide an approval, save a vault item. Shared operations delegate to services in `src/lib/server/api/`.
-- **RPC and uploads** serve the Android app through those services. See [Internal APIs](/docs/reference/http-api#writes-and-the-phone-api) for their entry points and authoritative contract.
-- **Read routes** (`src/app/api/*/route.ts`) are `GET` handlers that client components query through TanStack Query. They exist because Next.js runs server actions one at a time per client, so reads done as actions queued behind each other and made pages slow.
+- **The API and uploads** (`/api/rpc/*`, `PUT /api/uploads/:id`) serve the browser's reads and the Android app through those services.
+  See [Internal APIs](/docs/reference/http-api#the-api) for their entry points and authoritative contract.
+- **Reads** go through the API (`@open-bot/api`), the same procedures the Android app calls.
+  Client components query them with TanStack Query through `orpc` (`src/lib/client/rpc.ts`), whose cache keys are procedure paths.
+  Reads are never server actions, because Next.js runs those one at a time per client, so reads queued behind each other and made pages slow.
+  Server components read through functions in `src/lib/server`, never the database directly.
 - **The event stream** (`GET /api/stream`) is one server-sent events connection per tab. It tells the tab when anything changes, and streams the run events of the chat on screen.
 
 The browser never talks to Codex or botd.
@@ -68,7 +72,7 @@ A stream never holds its own database connection.
 
 | Event   | Data                                                     | Sent when                                  |
 | ------- | -------------------------------------------------------- | ------------------------------------------ |
-| `ready` | `{ cursor }`                                             | The stream opens.                          |
+| `ready` | `{ cursor, deployment }`                                 | The stream opens.                          |
 | `app`   | an `AppEvent`, like `{"type":"notification","id":"..."}` | Any `openbot_app` notification.            |
 | `run`   | `{ id, runId, payload }`, a row of `run_events`          | A new event in the watched chat, in order. |
 
@@ -82,8 +86,16 @@ A comment line every 20 seconds keeps proxies from closing the connection.
 
 `RealtimeProvider` (`src/lib/client/realtime.tsx`) owns the tab's single `EventSource`:
 
-- An `app` event invalidates the matching TanStack Query keys, debounced by 120 ms for the app state. Pages refetch through the read routes.
-- A `ready` event invalidates everything, because anything could have changed while disconnected.
+- An `app` event is parsed with `appEventSchema` (`@open-bot/domain`) and refreshes the procedures `APP_EVENT_REFRESHES` (`@open-bot/api`) names for it, plus the shell's state and Home, debounced by 120 ms.
+  An event type the tab doesn't know only refreshes those two.
+- A server that is stopping (SIGTERM, as on a deploy) ends every stream and turns new ones away with a closed connection, so tabs reconnect to the new deploy instead of staying on the old server until it is killed.
+- A `ready` event names the deploy serving it.
+  A tab whose code is from another deploy reloads (`apps/web/src/lib/client/deployment.ts`), or, while you're typing in a field, says so and reloads once you switch away.
+  Composer drafts survive, since they are kept in local storage.
+  A reload that brings back old code, as while the old and new servers both run, is tried again after 5 and then 30 seconds.
+  After three tries, or when the tab can't keep count in session storage, it asks you to reload instead.
+- A `ready` event refreshes the shell's state and Home.
+  After the stream dropped, it also refreshes everything any event could have, because the events sent meanwhile are gone.
 - A `notification` event fetches the notification and shows a toast, and an OS notification when allowed and the chat isn't already open.
 - `run` events go to the chat that is watching. The provider remembers the last event id per chat and drops anything older, so a reconnect never applies an event twice.
 

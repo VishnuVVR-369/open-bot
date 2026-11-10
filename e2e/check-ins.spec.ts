@@ -1,12 +1,8 @@
 import { expect, test, type Page } from "./fixtures";
-import { botIdOf, createTeammate, uniqueName, waitForLastRun } from "./helpers";
+import { apiFor, botIdOf, createTeammate, uniqueName, waitForLastRun } from "./helpers";
 
 async function notificationsFor(page: Page, botId: string) {
-  const all = (await (await page.request.get("/api/notifications")).json()) as {
-    botId: string | null;
-    runId: string | null;
-    kind: string;
-  }[];
+  const all = await apiFor(page).notifications.list();
   return all.filter((entry) => entry.botId === botId && entry.kind === "run_finished");
 }
 
@@ -63,9 +59,7 @@ test("@agent a quiet routine stays quiet until there's news", async ({ page }) =
   // Nothing to report: one quiet line in the Scheduled chat, and no notification.
   await row.getByRole("button", { name: "Run now" }).click();
   await expect(row).toContainText(/Last run|Running|Finished/, { timeout: 30_000 });
-  const state = (await (await page.request.get("/api/state")).json()) as {
-    chats: { id: string; kind: string; botId: string | null }[];
-  };
+  const state = await apiFor(page).app.state();
   const scheduled = state.chats.find((chat) => chat.kind === "scheduled" && chat.botId === botId)!;
   await page.goto(`/chats/${scheduled.id}`);
   await waitForLastRun(page, ["completed"]);

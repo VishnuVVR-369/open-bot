@@ -38,7 +38,8 @@ import {
   setConnectionEnabled,
   testConnection,
 } from "@/lib/actions";
-import { queryKeys, useAppState, useConnections } from "@/lib/client/queries";
+import { useAppState, useConnections } from "@/lib/client/queries";
+import { refreshForAppEvent } from "@/lib/client/refresh";
 import type { ConnectionTestView, ConnectionView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { AccountsSection } from "./accounts-section";
@@ -111,7 +112,7 @@ function ConnectionDialog({
         return;
       }
       setOpen(false);
-      await queryClient.invalidateQueries({ queryKey: queryKeys.connections });
+      await refreshForAppEvent(queryClient, { type: "connections" });
       onSaved(result.data.id);
     });
   }
@@ -275,7 +276,7 @@ function ConnectionRow({
 }) {
   const { data: state } = useAppState();
   const queryClient = useQueryClient();
-  const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.connections });
+  const refresh = () => refreshForAppEvent(queryClient, { type: "connections" });
   const people =
     connection.botIds === null
       ? "Every teammate"

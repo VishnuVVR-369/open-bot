@@ -4,7 +4,7 @@ import { CloudOff } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { isOffline } from "@/lib/client/api";
+import { isOffline } from "@/lib/client/errors";
 
 /** A section that needs the computer while it's offline: calm, and it recovers by itself. */
 export function OfflineNote({ children }: { children: ReactNode }) {

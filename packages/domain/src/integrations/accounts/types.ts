@@ -7,7 +7,9 @@
 /** How a teammate's action reaches the world, which decides whether it asks you first. */
 export type ActionEffect = "read" | "private_write" | "write" | "outward";
 
-export type AccountStatus = "connected" | "needs_reconnect" | "revoked";
+/** Whether a signed-in account still works: `needs_reconnect` until you sign in again. */
+export const ACCOUNT_STATUSES = ["connected", "needs_reconnect", "revoked"] as const;
+export type AccountStatus = (typeof ACCOUNT_STATUSES)[number];
 
 /** A sign-in service, like Google or Notion. */
 export interface AuthProviderDefinition {

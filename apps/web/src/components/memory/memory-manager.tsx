@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
   Check,
@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { type MemoryItem, type MemoryRevision } from "@open-bot/domain";
+import { type MemoryItem } from "@open-bot/domain";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -53,7 +53,7 @@ import {
   confirmMemoryItem,
   restoreMemoryItem,
 } from "@/lib/actions";
-import { getJson } from "@/lib/client/api";
+import { api, orpc } from "@/lib/client/rpc";
 import { useAppState } from "@/lib/client/queries";
 
 /** Who saved a memory, by name when a teammate did. */
@@ -195,22 +195,17 @@ export function MemoryManager({ botId, name }: { botId: string | null; name: str
   const [forget, setForget] = useState<MemoryItem | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const scope = botId ? `botId=${encodeURIComponent(botId)}` : "";
-  const url = `/api/memory?${scope}`;
+  const downloadUrl = `/api/memory${botId ? `?botId=${encodeURIComponent(botId)}` : ""}`;
   const {
     data: items,
     error,
     refetch,
-  } = useQuery({
-    queryKey: ["memory", botId, query],
-    queryFn: () => getJson<MemoryItem[]>(`${url}&q=${encodeURIComponent(query)}`),
-  });
-  const revisions = useQuery({
-    queryKey: ["memory", "history", history?.id, history?.revision],
-    queryFn: () => getJson<MemoryRevision[]>(`/api/memory?history=${history!.id}`),
-    enabled: !!history,
-  });
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ["memory"] });
+  } = useQuery(orpc.memory.list.queryOptions({ input: { botId, query: query.slice(0, 200) } }));
+  // Saving a memory refreshes everything under `memory`, its history too.
+  const revisions = useQuery(
+    orpc.memory.history.queryOptions({ input: history ? { memoryId: history.id } : skipToken }),
+  );
+  const refresh = () => queryClient.invalidateQueries({ queryKey: orpc.memory.key() });
   const { data: state } = useAppState();
   const savedBy = (item: MemoryItem) =>
     state?.bots.find((bot) => bot.id === item.source.botId)?.name ?? null;
@@ -259,7 +254,7 @@ export function MemoryManager({ botId, name }: { botId: string | null; name: str
           />
         </div>
         <Button variant="outline" size="lg" asChild>
-          <a href={`${url}&download=1`} download>
+          <a href={downloadUrl} download>
             <Download /> Export
           </a>
         </Button>
@@ -456,7 +451,7 @@ export function MemoryManager({ botId, name }: { botId: string | null; name: str
                       type="button"
                       variant="link"
                       onClick={async () => {
-                        const fresh = await getJson<MemoryItem[]>(url);
+                        const fresh = await api.memory.list({ botId, query: "" });
                         const item = fresh.find((i) => i.id === draft.item?.id);
                         if (item) edit(item);
                         else setProblem("This memory was forgotten. Close this editor.");

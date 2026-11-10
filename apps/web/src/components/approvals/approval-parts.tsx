@@ -27,7 +27,8 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { decideApproval } from "@/lib/actions";
-import { queryKeys, useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/lib/client/queries";
+import { orpc } from "@/lib/client/rpc";
 import { isComputerOnline } from "@/lib/status";
 import { InlineCode } from "@/components/inline-code";
 import { cn } from "@/lib/utils";
@@ -239,8 +240,8 @@ export function ApprovalDecision({
           description: `${botName} won't ask about this again.`,
         });
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.approvals }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.state }),
+        queryClient.invalidateQueries({ queryKey: orpc.approvals.key() }),
+        queryClient.invalidateQueries({ queryKey: orpc.app.state.key() }),
       ]);
     });
 

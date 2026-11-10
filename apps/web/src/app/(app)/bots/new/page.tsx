@@ -1,20 +1,12 @@
-import { BOT_COLORS } from "@open-bot/domain";
-import { bots } from "@open-bot/db";
-import { isNull } from "drizzle-orm";
 import type { Metadata } from "next";
 import { BotForm } from "@/components/bots/bot-form";
 import { Page } from "@/components/page";
-import { db } from "@/lib/server/db";
+import { nextTeammateColor } from "@/lib/server/queries";
 
 export const metadata: Metadata = { title: "New teammate" };
 
 export default async function NewBotPage() {
-  const used = new Set(
-    (await db.select({ color: bots.color }).from(bots).where(isNull(bots.archivedAt))).map(
-      (row) => row.color,
-    ),
-  );
-  const color = BOT_COLORS.find((candidate) => !used.has(candidate)) ?? BOT_COLORS[0];
+  const color = await nextTeammateColor();
   return (
     <Page
       title="New teammate"

@@ -2,36 +2,44 @@ import { z } from "zod";
 
 export const memoryKindSchema = z.enum(["fact", "preference", "lesson", "note"]);
 export type MemoryKind = z.infer<typeof memoryKindSchema>;
-export type MemoryState = "active" | "candidate" | "deleted";
-export interface MemorySource {
-  type: "user" | "feedback" | "bot" | "import" | "extraction";
-  messageId?: string;
-  runId?: string;
-  chatId?: string;
+export const memoryStateSchema = z.enum(["active", "candidate", "deleted"]);
+export type MemoryState = z.infer<typeof memoryStateSchema>;
+
+export const memorySourceSchema = z.object({
+  type: z.enum(["user", "feedback", "bot", "import", "extraction"]),
+  messageId: z.string().optional(),
+  runId: z.string().optional(),
+  chatId: z.string().optional(),
   /** The teammate whose run saved it, filled in when memory is listed for display. */
-  botId?: string;
-}
-export interface MemoryItem {
-  id: string;
-  botId: string | null;
-  kind: MemoryKind;
-  content: string;
-  key: string | null;
-  revision: number;
-  state: MemoryState;
-  pinned: boolean;
-  expiresAt: string | null;
-  source: MemorySource;
-  createdAt: string;
-  updatedAt: string;
-}
-export interface MemoryRevision {
-  revision: number;
-  content: string;
-  state: MemoryState;
-  source: MemorySource;
-  createdAt: string;
-}
+  botId: z.string().optional(),
+});
+export type MemorySource = z.infer<typeof memorySourceSchema>;
+
+export const memoryItemSchema = z.object({
+  id: z.string(),
+  botId: z.string().nullable(),
+  kind: memoryKindSchema,
+  content: z.string(),
+  key: z.string().nullable(),
+  revision: z.number(),
+  state: memoryStateSchema,
+  pinned: z.boolean(),
+  expiresAt: z.string().nullable(),
+  source: memorySourceSchema,
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type MemoryItem = z.infer<typeof memoryItemSchema>;
+
+export const memoryRevisionSchema = z.object({
+  revision: z.number(),
+  content: z.string(),
+  state: memoryStateSchema,
+  source: memorySourceSchema,
+  createdAt: z.string(),
+});
+export type MemoryRevision = z.infer<typeof memoryRevisionSchema>;
+
 export const memoryInputSchema = z.object({
   botId: z.string().uuid().nullable().default(null),
   kind: memoryKindSchema.default("fact"),

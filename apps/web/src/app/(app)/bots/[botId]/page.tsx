@@ -1,6 +1,5 @@
-import { approvalRules, bots, chats, configurationRevision } from "@open-bot/db";
+import { configurationRevision } from "@open-bot/db";
 import { Copy, Download } from "lucide-react";
-import { and, asc, desc, eq, isNull, ne } from "drizzle-orm";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { BotAvatar } from "@/components/bot-avatar";
@@ -16,16 +15,12 @@ import { AutomationsView } from "@/components/automations/automations-view";
 import { SkillsList } from "@/components/skills/skills-list";
 import { Page } from "@/components/page";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { db } from "@/lib/server/db";
-import { pendingProposal } from "@/lib/server/queries";
+import { getTeammatePage, teammateName } from "@/lib/server/queries";
 import { ChatList } from "@/components/bots/chat-list";
 
 export async function generateMetadata({ params }: PageProps<"/bots/[botId]">): Promise<Metadata> {
   const { botId } = await params;
-  const [bot] = /^[0-9a-f-]{36}$/i.test(botId)
-    ? await db.select({ name: bots.name }).from(bots).where(eq(bots.id, botId))
-    : [];
-  return { title: bot?.name ?? "Teammate" };
+  return { title: (await teammateName(botId)) ?? "Teammate" };
 }
 
 const TABS = ["profile", "memory", "skills", "automations", "spending", "chats"];
@@ -34,27 +29,9 @@ export default async function BotPage({ params, searchParams }: PageProps<"/bots
   const { botId } = await params;
   const { tab } = await searchParams;
   if (!/^[0-9a-f-]{36}$/i.test(botId)) notFound();
-  const [bot] = await db
-    .select()
-    .from(bots)
-    .where(and(eq(bots.id, botId), isNull(bots.archivedAt)));
-  if (!bot) notFound();
-  const botChats = await db
-    .select({
-      id: chats.id,
-      kind: chats.kind,
-      title: chats.title,
-      lastActivityAt: chats.lastActivityAt,
-    })
-    .from(chats)
-    .where(and(eq(chats.botId, botId), isNull(chats.archivedAt), ne(chats.kind, "helper")))
-    .orderBy(desc(chats.lastActivityAt));
-  const proposal = await pendingProposal(botId);
-  const rules = await db
-    .select({ id: approvalRules.id, kind: approvalRules.kind, pattern: approvalRules.pattern })
-    .from(approvalRules)
-    .where(eq(approvalRules.botId, botId))
-    .orderBy(asc(approvalRules.createdAt));
+  const teammate = await getTeammatePage(botId);
+  if (!teammate) notFound();
+  const { bot, chats: botChats, proposal, rules } = teammate;
 
   return (
     <Page
@@ -142,14 +119,7 @@ export default async function BotPage({ params, searchParams }: PageProps<"/bots
           <Spending botId={bot.id} name={bot.name} />
         </TabsContent>
         <TabsContent value="chats">
-          <ChatList
-            chats={botChats.map((chat) => ({
-              ...chat,
-              lastActivityAt: chat.lastActivityAt.toISOString(),
-            }))}
-            botId={bot.id}
-            botName={bot.name}
-          />
+          <ChatList chats={botChats} botId={bot.id} botName={bot.name} />
         </TabsContent>
       </Tabs>
     </Page>

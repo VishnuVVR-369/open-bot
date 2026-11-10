@@ -1,6 +1,7 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
 import {
+  approvalRules,
   approvals,
   bots,
   credentials,
@@ -29,6 +30,7 @@ import {
 } from "@open-bot/db";
 import {
   ACTIVE_RUN_STATUSES,
+  BOT_COLORS,
   applyRunEvent,
   emailAddress,
   emptyTimeline,
@@ -61,6 +63,7 @@ import {
   sql,
 } from "drizzle-orm";
 import { OFFLINE_EGRESS_STATUS, type EgressStatusView } from "@open-bot/api";
+import type { Attention } from "@open-bot/api";
 import type {
   ActivityView,
   AppState,
@@ -317,44 +320,48 @@ export async function listTakeoverRequests(): Promise<TakeoverRequestSummary[]> 
   });
 }
 
-export async function getAppState(user: { name: string; email: string }): Promise<AppState> {
-  const [
-    botList,
-    chatList,
-    status,
-    [approvalCount],
-    requests,
-    activeTakeovers,
-    [unread],
-    [settingsRow],
-    skillList,
-    proposals,
-  ] = await Promise.all([
-    listBots(),
-    listChats({ previews: false }),
-    workerStatus(),
+/** What needs you, for the badges on every screen and on the phone's Home. */
+export async function getAttention(): Promise<Attention> {
+  const [[pending], takeoverRequests, proposals, [unread]] = await Promise.all([
     db.select({ value: count() }).from(approvals).where(eq(approvals.status, "pending")),
     listTakeoverRequests(),
-    db
-      .select({
-        id: desktopTakeovers.id,
-        screenId: desktopTakeovers.screenId,
-        startedAt: desktopTakeovers.startedAt,
-      })
-      .from(desktopTakeovers)
-      .where(eq(desktopTakeovers.status, "active"))
-      .orderBy(desc(desktopTakeovers.createdAt)),
-    db.select({ value: count() }).from(notifications).where(isNull(notifications.readAt)),
-    db.select({ timezone: settings.timezone }).from(settings).where(eq(settings.id, 1)),
-    listSkills(),
     db
       .select({ id: instructionProposals.id, botId: instructionProposals.botId })
       .from(instructionProposals)
       .innerJoin(bots, eq(bots.id, instructionProposals.botId))
       .where(and(eq(instructionProposals.status, "pending"), isNull(bots.archivedAt)))
       .orderBy(desc(instructionProposals.createdAt)),
+    db.select({ value: count() }).from(notifications).where(isNull(notifications.readAt)),
   ]);
   return {
+    pendingApprovals: pending?.value ?? 0,
+    takeoverRequests,
+    proposals,
+    unreadNotifications: unread?.value ?? 0,
+  };
+}
+
+export async function getAppState(user: { name: string; email: string }): Promise<AppState> {
+  const [botList, chatList, status, attention, activeTakeovers, [settingsRow], skillList] =
+    await Promise.all([
+      listBots(),
+      listChats({ previews: false }),
+      workerStatus(),
+      getAttention(),
+      db
+        .select({
+          id: desktopTakeovers.id,
+          screenId: desktopTakeovers.screenId,
+          startedAt: desktopTakeovers.startedAt,
+        })
+        .from(desktopTakeovers)
+        .where(eq(desktopTakeovers.status, "active"))
+        .orderBy(desc(desktopTakeovers.createdAt)),
+      db.select({ timezone: settings.timezone }).from(settings).where(eq(settings.id, 1)),
+      listSkills(),
+    ]);
+  return {
+    ...attention,
     user,
     timezone: settingsRow?.timezone ?? "UTC",
     bots: botList,
@@ -368,15 +375,11 @@ export async function getAppState(user: { name: string; email: string }): Promis
       egress: status?.egress ?? OFFLINE_EGRESS_STATUS,
     },
     codex: status?.codex ?? null,
-    pendingApprovals: approvalCount?.value ?? 0,
-    proposals,
-    takeoverRequests: requests,
     activeTakeovers: activeTakeovers.flatMap((row) =>
       row.screenId
         ? [{ id: row.id, screenId: row.screenId, startedAt: row.startedAt?.toISOString() ?? null }]
         : [],
     ),
-    unreadNotifications: unread?.value ?? 0,
   };
 }
 
@@ -552,41 +555,6 @@ function automationPrompt(run: { trigger: string; prompt: string }): string | nu
   );
 }
 
-export async function getRunView(runId: string): Promise<RunView | null> {
-  const [row] = await db
-    .select({ run: runs, scheduleTitle: schedules.title, triggerTitle: triggers.title })
-    .from(runs)
-    .leftJoin(schedules, eq(schedules.id, runs.scheduleId))
-    .leftJoin(triggers, eq(triggers.id, runs.triggerId))
-    .where(eq(runs.id, runId));
-  if (!row) return null;
-  const events = await db
-    .select({ payload: runEvents.payload })
-    .from(runEvents)
-    .where(eq(runEvents.runId, runId))
-    .orderBy(asc(runEvents.id));
-  let timeline = emptyTimeline(row.run.status);
-  for (const event of events) timeline = applyRunEvent(timeline, event.payload);
-  return {
-    id: row.run.id,
-    botId: row.run.botId,
-    trigger: row.run.trigger,
-    messageId: row.run.messageId,
-    parentRunId: row.run.parentRunId,
-    fromBotId: null,
-    authMode: row.run.authMode ?? null,
-    scheduleTitle: row.scheduleTitle,
-    triggerTitle: row.triggerTitle,
-    automationPrompt: automationPrompt(row.run),
-    rating: row.run.rating ?? null,
-    usage: (await usageByRun([row.run.id])).get(row.run.id) ?? null,
-    createdAt: row.run.createdAt.toISOString(),
-    startedAt: row.run.startedAt?.toISOString() ?? null,
-    completedAt: row.run.completedAt?.toISOString() ?? null,
-    timeline: { ...timeline, status: row.run.status },
-  };
-}
-
 /** Open tasks, and the 30 most recently finished. */
 export async function listTasks(): Promise<TaskView[]> {
   const [open, done] = await Promise.all([
@@ -612,6 +580,56 @@ export async function listTasks(): Promise<TaskView[]> {
     completedAt: task.completedAt?.toISOString() ?? null,
     createdAt: task.createdAt.toISOString(),
   }));
+}
+
+/** The first teammate color nobody on the team uses yet, for a new teammate. */
+export async function nextTeammateColor(): Promise<string> {
+  const rows = await db.select({ color: bots.color }).from(bots).where(isNull(bots.archivedAt));
+  const used = new Set(rows.map((row) => row.color));
+  return BOT_COLORS.find((candidate) => !used.has(candidate)) ?? BOT_COLORS[0];
+}
+
+/** A teammate's page: its profile, its chats, a suggestion waiting for you, and its rules. */
+export async function getTeammatePage(teammateId: string) {
+  const [teammate] = await db
+    .select()
+    .from(bots)
+    .where(and(eq(bots.id, teammateId), isNull(bots.archivedAt)));
+  if (!teammate) return null;
+  const [teammateChats, proposal, rules] = await Promise.all([
+    db
+      .select({
+        id: chats.id,
+        kind: chats.kind,
+        title: chats.title,
+        lastActivityAt: chats.lastActivityAt,
+      })
+      .from(chats)
+      .where(and(eq(chats.botId, teammateId), isNull(chats.archivedAt), ne(chats.kind, "helper")))
+      .orderBy(desc(chats.lastActivityAt)),
+    pendingProposal(teammateId),
+    db
+      .select({ id: approvalRules.id, kind: approvalRules.kind, pattern: approvalRules.pattern })
+      .from(approvalRules)
+      .where(eq(approvalRules.botId, teammateId))
+      .orderBy(asc(approvalRules.createdAt)),
+  ]);
+  return {
+    bot: teammate,
+    chats: teammateChats.map((chat) => ({
+      ...chat,
+      lastActivityAt: chat.lastActivityAt.toISOString(),
+    })),
+    proposal,
+    rules,
+  };
+}
+
+/** A teammate's name, for the page title, or null if there's none by that id. */
+export async function teammateName(teammateId: string): Promise<string | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(teammateId)) return null;
+  const [row] = await db.select({ name: bots.name }).from(bots).where(eq(bots.id, teammateId));
+  return row?.name ?? null;
 }
 
 export async function pendingProposal(botId: string): Promise<ProposalView | null> {

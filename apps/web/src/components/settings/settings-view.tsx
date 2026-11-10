@@ -72,15 +72,10 @@ import {
 } from "@/lib/actions";
 import { authClient } from "@/lib/auth-client";
 import { passkeyLabel } from "@/lib/passkey-name";
-import { getJson } from "@/lib/client/api";
-import { queryKeys, useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/lib/client/queries";
+import { orpc } from "@/lib/client/rpc";
 import { isComputerOnline } from "@/lib/status";
-import type {
-  CodexRateLimitsView,
-  ModelAccessView,
-  RateLimitWindowView,
-  UsageView,
-} from "@/lib/types";
+import type { RateLimitWindowView } from "@/lib/types";
 import { cn, compactNumber } from "@/lib/utils";
 import { ConnectionsSection } from "@/components/settings/connections-section";
 import { EmailSection } from "@/components/settings/email-section";
@@ -196,13 +191,13 @@ function ChatgptSection() {
   const queryClient = useQueryClient();
   const [pending, startTransition] = useTransition();
   const [login, setLogin] = useState<{ verificationUrl: string; userCode: string } | null>(null);
-  const limits = useQuery({
-    queryKey: ["rate-limits"],
-    queryFn: async () => (await getJson<CodexRateLimitsView>("/api/rate-limits")).rateLimits,
-    enabled: Boolean(codex?.account),
-    refetchInterval: 60_000,
-  });
-  const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.state });
+  const limits = useQuery(
+    orpc.settings.rateLimits.queryOptions({
+      enabled: Boolean(codex?.account),
+      refetchInterval: 60_000,
+    }),
+  );
+  const refresh = () => queryClient.invalidateQueries({ queryKey: orpc.app.state.key() });
 
   useEffect(() => {
     if (codex?.login) setLogin(codex.login);
@@ -390,7 +385,7 @@ function BrowsingSection() {
               startTransition(async () => {
                 const result = await setEgressMode(option.value as EgressModeSetting);
                 if (!result.ok) toast.error(result.error);
-                await queryClient.invalidateQueries({ queryKey: queryKeys.state });
+                await queryClient.invalidateQueries({ queryKey: orpc.app.state.key() });
               })
             }
           />
@@ -425,7 +420,7 @@ function TimezoneSection() {
     const result = await setTimezone(zone);
     if (!result.ok) toast.error(result.error);
     else toast("Timezone saved", { description: zone });
-    await queryClient.invalidateQueries({ queryKey: queryKeys.state });
+    await queryClient.invalidateQueries({ queryKey: orpc.app.state.key() });
   };
   return (
     <div className="flex flex-wrap items-center gap-3">
@@ -598,15 +593,13 @@ function FallbackSection() {
   const [pending, startTransition] = useTransition();
   const [key, setKey] = useState("");
   const [cap, setCap] = useState<string | null>(null);
-  const access = useQuery({
-    queryKey: ["model-access"],
-    queryFn: () => getJson<ModelAccessView>("/api/model-access"),
-  });
+  const access = useQuery(orpc.settings.modelAccess.queryOptions());
   const { data: state } = useAppState();
   // Nothing runs while the computer is offline, so the plan is what teammates use, not what
   // they're running on.
   const offline = Boolean(state && !isComputerOnline(state));
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ["model-access"] });
+  const refresh = () =>
+    queryClient.invalidateQueries({ queryKey: orpc.settings.modelAccess.key() });
   const data = access.data;
   if (!data) return <SectionState error={access.error} onRetry={() => void access.refetch()} />;
   const capDollars = data.capMicros / 1_000_000;
@@ -800,10 +793,7 @@ function FallbackSection() {
 
 function UsageSection() {
   const { data: state } = useAppState();
-  const usage = useQuery<UsageView[]>({
-    queryKey: ["usage"],
-    queryFn: () => getJson<UsageView[]>("/api/usage"),
-  });
+  const usage = useQuery(orpc.settings.usage.queryOptions());
   if (!usage.data) return <SectionState error={usage.error} onRetry={() => void usage.refetch()} />;
   if (!usage.data.length)
     return <p className="text-[14px] text-muted-foreground">No work yet this month.</p>;

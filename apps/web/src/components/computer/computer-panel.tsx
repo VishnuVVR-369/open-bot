@@ -34,7 +34,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { dismissTakeoverRequest, handBackScreen, takeOverScreen, wakeScreen } from "@/lib/actions";
-import { queryKeys, useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/lib/client/queries";
+import { orpc } from "@/lib/client/rpc";
+import { releaseScreenNow } from "@/lib/client/screens";
 import { isComputerOnline } from "@/lib/status";
 import type { AppState, BotSummary, TakeoverRequestSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -48,26 +50,6 @@ export interface ScreenInfo {
   lease: LeaseHolder;
   activity: ScreenActivity;
   requests: TakeoverRequestSummary[];
-}
-
-/** The app state as it is once you hand a screen back. */
-function releaseScreen(state: AppState, screenId: string): AppState {
-  const health = state.computer.health;
-  return {
-    ...state,
-    activeTakeovers: state.activeTakeovers.filter((takeover) => takeover.screenId !== screenId),
-    computer: {
-      ...state.computer,
-      health: health && {
-        ...health,
-        screens: health.screens.map((screen) =>
-          screen.id === screenId && isOwnerLease(screen.lease)
-            ? { ...screen, lease: null }
-            : screen,
-        ),
-      },
-    },
-  };
 }
 
 /** The computer and every bot's screen on it. */
@@ -271,7 +253,7 @@ function WakeButton({ screenId }: { screenId: string }) {
         startTransition(async () => {
           const result = await wakeScreen(screenId);
           if (!result.ok) toast.error(result.error);
-          await queryClient.invalidateQueries({ queryKey: queryKeys.state });
+          await queryClient.invalidateQueries({ queryKey: orpc.app.state.key() });
         })
       }
     >
@@ -570,21 +552,17 @@ function HandBackButton({
 
   function submit(clearCode = false) {
     startTransition(async () => {
-      // Let go here first, so the screen stops taking your input and its connection closes cleanly.
-      await queryClient.cancelQueries({ queryKey: queryKeys.state });
-      queryClient.setQueryData<AppState>(queryKeys.state, (state) =>
-        state ? releaseScreen(state, screenId) : state,
-      );
+      await releaseScreenNow(queryClient, screenId);
       const result = await handBackScreen(screenId, note.trim() || null, clearCode);
       if (!result.ok) {
         toast.error(result.error);
-        await queryClient.invalidateQueries({ queryKey: queryKeys.state });
+        await queryClient.invalidateQueries({ queryKey: orpc.app.state.key() });
         return;
       }
       setOpen(false);
       setNote("");
       toast("Handed back", { description: `${botName} can use the screen again.` });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.state });
+      await queryClient.invalidateQueries({ queryKey: orpc.app.state.key() });
     });
   }
 
@@ -679,7 +657,7 @@ export function TakeOverButton({
             toast.error(result.error);
             return;
           }
-          await queryClient.invalidateQueries({ queryKey: queryKeys.state });
+          await queryClient.invalidateQueries({ queryKey: orpc.app.state.key() });
         })
       }
     >
@@ -741,7 +719,7 @@ export function ScreenControls({
               onClick={async () => {
                 const result = await dismissTakeoverRequest(request.id);
                 if (!result.ok) toast.error(result.error);
-                await queryClient.invalidateQueries({ queryKey: queryKeys.state });
+                await queryClient.invalidateQueries({ queryKey: orpc.app.state.key() });
               }}
             >
               Not now

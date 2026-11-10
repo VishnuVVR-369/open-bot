@@ -32,7 +32,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { deleteVaultItem } from "@/lib/actions";
-import { queryKeys, useAppState, useVault } from "@/lib/client/queries";
+import { useAppState, useVault } from "@/lib/client/queries";
+import { orpc } from "@/lib/client/rpc";
 import type { VaultItemView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { VaultDialog } from "./vault-dialog";
@@ -128,7 +129,7 @@ function DeleteItem({ item }: { item: VaultItemView }) {
             onClick={async () => {
               const result = await deleteVaultItem(item.id);
               if (!result.ok) toast.error(result.error);
-              await queryClient.invalidateQueries({ queryKey: queryKeys.vault });
+              await queryClient.invalidateQueries({ queryKey: orpc.vault.key() });
             }}
           >
             Delete

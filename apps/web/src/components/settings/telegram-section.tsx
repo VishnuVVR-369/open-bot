@@ -13,9 +13,9 @@ import {
   telegramLinkCode,
   unlinkTelegram,
 } from "@/lib/actions";
-import { getJson, isOffline } from "@/lib/client/api";
-import { queryKeys, useComputerOnline } from "@/lib/client/queries";
-import type { TelegramStatusView } from "@/lib/types";
+import { isOffline } from "@/lib/client/errors";
+import { useComputerOnline } from "@/lib/client/queries";
+import { orpc } from "@/lib/client/rpc";
 import { cn } from "@/lib/utils";
 import { OFFLINE_RETRY, OfflineNote, SectionError } from "./section-state";
 
@@ -54,16 +54,13 @@ function Step({
 export function TelegramSection() {
   const queryClient = useQueryClient();
   const online = useComputerOnline();
-  const status = useQuery({
-    queryKey: queryKeys.telegram,
-    queryFn: () => getJson<TelegramStatusView>("/api/telegram"),
-    enabled: online !== false,
-    ...OFFLINE_RETRY,
-  });
+  const status = useQuery(
+    orpc.telegram.status.queryOptions({ enabled: online !== false, ...OFFLINE_RETRY }),
+  );
   const [token, setToken] = useState("");
   const [link, setLink] = useState<{ code: string; url: string } | null>(null);
   const [pending, startTransition] = useTransition();
-  const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.telegram });
+  const refresh = () => queryClient.invalidateQueries({ queryKey: orpc.telegram.key() });
 
   if (!status.data)
     return status.error || online === false ? (
