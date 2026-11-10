@@ -17,13 +17,14 @@ Shared types and the mobile contract belong in `packages/domain` and `packages/a
 ## Entry points
 
 - `apps/web/src/app` is the App Router tree: `(app)` pages, `(auth)` sign-in, and `api/*` routes.
-- `apps/web/src/lib/actions.ts` holds the server actions (`"use server"`) whose writes haven't moved to the API yet; add no new ones.
+- `apps/web/src/lib/actions.ts` holds the server actions (`"use server"`) whose writes haven't moved to the API yet (settings, the vault, integrations and memory); add no new ones.
+- `apps/web/src/lib/server/api/` has the API's services: what a procedure does beyond calling the worker, such as `teammates.ts` (duplicate, import, lead, archive) and `automations.ts`.
 - `apps/web/src/app/api/stream/route.ts` is the SSE stream, fed by `apps/web/src/lib/server/realtime.ts`.
 - `apps/web/src/app/api/rpc/[[...rest]]` serves the oRPC router in `apps/web/src/lib/server/api/router.ts` for the browser and mobile.
 - `apps/web/src/lib/client/rpc.ts` is the browser's typed client (`api`) and its TanStack Query helpers (`orpc`); `apps/web/src/lib/client/errors.ts` tells offline, signed-out and not-found failures apart.
-- `apps/web/src/lib/client/mutate.ts` has `attempt()` for writes, and `apps/web/src/lib/client/uploads.ts` uploads attachments.
+- `apps/web/src/lib/client/mutate.ts` has `attempt()` for writes, and `apps/web/src/lib/client/uploads.ts` uploads attachments and files.
 - `apps/web/src/proxy.ts` and `apps/web/src/instrumentation.ts` run at the edge of requests and at boot.
-- `apps/web/next.config.ts` lists `transpilePackages` and the 41 MB server action body limit.
+- `apps/web/next.config.ts` lists `transpilePackages`.
 
 ## Invariants
 

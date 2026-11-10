@@ -40,9 +40,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { createTrigger, updateTrigger } from "@/lib/actions";
 import { useAppState, useConnections } from "@/lib/client/queries";
-import { orpc } from "@/lib/client/rpc";
+import { attempt } from "@/lib/client/mutate";
+import { api, orpc } from "@/lib/client/rpc";
 import type { ConnectionView, TriggerView } from "@/lib/types";
 import { copyWebhookUrl } from "./webhook-url";
 
@@ -216,8 +216,8 @@ export function TriggerDialog({
         leadMinutes: kind === "calendar" ? Number(leadMinutes) : null,
       };
       const result = existing
-        ? await updateTrigger(existing.id, input)
-        : await createTrigger(input);
+        ? await attempt(api.triggers.update({ ...input, triggerId: existing.id }))
+        : await attempt(api.triggers.create(input));
       if (!result.ok) {
         toast.error(existing ? "Couldn't save that" : `Couldn't create the ${NOUN[kind]}`, {
           description: result.error,

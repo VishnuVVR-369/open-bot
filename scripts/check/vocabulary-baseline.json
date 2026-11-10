@@ -263,17 +263,17 @@
     "bot": 3
   },
   "apps/web/src/components/bots/bot-danger-zone.tsx": {
-    "bot": 9,
-    "primary teammate": 7
+    "bot": 5,
+    "primary teammate": 5
   },
   "apps/web/src/components/bots/bot-form.tsx": {
-    "bot": 33
+    "bot": 29
   },
   "apps/web/src/components/bots/chat-list.tsx": {
     "bot": 6
   },
   "apps/web/src/components/bots/duplicate-bot.tsx": {
-    "bot": 15
+    "bot": 13
   },
   "apps/web/src/components/bots/lessons-list.tsx": {
     "bot": 3
@@ -370,8 +370,7 @@
     "bot": 26
   },
   "apps/web/src/lib/actions.ts": {
-    "bot": 116,
-    "primary teammate": 6
+    "bot": 30
   },
   "apps/web/src/lib/client/queries.ts": {
     "bot": 4
@@ -384,6 +383,9 @@
   },
   "apps/web/src/lib/server/api/approvals.ts": {
     "bot": 7
+  },
+  "apps/web/src/lib/server/api/automations.ts": {
+    "bot": 2
   },
   "apps/web/src/lib/server/api/chats.ts": {
     "bot": 18
@@ -406,6 +408,10 @@
   "apps/web/src/lib/server/api/screens.ts": {
     "bot": 13,
     "desktop takeover": 3
+  },
+  "apps/web/src/lib/server/api/teammates.ts": {
+    "bot": 13,
+    "primary teammate": 5
   },
   "apps/web/src/lib/server/queries.ts": {
     "bot": 159,
@@ -667,10 +673,10 @@
     "bot": 1
   },
   "packages/api/src/automations.ts": {
-    "bot": 4
+    "bot": 6
   },
   "packages/api/src/contract.ts": {
-    "bot": 7
+    "bot": 8
   },
   "packages/api/src/events.ts": {
     "bot": 1
@@ -694,7 +700,7 @@
     "bot": 3
   },
   "packages/api/src/tasks.ts": {
-    "bot": 3
+    "bot": 5
   },
   "packages/api/src/teammates.ts": {
     "bot": 1
@@ -707,7 +713,7 @@
     "primary teammate": 1
   },
   "packages/api/src/worker/contract.ts": {
-    "bot": 14
+    "bot": 10
   },
   "packages/db/src/schema.ts": {
     "bot": 151,

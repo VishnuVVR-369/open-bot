@@ -26,9 +26,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { saveSkill } from "@/lib/actions";
 import { useAppState } from "@/lib/client/queries";
-import { orpc } from "@/lib/client/rpc";
+import { attempt } from "@/lib/client/mutate";
+import { api, orpc } from "@/lib/client/rpc";
 import type { SkillView } from "@/lib/types";
 
 const EVERYONE = "everyone";
@@ -80,13 +80,15 @@ export function SkillDialog({
 
   function submit() {
     startTransition(async () => {
-      const result = await saveSkill({
-        id: skill?.id ?? null,
-        name,
-        description: description.trim(),
-        instructions: instructions.trim(),
-        botId: owner === EVERYONE ? null : owner,
-      });
+      const result = await attempt(
+        api.skills.save({
+          id: skill?.id ?? null,
+          name,
+          description: description.trim(),
+          instructions: instructions.trim(),
+          botId: owner === EVERYONE ? null : owner,
+        }),
+      );
       if (!result.ok) {
         toast.error("Couldn't save the skill", { description: result.error });
         return;

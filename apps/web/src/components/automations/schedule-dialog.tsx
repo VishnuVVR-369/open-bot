@@ -34,9 +34,9 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { createSchedule, updateSchedule } from "@/lib/actions";
 import { useAppState } from "@/lib/client/queries";
-import { orpc } from "@/lib/client/rpc";
+import { attempt } from "@/lib/client/mutate";
+import { api, orpc } from "@/lib/client/rpc";
 import type { ScheduleView } from "@/lib/types";
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -124,8 +124,8 @@ export function ScheduleDialog({
         quiet: kind === "cron" && quiet,
       };
       const result = schedule
-        ? await updateSchedule(schedule.id, input)
-        : await createSchedule(input);
+        ? await attempt(api.schedules.update({ ...input, scheduleId: schedule.id }))
+        : await attempt(api.schedules.create(input));
       if (!result.ok) {
         toast.error(schedule ? "Couldn't save the schedule" : "Couldn't schedule that", {
           description: result.error,

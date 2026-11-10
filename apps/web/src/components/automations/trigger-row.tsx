@@ -24,14 +24,9 @@ import { useState, useSyncExternalStore, useTransition } from "react";
 import { toast } from "sonner";
 import { BotAvatar } from "@/components/bot-avatar";
 import { Switch } from "@/components/ui/switch";
-import {
-  checkTriggerNow,
-  deleteTrigger,
-  rotateWebhook,
-  setTriggerEnabled,
-  testWebhook,
-} from "@/lib/actions";
+import { attempt } from "@/lib/client/mutate";
 import { useTriggerRuns } from "@/lib/client/queries";
+import { api } from "@/lib/client/rpc";
 import type { BotSummary, TriggerView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
@@ -119,7 +114,7 @@ function WebhookAddress({ trigger, botName }: { trigger: TriggerView; botName: s
           disabled={rotating}
           onClick={() =>
             startRotate(async () => {
-              const result = await rotateWebhook(trigger.id);
+              const result = await attempt(api.triggers.rotateToken({ triggerId: trigger.id }));
               if (!result.ok) toast.error(result.error);
               else
                 toast("The webhook has a new URL", { description: "The old one stopped working." });
@@ -311,7 +306,7 @@ export function TriggerRow({
               unavailable={canRun ? undefined : OFFLINE_ACTION}
               onClick={() =>
                 startBusy(async () => {
-                  const result = await checkTriggerNow(trigger.id);
+                  const result = await attempt(api.triggers.check({ triggerId: trigger.id }));
                   const failed = CHECK_FAILED[trigger.kind];
                   if (!result.ok) toast.error(failed, { description: result.error });
                   else if (!result.data.ok)
@@ -335,7 +330,7 @@ export function TriggerRow({
               unavailable={canRun ? undefined : OFFLINE_ACTION}
               onClick={() =>
                 startBusy(async () => {
-                  const result = await testWebhook(trigger.id);
+                  const result = await attempt(api.triggers.test({ triggerId: trigger.id }));
                   if (!result.ok)
                     toast.error("Couldn't call the webhook", { description: result.error });
                   else
@@ -354,7 +349,9 @@ export function TriggerRow({
             checked={trigger.enabled}
             aria-label="On"
             onCheckedChange={async (checked) => {
-              const result = await setTriggerEnabled(trigger.id, checked);
+              const result = await attempt(
+                api.triggers.setEnabled({ triggerId: trigger.id, enabled: checked }),
+              );
               if (!result.ok) toast.error(result.error);
               refresh();
             }}
@@ -364,7 +361,7 @@ export function TriggerRow({
             deleteDescription={DELETE_TEXT[trigger.kind]}
             onEdit={() => setEditing(true)}
             onDelete={async () => {
-              const result = await deleteTrigger(trigger.id);
+              const result = await attempt(api.triggers.remove({ triggerId: trigger.id }));
               if (!result.ok) toast.error(result.error);
               refresh();
             }}

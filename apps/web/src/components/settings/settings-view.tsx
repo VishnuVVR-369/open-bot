@@ -64,10 +64,7 @@ import {
   removeApiKey,
   saveApiKey,
   setMonthlyCap,
-  setChatgptAuthSource,
   setTimezone,
-  signOutChatgpt,
-  startChatgptLogin,
 } from "@/lib/actions";
 import { attempt } from "@/lib/client/mutate";
 import { authClient } from "@/lib/auth-client";
@@ -242,7 +239,7 @@ function ChatgptSection() {
             size="sm"
             onClick={() =>
               startTransition(async () => {
-                const result = await signOutChatgpt();
+                const result = await attempt(api.chatgpt.signOut());
                 if (!result.ok) toast.error(result.error);
                 await refresh();
               })
@@ -276,7 +273,7 @@ function ChatgptSection() {
           disabled={pending}
           onSelect={() =>
             startTransition(async () => {
-              const result = await setChatgptAuthSource("host");
+              const result = await attempt(api.chatgpt.setAuthSource({ source: "host" }));
               if (!result.ok) toast.error(result.error);
               await refresh();
             })
@@ -289,7 +286,7 @@ function ChatgptSection() {
           disabled={pending}
           onSelect={() =>
             startTransition(async () => {
-              const result = await setChatgptAuthSource("device");
+              const result = await attempt(api.chatgpt.setAuthSource({ source: "device" }));
               if (!result.ok) toast.error(result.error);
               await refresh();
             })
@@ -332,7 +329,7 @@ function ChatgptSection() {
               disabled={pending}
               onClick={() =>
                 startTransition(async () => {
-                  const result = await startChatgptLogin();
+                  const result = await attempt(api.chatgpt.startLogin());
                   if (!result.ok) toast.error(result.error);
                   else setLogin(result.data);
                 })

@@ -1,5 +1,6 @@
 import { triggerKindSchema } from "@open-bot/domain";
 import { z } from "zod";
+import { id } from "./base";
 import { runStatusSchema, runTriggerSchema } from "./views";
 
 /** Automations as the app shows them: schedules, and the triggers (watches, webhooks, accounts). */
@@ -68,3 +69,37 @@ export const automationRunViewSchema = z.object({
   completedAt: isoDate.nullable(),
 });
 export type AutomationRunView = z.infer<typeof automationRunViewSchema>;
+
+/** A routine (cron) or a reminder (at) a teammate runs, as the owner sets it up. */
+export const scheduleInputSchema = z.object({
+  botId: id,
+  title: z.string().min(1).max(80),
+  prompt: z.string().min(1).max(4000),
+  cron: z.string().nullable(),
+  at: z.string().nullable(),
+  /** Null uses the owner's time zone. */
+  timezone: z.string().nullable(),
+  /** Only tell the owner when there's news. Left out on an edit, it stays as it was. */
+  quiet: z.boolean().optional(),
+});
+export type ScheduleInput = z.infer<typeof scheduleInputSchema>;
+
+/** A watch, webhook, Gmail or Calendar trigger, as the owner sets it up. */
+export const triggerInputSchema = z.object({
+  botId: id,
+  kind: triggerKindSchema,
+  title: z.string().max(200),
+  prompt: z.string().max(8000),
+  /** Watches: the page to look at. */
+  url: z.string().max(2000).nullable().optional(),
+  intervalMinutes: z.number().int().nullable().optional(),
+  /** Watches: what change to wake for, in words. */
+  lookFor: z.string().max(400).nullable().optional(),
+  /** Gmail and Calendar: the connection to watch. */
+  connectionId: id.nullable().optional(),
+  /** Gmail: the search new mail must match (empty for all of it). Calendar: `all` or `guests`. */
+  query: z.string().max(1000).nullable().optional(),
+  /** Calendar: how many minutes before an event to wake the teammate. */
+  leadMinutes: z.number().int().nullable().optional(),
+});
+export type TriggerInput = z.infer<typeof triggerInputSchema>;

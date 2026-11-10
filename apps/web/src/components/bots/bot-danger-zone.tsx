@@ -17,8 +17,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { archiveBot, setPrimaryBot } from "@/lib/actions";
-import { orpc } from "@/lib/client/rpc";
+import { attempt } from "@/lib/client/mutate";
+import { api, orpc } from "@/lib/client/rpc";
 
 export function BotDangerZone({
   botId,
@@ -49,7 +49,7 @@ export function BotDangerZone({
           disabled={isPrimary || pending}
           onClick={() =>
             startTransition(async () => {
-              const result = await setPrimaryBot(botId);
+              const result = await attempt(api.teammates.setLead({ teammateId: botId }));
               if (!result.ok) toast.error(result.error);
               await queryClient.invalidateQueries({ queryKey: orpc.app.state.key() });
               router.refresh();
@@ -85,7 +85,7 @@ export function BotDangerZone({
                 variant="destructive"
                 onClick={() =>
                   startTransition(async () => {
-                    const result = await archiveBot(botId);
+                    const result = await attempt(api.teammates.archive({ teammateId: botId }));
                     if (!result.ok) {
                       toast.error(result.error);
                       return;

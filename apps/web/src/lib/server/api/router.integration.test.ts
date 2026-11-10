@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { OFFLINE_EGRESS_STATUS, type ApiClient } from "@open-bot/api";
+import { BUNDLE_FORMAT, BUNDLE_VERSION, DAILY_CHECK_IN } from "@open-bot/domain";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import { ORPCError } from "@orpc/client";
 import { createRouterClient } from "@orpc/server";
@@ -60,11 +61,24 @@ const WORKER: Record<string, unknown> = {
 describe.skipIf(!url)("API reads, end to end", () => {
   const database = testDatabase(url);
   const workerPaths: string[] = [];
+  /** What the web app sent the worker, by path, newest last. */
+  const workerBodies: { path: string; body: unknown }[] = [];
+  /** Answers a test gives to a worker write, by path. */
+  const answers = new Map<string, { status: number; body: unknown }>();
   let workerUp = true;
-  const worker = http.createServer((request, response) => {
+  const worker = http.createServer(async (request, response) => {
     const path = new URL(request.url ?? "/", "http://worker").pathname;
     workerPaths.push(path);
+    let raw = "";
+    for await (const chunk of request) raw += chunk;
+    workerBodies.push({ path, body: raw ? JSON.parse(raw) : undefined });
     response.setHeader("content-type", "application/json");
+    const answer = answers.get(path);
+    if (answer) {
+      response.statusCode = answer.status;
+      response.end(JSON.stringify(answer.body));
+      return;
+    }
     const listing =
       path === "/internal/files/list"
         ? {
@@ -303,5 +317,228 @@ describe.skipIf(!url)("API reads, end to end", () => {
       message: "Name the chat.",
       data: { issues: [expect.objectContaining({ path: ["title"] })] },
     });
+  });
+
+  /* The writes the web app does itself, and how worker failures reach the caller. */
+
+  const PROFILE = {
+    name: "Iris",
+    role: "Writer",
+    instructions: "",
+    color: "#10b981",
+    emoji: "",
+    autonomy: "risky" as const,
+  };
+
+  async function teammate(id: string) {
+    const s = await import("@open-bot/db");
+    const { eq } = await import("drizzle-orm");
+    const [row] = await database.db.select().from(s.bots).where(eq(s.bots.id, id));
+    return row!;
+  }
+
+  async function addTeammate(name: string, extra: { archivedAt?: Date } = {}) {
+    const s = await import("@open-bot/db");
+    const [row] = await database.db
+      .insert(s.bots)
+      .values({ name, slug: name.toLowerCase(), role: "Helper", color: "#f59e0b", ...extra })
+      .returning({ id: s.bots.id });
+    return row!.id;
+  }
+
+  it("makes one teammate the lead, and leaves the lead alone when asked for one that's gone", async () => {
+    const iris = await addTeammate("Iris");
+    const gone = await addTeammate("Gone", { archivedAt: new Date() });
+    await api.teammates.setLead({ teammateId: iris });
+    expect((await teammate(iris)).isPrimary).toBe(true);
+    await api.teammates.setLead({ teammateId: ids.teammate });
+    expect((await teammate(ids.teammate)).isPrimary).toBe(true);
+    expect((await teammate(iris)).isPrimary).toBe(false);
+    for (const teammateId of [gone, randomUUID()])
+      await expect(api.teammates.setLead({ teammateId })).rejects.toMatchObject({
+        code: "NOT_FOUND",
+        message: "That teammate no longer exists.",
+      });
+    expect((await teammate(ids.teammate)).isPrimary).toBe(true);
+    expect((await teammate(gone)).isPrimary).toBe(false);
+  });
+
+  it("duplicates a teammate with its memory, and its routines paused", async () => {
+    const copy = await api.teammates.duplicate({
+      teammateId: ids.teammate,
+      name: "Scout 2",
+      copyMemory: true,
+    });
+    expect(copy.memoryCopied).toBe(true);
+    expect(await teammate(copy.teammateId)).toMatchObject({
+      name: "Scout 2",
+      slug: "scout-2",
+      role: "Researcher",
+      isPrimary: false,
+    });
+    const s = await import("@open-bot/db");
+    const { eq } = await import("drizzle-orm");
+    const [chat] = await database.db.select().from(s.chats).where(eq(s.chats.id, copy.chatId));
+    expect(chat).toMatchObject({ kind: "direct", botId: copy.teammateId });
+    const routines = await database.db
+      .select()
+      .from(s.schedules)
+      .where(eq(s.schedules.botId, copy.teammateId));
+    expect(routines.map((r) => [r.title, r.enabled])).toEqual([["Morning news", false]]);
+    const memories = await api.memory.list({ botId: copy.teammateId, query: "window" });
+    expect(memories.map((m) => m.content)).toEqual(["Prefers window seats"]);
+    // The computer was away; its workspace is written before its first run instead.
+    expect(workerPaths).toContain(`/internal/bots/${copy.teammateId}/sync`);
+    await expect(
+      api.teammates.duplicate({ teammateId: randomUUID(), name: "Nobody", copyMemory: false }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("imports a teammate file, and says what's wrong with one it can't read", async () => {
+    await expect(api.teammates.import({ file: "{" })).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: "This isn't an open-bot teammate file.",
+    });
+    const file = (version: number) =>
+      JSON.stringify({
+        format: BUNDLE_FORMAT,
+        version,
+        teammate: { name: "Atlas", role: "Planner" },
+        routines: [{ title: "Weekly plan", prompt: "Plan the week", cron: "0 9 * * 1" }],
+      });
+    await expect(api.teammates.import({ file: file(BUNDLE_VERSION + 1) })).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: expect.stringContaining("from a newer open-bot"),
+    });
+    const atlas = await api.teammates.import({ file: file(BUNDLE_VERSION) });
+    expect(atlas).toMatchObject({ name: "Atlas", paused: 1 });
+    // Only the first teammate leads.
+    expect(await teammate(atlas.teammateId)).toMatchObject({ slug: "atlas", isPrimary: false });
+  });
+
+  it("archives a teammate: its chats, automations and work stop together", async () => {
+    const s = await import("@open-bot/db");
+    const { eq } = await import("drizzle-orm");
+    const { teammateId, chatId } = await api.teammates.import({
+      file: JSON.stringify({
+        format: BUNDLE_FORMAT,
+        version: BUNDLE_VERSION,
+        teammate: { name: "Retiring", role: "Helper" },
+      }),
+    });
+    await database.db.update(s.bots).set({ isPrimary: true }).where(eq(s.bots.id, teammateId));
+    const [run] = await database.db
+      .insert(s.runs)
+      .values({ chatId, botId: teammateId, trigger: "user", prompt: "Go", status: "queued" })
+      .returning({ id: s.runs.id });
+    await database.db.insert(s.triggers).values({
+      botId: teammateId,
+      kind: "watch",
+      title: "Status page",
+      prompt: "Tell me",
+      url: "https://example.test/status",
+      intervalMinutes: 60,
+      createdBy: "user",
+    });
+    await api.teammates.archive({ teammateId });
+    const row = await teammate(teammateId);
+    expect(row.archivedAt).not.toBeNull();
+    expect(row.isPrimary).toBe(false);
+    const [chat] = await database.db.select().from(s.chats).where(eq(s.chats.id, chatId));
+    expect(chat!.archivedAt).not.toBeNull();
+    const watches = await database.db
+      .select()
+      .from(s.triggers)
+      .where(eq(s.triggers.botId, teammateId));
+    expect(watches.map((t) => t.enabled)).toEqual([false]);
+    const [stopped] = await database.db.select().from(s.runs).where(eq(s.runs.id, run!.id));
+    expect(stopped!.cancelRequestedAt).not.toBeNull();
+    expect(workerPaths).toContain(`/internal/screens/${teammateId}/forget`);
+  });
+
+  it("turns a daily check-in on in the owner's time zone, and resumes it rather than adding one", async () => {
+    const s = await import("@open-bot/db");
+    const checkIn = randomUUID();
+    answers.set("/internal/schedules", { status: 200, body: { id: checkIn } });
+    answers.set(`/internal/schedules/${checkIn}/enabled`, { status: 200, body: { ok: true } });
+    try {
+      await api.schedules.setCheckIn({ teammateId: ids.teammate, on: true });
+      expect(workerBodies.findLast((b) => b.path === "/internal/schedules")?.body).toMatchObject({
+        botId: ids.teammate,
+        title: DAILY_CHECK_IN.title,
+        timezone: "Europe/Berlin",
+        quiet: true,
+      });
+      // What the worker would have saved.
+      await database.db.insert(s.schedules).values({
+        id: checkIn,
+        botId: ids.teammate,
+        title: DAILY_CHECK_IN.title,
+        prompt: DAILY_CHECK_IN.prompt,
+        kind: "cron",
+        cron: DAILY_CHECK_IN.cron,
+        timezone: "Europe/Berlin",
+        quiet: true,
+        createdBy: "user",
+      });
+      const created = workerBodies.filter((b) => b.path === "/internal/schedules").length;
+      await api.schedules.setCheckIn({ teammateId: ids.teammate, on: false });
+      await api.schedules.setCheckIn({ teammateId: ids.teammate, on: true });
+      expect(
+        workerBodies
+          .filter((b) => b.path === `/internal/schedules/${checkIn}/enabled`)
+          .map((b) => b.body),
+      ).toEqual([{ enabled: false }, { enabled: true }]);
+      expect(workerBodies.filter((b) => b.path === "/internal/schedules")).toHaveLength(created);
+      await api.schedules.remove({ scheduleId: checkIn });
+      const { eq } = await import("drizzle-orm");
+      expect(
+        await database.db.select().from(s.schedules).where(eq(s.schedules.id, checkIn)),
+      ).toEqual([]);
+    } finally {
+      answers.clear();
+    }
+  });
+
+  it("sends a webhook a test request only while it exists", async () => {
+    const s = await import("@open-bot/db");
+    // A page watch has no URL to call.
+    await expect(api.triggers.test({ triggerId: ids.trigger })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+      message: "That webhook no longer exists.",
+    });
+    const [hook] = await database.db
+      .insert(s.triggers)
+      .values({
+        botId: ids.teammate,
+        kind: "webhook",
+        title: "Deploys",
+        prompt: "Tell me about failed deploys",
+        token: "hook-token",
+        createdBy: "user",
+      })
+      .returning({ id: s.triggers.id });
+    const runId = randomUUID();
+    answers.set("/internal/hooks/hook-token", { status: 200, body: { runId } });
+    try {
+      expect(await api.triggers.test({ triggerId: hook!.id })).toEqual({ runId });
+      expect(
+        workerBodies.findLast((b) => b.path === "/internal/hooks/hook-token")?.body,
+      ).toMatchObject({ method: "POST", contentType: "application/json" });
+    } finally {
+      answers.clear();
+    }
+  });
+
+  it("says a teammate changed since it was loaded as a state conflict, in the worker's words", async () => {
+    const message = "Scout changed since you opened this. Reload to see the latest.";
+    answers.set(`/internal/bots/${ids.teammate}`, { status: 409, body: { error: message } });
+    try {
+      await expect(
+        api.teammates.update({ teammateId: ids.teammate, profile: PROFILE, revision: "old" }),
+      ).rejects.toMatchObject({ code: "STATE_CONFLICT", status: 409, message });
+    } finally {
+      answers.clear();
+    }
   });
 });

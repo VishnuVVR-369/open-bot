@@ -36,10 +36,6 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-  experimental: {
-    // Attachments and uploads go through Server Actions, up to 40 MB plus the multipart overhead.
-    serverActions: { bodySizeLimit: "41mb" },
-  },
   turbopack: {
     rules: {
       "*.css": {

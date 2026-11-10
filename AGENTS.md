@@ -93,7 +93,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 
 1. `packages/api/src/worker/contract.ts`: add a procedure to `workerContract` with its `route` (`/internal/...`), input and output schemas. Use `computer` instead of `base` if it touches the computer, or it will not wake it; never for a status read.
 2. `apps/worker/src/rpc/router.ts`: implement it by calling a service. Put rules in the service, and throw the service's own error class; `apps/worker/src/rpc/errors.ts` maps error classes to statuses in one place. Auth (`x-worker-secret`) is automatic.
-3. Call it from web with the typed client: `worker.<domain>.<procedure>(input)` (`apps/web/src/lib/server/worker.ts`) in `apps/web/src/lib/actions.ts` or `apps/web/src/lib/server/api/*`. Failures are `WorkerError` with the worker's status and message.
+3. Call it from web with the typed client: `worker.<domain>.<procedure>(input)` (`apps/web/src/lib/server/worker.ts`) in `apps/web/src/lib/server/api/*`. Failures are `WorkerError` with the worker's status and message.
 4. Document it in `apps/site/src/app/docs/reference/http-api/page.mdx`.
 
 **Add a botd route** (called by the worker)
@@ -110,7 +110,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 2. `packages/domain/src/teammates/management.ts` (`botProfileSchema`, `botCreation()`), `packages/domain/src/teammates/bundle.ts` (optional or defaulted so old exports import).
 3. `packages/api/src/views.ts` (`botSummarySchema`) if lists or mobile need it; `apps/web/src/lib/server/queries.ts` (`listBots`).
 4. Worker: `apps/worker/src/services/bots.ts` (`list`, `get`), `apps/worker/src/tools/definitions.ts` (`profileProperties`), `apps/worker/src/tools/bots.ts` (`PROFILE_LABELS`).
-5. Web: `apps/web/src/lib/actions.ts` (`duplicateBot`, `importTeammate`), `apps/web/src/app/api/bots/[botId]/export/route.ts`, `apps/web/src/components/bots/bot-form.tsx` (`BotFormValues`), `apps/web/src/app/(app)/bots/new/page.tsx`, `apps/web/src/app/(app)/bots/[botId]/page.tsx`.
+5. Web: `apps/web/src/lib/server/api/teammates.ts` (`duplicateTeammate`, `importTeammate`), `apps/web/src/app/api/bots/[botId]/export/route.ts`, `apps/web/src/components/bots/bot-form.tsx` (`BotFormValues`), `apps/web/src/app/(app)/bots/new/page.tsx`, `apps/web/src/app/(app)/bots/[botId]/page.tsx`.
 6. Mobile (display only; the contract has no teammate edit procedure): `apps/mobile/src/app/teammates/[botId].tsx`.
 7. Ship web and worker together: the worker's schemas are strict and reject unknown keys.
 

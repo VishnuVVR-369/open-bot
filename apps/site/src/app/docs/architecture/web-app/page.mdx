@@ -14,9 +14,9 @@ It serves the browser UI and the Android app's API: it reads Postgres directly, 
 ## What talks to what
 
 - **Pages** (`src/app/(app)/*`) are server components. They check the session and render the first view from Postgres, so a page is useful before any client code runs.
-- **Server actions** (`src/lib/actions.ts`) handle the browser writes that haven't moved to the API yet, such as teammates, automations, settings and the vault.
-- **The API and uploads** (`/api/rpc/*`, `PUT /api/uploads/:id`) serve the browser and the Android app through the services in `src/lib/server/api/`.
-  The browser sends messages, uploads attachments, decides approvals and makes its other chat, run, screen and page writes there, with `attempt()` (`src/lib/client/mutate.ts`).
+- **Server actions** (`src/lib/actions.ts`) handle the browser writes that haven't moved to the API yet: settings, the vault, integrations and memory.
+- **The API and uploads** (`/api/rpc/*`, `PUT /api/uploads/:id`, `PUT /api/files/upload`) serve the browser and the Android app through the services in `src/lib/server/api/`.
+  The browser sends messages, uploads attachments and files, decides approvals, and changes teammates, automations, tasks, skills, chats, runs, screens and pages there, with `attempt()` (`src/lib/client/mutate.ts`).
   See [Internal APIs](/docs/reference/http-api#the-api) for their entry points and authoritative contract.
 - **Reads** go through the API (`@open-bot/api`), the same procedures the Android app calls.
   Client components query them with TanStack Query through `orpc` (`src/lib/client/rpc.ts`), whose cache keys are procedure paths.

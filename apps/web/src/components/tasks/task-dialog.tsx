@@ -25,7 +25,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { createTask, deleteTask, startTask, updateTask } from "@/lib/actions";
+import { attempt } from "@/lib/client/mutate";
+import { api } from "@/lib/client/rpc";
 import type { BotSummary, TaskView } from "@/lib/types";
 
 export const STATUS_LABELS: Record<TaskView["status"], string> = {
@@ -69,15 +70,15 @@ export function TaskDialog({
         dueOn: dueOn || null,
       };
       const result = task
-        ? await updateTask(task.id, { ...fields, status })
-        : await createTask(fields);
+        ? await attempt(api.tasks.update({ taskId: task.id, ...fields, status }))
+        : await attempt(api.tasks.create(fields));
       if (!result.ok) {
         toast.error("Couldn't save the task", { description: result.error });
         return;
       }
       const id = task?.id ?? (result.data as { id: string }).id;
       if (then === "start") {
-        const started = await startTask(id);
+        const started = await attempt(api.tasks.start({ taskId: id }));
         if (!started.ok) {
           toast.error("Couldn't start it", { description: started.error });
           return;
@@ -99,7 +100,7 @@ export function TaskDialog({
   function remove() {
     if (!task) return;
     startTransition(async () => {
-      const result = await deleteTask(task.id);
+      const result = await attempt(api.tasks.remove({ taskId: task.id }));
       if (!result.ok) toast.error("Couldn't delete it", { description: result.error });
       onSaved();
       onOpenChange(false);
