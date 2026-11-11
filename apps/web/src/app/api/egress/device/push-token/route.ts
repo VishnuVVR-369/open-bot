@@ -1,8 +1,5 @@
-import { egressDevices } from "@open-bot/db";
-import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { db } from "@/lib/server/db";
 import { deviceRoute } from "@/lib/server/egress-device";
 import { worker } from "@/lib/server/worker";
 
@@ -11,9 +8,7 @@ export const POST = deviceRoute(async (device, request) => {
   const { token } = z
     .object({ token: z.string().min(1).max(4096) })
     .parse(await request.json().catch(() => null));
-  if (token !== device.pushToken) {
-    await db.update(egressDevices).set({ pushToken: token }).where(eq(egressDevices.id, device.id));
-    await worker.egress.devicesChanged().catch(() => {});
-  }
+  if (token !== device.pushToken)
+    await worker.egress.devicePushToken({ deviceId: device.id, token });
   return NextResponse.json({ ok: true });
 });

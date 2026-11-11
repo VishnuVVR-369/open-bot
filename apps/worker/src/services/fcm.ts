@@ -1,10 +1,11 @@
 import { createSign } from "node:crypto";
-import { egressDevices, nativePushDevices } from "@open-bot/db";
+import { nativePushDevices } from "@open-bot/db";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Context, NotificationEvent } from "../context";
 import { errorMessage } from "../logger";
 import { plainText } from "./push";
+import { forgetPushToken } from "../egress/devices";
 
 /**
  * What a phone gets: always a data message, never a notification message, so the app renders it
@@ -243,10 +244,7 @@ export class FcmService {
 
   private async forget(token: string): Promise<void> {
     await this.unregister(token);
-    await this.ctx.db
-      .update(egressDevices)
-      .set({ pushToken: null })
-      .where(eq(egressDevices.pushToken, token));
+    await forgetPushToken(this.ctx.db, token);
   }
 
   private async send(

@@ -5,6 +5,7 @@ import { CodexManager } from "./codex";
 import { BotdError, ComputerClient } from "./computer";
 import { createNotification, publishApp, type Context } from "./context";
 import { addComputerRow, databaseStore } from "./egress/store";
+import { EgressDevices } from "./egress/devices";
 import { EgressRelay } from "./egress/relay";
 import { WakeController } from "./egress/wake";
 import { env } from "./env";
@@ -119,7 +120,7 @@ const tools = new ToolHandlers(
   accountTools,
 );
 const model = new ModelAccess(ctx);
-const connections = new ConnectionService(ctx, accountTools);
+const connections = new ConnectionService(ctx, accountTools, accountAccess.store, accountActions);
 const executor = new RunExecutor(
   ctx,
   sessions,
@@ -429,6 +430,7 @@ const server = createHttpServer({
   uploads,
   pages,
   codexAccount: new CodexAccountService(ctx),
+  egressDevices: new EgressDevices(ctx, egress),
   settings: new SettingsService(ctx),
 });
 server.listen(env.WORKER_PORT, () => log.info(`worker listening on :${env.WORKER_PORT}`));

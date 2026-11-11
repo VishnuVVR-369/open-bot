@@ -99,7 +99,7 @@ export const TABLE_OWNERS = {
   // Approvals, spending and the vault.
   approvals: {
     owner: `${WORKER}services/approvals.ts`,
-    moving: [`${WEB}lib/server/accounts.ts`, `${WORKER}accounts/actions.ts`],
+    moving: [`${WORKER}accounts/actions.ts`],
   },
   vault_items: { owner: `${WORKER}services/vault.ts`, moving: [`${WEB}lib/server/api/vault.ts`] },
   purchases: { owner: `${WORKER}services/vault.ts`, moving: [`${WORKER}services/approvals.ts`] },
@@ -112,15 +112,7 @@ export const TABLE_OWNERS = {
     owner: `${WORKER}services/screen-operations.ts`,
     moving: [`${WORKER}services/takeovers.ts`],
   },
-  egress_devices: {
-    owner: `${WORKER}egress/devices.ts`,
-    moving: [
-      `${WEB}app/api/egress/device/push-token/route.ts`,
-      `${WEB}app/api/egress/device/token/route.ts`,
-      `${WEB}lib/server/api/egress.ts`,
-      `${WORKER}services/fcm.ts`,
-    ],
-  },
+  egress_devices: { owner: `${WORKER}egress/devices.ts` },
 
   // Settings, secrets and notifications to the owner's devices.
   settings: {
@@ -139,20 +131,13 @@ export const TABLE_OWNERS = {
   emails: { owner: `${WORKER}services/email.ts` },
 
   // Integrations: connections (MCP servers) and accounts (OAuth).
-  connections: {
-    owner: `${WORKER}services/connections.ts`,
-    moving: [
-      `${WEB}lib/server/accounts.ts`,
-      `${WEB}lib/server/api/integrations.ts`,
-      `${WORKER}services/bots.ts`,
-    ],
-  },
+  connections: { owner: `${WORKER}services/connections.ts` },
   accounts: { owner: "packages/accounts/src/store.ts", moving: [`${WORKER}accounts/access.ts`] },
   oauth_clients: { owner: "packages/accounts/src/clients.ts" },
   oauth_states: { owner: `${WEB}lib/server/accounts.ts` },
   account_actions: {
     owner: `${WORKER}accounts/actions.ts`,
-    moving: [`${WEB}lib/server/accounts.ts`, `${WORKER}services/approvals.ts`],
+    moving: [`${WORKER}services/approvals.ts`],
   },
   account_resources: { owner: `${WORKER}accounts/notion.ts` },
 

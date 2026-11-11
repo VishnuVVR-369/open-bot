@@ -48,6 +48,7 @@ import { addTeammateSkills } from "./skills";
 import type { SkillService } from "./skills";
 import { addPausedWatches, pauseTriggersOf } from "./triggers";
 import { type MemoryService } from "@open-bot/memory";
+import { setConnectionTeammates } from "./connections";
 
 /** What a teammate is made of besides its profile: what copying and exporting carry over. */
 export type TeammateParts = Omit<TeammateBundle, "format" | "version" | "teammate">;
@@ -706,7 +707,7 @@ export class BotService {
         expectedRevision,
       );
       if (change === "unchanged") return false;
-      await tx.update(connections).set(change).where(eq(connections.id, connectionId));
+      await setConnectionTeammates(tx, connectionId, change.botIds);
       return true;
     });
     if (changed) await publishApp(this.ctx, { type: "connections" });

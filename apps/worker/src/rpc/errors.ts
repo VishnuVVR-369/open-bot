@@ -5,6 +5,7 @@ import { UploadError } from "../uploads";
 import { ApprovalError } from "../services/approvals";
 import { BotError } from "../services/bots";
 import { ChatError } from "../services/chats";
+import { ConnectionError } from "../services/connections";
 import { RunError } from "../runs/requests";
 import { EmailError } from "../services/email";
 import { FileError } from "../services/files";
@@ -63,6 +64,7 @@ export function toRpcError(error: unknown): ORPCError<string, unknown> {
     error instanceof ApprovalError ||
     error instanceof BotError ||
     error instanceof ChatError ||
+    error instanceof ConnectionError ||
     error instanceof RunError ||
     error instanceof FileError ||
     error instanceof MemoryError ||

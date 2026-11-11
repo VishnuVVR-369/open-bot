@@ -1,10 +1,10 @@
 import "server-only";
 import { timingSafeEqual } from "node:crypto";
 import { egressDevices } from "@open-bot/db";
+import { hashDeviceSecret } from "@open-bot/domain/server";
 import { and, eq, isNull } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { hashDeviceSecret } from "./api/egress";
 import { db } from "./db";
 import { WorkerError } from "./worker";
 

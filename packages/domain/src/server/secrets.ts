@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 
 /** AES-256-GCM for secrets at rest (the OpenAI API key). The key is 32 bytes, base64 encoded. */
 
@@ -53,4 +53,9 @@ export function assertNoDevSecrets(
     throw new Error(
       `Set ${defaults.join(", ")} in production: the development default is public, so it protects nothing.`,
     );
+}
+
+/** The SHA-256 of a paired phone's secret, as stored: the secret itself is never kept. */
+export function hashDeviceSecret(secret: string): string {
+  return createHash("sha256").update(secret, "utf8").digest("hex");
 }

@@ -1,5 +1,4 @@
 import "server-only";
-import { createHash, randomBytes } from "node:crypto";
 import {
   OFFLINE_EGRESS_STATUS,
   type ApiInputs,
@@ -7,22 +6,12 @@ import {
   type EgressStatusView,
 } from "@open-bot/api";
 import { egressDevices } from "@open-bot/db";
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { asc, isNull } from "drizzle-orm";
 import { db } from "../db";
 import { workerStatus } from "../queries";
 import { worker } from "../worker";
 
 type Inputs = ApiInputs["egress"];
-
-/** The SHA-256 of a device secret, as stored. */
-export function hashDeviceSecret(secret: string): string {
-  return createHash("sha256").update(secret, "utf8").digest("hex");
-}
-
-/** Tell the worker that paired phones changed, so it wakes the right ones. Best effort. */
-async function devicesChanged(): Promise<void> {
-  await worker.egress.devicesChanged().catch(() => {});
-}
 
 export async function getEgressStatus(): Promise<EgressStatusView> {
   const status = await workerStatus();
@@ -64,54 +53,19 @@ export async function listEgressDevices(): Promise<EgressDeviceView[]> {
 
 /**
  * Pair a phone, or pair it again: a new secret and a new generation, so any token or secret from
- * an earlier pairing stops working. The secret is returned once and only its hash is kept.
+ * an earlier pairing stops working. The worker keeps only the secret's hash (it owns paired phones,
+ * see packages/db/src/owners.ts), and the secret is returned once.
  */
 export async function registerEgressDevice({
   deviceId,
   name,
   pushToken,
 }: Inputs["registerDevice"]) {
-  const secret = randomBytes(32).toString("base64url");
-  const secretHash = hashDeviceSecret(secret);
-  const [row] = await db
-    .insert(egressDevices)
-    .values({ id: deviceId, name, secretHash, pushToken, generation: 1 })
-    .onConflictDoUpdate({
-      target: egressDevices.id,
-      set: {
-        name,
-        secretHash,
-        pushToken,
-        generation: sql`${egressDevices.generation} + 1`,
-        revokedAt: null,
-      },
-    })
-    .returning({ generation: egressDevices.generation });
-  // A re-pairing must also drop a connection the previous generation still has open.
-  await worker.egress.deviceRevoked({ deviceId, generation: row!.generation - 1 }).catch(() => {});
-  await devicesChanged();
-  return { secret, generation: row!.generation };
+  return worker.egress.pairDevice({ deviceId, name, pushToken });
 }
 
-/**
- * Unpair a phone. The database is the source of truth; the worker is told so it can disconnect
- * the phone at once, and its reconciler catches up if that message is lost.
- */
+/** Unpair a phone; the worker disconnects it at once. */
 export async function revokeEgressDevice({ deviceId, generation }: Inputs["revokeDevice"]) {
-  const [row] = await db
-    .update(egressDevices)
-    .set({ revokedAt: new Date(), pushToken: null })
-    .where(
-      and(
-        eq(egressDevices.id, deviceId),
-        isNull(egressDevices.revokedAt),
-        ...(generation === undefined ? [] : [eq(egressDevices.generation, generation)]),
-      ),
-    )
-    .returning({ generation: egressDevices.generation });
-  if (row) {
-    await worker.egress.deviceRevoked({ deviceId, generation: row.generation }).catch(() => {});
-    await devicesChanged();
-  }
+  await worker.egress.unpairDevice({ deviceId, generation });
   return { ok: true as const };
 }

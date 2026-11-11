@@ -8,38 +8,25 @@ import {
   randomToken,
   redirectUri,
 } from "@open-bot/accounts";
-import {
-  accountActions,
-  accounts,
-  approvals,
-  CHANNELS,
-  connections,
-  notify,
-  oauthStates,
-  type OAuthPurpose,
-} from "@open-bot/db";
+import { accounts, connections, oauthStates, type OAuthPurpose } from "@open-bot/db";
 import {
   authProvider,
-  capabilityGranted,
-  connectionName,
   integration,
-  integrationSettings,
   missingCapabilities,
   normalizeCapabilities,
   scopesFor,
   type AccountCapability,
   type AccountConnectionKind,
   type AccountProvider,
-  type ConnectionSettings,
 } from "@open-bot/domain";
 import { decryptSecret, encryptSecret } from "@open-bot/domain/server";
-import { and, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, eq, lt } from "drizzle-orm";
 import { ApiError } from "./api/errors";
 import { BASE_URL } from "./auth-config";
-import { claimConnectionName } from "./connection-names";
-import { db, pool } from "./db";
+import { db } from "./db";
 import { serverEnv } from "./env";
 import { publish } from "./publish";
+import { worker, WorkerError } from "./worker";
 
 /** How long a sign-in may take, from pressing Connect to coming back. */
 const STATE_TTL_MS = 10 * 60_000;
@@ -195,7 +182,7 @@ export async function completeAuthorization(input: {
       );
     }
 
-    const { account, grantChanged } = await accountStore.saveGrant({
+    const { account } = await accountStore.saveGrant({
       provider: input.provider,
       externalId: identity.externalId,
       oauthClientId: client.id,
@@ -203,9 +190,13 @@ export async function completeAuthorization(input: {
       tokens,
       ...(purpose.accountId ? { expectedAccountId: purpose.accountId } : {}),
     });
-    if (grantChanged) await cancelForAccount(account.id);
-    const connectionId = await upsertConnection(account.id, account.display, purpose);
-    await publish({ type: "connections" });
+    // The worker makes or changes the connection (it owns connections, see packages/db/src/owners.ts).
+    const { connectionId } = await worker.connections.linkAccount({
+      accountId: account.id,
+      kind: purpose.kind,
+      capabilities: purpose.capabilities,
+      teammateIds: purpose.botIds,
+    });
     return {
       connectionId,
       missing: missingCapabilities(purpose.kind, purpose.capabilities, account.scopes),
@@ -214,231 +205,11 @@ export async function completeAuthorization(input: {
   } catch (error) {
     if (error instanceof AccountIdentityError || error instanceof OAuthError)
       return fail(error.message);
+    // The grant is saved; signing in again finishes connecting it.
+    if (error instanceof WorkerError)
+      return fail("You signed in, but open-bot couldn't save the connection. Try again.");
     throw error;
   }
-}
-
-/**
- * The grant lost something approvals may rely on (a scope, or the client it was made to): what
- * waits on any of the account's connections never runs, and its approval cards close.
- */
-async function cancelForAccount(accountId: string): Promise<void> {
-  const rows = await db
-    .select({ id: connections.id })
-    .from(connections)
-    .where(eq(connections.accountId, accountId));
-  if (rows.length === 0) return;
-  await db.transaction(async (tx) => {
-    for (const row of rows)
-      await cancelPending(
-        tx,
-        row.id,
-        "You signed in again with different access since it was asked for.",
-      );
-  });
-  await wakeAccounts();
-}
-
-/** The account's connection of this kind: created, or given the capabilities you picked. */
-async function upsertConnection(
-  accountId: string,
-  display: string,
-  purpose: OAuthPurpose,
-): Promise<string> {
-  const definition = integration(purpose.kind);
-  const [existing] = await db
-    .select()
-    .from(connections)
-    .where(and(eq(connections.accountId, accountId), eq(connections.kind, purpose.kind)));
-  if (existing) {
-    // Signing in again changes nothing teammates asked for, unless what's allowed changed.
-    if (
-      sameList(existing.capabilities, purpose.capabilities) &&
-      sameList(existing.botIds, purpose.botIds)
-    )
-      return existing.id;
-    await db.transaction(async (tx) => {
-      await tx
-        .update(connections)
-        .set({
-          capabilities: purpose.capabilities,
-          botIds: purpose.botIds,
-          revision: sql`${connections.revision} + 1`,
-        })
-        .where(eq(connections.id, existing.id));
-      await cancelPending(tx, existing.id, "You changed this connection after it was asked for.");
-    });
-    await wakeAccounts();
-    return existing.id;
-  }
-  return db.transaction(async (tx) => {
-    const name = await claimConnectionName(tx, connectionName(definition.label));
-    const others = await tx
-      .select({ id: connections.id })
-      .from(connections)
-      .where(eq(connections.kind, purpose.kind));
-    const [row] = await tx
-      .insert(connections)
-      .values({
-        kind: purpose.kind,
-        label: others.length ? `${definition.label} (${display})` : definition.label,
-        name,
-        accountId,
-        capabilities: purpose.capabilities,
-        botIds: purpose.botIds,
-      })
-      .returning({ id: connections.id });
-    return row!.id;
-  });
-}
-
-/** Two teammate or capability lists hold the same entries (null is "everyone"). */
-function sameList(a: readonly string[] | null, b: readonly string[] | null): boolean {
-  return a === null || b === null ? a === b : [...a].sort().join() === [...b].sort().join();
-}
-
-/**
- * Change what a connection allows, who may use it, or how it asks. Returns whether the account
- * must grant more scopes first (then nothing changed; start a sign-in for them).
- *
- * Only a change to what it allows or who uses it counts as a new setup: that bumps its revision,
- * and actions waiting on the old one are cancelled. Changing how it asks, or its settings (like
- * Notion's teammates' area), keeps them.
- */
-export async function updateAccountConnection(input: {
-  id: string;
-  capabilities: AccountCapability[];
-  botIds: string[] | null;
-  askBeforeActing: boolean;
-  /** What you typed for the integration's settings, by key: "" clears one, a missing key keeps it. */
-  settings?: Record<string, string>;
-}): Promise<{ needsConsent: boolean }> {
-  const [row] = await db.select().from(connections).where(eq(connections.id, input.id));
-  if (!row || row.kind === "mcp" || !row.accountId)
-    throw new AccountConnectError("That connection is gone.", "NOT_FOUND");
-  const kind = row.kind;
-  const capabilities = normalizeCapabilities(kind, input.capabilities);
-  const settings = input.settings ? parseSettings(kind, row.settings, input.settings) : null;
-  const [account] = await db.select().from(accounts).where(eq(accounts.id, row.accountId));
-  if (!account) throw new AccountConnectError("Its account is gone.", "NOT_FOUND");
-  if (capabilities.some((capability) => !capabilityGranted(kind, capability, account.scopes)))
-    return { needsConsent: true };
-  const changed = !sameList(row.capabilities, capabilities) || !sameList(row.botIds, input.botIds);
-  await db.transaction(async (tx) => {
-    await tx
-      .update(connections)
-      .set({
-        capabilities,
-        botIds: input.botIds,
-        askBeforeActing: input.askBeforeActing,
-        ...(settings ? { settings } : {}),
-        ...(changed ? { revision: sql`${connections.revision} + 1` } : {}),
-      })
-      .where(eq(connections.id, row.id));
-    if (changed)
-      await cancelPending(tx, row.id, "You changed this connection after it was asked for.");
-  });
-  if (changed) await wakeAccounts();
-  await publish({ type: "connections" });
-  return { needsConsent: false };
-}
-
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
-
-/**
- * Actions still waiting on a connection that changed or went away never run, and their approval
- * cards close. The worker then tells their runs (call `wakeAccounts` after the transaction).
- */
-export async function cancelPending(tx: Tx | typeof db, connectionId: string, reason: string) {
-  const cancelled = await tx
-    .update(accountActions)
-    .set({ status: "cancelled", error: reason, finishedAt: new Date() })
-    .where(
-      and(
-        eq(accountActions.connectionId, connectionId),
-        inArray(accountActions.status, ["pending", "approved"]),
-      ),
-    )
-    .returning({ approvalId: accountActions.approvalId });
-  const approvalIds = cancelled
-    .map((row) => row.approvalId)
-    .filter((id): id is string => Boolean(id));
-  if (approvalIds.length)
-    await tx
-      .update(approvals)
-      .set({ status: "expired", decidedAt: new Date() })
-      .where(and(inArray(approvals.id, approvalIds), eq(approvals.status, "pending")));
-  return cancelled.length;
-}
-
-/** Wake the worker's account actions, to report what was cancelled. */
-export async function wakeAccounts(): Promise<void> {
-  await notify(pool, CHANNELS.worker, "accounts").catch(() => undefined);
-  await publish({ type: "approvals" });
-}
-
-/**
- * Remove a connection. Its account's tokens stay while another connection uses the account (one
- * Google sign-in serves Gmail and Calendar); the last one out revokes the grant at the provider.
- */
-export async function removeAccountConnection(id: string): Promise<{ warning: string | null }> {
-  const [row] = await db.select().from(connections).where(eq(connections.id, id));
-  if (!row) return { warning: null };
-  await db.transaction(async (tx) => {
-    await cancelPending(tx, row.id, "You removed this connection.");
-    await tx.delete(connections).where(eq(connections.id, row.id));
-  });
-  await wakeAccounts();
-  let warning: string | null = null;
-  if (row.accountId) {
-    const [stillUsed] = await db
-      .select({ id: connections.id })
-      .from(connections)
-      .where(eq(connections.accountId, row.accountId))
-      .limit(1);
-    if (!stillUsed) warning = (await accountStore.revoke(row.accountId)).warning;
-  }
-  await publish({ type: "connections" });
-  return { warning };
-}
-
-/** Turn an account connection on or off. Off cancels what waits on it. */
-export async function setAccountConnectionEnabled(id: string, enabled: boolean): Promise<void> {
-  await db.transaction(async (tx) => {
-    await tx
-      .update(connections)
-      .set({ enabled, revision: sql`${connections.revision} + 1` })
-      .where(eq(connections.id, id));
-    if (!enabled) await cancelPending(tx, id, "You turned this connection off.");
-  });
-  if (!enabled) await wakeAccounts();
-  await publish({ type: "connections" });
-}
-
-/**
- * A connection's settings with what you typed applied, each parsed by its integration. Keys the
- * integration doesn't offer are refused, so nothing else gets stored on the connection.
- */
-function parseSettings(
-  kind: AccountConnectionKind,
-  current: ConnectionSettings,
-  typed: Record<string, string>,
-): ConnectionSettings {
-  const offered = integrationSettings(kind);
-  const next: ConnectionSettings = { ...current };
-  for (const [key, text] of Object.entries(typed)) {
-    const setting = offered.find((entry) => entry.key === key);
-    if (!setting)
-      throw new AccountConnectError(`${integration(kind).label} has no setting ${key}.`);
-    if (!text.trim()) {
-      delete next[key];
-      continue;
-    }
-    const value = setting.parse(text);
-    if (!value) throw new AccountConnectError(setting.invalid);
-    next[key] = value;
-  }
-  return next;
 }
 
 /** The redirect URI to register at a provider. */

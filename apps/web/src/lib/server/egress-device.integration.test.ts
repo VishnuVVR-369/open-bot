@@ -1,7 +1,8 @@
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
-import { readToken } from "@open-bot/domain/server";
+import { randomBytes } from "node:crypto";
+import { hashDeviceSecret, readToken } from "@open-bot/domain/server";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 const url = testDatabaseServer();
@@ -9,8 +10,9 @@ const WORKER_SECRET = "egress-device-test-secret";
 const PHONE = "6f1c1f3e-8a5b-4c39-9a51-1c1e1d0f0a01";
 
 /**
- * A paired phone's credential, through the real route handlers and services against a
- * disposable database, with a stand-in worker that records what it's told.
+ * A paired phone's credential, through the real route handlers against a disposable database,
+ * with a stand-in worker that records what it's told. The worker pairs and unpairs phones (it owns
+ * them); its own tests cover that, so here pairings are written as it would leave them.
  */
 describe.skipIf(!url)("egress device credential", () => {
   const database = testDatabase(url);
@@ -19,9 +21,14 @@ describe.skipIf(!url)("egress device credential", () => {
     let body = "";
     request.on("data", (chunk: Buffer) => (body += chunk.toString()));
     request.on("end", () => {
-      workerCalls.push({ path: request.url ?? "", body: body ? JSON.parse(body) : null });
+      const path = request.url ?? "";
+      workerCalls.push({ path, body: body ? JSON.parse(body) : null });
       response.setHeader("content-type", "application/json");
-      response.end(JSON.stringify({ ok: true }));
+      response.end(
+        JSON.stringify(
+          path.endsWith("/pair") ? { secret: "from-worker", generation: 3 } : { ok: true },
+        ),
+      );
     });
   });
 
@@ -84,8 +91,23 @@ describe.skipIf(!url)("egress device credential", () => {
     );
   }
 
-  const pair = () =>
-    modules.egress.registerEgressDevice({ deviceId: PHONE, name: "Pixel 9", pushToken: "fcm-1" });
+  /** The phone paired `generation` times, with a fresh secret, as the worker leaves it. */
+  async function pair(generation = 1) {
+    const secret = randomBytes(32).toString("base64url");
+    const values = {
+      id: PHONE,
+      name: "Pixel 9",
+      secretHash: hashDeviceSecret(secret),
+      pushToken: "fcm-1",
+      generation,
+      revokedAt: null,
+    };
+    await modules.db.db
+      .insert(modules.schema.egressDevices)
+      .values(values)
+      .onConflictDoUpdate({ target: modules.schema.egressDevices.id, set: values });
+    return { secret, generation };
+  }
 
   it("issues a phone token with its identity and generation, and the server's phone mode", async () => {
     const { secret, generation } = await pair();
@@ -109,9 +131,9 @@ describe.skipIf(!url)("egress device credential", () => {
       name: "Pixel 9",
       generation: 1,
     });
-    const [row] = await modules.db.db.select().from(modules.schema.egressDevices);
-    expect(row!.lastUsedAt).not.toBeNull();
-    expect(row!.secretHash).not.toContain(secret);
+    expect(workerCalls.map((entry) => entry.path)).toContain(
+      `/internal/egress/devices/${PHONE}/used`,
+    );
   });
 
   it("answers 401 revoked for a wrong secret, an unknown phone and a missing header", async () => {
@@ -126,38 +148,32 @@ describe.skipIf(!url)("egress device credential", () => {
     }
   });
 
-  it("rotates the secret on pairing again, so the old one and its generation stop working", async () => {
-    const first = await pair();
-    workerCalls.length = 0;
-    const second = await pair();
-    expect(second.generation).toBe(2);
+  it("refuses a secret from an earlier pairing, and a revoked phone", async () => {
+    const first = await pair(1);
+    const second = await pair(2);
     expect((await call(modules.token, first.secret)).status).toBe(401);
     expect((await call(modules.token, second.secret)).status).toBe(200);
-    // The worker drops a connection the first pairing may still have open.
-    expect(workerCalls).toContainEqual({
-      path: `/internal/egress/devices/${PHONE}/revoked`,
-      body: { generation: 1 },
-    });
+    await modules.db.db.update(modules.schema.egressDevices).set({ revokedAt: new Date() });
+    expect((await call(modules.token, second.secret)).status).toBe(401);
+    expect(await modules.egress.listEgressDevices()).toEqual([]);
   });
 
-  it("revokes only the generation asked for, and tells the worker", async () => {
-    await pair();
-    const { secret } = await pair();
-    workerCalls.length = 0;
-    // A deferred revoke meant for the first pairing must not touch the second.
-    await modules.egress.revokeEgressDevice({ deviceId: PHONE, generation: 1 });
-    expect((await call(modules.token, secret)).status).toBe(200);
-    expect(workerCalls).toEqual([]);
-
-    await modules.egress.revokeEgressDevice({ deviceId: PHONE, generation: 2 });
-    expect((await call(modules.token, secret)).status).toBe(401);
-    expect(workerCalls).toContainEqual({
-      path: `/internal/egress/devices/${PHONE}/revoked`,
-      body: { generation: 2 },
-    });
-    const [row] = await modules.db.db.select().from(modules.schema.egressDevices);
-    expect(row!.pushToken).toBeNull();
-    expect(await modules.egress.listEgressDevices()).toEqual([]);
+  it("asks the worker to pair and unpair a phone", async () => {
+    expect(
+      await modules.egress.registerEgressDevice({
+        deviceId: PHONE,
+        name: "Pixel 9",
+        pushToken: "fcm-1",
+      }),
+    ).toEqual({ secret: "from-worker", generation: 3 });
+    await modules.egress.revokeEgressDevice({ deviceId: PHONE, generation: 3 });
+    expect(workerCalls).toEqual([
+      {
+        path: `/internal/egress/devices/${PHONE}/pair`,
+        body: { name: "Pixel 9", pushToken: "fcm-1" },
+      },
+      { path: `/internal/egress/devices/${PHONE}/unpair`, body: { generation: 3 } },
+    ]);
   });
 
   it("forwards an unavailable report with the pairing's generation and its number", async () => {
@@ -183,12 +199,13 @@ describe.skipIf(!url)("egress device credential", () => {
     );
   });
 
-  it("stores a new push token and tells the worker", async () => {
+  it("passes a new push token to the worker, and not the same one again", async () => {
     const { secret } = await pair();
     workerCalls.length = 0;
+    expect((await call(modules.pushToken, secret, { token: "fcm-1" })).status).toBe(200);
     expect((await call(modules.pushToken, secret, { token: "fcm-2" })).status).toBe(200);
-    const [row] = await modules.db.db.select().from(modules.schema.egressDevices);
-    expect(row!.pushToken).toBe("fcm-2");
-    expect(workerCalls.map((entry) => entry.path)).toEqual(["/internal/egress/devices/changed"]);
+    expect(workerCalls).toEqual([
+      { path: `/internal/egress/devices/${PHONE}/push-token`, body: { token: "fcm-2" } },
+    ]);
   });
 });

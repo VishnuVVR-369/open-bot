@@ -1,28 +1,11 @@
 import "server-only";
 import type { ApiInputs, ApiOutputs } from "@open-bot/api";
-import { bots as teammates, connections } from "@open-bot/db";
-import {
-  connectionName,
-  invalidMcpUrl,
-  parseEnvLines,
-  parseHeaderLines,
-  type AccountCapability,
-} from "@open-bot/domain";
-import { encryptSecret } from "@open-bot/domain/server";
-import { eq, isNull } from "drizzle-orm";
-import {
-  removeAccountConnection,
-  saveOwnerClient,
-  setAccountConnectionEnabled,
-  startAuthorization,
-  updateAccountConnection,
-} from "../accounts";
-import { claimConnectionName } from "../connection-names";
+import { bots as teammates } from "@open-bot/db";
+import type { AccountCapability } from "@open-bot/domain";
+import { isNull } from "drizzle-orm";
+import { saveOwnerClient, startAuthorization } from "../accounts";
 import { db } from "../db";
-import { serverEnv } from "../env";
-import { publish } from "../publish";
 import { worker } from "../worker";
-import { ApiError } from "./errors";
 import { syncWorkspace } from "./teammates";
 
 /** Connections, accounts and email: what teammates use outside the computer. */
@@ -51,96 +34,22 @@ export async function removeEmailToken(): Promise<Ok> {
   return worker.email.removeToken();
 }
 
-/* ------------------------------------------------------------------ MCP connections */
+/* ------------------------------------------------------------------ Connections */
 
-/** "a b 'c d'" as arguments, keeping quoted ones together. */
-function splitArgs(text: string): string[] {
-  return [...text.matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)].map(
-    (match) => match[1] ?? match[2] ?? match[3] ?? "",
-  );
-}
-
-/** Save a service teammates use through MCP. Headers and variables are encrypted here. */
+/**
+ * Connections are the worker's (it owns them, see packages/db/src/owners.ts): it saves an MCP
+ * server with its secrets encrypted, and cancels what waits on an account connection that changes.
+ */
 export async function saveConnection(
   input: Inputs["connections"]["save"],
 ): Promise<{ id: string }> {
-  if (input.transport === "http") {
-    const problem = invalidMcpUrl(input.url);
-    if (problem) throw new ApiError("BAD_REQUEST", problem);
-  } else if (!input.command)
-    throw new ApiError("BAD_REQUEST", "Give the command the computer runs.");
-  const parsed = input.secrets.trim()
-    ? input.transport === "http"
-      ? parseHeaderLines(input.secrets)
-      : parseEnvLines(input.secrets)
-    : null;
-  if (typeof parsed === "string") throw new ApiError("BAD_REQUEST", parsed);
-
-  const saved = await db.transaction(async (tx) => {
-    const [existing] = input.id
-      ? await tx.select().from(connections).where(eq(connections.id, input.id)).for("update")
-      : [];
-    if (input.id && !existing) throw new ApiError("NOT_FOUND", "That connection is gone.");
-    if (existing && existing.kind !== "mcp")
-      throw new ApiError("BAD_REQUEST", "That's an account, not an MCP server.");
-    const name = existing?.name ?? (await claimConnectionName(tx, connectionName(input.label)));
-    // Without new secrets, an edit keeps the saved ones, unless the kind of connection changed.
-    const keep = !parsed && existing && existing.transport === input.transport;
-    const secrets = parsed
-      ? input.transport === "http"
-        ? { headers: parsed }
-        : { env: parsed }
-      : null;
-    const values = {
-      label: input.label,
-      name,
-      transport: input.transport,
-      url: input.transport === "http" ? input.url : null,
-      command: input.transport === "stdio" ? input.command : null,
-      args: input.transport === "stdio" ? splitArgs(input.args) : [],
-      botIds: input.teammateIds,
-      ...(keep
-        ? {}
-        : {
-            encrypted: secrets
-              ? encryptSecret(JSON.stringify(secrets), serverEnv.encryptionKey)
-              : null,
-            secretNames: parsed ? Object.keys(parsed) : [],
-          }),
-    };
-    const [row] = existing
-      ? await tx
-          .update(connections)
-          .set(values)
-          .where(eq(connections.id, existing.id))
-          .returning({ id: connections.id })
-      : await tx.insert(connections).values(values).returning({ id: connections.id });
-    return row!;
-  });
-  await publish({ type: "connections" });
-  return saved;
+  return worker.connections.save(input);
 }
 
-async function connectionKind(connectionId: string) {
-  const [row] = await db
-    .select({ kind: connections.kind })
-    .from(connections)
-    .where(eq(connections.id, connectionId));
-  return row?.kind ?? null;
-}
-
-export async function setConnectionEnabled({
-  connectionId,
-  enabled,
-}: Inputs["connections"]["setEnabled"]): Promise<Ok> {
-  const kind = await connectionKind(connectionId);
-  if (!kind) throw new ApiError("NOT_FOUND", "That connection is gone.");
-  if (kind !== "mcp") await setAccountConnectionEnabled(connectionId, enabled);
-  else {
-    await db.update(connections).set({ enabled }).where(eq(connections.id, connectionId));
-    await publish({ type: "connections" });
-  }
-  return { ok: true };
+export async function setConnectionEnabled(
+  input: Inputs["connections"]["setEnabled"],
+): Promise<Ok> {
+  return worker.connections.setEnabled(input);
 }
 
 /**
@@ -150,12 +59,7 @@ export async function setConnectionEnabled({
 export async function removeConnection({
   connectionId,
 }: Inputs["connections"]["remove"]): Promise<ApiOutputs["connections"]["remove"]> {
-  const kind = await connectionKind(connectionId);
-  if (!kind) return { warning: null };
-  if (kind !== "mcp") return removeAccountConnection(connectionId);
-  await db.delete(connections).where(eq(connections.id, connectionId));
-  await publish({ type: "connections" });
-  return { warning: null };
+  return worker.connections.remove({ connectionId });
 }
 
 /** Connect to the service from the computer, and list what it offers. */
@@ -196,11 +100,5 @@ export async function startAccountConnect(
 export async function saveAccountConnection(
   input: Inputs["accounts"]["update"],
 ): Promise<{ needsConsent: boolean }> {
-  return updateAccountConnection({
-    id: input.connectionId,
-    capabilities: input.capabilities as AccountCapability[],
-    botIds: input.teammateIds,
-    askBeforeActing: input.askBeforeActing,
-    settings: input.settings,
-  });
+  return worker.connections.updateAccount(input);
 }
