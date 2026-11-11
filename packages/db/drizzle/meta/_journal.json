@@ -232,6 +232,13 @@
       "when": 1794423597400,
       "tag": "0032_chats_main",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1794424223879,
+      "tag": "0033_thread_lanes",
+      "breakpoints": true
     }
   ]
 }

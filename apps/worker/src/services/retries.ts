@@ -40,6 +40,7 @@ export class RetryService {
           and(
             eq(runs.chatId, run.chatId),
             eq(runs.botId, run.botId),
+            eq(runs.lane, run.lane),
             gt(runs.createdAt, sql`(select created_at from runs where id = ${run.id})`),
           ),
         )
@@ -54,6 +55,10 @@ export class RetryService {
         prompt: run.prompt,
         attachments: run.attachments,
         scheduleId: run.scheduleId,
+        triggerId: run.triggerId,
+        lane: run.lane,
+        // Its prompt may carry what it read from your accounts, like a Gmail trigger's email.
+        readOutsideData: run.readOutsideData,
       });
       await publishApp(ctx, { type: "chats" });
       return { runId: newRunId };

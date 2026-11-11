@@ -5,6 +5,7 @@ import {
   runs,
   type Attachment,
   type Queryable,
+  type RunLane,
   type RunTrigger,
 } from "@open-bot/db";
 import { sql } from "drizzle-orm";
@@ -25,10 +26,27 @@ export interface RunInput {
   /** A screen of its own, for a swarm helper. */
   screenId?: string | null;
   /**
+   * The lane it works in. Without one, a run continuing another run of the same teammate in the
+   * same chat (`parentRunId`) works in that run's lane, and any other run in the conversation.
+   */
+  lane?: RunLane;
+  /**
    * It starts with data from your accounts in hand (a Gmail trigger, a swarm's results). Runs
    * started by a run that read such data inherit this anyway.
    */
   readOutsideData?: boolean;
+}
+
+/** The run's teammate. The column's name predates the glossary. */
+const runTeammate = runs.botId; // vocabulary: allow
+
+/** The lane a new run works in: its own, its parent's in the same chat, or the conversation. */
+function laneOf(input: RunInput) {
+  const { chatId, parentRunId, lane } = input;
+  if (lane) return lane;
+  if (!parentRunId) return "chat";
+  const teammateId = input.botId; // vocabulary: allow
+  return sql<RunLane>`coalesce((select ${runs.lane} from ${runs} where ${runs.id} = ${parentRunId} and ${runs.chatId} = ${chatId} and ${runTeammate} = ${teammateId}), 'chat')`;
 }
 
 /**
@@ -50,6 +68,7 @@ export async function insertRun(db: Queryable, input: RunInput): Promise<string>
       triggerId: input.triggerId ?? null,
       parentRunId: input.parentRunId ?? null,
       screenId: input.screenId ?? null,
+      lane: laneOf(input),
       // What a run read from your accounts travels with everything it starts.
       readOutsideData: input.readOutsideData
         ? true

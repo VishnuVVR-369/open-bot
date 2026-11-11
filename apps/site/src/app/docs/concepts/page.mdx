@@ -68,14 +68,15 @@ That reason is its **trigger**:
 | `email`                   | An email arrived at the teammate's address.                                |
 
 A run moves through a small set of states, described in [Data and events](/docs/architecture/data#run-states).
-At most one run per teammate per chat executes at a time.
-Others for the same pair wait in the queue.
+At most one run per teammate per lane of a chat executes at a time.
+Others for the same lane wait in the queue.
 
 ## Thread and turn
 
 Teammates are powered by **Codex**, OpenAI's coding agent, running as an app-server on the computer.
 A Codex **thread** is a conversation with its full history.
-open-bot keeps one thread per teammate per chat, recorded in `bot_threads`.
+open-bot keeps one thread per teammate per lane of a chat, recorded in `bot_threads`.
+Your conversation is the `chat` lane.
 
 A Codex **turn** is one request on a thread: input in, then a stream of reasoning, messages, commands and tool calls, then a final status.
 Every open-bot run is exactly one Codex turn.

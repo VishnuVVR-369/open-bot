@@ -215,7 +215,14 @@ export const chatMembers = pgTable(
   (table) => [primaryKey({ columns: [table.chatId, table.botId] })],
 );
 
-/** One Codex thread per bot per chat. */
+/**
+ * Where a run's work goes on inside its chat: a separate Codex thread, and runs that wait for each
+ * other. `chat` is the conversation you have with the teammate. Runs started without you, like an
+ * automation's, can keep their own lane in the same chat, so their context stays apart from yours.
+ */
+export type RunLane = "chat" | `${string}:${string}`;
+
+/** One Codex thread per teammate per chat, for each lane. */
 export const botThreads = pgTable(
   "bot_threads",
   {
@@ -225,6 +232,8 @@ export const botThreads = pgTable(
     botId: uuid("bot_id")
       .notNull()
       .references(() => bots.id, { onDelete: "cascade" }),
+    /** The lane this thread holds (see `RunLane`). */
+    lane: text("lane").$type<RunLane>().notNull().default("chat"),
     codexThreadId: text("codex_thread_id").notNull(),
     memoryGeneration: text("memory_generation").notNull().default(""),
     /** Threads keep the tools they started with, so a new tool set starts a new thread. */
@@ -242,7 +251,11 @@ export const botThreads = pgTable(
     lessonsSeenAt: timestamp("lessons_seen_at", { withTimezone: true }).notNull().defaultNow(),
     createdAt: createdAt(),
   },
-  (table) => [primaryKey({ columns: [table.chatId, table.botId] })],
+  (table) => [
+    primaryKey({ columns: [table.chatId, table.botId] }),
+    // Becomes the primary key once no deployed worker writes threads without a lane.
+    uniqueIndex("bot_threads_lane_unique").on(table.chatId, table.botId, table.lane), // vocabulary: allow
+  ],
 );
 
 export interface Attachment {
@@ -362,6 +375,8 @@ export const runs = pgTable(
     trigger: text("trigger").$type<RunTrigger>().notNull(),
     /** The text sent to the bot to start this run. */
     prompt: text("prompt").notNull(),
+    /** Which of its chat's lanes the run works in (see `RunLane`). */
+    lane: text("lane").$type<RunLane>().notNull().default("chat"),
     attachments: jsonb("attachments").$type<Attachment[]>().notNull().default([]),
     messageId: uuid("message_id").references(() => messages.id, { onDelete: "set null" }),
     scheduleId: uuid("schedule_id"),

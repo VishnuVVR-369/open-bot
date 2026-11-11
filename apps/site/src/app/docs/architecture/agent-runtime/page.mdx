@@ -57,16 +57,23 @@ File access for the UI goes through Codex's `fs/*` methods, which run as the `bo
 
 ## Threads
 
-open-bot keeps one Codex thread per teammate per chat, recorded in `bot_threads`:
+open-bot keeps one Codex thread per teammate per lane of a chat, recorded in `bot_threads`:
 
 | Column              | Meaning                                                     |
 | ------------------- | ----------------------------------------------------------- |
-| `chat_id`, `bot_id` | The pair the thread belongs to (unique)                     |
+| `chat_id`, `bot_id` | The chat and teammate the thread belongs to                 |
+| `lane`              | Which lane of the chat it holds (unique with the two above) |
 | `codex_thread_id`   | Codex's id for the thread                                   |
 | `tools_version`     | The `TOOLS_VERSION` the thread was started with             |
 | `memory_generation` | The teammate's memory generation when the thread was made   |
 | `auth_mode`         | `plan` or `api_key`: the model provider it was created with |
 | `configuration_key` | A hash of the MCP servers and the `AGENTS.md` it was given  |
+
+A lane is a line of work inside a chat, with its own thread.
+Your conversation with a teammate is the `chat` lane.
+Each run records its lane in `runs.lane`.
+A run continuing another run of the same teammate in the same chat, like an approval's follow-up or a hand-back, works in that run's lane, and an answer from `ask_teammate` goes back to the asker's lane.
+A message you send only steers a running turn in the `chat` lane; with another lane busy, it starts its own run.
 
 A thread is started with:
 

@@ -324,7 +324,7 @@ export class RunSession {
     return outcome;
   }
 
-  /** The thread for this bot and chat, on the access mode this run uses. */
+  /** The thread for this teammate, chat and lane, on the access mode this run uses. */
   private async ensureThread(client: CodexClient): Promise<string> {
     const { ctx, run, bot } = this;
     const mode = this.authMode;
@@ -350,6 +350,7 @@ export class RunSession {
         .values({
           chatId: run.chatId,
           botId: bot.id,
+          lane: run.lane,
           codexThreadId: threadId,
           toolsVersion: TOOLS_VERSION,
           memoryGeneration: this.memoryGeneration,
@@ -357,7 +358,7 @@ export class RunSession {
           configurationKey,
         })
         .onConflictDoUpdate({
-          target: [botThreads.chatId, botThreads.botId],
+          target: [botThreads.chatId, botThreads.botId, botThreads.lane], // vocabulary: allow
           // Memory generations fence old context; a fork is only allowed within the same generation.
           set: {
             codexThreadId: threadId,
@@ -374,7 +375,13 @@ export class RunSession {
     const [existing] = await ctx.db
       .select()
       .from(botThreads)
-      .where(and(eq(botThreads.chatId, run.chatId), eq(botThreads.botId, bot.id)));
+      .where(
+        and(
+          eq(botThreads.chatId, run.chatId),
+          eq(botThreads.botId, bot.id),
+          eq(botThreads.lane, run.lane), // vocabulary: allow
+        ),
+      );
     if (
       existing &&
       existing.toolsVersion === TOOLS_VERSION &&
@@ -628,7 +635,7 @@ export class RunSession {
     const { ctx, run, bot } = this;
     if (!run.parentRunId) return;
     const [asker] = await ctx.db
-      .select({ chatId: runs.chatId, botId: runs.botId })
+      .select({ chatId: runs.chatId, botId: runs.botId, lane: runs.lane })
       .from(runs)
       .innerJoin(bots, eq(bots.id, runs.botId))
       .where(and(eq(runs.id, run.parentRunId), isNull(bots.archivedAt)));
@@ -642,6 +649,8 @@ export class RunSession {
     await enqueueRun(ctx, {
       chatId: asker.chatId,
       botId: asker.botId,
+      // The answer goes back to where the question was asked.
+      lane: asker.lane,
       trigger: "answer",
       prompt: answer,
       parentRunId: run.id,

@@ -43,7 +43,7 @@ Here they are grouped by what they're for:
         { name: "run_events", note: "The ordered log of everything a run did, as jsonb payloads" },
         {
           name: "bot_threads",
-          note: "The Codex thread for each teammate and chat, with what it was made with",
+          note: "The Codex thread for each teammate and lane of a chat, with what it was made with",
         },
         { name: "artifacts", note: "Screenshots and uploads, as bytes" },
         {
@@ -239,7 +239,7 @@ Anything that wants a teammate to work calls `enqueueRun()` (`apps/worker/src/ru
 2. appends a first `status: queued` event, so the chat shows it right away;
 3. sends `NOTIFY openbot_worker, 'runs'`.
 
-The worker claims runs with `UPDATE ... FOR UPDATE SKIP LOCKED`, at most one per teammate per chat, oldest first.
+The worker claims runs with `UPDATE ... FOR UPDATE SKIP LOCKED`, at most one per teammate per lane of a chat, oldest first.
 The query is on the [Worker](/docs/architecture/worker#claiming-work) page.
 
 ### Run states
