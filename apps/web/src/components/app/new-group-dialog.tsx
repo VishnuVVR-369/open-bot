@@ -3,7 +3,7 @@
 import { MAX_GROUP_TEAMMATES } from "@open-bot/api";
 import { Check, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { BotAvatar } from "@/components/bot-avatar";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,8 @@ export function NewGroupDialog({ bots }: { bots: BotSummary[] }) {
   const [selected, setSelected] = useState<string[]>([]);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
+  // Set when the dialog closes because the group was made, and the app moves to its chat.
+  const created = useRef(false);
 
   const full = selected.length >= MAX_GROUP_TEAMMATES;
 
@@ -49,6 +51,7 @@ export function NewGroupDialog({ bots }: { bots: BotSummary[] }) {
         toast.error(result.error);
         return;
       }
+      created.current = true;
       setOpen(false);
       setTitle("");
       setSelected([]);
@@ -63,7 +66,16 @@ export function NewGroupDialog({ bots }: { bots: BotSummary[] }) {
           <Plus />
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent
+        className="sm:max-w-md"
+        onCloseAutoFocus={(event) => {
+          // The new chat is open by now: focus stays there (on its composer, once you type),
+          // instead of jumping back to the sidebar's button and closing the @mention menu.
+          if (!created.current) return;
+          created.current = false;
+          event.preventDefault();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>New group chat</DialogTitle>
           <DialogDescription>

@@ -8,6 +8,8 @@ test("create, edit and archive a teammate", async ({ page }) => {
 
   await page.getByRole("button", { name: "Chat options" }).click();
   await page.getByRole("menuitem", { name: `${name}'s settings` }).click();
+  // Until the settings open, the chat's own headings also name the teammate.
+  await page.waitForURL(/\/bots\/[0-9a-f-]{36}$/); // vocabulary: allow
   await expect(page.getByRole("heading", { name: new RegExp(name) })).toBeVisible();
   await page.getByLabel("Job").fill("release manager");
   await page.getByRole("button", { name: "Save changes" }).click();
