@@ -1,8 +1,11 @@
+import { MemoryError } from "@open-bot/memory";
 import { ORPCError, ValidationError } from "@orpc/server";
 import { errorMessage } from "../logger";
 import { UploadError } from "../uploads";
 import { ApprovalError } from "../services/approvals";
 import { BotError } from "../services/bots";
+import { ChatError } from "../services/chats";
+import { RunError } from "../runs/requests";
 import { EmailError } from "../services/email";
 import { FileError } from "../services/files";
 import { PageError } from "../services/pages";
@@ -57,7 +60,10 @@ export function toRpcError(error: unknown): ORPCError<string, unknown> {
   if (
     error instanceof ApprovalError ||
     error instanceof BotError ||
+    error instanceof ChatError ||
+    error instanceof RunError ||
     error instanceof FileError ||
+    error instanceof MemoryError ||
     error instanceof RetryError ||
     error instanceof UploadError
   )

@@ -17,7 +17,8 @@ import {
 } from "@open-bot/domain";
 import { and, desc, eq, ilike, inArray, isNull, or } from "drizzle-orm";
 import { z } from "zod";
-import { createNotification, enqueueRun, publishApp, type Context } from "../context";
+import { createNotification, publishApp, type Context } from "../context";
+import { enqueueRun } from "../runs/queue";
 import { errorMessage } from "../logger";
 import type { RunSession } from "../runs/session";
 import type { MemoryCoordinator } from "../services/memory";
@@ -34,6 +35,7 @@ import { SwarmError, type SwarmService } from "../services/swarms";
 import { VaultError, type VaultService } from "../services/vault";
 import { activeTeammates, BotError, type BotService } from "../services/bots";
 import { PageError, type PageService } from "../services/pages";
+import { titleChat } from "../services/chats";
 import { BOT_TOOL_NAMES, BotTools } from "./bots";
 import { AccountToolError } from "../accounts/access";
 import { isAccountNamespace } from "../accounts/registry";
@@ -632,12 +634,8 @@ export class ToolHandlers {
       return text("Only a direct chat can be titled this way; this one keeps its name.", false);
     const title = chatTitleText(String(args.title ?? ""));
     if (!title) return text("title is required", false);
-    const [updated] = await this.ctx.db
-      .update(chats)
-      .set({ title, titled: true })
-      .where(and(eq(chats.id, session.chat.id), eq(chats.titled, false)))
-      .returning({ id: chats.id });
-    if (!updated) return text("This chat already has a title, so it stays as it is.");
+    if (!(await titleChat(this.ctx.db, session.chat.id, title)))
+      return text("This chat already has a title, so it stays as it is.");
     await publishApp(this.ctx, { type: "chats" });
     return text(`Titled this chat "${title}".`);
   }

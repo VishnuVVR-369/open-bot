@@ -1,4 +1,4 @@
-import { bots, chats, ownerTimeZone, schedules, type Queryable, type Tx } from "@open-bot/db";
+import { bots, ownerTimeZone, schedules, type Queryable, type Tx } from "@open-bot/db";
 import {
   describeCron,
   isValidTimeZone,
@@ -7,9 +7,11 @@ import {
   QUIET_NOTE,
   validateCron,
 } from "@open-bot/domain";
-import { and, asc, eq, isNull, lte } from "drizzle-orm";
-import { enqueueRun, publishApp, type Context } from "../context";
+import { and, asc, eq, lte } from "drizzle-orm";
+import { publishApp, type Context } from "../context";
+import { enqueueRun } from "../runs/queue";
 import { errorMessage } from "../logger";
+import { teammateChat } from "./chats";
 
 export type Schedule = typeof schedules.$inferSelect;
 
@@ -17,21 +19,6 @@ export type Schedule = typeof schedules.$inferSelect;
 export class ScheduleError extends Error {}
 
 const TICK_MS = 10_000;
-
-/** The bot's "Scheduled" chat, where its routines and reminders run. */
-export async function scheduledChatFor(ctx: Context, botId: string): Promise<string> {
-  const [existing] = await ctx.db
-    .select({ id: chats.id })
-    .from(chats)
-    .where(and(eq(chats.botId, botId), eq(chats.kind, "scheduled"), isNull(chats.archivedAt)));
-  if (existing) return existing.id;
-  const [created] = await ctx.db
-    .insert(chats)
-    .values({ kind: "scheduled", title: "Scheduled", botId })
-    .returning({ id: chats.id });
-  await publishApp(ctx, { type: "chats" });
-  return created!.id;
-}
 
 export class ScheduleService {
   private timer: NodeJS.Timeout | null = null;
@@ -204,7 +191,7 @@ export class ScheduleService {
   private async fire(row: Schedule) {
     const [bot] = await this.ctx.db.select().from(bots).where(eq(bots.id, row.botId));
     if (!bot || bot.archivedAt) return;
-    const chatId = await scheduledChatFor(this.ctx, row.botId);
+    const chatId = await teammateChat(this.ctx, row.botId, "scheduled");
     await enqueueRun(this.ctx, {
       chatId,
       botId: row.botId,

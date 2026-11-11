@@ -1,13 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import {
-  approvals,
-  bots,
-  chats,
-  credentials,
-  emails,
-  emailSettings,
-  type Attachment,
-} from "@open-bot/db";
+import { approvals, bots, credentials, emails, emailSettings, type Attachment } from "@open-bot/db";
 import {
   emailAddress,
   parseInboundEmail,
@@ -17,17 +9,14 @@ import {
 } from "@open-bot/domain";
 import { decryptSecret } from "@open-bot/domain/server";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
-import {
-  appendRunEvent,
-  createNotification,
-  enqueueRun,
-  publishApp,
-  type Context,
-} from "../context";
+import { createNotification, type Context } from "../context";
+import { enqueueRun } from "../runs/queue";
+import { appendRunEvent } from "../runs/events";
 import { errorMessage } from "../logger";
 import type { RunSession } from "../runs/session";
 import type { UploadService } from "../uploads";
 import type { ApprovalService } from "./approvals";
+import { teammateChat } from "./chats";
 import type { SessionRegistry } from "./registry";
 
 type Email = typeof emails.$inferSelect;
@@ -49,21 +38,6 @@ export async function emailSettingsRow(ctx: Pick<Context, "db">) {
     .onConflictDoNothing();
   const [created] = await ctx.db.select().from(emailSettings).where(eq(emailSettings.id, 1));
   return created!;
-}
-
-/** The bot's inbox chat, where emails to it arrive. */
-async function inboxFor(ctx: Context, botId: string): Promise<string> {
-  const [existing] = await ctx.db
-    .select({ id: chats.id })
-    .from(chats)
-    .where(and(eq(chats.botId, botId), eq(chats.kind, "inbox"), isNull(chats.archivedAt)));
-  if (existing) return existing.id;
-  const [created] = await ctx.db
-    .insert(chats)
-    .values({ kind: "inbox", title: "Email", botId })
-    .returning({ id: chats.id });
-  await publishApp(ctx, { type: "chats" });
-  return created!.id;
 }
 
 /**
@@ -154,7 +128,7 @@ export class EmailService {
         text: email.text.slice(0, MAX_TEXT),
       })
       .returning();
-    const chatId = await inboxFor(this.ctx, bot.id);
+    const chatId = await teammateChat(this.ctx, bot.id, "inbox");
     const runId = await enqueueRun(this.ctx, {
       chatId,
       botId: bot.id,

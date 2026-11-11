@@ -2,7 +2,6 @@ import type { CodexClient, ServerNotification, ServerRequest, v2 } from "@open-b
 import {
   bots,
   botThreads,
-  chats,
   runs,
   schedules,
   usageEntries,
@@ -19,7 +18,8 @@ import {
   type TimelineItem,
 } from "@open-bot/domain";
 import { and, eq, isNull } from "drizzle-orm";
-import { createNotification, enqueueRun, publishApp, type Context } from "../context";
+import { createNotification, publishApp, type Context } from "../context";
+import { enqueueRun } from "./queue";
 import { DEVELOPER_INSTRUCTIONS } from "../instructions";
 import { errorMessage } from "../logger";
 import { TOOLS_VERSION, toolsFor } from "../tools/definitions";
@@ -27,6 +27,7 @@ import type { MemoryCoordinator } from "../services/memory";
 import type { ToolHandlers } from "../tools/handlers";
 import { ModelAccess, providerFor } from "../services/model-access";
 import { RunEventWriter } from "./events";
+import { touchChat } from "../services/chats";
 import { finalText, mapPlan, mapThreadItem } from "./mapper";
 
 export type Bot = typeof schema.bots.$inferSelect;
@@ -692,7 +693,7 @@ export class RunSession {
         completedAt: new Date(),
       })
       .where(eq(runs.id, run.id));
-    await ctx.db.update(chats).set({ lastActivityAt: new Date() }).where(eq(chats.id, chat.id));
+    await touchChat(ctx.db, chat.id);
     const total = {
       inputTokens: this.usage.plan.inputTokens + this.usage.api_key.inputTokens,
       cachedInputTokens: this.usage.plan.cachedInputTokens + this.usage.api_key.cachedInputTokens,

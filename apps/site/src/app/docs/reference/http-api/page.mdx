@@ -63,6 +63,7 @@ A tab still running code from before sends itself to sign in on a 401, which tak
 Every write goes through the API, by the browser and the Android app alike; the web app has no server actions.
 Many procedures pass the call to the worker.
 Teammates are among them: creating, duplicating, importing and archiving one, choosing the lead, budgets and suggested instructions all go to the worker's teammate service (`apps/worker/src/services/bots.ts`), which owns those tables.
+So do chats and the messages you send (`apps/worker/src/services/chats.ts`), and stopping, rating and giving feedback on a run (`apps/worker/src/runs/requests.ts`).
 The web app does the rest itself: the vault, connections, accounts, email, settings and memory.
 Creating a teammate, archiving one and choosing the lead all take one advisory lock (`LOCKS.team` in `packages/db/src/locks.ts`), so two at once never share a slug or leave two leads.
 Those live in the services in `apps/web/src/lib/server/api/`.
@@ -104,23 +105,27 @@ A path or input field is removed only once no deployed web app calls it.
 
 ### Runs and messages
 
-| Route                                             | Purpose                                                          |
-| ------------------------------------------------- | ---------------------------------------------------------------- |
-| `GET /healthz`                                    | Liveness, unauthenticated                                        |
-| `GET /internal/status`                            | Computer, Codex and egress status                                |
-| `POST /internal/messages/:id/dispatch`            | Route a saved message: steer a running turn, or queue runs       |
-| `POST /internal/runs/:id/retry`                   | Queue a failed or stopped request again                          |
-| `POST /internal/runs/cancel`                      | Process cancellations now                                        |
-| `POST /internal/bots`                             | Create a teammate with its chat, skills and starter automations  |
-| `POST /internal/bots/:id`                         | Change profile fields, with `expected_revision` (409 when stale) |
-| `POST /internal/bots/:id/sync` ☀                  | Rewrite a teammate's workspace after an edit                     |
-| `GET /internal/teammates/:id/export`              | A teammate's bundle and slug, for the export download            |
-| `POST /internal/teammates/:id/duplicate`          | Copy a teammate, its memory, skills and paused automations       |
-| `POST /internal/teammates/import`                 | Add a teammate from a bundle; its automations start paused       |
-| `POST /internal/teammates/:id/lead`               | Make this teammate the lead                                      |
-| `POST /internal/teammates/:id/archive`            | Archive a teammate: stop its runs, pause its automations         |
-| `POST /internal/teammates/:id/budget`             | Set the monthly budget and auto-approve limit                    |
-| `POST /internal/proposals/:id/accept`, `/dismiss` | Accept or dismiss suggested instructions                         |
+| Route                                                  | Purpose                                                               |
+| ------------------------------------------------------ | --------------------------------------------------------------------- |
+| `GET /healthz`                                         | Liveness, unauthenticated                                             |
+| `GET /internal/status`                                 | Computer, Codex and egress status                                     |
+| `POST /internal/messages/:id/dispatch`                 | Route a saved message: steer a running turn, or queue runs            |
+| `POST /internal/runs/:id/retry`                        | Queue a failed or stopped request again                               |
+| `POST /internal/runs/cancel`                           | Process cancellations now                                             |
+| `POST /internal/runs/:id/stop`, `/rate`, `/feedback`   | Stop a run, rate it, or say what to change (409 for a reused redo id) |
+| `POST /internal/chats/direct`, `/internal/chats/group` | Start a direct or group chat                                          |
+| `POST /internal/chats/:id/rename`, `/archive`, `/read` | Rename, archive, or mark a chat read                                  |
+| `POST /internal/chats/:id/messages`                    | Save a message you sent and dispatch it (409 for a reused id)         |
+| `POST /internal/bots`                                  | Create a teammate with its chat, skills and starter automations       |
+| `POST /internal/bots/:id`                              | Change profile fields, with `expected_revision` (409 when stale)      |
+| `POST /internal/bots/:id/sync` ☀                       | Rewrite a teammate's workspace after an edit                          |
+| `GET /internal/teammates/:id/export`                   | A teammate's bundle and slug, for the export download                 |
+| `POST /internal/teammates/:id/duplicate`               | Copy a teammate, its memory, skills and paused automations            |
+| `POST /internal/teammates/import`                      | Add a teammate from a bundle; its automations start paused            |
+| `POST /internal/teammates/:id/lead`                    | Make this teammate the lead                                           |
+| `POST /internal/teammates/:id/archive`                 | Archive a teammate: stop its runs, pause its automations              |
+| `POST /internal/teammates/:id/budget`                  | Set the monthly budget and auto-approve limit                         |
+| `POST /internal/proposals/:id/accept`, `/dismiss`      | Accept or dismiss suggested instructions                              |
 
 ### Approvals and screens
 

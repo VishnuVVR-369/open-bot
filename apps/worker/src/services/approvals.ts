@@ -20,13 +20,9 @@ import {
   type ApprovalItem,
 } from "@open-bot/domain";
 import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
-import {
-  appendRunEvent,
-  createNotification,
-  enqueueRun,
-  publishApp,
-  type Context,
-} from "../context";
+import { createNotification, publishApp, type Context } from "../context";
+import { enqueueRun } from "../runs/queue";
+import { appendRunEvent } from "../runs/events";
 import type { RunSession } from "../runs/session";
 import type { SessionRegistry } from "./registry";
 

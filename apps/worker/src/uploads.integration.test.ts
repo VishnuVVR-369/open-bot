@@ -2,16 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
-import {
-  bots,
-  chats,
-  messages,
-  runs,
-  uploads,
-  LOCKS,
-  lockUntilCommit,
-  type Db,
-} from "@open-bot/db";
+import { bots, chats, messages, runs, uploads, LOCKS, lockUntilCommit } from "@open-bot/db";
 import {
   INCOMPLETE_TTL_MS,
   UNUSED_TTL_MS,
@@ -20,16 +11,8 @@ import {
   type UploadFiles,
 } from "./uploads";
 
-const fixture = vi.hoisted(() => ({ db: null as Db | null }));
-vi.mock("../../web/node_modules/server-only/index.js", () => ({}));
-vi.mock("../../web/src/lib/server/db", () => ({
-  get db() {
-    return fixture.db;
-  },
-}));
-vi.mock("../../web/src/lib/server/worker", () => ({ worker: vi.fn(async () => ({})) }));
-vi.mock("../../web/src/lib/server/publish", () => ({ publish: vi.fn() }));
-import { sendMessage } from "../../web/src/lib/server/api/chats";
+import type { Context } from "./context";
+import { ChatService } from "./services/chats";
 
 function deferred() {
   let resolve!: () => void;
@@ -98,7 +81,6 @@ describe.skipIf(!url)("uploads with Postgres", () => {
   });
   beforeEach(async () => {
     await pool.query("truncate uploads, chats, bots restart identity cascade");
-    fixture.db = db;
     files = memoryFiles();
     service = new UploadService(db, files.api, { warn: vi.fn() });
   });
@@ -281,14 +263,21 @@ describe.skipIf(!url)("uploads with Postgres", () => {
     };
     const cleanup = service.cleanup();
     await removing.promise;
-    const send = sendMessage({
+    const chatService = new ChatService(
+      { db, pool, log: { warn: vi.fn() } } as unknown as Context,
+      async () => {},
+    );
+    const send = chatService.send({
       clientId: randomUUID(),
       chatId: chat!.id,
       text: "Here",
       attachments: [uploaded.attachment!],
       mentions: [],
     });
-    const rejected = expect(send).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    const rejected = expect(send).rejects.toMatchObject({
+      status: 400,
+      message: "photo.jpg didn't finish uploading. Attach it again.",
+    });
     release.resolve();
     expect(await cleanup).toBe(1);
     await rejected;

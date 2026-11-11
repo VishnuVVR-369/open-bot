@@ -11,7 +11,9 @@ import {
   type ToolItem,
 } from "@open-bot/domain";
 import { and, asc, eq, isNotNull, isNull, lte, sql } from "drizzle-orm";
-import { appendRunEvent, enqueueRun, publishApp, type Context } from "../context";
+import { publishApp, type Context } from "../context";
+import { enqueueRun } from "../runs/queue";
+import { appendRunEvent } from "../runs/events";
 import { errorMessage } from "../logger";
 import type { RunSession } from "../runs/session";
 import type { ApprovalService } from "../services/approvals";

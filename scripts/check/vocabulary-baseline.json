@@ -382,7 +382,7 @@
     "bot": 2
   },
   "apps/web/src/lib/server/api/chats.ts": {
-    "bot": 18
+    "bot": 4
   },
   "apps/web/src/lib/server/api/integrations.ts": {
     "bot": 4
@@ -394,13 +394,10 @@
     "bot": 8
   },
   "apps/web/src/lib/server/api/router.integration.test.ts": {
-    "bot": 15
+    "bot": 17
   },
   "apps/web/src/lib/server/api/router.ts": {
     "bot": 4
-  },
-  "apps/web/src/lib/server/api/runs.ts": {
-    "bot": 12
   },
   "apps/web/src/lib/server/api/screens.ts": {
     "bot": 13,
@@ -451,7 +448,7 @@
     "bot": 6
   },
   "apps/worker/src/context.ts": {
-    "bot": 9
+    "bot": 6
   },
   "apps/worker/src/egress/relay.test.ts": {
     "bot": 2
@@ -493,6 +490,12 @@
   "apps/worker/src/runs/memory.test.ts": {
     "bot": 8
   },
+  "apps/worker/src/runs/queue.ts": {
+    "bot": 3
+  },
+  "apps/worker/src/runs/requests.ts": {
+    "bot": 1
+  },
   "apps/worker/src/runs/session.ts": {
     "bot": 66
   },
@@ -506,14 +509,17 @@
     "bot": 31
   },
   "apps/worker/src/services/bots.ts": {
-    "bot": 179,
+    "bot": 177,
     "primary teammate": 5
+  },
+  "apps/worker/src/services/chats.ts": {
+    "bot": 8
   },
   "apps/worker/src/services/connections.ts": {
     "bot": 5
   },
   "apps/worker/src/services/email.ts": {
-    "bot": 46
+    "bot": 41
   },
   "apps/worker/src/services/fcm.integration.test.ts": {
     "bot": 3
@@ -543,7 +549,7 @@
     "bot": 9
   },
   "apps/worker/src/services/schedules.ts": {
-    "bot": 32
+    "bot": 27
   },
   "apps/worker/src/services/screen-operations.integration.test.ts": {
     "bot": 8,

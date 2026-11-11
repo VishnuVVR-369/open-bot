@@ -21,6 +21,7 @@ import { errorMessage } from "../logger";
 import type { RunExecutor } from "../runs/executor";
 import type { UploadService } from "../uploads";
 import type { ApprovalService } from "./approvals";
+import { saveUserMessage } from "./chats";
 
 const POLL_SECONDS = 25;
 const LINK_CODE_MINUTES = 15;
@@ -625,23 +626,19 @@ export class TelegramService {
       return;
     }
 
-    const [row] = await this.ctx.db
-      .insert(messages)
-      .values({
-        chatId: target.chatId,
-        role: "user",
-        text: target.text || "(See the attached files.)",
-        attachments,
-        via: "telegram",
-      })
-      .returning({ id: messages.id });
+    const { message: row } = await saveUserMessage(this.ctx.db, {
+      chatId: target.chatId,
+      text: target.text || "(See the attached files.)",
+      attachments,
+      via: "telegram",
+    });
     await this.ctx.db
       .insert(telegramMessages)
       .values({
         telegramChatId,
         telegramMessageId: message.message_id,
         chatId: target.chatId,
-        messageId: row!.id,
+        messageId: row.id,
       })
       .onConflictDoNothing();
     await this.ctx.db.update(telegram).set({ lastChatId: target.chatId }).where(eq(telegram.id, 1));
@@ -651,7 +648,7 @@ export class TelegramService {
       message_id: message.message_id,
       reaction: [{ type: "emoji", emoji: "👀" }],
     }).catch(() => {});
-    await this.executor.dispatchMessage(row!.id);
+    await this.executor.dispatchMessage(row.id);
   }
 
   private async onButton(query: NonNullable<TgUpdate["callback_query"]>) {

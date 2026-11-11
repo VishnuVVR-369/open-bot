@@ -9,7 +9,9 @@ import {
 } from "@open-bot/db";
 import { COMPUTER_PATHS, emailAddress } from "@open-bot/domain";
 import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, ne, sql } from "drizzle-orm";
-import { announceRun, appendRunEvent, insertRun, publishApp, type Context } from "../context";
+import { publishApp, type Context } from "../context";
+import { announceRun, insertRun } from "./queue";
+import { appendRunEvent } from "./events";
 import { agentsMarkdown, allowedList, redoPrompt } from "../instructions";
 import { errorMessage } from "../logger";
 import type { ApprovalService } from "../services/approvals";
@@ -22,6 +24,7 @@ import type { ModelAccess } from "../services/model-access";
 import type { TakeoverService } from "../services/takeovers";
 import type { ToolHandlers } from "../tools/handlers";
 import type { AccountAccess } from "../accounts/access";
+import { markDispatched, markSteered, touchChat } from "../services/chats";
 import { RunSession, type Bot, type Run } from "./session";
 
 /** How long a saved message may wait for its dispatch before the worker dispatches it itself. */
@@ -314,7 +317,7 @@ export class RunExecutor {
     const [message] = await this.ctx.db.select().from(messages).where(eq(messages.id, messageId));
     if (!message) return;
     if (message.role !== "user") {
-      await this.markDispatched(message.id);
+      await markDispatched(this.ctx.db, message.id);
       return;
     }
     const [chat] = await this.ctx.db.select().from(chats).where(eq(chats.id, message.chatId));
@@ -375,10 +378,7 @@ export class RunExecutor {
           .returning({ botId: messageDispatches.botId });
         if (!claimed) continue;
         if (await session.steer(message.id, prompt)) {
-          await this.ctx.db
-            .update(messages)
-            .set({ steeredRunId: session.run.id })
-            .where(eq(messages.id, message.id));
+          await markSteered(this.ctx.db, message.id, session.run.id);
           await this.ctx.db
             .update(messageDispatches)
             .set({ status: "done", runId: session.run.id })
@@ -395,12 +395,9 @@ export class RunExecutor {
       }
       if (await this.queueRun(message, botId, prompt, { claimed: false })) delivered = true;
     }
-    const first = await this.markDispatched(message.id);
+    const first = await markDispatched(this.ctx.db, message.id);
     if (delivered || first) {
-      await this.ctx.db
-        .update(chats)
-        .set({ lastActivityAt: new Date() })
-        .where(eq(chats.id, chat.id));
+      await touchChat(this.ctx.db, chat.id);
       await publishApp(this.ctx, { type: "chats" });
     }
     this.pump();
@@ -457,16 +454,6 @@ export class RunExecutor {
     if (!runId) return false;
     await announceRun(this.ctx, message.chatId);
     return true;
-  }
-
-  /** True the first time, when the message was still pending. */
-  private async markDispatched(messageId: string): Promise<boolean> {
-    const rows = await this.ctx.db
-      .update(messages)
-      .set({ dispatchStatus: "dispatched" })
-      .where(and(eq(messages.id, messageId), eq(messages.dispatchStatus, "pending")))
-      .returning({ id: messages.id });
-    return rows.length > 0;
   }
 
   /**

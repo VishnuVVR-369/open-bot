@@ -12,6 +12,8 @@ import { createHttpServer } from "./http";
 import { CodexAccountService } from "./services/codex-account";
 import { FileService } from "./services/files";
 import { RetryService } from "./services/retries";
+import { ChatService } from "./services/chats";
+import { RunRequests } from "./runs/requests";
 import { computerFiles, UploadService } from "./uploads";
 import { PushService } from "./services/push";
 import { FcmService, nativeEgressPush } from "./services/fcm";
@@ -398,9 +400,12 @@ setInterval(
   10 * 60_000,
 ).unref();
 
+const chats = new ChatService(ctx, (messageId) => executor.dispatchMessage(messageId));
 const server = createHttpServer({
   ctx,
   teammates: botService,
+  chats,
+  runRequests: new RunRequests(ctx, chats, memory.store, () => executor.processCancellations()),
   executor,
   retries: new RetryService(ctx),
   approvals,

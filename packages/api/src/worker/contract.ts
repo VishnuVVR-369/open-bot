@@ -20,11 +20,18 @@ import {
 } from "@open-bot/domain";
 import { z } from "zod";
 import { scheduleInputSchema, triggerInputSchema } from "../automations";
-import { decideApprovalInputSchema } from "../contract";
+import {
+  chatTitleSchema,
+  decideApprovalInputSchema,
+  feedbackInputSchema,
+  groupTeammatesSchema,
+  runRatingSchema,
+  sendMessageInputSchema,
+} from "../contract";
 import { egressModeSchema, phoneEgressModeSchema, unavailableReasonSchema } from "../egress";
 import { budgetInputSchema } from "../teammates";
 import { taskChangesSchema, taskInputSchema } from "../tasks";
-import { approvalStatusSchema, uploadViewSchema } from "../views";
+import { approvalStatusSchema, messageViewSchema, uploadViewSchema } from "../views";
 import {
   codexRateLimitsSchema,
   codexStatusSchema,
@@ -168,6 +175,40 @@ export const workerContract = {
       .input(z.object({ proposalId: id }))
       .output(ok),
   },
+  chats: {
+    /** Start a new direct chat with a teammate. */
+    newDirect: base
+      .route({ method: "POST", path: "/internal/chats/direct" })
+      .input(z.object({ teammateId: id }))
+      .output(z.object({ chatId: z.string() })),
+    /** Start a group chat with two or more teammates. */
+    createGroup: base
+      .route({ method: "POST", path: "/internal/chats/group" })
+      .input(z.object({ title: chatTitleSchema, teammateIds: groupTeammatesSchema }))
+      .output(z.object({ chatId: z.string() })),
+    rename: base
+      .route({ method: "POST", path: "/internal/chats/{chatId}/rename" })
+      .input(z.object({ chatId: id, title: chatTitleSchema }))
+      .output(ok),
+    /** Hide a chat from the lists. Its history stays. */
+    archive: base
+      .route({ method: "POST", path: "/internal/chats/{chatId}/archive" })
+      .input(z.object({ chatId: id }))
+      .output(ok),
+    /** The owner has seen what's in the chat. */
+    markRead: base
+      .route({ method: "POST", path: "/internal/chats/{chatId}/read" })
+      .input(z.object({ chatId: id }))
+      .output(ok),
+    /**
+     * Save a message the owner sent and deliver it. 409 when its `clientId` was used for a
+     * different message; the same message again returns it and delivers it again.
+     */
+    send: base
+      .route({ method: "POST", path: "/internal/chats/{chatId}/messages" })
+      .input(sendMessageInputSchema)
+      .output(messageViewSchema),
+  },
   messages: {
     /** Deliver a saved message to the teammates it is for. Safe to call again. */
     dispatch: base
@@ -183,6 +224,23 @@ export const workerContract = {
       .output(z.object({ runId: z.string() })),
     /** Stop the runs the owner marked as cancelled in the database. */
     processCancellations: base.route({ method: "POST", path: "/internal/runs/cancel" }).output(ok),
+    /** Stop a run. */
+    stop: base
+      .route({ method: "POST", path: "/internal/runs/{runId}/stop" })
+      .input(z.object({ runId: id }))
+      .output(ok),
+    rate: base
+      .route({ method: "POST", path: "/internal/runs/{runId}/rate" })
+      .input(z.object({ runId: id, rating: runRatingSchema }))
+      .output(ok),
+    /**
+     * A thumbs down with what to change: kept as a lesson with `remember`, and with `redo` sent to
+     * the chat as a new message. 409 when the redo's `clientId` was used for something else.
+     */
+    feedback: base
+      .route({ method: "POST", path: "/internal/runs/{runId}/feedback" })
+      .input(feedbackInputSchema)
+      .output(ok),
   },
   approvals: {
     /** Says how the approval ended, also when it was decided elsewhere first or expired. */
