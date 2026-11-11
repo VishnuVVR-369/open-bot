@@ -105,7 +105,7 @@ export class SwarmService {
         const chatId = await addChat(tx, {
           kind: "helper",
           title: part.title,
-          botId: session.bot.id,
+          teammateId: session.bot.id,
         });
         const [task] = await tx
           .insert(swarmTasks)

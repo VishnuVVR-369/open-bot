@@ -362,7 +362,7 @@ export default function TeammateScreen() {
                   first={index === 0}
                   leading={leadingFor(chat)}
                   title={chat.kind === "group" ? chat.title : chatTitle(chat, bot)}
-                  subtitle={plainText(chatSubtitle(chat, bot, bots))}
+                  subtitle={`${chat.main ? "Main chat · " : ""}${plainText(chatSubtitle(chat, bot, bots))}`}
                   aside={
                     <Text variant="caption" muted>
                       {ago(chat.lastActivityAt)}

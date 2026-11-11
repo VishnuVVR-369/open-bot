@@ -147,6 +147,10 @@ export function createWorkerRouter(services: WorkerServices) {
         await s.chats.rename(input.chatId, input.title);
         return ok;
       }),
+      makeMain: os.chats.makeMain.handler(async ({ input }) => {
+        await s.chats.makeMain(input.chatId);
+        return ok;
+      }),
       archive: os.chats.archive.handler(async ({ input }) => {
         await s.chats.archive(input.chatId);
         return ok;

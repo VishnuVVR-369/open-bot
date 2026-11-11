@@ -76,6 +76,7 @@ function page(first: number, last: number, hasMore = first > 1, chatId = "a"): C
       kind: "direct",
       title: "Rex",
       botId: "b",
+      main: true,
       memberIds: ["b"],
       lastActivityAt: entry(last).at,
       active: false,

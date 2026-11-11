@@ -29,7 +29,7 @@ export const botSummarySchema = z.object({
   emoji: z.string(),
   autonomy: autonomySchema,
   isPrimary: z.boolean(),
-  /** The bot's direct chat. */
+  /** The teammate's main chat, where work that isn't started from a chat arrives. */
   directChatId: z.string().nullable(),
   /** When they last worked: their latest run's finish, or its start while it's still going. Null if they never have. */
   lastActiveAt: isoDate.nullable(),
@@ -51,6 +51,8 @@ export const chatSummarySchema = z.object({
   kind: chatKindSchema,
   title: z.string(),
   botId: z.string().nullable(),
+  /** The teammate's main chat, where work that isn't started from a chat arrives. */
+  main: z.boolean(),
   memberIds: z.array(z.string()),
   lastActivityAt: isoDate,
   active: z.boolean(),

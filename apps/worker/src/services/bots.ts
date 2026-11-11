@@ -152,7 +152,7 @@ export class BotService {
       .from(bots)
       .leftJoin(
         chats,
-        and(eq(chats.botId, bots.id), eq(chats.kind, "direct"), isNull(chats.archivedAt)),
+        and(eq(chats.botId, bots.id), eq(chats.main, true), isNull(chats.archivedAt)),
       )
       .where(isNull(bots.archivedAt))
       .orderBy(asc(bots.createdAt));
@@ -199,7 +199,7 @@ export class BotService {
       this.ctx.db
         .select({ id: chats.id })
         .from(chats)
-        .where(and(eq(chats.botId, id), eq(chats.kind, "direct"), isNull(chats.archivedAt))),
+        .where(and(eq(chats.botId, id), eq(chats.main, true), isNull(chats.archivedAt))),
     ]);
     return {
       id: bot.id,
@@ -269,7 +269,12 @@ export class BotService {
         .insert(bots)
         .values({ ...profile, slug, isPrimary: first })
         .returning();
-      const chatId = await addChat(tx, { kind: "direct", title: profile.name, botId: bot!.id });
+      const chatId = await addChat(tx, {
+        kind: "direct",
+        title: profile.name,
+        teammateId: bot!.id,
+        main: true,
+      });
       return { bot: bot!, chatId };
     });
     const botId = created.bot.id;
@@ -429,7 +434,12 @@ export class BotService {
         .values({ ...profile, slug, isPrimary: first })
         .returning();
       const id = teammate!.id;
-      const chatId = await addChat(tx, { kind: "direct", title: profile.name, botId: id });
+      const chatId = await addChat(tx, {
+        kind: "direct",
+        title: profile.name,
+        teammateId: id,
+        main: true,
+      });
       await addTeammateSkills(tx, id, parts.skills);
       await addPausedRoutines(tx, id, parts.routines, timezone);
       await addPausedWatches(tx, id, parts.watches);

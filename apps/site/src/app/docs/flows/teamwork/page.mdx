@@ -41,11 +41,11 @@ The other teammate gets a run in the **same** chat with trigger `handoff`, and i
     actors={[
       { id: "milo", label: "Milo", sub: "in your chat" },
       { id: "worker", label: "Worker" },
-      { id: "penny", label: "Penny", sub: "in her own chat" },
+      { id: "penny", label: "Penny", sub: "in her main chat" },
     ]}
     steps={[
       { from: "milo", to: "worker", label: "ask_teammate(Penny, question)" },
-      { from: "worker", to: "penny", label: "queue a question run in her latest direct chat" },
+      { from: "worker", to: "penny", label: "queue a question run in her main chat" },
       { from: "worker", to: "milo", label: "asked; end your turn", reply: true },
       { self: "penny", label: "answers the question" },
       { from: "penny", to: "worker", label: "run finished with the answer" },
@@ -57,7 +57,7 @@ The other teammate gets a run in the **same** chat with trigger `handoff`, and i
 
 The answer comes back as `[Penny answered your question:] ...`.
 If Penny's run fails or you stop it, Milo hears that too and is told to carry on without it.
-Penny answers in her own chat, so you can see what she did.
+Penny answers in her main chat, so you can see what she did.
 
 ### Loops are impossible
 
@@ -79,7 +79,7 @@ A task has a title, notes, a status (`todo`, `doing`, `done`), an owner, a due d
 | `add_task`    | Adds a task. With `start`, it also gets the owner going.                    |
 | `update_task` | Moves, reassigns or edits a task. Teammates mark their own tasks done.      |
 
-**Ask to start** (in the app, or `add_task` with `start`) queues a run for the owner in its most recent direct chat, with trigger `task`, and moves the task to Doing:
+**Ask to start** (in the app, or `add_task` with `start`) queues a run for the owner in its main chat, with trigger `task`, and moves the task to Doing:
 
 ```text title="The run's prompt"
 [The user asked you to work on a task from the team's board (task id …). When it's
@@ -174,7 +174,7 @@ A new teammate asks before risky actions unless you asked for more, whatever its
 
 1. resolves the request into a plan, with the least used color when none is given;
 2. checks every schedule's timing, so you are never asked to approve one that can't be saved;
-3. in one transaction, under an advisory lock, picks a unique slug and creates the `bots` row and its direct chat (the first teammate becomes the primary one);
+3. in one transaction, under an advisory lock, picks a unique slug and creates the `bots` row and its direct chat, which is its main chat (the first teammate becomes the primary one);
 4. saves the skills and schedules, in your timezone, and reports any that failed by name, so the caller adds them later instead of creating the teammate twice;
 5. writes the teammate's workspace, or leaves that to its first run if the computer is away.
 

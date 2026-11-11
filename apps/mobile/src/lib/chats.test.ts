@@ -12,6 +12,7 @@ function chat(overrides: Partial<ChatSummary>): ChatSummary {
     kind: "direct",
     title: "Rex",
     botId: "rex",
+    main: true,
     memberIds: ["rex"],
     lastActivityAt: "2026-11-02T00:00:00.000Z",
     active: false,

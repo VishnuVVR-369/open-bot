@@ -467,6 +467,8 @@ export const contract = {
     rename: base.input(z.object({ chatId: id, title: chatTitleSchema })).output(ok),
     /** Hide a chat from your lists. Its history stays. */
     archive: base.input(z.object({ chatId: id })).output(ok),
+    /** Make a chat with one teammate its main chat, where work that isn't started from a chat arrives. */
+    makeMain: base.input(z.object({ chatId: id })).output(ok),
     /** You've seen what's in the chat, so it isn't unread on any device. */
     markRead: base.input(z.object({ chatId: id })).output(ok),
     /**

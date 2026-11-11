@@ -37,6 +37,11 @@ export function archiveChat({ chatId }: Inputs["archive"]) {
   return worker.chats.archive({ chatId });
 }
 
+/** Make a chat with one teammate its main chat. */
+export function makeMainChat({ chatId }: Inputs["makeMain"]) {
+  return worker.chats.makeMain({ chatId });
+}
+
 /** You've seen the chat: what teammates said in it isn't unread anymore, on any device. */
 export function markChatRead({ chatId }: Inputs["markRead"]) {
   return worker.chats.markRead({ chatId });

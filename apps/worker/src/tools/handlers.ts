@@ -15,7 +15,7 @@ import {
   type ComputerAction,
   type ToolItem,
 } from "@open-bot/domain";
-import { and, desc, eq, ilike, inArray, isNull, or } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, or } from "drizzle-orm";
 import { z } from "zod";
 import { publishApp, type Context } from "../context";
 import { createNotification } from "../services/notifications";
@@ -36,7 +36,7 @@ import { SwarmError, type SwarmService } from "../services/swarms";
 import { VaultError, type VaultService } from "../services/vault";
 import { activeTeammates, BotError, type BotService } from "../services/bots";
 import { PageError, type PageService } from "../services/pages";
-import { titleChat } from "../services/chats";
+import { mainChat, titleChat } from "../services/chats";
 import { BOT_TOOL_NAMES, BotTools } from "./bots";
 import { AccountToolError } from "../accounts/access";
 import { isAccountNamespace } from "../accounts/registry";
@@ -1705,16 +1705,9 @@ export class ToolHandlers {
       );
     if (depth + 1 >= MAX_HANDOFF_DEPTH)
       return text("This request has gone through too many teammates. Finish it yourself.", false);
-    // They answer in their own chat, where you can see what they did.
-    const [chat] = await this.ctx.db
-      .select({ id: chats.id })
-      .from(chats)
-      .where(and(eq(chats.botId, target.id), eq(chats.kind, "direct"), isNull(chats.archivedAt)))
-      .orderBy(desc(chats.lastActivityAt))
-      .limit(1);
-    if (!chat) return text(`${target.name} has no chat to answer in.`, false);
+    // They answer in their main chat, where you can see what they did.
     await enqueueRun(this.ctx, {
-      chatId: chat.id,
+      chatId: await mainChat(this.ctx, target.id),
       botId: target.id,
       trigger: "question",
       prompt: `[${session.bot.name} asks you this, for a task the user gave them. Your reply goes back to ${session.bot.name}, so answer it fully and on its own.]\n${question}`,

@@ -6,6 +6,7 @@ export { removeSchedule, setCheckIn, testWebhook } from "./automations";
 export {
   archiveChat,
   createGroupChat,
+  makeMainChat,
   markChatRead,
   newDirectChat,
   renameChat,

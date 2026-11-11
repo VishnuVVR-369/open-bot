@@ -11,7 +11,7 @@ import {
   type Queryable,
   type Tx,
 } from "@open-bot/db";
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
 import { errorMessage } from "../logger";
 
@@ -32,17 +32,26 @@ export class ChatError extends Error {
 }
 
 type Message = typeof messages.$inferSelect;
-type NewChat = Pick<typeof chats.$inferInsert, "kind" | "title" | "botId" | "titled">;
+type NewChat = Pick<typeof chats.$inferInsert, "kind" | "title" | "titled" | "main"> & {
+  /** The teammate of a direct, scheduled, inbox or helper chat. */
+  teammateId?: string;
+};
+
+/** The teammate a chat is with. The column's name predates the glossary. */
+const chatTeammate = chats.botId; // vocabulary: allow
 
 /** Save a chat. Tell the app (`chats`) once the caller's transaction commits. */
-export async function addChat(db: Queryable, chat: NewChat): Promise<string> {
-  const [row] = await db.insert(chats).values(chat).returning({ id: chats.id });
+export async function addChat(db: Queryable, { teammateId, ...chat }: NewChat): Promise<string> {
+  const [row] = await db
+    .insert(chats)
+    .values({ ...chat, botId: teammateId ?? null }) // vocabulary: allow
+    .returning({ id: chats.id });
   return row!.id;
 }
 
 /**
- * A teammate's own chat of this kind (where its emails arrive, or its routines run), made the
- * first time it's needed.
+ * A teammate's own chat of this kind, made the first time it's needed. Its routines and emails
+ * used to arrive in these; now they arrive in its main chat (`mainChat`).
  */
 export async function teammateChat(
   ctx: Context,
@@ -52,12 +61,78 @@ export async function teammateChat(
   const [existing] = await ctx.db
     .select({ id: chats.id })
     .from(chats)
-    .where(and(eq(chats.botId, teammateId), eq(chats.kind, kind), isNull(chats.archivedAt)));
+    .where(and(eq(chatTeammate, teammateId), eq(chats.kind, kind), isNull(chats.archivedAt)));
   if (existing) return existing.id;
   const title = kind === "inbox" ? "Email" : "Scheduled";
-  const id = await addChat(ctx.db, { kind, title, botId: teammateId });
+  const id = await addChat(ctx.db, { kind, title, teammateId });
   await publishApp(ctx, { type: "chats" });
   return id;
+}
+
+/** The teammate's open main chat, if it has one. */
+async function openMain(db: Queryable, teammateId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ id: chats.id })
+    .from(chats)
+    .where(and(eq(chatTeammate, teammateId), eq(chats.main, true), isNull(chats.archivedAt)));
+  return row?.id ?? null;
+}
+
+/**
+ * Give the teammate a main chat if it has none open: its most recently active open direct chat,
+ * or, with `create`, a new one. Takes the caller's transaction and the teammate's main chat lock.
+ * Returns the main chat and whether it changed, or null when there's none to give.
+ */
+async function ensureMain(
+  tx: Tx,
+  teammateId: string,
+  { create }: { create: boolean },
+): Promise<{ id: string; changed: boolean } | null> {
+  await lockUntilCommit(tx, LOCKS.mainChat(teammateId));
+  const current = await openMain(tx, teammateId);
+  if (current) return { id: current, changed: false };
+  // A main chat archived by a worker from before main chats keeps the role until it's handed on.
+  await tx
+    .update(chats)
+    .set({ main: false })
+    .where(and(eq(chatTeammate, teammateId), eq(chats.main, true)));
+  const [next] = await tx
+    .select({ id: chats.id })
+    .from(chats)
+    .where(and(eq(chatTeammate, teammateId), eq(chats.kind, "direct"), isNull(chats.archivedAt)))
+    .orderBy(desc(chats.lastActivityAt), desc(chats.createdAt))
+    .limit(1);
+  if (next) {
+    await tx.update(chats).set({ main: true }).where(eq(chats.id, next.id));
+    return { id: next.id, changed: true };
+  }
+  if (!create) return null;
+  const [teammate] = await tx
+    .select({ name: teammates.name, archivedAt: teammates.archivedAt })
+    .from(teammates)
+    .where(eq(teammates.id, teammateId));
+  if (!teammate || teammate.archivedAt)
+    throw new ChatError(404, "That teammate no longer exists or is archived.");
+  const id = await addChat(tx, {
+    kind: "direct",
+    title: teammate.name,
+    teammateId,
+    main: true,
+  });
+  return { id, changed: true };
+}
+
+/**
+ * The teammate's main chat, where work that isn't started from a chat arrives: tasks, questions
+ * from teammates, Telegram messages. A teammate without one open gets its most recently active
+ * direct chat, or a new one.
+ */
+export async function mainChat(ctx: Context, teammateId: string): Promise<string> {
+  const current = await openMain(ctx.db, teammateId);
+  if (current) return current;
+  const result = await ctx.db.transaction((tx) => ensureMain(tx, teammateId, { create: true }));
+  if (result!.changed) await publishApp(ctx, { type: "chats" });
+  return result!.id;
 }
 
 /** A renamed teammate's direct chats follow its name, unless they have a title of their own. */
@@ -65,15 +140,15 @@ export async function renameDirectChats(tx: Tx, teammateId: string, name: string
   await tx
     .update(chats)
     .set({ title: name })
-    .where(and(eq(chats.botId, teammateId), eq(chats.kind, "direct"), eq(chats.titled, false)));
+    .where(and(eq(chatTeammate, teammateId), eq(chats.kind, "direct"), eq(chats.titled, false)));
 }
 
 /** Archive every chat of an archived teammate. */
 export async function archiveChatsOf(tx: Tx, teammateId: string, at: Date) {
   await tx
     .update(chats)
-    .set({ archivedAt: at })
-    .where(and(eq(chats.botId, teammateId), isNull(chats.archivedAt)));
+    .set({ archivedAt: at, main: false })
+    .where(and(eq(chatTeammate, teammateId), isNull(chats.archivedAt)));
 }
 
 /** Something happened in the chat, so it moves up the list. */
@@ -162,15 +237,21 @@ export class ChatService {
   ) {}
 
   async newDirect(teammateId: string): Promise<{ chatId: string }> {
-    const [teammate] = await this.ctx.db
-      .select({ name: teammates.name })
-      .from(teammates)
-      .where(eq(teammates.id, teammateId));
-    if (!teammate) throw new ChatError(404, "That teammate no longer exists.");
-    const chatId = await addChat(this.ctx.db, {
-      kind: "direct",
-      title: teammate.name,
-      botId: teammateId,
+    const chatId = await this.ctx.db.transaction(async (tx) => {
+      const [teammate] = await tx
+        .select({ name: teammates.name })
+        .from(teammates)
+        .where(eq(teammates.id, teammateId));
+      if (!teammate) throw new ChatError(404, "That teammate no longer exists.");
+      await lockUntilCommit(tx, LOCKS.mainChat(teammateId));
+      // The first open direct chat is the main one.
+      const main = !(await openMain(tx, teammateId));
+      if (main)
+        await tx
+          .update(chats)
+          .set({ main: false })
+          .where(and(eq(chatTeammate, teammateId), eq(chats.main, true)));
+      return addChat(tx, { kind: "direct", title: teammate.name, teammateId, main });
     });
     await publishApp(this.ctx, { type: "chats" });
     return { chatId };
@@ -208,8 +289,52 @@ export class ChatService {
     await publishApp(this.ctx, { type: "chats" });
   }
 
+  /**
+   * Read a chat in the caller's transaction, after taking its teammate's main chat lock, so
+   * archiving it and making it the main chat happen one at a time.
+   */
+  private async lockedChat(tx: Tx, chatId: string) {
+    const read = () =>
+      tx
+        .select({ teammateId: chatTeammate, kind: chats.kind, archivedAt: chats.archivedAt })
+        .from(chats)
+        .where(eq(chats.id, chatId))
+        .then((rows) => rows[0]);
+    const chat = await read();
+    if (!chat) throw new ChatError(404, "That chat no longer exists.");
+    if (chat.kind !== "direct" || !chat.teammateId) return chat;
+    // A chat's teammate never changes, so the lock read before it is the right one.
+    await lockUntilCommit(tx, LOCKS.mainChat(chat.teammateId));
+    return (await read())!;
+  }
+
+  /** Archive a chat. A main chat hands its role to the teammate's most recently active direct chat. */
   async archive(chatId: string) {
-    await this.change(chatId, { archivedAt: new Date() });
+    await this.ctx.db.transaction(async (tx) => {
+      const chat = await this.lockedChat(tx, chatId);
+      await tx
+        .update(chats)
+        .set({ archivedAt: new Date(), main: false })
+        .where(eq(chats.id, chatId));
+      if (chat.kind === "direct" && chat.teammateId)
+        await ensureMain(tx, chat.teammateId, { create: false });
+    });
+    await publishApp(this.ctx, { type: "chats" });
+  }
+
+  /** Make a direct chat its teammate's main chat. */
+  async makeMain(chatId: string) {
+    await this.ctx.db.transaction(async (tx) => {
+      const chat = await this.lockedChat(tx, chatId);
+      if (chat.kind !== "direct" || !chat.teammateId)
+        throw new ChatError(400, "Only a chat with one teammate can be its main chat.");
+      if (chat.archivedAt) throw new ChatError(400, "That chat is archived.");
+      await tx
+        .update(chats)
+        .set({ main: false })
+        .where(and(eq(chatTeammate, chat.teammateId), eq(chats.main, true)));
+      await tx.update(chats).set({ main: true }).where(eq(chats.id, chatId));
+    });
     await publishApp(this.ctx, { type: "chats" });
   }
 

@@ -467,6 +467,7 @@ describe.skipIf(!url)("API reads, end to end", () => {
         ok,
       ],
       [`/internal/chats/${chatId}/archive`, () => api.chats.archive({ chatId }), {}, ok],
+      [`/internal/chats/${chatId}/main`, () => api.chats.makeMain({ chatId }), {}, ok],
       [`/internal/chats/${chatId}/read`, () => api.chats.markRead({ chatId }), {}, ok],
       [
         `/internal/chats/${chatId}/messages`,

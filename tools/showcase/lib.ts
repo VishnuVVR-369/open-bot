@@ -296,6 +296,8 @@ export class Seeder {
   readonly activity: Map<string, Date>;
   readonly completions: Map<string, Date>;
   readonly unread: Set<string>;
+  /** Teammates whose main chat is seeded: their first direct chat. */
+  readonly withMainChat: Set<string>;
   runCount: number;
 
   constructor(db: Db, context: { shots: Map<string, Buffer>; encryptionKey: string }) {
@@ -304,6 +306,7 @@ export class Seeder {
     this.activity = new Map(); // chatId -> latest activity
     this.completions = new Map(); // chatId -> latest completed run
     this.unread = new Set();
+    this.withMainChat = new Set();
     this.runCount = 0;
   }
 
@@ -330,12 +333,17 @@ export class Seeder {
     unread?: boolean;
   }) {
     const id = randomUUID();
+    const teammateId = bot?.id; // vocabulary: allow
+    const main =
+      kind === "direct" && teammateId !== undefined && !this.withMainChat.has(teammateId);
+    if (main) this.withMainChat.add(teammateId);
     await this.db.insert(chats, {
       id,
       kind,
       title,
       titled,
-      botId: bot?.id ?? null,
+      main,
+      botId: teammateId ?? null, // vocabulary: allow
       createdAt,
       lastActivityAt: createdAt,
       readAt: createdAt,
