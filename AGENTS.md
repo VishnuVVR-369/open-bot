@@ -117,6 +117,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 **Add a database table or column**
 
 1. Edit `packages/db/src/schema.ts`. Keep changes additive (nullable or defaulted): the old web and worker keep running until the deploy finishes.
+   A new table gets its owner, the one module that writes it, in `packages/db/src/owners.ts`; the `open-bot/table-owners` lint rule refuses writes anywhere else.
 2. `pnpm db:generate --name <snake_name>` writes `packages/db/drizzle/<NNNN>_<name>.sql` plus the `meta/` snapshot and journal. Commit all three.
 3. Read the SQL. Add backfills by hand before it ships, separated by `--> statement-breakpoint`. Never edit a migration that has shipped.
 4. `pnpm db:migrate` locally, `pnpm test:integration`. On Railway the worker's pre-deploy step runs migrations; if one fails, Railway stays on the old commit.

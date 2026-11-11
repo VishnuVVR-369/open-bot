@@ -1,5 +1,5 @@
 import { BOTD_SOCKETS, type LifecycleCapabilities } from "@open-bot/api/botd";
-import { CHANNELS, computers, createDb, createPool, settings } from "@open-bot/db";
+import { CHANNELS, computers, createDb, createPool, ownerSettings, settings } from "@open-bot/db";
 import { ComputerLifecycle } from "./computer-lifecycle";
 import { CodexManager } from "./codex";
 import { BotdError, ComputerClient } from "./computer";
@@ -40,7 +40,6 @@ import { AccountAccess } from "./accounts/access";
 import { AccountActions } from "./accounts/actions";
 import { Integrations } from "./accounts/registry";
 import { AccountTools } from "./accounts/tools";
-import { eq } from "drizzle-orm";
 import { EventEmitter } from "node:events";
 
 /** botd's lifecycle calls (lease, quiesce) give up after this. */
@@ -65,11 +64,8 @@ const codex = new CodexManager(
   env.HOST_CODEX_AUTH_FILE,
   env.HOST_CODEX_BIN,
   async () => {
-    const [row] = await db
-      .select({ source: settings.chatgptAuthSource })
-      .from(settings)
-      .where(eq(settings.id, 1));
-    return row?.source ?? "host";
+    const row = await ownerSettings(db);
+    return row?.chatgptAuthSource ?? "host";
   },
   log.child("codex"),
 );

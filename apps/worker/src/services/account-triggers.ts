@@ -1,4 +1,4 @@
-import { connections, runs, settings, triggerFirings, triggers } from "@open-bot/db";
+import { connections, ownerTimeZone, runs, triggerFirings, triggers } from "@open-bot/db";
 import {
   ACCOUNT_TRIGGER_NOTE,
   CALENDAR_POLL_MINUTES,
@@ -524,14 +524,6 @@ export class AccountTriggers {
 
   /* -------------------------------------------------------------- Calendar */
 
-  private async timeZone(): Promise<string> {
-    const [row] = await this.ctx.db
-      .select({ timezone: settings.timezone })
-      .from(settings)
-      .where(eq(settings.id, 1));
-    return row?.timezone ?? "UTC";
-  }
-
   /** Events whose lead time has come, each waking the teammate once for the time it's at. */
   private async checkCalendar({ trigger }: Due): Promise<CheckResult> {
     let result: CheckResult;
@@ -560,7 +552,7 @@ export class AccountTriggers {
         trigger.id,
         due.map((entry) => entry.key),
       );
-      const timeZone = await this.timeZone();
+      const timeZone = await ownerTimeZone(this.ctx.db);
       let fired = 0;
       let skipped: string | null = null;
       for (const entry of due.filter((entry) => fresh.has(entry.key))) {

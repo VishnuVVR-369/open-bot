@@ -1,6 +1,6 @@
 import "server-only";
 import type { ApiInputs, ApiOutputs } from "@open-bot/api";
-import { schedules, settings, triggers } from "@open-bot/db";
+import { ownerTimeZone, schedules, triggers } from "@open-bot/db";
 import { DAILY_CHECK_IN } from "@open-bot/domain";
 import { and, eq } from "drizzle-orm";
 import { db } from "../db";
@@ -43,17 +43,14 @@ export async function setCheckIn({
     await worker.schedules.setEnabled({ scheduleId: existing[0].id, enabled: true });
     return { ok: true };
   }
-  const [owner] = await db
-    .select({ timezone: settings.timezone })
-    .from(settings)
-    .where(eq(settings.id, 1));
+  const timezone = await ownerTimeZone(db);
   await worker.schedules.create({
     botId: teammateId,
     title: DAILY_CHECK_IN.title,
     prompt: DAILY_CHECK_IN.prompt,
     cron: DAILY_CHECK_IN.cron,
     at: null,
-    timezone: owner?.timezone ?? "UTC",
+    timezone,
     quiet: true,
   });
   return { ok: true };

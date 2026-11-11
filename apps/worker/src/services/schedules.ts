@@ -1,4 +1,4 @@
-import { bots, chats, schedules, settings } from "@open-bot/db";
+import { bots, chats, ownerTimeZone, schedules } from "@open-bot/db";
 import {
   describeCron,
   isValidTimeZone,
@@ -40,17 +40,9 @@ export class ScheduleService {
 
   constructor(private readonly ctx: Context) {}
 
-  private async defaultTimeZone(): Promise<string> {
-    const [row] = await this.ctx.db
-      .select({ timezone: settings.timezone })
-      .from(settings)
-      .where(eq(settings.id, 1));
-    return row?.timezone ?? "UTC";
-  }
-
   /** When a schedule runs, from a cron expression or a local date and time. */
   private async timing(input: { cron: string | null; at: string | null; timezone: string | null }) {
-    const timezone = input.timezone ?? (await this.defaultTimeZone());
+    const timezone = input.timezone ?? (await ownerTimeZone(this.ctx.db));
     if (!isValidTimeZone(timezone)) throw new ScheduleError(`Unknown timezone ${timezone}`);
     if (Boolean(input.cron) === Boolean(input.at))
       throw new ScheduleError("Give exactly one of cron (recurring) or at (one time).");

@@ -51,6 +51,20 @@ export class MemoryCoordinator {
     });
   }
 
+  /**
+   * What the owner wrote in the message this run answers, or "" for a run no message started.
+   * Memory changes need evidence from it, not from an argument the teammate made up.
+   */
+  async requestText(session: RunSession): Promise<string> {
+    const messageId = session.run.messageId;
+    if (!messageId) return "";
+    const { rows } = await this.ctx.pool.query<{ text: string }>(
+      "select text from messages where id=$1 and role='user' and chat_id=$2",
+      [messageId, session.chat.id],
+    );
+    return rows[0]?.text ?? "";
+  }
+
   /** Evidence must come from this run's actual user message, not an argument invented by a bot. */
   async actor(
     session: RunSession,
@@ -58,13 +72,7 @@ export class MemoryCoordinator {
     shared = false,
   ): Promise<Extract<MemoryActor, { kind: "bot" }>> {
     const messageId = session.run.messageId;
-    const { rows } = messageId
-      ? await this.ctx.pool.query<{ text: string }>(
-          "select text from messages where id=$1 and role='user' and chat_id=$2",
-          [messageId, session.chat.id],
-        )
-      : { rows: [] };
-    const text = rows[0]?.text ?? "";
+    const text = await this.requestText(session);
     const explicit = hasMemorySaveIntent(text);
     const verified =
       explicit &&

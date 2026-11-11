@@ -1,4 +1,4 @@
-import { accounts, oauthClients, type Db } from "@open-bot/db";
+import { accounts, LOCKS, lockUntilCommit, oauthClients, type Db } from "@open-bot/db";
 import type { AccountProvider } from "@open-bot/domain";
 import { decryptSecret, encryptSecret } from "@open-bot/domain/server";
 import { and, eq, isNotNull, isNull, notExists, sql } from "drizzle-orm";
@@ -75,9 +75,7 @@ export class OAuthClients {
   }): Promise<OAuthClient> {
     return this.db.transaction(async (tx) => {
       // One sign-in setup at a time per provider: the current-client index allows only one.
-      await tx.execute(
-        sql`select pg_advisory_xact_lock(hashtext(${`oauth_clients:${input.provider}`}))`,
-      );
+      await lockUntilCommit(tx, LOCKS.oauthClients(input.provider));
       const values = {
         clientId: input.clientId,
         encryptedSecret: input.clientSecret

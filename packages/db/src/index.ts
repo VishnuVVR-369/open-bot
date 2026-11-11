@@ -3,8 +3,14 @@ import pg from "pg";
 import * as schema from "./schema";
 
 export * from "./schema";
-export { lockUploads } from "./upload-locks";
-export { lockTeam } from "./team-lock";
+export { LOCKS, lockUntilCommit, withTryLock, type LockKey } from "./locks";
+export {
+  DEFAULT_TIME_ZONE,
+  ownerSettings,
+  ownerTimeZone,
+  SETTINGS_ID,
+  type OwnerSettings,
+} from "./settings";
 export { configurationRevision } from "./configuration";
 export { schema };
 

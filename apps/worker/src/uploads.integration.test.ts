@@ -2,7 +2,16 @@ import { createHash, randomUUID } from "node:crypto";
 import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
-import { bots, chats, messages, runs, uploads, lockUploads, type Db } from "@open-bot/db";
+import {
+  bots,
+  chats,
+  messages,
+  runs,
+  uploads,
+  LOCKS,
+  lockUntilCommit,
+  type Db,
+} from "@open-bot/db";
 import {
   INCOMPLETE_TTL_MS,
   UNUSED_TTL_MS,
@@ -301,7 +310,7 @@ describe.skipIf(!url)("uploads with Postgres", () => {
     const locked = deferred();
     const release = deferred();
     const accepting = db.transaction(async (tx) => {
-      await lockUploads(tx, [uploaded.attachment!.path]);
+      await lockUntilCommit(tx, LOCKS.upload(uploaded.attachment!.path));
       locked.resolve();
       await release.promise;
       await tx.insert(messages).values({

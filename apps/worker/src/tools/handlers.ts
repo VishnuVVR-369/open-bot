@@ -41,7 +41,7 @@ import { TriggerError, type TriggerService } from "../services/triggers";
 import { EmailError, type EmailService } from "../services/email";
 import { SwarmError, type SwarmService } from "../services/swarms";
 import { VaultError, type VaultService } from "../services/vault";
-import { BotError, type BotService } from "../services/bots";
+import { activeTeammates, BotError, type BotService } from "../services/bots";
 import { PageError, type PageService } from "../services/pages";
 import { BOT_TOOL_NAMES, BotTools } from "./bots";
 import { AccountToolError } from "../accounts/access";
@@ -1071,13 +1071,7 @@ export class ToolHandlers {
       const current = await this.memory.store.get(reference.id, actor);
       if (name === "forget_memory") {
         // Forgetting needs an explicit request in this run, not an instruction in retrieved text.
-        const evidence = session.run.messageId
-          ? await this.ctx.pool.query<{ text: string }>(
-              "select text from messages where id=$1 and role='user'",
-              [session.run.messageId],
-            )
-          : { rows: [] };
-        if (!hasMemoryForgetIntent(evidence.rows[0]?.text ?? ""))
+        if (!hasMemoryForgetIntent(await this.memory.requestText(session)))
           throw new MemoryError(403, "Only forget memory when the user explicitly asks.");
         await this.memory.store.forget(reference, { ...actor, verified: true });
       } else
@@ -1396,10 +1390,7 @@ export class ToolHandlers {
     const name = String(value).trim();
     if (!name) return { id: null, name: null };
     if (name.toLowerCase() === "me") return { id: session.bot.id, name: session.bot.name };
-    const team = await this.ctx.db
-      .select({ id: bots.id, name: bots.name })
-      .from(bots)
-      .where(isNull(bots.archivedAt));
+    const team = await activeTeammates(this.ctx.db);
     const bot = team.find((entry) => entry.name.toLowerCase() === name.toLowerCase());
     if (!bot)
       throw new TaskError(
@@ -1722,10 +1713,7 @@ export class ToolHandlers {
       .toLowerCase();
     const question = String(args.question ?? "").trim();
     if (!question) return text("Write the question first.", false);
-    const team = await this.ctx.db
-      .select({ id: bots.id, name: bots.name })
-      .from(bots)
-      .where(isNull(bots.archivedAt));
+    const team = await activeTeammates(this.ctx.db);
     const target = team.find((bot) => bot.name.toLowerCase() === name);
     if (!target)
       return text(
@@ -1784,11 +1772,7 @@ export class ToolHandlers {
       .trim()
       .toLowerCase();
     const message = String(args.message ?? "").trim();
-    const members = await this.ctx.db
-      .select({ id: bots.id, name: bots.name })
-      .from(chatMembers)
-      .innerJoin(bots, eq(bots.id, chatMembers.botId))
-      .where(and(eq(chatMembers.chatId, session.chat.id), isNull(bots.archivedAt)));
+    const members = await activeTeammates(this.ctx.db, { inChat: session.chat.id });
     const target = members.find((member) => member.name.toLowerCase() === name);
     if (!target) {
       return text(

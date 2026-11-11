@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import type pg from "pg";
 import { z } from "zod";
+import { LOCKS, lockUntilCommit } from "@open-bot/db";
 import {
   memoryInputSchema,
   memoryEditSchema,
@@ -94,7 +95,7 @@ function validate<T>(schema: z.ZodType<T>, input: unknown): T {
     throw new MemoryError(400, result.error.issues.map((i) => i.message).join("; "));
   return result.data;
 }
-const scopeOf = (botId: string | null) => (botId ? `bot:${botId}` : "shared");
+const scopeOf = (botId: string | null) => (botId ? (`bot:${botId}` as const) : ("shared" as const));
 
 /** Canonical memory. Both web actions and agent tools use these transactions. */
 export class MemoryService {
@@ -116,7 +117,7 @@ export class MemoryService {
   }
 
   private async lockScope(client: pg.PoolClient, botId: string | null) {
-    await client.query("select pg_advisory_xact_lock(hashtextextended($1, 0))", [scopeOf(botId)]);
+    await lockUntilCommit(client, LOCKS.memory(scopeOf(botId)));
     if (botId) {
       const result = await client.query(
         "select id from bots where id = $1 and archived_at is null",

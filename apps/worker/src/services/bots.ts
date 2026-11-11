@@ -1,12 +1,15 @@
 import {
   bots,
+  chatMembers,
   chats,
-  connections,
-  schedules,
-  settings,
-  triggers,
   configurationRevision,
-  lockTeam,
+  connections,
+  LOCKS,
+  lockUntilCommit,
+  ownerTimeZone,
+  type Queryable,
+  schedules,
+  triggers,
 } from "@open-bot/db";
 import {
   BOT_COLORS,
@@ -43,6 +46,26 @@ export interface ConnectionSummary {
   /** Teammates that may use it, or null for every teammate. */
   botIds: string[] | null;
   revision: string;
+}
+
+/** Teammates on the team now, oldest first; with `inChat`, only that group chat's members. */
+export async function activeTeammates(
+  db: Queryable,
+  { inChat }: { inChat?: string } = {},
+): Promise<{ id: string; name: string }[]> {
+  const columns = { id: bots.id, name: bots.name };
+  if (!inChat)
+    return db
+      .select(columns)
+      .from(bots)
+      .where(isNull(bots.archivedAt))
+      .orderBy(asc(bots.createdAt));
+  return db
+    .select(columns)
+    .from(chatMembers)
+    .innerJoin(bots, eq(bots.id, chatMembers.botId))
+    .where(and(eq(chatMembers.chatId, inChat), isNull(bots.archivedAt)))
+    .orderBy(asc(bots.createdAt));
 }
 
 export type CreatedBy = { kind: "user" } | { kind: "bot"; botId: string; runId: string };
@@ -209,7 +232,7 @@ export class BotService {
     const plan = "profile" in input ? input : await this.plan(input);
     const { profile } = plan;
     const created = await this.ctx.db.transaction(async (tx) => {
-      await lockTeam(tx);
+      await lockUntilCommit(tx, LOCKS.team);
       const team = await tx.select({ slug: bots.slug, archivedAt: bots.archivedAt }).from(bots);
       const { slug, first } = newTeammateSlot(team, profile.name);
       const [bot] = await tx
@@ -224,16 +247,13 @@ export class BotService {
     });
     const botId = created.bot.id;
     const failed: CreatedBot["failed"] = [];
-    const [preferences] = await this.ctx.db
-      .select({ timezone: settings.timezone })
-      .from(settings)
-      .where(eq(settings.id, 1));
+    const timezone = await ownerTimeZone(this.ctx.db);
     for (const schedule of plan.schedules) {
       await this.schedules
         .create({
           botId,
           ...schedule,
-          timezone: preferences?.timezone ?? "UTC",
+          timezone,
           createdBy: by.kind,
           createdByRunId: by.kind === "bot" ? by.runId : null,
         })

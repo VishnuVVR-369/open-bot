@@ -513,7 +513,7 @@
     "bot": 30
   },
   "apps/worker/src/services/bots.ts": {
-    "bot": 145,
+    "bot": 155,
     "primary teammate": 1
   },
   "apps/worker/src/services/connections.ts": {
@@ -594,7 +594,7 @@
     "bot": 59
   },
   "apps/worker/src/tools/handlers.ts": {
-    "bot": 188
+    "bot": 174
   },
   "apps/worker/src/uploads.integration.test.ts": {
     "bot": 7
@@ -714,6 +714,9 @@
   },
   "packages/api/src/worker/contract.ts": {
     "bot": 10
+  },
+  "packages/db/src/owners.ts": {
+    "bot": 1
   },
   "packages/db/src/schema.ts": {
     "bot": 151,

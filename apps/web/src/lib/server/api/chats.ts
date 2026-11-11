@@ -7,7 +7,8 @@ import {
   messages,
   runs,
   uploads,
-  lockUploads,
+  LOCKS,
+  lockUntilCommit,
   type Tx,
 } from "@open-bot/db";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
@@ -94,10 +95,7 @@ export async function markChatRead({ chatId }: Inputs["markRead"]) {
 /** Attachments must be uploads that finished, so a teammate never gets half a file. */
 async function checkAttachments(tx: Tx, attachments: Inputs["send"]["attachments"]) {
   if (attachments.length === 0) return;
-  await lockUploads(
-    tx,
-    attachments.map((attachment) => attachment.path),
-  );
+  await lockUntilCommit(tx, ...attachments.map((attachment) => LOCKS.upload(attachment.path)));
   const rows = await tx
     .select()
     .from(uploads)
