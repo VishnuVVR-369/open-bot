@@ -1,10 +1,10 @@
 import { BOTD_SOCKETS, type LifecycleCapabilities } from "@open-bot/api/botd";
-import { CHANNELS, computers, createDb, createPool, ownerSettings, settings } from "@open-bot/db";
+import { CHANNELS, createDb, createPool, ownerSettings } from "@open-bot/db";
 import { ComputerLifecycle } from "./computer-lifecycle";
 import { CodexManager } from "./codex";
 import { BotdError, ComputerClient } from "./computer";
 import { createNotification, publishApp, type Context } from "./context";
-import { databaseStore } from "./egress/store";
+import { addComputerRow, databaseStore } from "./egress/store";
 import { EgressRelay } from "./egress/relay";
 import { WakeController } from "./egress/wake";
 import { env } from "./env";
@@ -43,6 +43,7 @@ import { AccountActions } from "./accounts/actions";
 import { Integrations } from "./accounts/registry";
 import { AccountTools } from "./accounts/tools";
 import { EventEmitter } from "node:events";
+import { addSettingsRow, SettingsService } from "./services/settings";
 
 /** botd's lifecycle calls (lease, quiesce) give up after this. */
 const CONTROL_CALL = { context: { timeoutMs: 10_000 } };
@@ -57,8 +58,8 @@ const pool = createPool(env.DATABASE_URL);
 const db = createDb(pool);
 
 // Single-row tables exist from the start.
-await db.insert(settings).values({ id: 1 }).onConflictDoNothing();
-await db.insert(computers).values({ id: "default" }).onConflictDoNothing();
+await addSettingsRow(db);
+await addComputerRow(db);
 
 const computer = new ComputerClient(env.BOTD_URL, env.BOTD_TOKEN, log.child("computer"));
 const codex = new CodexManager(
@@ -428,6 +429,7 @@ const server = createHttpServer({
   uploads,
   pages,
   codexAccount: new CodexAccountService(ctx),
+  settings: new SettingsService(ctx),
 });
 server.listen(env.WORKER_PORT, () => log.info(`worker listening on :${env.WORKER_PORT}`));
 

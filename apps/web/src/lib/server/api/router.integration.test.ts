@@ -43,6 +43,13 @@ const WORKER: Record<string, unknown> = {
     problem: null,
   },
   "/internal/push": { publicKey: "key", devices: [] },
+  "/internal/email": {
+    domain: null,
+    inboundPath: "/api/inbound/email/token",
+    tokenHint: null,
+    lastReceivedAt: null,
+    addresses: [],
+  },
   "/internal/codex/rate-limits": {
     rateLimits: {
       rateLimits: {
@@ -259,7 +266,6 @@ describe.skipIf(!url)("API reads, end to end", () => {
     });
     expect((await api.connections.list()).map((c) => c.label)).toEqual(["Docs"]);
     expect((await api.accounts.setup()).accounts).toEqual([]);
-    expect(await api.email.status()).toMatchObject({ domain: null });
     expect(await api.settings.modelAccess()).toMatchObject({ keyHint: null });
     expect(await api.settings.usage()).toEqual([]);
     expect(await api.screens.frames()).toEqual({});
@@ -280,6 +286,7 @@ describe.skipIf(!url)("API reads, end to end", () => {
   it("passes the worker's reads through", async () => {
     expect(await api.telegram.status()).toMatchObject({ connected: false });
     expect(await api.push.status()).toEqual({ publicKey: "key", devices: [] });
+    expect(await api.email.status()).toMatchObject({ inboundPath: "/api/inbound/email/token" });
     expect(await api.settings.rateLimits()).toMatchObject({
       rateLimits: { primary: { usedPercent: 12 } },
     });
@@ -864,41 +871,63 @@ describe.skipIf(!url)("API reads, end to end", () => {
     await database.db.delete(s.accounts).where(eq(s.accounts.id, account!.id));
   });
 
-  it("saves email settings only when all of them are right", async () => {
-    await expect(
-      api.email.save({ domain: "team.example.test", token: "not a token" }),
-    ).rejects.toMatchObject({ message: "That doesn't look like a Postmark server token." });
-    expect(await api.email.status()).toMatchObject({ domain: null, tokenHint: null });
-    await api.email.save({ domain: "team.example.test", token: "0123456789abcdef-0123456789" });
-    expect(await api.email.status()).toMatchObject({ domain: "team.example.test" });
-    expect((await api.email.status()).tokenHint).not.toBeNull();
-    await api.email.removeToken();
-    expect(await api.email.status()).toMatchObject({
-      domain: "team.example.test",
-      tokenHint: null,
-    });
-  });
+  it("passes settings and email changes to the worker, which owns them, and its refusals through", async () => {
+    const ok = { status: 200, body: { ok: true } };
+    const apiKey = "sk-abcdefghijklmnopqrstuvwxyz";
+    const email = { domain: "team.example.test", token: "0123456789abcdef-0123456789" };
+    const calls: [string, () => Promise<unknown>, unknown][] = [
+      [
+        "/internal/settings/timezone",
+        () => api.settings.setTimezone({ timezone: "Asia/Tokyo" }),
+        { timezone: "Asia/Tokyo" },
+      ],
+      [
+        "/internal/settings/api-key",
+        () => api.settings.saveApiKey({ apiKey: ` ${apiKey} ` }),
+        { apiKey },
+      ],
+      ["/internal/settings/api-key/delete", () => api.settings.removeApiKey(), undefined],
+      [
+        "/internal/settings/monthly-cap",
+        () => api.settings.setMonthlyCap({ dollars: 25.5 }),
+        { dollars: 25.5 },
+      ],
+      ["/internal/email", () => api.email.save(email), email],
+      ["/internal/email/token/delete", () => api.email.removeToken(), undefined],
+    ];
+    const sync = `/internal/bots/${ids.teammate}/sync`; // vocabulary: allow
+    for (const [path] of calls) answers.set(path, ok);
+    answers.set(sync, ok);
+    try {
+      for (const [path, call, body] of calls) {
+        const before = workerBodies.length;
+        expect(await call()).toEqual({ ok: true });
+        expect(workerBodies.slice(before).find((b) => b.path === path)).toEqual({ path, body });
+      }
+      // Saved email settings reach each teammate's instructions.
+      expect(workerPaths).toContain(sync);
 
-  it("saves the time zone, the API key and the monthly cap", async () => {
-    await expect(api.settings.setTimezone({ timezone: "Mars/Olympus" })).rejects.toMatchObject({
-      message: "Unknown timezone.",
-    });
-    await api.settings.setTimezone({ timezone: "Asia/Tokyo" });
-    expect((await api.app.state()).timezone).toBe("Asia/Tokyo");
-    await api.settings.setTimezone({ timezone: "Europe/Berlin" });
-
-    await expect(api.settings.saveApiKey({ apiKey: "pk-123" })).rejects.toMatchObject({
-      message: "That doesn't look like an OpenAI API key. It starts with sk-.",
-    });
-    await api.settings.saveApiKey({ apiKey: "  sk-abcdefghijklmnopqrstuvwxyz  " });
-    expect((await api.settings.modelAccess()).keyHint).not.toBeNull();
-    await expect(api.settings.setMonthlyCap({ dollars: Number.NaN })).rejects.toMatchObject({
-      message: "Give the cap in dollars, like 50.",
-    });
-    await api.settings.setMonthlyCap({ dollars: 25.5 });
-    expect((await api.settings.modelAccess()).capMicros).toBe(25_500_000);
-    await api.settings.removeApiKey();
-    expect((await api.settings.modelAccess()).keyHint).toBeNull();
+      answers.set("/internal/settings/timezone", {
+        status: 400,
+        body: { error: "Unknown timezone.", code: "BAD_REQUEST" },
+      });
+      await expect(api.settings.setTimezone({ timezone: "Mars/Olympus" })).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: "Unknown timezone.",
+      });
+      // The contract refuses input before it reaches the worker.
+      const before = workerBodies.length;
+      await expect(api.settings.saveApiKey({ apiKey: "pk-123" })).rejects.toMatchObject({
+        message: "That doesn't look like an OpenAI API key. It starts with sk-.",
+      });
+      await expect(api.settings.setMonthlyCap({ dollars: Number.NaN })).rejects.toMatchObject({
+        message: "Give the cap in dollars, like 50.",
+      });
+      expect(workerBodies.length).toBe(before);
+    } finally {
+      for (const [path] of calls) answers.delete(path);
+      answers.delete(sync);
+    }
   });
 
   it("saves, edits, restores and forgets a memory, refusing an edit to a stale revision", async () => {

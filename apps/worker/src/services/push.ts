@@ -1,9 +1,10 @@
 import { credentials, pushSubscriptions } from "@open-bot/db";
-import { decryptSecret, encryptSecret } from "@open-bot/domain/server";
+import { decryptSecret } from "@open-bot/domain/server";
 import { eq } from "drizzle-orm";
 import webpush from "web-push";
 import type { Context, NotificationEvent } from "../context";
 import { errorMessage } from "../logger";
+import { addCredential } from "./credentials";
 
 /** What the service worker shows: a notification that opens the right place when tapped. */
 export interface PushPayload {
@@ -89,14 +90,12 @@ export class PushService {
       return this.keys;
     }
     const keys = webpush.generateVAPIDKeys();
-    await this.ctx.db
-      .insert(credentials)
-      .values({
-        kind: "vapid_keys",
-        encrypted: encryptSecret(JSON.stringify(keys), this.ctx.env.ENCRYPTION_KEY),
-        hint: `${keys.publicKey.slice(0, 8)}…`,
-      })
-      .onConflictDoNothing();
+    await addCredential(
+      this.ctx,
+      "vapid_keys",
+      JSON.stringify(keys),
+      `${keys.publicKey.slice(0, 8)}…`,
+    );
     // Another process may have made them first; use whichever was saved.
     this.keys = null;
     return this.vapid();

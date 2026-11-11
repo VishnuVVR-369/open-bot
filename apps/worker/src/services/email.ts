@@ -1,7 +1,9 @@
 import { randomBytes, randomUUID } from "node:crypto";
+import type { EmailStatusView } from "@open-bot/api";
 import { approvals, bots, credentials, emails, emailSettings, type Attachment } from "@open-bot/db";
 import {
   emailAddress,
+  normalizeDomain,
   parseInboundEmail,
   recipientHandle,
   type InboundEmail,
@@ -9,7 +11,7 @@ import {
 } from "@open-bot/domain";
 import { decryptSecret } from "@open-bot/domain/server";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
-import { createNotification, type Context } from "../context";
+import { createNotification, publishApp, type Context } from "../context";
 import { enqueueRun } from "../runs/queue";
 import { appendRunEvent } from "../runs/events";
 import { errorMessage } from "../logger";
@@ -17,7 +19,10 @@ import type { RunSession } from "../runs/session";
 import type { UploadService } from "../uploads";
 import type { ApprovalService } from "./approvals";
 import { teammateChat } from "./chats";
+import { removeCredential, saveCredential } from "./credentials";
 import type { SessionRegistry } from "./registry";
+import { activeTeammates } from "./bots";
+import { SettingsError } from "./settings";
 
 type Email = typeof emails.$inferSelect;
 
@@ -74,6 +79,52 @@ export class EmailService {
         ctx.log.error("could not act on an email decision", { error: errorMessage(error) }),
       );
     });
+  }
+
+  /** The domain, the inbound address Postmark posts to, and each teammate's address. */
+  async status(): Promise<EmailStatusView> {
+    const row = await emailSettingsRow(this.ctx);
+    const [credential] = await this.ctx.db
+      .select({ hint: credentials.hint })
+      .from(credentials)
+      .where(eq(credentials.kind, "postmark_token"));
+    const team = row.domain ? await activeTeammates(this.ctx.db) : [];
+    return {
+      domain: row.domain,
+      inboundPath: `/api/inbound/email/${row.inboundToken}`,
+      tokenHint: credential?.hint ?? null,
+      lastReceivedAt: row.lastReceivedAt?.toISOString() ?? null,
+      addresses: team.map((teammate) => ({
+        botId: teammate.id, // vocabulary: allow
+        name: teammate.name,
+        address: emailAddress(teammate.slug, row.domain!),
+      })),
+    };
+  }
+
+  /**
+   * The domain teammates' addresses are on, and Postmark's server token, which sends what they
+   * write. A token left empty keeps the saved one.
+   */
+  async saveSettings(input: { domain: string; token: string }): Promise<void> {
+    const domain = input.domain.trim() ? normalizeDomain(input.domain) : null;
+    if (input.domain.trim() && !domain)
+      throw new SettingsError("Give a domain, like team.example.com.");
+    const token = input.token.trim();
+    if (token && !/^[\w-]{20,80}$/.test(token))
+      throw new SettingsError("That doesn't look like a Postmark server token.");
+    await emailSettingsRow(this.ctx);
+    await this.ctx.db.transaction(async (tx) => {
+      await tx.update(emailSettings).set({ domain }).where(eq(emailSettings.id, 1));
+      if (token) await saveCredential({ env: this.ctx.env, db: tx }, "postmark_token", token);
+    });
+    await publishApp(this.ctx, { type: "email" });
+  }
+
+  /** Forget Postmark's token: teammates receive email but can't send it. */
+  async removeToken(): Promise<void> {
+    await removeCredential(this.ctx.db, "postmark_token");
+    await publishApp(this.ctx, { type: "email" });
   }
 
   /** An email arrived at the webhook. Returns which teammate got it, if any. */

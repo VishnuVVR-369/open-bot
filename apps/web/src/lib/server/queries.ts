@@ -1,5 +1,4 @@
 import "server-only";
-import { randomBytes } from "node:crypto";
 import {
   accounts,
   approvalRules,
@@ -10,7 +9,6 @@ import {
   connections,
   credentials,
   desktopTakeovers,
-  emailSettings,
   instructionProposals,
   lessons,
   messages,
@@ -35,7 +33,6 @@ import {
   ACTIVE_RUN_STATUSES,
   applyRunEvent,
   authProvider,
-  emailAddress,
   emptyTimeline,
   hideOutsideDataNote,
   integrationSettings,
@@ -1161,39 +1158,7 @@ export async function getAccountsSetup(): Promise<AccountsSetupView> {
 /* ------------------------------------------------------------------ Email */
 
 /** The email settings row, made once with a fresh inbound secret. */
-export async function emailSettingsRow() {
-  const [row] = await db.select().from(emailSettings).where(eq(emailSettings.id, 1));
-  if (row) return row;
-  await db
-    .insert(emailSettings)
-    .values({ id: 1, inboundToken: randomBytes(18).toString("base64url") })
-    .onConflictDoNothing();
-  const [created] = await db.select().from(emailSettings).where(eq(emailSettings.id, 1));
-  return created!;
-}
-
+/** Email setup; the worker reads it, since the first read makes the row (it owns it). */
 export async function getEmailStatus(): Promise<EmailStatusView> {
-  const settingsRow = await emailSettingsRow();
-  const [credential] = await db
-    .select({ hint: credentials.hint })
-    .from(credentials)
-    .where(eq(credentials.kind, "postmark_token"));
-  const team = settingsRow.domain
-    ? await db
-        .select({ id: bots.id, name: bots.name, slug: bots.slug })
-        .from(bots)
-        .where(isNull(bots.archivedAt))
-        .orderBy(asc(bots.createdAt))
-    : [];
-  return {
-    domain: settingsRow.domain,
-    inboundPath: `/api/inbound/email/${settingsRow.inboundToken}`,
-    tokenHint: credential?.hint ?? null,
-    lastReceivedAt: settingsRow.lastReceivedAt?.toISOString() ?? null,
-    addresses: team.map((bot) => ({
-      botId: bot.id,
-      name: bot.name,
-      address: emailAddress(bot.slug, settingsRow.domain!),
-    })),
-  };
+  return worker.email.status();
 }

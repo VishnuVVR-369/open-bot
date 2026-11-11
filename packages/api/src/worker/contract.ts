@@ -29,6 +29,8 @@ import {
   sendMessageInputSchema,
 } from "../contract";
 import { egressModeSchema, phoneEgressModeSchema, unavailableReasonSchema } from "../egress";
+import { emailSettingsInputSchema, emailStatusViewSchema } from "../integrations";
+import { apiKeyInputSchema, monthlyCapInputSchema } from "../settings";
 import { budgetInputSchema } from "../teammates";
 import { taskChangesSchema, taskInputSchema } from "../tasks";
 import { approvalStatusSchema, messageViewSchema, uploadViewSchema } from "../views";
@@ -465,6 +467,35 @@ export const workerContract = {
       })
       .input(z.object({ params: z.object({ token: z.string() }), body: z.unknown() }))
       .output(z.object({ ok: z.literal(true), botId: z.string().nullable() })),
+    /** The domain, the inbound address and each teammate's address (makes the email row once). */
+    status: base.route({ method: "GET", path: "/internal/email" }).output(emailStatusViewSchema),
+    /** The domain teammates' addresses are on, and Postmark's token (empty keeps the saved one). */
+    save: base
+      .route({ method: "POST", path: "/internal/email" })
+      .input(emailSettingsInputSchema)
+      .output(ok),
+    /** Forget Postmark's token: teammates receive email but can't send it. */
+    removeToken: base.route({ method: "POST", path: "/internal/email/token/delete" }).output(ok),
+  },
+  settings: {
+    /** The time zone teammates plan in. */
+    setTimezone: base
+      .route({ method: "POST", path: "/internal/settings/timezone" })
+      .input(z.object({ timezone: z.string().max(100) }))
+      .output(ok),
+    /** The most the API key may spend in a month. */
+    setMonthlyCap: base
+      .route({ method: "POST", path: "/internal/settings/monthly-cap" })
+      .input(monthlyCapInputSchema)
+      .output(ok),
+    /** The OpenAI API key teammates continue on when the plan's limit is reached. */
+    saveApiKey: base
+      .route({ method: "POST", path: "/internal/settings/api-key" })
+      .input(apiKeyInputSchema)
+      .output(ok),
+    removeApiKey: base
+      .route({ method: "POST", path: "/internal/settings/api-key/delete" })
+      .output(ok),
   },
   connections: {
     /** Connect to an MCP server or account from the computer and list its tools. */

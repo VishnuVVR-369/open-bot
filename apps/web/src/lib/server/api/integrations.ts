@@ -1,15 +1,14 @@
 import "server-only";
 import type { ApiInputs, ApiOutputs } from "@open-bot/api";
-import { bots as teammates, connections, credentials, emailSettings } from "@open-bot/db";
+import { bots as teammates, connections } from "@open-bot/db";
 import {
   connectionName,
   invalidMcpUrl,
-  normalizeDomain,
   parseEnvLines,
   parseHeaderLines,
   type AccountCapability,
 } from "@open-bot/domain";
-import { encryptSecret, secretHint } from "@open-bot/domain/server";
+import { encryptSecret } from "@open-bot/domain/server";
 import { eq, isNull } from "drizzle-orm";
 import {
   removeAccountConnection,
@@ -22,7 +21,6 @@ import { claimConnectionName } from "../connection-names";
 import { db } from "../db";
 import { serverEnv } from "../env";
 import { publish } from "../publish";
-import { emailSettingsRow } from "../queries";
 import { worker } from "../worker";
 import { ApiError } from "./errors";
 import { syncWorkspace } from "./teammates";
@@ -36,28 +34,10 @@ type Ok = { ok: true };
 
 /**
  * Your teammates' email: the domain their addresses are on, and Postmark's server token, which
- * sends what they write. A token left empty keeps the saved one.
+ * sends what they write. A token left empty keeps the saved one. The worker saves them.
  */
 export async function saveEmailSettings(input: Inputs["email"]["save"]): Promise<Ok> {
-  const domain = input.domain.trim() ? normalizeDomain(input.domain) : null;
-  if (input.domain.trim() && !domain)
-    throw new ApiError("BAD_REQUEST", "Give a domain, like team.example.com.");
-  const token = input.token.trim();
-  if (token && !/^[\w-]{20,80}$/.test(token))
-    throw new ApiError("BAD_REQUEST", "That doesn't look like a Postmark server token.");
-  await emailSettingsRow();
-  await db.update(emailSettings).set({ domain }).where(eq(emailSettings.id, 1));
-  if (token) {
-    const encrypted = encryptSecret(token, serverEnv.encryptionKey);
-    await db
-      .insert(credentials)
-      .values({ kind: "postmark_token", encrypted, hint: secretHint(token) })
-      .onConflictDoUpdate({
-        target: credentials.kind,
-        set: { encrypted, hint: secretHint(token) },
-      });
-  }
-  await publish({ type: "email" });
+  await worker.email.save(input);
   // Teammates learn their address in their instructions.
   const team = await db
     .select({ id: teammates.id })
@@ -68,9 +48,7 @@ export async function saveEmailSettings(input: Inputs["email"]["save"]): Promise
 }
 
 export async function removeEmailToken(): Promise<Ok> {
-  await db.delete(credentials).where(eq(credentials.kind, "postmark_token"));
-  await publish({ type: "email" });
-  return { ok: true };
+  return worker.email.removeToken();
 }
 
 /* ------------------------------------------------------------------ MCP connections */

@@ -185,6 +185,8 @@ A path or input field is removed only once no deployed web app calls it.
 | `POST /internal/egress/devices/changed`, `/devices/:id/unavailable`, `/devices/:id/revoked`                  | Paired phones changed, can't carry traffic now, or were unpaired |
 | `POST /internal/connections/:id/test` ☀                                                                      | Test an MCP connection or an account                             |
 | `POST /internal/email/inbound/:token`                                                                        | Receive an email (called by the web app)                         |
+| `GET /internal/email`, `POST /internal/email`, `/internal/email/token/delete`                                | Email setup, its Postmark token, and forgetting the token        |
+| `POST /internal/settings/timezone`, `/monthly-cap`, `/api-key`, `/api-key/delete`                            | Your time zone, the API key's monthly cap, and the API key       |
 | `GET /internal/telegram`, `POST /internal/telegram/connect`, `/link-code`, `/test`, `/unlink`, `/disconnect` | Telegram                                                         |
 | `GET /internal/push`, `POST /internal/push/subscribe`, `/unsubscribe`, `/test`                               | Browser push notifications                                       |
 | `POST /internal/push/native/register`, `/internal/push/native/unregister`                                    | Phone notifications through Firebase Cloud Messaging             |

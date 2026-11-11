@@ -105,7 +105,7 @@ export const TABLE_OWNERS = {
   purchases: { owner: `${WORKER}services/vault.ts`, moving: [`${WORKER}services/approvals.ts`] },
 
   // The computer, its screens and egress.
-  computers: { owner: `${WORKER}egress/store.ts`, moving: [`${WORKER}index.ts`] },
+  computers: { owner: `${WORKER}egress/store.ts` },
   desktop_takeovers: { owner: `${WORKER}services/takeovers.ts` },
   takeover_deliveries: { owner: `${WORKER}services/takeovers.ts` },
   screen_operations: {
@@ -129,30 +129,13 @@ export const TABLE_OWNERS = {
       ["id", "about_me", "about_me_updated_at"],
       "the profile is rebuilt from shared memory in the memory write's transaction (`id` because it makes the one row when there is none yet)",
     ),
-    moving: [
-      `${WEB}lib/server/api/settings.ts`,
-      `${WORKER}index.ts`,
-      `${WORKER}services/codex-account.ts`,
-      `${WORKER}services/model-access.ts`,
-    ],
   },
-  credentials: {
-    owner: `${WORKER}services/credentials.ts`,
-    moving: [
-      `${WEB}lib/server/api/integrations.ts`,
-      `${WEB}lib/server/api/settings.ts`,
-      `${WORKER}services/push.ts`,
-      `${WORKER}services/telegram.ts`,
-    ],
-  },
+  credentials: { owner: `${WORKER}services/credentials.ts` },
   telegram: { owner: `${WORKER}services/telegram.ts` },
   telegram_messages: { owner: `${WORKER}services/telegram.ts` },
   push_subscriptions: { owner: `${WORKER}services/push.ts` },
   native_push_devices: { owner: `${WORKER}services/fcm.ts` },
-  email_settings: {
-    owner: `${WORKER}services/email.ts`,
-    moving: [`${WEB}lib/server/api/integrations.ts`, `${WEB}lib/server/queries.ts`],
-  },
+  email_settings: { owner: `${WORKER}services/email.ts` },
   emails: { owner: `${WORKER}services/email.ts` },
 
   // Integrations: connections (MCP servers) and accounts (OAuth).

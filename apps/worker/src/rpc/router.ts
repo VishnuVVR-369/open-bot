@@ -9,6 +9,7 @@ import type { AccountTriggers } from "../services/account-triggers";
 import type { ApprovalService } from "../services/approvals";
 import type { BotService } from "../services/bots";
 import type { CodexAccountService } from "../services/codex-account";
+import type { SettingsService } from "../services/settings";
 import type { ConnectionService } from "../services/connections";
 import type { EmailService } from "../services/email";
 import type { FcmService } from "../services/fcm";
@@ -55,6 +56,7 @@ export interface WorkerServices {
   telegram: TelegramService;
   skills: SkillService;
   codexAccount: CodexAccountService;
+  settings: SettingsService;
   egress: EgressRelay;
   wake: WakeController;
 }
@@ -350,6 +352,33 @@ export function createWorkerRouter(services: WorkerServices) {
         ok: true as const,
         ...(await s.email.inbound(input.params.token, input.body)),
       })),
+      status: os.email.status.handler(() => s.email.status()),
+      save: os.email.save.handler(async ({ input }) => {
+        await s.email.saveSettings(input);
+        return ok;
+      }),
+      removeToken: os.email.removeToken.handler(async () => {
+        await s.email.removeToken();
+        return ok;
+      }),
+    },
+    settings: {
+      setTimezone: os.settings.setTimezone.handler(async ({ input }) => {
+        await s.settings.setTimezone(input.timezone);
+        return ok;
+      }),
+      setMonthlyCap: os.settings.setMonthlyCap.handler(async ({ input }) => {
+        await s.settings.setMonthlyCap(input.dollars);
+        return ok;
+      }),
+      saveApiKey: os.settings.saveApiKey.handler(async ({ input }) => {
+        await s.settings.saveApiKey(input.apiKey);
+        return ok;
+      }),
+      removeApiKey: os.settings.removeApiKey.handler(async () => {
+        await s.settings.removeApiKey();
+        return ok;
+      }),
     },
     connections: {
       test: os.connections.test.handler(({ input }) => s.connections.test(input.connectionId)),

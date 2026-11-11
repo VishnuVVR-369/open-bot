@@ -10,6 +10,7 @@ import {
   bots as teammateRows, // vocabulary: allow
   chatMembers,
   chats,
+  credentials,
   instructionProposals,
   lessons,
   memoryItems,
@@ -21,6 +22,7 @@ import {
   triggers as triggerRows,
 } from "@open-bot/db";
 import { BUNDLE_FORMAT, BUNDLE_VERSION, type TeammateBundle } from "@open-bot/domain";
+import { decryptSecret } from "@open-bot/domain/server";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import { ORPCError } from "@orpc/client";
 import { and, eq, isNull, sql } from "drizzle-orm";
@@ -32,6 +34,8 @@ import { BotService } from "../services/bots";
 import { ChatService, REUSED_ID } from "../services/chats";
 import { RunRequests } from "../runs/requests";
 import { CodexAccountService } from "../services/codex-account";
+import { EmailService } from "../services/email";
+import { SettingsService } from "../services/settings";
 import { FileService } from "../services/files";
 import { PushService } from "../services/push";
 import { SessionRegistry } from "../services/registry";
@@ -122,6 +126,13 @@ describe.skipIf(!url)("worker internal API, end to end", () => {
     syncWorkspace: vi.fn(async () => {}),
   };
   const chatService = new ChatService(ctx, (messageId) => executor.dispatchMessage(messageId));
+  const approvalService = new ApprovalService(ctx, new SessionRegistry());
+  const email = new EmailService(ctx, approvalService, new SessionRegistry(), {
+    save: vi.fn(async () => {
+      throw new Error("No attachments here.");
+    }),
+  });
+  vi.spyOn(email, "inbound").mockImplementation(async () => ({ botId: null }));
   const operation = {
     id: ID,
     takeoverId: ID,
@@ -136,7 +147,7 @@ describe.skipIf(!url)("worker internal API, end to end", () => {
     runRequests: new RunRequests(ctx, chatService, memory, () => executor.processCancellations()),
     executor,
     retries: new RetryService(ctx),
-    approvals: new ApprovalService(ctx, new SessionRegistry()),
+    approvals: approvalService,
     takeovers: { dismiss: vi.fn(async () => {}) },
     screenOperations: {
       cancel: vi.fn(async () => operation),
@@ -155,7 +166,7 @@ describe.skipIf(!url)("worker internal API, end to end", () => {
     push: new PushService(ctx),
     fcm: { register: vi.fn(async () => {}) },
     tasks: new TaskService(ctx),
-    email: { inbound: vi.fn(async () => ({ botId: null })) },
+    email,
     connections: {
       test: vi.fn(async () => ({ ok: true, status: "ready", tools: [], error: null })),
     },
@@ -174,6 +185,7 @@ describe.skipIf(!url)("worker internal API, end to end", () => {
     },
     skills,
     codexAccount: new CodexAccountService(ctx),
+    settings: new SettingsService(ctx),
     egress: { status: OFFLINE_EGRESS_STATUS, setMode: vi.fn(async () => {}) },
     wake: {},
   } as unknown as HttpDeps;
@@ -469,6 +481,86 @@ describe.skipIf(!url)("worker internal API, end to end", () => {
     expect(services.egress.setMode).toHaveBeenLastCalledWith("prefer");
     expect(await failure(worker.egress.setMode({ mode: "sometimes" as "off" }))).toMatchObject({
       status: 400,
+    });
+  });
+
+  describe("settings, secrets and email writes", () => {
+    const ownerRow = async () => (await db.select().from(settings).where(eq(settings.id, 1)))[0];
+    const secret = async (kind: "openai_api_key" | "postmark_token") => {
+      const [row] = await db.select().from(credentials).where(eq(credentials.kind, kind));
+      return row
+        ? { secret: decryptSecret(row.encrypted, ctx.env.ENCRYPTION_KEY), hint: row.hint }
+        : null;
+    };
+
+    it("sets the time zone and the monthly cap, refusing a zone that doesn't exist", async () => {
+      await worker.settings.setTimezone({ timezone: "Europe/Paris" });
+      await worker.settings.setMonthlyCap({ dollars: 12.345 });
+      expect(await ownerRow()).toMatchObject({
+        timezone: "Europe/Paris",
+        monthlyCapMicros: 12_345_000,
+      });
+      expect(await failure(worker.settings.setTimezone({ timezone: "Mars/Olympus" }))).toEqual({
+        status: 400,
+        message: "Unknown timezone.",
+      });
+      // Before the worker made the row, a change still lands (the web app's update didn't).
+      await db.delete(settings);
+      await worker.settings.setTimezone({ timezone: "Asia/Kolkata" });
+      expect(await ownerRow()).toMatchObject({
+        timezone: "Asia/Kolkata",
+        monthlyCapMicros: 20_000_000,
+      });
+    });
+
+    it("keeps one encrypted API key, replaced by the next, and removes it", async () => {
+      const first = `sk-${"a".repeat(24)}`;
+      const second = `sk-${"b".repeat(24)}`;
+      await worker.settings.saveApiKey({ apiKey: first });
+      await worker.settings.saveApiKey({ apiKey: second });
+      expect(await secret("openai_api_key")).toEqual({ secret: second, hint: "sk-…bbbb" });
+      expect(await failure(worker.settings.saveApiKey({ apiKey: "nope" }))).toMatchObject({
+        status: 400,
+      });
+      await worker.settings.removeApiKey();
+      expect(await secret("openai_api_key")).toBeNull();
+    });
+
+    it("makes the email row once, saves the domain and token, and keeps the token when left empty", async () => {
+      const first = await worker.email.status();
+      expect(first).toMatchObject({ domain: null, tokenHint: null, addresses: [] });
+      expect(first.inboundPath).toMatch(/^\/api\/inbound\/email\/[\w-]{24}$/);
+      expect((await worker.email.status()).inboundPath).toBe(first.inboundPath);
+
+      const token = "postmark-token-0123456789";
+      await worker.email.save({ domain: "https://www.Team.Example.com/", token });
+      await newTeammate("Mailer", "writes email");
+      const saved = await worker.email.status();
+      expect(saved).toMatchObject({ domain: "team.example.com", tokenHint: "pos…6789" });
+      expect(saved.addresses).toContainEqual(
+        expect.objectContaining({
+          name: "Mailer",
+          address: expect.stringMatching(/@team\.example\.com$/),
+        }),
+      );
+      expect(await secret("postmark_token")).toMatchObject({ secret: token });
+
+      await worker.email.save({ domain: "team.example.com", token: "" });
+      expect(await secret("postmark_token")).toMatchObject({ secret: token });
+      expect(await failure(worker.email.save({ domain: "not a domain", token: "" }))).toEqual({
+        status: 400,
+        message: "Give a domain, like team.example.com.",
+      });
+      expect(await failure(worker.email.save({ domain: "", token: "short" }))).toEqual({
+        status: 400,
+        message: "That doesn't look like a Postmark server token.",
+      });
+      expect((await worker.email.status()).domain).toBe("team.example.com");
+
+      await worker.email.removeToken();
+      expect(await secret("postmark_token")).toBeNull();
+      await worker.email.save({ domain: "", token: "" });
+      expect(await worker.email.status()).toMatchObject({ domain: null, tokenHint: null });
     });
   });
 
