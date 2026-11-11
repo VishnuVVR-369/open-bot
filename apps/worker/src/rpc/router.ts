@@ -93,8 +93,37 @@ export function createWorkerRouter(services: WorkerServices) {
       update: os.teammates.update.handler(({ input }) =>
         s.teammates.update(input.teammateId, input.changes, input.expected_revision),
       ),
+      export: os.teammates.export.handler(({ input }) =>
+        s.teammates.exportBundle(input.teammateId),
+      ),
+      duplicate: os.teammates.duplicate.handler(({ input }) =>
+        s.teammates.duplicate(input.teammateId, input.name, input.copyMemory),
+      ),
+      import: os.teammates.import.handler(({ input }) => s.teammates.importBundle(input.bundle)),
+      setLead: os.teammates.setLead.handler(async ({ input }) => {
+        await s.teammates.setLead(input.teammateId);
+        return ok;
+      }),
+      archive: os.teammates.archive.handler(async ({ input }) => {
+        await s.teammates.archive(input.teammateId);
+        return ok;
+      }),
+      setBudget: os.teammates.setBudget.handler(async ({ input }) => {
+        await s.teammates.setBudget(input.teammateId, input.budget, input.autoApprove);
+        return ok;
+      }),
       sync: os.teammates.sync.handler(async ({ input }) => {
         await s.executor.syncWorkspace(await s.teammates.findTeammate(input.teammateId));
+        return ok;
+      }),
+    },
+    proposals: {
+      accept: os.proposals.accept.handler(async ({ input }) => {
+        await s.teammates.acceptProposal(input.proposalId);
+        return ok;
+      }),
+      dismiss: os.proposals.dismiss.handler(async ({ input }) => {
+        await s.teammates.dismissProposal(input.proposalId);
         return ok;
       }),
     },
@@ -206,6 +235,10 @@ export function createWorkerRouter(services: WorkerServices) {
       })),
       setEnabled: os.schedules.setEnabled.handler(async ({ input }) => {
         await s.schedules.setEnabled(input.scheduleId, input.enabled);
+        return ok;
+      }),
+      remove: os.schedules.remove.handler(async ({ input }) => {
+        await s.schedules.remove(input.scheduleId);
         return ok;
       }),
       runNow: os.schedules.runNow.handler(async ({ input }) => {

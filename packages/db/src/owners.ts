@@ -51,40 +51,21 @@ export const TABLE_OWNERS = {
 
   // Teammates and what they're set up with.
   bots: {
-    // vocabulary: allow
-    owner: `${WORKER}services/bots.ts`, // vocabulary: allow
+    owner: `${WORKER}services/bots.ts`,
     shared: MEMORY_KEEPS(
       ["lessons_changed_at"],
       "lessons are rebuilt from memory in the memory write's transaction",
     ),
-    moving: [`${WEB}lib/server/api/teammates.ts`],
   },
-  instruction_proposals: {
-    owner: `${WORKER}services/bots.ts`, // vocabulary: allow
-    moving: [`${WEB}lib/server/api/teammates.ts`, `${WORKER}tools/handlers.ts`],
-  },
-  skills: { owner: `${WORKER}services/skills.ts`, moving: [`${WEB}lib/server/teammates.ts`] },
-  schedules: {
-    owner: `${WORKER}services/schedules.ts`,
-    moving: [
-      `${WEB}lib/server/api/automations.ts`,
-      `${WEB}lib/server/api/teammates.ts`,
-      `${WEB}lib/server/teammates.ts`,
-    ],
-  },
+  instruction_proposals: { owner: `${WORKER}services/bots.ts` },
+  skills: { owner: `${WORKER}services/skills.ts` },
+  schedules: { owner: `${WORKER}services/schedules.ts` },
   triggers: {
     owner: `${WORKER}services/triggers.ts`,
-    moving: [
-      `${WEB}lib/server/api/teammates.ts`,
-      `${WEB}lib/server/teammates.ts`,
-      `${WORKER}services/account-triggers.ts`,
-    ],
+    moving: [`${WORKER}services/account-triggers.ts`],
   },
   trigger_firings: { owner: `${WORKER}services/account-triggers.ts` },
-  approval_rules: {
-    owner: `${WORKER}services/approvals.ts`,
-    moving: [`${WEB}lib/server/teammates.ts`],
-  },
+  approval_rules: { owner: `${WORKER}services/approvals.ts` },
   tasks: { owner: `${WORKER}services/tasks.ts` },
 
   // Chats and the work done in them.
@@ -92,10 +73,9 @@ export const TABLE_OWNERS = {
     owner: `${WORKER}services/chats.ts`,
     moving: [
       `${WEB}lib/server/api/chats.ts`,
-      `${WEB}lib/server/api/teammates.ts`,
       `${WORKER}runs/executor.ts`,
       `${WORKER}runs/session.ts`,
-      `${WORKER}services/bots.ts`, // vocabulary: allow
+      `${WORKER}services/bots.ts`,
       `${WORKER}services/email.ts`,
       `${WORKER}services/schedules.ts`,
       `${WORKER}services/swarms.ts`,
@@ -119,15 +99,10 @@ export const TABLE_OWNERS = {
       ["cancel_requested_at"],
       "a memory change stops the turns that read the old memory, atomically with the change",
     ),
-    moving: [
-      `${WEB}lib/server/api/runs.ts`,
-      `${WEB}lib/server/api/teammates.ts`,
-      `${WORKER}context.ts`,
-      `${WORKER}services/swarms.ts`,
-    ],
+    moving: [`${WEB}lib/server/api/runs.ts`, `${WORKER}context.ts`, `${WORKER}services/swarms.ts`],
   },
   run_events: { owner: `${WORKER}runs/`, moving: [`${WORKER}context.ts`] },
-  bot_threads: { owner: `${WORKER}runs/` }, // vocabulary: allow
+  bot_threads: { owner: `${WORKER}runs/` },
   message_dispatches: { owner: `${WORKER}runs/` },
   usage_entries: { owner: `${WORKER}runs/` },
   artifacts: { owner: `${WORKER}tools/handlers.ts` },
@@ -152,7 +127,7 @@ export const TABLE_OWNERS = {
 
   // The computer, its screens and egress.
   computers: { owner: `${WORKER}egress/store.ts`, moving: [`${WORKER}index.ts`] },
-  desktop_takeovers: { owner: `${WORKER}services/takeovers.ts` }, // vocabulary: allow
+  desktop_takeovers: { owner: `${WORKER}services/takeovers.ts` },
   takeover_deliveries: { owner: `${WORKER}services/takeovers.ts` },
   screen_operations: {
     owner: `${WORKER}services/screen-operations.ts`,
@@ -207,7 +182,7 @@ export const TABLE_OWNERS = {
     moving: [
       `${WEB}lib/server/accounts.ts`,
       `${WEB}lib/server/api/integrations.ts`,
-      `${WORKER}services/bots.ts`, // vocabulary: allow
+      `${WORKER}services/bots.ts`,
     ],
   },
   accounts: { owner: "packages/accounts/src/store.ts", moving: [`${WORKER}accounts/access.ts`] },
@@ -231,5 +206,5 @@ export const TABLE_OWNERS = {
     owner: `${WORKER}services/memory.ts`,
     moving: [`${WORKER}tools/handlers.ts`],
   },
-  lessons: { owner: MEMORY, moving: [`${WEB}lib/server/teammates.ts`] },
+  lessons: { owner: MEMORY },
 } as const satisfies Record<Tables, TableOwner>;

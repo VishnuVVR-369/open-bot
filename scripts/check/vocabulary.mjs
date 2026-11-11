@@ -57,6 +57,7 @@ const EXCLUDE = [
   /^apps\/mobile\/src\/computer\/viewer-html\.ts$/, // Generated.
   /^apps\/web\/src\/components\/ui\//, // shadcn.
   /^scripts\/check\/vocabulary(\.test)?\.mjs$/, // Names the terms on purpose.
+  /^packages\/db\/src\/owners\.ts$/, // Names tables and files as they are named today.
 ];
 
 export const BASELINE = "scripts/check/vocabulary-baseline.json";

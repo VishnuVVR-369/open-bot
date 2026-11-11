@@ -1,5 +1,5 @@
 import type { v2 } from "@open-bot/agent";
-import { bots, skills } from "@open-bot/db";
+import { bots, skills, type Queryable } from "@open-bot/db";
 import {
   PAGE_SKILL_DESCRIPTION,
   PAGE_SKILL_MARKDOWN,
@@ -227,4 +227,16 @@ export class SkillService {
       })
       .catch(() => {});
   }
+}
+
+/** Gives a new teammate its own copies of these skills, in the caller's transaction. */
+export async function addTeammateSkills(
+  tx: Queryable,
+  teammateId: string,
+  list: readonly { name: string; description: string; instructions: string }[],
+): Promise<void> {
+  if (list.length === 0) return;
+  await tx
+    .insert(skills)
+    .values(list.map((skill) => ({ ...skill, botId: teammateId, createdBy: "user" as const })));
 }

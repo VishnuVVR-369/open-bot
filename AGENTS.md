@@ -109,8 +109,8 @@ Paths are relative to the repo root; symbols are in parentheses.
 1. `packages/db/src/schema.ts` (`bots`, with a default), then the migration recipe below.
 2. `packages/domain/src/teammates/management.ts` (`botProfileSchema`, `botCreation()`), `packages/domain/src/teammates/bundle.ts` (optional or defaulted so old exports import).
 3. `packages/api/src/views.ts` (`botSummarySchema`) if lists or mobile need it; `apps/web/src/lib/server/queries.ts` (`listBots`).
-4. Worker: `apps/worker/src/services/bots.ts` (`list`, `get`), `apps/worker/src/tools/definitions.ts` (`profileProperties`), `apps/worker/src/tools/bots.ts` (`PROFILE_LABELS`).
-5. Web: `apps/web/src/lib/server/api/teammates.ts` (`duplicateTeammate`, `importTeammate`), `apps/web/src/app/api/bots/[botId]/export/route.ts`, `apps/web/src/components/bots/bot-form.tsx` (`BotFormValues`), `apps/web/src/app/(app)/bots/new/page.tsx`, `apps/web/src/app/(app)/bots/[botId]/page.tsx`.
+4. Worker: `apps/worker/src/services/bots.ts` (`list`, `get`, `exportBundle`, `addTeammate`, which duplicate and import share), `apps/worker/src/tools/definitions.ts` (`profileProperties`), `apps/worker/src/tools/bots.ts` (`PROFILE_LABELS`).
+5. Web: `apps/web/src/components/bots/bot-form.tsx` (`BotFormValues`), `apps/web/src/app/(app)/bots/new/page.tsx`, `apps/web/src/app/(app)/bots/[botId]/page.tsx`.
 6. Mobile (display only; the contract has no teammate edit procedure): `apps/mobile/src/app/teammates/[botId].tsx`.
 7. Ship web and worker together: the worker's schemas are strict and reject unknown keys.
 

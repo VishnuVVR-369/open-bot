@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import type { TriggerCheck, TriggerInput as TriggerFormInput } from "@open-bot/api/worker";
-import { accounts, bots, connections, runs, triggers } from "@open-bot/db";
+import { accounts, bots, connections, runs, triggers, type Queryable, type Tx } from "@open-bot/db";
 import {
   describeGmailQuery,
   describeInterval,
@@ -587,4 +587,33 @@ export class TriggerService {
       readOutsideData: options.readOutsideData ?? false,
     });
   }
+}
+
+/** Gives a new teammate these page watches, paused like its routines. */
+export async function addPausedWatches(
+  tx: Queryable,
+  teammateId: string,
+  watches: readonly {
+    title: string;
+    prompt: string;
+    url: string;
+    intervalMinutes: number;
+    lookFor: string | null;
+  }[],
+): Promise<void> {
+  if (watches.length === 0) return;
+  await tx.insert(triggers).values(
+    watches.map((watch) => ({
+      botId: teammateId, // vocabulary: allow
+      kind: "watch" as const,
+      ...watch,
+      enabled: false,
+      createdBy: "user" as const,
+    })),
+  );
+}
+
+/** Pauses every automation trigger a teammate has, in the caller's transaction (archiving it). */
+export async function pauseTriggersOf(tx: Tx, teammateId: string): Promise<void> {
+  await tx.update(triggers).set({ enabled: false }).where(eq(triggers.botId, teammateId));
 }

@@ -95,6 +95,9 @@ function validate<T>(schema: z.ZodType<T>, input: unknown): T {
     throw new MemoryError(400, result.error.issues.map((i) => i.message).join("; "));
   return result.data;
 }
+/** A lesson a teammate file carried: any length the file allows, up to a memory's longest. */
+const IMPORTED_LESSON = z.string().trim().min(1).max(8000);
+
 const scopeOf = (botId: string | null) => (botId ? (`bot:${botId}` as const) : ("shared" as const));
 
 /** Canonical memory. Both web actions and agent tools use these transactions. */
@@ -470,6 +473,47 @@ export class MemoryService {
       }
       if (changed) await this.changed(client, toBotId, { kind: "user" }, true);
     });
+  }
+
+  /**
+   * Gives a teammate lessons it learned elsewhere (an imported file, or the teammate it was copied
+   * from), pinned as lessons always were. One it already has, or a blank one, is skipped. With
+   * `within`, in the caller's transaction, so the lessons are saved if and only if the caller's
+   * change is.
+   */
+  async addLessons(
+    botId: string,
+    lessons: readonly string[],
+    within?: pg.PoolClient,
+  ): Promise<void> {
+    validate(z.string().uuid(), botId);
+    // What a teammate file allows, so no lesson it carried is lost, however short.
+    const contents = lessons.flatMap((content) => {
+      const parsed = IMPORTED_LESSON.safeParse(content);
+      return parsed.success ? [parsed.data] : [];
+    });
+    if (contents.length === 0) return;
+    const work = async (client: pg.PoolClient) => {
+      await this.lockScope(client, botId);
+      let changed = false;
+      for (const content of contents) {
+        const hash = fingerprint(content);
+        const duplicate = await client.query(
+          "select id from memory_items where bot_id=$1 and fingerprint=$2 and state<>'deleted'",
+          [botId, hash],
+        );
+        if (duplicate.rowCount) continue;
+        const { rows } = await client.query<Row>(
+          `insert into memory_items(bot_id,kind,content,fingerprint,pinned,source)
+          values($1,'lesson',$2,$3,true,$4) returning *`,
+          [botId, content, hash, { type: "import" }],
+        );
+        await this.revision(client, rows[0]!);
+        changed = true;
+      }
+      if (changed) await this.changed(client, botId, { kind: "user" }, true);
+    };
+    await (within ? work(within) : this.transaction(work));
   }
 
   async get(id: string, actor: MemoryActor): Promise<MemoryItem> {

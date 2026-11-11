@@ -209,7 +209,7 @@
     "bot": 7
   },
   "apps/web/src/app/api/bots/[botId]/export/route.ts": {
-    "bot": 19
+    "bot": 3
   },
   "apps/web/src/app/api/inbound/email/[token]/route.ts": {
     "bot": 1
@@ -394,7 +394,7 @@
     "bot": 8
   },
   "apps/web/src/lib/server/api/router.integration.test.ts": {
-    "bot": 20
+    "bot": 15
   },
   "apps/web/src/lib/server/api/router.ts": {
     "bot": 4
@@ -406,20 +406,13 @@
     "bot": 13,
     "desktop takeover": 3
   },
-  "apps/web/src/lib/server/api/teammates.ts": {
-    "bot": 15,
-    "primary teammate": 5
-  },
   "apps/web/src/lib/server/api/vault.ts": {
     "bot": 1
   },
   "apps/web/src/lib/server/queries.ts": {
-    "bot": 159,
+    "bot": 156,
     "desktop takeover": 17,
     "primary teammate": 2
-  },
-  "apps/web/src/lib/server/teammates.ts": {
-    "bot": 17
   },
   "apps/web/src/lib/server/views.ts": {
     "bot": 2
@@ -485,7 +478,7 @@
     "bot": 5
   },
   "apps/worker/src/rpc/router.integration.test.ts": {
-    "bot": 19
+    "bot": 18
   },
   "apps/worker/src/rpc/router.ts": {
     "bot": 3
@@ -510,11 +503,11 @@
     "bot": 2
   },
   "apps/worker/src/services/approvals.ts": {
-    "bot": 30
+    "bot": 31
   },
   "apps/worker/src/services/bots.ts": {
-    "bot": 155,
-    "primary teammate": 1
+    "bot": 179,
+    "primary teammate": 5
   },
   "apps/worker/src/services/connections.ts": {
     "bot": 5
@@ -550,7 +543,7 @@
     "bot": 9
   },
   "apps/worker/src/services/schedules.ts": {
-    "bot": 30
+    "bot": 32
   },
   "apps/worker/src/services/screen-operations.integration.test.ts": {
     "bot": 8,
@@ -561,7 +554,7 @@
     "desktop takeover": 7
   },
   "apps/worker/src/services/skills.ts": {
-    "bot": 69
+    "bot": 70
   },
   "apps/worker/src/services/swarms.ts": {
     "bot": 11
@@ -578,7 +571,7 @@
     "primary teammate": 1
   },
   "apps/worker/src/services/triggers.ts": {
-    "bot": 43
+    "bot": 44
   },
   "apps/worker/src/services/vault.ts": {
     "bot": 39
@@ -594,7 +587,7 @@
     "bot": 59
   },
   "apps/worker/src/tools/handlers.ts": {
-    "bot": 174
+    "bot": 168
   },
   "apps/worker/src/uploads.integration.test.ts": {
     "bot": 7
@@ -713,10 +706,7 @@
     "primary teammate": 1
   },
   "packages/api/src/worker/contract.ts": {
-    "bot": 10
-  },
-  "packages/db/src/owners.ts": {
-    "bot": 1
+    "bot": 11
   },
   "packages/db/src/schema.ts": {
     "bot": 151,
@@ -781,8 +771,11 @@
   "packages/domain/src/teammates/management.ts": {
     "bot": 33
   },
+  "packages/domain/src/teammates/profile.test.ts": {
+    "bot": 9
+  },
   "packages/domain/src/teammates/profile.ts": {
-    "bot": 5
+    "bot": 6
   },
   "packages/domain/src/teammates/status.test.ts": {
     "bot": 18
@@ -803,13 +796,13 @@
     "bot": 1
   },
   "packages/memory/src/index.ts": {
-    "bot": 127
+    "bot": 135
   },
   "packages/memory/src/jobs.ts": {
     "bot": 7
   },
   "packages/memory/src/memory.integration.test.ts": {
-    "bot": 87
+    "bot": 93
   },
   "packages/memory/src/memory.test.ts": {
     "bot": 3

@@ -62,8 +62,9 @@ A tab still running code from before sends itself to sign in on a 401, which tak
 
 Every write goes through the API, by the browser and the Android app alike; the web app has no server actions.
 Many procedures pass the call to the worker.
-The web app does the rest itself: duplicating, importing and archiving a teammate, choosing the lead, budgets, suggested instructions, and the vault, connections, accounts, email, settings and memory.
-Creating a teammate, in the web app or the worker, archiving one and choosing the lead all take one advisory lock (`LOCKS.team` in `packages/db/src/locks.ts`), so two at once never share a slug or leave two leads.
+Teammates are among them: creating, duplicating, importing and archiving one, choosing the lead, budgets and suggested instructions all go to the worker's teammate service (`apps/worker/src/services/bots.ts`), which owns those tables.
+The web app does the rest itself: the vault, connections, accounts, email, settings and memory.
+Creating a teammate, archiving one and choosing the lead all take one advisory lock (`LOCKS.team` in `packages/db/src/locks.ts`), so two at once never share a slug or leave two leads.
 Those live in the services in `apps/web/src/lib/server/api/`.
 Secrets sent to `vault.save`, `connections.save`, `email.save` and `settings.saveApiKey` are encrypted there and never sent back.
 In the browser, `attempt()` in `apps/web/src/lib/client/mutate.ts` turns a call into `{ ok, data }` or `{ ok, error }` with the server's own message.
@@ -103,16 +104,23 @@ A path or input field is removed only once no deployed web app calls it.
 
 ### Runs and messages
 
-| Route                                  | Purpose                                                          |
-| -------------------------------------- | ---------------------------------------------------------------- |
-| `GET /healthz`                         | Liveness, unauthenticated                                        |
-| `GET /internal/status`                 | Computer, Codex and egress status                                |
-| `POST /internal/messages/:id/dispatch` | Route a saved message: steer a running turn, or queue runs       |
-| `POST /internal/runs/:id/retry`        | Queue a failed or stopped request again                          |
-| `POST /internal/runs/cancel`           | Process cancellations now                                        |
-| `POST /internal/bots`                  | Create a teammate with its chat, skills and starter automations  |
-| `POST /internal/bots/:id`              | Change profile fields, with `expected_revision` (409 when stale) |
-| `POST /internal/bots/:id/sync` ☀       | Rewrite a teammate's workspace after an edit                     |
+| Route                                             | Purpose                                                          |
+| ------------------------------------------------- | ---------------------------------------------------------------- |
+| `GET /healthz`                                    | Liveness, unauthenticated                                        |
+| `GET /internal/status`                            | Computer, Codex and egress status                                |
+| `POST /internal/messages/:id/dispatch`            | Route a saved message: steer a running turn, or queue runs       |
+| `POST /internal/runs/:id/retry`                   | Queue a failed or stopped request again                          |
+| `POST /internal/runs/cancel`                      | Process cancellations now                                        |
+| `POST /internal/bots`                             | Create a teammate with its chat, skills and starter automations  |
+| `POST /internal/bots/:id`                         | Change profile fields, with `expected_revision` (409 when stale) |
+| `POST /internal/bots/:id/sync` ☀                  | Rewrite a teammate's workspace after an edit                     |
+| `GET /internal/teammates/:id/export`              | A teammate's bundle and slug, for the export download            |
+| `POST /internal/teammates/:id/duplicate`          | Copy a teammate, its memory, skills and paused automations       |
+| `POST /internal/teammates/import`                 | Add a teammate from a bundle; its automations start paused       |
+| `POST /internal/teammates/:id/lead`               | Make this teammate the lead                                      |
+| `POST /internal/teammates/:id/archive`            | Archive a teammate: stop its runs, pause its automations         |
+| `POST /internal/teammates/:id/budget`             | Set the monthly budget and auto-approve limit                    |
+| `POST /internal/proposals/:id/accept`, `/dismiss` | Accept or dismiss suggested instructions                         |
 
 ### Approvals and screens
 
@@ -135,7 +143,7 @@ A path or input field is removed only once no deployed web app calls it.
 | Route                                                                 | Purpose                                               |
 | --------------------------------------------------------------------- | ----------------------------------------------------- |
 | `POST /internal/schedules`, `/internal/schedules/:id`                 | Create or update a schedule                           |
-| `POST /internal/schedules/:id/enabled`, `/internal/schedules/:id/run` | Pause or resume; run now                              |
+| `POST /internal/schedules/:id/enabled`, `/run`, `/delete`             | Pause or resume, run now, delete                      |
 | `POST /internal/triggers`, `/internal/triggers/:id`                   | Create or update a watch or webhook                   |
 | `POST /internal/triggers/:id/enabled`, `/delete`, `/check`, `/rotate` | Pause, delete, check now, new webhook URL             |
 | `POST /internal/hooks/:token`                                         | Fire a webhook (called by the web app's public route) |

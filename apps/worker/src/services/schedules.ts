@@ -1,4 +1,4 @@
-import { bots, chats, ownerTimeZone, schedules } from "@open-bot/db";
+import { bots, chats, ownerTimeZone, schedules, type Queryable, type Tx } from "@open-bot/db";
 import {
   describeCron,
   isValidTimeZone,
@@ -158,6 +158,15 @@ export class ScheduleService {
     return updated!;
   }
 
+  /** Delete a schedule the owner no longer wants. One already gone is fine. */
+  async remove(id: string): Promise<void> {
+    const [row] = await this.ctx.db
+      .delete(schedules)
+      .where(eq(schedules.id, id))
+      .returning({ id: schedules.id });
+    if (row) await publishApp(this.ctx, { type: "schedules" });
+  }
+
   async cancelForBot(botId: string, id: string): Promise<Schedule | null> {
     if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
     const [row] = await this.ctx.db
@@ -255,4 +264,67 @@ export class ScheduleService {
     for (const row of due) await this.fire(row);
     if (due.length) await publishApp(this.ctx, { type: "schedules" });
   }
+}
+
+/**
+ * Gives a new teammate these routines, paused so nothing runs twice or by surprise; the owner turns
+ * them on in Automations. A cron this open-bot can't read is left out rather than failing the rest.
+ */
+export async function addPausedRoutines(
+  tx: Queryable,
+  teammateId: string,
+  routines: readonly { title: string; prompt: string; cron: string; quiet: boolean }[],
+  timezone: string,
+): Promise<void> {
+  const values = routines.flatMap((routine) => {
+    try {
+      const nextRunAt = nextCronRun(routine.cron, timezone);
+      return [
+        {
+          botId: teammateId, // vocabulary: allow
+          ...routine,
+          kind: "cron" as const,
+          timezone,
+          nextRunAt,
+          enabled: false,
+          createdBy: "user" as const,
+        },
+      ];
+    } catch {
+      return [];
+    }
+  });
+  if (values.length > 0) await tx.insert(schedules).values(values);
+}
+
+/** Copies one teammate's reminders still to come to another, paused. */
+export async function copyUpcomingReminders(
+  tx: Queryable,
+  fromTeammateId: string,
+  toTeammateId: string,
+): Promise<void> {
+  const reminders = await tx
+    .select()
+    .from(schedules)
+    .where(and(eq(schedules.botId, fromTeammateId), eq(schedules.kind, "once")));
+  const upcoming = reminders.filter((reminder) => (reminder.runAt?.getTime() ?? 0) > Date.now());
+  if (upcoming.length === 0) return;
+  await tx.insert(schedules).values(
+    upcoming.map((reminder) => ({
+      botId: toTeammateId, // vocabulary: allow
+      title: reminder.title,
+      prompt: reminder.prompt,
+      kind: "once" as const,
+      runAt: reminder.runAt,
+      nextRunAt: reminder.runAt,
+      timezone: reminder.timezone,
+      enabled: false,
+      createdBy: "user" as const,
+    })),
+  );
+}
+
+/** Pauses every schedule a teammate has, in the caller's transaction (archiving it). */
+export async function pauseSchedulesOf(tx: Tx, teammateId: string): Promise<void> {
+  await tx.update(schedules).set({ enabled: false }).where(eq(schedules.botId, teammateId));
 }

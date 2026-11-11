@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import { BotForm } from "@/components/bots/bot-form";
 import { Page } from "@/components/page";
-import { nextTeammateColor } from "@/lib/server/queries";
+import { nextColor } from "@/lib/server/queries";
 
 export const metadata: Metadata = { title: "New teammate" };
 
 export default async function NewBotPage() {
-  const color = await nextTeammateColor();
+  const color = await nextColor();
   return (
     <Page
       title="New teammate"

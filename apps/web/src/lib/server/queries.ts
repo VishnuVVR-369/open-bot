@@ -30,22 +30,22 @@ import {
   vaultItems,
 } from "@open-bot/db";
 import {
+  ACCOUNT_PROVIDERS,
+  ACCOUNT_TRIGGER_NOTE,
   ACTIVE_RUN_STATUSES,
-  BOT_COLORS,
   applyRunEvent,
+  authProvider,
   emailAddress,
   emptyTimeline,
-  isNothingToReport,
-  monthStart,
-  ACCOUNT_TRIGGER_NOTE,
   hideOutsideDataNote,
-  PAGE_TEXT_NOTE,
-  WEBHOOK_PAYLOAD_NOTE,
-  type RunStatus,
-  missingCapabilities,
-  ACCOUNT_PROVIDERS,
-  authProvider,
   integrationSettings,
+  isNothingToReport,
+  missingCapabilities,
+  monthStart,
+  nextTeammateColor,
+  PAGE_TEXT_NOTE,
+  type RunStatus,
+  WEBHOOK_PAYLOAD_NOTE,
 } from "@open-bot/domain";
 import {
   and,
@@ -583,11 +583,10 @@ export async function listTasks(): Promise<TaskView[]> {
   }));
 }
 
-/** The first teammate color nobody on the team uses yet, for a new teammate. */
-export async function nextTeammateColor(): Promise<string> {
+/** The color a new teammate starts with: the one the team uses least, as the worker picks. */
+export async function nextColor(): Promise<string> {
   const rows = await db.select({ color: bots.color }).from(bots).where(isNull(bots.archivedAt));
-  const used = new Set(rows.map((row) => row.color));
-  return BOT_COLORS.find((candidate) => !used.has(candidate)) ?? BOT_COLORS[0];
+  return nextTeammateColor(rows.map((row) => row.color));
 }
 
 /** A teammate's page: its profile, its chats, a suggestion waiting for you, and its rules. */
