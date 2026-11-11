@@ -6,7 +6,7 @@ import { PAGE_LINK_TTL_SECONDS, pageVersionUrl } from "@open-bot/domain/server";
 import { desc, eq, sql } from "drizzle-orm";
 import { db } from "../db";
 import { serverEnv } from "../env";
-import { publish } from "../publish";
+import { worker } from "../worker";
 import { ApiError } from "./errors";
 
 const summaryColumns = {
@@ -113,23 +113,13 @@ export async function openPage(input: ApiInputs["pages"]["open"]): Promise<PageL
   };
 }
 
+/** The worker pins and deletes pages (it owns them, see packages/db/src/owners.ts). */
 export async function pinPage({ pageId, pinned }: ApiInputs["pages"]["pin"]) {
-  // Pinning isn't an edit: the page keeps its place by when it last changed.
-  const [row] = await db
-    .update(pages)
-    .set({ pinned })
-    .where(eq(pages.id, pageId))
-    .returning({ id: pages.id });
-  if (!row) throw new ApiError("NOT_FOUND", "That page was deleted.");
-  await publish({ type: "pages" });
-  return { ok: true as const };
+  return worker.pages.pin({ pageId, pinned });
 }
 
 export async function removePage({ pageId }: ApiInputs["pages"]["remove"]) {
-  // Its versions go with it; chat cards and notifications that pointed at it say it's gone.
-  await db.delete(pages).where(eq(pages.id, pageId));
-  await publish({ type: "pages" });
-  return { ok: true as const };
+  return worker.pages.remove({ pageId });
 }
 
 /** A version's small picture for cards, in the theme asked for when there is one. */

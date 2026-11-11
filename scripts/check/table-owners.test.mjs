@@ -1,6 +1,5 @@
 // Proves the `open-bot/table-owners` lint rule fires, and keeps packages/db/src/owners.ts honest:
-// every table has an owner, every writer still moving really writes its table (so the list only
-// shrinks), and an owner exists once nothing is left to move into it.
+// every table has an owner that exists, and every module sharing columns really writes them.
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -133,10 +132,10 @@ test("tests may write any table", async () => {
   assert.deepEqual(await ownerErrors("apps/web/src/lib/server/probe.test.ts", code), []);
 });
 
-test("every writer still moving, or sharing columns, really writes the table", async () => {
+test("every module sharing columns really writes the table", async () => {
   const stale = [];
   for (const [table, owner] of Object.entries(TABLE_OWNERS)) {
-    for (const path of [...(owner.moving ?? []), ...(owner.shared ?? []).map((s) => s.by)]) {
+    for (const path of (owner.shared ?? []).map((s) => s.by)) {
       if (!existsSync(path)) stale.push(`${table}: ${path} does not exist`);
       else if (!(await tablesWrittenBy(path.endsWith("/") ? `${path}**/*.ts` : path)).has(table))
         stale.push(`${table}: ${path} no longer writes it; remove it`);
@@ -145,9 +144,9 @@ test("every writer still moving, or sharing columns, really writes the table", a
   assert.deepEqual(stale, []);
 });
 
-test("an owner exists once no writer is left to move into it", () => {
+test("every owner exists", () => {
   const missing = Object.entries(TABLE_OWNERS)
-    .filter(([, owner]) => !owner.moving?.length && !existsSync(owner.owner))
+    .filter(([, owner]) => !existsSync(owner.owner))
     .map(([table, owner]) => `${table}: ${owner.owner}`);
   assert.deepEqual(missing, []);
 });

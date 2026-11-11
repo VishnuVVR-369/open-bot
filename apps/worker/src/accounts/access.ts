@@ -13,7 +13,8 @@ import {
   type AccountConnectionKind,
 } from "@open-bot/domain";
 import { and, asc, eq, isNull, lt, ne, or, sql } from "drizzle-orm";
-import { createNotification, publishApp, type Context } from "../context";
+import { publishApp, type Context } from "../context";
+import { createNotification } from "../services/notifications";
 import type { AccountAccessLine } from "../instructions";
 import type { TokenSource } from "./http";
 
@@ -173,11 +174,7 @@ export class AccountAccess {
 
   /** Tell you, once, that an account needs signing in again. */
   private async reportUnavailable(resolved: ResolvedConnection, reason: string): Promise<void> {
-    const [marked] = await this.ctx.db
-      .update(accounts)
-      .set({ notifiedAt: new Date() })
-      .where(and(eq(accounts.id, resolved.account.id), isNull(accounts.notifiedAt)))
-      .returning({ id: accounts.id });
+    const marked = await this.store.markNotified(resolved.account.id);
     await publishApp(this.ctx, { type: "connections" });
     if (!marked) return;
     await createNotification(this.ctx, {

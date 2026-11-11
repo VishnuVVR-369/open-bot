@@ -1,8 +1,8 @@
 // The `open-bot/table-owners` lint rule: only a table's owner writes it (packages/db/src/owners.ts).
 // It reports a Drizzle `.insert(t)`, `.update(t)` or `.delete(t)` whose table `t` is imported from
 // @open-bot/db (by name, or through its `schema` object), and SQL text that writes a table
-// (`insert into t`, `update t set`, `delete from t`), in any file that is neither the table's owner
-// nor listed with it. A module sharing columns may only update those columns.
+// (`insert into t`, `update t set`, `delete from t`), in any file but the table's owner. A module
+// sharing columns may only set those columns.
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -41,7 +41,7 @@ const quoted = (names) => names.map((name) => `\`${name}\``).join(", ");
 export function refusal(table, file, write) {
   const owner = TABLE_OWNERS[table];
   if (!owner) return `\`${table}\` has no owner in packages/db/src/owners.ts. Add one.`;
-  if ([owner.owner, ...(owner.moving ?? [])].some((entry) => covers(entry, file))) return null;
+  if (covers(owner.owner, file)) return null;
   const shared = (owner.shared ?? []).filter((entry) => covers(entry.by, file));
   if (!shared.length)
     return (

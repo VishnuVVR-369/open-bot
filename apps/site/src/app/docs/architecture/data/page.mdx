@@ -212,8 +212,8 @@ Every table has one owner, the one module that inserts, updates and deletes its 
 Most owners are worker services; the web app changes their tables through the worker's internal API.
 Any server code may read any table.
 The `open-bot/table-owners` lint rule fails a write anywhere but the owner, so a rule about a table (a lock, a revision check, an event to publish) lives in one place.
-Writers that predate the rule are listed under `moving` until they call their owner; `pnpm test:scripts` fails when one stops writing, so the list only shrinks.
 A module that must change a few columns in its own transaction, like memory stopping the turns that read old memory, is listed under `shared` with those columns, and the rule lets it set only them.
+`pnpm test:scripts` fails when a `shared` entry no longer writes its table, so the list only shrinks.
 
 Advisory locks are named in `LOCKS` in `packages/db/src/locks.ts` and taken with `lockUntilCommit()`.
 Their keys never change once shipped, because the web app and the worker deploy separately and must still exclude each other.

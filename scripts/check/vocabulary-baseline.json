@@ -403,9 +403,6 @@
     "bot": 13,
     "desktop takeover": 3
   },
-  "apps/web/src/lib/server/api/vault.ts": {
-    "bot": 1
-  },
   "apps/web/src/lib/server/queries.ts": {
     "bot": 145,
     "desktop takeover": 17,
@@ -448,7 +445,7 @@
     "bot": 6
   },
   "apps/worker/src/context.ts": {
-    "bot": 6
+    "bot": 1
   },
   "apps/worker/src/egress/relay.test.ts": {
     "bot": 2
@@ -533,6 +530,9 @@
   "apps/worker/src/services/memory.ts": {
     "bot": 17
   },
+  "apps/worker/src/services/notifications.ts": {
+    "bot": 5
+  },
   "apps/worker/src/services/pages.integration.test.ts": {
     "bot": 12
   },
@@ -557,7 +557,7 @@
   },
   "apps/worker/src/services/screen-operations.ts": {
     "bot": 1,
-    "desktop takeover": 7
+    "desktop takeover": 8
   },
   "apps/worker/src/services/skills.ts": {
     "bot": 70
@@ -567,7 +567,7 @@
   },
   "apps/worker/src/services/takeovers.ts": {
     "bot": 35,
-    "desktop takeover": 34
+    "desktop takeover": 33
   },
   "apps/worker/src/services/tasks.ts": {
     "bot": 41
@@ -580,7 +580,7 @@
     "bot": 44
   },
   "apps/worker/src/services/vault.ts": {
-    "bot": 39
+    "bot": 40
   },
   "apps/worker/src/tools/bots.integration.test.ts": {
     "bot": 131,

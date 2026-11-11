@@ -614,6 +614,29 @@ export async function addPausedWatches(
   );
 }
 
+/** When an account trigger is checked next. */
+export async function setNextTriggerCheck(db: Queryable, id: string, at: Date): Promise<void> {
+  await db.update(triggers).set({ nextCheckAt: at }).where(eq(triggers.id, id));
+}
+
+/** How an account trigger's check went: when, its error, where it read up to, and whether it fired. */
+export async function recordTriggerCheck(
+  db: Queryable,
+  id: string,
+  result: { error?: string | null; cursor?: string; fired?: boolean },
+): Promise<void> {
+  const now = new Date();
+  await db
+    .update(triggers)
+    .set({
+      lastCheckedAt: now,
+      lastError: result.error ?? null,
+      ...(result.cursor !== undefined ? { cursor: result.cursor } : {}),
+      ...(result.fired ? { lastFiredAt: now } : {}),
+    })
+    .where(eq(triggers.id, id));
+}
+
 /** Pauses every automation trigger a teammate has, in the caller's transaction (archiving it). */
 export async function pauseTriggersOf(tx: Tx, teammateId: string): Promise<void> {
   await tx.update(triggers).set({ enabled: false }).where(eq(triggers.botId, teammateId));

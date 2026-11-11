@@ -1,6 +1,9 @@
-import { bots, purchases, vaultItems } from "@open-bot/db";
+import { bots, purchases, vaultItems, type Queryable } from "@open-bot/db";
 import {
   budgetDecision,
+  cardHint,
+  invalidCard,
+  normalizeExpiry,
   FIELD_LABEL,
   formatMoney,
   monthStart,
@@ -12,11 +15,12 @@ import {
   type LoginSecret,
   type VaultField,
 } from "@open-bot/domain";
-import { decryptSecret } from "@open-bot/domain/server";
+import { decryptSecret, encryptSecret } from "@open-bot/domain/server";
 import { and, desc, eq, gte, gt, inArray, isNull, or, sql } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
 import type { RunSession } from "../runs/session";
 import type { ApprovalService } from "./approvals";
+import type { VaultItemInput } from "@open-bot/api";
 
 type Item = typeof vaultItems.$inferSelect;
 
@@ -24,6 +28,72 @@ type Item = typeof vaultItems.$inferSelect;
 const SPENDING = ["pending", "approved", "paid"] as const;
 
 export class VaultError extends Error {}
+
+/** A change to the vault you asked for that can't be made; the message says why. */
+export class VaultItemError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+/** A login's or card's secret, and the hint the vault shows of it, or why it can't be saved. */
+function vaultSecret(
+  kind: "login" | "card",
+  fields: Record<string, string>,
+  domainInput: string,
+): { secret: LoginSecret | CardSecret; hint: string; domain: string | null } {
+  if (kind === "login") {
+    const domain = normalizeDomain(domainInput);
+    if (!domain) throw new VaultItemError(400, "Give the site it's for, like github.com.");
+    const username = (fields.username ?? "").trim();
+    const password = fields.password ?? "";
+    if (!username) throw new VaultItemError(400, "Add the username or email.");
+    if (!password) throw new VaultItemError(400, "Add the password.");
+    return { secret: { username, password }, hint: username, domain };
+  }
+  const card: CardSecret = {
+    number: (fields.number ?? "").replace(/[\s-]/g, ""),
+    expiry: normalizeExpiry(fields.expiry ?? "") ?? fields.expiry ?? "",
+    cvc: (fields.cvc ?? "").trim(),
+    name: (fields.name ?? "").trim(),
+    zip: (fields.zip ?? "").trim(),
+  };
+  const problem = invalidCard(card);
+  if (problem) throw new VaultItemError(400, problem);
+  return { secret: card, hint: cardHint(card.number), domain: null };
+}
+
+/** Tie a purchase to the approval that asks you about it. */
+export async function askAboutPurchase(
+  db: Queryable,
+  purchaseId: string,
+  approvalId: string,
+): Promise<void> {
+  await db.update(purchases).set({ approvalId }).where(eq(purchases.id, purchaseId));
+}
+
+/**
+ * Your decision on a purchase's approval: approved opens its card to the teammate for a while.
+ * Returns the purchase, when one was still waiting on it.
+ */
+export async function decidePurchase(
+  db: Queryable,
+  approvalId: string,
+  decision: "approved" | "denied",
+): Promise<typeof purchases.$inferSelect | undefined> {
+  const [decided] = await db
+    .update(purchases)
+    .set({
+      status: decision,
+      fillableUntil: decision === "approved" ? new Date(Date.now() + PURCHASE_WINDOW_MS) : null,
+    })
+    .where(and(eq(purchases.approvalId, approvalId), eq(purchases.status, "pending")))
+    .returning();
+  return decided;
+}
 
 /**
  * The vault from a teammate's side: it sees what it may use, fills logins and cards on its screen
@@ -34,6 +104,51 @@ export class VaultService {
     private readonly ctx: Context,
     private readonly approvals: ApprovalService,
   ) {}
+
+  /** Save a login or card you entered. Secrets are encrypted here and never sent back. */
+  async saveItem(input: VaultItemInput): Promise<{ id: string }> {
+    const saved = await this.ctx.db.transaction(async (tx) => {
+      // Locked, so two edits at once each keep the other's fields instead of the last one winning.
+      const [existing] = input.id
+        ? await tx.select().from(vaultItems).where(eq(vaultItems.id, input.id)).for("update")
+        : [];
+      if (input.id && !existing)
+        throw new VaultItemError(404, "That item is no longer in the vault.");
+      if (existing && existing.kind !== input.kind)
+        throw new VaultItemError(400, "An item can't change its kind.");
+      const fields: Record<string, string> = existing
+        ? JSON.parse(decryptSecret(existing.encrypted, this.ctx.env.ENCRYPTION_KEY))
+        : {};
+      // Fields left empty keep what's saved, except the username: the form shows it, so an empty
+      // one was cleared.
+      for (const [field, value] of Object.entries(input.secret))
+        if (value.trim() || field === "username") fields[field] = value;
+      const { secret, hint, domain } = vaultSecret(input.kind, fields, input.domain);
+      const values = {
+        kind: input.kind,
+        name: input.name,
+        domain,
+        hint,
+        botIds: input.teammateIds,
+        encrypted: encryptSecret(JSON.stringify(secret), this.ctx.env.ENCRYPTION_KEY),
+      };
+      const [row] = existing
+        ? await tx
+            .update(vaultItems)
+            .set(values)
+            .where(eq(vaultItems.id, existing.id))
+            .returning({ id: vaultItems.id })
+        : await tx.insert(vaultItems).values(values).returning({ id: vaultItems.id });
+      return row!;
+    });
+    await publishApp(this.ctx, { type: "vault" });
+    return saved;
+  }
+
+  async removeItem(itemId: string): Promise<void> {
+    await this.ctx.db.delete(vaultItems).where(eq(vaultItems.id, itemId));
+    await publishApp(this.ctx, { type: "vault" });
+  }
 
   /** The items a teammate may use. */
   private async itemsFor(botId: string): Promise<Item[]> {

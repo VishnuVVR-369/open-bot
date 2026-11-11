@@ -12,6 +12,13 @@ import { publishApp, type Context } from "../context";
 
 export class PageError extends Error {}
 
+/** The page asked about was deleted. */
+export class PageGone extends Error {
+  constructor() {
+    super("That page was deleted.");
+  }
+}
+
 type Page = typeof pages.$inferSelect;
 type PageVersion = typeof pageVersions.$inferSelect;
 
@@ -81,6 +88,23 @@ export class PageService {
     private readonly ctx: Context,
     private readonly files: PageFiles = computerPageFiles(ctx),
   ) {}
+
+  /** Pin or unpin a page. Pinning isn't an edit: the page keeps its place by when it last changed. */
+  async pin(pageId: string, pinned: boolean): Promise<void> {
+    const [row] = await this.ctx.db
+      .update(pages)
+      .set({ pinned })
+      .where(eq(pages.id, pageId))
+      .returning({ id: pages.id });
+    if (!row) throw new PageGone();
+    await publishApp(this.ctx, { type: "pages" });
+  }
+
+  /** Delete a page. Its versions go with it; chat cards and notifications that pointed at it say it's gone. */
+  async remove(pageId: string): Promise<void> {
+    await this.ctx.db.delete(pages).where(eq(pages.id, pageId));
+    await publishApp(this.ctx, { type: "pages" });
+  }
 
   /**
    * Check the file on the computer and publish it if nothing is wrong. Errors stop it; the check

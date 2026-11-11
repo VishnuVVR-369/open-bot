@@ -17,7 +17,8 @@ import {
 } from "@open-bot/domain";
 import { and, desc, eq, ilike, inArray, isNull, or } from "drizzle-orm";
 import { z } from "zod";
-import { createNotification, publishApp, type Context } from "../context";
+import { publishApp, type Context } from "../context";
+import { createNotification } from "../services/notifications";
 import { enqueueRun } from "../runs/queue";
 import { errorMessage } from "../logger";
 import type { RunSession } from "../runs/session";
@@ -40,6 +41,7 @@ import { BOT_TOOL_NAMES, BotTools } from "./bots";
 import { AccountToolError } from "../accounts/access";
 import { isAccountNamespace } from "../accounts/registry";
 import type { AccountTools } from "../accounts/tools";
+import { addContextRefs } from "../services/memory";
 
 type Response = v2.DynamicToolCallResponse;
 
@@ -1028,13 +1030,10 @@ export class ToolHandlers {
         completedAt: session.now(),
         result: items.map((x) => `${x.id}@${x.revision}`).join(", "),
       });
-      await this.ctx.pool.query(
-        `update memory_contexts set refs=(select coalesce(jsonb_agg(distinct value),'[]'::jsonb)
-        from jsonb_array_elements(refs || $2::jsonb)) where run_id=$1`,
-        [
-          session.run.id,
-          JSON.stringify(items.map((item) => ({ id: item.id, revision: item.revision }))),
-        ],
+      await addContextRefs(
+        this.ctx.pool,
+        session.run.id,
+        items.map((item) => ({ id: item.id, revision: item.revision })),
       );
       return text(
         JSON.stringify(items.map((item) => ({ ...item, content: item.content.slice(0, 2000) }))),

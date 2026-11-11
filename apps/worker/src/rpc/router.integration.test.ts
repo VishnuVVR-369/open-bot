@@ -19,12 +19,15 @@ import {
   lessons,
   memoryItems,
   messages,
+  notifications,
   oauthClients,
+  pages,
   runs,
   schedules as scheduleRows,
   settings,
   tasks,
   triggers as triggerRows,
+  vaultItems,
 } from "@open-bot/db";
 import { BUNDLE_FORMAT, BUNDLE_VERSION, type TeammateBundle } from "@open-bot/domain";
 import { decryptSecret, hashDeviceSecret } from "@open-bot/domain/server";
@@ -41,6 +44,8 @@ import { RunRequests } from "../runs/requests";
 import { CodexAccountService } from "../services/codex-account";
 import { ConnectionService } from "../services/connections";
 import { EgressDevices } from "../egress/devices";
+import { PageService } from "../services/pages";
+import { VaultService } from "../services/vault";
 import { EmailService } from "../services/email";
 import { SettingsService } from "../services/settings";
 import { FileService } from "../services/files";
@@ -149,6 +154,15 @@ describe.skipIf(!url)("worker internal API, end to end", () => {
     tools: [],
     error: null,
   }));
+  const pageService = new PageService(ctx);
+  vi.spyOn(pageService, "checkAndPublish").mockImplementation(
+    async () =>
+      ({
+        page: { id: ID },
+        version: { id: ID, number: 1 },
+        check: { issues: [{ message: "No <title>." }] },
+      }) as unknown as Awaited<ReturnType<PageService["checkAndPublish"]>>,
+  );
   const relay = { revoke: vi.fn(async () => {}), reloadPhones: vi.fn(async () => {}) };
   const operation = {
     id: ID,
@@ -171,13 +185,8 @@ describe.skipIf(!url)("worker internal API, end to end", () => {
       context: vi.fn(async () => ({ screenId: ID, site: "example.com" })),
     },
     files: new FileService(ctx),
-    pages: {
-      checkAndPublish: vi.fn(async () => ({
-        page: { id: ID },
-        version: { id: ID, number: 1 },
-        check: { issues: [{ message: "No <title>." }] },
-      })),
-    },
+    pages: pageService,
+    vault: new VaultService(ctx, approvalService),
     uploads: { status: vi.fn(async () => null) },
     schedules,
     push: new PushService(ctx),
@@ -232,6 +241,34 @@ describe.skipIf(!url)("worker internal API, end to end", () => {
   async function newTeammate(name: string, role: string) {
     const created = await worker.teammates.create({ name, role });
     return { ...created, id: created.botId };
+  }
+
+  /**
+   * Start `writes` while another transaction holds `lock`, wait until each waits on a lock, then
+   * let go: none could see another's change before making its own.
+   */
+  async function racedWhileLocked<T>(
+    lock: string,
+    writes: () => Promise<T>[],
+    params: unknown[] = [],
+  ): Promise<T[]> {
+    const holder = await pool.connect();
+    try {
+      await holder.query("begin");
+      await holder.query(lock, params);
+      const running = writes();
+      await vi.waitFor(async () => {
+        const { rows } = await pool.query<{ waiting: number }>(
+          "select count(*)::int as waiting from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'",
+        );
+        expect(rows[0]!.waiting).toBe(running.length);
+      });
+      await holder.query("commit");
+      return await Promise.all(running);
+    } finally {
+      await holder.query("rollback").catch(() => {});
+      holder.release();
+    }
   }
 
   /** A teammate with a failed run in their chat. */
@@ -580,6 +617,115 @@ describe.skipIf(!url)("worker internal API, end to end", () => {
     });
   });
 
+  describe("vault, page and notification writes", () => {
+    const login = {
+      id: null,
+      kind: "login" as const,
+      name: "GitHub",
+      domain: "https://github.com/login",
+      teammateIds: null,
+      secret: { username: "alex", password: "hunter22" },
+    };
+    const vaultSecret = async (itemId: string): Promise<Record<string, string>> => {
+      const [row] = await db.select().from(vaultItems).where(eq(vaultItems.id, itemId));
+      return JSON.parse(decryptSecret(row!.encrypted, ctx.env.ENCRYPTION_KEY));
+    };
+
+    it("saves a login encrypted, keeps fields left empty when editing, and removes it", async () => {
+      const { id } = await worker.vault.save(login);
+      const [saved] = await db.select().from(vaultItems).where(eq(vaultItems.id, id));
+      expect(saved).toMatchObject({ domain: "github.com", hint: "alex" });
+      expect(saved!.encrypted).not.toContain("hunter22");
+      await worker.vault.save({
+        ...login,
+        id,
+        name: "GitHub work",
+        secret: { username: "alex", password: "" },
+      });
+      expect(await vaultSecret(id)).toEqual({ username: "alex", password: "hunter22" });
+      expect(await failure(worker.vault.save({ ...login, id, kind: "card" }))).toEqual({
+        status: 400,
+        message: "An item can't change its kind.",
+      });
+      expect(await failure(worker.vault.save({ ...login, id: ID }))).toEqual({
+        status: 404,
+        message: "That item is no longer in the vault.",
+      });
+      expect(await failure(worker.vault.save({ ...login, secret: { username: "alex" } }))).toEqual({
+        status: 400,
+        message: "Add the password.",
+      });
+      await worker.vault.remove({ itemId: id });
+      await worker.vault.remove({ itemId: id });
+      expect(await db.select().from(vaultItems).where(eq(vaultItems.id, id))).toEqual([]);
+    });
+
+    it("keeps both of two card edits made at once", async () => {
+      const card = {
+        id: null,
+        kind: "card" as const,
+        name: "Visa",
+        domain: "",
+        teammateIds: null,
+        secret: {
+          number: "4242 4242 4242 4242",
+          expiry: "12/40",
+          cvc: "123",
+          name: "Alex",
+          zip: "",
+        },
+      };
+      const { id } = await worker.vault.save(card);
+      const edit = (secret: Record<string, string>) => worker.vault.save({ ...card, id, secret });
+      await racedWhileLocked(
+        "select 1 from vault_items where id = $1 for update",
+        () => [edit({ cvc: "999" }), edit({ zip: "10115" })],
+        [id],
+      );
+      expect(await vaultSecret(id)).toMatchObject({ cvc: "999", zip: "10115" });
+      await worker.vault.remove({ itemId: id });
+    });
+
+    it("pins and deletes a page, and says one that's gone is gone", async () => {
+      const { created } = await teammateWithRun();
+      const [page] = await db
+        .insert(pages)
+        .values({ title: "Trip plan", botId: created.id }) // vocabulary: allow
+        .returning();
+      await worker.pages.pin({ pageId: page!.id, pinned: true });
+      const reload = async () => (await db.select().from(pages).where(eq(pages.id, page!.id)))[0];
+      expect((await reload())!.pinned).toBe(true);
+      await worker.pages.remove({ pageId: page!.id });
+      expect(await reload()).toBeUndefined();
+      expect(await failure(worker.pages.pin({ pageId: page!.id, pinned: false }))).toEqual({
+        status: 404,
+        message: "That page was deleted.",
+      });
+    });
+
+    it("marks notifications read by id, up to one, or all", async () => {
+      await db.update(notifications).set({ readAt: new Date() });
+      const added = [];
+      for (const title of ["One", "Two", "Three", "Four"]) {
+        const [row] = await db
+          .insert(notifications)
+          .values({ kind: "run_finished", title })
+          .returning();
+        added.push(row!);
+      }
+      const unread = async () =>
+        (await db.select().from(notifications).where(isNull(notifications.readAt)))
+          .map((row) => row.title)
+          .sort();
+      await worker.notifications.markRead({ ids: [added[3]!.id] });
+      expect(await unread()).toEqual(["One", "Three", "Two"]);
+      await worker.notifications.markRead({ through: added[1]!.id });
+      expect(await unread()).toEqual(["Three"]);
+      await worker.notifications.markRead({});
+      expect(await unread()).toEqual([]);
+    });
+  });
+
   describe("connection, account and phone writes", () => {
     const server = {
       id: null,
@@ -593,30 +739,6 @@ describe.skipIf(!url)("worker internal API, end to end", () => {
     };
     const connection = async (id: string) =>
       (await db.select().from(connections).where(eq(connections.id, id)))[0];
-
-    /**
-     * Start `writes` while another transaction holds `lock`, wait until each waits on a lock, then
-     * let go: none could see another's change before making its own.
-     */
-    async function racedWhileLocked<T>(lock: string, writes: () => Promise<T>[]): Promise<T[]> {
-      const holder = await pool.connect();
-      try {
-        await holder.query("begin");
-        await holder.query(lock);
-        const running = writes();
-        await vi.waitFor(async () => {
-          const { rows } = await pool.query<{ waiting: number }>(
-            "select count(*)::int as waiting from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'",
-          );
-          expect(rows[0]!.waiting).toBe(running.length);
-        });
-        await holder.query("commit");
-        return await Promise.all(running);
-      } finally {
-        await holder.query("rollback").catch(() => {});
-        holder.release();
-      }
-    }
 
     /** A Google account with a Gmail connection, and a teammate's action waiting on it. */
     async function gmailWithWaitingAction() {

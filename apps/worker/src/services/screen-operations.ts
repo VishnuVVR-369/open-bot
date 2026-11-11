@@ -1,14 +1,39 @@
-import { desktopTakeovers, screenOperations } from "@open-bot/db";
+import { desktopTakeovers, screenOperations, type Queryable } from "@open-bot/db";
 import {
   isOwnerLease,
   type ScreenOperation,
   type ScreenOperationStatus,
   type TypeOnScreen,
 } from "@open-bot/domain";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
 import { ScreenBusy, withScreenLock } from "./screen-lock";
 import { CODE_HANDED_BACK_NOTE, type TakeoverService } from "./takeovers";
+
+/** An operation's screen couldn't be handed back now: you need to look at it, for this reason. */
+export async function operationNeedsOwner(
+  db: Queryable,
+  operationId: string,
+  reason: string,
+): Promise<void> {
+  await db
+    .update(screenOperations)
+    .set({ status: "needs_owner", reason, updatedAt: new Date() })
+    .where(eq(screenOperations.id, operationId));
+}
+
+/** Operations whose takeover ended: their screen passed the safety check on the way back. */
+export async function handBackEndedOperations(db: Queryable): Promise<void> {
+  await db
+    .update(screenOperations)
+    .set({ status: "handed_back", reason: null, updatedAt: new Date() })
+    .where(
+      and(
+        inArray(screenOperations.status, ["safe", "needs_owner", "unknown"]),
+        sql`${screenOperations.takeoverId} in (select id from desktop_takeovers where status = 'ended')`,
+      ),
+    );
+}
 
 export class ScreenOperationService {
   constructor(
