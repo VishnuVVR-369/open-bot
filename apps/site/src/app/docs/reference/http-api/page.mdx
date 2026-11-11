@@ -64,10 +64,11 @@ Every write goes through the API, by the browser and the Android app alike; the 
 Many procedures pass the call to the worker.
 Teammates are among them: creating, duplicating, importing and archiving one, choosing the lead, budgets and suggested instructions all go to the worker's teammate service (`apps/worker/src/services/bots.ts`), which owns those tables.
 So do chats and the messages you send (`apps/worker/src/services/chats.ts`), and stopping, rating and giving feedback on a run (`apps/worker/src/runs/requests.ts`).
-The web app does the rest itself: the vault, connections, accounts, email, settings and memory.
+So do your settings, the API key and your email setup (`apps/worker/src/services/settings.ts`, `apps/worker/src/services/credentials.ts` and `apps/worker/src/services/email.ts`).
+The web app does the rest itself: the vault, connections, accounts and memory.
 Creating a teammate, archiving one and choosing the lead all take one advisory lock (`LOCKS.team` in `packages/db/src/locks.ts`), so two at once never share a slug or leave two leads.
 Those live in the services in `apps/web/src/lib/server/api/`.
-Secrets sent to `vault.save`, `connections.save`, `email.save` and `settings.saveApiKey` are encrypted there and never sent back.
+Secrets sent to `vault.save` and `connections.save` are encrypted there, and those sent to `email.save` and `settings.saveApiKey` in the worker; none is ever sent back.
 In the browser, `attempt()` in `apps/web/src/lib/client/mutate.ts` turns a call into `{ ok, data }` or `{ ok, error }` with the server's own message.
 Input a procedure refuses answers 400 with its schema's messages, such as "Name the chat.", and the zod issues in `data.issues`.
 A write to something that changed since you saw it, like a teammate edited elsewhere or a suggestion already decided, fails with `STATE_CONFLICT` (409), one of the contract's declared errors (`API_ERRORS` in `packages/api/src/base.ts`).
@@ -185,6 +186,8 @@ A path or input field is removed only once no deployed web app calls it.
 | `POST /internal/egress/devices/changed`, `/devices/:id/unavailable`, `/devices/:id/revoked`                  | Paired phones changed, can't carry traffic now, or were unpaired |
 | `POST /internal/connections/:id/test` ☀                                                                      | Test an MCP connection or an account                             |
 | `POST /internal/email/inbound/:token`                                                                        | Receive an email (called by the web app)                         |
+| `GET /internal/email`, `POST /internal/email`, `/internal/email/token/delete`                                | Email setup, its Postmark token, and forgetting the token        |
+| `POST /internal/settings/timezone`, `/monthly-cap`, `/api-key`, `/api-key/delete`                            | Your time zone, the API key's monthly cap, and the API key       |
 | `GET /internal/telegram`, `POST /internal/telegram/connect`, `/link-code`, `/test`, `/unlink`, `/disconnect` | Telegram                                                         |
 | `GET /internal/push`, `POST /internal/push/subscribe`, `/unsubscribe`, `/test`                               | Browser push notifications                                       |
 | `POST /internal/push/native/register`, `/internal/push/native/unregister`                                    | Phone notifications through Firebase Cloud Messaging             |

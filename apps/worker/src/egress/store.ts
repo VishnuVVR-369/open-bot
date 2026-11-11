@@ -2,6 +2,11 @@ import { computers, egressDevices, type Db } from "@open-bot/db";
 import { asc, eq, isNull } from "drizzle-orm";
 import type { RelayStore } from "./relay";
 
+/** Make the computer's row, if it isn't there yet. */
+export async function addComputerRow(db: Db): Promise<void> {
+  await db.insert(computers).values({ id: "default" }).onConflictDoNothing();
+}
+
 /** The relay's state in Postgres: the modes on the computer's row, and the paired phones. */
 export function databaseStore(db: Db): RelayStore {
   return {

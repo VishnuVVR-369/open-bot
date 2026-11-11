@@ -1,9 +1,10 @@
-import { credentials, ownerSettings, settings, usageEntries } from "@open-bot/db";
+import { credentials, ownerSettings, usageEntries } from "@open-bot/db";
 import { decideAuthMode, formatDollars, type AuthDecision } from "@open-bot/domain";
 import { decryptSecret } from "@open-bot/domain/server";
 import { and, eq, gte, sql } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
 import { errorMessage } from "../logger";
+import { saveSettings } from "./settings";
 
 /** The provider id Codex uses for API key access, configured per thread. */
 export const API_PROVIDER_ID = "openai-api";
@@ -112,7 +113,7 @@ export class ModelAccess {
     } catch (error) {
       this.ctx.log.warn("could not read the plan's reset time", { error: errorMessage(error) });
     }
-    await this.ctx.db.update(settings).set({ planLimitedUntil: until }).where(eq(settings.id, 1));
+    await saveSettings(this.ctx.db, { planLimitedUntil: until });
     await publishApp(this.ctx, { type: "auth" });
     return until;
   }

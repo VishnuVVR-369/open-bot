@@ -13,6 +13,7 @@ import { PushError } from "../services/push";
 import { RetryError } from "../services/retries";
 import { ScheduleError } from "../services/schedules";
 import { ScreenBusy } from "../services/screen-lock";
+import { SettingsError } from "../services/settings";
 import { SkillError } from "../services/skills";
 import { TaskError } from "../services/tasks";
 import { TelegramError } from "../services/telegram";
@@ -40,6 +41,7 @@ const BAD_REQUESTS = [
   PageError,
   PushError,
   ScheduleError,
+  SettingsError,
   SkillError,
   TaskError,
   TelegramError,

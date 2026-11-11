@@ -158,6 +158,8 @@ Services talk to each other through constructor injection and the typed `ctx.eve
 | Telegram         | `services/telegram.ts`         | Long polling, linking, routing messages, approval buttons                                |
 | Push             | `services/push.ts`             | VAPID keys, Web Push delivery                                                            |
 | Model access     | `services/model-access.ts`     | Plan or API key, the cap, plan limits                                                    |
+| Settings         | `services/settings.ts`         | Your settings row: time zone, the API key and its monthly cap, when the plan ran out     |
+| Credentials      | `services/credentials.ts`      | Secrets, encrypted, one per kind; the only writer of `credentials`                       |
 
 ## Accounts
 

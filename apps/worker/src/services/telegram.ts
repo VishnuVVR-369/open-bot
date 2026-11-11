@@ -14,7 +14,7 @@ import {
   type Attachment,
 } from "@open-bot/db";
 import { newLinkCode, splitTelegram, telegramHtml, TELEGRAM_MAX_CHARS } from "@open-bot/domain";
-import { decryptSecret, encryptSecret, secretHint } from "@open-bot/domain/server";
+import { decryptSecret, secretHint } from "@open-bot/domain/server";
 import { and, asc, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { publishApp, type Context, type NotificationEvent } from "../context";
 import { errorMessage } from "../logger";
@@ -22,6 +22,7 @@ import type { RunExecutor } from "../runs/executor";
 import type { UploadService } from "../uploads";
 import type { ApprovalService } from "./approvals";
 import { saveUserMessage } from "./chats";
+import { removeCredential, saveCredential } from "./credentials";
 
 const POLL_SECONDS = 25;
 const LINK_CODE_MINUTES = 15;
@@ -268,20 +269,7 @@ export class TelegramService {
     await this.call("deleteWebhook", { drop_pending_updates: false }, { token: clean });
     const [existing] = await this.ctx.db.select().from(telegram).where(eq(telegram.id, 1));
     const sameBot = existing?.botUsername === me.username;
-    await this.ctx.db
-      .insert(credentials)
-      .values({
-        kind: "telegram_bot_token",
-        encrypted: encryptSecret(clean, this.ctx.env.ENCRYPTION_KEY),
-        hint: secretHint(clean),
-      })
-      .onConflictDoUpdate({
-        target: credentials.kind,
-        set: {
-          encrypted: encryptSecret(clean, this.ctx.env.ENCRYPTION_KEY),
-          hint: secretHint(clean),
-        },
-      });
+    await saveCredential(this.ctx, "telegram_bot_token", clean);
     const fields = sameBot
       ? { botUsername: me.username ?? null }
       : {
@@ -308,7 +296,7 @@ export class TelegramService {
     this.stop();
     this.token = null;
     this.problem = null;
-    await this.ctx.db.delete(credentials).where(eq(credentials.kind, "telegram_bot_token"));
+    await removeCredential(this.ctx.db, "telegram_bot_token");
     await this.ctx.db.delete(telegram).where(eq(telegram.id, 1));
     await publishApp(this.ctx, { type: "telegram" });
   }

@@ -407,7 +407,7 @@
     "bot": 1
   },
   "apps/web/src/lib/server/queries.ts": {
-    "bot": 156,
+    "bot": 145,
     "desktop takeover": 17,
     "primary teammate": 2
   },
@@ -509,7 +509,7 @@
     "bot": 31
   },
   "apps/worker/src/services/bots.ts": {
-    "bot": 177,
+    "bot": 178,
     "primary teammate": 5
   },
   "apps/worker/src/services/chats.ts": {
@@ -519,7 +519,7 @@
     "bot": 5
   },
   "apps/worker/src/services/email.ts": {
-    "bot": 41
+    "bot": 42
   },
   "apps/worker/src/services/fcm.integration.test.ts": {
     "bot": 3

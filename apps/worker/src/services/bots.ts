@@ -81,8 +81,8 @@ export interface ConnectionSummary {
 export async function activeTeammates(
   db: Queryable,
   { inChat }: { inChat?: string } = {},
-): Promise<{ id: string; name: string }[]> {
-  const columns = { id: bots.id, name: bots.name };
+): Promise<{ id: string; name: string; slug: string }[]> {
+  const columns = { id: bots.id, name: bots.name, slug: bots.slug };
   if (!inChat)
     return db
       .select(columns)
