@@ -29,6 +29,7 @@ import type { RunRequests } from "../runs/requests";
 import type { TelegramService } from "../services/telegram";
 import type { TriggerService } from "../services/triggers";
 import { rpcError } from "./errors";
+import type { EgressDevices } from "../egress/devices";
 
 /** The services the worker's internal API calls. */
 export interface WorkerServices {
@@ -58,6 +59,7 @@ export interface WorkerServices {
   codexAccount: CodexAccountService;
   settings: SettingsService;
   egress: EgressRelay;
+  egressDevices: EgressDevices;
   wake: WakeController;
 }
 
@@ -381,6 +383,20 @@ export function createWorkerRouter(services: WorkerServices) {
       }),
     },
     connections: {
+      save: os.connections.save.handler(({ input }) => s.connections.saveMcp(input)),
+      setEnabled: os.connections.setEnabled.handler(async ({ input }) => {
+        await s.connections.setEnabled(input.connectionId, input.enabled);
+        return ok;
+      }),
+      remove: os.connections.remove.handler(({ input }) =>
+        s.connections.remove(input.connectionId),
+      ),
+      updateAccount: os.connections.updateAccount.handler(({ input }) =>
+        s.connections.updateAccount(input),
+      ),
+      linkAccount: os.connections.linkAccount.handler(({ input }) =>
+        s.connections.linkAccount(input),
+      ),
       test: os.connections.test.handler(({ input }) => s.connections.test(input.connectionId)),
     },
     swarms: {
@@ -486,6 +502,19 @@ export function createWorkerRouter(services: WorkerServices) {
       }),
       deviceRevoked: os.egress.deviceRevoked.handler(async ({ input }) => {
         await s.egress.revoke(input.deviceId, input.generation);
+        return ok;
+      }),
+      pairDevice: os.egress.pairDevice.handler(({ input }) => s.egressDevices.pair(input)),
+      unpairDevice: os.egress.unpairDevice.handler(async ({ input }) => {
+        await s.egressDevices.unpair(input.deviceId, input.generation);
+        return ok;
+      }),
+      devicePushToken: os.egress.devicePushToken.handler(async ({ input }) => {
+        await s.egressDevices.setPushToken(input.deviceId, input.token);
+        return ok;
+      }),
+      deviceUsed: os.egress.deviceUsed.handler(async ({ input }) => {
+        await s.egressDevices.markUsed(input.deviceId);
         return ok;
       }),
     },

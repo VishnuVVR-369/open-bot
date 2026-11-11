@@ -1,10 +1,11 @@
-import { computers, egressDevices } from "@open-bot/db";
+import { computers } from "@open-bot/db";
 import { issueToken } from "@open-bot/domain/server";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/server/db";
 import { deviceRoute } from "@/lib/server/egress-device";
 import { serverEnv } from "@/lib/server/env";
+import { worker } from "@/lib/server/worker";
 
 /**
  * A paired phone asks for this before it opens the egress tunnel. The phone mode in the answer is
@@ -16,7 +17,7 @@ export const POST = deviceRoute(async (device) => {
       .select({ phoneEgress: computers.phoneEgress })
       .from(computers)
       .where(eq(computers.id, "default")),
-    db.update(egressDevices).set({ lastUsedAt: new Date() }).where(eq(egressDevices.id, device.id)),
+    worker.egress.deviceUsed({ deviceId: device.id }),
   ]);
   return NextResponse.json({
     url: `${serverEnv.workerWsUrl}/egress/agent`,

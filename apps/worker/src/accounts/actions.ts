@@ -1,4 +1,11 @@
-import { accountActions, accounts, approvals, bots, connections } from "@open-bot/db";
+import {
+  accountActions,
+  accounts,
+  approvals,
+  bots,
+  connections,
+  type Queryable,
+} from "@open-bot/db";
 import {
   ACTION_APPROVAL_TTL_MS,
   accountTool,
@@ -10,7 +17,7 @@ import {
   type AccountActionStatus,
   type ToolItem,
 } from "@open-bot/domain";
-import { and, asc, eq, isNotNull, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
 import { enqueueRun } from "../runs/queue";
 import { appendRunEvent } from "../runs/events";
@@ -102,6 +109,36 @@ function followUp(row: ActionRow): string {
  * the provider, never blindly sent again. Integrations only supply how to run and look up their
  * own actions.
  */
+/**
+ * Actions still waiting on a connection that changed or went away never run, and their approval
+ * cards close. Call `AccountActions.kick()` after the transaction, so their runs hear about it.
+ */
+export async function cancelConnectionActions(
+  db: Queryable,
+  connectionId: string,
+  reason: string,
+): Promise<number> {
+  const cancelled = await db
+    .update(accountActions)
+    .set({ status: "cancelled", error: reason, finishedAt: new Date() })
+    .where(
+      and(
+        eq(accountActions.connectionId, connectionId),
+        inArray(accountActions.status, ["pending", "approved"]),
+      ),
+    )
+    .returning({ approvalId: accountActions.approvalId });
+  const approvalIds = cancelled
+    .map((row) => row.approvalId)
+    .filter((id): id is string => Boolean(id));
+  if (approvalIds.length)
+    await db
+      .update(approvals)
+      .set({ status: "expired", decidedAt: new Date() })
+      .where(and(inArray(approvals.id, approvalIds), eq(approvals.status, "pending")));
+  return cancelled.length;
+}
+
 export class AccountActions {
   /** Teammates waiting on an action's outcome, by action id. */
   private readonly waiters = new Map<

@@ -719,7 +719,8 @@ describe.skipIf(!url)("API reads, end to end", () => {
     await api.vault.remove({ itemId: id });
   });
 
-  it("saves an MCP server, keeps its headers when they're left empty, and names copies apart", async () => {
+  it("passes connection changes to the worker, which owns them, and its refusals through", async () => {
+    const connectionId = randomUUID();
     const server = {
       id: null,
       label: "Linear",
@@ -730,43 +731,66 @@ describe.skipIf(!url)("API reads, end to end", () => {
       secrets: "Authorization: Bearer abc",
       teammateIds: null,
     };
-    const { id } = await api.connections.save(server);
-    await api.connections.save({ ...server, id, label: "Linear (work)", secrets: "" });
-    const saved = (await api.connections.list()).find((c) => c.id === id);
-    expect(saved).toMatchObject({
-      label: "Linear (work)",
-      name: "linear",
-      secretNames: ["Authorization"],
-    });
-    expect(JSON.stringify(saved)).not.toContain("Bearer abc");
-
-    // Names are unique. Three saves at once, each held before it adds its row (they may still
-    // read), each get their own.
-    const copies = await racedWhileLocked({ sql: "lock table connections in exclusive mode" }, () =>
-      [1, 2, 3].map(() => api.connections.save(server)),
-    );
-    const names = (await api.connections.list())
-      .filter((c) => copies.some((copy) => copy.id === c.id))
-      .map((c) => c.name)
-      .sort();
-    expect(names).toEqual(["linear_2", "linear_3", "linear_4"]);
-
-    await expect(
-      api.connections.save({ ...server, url: "", transport: "stdio", command: "" }),
-    ).rejects.toMatchObject({
-      code: "BAD_REQUEST",
-      message: "Give the command the computer runs.",
-    });
-    await api.connections.setEnabled({ connectionId: id, enabled: false });
-    expect((await api.connections.list()).find((c) => c.id === id)?.enabled).toBe(false);
-    await expect(
-      api.connections.setEnabled({ connectionId: randomUUID(), enabled: true }),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
-    for (const connection of [{ id }, ...copies])
-      expect(await api.connections.remove({ connectionId: connection.id })).toEqual({
-        warning: null,
+    const change = {
+      connectionId,
+      capabilities: ["read"],
+      teammateIds: [ids.teammate],
+      askBeforeActing: true,
+    };
+    const calls: [string, () => Promise<unknown>, unknown, { status: number; body: unknown }][] = [
+      [
+        "/internal/connections",
+        () => api.connections.save(server),
+        server,
+        { status: 200, body: { id: connectionId } },
+      ],
+      [
+        `/internal/connections/${connectionId}/enabled`,
+        () => api.connections.setEnabled({ connectionId, enabled: false }),
+        { enabled: false },
+        { status: 200, body: { ok: true } },
+      ],
+      [
+        `/internal/connections/${connectionId}/delete`,
+        () => api.connections.remove({ connectionId }),
+        {},
+        { status: 200, body: { warning: "Google couldn't be reached." } },
+      ],
+      [
+        `/internal/connections/${connectionId}/account`,
+        () => api.accounts.update(change),
+        { capabilities: ["read"], teammateIds: [ids.teammate], askBeforeActing: true },
+        { status: 200, body: { needsConsent: true } },
+      ],
+    ];
+    for (const [path, , , answer] of calls) answers.set(path, answer);
+    try {
+      for (const [path, call, body, answer] of calls) {
+        expect(await call()).toEqual(answer.body);
+        expect(workerBodies.findLast((b) => b.path === path)?.body ?? {}).toMatchObject(
+          body as object,
+        );
+      }
+      answers.set("/internal/connections", {
+        status: 400,
+        body: { error: "Give the command the computer runs.", code: "BAD_REQUEST" },
       });
-    expect((await api.connections.list()).map((c) => c.label)).toEqual(["Docs"]);
+      answers.set(`/internal/connections/${connectionId}/enabled`, {
+        status: 404,
+        body: { error: "That connection is gone.", code: "NOT_FOUND" },
+      });
+      await expect(
+        api.connections.save({ ...server, transport: "stdio", command: "" }),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: "Give the command the computer runs.",
+      });
+      await expect(
+        api.connections.setEnabled({ connectionId, enabled: true }),
+      ).rejects.toMatchObject({ code: "NOT_FOUND", message: "That connection is gone." });
+    } finally {
+      for (const [path] of calls) answers.delete(path);
+    }
   });
 
   it("tests a connection from the computer, through the worker", async () => {
@@ -826,49 +850,6 @@ describe.skipIf(!url)("API reads, end to end", () => {
       .select({ sessionId: s.oauthStates.sessionId })
       .from(s.oauthStates);
     expect(states).toEqual([{ sessionId: "session-1" }]);
-    await expect(
-      api.accounts.update({
-        connectionId: randomUUID(),
-        capabilities: [],
-        teammateIds: null,
-        askBeforeActing: true,
-      }),
-    ).rejects.toMatchObject({ code: "NOT_FOUND", message: "That connection is gone." });
-
-    // An account's connection isn't an MCP server to save over.
-    const [client] = await database.db.select({ id: s.oauthClients.id }).from(s.oauthClients);
-    const [account] = await database.db
-      .insert(s.accounts)
-      .values({
-        provider: "google",
-        externalId: "google-sub-1",
-        oauthClientId: client!.id,
-        display: "alex@example.test",
-        encrypted: "not-read-here",
-      })
-      .returning();
-    const [gmail] = await database.db
-      .insert(s.connections)
-      .values({ label: "Gmail", name: "gmail", kind: "gmail", accountId: account!.id })
-      .returning();
-    await expect(
-      api.connections.save({
-        id: gmail!.id,
-        label: "Gmail",
-        transport: "http",
-        url: "https://mcp.example.test/mcp",
-        command: "",
-        args: "",
-        secrets: "",
-        teammateIds: null,
-      }),
-    ).rejects.toMatchObject({
-      code: "BAD_REQUEST",
-      message: "That's an account, not an MCP server.",
-    });
-    const { eq } = await import("drizzle-orm");
-    await database.db.delete(s.connections).where(eq(s.connections.id, gmail!.id));
-    await database.db.delete(s.accounts).where(eq(s.accounts.id, account!.id));
   });
 
   it("passes settings and email changes to the worker, which owns them, and its refusals through", async () => {

@@ -29,7 +29,13 @@ import {
   sendMessageInputSchema,
 } from "../contract";
 import { egressModeSchema, phoneEgressModeSchema, unavailableReasonSchema } from "../egress";
-import { emailSettingsInputSchema, emailStatusViewSchema } from "../integrations";
+import {
+  accountConnectInputSchema,
+  accountConnectionChangesSchema,
+  connectionInputSchema,
+  emailSettingsInputSchema,
+  emailStatusViewSchema,
+} from "../integrations";
 import { apiKeyInputSchema, monthlyCapInputSchema } from "../settings";
 import { budgetInputSchema } from "../teammates";
 import { taskChangesSchema, taskInputSchema } from "../tasks";
@@ -498,6 +504,38 @@ export const workerContract = {
       .output(ok),
   },
   connections: {
+    /** Save an MCP server: a new one, or with `id`, a change to one. */
+    save: base
+      .route({ method: "POST", path: "/internal/connections" })
+      .input(connectionInputSchema)
+      .output(z.object({ id: z.string() })),
+    /** Turn a connection on or off. Turning an account off cancels what waits on it. */
+    setEnabled: base
+      .route({ method: "POST", path: "/internal/connections/{connectionId}/enabled" })
+      .input(z.object({ connectionId: id, enabled: z.boolean() }))
+      .output(ok),
+    /** Remove a connection; the last one using an account revokes it at the provider. */
+    remove: base
+      .route({ method: "POST", path: "/internal/connections/{connectionId}/delete" })
+      .input(z.object({ connectionId: id }))
+      .output(z.object({ warning: z.string().nullable() })),
+    /** Change what an account connection allows, who uses it and how it asks. */
+    updateAccount: base
+      .route({ method: "POST", path: "/internal/connections/{connectionId}/account" })
+      .input(accountConnectionChangesSchema)
+      .output(z.object({ needsConsent: z.boolean() })),
+    /**
+     * You signed in to an account (the web app saved its grant): its connection of `kind`, made or
+     * changed to what you picked. `grantChanged` cancels what waits on the account's connections.
+     */
+    linkAccount: base
+      .route({ method: "POST", path: "/internal/accounts/{accountId}/linked" })
+      .input(
+        accountConnectInputSchema
+          .pick({ kind: true, capabilities: true, teammateIds: true })
+          .extend({ accountId: id, grantChanged: z.boolean() }),
+      )
+      .output(z.object({ connectionId: z.string() })),
     /** Connect to an MCP server or account from the computer and list its tools. */
     test: computer
       .route({ method: "POST", path: "/internal/connections/{connectionId}/test" })
@@ -627,6 +665,35 @@ export const workerContract = {
     deviceRevoked: base
       .route({ method: "POST", path: "/internal/egress/devices/{deviceId}/revoked" })
       .input(z.object({ deviceId: id, generation: z.number().int().nonnegative() }))
+      .output(ok),
+    /**
+     * Pair a phone, or pair it again with a new secret and generation. The secret is in the answer
+     * once; only its hash is kept.
+     */
+    pairDevice: base
+      .route({ method: "POST", path: "/internal/egress/devices/{deviceId}/pair" })
+      .input(
+        z.object({
+          deviceId: id,
+          name: z.string().trim().min(1).max(80),
+          pushToken: z.string().min(1).max(4096).nullable(),
+        }),
+      )
+      .output(z.object({ secret: z.string(), generation: z.number().int().positive() })),
+    /** Unpair a phone; with `generation`, only that pairing. */
+    unpairDevice: base
+      .route({ method: "POST", path: "/internal/egress/devices/{deviceId}/unpair" })
+      .input(z.object({ deviceId: id, generation: z.number().int().positive().optional() }))
+      .output(ok),
+    /** A paired phone's new FCM token, to wake it with. */
+    devicePushToken: base
+      .route({ method: "POST", path: "/internal/egress/devices/{deviceId}/push-token" })
+      .input(z.object({ deviceId: id, token: z.string().min(1).max(4096) }))
+      .output(ok),
+    /** A paired phone asked to open the tunnel. */
+    deviceUsed: base
+      .route({ method: "POST", path: "/internal/egress/devices/{deviceId}/used" })
+      .input(z.object({ deviceId: id }))
       .output(ok),
   },
 };
