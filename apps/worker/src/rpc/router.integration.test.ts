@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import type http from "node:http";
 import type { AddressInfo } from "node:net";
@@ -7,9 +8,12 @@ import {
   approvalRules,
   approvals,
   bots as teammateRows, // vocabulary: allow
+  chatMembers,
   chats,
   instructionProposals,
   lessons,
+  memoryItems,
+  messages,
   runs,
   schedules as scheduleRows,
   settings,
@@ -25,6 +29,8 @@ import type { Context } from "../context";
 import { createHttpServer, type HttpDeps } from "../http";
 import { ApprovalService } from "../services/approvals";
 import { BotService } from "../services/bots";
+import { ChatService, REUSED_ID } from "../services/chats";
+import { RunRequests } from "../runs/requests";
 import { CodexAccountService } from "../services/codex-account";
 import { FileService } from "../services/files";
 import { PushService } from "../services/push";
@@ -110,6 +116,12 @@ describe.skipIf(!url)("worker internal API, end to end", () => {
   const sync = vi.fn(async () => {});
   const memory = new MemoryService(pool);
   const teammates = new BotService(ctx, schedules, skills, memory, sync);
+  const executor = {
+    dispatchMessage: vi.fn(async (_messageId: string) => {}),
+    processCancellations: vi.fn(async () => {}),
+    syncWorkspace: vi.fn(async () => {}),
+  };
+  const chatService = new ChatService(ctx, (messageId) => executor.dispatchMessage(messageId));
   const operation = {
     id: ID,
     takeoverId: ID,
@@ -120,11 +132,9 @@ describe.skipIf(!url)("worker internal API, end to end", () => {
   const services = {
     ctx,
     teammates,
-    executor: {
-      dispatchMessage: vi.fn(async () => {}),
-      processCancellations: vi.fn(async () => {}),
-      syncWorkspace: vi.fn(async () => {}),
-    },
+    chats: chatService,
+    runRequests: new RunRequests(ctx, chatService, memory, () => executor.processCancellations()),
+    executor,
     retries: new RetryService(ctx),
     approvals: new ApprovalService(ctx, new SessionRegistry()),
     takeovers: { dismiss: vi.fn(async () => {}) },
@@ -459,6 +469,156 @@ describe.skipIf(!url)("worker internal API, end to end", () => {
     expect(services.egress.setMode).toHaveBeenLastCalledWith("prefer");
     expect(await failure(worker.egress.setMode({ mode: "sometimes" as "off" }))).toMatchObject({
       status: 400,
+    });
+  });
+
+  describe("chat and run writes", () => {
+    it("starts direct and group chats, and renames, reads and archives them", async () => {
+      const ada = await newTeammate("Ada", "researcher");
+      const bea = await newTeammate("Bea", "writer");
+      const { chatId } = await worker.chats.newDirect({ teammateId: ada.id });
+      const [direct] = await db.select().from(chats).where(eq(chats.id, chatId));
+      expect(direct).toMatchObject({ kind: "direct", title: "Ada", titled: false });
+      expect(await failure(worker.chats.newDirect({ teammateId: ID }))).toEqual({
+        status: 404,
+        message: "That teammate no longer exists.",
+      });
+
+      const group = await worker.chats.createGroup({
+        title: "Launch",
+        teammateIds: [ada.id, bea.id, ada.id],
+      });
+      const members = await db
+        .select({ teammateId: chatMembers.botId }) // vocabulary: allow
+        .from(chatMembers)
+        .where(eq(chatMembers.chatId, group.chatId));
+      expect(members.map((m) => m.teammateId).sort()).toEqual([ada.id, bea.id].sort());
+      expect(
+        await failure(worker.chats.createGroup({ title: "Solo", teammateIds: [ada.id, ada.id] })),
+      ).toEqual({ status: 400, message: "Pick at least two teammates." });
+      expect(
+        await failure(worker.chats.createGroup({ title: "Ghost", teammateIds: [ada.id, ID] })),
+      ).toEqual({ status: 404, message: "One of those teammates no longer exists." });
+
+      await worker.chats.rename({ chatId, title: "Research" });
+      await worker.chats.markRead({ chatId });
+      await worker.chats.archive({ chatId });
+      const [changed] = await db.select().from(chats).where(eq(chats.id, chatId));
+      expect(changed).toMatchObject({ title: "Research", titled: true });
+      expect(changed!.readAt.getTime()).toBeGreaterThan(direct!.readAt.getTime());
+      expect(changed!.archivedAt).not.toBeNull();
+      for (const call of [
+        () => worker.chats.rename({ chatId: ID, title: "Gone" }),
+        () => worker.chats.markRead({ chatId: ID }),
+        () => worker.chats.archive({ chatId: ID }),
+      ])
+        expect(await failure(call())).toEqual({
+          status: 404,
+          message: "That chat no longer exists.",
+        });
+    });
+
+    it("saves a sent message once, delivers it, and refuses a reused id or a file not uploaded", async () => {
+      const { chatId } = await newTeammate("Cy", "analyst");
+      const send = { clientId: randomUUID(), chatId, text: " Hi ", attachments: [], mentions: [] };
+      const sent = await worker.chats.send(send);
+      expect(sent).toMatchObject({ role: "user", text: "Hi", redoOfRunId: null });
+      expect(executor.dispatchMessage).toHaveBeenLastCalledWith(sent.id);
+      // A retry gets the same message, and asks for delivery again.
+      executor.dispatchMessage.mockClear();
+      expect((await worker.chats.send(send)).id).toBe(sent.id);
+      expect(executor.dispatchMessage).toHaveBeenCalledWith(sent.id);
+      expect(await db.select().from(messages).where(eq(messages.chatId, chatId))).toHaveLength(1);
+      expect(await failure(worker.chats.send({ ...send, text: "Other" }))).toEqual({
+        status: 409,
+        message: REUSED_ID,
+      });
+      // Saving is what counts: a delivery that fails is left to the reconciler.
+      executor.dispatchMessage.mockRejectedValueOnce(new Error("busy"));
+      const later = await worker.chats.send({ ...send, clientId: randomUUID(), text: "Later" });
+      expect(later.text).toBe("Later");
+      expect(ctx.log.warn).toHaveBeenCalledWith(
+        "dispatch deferred to the reconciler",
+        expect.objectContaining({ messageId: later.id }),
+      );
+
+      const fresh = { ...send, clientId: randomUUID() };
+      expect(await failure(worker.chats.send({ ...fresh, text: " " }))).toEqual({
+        status: 400,
+        message: "Write a message first.",
+      });
+      expect(await failure(worker.chats.send({ ...fresh, chatId: ID }))).toEqual({
+        status: 404,
+        message: "That chat no longer exists.",
+      });
+      const attachment = {
+        path: "/home/bot/uploads/never/notes.txt",
+        name: "notes.txt",
+        mime: "text/plain",
+        size: 3,
+      };
+      expect(await failure(worker.chats.send({ ...fresh, attachments: [attachment] }))).toEqual({
+        status: 400,
+        message: "notes.txt didn't finish uploading. Attach it again.",
+      });
+      expect(await db.select().from(messages).where(eq(messages.clientId, fresh.clientId))).toEqual(
+        [],
+      );
+    });
+
+    it("stops and rates a run, and takes feedback once per redo id", async () => {
+      const { created, run } = await teammateWithRun();
+      await worker.runs.stop({ runId: run.id });
+      const stopped = async () => (await db.select().from(runs).where(eq(runs.id, run.id)))[0]!;
+      expect((await stopped()).cancelRequestedAt).not.toBeNull();
+      expect(executor.processCancellations).toHaveBeenCalled();
+      await worker.runs.rate({ runId: run.id, rating: "up" });
+      expect((await stopped()).rating).toBe("up");
+      for (const call of [
+        () => worker.runs.stop({ runId: ID }),
+        () => worker.runs.rate({ runId: ID, rating: null }),
+        () => worker.runs.feedback({ runId: ID, text: "No", remember: false, redo: null }),
+      ])
+        expect(await failure(call())).toEqual({ status: 404, message: "That reply is gone." });
+
+      await worker.runs.feedback({
+        runId: run.id,
+        text: "Cite sources.",
+        remember: true,
+        redo: null,
+      });
+      expect((await stopped()).rating).toBe("down");
+      const kept = await db
+        .select({ content: memoryItems.content })
+        .from(memoryItems)
+        .where(and(eq(memoryItems.botId, created.id), eq(memoryItems.kind, "lesson"))); // vocabulary: allow
+      expect(kept).toEqual([{ content: "Cite sources." }]);
+
+      await worker.runs.rate({ runId: run.id, rating: null });
+      const redo = { clientId: randomUUID() };
+      const feedback = { runId: run.id, text: "Shorter.", remember: false, redo };
+      await worker.runs.feedback(feedback);
+      const [message] = await db
+        .select()
+        .from(messages)
+        .where(eq(messages.clientId, redo.clientId));
+      expect(message).toMatchObject({
+        chatId: created.chatId,
+        text: "Shorter.",
+        redoOfRunId: run.id,
+        feedbackRequest: { text: "Shorter.", remember: false },
+      });
+      expect((await stopped()).rating).toBe("down");
+      expect(executor.dispatchMessage).toHaveBeenLastCalledWith(message!.id);
+      // The same feedback again delivers the saved message; other feedback with its id is refused.
+      await worker.runs.feedback(feedback);
+      expect(await db.select().from(messages).where(eq(messages.redoOfRunId, run.id))).toHaveLength(
+        1,
+      );
+      expect(await failure(worker.runs.feedback({ ...feedback, text: "Longer." }))).toEqual({
+        status: 409,
+        message: REUSED_ID,
+      });
     });
   });
 

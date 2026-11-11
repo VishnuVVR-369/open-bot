@@ -69,29 +69,9 @@ export const TABLE_OWNERS = {
   tasks: { owner: `${WORKER}services/tasks.ts` },
 
   // Chats and the work done in them.
-  chats: {
-    owner: `${WORKER}services/chats.ts`,
-    moving: [
-      `${WEB}lib/server/api/chats.ts`,
-      `${WORKER}runs/executor.ts`,
-      `${WORKER}runs/session.ts`,
-      `${WORKER}services/bots.ts`,
-      `${WORKER}services/email.ts`,
-      `${WORKER}services/schedules.ts`,
-      `${WORKER}services/swarms.ts`,
-      `${WORKER}tools/handlers.ts`,
-    ],
-  },
-  chat_members: { owner: `${WORKER}services/chats.ts`, moving: [`${WEB}lib/server/api/chats.ts`] },
-  messages: {
-    owner: `${WORKER}services/chats.ts`,
-    moving: [
-      `${WEB}lib/server/api/chats.ts`,
-      `${WEB}lib/server/api/runs.ts`,
-      `${WORKER}runs/executor.ts`,
-      `${WORKER}services/telegram.ts`,
-    ],
-  },
+  chats: { owner: `${WORKER}services/chats.ts` },
+  chat_members: { owner: `${WORKER}services/chats.ts` },
+  messages: { owner: `${WORKER}services/chats.ts` },
   uploads: { owner: `${WORKER}uploads.ts` },
   runs: {
     owner: `${WORKER}runs/`,
@@ -99,9 +79,8 @@ export const TABLE_OWNERS = {
       ["cancel_requested_at"],
       "a memory change stops the turns that read the old memory, atomically with the change",
     ),
-    moving: [`${WEB}lib/server/api/runs.ts`, `${WORKER}context.ts`, `${WORKER}services/swarms.ts`],
   },
-  run_events: { owner: `${WORKER}runs/`, moving: [`${WORKER}context.ts`] },
+  run_events: { owner: `${WORKER}runs/` },
   bot_threads: { owner: `${WORKER}runs/` },
   message_dispatches: { owner: `${WORKER}runs/` },
   usage_entries: { owner: `${WORKER}runs/` },

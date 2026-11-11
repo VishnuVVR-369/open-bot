@@ -51,7 +51,7 @@ Every protected surface checks the session itself:
 It sends the shared `WORKER_SECRET` in an `x-worker-secret` header, times out after 30 seconds by default, and throws a `WorkerError` with the worker's status and message.
 If the worker can't be reached at all, the error is a 503 that says to start it.
 
-Message persistence and dispatch retries are described in [Saving the message](/docs/flows/chat-turn#saving-the-message), with the shared implementation in `src/lib/server/api/chats.ts`.
+Message persistence and dispatch retries are described in [Saving the message](/docs/flows/chat-turn#saving-the-message); the worker's chat service (`apps/worker/src/services/chats.ts`) saves every message.
 
 ## Live updates
 

@@ -1,7 +1,8 @@
 import { bots, runs } from "@open-bot/db";
 import { isRunActive } from "@open-bot/domain";
 import { and, asc, eq, gt, sql } from "drizzle-orm";
-import { enqueueRun, publishApp, type Context } from "../context";
+import { publishApp, type Context } from "../context";
+import { enqueueRun } from "../runs/queue";
 
 export class RetryError extends Error {
   constructor(

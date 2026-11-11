@@ -422,6 +422,99 @@ describe.skipIf(!url)("API reads, end to end", () => {
     }
   });
 
+  it("passes chat and run changes to the worker, and keeps a reused message id a CONFLICT", async () => {
+    const chatId = ids.chat;
+    const runId = randomUUID();
+    const teammateId = ids.teammate;
+    const message = {
+      id: randomUUID(),
+      role: "user",
+      text: "Hi",
+      attachments: [],
+      mentions: [],
+      steeredRunId: null,
+      redoOfRunId: null,
+      createdAt: new Date().toISOString(),
+    };
+    const send = { clientId: randomUUID(), chatId, text: "Hi", attachments: [], mentions: [] };
+    const feedback = { runId, text: "Shorter.", remember: true, redo: { clientId: randomUUID() } };
+    const ok = { status: 200, body: { ok: true } };
+    const created = { status: 200, body: { chatId } };
+    const calls: [string, () => Promise<unknown>, unknown, { status: number; body: unknown }][] = [
+      [
+        "/internal/chats/direct",
+        () => api.chats.newDirect({ botId: teammateId }),
+        { teammateId },
+        created,
+      ],
+      [
+        "/internal/chats/group",
+        () => api.chats.createGroup({ title: "Launch", botIds: [teammateId, runId] }),
+        { title: "Launch", teammateIds: [teammateId, runId] },
+        created,
+      ],
+      [
+        `/internal/chats/${chatId}/rename`,
+        () => api.chats.rename({ chatId, title: "R" }),
+        { title: "R" },
+        ok,
+      ],
+      [`/internal/chats/${chatId}/archive`, () => api.chats.archive({ chatId }), {}, ok],
+      [`/internal/chats/${chatId}/read`, () => api.chats.markRead({ chatId }), {}, ok],
+      [
+        `/internal/chats/${chatId}/messages`,
+        () => api.chats.send(send),
+        { clientId: send.clientId, text: "Hi", attachments: [], mentions: [] },
+        { status: 200, body: message },
+      ],
+      [`/internal/runs/${runId}/stop`, () => api.runs.cancel({ runId }), {}, ok],
+      [
+        `/internal/runs/${runId}/rate`,
+        () => api.runs.rate({ runId, rating: "up" }),
+        { rating: "up" },
+        ok,
+      ],
+      [
+        `/internal/runs/${runId}/feedback`,
+        () => api.runs.feedback(feedback),
+        { text: feedback.text, remember: true, redo: feedback.redo },
+        ok,
+      ],
+    ];
+    for (const [path, , , answer] of calls) answers.set(path, answer);
+    try {
+      for (const [path, call, body] of calls) {
+        await call();
+        expect(workerBodies.findLast((b) => b.path === path)?.body ?? {}).toMatchObject(
+          body as object,
+        );
+      }
+      expect(await api.chats.send(send)).toEqual(message);
+      // A reused id is the contract's CONFLICT, which the composer tells apart from a stale edit.
+      const reused = {
+        status: 409,
+        body: { error: "That message id was already used for another message.", code: "CONFLICT" },
+      };
+      answers.set(`/internal/chats/${chatId}/messages`, reused);
+      answers.set(`/internal/runs/${runId}/feedback`, reused);
+      for (const call of [() => api.chats.send(send), () => api.runs.feedback(feedback)])
+        await expect(call()).rejects.toMatchObject({
+          code: "CONFLICT",
+          message: "That message id was already used for another message.",
+        });
+      answers.set(`/internal/runs/${runId}/stop`, {
+        status: 404,
+        body: { error: "That reply is gone.", code: "NOT_FOUND" },
+      });
+      await expect(api.runs.cancel({ runId })).rejects.toMatchObject({
+        code: "NOT_FOUND",
+        message: "That reply is gone.",
+      });
+    } finally {
+      for (const [path] of calls) answers.delete(path);
+    }
+  });
+
   it("turns a daily check-in on in the owner's time zone, and resumes it rather than adding one", async () => {
     const s = await import("@open-bot/db");
     const checkIn = randomUUID();

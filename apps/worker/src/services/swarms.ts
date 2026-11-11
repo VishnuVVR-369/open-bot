@@ -1,7 +1,11 @@
-import { chats, runs, swarms, swarmTasks, type SwarmTaskStatus } from "@open-bot/db";
+import { runs, swarms, swarmTasks, type SwarmTaskStatus } from "@open-bot/db";
 import { MAX_SWARM_TASKS, type SwarmItem } from "@open-bot/domain";
 import { and, asc, eq, inArray } from "drizzle-orm";
-import { appendRunEvent, enqueueRun, publishApp, signalWorker, type Context } from "../context";
+import { publishApp, signalWorker, type Context } from "../context";
+import { enqueueRun } from "../runs/queue";
+import { appendRunEvent } from "../runs/events";
+import { requestRunsCancel } from "../runs/cancel";
+import { addChat } from "./chats";
 import { errorMessage } from "../logger";
 import type { RunSession } from "../runs/session";
 import type { SessionRegistry } from "./registry";
@@ -98,13 +102,14 @@ export class SwarmService {
         .returning();
       const tasks: Task[] = [];
       for (const [position, part] of parts.entries()) {
-        const [chat] = await tx
-          .insert(chats)
-          .values({ kind: "helper", title: part.title, botId: session.bot.id })
-          .returning({ id: chats.id });
+        const chatId = await addChat(tx, {
+          kind: "helper",
+          title: part.title,
+          botId: session.bot.id,
+        });
         const [task] = await tx
           .insert(swarmTasks)
-          .values({ swarmId: swarm!.id, position, ...part, chatId: chat!.id })
+          .values({ swarmId: swarm!.id, position, ...part, chatId })
           .returning();
         tasks.push(task!);
       }
@@ -215,10 +220,7 @@ export class SwarmService {
       .returning();
     const runIds = open.flatMap((task) => (task.runId ? [task.runId] : []));
     if (runIds.length) {
-      await this.ctx.db
-        .update(runs)
-        .set({ cancelRequestedAt: new Date() })
-        .where(inArray(runs.id, runIds));
+      await requestRunsCancel(this.ctx.db, runIds);
       await signalWorker(this.ctx, "cancel");
     }
     for (const task of open) await this.forgetScreen(task.id);

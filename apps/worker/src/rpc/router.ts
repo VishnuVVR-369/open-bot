@@ -23,6 +23,8 @@ import type { SkillService } from "../services/skills";
 import type { SwarmService } from "../services/swarms";
 import type { TakeoverService } from "../services/takeovers";
 import type { TaskService } from "../services/tasks";
+import type { ChatService } from "../services/chats";
+import type { RunRequests } from "../runs/requests";
 import type { TelegramService } from "../services/telegram";
 import type { TriggerService } from "../services/triggers";
 import { rpcError } from "./errors";
@@ -31,6 +33,8 @@ import { rpcError } from "./errors";
 export interface WorkerServices {
   ctx: Context;
   teammates: BotService;
+  chats: ChatService;
+  runRequests: RunRequests;
   executor: RunExecutor;
   retries: RetryService;
   approvals: ApprovalService;
@@ -127,6 +131,25 @@ export function createWorkerRouter(services: WorkerServices) {
         return ok;
       }),
     },
+    chats: {
+      newDirect: os.chats.newDirect.handler(({ input }) => s.chats.newDirect(input.teammateId)),
+      createGroup: os.chats.createGroup.handler(({ input }) =>
+        s.chats.createGroup(input.title, input.teammateIds),
+      ),
+      rename: os.chats.rename.handler(async ({ input }) => {
+        await s.chats.rename(input.chatId, input.title);
+        return ok;
+      }),
+      archive: os.chats.archive.handler(async ({ input }) => {
+        await s.chats.archive(input.chatId);
+        return ok;
+      }),
+      markRead: os.chats.markRead.handler(async ({ input }) => {
+        await s.chats.markRead(input.chatId);
+        return ok;
+      }),
+      send: os.chats.send.handler(({ input }) => s.chats.send(input)),
+    },
     messages: {
       dispatch: os.messages.dispatch.handler(async ({ input }) => {
         await s.executor.dispatchMessage(input.messageId);
@@ -137,6 +160,18 @@ export function createWorkerRouter(services: WorkerServices) {
       retry: os.runs.retry.handler(({ input }) => s.retries.retry(input.runId)),
       processCancellations: os.runs.processCancellations.handler(async () => {
         await s.executor.processCancellations();
+        return ok;
+      }),
+      stop: os.runs.stop.handler(async ({ input }) => {
+        await s.runRequests.stop(input.runId);
+        return ok;
+      }),
+      rate: os.runs.rate.handler(async ({ input }) => {
+        await s.runRequests.rate(input.runId, input.rating);
+        return ok;
+      }),
+      feedback: os.runs.feedback.handler(async ({ input }) => {
+        await s.runRequests.feedback(input);
         return ok;
       }),
     },

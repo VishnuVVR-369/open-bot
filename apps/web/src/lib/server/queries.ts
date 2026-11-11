@@ -63,7 +63,7 @@ import {
   ne,
   sql,
 } from "drizzle-orm";
-import { OFFLINE_EGRESS_STATUS, type EgressStatusView } from "@open-bot/api";
+import { OFFLINE_EGRESS_STATUS, toMessageView, type EgressStatusView } from "@open-bot/api";
 import type { Attention } from "@open-bot/api";
 import type {
   ActivityView,
@@ -96,7 +96,7 @@ import type {
   UsageView,
   VaultItemView,
 } from "../types";
-import { toApprovalView, toMessageView } from "./views";
+import { toApprovalView } from "./views";
 import { accountRedirectUri, accountStore } from "./accounts";
 import { db } from "./db";
 import type { WorkerStatus } from "@open-bot/api/worker";

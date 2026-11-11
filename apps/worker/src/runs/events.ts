@@ -1,6 +1,18 @@
 import { CHANNELS, notify, runEvents, type Db } from "@open-bot/db";
 import type { RunEventPayload } from "@open-bot/domain";
 import type pg from "pg";
+import type { Context } from "../context";
+
+/** Append an event to a run that may not be executing anymore (for example a late approval decision). */
+export async function appendRunEvent(
+  ctx: Pick<Context, "db" | "pool">,
+  runId: string,
+  chatId: string,
+  payload: RunEventPayload,
+): Promise<void> {
+  await ctx.db.insert(runEvents).values({ runId, chatId, payload });
+  await notify(ctx.pool, CHANNELS.chat, chatId);
+}
 
 const DELTA_FLUSH_MS = 120;
 

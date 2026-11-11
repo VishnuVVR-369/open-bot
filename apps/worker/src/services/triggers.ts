@@ -25,9 +25,10 @@ import {
   type TriggerKind,
 } from "@open-bot/domain";
 import { and, count, eq, gte, lte } from "drizzle-orm";
-import { enqueueRun, publishApp, type Context } from "../context";
+import { publishApp, type Context } from "../context";
+import { enqueueRun } from "../runs/queue";
 import { errorMessage } from "../logger";
-import { scheduledChatFor } from "./schedules";
+import { teammateChat } from "./chats";
 
 export type Trigger = typeof triggers.$inferSelect;
 
@@ -573,7 +574,7 @@ export class TriggerService {
       .from(bots)
       .where(eq(bots.id, row.botId));
     if (!bot || bot.archivedAt) return null;
-    const chatId = await scheduledChatFor(this.ctx, row.botId);
+    const chatId = await teammateChat(this.ctx, row.botId, "scheduled");
     await this.ctx.db
       .update(triggers)
       .set({ lastFiredAt: new Date() })

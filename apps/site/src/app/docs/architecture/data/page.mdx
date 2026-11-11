@@ -233,7 +233,7 @@ The local Compose file uses the `pgvector/pgvector:pg17` image.
 ## The run queue
 
 A queued run is a row in `runs` with `status = 'queued'`.
-Anything that wants a teammate to work calls `enqueueRun()` (`apps/worker/src/context.ts`), which:
+Anything that wants a teammate to work calls `enqueueRun()` (`apps/worker/src/runs/queue.ts`), which:
 
 1. inserts the run with its trigger, prompt and links (the message, schedule, trigger or parent run that caused it);
 2. appends a first `status: queued` event, so the chat shows it right away;

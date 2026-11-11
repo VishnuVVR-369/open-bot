@@ -109,6 +109,18 @@ export const sendMessageInputSchema = z.object({
   mentions: z.array(id).max(20),
 });
 
+export type SendMessageInput = z.infer<typeof sendMessageInputSchema>;
+
+export const chatTitleSchema = z.string().trim().min(1, "Name the chat.").max(60);
+
+/** The teammates in a new group chat. */
+export const groupTeammatesSchema = z
+  .array(id)
+  .min(2, "Pick at least two teammates.")
+  .max(MAX_GROUP_TEAMMATES, `A group can have up to ${MAX_GROUP_TEAMMATES} teammates.`);
+
+export const runRatingSchema = z.enum(["up", "down"]).nullable();
+
 export const decideApprovalInputSchema = z.object({
   approvalId: id,
   decision: z.enum(["approved", "denied"]),
@@ -448,23 +460,18 @@ export const contract = {
       .input(
         z.object({
           title: z.string().trim().min(1, "Name the group.").max(60),
-          botIds: z
-            .array(id)
-            .min(2, "Pick at least two teammates.")
-            .max(MAX_GROUP_TEAMMATES, `A group can have up to ${MAX_GROUP_TEAMMATES} teammates.`),
+          botIds: groupTeammatesSchema,
         }),
       )
       .output(z.object({ chatId: z.string() })),
-    rename: base
-      .input(z.object({ chatId: id, title: z.string().trim().min(1, "Name the chat.").max(60) }))
-      .output(ok),
+    rename: base.input(z.object({ chatId: id, title: chatTitleSchema })).output(ok),
     /** Hide a chat from your lists. Its history stays. */
     archive: base.input(z.object({ chatId: id })).output(ok),
     /** You've seen what's in the chat, so it isn't unread on any device. */
     markRead: base.input(z.object({ chatId: id })).output(ok),
     /**
      * Send a message. It's saved before anything else, and the teammates it's for get it exactly
-     * once, even if the worker is down right now (it's delivered when the worker is back).
+     * once. Sending again with the same `clientId` is safe.
      */
     send: base.input(sendMessageInputSchema).output(messageViewSchema),
   },
@@ -477,7 +484,7 @@ export const contract = {
     /** Stop a teammate's running (or queued) turn. */
     cancel: base.input(z.object({ runId: id })).output(ok),
     /** Thumbs up or down on a reply, or neither. */
-    rate: base.input(z.object({ runId: id, rating: z.enum(["up", "down"]).nullable() })).output(ok),
+    rate: base.input(z.object({ runId: id, rating: runRatingSchema })).output(ok),
     /** A thumbs down with what to change; see `feedbackInputSchema`. */
     feedback: base.input(feedbackInputSchema).output(ok),
   },

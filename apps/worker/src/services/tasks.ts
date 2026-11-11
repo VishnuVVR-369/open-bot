@@ -1,6 +1,7 @@
 import { bots, chats, tasks, type TaskStatus } from "@open-bot/db";
 import { and, asc, desc, eq, isNull, max, ne } from "drizzle-orm";
-import { enqueueRun, publishApp, type Context } from "../context";
+import { publishApp, type Context } from "../context";
+import { enqueueRun } from "../runs/queue";
 
 export class TaskError extends Error {}
 

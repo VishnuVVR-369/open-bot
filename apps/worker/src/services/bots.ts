@@ -41,6 +41,7 @@ import { errorMessage } from "../logger";
 import type { Bot } from "../runs/session";
 import { requestTeammateRunsCancel } from "../runs/cancel";
 import { addApprovalRules } from "./approvals";
+import { addChat, archiveChatsOf, renameDirectChats } from "./chats";
 import { addPausedRoutines, copyUpcomingReminders, pauseSchedulesOf } from "./schedules";
 import type { ScheduleService } from "./schedules";
 import { addTeammateSkills } from "./skills";
@@ -267,11 +268,8 @@ export class BotService {
         .insert(bots)
         .values({ ...profile, slug, isPrimary: first })
         .returning();
-      const [chat] = await tx
-        .insert(chats)
-        .values({ kind: "direct", title: profile.name, botId: bot!.id })
-        .returning({ id: chats.id });
-      return { bot: bot!, chatId: chat!.id };
+      const chatId = await addChat(tx, { kind: "direct", title: profile.name, botId: bot!.id });
+      return { bot: bot!, chatId };
     });
     const botId = created.bot.id;
     const failed: CreatedBot["failed"] = [];
@@ -333,12 +331,7 @@ export class BotService {
           "This teammate was changed since it was loaded. Reload it and try again.",
         );
       const [bot] = await tx.update(bots).set(patch).where(eq(bots.id, id)).returning();
-      if (patch.name !== undefined)
-        await tx
-          .update(chats)
-          .set({ title: patch.name })
-          // Only chats still named after them; a chat with a real title keeps it.
-          .where(and(eq(chats.botId, id), eq(chats.kind, "direct"), eq(chats.titled, false)));
+      if (patch.name !== undefined) await renameDirectChats(tx, id, patch.name);
       return bot!;
     });
     const workspaceSynced = await this.sync(updated);
@@ -434,18 +427,15 @@ export class BotService {
         .insert(teammates)
         .values({ ...profile, slug, isPrimary: first })
         .returning();
-      const [chat] = await tx
-        .insert(chats)
-        .values({ kind: "direct", title: profile.name, botId: teammate!.id })
-        .returning({ id: chats.id });
       const id = teammate!.id;
+      const chatId = await addChat(tx, { kind: "direct", title: profile.name, botId: id });
       await addTeammateSkills(tx, id, parts.skills);
       await addPausedRoutines(tx, id, parts.routines, timezone);
       await addPausedWatches(tx, id, parts.watches);
       await addApprovalRules(tx, id, parts.allowed);
       if (copiedFrom) await copyUpcomingReminders(tx, copiedFrom, id);
       await this.memory.addLessons(id, parts.lessons, client);
-      return { teammate: teammate!, chatId: chat!.id };
+      return { teammate: teammate!, chatId };
     });
   }
 
@@ -536,10 +526,7 @@ export class BotService {
         .update(teammates)
         .set({ archivedAt: now, isPrimary: false })
         .where(eq(teammates.id, id));
-      await tx
-        .update(chats)
-        .set({ archivedAt: now })
-        .where(and(eq(chats.botId, id), isNull(chats.archivedAt)));
+      await archiveChatsOf(tx, id, now);
       await pauseSchedulesOf(tx, id);
       await pauseTriggersOf(tx, id);
     });

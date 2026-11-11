@@ -82,6 +82,22 @@ export const messageViewSchema = z.object({
 });
 export type MessageView = z.infer<typeof messageViewSchema>;
 
+/** A saved message as the apps show it. */
+export function toMessageView(
+  row: Omit<MessageView, "createdAt"> & { createdAt: Date },
+): MessageView {
+  return {
+    id: row.id,
+    role: row.role,
+    text: row.text,
+    attachments: row.attachments,
+    mentions: row.mentions,
+    steeredRunId: row.steeredRunId,
+    redoOfRunId: row.redoOfRunId,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
 export const runTriggerSchema = z.enum([
   "user",
   "schedule",

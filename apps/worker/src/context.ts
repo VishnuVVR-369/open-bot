@@ -2,18 +2,12 @@ import {
   CHANNELS,
   notifications,
   notify,
-  runEvents,
-  runs,
   type Db,
-  type Queryable,
   type NotificationKind,
-  type RunTrigger,
   type WorkerSignal,
 } from "@open-bot/db";
-import type { Attachment } from "@open-bot/db";
 import type { EventEmitter } from "node:events";
-import { sql } from "drizzle-orm";
-import type { AppEvent, ApprovalKind, RunEventPayload } from "@open-bot/domain";
+import type { AppEvent, ApprovalKind } from "@open-bot/domain";
 import type pg from "pg";
 import type { ComputerLifecycle } from "./computer-lifecycle";
 import type { CodexManager } from "./codex";
@@ -81,17 +75,6 @@ export async function signalWorker(
   await notify(ctx.pool, CHANNELS.worker, signal);
 }
 
-/** Append an event to a run that may not be executing anymore (for example a late approval decision). */
-export async function appendRunEvent(
-  ctx: Pick<Context, "db" | "pool">,
-  runId: string,
-  chatId: string,
-  payload: RunEventPayload,
-): Promise<void> {
-  await ctx.db.insert(runEvents).values({ runId, chatId, payload });
-  await notify(ctx.pool, CHANNELS.chat, chatId);
-}
-
 export async function createNotification(
   ctx: Pick<Context, "db" | "pool" | "events">,
   input: {
@@ -133,78 +116,4 @@ export async function createNotification(
     ...(input.takeoverId ? { takeoverId: input.takeoverId } : {}),
     ...(input.pageId ? { pageId: input.pageId } : {}),
   });
-}
-
-export interface RunInput {
-  /** Stable id for durable continuation delivery. */
-  id?: string;
-  chatId: string;
-  botId: string;
-  trigger: RunTrigger;
-  prompt: string;
-  attachments?: Attachment[];
-  messageId?: string | null;
-  scheduleId?: string | null;
-  triggerId?: string | null;
-  parentRunId?: string | null;
-  /** A screen of its own, for a swarm helper. */
-  screenId?: string | null;
-  /**
-   * It starts with data from your accounts in hand (a Gmail trigger, a swarm's results). Runs
-   * started by a run that read such data inherit this anyway.
-   */
-  readOutsideData?: boolean;
-}
-
-/**
- * Save a queued run and its first event, without telling anyone yet. Takes a transaction, so the
- * run can be saved together with what caused it; call `announceRun` once it's committed.
- */
-export async function insertRun(db: Queryable, input: RunInput): Promise<string> {
-  const [row] = await db
-    .insert(runs)
-    .values({
-      ...(input.id ? { id: input.id } : {}),
-      chatId: input.chatId,
-      botId: input.botId,
-      trigger: input.trigger,
-      prompt: input.prompt,
-      attachments: input.attachments ?? [],
-      messageId: input.messageId ?? null,
-      scheduleId: input.scheduleId ?? null,
-      triggerId: input.triggerId ?? null,
-      parentRunId: input.parentRunId ?? null,
-      screenId: input.screenId ?? null,
-      // What a run read from your accounts travels with everything it starts.
-      readOutsideData: input.readOutsideData
-        ? true
-        : input.parentRunId
-          ? sql<boolean>`coalesce((select ${runs.readOutsideData} from ${runs} where ${runs.id} = ${input.parentRunId}), false)`
-          : false,
-    })
-    .onConflictDoNothing({ target: runs.id })
-    .returning({ id: runs.id });
-  if (!row && input.id) return input.id;
-  await db.insert(runEvents).values({
-    runId: row!.id,
-    chatId: input.chatId,
-    payload: { type: "status", status: "queued" },
-  });
-  return row!.id;
-}
-
-/** Tell open chats about a saved run, and wake the executor. */
-export async function announceRun(ctx: Pick<Context, "pool">, chatId: string): Promise<void> {
-  await notify(ctx.pool, CHANNELS.chat, chatId);
-  await signalWorker(ctx, "runs");
-}
-
-/** Queue a run and wake the executor. */
-export async function enqueueRun(
-  ctx: Pick<Context, "db" | "pool">,
-  input: RunInput,
-): Promise<string> {
-  const id = await insertRun(ctx.db, input);
-  await announceRun(ctx, input.chatId);
-  return id;
 }
