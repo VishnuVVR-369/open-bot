@@ -57,11 +57,7 @@ test("mobile, the API contract and web client code can't import the server entry
 });
 
 test("web server code may import the server entry", async () => {
-  for (const file of [
-    "apps/web/src/lib/server/probe.ts",
-    "apps/web/src/app/api/probe/route.ts",
-    "apps/web/src/lib/actions.ts",
-  ]) {
+  for (const file of ["apps/web/src/lib/server/probe.ts", "apps/web/src/app/api/probe/route.ts"]) {
     assert.deepEqual(await boundaryErrors(file, SERVER), [], file);
   }
 });

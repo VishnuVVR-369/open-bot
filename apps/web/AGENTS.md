@@ -10,15 +10,14 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # apps/web
 
-The Next.js app the owner uses: pages and components, server actions, the oRPC API that the browser and the mobile app read through, the SSE stream and file routes.
+The Next.js app the owner uses: pages and components, the oRPC API that the browser and the mobile app read and write through, the SSE stream and file routes.
 It does not run teammates or touch the computer; that is the worker (`apps/worker`) and botd (`apps/botd`), reached through the typed client in `apps/web/src/lib/server/worker.ts` (`workerContract`).
 Shared types and the mobile contract belong in `packages/domain` and `packages/api`.
 
 ## Entry points
 
 - `apps/web/src/app` is the App Router tree: `(app)` pages, `(auth)` sign-in, and `api/*` routes.
-- `apps/web/src/lib/actions.ts` holds the server actions (`"use server"`) whose writes haven't moved to the API yet (settings, the vault, integrations and memory); add no new ones.
-- `apps/web/src/lib/server/api/` has the API's services: what a procedure does beyond calling the worker, such as `teammates.ts` (duplicate, import, lead, archive) and `automations.ts`.
+- `apps/web/src/lib/server/api/` has the API's services: what a procedure does beyond calling the worker, such as `teammates.ts` (duplicate, import, lead, archive, budget), `integrations.ts` (connections, accounts, email), `vault.ts`, `settings.ts` and `memory.ts`.
 - `apps/web/src/app/api/stream/route.ts` is the SSE stream, fed by `apps/web/src/lib/server/realtime.ts`.
 - `apps/web/src/app/api/rpc/[[...rest]]` serves the oRPC router in `apps/web/src/lib/server/api/router.ts` for the browser and mobile.
 - `apps/web/src/lib/client/rpc.ts` is the browser's typed client (`api`) and its TanStack Query helpers (`orpc`); `apps/web/src/lib/client/errors.ts` tells offline, signed-out and not-found failures apart.
@@ -30,13 +29,15 @@ Shared types and the mobile contract belong in `packages/domain` and `packages/a
 
 - Every non-test file in `apps/web/src/lib/server/` imports `server-only`.
 - Files with `"use client"` must not import from `lib/server`.
-- Browser reads go through the API with TanStack Query: a hook in `apps/web/src/lib/client/queries.ts` built from `orpc` (`apps/web/src/lib/client/rpc.ts`), never a server action, because server actions run one at a time per client.
+- Browser reads go through the API with TanStack Query: a hook in `apps/web/src/lib/client/queries.ts` built from `orpc` (`apps/web/src/lib/client/rpc.ts`).
 - Query keys are procedure paths (`orpc.tasks.key()`); never write a key by hand.
   App events refresh queries by `APP_EVENT_REFRESHES` in `packages/api/src/events.ts`.
 - Routes in `apps/web/src/app/api/*/route.ts` are only for streams, bytes (downloads, uploads, thumbnails), tokens and outside callers (webhooks, OAuth); a JSON read is a procedure.
 - Server components read through functions in `apps/web/src/lib/server`, never `db` directly.
 - Browser writes go through the API too: `attempt(api.chats.archive({ chatId }))` (`apps/web/src/lib/client/mutate.ts`) returns `{ ok, data }` or `{ ok, error }`.
-  The remaining server actions wrap their body in `guarded()` (`apps/web/src/lib/actions.ts`); they move to procedures, so add no new ones.
+  A new write is a procedure in `packages/api/src/contract.ts` with its handler in `apps/web/src/lib/server/api/router.ts`, never a server action: those run one at a time per client and the phone can't call them.
+  `apps/web/src/no-server-actions.test.ts` fails on any `"use server"`.
+- A service throws `ApiError` (`apps/web/src/lib/server/api/errors.ts`) for a refusal you see, with a code the router turns into the API's error and status.
 - Route handlers are wrapped in `authed()` (`apps/web/src/lib/server/route.ts`), which also refuses writes from other sites.
   A route that takes writes without `authed()` must be listed, with why, in `apps/web/src/app/api/routes.test.ts`.
 - Every oRPC procedure goes through the session middleware in `apps/web/src/lib/server/api/router.ts`.

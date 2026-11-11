@@ -46,7 +46,10 @@ export const APP_EVENT_REFRESHES: Record<AppEventType, readonly ProcedurePath[]>
     ["pages", "get"],
     ["pages", "search"],
   ],
-  auth: [],
+  // The ChatGPT sign-in, and the API key that takes over when the plan runs out.
+  auth: [["settings", "modelAccess"]],
+  // The owner's settings, like the time zone, which only the shell's state carries.
+  settings: [],
 };
 
 /** The snapshots every event refreshes, on top of what `APP_EVENT_REFRESHES` lists. */

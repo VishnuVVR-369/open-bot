@@ -94,13 +94,9 @@ export default tseslint.config(
   },
   {
     // Code that can run on a phone or in the browser can't load node:crypto. Web server code
-    // lives in lib/server, API routes and server actions; everything else may reach the client.
+    // lives in lib/server and API routes; everything else may reach the client.
     files: ["apps/mobile/**/*.{ts,tsx}", "packages/api/**/*.ts", "apps/web/src/**/*.{ts,tsx}"],
-    ignores: [
-      "apps/web/src/lib/server/**",
-      "apps/web/src/app/api/**",
-      "apps/web/src/lib/actions.ts",
-    ],
+    ignores: ["apps/web/src/lib/server/**", "apps/web/src/app/api/**"],
     rules: forbidImports([
       {
         name: "@open-bot/domain/server",

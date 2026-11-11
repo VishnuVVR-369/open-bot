@@ -69,10 +69,6 @@ export function useTasks() {
   return useQuery(orpc.tasks.list.queryOptions());
 }
 
-export function useLessons(botId: string) {
-  return useQuery(orpc.teammates.lessons.queryOptions({ input: { botId } }));
-}
-
 export function useProfile() {
   return useQuery(orpc.profile.get.queryOptions());
 }

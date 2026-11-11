@@ -53,7 +53,7 @@ export const docs: DocSection[] = [
         href: "/docs/architecture/web-app",
         title: "Web app",
         description:
-          "The Next.js app: authentication, server actions, read routes and the live event stream.",
+          "The Next.js app: authentication, the API, byte routes and the live event stream.",
       },
       {
         href: "/docs/architecture/worker",

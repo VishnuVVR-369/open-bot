@@ -37,7 +37,7 @@ The shared code lives in `packages/*`:
 
 | From        | To                     | Transport                     | Authenticated by                                              | Carries                                                                        |
 | ----------- | ---------------------- | ----------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| Browser     | Web app                | HTTPS                         | Better Auth session cookie                                    | Pages, server actions, reads, the SSE stream                                   |
+| Browser     | Web app                | HTTPS                         | Better Auth session cookie                                    | Pages, the API (reads and writes), byte routes, the SSE stream                 |
 | Browser     | Worker `/vnc`          | WebSocket                     | HMAC token from the web app, valid 60 s                       | The live screen (RFB, the VNC protocol)                                        |
 | Desktop app | Web app                | HTTPS                         | Session cookie                                                | The same UI as the browser                                                     |
 | Desktop app | Worker `/egress/agent` | WebSocket                     | HMAC token, valid 120 s                                       | The multiplexed egress tunnel                                                  |

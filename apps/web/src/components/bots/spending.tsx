@@ -12,9 +12,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { setBudget } from "@/lib/actions";
+import { attempt } from "@/lib/client/mutate";
 import { useSpending, useVault } from "@/lib/client/queries";
-import { orpc } from "@/lib/client/rpc";
+import { api, orpc } from "@/lib/client/rpc";
 import type { PurchaseView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -99,10 +99,13 @@ export function Spending({ botId, name }: { botId: string; name: string }) {
 
   function save() {
     startSaving(async () => {
-      const result = await setBudget(botId, {
-        budget: enabled ? Number(budget) : null,
-        autoApprove: enabled ? Number(autoApprove || 0) : 0,
-      });
+      const result = await attempt(
+        api.teammates.setBudget({
+          teammateId: botId,
+          budget: enabled ? Number(budget) : null,
+          autoApprove: enabled ? Number(autoApprove || 0) : 0,
+        }),
+      );
       if (!result.ok) {
         toast.error("Couldn't save the budget", { description: result.error });
         return;

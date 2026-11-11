@@ -23,7 +23,7 @@ For a deployed service it must also be added to that service's list in `.railway
 
 | Folder              | Owns                                                                          | Entry                            | Test                                    |
 | ------------------- | ----------------------------------------------------------------------------- | -------------------------------- | --------------------------------------- |
-| `apps/web`          | Next.js app: UI, server actions, the oRPC API for browser and mobile, SSE     | `apps/web/src/app`               | `pnpm --filter @open-bot/web test`      |
+| `apps/web`          | Next.js app: UI, the oRPC API for browser and mobile, SSE                     | `apps/web/src/app`               | `pnpm --filter @open-bot/web test`      |
 | `apps/worker`       | Runs teammates: run queue, tools, services, internal HTTP API, egress relay   | `apps/worker/src/index.ts`       | `pnpm --filter @open-bot/worker test`   |
 | `apps/botd`         | Daemon inside the computer: screens, Chromium, VNC, Codex proxy, leases       | `apps/botd/src/index.ts`         | `pnpm --filter @open-bot/botd test`     |
 | `apps/pages`        | Serves published pages on their own origin                                    | `apps/pages/src/index.ts`        | `pnpm --filter @open-bot/pages test`    |

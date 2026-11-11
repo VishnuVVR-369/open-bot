@@ -1,6 +1,6 @@
 import "server-only";
-import type { ApiInputs, MemoryRunRef } from "@open-bot/api";
-import type { MemoryItem, MemoryRevision } from "@open-bot/domain";
+import type { ApiInputs, ApiOutputs, MemoryRunRef } from "@open-bot/api";
+import type { MemoryInput, MemoryItem, MemoryRevision } from "@open-bot/domain";
 import { pool } from "../db";
 import { memoryReady } from "../memory";
 
@@ -82,4 +82,34 @@ export async function memoriesForRun({
       forgotten: !item || item.state === "deleted",
     };
   });
+}
+
+/* ------------------------------------------------------------------ Your changes */
+
+type Inputs = ApiInputs["memory"];
+type Outputs = ApiOutputs["memory"];
+const you = { kind: "user" } as const;
+
+/** What the contract hands on, with its defaults filled in. */
+type Edit = MemoryInput & { id: string; expectedRevision: number };
+
+export async function createMemory(input: MemoryInput): Promise<Outputs["create"]> {
+  return (await memoryReady()).save(input, you);
+}
+
+export async function updateMemory(input: Edit): Promise<Outputs["update"]> {
+  return (await memoryReady()).update(input, you);
+}
+
+export async function forgetMemory(input: Inputs["forget"]): Promise<{ ok: true }> {
+  await (await memoryReady()).forget(input, you);
+  return { ok: true };
+}
+
+export async function confirmMemory(input: Inputs["confirm"]): Promise<Outputs["confirm"]> {
+  return (await memoryReady()).approve(input);
+}
+
+export async function restoreMemory(input: Inputs["restore"]): Promise<Outputs["restore"]> {
+  return (await memoryReady()).restore(input);
 }

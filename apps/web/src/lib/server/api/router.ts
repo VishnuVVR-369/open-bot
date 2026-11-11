@@ -40,6 +40,7 @@ export interface RpcContext {
 /** The code for a failure that only has an HTTP status, from the worker or the memory store. */
 const STATUS_CODES: Record<number, string> = {
   400: "BAD_REQUEST",
+  403: "FORBIDDEN",
   404: "NOT_FOUND",
   409: "CONFLICT",
   413: "PAYLOAD_TOO_LARGE",
@@ -73,7 +74,7 @@ function toRpcError(error: unknown): ORPCError<string, unknown> {
     return new ORPCError("BAD_REQUEST", { message: error.issues.map((i) => i.message).join(". ") });
   if (error instanceof WorkerError || error instanceof MemoryError) {
     const code = STATUS_CODES[error.status] ?? "INTERNAL_SERVER_ERROR";
-    // A 409 here is a state conflict, not a reused id: don't let it pass as the defined CONFLICT.
+    // A 409 here is a state conflict (STATE_CONFLICT), never a reused id (CONFLICT).
     return new ORPCError(code === "CONFLICT" ? "STATE_CONFLICT" : code, {
       status: error.status,
       message: error.message,
@@ -91,7 +92,7 @@ const os = implement(contract)
     const session = await auth.api.getSession({ headers: context.headers });
     if (!session) throw new ORPCError("UNAUTHORIZED", { message: "Sign in first." });
     try {
-      return await next({ context: { user: session.user } });
+      return await next({ context: { user: session.user, sessionId: session.session.id } });
     } catch (error) {
       throw toRpcError(error);
     }
@@ -137,6 +138,11 @@ export const router = os.router({
     import: os.teammates.import.handler(({ input }) => api.importTeammate(input)),
     setLead: os.teammates.setLead.handler(({ input }) => api.setLead(input)),
     archive: os.teammates.archive.handler(({ input }) => api.archiveTeammate(input)),
+    setBudget: os.teammates.setBudget.handler(({ input }) => api.setBudget(input)),
+  },
+  proposals: {
+    accept: os.proposals.accept.handler(({ input }) => api.acceptProposal(input)),
+    dismiss: os.proposals.dismiss.handler(({ input }) => api.dismissProposal(input)),
   },
   schedules: {
     list: os.schedules.list.handler(() => listSchedules()),
@@ -180,6 +186,8 @@ export const router = os.router({
   },
   vault: {
     list: os.vault.list.handler(() => listVaultItems()),
+    save: os.vault.save.handler(({ input }) => api.saveVaultItem(input)),
+    remove: os.vault.remove.handler(({ input }) => api.removeVaultItem(input)),
   },
   profile: {
     get: os.profile.get.handler(() => getProfile()),
@@ -188,6 +196,11 @@ export const router = os.router({
     list: os.memory.list.handler(({ input }) => listMemories(input)),
     history: os.memory.history.handler(({ input }) => memoryHistory(input)),
     forRun: os.memory.forRun.handler(({ input }) => memoriesForRun(input)),
+    create: os.memory.create.handler(({ input }) => api.createMemory(input)),
+    update: os.memory.update.handler(({ input }) => api.updateMemory(input)),
+    forget: os.memory.forget.handler(({ input }) => api.forgetMemory(input)),
+    confirm: os.memory.confirm.handler(({ input }) => api.confirmMemory(input)),
+    restore: os.memory.restore.handler(({ input }) => api.restoreMemory(input)),
   },
   files: {
     list: os.files.list.handler(({ input }) => worker.files.list({ path: input.path })),
@@ -195,12 +208,23 @@ export const router = os.router({
   },
   connections: {
     list: os.connections.list.handler(() => listConnections()),
+    save: os.connections.save.handler(({ input }) => api.saveConnection(input)),
+    setEnabled: os.connections.setEnabled.handler(({ input }) => api.setConnectionEnabled(input)),
+    remove: os.connections.remove.handler(({ input }) => api.removeConnection(input)),
+    test: os.connections.test.handler(({ input }) => api.testConnection(input)),
   },
   accounts: {
     setup: os.accounts.setup.handler(() => getAccountsSetup()),
+    saveClient: os.accounts.saveClient.handler(({ input }) => api.saveOAuthClient(input)),
+    connect: os.accounts.connect.handler(({ input, context }) =>
+      api.startAccountConnect(input, context.sessionId),
+    ),
+    update: os.accounts.update.handler(({ input }) => api.saveAccountConnection(input)),
   },
   email: {
     status: os.email.status.handler(() => getEmailStatus()),
+    save: os.email.save.handler(({ input }) => api.saveEmailSettings(input)),
+    removeToken: os.email.removeToken.handler(() => api.removeEmailToken()),
   },
   telegram: {
     status: os.telegram.status.handler(() => worker.telegram.status()),
@@ -223,6 +247,10 @@ export const router = os.router({
     rateLimits: os.settings.rateLimits.handler(
       async () => (await worker.codex.rateLimits()).rateLimits,
     ),
+    setTimezone: os.settings.setTimezone.handler(({ input }) => api.setTimezone(input)),
+    saveApiKey: os.settings.saveApiKey.handler(({ input }) => api.saveApiKey(input)),
+    removeApiKey: os.settings.removeApiKey.handler(() => api.removeApiKey()),
+    setMonthlyCap: os.settings.setMonthlyCap.handler(({ input }) => api.setMonthlyCap(input)),
   },
   chats: {
     list: os.chats.list.handler(() => listChats()),

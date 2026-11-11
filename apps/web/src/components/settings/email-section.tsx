@@ -9,8 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { removeEmailToken, saveEmailSettings } from "@/lib/actions";
-import { orpc } from "@/lib/client/rpc";
+import { attempt } from "@/lib/client/mutate";
+import { api, orpc } from "@/lib/client/rpc";
 
 function CopyButton({ text, label }: { text: string; label: string }) {
   return (
@@ -55,7 +55,7 @@ export function EmailSection() {
 
   function save() {
     startTransition(async () => {
-      const result = await saveEmailSettings({ domain, token });
+      const result = await attempt(api.email.save({ domain, token }));
       if (!result.ok) {
         toast.error("Couldn't save email", { description: result.error });
         return;
@@ -154,7 +154,7 @@ export function EmailSection() {
           <button
             className="underline underline-offset-2 hover:text-foreground"
             onClick={async () => {
-              const result = await removeEmailToken();
+              const result = await attempt(api.email.removeToken());
               if (!result.ok) toast.error(result.error);
               await queryClient.invalidateQueries({ queryKey: orpc.email.key() });
             }}

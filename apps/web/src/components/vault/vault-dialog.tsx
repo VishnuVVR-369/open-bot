@@ -18,8 +18,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { saveVaultItem } from "@/lib/actions";
-import { orpc } from "@/lib/client/rpc";
+import { attempt } from "@/lib/client/mutate";
+import { api, orpc } from "@/lib/client/rpc";
 import type { VaultItemView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -152,15 +152,17 @@ export function VaultDialog({
 
   function submit() {
     startTransition(async () => {
-      const result = await saveVaultItem({
-        id: item?.id ?? null,
-        kind,
-        name: name.trim(),
-        domain,
-        botIds: access,
-        secret:
-          kind === "login" ? { username, password } : { number, expiry, cvc, name: holder, zip },
-      });
+      const result = await attempt(
+        api.vault.save({
+          id: item?.id ?? null,
+          kind,
+          name: name.trim(),
+          domain,
+          teammateIds: access,
+          secret:
+            kind === "login" ? { username, password } : { number, expiry, cvc, name: holder, zip },
+        }),
+      );
       if (!result.ok) {
         toast.error("Couldn't save it", { description: result.error });
         return;

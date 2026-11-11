@@ -34,7 +34,9 @@ import {
 } from "@open-bot/domain";
 import { decryptSecret, encryptSecret } from "@open-bot/domain/server";
 import { and, eq, inArray, lt, sql } from "drizzle-orm";
+import { ApiError } from "./api/errors";
 import { BASE_URL } from "./auth-config";
+import { claimConnectionName } from "./connection-names";
 import { db, pool } from "./db";
 import { serverEnv } from "./env";
 import { publish } from "./publish";
@@ -44,7 +46,12 @@ const STATE_TTL_MS = 10 * 60_000;
 
 export const accountStore = new AccountStore(db, serverEnv.encryptionKey);
 
-export class AccountConnectError extends Error {}
+/** Connecting or changing an account can't go ahead, for the reason it says. */
+export class AccountConnectError extends ApiError {
+  constructor(message: string, code: "BAD_REQUEST" | "NOT_FOUND" = "BAD_REQUEST") {
+    super(code, message);
+  }
+}
 
 /**
  * Start signing in to a provider for a connection: save a single-use state tied to this session,
@@ -64,7 +71,8 @@ export async function startAuthorization(input: {
   const account = input.accountId
     ? (await db.select().from(accounts).where(eq(accounts.id, input.accountId)))[0]
     : undefined;
-  if (input.accountId && !account) throw new AccountConnectError("That account is gone.");
+  if (input.accountId && !account)
+    throw new AccountConnectError("That account is gone.", "NOT_FOUND");
   if (account && account.provider !== provider)
     throw new AccountConnectError(`That isn't a ${authProvider(provider).accountLabel}.`);
 
@@ -263,28 +271,25 @@ async function upsertConnection(
     await wakeAccounts();
     return existing.id;
   }
-  const taken = new Set(
-    (await db.select({ name: connections.name }).from(connections)).map((row) => row.name),
-  );
-  const base = connectionName(definition.label);
-  let name = base;
-  for (let n = 2; taken.has(name); n += 1) name = `${base}_${n}`;
-  const others = await db
-    .select({ id: connections.id })
-    .from(connections)
-    .where(eq(connections.kind, purpose.kind));
-  const [row] = await db
-    .insert(connections)
-    .values({
-      kind: purpose.kind,
-      label: others.length ? `${definition.label} (${display})` : definition.label,
-      name,
-      accountId,
-      capabilities: purpose.capabilities,
-      botIds: purpose.botIds,
-    })
-    .returning({ id: connections.id });
-  return row!.id;
+  return db.transaction(async (tx) => {
+    const name = await claimConnectionName(tx, connectionName(definition.label));
+    const others = await tx
+      .select({ id: connections.id })
+      .from(connections)
+      .where(eq(connections.kind, purpose.kind));
+    const [row] = await tx
+      .insert(connections)
+      .values({
+        kind: purpose.kind,
+        label: others.length ? `${definition.label} (${display})` : definition.label,
+        name,
+        accountId,
+        capabilities: purpose.capabilities,
+        botIds: purpose.botIds,
+      })
+      .returning({ id: connections.id });
+    return row!.id;
+  });
 }
 
 /** Two teammate or capability lists hold the same entries (null is "everyone"). */
@@ -310,12 +315,12 @@ export async function updateAccountConnection(input: {
 }): Promise<{ needsConsent: boolean }> {
   const [row] = await db.select().from(connections).where(eq(connections.id, input.id));
   if (!row || row.kind === "mcp" || !row.accountId)
-    throw new AccountConnectError("That connection is gone.");
+    throw new AccountConnectError("That connection is gone.", "NOT_FOUND");
   const kind = row.kind;
   const capabilities = normalizeCapabilities(kind, input.capabilities);
   const settings = input.settings ? parseSettings(kind, row.settings, input.settings) : null;
   const [account] = await db.select().from(accounts).where(eq(accounts.id, row.accountId));
-  if (!account) throw new AccountConnectError("Its account is gone.");
+  if (!account) throw new AccountConnectError("Its account is gone.", "NOT_FOUND");
   if (capabilities.some((capability) => !capabilityGranted(kind, capability, account.scopes)))
     return { needsConsent: true };
   const changed = !sameList(row.capabilities, capabilities) || !sameList(row.botIds, input.botIds);

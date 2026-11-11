@@ -46,13 +46,7 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
-import {
-  createMemoryItem,
-  editMemoryItem,
-  forgetMemoryItem,
-  confirmMemoryItem,
-  restoreMemoryItem,
-} from "@/lib/actions";
+import { attempt } from "@/lib/client/mutate";
 import { api, orpc } from "@/lib/client/rpc";
 import { useAppState } from "@/lib/client/queries";
 
@@ -221,11 +215,9 @@ export function MemoryManager({ botId, name }: { botId: string | null; name: str
     });
   }
   async function restore(item: MemoryItem, revision: number, openHistory = true) {
-    const result = await restoreMemoryItem({
-      id: item.id,
-      expectedRevision: item.revision,
-      revision,
-    });
+    const result = await attempt(
+      api.memory.restore({ id: item.id, expectedRevision: item.revision, revision }),
+    );
     if (!result.ok) {
       toast.error(result.error);
       return;
@@ -287,10 +279,9 @@ export function MemoryManager({ botId, name }: { botId: string | null; name: str
               busy={pending}
               onConfirm={() =>
                 startTransition(async () => {
-                  const result = await confirmMemoryItem({
-                    id: item.id,
-                    expectedRevision: item.revision,
-                  });
+                  const result = await attempt(
+                    api.memory.confirm({ id: item.id, expectedRevision: item.revision }),
+                  );
                   if (!result.ok) toast.error(result.error);
                   else {
                     await refresh();
@@ -342,12 +333,14 @@ export function MemoryManager({ botId, name }: { botId: string | null; name: str
                       : null,
                   };
                   const result = draft.item
-                    ? await editMemoryItem({
-                        ...input,
-                        id: draft.item.id,
-                        expectedRevision: draft.item.revision,
-                      })
-                    : await createMemoryItem(input);
+                    ? await attempt(
+                        api.memory.update({
+                          ...input,
+                          id: draft.item.id,
+                          expectedRevision: draft.item.revision,
+                        }),
+                      )
+                    : await attempt(api.memory.create(input));
                   if (!result.ok) {
                     setProblem(result.error);
                     await refresh();
@@ -370,10 +363,12 @@ export function MemoryManager({ botId, name }: { botId: string | null; name: str
                         ? {
                             label: "Undo",
                             onClick: () => {
-                              void forgetMemoryItem({
-                                id: result.data.id,
-                                expectedRevision: result.data.revision,
-                              }).then(async (undo) => {
+                              void attempt(
+                                api.memory.forget({
+                                  id: result.data.id,
+                                  expectedRevision: result.data.revision,
+                                }),
+                              ).then(async (undo) => {
                                 if (!undo.ok) toast.error(undo.error);
                                 else await refresh();
                               });
@@ -542,10 +537,9 @@ export function MemoryManager({ botId, name }: { botId: string | null; name: str
                 event.preventDefault();
                 if (!forget) return;
                 startTransition(async () => {
-                  const result = await forgetMemoryItem({
-                    id: forget.id,
-                    expectedRevision: forget.revision,
-                  });
+                  const result = await attempt(
+                    api.memory.forget({ id: forget.id, expectedRevision: forget.revision }),
+                  );
                   if (!result.ok) {
                     toast.error(result.error);
                     await refresh();

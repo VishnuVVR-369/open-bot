@@ -1,7 +1,7 @@
 import { expect, test } from "./fixtures";
 import { createTeammate, sendMessage, uniqueName, waitForLastRun, worker } from "./helpers";
 
-// Bigger than the 1 MB a Server Action accepts by default.
+// Bigger than Next.js's 1 MB default body limit, to show the upload route takes the raw bytes.
 const twoMegabytes = Buffer.alloc(2 * 1024 * 1024, 7);
 
 test("upload a file to the computer and delete it", async ({ page }) => {

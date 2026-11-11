@@ -7,6 +7,7 @@ import {
   type AccountProvider,
 } from "@open-bot/domain";
 import { z } from "zod";
+import { id, teammateAccessSchema } from "./base";
 
 /** Integrations as Settings shows them: connections (MCP servers and accounts) and email. */
 
@@ -16,10 +17,15 @@ export const accountProviderSchema = z.enum(
   ACCOUNT_PROVIDERS as [AccountProvider, ...AccountProvider[]],
 );
 
-export const connectionKindSchema = z.enum([
-  "mcp",
-  ...(ACCOUNT_CONNECTION_KINDS as [AccountConnectionKind, ...AccountConnectionKind[]]),
-]);
+const accountKinds = ACCOUNT_CONNECTION_KINDS as [
+  AccountConnectionKind,
+  ...AccountConnectionKind[],
+];
+
+/** The kinds of account connection, like Gmail and Google Calendar. */
+export const accountConnectionKindSchema = z.enum(accountKinds);
+
+export const connectionKindSchema = z.enum(["mcp", ...accountKinds]);
 
 /**
  * A capability as stored on a connection. Not an enum: a row saved before an integration dropped
@@ -112,3 +118,54 @@ export const emailStatusViewSchema = z.object({
   addresses: z.array(z.object({ botId: z.string(), name: z.string(), address: z.string() })),
 });
 export type EmailStatusView = z.infer<typeof emailStatusViewSchema>;
+
+/** Capabilities by name, as you pick them; each kind keeps only its own when saved. */
+const capabilityNamesSchema = z.array(z.string().max(40)).max(20);
+
+/** An MCP server to save: a new one, or with `id`, a change to one. */
+export const connectionInputSchema = z.object({
+  id: id.nullable(),
+  label: z.string().trim().min(1, "Give it a name.").max(60),
+  transport: z.enum(["http", "stdio"]),
+  /** For http: the MCP endpoint. */
+  url: z.string().trim().max(2000),
+  /** For stdio: the command the computer runs, and its arguments as you'd type them. */
+  command: z.string().trim().max(500),
+  args: z.string().max(4000),
+  /** Header lines (http) or NAME=value lines (stdio). Empty when editing keeps what's saved. */
+  secrets: z.string().max(20_000),
+  teammateIds: teammateAccessSchema,
+});
+export type ConnectionInput = z.infer<typeof connectionInputSchema>;
+
+/** The OAuth client you made in a provider's console (Google's, in your Cloud project). */
+export const oauthClientInputSchema = z.object({
+  provider: accountProviderSchema,
+  clientId: z.string().max(300),
+  clientSecret: z.string().max(300),
+});
+
+/** What to sign in to a provider for. */
+export const accountConnectInputSchema = z.object({
+  kind: accountConnectionKindSchema,
+  capabilities: capabilityNamesSchema,
+  teammateIds: teammateAccessSchema,
+  /** Sign in again as this account: to reconnect it, or to grant it more. */
+  accountId: id.nullable(),
+});
+
+/** A change to what an account connection allows, who uses it and how it asks. */
+export const accountConnectionChangesSchema = z.object({
+  connectionId: id,
+  capabilities: capabilityNamesSchema,
+  teammateIds: teammateAccessSchema,
+  askBeforeActing: z.boolean(),
+  /** The integration's settings as you typed them, by key: "" clears one, a missing key keeps it. */
+  settings: z.record(z.string().max(60), z.string().max(2000)).optional(),
+});
+
+/** Your teammates' email domain, and Postmark's server token; an empty token keeps the saved one. */
+export const emailSettingsInputSchema = z.object({
+  domain: z.string().max(300),
+  token: z.string().max(200),
+});

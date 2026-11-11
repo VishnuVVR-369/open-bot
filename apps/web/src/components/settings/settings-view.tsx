@@ -60,7 +60,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { removeApiKey, saveApiKey, setMonthlyCap, setTimezone } from "@/lib/actions";
 import { attempt } from "@/lib/client/mutate";
 import { authClient } from "@/lib/auth-client";
 import { passkeyLabel } from "@/lib/passkey-name";
@@ -411,7 +410,7 @@ function TimezoneSection() {
   );
   const current = state?.timezone ?? "UTC";
   const save = async (zone: string) => {
-    const result = await setTimezone(zone);
+    const result = await attempt(api.settings.setTimezone({ timezone: zone }));
     if (!result.ok) toast.error(result.error);
     else toast("Timezone saved", { description: zone });
     await queryClient.invalidateQueries({ queryKey: orpc.app.state.key() });
@@ -672,7 +671,7 @@ function FallbackSection() {
                     variant="destructive"
                     onClick={() =>
                       startTransition(async () => {
-                        const result = await removeApiKey();
+                        const result = await attempt(api.settings.removeApiKey());
                         if (!result.ok) toast.error(result.error);
                         else toast("API key removed");
                         await refresh();
@@ -691,7 +690,7 @@ function FallbackSection() {
             onSubmit={(event) => {
               event.preventDefault();
               startTransition(async () => {
-                const result = await saveApiKey(key);
+                const result = await attempt(api.settings.saveApiKey({ apiKey: key }));
                 if (!result.ok) {
                   toast.error(result.error);
                   return;
@@ -726,7 +725,9 @@ function FallbackSection() {
             onSubmit={(event) => {
               event.preventDefault();
               startTransition(async () => {
-                const result = await setMonthlyCap(Number(cap ?? capDollars));
+                const result = await attempt(
+                  api.settings.setMonthlyCap({ dollars: Number(cap ?? capDollars) }),
+                );
                 if (!result.ok) toast.error(result.error);
                 else toast("Cap saved");
                 setCap(null);
