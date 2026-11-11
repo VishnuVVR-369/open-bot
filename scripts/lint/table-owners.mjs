@@ -57,12 +57,40 @@ export function refusal(table, file, write) {
   );
 }
 
-/** SQL without comments, and with its string literals emptied, so neither reads as a statement. */
+/**
+ * SQL without comments, and with its string literals emptied, so neither reads as a statement. One
+ * pass, so a comment marker inside a literal (or a quote inside a comment) is just text.
+ */
 function code(text) {
-  return text
-    .replace(/--[^\n]*/g, " ")
-    .replace(/\/\*[\s\S]*?\*\//g, " ")
-    .replace(/'(?:[^']|'')*'/g, "''");
+  let out = "";
+  let i = 0;
+  while (i < text.length) {
+    if (text.startsWith("--", i)) {
+      const end = text.indexOf("\n", i);
+      i = end < 0 ? text.length : end;
+      out += " ";
+    } else if (text.startsWith("/*", i)) {
+      const end = text.indexOf("*/", i + 2);
+      i = end < 0 ? text.length : end + 2;
+      out += " ";
+    } else if (text[i] === "'") {
+      // Up to the closing quote; `''` inside is an escaped quote.
+      let end = i + 1;
+      while (end < text.length && !(text[end] === "'" && text[end + 1] !== "'")) {
+        end += text[end] === "'" ? 2 : 1;
+      }
+      // An apostrophe in prose with no closing quote is just a character.
+      if (end >= text.length) {
+        out += text[i++];
+        continue;
+      }
+      out += "''";
+      i = end + 1;
+    } else {
+      out += text[i++];
+    }
+  }
+  return out;
 }
 
 /** The text up to the end of its statement: a `;`, or a `)` closing a parenthesis it didn't open. */
@@ -94,10 +122,22 @@ function topLevel(text) {
 
 const column = (text) => /^\s*"?(\w+)"?\s*$/.exec(text)?.[1].toLowerCase() ?? null;
 
+/** Where a clause ends a `set` list: `where`, `from` or `returning` outside parentheses. */
+function setListEnd(text) {
+  let depth = 0;
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === "(") depth++;
+    else if (text[i] === ")") depth--;
+    else if (depth === 0 && /\w/.test(text[i]) && (i === 0 || !/\w/.test(text[i - 1]))) {
+      if (/^(?:where|from|returning)\b/i.test(text.slice(i))) return i;
+    }
+  }
+  return text.length;
+}
+
 /** The columns a `set` list assigns, or null when one isn't a plain `column = ...`. */
 function setColumns(text) {
-  const end = /\b(?:where|from|returning)\b/i.exec(text);
-  const columns = topLevel(end ? text.slice(0, end.index) : text).map((assignment) => {
+  const columns = topLevel(text.slice(0, setListEnd(text))).map((assignment) => {
     const [target] = assignment.split("=");
     return assignment.includes("=") ? column(target) : null;
   });

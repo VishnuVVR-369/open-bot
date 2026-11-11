@@ -65,6 +65,7 @@ test("raw SQL writes outside the owner fail", async () => {
     'export const q = `update "public"."pages" as p set pinned = true`;\n',
     'export const q = "insert into \\"pages\\"(id) values($1)";\n',
     "export const q = `with gone as (select 1) delete from pages`;\n",
+    'export const q = "/* note -- still in the comment */ update pages set pinned = true";\n',
   ]) {
     assert.equal((await ownerErrors(file, code)).length, 1, code);
   }
@@ -116,6 +117,9 @@ test("a module sharing columns may set only those columns", async () => {
     `${runs}export const f = (db: any, values: object) => db.update(runs).set(values);\n`,
     'export const q = "insert into settings(id, timezone) values(1, $1)";\n',
     'export const q = "insert into settings values(1)";\n',
+    "export const q = `update runs set cancel_requested_at = (select now() where true), status = 'x'`;\n",
+    "export const q = `update runs set cancel_requested_at = nullif('--', '--')::timestamptz,\n status = 'x'`;\n",
+    "export const q = `insert into settings(id, about_me) values(1, $1)\n on conflict(id) do update set about_me = (select $1 where true), timezone = 'UTC'`;\n",
   ]) {
     const errors = await ownerErrors(memory, code);
     assert.equal(errors.length, 1, code);
