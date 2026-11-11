@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net";
 import { OFFLINE_EGRESS_STATUS } from "@open-bot/api";
 import { createWorkerClient, type WorkerClient } from "@open-bot/api/worker";
 import {
+  approvalRules,
   approvals,
   bots as teammateRows, // vocabulary: allow
   chats,
@@ -545,6 +546,27 @@ describe.skipIf(!url)("worker internal API, end to end", () => {
         .from(lessons)
         .where(eq(lessons.botId, atlas.teammateId)); // vocabulary: allow
       expect(learned.map((l) => l.text).sort()).toEqual(["Cite sources.", "Keep answers short."]);
+    });
+
+    it("keeps every rule and lesson a file carries whole, and exports what memory holds", async () => {
+      // Cut short, this rule would allow every `git -C <dir>` command, not only `status`.
+      const pattern = `git -C /home/bot/${"d".repeat(280)} status`;
+      expect(pattern.length).toBeGreaterThan(300);
+      const kit = await imported("Kit", {
+        allowed: [{ kind: "command", pattern }],
+        lessons: ["简洁"],
+      });
+      const rules = await db
+        .select({ pattern: approvalRules.pattern })
+        .from(approvalRules)
+        .where(eq(approvalRules.botId, kit.teammateId)); // vocabulary: allow
+      expect(rules).toEqual([{ pattern }]);
+      // A lesson longer than a file allows, which memory holds, still exports.
+      const long = `Explain it. ${"x".repeat(600)}`;
+      await memory.addLessons(kit.teammateId, [long]);
+      const exported = await worker.teammates.export({ teammateId: kit.teammateId });
+      expect(exported.bundle.allowed).toEqual([{ kind: "command", pattern }]);
+      expect([...exported.bundle.lessons].sort()).toEqual([long, "简洁"].sort());
     });
 
     it("duplicates a teammate with its memory and reminders, and refuses one that's gone", async () => {

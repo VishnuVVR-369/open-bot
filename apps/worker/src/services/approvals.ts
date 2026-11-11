@@ -552,9 +552,12 @@ export class ApprovalService {
   }
 }
 
+/** The longest pattern an Always allow rule keeps; a teammate file allows this much. */
+const MAX_RULE_PATTERN = 500;
+
 /**
  * Lets a teammate do these without asking, in the caller's transaction. A pattern that isn't a
- * valid rule is skipped, and a rule it already has is kept once.
+ * valid rule, or is too long, is skipped, and a rule it already has is kept once.
  */
 export async function addApprovalRules(
   db: Queryable,
@@ -562,8 +565,10 @@ export async function addApprovalRules(
   rules: readonly { kind: RuleKind; pattern: string }[],
 ): Promise<void> {
   const values = rules.flatMap(({ kind, pattern }) => {
-    const clean = kind === "file_change" ? "" : pattern.trim().replace(/\s+/g, " ").slice(0, 300);
-    return invalidRulePattern(kind, clean) ? [] : [{ botId: teammateId, kind, pattern: clean }];
+    const clean = kind === "file_change" ? "" : pattern.trim().replace(/\s+/g, " ");
+    // Never shortened: a cut pattern would allow more than the rule did.
+    if (clean.length > MAX_RULE_PATTERN || invalidRulePattern(kind, clean)) return [];
+    return [{ botId: teammateId, kind, pattern: clean }];
   });
   if (values.length > 0) await db.insert(approvalRules).values(values).onConflictDoNothing();
 }

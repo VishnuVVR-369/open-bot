@@ -14,6 +14,7 @@ import {
   screenOperationSchema,
   skillInputSchema,
   teammateBundleSchema,
+  type TeammateBundle,
   typeOnScreenSchema,
   updatedTeammateSchema,
 } from "@open-bot/domain";
@@ -100,7 +101,13 @@ export const workerContract = {
     export: base
       .route({ method: "GET", path: "/internal/teammates/{teammateId}/export" })
       .input(z.object({ teammateId: id }))
-      .output(z.object({ slug: z.string(), bundle: teammateBundleSchema })),
+      // Everything the teammate has, as it is: a file can hold more than one may import.
+      .output(
+        z.object({
+          slug: z.string(),
+          bundle: z.custom<TeammateBundle>((value) => typeof value === "object" && value !== null),
+        }),
+      ),
     /**
      * A new teammate set up like another; its routines, watches and reminders start paused.
      * Memory and lessons come along with `copyMemory`.

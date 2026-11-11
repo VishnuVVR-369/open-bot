@@ -95,6 +95,9 @@ function validate<T>(schema: z.ZodType<T>, input: unknown): T {
     throw new MemoryError(400, result.error.issues.map((i) => i.message).join("; "));
   return result.data;
 }
+/** A lesson a teammate file carried: any length the file allows, up to a memory's longest. */
+const IMPORTED_LESSON = z.string().trim().min(1).max(8000);
+
 const scopeOf = (botId: string | null) => (botId ? (`bot:${botId}` as const) : ("shared" as const));
 
 /** Canonical memory. Both web actions and agent tools use these transactions. */
@@ -479,9 +482,10 @@ export class MemoryService {
    */
   async addLessons(botId: string, lessons: readonly string[]): Promise<void> {
     validate(z.string().uuid(), botId);
+    // What a teammate file allows, so no lesson it carried is lost, however short.
     const contents = lessons.flatMap((content) => {
-      const parsed = memoryInputSchema.safeParse({ botId, kind: "lesson", content });
-      return parsed.success ? [parsed.data.content] : [];
+      const parsed = IMPORTED_LESSON.safeParse(content);
+      return parsed.success ? [parsed.data] : [];
     });
     if (contents.length === 0) return;
     await this.transaction(async (client) => {
