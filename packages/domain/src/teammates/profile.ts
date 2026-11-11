@@ -47,7 +47,7 @@ export function slugify(name: string): string {
 /**
  * Where a new teammate goes on the team: its name as a slug no teammate has, like `scout-2`, and
  * whether it leads, which the first one still on the team does. Decide it under the team lock
- * (`lockTeam` in `@open-bot/db`), so two at once can't both take it.
+ * (`LOCKS.team` in `@open-bot/db`), so two at once can't both take it.
  */
 export function newTeammateSlot(
   team: readonly { slug: string; archivedAt: Date | null }[],

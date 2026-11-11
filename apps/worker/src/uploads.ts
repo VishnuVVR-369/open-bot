@@ -3,7 +3,8 @@ import {
   messages,
   runs,
   uploads,
-  lockUploads,
+  LOCKS,
+  lockUntilCommit,
   type Attachment,
   type Db,
   type Tx,
@@ -122,7 +123,7 @@ export class UploadService {
 
   private async write(input: UploadInput): Promise<UploadView> {
     const result = await this.db.transaction(async (tx) => {
-      await lockUploads(tx, [UploadService.pathFor(input.id, input.name)]);
+      await lockUntilCommit(tx, LOCKS.upload(UploadService.pathFor(input.id, input.name)));
       try {
         return { value: await this.writeLocked(tx, input) };
       } catch (error) {
@@ -241,7 +242,7 @@ export class UploadService {
     for (const upload of stale) {
       if (this.inFlight.has(upload.id)) continue;
       const deleted = await this.db.transaction(async (tx) => {
-        await lockUploads(tx, [upload.path]);
+        await lockUntilCommit(tx, LOCKS.upload(upload.path));
         const [candidate] = await tx
           .select({ id: uploads.id })
           .from(uploads)

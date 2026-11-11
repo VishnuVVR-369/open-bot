@@ -1,4 +1,4 @@
-import { credentials, settings, usageEntries } from "@open-bot/db";
+import { credentials, ownerSettings, settings, usageEntries } from "@open-bot/db";
 import { decideAuthMode, formatDollars, type AuthDecision } from "@open-bot/domain";
 import { decryptSecret } from "@open-bot/domain/server";
 import { and, eq, gte, sql } from "drizzle-orm";
@@ -83,7 +83,7 @@ export class ModelAccess {
   }
 
   async decide(): Promise<{ decision: AuthDecision; apiKey: string | null; capMicros: number }> {
-    const [row] = await this.ctx.db.select().from(settings).where(eq(settings.id, 1));
+    const row = await ownerSettings(this.ctx.db);
     const apiKey = await this.apiKey();
     const capMicros = row?.monthlyCapMicros ?? 0;
     const decision = decideAuthMode({

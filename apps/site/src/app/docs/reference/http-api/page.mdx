@@ -63,7 +63,7 @@ A tab still running code from before sends itself to sign in on a 401, which tak
 Every write goes through the API, by the browser and the Android app alike; the web app has no server actions.
 Many procedures pass the call to the worker.
 The web app does the rest itself: duplicating, importing and archiving a teammate, choosing the lead, budgets, suggested instructions, and the vault, connections, accounts, email, settings and memory.
-Creating a teammate, in the web app or the worker, archiving one and choosing the lead all take one advisory lock (`lockTeam` in `packages/db`), so two at once never share a slug or leave two leads.
+Creating a teammate, in the web app or the worker, archiving one and choosing the lead all take one advisory lock (`LOCKS.team` in `packages/db/src/locks.ts`), so two at once never share a slug or leave two leads.
 Those live in the services in `apps/web/src/lib/server/api/`.
 Secrets sent to `vault.save`, `connections.save`, `email.save` and `settings.saveApiKey` are encrypted there and never sent back.
 In the browser, `attempt()` in `apps/web/src/lib/client/mutate.ts` turns a call into `{ ok, data }` or `{ ok, error }` with the server's own message.

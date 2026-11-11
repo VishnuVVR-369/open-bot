@@ -4,8 +4,8 @@ import {
   chats,
   messageDispatches,
   messages,
+  ownerTimeZone,
   runs,
-  settings,
 } from "@open-bot/db";
 import { COMPUTER_PATHS, emailAddress } from "@open-bot/domain";
 import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, ne, sql } from "drizzle-orm";
@@ -196,17 +196,9 @@ export class RunExecutor {
     return instructions;
   }
 
-  private async userTimeZone(): Promise<string> {
-    const [row] = await this.ctx.db
-      .select({ timezone: settings.timezone })
-      .from(settings)
-      .where(eq(settings.id, 1));
-    return row?.timezone ?? "UTC";
-  }
-
   private async buildPrompt(session: RunSession): Promise<string> {
     const { run, chat, bot } = session;
-    const timeZone = await this.userTimeZone();
+    const timeZone = await ownerTimeZone(this.ctx.db);
     const now = new Intl.DateTimeFormat("en-GB", {
       timeZone,
       weekday: "short",

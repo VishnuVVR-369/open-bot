@@ -3,6 +3,7 @@ import reactHooks from "eslint-plugin-react-hooks";
 import globals from "globals";
 import { builtinModules } from "node:module";
 import tseslint from "typescript-eslint";
+import tableOwners from "./scripts/lint/table-owners.mjs";
 
 /** Node's built-in modules, bare or `node:` prefixed, with any subpath (`fs/promises`). */
 const NODE_BUILTIN = `^(node:.*|(${builtinModules.filter((name) => !name.includes("/")).join("|")})(\\W.*)?)$`;
@@ -103,6 +104,20 @@ export default tseslint.config(
         message: "@open-bot/domain/server is Node-only. Use it from server code.",
       },
     ]),
+  },
+  {
+    // Only a table's owner writes it (packages/db/src/owners.ts). Tests, seeds and stand-ins set
+    // up whatever rows they need.
+    files: ["apps/**/*.{ts,tsx}", "packages/**/*.ts"],
+    ignores: [
+      "**/*.test.ts",
+      "**/*.test.tsx",
+      "apps/*/scripts/**",
+      "packages/db/src/testing.ts",
+      "packages/db/src/migrate.ts",
+    ],
+    plugins: { "open-bot": tableOwners },
+    rules: { "open-bot/table-owners": "error" },
   },
   {
     // Expo config plugins run in Node as CommonJS.

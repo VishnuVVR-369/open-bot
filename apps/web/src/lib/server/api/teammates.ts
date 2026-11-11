@@ -5,11 +5,12 @@ import {
   CHANNELS,
   chats,
   instructionProposals,
-  lockTeam,
+  LOCKS,
+  lockUntilCommit,
   notify,
+  ownerTimeZone,
   runs,
   schedules,
-  settings,
   triggers,
   type Tx,
 } from "@open-bot/db";
@@ -28,7 +29,7 @@ type Outputs = ApiOutputs["teammates"];
 
 /** Take the team lock, then decide where a new teammate goes, as the worker's create does. */
 async function claimSlot(tx: Tx, name: string): Promise<{ slug: string; first: boolean }> {
-  await lockTeam(tx);
+  await lockUntilCommit(tx, LOCKS.team);
   const team = await tx
     .select({ slug: teammates.slug, archivedAt: teammates.archivedAt })
     .from(teammates);
@@ -42,14 +43,6 @@ async function afterSaving(step: string, run: () => Promise<unknown>) {
   } catch (error) {
     console.warn(`teammate saved, but ${step} failed`, error);
   }
-}
-
-async function ownerTimeZone(): Promise<string> {
-  const [row] = await db
-    .select({ timezone: settings.timezone })
-    .from(settings)
-    .where(eq(settings.id, 1));
-  return row?.timezone ?? "UTC";
 }
 
 /** Write the teammate's workspace now; before its next run is soon enough if the computer's away. */
@@ -102,7 +95,7 @@ export async function duplicateTeammate({
     .where(and(eq(teammates.id, teammateId), isNull(teammates.archivedAt)));
   if (!source) throw new ApiError("NOT_FOUND", "That teammate no longer exists.");
   const parts = await teammateParts(teammateId);
-  const timezone = await ownerTimeZone();
+  const timezone = await ownerTimeZone(db);
 
   const created = await db.transaction(async (tx) => {
     const { slug } = await claimSlot(tx, name);
@@ -193,7 +186,7 @@ export async function importTeammate({ file }: Inputs["import"]): Promise<Output
   if (problem) throw new ApiError("BAD_REQUEST", problem);
   const { teammate, ...parts } = teammateBundleSchema.parse(JSON.parse(file));
   const color = teammate.color ?? (await nextTeammateColor());
-  const timezone = await ownerTimeZone();
+  const timezone = await ownerTimeZone(db);
 
   const created = await db.transaction(async (tx) => {
     const { slug, first } = await claimSlot(tx, teammate.name);
@@ -230,7 +223,7 @@ export async function importTeammate({ file }: Inputs["import"]): Promise<Output
 export async function setLead({ teammateId }: Inputs["setLead"]): Promise<{ ok: true }> {
   await db.transaction(async (tx) => {
     // Under the team lock nobody else archives or adds a teammate, or picks a lead, meanwhile.
-    await lockTeam(tx);
+    await lockUntilCommit(tx, LOCKS.team);
     const [lead] = await tx
       .select({ id: teammates.id })
       .from(teammates)
@@ -254,7 +247,7 @@ export async function setLead({ teammateId }: Inputs["setLead"]): Promise<{ ok: 
 export async function archiveTeammate({ teammateId }: Inputs["archive"]): Promise<{ ok: true }> {
   const now = new Date();
   await db.transaction(async (tx) => {
-    await lockTeam(tx);
+    await lockUntilCommit(tx, LOCKS.team);
     // Its runs before its row, the order a memory write takes them in, so the two can't deadlock.
     await tx
       .update(runs)

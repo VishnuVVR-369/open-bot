@@ -1,7 +1,6 @@
 import { googleEndpoints } from "@open-bot/accounts";
-import { settings } from "@open-bot/db";
+import { ownerTimeZone } from "@open-bot/db";
 import { outsideData, type AccountActionPreview } from "@open-bot/domain";
-import { eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Context } from "../context";
 import { AccountToolError, type ResolvedConnection } from "./access";
@@ -474,14 +473,6 @@ export class CalendarTools implements IntegrationAdapter {
     return calendarProblem(error);
   }
 
-  private async timeZone(): Promise<string> {
-    const [row] = await this.ctx.db
-      .select({ timezone: settings.timezone })
-      .from(settings)
-      .where(eq(settings.id, 1));
-    return row?.timezone ?? "UTC";
-  }
-
   /** A cheap call that proves the connection works, for Settings' Test. */
   async probe(_resolved: ResolvedConnection, tokens: TokenSource): Promise<string> {
     const { items = [] } = await new CalendarApi(tokens).get<{ items?: unknown[] }>(
@@ -495,7 +486,7 @@ export class CalendarTools implements IntegrationAdapter {
 
   async call(tool: string, tc: ToolContext): Promise<ToolResult> {
     const api = new CalendarApi(tc.tokens);
-    const timeZone = await this.timeZone();
+    const timeZone = await ownerTimeZone(this.ctx.db);
     switch (tool) {
       case "list_calendars":
         return this.listCalendars(api);

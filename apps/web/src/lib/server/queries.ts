@@ -1,25 +1,26 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
 import {
+  accounts,
   approvalRules,
   approvals,
   bots,
-  credentials,
   chatMembers,
   chats,
-  accounts,
   connections,
-  emailSettings,
+  credentials,
   desktopTakeovers,
+  emailSettings,
   instructionProposals,
   lessons,
   messages,
   notifications,
+  ownerSettings,
+  ownerTimeZone,
   purchases,
   runEvents,
   runs,
   schedules,
-  settings,
   skills,
   swarms,
   swarmTasks,
@@ -342,7 +343,7 @@ export async function getAttention(): Promise<Attention> {
 }
 
 export async function getAppState(user: { name: string; email: string }): Promise<AppState> {
-  const [botList, chatList, status, attention, activeTakeovers, [settingsRow], skillList] =
+  const [botList, chatList, status, attention, activeTakeovers, timezone, skillList] =
     await Promise.all([
       listBots(),
       listChats({ previews: false }),
@@ -357,13 +358,13 @@ export async function getAppState(user: { name: string; email: string }): Promis
         .from(desktopTakeovers)
         .where(eq(desktopTakeovers.status, "active"))
         .orderBy(desc(desktopTakeovers.createdAt)),
-      db.select({ timezone: settings.timezone }).from(settings).where(eq(settings.id, 1)),
+      ownerTimeZone(db),
       listSkills(),
     ]);
   return {
     ...attention,
     user,
-    timezone: settingsRow?.timezone ?? "UTC",
+    timezone,
     bots: botList,
     chats: chatList,
     skills: skillList.map(({ instructions: _, ...summary }) => summary),
@@ -739,11 +740,11 @@ export async function listSchedules(): Promise<ScheduleView[]> {
 }
 
 export async function getProfile(): Promise<ProfileView> {
-  const [row] = await db
-    .select({ aboutMe: settings.aboutMe, updatedAt: settings.aboutMeUpdatedAt })
-    .from(settings)
-    .where(eq(settings.id, 1));
-  return { aboutMe: row?.aboutMe ?? "", updatedAt: row?.updatedAt?.toISOString() ?? null };
+  const row = await ownerSettings(db);
+  return {
+    aboutMe: row?.aboutMe ?? "",
+    updatedAt: row?.aboutMeUpdatedAt?.toISOString() ?? null,
+  };
 }
 
 export async function listTriggers(): Promise<TriggerView[]> {
@@ -962,7 +963,7 @@ export async function listFinishedSince(since: Date, limit = 60): Promise<Briefi
 
 /** The API key fallback: the key's hint, this month's spend and cap, and whether the plan ran out. */
 export async function getModelAccess(): Promise<ModelAccessView> {
-  const [row] = await db.select().from(settings).where(eq(settings.id, 1));
+  const row = await ownerSettings(db);
   const [key] = await db
     .select({ hint: credentials.hint })
     .from(credentials)
