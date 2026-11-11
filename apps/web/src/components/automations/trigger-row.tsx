@@ -71,10 +71,10 @@ const EMPTY_HISTORY: Record<TriggerKind, string> = {
 };
 
 const DELETE_TEXT: Record<TriggerKind, string> = {
-  watch: "The page won't be checked again. Past runs stay in the Scheduled chat.",
-  webhook: "Its URL stops working. Past runs stay in the Scheduled chat.",
-  gmail: "New mail won't wake your teammate any more. Past runs stay in the Scheduled chat.",
-  calendar: "Events won't wake your teammate any more. Past runs stay in the Scheduled chat.",
+  watch: "The page won't be checked again. Past runs stay in the chat.",
+  webhook: "Its URL stops working. Past runs stay in the chat.",
+  gmail: "New mail won't wake your teammate any more. Past runs stay in the chat.",
+  calendar: "Events won't wake your teammate any more. Past runs stay in the chat.",
 };
 
 const CHECK_FAILED: Record<TriggerKind, string> = {

@@ -494,6 +494,11 @@ describe.skipIf(!url)("worker internal API, end to end", () => {
         worker.schedules.update({ ...schedule, scheduleId: id, cron: null, at: "2001-01-01" }),
       ),
     ).toEqual({ status: 400, message: "That time is in the past." });
+
+    // It runs in the teammate's main chat, in a lane of its own.
+    await worker.schedules.runNow({ scheduleId: id });
+    const [run] = await db.select().from(runs).where(eq(runs.scheduleId, id));
+    expect(run).toMatchObject({ chatId: created.chatId, lane: `schedule:${id}` });
   });
 
   it("push: a browser outside https can't subscribe, and a phone can register", async () => {

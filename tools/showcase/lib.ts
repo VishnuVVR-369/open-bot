@@ -296,8 +296,8 @@ export class Seeder {
   readonly activity: Map<string, Date>;
   readonly completions: Map<string, Date>;
   readonly unread: Set<string>;
-  /** Teammates whose main chat is seeded: their first direct chat. */
-  readonly withMainChat: Set<string>;
+  /** Each teammate's main chat: its first direct chat. */
+  readonly mainChats: Map<string, { id: string; kind: string; title: string }>;
   runCount: number;
 
   constructor(db: Db, context: { shots: Map<string, Buffer>; encryptionKey: string }) {
@@ -306,7 +306,7 @@ export class Seeder {
     this.activity = new Map(); // chatId -> latest activity
     this.completions = new Map(); // chatId -> latest completed run
     this.unread = new Set();
-    this.withMainChat = new Set();
+    this.mainChats = new Map();
     this.runCount = 0;
   }
 
@@ -334,9 +334,8 @@ export class Seeder {
   }) {
     const id = randomUUID();
     const teammateId = bot?.id; // vocabulary: allow
-    const main =
-      kind === "direct" && teammateId !== undefined && !this.withMainChat.has(teammateId);
-    if (main) this.withMainChat.add(teammateId);
+    const main = kind === "direct" && teammateId !== undefined && !this.mainChats.has(teammateId);
+    if (main) this.mainChats.set(teammateId, { id, kind, title });
     await this.db.insert(chats, {
       id,
       kind,
@@ -410,6 +409,8 @@ export class Seeder {
       triggerId = null,
       parentRunId = null,
       readOutsideData = false,
+      lane = "chat",
+      quiet = false,
       tokens = null,
     } = spec;
     const startedAt = plus(at, 1800);
@@ -491,6 +492,8 @@ export class Seeder {
       finalText,
       rating,
       readOutsideData,
+      lane,
+      quiet,
       attachments: [],
       createdAt: at,
       startedAt,
@@ -550,8 +553,9 @@ export class Seeder {
       });
     }
 
-    this.touch(chat.id, lastTime);
-    if (completedAt) {
+    // A quiet run that found nothing leaves the chat as it was, the way the worker does.
+    if (!quiet) this.touch(chat.id, lastTime);
+    if (completedAt && !quiet) {
       const current = this.completions.get(chat.id);
       if (!current || completedAt > current) this.completions.set(chat.id, completedAt);
     }

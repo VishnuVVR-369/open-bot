@@ -788,9 +788,16 @@ export default function HomeScreen() {
     ]);
     setRefreshing(false);
   }, [home, teammates, chats, pages, approvals]);
-  // Direct chats already show on the roster; this is what happened elsewhere.
+  // Your direct chats already show on the roster; this is what happened elsewhere, and what
+  // teammates did on their own (automations and email, which run in their main chats).
   const recent = useMemo(
-    () => (home.data?.activity ?? []).filter((item) => item.chatKind !== "direct").slice(0, RECENT),
+    () =>
+      (home.data?.activity ?? [])
+        .filter(
+          (item) =>
+            item.chatKind !== "direct" || item.automationTitle !== null || item.trigger === "email",
+        )
+        .slice(0, RECENT),
     [home.data],
   );
 

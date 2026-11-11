@@ -286,6 +286,10 @@ describe.skipIf(!url)("Gmail and Calendar triggers with Postgres", () => {
     expect(run).toBeDefined();
     expect(run!.readOutsideData).toBe(true);
     expect(run!.trigger).toBe("gmail");
+    // It works in the teammate's main chat, in a lane of its own.
+    expect(run!.lane).toBe(`trigger:${row.id}`);
+    const [chat] = await db.select().from(chats).where(eq(chats.id, run!.chatId));
+    expect(chat).toMatchObject({ kind: "direct", main: true });
     expect(run!.prompt).toContain("Summarize it for me.");
     expect(run!.prompt).toContain(ACCOUNT_TRIGGER_NOTE);
     expect(run!.prompt).toMatch(

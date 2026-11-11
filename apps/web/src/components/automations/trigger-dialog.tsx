@@ -51,7 +51,7 @@ const COPY = {
     newTitle: "New page watch",
     editTitle: "Edit page watch",
     description:
-      "The page is checked on a schedule. When it changes, the teammate gets what changed and your instructions, in their Scheduled chat.",
+      "The page is checked on a schedule. When it changes, the teammate gets what changed and your instructions, in their main chat.",
     titlePlaceholder: "Kettle price",
     promptPlaceholder: "Tell me the new price, and whether it's under £30.",
     create: "Start watching",
@@ -60,7 +60,7 @@ const COPY = {
     newTitle: "New webhook",
     editTitle: "Edit webhook",
     description:
-      "You get a private URL. Whenever a service calls it, the teammate gets the request and your instructions, in their Scheduled chat.",
+      "You get a private URL. Whenever a service calls it, the teammate gets the request and your instructions, in their main chat.",
     titlePlaceholder: "New GitHub issues",
     promptPlaceholder: "Summarize the new issue and tell me if it looks urgent.",
     create: "Create webhook",
@@ -69,7 +69,7 @@ const COPY = {
     newTitle: "New Gmail trigger",
     editTitle: "Edit Gmail trigger",
     description:
-      "New mail is looked for every 2 minutes. When some arrives, the teammate gets it and your instructions, in their Scheduled chat.",
+      "New mail is looked for every 2 minutes. When some arrives, the teammate gets it and your instructions, in their main chat.",
     titlePlaceholder: "Invoices",
     promptPlaceholder:
       "Add the amount and due date to my bills list, and tell me if it's over £200.",
@@ -79,7 +79,7 @@ const COPY = {
     newTitle: "New Calendar trigger",
     editTitle: "Edit Calendar trigger",
     description:
-      "Before each event on your calendar, the teammate gets its details and your instructions, in their Scheduled chat.",
+      "Before each event on your calendar, the teammate gets its details and your instructions, in their main chat.",
     titlePlaceholder: "Meeting prep",
     promptPlaceholder: "Look up the people I'm meeting and send me a short brief.",
     create: "Start watching",

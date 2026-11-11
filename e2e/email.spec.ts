@@ -136,11 +136,11 @@ test("@agent a teammate answers an email from its own address, after you approve
     });
     expect(await delivered.json()).toEqual({ ok: true, delivered: true });
 
-    // It arrives in the teammate's Email chat, and the reply waits for your approval.
+    // It arrives in the teammate's main chat, and the reply waits for your approval.
     const state = await apiFor(page).app.state();
-    const inbox = state.chats.find((chat) => chat.kind === "inbox" && chat.botId === botId)!;
-    await page.goto(`/chats/${inbox.id}`);
-    await expect(page.getByRole("heading", { name: `${name} · Email` })).toBeVisible();
+    const main = state.chats.find((chat) => chat.main && chat.botId === botId)!;
+    await page.goto(`/chats/${main.id}`);
+    await expect(page.getByRole("heading", { name })).toBeVisible();
     await expect(page.getByTestId("run").first().getByTestId("run-trigger")).toHaveText("An email");
     // The reply waits in the outbox for your approval, and goes the moment you give it.
     const approval = page

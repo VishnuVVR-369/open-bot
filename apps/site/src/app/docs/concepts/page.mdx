@@ -34,14 +34,12 @@ Its `kind` is one of five values:
 
 - `direct`: a chat with one teammate.
 - `group`: a chat with several teammates (`chat_members`). The lead answers, and can hand work to the others.
-- `scheduled`: the teammate's Scheduled chat, where its automations run.
-- `inbox`: the teammate's Email chat, where incoming mail arrives.
-- `helper`: a hidden chat for one swarm helper.
-
-The last three are created on demand, one per teammate.
+- `scheduled`: a teammate's old Scheduled chat, kept as history. Automations now run in the main chat.
+- `inbox`: a teammate's old Email chat, kept as history. Email now arrives in the main chat.
+- `helper`: a hidden chat for one swarm helper, created on demand.
 
 Each teammate has one main chat: a direct chat marked `chats.main`, at most one per teammate.
-Work that isn't started from a chat arrives there: tasks, questions from teammates, and Telegram messages named for the teammate.
+Work that isn't started from a chat arrives there: automations, email to the teammate's address, tasks, questions from teammates, and Telegram messages named for the teammate.
 A teammate's first direct chat is its main chat, and you can make another one main from the chat's menu.
 Archiving the main chat hands the role to the teammate's most recently active direct chat, and a teammate without one gets a new direct chat when work arrives.
 
@@ -76,7 +74,7 @@ Others for the same lane wait in the queue.
 Teammates are powered by **Codex**, OpenAI's coding agent, running as an app-server on the computer.
 A Codex **thread** is a conversation with its full history.
 open-bot keeps one thread per teammate per lane of a chat, recorded in `bot_threads`.
-Your conversation is the `chat` lane.
+Your conversation is the `chat` lane; each automation, and the teammate's email, works in a lane of its own.
 
 A Codex **turn** is one request on a thread: input in, then a stream of reasoning, messages, commands and tool calls, then a final status.
 Every open-bot run is exactly one Codex turn.
@@ -136,7 +134,7 @@ Automations wake a teammate without you:
 - **Page watches**: a web page checked on an interval, firing when it changes.
 - **Webhooks**: a secret URL that other services can call.
 
-All three start runs in the teammate's Scheduled chat.
+All three start runs in the teammate's main chat, each in its own lane.
 See [Automations](/docs/flows/automations).
 
 ## Memory

@@ -250,6 +250,8 @@ The query is on the [Worker](/docs/architecture/worker#claiming-work) page.
 
 `runs.waiting_for` says what a waiting run waits for: `approval` or `takeover`.
 `runs.cancel_requested_at` marks a run you stopped, until the worker processes it.
+`runs.lane` is the lane of the chat it works in (see [Threads](/docs/architecture/agent-runtime#threads)).
+`runs.quiet` marks a quiet routine's run that had nothing to report; it doesn't count as activity in the chat.
 
 ## The event log
 

@@ -309,6 +309,36 @@ describe.skipIf(!url)("API reads, end to end", () => {
     expect(await api.memory.forRun({ runId: ids.run })).toEqual([]);
   });
 
+  it("leaves a chat read and its preview alone when a quiet routine found nothing", async () => {
+    const s = await import("@open-bot/db");
+    const db = database.db;
+    const chatId = crypto.randomUUID();
+    const seen = new Date(Date.now() - 60_000);
+    await db.insert(s.chats).values({
+      id: chatId,
+      kind: "direct",
+      title: "Quiet",
+      readAt: seen,
+      ...owned(ids.teammate),
+    });
+    const reply = (finalText: string, quiet: boolean, minutesAgo: number) => ({
+      chatId,
+      ...owned(ids.teammate),
+      trigger: "schedule" as const,
+      prompt: "Check",
+      status: "completed" as const,
+      finalText,
+      quiet,
+      completedAt: new Date(Date.now() - minutesAgo * 60_000),
+    });
+    await db
+      .insert(s.runs)
+      .values([reply("Prices dropped", false, 5), reply("Nothing to report.", true, 0)]);
+    const chat = (await api.chats.list()).find((entry) => entry.id === chatId)!;
+    expect(chat.unread).toBe(false);
+    expect(chat.preview).toMatchObject({ text: "Prices dropped" });
+  });
+
   it("passes the worker's reads through", async () => {
     expect(await api.telegram.status()).toMatchObject({ connected: false });
     expect(await api.push.status()).toEqual({ publicKey: "key", devices: [] });

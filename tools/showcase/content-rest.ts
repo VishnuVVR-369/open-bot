@@ -251,7 +251,7 @@ Nothing urgent overnight. Kit's rollback run finishes this afternoon.`,
 - **13:30** Press call with The Weekly Stack, 20 min.
 - **16:00** Launch review with Juno and Kit.
 
-Two decisions waiting for you: the embargo time for press, and whether to hold the launch date. Both are in the Launch plan chat.`,
+Two decisions waiting for you: the embargo time for press, and whether to hold the launch date. Both are further up in this chat.`,
   (day) => `**${day}.** Four meetings, two tasks due.
 
 - **10:00** Product sync (Dana, Mateo).
@@ -281,6 +281,8 @@ async function scheduledRuns(
         at,
         trigger: "schedule",
         scheduleId: schedule.id,
+        lane: `schedule:${schedule.id}`,
+        quiet: schedule.quiet && result === "Nothing to report.",
         prompt: `[Scheduled task: "${schedule.title}"]\n\n${schedule.prompt}`,
         ...(typeof result === "object"
           ? result
@@ -305,15 +307,16 @@ export async function seedAutomations(ctx: SeedContext) {
     dur: 1400,
   });
 
-  const chatFor = (bot, kind, title) =>
-    s.chat({ kind, title, titled: false, bot, createdAt: ago({ d: 16 }) });
-  const irisSched = await chatFor(iris, "scheduled", "Scheduled");
-  const miraSched = await chatFor(mira, "scheduled", "Scheduled");
-  const scoutSched = await chatFor(scout, "scheduled", "Scheduled");
-  const kitSched = await chatFor(kit, "scheduled", "Scheduled");
-  ctx.chats.kitSched = kitSched;
-  const miraInbox = await chatFor(mira, "inbox", "Email");
-  ctx.chats.miraInbox = miraInbox;
+  // Automations and email run in each teammate's main chat, each in a lane of its own.
+  const mainOf = (bot) => {
+    const main = s.mainChats.get(bot.id);
+    if (!main) throw new Error(`${bot.name} has no main chat to run automations in.`);
+    return main;
+  };
+  const irisMain = mainOf(iris);
+  const miraMain = mainOf(mira);
+  const scoutMain = mainOf(scout);
+  const kitMain = mainOf(kit);
 
   const makeSchedule = async (
     bot,
@@ -349,7 +352,7 @@ export async function seedAutomations(ctx: SeedContext) {
       ...row,
       ...extra,
     });
-    return { id, title: row.title, prompt: row.prompt, occurrences };
+    return { id, title: row.title, prompt: row.prompt, quiet: row.quiet ?? false, occurrences };
   };
 
   // Iris: morning briefing, weekdays at 8:00.
@@ -363,7 +366,7 @@ export async function seedAutomations(ctx: SeedContext) {
     },
     { hour: 8, minute: 0, days: WEEKDAYS },
   );
-  await scheduledRuns(ctx, irisSched, iris, briefing, BRIEFINGS, briefing.occurrences, {
+  await scheduledRuns(ctx, irisMain, iris, briefing, BRIEFINGS, briefing.occurrences, {
     readOutsideData: true,
   });
 
@@ -381,7 +384,7 @@ export async function seedAutomations(ctx: SeedContext) {
   );
   await scheduledRuns(
     ctx,
-    miraSched,
+    miraMain,
     mira,
     digest,
     [
@@ -409,7 +412,7 @@ export async function seedAutomations(ctx: SeedContext) {
   );
   await scheduledRuns(
     ctx,
-    scoutSched,
+    scoutMain,
     scout,
     friday,
     [
@@ -440,11 +443,11 @@ Net: nobody shipped funnels plus EU hosting yet. That is still Kestrel 2.0's gap
   );
   const auditOccurrences = audit.occurrences;
   if (auditOccurrences[0])
-    await scheduledRuns(ctx, kitSched, kit, audit, ["Nothing to report."], [auditOccurrences[0]]);
+    await scheduledRuns(ctx, kitMain, kit, audit, ["Nothing to report."], [auditOccurrences[0]]);
   if (auditOccurrences[1])
     await scheduledRuns(
       ctx,
-      kitSched,
+      kitMain,
       kit,
       audit,
       [
@@ -472,7 +475,7 @@ Net: nobody shipped funnels plus EU hosting yet. That is still Kestrel 2.0's gap
   if (auditOccurrences[2])
     await scheduledRuns(
       ctx,
-      kitSched,
+      kitMain,
       kit,
       audit,
       [
@@ -537,10 +540,11 @@ Neither ships to production. I can open a PR bumping both if you want it.`,
     createdBy: "bot",
     createdAt: ago({ d: 6 }),
   });
-  await s.run(scoutSched, scout, {
+  await s.run(scoutMain, scout, {
     at: ago({ d: 2, h: 1 }),
     trigger: "watch",
     triggerId: tallyfox,
+    lane: `trigger:${tallyfox}`,
     readOutsideData: true,
     prompt: `[Watch: "Tallyfox pricing page"]\n\nThe page changed. Tell me what changed in the prices or plans, and whether it affects how we position Kestrel 2.0.`,
     items: [
@@ -565,10 +569,11 @@ That widens the gap with Kestrel 2.0 at $25 for 200k pageviews. I would not chan
     createdBy: "user",
     createdAt: ago({ d: 11 }),
   });
-  await s.run(kitSched, kit, {
+  await s.run(kitMain, kit, {
     at: ago({ d: 1, h: 4 }),
     trigger: "webhook",
     triggerId: release,
+    lane: `trigger:${release}`,
     prompt: `[Webhook: "Update the changelog for a new release"]\n\nA release was published. Update the changelog draft with it and tell me if anything unexpected is in it.`,
     items: [
       toolItem("search_history", "Read the release notes for v2.0.0-rc.2", "12 changes"),
@@ -577,10 +582,11 @@ That widens the gap with Kestrel 2.0 at $25 for 200k pageviews. I would not chan
       ),
     ],
   });
-  await s.run(kitSched, kit, {
+  await s.run(kitMain, kit, {
     at: ago({ h: 6 }),
     trigger: "webhook",
     triggerId: release,
+    lane: `trigger:${release}`,
     status: "failed",
     error: "Interrupted when the computer restarted.",
     prompt: `[Webhook: "Update the changelog for a new release"]\n\nA release was published. Update the changelog draft with it and tell me if anything unexpected is in it.`,
@@ -604,10 +610,11 @@ That widens the gap with Kestrel 2.0 at $25 for 200k pageviews. I would not chan
     createdBy: "user",
     createdAt: ago({ d: 14 }),
   });
-  await s.run(miraSched, mira, {
+  await s.run(miraMain, mira, {
     at: ago({ d: 2, h: 3 }),
     trigger: "gmail",
     triggerId: investorMail,
+    lane: `trigger:${investorMail}`,
     readOutsideData: true,
     prompt: `[Gmail: "Investor mail"]\n\nSummarize the new email in two lines and tell me if it needs a reply today. Don't reply yourself.`,
     items: [
@@ -635,10 +642,11 @@ Needs a reply today. Both mornings are free on your calendar after 11.`),
     createdBy: "user",
     createdAt: ago({ d: 13 }),
   });
-  await s.run(irisSched, iris, {
+  await s.run(irisMain, iris, {
     at: ago({ d: 1, h: 2 }),
     trigger: "calendar",
     triggerId: prep,
+    lane: `trigger:${prep}`,
     readOutsideData: true,
     prompt: `[Calendar: "Prep before external meetings"]\n\nPrepare me: who I'm meeting, what we last discussed, and the one thing I should bring up.`,
     items: [
@@ -686,7 +694,7 @@ Needs a reply today. Both mornings are free on your calendar after 11.`),
       botId: mira.id,
       direction,
       status: status ?? (direction === "in" ? "received" : "sent"),
-      chatId: miraInbox.id,
+      chatId: miraMain.id,
       from,
       to,
       subject,
@@ -700,9 +708,10 @@ Needs a reply today. Both mornings are free on your calendar after 11.`),
   };
 
   const invoiceAt = ago({ d: 1, h: 3 });
-  const invoiceRun = await s.run(miraInbox, mira, {
+  const invoiceRun = await s.run(miraMain, mira, {
     at: invoiceAt,
     trigger: "email",
+    lane: "inbox",
     prompt: "An email arrived from billing@northhost.example: Invoice INV-2291.",
     items: [
       {
@@ -731,9 +740,10 @@ Needs a reply today. Both mornings are free on your calendar after 11.`),
   });
 
   const danaAt = ago({ h: 5, m: 10 });
-  const danaRun = await s.run(miraInbox, mira, {
+  const danaRun = await s.run(miraMain, mira, {
     at: danaAt,
     trigger: "email",
+    lane: "inbox",
     readOutsideData: true,
     prompt: "An email arrived from dana@kestrel.team: Fwd: Refund request, annual plan.",
     items: [
@@ -1543,7 +1553,7 @@ export async function seedNotifications(ctx: SeedContext) {
     title: "Kit couldn't finish: Update the changelog for a new release",
     body: "Interrupted when the computer restarted.",
     botId: kit.id,
-    chatId: ctx.chats.kitSched?.id ?? chats.kitBug.id,
+    chatId: chats.kitBug.id,
     createdAt: ago({ h: 6 }),
   });
   await n({

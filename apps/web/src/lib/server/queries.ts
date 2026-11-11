@@ -200,11 +200,12 @@ export async function listChats({ helpers = false, previews: withPreviews = true
     .from(runs)
     .where(inArray(runs.status, [...ACTIVE_RUN_STATUSES]));
   const activeSet = new Set(activeChats.map((row) => row.chatId));
-  // When a teammate last finished replying in each chat, for unread.
+  // When a teammate last finished replying in each chat, for unread. A quiet routine that found
+  // nothing doesn't count.
   const replies = await db
     .select({ chatId: runs.chatId, at: max(runs.completedAt) })
     .from(runs)
-    .where(inArray(runs.status, ["completed", "failed"]))
+    .where(and(inArray(runs.status, ["completed", "failed"]), eq(runs.quiet, false)))
     .groupBy(runs.chatId);
   const lastReply = new Map(replies.map((row) => [row.chatId, row.at]));
   const previews = withPreviews ? await chatPreviews() : new Map();
@@ -252,7 +253,7 @@ async function chatPreviews(): Promise<Map<string, NonNullable<ChatSummary["prev
         completedAt: runs.completedAt,
       })
       .from(runs)
-      .where(isNotNull(runs.finalText))
+      .where(and(isNotNull(runs.finalText), eq(runs.quiet, false)))
       .orderBy(runs.chatId, desc(runs.createdAt)),
   ]);
   const previews = new Map<string, { text: string; botId: string | null; at: Date }>();
@@ -901,13 +902,20 @@ export async function listAutomationRuns(
 
 export async function listActivity(limit = 12): Promise<ActivityView[]> {
   const rows = await db
-    .select({ run: runs, chat: chats, prompt: runs.prompt })
+    .select({
+      run: runs,
+      chat: chats,
+      scheduleTitle: schedules.title,
+      triggerTitle: triggers.title,
+    })
     .from(runs)
     .innerJoin(chats, eq(chats.id, runs.chatId))
+    .leftJoin(schedules, eq(schedules.id, runs.scheduleId))
+    .leftJoin(triggers, eq(triggers.id, runs.triggerId))
     .where(and(isNull(chats.archivedAt), ne(chats.kind, "helper")))
     .orderBy(desc(runs.createdAt))
     .limit(limit);
-  return rows.map(({ run, chat }) => ({
+  return rows.map(({ run, chat, scheduleTitle, triggerTitle }) => ({
     runId: run.id,
     chatId: chat.id,
     chatKind: chat.kind,
@@ -917,6 +925,7 @@ export async function listActivity(limit = 12): Promise<ActivityView[]> {
     status: run.status,
     preview: run.finalText ?? run.error ?? null,
     createdAt: run.createdAt.toISOString(),
+    automationTitle: scheduleTitle ?? triggerTitle ?? null,
   }));
 }
 

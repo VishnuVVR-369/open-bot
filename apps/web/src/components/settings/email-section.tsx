@@ -111,7 +111,7 @@ export function EmailSection() {
         <span className="text-[13px] font-medium">Inbound webhook</span>
         <span className="text-[12.5px] text-muted-foreground">
           In Postmark, point your domain&apos;s inbound stream here. Mail to any teammate&apos;s
-          address starts them in their Email chat.
+          address reaches them in their main chat.
         </span>
         <span className="flex min-w-0 items-center gap-1">
           <code className="min-w-0 flex-1 truncate font-mono text-[12px]" data-testid="inbound-url">

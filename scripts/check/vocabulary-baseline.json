@@ -715,7 +715,7 @@
     "bot": 11
   },
   "packages/db/src/schema.ts": {
-    "bot": 150,
+    "bot": 148,
     "desktop takeover": 4,
     "primary teammate": 2
   },

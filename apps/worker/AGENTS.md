@@ -30,7 +30,7 @@ Shared types and pure logic go in `packages/domain`, and schema changes go in `p
 
 - Unit: `pnpm --filter @open-bot/worker test`.
 - Integration: `pnpm test:integration` from the root (starts Postgres), or `pnpm --filter @open-bot/worker test:integration` with `TEST_DATABASE_URL` set.
-- Integration suites: all nine `*.integration.test.ts` files under `apps/worker/src` (`git ls-files 'apps/worker/**/*.integration.test.ts'`).
+- Integration suites: all ten `*.integration.test.ts` files under `apps/worker/src` (`git ls-files 'apps/worker/**/*.integration.test.ts'`).
 - Built artifact: `pnpm --filter @open-bot/worker build && node apps/worker/dist/worker.mjs`.
 - Sleep and wake: `pnpm test:computer-sleep`.
 - E2E: `pnpm e2e` (for example `e2e/agent.spec.ts`, `e2e/computer.spec.ts`, `e2e/swarm.spec.ts`).

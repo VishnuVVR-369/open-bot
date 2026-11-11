@@ -634,6 +634,8 @@ export class ToolHandlers {
   ): Promise<Response> {
     if (session.chat.kind !== "direct")
       return text("Only a direct chat can be titled this way; this one keeps its name.", false);
+    if (session.run.lane !== "chat")
+      return text("Only the conversation names its chat; this chat keeps its name.", false);
     const title = chatTitleText(String(args.title ?? ""));
     if (!title) return text("title is required", false);
     if (!(await titleChat(this.ctx.db, session.chat.id, title)))
@@ -733,7 +735,7 @@ export class ToolHandlers {
           : `Runs once at ${when}`,
     });
     return text(
-      `Scheduled "${schedule.title}" (id ${schedule.id})${target.id === session.bot.id ? "" : ` for ${target.name}; it runs in their Scheduled chat`}. Next run: ${when} (${schedule.timezone}).`,
+      `Scheduled "${schedule.title}" (id ${schedule.id})${target.id === session.bot.id ? "" : ` for ${target.name}; it runs in their main chat`}. Next run: ${when} (${schedule.timezone}).`,
     );
   }
 
@@ -834,7 +836,7 @@ export class ToolHandlers {
       result: `${watch.url}, ${every}${watch.lookFor ? `, waiting for “${watch.lookFor}”` : ""}`,
     });
     return text(
-      `Watching ${watch.url} ${every} (id ${watch.id})${target.id === session.bot.id ? "" : ` for ${target.name}`}.${watch.lookFor ? ` It fires when "${watch.lookFor}" appears.` : " It fires on any change."} ${target.id === session.bot.id ? "You'll get a run in your Scheduled chat when it fires." : `${target.name} gets a run in their Scheduled chat when it fires.`}`,
+      `Watching ${watch.url} ${every} (id ${watch.id})${target.id === session.bot.id ? "" : ` for ${target.name}`}.${watch.lookFor ? ` It fires when "${watch.lookFor}" appears.` : " It fires on any change."} ${target.id === session.bot.id ? "You'll get a run in your main chat when it fires." : `${target.name} gets a run in their main chat when it fires.`}`,
     );
   }
 
@@ -912,7 +914,7 @@ export class ToolHandlers {
     });
     const who = target.id === session.bot.id ? "You'll get" : `${target.name} gets`;
     return text(
-      `Set up "${row.title}" (id ${row.id})${target.id === session.bot.id ? "" : ` for ${target.name}`}: ${what}. ${who} a run in ${target.id === session.bot.id ? "your" : "their"} Scheduled chat ${kind === "gmail" ? "when such mail arrives, checked every 2 minutes, starting now" : "for each event, once"}. Those runs ask the user before sending anything.`,
+      `Set up "${row.title}" (id ${row.id})${target.id === session.bot.id ? "" : ` for ${target.name}`}: ${what}. ${who} a run in ${target.id === session.bot.id ? "your" : "their"} main chat ${kind === "gmail" ? "when such mail arrives, checked every 2 minutes, starting now" : "for each event, once"}. Those runs ask the user before sending anything.`,
     );
   }
 
@@ -970,7 +972,7 @@ export class ToolHandlers {
       result: url,
     });
     return text(
-      `Created the webhook "${hook.title}" (id ${hook.id})${target.id === session.bot.id ? "" : ` for ${target.name}`}. URL: ${url}\nIt accepts GET and POST. Each call starts a run in ${target.id === session.bot.id ? "your" : `${target.name}'s`} Scheduled chat, up to 30 an hour.`,
+      `Created the webhook "${hook.title}" (id ${hook.id})${target.id === session.bot.id ? "" : ` for ${target.name}`}. URL: ${url}\nIt accepts GET and POST. Each call starts a run in ${target.id === session.bot.id ? "your" : `${target.name}'s`} main chat, up to 30 an hour.`,
     );
   }
 

@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { compactNumber, formatDuration } from "@/lib/utils";
+import { compactNumber, formatDuration, runClock } from "@/lib/utils";
 
 it("formatDuration reads like a person would say it", () => {
   expect(formatDuration(400)).toBe("0s");
@@ -14,4 +14,13 @@ it("compactNumber shortens big counts", () => {
   expect(compactNumber(950)).toBe("950");
   expect(compactNumber(18_240)).toBe("18.2K");
   expect(compactNumber(2_400_000)).toBe("2.4M");
+});
+
+it("runClock says which day a run was on, unless it was today", () => {
+  const now = new Date(2026, 10, 12, 15, 0);
+  expect(runClock(new Date(2026, 10, 12, 7, 30), now)).toBe("7:30 AM");
+  expect(runClock(new Date(2026, 10, 11, 18, 52), now)).toBe("Yesterday 6:52 PM");
+  expect(runClock(new Date(2026, 10, 9, 9, 0), now)).toBe("Mon 9:00 AM");
+  expect(runClock(new Date(2026, 10, 2, 9, 0), now)).toBe("Nov 2, 9:00 AM");
+  expect(runClock(new Date(2025, 11, 30, 9, 0), now)).toBe("Dec 30, 2025, 9:00 AM");
 });
