@@ -34,7 +34,9 @@ import {
 } from "@open-bot/domain";
 import { decryptSecret, encryptSecret } from "@open-bot/domain/server";
 import { and, eq, inArray, lt, sql } from "drizzle-orm";
+import { ApiError } from "./api/errors";
 import { BASE_URL } from "./auth-config";
+import { claimConnectionName } from "./connection-names";
 import { db, pool } from "./db";
 import { serverEnv } from "./env";
 import { publish } from "./publish";
@@ -44,7 +46,12 @@ const STATE_TTL_MS = 10 * 60_000;
 
 export const accountStore = new AccountStore(db, serverEnv.encryptionKey);
 
-export class AccountConnectError extends Error {}
+/** Connecting or changing an account can't go ahead, for the reason it says. */
+export class AccountConnectError extends ApiError {
+  constructor(message: string) {
+    super("BAD_REQUEST", message);
+  }
+}
 
 /**
  * Start signing in to a provider for a connection: save a single-use state tied to this session,
@@ -263,28 +270,25 @@ async function upsertConnection(
     await wakeAccounts();
     return existing.id;
   }
-  const taken = new Set(
-    (await db.select({ name: connections.name }).from(connections)).map((row) => row.name),
-  );
-  const base = connectionName(definition.label);
-  let name = base;
-  for (let n = 2; taken.has(name); n += 1) name = `${base}_${n}`;
-  const others = await db
-    .select({ id: connections.id })
-    .from(connections)
-    .where(eq(connections.kind, purpose.kind));
-  const [row] = await db
-    .insert(connections)
-    .values({
-      kind: purpose.kind,
-      label: others.length ? `${definition.label} (${display})` : definition.label,
-      name,
-      accountId,
-      capabilities: purpose.capabilities,
-      botIds: purpose.botIds,
-    })
-    .returning({ id: connections.id });
-  return row!.id;
+  return db.transaction(async (tx) => {
+    const name = await claimConnectionName(tx, connectionName(definition.label));
+    const others = await tx
+      .select({ id: connections.id })
+      .from(connections)
+      .where(eq(connections.kind, purpose.kind));
+    const [row] = await tx
+      .insert(connections)
+      .values({
+        kind: purpose.kind,
+        label: others.length ? `${definition.label} (${display})` : definition.label,
+        name,
+        accountId,
+        capabilities: purpose.capabilities,
+        botIds: purpose.botIds,
+      })
+      .returning({ id: connections.id });
+    return row!.id;
+  });
 }
 
 /** Two teammate or capability lists hold the same entries (null is "everyone"). */

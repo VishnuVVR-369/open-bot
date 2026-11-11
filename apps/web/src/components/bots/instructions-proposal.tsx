@@ -7,7 +7,8 @@ import { useMemo, useTransition } from "react";
 import { toast } from "sonner";
 import { TimeAgo } from "@/components/time-ago";
 import { Button } from "@/components/ui/button";
-import { acceptProposal, dismissProposal } from "@/lib/actions";
+import { attempt } from "@/lib/client/mutate";
+import { api } from "@/lib/client/rpc";
 import type { ProposalView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -84,7 +85,7 @@ export function InstructionsProposal({
           disabled={pending || accepting}
           onClick={() =>
             startTransition(async () => {
-              const result = await dismissProposal(proposal.id);
+              const result = await attempt(api.proposals.dismiss({ proposalId: proposal.id }));
               if (!result.ok) toast.error(result.error);
               router.refresh();
             })
@@ -96,7 +97,7 @@ export function InstructionsProposal({
           disabled={pending || accepting}
           onClick={() =>
             startAccepting(async () => {
-              const result = await acceptProposal(proposal.id);
+              const result = await attempt(api.proposals.accept({ proposalId: proposal.id }));
               if (!result.ok) {
                 toast.error("Couldn't apply it", { description: result.error });
                 return;

@@ -27,3 +27,24 @@ export const usageViewSchema = z.object({
   outputTokens: z.number(),
 });
 export type UsageView = z.infer<typeof usageViewSchema>;
+
+/** The most the API key may spend in a month, in dollars. */
+export const MAX_MONTHLY_CAP_DOLLARS = 10_000;
+
+export const monthlyCapInputSchema = z.object({
+  dollars: z
+    .number({ error: "Give the cap in dollars, like 50." })
+    .min(0, "The cap can't be negative.")
+    .max(MAX_MONTHLY_CAP_DOLLARS, "Keep the cap at $10,000 or less."),
+});
+
+export const apiKeyInputSchema = z.object({
+  apiKey: z
+    .string()
+    .trim()
+    .max(500, "That doesn't look like an OpenAI API key. It starts with sk-.")
+    .regex(
+      /^sk-[A-Za-z0-9_-]{20,}$/,
+      "That doesn't look like an OpenAI API key. It starts with sk-.",
+    ),
+});

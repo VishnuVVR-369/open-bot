@@ -61,15 +61,10 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  deleteConnection,
-  saveAccountConnection,
-  saveOAuthClient,
-  setConnectionEnabled,
-  startAccountConnect,
-} from "@/lib/actions";
+import { attempt } from "@/lib/client/mutate";
 import { useAccountsSetup, useAppState } from "@/lib/client/queries";
 import { refreshForAppEvent } from "@/lib/client/refresh";
+import { api } from "@/lib/client/rpc";
 import type {
   AccountsSetupView,
   ConnectionTestView,
@@ -113,10 +108,10 @@ function useRefresh() {
 async function signIn(input: {
   kind: AccountConnectionKind;
   capabilities: AccountCapability[];
-  botIds: string[] | null;
+  teammateIds: string[] | null;
   accountId: string | null;
 }): Promise<boolean> {
-  const started = await startAccountConnect(input);
+  const started = await attempt(api.accounts.connect(input));
   if (!started.ok) {
     toast.error("Couldn't start connecting", { description: started.error });
     return false;
@@ -224,11 +219,9 @@ function ClientDialog({
             event.preventDefault();
             if (!ready || pending) return;
             startTransition(async () => {
-              const saved = await saveOAuthClient({
-                provider: provider.id,
-                clientId,
-                clientSecret: secret,
-              });
+              const saved = await attempt(
+                api.accounts.saveClient({ provider: provider.id, clientId, clientSecret: secret }),
+              );
               if (!saved.ok) {
                 toast.error("Couldn't save it", { description: saved.error });
                 return;
@@ -408,7 +401,7 @@ function ConnectDialog({
                 await signIn({
                   kind,
                   capabilities,
-                  botIds: access,
+                  teammateIds: access,
                   accountId: account !== "new" ? account : null,
                 });
               });
@@ -517,7 +510,7 @@ function EditDialog({
                 await signIn({
                   kind,
                   capabilities,
-                  botIds: access,
+                  teammateIds: access,
                   accountId: connection.account?.id ?? null,
                 });
                 return;
@@ -527,13 +520,15 @@ function EditDialog({
               const changed = Object.fromEntries(
                 Object.entries(settings).filter(([key, value]) => value !== before[key]),
               );
-              const saved = await saveAccountConnection({
-                id: connection.id,
-                capabilities,
-                botIds: access,
-                askBeforeActing: ask,
-                ...(Object.keys(changed).length > 0 ? { settings: changed } : {}),
-              });
+              const saved = await attempt(
+                api.accounts.update({
+                  connectionId: connection.id,
+                  capabilities,
+                  teammateIds: access,
+                  askBeforeActing: ask,
+                  ...(Object.keys(changed).length > 0 ? { settings: changed } : {}),
+                }),
+              );
               if (!saved.ok) {
                 toast.error("Couldn't save it", { description: saved.error });
                 return;
@@ -655,7 +650,7 @@ function AccountRow({
       await signIn({
         kind,
         capabilities: connection.capabilities,
-        botIds: connection.botIds,
+        teammateIds: connection.botIds,
         accountId: account?.id ?? null,
       });
     });
@@ -723,7 +718,9 @@ function AccountRow({
               <AlertDialogAction
                 variant="destructive"
                 onClick={async () => {
-                  const removed = await deleteConnection(connection.id);
+                  const removed = await attempt(
+                    api.connections.remove({ connectionId: connection.id }),
+                  );
                   if (!removed.ok) toast.error(removed.error);
                   else if (removed.data.warning) toast.warning(removed.data.warning);
                   await refresh();
@@ -740,7 +737,9 @@ function AccountRow({
         checked={connection.enabled}
         aria-label={`Use ${connection.label}`}
         onCheckedChange={async (checked) => {
-          const changed = await setConnectionEnabled(connection.id, checked);
+          const changed = await attempt(
+            api.connections.setEnabled({ connectionId: connection.id, enabled: checked }),
+          );
           if (!changed.ok) toast.error(changed.error);
           await refresh();
         }}

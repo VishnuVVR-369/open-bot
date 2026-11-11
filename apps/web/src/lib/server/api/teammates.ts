@@ -4,6 +4,7 @@ import {
   bots as teammates,
   CHANNELS,
   chats,
+  instructionProposals,
   lockTeam,
   notify,
   runs,
@@ -12,7 +13,7 @@ import {
   triggers,
   type Tx,
 } from "@open-bot/db";
-import { newTeammateSlot, teammateBundleSchema } from "@open-bot/domain";
+import { newTeammateSlot, teammateBundleSchema, toCents } from "@open-bot/domain";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db, pool } from "../db";
 import { memoryReady } from "../memory";
@@ -279,6 +280,77 @@ export async function archiveTeammate({ teammateId }: Inputs["archive"]): Promis
     notify(pool, CHANNELS.worker, "cancel"),
   );
   await worker.screens.forget({ screenId: teammateId }).catch(() => {});
+  await afterSaving("refreshing open pages", () => publish({ type: "bots" }));
+  return { ok: true };
+}
+
+/** A teammate's monthly budget, or none so it can't pay at all, and what it may buy on its own. */
+export async function setBudget({
+  teammateId,
+  budget,
+  autoApprove,
+}: Inputs["setBudget"]): Promise<{ ok: true }> {
+  const budgetCents = budget === null ? null : toCents(budget);
+  if (budget !== null && budgetCents === null)
+    throw new ApiError("BAD_REQUEST", "Give the budget in dollars, like 100.");
+  const autoApproveCents = toCents(autoApprove) ?? 0;
+  if (budgetCents !== null && autoApproveCents > budgetCents)
+    throw new ApiError(
+      "BAD_REQUEST",
+      "The amount to approve on its own can't be more than the budget.",
+    );
+  const [updated] = await db
+    .update(teammates)
+    .set({ monthlyBudgetCents: budgetCents, autoApproveCents })
+    .where(and(eq(teammates.id, teammateId), isNull(teammates.archivedAt)))
+    .returning({ id: teammates.id });
+  if (!updated) throw new ApiError("NOT_FOUND", "That teammate no longer exists.");
+  await afterSaving("refreshing open pages", () => publish({ type: "purchases" }));
+  return { ok: true };
+}
+
+/**
+ * Decide a suggestion that's still waiting. Null when it was already decided the same way; one
+ * decided the other way is a conflict.
+ */
+async function decideProposal(tx: Tx, proposalId: string, status: "accepted" | "dismissed") {
+  const [proposal] = await tx
+    .update(instructionProposals)
+    .set({ status, decidedAt: new Date() })
+    .where(and(eq(instructionProposals.id, proposalId), eq(instructionProposals.status, "pending")))
+    .returning();
+  if (proposal) return proposal;
+  const [decided] = await tx
+    .select({ status: instructionProposals.status })
+    .from(instructionProposals)
+    .where(eq(instructionProposals.id, proposalId));
+  if (!decided) throw new ApiError("NOT_FOUND", "That suggestion is gone.");
+  if (decided.status === status) return null;
+  throw new ApiError("STATE_CONFLICT", "That suggestion was already handled.");
+}
+
+/** Take a teammate's suggested instructions; they apply from its next message. */
+export async function acceptProposal({
+  proposalId,
+}: ApiInputs["proposals"]["accept"]): Promise<{ ok: true }> {
+  const teammateId = await db.transaction(async (tx) => {
+    const proposal = await decideProposal(tx, proposalId, "accepted");
+    if (!proposal) return null;
+    await tx
+      .update(teammates)
+      .set({ instructions: proposal.proposed })
+      .where(eq(teammates.id, proposal.botId));
+    return proposal.botId;
+  });
+  if (teammateId) await syncWorkspace(teammateId);
+  await afterSaving("refreshing open pages", () => publish({ type: "bots" }));
+  return { ok: true };
+}
+
+export async function dismissProposal({
+  proposalId,
+}: ApiInputs["proposals"]["dismiss"]): Promise<{ ok: true }> {
+  await db.transaction((tx) => decideProposal(tx, proposalId, "dismissed"));
   await afterSaving("refreshing open pages", () => publish({ type: "bots" }));
   return { ok: true };
 }

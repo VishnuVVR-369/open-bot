@@ -32,14 +32,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import {
-  deleteConnection,
-  saveConnection,
-  setConnectionEnabled,
-  testConnection,
-} from "@/lib/actions";
+import { attempt } from "@/lib/client/mutate";
 import { useAppState, useConnections } from "@/lib/client/queries";
 import { refreshForAppEvent } from "@/lib/client/refresh";
+import { api } from "@/lib/client/rpc";
 import type { ConnectionTestView, ConnectionView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { AccountsSection } from "./accounts-section";
@@ -97,16 +93,18 @@ function ConnectionDialog({
 
   function submit() {
     startTransition(async () => {
-      const result = await saveConnection({
-        id: connection?.id ?? null,
-        label: label.trim(),
-        transport,
-        url,
-        command,
-        args,
-        secrets,
-        botIds: access,
-      });
+      const result = await attempt(
+        api.connections.save({
+          id: connection?.id ?? null,
+          label: label.trim(),
+          transport,
+          url,
+          command,
+          args,
+          secrets,
+          teammateIds: access,
+        }),
+      );
       if (!result.ok) {
         toast.error("Couldn't save it", { description: result.error });
         return;
@@ -338,7 +336,9 @@ function ConnectionRow({
               <AlertDialogAction
                 variant="destructive"
                 onClick={async () => {
-                  const removed = await deleteConnection(connection.id);
+                  const removed = await attempt(
+                    api.connections.remove({ connectionId: connection.id }),
+                  );
                   if (!removed.ok) toast.error(removed.error);
                   await refresh();
                 }}
@@ -352,7 +352,9 @@ function ConnectionRow({
           checked={connection.enabled}
           aria-label={`Use ${connection.label}`}
           onCheckedChange={async (checked) => {
-            const changed = await setConnectionEnabled(connection.id, checked);
+            const changed = await attempt(
+              api.connections.setEnabled({ connectionId: connection.id, enabled: checked }),
+            );
             if (!changed.ok) toast.error(changed.error);
             await refresh();
           }}
@@ -408,7 +410,7 @@ export function ConnectionsSection() {
       delete next[id];
       return next;
     });
-    const result = await testConnection(id);
+    const result = await attempt(api.connections.test({ connectionId: id }));
     setTesting(null);
     setResults((current) => ({
       ...current,

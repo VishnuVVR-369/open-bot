@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { id } from "./base";
 
 /** What a teammate learned, suggested and spent, as its page shows it. */
 
@@ -49,3 +50,20 @@ export const spendingViewSchema = z.object({
   purchases: z.array(purchaseViewSchema),
 });
 export type SpendingView = z.infer<typeof spendingViewSchema>;
+
+/** The most a teammate's monthly budget can be, in dollars. */
+export const MAX_BUDGET_DOLLARS = 100_000;
+
+/** A teammate's monthly budget, in dollars, or null so it can't pay at all. */
+export const budgetInputSchema = z.object({
+  teammateId: id,
+  budget: z
+    .number({ error: "Give the budget in dollars, like 100." })
+    .positive("Give the budget in dollars, like 100.")
+    .max(MAX_BUDGET_DOLLARS, "Keep the budget under $100,000.")
+    .nullable(),
+  /** Purchases up to this go ahead on their own; 0 asks you about each one. */
+  autoApprove: z
+    .number({ error: "Give the amount in dollars, like 20." })
+    .min(0, "Give the amount in dollars, like 20."),
+});

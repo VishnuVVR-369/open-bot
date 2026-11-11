@@ -386,12 +386,12 @@ export function ConceptsDiagram() {
 export function WebAppDiagram() {
   const rows = [
     { title: "Pages", sub: "server components, first render" },
-    { title: "Server actions", sub: "every write, in lib/actions.ts" },
-    { title: "Read routes", sub: "GET /api/*, for client queries" },
+    { title: "The API", sub: "/api/rpc, every read and write" },
+    { title: "Byte routes", sub: "uploads and downloads, /api/*" },
     { title: "Event stream", sub: "GET /api/stream, server-sent events" },
   ];
   return (
-    <Svg height={352} label="The web app: pages, server actions, read routes and the event stream">
+    <Svg height={352} label="The web app: pages, the API, byte routes and the event stream">
       {(m) => (
         <>
           <Group x={196} y={0} w={330} h={300} label="Next.js server" note="apps/web" />

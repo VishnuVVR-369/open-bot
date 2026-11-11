@@ -21,3 +21,10 @@ export const base = oc.errors(API_ERRORS);
 export const id = z.string().uuid();
 
 export const ok = z.object({ ok: z.literal(true) });
+
+/** The teammates that may use something, or null for every teammate. */
+export const teammateAccessSchema = z
+  .array(id)
+  .min(1, "Pick at least one teammate, or everyone.")
+  .max(500)
+  .nullable();

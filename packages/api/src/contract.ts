@@ -3,7 +3,10 @@ import {
   botProfileSchema as profileSchema,
   createdTeammateSchema,
   MAX_LESSON_CHARS,
+  memoryEditSchema,
+  memoryInputSchema,
   memoryItemSchema,
+  memoryReferenceSchema,
   memoryRevisionSchema,
   skillInputSchema,
   updatedTeammateSchema,
@@ -25,9 +28,14 @@ import {
 } from "./egress";
 import { appStateSchema, homeSchema } from "./home";
 import {
+  accountConnectInputSchema,
+  accountConnectionChangesSchema,
   accountsSetupViewSchema,
+  connectionInputSchema,
   connectionViewSchema,
+  emailSettingsInputSchema,
   emailStatusViewSchema,
+  oauthClientInputSchema,
 } from "./integrations";
 import { memoryRunRefSchema } from "./memory";
 import {
@@ -36,11 +44,17 @@ import {
   screenOperationSchema,
   typeOnScreenSchema,
 } from "./screens";
-import { modelAccessViewSchema, profileViewSchema, usageViewSchema } from "./settings";
+import {
+  apiKeyInputSchema,
+  modelAccessViewSchema,
+  monthlyCapInputSchema,
+  profileViewSchema,
+  usageViewSchema,
+} from "./settings";
 import { skillViewSchema } from "./skills";
 import { taskChangesSchema, taskInputSchema, taskViewSchema } from "./tasks";
-import { lessonViewSchema, spendingViewSchema } from "./teammates";
-import { vaultItemViewSchema } from "./vault";
+import { budgetInputSchema, lessonViewSchema, spendingViewSchema } from "./teammates";
+import { vaultItemInputSchema, vaultItemViewSchema } from "./vault";
 import {
   approvalRuleSchema,
   approvalStatusSchema,
@@ -60,6 +74,7 @@ import {
 import {
   codexRateLimitsSchema,
   codexStatusSchema,
+  connectionTestSchema,
   fileListingSchema,
   pushStatusSchema,
   telegramStatusSchema,
@@ -219,6 +234,17 @@ export const contract = {
     setLead: base.input(z.object({ teammateId: id })).output(ok),
     /** Archive a teammate: its chats are archived, its automations paused, its work stopped. */
     archive: base.input(z.object({ teammateId: id })).output(ok),
+    /** What a teammate may spend from the vault's cards each month; see `budgetInputSchema`. */
+    setBudget: base.input(budgetInputSchema).output(ok),
+  },
+  proposals: {
+    /**
+     * Take the instructions a teammate suggested for itself; they apply from its next message.
+     * Deciding again the same way succeeds; one decided the other way fails with
+     * `STATE_CONFLICT`.
+     */
+    accept: base.input(z.object({ proposalId: id })).output(ok),
+    dismiss: base.input(z.object({ proposalId: id })).output(ok),
   },
   schedules: {
     list: base.output(z.array(scheduleViewSchema)),
@@ -278,6 +304,9 @@ export const contract = {
   vault: {
     /** Logins and cards, without their secrets. */
     list: base.output(z.array(vaultItemViewSchema)),
+    /** Save a login or card. Its secret is encrypted on the server and never sent back. */
+    save: base.input(vaultItemInputSchema).output(z.object({ id: z.string() })),
+    remove: base.input(z.object({ itemId: id })).output(ok),
   },
   profile: {
     /** What every teammate knows about you. */
@@ -292,6 +321,28 @@ export const contract = {
     history: base.input(z.object({ memoryId: id })).output(z.array(memoryRevisionSchema)),
     /** The memories a reply was given. */
     forRun: base.input(z.object({ runId: id })).output(z.array(memoryRunRefSchema)),
+    /**
+     * Save a memory you wrote. Saying what's already saved confirms it instead of adding another;
+     * `saveOutcome` says which happened.
+     */
+    create: base
+      .input(memoryInputSchema)
+      .output(
+        memoryItemSchema.extend({ saveOutcome: z.enum(["created", "confirmed", "unchanged"]) }),
+      ),
+    /**
+     * Change a memory. `expectedRevision` is the one you saw: a change made since fails with
+     * `STATE_CONFLICT` instead of being overwritten. The same holds for `forget`, `confirm` and
+     * `restore`.
+     */
+    update: base.input(memoryEditSchema).output(memoryItemSchema),
+    forget: base.input(memoryReferenceSchema).output(ok),
+    /** Make a teammate's suggested memory a real one. */
+    confirm: base.input(memoryReferenceSchema).output(memoryItemSchema),
+    /** Make an earlier revision the current one, as a new revision. */
+    restore: base
+      .input(memoryReferenceSchema.extend({ revision: z.number().int().positive() }))
+      .output(memoryItemSchema),
   },
   files: {
     /**
@@ -308,13 +359,44 @@ export const contract = {
   connections: {
     /** MCP servers and accounts teammates use, without their secrets. */
     list: base.output(z.array(connectionViewSchema)),
+    /** Save an MCP server. Its headers and variables are encrypted and never sent back. */
+    save: base.input(connectionInputSchema).output(z.object({ id: z.string() })),
+    /** Turn a connection on or off. Turning an account off cancels what waits on it. */
+    setEnabled: base.input(z.object({ connectionId: id, enabled: z.boolean() })).output(ok),
+    /**
+     * Remove a connection. The last connection using an account also revokes its access at the
+     * provider; `warning` says when that couldn't be done.
+     */
+    remove: base
+      .input(z.object({ connectionId: id }))
+      .output(z.object({ warning: z.string().nullable() })),
+    /** Connect to the service from the computer, and list what it offers. Wakes the computer. */
+    test: base.input(z.object({ connectionId: id })).output(connectionTestSchema),
   },
   accounts: {
     /** What connecting an account needs, per provider, and the accounts signed in. */
     setup: base.output(accountsSetupViewSchema),
+    /** Save the OAuth client you made in a provider's console, for new sign-ins to use. */
+    saveClient: base.input(oauthClientInputSchema).output(ok),
+    /**
+     * Start connecting an account: returns the provider's sign-in page to go to, in this browser
+     * (the sign-in is tied to this session).
+     */
+    connect: base.input(accountConnectInputSchema).output(z.object({ url: z.string() })),
+    /**
+     * Change what an account connection allows and who uses it. When it allows more than the
+     * account granted, nothing changes and `needsConsent` says to sign in again for it.
+     */
+    update: base
+      .input(accountConnectionChangesSchema)
+      .output(z.object({ needsConsent: z.boolean() })),
   },
   email: {
     status: base.output(emailStatusViewSchema),
+    /** Your teammates' email domain and Postmark's server token, which sends what they write. */
+    save: base.input(emailSettingsInputSchema).output(ok),
+    /** Forget Postmark's token: teammates receive email but can't send it. */
+    removeToken: base.output(ok),
   },
   telegram: {
     /** Fails with `SERVICE_UNAVAILABLE` while the worker can't be reached. */
@@ -344,6 +426,13 @@ export const contract = {
     usage: base.output(z.array(usageViewSchema)),
     /** ChatGPT's usage limits as last read. */
     rateLimits: base.output(codexRateLimitsSchema.shape.rateLimits),
+    /** The time zone teammates plan in. */
+    setTimezone: base.input(z.object({ timezone: z.string().max(100) })).output(ok),
+    /** An OpenAI API key for teammates to continue on when the plan's limit is reached. */
+    saveApiKey: base.input(apiKeyInputSchema).output(ok),
+    removeApiKey: base.output(ok),
+    /** The most the API key may spend in a month. */
+    setMonthlyCap: base.input(monthlyCapInputSchema).output(ok),
   },
   chats: {
     /** Your chats, most recent activity first. */

@@ -275,9 +275,6 @@
   "apps/web/src/components/bots/duplicate-bot.tsx": {
     "bot": 13
   },
-  "apps/web/src/components/bots/lessons-list.tsx": {
-    "bot": 3
-  },
   "apps/web/src/components/bots/memory-editor.tsx": {
     "bot": 4
   },
@@ -334,10 +331,10 @@
     "bot": 27
   },
   "apps/web/src/components/settings/accounts-section.tsx": {
-    "bot": 15
+    "bot": 10
   },
   "apps/web/src/components/settings/connections-section.tsx": {
-    "bot": 9
+    "bot": 8
   },
   "apps/web/src/components/settings/email-section.tsx": {
     "bot": 1
@@ -364,16 +361,13 @@
     "bot": 32
   },
   "apps/web/src/components/vault/vault-dialog.tsx": {
-    "bot": 2
+    "bot": 1
   },
   "apps/web/src/components/vault/vault-view.tsx": {
     "bot": 26
   },
-  "apps/web/src/lib/actions.ts": {
-    "bot": 30
-  },
   "apps/web/src/lib/client/queries.ts": {
-    "bot": 4
+    "bot": 2
   },
   "apps/web/src/lib/files.test.ts": {
     "bot": 2
@@ -389,6 +383,9 @@
   },
   "apps/web/src/lib/server/api/chats.ts": {
     "bot": 18
+  },
+  "apps/web/src/lib/server/api/integrations.ts": {
+    "bot": 4
   },
   "apps/web/src/lib/server/api/memory.ts": {
     "bot": 7
@@ -410,8 +407,11 @@
     "desktop takeover": 3
   },
   "apps/web/src/lib/server/api/teammates.ts": {
-    "bot": 13,
+    "bot": 17,
     "primary teammate": 5
+  },
+  "apps/web/src/lib/server/api/vault.ts": {
+    "bot": 1
   },
   "apps/web/src/lib/server/queries.ts": {
     "bot": 159,

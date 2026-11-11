@@ -16,11 +16,11 @@ import { toast } from "sonner";
 import { parseAppEvent } from "@open-bot/domain";
 import { isOutdated } from "../deployment";
 import type { NotificationView, StreamRunEvent } from "../types";
-import { setTimezone } from "../actions";
 import { notificationHref, plainText } from "../utils";
 import { deploymentReloader } from "./deployment";
 import { refreshAfterOutage, refreshForAppEvent, refreshSnapshots } from "./refresh";
-import { orpc } from "./rpc";
+import { attempt } from "./mutate";
+import { api, orpc } from "./rpc";
 
 type RunListener = (event: StreamRunEvent) => void;
 
@@ -156,7 +156,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       !localStorage.getItem("open-bot:timezone-set")
     ) {
       localStorage.setItem("open-bot:timezone-set", "1");
-      void setTimezone(browserZone).then(() =>
+      void attempt(api.settings.setTimezone({ timezone: browserZone })).then(() =>
         queryClient.invalidateQueries({ queryKey: orpc.app.state.key() }),
       );
     }
