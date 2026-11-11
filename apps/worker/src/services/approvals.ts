@@ -1,10 +1,8 @@
 import {
-  accountActions,
   type ApprovalKind,
   approvalRules,
   approvals,
   configurationRevision,
-  purchases,
   type Queryable,
 } from "@open-bot/db";
 import type { RuleKind } from "@open-bot/domain";
@@ -14,17 +12,19 @@ import {
   approvalQuotes,
   formatMoney,
   invalidRulePattern,
-  PURCHASE_WINDOW_MS,
   rulesCover,
   type AccountActionPreview,
   type ApprovalItem,
 } from "@open-bot/domain";
 import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
-import { createNotification, publishApp, type Context } from "../context";
+import { publishApp, type Context } from "../context";
+import { createNotification } from "./notifications";
 import { enqueueRun } from "../runs/queue";
 import { appendRunEvent } from "../runs/events";
 import type { RunSession } from "../runs/session";
 import type { SessionRegistry } from "./registry";
+import { decideAccountAction } from "../accounts/actions";
+import { askAboutPurchase, decidePurchase } from "./vault";
 
 const ACTION_WAIT_MS = 10 * 60_000;
 
@@ -59,6 +59,18 @@ export class ApprovalError extends Error {
   ) {
     super(message);
   }
+}
+
+/**
+ * Close these approvals, if they still wait: what they asked about was cancelled or expired
+ * elsewhere (an account action on a connection that changed, say).
+ */
+export async function expireApprovals(db: Queryable, approvalIds: string[]): Promise<void> {
+  if (!approvalIds.length) return;
+  await db
+    .update(approvals)
+    .set({ status: "expired", decidedAt: new Date() })
+    .where(and(inArray(approvals.id, approvalIds), eq(approvals.status, "pending")));
 }
 
 export class ApprovalService {
@@ -357,10 +369,7 @@ export class ApprovalService {
       detail: input.detail,
       itemId: input.itemId,
     });
-    await this.ctx.db
-      .update(purchases)
-      .set({ approvalId })
-      .where(eq(purchases.id, input.purchaseId));
+    await askAboutPurchase(this.ctx.db, input.purchaseId, approvalId);
     return session.whileWaiting("approval", () =>
       this.wait(session.run.id, approvalId, ACTION_WAIT_MS),
     );
@@ -383,16 +392,7 @@ export class ApprovalService {
         .returning();
       // An action on your accounts moves on with its approval, or not at all.
       if (decided && ACCOUNT_KINDS.includes(decided.kind))
-        await tx
-          .update(accountActions)
-          .set({
-            status: decision,
-            decidedAt: new Date(),
-            ...(decision === "denied" ? { finishedAt: new Date() } : {}),
-          })
-          .where(
-            and(eq(accountActions.approvalId, decided.id), eq(accountActions.status, "pending")),
-          );
+        await decideAccountAction(tx, decided.id, decision);
       return decided;
     });
     if (!row) return false;
@@ -410,18 +410,8 @@ export class ApprovalService {
       await this.addRule(row.botId, row.kind, pattern);
     }
     // An approved purchase opens its card to the teammate for a while.
-    const [purchase] =
-      row.kind === "purchase"
-        ? await this.ctx.db
-            .update(purchases)
-            .set({
-              status: decision,
-              fillableUntil:
-                decision === "approved" ? new Date(Date.now() + PURCHASE_WINDOW_MS) : null,
-            })
-            .where(and(eq(purchases.approvalId, row.id), eq(purchases.status, "pending")))
-            .returning()
-        : [];
+    const purchase =
+      row.kind === "purchase" ? await decidePurchase(this.ctx.db, row.id, decision) : undefined;
     if (purchase) await publishApp(this.ctx, { type: "purchases" });
 
     const item: ApprovalItem = {

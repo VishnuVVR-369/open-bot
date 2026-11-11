@@ -37,6 +37,7 @@ import {
   emailStatusViewSchema,
 } from "../integrations";
 import { apiKeyInputSchema, monthlyCapInputSchema } from "../settings";
+import { vaultItemInputSchema } from "../vault";
 import { budgetInputSchema } from "../teammates";
 import { taskChangesSchema, taskInputSchema } from "../tasks";
 import { approvalStatusSchema, messageViewSchema, uploadViewSchema } from "../views";
@@ -343,6 +344,16 @@ export const workerContract = {
       .output(ok),
   },
   pages: {
+    /** Pin or unpin a page. */
+    pin: base
+      .route({ method: "POST", path: "/internal/pages/{pageId}/pin" })
+      .input(z.object({ pageId: id, pinned: z.boolean() }))
+      .output(ok),
+    /** Delete a page and its versions. */
+    remove: base
+      .route({ method: "POST", path: "/internal/pages/{pageId}/delete" })
+      .input(z.object({ pageId: id }))
+      .output(ok),
     /**
      * Check and publish a page from a file on the computer, the way publish_page does but
      * outside a run: for setting up pages, and for tests that need a real one.
@@ -482,6 +493,24 @@ export const workerContract = {
       .output(ok),
     /** Forget Postmark's token: teammates receive email but can't send it. */
     removeToken: base.route({ method: "POST", path: "/internal/email/token/delete" }).output(ok),
+  },
+  vault: {
+    /** Save a login or card: a new one, or with `id`, a change to one. Its secret is encrypted. */
+    save: base
+      .route({ method: "POST", path: "/internal/vault" })
+      .input(vaultItemInputSchema)
+      .output(z.object({ id: z.string() })),
+    remove: base
+      .route({ method: "POST", path: "/internal/vault/{itemId}/delete" })
+      .input(z.object({ itemId: id }))
+      .output(ok),
+  },
+  notifications: {
+    /** Mark these notifications read, or every one up to `through`, or all of them. */
+    markRead: base
+      .route({ method: "POST", path: "/internal/notifications/read" })
+      .input(z.object({ ids: z.array(id).max(200).optional(), through: id.optional() }))
+      .output(ok),
   },
   settings: {
     /** The time zone teammates plan in. */

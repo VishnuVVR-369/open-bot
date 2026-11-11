@@ -13,14 +13,16 @@ import {
   type LeaseHolder,
   type TakeoverRequestItem,
 } from "@open-bot/domain";
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
-import { createNotification, publishApp, type Context } from "../context";
+import { and, desc, eq, isNull } from "drizzle-orm";
+import { publishApp, type Context } from "../context";
+import { createNotification } from "./notifications";
 import { enqueueRun } from "../runs/queue";
 import { appendRunEvent } from "../runs/events";
 import { errorMessage } from "../logger";
 import type { RunSession } from "../runs/session";
 import type { SessionRegistry } from "./registry";
 import { ScreenBusy, withScreenLock } from "./screen-lock";
+import { handBackEndedOperations, operationNeedsOwner } from "./screen-operations";
 
 const REQUEST_WAIT_MS = 10 * 60_000;
 
@@ -321,10 +323,7 @@ export class TakeoverService {
               await this.handBack(screenId, row.note ?? CODE_HANDED_BACK_NOTE);
             } catch (error) {
               if (!(error instanceof ScreenBusy)) throw error;
-              await this.ctx.db
-                .update(screenOperations)
-                .set({ status: "needs_owner", reason: error.message, updatedAt: new Date() })
-                .where(eq(screenOperations.id, operation.id));
+              await operationNeedsOwner(this.ctx.db, operation.id, error.message);
             }
           });
         } catch (error) {
@@ -334,15 +333,7 @@ export class TakeoverService {
       await this.notifyPausedScreens();
     }
     // Once a takeover ended, its screen passed the safety check on the way back.
-    await this.ctx.db
-      .update(screenOperations)
-      .set({ status: "handed_back", reason: null, updatedAt: new Date() })
-      .where(
-        and(
-          inArray(screenOperations.status, ["safe", "needs_owner", "unknown"]),
-          sql`${screenOperations.takeoverId} in (select id from desktop_takeovers where status = 'ended')`,
-        ),
-      );
+    await handBackEndedOperations(this.ctx.db);
     await this.deliverReturns();
   }
 

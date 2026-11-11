@@ -22,8 +22,6 @@ import {
   listPages,
   openPage,
   pageDownload,
-  pinPage,
-  removePage,
   searchPages,
 } from "../../../web/src/lib/server/api/pages";
 
@@ -222,6 +220,7 @@ describe.skipIf(!url)("pages with Postgres", () => {
   });
 
   it("lists, opens, pins, finds and deletes pages for the apps", async () => {
+    // Listing, opening and finding are the web app's reads; pinning and deleting are the worker's.
     const a = await service.publish(input("<p>Least recently updated</p>"));
     const b = await service.publish(
       input("<p>Eviction policies</p>", { path: "/home/bot/shared/b.html", title: "Eviction" }),
@@ -229,7 +228,7 @@ describe.skipIf(!url)("pages with Postgres", () => {
     await service.publish(input('<link href="/lib/kit@1/page.css"><p>Second</p>'));
 
     expect((await listPages()).map((page) => page.id)).toEqual([a.page.id, b.page.id]);
-    await pinPage({ pageId: b.page.id, pinned: true });
+    await service.pin(b.page.id, true);
     const listed = await listPages();
     expect(listed.map((page) => [page.id, page.pinned])).toEqual([
       [b.page.id, true],
@@ -265,7 +264,7 @@ describe.skipIf(!url)("pages with Postgres", () => {
       .insert(notifications)
       .values({ kind: "run_finished", title: "Done", body: "", pageId: a.page.id })
       .returning();
-    await removePage({ pageId: a.page.id });
+    await service.remove(a.page.id);
     await expect(getPage(a.page.id)).rejects.toThrow("That page was deleted.");
     await expect(openPage({ versionId: detail.versionId })).rejects.toThrow("deleted");
     expect(await db.select().from(pageVersions).where(eq(pageVersions.pageId, a.page.id))).toEqual(

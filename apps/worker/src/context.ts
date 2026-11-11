@@ -1,11 +1,4 @@
-import {
-  CHANNELS,
-  notifications,
-  notify,
-  type Db,
-  type NotificationKind,
-  type WorkerSignal,
-} from "@open-bot/db";
+import { CHANNELS, notify, type Db, type NotificationKind, type WorkerSignal } from "@open-bot/db";
 import type { EventEmitter } from "node:events";
 import type { AppEvent, ApprovalKind } from "@open-bot/domain";
 import type pg from "pg";
@@ -73,47 +66,4 @@ export async function signalWorker(
   signal: WorkerSignal,
 ): Promise<void> {
   await notify(ctx.pool, CHANNELS.worker, signal);
-}
-
-export async function createNotification(
-  ctx: Pick<Context, "db" | "pool" | "events">,
-  input: {
-    kind: NotificationKind;
-    title: string;
-    body?: string;
-    botId?: string | null;
-    chatId?: string | null;
-    runId?: string | null;
-    approvalId?: string;
-    approvalKind?: ApprovalKind;
-    takeoverId?: string;
-    pageId?: string | null;
-  },
-): Promise<void> {
-  const [row] = await ctx.db
-    .insert(notifications)
-    .values({
-      kind: input.kind,
-      title: input.title,
-      body: input.body ?? "",
-      botId: input.botId ?? null,
-      chatId: input.chatId ?? null,
-      runId: input.runId ?? null,
-      pageId: input.pageId ?? null,
-    })
-    .returning({ id: notifications.id });
-  await publishApp(ctx, { type: "notification", id: row!.id });
-  ctx.events.emit("notification", {
-    id: row!.id,
-    kind: input.kind,
-    title: input.title,
-    body: input.body ?? "",
-    botId: input.botId ?? null,
-    chatId: input.chatId ?? null,
-    runId: input.runId ?? null,
-    ...(input.approvalId ? { approvalId: input.approvalId } : {}),
-    ...(input.approvalKind ? { approvalKind: input.approvalKind } : {}),
-    ...(input.takeoverId ? { takeoverId: input.takeoverId } : {}),
-    ...(input.pageId ? { pageId: input.pageId } : {}),
-  });
 }

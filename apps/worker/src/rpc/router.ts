@@ -30,6 +30,8 @@ import type { TelegramService } from "../services/telegram";
 import type { TriggerService } from "../services/triggers";
 import { rpcError } from "./errors";
 import type { EgressDevices } from "../egress/devices";
+import { markNotificationsRead } from "../services/notifications";
+import type { VaultService } from "../services/vault";
 
 /** The services the worker's internal API calls. */
 export interface WorkerServices {
@@ -58,6 +60,7 @@ export interface WorkerServices {
   skills: SkillService;
   codexAccount: CodexAccountService;
   settings: SettingsService;
+  vault: VaultService;
   egress: EgressRelay;
   egressDevices: EgressDevices;
   wake: WakeController;
@@ -248,6 +251,14 @@ export function createWorkerRouter(services: WorkerServices) {
       }),
     },
     pages: {
+      pin: os.pages.pin.handler(async ({ input }) => {
+        await s.pages.pin(input.pageId, input.pinned);
+        return ok;
+      }),
+      remove: os.pages.remove.handler(async ({ input }) => {
+        await s.pages.remove(input.pageId);
+        return ok;
+      }),
       publish: os.pages.publish.handler(async ({ input }) => {
         const { page, version, check } = await s.pages.checkAndPublish({ ...input, runId: null });
         return {
@@ -361,6 +372,19 @@ export function createWorkerRouter(services: WorkerServices) {
       }),
       removeToken: os.email.removeToken.handler(async () => {
         await s.email.removeToken();
+        return ok;
+      }),
+    },
+    vault: {
+      save: os.vault.save.handler(({ input }) => s.vault.saveItem(input)),
+      remove: os.vault.remove.handler(async ({ input }) => {
+        await s.vault.removeItem(input.itemId);
+        return ok;
+      }),
+    },
+    notifications: {
+      markRead: os.notifications.markRead.handler(async ({ input }) => {
+        await markNotificationsRead(ctx, input);
         return ok;
       }),
     },

@@ -30,6 +30,7 @@ import { approvalFor } from "./effects";
 import { ProviderError, type TokenSource } from "./http";
 import type { Integrations } from "./registry";
 import type { ActionOutcome, ActionRow, IntegrationAdapter, PreparedAction } from "./types";
+import { expireApprovals } from "../services/approvals";
 
 /** An action being run holds it this long; after that, the worker is taken to have stopped. */
 const LEASE_MS = 5 * 60_000;
@@ -147,12 +148,24 @@ async function cancelWaiting(db: Queryable, which: SQL, reason: string): Promise
   const approvalIds = cancelled
     .map((row) => row.approvalId)
     .filter((id): id is string => Boolean(id));
-  if (approvalIds.length)
-    await db
-      .update(approvals)
-      .set({ status: "expired", decidedAt: new Date() })
-      .where(and(inArray(approvals.id, approvalIds), eq(approvals.status, "pending")));
+  await expireApprovals(db, approvalIds);
   return cancelled.length;
+}
+
+/** Your decision on an account action's approval moves the action on, if it still waits. */
+export async function decideAccountAction(
+  db: Queryable,
+  approvalId: string,
+  decision: "approved" | "denied",
+): Promise<void> {
+  await db
+    .update(accountActions)
+    .set({
+      status: decision,
+      decidedAt: new Date(),
+      ...(decision === "denied" ? { finishedAt: new Date() } : {}),
+    })
+    .where(and(eq(accountActions.approvalId, approvalId), eq(accountActions.status, "pending")));
 }
 
 export class AccountActions {
@@ -714,11 +727,8 @@ export class AccountActions {
 
     // Cancelled or expired while it waited for you: its approval closes too.
     if (claimed.approvalId && (claimed.status === "cancelled" || claimed.status === "expired")) {
-      await this.ctx.db
-        .update(approvals)
-        .set({ status: "expired", decidedAt: new Date() })
-        .where(and(eq(approvals.id, claimed.approvalId), eq(approvals.status, "pending")));
-      // Closed here, or already by the web app when you changed the connection.
+      await expireApprovals(this.ctx.db, [claimed.approvalId]);
+      // Closed here, or already when you changed the connection.
       const [approval] = await this.ctx.db
         .select()
         .from(approvals)

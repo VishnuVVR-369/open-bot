@@ -5,7 +5,8 @@
 //
 // The `open-bot/table-owners` lint rule (scripts/lint/table-owners.mjs) enforces this: a Drizzle
 // `insert`, `update` or `delete` of a table, or raw SQL that writes one, fails lint outside the
-// owner and the paths listed with it. Tests, the showcase seed and e2e stand-ins are exempt.
+// owner, except the columns a `shared` entry allows. Tests, the showcase seed and e2e stand-ins
+// are exempt.
 // This file is read by ESLint through Node's type stripping: keep it free of runtime imports.
 
 import type * as schema from "./schema";
@@ -27,8 +28,6 @@ export interface TableOwner {
    * calling the owner instead doesn't work yet. It may only set these columns, never delete.
    */
   shared?: readonly { by: RepoPath; columns: readonly string[]; why: string }[];
-  /** Writers still to be moved behind the owner. This list only shrinks. */
-  moving?: readonly RepoPath[];
 }
 
 const WEB = "apps/web/src/";
@@ -60,10 +59,7 @@ export const TABLE_OWNERS = {
   instruction_proposals: { owner: `${WORKER}services/bots.ts` },
   skills: { owner: `${WORKER}services/skills.ts` },
   schedules: { owner: `${WORKER}services/schedules.ts` },
-  triggers: {
-    owner: `${WORKER}services/triggers.ts`,
-    moving: [`${WORKER}services/account-triggers.ts`],
-  },
+  triggers: { owner: `${WORKER}services/triggers.ts` },
   trigger_firings: { owner: `${WORKER}services/account-triggers.ts` },
   approval_rules: { owner: `${WORKER}services/approvals.ts` },
   tasks: { owner: `${WORKER}services/tasks.ts` },
@@ -87,31 +83,22 @@ export const TABLE_OWNERS = {
   artifacts: { owner: `${WORKER}tools/handlers.ts` },
   swarms: { owner: `${WORKER}services/swarms.ts` },
   swarm_tasks: { owner: `${WORKER}services/swarms.ts` },
-  notifications: {
-    owner: `${WORKER}services/notifications.ts`,
-    moving: [`${WEB}lib/server/api/notifications.ts`, `${WORKER}context.ts`],
-  },
+  notifications: { owner: `${WORKER}services/notifications.ts` },
 
   // Pages.
-  pages: { owner: `${WORKER}services/pages.ts`, moving: [`${WEB}lib/server/api/pages.ts`] },
+  pages: { owner: `${WORKER}services/pages.ts` },
   page_versions: { owner: `${WORKER}services/pages.ts` },
 
   // Approvals, spending and the vault.
-  approvals: {
-    owner: `${WORKER}services/approvals.ts`,
-    moving: [`${WORKER}accounts/actions.ts`],
-  },
-  vault_items: { owner: `${WORKER}services/vault.ts`, moving: [`${WEB}lib/server/api/vault.ts`] },
-  purchases: { owner: `${WORKER}services/vault.ts`, moving: [`${WORKER}services/approvals.ts`] },
+  approvals: { owner: `${WORKER}services/approvals.ts` },
+  vault_items: { owner: `${WORKER}services/vault.ts` },
+  purchases: { owner: `${WORKER}services/vault.ts` },
 
   // The computer, its screens and egress.
   computers: { owner: `${WORKER}egress/store.ts` },
   desktop_takeovers: { owner: `${WORKER}services/takeovers.ts` },
   takeover_deliveries: { owner: `${WORKER}services/takeovers.ts` },
-  screen_operations: {
-    owner: `${WORKER}services/screen-operations.ts`,
-    moving: [`${WORKER}services/takeovers.ts`],
-  },
+  screen_operations: { owner: `${WORKER}services/screen-operations.ts` },
   egress_devices: { owner: `${WORKER}egress/devices.ts` },
 
   // Settings, secrets and notifications to the owner's devices.
@@ -132,13 +119,10 @@ export const TABLE_OWNERS = {
 
   // Integrations: connections (MCP servers) and accounts (OAuth).
   connections: { owner: `${WORKER}services/connections.ts` },
-  accounts: { owner: "packages/accounts/src/store.ts", moving: [`${WORKER}accounts/access.ts`] },
+  accounts: { owner: "packages/accounts/src/store.ts" },
   oauth_clients: { owner: "packages/accounts/src/clients.ts" },
   oauth_states: { owner: `${WEB}lib/server/accounts.ts` },
-  account_actions: {
-    owner: `${WORKER}accounts/actions.ts`,
-    moving: [`${WORKER}services/approvals.ts`],
-  },
+  account_actions: { owner: `${WORKER}accounts/actions.ts` },
   account_resources: { owner: `${WORKER}accounts/notion.ts` },
 
   // Memory.
@@ -149,9 +133,6 @@ export const TABLE_OWNERS = {
   memory_embeddings: { owner: MEMORY },
   memory_imports: { owner: MEMORY },
   memory_usage: { owner: MEMORY },
-  memory_contexts: {
-    owner: `${WORKER}services/memory.ts`,
-    moving: [`${WORKER}tools/handlers.ts`],
-  },
+  memory_contexts: { owner: `${WORKER}services/memory.ts` },
   lessons: { owner: MEMORY },
 } as const satisfies Record<Tables, TableOwner>;

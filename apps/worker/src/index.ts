@@ -3,7 +3,8 @@ import { CHANNELS, createDb, createPool, ownerSettings } from "@open-bot/db";
 import { ComputerLifecycle } from "./computer-lifecycle";
 import { CodexManager } from "./codex";
 import { BotdError, ComputerClient } from "./computer";
-import { createNotification, publishApp, type Context } from "./context";
+import { publishApp, type Context } from "./context";
+import { createNotification } from "./services/notifications";
 import { addComputerRow, databaseStore } from "./egress/store";
 import { EgressDevices } from "./egress/devices";
 import { EgressRelay } from "./egress/relay";
@@ -432,6 +433,7 @@ const server = createHttpServer({
   codexAccount: new CodexAccountService(ctx),
   egressDevices: new EgressDevices(ctx, egress),
   settings: new SettingsService(ctx),
+  vault,
 });
 server.listen(env.WORKER_PORT, () => log.info(`worker listening on :${env.WORKER_PORT}`));
 

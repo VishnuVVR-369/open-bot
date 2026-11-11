@@ -34,8 +34,7 @@ Better Auth's `account` table is sign-in and is unrelated to the integrations `a
 - Any server code may read any table. Phones and browsers never reach the database.
 - The `open-bot/table-owners` lint rule (`scripts/lint/table-owners.mjs`) fails a Drizzle `insert`, `update` or `delete`, or raw SQL that writes a table, anywhere but its owner. Tests, seeds and stand-ins are exempt.
 - `shared` lists columns another module sets in its own transaction, with the reason; the rule lets it set only those, and never delete.
-  `moving` lists writers still to move behind the owner.
-  Both only shrink, and `pnpm test:scripts` fails when an entry no longer writes its table.
+  The list only shrinks, and `pnpm test:scripts` fails when an entry no longer writes its table.
 - A new table needs an entry before it typechecks.
 
 ## Migration workflow

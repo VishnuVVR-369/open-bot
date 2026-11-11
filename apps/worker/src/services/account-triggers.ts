@@ -31,6 +31,8 @@ import {
 } from "./account-watch";
 import {
   ACCOUNT_TRIGGER_RUNS_PER_HOUR,
+  recordTriggerCheck,
+  setNextTriggerCheck,
   TriggerError,
   type CheckResult,
   type Trigger,
@@ -190,10 +192,7 @@ export class AccountTriggers {
         claimed.set(row.trigger.id, { trigger: row.trigger, accountId: row.accountId! });
       for (const { trigger } of claimed.values()) {
         const minutes = trigger.kind === "gmail" ? GMAIL_POLL_MINUTES : CALENDAR_POLL_MINUTES;
-        await tx
-          .update(triggers)
-          .set({ nextCheckAt: new Date(now.getTime() + minutes * 60_000) })
-          .where(eq(triggers.id, trigger.id));
+        await setNextTriggerCheck(tx, trigger.id, new Date(now.getTime() + minutes * 60_000));
       }
       return [...claimed.values()];
     });
@@ -248,16 +247,7 @@ export class AccountTriggers {
     id: string,
     result: { error?: string | null; cursor?: string; fired?: boolean },
   ): Promise<void> {
-    const now = new Date();
-    await this.ctx.db
-      .update(triggers)
-      .set({
-        lastCheckedAt: now,
-        lastError: result.error ?? null,
-        ...(result.cursor !== undefined ? { cursor: result.cursor } : {}),
-        ...(result.fired ? { lastFiredAt: now } : {}),
-      })
-      .where(eq(triggers.id, id));
+    await recordTriggerCheck(this.ctx.db, id, result);
   }
 
   /** Remember these keys as fired; returns the ones that weren't already. */

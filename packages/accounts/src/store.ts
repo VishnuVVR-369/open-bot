@@ -1,7 +1,7 @@
 import { accounts, connections, type AccountTokens, type Db } from "@open-bot/db";
 import { authProvider, parseScopes, type AccountProvider } from "@open-bot/domain";
 import { decryptSecret, encryptSecret } from "@open-bot/domain/server";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { OAuthClients } from "./clients";
 import { OAuthError, type TokenResponse } from "./oauth";
 import { providerAdapter } from "./providers";
@@ -258,6 +258,19 @@ export class AccountStore {
         throw error;
       }
     }
+  }
+
+  /**
+   * Mark that you were told the account needs signing in again. Returns false when you already
+   * were, so you hear about it once.
+   */
+  async markNotified(accountId: string): Promise<boolean> {
+    const marked = await this.db
+      .update(accounts)
+      .set({ notifiedAt: new Date() })
+      .where(and(eq(accounts.id, accountId), isNull(accounts.notifiedAt)))
+      .returning({ id: accounts.id });
+    return marked.length > 0;
   }
 
   /** Record that the account was used, for Settings and for keeping idle grants alive. */

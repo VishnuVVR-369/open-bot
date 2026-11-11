@@ -9,7 +9,7 @@ import { ConnectionError } from "../services/connections";
 import { RunError } from "../runs/requests";
 import { EmailError } from "../services/email";
 import { FileError } from "../services/files";
-import { PageError } from "../services/pages";
+import { PageError, PageGone } from "../services/pages";
 import { PushError } from "../services/push";
 import { RetryError } from "../services/retries";
 import { ScheduleError } from "../services/schedules";
@@ -19,6 +19,7 @@ import { SkillError } from "../services/skills";
 import { TaskError } from "../services/tasks";
 import { TelegramError } from "../services/telegram";
 import { TriggerError } from "../services/triggers";
+import { VaultItemError } from "../services/vault";
 
 /** The code each status a procedure fails with is sent as, next to the message. */
 const CODES: Record<number, string> = {
@@ -69,10 +70,12 @@ export function toRpcError(error: unknown): ORPCError<string, unknown> {
     error instanceof FileError ||
     error instanceof MemoryError ||
     error instanceof RetryError ||
-    error instanceof UploadError
+    error instanceof UploadError ||
+    error instanceof VaultItemError
   )
     return rpcError(error.status, error.message);
   if (error instanceof ScreenBusy) return rpcError(409, error.message);
+  if (error instanceof PageGone) return rpcError(404, error.message);
   // An inbound address that isn't one: nothing more is said about why.
   if (error instanceof EmailError) return rpcError(404, "Not found.");
   if (BAD_REQUESTS.some((type) => error instanceof type)) return rpcError(400, errorMessage(error));

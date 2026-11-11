@@ -11,6 +11,19 @@ import {
 import type { Context } from "../context";
 import type { RunSession } from "../runs/session";
 
+/** Add memories a run recalled to the refs of what it was given, once each. */
+export async function addContextRefs(
+  pool: Pick<Context["pool"], "query">,
+  runId: string,
+  refs: { id: string; revision: number }[],
+): Promise<void> {
+  await pool.query(
+    `update memory_contexts set refs=(select coalesce(jsonb_agg(distinct value),'[]'::jsonb)
+    from jsonb_array_elements(refs || $2::jsonb)) where run_id=$1`,
+    [runId, JSON.stringify(refs)],
+  );
+}
+
 export class MemoryCoordinator {
   readonly store: MemoryService;
   readonly ai: MemoryAI;

@@ -605,118 +605,63 @@ describe.skipIf(!url)("API reads, end to end", () => {
     }
   });
 
-  /* Settings, the vault, integrations and memory, which the web app writes itself. */
-
-  /**
-   * Start `writes` while another transaction holds a lock (`lock` takes it), wait until every one
-   * of them waits on a lock, then let go: none could see another's change before making its own.
-   * A write that ends without waiting fails the test at once, with its own error if it threw.
-   */
-  async function racedWhileLocked<T>(
-    lock: { sql: string; params?: unknown[] },
-    writes: () => Promise<T>[],
-  ): Promise<T[]> {
-    const { pool } = await import("../db");
-    const holder = await pool.connect();
-    let held = false;
-    try {
-      await holder.query("begin");
-      held = true;
-      await holder.query(lock.sql, lock.params);
-      const running = writes();
-      let ended = 0;
-      for (const write of running)
-        write.then(
-          () => ended++,
-          () => ended++,
-        );
-      const deadline = Date.now() + 10_000;
-      // Asked outside the holder's transaction, which would keep seeing the activity as it was
-      // when it first looked.
-      for (;;) {
-        if (ended > 0) {
-          await Promise.all(running);
-          throw new Error("A write finished without waiting on the lock.");
-        }
-        const { rows } = await pool.query<{ waiting: number }>(
-          "select count(*)::int as waiting from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'",
-        );
-        if (rows[0]!.waiting === running.length) break;
-        if (Date.now() > deadline)
-          throw new Error(`${rows[0]!.waiting} of ${running.length} writes waited on the lock.`);
-        await new Promise((resolve) => setImmediate(resolve));
-      }
-      await holder.query("commit");
-      held = false;
-      return await Promise.all(running);
-    } finally {
-      if (held) await holder.query("rollback").catch(() => {});
-      holder.release();
-    }
-  }
-
-  async function vaultSecret(itemId: string): Promise<Record<string, string>> {
-    const s = await import("@open-bot/db");
-    const { decryptSecret } = await import("@open-bot/domain/server");
-    const { serverEnv } = await import("../env");
-    const { eq } = await import("drizzle-orm");
-    const [row] = await database.db.select().from(s.vaultItems).where(eq(s.vaultItems.id, itemId));
-    return JSON.parse(decryptSecret(row!.encrypted, serverEnv.encryptionKey));
-  }
-
-  it("saves a login with its secret encrypted, and keeps fields left empty when editing", async () => {
+  it("passes vault, page and notification changes to the worker, which owns them", async () => {
+    const itemId = randomUUID();
+    const pageId = randomUUID();
     const login = {
       id: null,
       kind: "login" as const,
       name: "GitHub",
-      domain: "https://github.com/login",
+      domain: "github.com",
       teammateIds: [ids.teammate],
       secret: { username: "alex", password: "hunter22" },
     };
-    const { id } = await api.vault.save(login);
-    const [listed] = await api.vault.list();
-    expect(listed).toMatchObject({ id, domain: "github.com", hint: "alex" });
-    expect(JSON.stringify(listed)).not.toContain("hunter22");
-    await api.vault.save({
-      ...login,
-      id,
-      name: "GitHub work",
-      secret: { username: "alex", password: "" },
-    });
-    expect(await vaultSecret(id)).toEqual({ username: "alex", password: "hunter22" });
-
-    await expect(api.vault.save({ ...login, id, kind: "card" })).rejects.toMatchObject({
-      code: "BAD_REQUEST",
-      message: "An item can't change its kind.",
-    });
-    await expect(api.vault.save({ ...login, id: randomUUID() })).rejects.toMatchObject({
-      code: "NOT_FOUND",
-    });
-    await expect(api.vault.save({ ...login, teammateIds: [] })).rejects.toMatchObject({
-      message: "Pick at least one teammate, or everyone.",
-    });
-    await api.vault.remove({ itemId: id });
-    await api.vault.remove({ itemId: id });
-    expect(await api.vault.list()).toEqual([]);
-  });
-
-  it("keeps both of two card edits made at once", async () => {
-    const card = {
-      id: null,
-      kind: "card" as const,
-      name: "Visa",
-      domain: "",
-      teammateIds: null,
-      secret: { number: "4242 4242 4242 4242", expiry: "12/40", cvc: "123", name: "Alex", zip: "" },
-    };
-    const { id } = await api.vault.save(card);
-    const edit = (secret: Record<string, string>) => api.vault.save({ ...card, id, secret });
-    await racedWhileLocked(
-      { sql: "select 1 from vault_items where id = $1 for update", params: [id] },
-      () => [edit({ cvc: "999" }), edit({ zip: "10115" })],
-    );
-    expect(await vaultSecret(id)).toMatchObject({ cvc: "999", zip: "10115" });
-    await api.vault.remove({ itemId: id });
+    const ok = { status: 200, body: { ok: true } };
+    const calls: [string, () => Promise<unknown>, unknown, { status: number; body: unknown }][] = [
+      [
+        "/internal/vault",
+        () => api.vault.save(login),
+        login,
+        { status: 200, body: { id: itemId } },
+      ],
+      [`/internal/vault/${itemId}/delete`, () => api.vault.remove({ itemId }), {}, ok],
+      [
+        `/internal/pages/${pageId}/pin`,
+        () => api.pages.pin({ pageId, pinned: true }),
+        { pinned: true },
+        ok,
+      ],
+      [`/internal/pages/${pageId}/delete`, () => api.pages.remove({ pageId }), {}, ok],
+      [
+        "/internal/notifications/read",
+        () => api.notifications.markRead({ through: itemId }),
+        { through: itemId },
+        ok,
+      ],
+    ];
+    for (const [path, , , answer] of calls) answers.set(path, answer);
+    try {
+      for (const [path, call, body, answer] of calls) {
+        expect(await call()).toEqual(answer.body);
+        expect(workerBodies.findLast((b) => b.path === path)?.body ?? {}).toMatchObject(
+          body as object,
+        );
+      }
+      answers.set(`/internal/pages/${pageId}/pin`, {
+        status: 404,
+        body: { error: "That page was deleted.", code: "NOT_FOUND" },
+      });
+      await expect(api.pages.pin({ pageId, pinned: false })).rejects.toMatchObject({
+        code: "NOT_FOUND",
+        message: "That page was deleted.",
+      });
+      // The contract refuses an item nobody may use before it reaches the worker.
+      await expect(api.vault.save({ ...login, teammateIds: [] })).rejects.toMatchObject({
+        message: "Pick at least one teammate, or everyone.",
+      });
+    } finally {
+      for (const [path] of calls) answers.delete(path);
+    }
   });
 
   it("passes connection changes to the worker, which owns them, and its refusals through", async () => {

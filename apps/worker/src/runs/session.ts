@@ -18,7 +18,8 @@ import {
   type TimelineItem,
 } from "@open-bot/domain";
 import { and, eq, isNull } from "drizzle-orm";
-import { createNotification, publishApp, type Context } from "../context";
+import { publishApp, type Context } from "../context";
+import { createNotification } from "../services/notifications";
 import { enqueueRun } from "./queue";
 import { DEVELOPER_INSTRUCTIONS } from "../instructions";
 import { errorMessage } from "../logger";
