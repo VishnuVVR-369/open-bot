@@ -3,7 +3,7 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { accounts, oauthClients } from "@open-bot/db";
 import { eq } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import type { OAuthClient } from "./clients";
 import type { TokenResponse } from "./oauth";
@@ -279,8 +279,10 @@ describe.skipIf(!url)("account tokens with Postgres", () => {
   it("waits for a client setup that a web app from before the lock helper holds", async () => {
     // That release locked `hashtext('oauth_clients:<provider>')`; both must still exclude each other.
     const before = await database.pool.connect();
+    let open = false;
     try {
       await before.query("begin");
+      open = true;
       await before.query("select pg_advisory_xact_lock(hashtext('oauth_clients:google'))");
       const setup = new AccountStore(db, key).clients.makeCurrent({
         provider: "google",
@@ -289,15 +291,21 @@ describe.skipIf(!url)("account tokens with Postgres", () => {
         clientSecret: "secret-7654321",
         hint: "other",
       });
-      for (;;) {
+      // The setup is waiting on that very lock, in this suite's database.
+      await vi.waitFor(async () => {
         const { rows } = await before.query<{ waiting: number }>(
-          "select count(*)::int as waiting from pg_locks where locktype = 'advisory' and not granted",
+          `select count(*)::int as waiting from pg_locks
+           where locktype = 'advisory' and not granted and pid <> pg_backend_pid()
+             and database = (select oid from pg_database where datname = current_database())
+             and objid = (hashtext('oauth_clients:google')::bigint & 4294967295)::oid`,
         );
-        if (rows[0]!.waiting === 1) break;
-      }
+        expect(rows[0]!.waiting).toBe(1);
+      });
       await before.query("commit");
+      open = false;
       expect((await setup).clientId).toBe("other-client.apps.googleusercontent.com");
     } finally {
+      if (open) await before.query("rollback");
       before.release();
     }
   });
