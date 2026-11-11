@@ -1,3 +1,4 @@
+import { MemoryError } from "@open-bot/memory";
 import { ORPCError, ValidationError } from "@orpc/server";
 import { errorMessage } from "../logger";
 import { UploadError } from "../uploads";
@@ -62,6 +63,7 @@ export function toRpcError(error: unknown): ORPCError<string, unknown> {
     error instanceof ChatError ||
     error instanceof RunError ||
     error instanceof FileError ||
+    error instanceof MemoryError ||
     error instanceof RetryError ||
     error instanceof UploadError
   )

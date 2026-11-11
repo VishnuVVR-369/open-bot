@@ -593,6 +593,12 @@ describe.skipIf(!url)("worker internal API, end to end", () => {
         .from(memoryItems)
         .where(and(eq(memoryItems.botId, created.id), eq(memoryItems.kind, "lesson"))); // vocabulary: allow
       expect(kept).toEqual([{ content: "Cite sources." }]);
+      // A lesson memory refuses is the owner's to fix, not the worker's failure.
+      expect(
+        await failure(
+          worker.runs.feedback({ runId: run.id, text: "No", remember: true, redo: null }),
+        ),
+      ).toMatchObject({ status: 400 });
 
       await worker.runs.rate({ runId: run.id, rating: null });
       const redo = { clientId: randomUUID() };
