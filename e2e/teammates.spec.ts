@@ -36,6 +36,8 @@ test("create a group chat", async ({ page }) => {
   await page.getByRole("checkbox", { name: new RegExp(b) }).click();
   await page.getByRole("button", { name: "Create group" }).click();
   await expect(page.getByText("Start the conversation")).toBeVisible();
+  // The new chat's message box takes the focus the dialog had.
+  await expect(page.getByTestId("composer-input")).toBeFocused();
   await page.getByTestId("composer-input").fill(`@${b.slice(0, 2)}`);
   await expect(page.getByRole("option", { name: new RegExp(b) })).toBeVisible();
 });

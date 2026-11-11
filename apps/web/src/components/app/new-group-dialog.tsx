@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { BotAvatar } from "@/components/bot-avatar";
+import { COMPOSER_INPUT_ID } from "@/components/chat/composer";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -60,7 +61,14 @@ export function NewGroupDialog({ bots }: { bots: BotSummary[] }) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        // A group made after the dialog was already closed mustn't change the next close.
+        if (next) created.current = false;
+        setOpen(next);
+      }}
+    >
       <DialogTrigger asChild>
         <Button variant="ghost" size="icon-xs" aria-label="New group chat">
           <Plus />
@@ -69,11 +77,14 @@ export function NewGroupDialog({ bots }: { bots: BotSummary[] }) {
       <DialogContent
         className="sm:max-w-md"
         onCloseAutoFocus={(event) => {
-          // The new chat is open by now: focus stays there (on its composer, once you type),
-          // instead of jumping back to the sidebar's button and closing the @mention menu.
+          // The new chat is open by now (it renders with the close), so focus goes to its message
+          // box rather than back to the sidebar's button, which would close the @mention menu of
+          // anything typed there meanwhile. Focus you already moved stays where it is.
           if (!created.current) return;
           created.current = false;
           event.preventDefault();
+          if (document.activeElement === document.body)
+            document.getElementById(COMPOSER_INPUT_ID)?.focus();
         }}
       >
         <DialogHeader>
