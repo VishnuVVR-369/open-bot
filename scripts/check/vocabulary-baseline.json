@@ -373,7 +373,7 @@
     "bot": 2
   },
   "apps/web/src/lib/server/accounts.ts": {
-    "bot": 14
+    "bot": 4
   },
   "apps/web/src/lib/server/api/approvals.ts": {
     "bot": 7
@@ -385,7 +385,7 @@
     "bot": 4
   },
   "apps/web/src/lib/server/api/integrations.ts": {
-    "bot": 4
+    "bot": 2
   },
   "apps/web/src/lib/server/api/memory.ts": {
     "bot": 7
@@ -509,14 +509,14 @@
     "bot": 31
   },
   "apps/worker/src/services/bots.ts": {
-    "bot": 178,
+    "bot": 179,
     "primary teammate": 5
   },
   "apps/worker/src/services/chats.ts": {
     "bot": 8
   },
   "apps/worker/src/services/connections.ts": {
-    "bot": 5
+    "bot": 15
   },
   "apps/worker/src/services/email.ts": {
     "bot": 42
