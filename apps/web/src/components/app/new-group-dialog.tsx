@@ -3,9 +3,10 @@
 import { MAX_GROUP_TEAMMATES } from "@open-bot/api";
 import { Check, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { BotAvatar } from "@/components/bot-avatar";
+import { COMPOSER_INPUT_ID } from "@/components/chat/composer";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -29,6 +30,8 @@ export function NewGroupDialog({ bots }: { bots: BotSummary[] }) {
   const [selected, setSelected] = useState<string[]>([]);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
+  // Set when the dialog closes because the group was made, and the app moves to its chat.
+  const created = useRef(false);
 
   const full = selected.length >= MAX_GROUP_TEAMMATES;
 
@@ -49,6 +52,7 @@ export function NewGroupDialog({ bots }: { bots: BotSummary[] }) {
         toast.error(result.error);
         return;
       }
+      created.current = true;
       setOpen(false);
       setTitle("");
       setSelected([]);
@@ -57,13 +61,32 @@ export function NewGroupDialog({ bots }: { bots: BotSummary[] }) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        // A group made after the dialog was already closed mustn't change the next close.
+        if (next) created.current = false;
+        setOpen(next);
+      }}
+    >
       <DialogTrigger asChild>
         <Button variant="ghost" size="icon-xs" aria-label="New group chat">
           <Plus />
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent
+        className="sm:max-w-md"
+        onCloseAutoFocus={(event) => {
+          // The new chat is open by now (it renders with the close), so focus goes to its message
+          // box rather than back to the sidebar's button, which would close the @mention menu of
+          // anything typed there meanwhile. Focus you already moved stays where it is.
+          if (!created.current) return;
+          created.current = false;
+          event.preventDefault();
+          if (document.activeElement === document.body)
+            document.getElementById(COMPOSER_INPUT_ID)?.focus();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>New group chat</DialogTitle>
           <DialogDescription>

@@ -45,6 +45,9 @@ type SkillOption =
 
 type Attachment = MessageView["attachments"][number];
 
+/** The message box's id, so a page that just opened a chat can put focus in it. */
+export const COMPOSER_INPUT_ID = "composer-input";
+
 export interface ComposerHandle {
   addFiles: (files: FileList | File[]) => void;
   focus: () => void;
@@ -443,6 +446,7 @@ export function Composer({
           value={text}
           rows={1}
           aria-label="Message"
+          id={COMPOSER_INPUT_ID}
           data-testid="composer-input"
           placeholder={placeholder}
           onChange={(event) => {
