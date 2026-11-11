@@ -24,7 +24,7 @@ export interface TableOwner {
   owner: RepoPath;
   /**
    * Another module that writes some columns in the same transaction as its own change, and why
-   * calling the owner instead doesn't work yet.
+   * calling the owner instead doesn't work yet. It may only set these columns, never delete.
    */
   shared?: readonly { by: RepoPath; columns: readonly string[]; why: string }[];
   /** Writers still to be moved behind the owner. This list only shrinks. */
@@ -172,8 +172,8 @@ export const TABLE_OWNERS = {
   settings: {
     owner: `${WORKER}services/settings.ts`,
     shared: MEMORY_KEEPS(
-      ["about_me", "about_me_updated_at"],
-      "the profile is rebuilt from shared memory in the memory write's transaction",
+      ["id", "about_me", "about_me_updated_at"],
+      "the profile is rebuilt from shared memory in the memory write's transaction (`id` because it makes the one row when there is none yet)",
     ),
     moving: [
       `${WEB}lib/server/api/settings.ts`,

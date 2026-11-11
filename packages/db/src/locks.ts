@@ -7,7 +7,8 @@ import type { Tx } from "./index";
  * them, so each key is named here, never inline. The web app and the worker deploy at different
  * times and must still exclude each other: never change a key that has shipped.
  *
- * A number is used as the key itself; a string is hashed with `hashtextextended(key, 0)`.
+ * A number is used as the key itself; a string is hashed with `hashtextextended(key, 0)`; a
+ * `{ hashtext }` key is hashed with `hashtext`, for a lock that shipped that way.
  */
 export const LOCKS = {
   /**
@@ -22,25 +23,44 @@ export const LOCKS = {
   upload: (path: string) => path,
   /** Picking a connection name nobody has yet (names are unique). */
   connectionNames: "connection_names",
-  /** One sign-in setup at a time per provider: only one client can be the current one. */
-  oauthClients: (provider: string) => `oauth_clients:${provider}`,
+  /**
+   * One sign-in setup at a time per provider: only one client can be the current one. It shipped
+   * hashed with `hashtext`, so it stays that way.
+   */
+  oauthClients: (provider: string): LegacyKey => ({ hashtext: `oauth_clients:${provider}` }),
   /** One teammate's memory, or the memory every teammate shares. Keys predate the glossary. */
   memory: (scope: `bot:${string}` | "shared") => scope, // vocabulary: allow
   /** One screen's input, held across botd calls (a session lock, see `withTryLock`). */
   screen: (screenId: string) => `screen:${screenId}`,
 } as const;
 
-export type LockKey = string | number;
+/** A key hashed with `hashtext`, as a lock that shipped before `hashtextextended` was the rule. */
+export type LegacyKey = { readonly hashtext: string };
+export type LockKey = string | number | LegacyKey;
 
-const keySql = (key: LockKey) =>
-  typeof key === "number" ? sql`${key}::bigint` : sql`hashtextextended(${key}, 0)`;
+/** The lock's key as SQL and as a `pg` query with its one parameter. */
+function keyOf(key: LockKey) {
+  if (typeof key === "number") return { sql: sql`${key}::bigint`, text: "$1::bigint", value: key };
+  if (typeof key === "string")
+    return { sql: sql`hashtextextended(${key}, 0)`, text: "hashtextextended($1, 0)", value: key };
+  return { sql: sql`hashtext(${key.hashtext})`, text: "hashtext($1)", value: key.hashtext };
+}
 
-/** Numbers first, then strings in order, so two holders of the same keys can't deadlock. */
+/** Numbers first, then strings, then legacy keys, in order, so two holders can't deadlock. */
 function ordered(keys: readonly LockKey[]): LockKey[] {
-  const unique = [...new Set(keys)];
-  const numbers = unique.filter((key): key is number => typeof key === "number");
-  const strings = unique.filter((key): key is string => typeof key === "string");
-  return [...numbers.sort((a, b) => a - b), ...strings.sort()];
+  const numbers = new Set<number>();
+  const strings = new Set<string>();
+  const legacy = new Set<string>();
+  for (const key of keys) {
+    if (typeof key === "number") numbers.add(key);
+    else if (typeof key === "string") strings.add(key);
+    else legacy.add(key.hashtext);
+  }
+  return [
+    ...[...numbers].sort((a, b) => a - b),
+    ...[...strings].sort(),
+    ...[...legacy].sort().map((hashtext) => ({ hashtext })),
+  ];
 }
 
 /**
@@ -52,10 +72,9 @@ export async function lockUntilCommit(
   ...keys: readonly LockKey[]
 ): Promise<void> {
   for (const key of ordered(keys)) {
-    if ("execute" in tx) await tx.execute(sql`select pg_advisory_xact_lock(${keySql(key)})`);
-    else if (typeof key === "number")
-      await tx.query("select pg_advisory_xact_lock($1::bigint)", [key]);
-    else await tx.query("select pg_advisory_xact_lock(hashtextextended($1, 0))", [key]);
+    const lock = keyOf(key);
+    if ("execute" in tx) await tx.execute(sql`select pg_advisory_xact_lock(${lock.sql})`);
+    else await tx.query(`select pg_advisory_xact_lock(${lock.text})`, [lock.value]);
   }
 }
 

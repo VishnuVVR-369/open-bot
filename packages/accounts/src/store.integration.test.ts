@@ -276,6 +276,32 @@ describe.skipIf(!url)("account tokens with Postgres", () => {
     expect(row?.oauthClientId).toBe(current.id);
   });
 
+  it("waits for a client setup that a web app from before the lock helper holds", async () => {
+    // That release locked `hashtext('oauth_clients:<provider>')`; both must still exclude each other.
+    const before = await database.pool.connect();
+    try {
+      await before.query("begin");
+      await before.query("select pg_advisory_xact_lock(hashtext('oauth_clients:google'))");
+      const setup = new AccountStore(db, key).clients.makeCurrent({
+        provider: "google",
+        source: "owner",
+        clientId: "other-client.apps.googleusercontent.com",
+        clientSecret: "secret-7654321",
+        hint: "other",
+      });
+      for (;;) {
+        const { rows } = await before.query<{ waiting: number }>(
+          "select count(*)::int as waiting from pg_locks where locktype = 'advisory' and not granted",
+        );
+        if (rows[0]!.waiting === 1) break;
+      }
+      await before.query("commit");
+      expect((await setup).clientId).toBe("other-client.apps.googleusercontent.com");
+    } finally {
+      before.release();
+    }
+  });
+
   it("makes one account when two sign-ins race", async () => {
     const store = new AccountStore(db, key);
     const results = await Promise.all([saveAccount(store), saveAccount(store)]);

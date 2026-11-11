@@ -43,6 +43,9 @@ test("Drizzle writes outside the owner fail, through aliases and multi-line call
     'import { pages as p } from "@open-bot/db";\nexport const f = (db: any) => db.update(\n  p,\n).set({});\n',
     'import { pages } from "@open-bot/db/schema";\nexport const f = (tx: any) => tx.insert(pages).values({});\n',
     'import { sql } from "drizzle-orm";\nimport { pages } from "@open-bot/db";\nexport const q = sql`update ${pages} set pinned = true`;\n',
+    'import { schema } from "@open-bot/db";\nexport const f = (db: any) => db.delete(schema.pages);\n',
+    'import * as tables from "@open-bot/db/schema";\nexport const f = (db: any) => db.delete(tables.pages);\n',
+    'import * as data from "@open-bot/db";\nexport const f = (db: any) => db.update(data.schema.pages).set({});\n',
   ]) {
     const errors = await ownerErrors(file, code);
     assert.equal(errors.length, 1, code);
@@ -57,6 +60,11 @@ test("raw SQL writes outside the owner fail", async () => {
     "export const q = `insert into pages(id) values($1)`;\n",
     'export const q = "delete from pages where id = $1";\n',
     "export const q = `update pages\n  set pinned = $1`;\n",
+    'export const q = "update pages p set pinned = true";\n',
+    'export const q = "delete from public.pages where id = $1";\n',
+    'export const q = `update "public"."pages" as p set pinned = true`;\n',
+    'export const q = "insert into \\"pages\\"(id) values($1)";\n',
+    "export const q = `with gone as (select 1) delete from pages`;\n",
   ]) {
     assert.equal((await ownerErrors(file, code)).length, 1, code);
   }
@@ -70,6 +78,10 @@ test("reads, other tables' namesakes and prose are not writes", async () => {
     'export const m = "Couldn\'t update pages. Try again.";\n',
     'export const q = "select * from pages where id = $1";\n',
     'export const f = (map: Map<string, number>) => map.delete("pages");\n',
+    "export const q = \"select 'delete from pages where id = 1' as example\";\n",
+    'export const m = "To delete from pages you must call its owner.";\n',
+    "export const q = `-- update pages set pinned = true\nselect 1`;\n",
+    'export const q = "/* delete from pages */ select 1";\n',
   ]) {
     assert.deepEqual(await ownerErrors(file, code), [], code);
   }
@@ -81,14 +93,34 @@ test("the owner, a folder owner's files and listed writers may write", async () 
     `import { ${table} } from "@open-bot/db";\nexport const f = (db: any) => db.delete(${table});\n`;
   assert.deepEqual(await ownerErrors("apps/worker/src/services/pages.ts", drizzle("pages")), []);
   assert.deepEqual(await ownerErrors("apps/worker/src/runs/probe.ts", drizzle("runs")), []);
-  assert.deepEqual(
-    await ownerErrors(
-      "packages/memory/src/probe.ts",
-      'export const q = "update runs set x = 1";\n',
-    ),
-    [],
-  );
   assert.equal((await ownerErrors("apps/worker/src/runsx.ts", drizzle("runs"))).length, 1);
+});
+
+test("a module sharing columns may set only those columns", async () => {
+  const memory = "packages/memory/src/probe.ts";
+  const runs = 'import { runs } from "@open-bot/db";\n';
+  for (const code of [
+    'export const q = "update runs set cancel_requested_at = now() where id = $1";\n',
+    "export const q = `update runs r set cancel_requested_at = now() -- stop it\n where id = $1`;\n",
+    `${runs}export const f = (db: any) => db.update(runs).set({ cancelRequestedAt: new Date() });\n`,
+    "export const q = `insert into settings(id, about_me) values(1, $1)\n on conflict(id) do update set about_me = $1, about_me_updated_at = now()`;\n",
+  ]) {
+    assert.deepEqual(await ownerErrors(memory, code), [], code);
+  }
+  for (const code of [
+    "export const q = \"update runs set status = 'succeeded'\";\n",
+    'export const q = "update runs set cancel_requested_at = now(), status = $1";\n',
+    'export const q = "delete from runs where id = $1";\n',
+    `${runs}export const f = (db: any) => db.delete(runs);\n`,
+    `${runs}export const f = (db: any) => db.update(runs).set({ status: "succeeded" });\n`,
+    `${runs}export const f = (db: any, values: object) => db.update(runs).set(values);\n`,
+    'export const q = "insert into settings(id, timezone) values(1, $1)";\n',
+    'export const q = "insert into settings values(1)";\n',
+  ]) {
+    const errors = await ownerErrors(memory, code);
+    assert.equal(errors.length, 1, code);
+    assert.match(errors[0], /may only set/);
+  }
 });
 
 test("tests may write any table", async () => {
