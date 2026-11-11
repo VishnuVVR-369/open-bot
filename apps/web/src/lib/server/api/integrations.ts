@@ -102,8 +102,9 @@ export async function saveConnection(
     const [existing] = input.id
       ? await tx.select().from(connections).where(eq(connections.id, input.id)).for("update")
       : [];
-    if (input.id && (!existing || existing.kind !== "mcp"))
-      throw new ApiError("NOT_FOUND", "That connection is gone.");
+    if (input.id && !existing) throw new ApiError("NOT_FOUND", "That connection is gone.");
+    if (existing && existing.kind !== "mcp")
+      throw new ApiError("BAD_REQUEST", "That's an account, not an MCP server.");
     const name = existing?.name ?? (await claimConnectionName(tx, connectionName(input.label)));
     // Without new secrets, an edit keeps the saved ones, unless the kind of connection changed.
     const keep = !parsed && existing && existing.transport === input.transport;

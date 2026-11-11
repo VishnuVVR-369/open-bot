@@ -31,13 +31,7 @@ export {
   startAccountConnect,
   testConnection,
 } from "./integrations";
-export {
-  confirmMemory,
-  createMemory,
-  forgetMemory,
-  restoreMemory,
-  updateMemory,
-} from "./memory";
+export { confirmMemory, createMemory, forgetMemory, restoreMemory, updateMemory } from "./memory";
 export { markNotificationsRead } from "./notifications";
 export { getPage, listPages, openPage, pinPage, removePage } from "./pages";
 export { registerPushDevice, sendTestPush, unregisterPushDevice } from "./push";

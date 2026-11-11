@@ -65,5 +65,6 @@ export const budgetInputSchema = z.object({
   /** Purchases up to this go ahead on their own; 0 asks you about each one. */
   autoApprove: z
     .number({ error: "Give the amount in dollars, like 20." })
-    .min(0, "Give the amount in dollars, like 20."),
+    .min(0, "Give the amount in dollars, like 20.")
+    .max(MAX_BUDGET_DOLLARS, "Keep the amount under $100,000."),
 });

@@ -891,7 +891,10 @@ describe.skipIf(!url)("API reads, end to end", () => {
         secrets: "",
         teammateIds: null,
       }),
-    ).rejects.toMatchObject({ code: "NOT_FOUND", message: "That connection is gone." });
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: "That's an account, not an MCP server.",
+    });
     const { eq } = await import("drizzle-orm");
     await database.db.delete(s.connections).where(eq(s.connections.id, gmail!.id));
     await database.db.delete(s.accounts).where(eq(s.accounts.id, account!.id));
@@ -942,6 +945,11 @@ describe.skipIf(!url)("API reads, end to end", () => {
     });
     await expect(budget(50, 80)).rejects.toMatchObject({
       message: "The amount to approve on its own can't be more than the budget.",
+    });
+    // Past an integer column's cents, so refused before it reaches the database.
+    await expect(budget(null, 1e8)).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: "Keep the amount under $100,000.",
     });
     await expect(budget(50, 0, randomUUID())).rejects.toMatchObject({ code: "NOT_FOUND" });
     await budget(120.5, 20);

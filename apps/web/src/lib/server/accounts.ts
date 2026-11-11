@@ -71,7 +71,8 @@ export async function startAuthorization(input: {
   const account = input.accountId
     ? (await db.select().from(accounts).where(eq(accounts.id, input.accountId)))[0]
     : undefined;
-  if (input.accountId && !account) throw new AccountConnectError("That account is gone.", "NOT_FOUND");
+  if (input.accountId && !account)
+    throw new AccountConnectError("That account is gone.", "NOT_FOUND");
   if (account && account.provider !== provider)
     throw new AccountConnectError(`That isn't a ${authProvider(provider).accountLabel}.`);
 
