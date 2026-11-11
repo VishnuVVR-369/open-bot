@@ -60,6 +60,15 @@ export function newTeammateSlot(
   return { slug, first: !team.some((teammate) => !teammate.archivedAt) };
 }
 
+/**
+ * The color a new teammate gets: the one the team uses least, earliest in the palette on a tie,
+ * so teammates created in a row don't all look the same.
+ */
+export function nextTeammateColor(usedColors: readonly string[]): string {
+  const uses = (color: string) => usedColors.filter((used) => used === color).length;
+  return BOT_COLORS.reduce((best, color) => (uses(color) < uses(best) ? color : best));
+}
+
 /** The longest the "About you" profile every teammate reads can be. */
 export const MAX_ABOUT_ME_CHARS = 8000;
 

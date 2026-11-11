@@ -89,7 +89,7 @@ const swarms = new SwarmService(ctx, sessions);
 // Files you attach, and files that arrive by email or Telegram.
 const uploads = new UploadService(db, computerFiles(ctx), log.child("uploads"));
 const email = new EmailService(ctx, approvals, sessions, uploads);
-const botService = new BotService(ctx, schedules, skills, async (bot) => {
+const botService = new BotService(ctx, schedules, skills, memory.store, async (bot) => {
   await memory.store.importLegacy();
   await executor.syncWorkspace(bot);
 });

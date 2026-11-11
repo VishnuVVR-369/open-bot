@@ -1,14 +1,5 @@
 import type { v2 } from "@open-bot/agent";
-import {
-  artifacts,
-  bots,
-  chatMembers,
-  instructionProposals,
-  chats,
-  messages,
-  runs,
-  schedules,
-} from "@open-bot/db";
+import { artifacts, bots, chatMembers, chats, messages, runs, schedules } from "@open-bot/db";
 import {
   applyBlockedMessage,
   chatTitleText,
@@ -179,11 +170,11 @@ export class ToolHandlers {
     private readonly swarms: SwarmService,
     private readonly email: EmailService,
     private readonly memory: MemoryCoordinator,
-    bots: BotService,
+    private readonly teammates: BotService,
     private readonly pages: PageService,
     private readonly accounts: AccountTools,
   ) {
-    this.botTools = new BotTools(ctx, bots, approvals);
+    this.botTools = new BotTools(ctx, teammates, approvals);
   }
 
   async handle(session: RunSession, params: v2.DynamicToolCallParams): Promise<Response> {
@@ -1336,23 +1327,12 @@ export class ToolHandlers {
     if (proposed === current.trim())
       return text("That's the same as your instructions now.", false);
     // A newer suggestion replaces one the user hasn't looked at yet.
-    await this.ctx.db.transaction(async (tx) => {
-      await tx
-        .update(instructionProposals)
-        .set({ status: "dismissed", decidedAt: new Date() })
-        .where(
-          and(
-            eq(instructionProposals.botId, session.bot.id),
-            eq(instructionProposals.status, "pending"),
-          ),
-        );
-      await tx.insert(instructionProposals).values({
-        botId: session.bot.id,
-        current,
-        proposed,
-        reason,
-        runId: session.run.id,
-      });
+    await this.teammates.proposeInstructions({
+      teammateId: session.bot.id,
+      current,
+      proposed,
+      reason,
+      runId: session.run.id,
     });
     await createNotification(this.ctx, {
       kind: "bot_message",
@@ -1362,7 +1342,6 @@ export class ToolHandlers {
       chatId: session.chat.id,
       runId: session.run.id,
     });
-    await publishApp(this.ctx, { type: "bots" });
     session.putItem({
       ...this.toolItem(
         session,

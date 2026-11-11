@@ -284,6 +284,24 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
     expect(await memory.generation(bot)).not.toBe(generation);
     expect(await memory.list({ botId: bot, includeExpired: true }, user)).toHaveLength(1);
   });
+  it("adds lessons as pinned lesson memories that survive the next memory change", async () => {
+    await memory.addLessons(bot, [
+      "Ask before booking flights",
+      "ok",
+      "Ask before booking flights",
+    ]);
+    const lessons = async () =>
+      (await pool.query("select text from lessons where bot_id=$1 order by text", [bot])).rows.map(
+        (row) => row.text,
+      );
+    expect(await lessons()).toEqual(["Ask before booking flights"]);
+    const [item] = await memory.list({ botId: bot }, user);
+    expect(item).toMatchObject({ kind: "lesson", pinned: true });
+    // Lessons are rebuilt from memory on every change, so an added lesson must still be there.
+    await memory.save(input("Prefers remote roles"), user);
+    await memory.addLessons(bot, ["Write short summaries"]);
+    expect(await lessons()).toEqual(["Ask before booking flights", "Write short summaries"]);
+  });
   it("marks affected executing runs for cancellation on corrections", async () => {
     const saved = await memory.save(input("Prefers remote roles"), user);
     await pool.query("update runs set status='running' where id=$1", [run]);

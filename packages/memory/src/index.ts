@@ -472,6 +472,40 @@ export class MemoryService {
     });
   }
 
+  /**
+   * Gives a teammate lessons it learned elsewhere (an imported file, or the teammate it was copied
+   * from), pinned as lessons always were. One it already has, or too short to be a lesson, is
+   * skipped.
+   */
+  async addLessons(botId: string, lessons: readonly string[]): Promise<void> {
+    validate(z.string().uuid(), botId);
+    const contents = lessons.flatMap((content) => {
+      const parsed = memoryInputSchema.safeParse({ botId, kind: "lesson", content });
+      return parsed.success ? [parsed.data.content] : [];
+    });
+    if (contents.length === 0) return;
+    await this.transaction(async (client) => {
+      await this.lockScope(client, botId);
+      let changed = false;
+      for (const content of contents) {
+        const hash = fingerprint(content);
+        const duplicate = await client.query(
+          "select id from memory_items where bot_id=$1 and fingerprint=$2 and state<>'deleted'",
+          [botId, hash],
+        );
+        if (duplicate.rowCount) continue;
+        const { rows } = await client.query<Row>(
+          `insert into memory_items(bot_id,kind,content,fingerprint,pinned,source)
+          values($1,'lesson',$2,$3,true,$4) returning *`,
+          [botId, content, hash, { type: "import" }],
+        );
+        await this.revision(client, rows[0]!);
+        changed = true;
+      }
+      if (changed) await this.changed(client, botId, { kind: "user" }, true);
+    });
+  }
+
   async get(id: string, actor: MemoryActor): Promise<MemoryItem> {
     validate(z.string().uuid(), id);
     const { rows } = await this.pool.query<Row>(

@@ -4,16 +4,13 @@ import { ownerTimeZone, schedules, triggers } from "@open-bot/db";
 import { DAILY_CHECK_IN } from "@open-bot/domain";
 import { and, eq } from "drizzle-orm";
 import { db } from "../db";
-import { publish } from "../publish";
 import { worker } from "../worker";
 import { ApiError } from "./errors";
 
 export async function removeSchedule({
   scheduleId,
 }: ApiInputs["schedules"]["remove"]): Promise<{ ok: true }> {
-  await db.delete(schedules).where(eq(schedules.id, scheduleId));
-  await publish({ type: "schedules" });
-  return { ok: true };
+  return worker.schedules.remove({ scheduleId });
 }
 
 /**

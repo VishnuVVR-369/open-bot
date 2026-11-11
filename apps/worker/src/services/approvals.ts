@@ -1,10 +1,10 @@
 import {
   accountActions,
+  type ApprovalKind,
   approvalRules,
   approvals,
   configurationRevision,
   purchases,
-  type ApprovalKind,
   type Queryable,
 } from "@open-bot/db";
 import type { RuleKind } from "@open-bot/domain";
@@ -504,12 +504,7 @@ export class ApprovalService {
   }
 
   async addRule(botId: string, kind: RuleKind, pattern: string): Promise<void> {
-    const clean = kind === "file_change" ? "" : pattern.trim().replace(/\s+/g, " ").slice(0, 300);
-    if (invalidRulePattern(kind, clean)) return;
-    await this.ctx.db
-      .insert(approvalRules)
-      .values({ botId, kind, pattern: clean })
-      .onConflictDoNothing();
+    await addApprovalRules(this.ctx.db, botId, [{ kind, pattern }]);
     await publishApp(this.ctx, { type: "bots" });
   }
 
@@ -555,4 +550,20 @@ export class ApprovalService {
     }
     if (expired.length) await publishApp(this.ctx, { type: "approvals" });
   }
+}
+
+/**
+ * Lets a teammate do these without asking, in the caller's transaction. A pattern that isn't a
+ * valid rule is skipped, and a rule it already has is kept once.
+ */
+export async function addApprovalRules(
+  db: Queryable,
+  teammateId: string,
+  rules: readonly { kind: RuleKind; pattern: string }[],
+): Promise<void> {
+  const values = rules.flatMap(({ kind, pattern }) => {
+    const clean = kind === "file_change" ? "" : pattern.trim().replace(/\s+/g, " ").slice(0, 300);
+    return invalidRulePattern(kind, clean) ? [] : [{ botId: teammateId, kind, pattern: clean }];
+  });
+  if (values.length > 0) await db.insert(approvalRules).values(values).onConflictDoNothing();
 }
