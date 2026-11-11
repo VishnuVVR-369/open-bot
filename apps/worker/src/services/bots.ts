@@ -13,6 +13,7 @@ import {
   lockUntilCommit,
   notify,
   ownerTimeZone,
+  transactionOnClient,
   type Queryable,
   schedules,
   skills,
@@ -414,12 +415,14 @@ export class BotService {
    */
   private async addTeammate(
     profile: Pick<Teammate, "name" | "role" | "instructions" | "color" | "emoji" | "autonomy">,
-    parts: Omit<TeammateParts, "lessons">,
+    parts: TeammateParts,
     copiedFrom?: string,
   ): Promise<{ teammate: Teammate; chatId: string }> {
     const timezone = await ownerTimeZone(this.ctx.db);
-    return this.ctx.db.transaction(async (tx) => {
-      await lockUntilCommit(tx, LOCKS.team);
+    // Its lessons live in memory, which the memory package writes with `pg`: one connection, so
+    // they're saved in the same transaction as the rest.
+    return transactionOnClient(this.ctx.pool, async (tx, client) => {
+      await lockUntilCommit(client, LOCKS.team);
       const team = await tx
         .select({ id: teammates.id, slug: teammates.slug, archivedAt: teammates.archivedAt })
         .from(teammates);
@@ -441,19 +444,13 @@ export class BotService {
       await addPausedWatches(tx, id, parts.watches);
       await addApprovalRules(tx, id, parts.allowed);
       if (copiedFrom) await copyUpcomingReminders(tx, copiedFrom, id);
+      await this.memory.addLessons(id, parts.lessons, client);
       return { teammate: teammate!, chatId: chat!.id };
     });
   }
 
-  /** After a teammate is added: its lessons, its workspace, and the pages that list it. */
-  private async welcome(teammate: Teammate, lessons: readonly string[]) {
-    if (lessons.length > 0)
-      await this.memory.addLessons(teammate.id, lessons).catch((error: unknown) =>
-        this.ctx.log.warn("teammate added, but its lessons weren't", {
-          teammateId: teammate.id,
-          error: errorMessage(error),
-        }),
-      );
+  /** After a teammate is added: its workspace, and the pages that list it. */
+  private async welcome(teammate: Teammate) {
     await this.sync(teammate);
     for (const type of ["bots", "chats", "skills", "schedules", "triggers", "lessons"] as const)
       await publishApp(this.ctx, { type });
@@ -470,7 +467,7 @@ export class BotService {
     const { role, instructions, color, emoji, autonomy } = source;
     const created = await this.addTeammate(
       { name, role, instructions, color, emoji, autonomy },
-      parts,
+      { ...parts, lessons: copyMemory ? learned : [] },
       id,
     );
     let memoryCopied = !copyMemory;
@@ -485,18 +482,18 @@ export class BotService {
           return false;
         },
       );
-    await this.welcome(created.teammate, copyMemory ? learned : []);
+    await this.welcome(created.teammate);
     return { teammateId: created.teammate.id, chatId: created.chatId, memoryCopied };
   }
 
   /** A new teammate from an exported file; its routines and page watches start paused. */
   async importBundle(bundle: TeammateBundle) {
-    const { teammate, lessons: learned, ...parts } = bundle;
+    const { teammate, ...parts } = bundle;
     const created = await this.addTeammate(
       { ...teammate, color: teammate.color ?? (await this.nextColor()) },
       parts,
     );
-    await this.welcome(created.teammate, learned);
+    await this.welcome(created.teammate);
     return {
       teammateId: created.teammate.id,
       chatId: created.chatId,

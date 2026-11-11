@@ -108,7 +108,8 @@ describe.skipIf(!url)("worker internal API, end to end", () => {
   const skills = new SkillService(ctx);
   const triggers = new TriggerService(ctx);
   const sync = vi.fn(async () => {});
-  const teammates = new BotService(ctx, schedules, skills, new MemoryService(pool), sync);
+  const memory = new MemoryService(pool);
+  const teammates = new BotService(ctx, schedules, skills, memory, sync);
   const operation = {
     id: ID,
     takeoverId: ID,
@@ -462,7 +463,6 @@ describe.skipIf(!url)("worker internal API, end to end", () => {
   });
 
   describe("teammate writes", () => {
-    const memory = new MemoryService(pool);
     /** A row's teammate, under the column's legacy name. */
     const owned = (teammateId: string) => ({ botId: teammateId }); // vocabulary: allow
     /** A teammate file with this name, and these parts. */
@@ -567,6 +567,16 @@ describe.skipIf(!url)("worker internal API, end to end", () => {
       const exported = await worker.teammates.export({ teammateId: kit.teammateId });
       expect(exported.bundle.allowed).toEqual([{ kind: "command", pattern }]);
       expect([...exported.bundle.lessons].sort()).toEqual([long, "简洁"].sort());
+    });
+
+    it("adds nobody when a teammate's lessons can't be saved", async () => {
+      vi.spyOn(memory, "addLessons").mockRejectedValueOnce(new Error("memory is down"));
+      expect(await failure(imported("Ghost", { lessons: ["Be brief."] }))).toMatchObject({
+        status: 500,
+      });
+      expect((await team()).filter((entry) => entry.name === "Ghost")).toEqual([]);
+      const ghostChats = await db.select().from(chats).where(eq(chats.title, "Ghost"));
+      expect(ghostChats).toEqual([]);
     });
 
     it("duplicates a teammate with its memory and reminders, and refuses one that's gone", async () => {

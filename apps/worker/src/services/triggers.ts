@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import type { TriggerCheck, TriggerInput as TriggerFormInput } from "@open-bot/api/worker";
-import { accounts, bots, connections, runs, triggers, type Tx } from "@open-bot/db";
+import { accounts, bots, connections, runs, triggers, type Queryable, type Tx } from "@open-bot/db";
 import {
   describeGmailQuery,
   describeInterval,
@@ -591,7 +591,7 @@ export class TriggerService {
 
 /** Gives a new teammate these page watches, paused like its routines. */
 export async function addPausedWatches(
-  tx: Tx,
+  tx: Queryable,
   teammateId: string,
   watches: readonly {
     title: string;

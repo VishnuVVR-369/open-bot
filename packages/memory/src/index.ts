@@ -477,10 +477,15 @@ export class MemoryService {
 
   /**
    * Gives a teammate lessons it learned elsewhere (an imported file, or the teammate it was copied
-   * from), pinned as lessons always were. One it already has, or too short to be a lesson, is
-   * skipped.
+   * from), pinned as lessons always were. One it already has, or a blank one, is skipped. With
+   * `within`, in the caller's transaction, so the lessons are saved if and only if the caller's
+   * change is.
    */
-  async addLessons(botId: string, lessons: readonly string[]): Promise<void> {
+  async addLessons(
+    botId: string,
+    lessons: readonly string[],
+    within?: pg.PoolClient,
+  ): Promise<void> {
     validate(z.string().uuid(), botId);
     // What a teammate file allows, so no lesson it carried is lost, however short.
     const contents = lessons.flatMap((content) => {
@@ -488,7 +493,7 @@ export class MemoryService {
       return parsed.success ? [parsed.data] : [];
     });
     if (contents.length === 0) return;
-    await this.transaction(async (client) => {
+    const work = async (client: pg.PoolClient) => {
       await this.lockScope(client, botId);
       let changed = false;
       for (const content of contents) {
@@ -507,7 +512,8 @@ export class MemoryService {
         changed = true;
       }
       if (changed) await this.changed(client, botId, { kind: "user" }, true);
-    });
+    };
+    await (within ? work(within) : this.transaction(work));
   }
 
   async get(id: string, actor: MemoryActor): Promise<MemoryItem> {

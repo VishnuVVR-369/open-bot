@@ -1,4 +1,4 @@
-import { bots, chats, ownerTimeZone, schedules, type Tx } from "@open-bot/db";
+import { bots, chats, ownerTimeZone, schedules, type Queryable, type Tx } from "@open-bot/db";
 import {
   describeCron,
   isValidTimeZone,
@@ -271,7 +271,7 @@ export class ScheduleService {
  * them on in Automations. A cron this open-bot can't read is left out rather than failing the rest.
  */
 export async function addPausedRoutines(
-  tx: Tx,
+  tx: Queryable,
   teammateId: string,
   routines: readonly { title: string; prompt: string; cron: string; quiet: boolean }[],
   timezone: string,
@@ -299,7 +299,7 @@ export async function addPausedRoutines(
 
 /** Copies one teammate's reminders still to come to another, paused. */
 export async function copyUpcomingReminders(
-  tx: Tx,
+  tx: Queryable,
   fromTeammateId: string,
   toTeammateId: string,
 ): Promise<void> {
