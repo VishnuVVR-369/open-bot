@@ -28,7 +28,7 @@ import {
   searchMessages,
 } from "../queries";
 import { worker, WorkerError } from "../worker";
-import { ApiError, UNDEFINED_STATUSES } from "./errors";
+import { ApiError } from "./errors";
 import { listMemories, memoriesForRun, memoryHistory } from "./memory";
 import { searchPages } from "./pages";
 import * as api from "./services";
@@ -63,10 +63,7 @@ function toRpcError(error: unknown): ORPCError<string, unknown> {
   if (error instanceof ORPCError) return error;
   if (error instanceof ApiError) {
     // A defined error only counts as one with the status the contract gives it.
-    const status =
-      error.code in UNDEFINED_STATUSES
-        ? UNDEFINED_STATUSES[error.code as keyof typeof UNDEFINED_STATUSES]
-        : API_ERRORS[error.code as keyof typeof API_ERRORS].status;
+    const status = error.code === "BAD_REQUEST" ? 400 : API_ERRORS[error.code].status;
     return new ORPCError(error.code, {
       status,
       message: error.message,
@@ -77,7 +74,7 @@ function toRpcError(error: unknown): ORPCError<string, unknown> {
     return new ORPCError("BAD_REQUEST", { message: error.issues.map((i) => i.message).join(". ") });
   if (error instanceof WorkerError || error instanceof MemoryError) {
     const code = STATUS_CODES[error.status] ?? "INTERNAL_SERVER_ERROR";
-    // A 409 here is a state conflict, not a reused id: don't let it pass as the defined CONFLICT.
+    // A 409 here is a state conflict (STATE_CONFLICT), never a reused id (CONFLICT).
     return new ORPCError(code === "CONFLICT" ? "STATE_CONFLICT" : code, {
       status: error.status,
       message: error.message,

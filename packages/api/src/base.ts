@@ -7,6 +7,11 @@ export const API_ERRORS = {
   NOT_FOUND: { status: 404, message: "That's gone." },
   /** A retry reused a client id for a different request. */
   CONFLICT: { status: 409, message: "That id was already used for something else." },
+  /**
+   * What you acted on changed since you saw it, by you elsewhere or by a teammate: reload it and
+   * decide again. Nothing was changed.
+   */
+  STATE_CONFLICT: { status: 409, message: "That changed since you saw it." },
   /** Decided differently somewhere else, or expired. `data.status` says how it ended. */
   ALREADY_DECIDED: {
     status: 409,

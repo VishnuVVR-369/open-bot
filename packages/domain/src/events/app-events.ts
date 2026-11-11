@@ -26,6 +26,7 @@ export const APP_EVENT_TYPES = [
   "purchases",
   "pages",
   "auth",
+  "settings",
 ] as const;
 
 /** An app event that carries nothing but its type. */

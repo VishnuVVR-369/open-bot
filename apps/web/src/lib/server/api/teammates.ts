@@ -14,7 +14,7 @@ import {
   type Tx,
 } from "@open-bot/db";
 import { newTeammateSlot, teammateBundleSchema, toCents } from "@open-bot/domain";
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { db, pool } from "../db";
 import { memoryReady } from "../memory";
 import { publish } from "../publish";
@@ -309,6 +309,9 @@ export async function setBudget({
   return { ok: true };
 }
 
+/** The teammate a suggestion is for, under the column's legacy name. */
+const suggestedFor = instructionProposals.botId; // vocabulary: allow
+
 /**
  * Decide a suggestion that's still waiting. Null when it was already decided the same way; one
  * decided the other way is a conflict.
@@ -318,15 +321,36 @@ async function decideProposal(tx: Tx, proposalId: string, status: "accepted" | "
     .update(instructionProposals)
     .set({ status, decidedAt: new Date() })
     .where(and(eq(instructionProposals.id, proposalId), eq(instructionProposals.status, "pending")))
-    .returning();
+    .returning({ teammateId: suggestedFor, proposed: instructionProposals.proposed });
   if (proposal) return proposal;
   const [decided] = await tx
-    .select({ status: instructionProposals.status })
+    .select({
+      status: instructionProposals.status,
+      teammateId: suggestedFor,
+      createdAt: instructionProposals.createdAt,
+    })
     .from(instructionProposals)
     .where(eq(instructionProposals.id, proposalId));
   if (!decided) throw new ApiError("NOT_FOUND", "That suggestion is gone.");
   if (decided.status === status) return null;
-  throw new ApiError("STATE_CONFLICT", "That suggestion was already handled.");
+  // A teammate's newer suggestion dismisses the one waiting; that isn't something you did.
+  const [newer] =
+    decided.status === "dismissed"
+      ? await tx
+          .select({ id: instructionProposals.id })
+          .from(instructionProposals)
+          .where(
+            and(
+              eq(suggestedFor, decided.teammateId),
+              gt(instructionProposals.createdAt, decided.createdAt),
+            ),
+          )
+          .limit(1)
+      : [];
+  throw new ApiError(
+    "STATE_CONFLICT",
+    newer ? "A newer suggestion replaced this one." : "That suggestion was already handled.",
+  );
 }
 
 /** Take a teammate's suggested instructions; they apply from its next message. */
@@ -339,8 +363,8 @@ export async function acceptProposal({
     await tx
       .update(teammates)
       .set({ instructions: proposal.proposed })
-      .where(eq(teammates.id, proposal.botId));
-    return proposal.botId;
+      .where(eq(teammates.id, proposal.teammateId));
+    return proposal.teammateId;
   });
   if (teammateId) await syncWorkspace(teammateId);
   await afterSaving("refreshing open pages", () => publish({ type: "bots" }));

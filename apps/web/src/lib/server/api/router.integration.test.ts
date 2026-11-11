@@ -636,26 +636,50 @@ describe.skipIf(!url)("API reads, end to end", () => {
 
   /* Settings, the vault, integrations and memory, which the web app writes itself. */
 
-  /** Run `edits` at once while another transaction holds `table`'s row, then let them go. */
-  async function racedWhileLocked(table: string, id: string, edits: () => Promise<unknown>[]) {
+  /**
+   * Start `writes` while another transaction holds a lock (`lock` takes it), wait until every one
+   * of them waits on a lock, then let go: none could see another's change before making its own.
+   * A write that ends without waiting fails the test at once, with its own error if it threw.
+   */
+  async function racedWhileLocked<T>(
+    lock: { sql: string; params?: unknown[] },
+    writes: () => Promise<T>[],
+  ): Promise<T[]> {
     const { pool } = await import("../db");
     const holder = await pool.connect();
+    let held = false;
     try {
       await holder.query("begin");
-      await holder.query(`select 1 from ${table} where id=$1 for update`, [id]);
-      const running = edits();
-      // Every edit waits on the row before it's let go. Asked outside the holder's transaction,
-      // which would keep seeing the activity as it was when it first looked.
+      held = true;
+      await holder.query(lock.sql, lock.params);
+      const running = writes();
+      let ended = 0;
+      for (const write of running)
+        write.then(
+          () => ended++,
+          () => ended++,
+        );
+      const deadline = Date.now() + 10_000;
+      // Asked outside the holder's transaction, which would keep seeing the activity as it was
+      // when it first looked.
       for (;;) {
+        if (ended > 0) {
+          await Promise.all(running);
+          throw new Error("A write finished without waiting on the lock.");
+        }
         const { rows } = await pool.query<{ waiting: number }>(
           "select count(*)::int as waiting from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'",
         );
         if (rows[0]!.waiting === running.length) break;
+        if (Date.now() > deadline)
+          throw new Error(`${rows[0]!.waiting} of ${running.length} writes waited on the lock.`);
         await new Promise((resolve) => setImmediate(resolve));
       }
       await holder.query("commit");
+      held = false;
       return await Promise.all(running);
     } finally {
+      if (held) await holder.query("rollback").catch(() => {});
       holder.release();
     }
   }
@@ -716,7 +740,10 @@ describe.skipIf(!url)("API reads, end to end", () => {
     };
     const { id } = await api.vault.save(card);
     const edit = (secret: Record<string, string>) => api.vault.save({ ...card, id, secret });
-    await racedWhileLocked("vault_items", id, () => [edit({ cvc: "999" }), edit({ zip: "10115" })]);
+    await racedWhileLocked(
+      { sql: "select 1 from vault_items where id = $1 for update", params: [id] },
+      () => [edit({ cvc: "999" }), edit({ zip: "10115" })],
+    );
     expect(await vaultSecret(id)).toMatchObject({ cvc: "999", zip: "10115" });
     await api.vault.remove({ itemId: id });
   });
@@ -742,8 +769,11 @@ describe.skipIf(!url)("API reads, end to end", () => {
     });
     expect(JSON.stringify(saved)).not.toContain("Bearer abc");
 
-    // Names are unique; three saved at once each get their own.
-    const copies = await Promise.all([1, 2, 3].map(() => api.connections.save(server)));
+    // Names are unique. Three saves at once, each held before it adds its row (they may still
+    // read), each get their own.
+    const copies = await racedWhileLocked({ sql: "lock table connections in exclusive mode" }, () =>
+      [1, 2, 3].map(() => api.connections.save(server)),
+    );
     const names = (await api.connections.list())
       .filter((c) => copies.some((copy) => copy.id === c.id))
       .map((c) => c.name)
@@ -779,6 +809,16 @@ describe.skipIf(!url)("API reads, end to end", () => {
     answers.set(`/internal/connections/${docs!.id}/test`, { status: 200, body: found });
     try {
       expect(await api.connections.test({ connectionId: docs!.id })).toEqual(found);
+      const offline = "The computer is offline.";
+      answers.set(`/internal/connections/${docs!.id}/test`, {
+        status: 503,
+        body: { error: offline },
+      });
+      await expect(api.connections.test({ connectionId: docs!.id })).rejects.toMatchObject({
+        code: "SERVICE_UNAVAILABLE",
+        status: 503,
+        message: offline,
+      });
     } finally {
       answers.clear();
     }
@@ -822,7 +862,39 @@ describe.skipIf(!url)("API reads, end to end", () => {
         teammateIds: null,
         askBeforeActing: true,
       }),
-    ).rejects.toMatchObject({ code: "BAD_REQUEST", message: "That connection is gone." });
+    ).rejects.toMatchObject({ code: "NOT_FOUND", message: "That connection is gone." });
+
+    // An account's connection isn't an MCP server to save over.
+    const [client] = await database.db.select({ id: s.oauthClients.id }).from(s.oauthClients);
+    const [account] = await database.db
+      .insert(s.accounts)
+      .values({
+        provider: "google",
+        externalId: "google-sub-1",
+        oauthClientId: client!.id,
+        display: "alex@example.test",
+        encrypted: "not-read-here",
+      })
+      .returning();
+    const [gmail] = await database.db
+      .insert(s.connections)
+      .values({ label: "Gmail", name: "gmail", kind: "gmail", accountId: account!.id })
+      .returning();
+    await expect(
+      api.connections.save({
+        id: gmail!.id,
+        label: "Gmail",
+        transport: "http",
+        url: "https://mcp.example.test/mcp",
+        command: "",
+        args: "",
+        secrets: "",
+        teammateIds: null,
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND", message: "That connection is gone." });
+    const { eq } = await import("drizzle-orm");
+    await database.db.delete(s.connections).where(eq(s.connections.id, gmail!.id));
+    await database.db.delete(s.accounts).where(eq(s.accounts.id, account!.id));
   });
 
   it("saves email settings only when all of them are right", async () => {
@@ -906,8 +978,29 @@ describe.skipIf(!url)("API reads, end to end", () => {
     await expect(api.proposals.dismiss({ proposalId: proposal!.id })).rejects.toMatchObject({
       code: "STATE_CONFLICT",
       status: 409,
+      defined: true,
       message: "That suggestion was already handled.",
     });
+
+    // A teammate's newer suggestion replaces the one waiting, as the worker does it.
+    const [older, newer] = await database.db
+      .insert(s.instructionProposals)
+      .values(
+        ["Use headings.", "Use tables."].map((proposed, index) => ({
+          ...owned(ids.teammate),
+          current: "",
+          proposed,
+          reason: "Clearer",
+          status: index === 0 ? ("dismissed" as const) : ("pending" as const),
+          createdAt: new Date(Date.now() + index * 1000),
+        })),
+      )
+      .returning();
+    await expect(api.proposals.accept({ proposalId: older!.id })).rejects.toMatchObject({
+      code: "STATE_CONFLICT",
+      message: "A newer suggestion replaced this one.",
+    });
+    await api.proposals.dismiss({ proposalId: newer!.id });
     await expect(api.proposals.dismiss({ proposalId: randomUUID() })).rejects.toMatchObject({
       code: "NOT_FOUND",
     });

@@ -48,8 +48,8 @@ export const accountStore = new AccountStore(db, serverEnv.encryptionKey);
 
 /** Connecting or changing an account can't go ahead, for the reason it says. */
 export class AccountConnectError extends ApiError {
-  constructor(message: string) {
-    super("BAD_REQUEST", message);
+  constructor(message: string, code: "BAD_REQUEST" | "NOT_FOUND" = "BAD_REQUEST") {
+    super(code, message);
   }
 }
 
@@ -71,7 +71,7 @@ export async function startAuthorization(input: {
   const account = input.accountId
     ? (await db.select().from(accounts).where(eq(accounts.id, input.accountId)))[0]
     : undefined;
-  if (input.accountId && !account) throw new AccountConnectError("That account is gone.");
+  if (input.accountId && !account) throw new AccountConnectError("That account is gone.", "NOT_FOUND");
   if (account && account.provider !== provider)
     throw new AccountConnectError(`That isn't a ${authProvider(provider).accountLabel}.`);
 
@@ -314,12 +314,12 @@ export async function updateAccountConnection(input: {
 }): Promise<{ needsConsent: boolean }> {
   const [row] = await db.select().from(connections).where(eq(connections.id, input.id));
   if (!row || row.kind === "mcp" || !row.accountId)
-    throw new AccountConnectError("That connection is gone.");
+    throw new AccountConnectError("That connection is gone.", "NOT_FOUND");
   const kind = row.kind;
   const capabilities = normalizeCapabilities(kind, input.capabilities);
   const settings = input.settings ? parseSettings(kind, row.settings, input.settings) : null;
   const [account] = await db.select().from(accounts).where(eq(accounts.id, row.accountId));
-  if (!account) throw new AccountConnectError("Its account is gone.");
+  if (!account) throw new AccountConnectError("Its account is gone.", "NOT_FOUND");
   if (capabilities.some((capability) => !capabilityGranted(kind, capability, account.scopes)))
     return { needsConsent: true };
   const changed = !sameList(row.capabilities, capabilities) || !sameList(row.botIds, input.botIds);

@@ -407,7 +407,7 @@
     "desktop takeover": 3
   },
   "apps/web/src/lib/server/api/teammates.ts": {
-    "bot": 17,
+    "bot": 15,
     "primary teammate": 5
   },
   "apps/web/src/lib/server/api/vault.ts": {

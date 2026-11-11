@@ -15,6 +15,7 @@ type Ok = { ok: true };
 export async function setTimezone({ timezone }: Inputs["setTimezone"]): Promise<Ok> {
   if (!isValidTimeZone(timezone)) throw new ApiError("BAD_REQUEST", "Unknown timezone.");
   await db.update(settings).set({ timezone }).where(eq(settings.id, 1));
+  await publish({ type: "settings" });
   return { ok: true };
 }
 
