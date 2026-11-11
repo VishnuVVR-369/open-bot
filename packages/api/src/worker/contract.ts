@@ -526,14 +526,14 @@ export const workerContract = {
       .output(z.object({ needsConsent: z.boolean() })),
     /**
      * You signed in to an account (the web app saved its grant): its connection of `kind`, made or
-     * changed to what you picked. `grantChanged` cancels what waits on the account's connections.
+     * changed to what you picked. What waits on an earlier grant is cancelled.
      */
     linkAccount: base
       .route({ method: "POST", path: "/internal/accounts/{accountId}/linked" })
       .input(
         accountConnectInputSchema
           .pick({ kind: true, capabilities: true, teammateIds: true })
-          .extend({ accountId: id, grantChanged: z.boolean() }),
+          .extend({ accountId: id }),
       )
       .output(z.object({ connectionId: z.string() })),
     /** Connect to an MCP server or account from the computer and list its tools. */

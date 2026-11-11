@@ -640,10 +640,14 @@ describe.skipIf(!url)("worker internal API, end to end", () => {
         kind: "gmail",
         capabilities: ["read", "made-up"],
         teammateIds: null,
-        grantChanged: false,
       });
       const { created, run } = await teammateWithRun();
+      // Made like a teammate's action: under the account's grant and the connection's setup now.
       const waiting = async () => {
+        const [current] = await db
+          .select({ grantRevision: accounts.grantRevision })
+          .from(accounts)
+          .where(eq(accounts.id, account!.id));
         const [approval] = await db
           .insert(approvals)
           .values({
@@ -660,7 +664,7 @@ describe.skipIf(!url)("worker internal API, end to end", () => {
           .values({
             connectionId: linked.connectionId,
             accountId: account!.id,
-            grantRevision: 1,
+            grantRevision: current!.grantRevision,
             connectionRevision: (await connection(linked.connectionId))!.revision,
             botId: created.id, // vocabulary: allow
             runId: run.id,
@@ -737,23 +741,29 @@ describe.skipIf(!url)("worker internal API, end to end", () => {
         { status: 400, message: "That's an account, not an MCP server." },
       );
 
-      // Signing in again for the same access changes nothing; a changed grant cancels.
-      const again = { accountId: gmail.account.id, kind: "gmail" as const, teammateIds: null };
-      let action = await gmail.waiting();
-      await worker.connections.linkAccount({
-        ...again,
+      // Signing in again for the same access changes nothing.
+      const again = {
+        accountId: gmail.account.id,
+        kind: "gmail" as const,
         capabilities: ["read"],
-        grantChanged: false,
-      });
+        teammateIds: null,
+      };
+      let action = await gmail.waiting();
+      await worker.connections.linkAccount(again);
       expect((await connection(gmail.connectionId))!.revision).toBe(linked.revision);
       expect(await gmail.outcome(action)).toEqual({ action: "pending", approval: "pending" });
-      await worker.connections.linkAccount({
-        ...again,
-        capabilities: ["read"],
-        grantChanged: true,
-      });
+      // A sign-in that changed the grant (saveGrant moved its revision on), whose call here failed:
+      // trying again still cancels what waits on the earlier grant, and only that.
+      await db.update(accounts).set({ grantRevision: 2 }).where(eq(accounts.id, gmail.account.id));
+      await worker.connections.linkAccount(again);
       expect(await gmail.outcome(action)).toEqual({ action: "cancelled", approval: "expired" });
       expect(accountActionLoop.kick).toHaveBeenCalled();
+      const madeUnderNewGrant = await gmail.waiting();
+      await worker.connections.linkAccount(again);
+      expect(await gmail.outcome(madeUnderNewGrant)).toEqual({
+        action: "pending",
+        approval: "pending",
+      });
 
       // Asking for more than the account granted changes nothing.
       const change = {

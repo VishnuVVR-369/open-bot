@@ -17,7 +17,7 @@ import {
   type AccountActionStatus,
   type ToolItem,
 } from "@open-bot/domain";
-import { and, asc, eq, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, lt, lte, sql, type SQL } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
 import { enqueueRun } from "../runs/queue";
 import { appendRunEvent } from "../runs/events";
@@ -118,15 +118,31 @@ export async function cancelConnectionActions(
   connectionId: string,
   reason: string,
 ): Promise<number> {
+  return cancelWaiting(db, eq(accountActions.connectionId, connectionId), reason);
+}
+
+/**
+ * Cancel the account's pending and approved actions made under an earlier grant than
+ * `grantRevision`, and expire their approvals. Returns how many were cancelled.
+ */
+export async function cancelEarlierGrantActions(
+  db: Queryable,
+  accountId: string,
+  grantRevision: number,
+  reason: string,
+): Promise<number> {
+  return cancelWaiting(
+    db,
+    and(eq(accountActions.accountId, accountId), lt(accountActions.grantRevision, grantRevision))!,
+    reason,
+  );
+}
+
+async function cancelWaiting(db: Queryable, which: SQL, reason: string): Promise<number> {
   const cancelled = await db
     .update(accountActions)
     .set({ status: "cancelled", error: reason, finishedAt: new Date() })
-    .where(
-      and(
-        eq(accountActions.connectionId, connectionId),
-        inArray(accountActions.status, ["pending", "approved"]),
-      ),
-    )
+    .where(and(which, inArray(accountActions.status, ["pending", "approved"])))
     .returning({ approvalId: accountActions.approvalId });
   const approvalIds = cancelled
     .map((row) => row.approvalId)

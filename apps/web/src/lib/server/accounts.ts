@@ -182,7 +182,7 @@ export async function completeAuthorization(input: {
       );
     }
 
-    const { account, grantChanged } = await accountStore.saveGrant({
+    const { account } = await accountStore.saveGrant({
       provider: input.provider,
       externalId: identity.externalId,
       oauthClientId: client.id,
@@ -196,7 +196,6 @@ export async function completeAuthorization(input: {
       kind: purpose.kind,
       capabilities: purpose.capabilities,
       teammateIds: purpose.botIds,
-      grantChanged,
     });
     return {
       connectionId,

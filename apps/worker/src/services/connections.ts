@@ -28,7 +28,7 @@ import {
 } from "@open-bot/domain";
 import { decryptSecret, encryptSecret } from "@open-bot/domain/server";
 import { and, asc, eq, isNull, or, sql } from "drizzle-orm";
-import { cancelConnectionActions } from "../accounts/actions";
+import { cancelConnectionActions, cancelEarlierGrantActions } from "../accounts/actions";
 import { publishApp, type Context } from "../context";
 import { errorMessage } from "../logger";
 
@@ -315,19 +315,18 @@ export class ConnectionService {
 
   /**
    * You signed in to an account for a connection of `kind`: the account's connection of that kind,
-   * created or given the capabilities and teammates you picked. When the grant lost something
-   * approvals may rely on (`grantChanged`), what waits on any of the account's connections is
-   * cancelled first.
+   * created or given the capabilities and teammates you picked. What waits on an earlier grant
+   * (one that lost something approvals may rely on, see `saveGrant`) is cancelled first. That is
+   * read from the saved grant, so a sign-in retried after this call failed still cancels it.
    */
   async linkAccount(input: {
     accountId: string;
     kind: AccountConnectionKind;
     capabilities: string[];
     teammateIds: string[] | null;
-    grantChanged: boolean;
   }): Promise<{ connectionId: string }> {
     const [account] = await this.ctx.db
-      .select({ id: accounts.id, display: accounts.display })
+      .select({ id: accounts.id, display: accounts.display, grantRevision: accounts.grantRevision })
       .from(accounts)
       .where(eq(accounts.id, input.accountId));
     if (!account) throw new ConnectionError(404, "That account is gone.");
@@ -336,7 +335,13 @@ export class ConnectionService {
       input.kind,
       input.capabilities as AccountCapability[],
     );
-    if (input.grantChanged) await this.cancelForAccount(account.id);
+    const cancelled = await cancelEarlierGrantActions(
+      this.ctx.db,
+      account.id,
+      account.grantRevision,
+      "You signed in again with different access since it was asked for.",
+    );
+    if (cancelled) await this.reportCancelled();
     const connectionId = await this.upsertAccountConnection(
       account,
       input.kind,
@@ -345,23 +350,6 @@ export class ConnectionService {
     );
     await publishApp(this.ctx, { type: "connections" });
     return { connectionId };
-  }
-
-  private async cancelForAccount(accountId: string): Promise<void> {
-    const rows = await this.ctx.db
-      .select({ id: connections.id })
-      .from(connections)
-      .where(eq(connections.accountId, accountId));
-    if (rows.length === 0) return;
-    await this.ctx.db.transaction(async (tx) => {
-      for (const row of rows)
-        await cancelConnectionActions(
-          tx,
-          row.id,
-          "You signed in again with different access since it was asked for.",
-        );
-    });
-    await this.reportCancelled();
   }
 
   /** The account's connection of this kind: created, or given the capabilities you picked. */
