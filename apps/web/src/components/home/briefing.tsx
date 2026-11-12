@@ -1,5 +1,6 @@
 "use client";
 
+import { plural } from "@open-bot/chat-core";
 import { format, formatDistanceToNowStrict, isToday } from "date-fns";
 import { AlertCircle, CalendarClock, Eye, History, RotateCcw, Webhook, X } from "lucide-react";
 import Link from "next/link";
@@ -20,10 +21,6 @@ import { chatHref, cn, plainText } from "@/lib/utils";
 const PER_BOT = 3;
 
 const TRIGGER_ICONS = { schedule: CalendarClock, watch: Eye, webhook: Webhook } as const;
-
-function plural(count: number, one: string, many = `${one}s`) {
-  return `${count} ${count === 1 ? one : many}`;
-}
 
 /** A time on the clock the rest of the app uses: "7:38 AM", or "Thu 7:38 AM" before today. */
 function clock(date: Date) {

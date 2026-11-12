@@ -94,6 +94,25 @@ export default tseslint.config(
     ]),
   },
   {
+    // @open-bot/chat-core is shared by the web app and the phone app, so it can only use what both
+    // can run: no Node, no platform UI, and no server-side packages.
+    files: ["packages/chat-core/src/**/*.ts"],
+    rules: forbidImports([
+      {
+        regex: NODE_BUILTIN,
+        message: "packages/chat-core runs in the browser and in React Native; it can't use Node.",
+      },
+      {
+        regex: "^(react-native|react-dom|next|expo|lucide-react)(\\W.*)?$",
+        message: "packages/chat-core is platform-free. Render in the apps; return data from here.",
+      },
+      {
+        regex: "^@open-bot.(db|integrations|memory|domain.server)(\\W.*)?$",
+        message: "packages/chat-core is client code and can't use server-only packages.",
+      },
+    ]),
+  },
+  {
     // Code that can run on a phone or in the browser can't load node:crypto. Web server code
     // lives in lib/server and API routes; everything else may reach the client.
     files: ["apps/mobile/**/*.{ts,tsx}", "packages/api/**/*.ts", "apps/web/src/**/*.{ts,tsx}"],

@@ -1,6 +1,7 @@
 "use client";
 
 import { cantAttach } from "@open-bot/api";
+import { fileSize } from "@open-bot/chat-core";
 import { BUILT_IN_SKILLS, mentionedIds, type RunStatus } from "@open-bot/domain";
 import {
   ArrowUp,
@@ -59,11 +60,6 @@ interface Upload {
   name: string;
   status: "uploading" | "done";
   attachment?: Attachment;
-}
-
-function formatSize(bytes: number) {
-  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 /** The run going on in the chat, if any, and what it is waiting for. */
@@ -426,9 +422,7 @@ export function Composer({
                 )}
                 <span className="truncate">{upload.name}</span>
                 {upload.attachment && (
-                  <span className="text-muted-foreground">
-                    {formatSize(upload.attachment.size)}
-                  </span>
+                  <span className="text-muted-foreground">{fileSize(upload.attachment.size)}</span>
                 )}
                 <button
                   aria-label={`Remove ${upload.name}`}

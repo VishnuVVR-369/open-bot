@@ -1,5 +1,6 @@
 "use client";
 
+import { greeting, plural } from "@open-bot/chat-core";
 import { approvalShortTitle, BOT_COLORS, isRunActive, TEAMMATE_TEMPLATES } from "@open-bot/domain";
 import { format, formatDistanceToNowStrict, isToday, isTomorrow } from "date-fns";
 import {
@@ -60,23 +61,6 @@ function useMinute(): number | null {
   );
 }
 
-function greeting(name: string, now: Date) {
-  const hour = now.getHours();
-  const part =
-    hour < 5
-      ? "Good night"
-      : hour < 12
-        ? "Good morning"
-        : hour < 18
-          ? "Good afternoon"
-          : "Good evening";
-  return `${part}, ${name.split(" ")[0]}`;
-}
-
-function count(n: number, one: string, many: string) {
-  return `${n} ${n === 1 ? one : many}`;
-}
-
 /**
  * The line under the greeting, from the real state: how many things need you (each take over
  * request and each approval), then whether work is moving. While the computer is offline nothing
@@ -87,7 +71,7 @@ export function teamSummary(
 ): string {
   const online = isComputerOnline(state);
   const things = state.takeoverRequests.length + state.pendingApprovals;
-  const needs = things > 0 ? `${count(things, "thing needs", "things need")} you` : null;
+  const needs = things > 0 ? `${plural(things, "thing needs", "things need")} you` : null;
   if (!online) {
     const busy = state.bots.some((bot) => bot.activeRun);
     const paused = busy
@@ -97,9 +81,9 @@ export function teamSummary(
   }
   const working = state.bots.filter((bot) => botActivity(bot) === "working").length;
   if (needs && working)
-    return `${needs}, and ${count(working, "teammate is", "teammates are")} working.`;
+    return `${needs}, and ${plural(working, "teammate is", "teammates are")} working.`;
   if (needs) return `${needs}.`;
-  if (working) return `${count(working, "teammate is", "teammates are")} working right now.`;
+  if (working) return `${plural(working, "teammate is", "teammates are")} working right now.`;
   return "Your teammates are ready when you are.";
 }
 
@@ -699,7 +683,7 @@ export function HomeView() {
             </p>
             <h1 className="text-[30px] leading-tight font-semibold">
               {now && state ? (
-                greeting(state.user.name, now)
+                greeting(state.user.name, now.getHours())
               ) : (
                 // Holds the line's height until the browser knows what time it is.
                 <span className="invisible">Welcome</span>

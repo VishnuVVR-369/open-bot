@@ -59,10 +59,3 @@ function since(lead: string, iso: string, now: number): string {
   if (/^\d+[mh]$/.test(when)) return `${lead} ${when} ago`;
   return `${lead} ${when === "Yesterday" ? "yesterday" : when}`;
 }
-
-/** 42s, 3m 05s */
-export function elapsed(ms: number): string {
-  const seconds = Math.max(0, Math.floor(ms / 1000));
-  if (seconds < 60) return `${seconds}s`;
-  return `${Math.floor(seconds / 60)}m ${pad(seconds % 60)}s`;
-}

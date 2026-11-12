@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   isLinkFresh,
   pageHref,
-  pageSize,
   pageThumbnailUrl,
   parsePageMessage,
   questionTarget,
@@ -96,11 +95,5 @@ describe("the page list", () => {
       page("new", false, "2026-11-04T00:00:00Z"),
     ]);
     expect(sorted.map((entry) => entry.id)).toEqual(["pinned", "new", "old"]);
-  });
-
-  it("says how big a version is", () => {
-    expect(pageSize(900)).toBe("900 B");
-    expect(pageSize(48_000)).toBe("47 KB");
-    expect(pageSize(2_300_000)).toBe("2.2 MB");
   });
 });

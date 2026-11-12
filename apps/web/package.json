@@ -15,6 +15,7 @@
     "@better-auth/passkey": "^1.7.7",
     "@novnc/novnc": "^1.7.0",
     "@open-bot/api": "workspace:*",
+    "@open-bot/chat-core": "workspace:*",
     "@open-bot/db": "workspace:*",
     "@open-bot/domain": "workspace:*",
     "@open-bot/integrations": "workspace:*",

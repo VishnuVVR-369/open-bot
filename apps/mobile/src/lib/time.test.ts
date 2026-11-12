@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ago, clock, dayClock, elapsed, lastActive } from "./time";
+import { ago, clock, dayClock, lastActive } from "./time";
 
 describe("times in lists", () => {
   const now = new Date(2026, 10, 2, 15, 0, 0).getTime();
@@ -35,10 +35,5 @@ describe("times in lists", () => {
   it("adds the day to times before today", () => {
     expect(dayClock(at(2026, 10, 2, 9, 5), false, now)).toBe("09:05");
     expect(dayClock(at(2026, 10, 1, 21, 0), true, now)).toBe("Sun 9:00 PM");
-  });
-
-  it("counts running time", () => {
-    expect(elapsed(42_000)).toBe("42s");
-    expect(elapsed(185_000)).toBe("3m 05s");
   });
 });

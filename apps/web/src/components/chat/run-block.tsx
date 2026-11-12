@@ -1,5 +1,6 @@
 "use client";
 
+import { elapsed } from "@open-bot/chat-core";
 import {
   formatDollars,
   isNothingToReport,
@@ -481,12 +482,11 @@ function Elapsed({ since }: { since: string }) {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
-  const seconds = Math.max(0, Math.floor((now - new Date(since).getTime()) / 1000));
-  const text =
-    seconds < 60
-      ? `${seconds}s`
-      : `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, "0")}s`;
-  return <span className="font-mono text-[12px] tabular-nums">{text}</span>;
+  return (
+    <span className="font-mono text-[12px] tabular-nums">
+      {elapsed(now - new Date(since).getTime())}
+    </span>
+  );
 }
 
 function WorkingLine({ run }: { run: RunView }) {

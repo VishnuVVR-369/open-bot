@@ -1,0 +1,8 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Runs in the browser and in React Native: no Node or DOM types.
+    "types": []
+  },
+  "include": ["src"]
+}
