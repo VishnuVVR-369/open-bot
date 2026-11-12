@@ -1,3 +1,4 @@
+import { DrizzleQueryError } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ComputerLifecycle, type LifecycleHooks } from "./computer-lifecycle";
 
@@ -146,7 +147,7 @@ describe("computer lifecycle admission", () => {
       wake: vi.fn().mockRejectedValueOnce(new Error("502")).mockResolvedValue(true),
     });
     await expect(retry.lifecycle.run("failed", async () => {})).rejects.toThrow(
-      "Computer wake failed: Error: 502",
+      "Computer wake failed: 502",
     );
     expect(retry.lifecycle.status).toMatchObject({
       phase: "idle",
@@ -205,6 +206,19 @@ describe("computer lifecycle admission", () => {
     await callback;
     lifecycle.stop();
   });
+});
+
+it("says why a wake failed without a failed query's parameters", async () => {
+  const query = "update screens set state = $1";
+  const { lifecycle } = setup({
+    restore: vi.fn(async () => {
+      throw new DrizzleQueryError(query, ["a private value"], new Error("deadlock detected"));
+    }),
+  });
+  const failed = await lifecycle.run("file", async () => {}).catch((error: unknown) => error);
+  expect(failed).toBeInstanceOf(Error);
+  expect((failed as Error).message).toBe("Computer wake failed: deadlock detected");
+  lifecycle.stop();
 });
 
 it("bounds the complete wake and releases demand if restore never answers", async () => {

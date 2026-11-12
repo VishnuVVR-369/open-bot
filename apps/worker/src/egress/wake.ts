@@ -1,6 +1,7 @@
 import { UNAVAILABLE_MESSAGES, type EgressStatusView } from "@open-bot/api";
 import type { EgressMode, PhoneMode, UnavailableReason } from "@open-bot/egress";
 import type { PairedPhone } from "./relay";
+import { errorMessage } from "../logger";
 
 /** What the wake controller reads from, and asks of, the relay. */
 export interface WakeRelay {
@@ -321,7 +322,7 @@ export class WakeController {
       this.lastNoticeAt = now;
       void this.deps.notifyUnanswered().catch((error: unknown) =>
         this.deps.log.warn("could not send the unanswered phone notice", {
-          error: String(error),
+          error: errorMessage(error),
         }),
       );
     }
@@ -337,7 +338,7 @@ export class WakeController {
           if (result === "gone") this.deps.phonesChanged();
         })
         .catch((error: unknown) =>
-          this.deps.log.warn("could not wake a phone", { error: String(error) }),
+          this.deps.log.warn("could not wake a phone", { error: errorMessage(error) }),
         );
     }
   }

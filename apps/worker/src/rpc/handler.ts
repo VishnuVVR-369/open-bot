@@ -1,8 +1,8 @@
 import type { WorkerMeta } from "@open-bot/api/worker";
+import { errorFields } from "@open-bot/db";
 import { OpenAPIHandler } from "@orpc/openapi/node";
 import { BodyLimitPlugin } from "@orpc/server/node";
 import type { Context } from "../context";
-import { errorMessage } from "../logger";
 import { maskedError, toRpcError } from "./errors";
 import type { RpcContext, WorkerRouter } from "./router";
 
@@ -33,7 +33,7 @@ export function createRpcHandler(
           // Never log or echo what failed when the input carries a code: it could include it.
           if (meta.secretInput) throw maskedError(failure);
           if (failure.status >= 500)
-            ctx.log.error("request failed", { path: context.path, error: errorMessage(error) });
+            ctx.log.error("request failed", { path: context.path, ...errorFields(error) });
           throw failure;
         }
       },
