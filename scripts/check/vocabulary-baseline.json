@@ -495,6 +495,12 @@
   "apps/worker/src/rpc/router.ts": {
     "bot": 3
   },
+  "apps/worker/src/runs/answer-back.ts": {
+    "bot": 9
+  },
+  "apps/worker/src/runs/approval-policy.ts": {
+    "bot": 2
+  },
   "apps/worker/src/runs/dispatch.integration.test.ts": {
     "bot": 22
   },
@@ -509,7 +515,7 @@
     "bot": 1
   },
   "apps/worker/src/runs/session.ts": {
-    "bot": 66
+    "bot": 51
   },
   "apps/worker/src/runs/thread-continuity.test.ts": {
     "bot": 4
@@ -600,18 +606,57 @@
   "apps/worker/src/services/vault.ts": {
     "bot": 40
   },
+  "apps/worker/src/tools/automations.ts": {
+    "bot": 60
+  },
   "apps/worker/src/tools/bots.integration.test.ts": {
     "bot": 131,
     "primary teammate": 1
   },
   "apps/worker/src/tools/bots.ts": {
-    "bot": 109
+    "bot": 84
+  },
+  "apps/worker/src/tools/catalog.test.ts": {
+    "bot": 4
+  },
+  "apps/worker/src/tools/chat.ts": {
+    "bot": 5
+  },
+  "apps/worker/src/tools/define.ts": {
+    "bot": 7
   },
   "apps/worker/src/tools/definitions.ts": {
-    "bot": 59
+    "bot": 1
+  },
+  "apps/worker/src/tools/desktop.ts": {
+    "bot": 6
+  },
+  "apps/worker/src/tools/email.ts": {
+    "bot": 1
   },
   "apps/worker/src/tools/handlers.ts": {
-    "bot": 167
+    "bot": 9
+  },
+  "apps/worker/src/tools/memory.ts": {
+    "bot": 16
+  },
+  "apps/worker/src/tools/pages.ts": {
+    "bot": 4
+  },
+  "apps/worker/src/tools/skills.ts": {
+    "bot": 21
+  },
+  "apps/worker/src/tools/tasks.ts": {
+    "bot": 15
+  },
+  "apps/worker/src/tools/teammates.ts": {
+    "bot": 67
+  },
+  "apps/worker/src/tools/teamwork.ts": {
+    "bot": 30
+  },
+  "apps/worker/src/tools/vault.ts": {
+    "bot": 1
   },
   "apps/worker/src/uploads.integration.test.ts": {
     "bot": 7

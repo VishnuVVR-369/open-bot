@@ -9,7 +9,7 @@ Shared types and pure logic go in `packages/domain`, and schema changes go in `p
 - `apps/worker/src/index.ts`: process entry that builds the context, services and HTTP server.
 - `apps/worker/src/http.ts`: the HTTP server, shared-secret auth and the raw upload route; `apps/worker/src/ws.ts` has the VNC and egress websockets.
 - `apps/worker/src/rpc/router.ts`: the internal API (`workerContract` in `packages/api/src/worker/contract.ts`), each procedure calling a service; `apps/worker/src/rpc/handler.ts` wakes the computer around procedures that need it and maps errors (`apps/worker/src/rpc/errors.ts`).
-- `apps/worker/src/tools/definitions.ts` and `apps/worker/src/tools/handlers.ts`: tool specs (`TOOLS_VERSION`) and `ToolHandlers.handle()`, with `DEVELOPER_INSTRUCTIONS` in `apps/worker/src/instructions.ts`.
+- `apps/worker/src/tools/`: one file per feature defines its tools with `defineTool()` (`define.ts`): name, description, zod input, helper policy and handler. `definitions.ts` lists them (`TOOLS`, `TOOLS_VERSION`), and `handlers.ts` (`ToolHandlers.handle()`) finds the called tool by name and runs it. `DEVELOPER_INSTRUCTIONS` is in `apps/worker/src/instructions.ts`.
 - `apps/worker/src/computer-lifecycle.ts` and `apps/worker/src/computer.ts`: computer sleep and wake, and `ComputerClient`, which calls botd through `botdContract` (`@open-bot/api/botd`) and validates every answer and event.
 - `apps/worker/build.mjs`: esbuild bundle to `apps/worker/dist/worker.mjs`.
 - For adding a tool, route, account or event, see "Where to make common changes" in the root `AGENTS.md`.
@@ -23,7 +23,7 @@ Shared types and pure logic go in `packages/domain`, and schema changes go in `p
 - Internal API paths and input fields stay until no deployed web app calls them: the web app and the worker deploy separately.
 - The lifecycle does no idle polling of the computer, and reading status must not wake it.
 - `RunEventWriter` is the only way a session writes run events.
-- Swarm helpers are refused tools listed in `HELPER_FORBIDDEN`.
+- Swarm helpers are refused tools defined with `helpers: "forbidden"`; `apps/worker/src/tools/catalog.test.ts` lists them.
 - The worker refuses to start if account adapters and their definitions disagree (`packages/integrations/src/integration-registry.ts`).
 
 ## Tests

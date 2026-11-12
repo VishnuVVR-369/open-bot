@@ -1,6 +1,5 @@
 import type { CodexClient, ServerNotification, ServerRequest, v2 } from "@open-bot/agent";
 import {
-  bots,
   botThreads,
   runs,
   schedules,
@@ -19,16 +18,15 @@ import {
   shellScript,
   type TimelineItem,
 } from "@open-bot/domain";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
 import { createNotification } from "../services/notifications";
-import { enqueueRun } from "./queue";
 import { DEVELOPER_INSTRUCTIONS } from "../instructions";
 import { errorMessage } from "../logger";
-import { TOOLS_VERSION, toolsFor } from "../tools/definitions";
 import type { MemoryCoordinator } from "../services/memory";
-import type { ToolHandlers } from "../tools/handlers";
 import { ModelAccess, providerFor } from "../services/model-access";
+import { answerBack } from "./answer-back";
+import { approvalPolicy } from "./approval-policy";
 import { RunEventWriter } from "./events";
 import { touchChat } from "../services/chats";
 import { finalText, mapPlan, mapThreadItem } from "./mapper";
@@ -37,12 +35,22 @@ export type Bot = typeof schema.bots.$inferSelect;
 export type Chat = typeof schema.chats.$inferSelect;
 export type Run = typeof schema.runs.$inferSelect;
 
-type ApprovalPolicy = v2.AskForApproval;
-
 const MAX_COMMAND_OUTPUT = 20_000;
 
+/** The agent tools, as a session uses them (ToolHandlers in ../tools/handlers.ts). */
+export interface SessionTools {
+  /** Threads keep the tools they started with; a thread from another version starts afresh. */
+  readonly version: number;
+  /** The tools a new thread is given. */
+  specs(): v2.DynamicToolSpec[];
+  handle(
+    session: RunSession,
+    params: v2.DynamicToolCallParams,
+  ): Promise<v2.DynamicToolCallResponse>;
+}
+
 export interface SessionServices {
-  tools: ToolHandlers;
+  tools: SessionTools;
   /** Native Codex approvals (commands and file changes) go through the approval service. */
   requestNativeApproval: (
     session: RunSession,
@@ -72,15 +80,6 @@ interface Outcome {
   error?: string;
   usageLimit?: boolean;
   unauthorized?: boolean;
-}
-
-/**
- * When Codex itself asks before a command. "everything" asks about each one. The others ask only
- * when Codex judges a command dangerous (like `rm -f`); with "never" it would refuse those
- * outright, even after you approved them through request_approval.
- */
-export function approvalPolicy(bot: Pick<Bot, "autonomy">): ApprovalPolicy {
-  return bot.autonomy === "everything" ? "untrusted" : "on-request";
 }
 
 /** Executes one run: a single Codex turn for one bot in one chat. */
@@ -353,7 +352,7 @@ export class RunSession {
           chatId: run.chatId,
           botId: bot.id,
           codexThreadId: threadId,
-          toolsVersion: TOOLS_VERSION,
+          toolsVersion: this.services.tools.version,
           memoryGeneration: this.memoryGeneration,
           authMode: mode,
           configurationKey,
@@ -363,7 +362,7 @@ export class RunSession {
           // Memory generations fence old context; a fork is only allowed within the same generation.
           set: {
             codexThreadId: threadId,
-            toolsVersion: TOOLS_VERSION,
+            toolsVersion: this.services.tools.version,
             memoryGeneration: this.memoryGeneration,
             authMode: mode,
             configurationKey,
@@ -379,7 +378,7 @@ export class RunSession {
       .where(and(eq(botThreads.chatId, run.chatId), eq(botThreads.botId, bot.id)));
     if (
       existing &&
-      existing.toolsVersion === TOOLS_VERSION &&
+      existing.toolsVersion === this.services.tools.version &&
       existing.memoryGeneration === this.memoryGeneration
     ) {
       try {
@@ -414,7 +413,7 @@ export class RunSession {
       approvalPolicy: approvalPolicy(bot),
       sandbox: "danger-full-access",
       developerInstructions: DEVELOPER_INSTRUCTIONS,
-      dynamicTools: toolsFor(),
+      dynamicTools: this.services.tools.specs(),
       serviceName: "open-bot",
       ...provider,
     } as v2.ThreadStartParams);
@@ -625,31 +624,6 @@ export class RunSession {
     return schedule?.quiet ?? false;
   }
 
-  /** Sends the answer to a teammate's question back to them, in the chat they asked from. */
-  private async answerBack(status: Outcome["status"], text: string | null, error?: string) {
-    const { ctx, run, bot } = this;
-    if (!run.parentRunId) return;
-    const [asker] = await ctx.db
-      .select({ chatId: runs.chatId, botId: runs.botId })
-      .from(runs)
-      .innerJoin(bots, eq(bots.id, runs.botId))
-      .where(and(eq(runs.id, run.parentRunId), isNull(bots.archivedAt)));
-    if (!asker) return;
-    const answer =
-      status === "completed"
-        ? `[${bot.name} answered your question:]\n${text ?? "(No reply.)"}`
-        : status === "failed"
-          ? `[${bot.name} couldn't answer your question: ${error ?? "the run failed"}. Carry on without it, or ask the user.]`
-          : `[The user stopped ${bot.name} before they answered. Carry on without it, or ask the user.]`;
-    await enqueueRun(ctx, {
-      chatId: asker.chatId,
-      botId: asker.botId,
-      trigger: "answer",
-      prompt: answer,
-      parentRunId: run.id,
-    });
-  }
-
   private async complete(outcome: Outcome) {
     const { ctx, run, bot, chat } = this;
     this.finish = null;
@@ -722,7 +696,7 @@ export class RunSession {
         .onConflictDoNothing();
     }
 
-    if (run.trigger === "question") await this.answerBack(status, text, error);
+    if (run.trigger === "question") await answerBack(ctx, run, bot, status, text, error);
     ctx.events.emit("runFinished", run, status, text, error);
 
     if (status === "failed" && run.trigger !== "swarm") {

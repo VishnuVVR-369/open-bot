@@ -1,12 +1,19 @@
 import { describe, it, expect, vi } from "vitest";
 import type { CodexClient } from "@open-bot/agent";
 import type { Context } from "../context";
-import { RunSession, type SessionServices, type Bot, type Run, type Chat } from "./session";
-import { TOOLS_VERSION } from "../tools/definitions";
+import {
+  RunSession,
+  type SessionServices,
+  type SessionTools,
+  type Bot,
+  type Run,
+  type Chat,
+} from "./session";
 import { configurationRevision } from "@open-bot/db";
 
 const botId = "00000000-0000-4000-8000-000000000001";
 const runId = "00000000-0000-4000-8000-000000000002";
+const tools: SessionTools = { version: 7, specs: () => [], handle: vi.fn() };
 /** A thread that last saw `seen` as its AGENTS.md; this run wrote `written`. */
 function fixture(generation = "1:0:0", agents = { seen: "# Test", written: "# Test" }) {
   const request = vi.fn(async (method: string) => ({
@@ -17,7 +24,7 @@ function fixture(generation = "1:0:0", agents = { seen: "# Test", written: "# Te
       where: async () => [
         {
           codexThreadId: "old",
-          toolsVersion: TOOLS_VERSION,
+          toolsVersion: tools.version,
           memoryGeneration: generation,
           authMode: "plan",
           configurationKey: configurationRevision({ connections: "", agents: agents.seen }),
@@ -33,6 +40,7 @@ function fixture(generation = "1:0:0", agents = { seen: "# Test", written: "# Te
     log: { warn: vi.fn(), error: vi.fn() },
   } as unknown as Context;
   const services = {
+    tools,
     connections: async () => ({ key: "", config: {} }),
   } as unknown as SessionServices;
   const session = new RunSession(

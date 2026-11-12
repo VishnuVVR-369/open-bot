@@ -80,7 +80,7 @@ export const TABLE_OWNERS = {
   bot_threads: { owner: `${WORKER}runs/` },
   message_dispatches: { owner: `${WORKER}runs/` },
   usage_entries: { owner: `${WORKER}runs/` },
-  artifacts: { owner: `${WORKER}tools/handlers.ts` },
+  artifacts: { owner: `${WORKER}tools/desktop.ts` },
   swarms: { owner: `${WORKER}services/swarms.ts` },
   swarm_tasks: { owner: `${WORKER}services/swarms.ts` },
   notifications: { owner: `${WORKER}services/notifications.ts` },

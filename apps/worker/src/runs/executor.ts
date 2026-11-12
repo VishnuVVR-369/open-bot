@@ -22,10 +22,9 @@ import type { SkillService } from "../services/skills";
 import type { MemoryCoordinator } from "../services/memory";
 import type { ModelAccess } from "../services/model-access";
 import type { TakeoverService } from "../services/takeovers";
-import type { ToolHandlers } from "../tools/handlers";
 import type { AccountAccess } from "../accounts/access";
 import { markDispatched, markSteered, touchChat } from "../services/chats";
-import { RunSession, type Bot, type Run } from "./session";
+import { RunSession, type Bot, type Run, type SessionTools } from "./session";
 
 /** How long a saved message may wait for its dispatch before the worker dispatches it itself. */
 export const DISPATCH_GRACE_MS = 15_000;
@@ -38,7 +37,7 @@ export class RunExecutor {
   constructor(
     private readonly ctx: Context,
     private readonly sessions: SessionRegistry,
-    private readonly tools: ToolHandlers,
+    private readonly tools: SessionTools,
     private readonly approvals: ApprovalService,
     private readonly takeovers: TakeoverService,
     private readonly model: ModelAccess,

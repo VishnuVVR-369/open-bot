@@ -84,9 +84,9 @@ Paths are relative to the repo root; symbols are in parentheses.
 
 **Add an agent tool** (non-account)
 
-1. `apps/worker/src/tools/definitions.ts`: add a `tool(...)` spec to the right group array (`CONTROL_TOOLS`, `PAGE_TOOLS`, ...) and bump `TOOLS_VERSION`. Without the bump, existing threads never see the tool.
-2. `apps/worker/src/tools/handlers.ts`: a zod args schema, a `case` in `ToolHandlers.handle()`, a timeline item via `session.putItem(this.toolItem(...))`, `publishApp` if the UI shows the change, and `HELPER_FORBIDDEN` if swarm helpers must not call it. Nothing checks definitions against the switch; a missing case fails only at call time.
-3. A new service is a constructor parameter: wire it in `apps/worker/src/index.ts` and `apps/worker/src/tools/bots.integration.test.ts`.
+1. One `defineTool({ name, description, input, helpers, handle })` in the feature's file in `apps/worker/src/tools/` (`pages.ts`, `automations.ts`, ...): `input` is a zod object, and Codex is offered its JSON schema; `helpers: "forbidden"` keeps swarm helpers from calling it; `handle` records a timeline item with `session.putItem(toolItem(...))` and calls `publishApp` if the UI shows the change. A new feature's file adds its list to `TOOLS` in `apps/worker/src/tools/definitions.ts`.
+2. Bump `TOOLS_VERSION` in `apps/worker/src/tools/definitions.ts`. Without the bump, existing threads never see the tool. Then `pnpm --filter @open-bot/worker test -- -u` updates the tool list snapshot (`apps/worker/src/tools/__snapshots__/tools.json`); review its diff.
+3. A new service goes in `ToolServices` (`apps/worker/src/tools/define.ts`), passed by name in `apps/worker/src/index.ts`.
 4. Optional: rules in `DEVELOPER_INSTRUCTIONS` (`apps/worker/src/instructions.ts`, bump `TOOLS_VERSION` again), an icon, or `asksApproval` for a tool whose call is itself the approval request, in `TOOL_DISPLAY` (`packages/domain/src/timeline/tool-display.ts`), which web and mobile both read. A new icon meaning needs its icon in `apps/web/src/components/chat/items.tsx` and `apps/mobile/src/components/chat/tool-icons.ts`.
 5. Document it in `apps/site/src/app/docs/reference/tools/page.mdx`.
 
@@ -110,7 +110,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 1. `packages/db/src/schema/teammates.ts` (`bots`, with a default), then the migration recipe below.
 2. `packages/domain/src/teammates/management.ts` (`botProfileSchema`, `botCreation()`), `packages/domain/src/teammates/bundle.ts` (optional or defaulted so old exports import).
 3. `packages/api/src/views.ts` (`botSummarySchema`) if lists or mobile need it; `apps/web/src/lib/server/queries.ts` (`listBots`).
-4. Worker: `apps/worker/src/services/bots.ts` (`list`, `get`, `exportBundle`, `addTeammate`, which duplicate and import share), `apps/worker/src/tools/definitions.ts` (`profileProperties`), `apps/worker/src/tools/bots.ts` (`PROFILE_LABELS`).
+4. Worker: `apps/worker/src/services/bots.ts` (`list`, `get`, `exportBundle`, `addTeammate`, which duplicate and import share), `apps/worker/src/tools/teammates.ts` (`profileFields`), `apps/worker/src/tools/bots.ts` (`PROFILE_LABELS`).
 5. Web: `apps/web/src/components/bots/bot-form.tsx` (`BotFormValues`), `apps/web/src/app/(app)/bots/new/page.tsx`, `apps/web/src/app/(app)/bots/[botId]/page.tsx`.
 6. Mobile (display only; the contract has no teammate edit procedure): `apps/mobile/src/app/teammates/[botId].tsx`.
 7. Ship web and worker together: the worker's schemas are strict and reject unknown keys.

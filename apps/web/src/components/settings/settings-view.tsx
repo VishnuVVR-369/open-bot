@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  EGRESS_OPTIONS,
-  formatDollars,
-  relativeTime,
-  type EgressMode,
-} from "@open-bot/domain";
+import { EGRESS_OPTIONS, formatDollars, relativeTime, type EgressMode } from "@open-bot/domain";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNowStrict } from "date-fns";
 import {
