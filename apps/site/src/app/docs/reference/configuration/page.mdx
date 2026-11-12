@@ -9,6 +9,7 @@ In development, the web app, the worker and the pages service all read the repos
 Every value has a development default except `OWNER_EMAIL`.
 `BETTER_AUTH_SECRET` is the one exception in the code: it is read by the sign-in library and has no default, so `.env.example` supplies a placeholder.
 The variables for tests and tooling are listed apart, under [Test and tooling variables](#test-and-tooling-variables).
+Each app reads the environment in one module, listed in `scripts/lint/env-modules.mjs`, and packages take their settings as arguments; lint refuses `process.env` anywhere else outside tests and scripts.
 
 <Callout kind="warning">
   The defaults for `BETTER_AUTH_SECRET`, `WORKER_SECRET`, `BOTD_TOKEN`, `ENCRYPTION_KEY` and
@@ -40,6 +41,7 @@ The variables for tests and tooling are listed apart, under [Test and tooling va
 | `OPENBOT_NEXT_DIST_DIR`     | `.next`                 | The web app's Next.js output folder. Set it to run a second dev server beside the first, as the showcase does with `.next-showcase`.                                                                       |
 | `RAILWAY_GIT_COMMIT_SHA`    | unset                   | Set by Railway, read at build time. Names the deploy, so open tabs reload onto new code after one.                                                                                                         |
 | `NEXT_DEPLOYMENT_ID`        | unset                   | Names the deploy at build time where `RAILWAY_GIT_COMMIT_SHA` isn't set. Without either, tabs are never told to reload.                                                                                    |
+| `OPENBOT_DEPLOYMENT_ID`     | set by the build        | Not a setting: `apps/web/next.config.ts` inlines the deploy name under this name, for `apps/web/src/lib/public-env.ts`.                                                                                    |
 
 ## Worker
 
@@ -287,17 +289,17 @@ Only the push transport is injected.
 It also reads `E2E_EMAIL`, `E2E_PASSWORD`, `E2E_BASE_URL`, `WORKER_URL`, `WORKER_SECRET`, `BOTD_URL` and `BOTD_TOKEN`, and refuses a database or app that is not local.
 See `apps/mobile/README.md`.
 
-| Variable                          | Read by                                                            | Purpose                                                                                                                    |
-| --------------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| `MOBILE_E2E_DATABASE_URL`         | `scripts/test/mobile-ui.mjs`                                       | The local database the fixtures go in. Default: the development database.                                                  |
-| `MOBILE_E2E_DEVICE`               | `scripts/test/mobile-ui.mjs`                                       | The `adb` device id of the emulator or phone, when more than one is attached                                               |
-| `MOBILE_E2E_FLOW`                 | `scripts/test/mobile-ui.mjs`                                       | A flow under `apps/mobile/maestro/` to run alone. Default `pocket-inbox.yaml`.                                             |
-| `MOBILE_E2E_MANUAL=1`             | `scripts/test/mobile-ui.mjs`                                       | Keep the fixtures after the flow for manual checks. POST `/finish` to the printed fixture URL to clean up.                 |
-| `MAESTRO_BIN`                     | `scripts/test/mobile-ui.mjs`                                       | The Maestro executable, if it is not on `PATH`                                                                             |
-| `MAESTRO_NO_REINSTALL=1`          | `scripts/test/mobile-ui.mjs`                                       | Reuse Maestro's driver apps on the device from an earlier run with the same Maestro version                                |
-| `EXPO_PUBLIC_E2E_NOTIFICATIONS=1` | `apps/mobile/index.ts`, `apps/mobile/src/testing/notifications.ts` | Set on the Metro session of a development build to accept locally injected test notifications. Release bundles exclude it. |
-| `ANDROID_HOME`                    | `apps/mobile/scripts/egress-pair-dev.mjs`                          | The Android SDK, to find `adb`. Default `/opt/homebrew/share/android-commandlinetools`.                                    |
-| `ANDROID_SERIAL`                  | `apps/mobile/scripts/egress-pair-dev.mjs`                          | The device to pair with, when `--serial` is not given                                                                      |
+| Variable                          | Read by                                   | Purpose                                                                                                                    |
+| --------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `MOBILE_E2E_DATABASE_URL`         | `scripts/test/mobile-ui.mjs`              | The local database the fixtures go in. Default: the development database.                                                  |
+| `MOBILE_E2E_DEVICE`               | `scripts/test/mobile-ui.mjs`              | The `adb` device id of the emulator or phone, when more than one is attached                                               |
+| `MOBILE_E2E_FLOW`                 | `scripts/test/mobile-ui.mjs`              | A flow under `apps/mobile/maestro/` to run alone. Default `pocket-inbox.yaml`.                                             |
+| `MOBILE_E2E_MANUAL=1`             | `scripts/test/mobile-ui.mjs`              | Keep the fixtures after the flow for manual checks. POST `/finish` to the printed fixture URL to clean up.                 |
+| `MAESTRO_BIN`                     | `scripts/test/mobile-ui.mjs`              | The Maestro executable, if it is not on `PATH`                                                                             |
+| `MAESTRO_NO_REINSTALL=1`          | `scripts/test/mobile-ui.mjs`              | Reuse Maestro's driver apps on the device from an earlier run with the same Maestro version                                |
+| `EXPO_PUBLIC_E2E_NOTIFICATIONS=1` | `apps/mobile/src/lib/config.ts`           | Set on the Metro session of a development build to accept locally injected test notifications. Release bundles exclude it. |
+| `ANDROID_HOME`                    | `apps/mobile/scripts/egress-pair-dev.mjs` | The Android SDK, to find `adb`. Default `/opt/homebrew/share/android-commandlinetools`.                                    |
+| `ANDROID_SERIAL`                  | `apps/mobile/scripts/egress-pair-dev.mjs` | The device to pair with, when `--serial` is not given                                                                      |
 
 ### Showcase
 

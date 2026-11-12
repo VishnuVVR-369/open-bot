@@ -1,8 +1,10 @@
+import { site } from "./site";
+
 /** The launch tour: where its files live and the chapters the page is built around. */
 
-/** Base URL of the media bucket. Files under a version never change, so a new cut gets a new version. */
-const mediaUrl = (process.env.NEXT_PUBLIC_MEDIA_URL ?? "http://localhost:3201").replace(/\/$/, "");
+/** Files under a version never change, so a new cut gets a new version. */
 const version = "v1";
+const mediaUrl = site.mediaUrl;
 
 export const tour = {
   stream: `${mediaUrl}/tour/${version}/master.m3u8`,

@@ -43,6 +43,8 @@ export async function refreshHostLogin(
 ): Promise<void> {
   const port = await freePort();
   const child = spawn(codexBin, ["app-server", "--listen", `ws://127.0.0.1:${port}`], {
+    // The CLI inherits this process's environment (PATH, HOME), with its own Codex home.
+    // eslint-disable-next-line no-restricted-properties
     env: { ...process.env, CODEX_HOME: path.dirname(authFile) },
     stdio: "ignore",
   });

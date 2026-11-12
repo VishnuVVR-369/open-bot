@@ -3,6 +3,7 @@ import reactHooks from "eslint-plugin-react-hooks";
 import globals from "globals";
 import { builtinModules } from "node:module";
 import tseslint from "typescript-eslint";
+import { ENV_EXCEPTIONS, ENV_MODULES } from "./scripts/lint/env-modules.mjs";
 import tableOwners from "./scripts/lint/table-owners.mjs";
 
 /**
@@ -134,17 +135,19 @@ export default tseslint.config(
     ]),
   },
   {
-    // The integrations and memory take their settings from each app's env module, so a stand-in
-    // is one setting in each app and nothing reads the environment behind its back.
-    files: ["packages/integrations/src/**/*.ts", "packages/memory/src/**/*.ts"],
-    ignores: ["**/*.test.ts"],
+    // Each app reads the environment in one env module (scripts/lint/env-modules.mjs), and packages
+    // take their settings as arguments, so a setting has one place to look and a stand-in is one
+    // setting in each app.
+    files: ["apps/**/*.{ts,tsx,mts,js,mjs}", "packages/**/*.{ts,tsx,mts,js,mjs}"],
+    ignores: [...ENV_MODULES.map((module) => module.path), ...ENV_EXCEPTIONS],
     rules: {
       "no-restricted-properties": [
         "error",
         {
           object: "process",
           property: "env",
-          message: "Take it as config from the app's env module instead.",
+          message:
+            "Read it in the app's env module (scripts/lint/env-modules.mjs lists them); packages take it as an argument.",
         },
       ],
     },
