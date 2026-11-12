@@ -5,7 +5,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 import { ESLint } from "eslint";
 import { TABLE_OWNERS } from "../../packages/db/src/owners.ts";
-import tableOwners, { TABLE_NAMES, sqlWrites } from "../lint/table-owners.mjs";
+import openBot from "../lint/plugin.mjs";
+import { TABLE_NAMES, sqlWrites } from "../lint/table-owners.mjs";
 
 const eslint = new ESLint();
 
@@ -19,7 +20,7 @@ async function ownerErrors(filePath, code) {
 const writes = new ESLint({
   overrideConfig: {
     files: ["**/*.ts", "**/*.tsx"],
-    plugins: { "open-bot": tableOwners },
+    plugins: { "open-bot": openBot },
     rules: { "open-bot/table-owners": "off", "open-bot/table-writes": "error" },
   },
 });

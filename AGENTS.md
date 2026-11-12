@@ -174,7 +174,12 @@ Paths are relative to the repo root; symbols are in parentheses.
 - Treat a flaky test as a possible real race first. Sync on observable events, never sleeps or reruns.
 - Every PR check must pass, including Cloudflare. Treat any red check as a real failure.
 - Skip tests that need >10 min of waiting or physical user action. List them as untested. Batch any phone action into one ask.
-- `pnpm verify` runs lint, the doc path check, typecheck, unit, script and integration tests; integration tests start their own Postgres in Docker unless `TEST_DATABASE_URL` is set.
+- `pnpm verify` runs lint, the doc path, vocabulary, file size and import checks, typecheck, unit, script and integration tests; integration tests start their own Postgres in Docker unless `TEST_DATABASE_URL` is set.
+- Structure guardrails, each with a baseline that may only shrink (details under "Code structure" in `apps/site/src/app/docs/development/page.mdx`):
+  `pnpm check:file-size` fails on a new code file over 600 lines of code (blank lines and comments not counted; aim for 400) and on a baselined file that grows, so split the file.
+  `pnpm check:imports` fails on an import that closes a new cycle (`import type` counts) and on an app importing another app's source.
+  The `open-bot/workspace-imports` lint rule makes every import of a package go through its name and `exports`.
+  After shrinking a file, breaking a cycle or moving a baselined file, run the check with `--update` and commit the baseline; `--update` refuses growth.
 - The full list of suites and what each needs is in `apps/site/src/app/docs/development/page.mdx`; every environment variable is in `apps/site/src/app/docs/reference/configuration/page.mdx`.
 
 | Changed path                               | Run                                                                                                  |

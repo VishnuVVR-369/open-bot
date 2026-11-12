@@ -1,8 +1,8 @@
 import { test, expect } from "./fixtures";
 import pg from "pg";
 import { randomUUID } from "node:crypto";
-import { createDb } from "../packages/db/src/index";
-import { MemoryService } from "../packages/memory/src/index";
+import { createDb } from "@open-bot/db";
+import { MemoryService } from "@open-bot/memory";
 
 test.describe("versioned memory in an isolated database", () => {
   test.skip(

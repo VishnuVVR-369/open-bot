@@ -4,7 +4,7 @@ import globals from "globals";
 import { builtinModules } from "node:module";
 import tseslint from "typescript-eslint";
 import { ENV_EXCEPTIONS, ENV_MODULES } from "./scripts/lint/env-modules.mjs";
-import tableOwners from "./scripts/lint/table-owners.mjs";
+import openBot from "./scripts/lint/plugin.mjs";
 
 /**
  * Node's built-in modules, bare or `node:` prefixed, with any subpath (`fs/promises`), but not a
@@ -163,8 +163,21 @@ export default tseslint.config(
       "packages/db/src/testing.ts",
       "packages/db/src/migrate.ts",
     ],
-    plugins: { "open-bot": tableOwners },
+    plugins: { "open-bot": openBot },
     rules: { "open-bot/table-owners": "error" },
+  },
+  {
+    // Workspace code is imported by package name, through the package's `exports`, never by path
+    // (scripts/lint/workspace-imports.mjs). That an app never imports another app is checked with
+    // a baseline by `pnpm check:imports`.
+    files: [
+      "apps/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+      "packages/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+      "tools/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+      "e2e/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+    ],
+    plugins: { "open-bot": openBot },
+    rules: { "open-bot/workspace-imports": "error" },
   },
   {
     // Expo config plugins run in Node as CommonJS.

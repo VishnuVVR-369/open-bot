@@ -42,43 +42,45 @@ Every app and package has an `AGENTS.md` with its entry points, invariants and t
 
 ## Commands
 
-| Command                               | What it does                                                                            |
-| ------------------------------------- | --------------------------------------------------------------------------------------- |
-| `pnpm dev`                            | The web app, the worker and the pages service, with reload                              |
-| `pnpm infra:up`                       | Postgres and the computer in Docker, waiting until healthy                              |
-| `pnpm computer:build`                 | Rebuilds the computer image (after changing botd or the image)                          |
-| `pnpm db:migrate`, `pnpm db:generate` | Apply migrations, or generate one from the schema                                       |
-| `pnpm lint`                           | ESLint over the repository, with no warnings allowed                                    |
-| `pnpm format`, `pnpm format:check`    | Prettier                                                                                |
-| `pnpm typecheck`                      | `tsc` in every package (and `next typegen` for the Next.js apps)                        |
-| `pnpm test`                           | Vitest unit tests in every package                                                      |
-| `pnpm verify`                         | Lint, the doc path and vocabulary checks, typecheck, unit, script and integration tests |
-| `pnpm verify:affected`                | The same, limited to what changed since `main`                                          |
+| Command                               | What it does                                                                                               |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`                            | The web app, the worker and the pages service, with reload                                                 |
+| `pnpm infra:up`                       | Postgres and the computer in Docker, waiting until healthy                                                 |
+| `pnpm computer:build`                 | Rebuilds the computer image (after changing botd or the image)                                             |
+| `pnpm db:migrate`, `pnpm db:generate` | Apply migrations, or generate one from the schema                                                          |
+| `pnpm lint`                           | ESLint over the repository, with no warnings allowed                                                       |
+| `pnpm format`, `pnpm format:check`    | Prettier                                                                                                   |
+| `pnpm typecheck`                      | `tsc` in every package (and `next typegen` for the Next.js apps)                                           |
+| `pnpm test`                           | Vitest unit tests in every package                                                                         |
+| `pnpm verify`                         | Lint, the doc path, vocabulary, file size and import checks, typecheck, unit, script and integration tests |
+| `pnpm verify:affected`                | The same, limited to what changed since `main`                                                             |
 
 ## Tests
 
 This is the complete list of test suites and checks.
 CI runs every row marked "CI" on each pull request.
 
-| Command                                               | Covers                                                                                                         | Needs                           | CI  |
-| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------- | --- |
-| `pnpm lint`, `pnpm typecheck`, `pnpm test`            | ESLint, types (including every Playwright config) and unit tests                                               | Nothing                         | CI  |
-| `pnpm check:doc-paths`                                | Every `apps/...` or `packages/...` code span and every relative link or image in a Markdown or MDX file exists | Nothing                         | CI  |
-| `pnpm check:vocabulary`                               | No file gains a use of a legacy name (bot, primary, desktop takeover); see the glossary in `AGENTS.md`         | Nothing                         | CI  |
-| `pnpm test:scripts`                                   | Unit tests for the repository checks in `scripts/check` and the CI helpers in `scripts/ci`                     | Nothing                         | CI  |
-| `pnpm test:railway`                                   | Railway watch paths in `.railway/watch-paths.ts` match each service's dependencies and Dockerfile              | Nothing                         | CI  |
-| `pnpm --filter @open-bot/mobile check:viewer`         | The generated noVNC viewer matches its source                                                                  | Nothing                         | CI  |
-| `pnpm test:integration`                               | Every `*.integration.test.ts` against real Postgres                                                            | Docker, or `TEST_DATABASE_URL`  | CI  |
-| `pnpm --filter @open-bot/showcase seed`               | The typed demo data inserts against the current schema                                                         | Postgres, Chromium              | CI  |
-| `./gradlew test` in `apps/mobile/modules/egress/core` | The phone's Kotlin tunnel core against the shared test vectors                                                 | JDK 17                          | CI  |
-| Android debug and release lint builds                 | Both app variants build, and the merged manifest passes its checks                                             | JDK 17, Android SDK             | CI  |
-| `pnpm --filter @open-bot/site test:e2e`               | This site, built and served the way it is deployed                                                             | Encoded media, Playwright       |     |
-| `pnpm test:memory -- --e2e`                           | Memory database, provider and browser tests                                                                    | Docker, Playwright              |     |
-| `pnpm test:pocket-inbox`                              | The pocket inbox web and RPC spec on its own database                                                          | Docker, Playwright              |     |
-| `pnpm test:owner-reset`                               | The owner password reset command                                                                               | Docker                          |     |
-| `pnpm test:computer-sleep`                            | Computer sleep and wake with a real computer container and the built worker                                    | Docker, the computer image      |     |
-| `pnpm e2e`                                            | Playwright against the running local stack                                                                     | The local stack, an owner login |     |
-| `pnpm test:mobile-ui`                                 | Android Maestro flows                                                                                          | A device or emulator, Maestro   |     |
+| Command                                               | Covers                                                                                                                       | Needs                           | CI  |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------- | --- |
+| `pnpm lint`, `pnpm typecheck`, `pnpm test`            | ESLint, types (including every Playwright config) and unit tests                                                             | Nothing                         | CI  |
+| `pnpm check:doc-paths`                                | Every `apps/...` or `packages/...` code span and every relative link or image in a Markdown or MDX file exists               | Nothing                         | CI  |
+| `pnpm check:vocabulary`                               | No file gains a use of a legacy name (bot, primary, desktop takeover); see the glossary in `AGENTS.md`                       | Nothing                         | CI  |
+| `pnpm check:file-size`                                | No new file over 600 lines of code, and no file in `scripts/check/file-size-baseline.json` growing; see Code structure below | Nothing                         | CI  |
+| `pnpm check:imports`                                  | No new import cycle, and no app importing another app's source; see Code structure below                                     | Nothing                         | CI  |
+| `pnpm test:scripts`                                   | Unit tests for the repository checks in `scripts/check` and the CI helpers in `scripts/ci`                                   | Nothing                         | CI  |
+| `pnpm test:railway`                                   | Railway watch paths in `.railway/watch-paths.ts` match each service's dependencies and Dockerfile                            | Nothing                         | CI  |
+| `pnpm --filter @open-bot/mobile check:viewer`         | The generated noVNC viewer matches its source                                                                                | Nothing                         | CI  |
+| `pnpm test:integration`                               | Every `*.integration.test.ts` against real Postgres                                                                          | Docker, or `TEST_DATABASE_URL`  | CI  |
+| `pnpm --filter @open-bot/showcase seed`               | The typed demo data inserts against the current schema                                                                       | Postgres, Chromium              | CI  |
+| `./gradlew test` in `apps/mobile/modules/egress/core` | The phone's Kotlin tunnel core against the shared test vectors                                                               | JDK 17                          | CI  |
+| Android debug and release lint builds                 | Both app variants build, and the merged manifest passes its checks                                                           | JDK 17, Android SDK             | CI  |
+| `pnpm --filter @open-bot/site test:e2e`               | This site, built and served the way it is deployed                                                                           | Encoded media, Playwright       |     |
+| `pnpm test:memory -- --e2e`                           | Memory database, provider and browser tests                                                                                  | Docker, Playwright              |     |
+| `pnpm test:pocket-inbox`                              | The pocket inbox web and RPC spec on its own database                                                                        | Docker, Playwright              |     |
+| `pnpm test:owner-reset`                               | The owner password reset command                                                                                             | Docker                          |     |
+| `pnpm test:computer-sleep`                            | Computer sleep and wake with a real computer container and the built worker                                                  | Docker, the computer image      |     |
+| `pnpm e2e`                                            | Playwright against the running local stack                                                                                   | The local stack, an owner login |     |
+| `pnpm test:mobile-ui`                                 | Android Maestro flows                                                                                                        | A device or emulator, Maestro   |     |
 
 ### Unit tests
 
@@ -195,6 +197,26 @@ The detector's Git-based regression tests run with `node --test scripts/ci/andro
 ## Conventions
 
 These are easy to miss and cost time when forgotten.
+
+### Code structure
+
+Three guardrails keep the code easy to move and split.
+Each records today's debt in a baseline that may only shrink, like the vocabulary check.
+
+- **File size.** A code file in `apps/*` or `packages/*` aims for 400 lines of code and may not pass 600, counting neither blank lines nor comments.
+  `pnpm check:file-size` fails on a new file over 600, and on a file in `scripts/check/file-size-baseline.json` that grows.
+  The fix is to split the file: move a part that stands on its own into a new file beside it.
+  `pnpm check:file-size --report` lists every file over 400; that target is reported, never enforced.
+- **Import cycles.** `pnpm check:imports` builds the import graph the way the type checker resolves it, `import type` included, and fails on an import that closes a new cycle.
+  It prints the way back, so you can see which import to cut.
+  Break a cycle by moving what both files need into a module both import, or by passing it in as an argument.
+- **Workspace boundaries.** An app never imports another app's source; `pnpm check:imports` checks that too.
+  Packages are imported by name, through the entry points in their `package.json` `exports`, never by a path into their files; the `open-bot/workspace-imports` lint rule (`scripts/lint/workspace-imports.mjs`) enforces that with no baseline.
+
+When a file shrinks, a cycle is broken or a baselined file moves, the check fails until you run `pnpm check:file-size --update` or `pnpm check:imports --update` and commit the new baseline.
+`--update` refuses to let the debt grow: a file may not get bigger, and neither the number of files over the limit nor the number of imports in cycles or across apps may rise.
+`--allow-growth` is only for a reviewed change.
+Generated code (`packages/agent/src/protocol`, `apps/mobile/src/computer/viewer-html.ts`, `apps/web/src/components/ui`, migrations and build output) is skipped.
 
 ### Agent and protocol
 
