@@ -180,9 +180,9 @@ export const chats = pgTable(
     botId: uuid("bot_id").references(() => bots.id, { onDelete: "cascade" }),
     /**
      * The teammate's main chat: the direct chat where work that isn't started from a chat arrives,
-     * such as tasks and questions from teammates. At most one per teammate. Archiving it hands the
-     * role to another direct chat; `mainChat()` in the worker also repairs a main chat archived by
-     * an older worker.
+     * such as automations, emails, tasks and questions from teammates. At most one per teammate.
+     * Archiving it hands the role to another direct chat; `mainChat()` in the worker also repairs a
+     * main chat archived by an older worker.
      */
     main: boolean("main").notNull().default(false),
     createdAt: createdAt(),
@@ -217,10 +217,11 @@ export const chatMembers = pgTable(
 
 /**
  * Where a run's work goes on inside its chat: a separate Codex thread, and runs that wait for each
- * other. `chat` is the conversation you have with the teammate. Runs started without you, like an
- * automation's, can keep their own lane in the same chat, so their context stays apart from yours.
+ * other. `chat` is the conversation you have with the teammate. Work started without you keeps a
+ * lane of its own in the teammate's main chat, so its context stays apart from yours: each
+ * schedule (`schedule:<id>`) and trigger (`trigger:<id>`), and email to the teammate (`inbox`).
  */
-export type RunLane = "chat" | `${string}:${string}`;
+export type RunLane = "chat" | "inbox" | `schedule:${string}` | `trigger:${string}`;
 
 /** One Codex thread per teammate per chat, for each lane. */
 export const botThreads = pgTable(
@@ -251,11 +252,7 @@ export const botThreads = pgTable(
     lessonsSeenAt: timestamp("lessons_seen_at", { withTimezone: true }).notNull().defaultNow(),
     createdAt: createdAt(),
   },
-  (table) => [
-    primaryKey({ columns: [table.chatId, table.botId] }),
-    // Becomes the primary key once no deployed worker writes threads without a lane.
-    uniqueIndex("bot_threads_lane_unique").on(table.chatId, table.botId, table.lane), // vocabulary: allow
-  ],
+  (table) => [primaryKey({ columns: [table.chatId, table.botId, table.lane] })], // vocabulary: allow
 );
 
 export interface Attachment {
@@ -382,6 +379,11 @@ export const runs = pgTable(
      * make it unread or become its preview.
      */
     quiet: boolean("quiet").notNull().default(false),
+    /**
+     * When a run outside the `chat` lane was passed on to its chat's conversation: the moment a
+     * Codex turn whose prompt carried its result began. Null until then (see `laneNews`).
+     */
+    passedOnAt: timestamp("passed_on_at", { withTimezone: true }),
     attachments: jsonb("attachments").$type<Attachment[]>().notNull().default([]),
     messageId: uuid("message_id").references(() => messages.id, { onDelete: "set null" }),
     scheduleId: uuid("schedule_id"),
@@ -693,7 +695,7 @@ export const schedules = pgTable(
 
 /**
  * What wakes a teammate besides the clock: a web page that changed (a watch), or a request to its
- * webhook URL. Each firing runs in the bot's Scheduled chat with the trigger's prompt.
+ * webhook URL. Each firing runs in the teammate's main chat, in the trigger's own lane, with its prompt.
  */
 export const triggers = pgTable(
   "triggers",

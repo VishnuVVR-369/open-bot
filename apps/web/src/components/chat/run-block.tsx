@@ -50,7 +50,7 @@ import { attempt } from "@/lib/client/mutate";
 import { api } from "@/lib/client/rpc";
 import { readAloud, readingNow, stopReading, useReadAloud } from "@/lib/client/read-aloud";
 import type { BotSummary, RunView } from "@/lib/types";
-import { cn, compactNumber, formatDuration, REVEAL_ON_RUN_HOVER } from "@/lib/utils";
+import { cn, compactNumber, formatDuration, REVEAL_ON_RUN_HOVER, runClock } from "@/lib/utils";
 import { RunMemory } from "@/components/memory/run-memory";
 import { PageCard } from "@/components/pages/page-card";
 import { SwarmCard } from "./swarm-card";
@@ -214,7 +214,7 @@ function RunTime({ run, showDuration = true }: { run: RunView; showDuration?: bo
       dateTime={run.createdAt}
       data-testid="run-time"
     >
-      {format(new Date(run.createdAt), "h:mm a")}
+      {runClock(new Date(run.createdAt))}
       {showDuration && took !== null && ` · ${formatDuration(took)}`}
     </time>
   );

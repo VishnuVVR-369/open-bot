@@ -6,7 +6,7 @@ import { ACCOUNT_TOOL_SPECS } from "../accounts/registry";
  * Bump when the tool set or the developer instructions change.
  * Codex threads keep the tools they started with, so a new version starts fresh threads.
  */
-export const TOOLS_VERSION = 20;
+export const TOOLS_VERSION = 21;
 
 const SCREENSHOT_NOTE =
   "Returns a JPEG screenshot taken after the action, as a data URL string. In exec, pass it to image() to look at it, for example `image(await tools.desktop_click({x: 10, y: 20}))`.";
@@ -209,7 +209,7 @@ export const CONTROL_TOOLS: v2.DynamicToolSpec[] = [
         type: "array",
         maxItems: 10,
         description:
-          "Routines (cron) and one-time reminders (at) it starts with, like schedule_task's, in the user's timezone. Each runs in its Scheduled chat.",
+          "Routines (cron) and one-time reminders (at) it starts with, like schedule_task's, in the user's timezone. Each runs in its main chat.",
         items: {
           type: "object",
           properties: {
@@ -306,7 +306,7 @@ export const CONTROL_TOOLS: v2.DynamicToolSpec[] = [
   ),
   tool(
     "schedule_task",
-    "Schedule work for yourself or a specified teammate: a recurring routine (cron) or a one-time reminder (at). Each run starts in that teammate's Scheduled chat with the prompt you give here, so write the prompt so it makes sense on its own.",
+    "Schedule work for yourself or a specified teammate: a recurring routine (cron) or a one-time reminder (at). Each run starts in that teammate's main chat with the prompt you give here, so write the prompt so it makes sense on its own.",
     {
       title: { type: "string", minLength: 1, maxLength: 80 },
       bot_id: targetBot,
@@ -379,7 +379,7 @@ export const CONTROL_TOOLS: v2.DynamicToolSpec[] = [
   ),
   tool(
     "watch_page",
-    "Watch a web page for yourself or a specified teammate (bot_id). Changes start a run in that teammate's Scheduled chat, for example for prices, stock, job boards or status pages. Checks run without a browser session and only see what a signed-out visitor sees. The first check just learns the page.",
+    "Watch a web page for yourself or a specified teammate (bot_id). Changes start a run in that teammate's main chat, for example for prices, stock, job boards or status pages. Checks run without a browser session and only see what a signed-out visitor sees. The first check just learns the page.",
     {
       bot_id: targetBot,
       title: { type: "string", minLength: 1, maxLength: 80 },
@@ -409,7 +409,7 @@ export const CONTROL_TOOLS: v2.DynamicToolSpec[] = [
   ),
   tool(
     "watch_gmail",
-    "Wake yourself or a specified teammate (bot_id) when new mail arrives in the user's Gmail. Mail matching the search starts a run in that teammate's Scheduled chat with the new messages, checked every 2 minutes; mail the user sends doesn't count. The teammate must have Gmail. Use it for things like 'tell me when the school writes' or 'file every receipt'.",
+    "Wake yourself or a specified teammate (bot_id) when new mail arrives in the user's Gmail. Mail matching the search starts a run in that teammate's main chat with the new messages, checked every 2 minutes; mail the user sends doesn't count. The teammate must have Gmail. Use it for things like 'tell me when the school writes' or 'file every receipt'.",
     {
       bot_id: targetBot,
       title: { type: "string", minLength: 1, maxLength: 80 },
@@ -434,7 +434,7 @@ export const CONTROL_TOOLS: v2.DynamicToolSpec[] = [
   ),
   tool(
     "watch_calendar",
-    "Wake yourself or a specified teammate (bot_id) a set time before events on the user's Google Calendar (their primary calendar). Each event starts a run in that teammate's Scheduled chat with the event, once per occurrence, and again if it moves. Cancelled, all-day and declined events don't count. The teammate must have Google Calendar. Use it for things like 'brief me 30 minutes before meetings with guests'.",
+    "Wake yourself or a specified teammate (bot_id) a set time before events on the user's Google Calendar (their primary calendar). Each event starts a run in that teammate's main chat with the event, once per occurrence, and again if it moves. Cancelled, all-day and declined events don't count. The teammate must have Google Calendar. Use it for things like 'brief me 30 minutes before meetings with guests'.",
     {
       bot_id: targetBot,
       title: { type: "string", minLength: 1, maxLength: 80 },
@@ -466,7 +466,7 @@ export const CONTROL_TOOLS: v2.DynamicToolSpec[] = [
   ),
   tool(
     "create_webhook",
-    "Create a webhook URL for yourself or a specified teammate (bot_id). Calls start a run in that teammate's Scheduled chat with the request it received. Use it to connect services that send webhooks (GitHub, Stripe, Zapier, a form, a script). Returns the URL to give to that service.",
+    "Create a webhook URL for yourself or a specified teammate (bot_id). Calls start a run in that teammate's main chat with the request it received. Use it to connect services that send webhooks (GitHub, Stripe, Zapier, a form, a script). Returns the URL to give to that service.",
     {
       bot_id: targetBot,
       title: { type: "string", minLength: 1, maxLength: 80 },

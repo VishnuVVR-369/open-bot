@@ -7,12 +7,21 @@ export const metadata = docMetadata("/docs/flows/automations");
 Automations wake a teammate without you.
 **Schedules** fire at a time, **page watches** fire when a web page changes, and **webhooks** fire when another service calls a URL.
 With [your accounts](/docs/flows/accounts) connected, **Gmail** triggers fire when new mail arrives, and **Calendar** triggers fire before your events.
-They all end the same way: a queued run in the teammate's Scheduled chat.
+They all end the same way: a queued run in the teammate's main chat.
 
 ## Where automations run
 
-Each teammate has one Scheduled chat (`chats.kind = 'scheduled'`), created the first time it is needed.
-Every automation's run goes there, so your direct chats stay about what you asked, and the history of what a teammate did on its own is in one place.
+Every automation's run goes to the teammate's [main chat](/docs/concepts#chat), so what a teammate did on its own is next to your conversation with it, and you can reply to it there.
+Each automation works in its own lane of that chat: `schedule:<id>` for a schedule and `trigger:<id>` for a page watch, webhook, Gmail or Calendar trigger.
+A lane has its own Codex thread, so an automation remembers its earlier runs, and its work never runs inside your conversation's turn.
+See [Threads](/docs/architecture/agent-runtime#threads).
+
+The next time you talk to the teammate, your turn starts with what its automations finished that it hasn't told your conversation yet: up to 5 results, each cut at 1,500 characters, oldest first.
+That way, when you answer "do the first one", the teammate knows what you are looking at.
+If one of those results came from reading your accounts, your turn counts as having read outside data too (see [Your accounts](/docs/flows/accounts#mail-events-and-pages-are-not-instructions)).
+
+An automation's run can't rename the main chat; only your conversation can.
+Older teammates may still have a Scheduled chat (`chats.kind = 'scheduled'`) from before; it stays as history, and no new runs go there.
 
 Because runs are just rows, automations keep working with your laptop closed.
 They need the worker and the computer to be running, not the web app or a browser.
@@ -79,7 +88,8 @@ Its prompt gets one more line:
 
 > Only tell the user about things worth their attention. If there's nothing, reply with exactly: Nothing to report.
 
-When a quiet routine's run replies exactly that, it sends no notification, stays out of the briefing on Home, and shows as one muted line in the chat.
+When a quiet routine's run replies exactly that, it is marked `runs.quiet`.
+It sends no notification, stays out of the briefing on Home, doesn't mark the chat unread, move it up the list or become its preview, isn't passed on to your next turn, and shows as one muted line in the chat.
 Every template starts with a quiet daily check-in, and a teammate's Automations tab can turn one on.
 
 ## Page watches

@@ -49,26 +49,6 @@ export async function addChat(db: Queryable, { teammateId, ...chat }: NewChat): 
   return row!.id;
 }
 
-/**
- * A teammate's own chat of this kind, made the first time it's needed. Its routines and emails
- * used to arrive in these; now they arrive in its main chat (`mainChat`).
- */
-export async function teammateChat(
-  ctx: Context,
-  teammateId: string,
-  kind: "inbox" | "scheduled",
-): Promise<string> {
-  const [existing] = await ctx.db
-    .select({ id: chats.id })
-    .from(chats)
-    .where(and(eq(chatTeammate, teammateId), eq(chats.kind, kind), isNull(chats.archivedAt)));
-  if (existing) return existing.id;
-  const title = kind === "inbox" ? "Email" : "Scheduled";
-  const id = await addChat(ctx.db, { kind, title, teammateId });
-  await publishApp(ctx, { type: "chats" });
-  return id;
-}
-
 /** The teammate's open main chat, if it has one. */
 async function openMain(db: Queryable, teammateId: string): Promise<string | null> {
   const [row] = await db
@@ -123,9 +103,9 @@ async function ensureMain(
 }
 
 /**
- * The teammate's main chat, where work that isn't started from a chat arrives: tasks, questions
- * from teammates, Telegram messages. A teammate without one open gets its most recently active
- * direct chat, or a new one.
+ * The teammate's main chat, where work that isn't started from a chat arrives: automations,
+ * emails, tasks, questions from teammates, Telegram messages. A teammate without one open gets its
+ * most recently active direct chat, or a new one.
  */
 export async function mainChat(ctx: Context, teammateId: string): Promise<string> {
   const current = await openMain(ctx.db, teammateId);
@@ -367,7 +347,7 @@ export class ChatService {
       .select({
         readAt: chats.readAt,
         lastReply:
-          sql<Date | null>`(select max(${runs.completedAt}) from ${runs} where ${runs.chatId} = ${chats.id} and ${runs.status} in ('completed', 'failed'))`.mapWith(
+          sql<Date | null>`(select max(${runs.completedAt}) from ${runs} where ${runs.chatId} = ${chats.id} and ${runs.status} in ('completed', 'failed') and not ${runs.quiet})`.mapWith(
             (value: string | Date | null) => (value === null ? null : new Date(value)),
           ),
       })

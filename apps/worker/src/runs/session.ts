@@ -29,6 +29,7 @@ import type { ToolHandlers } from "../tools/handlers";
 import { ModelAccess, providerFor } from "../services/model-access";
 import { RunEventWriter } from "./events";
 import { touchChat } from "../services/chats";
+import { markPassedOn } from "./lane-news";
 import { finalText, mapPlan, mapThreadItem } from "./mapper";
 
 export type Bot = typeof schema.bots.$inferSelect;
@@ -145,6 +146,7 @@ export class RunSession {
   private apiKey: string | null = null;
   /** The AGENTS.md written for this run. */
   private agentsFile = "";
+  private passingOn: string[] = [];
 
   constructor(
     private readonly ctx: Context,
@@ -188,6 +190,11 @@ export class RunSession {
     if (this.run.readOutsideData) return;
     this.run.readOutsideData = true;
     await this.ctx.db.update(runs).set({ readOutsideData: true }).where(eq(runs.id, this.run.id));
+  }
+
+  /** Results from the chat's other lanes in this turn's prompt, marked once Codex has the turn. */
+  passOn(runIds: string[]): void {
+    this.passingOn = runIds;
   }
 
   /** Insert or replace a timeline item. */
@@ -350,6 +357,7 @@ export class RunSession {
       .update(runs)
       .set({ codexThreadId: threadId, codexTurnId: turn.id, authMode: this.authMode })
       .where(eq(runs.id, run.id));
+    await markPassedOn(ctx.db, this.passingOn);
     await this.setStatus("running");
     if (this.cancelled) void this.interrupt();
     const outcome = await completion;
@@ -701,6 +709,8 @@ export class RunSession {
     // Free the desktop and store the final state first, so the event below reaches clients
     // that then read a consistent run row and lease.
     await ctx.computer.releaseRun(run.id).catch(() => {});
+    // A quiet routine that found nothing leaves its chat where it was, and read.
+    const quiet = status === "completed" && (await this.quietWithNothingToReport(text));
     await ctx.db
       .update(runs)
       .set({
@@ -708,10 +718,11 @@ export class RunSession {
         error: error ?? null,
         waitingFor: null,
         finalText: text,
+        quiet,
         completedAt: new Date(),
       })
       .where(eq(runs.id, run.id));
-    await touchChat(ctx.db, chat.id);
+    if (!quiet) await touchChat(ctx.db, chat.id);
     const total = {
       inputTokens: this.usage.plan.inputTokens + this.usage.api_key.inputTokens,
       cachedInputTokens: this.usage.plan.cachedInputTokens + this.usage.api_key.cachedInputTokens,
@@ -754,7 +765,7 @@ export class RunSession {
       run.trigger !== "question" &&
       // A helper's part comes back to its teammate, not to you.
       run.trigger !== "swarm" &&
-      !(await this.quietWithNothingToReport(text))
+      !quiet
     ) {
       // An answer to a teammate isn't news for you; their reply to you is.
       await createNotification(ctx, {

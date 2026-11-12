@@ -559,9 +559,11 @@ function activityOutcome(
   online: boolean,
   waitingFor: "approval" | "takeover" | null,
 ): { text: string; tone: "attention" | "failed" | "plain"; dot: string | null; where?: string } {
-  // While it's going, the status alone doesn't say what it's about: the chat's name does.
+  // While it's going, the status alone doesn't say what it's about: the automation's name does,
+  // or else the chat's.
   const where =
-    item.chatKind === "direct" || item.chatKind === "group" ? item.chatTitle : undefined;
+    item.automationTitle ??
+    (item.chatKind === "direct" || item.chatKind === "group" ? item.chatTitle : undefined);
   if (isRunActive(item.status)) {
     if (item.status === "waiting") {
       return {

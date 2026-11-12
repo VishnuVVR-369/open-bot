@@ -134,7 +134,7 @@ export function ScheduleRow({
           )}
           <RowMenu
             title={schedule.title}
-            deleteDescription="It won't run again. Past runs stay in the Scheduled chat."
+            deleteDescription="It won't run again. Past runs stay in the chat."
             onEdit={() => setEditing(true)}
             onDelete={async () => {
               const result = await attempt(api.schedules.remove({ scheduleId: schedule.id }));

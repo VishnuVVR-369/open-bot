@@ -28,7 +28,7 @@ import { and, count, eq, gte, lte } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
 import { enqueueRun } from "../runs/queue";
 import { errorMessage } from "../logger";
-import { teammateChat } from "./chats";
+import { mainChat } from "./chats";
 
 export type Trigger = typeof triggers.$inferSelect;
 
@@ -561,8 +561,8 @@ export class TriggerService {
   /* -------------------------------------------------------------- Firing */
 
   /**
-   * Start the trigger's teammate in its Scheduled chat. `readOutsideData` starts the run as one
-   * that read your accounts, so it asks before sending anything.
+   * Start the trigger's teammate in its main chat, in a lane of its own. `readOutsideData` starts
+   * the run as one that read your accounts, so it asks before sending anything.
    */
   async fire(
     row: Trigger,
@@ -574,7 +574,7 @@ export class TriggerService {
       .from(bots)
       .where(eq(bots.id, row.botId));
     if (!bot || bot.archivedAt) return null;
-    const chatId = await teammateChat(this.ctx, row.botId, "scheduled");
+    const chatId = await mainChat(this.ctx, row.botId);
     await this.ctx.db
       .update(triggers)
       .set({ lastFiredAt: new Date() })
@@ -582,6 +582,7 @@ export class TriggerService {
     return enqueueRun(this.ctx, {
       chatId,
       botId: row.botId,
+      lane: `trigger:${row.id}`,
       trigger: row.kind,
       triggerId: row.id,
       prompt,

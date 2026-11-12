@@ -715,7 +715,7 @@
     "bot": 11
   },
   "packages/db/src/schema.ts": {
-    "bot": 150,
+    "bot": 148,
     "desktop takeover": 4,
     "primary teammate": 2
   },
@@ -825,7 +825,7 @@
     "primary teammate": 3
   },
   "tools/showcase/content-rest.ts": {
-    "bot": 130
+    "bot": 128
   },
   "tools/showcase/lib.ts": {
     "bot": 21

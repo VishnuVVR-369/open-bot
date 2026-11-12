@@ -88,7 +88,7 @@ Each teammate can have an email address on your domain, `<slug>@<your-domain>`, 
 1. In Settings, you set the domain and Postmark's server token. open-bot generates a secret inbound URL: `https://<your-app>/api/inbound/email/<secret>`.
 2. You point Postmark's inbound webhook at it. The web app forwards each delivery to the worker.
 3. The worker finds the teammate from the recipient's handle (the part before `@`), saves attachments up to 15 MB with your uploads, and stores the email in `emails`.
-4. A run with trigger `email` starts in the teammate's Email chat (`chats.kind = 'inbox'`), with the sender, the subject and up to 20,000 characters of the body, marked as outside data.
+4. A run with trigger `email` starts in the teammate's main chat, in its `inbox` lane, with the sender, the subject and up to 20,000 characters of the body, marked as outside data.
 
 ### Sending
 

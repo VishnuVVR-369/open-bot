@@ -156,7 +156,7 @@ export function ScheduleDialog({
         <DialogHeader>
           <DialogTitle>{schedule ? "Edit schedule" : "New schedule"}</DialogTitle>
           <DialogDescription>
-            The teammate gets this prompt at the set time, works on it in their Scheduled chat, and
+            The teammate gets this prompt at the set time, works on it in their main chat, and
             notifies you when it&apos;s done.
           </DialogDescription>
         </DialogHeader>
