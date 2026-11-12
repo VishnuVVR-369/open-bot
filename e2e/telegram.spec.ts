@@ -1,7 +1,15 @@
 import { createHash } from "node:crypto";
 import pg from "pg";
 import { expect, test, type Page } from "./fixtures";
-import { e2eStack, createTeammate, uniqueName, waitForLastRun, worker } from "./helpers";
+import {
+  e2eStack,
+  createTeammate,
+  suiteLock,
+  testSlug,
+  uniqueName,
+  waitForLastRun,
+  worker,
+} from "./helpers";
 import { MOCK_BOT, MOCK_TOKEN, TelegramMock, USER } from "./telegram-mock";
 
 const MOCK_PORT = 4797;
@@ -51,16 +59,34 @@ test.describe("Telegram, against a stand-in", () => {
 
   const telegram = new TelegramMock();
   let page: Page;
+  /** Lets the next run of this suite against the app in. */
+  let releaseLock: (() => Promise<void>) | null = null;
+  /** Telegram wasn't connected when the suite started, so the connection it ends with is its own. */
+  let startedClean = false;
+  let standInUp = false;
 
   test.beforeAll(async ({ browser }) => {
+    // The lock and the check come first: a second run must not touch the first's connection.
+    releaseLock = await suiteLock(db, "telegram");
+    test.skip(!releaseLock, "Another run of this suite is using this app.");
+    const status = await worker.telegram.status();
+    test.skip(status.connected, "Telegram is connected on this app; leave it alone.");
+    startedClean = true;
     await telegram.start(MOCK_PORT);
+    standInUp = true;
     page = await browser.newPage({ storageState: "e2e/.auth/owner.json" });
   });
 
   test.afterAll(async () => {
-    await worker.telegram.disconnect().catch(() => {});
-    await page.close();
-    await telegram.stop();
+    try {
+      if (startedClean) await worker.telegram.disconnect().catch(() => {});
+      if (standInUp) {
+        await (page as Page | undefined)?.close();
+        await telegram.stop();
+      }
+    } finally {
+      await releaseLock?.();
+    }
   });
 
   test("connect a bot and link your account with a code", async () => {
@@ -153,7 +179,7 @@ test.describe("Telegram, against a stand-in", () => {
     const name = uniqueName("Ora");
     await createTeammate(page, name, "file clerk");
     telegram.say(
-      `${name}: Ask my approval to create the file /home/bot/shared/e2e-telegram.txt, then create it with the text 'hi' and delete it again.`,
+      `${name}: Ask my approval to create the file /home/bot/shared/${testSlug("telegram")}.txt, then create it with the text 'hi' and delete it again.`,
     );
     const approval = await eventually(() =>
       telegram.sent.find(

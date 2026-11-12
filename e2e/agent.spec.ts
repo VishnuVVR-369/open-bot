@@ -1,5 +1,12 @@
 import { expect, test } from "./fixtures";
-import { botIdOf, createTeammate, sendMessage, uniqueName, waitForLastRun } from "./helpers";
+import {
+  botIdOf,
+  createTeammate,
+  sendMessage,
+  testSlug,
+  uniqueName,
+  waitForLastRun,
+} from "./helpers";
 
 // These drive a real bot on the computer: slow, and they use your ChatGPT plan.
 test.describe("@agent bots at work", () => {
@@ -48,7 +55,7 @@ test.describe("@agent bots at work", () => {
     await createTeammate(page, uniqueName("Ora"), "file clerk");
     await sendMessage(
       page,
-      "Create the file /home/bot/shared/e2e-delete-me.txt with the text 'bye', then delete it. Deleting needs my approval.",
+      `Create the file /home/bot/shared/${testSlug("delete-me")}.txt with the text 'bye', then delete it. Deleting needs my approval.`,
     );
     await expect(page.getByTestId("approval-card")).toBeVisible({ timeout: 180_000 });
     await page.getByTestId("approve").click();

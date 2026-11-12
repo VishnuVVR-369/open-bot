@@ -89,7 +89,7 @@ test("the teardown matches what its run names, and their duplicates", () => {
 });
 
 test("the teardown leaves what another run, or you, named", () => {
-  const [mine, theirs] = ["k7q2", "a1b2"];
+  const [mine, theirs] = ["3f9c07a1", "a1b2c3d4"];
   const other = inRun(theirs, () => [uniqueName("Tess"), testLabel("group"), testSlug("x1y2")]);
   assert.doesNotMatch(other[0], testTeammateName(mine));
   assert.doesNotMatch(other[1], like(TEST_LABEL(mine)));

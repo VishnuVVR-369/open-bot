@@ -6,6 +6,7 @@ import {
   createTeammate,
   savePlanSettings,
   sendMessage,
+  testApiKey,
   uniqueName,
   waitForLastRun,
 } from "./helpers";
@@ -29,11 +30,12 @@ const pool = new pg.Pool({
   connectionString: e2eStack().databaseUrl,
 });
 const requests: string[] = [];
-let server: http.Server;
-let restore: (() => Promise<void>) | undefined;
+let server: http.Server | undefined;
+let restore: (() => Promise<void>) | null = null;
 
 test.beforeAll(async () => {
-  restore = await savePlanSettings(pool, "sk-…0001");
+  restore = await savePlanSettings(pool, { keyHint: testApiKey().hint, caps: [5_000_000] });
+  test.skip(!restore, "Another run is testing the plan settings on this app.");
   server = http.createServer((req, res) => {
     req.resume();
     req.on("end", () => {
@@ -80,14 +82,15 @@ test.beforeAll(async () => {
       res.end();
     });
   });
-  await new Promise<void>((resolve) => server.listen(4799, "0.0.0.0", resolve));
+  const listening = server;
+  await new Promise<void>((resolve) => listening.listen(4799, "0.0.0.0", resolve));
   await pool.query("update settings set plan_limited_until = null, monthly_cap_micros = 5000000");
 });
 
 test.afterAll(async () => {
   await restore?.();
   await pool.end();
-  await new Promise((resolve) => server.close(resolve));
+  await new Promise((resolve) => (server ? server.close(resolve) : resolve(undefined)));
 });
 
 test("rehearsal: the plan hits its limit mid-run and the run finishes on the API key", async ({
@@ -95,9 +98,10 @@ test("rehearsal: the plan hits its limit mid-run and the run finishes on the API
 }) => {
   test.setTimeout(5 * 60_000);
   await page.goto("/settings");
-  await page.getByLabel("OpenAI API key").fill("sk-rehearsal-key-for-open-bot-tests-0001");
+  const key = testApiKey();
+  await page.getByLabel("OpenAI API key").fill(key.key);
   await page.getByRole("button", { name: "Save key" }).click();
-  await expect(page.getByText("sk-…0001")).toBeVisible();
+  await expect(page.getByText(key.hint)).toBeVisible();
   await expect(page.getByTestId("fallback-status")).toContainText("Running on your ChatGPT plan");
 
   await createTeammate(page, uniqueName("Ava"));

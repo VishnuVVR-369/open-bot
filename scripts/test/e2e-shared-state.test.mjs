@@ -32,17 +32,6 @@ const capNow = async (pool) =>
       .monthly_cap_micros,
   );
 
-/** Resolves once some session waits for an advisory lock: a run queued behind another. */
-async function someoneWaits(pool) {
-  for (;;) {
-    const { rows } = await pool.query(
-      "select count(*)::int as waiting from pg_locks where locktype = 'advisory' and not granted",
-    );
-    if (rows[0].waiting > 0) return;
-    await new Promise((resolve) => setImmediate(resolve));
-  }
-}
-
 describe("e2e shared state", { skip: !url && "Set TEST_DATABASE_URL." }, () => {
   let admin;
   before(async () => {
@@ -73,10 +62,12 @@ describe("e2e shared state", { skip: !url && "Set TEST_DATABASE_URL." }, () => {
     await admin.end();
   });
 
+  const PLAN = { keyHint: "sk-…e2e1", caps: [5_000_000, 0] };
+
   it("puts back your key and settings", async () => {
     const run = runPool();
-    const restore = await savePlanSettings(run, "sk-…1234");
-    await setKey(run, testKey("sk-…1234"));
+    const restore = await savePlanSettings(run, PLAN);
+    await setKey(run, testKey("sk-…e2e1"));
     await run.query("update settings set monthly_cap_micros = 0");
     await restore();
     assert.deepEqual(await keyNow(run), {
@@ -86,43 +77,37 @@ describe("e2e shared state", { skip: !url && "Set TEST_DATABASE_URL." }, () => {
     assert.equal(await capNow(run), 20_000_000);
   });
 
-  it("keeps a key you save while the spec runs", async () => {
+  it("keeps a key or a cap you save while the spec runs", async () => {
     const run = runPool();
-    const restore = await savePlanSettings(run, "sk-…1234");
-    await setKey(run, testKey("sk-…1234"));
+    const restore = await savePlanSettings(run, PLAN);
+    await setKey(run, testKey("sk-…e2e1"));
+    await run.query("update settings set monthly_cap_micros = 0");
     await setKey(admin, { ...OWNER_KEY, encrypted: "new-owner-ciphertext", hint: "sk-…bbbb" });
+    await admin.query("update settings set monthly_cap_micros = 7000000");
     await restore();
     assert.equal((await keyNow(run)).hint, "sk-…bbbb");
+    assert.equal(await capNow(run), 7_000_000);
   });
 
-  it("two runs take turns, so neither puts back the other's key", async () => {
+  it("refuses a second run while the first holds the settings, so it can't note the first's", async () => {
     const [first, second] = [runPool(), runPool()];
-    const restoreFirst = await savePlanSettings(first, "sk-…1234");
-    await setKey(first, testKey("sk-…1234"));
-    await first.query("update settings set monthly_cap_micros = 5000000");
-    // The second run waits for the first to finish before it notes anything.
-    let secondSaved = false;
-    const second$ = savePlanSettings(second, "sk-…0001").then((restore) => {
-      secondSaved = true;
-      return restore;
-    });
-    await someoneWaits(admin);
-    assert.equal(secondSaved, false);
+    const restoreFirst = await savePlanSettings(first, PLAN);
+    await setKey(first, testKey("sk-…e2e1"));
+    assert.equal(await savePlanSettings(second, { ...PLAN, keyHint: "sk-…e2e2" }), null);
     await restoreFirst();
-    const restoreSecond = await second$;
-    await setKey(second, testKey("sk-…0001"));
-    await restoreSecond();
     assert.equal((await keyNow(admin)).hint, OWNER_KEY.hint);
-    assert.equal(await capNow(admin), 20_000_000);
+    const restoreSecond = await savePlanSettings(second, { ...PLAN, keyHint: "sk-…e2e2" });
+    assert.ok(restoreSecond);
+    await restoreSecond();
   });
 
-  it("a second run doesn't get a suite's lock while the first holds it", async () => {
+  it("gives a suite's lock to one run at a time", async () => {
     const [first, second] = [runPool(), runPool()];
-    const release = await suiteLock(first, "accounts", { wait: false });
+    const release = await suiteLock(first, "accounts");
     assert.ok(release);
-    assert.equal(await suiteLock(second, "accounts", { wait: false }), null);
+    assert.equal(await suiteLock(second, "accounts"), null);
     await release();
-    const again = await suiteLock(second, "accounts", { wait: false });
+    const again = await suiteLock(second, "accounts");
     assert.ok(again);
     await again();
   });

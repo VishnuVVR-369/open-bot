@@ -9,6 +9,7 @@ import {
   approve,
   botIdOf,
   createTeammate,
+  suiteLock,
   uniqueName,
   waitForLastRun,
 } from "./helpers";
@@ -19,40 +20,62 @@ const pool = new pg.Pool({
 
 test.afterAll(() => pool.end());
 
-/** Your email settings, put back as they were after each test. */
+/** The domain and Postmark token the tests set up, and the token's hint (`secretHint()`). */
+const TEST_DOMAIN = "mail.e2e.test";
+const TEST_TOKEN = "e2e-postmark-token-0123456789abcdef";
+const TEST_TOKEN_HINT = "e2e…cdef";
+
+/**
+ * Your email settings, put back after each test. It holds the email-settings lock until then, so
+ * a second run skips instead of noting the first run's settings as yours. Only what the test set
+ * is undone: settings you change meanwhile, to another domain or token, stay.
+ */
 async function keepEmailSettings() {
-  const settings = await pool.query("select * from email_settings where id = 1");
-  const token = await pool.query("select * from credentials where kind = 'postmark_token'");
-  return async () => {
-    const row = settings.rows[0] as
-      | {
-          domain: string | null;
-          inbound_token: string;
-          api_base_url: string;
-          last_received_at: Date | null;
-        }
-      | undefined;
-    if (row)
-      await pool.query(
-        "update email_settings set domain = $1, inbound_token = $2, api_base_url = $3, last_received_at = $4 where id = 1",
-        [row.domain, row.inbound_token, row.api_base_url, row.last_received_at],
-      );
-    else await pool.query("delete from email_settings");
-    await pool.query("delete from credentials where kind = 'postmark_token'");
-    const saved = token.rows[0] as { encrypted: string; hint: string } | undefined;
-    if (saved)
-      await pool.query(
-        "insert into credentials (kind, encrypted, hint) values ('postmark_token', $1, $2)",
-        [saved.encrypted, saved.hint],
-      );
-  };
+  const release = await suiteLock(pool, "email settings");
+  test.skip(!release, "Another run is testing the email settings on this app.");
+  try {
+    const settings = await pool.query("select * from email_settings where id = 1");
+    const token = await pool.query("select * from credentials where kind = 'postmark_token'");
+    return async () => {
+      try {
+        const row = settings.rows[0] as
+          | {
+              domain: string | null;
+              inbound_token: string;
+              api_base_url: string;
+              last_received_at: Date | null;
+            }
+          | undefined;
+        if (row)
+          await pool.query(
+            "update email_settings set domain = $1, inbound_token = $2, api_base_url = $3, last_received_at = $4 where id = 1 and lower(domain) = $5",
+            [row.domain, row.inbound_token, row.api_base_url, row.last_received_at, TEST_DOMAIN],
+          );
+        else await pool.query("delete from email_settings where lower(domain) = $1", [TEST_DOMAIN]);
+        await pool.query("delete from credentials where kind = 'postmark_token' and hint = $1", [
+          TEST_TOKEN_HINT,
+        ]);
+        const saved = token.rows[0] as { encrypted: string; hint: string } | undefined;
+        if (saved)
+          await pool.query(
+            "insert into credentials (kind, encrypted, hint) values ('postmark_token', $1, $2) on conflict (kind) do nothing",
+            [saved.encrypted, saved.hint],
+          );
+      } finally {
+        await release!();
+      }
+    };
+  } catch (error) {
+    await release!();
+    throw error;
+  }
 }
 
 async function setUpEmail(page: Page, domain: string) {
   await page.goto("/settings#email");
   const section = page.getByTestId("email-section");
   await section.getByLabel("Domain").fill(domain);
-  await section.getByLabel("Postmark server token").fill("e2e-postmark-token-0123456789abcdef");
+  await section.getByLabel("Postmark server token").fill(TEST_TOKEN);
   await section.getByRole("button", { name: "Save" }).click();
   await expect(section.getByLabel("Postmark server token")).toHaveAttribute(
     "placeholder",

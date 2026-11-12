@@ -4,7 +4,16 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { e2eStack } from "./stack";
 
 export { savePlanSettings, suiteLock } from "./shared-state";
-export { e2eStack, runTag, TEST_LABEL, testLabel, testSlug, uniqueName, uniqueWord } from "./stack";
+export {
+  e2eStack,
+  runTag,
+  TEST_LABEL,
+  testApiKey,
+  testLabel,
+  testSlug,
+  uniqueName,
+  uniqueWord,
+} from "./stack";
 
 export const owner = {
   email: process.env.E2E_EMAIL ?? process.env.OWNER_EMAIL ?? "",

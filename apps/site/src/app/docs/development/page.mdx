@@ -118,12 +118,11 @@ E2E_STACK=dev E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e --grep @agent 
 - A `setup` project signs in once and saves the session to `e2e/.auth/owner.json`.
 - Tests tagged `@agent` run real turns on the computer, take minutes, and use your ChatGPT plan.
 - Tests run serially (`workers: 1`), because they share one computer and one database.
-- `e2e/global-setup.ts` gives each run a random tag, and everything a spec creates carries it: teammates are named with `uniqueName()`, titles and labels with `testLabel()`, skills and uploaded files with `testSlug()` (`e2e/stack.ts`).
+- `e2e/global-setup.ts` gives each run a random 8-digit hex tag, and everything a spec creates carries it: teammates are named with `uniqueName()`, titles and labels with `testLabel()`, skills, uploaded files and files on the computer with `testSlug()`, and API keys with `testApiKey()` (`e2e/stack.ts`).
   `e2e/global-teardown.ts`, and a spec cleaning up after itself, deletes only what carries the run's tag, so it never deletes one of yours, or what another run is making at the same time.
   What an interrupted run left behind stays until you delete it.
-- A spec that changes your settings saves them first and puts them back afterwards (`savePlanSettings()` in `e2e/shared-state.ts`).
-  It keeps a key you save while it runs.
-- Suites that change what the whole app shares hold a database lock while they run (`suiteLock()` in `e2e/shared-state.ts`): the plan specs take turns with other runs, and a second run of the accounts suite skips.
+- Specs that change what the whole app shares (the plan settings, email settings, accounts and Telegram) hold a database lock while they run (`suiteLock()` in `e2e/shared-state.ts`), and skip when another run holds it.
+  They save your settings first and put back only what they changed (`savePlanSettings()`), so a key or setting you save while they run stays.
 
 Stand-ins replace outside services, so the default run needs no outside account:
 

@@ -6,6 +6,7 @@
  * must never clean up the development one instead. Either name every part of the stack, or set
  * `E2E_STACK=dev` to mean the local development stack (`pnpm infra:up` and `pnpm dev`).
  */
+import { randomUUID } from "node:crypto";
 
 export interface E2eStack {
   /** The web app. */
@@ -90,9 +91,12 @@ export function e2eStack(): E2eStack {
 /** The environment variable that holds this run's tag, which global setup makes. */
 export const RUN_TAG = "E2E_RUN_TAG";
 
-/** A new run tag: 4 random lowercase letters or digits. */
+/**
+ * A new run tag: 8 random hex digits, so two runs, or a run and what an interrupted one left
+ * behind, practically never share one.
+ */
 export function newRunTag() {
-  return Math.random().toString(36).slice(2, 6).padEnd(4, "0");
+  return randomUUID().replaceAll("-", "").slice(0, 8);
 }
 
 /**
@@ -101,7 +105,7 @@ export function newRunTag() {
  */
 export function runTag(env: Record<string, string | undefined> = process.env): string {
   const tag = env[RUN_TAG];
-  if (!tag || !/^[a-z0-9]{4}$/.test(tag))
+  if (!tag || !/^[0-9a-f]{8}$/.test(tag))
     throw new Error(
       `${RUN_TAG} isn't set: the end-to-end tests run through Playwright's global setup.`,
     );
@@ -119,7 +123,7 @@ export function uniqueWord(prefix: string) {
 }
 
 /**
- * A teammate name for a test, such as `E2ek7q2Tess4kq9`: `E2e`, the run's tag, `prefix` (a
+ * A teammate name for a test, such as `E2e3f9c07a1Tess4kq9`: `E2e`, the run's tag, `prefix` (a
  * capitalized word) and 4 random letters or digits. Only for teammates: the teardown deletes every
  * teammate this run named like this.
  */
@@ -129,7 +133,7 @@ export function uniqueName(prefix: string) {
 }
 
 /**
- * A title or label for something a test creates, such as `E2E GitHub k7q2`, which the teardown
+ * A title or label for something a test creates, such as `E2E GitHub 3f9c07a1`, which the teardown
  * deletes (`TEST_LABEL`). `words` is what the test calls it.
  */
 export function testLabel(words: string) {
@@ -137,7 +141,7 @@ export function testLabel(words: string) {
 }
 
 /**
- * A lowercase name for a skill or a file a test creates, such as `e2e-k7q2-x9f3a`, which the
+ * A lowercase name for a skill or a file a test creates, such as `e2e-3f9c07a1-x9f3a`, which the
  * teardown deletes (`TEST_SLUG`). `words` is what the test calls it.
  */
 export function testSlug(words: string) {
@@ -147,3 +151,12 @@ export function testSlug(words: string) {
 /** SQL `like` patterns for `testLabel()` and `testSlug()` in the run tagged `tag`. */
 export const TEST_LABEL = (tag: string) => `E2E % ${tag}`;
 export const TEST_SLUG = (tag: string) => `e2e-${tag}-%`;
+
+/**
+ * An OpenAI API key for a spec to save, ending in the run's tag, and the hint the app shows for it
+ * (`sk-…` and its last 4 characters), which tells it from yours.
+ */
+export function testApiKey() {
+  const tag = runTag();
+  return { key: `sk-not-a-real-key-for-open-bot-tests-${tag}`, hint: `sk-…${tag.slice(-4)}` };
+}

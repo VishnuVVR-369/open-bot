@@ -5,6 +5,7 @@ import {
   createTeammate,
   savePlanSettings,
   sendMessage,
+  testApiKey,
   uniqueName,
   waitForLastRun,
 } from "./helpers";
@@ -14,9 +15,10 @@ const pool = new pg.Pool({
 });
 
 test.describe("when the plan runs out", () => {
-  let restore: (() => Promise<void>) | undefined;
+  let restore: (() => Promise<void>) | null = null;
   test.beforeAll(async () => {
-    restore = await savePlanSettings(pool, "sk-…1234");
+    restore = await savePlanSettings(pool, { keyHint: testApiKey().hint, caps: [5_000_000, 0] });
+    test.skip(!restore, "Another run is testing the plan settings on this app.");
   });
   test.afterAll(async () => {
     await restore?.();
@@ -25,9 +27,10 @@ test.describe("when the plan runs out", () => {
 
   test("runs move to the API key while the plan is limited, up to the cap", async ({ page }) => {
     await page.goto("/settings");
-    await page.getByLabel("OpenAI API key").fill("sk-not-a-real-key-for-open-bot-tests-1234");
+    const key = testApiKey();
+    await page.getByLabel("OpenAI API key").fill(key.key);
     await page.getByRole("button", { name: "Save key" }).click();
-    await expect(page.getByText("sk-…1234")).toBeVisible();
+    await expect(page.getByText(key.hint)).toBeVisible();
 
     // Codex reports the plan's limit by failing a turn; simulate the state it leaves behind.
     await pool.query(

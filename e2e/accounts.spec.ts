@@ -114,7 +114,7 @@ test.describe("Accounts, against a stand-in for Google and Notion", () => {
 
   test.beforeAll(async ({ browser }) => {
     // Nothing is written before the lock and the check: a second run must not touch the first's.
-    releaseLock = await suiteLock(db, "accounts", { wait: false });
+    releaseLock = await suiteLock(db, "accounts");
     test.skip(!releaseLock, "Another run of this suite is using this app.");
     const { rows: others } = await db.query<{ display: string }>("select display from accounts");
     test.skip(
@@ -138,11 +138,14 @@ test.describe("Accounts, against a stand-in for Google and Notion", () => {
       await standIn.stop();
       if (!tookClient) return;
       await forgetOurAccounts();
-      await db.query("delete from oauth_clients where provider = 'google'");
+      // Only the stand-in's client goes; one you saved meanwhile stays, ahead of the old ones.
+      await db.query("delete from oauth_clients where provider = 'google' and client_id = $1", [
+        GOOGLE_CLIENT.clientId,
+      ]);
       for (const row of savedClients) {
         const columns = Object.keys(row);
         await db.query(
-          `insert into oauth_clients (${columns.join(", ")}) values (${columns.map((_, i) => `$${i + 1}`).join(", ")})`,
+          `insert into oauth_clients (${columns.join(", ")}) values (${columns.map((_, i) => `$${i + 1}`).join(", ")}) on conflict do nothing`,
           Object.values(row),
         );
       }

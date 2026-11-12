@@ -5,21 +5,18 @@ import type pg from "pg";
 /**
  * Takes a lock that every run against this database shares, for a suite that changes what the
  * whole app shares, so two runs never change it at once. It's held on its own connection until
- * the returned release, or until the process ends. With `wait: false` it answers null when
- * another run holds it.
+ * the returned release, or until the process ends. Answers null, without waiting, when another
+ * run holds it: the suite then skips.
  */
 export async function suiteLock(
   pool: pg.Pool,
   name: string,
-  { wait }: { wait: boolean },
 ): Promise<(() => Promise<void>) | null> {
   const client = await pool.connect();
   const key = `open-bot e2e ${name}`;
   try {
     const { rows } = await client.query<{ held: boolean }>(
-      wait
-        ? "select true as held from pg_advisory_lock(hashtext($1))"
-        : "select pg_try_advisory_lock(hashtext($1)) as held",
+      "select pg_try_advisory_lock(hashtext($1)) as held",
       [key],
     );
     if (!rows[0]?.held) {
@@ -39,18 +36,30 @@ export async function suiteLock(
   };
 }
 
+/** What a plan spec writes, so only that is undone. */
+export interface PlanChanges {
+  /**
+   * The hint of the API key the spec saves (`testApiKey()`), which carries the run's tag: saving
+   * a key keeps the row's other columns, so the hint is what tells the spec's key from yours.
+   */
+  keyHint: string;
+  /** The monthly caps the spec sets. */
+  caps: number[];
+}
+
 /**
  * Notes the OpenAI API key and the plan settings (limit and monthly cap) a spec is about to change,
- * and returns how to put them back, so a run on your app leaves yours as they were. It holds the
- * plan-settings lock until then, so runs sharing the app take turns. The spec's own key
- * (`keyHint`, like `sk-…1234`) is removed and yours put back only where no other key took its
- * place: a key you save meanwhile stays.
+ * and returns how to put them back, or null when another run is testing them. It holds the
+ * plan-settings lock until then. Only what the spec wrote is undone: its own key (by `keyHint`)
+ * gives way to yours, and the cap goes back only if it's still one the spec set. A
+ * key or cap you save meanwhile stays.
  */
 export async function savePlanSettings(
   pool: pg.Pool,
-  keyHint: string,
-): Promise<() => Promise<void>> {
-  const release = (await suiteLock(pool, "plan settings", { wait: true }))!;
+  changes: PlanChanges,
+): Promise<(() => Promise<void>) | null> {
+  const release = await suiteLock(pool, "plan settings");
+  if (!release) return null;
   try {
     const {
       rows: [plan],
@@ -62,13 +71,17 @@ export async function savePlanSettings(
     );
     return async () => {
       try {
-        if (plan)
+        if (plan) {
+          await pool.query("update settings set plan_limited_until = $1 where id = 1", [
+            plan.plan_limited_until,
+          ]);
           await pool.query(
-            "update settings set plan_limited_until = $1, monthly_cap_micros = $2 where id = 1",
-            [plan.plan_limited_until, plan.monthly_cap_micros],
+            "update settings set monthly_cap_micros = $1 where id = 1 and monthly_cap_micros = any($2::bigint[])",
+            [plan.monthly_cap_micros, changes.caps],
           );
+        }
         await pool.query("delete from credentials where kind = 'openai_api_key' and hint = $1", [
-          keyHint,
+          changes.keyHint,
         ]);
         for (const row of keys) {
           const columns = Object.keys(row);
