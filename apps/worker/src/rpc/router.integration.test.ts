@@ -343,6 +343,53 @@ describe.skipIf(!url)("worker internal API, end to end", () => {
     expect(services.executor.processCancellations).toHaveBeenCalled();
   });
 
+  it("runs: a retry stays in the run's lane, with its trigger and what it read", async () => {
+    const created = await newTeammate("Ada", "researcher");
+    const owner = { botId: created.id }; // vocabulary: allow
+    const [hook] = await db
+      .insert(triggerRows)
+      .values({
+        ...owner,
+        kind: "webhook",
+        title: "Deploys",
+        prompt: "Tell me about failed deploys",
+        token: randomUUID().replaceAll("-", ""),
+        createdBy: "user",
+      })
+      .returning();
+    const lane = `trigger:${hook!.id}` as const;
+    const [failed] = await db
+      .insert(runs)
+      .values({
+        ...owner,
+        chatId: created.chatId,
+        trigger: "webhook",
+        triggerId: hook!.id,
+        lane,
+        prompt: "A deploy failed",
+        status: "failed",
+        readOutsideData: true,
+      })
+      .returning();
+    // A newer run in your conversation isn't the retry of the webhook's run.
+    await db.insert(runs).values({
+      ...owner,
+      chatId: created.chatId,
+      trigger: "user",
+      prompt: "Hi",
+      status: "completed",
+    });
+    const { runId } = await worker.runs.retry({ runId: failed!.id });
+    expect(runId).not.toBe(failed!.id);
+    const [retried] = await db.select().from(runs).where(eq(runs.id, runId));
+    expect(retried).toMatchObject({
+      trigger: "webhook",
+      triggerId: hook!.id,
+      lane,
+      readOutsideData: true,
+    });
+  });
+
   it("approvals: decides once, and says how one decided elsewhere ended", async () => {
     const { created, run } = await teammateWithRun();
     const [approval] = await db

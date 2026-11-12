@@ -494,7 +494,7 @@
     "bot": 1
   },
   "apps/worker/src/runs/session.ts": {
-    "bot": 62
+    "bot": 59
   },
   "apps/worker/src/services/account-triggers.integration.test.ts": {
     "bot": 13

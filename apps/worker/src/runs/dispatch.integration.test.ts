@@ -16,7 +16,7 @@ import { MemoryService } from "@open-bot/memory";
 import { SessionRegistry } from "../services/registry";
 import { RunExecutor } from "./executor";
 import { insertRun } from "./queue";
-import type { RunSession } from "./session";
+import { answerTheAsker, type RunSession } from "./session";
 
 const url = testDatabaseServer();
 
@@ -324,5 +324,38 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
       "chat",
     );
     expect(await laneOf(await insertRun(db, base))).toBe("chat");
+  });
+
+  it("sends an answer back to the lane the question was asked from", async () => {
+    const { teammate, chat } = await directChat();
+    const other = await bot("Bea"); // vocabulary: allow
+    const [otherChat] = await db
+      .insert(chats)
+      .values({ kind: "direct", title: other.name, botId: other.id }) // vocabulary: allow
+      .returning();
+    // Rex's routine asks Bea; Bea's run is in her own chat, so its lane says nothing about Rex's.
+    const teammateId = teammate.id;
+    const asked = await insertRun(db, {
+      chatId: chat.id,
+      botId: teammateId, // vocabulary: allow
+      trigger: "user",
+      prompt: "Brief me",
+      lane: "schedule:daily",
+    });
+    const question = await insertRun(db, {
+      chatId: otherChat!.id,
+      botId: other.id, // vocabulary: allow
+      trigger: "question",
+      prompt: "When is the launch?",
+      parentRunId: asked,
+    });
+    await answerTheAsker(ctx, { id: question, parentRunId: asked }, "Bea", "completed", "Tuesday");
+    const [answer] = await db.select().from(runs).where(eq(runs.parentRunId, question));
+    expect(answer).toMatchObject({
+      chatId: chat.id,
+      trigger: "answer",
+      lane: "schedule:daily",
+      prompt: "[Bea answered your question:]\nTuesday",
+    });
   });
 });
