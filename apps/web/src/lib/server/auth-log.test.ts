@@ -67,6 +67,18 @@ describe("Better Auth's log", () => {
     expect(String(line)).not.toMatch(/private/i);
   });
 
+  it("logs a failed query given as the line's text, as Better Auth's session list does", () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const failed = new DrizzleQueryError(SQL, PARAMS, postgresError("canceled", { code: "57014" }));
+    authLog("error", failed);
+    const [line, fields] = logged.mock.calls[0]!;
+    expect(line).toMatch(
+      / ERROR \[Better Auth\]: The database refused the query \(SQLSTATE 57014\)\.$/,
+    );
+    expect(fields).toMatchObject({ query: SQL, code: "57014" });
+    expect(JSON.stringify(logged.mock.calls)).not.toMatch(/private/i);
+  });
+
   it("keeps everything else as Better Auth logs it", () => {
     const warned = vi.spyOn(console, "warn").mockImplementation(() => {});
     const problem = new Error("Rate limit reached");
