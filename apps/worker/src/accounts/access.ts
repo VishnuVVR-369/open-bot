@@ -1,4 +1,4 @@
-import { AccountStore, AccountUnavailableError } from "@open-bot/accounts";
+import { AccountStore, AccountUnavailableError } from "@open-bot/integrations/server";
 import { accounts, connections } from "@open-bot/db";
 import {
   ACCOUNT_PROVIDERS,

@@ -13,12 +13,12 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.1",
-    "@open-bot/accounts": "workspace:*",
     "@open-bot/agent": "workspace:*",
     "@open-bot/api": "workspace:*",
     "@open-bot/db": "workspace:*",
     "@open-bot/domain": "workspace:*",
     "@open-bot/egress": "workspace:*",
+    "@open-bot/integrations": "workspace:*",
     "@open-bot/memory": "workspace:*",
     "@open-bot/page-kit": "workspace:*",
     "@orpc/contract": "^1.16.1",

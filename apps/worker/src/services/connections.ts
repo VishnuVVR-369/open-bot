@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import type { AccountStore } from "@open-bot/accounts";
+import type { AccountStore } from "@open-bot/integrations/server";
 import type { ConnectionInput } from "@open-bot/api";
 import type { ConnectionTest } from "@open-bot/api/worker";
 import type { v2 } from "@open-bot/agent";

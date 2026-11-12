@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
-import { AccountStore } from "@open-bot/accounts";
+import { AccountStore } from "@open-bot/integrations/server";
 import {
   accountActions,
   accounts,

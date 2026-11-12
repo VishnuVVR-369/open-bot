@@ -1,7 +1,7 @@
 import { secretHint } from "@open-bot/domain/server";
-import { googleEndpoints } from "./endpoints";
-import { OAuthError, revokeToken, tokenRequest } from "./oauth";
-import type { ProviderAdapter } from "./provider";
+import { googleEndpoints } from "../../core/endpoints";
+import { OAuthError, revokeToken, tokenRequest } from "../../core/oauth";
+import type { ProviderAdapter } from "../../core/provider";
 
 /**
  * Google: your own OAuth client (a Web application client in your Google Cloud project), which

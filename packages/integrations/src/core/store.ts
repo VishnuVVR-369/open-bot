@@ -4,7 +4,7 @@ import { decryptSecret, encryptSecret } from "@open-bot/domain/server";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { OAuthClients } from "./clients";
 import { OAuthError, type TokenResponse } from "./oauth";
-import { providerAdapter } from "./providers";
+import { providerAdapter } from "../provider-registry";
 
 type Account = typeof accounts.$inferSelect;
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];

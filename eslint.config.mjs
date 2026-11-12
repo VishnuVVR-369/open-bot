@@ -103,6 +103,10 @@ export default tseslint.config(
         name: "@open-bot/domain/server",
         message: "@open-bot/domain/server is Node-only. Use it from server code.",
       },
+      {
+        regex: "^@open-bot.integrations(\\W.*)?$",
+        message: "@open-bot/integrations is Node-only. Use it from server code.",
+      },
     ]),
   },
   {

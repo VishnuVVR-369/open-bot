@@ -1,4 +1,4 @@
-import { notionMcpUrl } from "@open-bot/accounts";
+import { notionMcpUrl } from "@open-bot/integrations/server";
 import { accountResources } from "@open-bot/db";
 import {
   NOTION_AREA_SETTING,
