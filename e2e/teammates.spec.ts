@@ -38,8 +38,15 @@ test("create a group chat", async ({ page }) => {
   await expect(page.getByText("Start the conversation")).toBeVisible();
   // The new chat's message box takes the focus the dialog had.
   await expect(page.getByTestId("composer-input")).toBeFocused();
-  await page.getByTestId("composer-input").fill(`@${b.slice(0, 2)}`);
+  const input = page.getByTestId("composer-input");
+  await input.fill(`@${b.slice(0, 2)}`);
   await expect(page.getByRole("option", { name: new RegExp(b) })).toBeVisible();
+  // A name that only contains what you typed is offered too, and picking it completes the name.
+  await input.fill(`@${b.slice(1)}`);
+  await expect(page.getByRole("option", { name: new RegExp(b) })).toBeVisible();
+  await input.press("Enter");
+  await expect(input).toHaveValue(`@${b} `);
+  await expect(page.getByRole("listbox", { name: "Teammates" })).toBeHidden();
 });
 
 test("duplicate a teammate with their skills and memory", async ({ page }) => {
