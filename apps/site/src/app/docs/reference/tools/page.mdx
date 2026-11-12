@@ -12,7 +12,7 @@ The account tools are in `apps/worker/src/accounts/tools.ts`, which routes each 
 ## How tools are served
 
 - Every thread gets every tool, so a teammate behaves the same in any chat.
-- The worker parses each call's arguments with the tool's `input` schema before its handler runs, so the handler gets typed values (a top-level `null` counts as left out).
+- The worker parses each call's arguments with the tool's `input` schema before its handler runs, so the handler gets typed values; the schema is the whole contract, so a `null` is refused like any other wrong type.
 - A call that doesn't fit the schema is answered with readable errors the model can act on, such as `path: path is required`, and the handler doesn't run.
 - Each call becomes a timeline item, recorded by the handler with more detail than Codex's generic item.
 - Before every call, the handler checks that the teammate's memory hasn't changed since the run started. If it has, the turn is interrupted.

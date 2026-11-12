@@ -79,10 +79,12 @@ test("a tool input's JSON schema closes objects and keeps records open", () => {
   expect(schema.properties.nested.additionalProperties).toBe(false);
 });
 
-test("a top-level null counts as left out", () => {
-  const tool = toolNamed("browser_read_page")!;
-  expect(parseArgs(tool, { selector: null })).toEqual({});
-  expect(parseArgs(tool, { selector: "main" })).toEqual({ selector: "main" });
+// A null is refused, not read as left out: a refused target must not become "yourself".
+test("a null argument is refused like any other wrong type", () => {
+  const tool = toolNamed("cancel_automation")!;
+  const id = "00000000-0000-4000-8000-000000000001";
+  expect(() => parseArgs(tool, { id, bot_id: null })).toThrow(); // vocabulary: allow
+  expect(parseArgs(tool, { id })).toEqual({ id });
 });
 
 test("calls are parsed with the tool's input before the handler runs", async () => {

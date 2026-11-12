@@ -73,12 +73,11 @@ export function defineTool<Input extends z.ZodObject>(definition: ToolDefinition
 }
 
 /**
- * Parses a call's arguments with the tool's input schema. A top-level null counts as left out:
- * no tool gives null a meaning, and models send it for optional fields.
+ * Parses a call's arguments with the tool's input schema, which is the whole contract: a field
+ * Codex sends as null is refused like any other wrong type, never read as left out.
  */
 export function parseArgs(tool: AnyTool, raw: Record<string, unknown>): Record<string, unknown> {
-  const present = Object.fromEntries(Object.entries(raw).filter(([, value]) => value !== null));
-  return tool.input.parse(present);
+  return tool.input.parse(raw);
 }
 
 /** A plain text reply to the teammate. */
