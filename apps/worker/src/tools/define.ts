@@ -1,11 +1,10 @@
-// What an agent tool is: one definition holds its name, description, input schema and handler.
-// Codex sees the JSON schema derived from `input`, so the two never drift (see definitions.ts).
-import type { v2 } from "@open-bot/agent";
-import type { ToolItem } from "@open-bot/domain";
-import { z } from "zod";
+// The services every agent tool can use. A feature's tools (under features/) ask only for their
+// own; the tools still here take all of them, until their feature moves.
+import type { z } from "zod";
 import type { Context } from "../context";
 import type { AccountTools } from "../accounts/tools";
-import type { RunSession } from "../runs/session";
+import { defineTool as defineFeatureTool, type ToolDefinition } from "../core/tool";
+import type { TaskService } from "../features/tasks";
 import type { ApprovalService } from "../services/approvals";
 import type { BotService } from "../services/bots";
 import type { EmailService } from "../services/email";
@@ -15,12 +14,20 @@ import type { ScheduleService } from "../services/schedules";
 import type { SkillService } from "../services/skills";
 import type { SwarmService } from "../services/swarms";
 import type { TakeoverService } from "../services/takeovers";
-import type { TaskService } from "../services/tasks";
 import type { TriggerService } from "../services/triggers";
 import type { VaultService } from "../services/vault";
 import type { BotTools } from "./bots";
 
-export type ToolResponse = v2.DynamicToolCallResponse;
+export {
+  inputJsonSchema,
+  parseArgs,
+  text,
+  toolItem,
+  toolSpec,
+  type ToolCall,
+  type ToolDefinition,
+  type ToolResponse,
+} from "../core/tool";
 
 /** The services tools use, by name. */
 export interface ToolServices {
@@ -45,93 +52,12 @@ export interface ToolDeps extends ToolServices {
   botTools: BotTools;
 }
 
-/** One call of a tool, in a teammate's run. */
-export interface ToolCall<Args = Record<string, unknown>> {
-  session: RunSession;
-  callId: string;
-  /** The arguments, parsed with the tool's input schema. */
-  args: Args;
-  /** The arguments as Codex sent them, for the chat's timeline. */
-  raw: Record<string, unknown>;
-}
+/** A tool of any input, as the catalog holds it: given every service. */
+export type AnyTool = ToolDefinition<z.ZodObject, ToolDeps>;
 
-export interface ToolDefinition<Input extends z.ZodObject = z.ZodObject> {
-  name: string;
-  description: string;
-  /** The arguments, as an object schema. Codex is offered its JSON schema, and calls are parsed with it. */
-  input: Input;
-  /** Whether swarm helpers may call it. Helpers do their one part; they don't reach out. */
-  helpers: "allowed" | "forbidden";
-  handle(call: ToolCall<z.output<Input>>, deps: ToolDeps): Promise<ToolResponse>;
-}
-
-/** A tool of any input, as the catalog holds it. */
-export type AnyTool = ToolDefinition<z.ZodObject>;
-
-export function defineTool<Input extends z.ZodObject>(definition: ToolDefinition<Input>): AnyTool {
-  return definition as unknown as AnyTool;
-}
-
-/**
- * Parses a call's arguments with the tool's input schema, which is the whole contract: a field
- * Codex sends as null is refused like any other wrong type, never read as left out.
- */
-export function parseArgs(tool: AnyTool, raw: Record<string, unknown>): Record<string, unknown> {
-  return tool.input.parse(raw);
-}
-
-/** A plain text reply to the teammate. */
-export function text(message: string, success = true): ToolResponse {
-  return { success, contentItems: [{ type: "inputText", text: message }] };
-}
-
-/** A running tool step for the chat's timeline. */
-export function toolItem(
-  callId: string,
-  name: string,
-  label: string,
-  args: unknown,
-  startedAt: string,
-): ToolItem {
-  return { id: callId, kind: "tool", name, label, args, status: "running", startedAt };
-}
-
-type JsonSchema = v2.DynamicToolFunctionSpec["inputSchema"];
-
-/**
- * The JSON schema Codex is offered for `input`: zod's, without what zod adds that a tool spec
- * doesn't say (the `$schema` URL, the pattern behind `format: "uuid"` or `"email"`, the safe-integer bounds
- * of `.int()`), and with each object closed to properties it doesn't list.
- */
-export function inputJsonSchema(input: z.ZodObject): JsonSchema {
-  const { $schema: _, ...schema } = z.toJSONSchema(input, {
-    io: "input",
-    unrepresentable: "throw",
-  }) as Record<string, unknown>;
-  const tidy = (node: unknown): void => {
-    if (!node || typeof node !== "object") return;
-    if (Array.isArray(node)) return node.forEach(tidy);
-    const record = node as Record<string, unknown>;
-    if (record.format === "uuid" || record.format === "email") delete record.pattern;
-    if (record.type === "integer") {
-      if (record.minimum === Number.MIN_SAFE_INTEGER) delete record.minimum;
-      if (record.maximum === Number.MAX_SAFE_INTEGER) delete record.maximum;
-    }
-    // A fixed-shape object is closed; a record keeps the schema it gives its values.
-    if (record.type === "object" && record.additionalProperties === undefined)
-      record.additionalProperties = false;
-    Object.values(record).forEach(tidy);
-  };
-  tidy(schema);
-  return { required: [], ...schema };
-}
-
-/** The spec Codex is given for a tool. */
-export function toolSpec(definition: AnyTool): v2.DynamicToolSpec {
-  return {
-    type: "function",
-    name: definition.name,
-    description: definition.description,
-    inputSchema: inputJsonSchema(definition.input),
-  };
+/** A tool that takes every service. */
+export function defineTool<Input extends z.ZodObject>(
+  definition: ToolDefinition<Input, ToolDeps>,
+): AnyTool {
+  return defineFeatureTool(definition);
 }

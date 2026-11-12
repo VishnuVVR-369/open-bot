@@ -1,6 +1,6 @@
-import { workerContract } from "@open-bot/api/worker";
-import { implement } from "@orpc/server";
 import type { Context } from "../context";
+import { os } from "../core/rpc";
+import { taskRoutes, type TaskService } from "../features/tasks";
 import type { EgressRelay } from "../egress/relay";
 import type { WakeController } from "../egress/wake";
 import type { UploadService } from "../uploads";
@@ -23,7 +23,6 @@ import type { ScreenOperationService } from "../services/screen-operations";
 import type { SkillService } from "../services/skills";
 import type { SwarmService } from "../services/swarms";
 import type { TakeoverService } from "../services/takeovers";
-import type { TaskService } from "../services/tasks";
 import type { ChatService } from "../services/chats";
 import type { RunRequests } from "../runs/requests";
 import type { TelegramService } from "../services/telegram";
@@ -66,11 +65,6 @@ export interface WorkerServices {
   wake: WakeController;
 }
 
-/** Per request: the path, which names what keeps the computer awake while it runs. */
-export interface RpcContext {
-  path: string;
-}
-
 const ok = { ok: true } as const;
 
 /**
@@ -82,7 +76,6 @@ const ok = { ok: true } as const;
 export function createWorkerRouter(services: WorkerServices) {
   const s = services;
   const { ctx } = s;
-  const os = implement(workerContract).$context<RpcContext>();
 
   /** A screen is a teammate's, so its id must be one. */
   const screenOf = async (id: string) => (await s.teammates.findTeammate(id)).id;
@@ -348,22 +341,7 @@ export function createWorkerRouter(services: WorkerServices) {
         return ok;
       }),
     },
-    tasks: {
-      create: os.tasks.create.handler(async ({ input }) => ({
-        id: (await s.tasks.create({ ...input, createdBy: "user" })).id,
-      })),
-      update: os.tasks.update.handler(async ({ input: { taskId, ...patch } }) => {
-        await s.tasks.update(taskId, patch);
-        return ok;
-      }),
-      remove: os.tasks.remove.handler(async ({ input }) => {
-        await s.tasks.remove(input.taskId);
-        return ok;
-      }),
-      start: os.tasks.start.handler(async ({ input }) => ({
-        chatId: (await s.tasks.start(input.taskId, null)).chatId,
-      })),
-    },
+    tasks: taskRoutes(s.tasks),
     email: {
       inbound: os.email.inbound.handler(async ({ input }) => ({
         ok: true as const,

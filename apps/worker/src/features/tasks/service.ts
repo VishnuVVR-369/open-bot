@@ -1,10 +1,10 @@
 import { bots, tasks } from "@open-bot/db";
 import type { Creator, TaskStatus } from "@open-bot/domain";
 import { and, asc, desc, eq, isNull, max, ne } from "drizzle-orm";
-import { publishApp, type Context } from "../context";
-import { mainChat } from "./chats";
-import { enqueueRun } from "../runs/queue";
-import { WorkerError } from "../core/errors";
+import { publishApp, type Context } from "../../context";
+import { WorkerError } from "../../core/errors";
+import { enqueueRun } from "../../runs/queue";
+import { mainChat } from "../../services/chats";
 
 export class TaskError extends WorkerError {
   constructor(message: string) {

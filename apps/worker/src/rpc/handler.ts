@@ -4,7 +4,8 @@ import { OpenAPIHandler } from "@orpc/openapi/node";
 import { BodyLimitPlugin } from "@orpc/server/node";
 import type { Context } from "../context";
 import { maskedError, toRpcError } from "./errors";
-import type { RpcContext, WorkerRouter } from "./router";
+import type { RpcContext } from "../core/rpc";
+import type { WorkerRouter } from "./router";
 
 /** The largest JSON body: a file of up to 40 MB, written as base64. */
 export const MAX_BODY_BYTES = 60 * 1024 * 1024;

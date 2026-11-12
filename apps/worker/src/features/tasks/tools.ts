@@ -1,17 +1,23 @@
 // Task tools: the team's board.
 import { TASK_STATUSES } from "@open-bot/domain";
 import { z } from "zod";
-import type { RunSession } from "../runs/session";
-import { activeTeammates } from "../services/bots";
-import { TaskError } from "../services/tasks";
+import type { Context } from "../../context";
 import {
   defineTool,
   text,
-  type AnyTool,
-  type ToolDeps,
-  type ToolResponse,
   toolItem,
-} from "./define";
+  type ToolDefinition,
+  type ToolResponse,
+} from "../../core/tool";
+import type { RunSession } from "../../runs/session";
+import { activeTeammates } from "../../services/bots";
+import { TaskError, type TaskService } from "./service";
+
+/** What the task tools use. */
+interface TaskToolDeps {
+  ctx: Pick<Context, "db">;
+  tasks: TaskService;
+}
 
 const addTaskInput = z.object({
   title: z.string().min(1).max(200),
@@ -40,7 +46,7 @@ const updateTaskInput = z.object({
   due: z.string().describe("YYYY-MM-DD, or an empty string for no due date.").optional(),
 });
 
-export const TASK_TOOLS: AnyTool[] = [
+export const TASK_TOOLS: ToolDefinition<z.ZodObject, TaskToolDeps>[] = [
   defineTool({
     name: "list_tasks",
     description:
@@ -69,7 +75,7 @@ export const TASK_TOOLS: AnyTool[] = [
 
 /** A teammate by name ("me" is the caller), or null for nobody; undefined when left out. */
 async function ownerFrom(
-  deps: ToolDeps,
+  deps: TaskToolDeps,
   session: RunSession,
   value: string | undefined,
 ): Promise<{ id: string | null; name: string | null } | undefined> {
@@ -87,7 +93,7 @@ async function ownerFrom(
 }
 
 async function addTask(
-  deps: ToolDeps,
+  deps: TaskToolDeps,
   session: RunSession,
   callId: string,
   args: z.output<typeof addTaskInput>,
@@ -126,7 +132,7 @@ async function addTask(
 }
 
 async function updateTask(
-  deps: ToolDeps,
+  deps: TaskToolDeps,
   session: RunSession,
   callId: string,
   args: z.output<typeof updateTaskInput>,

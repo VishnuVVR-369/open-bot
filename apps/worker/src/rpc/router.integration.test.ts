@@ -55,7 +55,7 @@ import { SessionRegistry } from "../services/registry";
 import { RetryService } from "../services/retries";
 import { ScheduleService } from "../services/schedules";
 import { SkillService } from "../services/skills";
-import { TaskService } from "../services/tasks";
+import { TaskService } from "../features/tasks";
 import { TriggerService } from "../services/triggers";
 import { MemoryService } from "@open-bot/memory";
 
