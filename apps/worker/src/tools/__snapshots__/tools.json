@@ -450,6 +450,7 @@
           "type": "string"
         },
         "id": {
+          "format": "uuid",
           "type": "string"
         }
       },
@@ -906,6 +907,7 @@
           "type": "integer"
         },
         "id": {
+          "format": "uuid",
           "type": "string"
         }
       },
@@ -2001,6 +2003,7 @@
         },
         "reply_to": {
           "description": "The email id you're answering, if any.",
+          "format": "uuid",
           "type": "string"
         },
         "subject": {
@@ -2011,6 +2014,7 @@
         "to": {
           "items": {
             "description": "An email address.",
+            "format": "email",
             "type": "string"
           },
           "maxItems": 10,
@@ -2197,6 +2201,7 @@
           "type": "string"
         },
         "id": {
+          "format": "uuid",
           "type": "string"
         },
         "interval_minutes": {
@@ -2332,6 +2337,7 @@
           "type": "integer"
         },
         "id": {
+          "format": "uuid",
           "type": "string"
         }
       },

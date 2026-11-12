@@ -4,7 +4,7 @@ import type { v2 } from "@open-bot/agent";
 import { ACCOUNT_TOOL_SPECS } from "@open-bot/integrations/adapters";
 import { AUTOMATION_TOOLS } from "./automations";
 import { CHAT_TOOLS } from "./chat";
-import { toolSpec, type ToolDefinition } from "./define";
+import { toolSpec, type AnyTool } from "./define";
 import { DESKTOP_TOOLS } from "./desktop";
 import { EMAIL_TOOLS } from "./email";
 import { MEMORY_TOOLS } from "./memory";
@@ -20,9 +20,9 @@ import { VAULT_TOOLS } from "./vault";
  * Bump when the tool set or the developer instructions change.
  * Codex threads keep the tools they started with, so a new version starts fresh threads.
  */
-export const TOOLS_VERSION = 20;
+export const TOOLS_VERSION = 21;
 
-export const TOOLS: readonly ToolDefinition[] = [
+export const TOOLS: readonly AnyTool[] = [
   ...DESKTOP_TOOLS,
   ...TEAMMATE_TOOLS,
   ...CHAT_TOOLS,
@@ -37,14 +37,14 @@ export const TOOLS: readonly ToolDefinition[] = [
   ...TEAMWORK_TOOLS,
 ];
 
-const BY_NAME = new Map<string, ToolDefinition>();
+const BY_NAME = new Map<string, AnyTool>();
 for (const tool of TOOLS) {
   if (BY_NAME.has(tool.name)) throw new Error(`Two tools are named ${tool.name}.`);
   BY_NAME.set(tool.name, tool);
 }
 
 /** The tool Codex called, by name. */
-export function toolNamed(name: string): ToolDefinition | undefined {
+export function toolNamed(name: string): AnyTool | undefined {
   return BY_NAME.get(name);
 }
 

@@ -7,7 +7,7 @@ import { createNotification } from "../services/notifications";
 import {
   defineTool,
   text,
-  type ToolDefinition,
+  type AnyTool,
   type ToolDeps,
   toolItem,
   type ToolResponse,
@@ -29,7 +29,7 @@ const pointY = z
   .max(SCREEN.height - 1)
   .describe("Pixels from the top edge.");
 
-export const DESKTOP_TOOLS: ToolDefinition[] = [
+export const DESKTOP_TOOLS: AnyTool[] = [
   defineTool({
     name: "desktop_screenshot",
     description: `Look at your screen (${SCREEN.width}x${SCREEN.height}). ${SCREENSHOT_NOTE}`,
@@ -140,7 +140,8 @@ export const DESKTOP_TOOLS: ToolDefinition[] = [
         .optional(),
     }),
     helpers: "allowed",
-    handle: ({ session, callId, args }, deps) => readPage(deps, session, callId, args),
+    handle: ({ session, callId, args, raw }, deps) =>
+      readPage(deps, session, callId, args.selector, raw),
   }),
 ];
 
@@ -158,10 +159,10 @@ async function desktop(
   deps: ToolDeps,
   session: RunSession,
   callId: string,
-  raw: Record<string, unknown>,
+  candidate: Record<string, unknown>,
 ): Promise<ToolResponse> {
   const startedAt = session.now();
-  const parsed = computerActionSchema.safeParse(raw);
+  const parsed = computerActionSchema.safeParse(candidate);
   if (!parsed.success) {
     return text(
       `Invalid arguments: ${parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ")}`,
@@ -241,12 +242,12 @@ async function readPage(
   deps: ToolDeps,
   session: RunSession,
   callId: string,
-  args: Record<string, unknown>,
+  rawSelector: string | undefined,
+  raw: Record<string, unknown>,
 ): Promise<ToolResponse> {
-  const selector =
-    typeof args.selector === "string" && args.selector.trim() ? args.selector.trim() : undefined;
+  const selector = rawSelector?.trim() || undefined;
   const startedAt = session.now();
-  const item = toolItem(callId, "browser_read_page", "Read the page", args, startedAt);
+  const item = toolItem(callId, "browser_read_page", "Read the page", raw, startedAt);
   session.putItem(item);
   const result = await deps.ctx.computer.read(session.identity, selector);
   if (!result.ok) {

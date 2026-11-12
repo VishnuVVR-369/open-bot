@@ -9,7 +9,7 @@ import { BotError } from "../services/bots";
 import { PageError } from "../services/pages";
 import { BotTools } from "./bots";
 import { toolNamed, toolsFor, TOOLS_VERSION } from "./definitions";
-import { text, type ToolDeps, type ToolResponse, type ToolServices } from "./define";
+import { parseArgs, text, type ToolDeps, type ToolResponse, type ToolServices } from "./define";
 
 export class ToolHandlers implements SessionTools {
   /** Threads keep the tools they started with; a thread from another version starts afresh. */
@@ -54,7 +54,10 @@ export class ToolHandlers implements SessionTools {
           "Helpers can't do that. Finish your part, and say in your result what's needed.",
           false,
         );
-      return await tool.handle({ session, callId: params.callId, args }, this.deps);
+      return await tool.handle(
+        { session, callId: params.callId, args: parseArgs(tool, args), raw: args },
+        this.deps,
+      );
     } catch (error) {
       // Problems the bot can fix itself, said plainly.
       if (error instanceof BotError || error instanceof PageError)

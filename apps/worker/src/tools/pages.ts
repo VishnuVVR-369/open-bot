@@ -6,64 +6,71 @@ import { PageError } from "../services/pages";
 import {
   defineTool,
   text,
-  type ToolDefinition,
+  type AnyTool,
   type ToolDeps,
   toolItem,
   type ToolResponse,
 } from "./define";
 
-export const PAGE_TOOLS: ToolDefinition[] = [
+const pagePathField = z
+  .string()
+  .trim()
+  .min(1, "path is required")
+  .max(1000)
+  .describe(
+    "The page's .html file: a path in your workspace like pages/kafka/index.html, or a full path under /home/bot.",
+  );
+
+const publishPageInput = z.object({
+  path: pagePathField,
+  title: z
+    .string()
+    .trim()
+    .min(1, "Give the page a title.")
+    .max(120)
+    .describe("What the page is, in a few words, like 'How Kafka's tiered storage works'."),
+  summary: z
+    .string()
+    .trim()
+    .min(1, "Give the page a summary.")
+    .max(400)
+    .describe("One or two sentences on what the reader gets from it, for the card."),
+  note: z
+    .string()
+    .max(1000)
+    .describe("For a new version: what changed, like 'Added the failure modes section'.")
+    .optional(),
+  page_id: z
+    .string()
+    .uuid("Use a page_id from list_pages.")
+    .describe("Publish as a new version of this page (from list_pages or the user's message).")
+    .optional(),
+});
+
+const getPageInput = z.object({
+  page_id: z.string().uuid("Use a page_id from list_pages."),
+  restore: z.boolean().default(false),
+});
+
+export const PAGE_TOOLS: AnyTool[] = [
   defineTool({
     name: "check_page",
     description:
       "Check a page before publishing it (see the page skill). Renders the file in a browser without network at a phone's width and a laptop's, and returns what's wrong (script errors, things it can't load, sideways scrolling on phones) with screenshots of both. Also gives a preview URL to open on your screen.",
     input: z.object({
-      path: z
-        .string()
-        .min(1)
-        .max(1000)
-        .describe(
-          "The page's .html file: a path in your workspace like pages/kafka/index.html, or a full path under /home/bot.",
-        ),
+      path: pagePathField,
     }),
     helpers: "allowed",
-    handle: ({ session, callId, args }, deps) => checkPage(deps, session, callId, args),
+    handle: ({ session, callId, args, raw }, deps) =>
+      checkPage(deps, session, callId, args.path, raw),
   }),
   defineTool({
     name: "publish_page",
     description:
       "Publish a page for the user: checks it, then stores it as a version they open in the app, and shows it in this chat as a card. Publishing the same file again, or giving page_id, adds a new version of the same page. Pages with errors aren't published; fix them and try again. Only the user can see a page, in their own app, so publishing one never needs approval.",
-    input: z.object({
-      path: z
-        .string()
-        .min(1)
-        .max(1000)
-        .describe(
-          "The page's .html file: a path in your workspace like pages/kafka/index.html, or a full path under /home/bot.",
-        ),
-      title: z
-        .string()
-        .min(1)
-        .max(120)
-        .describe("What the page is, in a few words, like 'How Kafka's tiered storage works'."),
-      summary: z
-        .string()
-        .min(1)
-        .max(400)
-        .describe("One or two sentences on what the reader gets from it, for the card."),
-      note: z
-        .string()
-        .max(1000)
-        .describe("For a new version: what changed, like 'Added the failure modes section'.")
-        .optional(),
-      page_id: z
-        .string()
-        .uuid()
-        .describe("Publish as a new version of this page (from list_pages or the user's message).")
-        .optional(),
-    }),
+    input: publishPageInput,
     helpers: "forbidden",
-    handle: ({ session, callId, args }, deps) => publishPage(deps, session, callId, args),
+    handle: ({ session, callId, args, raw }, deps) => publishPage(deps, session, callId, args, raw),
   }),
   defineTool({
     name: "list_pages",
@@ -77,26 +84,14 @@ export const PAGE_TOOLS: ToolDefinition[] = [
     name: "get_page",
     description:
       "Read a page's versions and its text. With restore, also put its current version in your workspace to change it (needed when its file is gone or it's another teammate's page).",
-    input: z.object({
-      page_id: z.string().uuid(),
-      restore: z.boolean().default(false),
-    }),
+    input: getPageInput,
     helpers: "allowed",
     handle: ({ session, args }, deps) => getPage(deps, session, args),
   }),
 ];
 
-const publishPageArgs = z.object({
-  path: z.string(),
-  title: z.string().trim().min(1, "Give the page a title.").max(120),
-  summary: z.string().trim().min(1, "Give the page a summary.").max(400),
-  note: z.string().max(1000).optional(),
-  page_id: z.string().uuid("Use a page_id from list_pages.").optional(),
-});
-
 /** A page's file as a full path: paths without a leading slash are in the teammate's workspace. */
-function pagePath(session: RunSession, raw: unknown): string {
-  const path = z.string().trim().min(1, "path is required").max(1000).parse(raw);
+function pagePath(session: RunSession, path: string): string {
   return path.startsWith("/")
     ? path
     : `${COMPUTER_PATHS.workspace(session.bot.slug)}/${path.replace(/^\.\//, "")}`;
@@ -123,10 +118,11 @@ async function checkPage(
   deps: ToolDeps,
   session: RunSession,
   callId: string,
-  args: Record<string, unknown>,
+  pathArg: string,
+  raw: Record<string, unknown>,
 ): Promise<ToolResponse> {
-  const path = pagePath(session, args.path);
-  const item = toolItem(callId, "check_page", "Checked the page", args, session.now());
+  const path = pagePath(session, pathArg);
+  const item = toolItem(callId, "check_page", "Checked the page", raw, session.now());
   session.putItem(item);
   const check = await deps.ctx.computer.checkPage(path);
   if (!check.ok) {
@@ -164,12 +160,12 @@ async function publishPage(
   deps: ToolDeps,
   session: RunSession,
   callId: string,
-  args: Record<string, unknown>,
+  parsed: z.output<typeof publishPageInput>,
+  raw: Record<string, unknown>,
 ): Promise<ToolResponse> {
-  const parsed = publishPageArgs.parse(args);
   const path = pagePath(session, parsed.path);
   const startedAt = session.now();
-  const item = toolItem(callId, "publish_page", `Publishing “${parsed.title}”`, args, startedAt);
+  const item = toolItem(callId, "publish_page", `Publishing “${parsed.title}”`, raw, startedAt);
   session.putItem(item);
   const fail = (message: string) => {
     session.putItem({ ...item, status: "failed", completedAt: session.now(), error: message });
@@ -221,11 +217,10 @@ async function publishPage(
 async function getPage(
   deps: ToolDeps,
   session: RunSession,
-  args: Record<string, unknown>,
+  { page_id: pageId, restore }: z.output<typeof getPageInput>,
 ): Promise<ToolResponse> {
-  const pageId = z.string().uuid("Use a page_id from list_pages.").parse(args.page_id);
   const details = await deps.pages.describeOne(pageId);
-  if (args.restore !== true) return text(details);
+  if (!restore) return text(details);
   const restored = await deps.pages.restore(pageId, session.bot);
   return text(`${restored}\n\n${details}`);
 }

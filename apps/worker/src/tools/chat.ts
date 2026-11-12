@@ -8,33 +8,33 @@ import { createNotification } from "../services/notifications";
 import {
   defineTool,
   text,
-  type ToolDefinition,
+  type AnyTool,
   type ToolDeps,
   toolItem,
   type ToolResponse,
 } from "./define";
 
-export const CHAT_TOOLS: ToolDefinition[] = [
+export const CHAT_TOOLS: AnyTool[] = [
   defineTool({
     name: "set_chat_title",
     description:
       "Name this chat after what it's about, once you know: 2 to 6 words, like 'Fix the login redirect' or 'Lisbon trip ideas'. Only for a direct chat that has no title yet; the user's own title is never replaced. No quotes, emoji or trailing period.",
     input: z.object({
-      title: z.string().min(1).max(60),
+      title: z.string().min(1, "title is required").max(60),
     }),
     helpers: "allowed",
-    handle: ({ session, args }, deps) => setChatTitle(deps, session, args),
+    handle: ({ session, args }, deps) => setChatTitle(deps, session, args.title),
   }),
   defineTool({
     name: "notify_user",
     description:
       "Send the user a notification (desktop notification and the app's inbox). Use it for results they asked to hear about, or when you're blocked. Keep it short.",
     input: z.object({
-      title: z.string().min(1).max(80),
-      message: z.string().min(1).max(500),
+      title: z.string().min(1, "title is required").max(80),
+      message: z.string().min(1, "message is required").max(500),
     }),
     helpers: "forbidden",
-    handle: ({ session, callId, args }, deps) => notifyUser(deps, session, callId, args),
+    handle: ({ session, callId, args, raw }, deps) => notifyUser(deps, session, callId, args, raw),
   }),
   defineTool({
     name: "request_approval",
@@ -43,11 +43,13 @@ export const CHAT_TOOLS: ToolDefinition[] = [
     input: z.object({
       action: z
         .string()
-        .min(1)
+        .trim()
+        .min(1, "action is required")
         .max(120)
         .describe("What you want to do, as a short imperative, e.g. 'Send the reply to Dana'."),
       details: z
         .string()
+        .trim()
         .max(4000)
         .describe("Exactly what will happen, including the full text you'll send."),
     }),
@@ -61,12 +63,14 @@ export const CHAT_TOOLS: ToolDefinition[] = [
     input: z.object({
       reason: z
         .string()
-        .min(1)
+        .trim()
+        .min(1, "reason is required")
         .max(300)
         .describe("What you need them to do, e.g. 'Sign in to GitHub (the 2FA prompt is open)'."),
     }),
     helpers: "forbidden",
-    handle: ({ session, callId, args }, deps) => requestTakeover(deps, session, callId, args),
+    handle: ({ session, callId, args }, deps) =>
+      requestTakeover(deps, session, callId, args.reason),
   }),
 ];
 
@@ -77,11 +81,11 @@ export const CHAT_TOOLS: ToolDefinition[] = [
 async function setChatTitle(
   deps: ToolDeps,
   session: RunSession,
-  args: Record<string, unknown>,
+  rawTitle: string,
 ): Promise<ToolResponse> {
   if (session.chat.kind !== "direct")
     return text("Only a direct chat can be titled this way; this one keeps its name.", false);
-  const title = chatTitleText(String(args.title ?? ""));
+  const title = chatTitleText(rawTitle);
   if (!title) return text("title is required", false);
   if (!(await titleChat(deps.ctx.db, session.chat.id, title)))
     return text("This chat already has a title, so it stays as it is.");
@@ -93,12 +97,10 @@ async function notifyUser(
   deps: ToolDeps,
   session: RunSession,
   callId: string,
-  args: Record<string, unknown>,
+  { title, message }: { title: string; message: string },
+  raw: Record<string, unknown>,
 ): Promise<ToolResponse> {
-  const title = String(args.title ?? "").slice(0, 80);
-  const message = String(args.message ?? "").slice(0, 500);
-  if (!title || !message) return text("title and message are required", false);
-  const item = toolItem(callId, "notify_user", `Notified you: ${title}`, args, session.now());
+  const item = toolItem(callId, "notify_user", `Notified you: ${title}`, raw, session.now());
   await createNotification(deps.ctx, {
     kind: "bot_message",
     title: `${session.bot.name}: ${title}`,
@@ -115,11 +117,8 @@ async function requestApproval(
   deps: ToolDeps,
   session: RunSession,
   callId: string,
-  args: Record<string, unknown>,
+  { action, details }: { action: string; details: string },
 ): Promise<ToolResponse> {
-  const action = String(args.action ?? "").trim();
-  const details = String(args.details ?? "").trim();
-  if (!action) return text("action is required", false);
   const decision = await deps.approvals.requestAction(session, {
     title: action,
     detail: details,
@@ -143,10 +142,8 @@ async function requestTakeover(
   deps: ToolDeps,
   session: RunSession,
   callId: string,
-  args: Record<string, unknown>,
+  reason: string,
 ): Promise<ToolResponse> {
-  const reason = String(args.reason ?? "").trim();
-  if (!reason) return text("reason is required", false);
   const result = await deps.takeovers.requestFromBot(session, { reason, itemId: callId });
   if (result.status === "handed_back") {
     return text(

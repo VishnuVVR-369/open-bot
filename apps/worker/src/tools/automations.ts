@@ -17,69 +17,121 @@ import { optionalTarget } from "./teammates";
 import {
   defineTool,
   text,
-  type ToolDefinition,
+  type AnyTool,
   type ToolDeps,
   type ToolResponse,
   toolItem,
 } from "./define";
 
-export const AUTOMATION_TOOLS: ToolDefinition[] = [
+const scheduleTaskInput = z.object({
+  title: z.string().min(1).max(80),
+  bot_id: optionalTarget,
+  prompt: z.string().min(1).max(4000).describe("The instruction you'll receive when it runs."),
+  cron: z
+    .string()
+    .describe("Recurring: a 5-field cron expression, e.g. '0 8 * * 1-5' for weekdays at 8:00.")
+    .optional(),
+  at: z
+    .string()
+    .describe("One time: an ISO 8601 date-time, e.g. '2026-10-14T09:00:00'.")
+    .optional(),
+  timezone: z
+    .string()
+    .describe("IANA timezone, e.g. 'Europe/Berlin'. Defaults to the user's timezone.")
+    .optional(),
+  quiet: z
+    .boolean()
+    .describe(
+      "For checks that often find nothing (a daily look for renewals, a weekly inbox sweep): runs with nothing worth telling end with 'Nothing to report.' and don't notify the user.",
+    )
+    .default(false),
+});
+
+const watchPageInput = z.object({
+  bot_id: optionalTarget,
+  title: z.string().min(1).max(80),
+  url: z.string().describe("The page's absolute http or https URL."),
+  prompt: z
+    .string()
+    .min(1)
+    .max(4000)
+    .describe("What you should do when it changes. You'll get this with the lines that changed."),
+  every_minutes: z.number().int().min(5).max(10080).describe("How often to check.").default(60),
+  look_for: z
+    .string()
+    .max(200)
+    .describe(
+      "Optional text to wait for, e.g. 'In stock'. Then it fires only when the text appears, not on every change.",
+    )
+    .optional(),
+});
+
+const createWebhookInput = z.object({
+  bot_id: optionalTarget,
+  title: z.string().min(1).max(80),
+  prompt: z.string().min(1).max(4000).describe("What you should do with each request."),
+});
+
+const updateAutomationInput = z.object({
+  bot_id: optionalTarget,
+  id: z.string().uuid("No automation with that id."),
+  enabled: z.boolean().describe("false pauses it, true resumes it.").optional(),
+  title: z.string().min(1).max(80).optional(),
+  prompt: z.string().min(1).max(4000).optional(),
+  cron: z.string().describe("Schedules: a new 5-field cron expression.").optional(),
+  at: z.string().describe("Reminders: a new ISO 8601 date-time.").optional(),
+  timezone: z.string().describe("Schedules: a new IANA timezone.").optional(),
+  url: z.string().describe("Page watches: a new page to watch.").optional(),
+  interval_minutes: z
+    .number()
+    .int()
+    .min(5)
+    .max(10080)
+    .describe("Page watches: how often to check.")
+    .optional(),
+  look_for: z
+    .string()
+    .max(200)
+    .describe("Page watches: the text to wait for, or an empty string for any change.")
+    .optional(),
+  query: z
+    .string()
+    .max(500)
+    .describe("Gmail triggers: a new search, or an empty string for all new mail.")
+    .optional(),
+  lead_minutes: z
+    .number()
+    .int()
+    .min(0)
+    .max(10080)
+    .describe("Calendar triggers: how many minutes before each event.")
+    .optional(),
+  events: calendarEventFilterSchema
+    .describe("Calendar triggers: every event, or only ones with other people.")
+    .optional(),
+  quiet: z
+    .boolean()
+    .describe("Schedules: only tell the user when there's something worth their attention.")
+    .optional(),
+});
+
+export const AUTOMATION_TOOLS: AnyTool[] = [
   defineTool({
     name: "schedule_task",
     description:
       "Schedule work for yourself or a specified teammate: a recurring routine (cron) or a one-time reminder (at). Each run starts in that teammate's Scheduled chat with the prompt you give here, so write the prompt so it makes sense on its own.",
-    input: z.object({
-      title: z.string().min(1).max(80),
-      bot_id: optionalTarget,
-      prompt: z.string().min(1).max(4000).describe("The instruction you'll receive when it runs."),
-      cron: z
-        .string()
-        .describe("Recurring: a 5-field cron expression, e.g. '0 8 * * 1-5' for weekdays at 8:00.")
-        .optional(),
-      at: z
-        .string()
-        .describe("One time: an ISO 8601 date-time, e.g. '2026-10-14T09:00:00'.")
-        .optional(),
-      timezone: z
-        .string()
-        .describe("IANA timezone, e.g. 'Europe/Berlin'. Defaults to the user's timezone.")
-        .optional(),
-      quiet: z
-        .boolean()
-        .describe(
-          "For checks that often find nothing (a daily look for renewals, a weekly inbox sweep): runs with nothing worth telling end with 'Nothing to report.' and don't notify the user.",
-        )
-        .default(false),
-    }),
+    input: scheduleTaskInput,
     helpers: "forbidden",
-    handle: ({ session, callId, args }, deps) => scheduleTask(deps, session, callId, args),
+    handle: ({ session, callId, args, raw }, deps) =>
+      scheduleTask(deps, session, callId, args, raw),
   }),
   defineTool({
     name: "watch_page",
     description:
       "Watch a web page for yourself or a specified teammate (bot_id). Changes start a run in that teammate's Scheduled chat, for example for prices, stock, job boards or status pages. Checks run without a browser session and only see what a signed-out visitor sees. The first check just learns the page.",
-    input: z.object({
-      bot_id: optionalTarget,
-      title: z.string().min(1).max(80),
-      url: z.string().describe("The page's absolute http or https URL."),
-      prompt: z
-        .string()
-        .min(1)
-        .max(4000)
-        .describe(
-          "What you should do when it changes. You'll get this with the lines that changed.",
-        ),
-      every_minutes: z.number().int().min(5).max(10080).describe("How often to check.").default(60),
-      look_for: z
-        .string()
-        .max(200)
-        .describe(
-          "Optional text to wait for, e.g. 'In stock'. Then it fires only when the text appears, not on every change.",
-        )
-        .optional(),
-    }),
+    input: watchPageInput,
     helpers: "forbidden",
-    handle: ({ session, callId, args }, deps) => watchPage(deps, session, callId, args),
+    handle: ({ session, callId, args, raw }, deps) => watchPage(deps, session, callId, args, raw),
   }),
   defineTool({
     name: "watch_gmail",
@@ -103,8 +155,8 @@ export const AUTOMATION_TOOLS: ToolDefinition[] = [
       account: z.string().describe("With several Gmail accounts: the address to watch.").optional(),
     }),
     helpers: "forbidden",
-    handle: ({ session, callId, args }, deps) =>
-      watchAccount(deps, session, callId, "watch_gmail", args),
+    handle: ({ session, callId, args, raw }, deps) =>
+      watchAccount(deps, session, callId, "watch_gmail", args, raw),
   }),
   defineTool({
     name: "watch_calendar",
@@ -134,20 +186,17 @@ export const AUTOMATION_TOOLS: ToolDefinition[] = [
         .optional(),
     }),
     helpers: "forbidden",
-    handle: ({ session, callId, args }, deps) =>
-      watchAccount(deps, session, callId, "watch_calendar", args),
+    handle: ({ session, callId, args, raw }, deps) =>
+      watchAccount(deps, session, callId, "watch_calendar", args, raw),
   }),
   defineTool({
     name: "create_webhook",
     description:
       "Create a webhook URL for yourself or a specified teammate (bot_id). Calls start a run in that teammate's Scheduled chat with the request it received. Use it to connect services that send webhooks (GitHub, Stripe, Zapier, a form, a script). Returns the URL to give to that service.",
-    input: z.object({
-      bot_id: optionalTarget,
-      title: z.string().min(1).max(80),
-      prompt: z.string().min(1).max(4000).describe("What you should do with each request."),
-    }),
+    input: createWebhookInput,
     helpers: "forbidden",
-    handle: ({ session, callId, args }, deps) => createWebhook(deps, session, callId, args),
+    handle: ({ session, callId, args, raw }, deps) =>
+      createWebhook(deps, session, callId, args, raw),
   }),
   defineTool({
     name: "list_automations",
@@ -165,110 +214,41 @@ export const AUTOMATION_TOOLS: ToolDefinition[] = [
     description:
       "Delete a schedule, reminder, page watch, webhook, or Gmail or Calendar trigger by id, from yourself or the teammate specified by bot_id. The automation must belong to that teammate.",
     input: z.object({
-      id: z.string(),
+      id: z.string().uuid("No automation with that id."),
       bot_id: optionalTarget,
     }),
     helpers: "forbidden",
-    handle: ({ session, callId, args }, deps) => cancelAutomation(deps, session, callId, args),
+    handle: ({ session, callId, args, raw }, deps) =>
+      cancelAutomation(deps, session, callId, args, raw),
   }),
   defineTool({
     name: "update_automation",
     description:
       "Change a schedule, reminder, page watch, webhook, or Gmail or Calendar trigger by id (see list_automations), yours or the teammate's given by bot_id: pause or resume it, rename it, or change its instructions, timing, page, the text it waits for, its Gmail search, or which events and how early. Leave out what stays the same.",
-    input: z.object({
-      bot_id: optionalTarget,
-      id: z.string(),
-      enabled: z.boolean().describe("false pauses it, true resumes it.").optional(),
-      title: z.string().min(1).max(80).optional(),
-      prompt: z.string().min(1).max(4000).optional(),
-      cron: z.string().describe("Schedules: a new 5-field cron expression.").optional(),
-      at: z.string().describe("Reminders: a new ISO 8601 date-time.").optional(),
-      timezone: z.string().describe("Schedules: a new IANA timezone.").optional(),
-      url: z.string().describe("Page watches: a new page to watch.").optional(),
-      interval_minutes: z
-        .number()
-        .int()
-        .min(5)
-        .max(10080)
-        .describe("Page watches: how often to check.")
-        .optional(),
-      look_for: z
-        .string()
-        .max(200)
-        .describe("Page watches: the text to wait for, or an empty string for any change.")
-        .optional(),
-      query: z
-        .string()
-        .max(500)
-        .describe("Gmail triggers: a new search, or an empty string for all new mail.")
-        .optional(),
-      lead_minutes: z
-        .number()
-        .int()
-        .min(0)
-        .max(10080)
-        .describe("Calendar triggers: how many minutes before each event.")
-        .optional(),
-      events: calendarEventFilterSchema
-        .describe("Calendar triggers: every event, or only ones with other people.")
-        .optional(),
-      quiet: z
-        .boolean()
-        .describe("Schedules: only tell the user when there's something worth their attention.")
-        .optional(),
-    }),
+    input: updateAutomationInput,
     helpers: "forbidden",
-    handle: ({ session, callId, args }, deps) => updateAutomation(deps, session, callId, args),
+    handle: ({ session, callId, args, raw }, deps) =>
+      updateAutomation(deps, session, callId, args, raw),
   }),
 ];
-
-const scheduleArgs = z.object({
-  bot_id: z.string().uuid().optional(),
-  title: z.string().min(1).max(80),
-  prompt: z.string().min(1).max(4000),
-  cron: z.string().optional(),
-  at: z.string().optional(),
-  timezone: z.string().optional(),
-  quiet: z.boolean().optional(),
-});
-
-const updateArgs = z.object({
-  bot_id: z.string().uuid().optional(),
-  id: z.string().uuid("No automation with that id."),
-  enabled: z.boolean().optional(),
-  title: z.string().min(1).max(80).optional(),
-  prompt: z.string().min(1).max(4000).optional(),
-  cron: z.string().optional(),
-  at: z.string().optional(),
-  timezone: z.string().optional(),
-  url: z.string().optional(),
-  interval_minutes: z.number().int().optional(),
-  look_for: z.string().max(200).optional(),
-  query: z.string().max(500).optional(),
-  lead_minutes: z.number().int().optional(),
-  events: calendarEventFilterSchema.optional(),
-  quiet: z.boolean().optional(),
-});
 
 async function scheduleTask(
   deps: ToolDeps,
   session: RunSession,
   callId: string,
-  args: Record<string, unknown>,
+  args: z.output<typeof scheduleTaskInput>,
+  raw: Record<string, unknown>,
 ): Promise<ToolResponse> {
-  const parsed = scheduleArgs.safeParse(args);
-  if (!parsed.success)
-    return text(parsed.error.issues.map((issue) => issue.message).join("; "), false);
   const startedAt = session.now();
   const target = await deps.botTools.setupTarget(session, callId, "schedule_task", args);
   const schedule = await deps.schedules.create({
     botId: target.id,
-    title: parsed.data.title,
-    prompt: parsed.data.prompt,
-    cron: parsed.data.cron ?? null,
-    at: parsed.data.at ?? null,
-    timezone: parsed.data.timezone ?? null,
-    quiet: parsed.data.quiet ?? false,
+    title: args.title,
+    prompt: args.prompt,
+    cron: args.cron ?? null,
+    at: args.at ?? null,
+    timezone: args.timezone ?? null,
+    quiet: args.quiet,
     createdBy: "bot",
     createdByRunId: session.run.id,
   });
@@ -280,7 +260,7 @@ async function scheduleTask(
       target.id === session.bot.id
         ? `Scheduled “${schedule.title}”`
         : `Scheduled “${schedule.title}” for ${target.name}`,
-      args,
+      raw,
       startedAt,
     ),
     status: "completed",
@@ -299,7 +279,8 @@ async function watchPage(
   deps: ToolDeps,
   session: RunSession,
   callId: string,
-  args: Record<string, unknown>,
+  args: z.output<typeof watchPageInput>,
+  raw: Record<string, unknown>,
 ): Promise<ToolResponse> {
   const startedAt = session.now();
   const target = await deps.botTools.setupTarget(session, callId, "watch_page", args);
@@ -309,11 +290,11 @@ async function watchPage(
       {
         botId: target.id,
         kind: "watch",
-        title: String(args.title ?? ""),
-        prompt: String(args.prompt ?? ""),
-        url: String(args.url ?? ""),
-        intervalMinutes: typeof args.every_minutes === "number" ? args.every_minutes : 60,
-        lookFor: typeof args.look_for === "string" ? args.look_for : null,
+        title: args.title,
+        prompt: args.prompt,
+        url: args.url,
+        intervalMinutes: args.every_minutes,
+        lookFor: args.look_for ?? null,
       },
       { kind: "bot", runId: session.run.id },
     );
@@ -323,7 +304,7 @@ async function watchPage(
   }
   const every = describeInterval(watch.intervalMinutes ?? 60).toLowerCase();
   session.putItem({
-    ...toolItem(callId, "watch_page", `Watching “${watch.title}”`, args, startedAt),
+    ...toolItem(callId, "watch_page", `Watching “${watch.title}”`, raw, startedAt),
     status: "completed",
     completedAt: session.now(),
     result: `${watch.url}, ${every}${watch.lookFor ? `, waiting for “${watch.lookFor}”` : ""}`,
@@ -333,13 +314,25 @@ async function watchPage(
   );
 }
 
+/** What watch_gmail and watch_calendar take between them; each leaves out the other's fields. */
+type WatchAccountArgs = {
+  bot_id?: string | undefined;
+  title: string;
+  prompt: string;
+  account?: string | undefined;
+  query?: string | undefined;
+  events?: z.output<typeof calendarEventFilterSchema> | undefined;
+  lead_minutes?: number | undefined;
+};
+
 /** watch_gmail and watch_calendar: wake a teammate from the user's own mail or calendar. */
 async function watchAccount(
   deps: ToolDeps,
   session: RunSession,
   callId: string,
   tool: "watch_gmail" | "watch_calendar",
-  args: Record<string, unknown>,
+  args: WatchAccountArgs,
+  raw: Record<string, unknown>,
 ): Promise<ToolResponse> {
   const startedAt = session.now();
   const kind = tool === "watch_gmail" ? "gmail" : "calendar";
@@ -350,30 +343,18 @@ async function watchAccount(
     const connection = await deps.accounts.connectionFor(
       target.id,
       TRIGGER_CONNECTION_KIND[kind],
-      typeof args.account === "string" ? args.account : undefined,
+      args.account,
     );
     display = connection.display;
     row = await deps.triggers.create(
       {
         botId: target.id,
         kind,
-        title: String(args.title ?? ""),
-        prompt: String(args.prompt ?? ""),
+        title: args.title,
+        prompt: args.prompt,
         connectionId: connection.connectionId,
-        query:
-          kind === "gmail"
-            ? typeof args.query === "string"
-              ? args.query
-              : null
-            : typeof args.events === "string"
-              ? args.events
-              : "all",
-        leadMinutes:
-          kind === "calendar"
-            ? typeof args.lead_minutes === "number"
-              ? args.lead_minutes
-              : 30
-            : null,
+        query: kind === "gmail" ? (args.query ?? null) : (args.events ?? "all"),
+        leadMinutes: kind === "calendar" ? (args.lead_minutes ?? 30) : null,
       },
       { kind: "bot", runId: session.run.id },
     );
@@ -396,7 +377,7 @@ async function watchAccount(
       callId,
       tool,
       kind === "gmail" ? `Watching Gmail: “${row.title}”` : `Watching the calendar: “${row.title}”`,
-      args,
+      raw,
       startedAt,
     ),
     status: "completed",
@@ -413,15 +394,16 @@ async function createWebhook(
   deps: ToolDeps,
   session: RunSession,
   callId: string,
-  args: Record<string, unknown>,
+  args: z.output<typeof createWebhookInput>,
+  raw: Record<string, unknown>,
 ): Promise<ToolResponse> {
   const startedAt = session.now();
   const target = await deps.botTools.setupTarget(session, callId, "create_webhook", args);
   // A webhook is a way in from outside; a run that read your accounts asks before opening one.
   if (session.run.readOutsideData) {
     const decision = await deps.approvals.requestAction(session, {
-      title: `Create the webhook “${String(args.title ?? "")}”`,
-      detail: `${session.bot.name} read mail, events or pages from your accounts in this task, so it asks before creating a webhook.\n\n${String(args.prompt ?? "")}`,
+      title: `Create the webhook “${args.title}”`,
+      detail: `${session.bot.name} read mail, events or pages from your accounts in this task, so it asks before creating a webhook.\n\n${args.prompt}`,
       itemId: `${callId}-approval`,
       askEveryTime: true,
       operation: { tool: "create_webhook", arguments: args },
@@ -440,8 +422,8 @@ async function createWebhook(
       {
         botId: target.id,
         kind: "webhook",
-        title: String(args.title ?? ""),
-        prompt: String(args.prompt ?? ""),
+        title: args.title,
+        prompt: args.prompt,
       },
       { kind: "bot", runId: session.run.id },
     );
@@ -451,7 +433,7 @@ async function createWebhook(
   }
   const url = deps.triggers.webhookUrl(hook.token!);
   session.putItem({
-    ...toolItem(callId, "create_webhook", `Created the webhook “${hook.title}”`, args, startedAt),
+    ...toolItem(callId, "create_webhook", `Created the webhook “${hook.title}”`, raw, startedAt),
     status: "completed",
     completedAt: session.now(),
     result: url,
@@ -475,10 +457,10 @@ async function cancelAutomation(
   deps: ToolDeps,
   session: RunSession,
   callId: string,
-  args: Record<string, unknown>,
+  args: { id: string; bot_id?: string | undefined },
+  raw: Record<string, unknown>,
 ): Promise<ToolResponse> {
-  const id = String(args.id ?? "");
-  if (!/^[0-9a-f-]{36}$/i.test(id)) return text(`No automation with id ${id}.`, false);
+  const { id } = args;
   const botId = (await deps.botTools.setupTarget(session, callId, "cancel_automation", args)).id;
   const schedule = await deps.schedules.cancelForBot(botId, id);
   const trigger = schedule
@@ -488,7 +470,7 @@ async function cancelAutomation(
   const title = schedule?.title ?? trigger?.title;
   if (!title) return text(`No automation with id ${id}.`, false);
   session.putItem({
-    ...toolItem(callId, "cancel_automation", `Cancelled “${title}”`, args, session.now()),
+    ...toolItem(callId, "cancel_automation", `Cancelled “${title}”`, raw, session.now()),
     status: "completed",
     completedAt: session.now(),
   });
@@ -499,13 +481,10 @@ async function updateAutomation(
   deps: ToolDeps,
   session: RunSession,
   callId: string,
-  args: Record<string, unknown>,
+  change: z.output<typeof updateAutomationInput>,
+  raw: Record<string, unknown>,
 ): Promise<ToolResponse> {
-  const parsed = updateArgs.safeParse(args);
-  if (!parsed.success)
-    return text(parsed.error.issues.map((issue) => issue.message).join("; "), false);
-  const change = parsed.data;
-  const botId = (await deps.botTools.setupTarget(session, callId, "update_automation", args)).id;
+  const botId = (await deps.botTools.setupTarget(session, callId, "update_automation", change)).id;
   const startedAt = session.now();
   const [schedule] = await deps.ctx.db
     .select()
@@ -592,7 +571,7 @@ async function updateAutomation(
         : change.enabled === true
           ? `Resumed “${title}”`
           : `Updated “${title}”`,
-      args,
+      raw,
       startedAt,
     ),
     status: "completed",

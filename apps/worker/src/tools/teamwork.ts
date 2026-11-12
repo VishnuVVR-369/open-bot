@@ -9,40 +9,41 @@ import { mainChat } from "../services/chats";
 import {
   defineTool,
   text,
-  type ToolDefinition,
+  type AnyTool,
   type ToolDeps,
   type ToolResponse,
   toolItem,
 } from "./define";
 
-export const TEAMWORK_TOOLS: ToolDefinition[] = [
+const askTeammateInput = z.object({
+  bot: z.string().describe("The teammate's name."),
+  question: z
+    .string()
+    .trim()
+    .min(1, "Write the question first.")
+    .max(4000)
+    .describe("The question, with the context they need to answer it on their own."),
+});
+
+const handoffInput = z.object({
+  bot: z.string().describe("The teammate's name."),
+  message: z.string().min(1).max(4000).describe("What they should do, with any context they need."),
+});
+
+export const TEAMWORK_TOOLS: AnyTool[] = [
   defineTool({
     name: "ask_teammate",
     description:
       "Ask another teammate a question that their job covers, from any chat, without handing over the whole request. They answer in their own chat, and their answer comes back to you here as a new message, so end your turn after asking.",
-    input: z.object({
-      bot: z.string().describe("The teammate's name."),
-      question: z
-        .string()
-        .min(1)
-        .max(4000)
-        .describe("The question, with the context they need to answer it on their own."),
-    }),
+    input: askTeammateInput,
     helpers: "forbidden",
-    handle: ({ session, callId, args }, deps) => askTeammate(deps, session, callId, args),
+    handle: ({ session, callId, args, raw }, deps) => askTeammate(deps, session, callId, args, raw),
   }),
   defineTool({
     name: "handoff_to_bot",
     description:
       "In a group chat, hand a request to the teammate whose job covers it. They reply in the same chat. You can't hand a request back to a teammate that already handled it in this chain.",
-    input: z.object({
-      bot: z.string().describe("The teammate's name."),
-      message: z
-        .string()
-        .min(1)
-        .max(4000)
-        .describe("What they should do, with any context they need."),
-    }),
+    input: handoffInput,
     helpers: "forbidden",
     handle: ({ session, callId, args }, deps) => handoff(deps, session, callId, args),
   }),
@@ -75,13 +76,11 @@ async function askTeammate(
   deps: ToolDeps,
   session: RunSession,
   callId: string,
-  args: Record<string, unknown>,
+  args: z.output<typeof askTeammateInput>,
+  raw: Record<string, unknown>,
 ): Promise<ToolResponse> {
-  const name = String(args.bot ?? "")
-    .trim()
-    .toLowerCase();
-  const question = String(args.question ?? "").trim();
-  if (!question) return text("Write the question first.", false);
+  const name = args.bot.trim().toLowerCase();
+  const { question } = args;
   const team = await activeTeammates(deps.ctx.db);
   const target = team.find((bot) => bot.name.toLowerCase() === name);
   if (!target)
@@ -107,7 +106,7 @@ async function askTeammate(
     parentRunId: session.run.id,
   });
   session.putItem({
-    ...toolItem(callId, "ask_teammate", `Asked ${target.name}`, args, session.now()),
+    ...toolItem(callId, "ask_teammate", `Asked ${target.name}`, raw, session.now()),
     status: "completed",
     completedAt: session.now(),
     result: question,
@@ -121,13 +120,11 @@ async function handoff(
   deps: ToolDeps,
   session: RunSession,
   callId: string,
-  args: Record<string, unknown>,
+  args: z.output<typeof handoffInput>,
 ): Promise<ToolResponse> {
   if (session.chat.kind !== "group") return text("Handoffs only work in group chats.", false);
-  const name = String(args.bot ?? "")
-    .trim()
-    .toLowerCase();
-  const message = String(args.message ?? "").trim();
+  const name = args.bot.trim().toLowerCase();
+  const message = args.message.trim();
   const members = await activeTeammates(deps.ctx.db, { inChat: session.chat.id });
   const target = members.find((member) => member.name.toLowerCase() === name);
   if (!target) {

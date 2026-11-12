@@ -1,7 +1,10 @@
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { z } from "zod";
-import { inputJsonSchema } from "./define";
-import { TOOLS, toolsFor } from "./definitions";
+import type { RunSession } from "../runs/session";
+import { inputJsonSchema, parseArgs } from "./define";
+import { toolNamed, TOOLS, toolsFor } from "./definitions";
+import { ToolHandlers } from "./handlers";
+import type { ToolServices } from "./define";
 
 /** Sorted the same way however the tools are grouped in code: tools by name, keys, `required`. */
 function canonical(value: unknown, key?: string): unknown {
@@ -74,4 +77,38 @@ test("a tool input's JSON schema closes objects and keeps records open", () => {
   ) as { properties: Record<"headers" | "nested", { additionalProperties: unknown }> };
   expect(schema.properties.headers.additionalProperties).toEqual({ type: "string" });
   expect(schema.properties.nested.additionalProperties).toBe(false);
+});
+
+test("a top-level null counts as left out", () => {
+  const tool = toolNamed("browser_read_page")!;
+  expect(parseArgs(tool, { selector: null })).toEqual({});
+  expect(parseArgs(tool, { selector: "main" })).toEqual({ selector: "main" });
+});
+
+test("calls are parsed with the tool's input before the handler runs", async () => {
+  const requested = vi.fn(async () => ({ status: "dismissed" as const }));
+  const handlers = new ToolHandlers({
+    ctx: { log: { error: vi.fn() } },
+    takeovers: { requestFromBot: requested }, // vocabulary: allow
+  } as unknown as ToolServices);
+  const session = { isHelper: false, now: () => "now" } as unknown as RunSession;
+  const call = (args: Record<string, unknown>) =>
+    handlers.handle(session, {
+      tool: "request_takeover",
+      callId: "call-1",
+      arguments: args,
+    } as never);
+
+  const wrongType = await call({ reason: 5 });
+  expect(wrongType.success).toBe(false);
+  expect(wrongType.contentItems[0]).toMatchObject({
+    text: expect.stringMatching(/^reason: /),
+  });
+  const nullReason = await call({ reason: null });
+  expect(nullReason.success).toBe(false);
+  expect(requested).not.toHaveBeenCalled();
+
+  // The handler gets the parsed value: the schema trims it.
+  expect((await call({ reason: "  Sign in  " })).success).toBe(true);
+  expect(requested).toHaveBeenCalledWith(session, { reason: "Sign in", itemId: "call-1" });
 });
