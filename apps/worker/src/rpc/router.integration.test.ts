@@ -481,14 +481,15 @@ describe.skipIf(!url)("worker internal API, end to end", () => {
     // Postgres refuses a NUL byte in text, so the insert fails with the title as a parameter.
     expect(await failure(worker.tasks.create({ title: "A private\u0000title" }))).toEqual({
       status: 500,
-      message: 'invalid byte sequence for encoding "UTF8": 0x00',
+      message: "The database refused a value (SQLSTATE 22021).",
     });
     expect(logged).toHaveBeenCalledOnce();
     const [, fields] = logged.mock.calls[0]!;
     expect(fields).toMatchObject({
       path: "/internal/tasks",
-      error: 'invalid byte sequence for encoding "UTF8": 0x00',
+      error: "The database refused a value (SQLSTATE 22021).",
       query: expect.stringContaining('insert into "tasks"'),
+      code: "22021",
     });
     expect(JSON.stringify(fields)).not.toContain("private");
   });

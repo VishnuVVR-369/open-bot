@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
+import { errorMessage } from "./logger";
 
 export type ComputerPhase = "idle" | "waking" | "awake" | "grace" | "quiescing";
 export interface LifecycleStatus {
@@ -149,7 +150,7 @@ export class ComputerLifecycle {
         "idle",
         "The computer didn't wake up. Your next task or Wake screen will try again.",
       );
-      throw new Error(`Computer wake failed: ${String(error)}`, { cause: error });
+      throw new Error(`Computer wake failed: ${errorMessage(error)}`, { cause: error });
     } finally {
       scope.active = false;
     }

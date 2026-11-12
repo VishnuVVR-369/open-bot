@@ -32,23 +32,44 @@ export function createDb(pool: pg.Pool): Db {
 
 /**
  * The database's own error behind Drizzle's `DrizzleQueryError`, whose message repeats the failed
- * SQL and every parameter. Use it where an error can reach a person or a log; anything else is
- * returned as is.
+ * SQL and every parameter. Rethrow this, but never show or log it whole: its `detail` can hold
+ * values. `errorMessage` and `errorFields` say what may be shown. Anything else is returned as is.
  */
 export function databaseError(error: unknown): unknown {
   if (!(error instanceof DrizzleQueryError)) return error;
   return error.cause instanceof Error ? error.cause : new Error("A database query failed.");
 }
 
-/** An error's message for a person or a log: a failed query says the database's error only. */
+/**
+ * An error's message for a person or a log. A failed query says the database's message, except a
+ * data error (SQLSTATE class 22), whose message can repeat the value it refused.
+ */
 export function errorMessage(error: unknown): string {
   const shown = databaseError(error);
+  if (shown instanceof pg.DatabaseError && shown.code?.startsWith("22"))
+    return `The database refused a value (SQLSTATE ${shown.code}).`;
   return shown instanceof Error ? shown.message : String(shown);
 }
 
-/** The SQL of a failed query, without its parameters, for a log line. */
-export function failedQuery(error: unknown): string | undefined {
-  return error instanceof DrizzleQueryError ? error.query : undefined;
+/**
+ * An error as a log line may record it. A database error gives only its safe message, its SQL
+ * without parameters, and what it names (code, table, column, constraint), never its `detail`
+ * or `where`, which can hold values. Any other error keeps its stack.
+ */
+export function errorFields(error: unknown): Record<string, string | undefined> {
+  const shown = databaseError(error);
+  const fields: Record<string, string | undefined> = { error: errorMessage(error) };
+  if (error instanceof DrizzleQueryError) fields.query = error.query;
+  if (shown instanceof pg.DatabaseError)
+    Object.assign(fields, {
+      code: shown.code,
+      table: shown.table,
+      column: shown.column,
+      constraint: shown.constraint,
+    });
+  else if (!(error instanceof DrizzleQueryError) && error instanceof Error)
+    fields.stack = error.stack;
+  return fields;
 }
 
 /**

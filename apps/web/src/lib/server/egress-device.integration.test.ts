@@ -149,7 +149,7 @@ describe.skipIf(!url)("egress device credential", () => {
     const response = await call({ POST: route }, secret);
     expect(response.status).toBe(503);
     expect(await response.json()).toEqual({
-      error: 'invalid byte sequence for encoding "UTF8": 0x00',
+      error: "The database refused a value (SQLSTATE 22021).",
     });
   });
 

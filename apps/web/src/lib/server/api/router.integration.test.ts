@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { inspect } from "node:util";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { OFFLINE_EGRESS_STATUS, type ApiClient } from "@open-bot/api";
@@ -365,10 +366,11 @@ describe.skipIf(!url)("API reads, end to end", () => {
       expect(failed).toBeInstanceOf(ORPCError);
       expect(failed).toMatchObject({
         status: 500,
-        message: 'invalid byte sequence for encoding "UTF8": 0x00',
+        message: "The database refused a value (SQLSTATE 22021).",
       });
       expect(logged).toHaveBeenCalledOnce();
-      expect(String((logged.mock.calls[0]![1] as Error).message)).not.toContain("private");
+      expect(logged.mock.calls[0]![1]).toMatchObject({ code: "22021", query: expect.any(String) });
+      expect(inspect(logged.mock.calls, { depth: 6 })).not.toContain("private");
     } finally {
       logged.mockRestore();
     }

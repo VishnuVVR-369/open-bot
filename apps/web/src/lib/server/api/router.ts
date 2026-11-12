@@ -1,6 +1,6 @@
 import "server-only";
 import { API_ERRORS, contract } from "@open-bot/api";
-import { databaseError, errorMessage } from "@open-bot/db";
+import { errorFields, errorMessage } from "@open-bot/db";
 import { MemoryError } from "@open-bot/memory";
 import { implement, ORPCError, ValidationError } from "@orpc/server";
 import { z } from "zod";
@@ -81,8 +81,8 @@ function toRpcError(error: unknown): ORPCError<string, unknown> {
       message: error.message,
     });
   }
-  // A failed query's own error, never Drizzle's, which repeats the SQL and its parameters.
-  console.error("rpc failed", databaseError(error));
+  // Never the error itself: a failed query's repeats its parameters.
+  console.error("rpc failed", errorFields(error));
   return new ORPCError("INTERNAL_SERVER_ERROR", { message: errorMessage(error) });
 }
 
