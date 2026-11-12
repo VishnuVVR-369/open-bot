@@ -8,12 +8,10 @@ import type { RunSession, SessionTools } from "../runs/session";
 import { BotError } from "../services/bots";
 import { PageError } from "../services/pages";
 import { BotTools } from "./bots";
-import { toolNamed, toolsFor, TOOLS_VERSION } from "./definitions";
+import { toolNamed, toolsFor } from "./definitions";
 import { parseArgs, text, type ToolDeps, type ToolResponse, type ToolServices } from "./define";
 
 export class ToolHandlers implements SessionTools {
-  /** Threads keep the tools they started with; a thread from another version starts afresh. */
-  readonly version = TOOLS_VERSION;
   private readonly deps: ToolDeps;
 
   constructor(services: ToolServices) {

@@ -27,6 +27,7 @@ import type { MemoryCoordinator } from "../services/memory";
 import { ModelAccess, providerFor } from "../services/model-access";
 import { answerBack } from "./answer-back";
 import { approvalPolicy } from "./approval-policy";
+import { toolsRevision } from "./tools-revision";
 import { RunEventWriter } from "./events";
 import { touchChat } from "../services/chats";
 import { finalText, mapPlan, mapThreadItem } from "./mapper";
@@ -39,8 +40,6 @@ const MAX_COMMAND_OUTPUT = 20_000;
 
 /** The agent tools, as a session uses them (ToolHandlers in ../tools/handlers.ts). */
 export interface SessionTools {
-  /** Threads keep the tools they started with; a thread from another version starts afresh. */
-  readonly version: number;
   /** The tools a new thread is given. */
   specs(): v2.DynamicToolSpec[];
   handle(
@@ -345,6 +344,9 @@ export class RunSession {
       ...access,
       ...(Object.keys(config).length ? { config } : {}),
     };
+    // Threads keep the tools and instructions they started with; a change starts a fresh one.
+    const dynamicTools = this.services.tools.specs();
+    const revision = toolsRevision(DEVELOPER_INSTRUCTIONS, dynamicTools);
     const save = async (threadId: string, fresh: boolean) => {
       await ctx.db
         .insert(botThreads)
@@ -352,7 +354,7 @@ export class RunSession {
           chatId: run.chatId,
           botId: bot.id,
           codexThreadId: threadId,
-          toolsVersion: this.services.tools.version,
+          toolsRevision: revision,
           memoryGeneration: this.memoryGeneration,
           authMode: mode,
           configurationKey,
@@ -362,7 +364,7 @@ export class RunSession {
           // Memory generations fence old context; a fork is only allowed within the same generation.
           set: {
             codexThreadId: threadId,
-            toolsVersion: this.services.tools.version,
+            toolsRevision: revision,
             memoryGeneration: this.memoryGeneration,
             authMode: mode,
             configurationKey,
@@ -378,7 +380,7 @@ export class RunSession {
       .where(and(eq(botThreads.chatId, run.chatId), eq(botThreads.botId, bot.id)));
     if (
       existing &&
-      existing.toolsVersion === this.services.tools.version &&
+      existing.toolsRevision === revision &&
       existing.memoryGeneration === this.memoryGeneration
     ) {
       try {
@@ -413,7 +415,7 @@ export class RunSession {
       approvalPolicy: approvalPolicy(bot),
       sandbox: "danger-full-access",
       developerInstructions: DEVELOPER_INSTRUCTIONS,
-      dynamicTools: this.services.tools.specs(),
+      dynamicTools,
       serviceName: "open-bot",
       ...provider,
     } as v2.ThreadStartParams);

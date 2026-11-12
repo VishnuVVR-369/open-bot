@@ -16,12 +16,6 @@ import { TEAMMATE_TOOLS } from "./teammates";
 import { TEAMWORK_TOOLS } from "./teamwork";
 import { VAULT_TOOLS } from "./vault";
 
-/**
- * Bump when the tool set or the developer instructions change.
- * Codex threads keep the tools they started with, so a new version starts fresh threads.
- */
-export const TOOLS_VERSION = 21;
-
 export const TOOLS: readonly AnyTool[] = [
   ...DESKTOP_TOOLS,
   ...TEAMMATE_TOOLS,

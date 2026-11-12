@@ -85,9 +85,9 @@ Paths are relative to the repo root; symbols are in parentheses.
 **Add an agent tool** (non-account)
 
 1. One `defineTool({ name, description, input, helpers, handle })` in the feature's file in `apps/worker/src/tools/` (`pages.ts`, `automations.ts`, ...): `input` is a zod object, Codex is offered its JSON schema, and calls are parsed with it before `handle` runs, so the handler gets typed `call.args` (`call.raw` is what Codex sent, for the timeline item); `helpers: "forbidden"` keeps swarm helpers from calling it; `handle` records a timeline item with `session.putItem(toolItem(...))` and calls `publishApp` if the UI shows the change. A new feature's file adds its list to `TOOLS` in `apps/worker/src/tools/definitions.ts`.
-2. Bump `TOOLS_VERSION` in `apps/worker/src/tools/definitions.ts`. Without the bump, existing threads never see the tool. Then `pnpm --filter @open-bot/worker test -u` updates the tool list snapshot (`apps/worker/src/tools/__snapshots__/tools.json`); review its diff.
+2. `pnpm --filter @open-bot/worker test -u` updates the tool list snapshot (`apps/worker/src/tools/__snapshots__/tools.json`); review its diff. Nothing to bump: threads started with other tools or instructions are replaced by fresh ones (`apps/worker/src/runs/tools-revision.ts`).
 3. A new service goes in `ToolServices` (`apps/worker/src/tools/define.ts`), passed by name in `apps/worker/src/index.ts`.
-4. Optional: rules in `DEVELOPER_INSTRUCTIONS` (`apps/worker/src/instructions.ts`, bump `TOOLS_VERSION` again), an icon, or `asksApproval` for a tool whose call is itself the approval request, in `TOOL_DISPLAY` (`packages/domain/src/timeline/tool-display.ts`), which web and mobile both read. A new icon meaning needs its icon in `apps/web/src/components/chat/items.tsx` and `apps/mobile/src/components/chat/tool-icons.ts`.
+4. Optional: rules in `DEVELOPER_INSTRUCTIONS` (`apps/worker/src/instructions.ts`), an icon, or `asksApproval` for a tool whose call is itself the approval request, in `TOOL_DISPLAY` (`packages/domain/src/timeline/tool-display.ts`), which web and mobile both read. A new icon meaning needs its icon in `apps/web/src/components/chat/items.tsx` and `apps/mobile/src/components/chat/tool-icons.ts`.
 5. Document it in `apps/site/src/app/docs/reference/tools/page.mdx`.
 
 **Add a worker internal route** (called by web)
@@ -127,7 +127,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 
 1. `packages/domain/src/integrations/accounts/<provider>.ts`: provider and integration definitions; register them in `packages/domain/src/integrations/accounts/registry.ts`.
 2. `packages/integrations/src/providers/<provider>/oauth.ts` (a `ProviderAdapter`), registered in `providerAdapters()` (`packages/integrations/src/provider-registry.ts`); its endpoints in `integrationEndpoints()` (`packages/integrations/src/core/endpoints.ts`), with the override read in `apps/worker/src/env.ts` and `apps/web/src/lib/server/env.ts`.
-3. `packages/integrations/src/providers/<provider>/<integration>/adapter.ts` (an `IntegrationAdapter`), added to `ADAPTERS` in `packages/integrations/src/integration-registry.ts`. The worker refuses to start if adapters and definitions disagree. Bump `TOOLS_VERSION`.
+3. `packages/integrations/src/providers/<provider>/<integration>/adapter.ts` (an `IntegrationAdapter`), added to `ADAPTERS` in `packages/integrations/src/integration-registry.ts`. The worker refuses to start if adapters and definitions disagree.
 4. Web: `CLIENT_GUIDES` in `apps/web/src/components/settings/provider-guides.tsx` for owner-supplied OAuth clients; icons in `accounts-section.tsx` and `items.tsx` if new.
 5. A stand-in in `e2e/stand-ins/` (one file per service, served by `AccountsStandIn` in `e2e/stand-ins/accounts.ts`), and docs in `apps/site/src/app/docs/flows/accounts/page.mdx`.
 
