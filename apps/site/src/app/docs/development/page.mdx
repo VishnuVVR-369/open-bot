@@ -95,6 +95,7 @@ The worker and botd test their trickiest parts directly: the lease, the cookie j
 
 `pnpm test:integration` runs every `*.integration.test.ts` against real Postgres: teammate management, the phone API, every web API read, uploads, pages, account sign-ins, actions and triggers, screen operations and memory.
 Each suite creates its own fresh database on the server named by `TEST_DATABASE_URL`, applies every migration, and drops it afterwards (`@open-bot/db/testing`), so suites run in parallel.
+It then runs `scripts/test/e2e-shared-state.test.mjs`, which checks in a schema of its own that the e2e specs changing your settings take turns and leave them as they were.
 Without `TEST_DATABASE_URL`, the command starts a throwaway pgvector container (`scripts/test/pg.sh`) and removes it when it finishes.
 CI runs them against a Postgres service; there a missing `TEST_DATABASE_URL` fails the run instead of skipping.
 
@@ -120,7 +121,9 @@ E2E_STACK=dev E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e --grep @agent 
 - `e2e/global-setup.ts` gives each run a random tag, and everything a spec creates carries it: teammates are named with `uniqueName()`, titles and labels with `testLabel()`, skills and uploaded files with `testSlug()` (`e2e/stack.ts`).
   `e2e/global-teardown.ts`, and a spec cleaning up after itself, deletes only what carries the run's tag, so it never deletes one of yours, or what another run is making at the same time.
   What an interrupted run left behind stays until you delete it.
-- A spec that changes your settings saves them first and puts them back afterwards (`savePlanSettings()` in `e2e/helpers.ts`).
+- A spec that changes your settings saves them first and puts them back afterwards (`savePlanSettings()` in `e2e/shared-state.ts`).
+  It keeps a key you save while it runs.
+- Suites that change what the whole app shares hold a database lock while they run (`suiteLock()` in `e2e/shared-state.ts`): the plan specs take turns with other runs, and a second run of the accounts suite skips.
 
 Stand-ins replace outside services, so the default run needs no outside account:
 

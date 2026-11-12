@@ -1,9 +1,9 @@
 import { createApiClient, type ApiClient } from "@open-bot/api";
 import { createWorkerClient } from "@open-bot/api/worker";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import type pg from "pg";
 import { e2eStack } from "./stack";
 
+export { savePlanSettings, suiteLock } from "./shared-state";
 export { e2eStack, runTag, TEST_LABEL, testLabel, testSlug, uniqueName, uniqueWord } from "./stack";
 
 export const owner = {
@@ -81,34 +81,4 @@ export async function approve(card: Locator) {
   const review = card.getByTestId("review");
   if (await review.isVisible()) await review.click();
   await card.getByTestId("approve").click();
-}
-
-/**
- * Notes the OpenAI API key and the plan settings (limit and monthly cap) a spec is about to change,
- * and returns how to put them back, so a run on your app leaves yours as they were.
- */
-export async function savePlanSettings(db: Pick<pg.Pool, "query">): Promise<() => Promise<void>> {
-  const {
-    rows: [plan],
-  } = await db.query<{ plan_limited_until: Date | null; monthly_cap_micros: string }>(
-    "select plan_limited_until, monthly_cap_micros from settings where id = 1",
-  );
-  const { rows: keys } = await db.query<Record<string, unknown>>(
-    "select * from credentials where kind = 'openai_api_key'",
-  );
-  return async () => {
-    if (plan)
-      await db.query(
-        "update settings set plan_limited_until = $1, monthly_cap_micros = $2 where id = 1",
-        [plan.plan_limited_until, plan.monthly_cap_micros],
-      );
-    await db.query("delete from credentials where kind = 'openai_api_key'");
-    for (const row of keys) {
-      const columns = Object.keys(row);
-      await db.query(
-        `insert into credentials (${columns.join(", ")}) values (${columns.map((_, i) => `$${i + 1}`).join(", ")})`,
-        Object.values(row),
-      );
-    }
-  };
 }

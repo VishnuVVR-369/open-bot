@@ -20,6 +20,7 @@ import {
   botIdOf,
   createTeammate,
   sendMessage,
+  suiteLock,
   uniqueName,
   waitForLastRun,
 } from "./helpers";
@@ -32,7 +33,7 @@ import {
  *
  * then run with E2E_ACCOUNTS=1 (add --grep-invert @agent for the quick ones). The suite needs an
  * app with no accounts connected: it connects its own, and removes them when it's done. It puts
- * back the Google client from Settings if one was there.
+ * back the Google client from Settings if one was there. One run at a time per app: a second skips.
  */
 
 /** A row of oauth_clients, kept as it was to put back. */
@@ -50,7 +51,10 @@ test.afterAll(() => db.end());
 
 const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3600_000);
 
-/** Forget what an earlier run of this suite left behind. */
+/**
+ * Forget the accounts this run connected. Only a run holding the suite's lock, on an app that had
+ * no accounts before it, calls this, so every account the stand-in signs in as is the run's own.
+ */
 async function forgetOurAccounts() {
   await db.query(
     "delete from connections where account_id in (select id from accounts where external_id = any($1))",
@@ -69,12 +73,15 @@ test.describe("Accounts, against a stand-in for Google and Notion", () => {
   test.setTimeout(3 * 60_000);
 
   const standIn = new AccountsStandIn();
-  const startedAt = new Date();
   let page: Page;
   /** The Google clients saved in Settings before the suite, put back after it. */
   let savedClients: ClientRow[] = [];
   /** The suite took the Google client out of Settings, so it puts it back. */
   let tookClient = false;
+  /** Lets the next run of this suite against the app in. */
+  let releaseLock: (() => Promise<void>) | null = null;
+  /** When Google ended the sign-in, by the database's clock, to find the notice it caused. */
+  let revokedAt: Date | undefined;
 
   const accountRow = (kind: string) =>
     page.locator(`[data-testid="account-connection"][data-kind="${kind}"]`);
@@ -106,12 +113,15 @@ test.describe("Accounts, against a stand-in for Google and Notion", () => {
   }
 
   test.beforeAll(async ({ browser }) => {
-    await forgetOurAccounts();
+    // Nothing is written before the lock and the check: a second run must not touch the first's.
+    releaseLock = await suiteLock(db, "accounts", { wait: false });
+    test.skip(!releaseLock, "Another run of this suite is using this app.");
     const { rows: others } = await db.query<{ display: string }>("select display from accounts");
     test.skip(
       others.length > 0,
-      `This app has accounts connected (${others.map((row) => row.display).join(", ")}); the suite only runs on an app without any.`,
+      `This app has accounts connected (${others.map((row) => row.display).join(", ")}); the suite only runs on an app without any. Remove them in Settings → Connections, including any a stopped run left.`,
     );
+    await standIn.start(STAND_IN_PORT);
     const { rows } = await db.query<ClientRow>(
       "select * from oauth_clients where provider = 'google'",
     );
@@ -119,27 +129,32 @@ test.describe("Accounts, against a stand-in for Google and Notion", () => {
     // So the suite sets up Google from the start, as a new user does. No account uses them.
     await db.query("delete from oauth_clients where provider = 'google'");
     tookClient = true;
-    await standIn.start(STAND_IN_PORT);
     page = await browser.newPage({ storageState: "e2e/.auth/owner.json" });
   });
 
   test.afterAll(async () => {
-    await page?.close();
-    await standIn.stop();
-    if (!tookClient) return;
-    await forgetOurAccounts();
-    await db.query("delete from oauth_clients where provider = 'google'");
-    for (const row of savedClients) {
-      const columns = Object.keys(row);
-      await db.query(
-        `insert into oauth_clients (${columns.join(", ")}) values (${columns.map((_, i) => `$${i + 1}`).join(", ")})`,
-        Object.values(row),
-      );
+    try {
+      await page?.close();
+      await standIn.stop();
+      if (!tookClient) return;
+      await forgetOurAccounts();
+      await db.query("delete from oauth_clients where provider = 'google'");
+      for (const row of savedClients) {
+        const columns = Object.keys(row);
+        await db.query(
+          `insert into oauth_clients (${columns.join(", ")}) values (${columns.map((_, i) => `$${i + 1}`).join(", ")})`,
+          Object.values(row),
+        );
+      }
+      // The notice the revoked sign-in caused. The app had no other accounts, so it's this run's.
+      if (revokedAt)
+        await db.query("delete from notifications where title = $1 and created_at >= $2", [
+          "Your Google account needs reconnecting",
+          revokedAt,
+        ]);
+    } finally {
+      await releaseLock?.();
     }
-    await db.query(
-      "delete from notifications where title like '% needs reconnecting' and created_at >= $1",
-      [startedAt],
-    );
   });
 
   test("connect Gmail with your own Google client", async () => {
@@ -501,6 +516,7 @@ test.describe("Accounts, against a stand-in for Google and Notion", () => {
   test("a sign-in Google ended asks you to reconnect, and reconnecting fixes it", async () => {
     await page.goto("/settings#connections");
     // The user removes open-bot under Third-party access in their Google Account.
+    revokedAt = (await db.query<{ now: Date }>("select now()")).rows[0]!.now;
     standIn.google.revokeAll();
     const gmail = accountRow("gmail");
     const calendar = accountRow("google_calendar");

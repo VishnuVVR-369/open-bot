@@ -16,7 +16,7 @@ const pool = new pg.Pool({
 test.describe("when the plan runs out", () => {
   let restore: (() => Promise<void>) | undefined;
   test.beforeAll(async () => {
-    restore = await savePlanSettings(pool);
+    restore = await savePlanSettings(pool, "sk-…1234");
   });
   test.afterAll(async () => {
     await restore?.();

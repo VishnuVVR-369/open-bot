@@ -33,7 +33,7 @@ let server: http.Server;
 let restore: (() => Promise<void>) | undefined;
 
 test.beforeAll(async () => {
-  restore = await savePlanSettings(pool);
+  restore = await savePlanSettings(pool, "sk-…0001");
   server = http.createServer((req, res) => {
     req.resume();
     req.on("end", () => {
