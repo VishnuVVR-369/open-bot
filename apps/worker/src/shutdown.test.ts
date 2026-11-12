@@ -1,8 +1,6 @@
 import { EventEmitter } from "node:events";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountActions } from "./accounts/actions";
-import { NotionTools } from "./accounts/notion";
-import { Integrations } from "./accounts/registry";
 import type { Context } from "./context";
 import { FcmService } from "./services/fcm";
 import { PushService } from "./services/push";
@@ -107,13 +105,6 @@ describe("stopping services", () => {
     expect(sweeps).toBe(1);
     expect(update).toHaveBeenCalledTimes(updates);
     expect(log.error).not.toHaveBeenCalled();
-    expect(vi.getTimerCount()).toBe(0);
-  });
-
-  it("stops Notion's idle sweep through the integrations", async () => {
-    const integrations = new Integrations([new NotionTools({ events, log } as unknown as Context)]);
-    expect(vi.getTimerCount()).toBe(1);
-    await integrations.stop();
     expect(vi.getTimerCount()).toBe(0);
   });
 });

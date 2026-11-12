@@ -1,4 +1,4 @@
-import { notionMcpUrl } from "@open-bot/integrations/server";
+import { notionMcpUrl } from "../../core/endpoints";
 import { accountResources } from "@open-bot/db";
 import {
   NOTION_AREA_SETTING,
@@ -13,19 +13,20 @@ import {
 } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import type { Context } from "../context";
-import { AccountToolError, type ResolvedConnection } from "./access";
+import { AccountToolError } from "../../core/errors";
+import { ProviderError, type TokenSource } from "../../core/http";
+import { namespace, tool, type NamespaceTool } from "../../core/tool-spec";
 import { notionEffect, notionId, notionParent } from "./effects";
-import { ProviderError, type TokenSource } from "./http";
-import { namespace, tool, type NamespaceTool } from "./schema";
 import type {
   ActionOutcome,
   ActionRunner,
   IntegrationAdapter,
   PreparedAction,
   ToolContext,
+  IntegrationHost,
+  ResolvedConnection,
   ToolResult,
-} from "./types";
+} from "../../core/adapter";
 
 /** Our tool names, and Notion's. Only these are ever forwarded. */
 export const NOTION_TOOL_NAMES: Record<string, string> = {
@@ -60,7 +61,7 @@ const NOTION_TYPES = new Set([
   "data-source",
   "user",
   "person",
-  "bot",
+  "bot", // vocabulary: allow (a Notion result type)
 ]);
 
 interface McpResult {
@@ -294,7 +295,7 @@ export class NotionTools implements IntegrationAdapter {
   private readonly clients = new Map<string, Promise<OpenClient>>();
   private readonly idleTimer: NodeJS.Timeout;
 
-  constructor(private readonly ctx: Context) {
+  constructor(private readonly host: IntegrationHost) {
     this.idleTimer = setInterval(() => this.closeIdle(), 60_000).unref();
   }
 
@@ -489,7 +490,7 @@ export class NotionTools implements IntegrationAdapter {
   private async ours(
     connection: ResolvedConnection["connection"],
   ): Promise<(id: string) => boolean> {
-    const owned = await this.ctx.db
+    const owned = await this.host.db
       .select({ externalId: accountResources.externalId })
       .from(accountResources)
       .where(eq(accountResources.connectionId, connection.id));
@@ -694,7 +695,7 @@ export class NotionTools implements IntegrationAdapter {
       const parent = notionParent(request.args.parent);
       const ids = createdIds(outcome.result?.data ?? outcome.result);
       if (ids.length === 0) return;
-      await this.ctx.db
+      await this.host.db
         .insert(accountResources)
         .values(
           ids.map((externalId) => ({

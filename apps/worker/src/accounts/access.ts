@@ -1,3 +1,8 @@
+import {
+  AccountToolError,
+  type ResolvedConnection,
+  type TokenSource,
+} from "@open-bot/integrations/adapters";
 import { AccountStore, AccountUnavailableError } from "@open-bot/integrations/server";
 import { accounts, connections } from "@open-bot/db";
 import {
@@ -16,28 +21,6 @@ import { and, asc, eq, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
 import { createNotification } from "../services/notifications";
 import type { AccountAccessLine } from "../instructions";
-import type { TokenSource } from "./http";
-
-export type ConnectionRow = typeof connections.$inferSelect;
-export type AccountRow = typeof accounts.$inferSelect;
-
-/** A problem the teammate can act on (or tell the user about), said plainly. */
-export class AccountToolError extends Error {
-  constructor(
-    message: string,
-    /** The same problem said to you, as Settings shows it. */
-    readonly ownerMessage: string = message,
-  ) {
-    super(message);
-  }
-}
-
-/** One of your accounts, through the connection a teammate uses it with. */
-export interface ResolvedConnection {
-  kind: AccountConnectionKind;
-  connection: ConnectionRow;
-  account: AccountRow;
-}
 
 /** Usage is recorded at most this often per account. */
 const TOUCH_EVERY_MS = 5 * 60_000;

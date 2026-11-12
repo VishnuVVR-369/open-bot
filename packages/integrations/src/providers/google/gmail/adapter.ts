@@ -1,9 +1,16 @@
-import { googleEndpoints } from "@open-bot/integrations/server";
 import { outsideData, type AccountActionPreview } from "@open-bot/domain";
 import { z } from "zod";
-import type { Context } from "../context";
-import { AccountToolError, type ResolvedConnection } from "./access";
-import { ProviderError, providerJson, type TokenSource } from "./http";
+import { type ProviderError, type TokenSource } from "../../../core/http";
+import { AccountToolError } from "../../../core/errors";
+import {
+  cap,
+  GmailApi,
+  gmailProblem,
+  header,
+  type GmailDraft,
+  type GmailMessage,
+  type GmailThread,
+} from "./api";
 import {
   buildMime,
   ensureMessageId,
@@ -14,9 +21,8 @@ import {
   rawBody,
   splitAddresses,
   toBase64Url,
-  type GmailPart,
 } from "./mime";
-import { emails, namespace, tool, type NamespaceTool } from "./schema";
+import { emails, namespace, tool, type NamespaceTool } from "../../../core/tool-spec";
 import type {
   ActionOutcome,
   ActionRow,
@@ -24,8 +30,9 @@ import type {
   IntegrationAdapter,
   PreparedAction,
   ToolContext,
+  ResolvedConnection,
   ToolResult,
-} from "./types";
+} from "../../../core/adapter";
 
 /** How much of one message, and of one tool result, a teammate reads. */
 const MAX_MESSAGE_TEXT = 20_000;
@@ -33,25 +40,6 @@ const MAX_RESULT_TEXT = 100_000;
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 /** The header that marks what open-bot sent, so a lost answer can be checked in Sent. */
 export const ACTION_HEADER = "X-Open-Bot-Action";
-
-export interface GmailMessage {
-  id: string;
-  threadId: string;
-  labelIds?: string[];
-  snippet?: string;
-  internalDate?: string;
-  payload?: GmailPart;
-}
-
-interface GmailThread {
-  id: string;
-  messages?: GmailMessage[];
-}
-
-interface GmailDraft {
-  id: string;
-  message: { id: string; threadId: string; raw?: string };
-}
 
 const address = z.string().trim().email("That isn't an email address.");
 const addressList = z.preprocess(
@@ -108,38 +96,6 @@ const schemas = {
   }),
 };
 
-/** Gmail's REST API, for one account. */
-export class GmailApi {
-  private readonly base = `${googleEndpoints().gmail}/users/me`;
-  constructor(private readonly tokens: TokenSource) {}
-
-  async get<T>(
-    path: string,
-    query?: Record<string, string | number | string[] | undefined>,
-  ): Promise<T> {
-    return (await providerJson<T>(this.tokens, { url: `${this.base}${path}`, query, mode: "read" }))
-      .body;
-  }
-
-  async write<T>(method: "POST" | "PUT" | "DELETE", path: string, body?: unknown): Promise<T> {
-    return (
-      await providerJson<T>(this.tokens, {
-        method,
-        url: `${this.base}${path}`,
-        body,
-        mode: "write",
-      })
-    ).body;
-  }
-}
-
-export function header(message: GmailMessage | undefined, name: string): string {
-  const wanted = name.toLowerCase();
-  return (
-    message?.payload?.headers?.find((entry) => entry.name.toLowerCase() === wanted)?.value ?? ""
-  );
-}
-
 /** Run `work` over `items`, a few at a time. */
 async function limited<T, R>(
   items: T[],
@@ -157,23 +113,6 @@ async function limited<T, R>(
     }),
   );
   return results;
-}
-
-export function cap(text: string, max: number): string {
-  return text.length > max
-    ? `${text.slice(0, max)}\n[… cut at ${max.toLocaleString("en-US")} characters]`
-    : text;
-}
-
-/** The provider's refusal as the teammate reads it, with the fix where there is one. */
-export function gmailProblem(error: ProviderError): string {
-  if (error.reason === "accessNotConfigured" || error.reason === "SERVICE_DISABLED")
-    return "The Gmail API isn't enabled in the user's Google Cloud project. Ask them to enable it (APIs & Services → Library → Gmail API), then try again.";
-  if (error.reason === "insufficientPermissions" || error.status === 403)
-    return `Gmail refused it: ${error.message} The user may need to reconnect Gmail in Settings → Connections and allow it.`;
-  if (error.status === 404)
-    return "Gmail has no such message, thread or draft. Search again for its id.";
-  return `Gmail: ${error.message}`;
 }
 
 /** Recipients, subject and body of a raw message, for the approval card. */
@@ -281,8 +220,6 @@ export class GmailTools implements IntegrationAdapter {
     GMAIL_TOOLS,
   );
   readonly kind = "gmail" as const;
-
-  constructor(private readonly ctx: Context) {}
 
   problem(error: ProviderError): string {
     return gmailProblem(error);
@@ -450,11 +387,8 @@ export class GmailTools implements IntegrationAdapter {
         .replace(/[/\\\0]/g, "_")
         .replace(/^\.+/, "_")
         .slice(0, 150) || "attachment";
-    const directory = `${tc.session.workspace}/attachments`;
-    const path = `${directory}/${name}`;
-    const client = await this.ctx.codex.ready();
-    await client.request("fs/createDirectory", { path: directory, recursive: true });
-    await client.request("fs/writeFile", { path, dataBase64: bytes.toString("base64") });
+    const path = `${tc.workspace}/attachments/${name}`;
+    await tc.saveFile(path, bytes);
     return {
       type: "read",
       // Files can carry instructions too; they're read like any other outside data.

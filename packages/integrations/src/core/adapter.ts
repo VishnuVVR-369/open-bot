@@ -1,12 +1,23 @@
-import type { accountActions } from "@open-bot/db";
+import type { accountActions, accounts, connections, Db } from "@open-bot/db";
 import type { AccountActionPreview, AccountConnectionKind, ActionEffect } from "@open-bot/domain";
-import type { Context } from "../context";
-import type { RunSession } from "../runs/session";
-import type { AccountAccess, ResolvedConnection } from "./access";
 import type { ProviderError, TokenSource } from "./http";
-import type { NamespaceSpec } from "./schema";
+import type { NamespaceSpec } from "./tool-spec";
 
 export type ActionRow = typeof accountActions.$inferSelect;
+export type ConnectionRow = typeof connections.$inferSelect;
+export type AccountRow = typeof accounts.$inferSelect;
+
+/** One of your accounts, through the connection a teammate uses it with. */
+export interface ResolvedConnection {
+  kind: AccountConnectionKind;
+  connection: ConnectionRow;
+  account: AccountRow;
+}
+
+/** What adapters are built with: the database, for what they remember and read. */
+export interface IntegrationHost {
+  db: Db;
+}
 
 /** A change to one of your accounts, worked out and frozen before anything is asked or done. */
 export interface PreparedAction {
@@ -67,13 +78,15 @@ export interface ActionRunner {
 
 /** What an integration's tool handlers get. */
 export interface ToolContext {
-  session: RunSession;
   resolved: ResolvedConnection;
   tokens: TokenSource;
-  access: AccountAccess;
   args: Record<string, unknown>;
   /** The id the action will get, known up front so requests can carry it. */
   actionId: string;
+  /** The teammate's workspace folder on the computer. */
+  workspace: string;
+  /** Save a file on the computer, making its folder if needed. */
+  saveFile(path: string, data: Buffer): Promise<void>;
 }
 
 /** A tool's answer: text for a read, or an action to submit. */
@@ -110,7 +123,7 @@ export interface IntegrationAdapter {
 
 /** An adapter's class: its tools are known before any instance, since every thread gets them. */
 export interface IntegrationAdapterClass {
-  new (ctx: Context): IntegrationAdapter;
-  /** The tools teammates see, in the integration's namespace. Named as shared's definition names them. */
+  new (host: IntegrationHost): IntegrationAdapter;
+  /** The tools teammates see, in the integration's namespace. Named as their definition in `@open-bot/domain` names them. */
   readonly spec: NamespaceSpec;
 }

@@ -18,11 +18,16 @@ import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import type { Context } from "../context";
 import { ApprovalService } from "../services/approvals";
 import { SessionRegistry } from "../services/registry";
-import { AccountAccess, AccountToolError } from "./access";
+import {
+  AccountToolError,
+  Integrations,
+  ProviderError,
+  type ActionOutcome,
+  type ActionRunner,
+  type IntegrationAdapter,
+} from "@open-bot/integrations/adapters";
+import { AccountAccess } from "./access";
 import { AccountActions } from "./actions";
-import { ProviderError } from "./http";
-import { Integrations } from "./registry";
-import type { ActionOutcome, ActionRunner, IntegrationAdapter } from "./types";
 
 const url = testDatabaseServer();
 

@@ -4,16 +4,21 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./server": "./src/server.ts"
+    "./server": "./src/server.ts",
+    "./adapters": "./src/adapters.ts"
   },
   "scripts": {
     "typecheck": "tsc -p .",
+    "test": "vitest run --exclude '**/*.integration.test.ts'",
     "test:integration": "vitest run .integration.test.ts"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "@open-bot/agent": "workspace:*",
     "@open-bot/db": "workspace:*",
     "@open-bot/domain": "workspace:*",
-    "drizzle-orm": "^0.45.4"
+    "drizzle-orm": "^0.45.4",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",

@@ -1,6 +1,6 @@
 import type { v2 } from "@open-bot/agent";
 import { MAX_SWARM_TASKS, SCREEN } from "@open-bot/domain";
-import { ACCOUNT_TOOL_SPECS } from "../accounts/registry";
+import { ACCOUNT_TOOL_SPECS } from "@open-bot/integrations/adapters";
 
 /**
  * Bump when the tool set or the developer instructions change.

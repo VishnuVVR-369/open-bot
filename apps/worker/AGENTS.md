@@ -24,7 +24,7 @@ Shared types and pure logic go in `packages/domain`, and schema changes go in `p
 - The lifecycle does no idle polling of the computer, and reading status must not wake it.
 - `RunEventWriter` is the only way a session writes run events.
 - Swarm helpers are refused tools listed in `HELPER_FORBIDDEN`.
-- The worker refuses to start if account adapters and their shared definitions disagree (`apps/worker/src/accounts/registry.ts`).
+- The worker refuses to start if account adapters and their definitions disagree (`packages/integrations/src/integration-registry.ts`).
 
 ## Tests
 

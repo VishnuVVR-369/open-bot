@@ -163,19 +163,20 @@ Services talk to each other through constructor injection and the typed `ctx.eve
 
 ## Accounts
 
-`apps/worker/src/accounts/` serves your Gmail, Google Calendar and Notion to teammates.
+The worker serves your Gmail, Google Calendar and Notion to teammates.
 The worker is the only process that decrypts their tokens, and makes every call to the providers.
+What every integration shares is in `apps/worker/src/accounts/`; what is particular to each provider is in `packages/integrations`, one folder per provider.
 
-| Part             | File                     | Responsibility                                                                                                                   |
-| ---------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| `Integrations`   | `registry.ts`            | One adapter per integration, its tool specs checked at start against the integration's definition in `@open-bot/domain`          |
-| `AccountAccess`  | `access.ts`              | Which connections a teammate may use, checking capabilities and granted scopes, tokens, and telling you once when a sign-in ends |
-| `AccountTools`   | `tools.ts`               | Routes each integration's tools to its adapter: checks access, runs reads, hands every change to the executor                    |
-| Gmail            | `gmail.ts`, `mime.ts`    | Gmail's REST API, building and freezing MIME, HTML to text                                                                       |
-| Calendar         | `calendar.ts`, `time.ts` | Calendar's REST API, time zones and free time                                                                                    |
-| Notion           | `notion.ts`              | An MCP client per account to Notion's hosted server, the curated tool list, and what counts as the teammates' own                |
-| Effects          | `effects.ts`             | Each change's effect class, and `approvalFor()`, which decides whether it asks you                                               |
-| `AccountActions` | `actions.ts`             | The durable executor: claims, rechecks, runs, reconciles and reports every change, at most once                                  |
+| Part             | File                                                   | Responsibility                                                                                                                   |
+| ---------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `AccountAccess`  | `apps/worker/src/accounts/access.ts`                   | Which connections a teammate may use, checking capabilities and granted scopes, tokens, and telling you once when a sign-in ends |
+| `AccountTools`   | `apps/worker/src/accounts/tools.ts`                    | Routes each integration's tools to its adapter: checks access, runs reads, hands every change to the executor                    |
+| `AccountActions` | `apps/worker/src/accounts/actions.ts`                  | The durable executor: claims, rechecks, runs, reconciles and reports every change, at most once                                  |
+| Approvals        | `apps/worker/src/accounts/effects.ts`                  | `approvalFor()`, which decides from a change's effect whether it asks you                                                        |
+| `Integrations`   | `packages/integrations/src/integration-registry.ts`    | One adapter per integration, its tool specs checked at start against the integration's definition in `@open-bot/domain`          |
+| Gmail            | `packages/integrations/src/providers/google/gmail/`    | Gmail's REST API, building and freezing MIME, HTML to text                                                                       |
+| Calendar         | `packages/integrations/src/providers/google/calendar/` | Calendar's REST API, time zones and free time, and each change's effect                                                          |
+| Notion           | `packages/integrations/src/providers/notion/`          | An MCP client per account to Notion's hosted server, the curated tool list, and what counts as the teammates' own                |
 
 Tokens come from `AccountStore` in `packages/integrations`, which refreshes under a row lock, so one refresh serves every caller in every process.
 It refreshes each grant with the OAuth client that made it, so replacing your Google client doesn't break the sign-ins made with the old one.
@@ -204,7 +205,7 @@ Every integration is described once, and the rest of the app reads that descript
 
 1. **The sign-in provider**, if it is new: its entry in `AUTH_PROVIDERS` in `packages/domain/src/integrations/accounts/` (label, base scopes, whether you paste in your own OAuth client or it registers one), and its `ProviderAdapter` in `packages/integrations/src/providers/` (authorization URL, token exchange, identity, refresh and revoke). A provider whose client you paste in also gets its setup steps in `apps/web/src/components/settings/provider-guides.tsx`.
 2. **The integration**: its definition next to the provider's, with its capabilities and the scopes each needs, its tools, any settings, and guidance for teammates. Settings, the connect dialog and teammates' instructions are drawn from it.
-3. **Its worker adapter**: a class in `apps/worker/src/accounts/` with the tool specs, `call()`, `probe()` for the connection test, and the runner for its changes, added to `ADAPTERS` in `registry.ts`.
+3. **Its adapter**: a class in its provider's folder in `packages/integrations/src/providers/` with the tool specs, `call()`, `probe()` for the connection test, and the runner for its changes, added to `ADAPTERS` in `packages/integrations/src/integration-registry.ts`.
 
 The worker refuses to start when an integration has no adapter, or its tools differ from its definition.
 

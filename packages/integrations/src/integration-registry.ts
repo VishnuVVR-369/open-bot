@@ -5,20 +5,19 @@ import {
   integrationByNamespace,
   type AccountConnectionKind,
 } from "@open-bot/domain";
-import type { Context } from "../context";
-import { CalendarTools } from "./calendar";
-import { GmailTools } from "./gmail";
-import { NotionTools } from "./notion";
-import type { NamespaceSpec } from "./schema";
-import type { IntegrationAdapter, IntegrationAdapterClass } from "./types";
+import type { IntegrationAdapter, IntegrationAdapterClass, IntegrationHost } from "./core/adapter";
+import type { NamespaceSpec } from "./core/tool-spec";
+import { CalendarTools } from "./providers/google/calendar/adapter";
+import { GmailTools } from "./providers/google/gmail/adapter";
+import { NotionTools } from "./providers/notion/adapter";
 
 /**
- * Every integration's adapter in the worker. Adding an integration is its definition in shared,
- * its provider adapter in the accounts package, and its class here; nothing else changes.
+ * Every integration's adapter, one line each. Adding an integration is its definition in
+ * `@open-bot/domain`, its folder under `providers/`, and its class here; nothing else changes.
  */
 const ADAPTERS: readonly IntegrationAdapterClass[] = [GmailTools, CalendarTools, NotionTools];
 
-/** Why a namespace's tools don't match its integration's definition in shared, or null. */
+/** Why a namespace's tools don't match its integration's definition, or null. */
 export function specProblem(spec: NamespaceSpec): string | null {
   const definition = integrationByNamespace(spec.name);
   if (!definition) return `No integration has the namespace "${spec.name}".`;
@@ -65,10 +64,10 @@ export class Integrations {
     }
   }
 
-  static create(ctx: Context): Integrations {
+  static create(host: IntegrationHost): Integrations {
     return new Integrations(
       ADAPTERS.map((Adapter) => {
-        const adapter = new Adapter(ctx);
+        const adapter = new Adapter(host);
         if (integration(adapter.kind).namespace !== Adapter.spec.name)
           throw new Error(`${adapter.kind}'s adapter serves the wrong namespace.`);
         return adapter;

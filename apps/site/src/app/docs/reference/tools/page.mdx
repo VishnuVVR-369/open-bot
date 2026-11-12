@@ -5,7 +5,7 @@ export const metadata = docMetadata("/docs/reference/tools");
 # Teammate tools
 
 Besides Codex's built-in shell, file and web search tools, every teammate has the dynamic tools below, plus the tools for [your accounts](#your-accounts), one namespace per account integration.
-They are defined in `apps/worker/src/tools/definitions.ts` and handled in `apps/worker/src/tools/handlers.ts`, with the teammate tools in `apps/worker/src/tools/bots.ts` and the account tools in `apps/worker/src/accounts/`.
+They are defined in `apps/worker/src/tools/definitions.ts` and handled in `apps/worker/src/tools/handlers.ts`, with the teammate tools in `apps/worker/src/tools/bots.ts` and the account tools in `apps/worker/src/accounts/tools.ts`, which routes each to its adapter in `packages/integrations`.
 
 ## How tools are served
 
