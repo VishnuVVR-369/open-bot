@@ -230,6 +230,14 @@ pnpm db:migrate    # apply pending migrations
 `0020` runs `CREATE EXTENSION IF NOT EXISTS vector`, so the database must have pgvector available.
 The local Compose file uses the `pgvector/pgvector:pg17` image.
 
+### Failed queries
+
+A query's parameters can hold anything the owner typed, and anything may log a failed query's error whole, including Next.js and Better Auth for errors no code caught.
+So values are taken out where the error is made (`packages/db/src/errors.ts`).
+Drizzle's `DrizzleQueryError` is patched (`patches/drizzle-orm@0.45.4.patch`) so it never keeps the parameters, and its message is only the failed SQL.
+Every pool from `createPool` uses a client that rebuilds Postgres's own error without `detail`, `where`, `hint` or `internalQuery`.
+Its message stays when its SQLSTATE class only names things (a constraint violation, a deadlock, a missing column), and otherwise becomes `The database refused the query (SQLSTATE 22021).`, since a data error's message can quote the value it refused.
+
 ## The run queue
 
 A queued run is a row in `runs` with `status = 'queued'`.

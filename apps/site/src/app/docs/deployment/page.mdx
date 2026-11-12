@@ -36,7 +36,7 @@ Each service instead has watch paths: a push redeploys it only when it changes a
 | `pages`    | `apps/pages` and the `domain`, `db` and `page-kit` packages                                                  |
 | `computer` | `images/computer`, `apps/botd` and the `domain`, `egress` and `page-kit` packages                            |
 
-Changes to the root `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml` or `tsconfig.base.json` redeploy every service.
+Changes to the root `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `tsconfig.base.json` or `patches/` (dependency patches that `pnpm install` applies) redeploy every service.
 `AGENTS.md`, `CLAUDE.md` and test files never trigger a deploy, so a docs-only push deploys nothing.
 
 The project is described as code in `.railway/railway.ts`, with the folder lists in `.railway/watch-paths.ts`.

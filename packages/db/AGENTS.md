@@ -8,10 +8,11 @@ Better Auth's `account` table is sign-in and is unrelated to the integrations `a
 ## Entry points
 
 - `packages/db/src/index.ts`: `createPool`, `createDb`, `notify`, plus the schema.
-  A failed query throws Drizzle's `DrizzleQueryError`, whose message repeats the SQL and every parameter, and Postgres's own error can hold values too (a data error's message, any `detail` or `where`).
-  So the app's own answers and logs give an unexpected error only as `errorMessage(error)` (a database error becomes its SQLSTATE) or `errorFields(error)` (for a log line: that message, SQL without parameters, code, table, column, constraint).
-  `databaseError(error)` is the error to rethrow, never to show or log whole; `withoutParameters(text)` cuts the parameters off text that may hold a failed query's message.
-  A framework that logs an error our code never caught (Next.js, Better Auth's HTTP layer) still logs it whole.
+- `packages/db/src/errors.ts`: a failed query never carries a value, because anything may log its error whole (our code, and Next.js or Better Auth for an error nobody caught).
+  Drizzle's `DrizzleQueryError` never keeps the parameters (`patches/drizzle-orm@0.45.4.patch`); its message is the failed SQL.
+  Every client of a pool from `createPool` rebuilds Postgres's error with `withoutValues`: no `detail`, `where`, `hint` or `internalQuery`, and a message that can quote a value (a data error, a raised exception, any SQLSTATE class not known to only name things) becomes `The database refused the query (SQLSTATE ...)`.
+  So never make a pool with `new pg.Pool` in app code, and never log a query's parameters yourself.
+  `errorMessage(error)` is what the database said, `errorFields(error)` a log line's fields (that message, the SQL, code, table, column, constraint), and `databaseError(error)` the database's own error to rethrow.
 - `packages/db/src/owners.ts`: who writes each table (see "One writer per table" below).
 - `packages/db/src/locks.ts`: every advisory lock, by name in `LOCKS`, taken with `lockUntilCommit(tx, ...)` or `withTryLock(pool, ...)`.
   Never change a shipped key: the web app and the worker deploy separately and must still exclude each other.
@@ -29,6 +30,7 @@ Better Auth's `account` table is sign-in and is unrelated to the integrations `a
 - The NOTIFY channels (`NOTIFY_CHANNELS`: `openbot_chat`, `openbot_app` and `openbot_worker`), `AppEvent` and `WorkerSignal` live in `packages/domain/src/events`; `notify()` here sends on them. Adding an `AppEvent` also needs client invalidation (see "Add a realtime event" in the root `AGENTS.md`).
 - `WorkerSignal` wakes the worker; a new value doesn't compile until the worker's `onSignal` (`apps/worker/src/index.ts`) handles it.
 - `testing.ts` only writes to and drops databases named `openbot_test_*`.
+- Upgrading `drizzle-orm` means remaking its patch (`pnpm patch drizzle-orm@<version>`); `pnpm install` fails while the patch names a version that is no longer installed.
 
 ## One writer per table
 
@@ -49,7 +51,8 @@ Better Auth's `account` table is sign-in and is unrelated to the integrations `a
 
 ## Tests
 
-- This package has no tests of its own. `pnpm --filter @open-bot/db typecheck` checks types.
+- `pnpm --filter @open-bot/db test` runs the unit tests, and `pnpm --filter @open-bot/db typecheck` checks types.
+- `packages/db/src/errors.integration.test.ts` makes real queries fail and checks no value reaches their errors.
 - `pnpm test:integration` applies every migration to a throwaway Postgres and runs all `*.integration.test.ts` suites (for example `packages/integrations/src/core/store.integration.test.ts` and `apps/worker/src/runs/dispatch.integration.test.ts`).
 
 ## Docs

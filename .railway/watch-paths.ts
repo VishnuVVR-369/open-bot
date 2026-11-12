@@ -47,6 +47,9 @@ export const ROOT_FILES = [
   "tsconfig.base.json",
 ] as const;
 
+/** Root folders every build reads: `pnpm install` applies the dependency patches in `patches/`. */
+export const ROOT_FOLDERS = ["patches"] as const;
+
 /** Files inside watched folders that never reach a build. Negations must come last. */
 export const IGNORED = ["AGENTS.md", "CLAUDE.md", "*.test.ts", "*.test.tsx"] as const;
 
@@ -54,6 +57,7 @@ export const IGNORED = ["AGENTS.md", "CLAUDE.md", "*.test.ts", "*.test.tsx"] as 
 export function watchPatterns(service: DeployedService): string[] {
   return [
     ...ROOT_FILES.map((file) => `/${file}`),
+    ...ROOT_FOLDERS.map((folder) => `/${folder}/**`),
     ...SERVICE_FOLDERS[service].map((folder) => `/${folder}/**`),
     ...IGNORED.map((name) => `!**/${name}`),
   ];

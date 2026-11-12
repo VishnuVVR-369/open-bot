@@ -15,6 +15,7 @@ describe("Better Auth's log", () => {
   afterEach(() => vi.restoreAllMocks());
 
   it("records a failed query's code and SQL, never its parameters, detail or refused value", () => {
+    // Made by hand, so they still hold the values our pools take out: the log drops them too.
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
     const taken = postgresError(
       'duplicate key value violates unique constraint "user_email_unique"',
@@ -34,7 +35,7 @@ describe("Better Auth's log", () => {
     expect(logged.mock.calls.map((call) => call.slice(1))).toEqual([
       [
         {
-          error: "The database refused the query (SQLSTATE 23505).",
+          error: 'duplicate key value violates unique constraint "user_email_unique"',
           query: SQL,
           code: "23505",
           table: "user",
@@ -56,7 +57,7 @@ describe("Better Auth's log", () => {
     expect(JSON.stringify(logged.mock.calls)).not.toMatch(/private/i);
   });
 
-  it("cuts the parameters off a failed query's message given as the line's text", () => {
+  it("logs a failed query's message given as the line's text, which never has its parameters", () => {
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
     const failed = new DrizzleQueryError(SQL, PARAMS, new Error("boom"));
     authLog("error", failed.message);
@@ -69,13 +70,13 @@ describe("Better Auth's log", () => {
 
   it("logs a failed query given as the line's text, as Better Auth's session list does", () => {
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
-    const failed = new DrizzleQueryError(SQL, PARAMS, postgresError("canceled", { code: "57014" }));
+    const failed = new DrizzleQueryError(SQL, PARAMS, postgresError("canceled", { code: "XX000" }));
     authLog("error", failed);
     const [line, fields] = logged.mock.calls[0]!;
     expect(line).toMatch(
-      / ERROR \[Better Auth\]: The database refused the query \(SQLSTATE 57014\)\.$/,
+      / ERROR \[Better Auth\]: The database refused the query \(SQLSTATE XX000\)\.$/,
     );
-    expect(fields).toMatchObject({ query: SQL, code: "57014" });
+    expect(fields).toMatchObject({ query: SQL, code: "XX000" });
     expect(JSON.stringify(logged.mock.calls)).not.toMatch(/private/i);
   });
 

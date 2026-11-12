@@ -152,8 +152,8 @@ export class MemoryService {
   constructor(readonly db: Db) {}
 
   /**
-   * Runs `work`, failing with the database's own error rather than Drizzle's wrapper, whose message
-   * repeats the SQL and its parameters (memory content). Callers show and log these messages.
+   * Runs `work`, failing with the database's own error (without values) rather than Drizzle's
+   * wrapper, whose message is the failed SQL. Callers show these messages.
    */
   private async guarded<T>(work: () => Promise<T>): Promise<T> {
     try {
