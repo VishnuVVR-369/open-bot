@@ -22,11 +22,13 @@ It runs every teammate turn, serves every tool call, and owns every timer and lo
 5. Build every service, then `ToolHandlers`, then the `RunExecutor`.
 6. **Recover**: mark every run still in `starting`, `running` or `waiting` as `interrupted`, with the error "The worker restarted while this was running". A Codex turn can't be resumed after its driver went away, so this is honest rather than optimistic.
 7. Connect to botd's `/events` socket. When it opens, connect to Codex and start claiming runs. When Codex first reports a connection, write every saved skill to the computer.
-8. Start the egress relay, the scheduler, page watches, Gmail and Calendar triggers, the account action executor, the email outbox sweep, push and Telegram.
+8. Start the egress relay, push, phone notifications and Telegram, the account action executor, the scheduler, page watches, Gmail and Calendar triggers, and the email outbox sweep.
 9. `LISTEN openbot_worker` on a dedicated connection, and start the HTTP server on `WORKER_PORT` (4001).
 
 Whatever starts a timer, a listener, a socket or a background loop registers how to stop it with the `Runtime` (`src/core/runtime.ts`).
-On `SIGTERM` or `SIGINT` it stops them all in reverse: the server and the `LISTEN` connection first, then the timers and services, the computer lifecycle, the egress relay, Codex and botd, and the pool last.
+On `SIGTERM` or `SIGINT` it stops them all in reverse.
+The server, the `LISTEN` connection and the timers stop first, then the triggers, the scheduler and the computer lifecycle, so no new work starts.
+Then account actions drain while push, phone notifications and Telegram still listen, and the egress relay, Codex, botd and the pool stop last (`src/shutdown.test.ts` pins this order).
 
 ## Waking up
 

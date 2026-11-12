@@ -332,6 +332,22 @@ const reconcileTakeovers = () =>
 reconcileTakeovers();
 runtime.every("takeover reconciliation", 30_000, reconcileTakeovers);
 await runtime.start("egress relay", egress);
+// What tells you about decisions starts before what makes them, so it still hears the last ones
+// at shutdown: account actions expire approvals while they drain.
+await runtime.start("web push", push);
+await runtime.start("phone notifications", fcm);
+// Connecting to Telegram can take a while, and the worker doesn't wait for it.
+void telegram
+  .start()
+  .catch((error: unknown) => log.error("Telegram didn't start", { error: errorMessage(error) }));
+runtime.add("telegram", () => telegram.stop());
+// Account actions drain at shutdown, after everything that adds to them has stopped: the lifecycle
+// (no run starts once it pauses Codex), schedules and triggers.
+accountActions.start();
+runtime.add("account actions", async () => {
+  accountActions.stop();
+  await accountActions.idle();
+});
 // It pauses the computer's connections, egress's among them, so it stops first.
 runtime.add("computer lifecycle", () => lifecycle.stop());
 computer.on("lease", () => wake.evaluate());
@@ -339,11 +355,6 @@ runtime.every("egress wake", 1_000, () => wake.evaluate());
 await runtime.start("schedules", schedules);
 await runtime.start("triggers", triggers);
 await runtime.start("account triggers", accountTriggers);
-accountActions.start();
-runtime.add("account actions", async () => {
-  accountActions.stop();
-  await accountActions.idle();
-});
 const sweepEmail = () =>
   void email
     .sweep()
@@ -360,13 +371,6 @@ const keepAccountsAlive = () =>
     );
 runtime.after("first account keep-alive", 60_000, keepAccountsAlive);
 runtime.every("account keep-alive", 12 * 60 * 60_000, keepAccountsAlive);
-await runtime.start("web push", push);
-await runtime.start("phone notifications", fcm);
-// Connecting to Telegram can take a while, and the worker doesn't wait for it.
-void telegram
-  .start()
-  .catch((error: unknown) => log.error("Telegram didn't start", { error: errorMessage(error) }));
-runtime.add("telegram", () => telegram.stop());
 
 // Wake up on signals from the web server.
 const listener = await pool.connect();

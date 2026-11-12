@@ -1,9 +1,60 @@
 import { EventEmitter } from "node:events";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountActions } from "./accounts/actions";
 import type { Context } from "./context";
 import { FcmService } from "./services/fcm";
 import { PushService } from "./services/push";
+
+/** The order index.ts stops its parts in: the reverse of the order it registers them with the Runtime. */
+function stopOrder(): string[] {
+  const source = readFileSync(path.join(import.meta.dirname, "index.ts"), "utf8");
+  const names = [...source.matchAll(/runtime\.(?:start|add|every|after)\(\s*"([^"]+)"/g)].map(
+    ([, name]) => name!,
+  );
+  expect(new Set(names).size).toBe(names.length);
+  return names.reverse();
+}
+
+describe("shutdown order", () => {
+  const order = stopOrder();
+  const at = (name: string) => {
+    expect(order).toContain(name);
+    return order.indexOf(name);
+  };
+
+  it("drains account actions after everything that adds to them has stopped", () => {
+    for (const producer of [
+      "http server",
+      "signal listener",
+      "safety sweep",
+      "computer lifecycle",
+      "schedules",
+      "triggers",
+      "account triggers",
+    ])
+      expect(at(producer), producer).toBeLessThan(at("account actions"));
+  });
+
+  it("keeps notifications and what actions use running until account actions have drained", () => {
+    for (const consumer of [
+      "web push",
+      "phone notifications",
+      "telegram",
+      "integrations",
+      "codex",
+      "database",
+    ])
+      expect(at(consumer), consumer).toBeGreaterThan(at("account actions"));
+  });
+
+  it("pauses the computer before stopping the connections it pauses, and closes the database last", () => {
+    for (const part of ["egress relay", "codex", "computer"])
+      expect(at("computer lifecycle"), part).toBeLessThan(at(part));
+    expect(order.at(-1)).toBe("database");
+  });
+});
 
 /** What shutdown relies on: once stopped, a service holds no timers and hears no events. */
 describe("stopping services", () => {
