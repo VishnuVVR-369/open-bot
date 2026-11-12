@@ -1,9 +1,10 @@
 import "server-only";
 import { getAuthenticatorName } from "@better-auth/passkey";
 import { passkeyNameFor } from "../passkey-name";
+import { serverEnv } from "./env";
 
 /** Where the app is served. Passkeys are bound to its hostname. */
-export const BASE_URL = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
+export const BASE_URL = serverEnv.baseUrl;
 
 /** The phone app's scheme, which its auth requests carry as their origin. */
 export const MOBILE_ORIGIN = "openbot://";
@@ -20,7 +21,7 @@ export const ANDROID_PACKAGE = "dev.openbot.mobile";
  * belongs there in production.
  */
 export function androidCertFingerprints(
-  env: string | undefined = process.env.ANDROID_CERT_SHA256,
+  env: string | undefined = serverEnv.androidCertSha256,
 ): string[] {
   return (env ?? "")
     .split(",")

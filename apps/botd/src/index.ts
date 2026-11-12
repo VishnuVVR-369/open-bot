@@ -4,6 +4,7 @@ import { backgroundProcess, type ProcessView } from "./background";
 import { ComputeLifecycle } from "./lifecycle";
 import { CodeScreens } from "./code-screens";
 import { CookieSync } from "./cookies";
+import { readEnv, type BotdEnv } from "./env";
 import { EgressRouter } from "./egress";
 import { PageChecker, PagePreviewServer } from "./pages";
 import { browserSandboxAvailable } from "./sandbox";
@@ -22,11 +23,14 @@ function log(message: string) {
   process.stdout.write(`${new Date().toISOString()} ${message}\n`);
 }
 
-const token = process.env.BOTD_TOKEN;
-if (!token || token.length < 16) {
-  log("BOTD_TOKEN must be set to at least 16 characters");
+let env: BotdEnv;
+try {
+  env = readEnv();
+} catch (error) {
+  log(error instanceof Error ? error.message : String(error));
   process.exit(1);
 }
+const { token, lifecycleEnabled } = env;
 
 const desktopUser = lookupUser("desktop");
 const botUser = lookupUser("bot");
@@ -54,7 +58,7 @@ hide_full_access_warning = true
 async function prepareFilesystem() {
   const botGroup = { uid: botUser.uid, gid: botUser.gid };
   // The shared folders are group-writable by both users (the `bots` group), and new files inherit the group.
-  const shared = { uid: botUser.uid, gid: Number(process.env.BOTS_GID ?? botUser.gid) };
+  const shared = { uid: botUser.uid, gid: env.sharedGid ?? botUser.gid };
   await ensureDir(botUser.home, botGroup, 0o755);
   await ensureDir(COMPUTER_PATHS.botsRoot, botGroup, 0o755);
   await ensureDir(COMPUTER_PATHS.shared, shared, 0o2775);
@@ -89,7 +93,6 @@ if (!browserSandbox) {
   );
 }
 
-const lifecycleEnabled = process.env.COMPUTER_LIFECYCLE_ENABLED === "true";
 const supervisor = new Supervisor(log);
 let broadcastHealth = () => {};
 const egress = new EgressRouter({
@@ -114,21 +117,17 @@ const screens: ScreenManager = new ScreenManager(
     browserSandbox,
     socksPort: PORTS.socks,
     legacyProfile: `${desktopUser.home}/.config/chromium`,
-    // Extra sites the apply guard covers, besides the job portals: the e2e tests' stand-in portal.
-    applyGuardExtraDomains: (process.env.APPLY_GUARD_EXTRA_DOMAINS ?? "")
-      .split(",")
-      .map((domain) => domain.trim())
-      .filter(Boolean),
+    applyGuardExtraDomains: env.applyGuardExtraDomains,
     log,
   },
   {
-    maxRunning: Number(process.env.MAX_SCREENS ?? (lifecycleEnabled ? 2 : 4)),
-    idleMs: Number(process.env.SCREEN_IDLE_MINUTES ?? (lifecycleEnabled ? 3 : 20)) * 60_000,
+    maxRunning: env.maxScreens,
+    idleMs: env.screenIdleMs,
   },
 );
 
 /** Drafts of pages, as teammates (and their browsers) see them, and the checker that renders them. */
-const pagePreview = new PagePreviewServer(process.env.PAGE_LIB_DIR ?? "/opt/page-kit/lib", log);
+const pagePreview = new PagePreviewServer(env.pageLibDir, log);
 const pageChecker = new PageChecker(pagePreview, desktopUser, browserSandbox, log);
 
 // Every live process of the bot user. Failure to inspect /proc blocks sleep.

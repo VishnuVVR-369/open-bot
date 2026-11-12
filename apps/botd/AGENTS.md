@@ -7,6 +7,7 @@ Tunnel framing and IP policy live in `packages/egress`.
 ## Entry points
 
 - `apps/botd/src/index.ts`: process entry that probes the sandbox and starts the supervisor, server and Codex.
+- `apps/botd/src/env.ts`: `readEnv()`, the only place botd reads the environment.
 - `apps/botd/src/server.ts`: the HTTP server (token check) and the WebSockets: `/events`, the Codex bridge, `/egress` and `/vnc`.
 - `apps/botd/src/router.ts`: the HTTP API, implementing `botdContract` (`packages/api/src/botd/contract.ts`); `apps/botd/src/rpc.ts` counts activity and turns errors into statuses.
 - `apps/botd/src/screens.ts`, `apps/botd/src/lease.ts`, `apps/botd/src/desktop.ts`, `apps/botd/src/cdp.ts`: screens, input leases, display and browser control.
