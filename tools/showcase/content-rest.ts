@@ -308,9 +308,9 @@ export async function seedAutomations(ctx: SeedContext) {
   });
 
   // Automations and email run in each teammate's main chat, each in a lane of its own.
-  const mainOf = (bot) => {
-    const main = s.mainChats.get(bot.id);
-    if (!main) throw new Error(`${bot.name} has no main chat to run automations in.`);
+  const mainOf = (teammate) => {
+    const main = s.mainChats.get(teammate.id);
+    if (!main) throw new Error(`${teammate.name} has no main chat to run automations in.`);
     return main;
   };
   const irisMain = mainOf(iris);
