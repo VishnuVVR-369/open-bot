@@ -388,7 +388,7 @@
     "bot": 2
   },
   "apps/web/src/lib/server/api/memory.ts": {
-    "bot": 7
+    "bot": 5
   },
   "apps/web/src/lib/server/api/pages.ts": {
     "bot": 8
@@ -481,9 +481,6 @@
     "bot": 104,
     "primary teammate": 3
   },
-  "apps/worker/src/runs/memory.test.ts": {
-    "bot": 8
-  },
   "apps/worker/src/runs/queue.ts": {
     "bot": 3
   },
@@ -492,6 +489,9 @@
   },
   "apps/worker/src/runs/session.ts": {
     "bot": 66
+  },
+  "apps/worker/src/runs/thread-continuity.test.ts": {
+    "bot": 4
   },
   "apps/worker/src/services/account-triggers.integration.test.ts": {
     "bot": 13
