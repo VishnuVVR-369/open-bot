@@ -83,6 +83,8 @@ CI runs every row marked "CI" on each pull request.
 ### Unit tests
 
 Vitest, next to the code they test (`*.test.ts`).
+Every package that runs Vitest has a `vitest.config.mts` that spreads `sharedTest` from `vitest.shared.mjs` at the repo root, which keeps each package's module cache in its own `node_modules`: turbo runs every package's tests at once, and a shared cache directory was cleared under the others after a lockfile change (ENOTEMPTY).
+`pnpm test:scripts` (`scripts/check/vitest-config.test.mjs`) fails for a package without one; copy `packages/domain/vitest.config.mts`.
 The pure logic in `@open-bot/domain` is covered most: approval rules, schedules, page diffing, the timeline reducer, templates, vault and budgets, connections, email parsing, Telegram formatting, model access and pricing.
 The worker and botd test their trickiest parts directly: the lease, the cookie jar's merge rules, the Codex client, the event mapper, instructions and push payloads.
 `packages/egress` has contract tests for the framing, flow control and SOCKS, and writes the test vectors the Kotlin core reads (`pnpm --filter @open-bot/egress vectors`).

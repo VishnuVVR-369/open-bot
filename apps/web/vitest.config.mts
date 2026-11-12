@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
+import { sharedTest } from "../../vitest.shared.mjs";
 
 export default defineConfig({
   resolve: {
@@ -9,5 +10,5 @@ export default defineConfig({
       "server-only": fileURLToPath(new URL("./src/test/empty.ts", import.meta.url)),
     },
   },
-  test: { include: ["src/**/*.test.ts"] },
+  test: { ...sharedTest, include: ["src/**/*.test.ts"] },
 });
