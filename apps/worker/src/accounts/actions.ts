@@ -7,14 +7,15 @@ import {
   type Queryable,
 } from "@open-bot/db";
 import {
-  ACTION_APPROVAL_TTL_MS,
+  type AccountActionStatus,
   accountTool,
+  ACTION_APPROVAL_TTL_MS,
+  type ApprovalDecision,
   capabilityGranted,
   FINISHED_ACTION_STATUSES,
   integration,
   isAccountConnectionKind,
   rulesCover,
-  type AccountActionStatus,
   type ToolItem,
 } from "@open-bot/domain";
 import { and, asc, eq, inArray, isNotNull, isNull, lt, lte, sql, type SQL } from "drizzle-orm";
@@ -164,7 +165,7 @@ async function cancelWaiting(db: Queryable, which: SQL, reason: string): Promise
 export async function decideAccountAction(
   db: Queryable,
   approvalId: string,
-  decision: "approved" | "denied",
+  decision: ApprovalDecision,
 ): Promise<void> {
   await db
     .update(accountActions)

@@ -1,12 +1,10 @@
-import type { ActionEffect } from "@open-bot/domain";
+import type { AccountApprovalKind, ActionEffect } from "@open-bot/domain";
 
 /**
  * How an action reaches the world decides whether it asks you first. Each integration's adapter
  * works the effect out from the tool and its checked arguments, never from what the teammate says
  * about it, and calls it outward when it can't be established. This turns it into asking you.
  */
-
-export type AccountApprovalKind = "account_write" | "account_outward";
 
 /**
  * Whether an action on one of your accounts asks you first, and as which kind.

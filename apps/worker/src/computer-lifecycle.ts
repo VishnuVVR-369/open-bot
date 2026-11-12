@@ -1,16 +1,8 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
+import type { ComputerLifecycleStatus, ComputerPhase } from "@open-bot/domain";
 import { errorMessage } from "./logger";
 
-export type ComputerPhase = "idle" | "waking" | "awake" | "grace" | "quiescing";
-export interface LifecycleStatus {
-  enabled: boolean;
-  phase: ComputerPhase;
-  /** Why the computer isn't available, in words for the user. */
-  error: string | null;
-  demand: string[];
-  changedAt: string;
-}
 export interface LifecycleHooks {
   /** Only retryable lifecycle calls belong here. Never retry user actions. */
   wake(owner: string, signal: AbortSignal): Promise<boolean>;
@@ -20,7 +12,7 @@ export interface LifecycleHooks {
   pause(): void;
   renew(owner: string, demand: number): Promise<void>;
   busy(): boolean;
-  changed(status: LifecycleStatus): void;
+  changed(status: ComputerLifecycleStatus): void;
   /** A lifecycle step failed in a way the user needn't see. */
   warn(message: string, error: unknown): void;
 }
@@ -36,7 +28,7 @@ export class ComputerLifecycle {
   private renewing = false;
   private stopped = false;
   private compatible = true;
-  private state: LifecycleStatus;
+  private state: ComputerLifecycleStatus;
 
   constructor(
     readonly enabled: boolean,
@@ -53,7 +45,7 @@ export class ComputerLifecycle {
     };
   }
 
-  get status(): LifecycleStatus {
+  get status(): ComputerLifecycleStatus {
     return { ...this.state, demand: [...this.demands.values()] };
   }
   get resting(): boolean {

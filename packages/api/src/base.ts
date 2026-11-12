@@ -1,6 +1,6 @@
+import { approvalStatusSchema } from "@open-bot/domain";
 import { oc } from "@orpc/contract";
 import { z } from "zod";
-import { approvalStatusSchema } from "./views";
 
 /** Errors a caller is expected to handle, beyond the common ones (`UNAUTHORIZED`, `BAD_REQUEST`). */
 export const API_ERRORS = {

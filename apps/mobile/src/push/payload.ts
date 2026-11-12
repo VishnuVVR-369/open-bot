@@ -1,7 +1,9 @@
 /**
- * What the worker sends a phone (FCM data messages, see apps/worker/src/services/fcm.ts), and
+ * What the worker sends a phone (FCM data messages, `NativePushData` in @open-bot/domain), and
  * how the app shows it. Platform-free, so it's tested in Node.
  */
+
+import { NATIVE_PUSH_TYPES, type NativePushType } from "@open-bot/domain";
 
 export type ChannelId = "approvals" | "asking" | "messages" | "running" | "connection";
 
@@ -14,7 +16,7 @@ export const CHANNELS: { id: ChannelId; name: string; importance: "high" | "defa
 ];
 
 export interface PushData {
-  type: "notification" | "dismiss" | "egress-needed" | "run-progress";
+  type: NativePushType;
   tag: string;
   kind?: string;
   title?: string;
@@ -37,10 +39,9 @@ export function parsePushData(raw: Record<string, unknown> | undefined): PushDat
     typeof raw[key] === "string" && raw[key] ? (raw[key] as string) : undefined;
   const type = text("type");
   const tag = text("tag");
-  if (!tag || !type || !["notification", "dismiss", "egress-needed", "run-progress"].includes(type))
-    return null;
+  if (!tag || !type || !(NATIVE_PUSH_TYPES as readonly string[]).includes(type)) return null;
   return {
-    type: type as PushData["type"],
+    type: type as NativePushType,
     tag,
     kind: text("kind"),
     title: text("title"),

@@ -42,6 +42,7 @@ import {
   nextTeammateColor,
   PAGE_TEXT_NOTE,
   type RunStatus,
+  SPENDING_PURCHASE_STATUSES,
   WEBHOOK_PAYLOAD_NOTE,
 } from "@open-bot/domain";
 import {
@@ -1028,9 +1029,6 @@ export async function listVaultItems(): Promise<VaultItemView[]> {
   }));
 }
 
-/** Purchases that count against a budget: everything not denied or called off. */
-const SPENDING = ["pending", "approved", "paid"] as const;
-
 export async function getSpending(botId: string): Promise<SpendingView | null> {
   const [bot] = await db
     .select({ budget: bots.monthlyBudgetCents, autoApprove: bots.autoApproveCents })
@@ -1055,7 +1053,7 @@ export async function getSpending(botId: string): Promise<SpendingView | null> {
       .where(
         and(
           eq(purchases.botId, botId),
-          inArray(purchases.status, [...SPENDING]),
+          inArray(purchases.status, [...SPENDING_PURCHASE_STATUSES]),
           gte(purchases.createdAt, monthStart()),
         ),
       ),

@@ -9,10 +9,14 @@ export const triggerKindSchema = z.enum(["watch", "webhook", "gmail", "calendar"
 export type TriggerKind = z.infer<typeof triggerKindSchema>;
 
 /** Triggers on your own accounts, which watch a connection instead of a page or a URL. */
-export type AccountTriggerKind = "gmail" | "calendar";
+export const ACCOUNT_TRIGGER_KINDS = [
+  "gmail",
+  "calendar",
+] as const satisfies readonly TriggerKind[];
+export type AccountTriggerKind = (typeof ACCOUNT_TRIGGER_KINDS)[number];
 
 export function isAccountTrigger(kind: string): kind is AccountTriggerKind {
-  return kind === "gmail" || kind === "calendar";
+  return (ACCOUNT_TRIGGER_KINDS as readonly string[]).includes(kind);
 }
 
 /** The kind of connection each account trigger watches. */
@@ -46,7 +50,8 @@ export function describeGmailQuery(query: string | null | undefined): string {
 }
 
 /** Which events a Calendar trigger wakes for. */
-export type CalendarEventFilter = "all" | "guests";
+export const calendarEventFilterSchema = z.enum(["all", "guests"]);
+export type CalendarEventFilter = z.infer<typeof calendarEventFilterSchema>;
 
 export const CALENDAR_EVENT_FILTERS: readonly { value: CalendarEventFilter; label: string }[] = [
   { value: "all", label: "Every event" },

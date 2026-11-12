@@ -1,6 +1,7 @@
 import "server-only";
-import type { ApiInputs, ApprovalRule, ApprovalStatus, ApprovalView } from "@open-bot/api";
+import type { ApiInputs, ApprovalRule, ApprovalView } from "@open-bot/api";
 import { approvalRules, approvals, bots } from "@open-bot/db";
+import type { ApprovalStatus } from "@open-bot/domain";
 import { asc, eq, isNull } from "drizzle-orm";
 import { db } from "../db";
 import { toApprovalView } from "../views";

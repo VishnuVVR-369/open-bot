@@ -1,5 +1,6 @@
 "use client";
 
+import { TASK_STATUSES } from "@open-bot/domain";
 import { useQueryClient } from "@tanstack/react-query";
 import { differenceInCalendarDays, format, parseISO } from "date-fns";
 import { CalendarDays, ChevronDown, CircleCheck, Plus } from "lucide-react";
@@ -17,8 +18,6 @@ import type { BotSummary, TaskView } from "@/lib/types";
 import { isComputerOnline, STATUS } from "@/lib/status";
 import { cn } from "@/lib/utils";
 import { STATUS_LABELS, TaskDialog } from "./task-dialog";
-
-const COLUMNS: TaskView["status"][] = ["todo", "doing", "done"];
 
 function Due({ dueOn, done }: { dueOn: string; done: boolean }) {
   const days = differenceInCalendarDays(parseISO(dueOn), new Date());
@@ -284,7 +283,7 @@ export function TaskBoard() {
   if (isLoading || !tasks)
     return (
       <div className="grid gap-4 md:grid-cols-3">
-        {COLUMNS.map((column) => (
+        {TASK_STATUSES.map((column) => (
           <Skeleton key={column} className="h-64 rounded-xl" />
         ))}
       </div>
@@ -302,7 +301,7 @@ export function TaskBoard() {
     filter === "mine" ? mine(task) : filter === "attention" ? needsAttention(task) : true,
   );
 
-  const columns = COLUMNS.map((status) => ({
+  const columns = TASK_STATUSES.map((status) => ({
     status,
     tasks: shown
       .filter((task) => task.status === status)

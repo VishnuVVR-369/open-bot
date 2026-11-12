@@ -1,30 +1,53 @@
-import type { LeaseReleaseReason, ScreenOperationStatus } from "@open-bot/domain";
-import type {
-  AccountActionPreview,
-  AccountActionStatus,
-  AccountCapability,
-  AccountProvider,
-  AccountStatus,
-  ActionEffect,
-  ConnectionKind,
-  ConnectionSettings,
-  ApprovalKind,
-  RuleKind,
-  VaultKind,
-  Autonomy,
-  EgressMode,
-  MemoryJobKind,
-  MemoryKind,
-  MemoryRef,
-  MemorySnapshot,
-  MemorySource,
-  MemoryState,
-  PhoneMode,
-  RunEventPayload,
-  RunStatus,
-  TriggerKind,
+import {
+  MEMORY_JOB_KINDS,
+  MEMORY_KINDS,
+  MEMORY_STATES,
+  type AccountActionPreview,
+  type AccountActionStatus,
+  type AccountCapability,
+  type AccountProvider,
+  type AccountStatus,
+  type ActionEffect,
+  type ApprovalKind,
+  type ApprovalStatus,
+  type AuthMode,
+  type Autonomy,
+  type ChatgptAuthSource,
+  type ChatKind,
+  type ConnectionKind,
+  type ConnectionSettings,
+  type ConnectionTransport,
+  type Creator,
+  type EgressMode,
+  type LeaseReleaseReason,
+  type MemoryJobKind,
+  type MemoryKind,
+  type MemoryRef,
+  type MemorySnapshot,
+  type MemorySource,
+  type MemoryState,
+  type MessageRole,
+  type OAuthClientSource,
+  type PageIssue,
+  type PhoneMode,
+  type PurchaseStatus,
+  type RuleKind,
+  type RunEventPayload,
+  type RunRating,
+  type RunStatus,
+  type RunTrigger,
+  type RunWait,
+  type ScheduleKind,
+  type ScreenOperationStatus,
+  type SwarmState,
+  type SwarmTaskState,
+  type TaskStatus,
+  type TriggerKind,
+  type UploadStatus,
+  type VaultKind,
 } from "@open-bot/domain";
 import {
+  type AnyPgColumn,
   bigint,
   check,
   date,
@@ -47,6 +70,10 @@ import { sql } from "drizzle-orm";
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({
   dataType: () => "bytea",
 });
+
+/** A check that a text column holds one of the values its domain type lists. */
+const oneOf = (column: AnyPgColumn, values: readonly string[]) =>
+  sql`${column} in (${sql.raw(values.map((value) => `'${value}'`).join(","))})`;
 
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 const updatedAt = () =>
@@ -169,7 +196,6 @@ export const bots = pgTable(
  * Helper chats hold a swarm helper's work; they don't show in your chat lists. A bot's inbox chat
  * is where the emails it gets arrive.
  */
-export type ChatKind = "direct" | "group" | "scheduled" | "helper" | "inbox";
 
 export const chats = pgTable(
   "chats",
@@ -236,7 +262,7 @@ export const botThreads = pgTable(
     /** Threads keep the tools they started with, so a new tool set starts a new thread. */
     toolsVersion: integer("tools_version").notNull(),
     /** Whether the thread talks to the model through the ChatGPT plan or the API key. */
-    authMode: text("auth_mode").$type<"plan" | "api_key">().notNull().default("plan"),
+    authMode: text("auth_mode").$type<AuthMode>().notNull().default("plan"),
     /**
      * The connections and AGENTS.md the thread was given. Codex keeps both for a thread's life, so
      * a change forks the conversation into a thread that has the new ones.
@@ -257,8 +283,6 @@ export interface Attachment {
   mime: string;
   size: number;
 }
-
-export type MessageRole = "user" | "system";
 
 export const messages = pgTable(
   "messages",
@@ -329,32 +353,6 @@ export const messageDispatches = pgTable(
   (table) => [primaryKey({ columns: [table.messageId, table.botId] })],
 );
 
-export type RunTrigger =
-  | "user"
-  | "schedule"
-  | "watch"
-  | "webhook"
-  | "hand_back"
-  | "approval"
-  | "handoff"
-  /** Another teammate asked this bot something with ask_teammate. */
-  | "question"
-  /** The answer to a question this bot asked, coming back to it. */
-  | "answer"
-  /** A task from the board this bot was asked to work on. */
-  | "task"
-  | "takeover_ended"
-  /** A helper working on one part of a swarm, on its own screen. */
-  | "swarm"
-  /** A swarm's merged results, coming back to the teammate that started it. */
-  | "swarm_results"
-  /** An email to the bot's address. */
-  | "email"
-  /** New mail in your Gmail matched a trigger. */
-  | "gmail"
-  /** An event on your calendar is about to start. */
-  | "calendar";
-
 export const runs = pgTable(
   "runs",
   {
@@ -377,14 +375,14 @@ export const runs = pgTable(
     /** The screen it works on when it isn't its bot's own, like a swarm helper's. */
     screenId: uuid("screen_id"),
     status: text("status").$type<RunStatus>().notNull().default("queued"),
-    waitingFor: text("waiting_for").$type<"approval" | "takeover">(),
+    waitingFor: text("waiting_for").$type<RunWait>(),
     error: text("error"),
-    authMode: text("auth_mode").$type<"plan" | "api_key">(),
+    authMode: text("auth_mode").$type<AuthMode>(),
     codexThreadId: text("codex_thread_id"),
     codexTurnId: text("codex_turn_id"),
     finalText: text("final_text"),
     /** Your thumbs up or down on the reply. */
-    rating: text("rating").$type<"up" | "down">(),
+    rating: text("rating").$type<RunRating>(),
     /** Set when you press stop, so the worker interrupts the turn. */
     cancelRequestedAt: timestamp("cancel_requested_at", { withTimezone: true }),
     /**
@@ -498,19 +496,13 @@ export const pageVersions = pgTable(
     thumbnail: bytea("thumbnail"),
     thumbnailDark: bytea("thumbnail_dark"),
     /** Warnings from the check when it was published. */
-    issues: jsonb("issues")
-      .$type<{ level: "error" | "warning"; message: string }[]>()
-      .notNull()
-      .default([]),
+    issues: jsonb("issues").$type<PageIssue[]>().notNull().default([]),
     createdAt: createdAt(),
   },
   (table) => [uniqueIndex("page_versions_number_unique").on(table.pageId, table.number)],
 );
 
 /* ---------------------------------------------------------------- Approvals and takeovers */
-
-export type { ApprovalKind };
-export type ApprovalStatus = "pending" | "approved" | "denied" | "expired";
 
 export const approvals = pgTable(
   "approvals",
@@ -631,7 +623,7 @@ export const skills = pgTable(
     instructions: text("instructions").notNull(),
     /** The teammate who can use it; null means every teammate. */
     botId: uuid("bot_id").references(() => bots.id, { onDelete: "cascade" }),
-    createdBy: text("created_by").$type<"user" | "bot">().notNull(),
+    createdBy: text("created_by").$type<Creator>().notNull(),
     /** The bot that wrote it, when a bot saved it. */
     createdByBotId: uuid("created_by_bot_id").references(() => bots.id, { onDelete: "set null" }),
     createdAt: createdAt(),
@@ -660,14 +652,14 @@ export const schedules = pgTable(
       .references(() => bots.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
     prompt: text("prompt").notNull(),
-    kind: text("kind").$type<"cron" | "once">().notNull(),
+    kind: text("kind").$type<ScheduleKind>().notNull(),
     cron: text("cron"),
     runAt: timestamp("run_at", { withTimezone: true }),
     timezone: text("timezone").notNull(),
     enabled: boolean("enabled").notNull().default(true),
     /** Only tell you when there's news: a run with nothing to report doesn't notify you. */
     quiet: boolean("quiet").notNull().default(false),
-    createdBy: text("created_by").$type<"user" | "bot">().notNull(),
+    createdBy: text("created_by").$type<Creator>().notNull(),
     createdByRunId: uuid("created_by_run_id"),
     nextRunAt: timestamp("next_run_at", { withTimezone: true }),
     lastRunAt: timestamp("last_run_at", { withTimezone: true }),
@@ -716,7 +708,7 @@ export const triggers = pgTable(
     /** Gmail: the mailbox's history id at the last check. */
     cursor: text("cursor"),
     lastFiredAt: timestamp("last_fired_at", { withTimezone: true }),
-    createdBy: text("created_by").$type<"user" | "bot">().notNull(),
+    createdBy: text("created_by").$type<Creator>().notNull(),
     createdByRunId: uuid("created_by_run_id"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -783,7 +775,7 @@ export const usageEntries = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     runId: uuid("run_id").references(() => runs.id, { onDelete: "set null" }),
     botId: uuid("bot_id").references(() => bots.id, { onDelete: "set null" }),
-    authMode: text("auth_mode").$type<"plan" | "api_key">().notNull(),
+    authMode: text("auth_mode").$type<AuthMode>().notNull(),
     inputTokens: bigint("input_tokens", { mode: "number" }).notNull(),
     cachedInputTokens: bigint("cached_input_tokens", { mode: "number" }).notNull(),
     outputTokens: bigint("output_tokens", { mode: "number" }).notNull(),
@@ -814,7 +806,7 @@ export const settings = pgTable("settings", {
   timezone: text("timezone").notNull().default("UTC"),
   /** How Codex signs in to ChatGPT: a device-code login stored in the computer, or this Mac's Codex login (development). */
   chatgptAuthSource: text("chatgpt_auth_source")
-    .$type<"device" | "host">()
+    .$type<ChatgptAuthSource>()
     .notNull()
     .default("host"),
   /** What every teammate knows about you: Markdown you write, and facts teammates add. */
@@ -885,8 +877,6 @@ export const lessons = pgTable(
   ],
 );
 
-export type TaskStatus = "todo" | "doing" | "done";
-
 /** The team's task board: work you or a teammate wrote down, who owns it, and how far it got. */
 export const tasks = pgTable(
   "tasks",
@@ -901,7 +891,7 @@ export const tasks = pgTable(
     dueOn: date("due_on", { mode: "string" }),
     /** Order within its column. */
     position: doublePrecision("position").notNull().default(0),
-    createdBy: text("created_by").$type<"user" | "bot">().notNull(),
+    createdBy: text("created_by").$type<Creator>().notNull(),
     createdByBotId: uuid("created_by_bot_id").references(() => bots.id, { onDelete: "set null" }),
     /** The chat where the owner was last asked to work on it. */
     chatId: uuid("chat_id").references(() => chats.id, { onDelete: "set null" }),
@@ -968,8 +958,6 @@ export const egressDevices = pgTable("egress_devices", {
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
 });
 
-export type UploadStatus = "writing" | "complete" | "failed";
-
 /**
  * Files you attach to messages, written to the computer. The id comes from the sender and the
  * path from the id, so a retried upload writes the same file again instead of a second one, and
@@ -1026,8 +1014,6 @@ export const vaultItems = pgTable("vault_items", {
   updatedAt: updatedAt(),
 });
 
-export type PurchaseStatus = "pending" | "approved" | "denied" | "paid" | "not_paid";
-
 /** What a teammate pays for with a vault card, which counts against its monthly budget. */
 export const purchases = pgTable(
   "purchases",
@@ -1054,9 +1040,6 @@ export const purchases = pgTable(
   (table) => [index("purchases_bot_idx").on(table.botId, table.createdAt)],
 );
 
-export type SwarmStatus = "running" | "done" | "stopped";
-export type SwarmTaskStatus = "queued" | "running" | "completed" | "failed" | "stopped";
-
 /**
  * A big job a teammate split into parts, each worked on at the same time by a helper with its own
  * screen. When every part is done, the results come back to the teammate as one message.
@@ -1078,7 +1061,7 @@ export const swarms = pgTable(
     /** The timeline item in that run that shows its progress. */
     itemId: text("item_id").notNull(),
     title: text("title").notNull(),
-    status: text("status").$type<SwarmStatus>().notNull().default("running"),
+    status: text("status").$type<SwarmState>().notNull().default("running"),
     createdAt: createdAt(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
   },
@@ -1099,7 +1082,7 @@ export const swarmTasks = pgTable(
     /** The helper's chat, where its work shows. */
     chatId: uuid("chat_id").references(() => chats.id, { onDelete: "set null" }),
     runId: uuid("run_id").references(() => runs.id, { onDelete: "set null" }),
-    status: text("status").$type<SwarmTaskStatus>().notNull().default("queued"),
+    status: text("status").$type<SwarmTaskState>().notNull().default("queued"),
     result: text("result"),
     createdAt: createdAt(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
@@ -1122,7 +1105,7 @@ export const connections = pgTable(
     /** An MCP server you added, or one of your accounts (Gmail, Google Calendar, Notion). */
     kind: text("kind").$type<ConnectionKind>().notNull().default("mcp"),
     /** For MCP servers: how Codex reaches it. Null for accounts, which the worker serves. */
-    transport: text("transport").$type<"http" | "stdio">(),
+    transport: text("transport").$type<ConnectionTransport>(),
     /** For http: the MCP endpoint. */
     url: text("url"),
     /** For stdio: the command the computer runs, and its arguments. */
@@ -1242,7 +1225,7 @@ export const oauthClients = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     provider: text("provider").$type<AccountProvider>().notNull(),
-    source: text("source").$type<"owner" | "registered">().notNull(),
+    source: text("source").$type<OAuthClientSource>().notNull(),
     clientId: text("client_id").notNull(),
     /** AES-256-GCM of the client secret; null for a public client. */
     encryptedSecret: text("encrypted_secret"),
@@ -1465,8 +1448,8 @@ export const memoryItems = pgTable(
     uniqueIndex("memory_items_live_topic")
       .on(sql`coalesce(${table.botId}::text, 'shared')`, table.key)
       .where(sql`${table.state} = 'active' and ${table.key} is not null`),
-    check("memory_kind_check", sql`${table.kind} in ('fact','preference','lesson','note')`),
-    check("memory_state_check", sql`${table.state} in ('active','candidate','deleted')`),
+    check("memory_kind_check", oneOf(table.kind, MEMORY_KINDS)),
+    check("memory_state_check", oneOf(table.state, MEMORY_STATES)),
     check("memory_revision_positive", sql`${table.revision} > 0`),
     check("memory_deleted_empty", sql`${table.state} <> 'deleted' or ${table.content} = ''`),
   ],
@@ -1512,7 +1495,7 @@ export const memoryJobs = pgTable(
     index("memory_jobs_pending")
       .on(table.availableAt)
       .where(sql`${table.completedAt} is null`),
-    check("memory_job_kind_check", sql`${table.kind} in ('embed','extract')`),
+    check("memory_job_kind_check", oneOf(table.kind, MEMORY_JOB_KINDS)),
   ],
 );
 

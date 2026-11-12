@@ -519,7 +519,7 @@
     "bot": 3
   },
   "apps/worker/src/services/fcm.ts": {
-    "bot": 4
+    "bot": 3
   },
   "apps/worker/src/services/files.ts": {
     "bot": 5
@@ -546,7 +546,7 @@
     "bot": 9
   },
   "apps/worker/src/services/schedules.ts": {
-    "bot": 27
+    "bot": 26
   },
   "apps/worker/src/services/screen-operations.integration.test.ts": {
     "bot": 8,
@@ -567,7 +567,7 @@
     "desktop takeover": 33
   },
   "apps/worker/src/services/tasks.ts": {
-    "bot": 40
+    "bot": 39
   },
   "apps/worker/src/services/telegram.ts": {
     "bot": 66,
@@ -666,7 +666,7 @@
     "bot": 16
   },
   "packages/api/src/automations.ts": {
-    "bot": 6
+    "bot": 4
   },
   "packages/api/src/contract.ts": {
     "bot": 8
@@ -690,10 +690,10 @@
     "bot": 2
   },
   "packages/api/src/skills.ts": {
-    "bot": 3
+    "bot": 2
   },
   "packages/api/src/tasks.ts": {
-    "bot": 5
+    "bot": 4
   },
   "packages/api/src/teammates.ts": {
     "bot": 1
@@ -715,7 +715,7 @@
     "bot": 2
   },
   "packages/db/src/schema.ts": {
-    "bot": 151,
+    "bot": 143,
     "desktop takeover": 4,
     "primary teammate": 2
   },

@@ -1,44 +1,12 @@
 import { createSign } from "node:crypto";
 import { nativePushDevices } from "@open-bot/db";
+import type { CarryingPhoneMode, EgressPushStage, NativePushData } from "@open-bot/domain";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Context, NotificationEvent } from "../context";
 import { errorMessage } from "../logger";
 import { plainText } from "./push";
 import { forgetPushToken } from "../egress/devices";
-
-/**
- * What a phone gets: always a data message, never a notification message, so the app renders it
- * itself (with actions) and can drop one that's stale. Every value is a string, as FCM requires.
- */
-export interface NativePushData {
-  type: "notification" | "dismiss" | "egress-needed" | "run-progress";
-  kind?: string;
-  title?: string;
-  body?: string;
-  /** Replaces, or with `dismiss` removes, an earlier notification with the same tag. */
-  tag: string;
-  /** Where tapping it goes, as a route in the app. */
-  url?: string;
-  botId?: string;
-  chatId?: string;
-  runId?: string;
-  /** A page to open, for a teammate's reply that published one. */
-  pageId?: string;
-  approvalId?: string;
-  /** "true" when approving needs your fingerprint, like for a purchase. */
-  approvalNeedsBiometric?: "true" | "false";
-  takeoverId?: string;
-  /** `egress-needed`: `wake` starts the phone's connection silently; `ask` asks you to tap. */
-  stage?: "wake" | "ask";
-  /** When it was sent (ISO), so the phone can ignore a wake that arrives too late to matter. */
-  sentAt?: string;
-  /**
-   * `egress-needed`: the phone mode now. A phone that was off when it changed would otherwise
-   * act on the one it has stored (and, with `off` stored, never learn of the change).
-   */
-  phoneMode?: "fallback" | "always";
-}
 
 export interface NativePush {
   data: NativePushData;
@@ -62,9 +30,9 @@ export type PushResult = "sent" | "gone" | "failed";
  * few seconds; an ask shows a notification, and stays useful for a while.
  */
 export function nativeEgressPush(
-  stage: "wake" | "ask",
+  stage: EgressPushStage,
   sentAt: Date,
-  phoneMode: "fallback" | "always",
+  phoneMode: CarryingPhoneMode,
 ): NativePush {
   return {
     data: {

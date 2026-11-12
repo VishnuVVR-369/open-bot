@@ -13,8 +13,10 @@ import {
   COMPUTER_PATHS,
   costMicros,
   isNothingToReport,
-  shellScript,
+  type NativeApprovalKind,
   type RunStatus,
+  type RunWait,
+  shellScript,
   type TimelineItem,
 } from "@open-bot/domain";
 import { and, eq, isNull } from "drizzle-orm";
@@ -45,7 +47,7 @@ export interface SessionServices {
   requestNativeApproval: (
     session: RunSession,
     input: {
-      kind: "command" | "file_change";
+      kind: NativeApprovalKind;
       title: string;
       detail: string;
       itemId: string;
@@ -173,7 +175,7 @@ export class RunSession {
   }
 
   /** Mark the run as waiting on you while `work` runs (an approval or a takeover). */
-  async whileWaiting<T>(waitingFor: "approval" | "takeover", work: () => Promise<T>): Promise<T> {
+  async whileWaiting<T>(waitingFor: RunWait, work: () => Promise<T>): Promise<T> {
     this.waits += 1;
     if (this.waits === 1) await this.setStatus("waiting", { waitingFor });
     try {

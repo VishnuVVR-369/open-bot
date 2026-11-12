@@ -1,5 +1,6 @@
 "use client";
 
+import type { ScreenViewMode } from "@open-bot/domain";
 import { Loader2, MonitorOff } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { attempt } from "@/lib/client/mutate";
@@ -43,7 +44,7 @@ export function DesktopView({
   handleRef,
 }: {
   screenId: string;
-  mode: "view" | "control";
+  mode: ScreenViewMode;
   className?: string;
   onStatus?: (status: DesktopConnection) => void;
   handleRef?: React.RefObject<DesktopHandle | null>;

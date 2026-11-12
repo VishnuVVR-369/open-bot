@@ -4,10 +4,24 @@
  * one signed-in account at a provider can serve several integrations.
  */
 
+import { z } from "zod";
+
 /** How a teammate's action reaches the world, which decides whether it asks you first. */
 export type ActionEffect = "read" | "private_write" | "write" | "outward";
 
 /** Whether a signed-in account still works: `needs_reconnect` until you sign in again. */
+/**
+ * Where a provider's OAuth client comes from: `owner` is one you create in the provider's
+ * developer console and paste into Settings; `automatic` is registered by open-bot itself.
+ */
+export const PROVIDER_CLIENT_KINDS = ["owner", "automatic"] as const;
+export const providerClientKindSchema = z.enum(PROVIDER_CLIENT_KINDS);
+export type ProviderClientKind = (typeof PROVIDER_CLIENT_KINDS)[number];
+
+/** A saved OAuth client: one you pasted, or one open-bot registered for an automatic provider. */
+export const OAUTH_CLIENT_SOURCES = ["owner", "registered"] as const;
+export type OAuthClientSource = (typeof OAUTH_CLIENT_SOURCES)[number];
+
 export const ACCOUNT_STATUSES = ["connected", "needs_reconnect", "revoked"] as const;
 export type AccountStatus = (typeof ACCOUNT_STATUSES)[number];
 
@@ -18,11 +32,8 @@ export interface AuthProviderDefinition {
   label: string;
   /** What one sign-in gives you: "Google account", "Notion workspace". */
   accountLabel: string;
-  /**
-   * Where the OAuth client comes from: `owner` is one you create in the provider's developer
-   * console and paste into Settings; `automatic` is registered by open-bot itself.
-   */
-  client: "owner" | "automatic";
+  /** Where the OAuth client comes from (see `ProviderClientKind`). */
+  client: ProviderClientKind;
   /** Scopes every sign-in asks for, whatever the integration (who you are). */
   baseScopes: readonly string[];
   /** Other names the provider reports for a scope, mapped to the one asked for. */

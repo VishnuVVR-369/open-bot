@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { BOT_COLORS } from "./profile";
+import { autonomySchema, BOT_COLORS } from "./profile";
 import { skillInputSchema } from "../skills/skills";
 import { pickStarters, TEAMMATE_TEMPLATES, templateSkills } from "./templates";
 
@@ -14,7 +14,7 @@ export const botProfileSchema = z.object({
   instructions: z.string().max(20_000),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   emoji: z.string().max(8),
-  autonomy: z.enum(["full", "risky", "everything"]),
+  autonomy: autonomySchema,
 });
 
 export type BotProfile = z.infer<typeof botProfileSchema>;
@@ -87,6 +87,10 @@ export const updateBotSchema = z
   .strict();
 
 /** A new teammate, and anything it should have started with but didn't get. */
+/** What a new teammate starts with besides its profile, which can fail one by one. */
+export const teammateSetupKindSchema = z.enum(["skill", "schedule"]);
+export type TeammateSetupKind = z.infer<typeof teammateSetupKindSchema>;
+
 export const createdTeammateSchema = z.object({
   botId: z.string(),
   name: z.string(),
@@ -96,9 +100,7 @@ export const createdTeammateSchema = z.object({
   /** How many skills and schedules it started with. */
   skills: z.number().int(),
   schedules: z.number().int(),
-  failed: z.array(
-    z.object({ kind: z.enum(["skill", "schedule"]), name: z.string(), error: z.string() }),
-  ),
+  failed: z.array(z.object({ kind: teammateSetupKindSchema, name: z.string(), error: z.string() })),
   /** False when the computer was away; its workspace is written before its first run instead. */
   workspaceSynced: z.boolean(),
 });

@@ -1,5 +1,5 @@
 import { accounts, LOCKS, lockUntilCommit, oauthClients, type Db } from "@open-bot/db";
-import type { AccountProvider } from "@open-bot/domain";
+import type { AccountProvider, OAuthClientSource } from "@open-bot/domain";
 import { decryptSecret, encryptSecret } from "@open-bot/domain/server";
 import { and, eq, isNotNull, isNull, notExists, sql } from "drizzle-orm";
 
@@ -66,7 +66,7 @@ export class OAuthClients {
    */
   async makeCurrent(input: {
     provider: AccountProvider;
-    source: "owner" | "registered";
+    source: OAuthClientSource;
     clientId: string;
     clientSecret: string | null;
     hint: string | null;

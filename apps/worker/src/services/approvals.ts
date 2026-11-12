@@ -1,20 +1,19 @@
+import { approvalRules, approvals, configurationRevision, type Queryable } from "@open-bot/db";
 import {
+  type AccountActionPreview,
+  type AccountApprovalKind,
+  type ApprovalDecision,
+  type ApprovalItem,
   type ApprovalKind,
-  approvalRules,
-  approvals,
-  configurationRevision,
-  type Queryable,
-} from "@open-bot/db";
-import type { RuleKind } from "@open-bot/domain";
-import {
-  DEFERRED_APPROVAL_KINDS,
-  ruleAllowed,
   approvalQuotes,
+  DEFERRED_APPROVAL_KINDS,
   formatMoney,
   invalidRulePattern,
+  isAccountApproval,
+  type NativeApprovalKind,
+  ruleAllowed,
+  type RuleKind,
   rulesCover,
-  type AccountActionPreview,
-  type ApprovalItem,
 } from "@open-bot/domain";
 import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
@@ -27,8 +26,6 @@ import { decideAccountAction } from "../accounts/actions";
 import { askAboutPurchase, decidePurchase } from "./vault";
 
 const ACTION_WAIT_MS = 10 * 60_000;
-
-type Decision = "approved" | "denied";
 
 type Rule = typeof approvalRules.$inferSelect;
 
@@ -44,8 +41,6 @@ interface ApprovalInput {
   preview?: AccountActionPreview;
   payload?: Record<string, unknown>;
 }
-
-const ACCOUNT_KINDS: readonly ApprovalKind[] = ["account_write", "account_outward"];
 
 /**
  * Approval requests: Codex's own (commands and file changes, which wait as long as the turn lives)
@@ -77,7 +72,7 @@ export class ApprovalService {
   /** Runs waiting for a decision, by approval id. */
   private readonly waiters = new Map<
     string,
-    { runId: string; resolve: (decision: Decision | "pending") => void }
+    { runId: string; resolve: (decision: ApprovalDecision | "pending") => void }
   >();
 
   constructor(
@@ -154,7 +149,7 @@ export class ApprovalService {
   async requestAccountAction(
     session: RunSession,
     input: {
-      kind: "account_write" | "account_outward";
+      kind: AccountApprovalKind;
       title: string;
       detail: string;
       itemId: string;
@@ -187,7 +182,7 @@ export class ApprovalService {
     runId: string,
     approvalId: string,
     timeoutMs?: number,
-  ): Promise<Decision | "pending"> {
+  ): Promise<ApprovalDecision | "pending"> {
     return new Promise((resolve) => {
       const timer = timeoutMs
         ? setTimeout(() => {
@@ -224,7 +219,7 @@ export class ApprovalService {
   async requestNative(
     session: RunSession,
     input: {
-      kind: "command" | "file_change";
+      kind: NativeApprovalKind;
       title: string;
       detail: string;
       itemId: string;
@@ -286,7 +281,7 @@ export class ApprovalService {
       askEveryTime?: boolean;
       operation?: { tool: string; arguments: Record<string, unknown> };
     },
-  ): Promise<Decision | "pending"> {
+  ): Promise<ApprovalDecision | "pending"> {
     const { askEveryTime, operation, ...details } = input;
     const operationKey = operation ? configurationRevision(operation) : null;
     if (operationKey && (await this.consumeLateApproval(session, operationKey))) return "approved";
@@ -362,7 +357,7 @@ export class ApprovalService {
   async requestPurchase(
     session: RunSession,
     input: { purchaseId: string; title: string; detail: string; itemId: string },
-  ): Promise<Decision | "pending"> {
+  ): Promise<ApprovalDecision | "pending"> {
     const approvalId = await this.create(session, {
       kind: "purchase",
       title: input.title,
@@ -381,7 +376,7 @@ export class ApprovalService {
    */
   async decide(
     approvalId: string,
-    decision: Decision,
+    decision: ApprovalDecision,
     alwaysAllow?: { pattern: string },
   ): Promise<boolean> {
     const row = await this.ctx.db.transaction(async (tx) => {
@@ -391,7 +386,7 @@ export class ApprovalService {
         .where(and(eq(approvals.id, approvalId), eq(approvals.status, "pending")))
         .returning();
       // An action on your accounts moves on with its approval, or not at all.
-      if (decided && ACCOUNT_KINDS.includes(decided.kind))
+      if (decided && isAccountApproval(decided.kind))
         await decideAccountAction(tx, decided.id, decision);
       return decided;
     });
@@ -464,7 +459,7 @@ export class ApprovalService {
    */
   async decideAsOwner(
     approvalId: string,
-    decision: Decision,
+    decision: ApprovalDecision,
     alwaysAllow?: { pattern: string } | null,
   ): Promise<{ decided: boolean; status: (typeof approvals.$inferSelect)["status"] }> {
     if (alwaysAllow && decision === "approved") {

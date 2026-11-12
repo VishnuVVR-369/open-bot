@@ -82,8 +82,12 @@ export function injectPageRuntime(html: string, runtimeUrl: string): string {
 }
 
 /** How the app tells a page to look, and whether to offer "Ask about this". */
+export const PAGE_THEMES = ["light", "dark"] as const;
+export const pageThemeSchema = z.enum(PAGE_THEMES);
+export type PageTheme = (typeof PAGE_THEMES)[number];
+
 export interface PageViewOptions {
-  theme?: "light" | "dark";
+  theme?: PageTheme;
   ask?: boolean;
 }
 

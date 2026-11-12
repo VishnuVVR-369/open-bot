@@ -1,6 +1,9 @@
 import type { InferContractRouterInputs, InferContractRouterOutputs } from "@orpc/contract";
 import {
+  approvalDecisionSchema,
+  approvalStatusSchema,
   botProfileSchema as profileSchema,
+  chatgptAuthSourceSchema,
   createdTeammateSchema,
   egressModeSchema,
   MAX_LESSON_CHARS,
@@ -9,7 +12,10 @@ import {
   memoryItemSchema,
   memoryReferenceSchema,
   memoryRevisionSchema,
+  memorySaveOutcomeSchema,
+  pageThemeSchema,
   phoneModeSchema,
+  runRatingSchema,
   skillInputSchema,
   updatedTeammateSchema,
 } from "@open-bot/domain";
@@ -54,7 +60,6 @@ import { budgetInputSchema, lessonViewSchema, spendingViewSchema } from "./teamm
 import { vaultItemInputSchema, vaultItemViewSchema } from "./vault";
 import {
   approvalRuleSchema,
-  approvalStatusSchema,
   approvalViewSchema,
   attachmentSchema,
   botSummarySchema,
@@ -116,11 +121,9 @@ export const groupTeammatesSchema = z
   .min(2, "Pick at least two teammates.")
   .max(MAX_GROUP_TEAMMATES, `A group can have up to ${MAX_GROUP_TEAMMATES} teammates.`);
 
-export const runRatingSchema = z.enum(["up", "down"]).nullable();
-
 export const decideApprovalInputSchema = z.object({
   approvalId: id,
-  decision: z.enum(["approved", "denied"]),
+  decision: approvalDecisionSchema,
   /** Approve, and stop asking about what this pattern matches. */
   alwaysAllow: z.object({ pattern: z.string().max(300) }).nullable(),
 });
@@ -336,9 +339,7 @@ export const contract = {
      */
     create: base
       .input(memoryInputSchema)
-      .output(
-        memoryItemSchema.extend({ saveOutcome: z.enum(["created", "confirmed", "unchanged"]) }),
-      ),
+      .output(memoryItemSchema.extend({ saveOutcome: memorySaveOutcomeSchema })),
     /**
      * Change a memory. `expectedRevision` is the one you saw: a change made since fails with
      * `STATE_CONFLICT` instead of being overwritten. The same holds for `forget`, `confirm` and
@@ -422,7 +423,7 @@ export const contract = {
   chatgpt: {
     /** Sign in with a device code, or with the login of the Mac running the stack. */
     setAuthSource: base
-      .input(z.object({ source: z.enum(["device", "host"]) }))
+      .input(z.object({ source: chatgptAuthSourceSchema }))
       .output(codexStatusSchema),
     /** Start a device-code sign-in: open the URL and enter the code. */
     startLogin: base.output(z.object({ verificationUrl: z.string(), userCode: z.string() })),
@@ -483,7 +484,7 @@ export const contract = {
     /** Stop a teammate's running (or queued) turn. */
     cancel: base.input(z.object({ runId: id })).output(ok),
     /** Thumbs up or down on a reply, or neither. */
-    rate: base.input(z.object({ runId: id, rating: runRatingSchema })).output(ok),
+    rate: base.input(z.object({ runId: id, rating: runRatingSchema.nullable() })).output(ok),
     /** A thumbs down with what to change; see `feedbackInputSchema`. */
     feedback: base.input(feedbackInputSchema).output(ok),
   },
@@ -521,7 +522,7 @@ export const contract = {
       .input(
         z.object({
           versionId: id,
-          theme: z.enum(["light", "dark"]).optional(),
+          theme: pageThemeSchema.optional(),
           ask: z.boolean().optional(),
         }),
       )

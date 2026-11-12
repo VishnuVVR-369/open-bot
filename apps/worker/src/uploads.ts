@@ -9,7 +9,12 @@ import {
   type Db,
   type Tx,
 } from "@open-bot/db";
-import { COMPUTER_PATHS, MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from "@open-bot/domain";
+import {
+  COMPUTER_PATHS,
+  MAX_UPLOAD_BYTES,
+  MAX_UPLOAD_LABEL,
+  type UploadStatus,
+} from "@open-bot/domain";
 import { and, eq, inArray, lt, notExists, or, sql } from "drizzle-orm";
 import type { Context } from "./context";
 import { errorMessage } from "./logger";
@@ -64,7 +69,7 @@ export interface UploadInput {
 
 export interface UploadView {
   id: string;
-  status: "writing" | "complete" | "failed";
+  status: UploadStatus;
   attachment: { name: string; path: string; mime: string; size: number } | null;
 }
 

@@ -38,15 +38,16 @@ import {
   type WorkerSignal,
 } from "@open-bot/db";
 import {
-  memoryInputSchema,
-  memoryEditSchema,
-  memoryReferenceSchema,
-  normalizeMemory,
   type AppEvent,
+  memoryEditSchema,
   type MemoryInput,
+  memoryInputSchema,
   type MemoryItem,
+  memoryReferenceSchema,
   type MemoryRevision,
+  type MemorySaveOutcome,
   type MemorySource,
+  normalizeMemory,
 } from "@open-bot/domain";
 
 export class MemoryError extends Error {
@@ -68,7 +69,7 @@ export type MemoryActor =
       allowShared?: boolean;
     };
 export type MemorySaveResult = MemoryItem & {
-  saveOutcome: "created" | "confirmed" | "unchanged";
+  saveOutcome: MemorySaveOutcome;
 };
 type Row = typeof memoryItems.$inferSelect;
 export function itemView(row: Row): MemoryItem {

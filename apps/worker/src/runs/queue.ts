@@ -1,12 +1,5 @@
-import {
-  CHANNELS,
-  notify,
-  runEvents,
-  runs,
-  type Attachment,
-  type Queryable,
-  type RunTrigger,
-} from "@open-bot/db";
+import type { RunTrigger } from "@open-bot/domain";
+import { CHANNELS, notify, runEvents, runs, type Attachment, type Queryable } from "@open-bot/db";
 import { sql } from "drizzle-orm";
 import { signalWorker, type Context } from "../context";
 

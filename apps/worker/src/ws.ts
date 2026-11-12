@@ -1,6 +1,6 @@
 import type http from "node:http";
 import { BOTD_SOCKETS } from "@open-bot/api/botd";
-import { isOwnerLease, isScreenId } from "@open-bot/domain";
+import { isOwnerLease, isScreenId, type ScreenViewMode } from "@open-bot/domain";
 import { LEGACY_DESKTOP_AGENT, readToken, verifyToken } from "@open-bot/domain/server";
 import WebSocket, { WebSocketServer } from "ws";
 import type { Context } from "./context";
@@ -63,7 +63,7 @@ export function handleUpgrades(server: http.Server, ctx: Context, egress: Egress
   });
 }
 /** Proxy a browser's noVNC connection to a screen's view-only or control VNC server. */
-function proxyVnc(client: WebSocket, ctx: Context, screen: string, mode: "view" | "control") {
+function proxyVnc(client: WebSocket, ctx: Context, screen: string, mode: ScreenViewMode) {
   const upstream = new WebSocket(ctx.computer.wsUrl(BOTD_SOCKETS.vnc, { screen, mode }), {
     perMessageDeflate: false,
   });

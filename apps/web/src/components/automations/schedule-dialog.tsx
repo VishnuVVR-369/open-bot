@@ -1,11 +1,12 @@
 "use client";
 
 import {
+  type Cadence,
   cadenceCron,
   cadenceOf,
   describeCron,
   formatLocalDateTime,
-  type Cadence,
+  WEEKDAYS,
 } from "@open-bot/domain";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus } from "lucide-react";
@@ -38,8 +39,6 @@ import { useAppState } from "@/lib/client/queries";
 import { attempt } from "@/lib/client/mutate";
 import { api, orpc } from "@/lib/client/rpc";
 import type { ScheduleView } from "@/lib/types";
-
-const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 function defaultDateTime() {
   const date = new Date(Date.now() + 60 * 60 * 1000);

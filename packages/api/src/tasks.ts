@@ -1,7 +1,6 @@
+import { creatorSchema, taskStatusSchema } from "@open-bot/domain";
 import { z } from "zod";
 import { id } from "./base";
-
-export const taskStatusSchema = z.enum(["todo", "doing", "done"]);
 
 /** A new task, as the owner or a teammate writes it. */
 export const taskInputSchema = z.object({
@@ -30,7 +29,7 @@ export const taskViewSchema = z.object({
   ownerBotId: z.string().nullable(),
   dueOn: z.string().nullable(),
   position: z.number(),
-  createdBy: z.enum(["user", "bot"]),
+  createdBy: creatorSchema,
   createdByBotId: z.string().nullable(),
   /** The chat where the owner was last asked to work on it. */
   chatId: z.string().nullable(),

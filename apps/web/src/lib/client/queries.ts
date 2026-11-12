@@ -1,5 +1,6 @@
 "use client";
 
+import type { PageTheme } from "@open-bot/domain";
 import { keepPreviousData, skipToken, useQuery } from "@tanstack/react-query";
 import type { AppState } from "../types";
 import { isNotFound } from "./errors";
@@ -106,7 +107,7 @@ export function usePage(pageId: string) {
  * Where to show a version. Links work for a few minutes, so a page reopened later gets a new one.
  * Not cached with the page lists: the `pages` event never refreshes it.
  */
-export function usePageLink(versionId: string | null, theme: "light" | "dark", ask: boolean) {
+export function usePageLink(versionId: string | null, theme: PageTheme, ask: boolean) {
   return useQuery(
     orpc.pages.open.queryOptions({
       input: versionId === null ? skipToken : { versionId, theme, ask },

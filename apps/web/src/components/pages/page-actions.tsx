@@ -1,5 +1,6 @@
 "use client";
 
+import type { PageTheme } from "@open-bot/domain";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -30,7 +31,7 @@ export function usePinPage() {
  * Open a version in a tab of its own. The tab opens right away (so it isn't blocked as a popup)
  * and goes to the page once its link is ready.
  */
-export async function openPageInTab(versionId: string, theme: "light" | "dark") {
+export async function openPageInTab(versionId: string, theme: PageTheme) {
   const tab = window.open("about:blank", "_blank");
   if (tab) tab.opener = null;
   try {

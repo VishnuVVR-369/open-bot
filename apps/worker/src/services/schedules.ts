@@ -1,5 +1,6 @@
 import { bots, ownerTimeZone, schedules, type Queryable, type Tx } from "@open-bot/db";
 import {
+  type Creator,
   describeCron,
   isValidTimeZone,
   nextCronRun,
@@ -64,7 +65,7 @@ export class ScheduleService {
     timezone: string | null;
     /** Only tell the user when there's news. */
     quiet?: boolean;
-    createdBy: "user" | "bot";
+    createdBy: Creator;
     createdByRunId?: string | null;
   }): Promise<Schedule> {
     const timing = await this.timing(input);

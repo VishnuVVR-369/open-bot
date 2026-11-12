@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import type { EgressAgentKind } from "../egress/settings";
 
 /**
  * Short-lived signed tokens that the web server issues and the worker verifies,
@@ -9,7 +10,7 @@ export type TokenPurpose = "vnc" | "egress";
 
 /** Which device an egress token is for, so the worker never has to take the client's word. */
 export interface EgressAgentClaim {
-  kind: "desktop" | "phone";
+  kind: EgressAgentKind;
   /** The device's stable id: a phone's paired device id, or the desktop app's install id. */
   id: string;
   name: string;

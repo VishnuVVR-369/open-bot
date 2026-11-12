@@ -1,5 +1,11 @@
 import { ownerTimeZone } from "@open-bot/db";
-import { outsideData, type AccountActionPreview } from "@open-bot/domain";
+import {
+  calendarResponseSchema,
+  outsideData,
+  type AccountActionPreview,
+  type CalendarResponse,
+  type EventChange,
+} from "@open-bot/domain";
 import { z } from "zod";
 import { AccountToolError } from "../../../core/errors";
 import { ProviderError, type TokenSource } from "../../../core/http";
@@ -130,7 +136,7 @@ const schemas = {
   respond: z.object({
     calendar_id: calendarArg,
     event_id: z.string().trim().min(1),
-    response: z.enum(["accepted", "declined", "tentative"]),
+    response: calendarResponseSchema,
     note: z.string().trim().max(500).optional(),
     account: accountArg,
   }),
@@ -164,13 +170,13 @@ function times(
 
 function eventPreview(input: {
   account: string;
-  change: "create" | "update" | "delete" | "respond";
+  change: EventChange;
   event: Pick<CalendarEvent, "summary" | "start" | "end" | "location">;
   guests: string[];
   notifiesGuests: boolean;
   calendar: string;
   timeZone: string;
-  response?: "accepted" | "declined" | "tentative";
+  response?: CalendarResponse;
 }): AccountActionPreview {
   const { event } = input;
   return {
@@ -305,7 +311,7 @@ const CALENDAR_TOOLS: NamespaceTool[] = [
     {
       calendar_id: { type: "string" },
       event_id: { type: "string" },
-      response: { type: "string", enum: ["accepted", "declined", "tentative"] },
+      response: { type: "string", enum: [...calendarResponseSchema.options] },
       note: { type: "string" },
     },
     ["event_id", "response"],

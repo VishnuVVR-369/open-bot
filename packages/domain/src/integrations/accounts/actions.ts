@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 /**
  * What teammates read from your accounts, and what an approval for a change to them shows.
  * Nothing here is about one provider: a new integration reuses these previews.
@@ -31,48 +33,56 @@ export function hideOutsideDataNote(text: string): string {
  * each app can render. `email` and `event` are for any mail or calendar service; `change` is for
  * anything else, said as an action on a target.
  */
-export type AccountActionPreview =
-  | {
-      type: "email";
-      account: string;
-      to: string[];
-      cc: string[];
-      bcc: string[];
-      subject: string;
-      body: string;
-      /** The subject of the thread it replies to, if any. */
-      inReplyTo?: string;
-    }
-  | {
-      type: "event";
-      account: string;
-      change: "create" | "update" | "delete" | "respond";
-      title: string;
-      start: string | null;
-      end: string | null;
-      allDay: boolean;
-      timeZone: string | null;
-      location?: string;
-      guests: string[];
-      /** Guests get an email about it. */
-      notifiesGuests: boolean;
-      response?: "accepted" | "declined" | "tentative";
-      calendar?: string;
-    }
-  | {
-      type: "change";
-      /** The integration, like "Notion". */
-      service: string;
-      account: string;
-      action: string;
-      target: string;
-      detail: string;
-      url?: string;
-      /** It changes who can see something, like moving a page. */
-      changesAccess?: boolean;
-    };
+/** Your answer to an invitation. */
+export const calendarResponseSchema = z.enum(["accepted", "declined", "tentative"]);
+export type CalendarResponse = z.infer<typeof calendarResponseSchema>;
+
+export const accountActionPreviewSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("email"),
+    account: z.string(),
+    to: z.array(z.string()),
+    cc: z.array(z.string()),
+    bcc: z.array(z.string()),
+    subject: z.string(),
+    body: z.string(),
+    /** The subject of the thread it replies to, if any. */
+    inReplyTo: z.string().optional(),
+  }),
+  z.object({
+    type: z.literal("event"),
+    account: z.string(),
+    change: z.enum(["create", "update", "delete", "respond"]),
+    title: z.string(),
+    start: z.string().nullable(),
+    end: z.string().nullable(),
+    allDay: z.boolean(),
+    timeZone: z.string().nullable(),
+    location: z.string().optional(),
+    guests: z.array(z.string()),
+    /** Guests get an email about it. */
+    notifiesGuests: z.boolean(),
+    response: calendarResponseSchema.optional(),
+    calendar: z.string().optional(),
+  }),
+  z.object({
+    type: z.literal("change"),
+    /** The integration, like "Notion". */
+    service: z.string(),
+    account: z.string(),
+    action: z.string(),
+    target: z.string(),
+    detail: z.string(),
+    url: z.string().optional(),
+    /** It changes who can see something, like moving a page. */
+    changesAccess: z.boolean().optional(),
+  }),
+]);
+export type AccountActionPreview = z.infer<typeof accountActionPreviewSchema>;
 
 type EventPreview = Extract<AccountActionPreview, { type: "event" }>;
+/** What a calendar action does to an event. */
+export type EventChange = EventPreview["change"];
 
 /** What an event approval does, as its preview's first line says it. */
 export function eventChangeLabel(preview: EventPreview): string {

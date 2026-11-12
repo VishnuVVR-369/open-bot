@@ -1,4 +1,5 @@
-import { bots, tasks, type TaskStatus } from "@open-bot/db";
+import { bots, tasks } from "@open-bot/db";
+import type { Creator, TaskStatus } from "@open-bot/domain";
 import { and, asc, desc, eq, isNull, max, ne } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
 import { mainChat } from "./chats";
@@ -66,7 +67,7 @@ export class TaskService {
     notes?: string;
     ownerBotId?: string | null;
     dueOn?: string | null;
-    createdBy: "user" | "bot";
+    createdBy: Creator;
     createdByBotId?: string | null;
   }): Promise<Task> {
     const [row] = await this.ctx.db

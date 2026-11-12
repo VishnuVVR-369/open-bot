@@ -60,6 +60,19 @@ export const PHONE_MODE_OPTIONS: {
   },
 ];
 
+/** The owner's devices that can carry the computer's traffic: the Mac app, or the phone app. */
+export const EGRESS_AGENT_KINDS = ["desktop", "phone"] as const;
+export const egressAgentKindSchema = z.enum(EGRESS_AGENT_KINDS);
+export type EgressAgentKind = (typeof EGRESS_AGENT_KINDS)[number];
+
+/** Not `off`: a mode in which the phone does carry traffic, at least sometimes. */
+export type CarryingPhoneMode = Exclude<PhoneMode, "off">;
+
+/** How far waking a phone got: the first push, a retry, or asking the owner to open the app. */
+export const PHONE_WAKE_STAGES = ["wake", "retry", "ask"] as const;
+export const phoneWakeStageSchema = z.enum(PHONE_WAKE_STAGES);
+export type PhoneWakeStage = (typeof PHONE_WAKE_STAGES)[number];
+
 /** Why a phone can't carry traffic right now, by its own rules or its owner's choice. */
 export const UNAVAILABLE_REASONS = [
   "wifi-only",

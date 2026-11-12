@@ -1,5 +1,10 @@
-import { runs, swarms, swarmTasks, type SwarmTaskStatus } from "@open-bot/db";
-import { MAX_SWARM_TASKS, type SwarmItem } from "@open-bot/domain";
+import { runs, swarms, swarmTasks } from "@open-bot/db";
+import {
+  type FinishedRunStatus,
+  MAX_SWARM_TASKS,
+  type SwarmItem,
+  type SwarmTaskState,
+} from "@open-bot/domain";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { publishApp, signalWorker, type Context } from "../context";
 import { enqueueRun } from "../runs/queue";
@@ -18,7 +23,7 @@ const MAX_RESULT_CHARS = 12_000;
 
 export class SwarmError extends Error {}
 
-const DONE: SwarmTaskStatus[] = ["completed", "failed", "stopped"];
+const DONE: SwarmTaskState[] = ["completed", "failed", "stopped"];
 
 function helperPrompt(
   swarm: { title: string },
@@ -144,7 +149,7 @@ export class SwarmService {
 
   private async taskFinished(
     runId: string,
-    status: "completed" | "failed" | "interrupted",
+    status: FinishedRunStatus,
     text: string | null,
     error?: string,
   ): Promise<void> {

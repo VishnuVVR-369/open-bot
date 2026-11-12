@@ -1,3 +1,4 @@
+import type { ComputePhase } from "@open-bot/domain";
 /** The computer declined to stop because work is still running. The controller retries later. */
 export class ComputerBusy extends Error {}
 
@@ -5,7 +6,7 @@ export class ComputerBusy extends Error {}
 export class ComputeLifecycle {
   private owner: { id: string; expires: number; demand: number } | null = null;
   private transition: Promise<void> | null = null;
-  private phase: "idle" | "awake" | "starting" | "stopping";
+  private phase: ComputePhase;
   private activity = 0;
   /** JSON-RPC requests, live turns, device login and server requests survive socket loss. */
   private readonly pending = new Set<string>();

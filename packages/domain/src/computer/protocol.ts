@@ -221,10 +221,21 @@ export const computerEventSchema = z.discriminatedUnion("type", [
 ]);
 export type ComputerEvent = z.infer<typeof computerEventSchema>;
 
+/** A screen's VNC connection: watching it, or controlling it during a takeover. */
+export type ScreenViewMode = "view" | "control";
+
+/** Where the worker's sleep and wake controller has the computer. */
+export const computerPhaseSchema = z.enum(["idle", "waking", "awake", "grace", "quiescing"]);
+export type ComputerPhase = z.infer<typeof computerPhaseSchema>;
+
+/** Where botd's own lifecycle is: asleep, awake, or on its way to one of them. */
+export const computePhaseSchema = z.enum(["idle", "awake", "starting", "stopping"]);
+export type ComputePhase = z.infer<typeof computePhaseSchema>;
+
 /** Compute availability is separate from authentication and provider-confirmed sleep. */
 export const computerLifecycleSchema = z.object({
   enabled: z.boolean(),
-  phase: z.enum(["idle", "waking", "awake", "grace", "quiescing"]),
+  phase: computerPhaseSchema,
   error: z.string().nullable(),
   demand: z.array(z.string()),
   changedAt: z.string(),

@@ -1,4 +1,4 @@
-import type { RuleKind } from "@open-bot/domain";
+import type { ApprovalDecision, RuleKind } from "@open-bot/domain";
 import { safe, isDefinedError } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
 import * as LocalAuthentication from "expo-local-authentication";
@@ -7,10 +7,8 @@ import { api } from "./api";
 import { errorMessage } from "./errors";
 import { queryKeys } from "./query";
 
-export type Decision = "approved" | "denied";
-
 export type DecideResult =
-  | { ok: true; status: Decision }
+  | { ok: true; status: ApprovalDecision }
   /** Decided somewhere else first, or it expired: `message` says how it ended. */
   | { ok: false; message: string; settled: boolean };
 
@@ -20,12 +18,12 @@ export type DecideResult =
  */
 export function useDecideApproval() {
   const queryClient = useQueryClient();
-  const [deciding, setDeciding] = useState<Decision | null>(null);
+  const [deciding, setDeciding] = useState<ApprovalDecision | null>(null);
 
   const decide = useCallback(
     async (
       approval: { id: string; kind: string; chatId?: string },
-      decision: Decision,
+      decision: ApprovalDecision,
       /** Approve, and stop asking about what this pattern matches. */
       alwaysAllow: string | null = null,
     ): Promise<DecideResult> => {
@@ -58,7 +56,7 @@ export function useDecideApproval() {
           const settled = isDefinedError(result.error) && result.error.code === "ALREADY_DECIDED";
           return { ok: false, message: errorMessage(result.error), settled };
         }
-        return { ok: true, status: result.data.status as Decision };
+        return { ok: true, status: result.data.status as ApprovalDecision };
       } finally {
         setDeciding(null);
         void queryClient.invalidateQueries({ queryKey: queryKeys.approvals });

@@ -1,4 +1,20 @@
-import type { RunTimelineState } from "@open-bot/domain";
+import {
+  accountActionPreviewSchema,
+  approvalKindSchema,
+  approvalStatusSchema,
+  authModeSchema,
+  autonomySchema,
+  chatKindSchema,
+  messageRoleSchema,
+  ruleKindSchema,
+  runRatingSchema,
+  runStatusSchema,
+  type RunTimelineState,
+  runTriggerSchema,
+  runWaitSchema,
+  swarmTaskStateSchema,
+  uploadStatusSchema,
+} from "@open-bot/domain";
 import { z } from "zod";
 
 /**
@@ -7,18 +23,6 @@ import { z } from "zod";
  */
 
 const isoDate = z.string();
-
-export const runStatusSchema = z.enum([
-  "queued",
-  "starting",
-  "running",
-  "waiting",
-  "completed",
-  "failed",
-  "interrupted",
-]);
-
-export const autonomySchema = z.enum(["full", "risky", "everything"]);
 
 export const botSummarySchema = z.object({
   id: z.string(),
@@ -38,13 +42,11 @@ export const botSummarySchema = z.object({
       id: z.string(),
       chatId: z.string(),
       status: runStatusSchema,
-      waitingFor: z.enum(["approval", "takeover"]).nullable(),
+      waitingFor: runWaitSchema.nullable(),
     })
     .nullable(),
 });
 export type BotSummary = z.infer<typeof botSummarySchema>;
-
-export const chatKindSchema = z.enum(["direct", "group", "scheduled", "helper", "inbox"]);
 
 export const chatSummarySchema = z.object({
   id: z.string(),
@@ -73,7 +75,7 @@ export type Attachment = z.infer<typeof attachmentSchema>;
 
 export const messageViewSchema = z.object({
   id: z.string(),
-  role: z.enum(["user", "system"]),
+  role: messageRoleSchema,
   text: z.string(),
   attachments: z.array(attachmentSchema),
   mentions: z.array(z.string()),
@@ -100,25 +102,6 @@ export function toMessageView(
   };
 }
 
-export const runTriggerSchema = z.enum([
-  "user",
-  "schedule",
-  "watch",
-  "webhook",
-  "hand_back",
-  "approval",
-  "handoff",
-  "question",
-  "answer",
-  "task",
-  "takeover_ended",
-  "swarm",
-  "swarm_results",
-  "email",
-  "gmail",
-  "calendar",
-]);
-
 /**
  * A run's timeline, folded from its run events by `applyRunEvent` in `@open-bot/domain`. The
  * worker writes these items and the shared types describe them, so they're passed through as is.
@@ -140,14 +123,14 @@ export const runViewSchema = z.object({
   /** For handoffs, questions and answers: the teammate this run came from. */
   fromBotId: z.string().nullable(),
   /** How the run reached the model; null before it started. */
-  authMode: z.enum(["plan", "api_key"]).nullable(),
+  authMode: authModeSchema.nullable(),
   scheduleTitle: z.string().nullable(),
   /** The watch or webhook that started the run. */
   triggerTitle: z.string().nullable(),
   /** For runs an automation started: what the teammate was given. */
   automationPrompt: z.string().nullable(),
   /** Your thumbs up or down on the reply. */
-  rating: z.enum(["up", "down"]).nullable(),
+  rating: runRatingSchema.nullable(),
   /** Tokens and cost of the run, once the model reported them. */
   usage: z.object({ tokens: z.number(), costMicros: z.number() }).nullable(),
   createdAt: isoDate,
@@ -162,8 +145,6 @@ export const chatEntrySchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("run"), at: isoDate, run: runViewSchema }),
 ]);
 export type ChatEntry = z.infer<typeof chatEntrySchema>;
-
-export const swarmTaskStateSchema = z.enum(["queued", "running", "completed", "failed", "stopped"]);
 
 export const chatDataSchema = z.object({
   chat: chatSummarySchema,
@@ -188,58 +169,6 @@ export const chatDataSchema = z.object({
 });
 export type ChatData = z.infer<typeof chatDataSchema>;
 
-export const approvalStatusSchema = z.enum(["pending", "approved", "denied", "expired"]);
-export type ApprovalStatus = z.infer<typeof approvalStatusSchema>;
-
-export const approvalKindSchema = z.enum([
-  "command",
-  "file_change",
-  "action",
-  "purchase",
-  "email",
-  "account_write",
-  "account_outward",
-]);
-
-/** What an approval for one of your accounts will do, exactly, to render properly. */
-export const accountActionPreviewSchema = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("email"),
-    account: z.string(),
-    to: z.array(z.string()),
-    cc: z.array(z.string()),
-    bcc: z.array(z.string()),
-    subject: z.string(),
-    body: z.string(),
-    inReplyTo: z.string().optional(),
-  }),
-  z.object({
-    type: z.literal("event"),
-    account: z.string(),
-    change: z.enum(["create", "update", "delete", "respond"]),
-    title: z.string(),
-    start: z.string().nullable(),
-    end: z.string().nullable(),
-    allDay: z.boolean(),
-    timeZone: z.string().nullable(),
-    location: z.string().optional(),
-    guests: z.array(z.string()),
-    notifiesGuests: z.boolean(),
-    response: z.enum(["accepted", "declined", "tentative"]).optional(),
-    calendar: z.string().optional(),
-  }),
-  z.object({
-    type: z.literal("change"),
-    service: z.string(),
-    account: z.string(),
-    action: z.string(),
-    target: z.string(),
-    detail: z.string(),
-    url: z.string().optional(),
-    changesAccess: z.boolean().optional(),
-  }),
-]);
-
 export const approvalViewSchema = z.object({
   id: z.string(),
   runId: z.string(),
@@ -260,13 +189,11 @@ export const approvalViewSchema = z.object({
 });
 export type ApprovalView = z.infer<typeof approvalViewSchema>;
 
-export const approvalRuleKindSchema = z.enum(["command", "file_change", "action", "account_write"]);
-
 /** Something a teammate may do without asking, from "Always allow" on an approval. */
 export const approvalRuleSchema = z.object({
   id: z.string(),
   botId: z.string(),
-  kind: approvalRuleKindSchema,
+  kind: ruleKindSchema,
   /** The start of a command, or an action in plain words. Empty for file changes. */
   pattern: z.string(),
   createdAt: isoDate,
@@ -336,8 +263,6 @@ export const searchResultSchema = z.object({
   createdAt: isoDate,
 });
 export type SearchResult = z.infer<typeof searchResultSchema>;
-
-export const uploadStatusSchema = z.enum(["writing", "complete", "failed"]);
 
 /** An attachment being uploaded with `PUT /api/uploads/<id>`, or one that finished. */
 export const uploadViewSchema = z.object({

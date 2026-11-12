@@ -1,4 +1,5 @@
-import { isRunActive, type RunStatus } from "../timeline/timeline";
+import type { ChatKind } from "../chats/chats";
+import { isRunActive, type RunStatus, type RunWait } from "../timeline/timeline";
 
 /**
  * The words for a teammate's status, the same on every surface and on the web and the phone: the
@@ -28,7 +29,7 @@ export type TeammateActivity = "idle" | "working" | "paused" | "waiting" | "queu
 export interface ActiveRunFacts {
   chatId: string;
   status: RunStatus;
-  waitingFor: "approval" | "takeover" | null;
+  waitingFor: RunWait | null;
 }
 
 export interface TeammateStatus {
@@ -84,7 +85,7 @@ export function teammateStatus(
 
 /** A chat, as far as naming it goes. */
 export interface ChatNaming {
-  kind: "direct" | "group" | "scheduled" | "helper" | "inbox";
+  kind: ChatKind;
   title: string;
 }
 
@@ -110,7 +111,7 @@ export interface ChatStatus extends TeammateStatus {
    */
   elsewhere: {
     chatId: string;
-    waitingFor: "approval" | "takeover";
+    waitingFor: RunWait;
     /** "1 approval in Book the Lisbon flights" */
     label: string;
     /** "1 approval waiting", where the chat's name doesn't fit, like a phone's header. */

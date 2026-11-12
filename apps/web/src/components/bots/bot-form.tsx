@@ -1,11 +1,12 @@
 "use client";
 
 import {
+  type Autonomy,
   AUTONOMY_OPTIONS,
   BOT_COLORS,
+  type TeammateSetupKind,
   describeCron,
   TEAMMATE_TEMPLATES,
-  type Autonomy,
 } from "@open-bot/domain";
 import { MAX_TEAMMATE_FILE } from "@open-bot/api";
 import { useQueryClient } from "@tanstack/react-query";
@@ -213,7 +214,7 @@ export function BotForm({
         toast.error(result.error);
         return;
       }
-      const failed = (kind: "skill" | "schedule") =>
+      const failed = (kind: TeammateSetupKind) =>
         result.data.failed.filter((entry) => entry.kind === kind).length;
       const started = result.data.schedules;
       if (failed("skill") > 0)
