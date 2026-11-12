@@ -1,8 +1,16 @@
 "use client";
 
 import { cantAttach } from "@open-bot/api";
-import { fileSize } from "@open-bot/chat-core";
-import { BUILT_IN_SKILLS, mentionedIds, type RunStatus } from "@open-bot/domain";
+import {
+  fileSize,
+  insertMention,
+  mentionedIds,
+  mentionOptions,
+  mentionQuery,
+  sendAttempt,
+  type SendAttempt,
+} from "@open-bot/chat-core";
+import { BUILT_IN_SKILLS, type RunStatus } from "@open-bot/domain";
 import {
   ArrowUp,
   CloudOff,
@@ -87,7 +95,7 @@ export function Composer({
 }) {
   const [text, setText] = useState("");
   const [uploads, setUploads] = useState<Upload[]>([]);
-  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentioning, setMentioning] = useState<string | null>(null);
   const [skillQuery, setSkillQuery] = useState<string | null>(null);
   const [menuIndex, setMenuIndex] = useState(0);
   const { data: state } = useAppState();
@@ -95,7 +103,7 @@ export function Composer({
   const [stopping, startStopping] = useTransition();
   const textarea = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
-  const failedSend = useRef<{ key: string; clientId: string } | null>(null);
+  const failedSend = useRef<SendAttempt | null>(null);
   const dictation = useDictation({
     onText: setText,
     onError: (message) => toast.error("Couldn't dictate", { description: message }),
@@ -157,11 +165,10 @@ export function Composer({
     [addFiles],
   );
 
-  const mentionOptions = useMemo(() => {
-    if (!isGroup || mentionQuery === null) return [];
-    const query = mentionQuery.toLowerCase();
-    return members.filter((member) => member.name.toLowerCase().startsWith(query));
-  }, [isGroup, mentionQuery, members]);
+  const mentionable = useMemo(
+    () => (isGroup && mentioning !== null ? mentionOptions(members, mentioning) : []),
+    [isGroup, mentioning, members],
+  );
 
   /** Skills this chat's teammates can use: the built-in ones, the shared ones and their own. */
   const skillOptions = useMemo((): SkillOption[] => {
@@ -186,13 +193,11 @@ export function Composer({
       .slice(0, 8);
   }, [skillQuery, members, state?.skills]);
 
-  const menuSize = mentionOptions.length || skillOptions.length;
+  const menuSize = mentionable.length || skillOptions.length;
 
   function updateMenus(value: string, caret: number) {
-    const before = value.slice(0, caret);
-    const mention = isGroup ? /(^|\s)@([\w-]*)$/.exec(before) : null;
-    const skill = /(^|\s)\/([a-z0-9-]*)$/.exec(before);
-    setMentionQuery(mention ? mention[2]! : null);
+    const skill = /(^|\s)\/([a-z0-9-]*)$/.exec(value.slice(0, caret));
+    setMentioning(isGroup ? mentionQuery(value, caret) : null);
     setSkillQuery(skill ? skill[2]! : null);
     setMenuIndex(0);
   }
@@ -203,7 +208,7 @@ export function Composer({
     if (!element) return;
     flushSync(() => {
       setText(before + after);
-      setMentionQuery(null);
+      setMentioning(null);
       setSkillQuery(null);
     });
     element.focus();
@@ -215,8 +220,10 @@ export function Composer({
     replaceText(text.slice(0, caret).replace(pattern, replacement), text.slice(caret));
   }
 
-  function insertMention(member: BotSummary) {
-    replaceBeforeCaret(/@([\w-]*)$/, `@${member.name} `);
+  function pickMention(member: BotSummary) {
+    const caret = textarea.current?.selectionStart ?? text.length;
+    const next = insertMention(text, caret, member);
+    replaceText(next.text.slice(0, next.caret), next.text.slice(next.caret));
   }
 
   function insertSkill(skill: SkillOption) {
@@ -234,7 +241,7 @@ export function Composer({
   }
 
   function pick(index: number) {
-    if (mentionOptions.length) insertMention(mentionOptions[index]!);
+    if (mentionable.length) pickMention(mentionable[index]!);
     else if (skillOptions.length) insertSkill(skillOptions[index]!);
   }
 
@@ -247,9 +254,10 @@ export function Composer({
     const mentions = isGroup ? mentionedIds(text, members) : [];
     const draft = text;
     // Sending the same message again after a failure reuses its id, so it's never saved twice.
-    const key = JSON.stringify([chat.id, draft, attachments, mentions]);
-    const clientId =
-      failedSend.current?.key === key ? failedSend.current.clientId : crypto.randomUUID();
+    const thisSend = sendAttempt(failedSend.current, [chat.id, draft, attachments, mentions], () =>
+      crypto.randomUUID(),
+    );
+    const { clientId } = thisSend;
     dictation.cancel();
     setText("");
     setUploads([]);
@@ -258,7 +266,7 @@ export function Composer({
         api.chats.send({ clientId, chatId: chat.id, text: draft, attachments, mentions }),
       );
       if (!result.ok) {
-        failedSend.current = { key, clientId };
+        failedSend.current = thisSend;
         toast.error("Couldn't send", { description: result.error });
         setText(draft);
         return;
@@ -281,20 +289,20 @@ export function Composer({
 
   return (
     <div className="relative">
-      {mentionOptions.length > 0 && (
+      {mentionable.length > 0 && (
         <div
           className="absolute bottom-full left-0 mb-2 w-64 overflow-hidden rounded-xl border bg-popover p-1 shadow-lg"
           role="listbox"
           aria-label="Teammates"
         >
-          {mentionOptions.map((member, index) => (
+          {mentionable.map((member, index) => (
             <button
               key={member.id}
               role="option"
               aria-selected={index === menuIndex}
               onMouseDown={(event) => {
                 event.preventDefault();
-                insertMention(member);
+                pickMention(member);
               }}
               onMouseEnter={() => setMenuIndex(index)}
               className={cn(
@@ -309,7 +317,7 @@ export function Composer({
           ))}
         </div>
       )}
-      {skillQuery !== null && mentionOptions.length === 0 && (
+      {skillQuery !== null && mentionable.length === 0 && (
         <div
           className="absolute bottom-full left-0 mb-2 w-[min(420px,100%)] overflow-hidden rounded-xl border bg-popover p-1 shadow-lg"
           role="listbox"
@@ -450,7 +458,7 @@ export function Composer({
             updateMenus(event.target.value, event.target.selectionStart);
           }}
           onBlur={() => {
-            setMentionQuery(null);
+            setMentioning(null);
             setSkillQuery(null);
           }}
           onPaste={(event) => {
@@ -461,10 +469,10 @@ export function Composer({
             }
           }}
           onKeyDown={(event) => {
-            if (mentionQuery !== null || skillQuery !== null) {
+            if (mentioning !== null || skillQuery !== null) {
               if (event.key === "Escape") {
                 event.preventDefault();
-                setMentionQuery(null);
+                setMentioning(null);
                 setSkillQuery(null);
                 return;
               }

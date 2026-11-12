@@ -1,4 +1,5 @@
 import type { RunView } from "@open-bot/api";
+import { sendAttempt, type SendAttempt } from "@open-bot/chat-core";
 import { compactNumber, formatDollars, formatDuration, MAX_LESSON_CHARS } from "@open-bot/domain";
 import { safe } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -357,14 +358,13 @@ function FeedbackSheet({
   const [sending, setSending] = useState<"redo" | "save" | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   // One id per "Try again with this", so sending it again after a lost answer asks only once.
-  const redo = useRef<{ key: string; clientId: string } | null>(null);
+  const redo = useRef<SendAttempt | null>(null);
   const field = useRef<TextInputInstance>(null);
   const canSend = text.trim().length > 0 && text.length <= MAX_LESSON_CHARS && sending === null;
 
   async function send(again: boolean) {
     if (!canSend) return;
-    const key = JSON.stringify([text.trim(), remember]);
-    if (again && redo.current?.key !== key) redo.current = { key, clientId: Crypto.randomUUID() };
+    if (again) redo.current = sendAttempt(redo.current, [text.trim(), remember], Crypto.randomUUID);
     setSending(again ? "redo" : "save");
     setProblem(null);
     const result = await safe(

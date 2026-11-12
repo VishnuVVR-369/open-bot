@@ -57,7 +57,6 @@ vi.mock("@/lib/haptics", () => ({
     error: () => {},
   },
 }));
-vi.mock("@/lib/mentions", () => ({ mentionQuery: () => null }));
 vi.mock("@/lib/uploads", () => ({ uploadAttachment: state.upload }));
 vi.mock("@/theme", () => ({
   fonts: { sans: "sans" },

@@ -3,11 +3,12 @@ import {
   excerptLine,
   highlightParts,
   matchScore,
+  rankMatches,
   preferWordStarts,
   queryWords,
   rankFound,
   startsWords,
-} from "./search-match";
+} from "./search";
 
 describe("matchScore", () => {
   it("matches words where they start", () => {
@@ -113,6 +114,17 @@ describe("rankFound", () => {
     expect(rankFound(["Cache notes", "Evict the rest"], title, ["evict"])).toEqual([
       "Evict the rest",
       "Cache notes",
+    ]);
+  });
+});
+
+describe("rankMatches", () => {
+  it("keeps matches only, best first, then in their own order", () => {
+    const items = ["Publish notes", "Trip to Lisbon", "Lisbon", "Lists"];
+    expect(rankMatches(items, (item) => [item], ["lis"])).toEqual([
+      "Lisbon",
+      "Lists",
+      "Trip to Lisbon",
     ]);
   });
 });

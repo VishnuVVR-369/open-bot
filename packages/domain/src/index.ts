@@ -6,7 +6,6 @@ export * from "./approvals";
 export * from "./auth";
 export * from "./automations";
 export * from "./channels";
-export * from "./chats";
 export * from "./computer";
 export * from "./egress";
 export * from "./events";

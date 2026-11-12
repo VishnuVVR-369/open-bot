@@ -12,7 +12,7 @@ One folder per feature under `packages/domain/src`, each with an `index.ts` barr
 - `computer`: botd's wire protocol (`protocol.ts`), screen operations, disk paths, file kinds.
 - `egress`: the owner's settings for which devices carry the browser's traffic.
 - `events`: the app events announced to open tabs and phones (`appEventSchema`).
-- `timeline` and `chats`: run timeline items and their reducer, and mentions.
+- `timeline`: run timeline items and their reducer.
 - `approvals`: always-allow rules, how approvals are shown, and the job-application guard.
 - `automations`: schedules and triggers.
 - `integrations`: MCP connections and the OAuth account definitions (`integrations/accounts`).

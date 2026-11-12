@@ -1,4 +1,12 @@
 import type { Attachment, BotSummary, MessageView } from "@open-bot/api";
+import {
+  insertMention,
+  mentionedIds,
+  mentionOptions,
+  mentionQuery,
+  sendAttempt,
+  type SendAttempt,
+} from "@open-bot/chat-core";
 import { safe } from "@orpc/client";
 import * as Crypto from "expo-crypto";
 import * as DocumentPicker from "expo-document-picker";
@@ -36,7 +44,6 @@ import { useDictation } from "@/lib/dictation";
 import { readDraft, writeDraft } from "@/lib/drafts";
 import { errorMessage } from "@/lib/errors";
 import { haptics } from "@/lib/haptics";
-import { insertMention, mentionedIds, mentionOptions, mentionQuery } from "@/lib/mentions";
 import { cantAttach } from "@open-bot/api";
 import type { PickedFile } from "@/lib/uploads";
 import { uploadAttachment } from "@/lib/uploads";
@@ -164,7 +171,7 @@ export function Composer({
   const [stopping, setStopping] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const failedSend = useRef<{ key: string; clientId: string } | null>(null);
+  const failedSend = useRef<SendAttempt | null>(null);
   const filesRef = useRef(files);
   filesRef.current = files;
 
@@ -327,15 +334,18 @@ export function Composer({
     if (dictation.listening) dictation.stop();
     const attachments = ready.map((pending) => pending.attachment!);
     const mentions = isGroup ? mentionedIds(text, members) : [];
-    const key = JSON.stringify([chatId, text.trim(), attachments, mentions]);
-    const clientId =
-      failedSend.current?.key === key ? failedSend.current.clientId : Crypto.randomUUID();
+    const thisSend = sendAttempt(
+      failedSend.current,
+      [chatId, text.trim(), attachments, mentions],
+      Crypto.randomUUID,
+    );
+    const { clientId } = thisSend;
     setSending(true);
     setError(null);
     const result = await safe(api.chats.send({ clientId, chatId, text, attachments, mentions }));
     setSending(false);
     if (result.error) {
-      failedSend.current = { key, clientId };
+      failedSend.current = thisSend;
       setError(errorMessage(result.error, "Couldn't send. Try again."));
       return;
     }
