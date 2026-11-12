@@ -16,10 +16,20 @@ describe("readEnv", () => {
     expect(env.secret.length).toBeGreaterThanOrEqual(32);
   });
 
-  it("refuses to start in production without PAGES_SECRET", () => {
+  it("refuses to start in production without PAGES_SECRET, or with the public default", () => {
     expect(() => readEnv({ NODE_ENV: "production", PAGE_LIB_DIR: "/lib" })).toThrow(
-      /PAGES_SECRET must be set/,
+      /Set PAGES_SECRET in production/,
     );
+    expect(() =>
+      readEnv({
+        NODE_ENV: "production",
+        PAGES_SECRET: "dev-pages-secret-change-me-0123456789",
+        PAGE_LIB_DIR: "/lib",
+      }),
+    ).toThrow(/Set PAGES_SECRET in production/);
+    expect(() =>
+      readEnv({ NODE_ENV: "production", PAGES_SECRET: "too-short", PAGE_LIB_DIR: "/lib" }),
+    ).toThrow(/PAGES_SECRET must be set to at least 32 characters/);
     expect(
       readEnv({ NODE_ENV: "production", PAGES_SECRET: SECRET, PAGE_LIB_DIR: "/lib" }).secret,
     ).toBe(SECRET);

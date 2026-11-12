@@ -110,8 +110,7 @@ Parsed in `apps/pages/src/env.ts`; the service refuses to start when a value is 
 | `APP_URL`               | `http://localhost:3000`                                        | The app's origins, comma-separated: the only ones that may frame a page |
 | `PAGE_LIB_DIR`          | `dist/lib` next to the server, or the page kit's build         | Where `/lib` is served from                                             |
 
-`PAGES_SECRET` has a development default only outside production.
-In production, the pages service refuses to start without it.
+In production, the pages service and the web app refuse to start without a `PAGES_SECRET` of at least 32 characters, or with its public development default.
 
 ## The computer (botd)
 

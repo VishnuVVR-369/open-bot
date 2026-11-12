@@ -69,6 +69,8 @@ openssl rand -base64 32   # PAGES_SECRET: at least 32 characters
 | `BOTD_TOKEN`         | worker, computer (same value) |
 | `PAGES_SECRET`       | web, pages (same value)       |
 
+In production, the web app, the worker and the pages service refuse to start while any of these is still its public development default or `.env.example` placeholder (`DEV_SECRETS` in `packages/domain/src/server/secrets.ts`).
+
 Back up `ENCRYPTION_KEY`.
 Every stored API key, vault item and connection secret depends on it.
 
@@ -187,7 +189,7 @@ APP_URL=https://<web domain>            # the only origin allowed to show pages 
 PAGES_URL=https://<pages domain>        # optional on Railway: defaults to RAILWAY_PUBLIC_DOMAIN
 ```
 
-The pages service refuses to start in production without a `PAGES_SECRET` of at least 32 characters.
+The pages service and the web app refuse to start in production without a `PAGES_SECRET` of at least 32 characters.
 
 ## 7. First sign-in and smoke test
 

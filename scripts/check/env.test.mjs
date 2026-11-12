@@ -6,6 +6,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 import { ESLint } from "eslint";
 import tseslint from "typescript-eslint";
+import { DEV_SECRETS } from "../../packages/domain/src/server/secrets.ts";
 import { ENV_MODULES } from "../lint/env-modules.mjs";
 
 const ROOT = new URL("../../", import.meta.url);
@@ -29,7 +30,6 @@ const NOT_IN_ENV_EXAMPLE = {
 
 /** Variables `.env.example` sets that no env module reads, each with its reason. */
 const READ_ELSEWHERE = {
-  BETTER_AUTH_SECRET: "read by the sign-in library itself",
   OPENBOT_NEXT_DIST_DIR: "read by apps/web/next.config.ts, a development option",
 };
 
@@ -221,6 +221,21 @@ test(".env.example sets nothing that no app reads", () => {
   );
   const stale = set.filter((name) => !used.has(name) && !(name in READ_ELSEWHERE));
   assert.deepEqual(stale, [], "Remove these from .env.example, or read them in an env module");
+});
+
+test("production refuses every secret .env.example sets", () => {
+  const example = Object.fromEntries(
+    [...read(".env.example").matchAll(/^([A-Z][A-Z0-9_]*)=(.*)$/gm)].map(([, name, value]) => [
+      name,
+      value,
+    ]),
+  );
+  for (const [name, value] of Object.entries(DEV_SECRETS))
+    assert.equal(example[name], value, `.env.example's ${name} must be DEV_SECRETS.${name}`);
+  const unguarded = Object.keys(example).filter(
+    (name) => /SECRET|TOKEN|KEY/.test(name) && !(name in DEV_SECRETS) && example[name] !== "",
+  );
+  assert.deepEqual(unguarded, [], "Add these secrets' example values to DEV_SECRETS");
 });
 
 test("process.env is refused outside the env modules, scripts and tests", async () => {
