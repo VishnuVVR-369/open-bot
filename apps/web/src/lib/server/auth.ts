@@ -16,6 +16,7 @@ import { noteUserVerification, passkeyReset } from "./passkey-reset";
 
 export const auth = betterAuth({
   baseURL: BASE_URL,
+  secret: serverEnv.betterAuthSecret,
   logger: { log: authLog },
   database: drizzleAdapter(db, {
     provider: "pg",

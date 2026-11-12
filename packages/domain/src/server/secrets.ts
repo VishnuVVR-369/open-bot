@@ -31,13 +31,16 @@ export function secretHint(secret: string): string {
 export const DEV_ENCRYPTION_KEY = "ZGV2LWVuY3J5cHRpb24ta2V5LTMyLWJ5dGVzLWxvbmc=";
 
 /**
- * The development defaults for the secrets web, worker and computer share. They are public (in this
- * repository), so production refuses to start with any of them.
+ * The development defaults for the secrets the apps share, and `.env.example`'s placeholder for
+ * the sign-in library's secret. They are public (in this repository), so production refuses to
+ * start with any of them.
  */
 export const DEV_SECRETS = {
   WORKER_SECRET: "dev-worker-secret-change-me",
   ENCRYPTION_KEY: DEV_ENCRYPTION_KEY,
   BOTD_TOKEN: "dev-botd-token-change-me",
+  PAGES_SECRET: "dev-pages-secret-change-me-0123456789",
+  BETTER_AUTH_SECRET: "change-me-to-a-long-random-string",
 } as const;
 
 /** Throws in production when a secret in use is still its public development default. */

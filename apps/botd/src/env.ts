@@ -1,7 +1,9 @@
-import { parseEnv, unsetIfEmpty } from "@open-bot/domain/server";
+import { assertNoDevSecrets, parseEnv, unsetIfEmpty } from "@open-bot/domain/server";
 import { z } from "zod";
 
 const schema = z.object({
+  /** `production` on Railway: refuses the public development token. Local Compose leaves it unset. */
+  NODE_ENV: z.string().optional(),
   /** Authenticates the worker's calls. The worker sends the same value. */
   BOTD_TOKEN: z
     .string({ error: "set it to at least 16 characters" })
@@ -39,6 +41,7 @@ export interface BotdEnv {
  */
 export function readEnv(source: NodeJS.ProcessEnv = process.env): BotdEnv {
   const env = parseEnv(schema, source);
+  assertNoDevSecrets({ BOTD_TOKEN: env.BOTD_TOKEN }, env.NODE_ENV);
   const lifecycleEnabled = env.COMPUTER_LIFECYCLE_ENABLED;
   return {
     token: env.BOTD_TOKEN,

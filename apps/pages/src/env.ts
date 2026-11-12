@@ -1,13 +1,13 @@
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { parseEnv, unsetIfEmpty } from "@open-bot/domain/server";
+import { assertNoDevSecrets, DEV_SECRETS, parseEnv, unsetIfEmpty } from "@open-bot/domain/server";
 import { z } from "zod";
 
 const schema = z.object({
   NODE_ENV: z.string().optional(),
   DATABASE_URL: z.string().default("postgres://openbot:openbot@127.0.0.1:54329/openbot"),
   PORT: unsetIfEmpty(z.coerce.number().int().min(1).max(65535)),
-  /** Shared with the web app. The development default works only outside production. */
+  /** Shared with the web app. Production refuses the public development default. */
   PAGES_SECRET: z.string().optional(),
   /** This service's own address. Defaults to Railway's public domain, or the local one. */
   PAGES_URL: unsetIfEmpty(z.string().url()),
@@ -37,9 +37,8 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): PagesEnv {
   const env = parseEnv(schema, source);
   const port = env.PORT ?? 3400;
 
-  const secret =
-    env.PAGES_SECRET ??
-    (env.NODE_ENV === "production" ? "" : "dev-pages-secret-change-me-0123456789");
+  const secret = env.PAGES_SECRET ?? DEV_SECRETS.PAGES_SECRET;
+  assertNoDevSecrets({ PAGES_SECRET: secret }, env.NODE_ENV);
   if (secret.length < 32)
     throw new Error(
       "PAGES_SECRET must be set to at least 32 characters (the same value as the web app's)",

@@ -11,6 +11,15 @@ describe("readEnv", () => {
     );
   });
 
+  it("refuses the public development token in production", () => {
+    const dev = "dev-botd-token-change-me";
+    expect(() => readEnv({ BOTD_TOKEN: dev, NODE_ENV: "production" })).toThrow(
+      /Set BOTD_TOKEN in production/,
+    );
+    expect(readEnv({ BOTD_TOKEN: dev }).token).toBe(dev);
+    expect(readEnv({ BOTD_TOKEN: TOKEN, NODE_ENV: "production" }).token).toBe(TOKEN);
+  });
+
   it("lowers the screen defaults when the lifecycle is on", () => {
     expect(readEnv({ BOTD_TOKEN: TOKEN })).toMatchObject({
       lifecycleEnabled: false,

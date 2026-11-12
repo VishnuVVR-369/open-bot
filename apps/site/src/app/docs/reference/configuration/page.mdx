@@ -7,7 +7,7 @@ export const metadata = docMetadata("/docs/reference/configuration");
 open-bot is configured with environment variables.
 In development, the web app, the worker and the pages service all read the repository's root `.env`, copied from `.env.example`.
 Every value has a development default except `OWNER_EMAIL`.
-`BETTER_AUTH_SECRET` is the one exception in the code: it is read by the sign-in library and has no default, so `.env.example` supplies a placeholder.
+`BETTER_AUTH_SECRET` is the one exception in the code: it has no default, so `.env.example` supplies a placeholder, which production refuses.
 The variables for tests and tooling are listed apart, under [Test and tooling variables](#test-and-tooling-variables).
 Each app reads the environment in one module, listed in `scripts/lint/env-modules.mjs`, and packages take their settings as arguments; lint refuses `process.env` anywhere else outside tests and scripts.
 
@@ -32,7 +32,7 @@ Each app reads the environment in one module, listed in `scripts/lint/env-module
 | Variable                    | Default                 | Purpose                                                                                                                                                                                                    |
 | --------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `OWNER_EMAIL`               | none                    | The only email that can create the account. `scripts/ops/owner-reset-password.mjs` also uses it as the default owner.                                                                                      |
-| `BETTER_AUTH_SECRET`        | none                    | Signs sessions. Read by the sign-in library itself.                                                                                                                                                        |
+| `BETTER_AUTH_SECRET`        | none                    | Signs sessions, passed to the sign-in library. Production refuses `.env.example`'s placeholder.                                                                                                            |
 | `BETTER_AUTH_URL`           | `http://localhost:3000` | The app's public URL. Also the passkey relying party.                                                                                                                                                      |
 | `WORKER_URL`                | `http://127.0.0.1:4001` | Where the web server reaches the worker                                                                                                                                                                    |
 | `NEXT_PUBLIC_WORKER_WS_URL` | `ws://localhost:4001`   | Where browsers and the desktop app reach the worker's websockets. Built into the client.                                                                                                                   |
@@ -110,8 +110,7 @@ Parsed in `apps/pages/src/env.ts`; the service refuses to start when a value is 
 | `APP_URL`               | `http://localhost:3000`                                        | The app's origins, comma-separated: the only ones that may frame a page |
 | `PAGE_LIB_DIR`          | `dist/lib` next to the server, or the page kit's build         | Where `/lib` is served from                                             |
 
-`PAGES_SECRET` has a development default only outside production.
-In production, the pages service refuses to start without it.
+In production, the pages service and the web app refuse to start without a `PAGES_SECRET` of at least 32 characters, or with its public development default.
 
 ## The computer (botd)
 
@@ -122,7 +121,7 @@ botd parses them in `apps/botd/src/env.ts` and refuses to start when one is inva
 
 | Variable                     | Default                            | Purpose                                                                                                   |
 | ---------------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `BOTD_TOKEN`                 | none                               | Required, at least 16 characters                                                                          |
+| `BOTD_TOKEN`                 | none                               | Required, at least 16 characters. With `NODE_ENV=production`, not the public development token.           |
 | `COMPUTER_LIFECYCLE_ENABLED` | `false`                            | The computer can sleep and wake. Also lowers the screen defaults below. Set the same value on the worker. |
 | `MAX_SCREENS`                | `4`, or `2` with the lifecycle on  | Screens running at once                                                                                   |
 | `SCREEN_IDLE_MINUTES`        | `20`, or `3` with the lifecycle on | A screen nobody used for this long stops                                                                  |
@@ -171,7 +170,8 @@ See `apps/site/README.md`.
 
 ## Standard variables
 
-`NODE_ENV=production` makes the web app and the worker refuse the public development secrets, makes the pages service require `PAGES_SECRET`, and turns `WATCH_ALLOW_PRIVATE_URLS` off by default.
+`NODE_ENV=production` makes the web app, the worker, the pages service and the computer refuse the public development secrets (`DEV_SECRETS` in `packages/domain/src/server/secrets.ts`), makes the pages service and the web app require `PAGES_SECRET`, and turns `WATCH_ALLOW_PRIVATE_URLS` off by default.
+Set it on every service, the computer included; local Compose leaves it unset for the computer.
 `PORT` is read by the pages service only.
 The web app and the worker use their own port settings.
 
