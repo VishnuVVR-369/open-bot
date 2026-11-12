@@ -67,23 +67,14 @@ describe("memory source and workspace boundaries", () => {
     expect((await f.memory.actor(f.session, "remote roles", true)).verified).toBe(false);
     expect((await f.memory.actor(f.session, "remote roles", true)).allowShared).toBe(false);
   });
-  it("never overwrites the original Markdown if its initial import fails", async () => {
-    const f = fixture();
-    const request = vi.fn(async (method: string) => {
-      if (method === "fs/readDirectory") return { entries: [{ fileName: "MEMORY.md" }] };
-      throw new Error("Read failed");
-    });
-    vi.mocked(f.ctx.codex.ready).mockResolvedValue({ request } as unknown as CodexClient);
-    await expect(f.memory.prepare({ id: teammateId, slug: "test" })).rejects.toThrow("Read failed");
-    expect(request.mock.calls.map((call) => call[0])).not.toContain("fs/writeFile");
-  });
   it("keeps saved private content out of the generated shared-computer file", async () => {
     const f = fixture();
-    f.reads([{ key: `legacy:file:${teammateId}` }]);
-    const request = vi.fn(async () => ({}));
+    const request = vi.fn(async (_method: string, _params: { dataBase64: string }) => ({}));
     vi.mocked(f.ctx.codex.ready).mockResolvedValue({ request } as unknown as CodexClient);
-    await f.memory.prepare({ id: teammateId, slug: "test" });
-    const args = (request.mock.calls[0] as unknown as [string, { dataBase64: string }])[1];
+    await f.memory.prepare({ slug: "test" });
+    // It only writes the pointer; a file in the workspace is never read back into memory.
+    expect(request.mock.calls.map((call) => call[0])).toEqual(["fs/writeFile"]);
+    const args = request.mock.calls[0]![1];
     expect(Buffer.from(args.dataBase64, "base64").toString()).toContain(
       "file edits are not imported",
     );

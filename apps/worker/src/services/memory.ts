@@ -1,5 +1,5 @@
 import { and, eq, sql } from "drizzle-orm";
-import { memoryContexts, memoryImports, messages, runs, type Queryable } from "@open-bot/db";
+import { memoryContexts, messages, runs, type Queryable } from "@open-bot/db";
 import { MemoryService, MemoryError, type MemoryActor } from "@open-bot/memory";
 import { MemoryAI, MemoryJobs, memoryAIConfig } from "@open-bot/memory/jobs";
 import {
@@ -38,34 +38,18 @@ export class MemoryCoordinator {
     this.ai = new MemoryAI(ctx.db, memoryAIConfig(ctx.env));
     this.jobs = new MemoryJobs(this.store, this.ai, (message) => ctx.log.warn(message));
   }
-  async start() {
-    await this.store.importLegacy();
+  start() {
     this.jobs.start();
   }
   async stop() {
     await this.jobs.stop();
   }
 
-  async prepare(bot: { id: string; slug: string }): Promise<void> {
+  /** Write the workspace's MEMORY.md: a pointer to the memory tools, never the memories. */
+  async prepare(bot: { slug: string }): Promise<void> {
     const client = await this.ctx.codex.ready();
-    const root = COMPUTER_PATHS.workspace(bot.slug);
-    const marker = `legacy:file:${bot.id}`;
-    const imported = await this.ctx.db
-      .select({ key: memoryImports.key })
-      .from(memoryImports)
-      .where(eq(memoryImports.key, marker));
-    if (!imported.length) {
-      const { entries } = await client.request("fs/readDirectory", { path: root });
-      const exists = entries.some((entry) => entry.fileName === "MEMORY.md");
-      const file = exists
-        ? await client.request("fs/readFile", { path: `${root}/MEMORY.md` })
-        : null;
-      const text = file ? Buffer.from(file.dataBase64, "base64").toString("utf8") : "";
-      await this.store.importOnce(marker, bot.id, text, "note", true);
-    }
-    // The projection is expendable. Failure to import never overwrites the user's original file.
     await client.request("fs/writeFile", {
-      path: `${root}/MEMORY.md`,
+      path: `${COMPUTER_PATHS.workspace(bot.slug)}/MEMORY.md`,
       dataBase64: Buffer.from(memoryMarkdown([])).toString("base64"),
     });
   }
