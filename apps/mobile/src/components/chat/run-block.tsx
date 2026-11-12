@@ -43,7 +43,6 @@ import {
   SquareTerminal,
   Undo2,
   Webhook,
-  Wrench,
 } from "lucide-react-native";
 import { router } from "expo-router";
 import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
@@ -63,6 +62,7 @@ import { FileChip } from "@/components/file-chip";
 import { ApprovalCard } from "./approval-card";
 import { RetryRun, RunActions } from "./run-actions";
 import { CodeBlock, Step, type StepIcon } from "./step";
+import { toolIcon } from "./tool-icons";
 import { PageCard } from "./page-card";
 import { SwarmCard } from "./swarm-card";
 
@@ -233,7 +233,7 @@ function ItemView({
     case "tool":
       return (
         <Step
-          icon={Wrench}
+          icon={toolIcon(item.name)}
           running={item.status === "running"}
           failed={item.status === "failed"}
           summary={[item.label, item.result, item.status === "failed" ? item.error : undefined]

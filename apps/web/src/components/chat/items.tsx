@@ -4,6 +4,7 @@ import { diffStats } from "@open-bot/chat-core";
 import {
   commandSummary,
   shellScript,
+  toolDisplay,
   type ApprovalItem,
   type CommandItem,
   type FileChangeItem,
@@ -11,6 +12,7 @@ import {
   type PlanItem,
   type ReasoningItem,
   type TakeoverRequestItem,
+  type ToolIcon,
   type ToolItem,
   type UserMessageItem,
   type WebSearchItem,
@@ -247,43 +249,28 @@ export function FileChangeStep({ item }: { item: FileChangeItem }) {
   );
 }
 
-const TOOL_ICONS: Record<string, typeof Wrench> = {
-  notify_user: Bell,
-  send_email: Mail,
-  list_emails: Mail,
-  schedule_task: CalendarClock,
-  cancel_schedule: CalendarClock,
-  list_schedules: CalendarClock,
-  list_automations: CalendarClock,
-  cancel_automation: CalendarClock,
-  update_automation: CalendarClock,
-  ask_teammate: MessageCircleQuestion,
-  list_tasks: ListTodo,
-  propose_instructions: Sparkles,
-  add_task: ListTodo,
-  update_task: ListTodo,
-  watch_page: Eye,
-  create_webhook: Webhook,
-  watch_gmail: Mail,
-  watch_calendar: CalendarDays,
-  search_history: History,
-  save_skill: Sparkles,
-  remember_about_user: UserRound,
-  model_fallback: KeyRound,
-  vault_fill: KeyRound,
-  start_purchase: CreditCard,
-  finish_purchase: CreditCard,
-};
-
-/** Account tools are named by namespace: `gmail.search`, `calendar.create_event`. */
-const NAMESPACE_ICONS: Record<string, typeof Wrench> = {
-  gmail: Mail,
+/** Every icon meaning in `@open-bot/domain`'s tool display, drawn with lucide. */
+const TOOL_ICONS: Record<ToolIcon, typeof Wrench> = {
+  tool: Wrench,
+  notification: Bell,
+  email: Mail,
+  schedule: CalendarClock,
   calendar: CalendarDays,
-  notion: NotebookText,
+  question: MessageCircleQuestion,
+  tasks: ListTodo,
+  suggestion: Sparkles,
+  skill: Sparkles,
+  watch: Eye,
+  webhook: Webhook,
+  history: History,
+  profile: UserRound,
+  key: KeyRound,
+  payment: CreditCard,
+  notes: NotebookText,
 };
 
 export function ToolStep({ item }: { item: ToolItem }) {
-  const Icon = TOOL_ICONS[item.name] ?? NAMESPACE_ICONS[item.name.split(".")[0]!] ?? Wrench;
+  const Icon = TOOL_ICONS[toolDisplay(item.name).icon];
   return (
     <Step
       icon={<Icon />}

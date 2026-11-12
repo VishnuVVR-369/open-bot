@@ -6,6 +6,7 @@ import type { RunView } from "@open-bot/api";
 import {
   formatDuration,
   shellScript,
+  toolDisplay,
   type ComputerItem,
   type TimelineItem,
 } from "@open-bot/domain";
@@ -45,16 +46,6 @@ export function segments(items: readonly TimelineItem[]): Segment[] {
 }
 
 /**
- * Tools whose call is itself a request for your approval: the approval card says it all. A new
- * tool that asks for approval goes here.
- */
-export const ASKS_APPROVAL: ReadonlySet<string> = new Set([
-  "request_approval",
-  "start_purchase",
-  "send_email",
-]);
-
-/**
  * Steps the pending approval right after them already states, like "Asked to pay $842.30" above
  * the payment card. A tool that asks blocks on the answer, so it is still running, or it is one of
  * the tools that exist to ask.
@@ -67,7 +58,7 @@ function restatedSteps(shown: readonly TimelineItem[]): Set<string> {
       item.kind === "tool" &&
       next?.kind === "approval" &&
       next.decision === "pending" &&
-      (item.status === "running" || ASKS_APPROVAL.has(item.name))
+      (item.status === "running" || toolDisplay(item.name).asksApproval)
     )
       ids.add(item.id);
   });
