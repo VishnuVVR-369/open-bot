@@ -1,13 +1,12 @@
 import { createHash } from "node:crypto";
 import pg from "pg";
 import { expect, test, type Page } from "./fixtures";
-import { createTeammate, uniqueName, waitForLastRun, worker } from "./helpers";
+import { e2eStack, createTeammate, uniqueName, waitForLastRun, worker } from "./helpers";
 import { MOCK_BOT, MOCK_TOKEN, TelegramMock, USER } from "./telegram-mock";
 
 const MOCK_PORT = 4797;
 const db = new pg.Pool({
-  connectionString:
-    process.env.DATABASE_URL ?? "postgres://openbot:openbot@127.0.0.1:54329/openbot",
+  connectionString: e2eStack().databaseUrl,
   max: 2,
 });
 test.afterAll(() => db.end());

@@ -1,13 +1,19 @@
 import pg from "pg";
 import { expect, test, type Page } from "./fixtures";
-import { botIdOf, createTeammate, sendMessage, uniqueName, waitForLastRun } from "./helpers";
+import {
+  e2eStack,
+  botIdOf,
+  createTeammate,
+  sendMessage,
+  uniqueName,
+  waitForLastRun,
+} from "./helpers";
 import { freshPostings, jobPortal, POSTINGS, trackerService } from "./job-scout-stand-ins";
 
-const botd = process.env.BOTD_URL ?? "http://127.0.0.1:7070";
+const botd = e2eStack().botdUrl;
 const botdToken = process.env.BOTD_TOKEN ?? "dev-botd-token-change-me";
 const pool = new pg.Pool({
-  connectionString:
-    process.env.DATABASE_URL ?? "postgres://openbot:openbot@127.0.0.1:54329/openbot",
+  connectionString: e2eStack().databaseUrl,
 });
 
 // A test's connections would reach every teammate in the tests after it.

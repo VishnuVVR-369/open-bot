@@ -1,10 +1,9 @@
 import { expect, test } from "./fixtures";
 import pg from "pg";
-import { createTeammate, sendMessage, uniqueName, waitForLastRun } from "./helpers";
+import { e2eStack, createTeammate, sendMessage, uniqueName, waitForLastRun } from "./helpers";
 
 const pool = new pg.Pool({
-  connectionString:
-    process.env.DATABASE_URL ?? "postgres://openbot:openbot@127.0.0.1:54329/openbot",
+  connectionString: e2eStack().databaseUrl,
 });
 
 test.describe("when the plan runs out", () => {

@@ -14,6 +14,7 @@ import {
 } from "./accounts-stand-in";
 import { expect, test, type Page } from "./fixtures";
 import {
+  e2eStack,
   apiFor,
   approve,
   botIdOf,
@@ -38,8 +39,7 @@ import {
 type ClientRow = Record<string, unknown>;
 
 const db = new pg.Pool({
-  connectionString:
-    process.env.DATABASE_URL ?? "postgres://openbot:openbot@127.0.0.1:54329/openbot",
+  connectionString: e2eStack().databaseUrl,
   max: 2,
 });
 

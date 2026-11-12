@@ -105,17 +105,19 @@ It removes only its own container.
 
 ### End-to-end tests
 
-Playwright drives the real stack: start it with `pnpm infra:up` and `pnpm dev`, then:
+Playwright drives a real stack and writes to its database and computer directly, so it has to be told which stack.
+`E2E_STACK=dev` means the local development stack, started with `pnpm infra:up` and `pnpm dev`.
+For any other stack, set `E2E_BASE_URL`, `DATABASE_URL`, `WORKER_URL` and `BOTD_URL` instead; a run with any of them missing, or mixed with `E2E_STACK=dev`, stops before the first test (`e2e/stack.ts`).
 
 ```sh title="Terminal"
-E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e --grep-invert @agent   # fast
-E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e --grep @agent          # real teammates at work
+E2E_STACK=dev E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e --grep-invert @agent   # fast
+E2E_STACK=dev E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e --grep @agent          # real teammates at work
 ```
 
 - A `setup` project signs in once and saves the session to `e2e/.auth/owner.json`.
 - Tests tagged `@agent` run real turns on the computer, take minutes, and use your ChatGPT plan.
 - Tests run serially (`workers: 1`), because they share one computer and one database.
-- `e2e/global-teardown.ts` deletes test teammates by a name pattern. New test name prefixes must be added to it.
+- Test teammates are named with `uniqueName()` (`e2e/stack.ts`), which starts every name with `E2e`, and `e2e/global-teardown.ts` deletes only names of that exact shape, so it never deletes one of yours.
 
 Stand-ins replace outside services, so the default run needs no outside account:
 
@@ -137,17 +139,17 @@ To run the suites that need a stand-in, start the services pointed at it:
 
 ```sh title="Telegram"
 TELEGRAM_API_BASE_URL=http://127.0.0.1:4797 pnpm --filter @open-bot/worker dev
-E2E_TELEGRAM=1 E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e --grep Telegram
+E2E_TELEGRAM=1 E2E_STACK=dev E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e --grep Telegram
 ```
 
 ```sh title="Accounts (with no accounts connected)"
 GOOGLE_BASE_URL=http://127.0.0.1:4796 NOTION_MCP_URL=http://127.0.0.1:4796/mcp pnpm dev
-E2E_ACCOUNTS=1 E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e e2e/accounts.spec.ts
+E2E_ACCOUNTS=1 E2E_STACK=dev E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e e2e/accounts.spec.ts
 ```
 
 ```sh title="Plan fallback"
 OPEN_BOT_PLAN_BASE_URL=http://host.docker.internal:4799/plan OPENAI_API_BASE_URL=http://host.docker.internal:4799/api pnpm --filter @open-bot/worker dev
-E2E_PLAN_REHEARSAL=1 E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e --grep rehearsal
+E2E_PLAN_REHEARSAL=1 E2E_STACK=dev E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e --grep rehearsal
 ```
 
 Every variable the tests read is listed in [Configuration](/docs/reference/configuration).

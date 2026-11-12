@@ -2,6 +2,7 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { expect, test, type Page } from "./fixtures";
 import {
+  e2eStack,
   apiFor,
   botIdOf,
   createTeammate,
@@ -10,7 +11,7 @@ import {
   waitForLastRun,
 } from "./helpers";
 
-const botd = process.env.BOTD_URL ?? "http://127.0.0.1:7070";
+const botd = e2eStack().botdUrl;
 const botdToken = process.env.BOTD_TOKEN ?? "dev-botd-token-change-me";
 
 async function botdPost<T>(path: string, body: unknown): Promise<T> {

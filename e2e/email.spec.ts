@@ -3,11 +3,18 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 import pg from "pg";
 import { expect, test, type Page } from "./fixtures";
-import { apiFor, approve, botIdOf, createTeammate, uniqueName, waitForLastRun } from "./helpers";
+import {
+  e2eStack,
+  apiFor,
+  approve,
+  botIdOf,
+  createTeammate,
+  uniqueName,
+  waitForLastRun,
+} from "./helpers";
 
 const pool = new pg.Pool({
-  connectionString:
-    process.env.DATABASE_URL ?? "postgres://openbot:openbot@127.0.0.1:54329/openbot",
+  connectionString: e2eStack().databaseUrl,
 });
 
 test.afterAll(() => pool.end());

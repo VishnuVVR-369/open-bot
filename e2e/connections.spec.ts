@@ -1,11 +1,17 @@
 import pg from "pg";
 import { expect, test, type Page } from "./fixtures";
-import { apiFor, createTeammate, sendMessage, uniqueName, waitForLastRun } from "./helpers";
+import {
+  e2eStack,
+  apiFor,
+  createTeammate,
+  sendMessage,
+  uniqueName,
+  waitForLastRun,
+} from "./helpers";
 import { ordersService } from "./mcp-stand-in";
 
 const pool = new pg.Pool({
-  connectionString:
-    process.env.DATABASE_URL ?? "postgres://openbot:openbot@127.0.0.1:54329/openbot",
+  connectionString: e2eStack().databaseUrl,
 });
 
 // A test's connections would reach every teammate in the tests after it.

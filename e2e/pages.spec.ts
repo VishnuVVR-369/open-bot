@@ -1,7 +1,15 @@
 import { expect, test, type Page } from "./fixtures";
-import { apiFor, createTeammate, sendMessage, uniqueName, waitForLastRun, worker } from "./helpers";
+import {
+  e2eStack,
+  apiFor,
+  createTeammate,
+  sendMessage,
+  uniqueName,
+  waitForLastRun,
+  worker,
+} from "./helpers";
 
-const workerUrl = process.env.WORKER_URL ?? "http://127.0.0.1:4001";
+const workerUrl = e2eStack().workerUrl;
 const workerSecret = process.env.WORKER_SECRET ?? "dev-worker-secret-change-me";
 
 /** A small page that passes the check: the kit's styles, a heading, and text to select. */

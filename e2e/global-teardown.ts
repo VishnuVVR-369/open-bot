@@ -1,8 +1,7 @@
 import { createWorkerClient } from "@open-bot/api/worker";
 import pg from "pg";
+import { e2eStack, TEST_TEAMMATE_NAME } from "./stack";
 
-const TEST_BOT_NAMES =
-  /^(Tess|Ava|Ben|Ivy|Ora|Sol|Scr|Held|Free|Ann|Bob|Alw|Acc)[a-z0-9]{4}( \d+)?$/;
 /**
  * Attachments the tests upload are named e2e-…, behind the prefix uploads get: 8 characters for
  * ones saved from email or Telegram, the upload id for ones the apps upload.
@@ -10,17 +9,8 @@ const TEST_BOT_NAMES =
 const TEST_UPLOADS =
   /^(?:[0-9a-f]{8}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-e2e-/;
 
-const workerUrl = process.env.WORKER_URL ?? "http://127.0.0.1:4001";
-const botdUrl = process.env.BOTD_URL ?? "http://127.0.0.1:7070";
-
-/** Cleanup is best effort: a worker that is down leaves nothing to clean on the computer. */
-const worker = createWorkerClient({
-  url: workerUrl,
-  secret: process.env.WORKER_SECRET ?? "dev-worker-secret-change-me",
-});
-
 async function forgetScreen(screenId: string) {
-  await fetch(`${botdUrl}/screens/forget`, {
+  await fetch(`${e2eStack().botdUrl}/screens/forget`, {
     method: "POST",
     headers: {
       authorization: `Bearer ${process.env.BOTD_TOKEN ?? "dev-botd-token-change-me"}`,
@@ -32,9 +22,12 @@ async function forgetScreen(screenId: string) {
 
 /** Remove what the tests created (teammates, chats, screens, workspaces, uploads) so they don't clutter your app. */
 export default async function globalTeardown() {
-  const pool = new pg.Pool({
-    connectionString:
-      process.env.DATABASE_URL ?? "postgres://openbot:openbot@127.0.0.1:54329/openbot",
+  const { databaseUrl, workerUrl } = e2eStack();
+  const pool = new pg.Pool({ connectionString: databaseUrl });
+  /** Cleanup is best effort: a worker that is down leaves nothing to clean on the computer. */
+  const worker = createWorkerClient({
+    url: workerUrl,
+    secret: process.env.WORKER_SECRET ?? "dev-worker-secret-change-me",
   });
   try {
     await pool.query("delete from chats where kind = 'group' and title = 'E2E group'");
@@ -46,17 +39,17 @@ export default async function globalTeardown() {
     // Pages outlive their teammate, so the tests' go first.
     await pool.query(
       "delete from pages where title like 'E2E %' or bot_id in (select id from bots where name ~ $1)",
-      [TEST_BOT_NAMES.source],
+      [TEST_TEAMMATE_NAME.source],
     );
     // Helpers' screens go when their part is done; these are from runs that were cut short.
     const helpers = await pool.query<{ id: string }>(
       "select t.id from swarm_tasks t join swarms s on s.id = t.swarm_id join bots b on b.id = s.bot_id where b.name ~ $1",
-      [TEST_BOT_NAMES.source],
+      [TEST_TEAMMATE_NAME.source],
     );
     for (const { id } of helpers.rows) await forgetScreen(id);
     const { rows } = await pool.query<{ id: string; slug: string }>(
       "delete from bots where name ~ $1 returning id, slug",
-      [TEST_BOT_NAMES.source],
+      [TEST_TEAMMATE_NAME.source],
     );
     for (const { id, slug } of rows) {
       await forgetScreen(id);

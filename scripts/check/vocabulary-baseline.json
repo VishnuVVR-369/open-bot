@@ -629,7 +629,7 @@
     "bot": 14
   },
   "e2e/global-teardown.ts": {
-    "bot": 10
+    "bot": 6
   },
   "e2e/helpers.ts": {
     "bot": 5

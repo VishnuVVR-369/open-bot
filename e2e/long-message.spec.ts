@@ -1,11 +1,10 @@
 import { randomUUID } from "node:crypto";
 import pg from "pg";
 import { expect, test, type Page } from "./fixtures";
-import { uniqueName } from "./helpers";
+import { e2eStack, uniqueName } from "./helpers";
 
 const pool = new pg.Pool({
-  connectionString:
-    process.env.DATABASE_URL ?? "postgres://openbot:openbot@127.0.0.1:54329/openbot",
+  connectionString: e2eStack().databaseUrl,
 });
 
 const LONG = [

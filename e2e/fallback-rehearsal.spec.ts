@@ -1,7 +1,7 @@
 import http from "node:http";
 import { expect, test } from "./fixtures";
 import pg from "pg";
-import { createTeammate, sendMessage, uniqueName, waitForLastRun } from "./helpers";
+import { e2eStack, createTeammate, sendMessage, uniqueName, waitForLastRun } from "./helpers";
 
 /**
  * Rehearses a real plan limit end to end: the real worker and the real Codex app-server,
@@ -19,8 +19,7 @@ test.skip(
 );
 
 const pool = new pg.Pool({
-  connectionString:
-    process.env.DATABASE_URL ?? "postgres://openbot:openbot@127.0.0.1:54329/openbot",
+  connectionString: e2eStack().databaseUrl,
 });
 const requests: string[] = [];
 let server: http.Server;

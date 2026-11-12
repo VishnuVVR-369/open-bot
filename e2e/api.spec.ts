@@ -3,16 +3,15 @@ import { createApiClient, UPLOAD_HEADERS, type ApiClient } from "@open-bot/api";
 import { isDefinedError, safe } from "@orpc/client";
 import pg from "pg";
 import { expect, test } from "./fixtures";
-import { createTeammate, uniqueName } from "./helpers";
+import { e2eStack, createTeammate, uniqueName } from "./helpers";
 
 /**
  * The API the phone uses (`/api/rpc`), called the way the phone calls it: with the session
  * cookie and no browser origin.
  */
 
-const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:3000";
-const databaseUrl =
-  process.env.DATABASE_URL ?? "postgres://openbot:openbot@127.0.0.1:54329/openbot";
+const baseURL = e2eStack().baseUrl;
+const databaseUrl = e2eStack().databaseUrl;
 
 function client(cookie: string | null, extra: Record<string, string> = {}): ApiClient {
   return createApiClient({
