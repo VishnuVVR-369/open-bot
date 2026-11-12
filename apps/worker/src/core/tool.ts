@@ -28,7 +28,9 @@ export interface ToolDefinition<Input extends z.ZodObject = z.ZodObject, Deps = 
   input: Input;
   /** Whether swarm helpers may call it. Helpers do their one part; they don't reach out. */
   helpers: "allowed" | "forbidden";
-  handle(call: ToolCall<z.output<Input>>, deps: Deps): Promise<ToolResponse>;
+  // A property, not a method: a method's parameters are checked both ways, so a handler asking for
+  // a dependency the catalog doesn't give would still fit (core/tool.test.ts).
+  handle: (call: ToolCall<z.output<Input>>, deps: Deps) => Promise<ToolResponse>;
 }
 
 export function defineTool<Input extends z.ZodObject, Deps>(
