@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 import { ESLint } from "eslint";
+import tseslint from "typescript-eslint";
 import { ENV_MODULES } from "../lint/env-modules.mjs";
 
 const ROOT = new URL("../../", import.meta.url);
@@ -32,24 +33,83 @@ const READ_ELSEWHERE = {
   OPENBOT_NEXT_DIST_DIR: "read by apps/web/next.config.ts, a development option",
 };
 
+const isProcessEnv = (node) =>
+  node?.type === "MemberExpression" &&
+  !node.computed &&
+  node.object.type === "Identifier" &&
+  node.object.name === "process" &&
+  node.property.type === "Identifier" &&
+  node.property.name === "env";
+
+/** A property's name when it is written literally: `NAME`, `"NAME"` or `` `NAME` ``. */
+function literalName(node, computed) {
+  if (!computed && node.type === "Identifier") return node.name;
+  if (node.type === "Literal" && typeof node.value === "string") return node.value;
+  if (node.type === "TemplateLiteral" && node.expressions.length === 0)
+    return node.quasis[0].value.cooked;
+  return null;
+}
+
+/** Calls that may take the whole environment: an env schema parses it, by its keys. */
+const PARSERS = new Set(["parse", "safeParse", "parseEnv"]);
+const calleeName = (callee) =>
+  callee.type === "Identifier"
+    ? callee.name
+    : callee.type === "MemberExpression"
+      ? callee.property.name
+      : null;
+
 /**
- * The variables an env module's source reads: `process.env.NAME`, `process.env["NAME"]`,
- * `const { NAME } = process.env`, and the keys of a zod env schema. Throws on a read it can't name,
- * such as `process.env[name]`, so no variable slips past the checks below.
+ * The variables an env module's source reads, from its syntax tree: `process.env.NAME` (also
+ * optional and bracketed with a literal), `const { NAME } = process.env`, and the upper-case keys
+ * of an object, such as a zod env schema, which parses `process.env` whole. Throws on any other use
+ * of `process.env`, such as `process.env[name]` or an alias, so no variable slips past the checks.
  */
 function variablesIn(source) {
+  const { ast } = tseslint.parser.parseForESLint(source, { sourceType: "module", loc: true });
   const names = new Set();
-  for (const [, name] of source.matchAll(/process\.env\.([A-Za-z_]\w*)/g)) names.add(name);
-  for (const [, , name] of source.matchAll(/process\.env\[\s*(["'`])([A-Za-z_]\w*)\1\s*\]/g))
-    names.add(name);
-  for (const [, list] of source.matchAll(/\{([^}]*)\}\s*=\s*process\.env\b/g))
-    for (const item of list.split(",")) {
-      const name = item.trim().split(/[\s:=]/)[0];
-      if (name) names.add(name);
+  const lines = source.split("\n");
+  const refuse = (node) => {
+    const line = node.loc.start.line;
+    throw new Error(
+      `Read each variable by its literal name (line ${line}): ${lines[line - 1].trim()}`,
+    );
+  };
+  const visit = (node, parent) => {
+    if (isProcessEnv(node)) {
+      if (parent.type === "MemberExpression" && parent.object === node) {
+        const name = literalName(parent.property, parent.computed);
+        if (name === null) refuse(parent);
+        names.add(name);
+      } else if (
+        parent.type === "VariableDeclarator" &&
+        parent.init === node &&
+        parent.id.type === "ObjectPattern"
+      ) {
+        for (const property of parent.id.properties) {
+          const name =
+            property.type === "Property" ? literalName(property.key, property.computed) : null;
+          if (name === null) refuse(property);
+          names.add(name);
+        }
+      } else if (parent.type === "CallExpression" && PARSERS.has(calleeName(parent.callee))) {
+        // The schema's keys name what it reads.
+      } else if (parent.type === "AssignmentPattern" && parent.right === node) {
+        // `source = process.env`, a default the module parses with its schema.
+      } else refuse(node);
+      return;
     }
-  for (const [, name] of source.matchAll(/^\s+["']?([A-Z][A-Z0-9_]*)["']?\s*:/gm)) names.add(name);
-  const unnamed = source.match(/process\.env\[(?!\s*(["'`])[A-Za-z_]\w*\1\s*\])[^\]]*\]/);
-  if (unnamed) throw new Error(`Read each variable by its literal name, not ${unnamed[0]}`);
+    if (node.type === "Property") {
+      const name = literalName(node.key, node.computed);
+      if (name && /^[A-Z][A-Z0-9_]*$/.test(name)) names.add(name);
+    }
+    for (const [key, value] of Object.entries(node)) {
+      if (key === "parent" || key === "loc" || key === "range") continue;
+      for (const child of Array.isArray(value) ? value : [value])
+        if (child && typeof child.type === "string") visit(child, node);
+    }
+  };
+  visit(ast, null);
   return names;
 }
 
@@ -62,22 +122,36 @@ test("the scanner names every way an env module can read a variable", () => {
   const source = [
     "const a = process.env.DOT_READ;",
     'const b = process.env["BRACKET_READ"];',
+    "const c = process.env?.OPTIONAL_READ;",
+    "const d = process.env?.[`OPTIONAL_BRACKET`];",
     "const { DESTRUCTURED, RENAMED: renamed, DEFAULTED = 1 } = process.env;",
     "const schema = z.object({",
     "  SCHEMA_KEY: z.string(),",
     '  "QUOTED_KEY": z.string(),',
     "});",
+    "const inline = z.object({ INLINE_KEY: z.string() }).parse(process.env);",
+    "export function readEnv(source = process.env) { return parseEnv(schema, source); }",
   ].join("\n");
   assert.deepEqual([...variablesIn(source)].sort(), [
     "BRACKET_READ",
     "DEFAULTED",
     "DESTRUCTURED",
     "DOT_READ",
+    "INLINE_KEY",
+    "OPTIONAL_BRACKET",
+    "OPTIONAL_READ",
     "QUOTED_KEY",
     "RENAMED",
     "SCHEMA_KEY",
   ]);
-  assert.throws(() => variablesIn("const v = process.env[name];"), /literal name/);
+  for (const unnamed of [
+    "const v = process.env[name];",
+    "const v = process.env?.[name];",
+    "const env = process.env;",
+    "const { ...rest } = process.env;",
+    "use(process.env);",
+  ])
+    assert.throws(() => variablesIn(unnamed), /literal name/, unnamed);
 });
 
 test("every env module exists and reads something", () => {
