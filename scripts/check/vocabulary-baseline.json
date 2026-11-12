@@ -435,9 +435,6 @@
   "apps/worker/src/accounts/actions.ts": {
     "bot": 19
   },
-  "apps/worker/src/accounts/notion.ts": {
-    "bot": 1
-  },
   "apps/worker/src/accounts/tools.ts": {
     "bot": 3
   },

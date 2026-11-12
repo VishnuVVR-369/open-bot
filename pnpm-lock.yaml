@@ -559,9 +559,6 @@ importers:
 
   apps/worker:
     dependencies:
-      '@modelcontextprotocol/sdk':
-        specifier: 1.32.1
-        version: 1.32.1(zod@4.6.7)
       '@open-bot/agent':
         specifier: workspace:*
         version: link:../../packages/agent
@@ -744,6 +741,12 @@ importers:
 
   packages/integrations:
     dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: 1.32.1
+        version: 1.32.1(zod@4.6.7)
+      '@open-bot/agent':
+        specifier: workspace:*
+        version: link:../agent
       '@open-bot/db':
         specifier: workspace:*
         version: link:../db
@@ -753,6 +756,9 @@ importers:
       drizzle-orm:
         specifier: ^0.45.4
         version: 0.45.4(@types/pg@8.23.1)(kysely@0.29.6)(pg@8.23.1)
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
     devDependencies:
       '@types/node':
         specifier: ^24.19.2

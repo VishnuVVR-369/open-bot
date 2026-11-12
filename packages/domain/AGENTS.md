@@ -31,12 +31,12 @@ One folder per feature under `packages/domain/src`, each with an `index.ts` barr
 - Keep zod schemas for stored or exported data optional or defaulted, so old exports and old rows still parse (`packages/domain/src/teammates/bundle.ts`).
 - New workspace dependencies must also be added to the consumer bundlers (see the repo map in the root `AGENTS.md`).
 
-## Why accounts are split in three
+## Why account definitions live here
 
 - `packages/domain/src/integrations/accounts`: definitions that both web and mobile can read (providers, scopes, tools, settings). It has no Node or database code.
-- `packages/integrations`: OAuth flows and the encrypted token store. It needs Node, `node:crypto` and the database.
-- `apps/worker/src/accounts`: runtime adapters that call Gmail, Calendar and Notion and serve the tools.
-- The worker refuses to start if adapters and definitions disagree (`specProblem` in `apps/worker/src/accounts/registry.ts`).
+- `packages/db` types its columns with unions derived from them, so they sit below `packages/db`.
+- `packages/integrations` has the rest of each provider: sign-in, the token store, and the adapters that call Gmail, Calendar and Notion. It needs Node and the database.
+- The worker refuses to start if adapters and definitions disagree (`specProblem` in `packages/integrations/src/integration-registry.ts`).
 - The step-by-step recipe is "Add an account provider" in the root `AGENTS.md`.
 
 ## Tests

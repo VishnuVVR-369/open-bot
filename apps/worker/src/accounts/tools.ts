@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { dirname } from "node:path/posix";
 import type { v2 } from "@open-bot/agent";
 import { accounts, connections } from "@open-bot/db";
 import {
@@ -16,11 +17,15 @@ import type { Context } from "../context";
 import { errorMessage } from "../logger";
 import type { RunSession } from "../runs/session";
 import type { ConnectionTest } from "../services/connections";
-import { AccountToolError, type AccountAccess } from "./access";
+import {
+  AccountToolError,
+  ProviderError,
+  type Integrations,
+  type ToolContext,
+  type ToolResult,
+} from "@open-bot/integrations/adapters";
+import type { AccountAccess } from "./access";
 import type { AccountActions } from "./actions";
-import { ProviderError } from "./http";
-import type { Integrations } from "./registry";
-import type { ToolContext, ToolResult } from "./types";
 
 type Response = v2.DynamicToolCallResponse;
 
@@ -102,6 +107,13 @@ export class AccountTools {
     }
   }
 
+  /** Save a file on the computer, through Codex, which runs there. */
+  private async saveFile(path: string, data: Buffer): Promise<void> {
+    const client = await this.ctx.codex.ready();
+    await client.request("fs/createDirectory", { path: dirname(path), recursive: true });
+    await client.request("fs/writeFile", { path, dataBase64: data.toString("base64") });
+  }
+
   async handle(session: RunSession, params: v2.DynamicToolCallParams): Promise<Response> {
     const name = `${params.namespace ?? ""}.${params.tool}`;
     const info = accountTool(name);
@@ -140,12 +152,12 @@ export class AccountTools {
       this.access.requireCapability(resolved, info.capability);
       session.putItem(item);
       const tc: ToolContext = {
-        session,
         resolved,
         tokens: this.access.tokens(resolved),
-        access: this.access,
         args,
         actionId: randomUUID(),
+        workspace: session.workspace,
+        saveFile: (path, data) => this.saveFile(path, data),
       };
       const result: ToolResult = await adapter.call(params.tool, tc);
       if (result.type === "read") {

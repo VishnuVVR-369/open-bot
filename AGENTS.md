@@ -33,7 +33,7 @@ For a deployed service it must also be added to that service's list in `.railway
 | `packages/domain`       | Isomorphic types, zod schemas and pure logic; Node-only helpers in `/server`  | `packages/domain/src/index.ts`        | `pnpm --filter @open-bot/domain test`   |
 | `packages/api`          | oRPC contracts (web and mobile, worker internal, botd) and serializable views | `packages/api/src/contract.ts`        | `pnpm --filter @open-bot/api test`      |
 | `packages/db`           | Drizzle schema, migrations, pool, NOTIFY channels and app events              | `packages/db/src/schema.ts`           | `pnpm test:integration`                 |
-| `packages/integrations` | Sign-in (OAuth) and the token store for Google and Notion                     | `packages/integrations/src/server.ts` | `pnpm test:integration`                 |
+| `packages/integrations` | Google and Notion: sign-in, the token store, and the integrations' adapters   | `packages/integrations/src/server.ts` | `pnpm test:integration`                 |
 | `packages/memory`       | Versioned memory and its background jobs                                      | `packages/memory/src/index.ts`        | `pnpm test:memory`                      |
 | `packages/egress`       | Tunnel framing, mux, IP policy, SOCKS; vectors shared with Kotlin             | `packages/egress/src/index.ts`        | `pnpm --filter @open-bot/egress test`   |
 | `packages/page-kit`     | Page CSS/JS, bundled libraries, page runtime and the `/page` skill            | `packages/page-kit/src/index.ts`      | `pnpm --filter @open-bot/page-kit test` |
@@ -126,7 +126,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 
 1. `packages/domain/src/integrations/accounts/<provider>.ts`: provider and integration definitions; register them in `packages/domain/src/integrations/accounts/registry.ts`.
 2. `packages/integrations/src/providers/<provider>/oauth.ts` (a `ProviderAdapter`), registered in `PROVIDER_ADAPTERS` (`packages/integrations/src/provider-registry.ts`); endpoints with an env override in `packages/integrations/src/core/endpoints.ts`.
-3. `apps/worker/src/accounts/<integration>.ts`, added to `ADAPTERS` in `apps/worker/src/accounts/registry.ts`. The worker refuses to start if adapters and definitions disagree. Bump `TOOLS_VERSION`.
+3. `packages/integrations/src/providers/<provider>/<integration>/adapter.ts` (an `IntegrationAdapter`), added to `ADAPTERS` in `packages/integrations/src/integration-registry.ts`. The worker refuses to start if adapters and definitions disagree. Bump `TOOLS_VERSION`.
 4. Web: `CLIENT_GUIDES` in `apps/web/src/components/settings/provider-guides.tsx` for owner-supplied OAuth clients; icons in `accounts-section.tsx` and `items.tsx` if new.
 5. A stand-in in `e2e/accounts-stand-in.ts`, and docs in `apps/site/src/app/docs/flows/accounts/page.mdx`.
 

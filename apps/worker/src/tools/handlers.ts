@@ -38,8 +38,7 @@ import { activeTeammates, BotError, type BotService } from "../services/bots";
 import { PageError, type PageService } from "../services/pages";
 import { mainChat, titleChat } from "../services/chats";
 import { BOT_TOOL_NAMES, BotTools } from "./bots";
-import { AccountToolError } from "../accounts/access";
-import { isAccountNamespace } from "../accounts/registry";
+import { AccountToolError, isAccountNamespace } from "@open-bot/integrations/adapters";
 import type { AccountTools } from "../accounts/tools";
 import { addContextRefs } from "../services/memory";
 

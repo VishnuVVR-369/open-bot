@@ -25,11 +25,19 @@ import { errorMessage } from "../logger";
 import type { RunSession } from "../runs/session";
 import type { ApprovalService } from "../services/approvals";
 import type { SessionRegistry } from "../services/registry";
-import { AccountToolError, type AccountAccess, type ResolvedConnection } from "./access";
+import {
+  AccountToolError,
+  ProviderError,
+  type ActionOutcome,
+  type ActionRow,
+  type IntegrationAdapter,
+  type Integrations,
+  type PreparedAction,
+  type ResolvedConnection,
+  type TokenSource,
+} from "@open-bot/integrations/adapters";
+import type { AccountAccess } from "./access";
 import { approvalFor } from "./effects";
-import { ProviderError, type TokenSource } from "./http";
-import type { Integrations } from "./registry";
-import type { ActionOutcome, ActionRow, IntegrationAdapter, PreparedAction } from "./types";
 import { expireApprovals } from "../services/approvals";
 
 /** An action being run holds it this long; after that, the worker is taken to have stopped. */

@@ -12,7 +12,6 @@
     "test:integration": "vitest run .integration.test.ts"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.32.1",
     "@open-bot/agent": "workspace:*",
     "@open-bot/api": "workspace:*",
     "@open-bot/db": "workspace:*",

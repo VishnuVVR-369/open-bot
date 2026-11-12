@@ -2,20 +2,7 @@
  * Calls to Google's APIs, with the retry rules the executor depends on: a read is retried when it
  * failed for a passing reason, and a write only when the provider certainly did nothing.
  */
-
-/** A provider call failed. `ambiguous` means it may have happened anyway. */
-export class ProviderError extends Error {
-  constructor(
-    message: string,
-    readonly status: number | null,
-    /** The request may have reached the provider and taken effect (a timeout, a reset, a 5xx). */
-    readonly ambiguous: boolean,
-    /** The provider's own reason, like `accessNotConfigured` or `insufficientPermissions`. */
-    readonly reason: string | null = null,
-  ) {
-    super(message);
-  }
-}
+import { ProviderError, type TokenSource } from "../../core/http";
 
 export interface ProviderRequest {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -32,12 +19,6 @@ export interface ProviderResponse<T> {
   status: number;
   body: T;
   headers: Headers;
-}
-
-/** The account's current access token, and a way to get a new one after a 401. */
-export interface TokenSource {
-  token(): Promise<string>;
-  refresh(): Promise<string>;
 }
 
 const MAX_READ_ATTEMPTS = 3;

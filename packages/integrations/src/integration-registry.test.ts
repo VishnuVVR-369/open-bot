@@ -1,8 +1,15 @@
 import { ACCOUNT_CONNECTION_KINDS, integration } from "@open-bot/domain";
-import { describe, expect, it, vi } from "vitest";
-import { ACCOUNT_TOOL_SPECS, Integrations, isAccountNamespace, specProblem } from "./registry";
-import { namespace, tool } from "./schema";
-import type { IntegrationAdapter } from "./types";
+import type { Db } from "@open-bot/db";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { IntegrationAdapter } from "./core/adapter";
+import { namespace, tool } from "./core/tool-spec";
+import {
+  ACCOUNT_TOOL_SPECS,
+  Integrations,
+  isAccountNamespace,
+  specProblem,
+} from "./integration-registry";
+import { NotionTools } from "./providers/notion/adapter";
 
 const stub = (kind: IntegrationAdapter["kind"]): IntegrationAdapter => ({
   kind,
@@ -12,8 +19,10 @@ const stub = (kind: IntegrationAdapter["kind"]): IntegrationAdapter => ({
   runner: { execute: vi.fn(), reconcile: vi.fn() },
 });
 
-describe("the worker's integrations", () => {
-  it("serves exactly the tools shared defines, for every integration", () => {
+describe("the integrations' adapters", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("serves exactly the tools their definitions name, for every integration", () => {
     expect(ACCOUNT_TOOL_SPECS.map((spec) => spec.name).sort()).toEqual(
       ACCOUNT_CONNECTION_KINDS.map((kind) => integration(kind).namespace).sort(),
     );
@@ -47,5 +56,13 @@ describe("the worker's integrations", () => {
     expect(integrations.forTool("calendar.nope")).toBeUndefined();
     expect(() => new Integrations([stub("gmail"), stub("gmail")])).toThrow(/Two adapters/);
     expect(() => new Integrations([stub("gmail")]).get("notion")).toThrow(/No adapter/);
+  });
+
+  it("stops Notion's idle sweep through the integrations", async () => {
+    vi.useFakeTimers();
+    const integrations = new Integrations([new NotionTools({ db: {} as Db })]);
+    expect(vi.getTimerCount()).toBe(1);
+    await integrations.stop();
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

@@ -1,5 +1,19 @@
 import { connections, ownerTimeZone, runs, triggerFirings, triggers } from "@open-bot/db";
 import {
+  AccountToolError,
+  CalendarApi,
+  cap,
+  eventDetails,
+  GmailApi,
+  header,
+  messageContent,
+  ProviderError,
+  readableTime,
+  type CalendarEvent,
+  type GmailMessage,
+  type ResolvedConnection,
+} from "@open-bot/integrations/adapters";
+import {
   ACCOUNT_TRIGGER_NOTE,
   CALENDAR_POLL_MINUTES,
   describeGmailQuery,
@@ -13,12 +27,7 @@ import {
 import { and, count, eq, gte, inArray, like, lt, lte } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
 import { errorMessage } from "../logger";
-import { AccountToolError, type AccountAccess, type ResolvedConnection } from "../accounts/access";
-import { CalendarApi, eventDetails, type CalendarEvent } from "../accounts/calendar";
-import { cap, GmailApi, header, type GmailMessage } from "../accounts/gmail";
-import { ProviderError } from "../accounts/http";
-import { messageContent } from "../accounts/mime";
-import { readableTime } from "../accounts/time";
+import type { AccountAccess } from "../accounts/access";
 import {
   addedMessages,
   calendarWindow,
