@@ -364,7 +364,10 @@ export class MemoryJobs {
           })
           .onConflictDoUpdate({
             target: [memoryEmbeddings.memoryId, memoryEmbeddings.model],
-            set: { revision: sql`excluded.revision`, embedding: sql`excluded.embedding` },
+            set: {
+              revision: sql`excluded.${sql.identifier(memoryEmbeddings.revision.name)}`,
+              embedding: sql`excluded.${sql.identifier(memoryEmbeddings.embedding.name)}`,
+            },
           });
     });
   }

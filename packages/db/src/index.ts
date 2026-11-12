@@ -1,3 +1,4 @@
+import { DrizzleQueryError } from "drizzle-orm";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import * as schema from "./schema";
@@ -27,6 +28,15 @@ export function createPool(url = process.env.DATABASE_URL): pg.Pool {
 
 export function createDb(pool: pg.Pool): Db {
   return drizzle(pool, { schema });
+}
+
+/**
+ * The database's own error behind Drizzle's `DrizzleQueryError`, whose message repeats the failed
+ * SQL and every parameter. Use it where a message can reach a person or a log; anything else is
+ * returned as is.
+ */
+export function databaseError(error: unknown): unknown {
+  return error instanceof DrizzleQueryError && error.cause instanceof Error ? error.cause : error;
 }
 
 /**
