@@ -1,12 +1,48 @@
 import { createHash, randomUUID } from "node:crypto";
-import type pg from "pg";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  getTableColumns,
+  gt,
+  ilike,
+  inArray,
+  isNull,
+  lte,
+  ne,
+  or,
+  sql,
+} from "drizzle-orm";
 import { z } from "zod";
-import { LOCKS, lockUntilCommit } from "@open-bot/db";
+import {
+  bots as teammates,
+  CHANNELS,
+  lessons,
+  LOCKS,
+  lockUntilCommit,
+  memoryEmbeddings,
+  memoryGenerations,
+  memoryImports,
+  memoryItems,
+  memoryJobs,
+  memoryRevisions,
+  ownerSettings,
+  runs,
+  settings,
+  SETTINGS_ID,
+  type Db,
+  type Queryable,
+  type Tx,
+  type WorkerSignal,
+} from "@open-bot/db";
 import {
   memoryInputSchema,
   memoryEditSchema,
   memoryReferenceSchema,
   normalizeMemory,
+  type AppEvent,
   type MemoryInput,
   type MemoryItem,
   type MemoryRevision,
@@ -35,36 +71,21 @@ export type MemoryActor =
 export type MemorySaveResult = MemoryItem & {
   saveOutcome: "created" | "confirmed" | "unchanged";
 };
-interface Row {
-  id: string;
-  bot_id: string | null;
-  kind: MemoryItem["kind"];
-  content: string;
-  key: string | null;
-  fingerprint: string;
-  revision: number;
-  state: MemoryItem["state"];
-  pinned: boolean;
-  expires_at: Date | null;
-  source: MemorySource;
-  created_at: Date;
-  updated_at: Date;
-  legacy_key: string | null;
-}
+type Row = typeof memoryItems.$inferSelect;
 export function itemView(row: Row): MemoryItem {
   return {
     id: row.id,
-    botId: row.bot_id,
+    botId: row.botId,
     kind: row.kind,
     content: row.content,
     key: row.key,
     revision: row.revision,
     state: row.state,
     pinned: row.pinned,
-    expiresAt: row.expires_at?.toISOString() ?? null,
+    expiresAt: row.expiresAt?.toISOString() ?? null,
     source: row.source,
-    createdAt: row.created_at.toISOString(),
-    updatedAt: row.updated_at.toISOString(),
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
   };
 }
 export function fingerprint(content: string): string {
@@ -79,14 +100,14 @@ function sourceOf(actor: MemoryActor): MemorySource {
       }
     : { type: actor.kind === "import" ? "import" : "user" };
 }
-function canRead(actor: MemoryActor, botId: string | null): boolean {
-  return actor.kind !== "bot" || botId === null || botId === actor.botId;
+function canRead(actor: MemoryActor, teammateId: string | null): boolean {
+  return actor.kind !== "bot" || teammateId === null || teammateId === actor.botId;
 }
-function canWrite(actor: MemoryActor, botId: string | null): boolean {
+function canWrite(actor: MemoryActor, teammateId: string | null): boolean {
   return (
     actor.kind !== "bot" ||
-    botId === actor.botId ||
-    (botId === null && (actor.verified === true || actor.allowShared === true))
+    teammateId === actor.botId ||
+    (teammateId === null && (actor.verified === true || actor.allowShared === true))
   );
 }
 function validate<T>(schema: z.ZodType<T>, input: unknown): T {
@@ -98,106 +119,144 @@ function validate<T>(schema: z.ZodType<T>, input: unknown): T {
 /** A lesson a teammate file carried: any length the file allows, up to a memory's longest. */
 const IMPORTED_LESSON = z.string().trim().min(1).max(8000);
 
-const scopeOf = (botId: string | null) => (botId ? (`bot:${botId}` as const) : ("shared" as const));
+const scopeOf = (teammateId: string | null) =>
+  teammateId ? (`bot:${teammateId}` as const) : ("shared" as const);
+
+const now = () => sql<Date>`now()`;
+/** One scope's memories: a teammate's, or the shared ones (`null`). */
+const inScope = (teammateId: string | null) =>
+  teammateId ? eq(memoryItems.botId, teammateId) : isNull(memoryItems.botId);
+/** A teammate's memories and the shared ones, which it reads too. */
+const visibleTo = (teammateId: string) =>
+  or(eq(memoryItems.botId, teammateId), isNull(memoryItems.botId));
+const unexpired = () => or(isNull(memoryItems.expiresAt), gt(memoryItems.expiresAt, now()));
+/** Content and key as one document. The `memory_items_search` index is on this exact expression. */
+const document = () =>
+  sql`to_tsvector('english', ${memoryItems.content} || ' ' || regexp_replace(coalesce(${memoryItems.key}, ''), '[^[:alnum:]]+', ' ', 'g'))`;
+/** `text` matched literally by `ilike`: its `%`, `_` and `\` aren't wildcards. */
+const containing = (text: string) => `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+
+/** Tells runs that read this scope's memory that it changed. */
+async function bumpGeneration(tx: Tx, teammateId: string | null) {
+  await tx
+    .insert(memoryGenerations)
+    .values({ scope: scopeOf(teammateId), generation: 1 })
+    .onConflictDoUpdate({
+      target: memoryGenerations.scope,
+      set: { generation: sql`${memoryGenerations.generation} + 1` },
+    });
+}
 
 /** Canonical memory. Both web actions and agent tools use these transactions. */
 export class MemoryService {
-  constructor(readonly pool: pg.Pool) {}
+  constructor(readonly db: Db) {}
 
-  private async transaction<T>(fn: (client: pg.PoolClient) => Promise<T>): Promise<T> {
-    const client = await this.pool.connect();
-    try {
-      await client.query("begin");
-      const value = await fn(client);
-      await client.query("commit");
-      return value;
-    } catch (error) {
-      await client.query("rollback");
-      throw error;
-    } finally {
-      client.release();
+  private async lockScope(tx: Tx, teammateId: string | null) {
+    await lockUntilCommit(tx, LOCKS.memory(scopeOf(teammateId)));
+    if (teammateId) {
+      const [teammate] = await tx
+        .select({ id: teammates.id })
+        .from(teammates)
+        .where(and(eq(teammates.id, teammateId), isNull(teammates.archivedAt)));
+      if (!teammate) throw new MemoryError(404, "That teammate no longer exists.");
     }
   }
 
-  private async lockScope(client: pg.PoolClient, botId: string | null) {
-    await lockUntilCommit(client, LOCKS.memory(scopeOf(botId)));
-    if (botId) {
-      const result = await client.query(
-        "select id from bots where id = $1 and archived_at is null",
-        [botId],
-      );
-      if (!result.rowCount) throw new MemoryError(404, "That teammate no longer exists.");
-    }
-  }
-
-  private async revision(client: pg.PoolClient, row: Row) {
-    const { pinned, key, kind, expires_at, state } = row;
-    await client.query(
-      `insert into memory_revisions(memory_id, revision, content, snapshot, source)
-      values($1,$2,$3,$4,$5)`,
-      [
-        row.id,
-        row.revision,
-        row.content,
-        { pinned, key, kind, expiresAt: expires_at, state },
-        row.source,
-      ],
-    );
+  private async revision(tx: Tx, row: Row) {
+    const { pinned, key, kind, expiresAt, state } = row;
+    await tx.insert(memoryRevisions).values({
+      memoryId: row.id,
+      revision: row.revision,
+      content: row.content,
+      snapshot: { pinned, key, kind, expiresAt: expiresAt?.toISOString() ?? null, state },
+      source: row.source,
+    });
     if (row.state === "active")
-      await client.query(
-        `insert into memory_jobs(kind,memory_id,revision,dedupe_key)
-      values('embed',$1,$2,$3) on conflict(dedupe_key) do nothing`,
-        [row.id, row.revision, `embed:${row.id}:${row.revision}`],
-      );
+      await tx
+        .insert(memoryJobs)
+        .values({
+          kind: "embed",
+          memoryId: row.id,
+          revision: row.revision,
+          dedupeKey: `embed:${row.id}:${row.revision}`,
+        })
+        .onConflictDoNothing({ target: memoryJobs.dedupeKey });
   }
 
   /** Legacy tables are compatibility views maintained transactionally, never independent writers. */
   private async changed(
-    client: pg.PoolClient,
-    botId: string | null,
+    tx: Tx,
+    teammateId: string | null,
     actor: MemoryActor,
     contextChanged: boolean,
   ) {
     if (contextChanged) {
-      await client.query(
-        `insert into memory_generations(scope,generation) values($1,1)
-        on conflict(scope) do update set generation = memory_generations.generation + 1`,
-        [scopeOf(botId)],
-      );
+      await bumpGeneration(tx, teammateId);
       // Mark stale active turns durably. The worker also receives a wakeup, including across processes.
-      await client.query(
-        `update runs set cancel_requested_at = now()
-        where status in ('starting','running','waiting') and ($1::uuid is null or bot_id = $1)
-          and ($2::uuid is null or id <> $2)`,
-        [botId, actor.kind === "bot" ? actor.runId : null],
-      );
-      await client.query("select pg_notify('openbot_worker','cancel')");
+      await tx
+        .update(runs)
+        .set({ cancelRequestedAt: now() })
+        .where(
+          and(
+            inArray(runs.status, ["starting", "running", "waiting"]),
+            teammateId ? eq(runs.botId, teammateId) : undefined,
+            actor.kind === "bot" ? ne(runs.id, actor.runId) : undefined,
+          ),
+        );
+      const cancel: WorkerSignal = "cancel";
+      await tx.execute(sql`select pg_notify(${CHANNELS.worker}, ${cancel})`);
     }
-    if (botId) {
-      await client.query("delete from lessons where bot_id = $1", [botId]);
-      await client.query(
-        `insert into lessons(id,bot_id,run_id,text,created_at)
-        select id,bot_id,(select id from runs where id::text=source->>'runId'),content,created_at from memory_items
-        where bot_id=$1 and kind='lesson' and state='active' and (expires_at is null or expires_at>now())`,
-        [botId],
+    if (teammateId) {
+      await tx.delete(lessons).where(eq(lessons.botId, teammateId));
+      await tx.insert(lessons).select(
+        tx
+          .select({
+            id: memoryItems.id,
+            botId: sql<string>`${memoryItems.botId}`.as("bot_id"),
+            runId: sql<
+              string | null
+            >`(select ${runs.id} from ${runs} where ${runs.id}::text = ${memoryItems.source}->>'runId')`.as(
+              "run_id",
+            ),
+            text: memoryItems.content,
+            createdAt: memoryItems.createdAt,
+          })
+          .from(memoryItems)
+          .where(
+            and(
+              eq(memoryItems.botId, teammateId),
+              eq(memoryItems.kind, "lesson"),
+              eq(memoryItems.state, "active"),
+              unexpired(),
+            ),
+          ),
       );
-      await client.query("update bots set lessons_changed_at=now() where id=$1", [botId]);
+      // SQL text, not `update(teammates)`: Drizzle would also bump `updated_at`, and a projection
+      // changes only its own column.
+      await tx.execute(
+        sql`update ${teammates} set lessons_changed_at = now() where ${teammates.id} = ${teammateId}`,
+      );
     } else {
-      const { rows } = await client.query<{ content: string }>(`select content from memory_items
-        where bot_id is null and state='active' and (expires_at is null or expires_at>now()) order by created_at,id`);
+      const rows = await tx
+        .select({ content: memoryItems.content })
+        .from(memoryItems)
+        .where(and(isNull(memoryItems.botId), eq(memoryItems.state, "active"), unexpired()))
+        .orderBy(asc(memoryItems.createdAt), asc(memoryItems.id));
       // Keep the old profile API bounded without imposing its old size limit on canonical memory.
       const profile = rows
         .map((r) => r.content)
         .join("\n")
         .slice(0, 8000);
-      await client.query(
-        `insert into settings(id,about_me,about_me_updated_at) values(1,$1,now())
-        on conflict(id) do update set about_me=$1, about_me_updated_at=now()`,
-        [profile],
+      // SQL text for the same reason: only the profile's columns change.
+      await tx.execute(
+        sql`insert into ${settings} (id, about_me, about_me_updated_at) values (${SETTINGS_ID}, ${profile}, now())
+        on conflict (id) do update set about_me = excluded.about_me, about_me_updated_at = now()`,
       );
     }
-    for (const type of ["memory", "profile", "lessons"])
-      await client.query("select pg_notify('openbot_app',$1)", [JSON.stringify({ type })]);
+    for (const type of ["memory", "profile", "lessons"] as const) {
+      const event: AppEvent = { type };
+      await tx.execute(sql`select pg_notify(${CHANNELS.app}, ${JSON.stringify(event)})`);
+    }
   }
 
   async save(
@@ -213,57 +272,67 @@ export class MemoryService {
       );
     if (data.expiresAt && new Date(data.expiresAt) <= new Date())
       throw new MemoryError(400, "Choose a future expiry.");
-    return this.transaction(async (client) => {
-      await this.lockScope(client, data.botId);
+    const expiresAt = data.expiresAt ? new Date(data.expiresAt) : null;
+    return this.db.transaction(async (tx) => {
+      await this.lockScope(tx, data.botId);
       const hash = fingerprint(data.content);
       if (actor.kind === "bot") {
-        const blocked = await client.query(
-          "select key from memory_imports where key=any($1::text[])",
-          [
-            [
+        const blocked = await tx
+          .select({ key: memoryImports.key })
+          .from(memoryImports)
+          .where(
+            inArray(memoryImports.key, [
               `forgotten:${scopeOf(data.botId)}:${hash}`,
               ...(actor.messageId ? [`forget-source:${actor.messageId}`] : []),
-            ],
-          ],
-        );
-        if (blocked.rowCount && !actor.verified)
+            ]),
+          );
+        if (blocked.length && !actor.verified)
           throw new MemoryError(409, "This source or memory was forgotten. Do not learn it again.");
       }
-      const existing = await client.query<Row>(
-        `select * from memory_items where bot_id is not distinct from $1
-        and fingerprint=$2 order by (state='deleted') asc limit 1`,
-        [data.botId, hash],
-      );
-      const known = existing.rows[0];
+      const [known] = await tx
+        .select()
+        .from(memoryItems)
+        .where(and(inScope(data.botId), eq(memoryItems.fingerprint, hash)))
+        .orderBy(asc(sql`${memoryItems.state} = 'deleted'`))
+        .limit(1);
       if (known && known.state !== "deleted") {
         if (known.state === "candidate" && (actor.kind !== "bot" || actor.verified)) {
           if (data.key) {
-            const conflict = await client.query(
-              "select id from memory_items where bot_id is not distinct from $1 and key=$2 and state='active' and id<>$3",
-              [known.bot_id, data.key, known.id],
-            );
-            if (conflict.rowCount)
+            const conflict = await tx
+              .select({ id: memoryItems.id })
+              .from(memoryItems)
+              .where(
+                and(
+                  inScope(known.botId),
+                  eq(memoryItems.key, data.key),
+                  eq(memoryItems.state, "active"),
+                  ne(memoryItems.id, known.id),
+                ),
+              );
+            if (conflict.length)
               throw new MemoryError(
                 409,
                 "This suggestion conflicts with a confirmed memory. Edit that memory instead.",
               );
           }
-          const { rows } = await client.query<Row>(
-            `update memory_items set state='active',revision=revision+1,source=$2,updated_at=now(),
-              content=$3,kind=$4,key=$5,pinned=$6,expires_at=$7 where id=$1 returning *`,
-            [
-              known.id,
-              options.source ?? sourceOf(actor),
-              data.content,
-              data.kind,
-              data.key,
-              actor.kind === "bot" ? false : data.pinned,
-              data.expiresAt,
-            ],
-          );
-          await this.revision(client, rows[0]!);
-          await this.changed(client, known.bot_id, actor, true);
-          return { ...itemView(rows[0]!), saveOutcome: "confirmed" };
+          const [row] = await tx
+            .update(memoryItems)
+            .set({
+              state: "active",
+              revision: sql`${memoryItems.revision} + 1`,
+              source: options.source ?? sourceOf(actor),
+              updatedAt: now(),
+              content: data.content,
+              kind: data.kind,
+              key: data.key,
+              pinned: actor.kind === "bot" ? false : data.pinned,
+              expiresAt,
+            })
+            .where(eq(memoryItems.id, known.id))
+            .returning();
+          await this.revision(tx, row!);
+          await this.changed(tx, known.botId, actor, true);
+          return { ...itemView(row!), saveOutcome: "confirmed" };
         }
         return { ...itemView(known), saveOutcome: "unchanged" };
       }
@@ -273,54 +342,55 @@ export class MemoryService {
           "This memory was forgotten. Do not save it again from old context.",
         );
       if (data.key) {
-        const clash = await client.query(
-          `select id from memory_items where bot_id is not distinct from $1 and key=$2 and state='active'`,
-          [data.botId, data.key],
-        );
-        if (clash.rowCount)
+        const clash = await tx
+          .select({ id: memoryItems.id })
+          .from(memoryItems)
+          .where(
+            and(
+              inScope(data.botId),
+              eq(memoryItems.key, data.key),
+              eq(memoryItems.state, "active"),
+            ),
+          );
+        if (clash.length)
           throw new MemoryError(
             409,
             "A memory with this key exists. Recall it and update its expected revision instead.",
           );
       }
       const state = actor.kind === "bot" && !actor.verified ? "candidate" : "active";
-      const { rows } = await client.query<Row>(
-        `insert into memory_items(id,bot_id,kind,content,key,fingerprint,state,pinned,expires_at,source,legacy_key)
-        values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) returning *`,
-        [
-          options.id ?? randomUUID(),
-          data.botId,
-          data.kind,
-          data.content,
-          data.key,
-          hash,
+      const [row] = await tx
+        .insert(memoryItems)
+        .values({
+          id: options.id ?? randomUUID(),
+          botId: data.botId,
+          kind: data.kind,
+          content: data.content,
+          key: data.key,
+          fingerprint: hash,
           state,
-          actor.kind === "bot" ? false : data.pinned,
-          data.expiresAt,
-          options.source ?? sourceOf(actor),
-          options.legacyKey ?? null,
-        ],
-      );
-      const row = rows[0]!;
-      await this.revision(client, row);
-      await this.changed(client, data.botId, actor, state === "active");
-      return { ...itemView(row), saveOutcome: "created" };
+          pinned: actor.kind === "bot" ? false : data.pinned,
+          expiresAt,
+          source: options.source ?? sourceOf(actor),
+          legacyKey: options.legacyKey ?? null,
+        })
+        .returning();
+      await this.revision(tx, row!);
+      await this.changed(tx, data.botId, actor, state === "active");
+      return { ...itemView(row!), saveOutcome: "created" };
     });
   }
 
-  private async getLocked(client: pg.PoolClient, id: string, actor: MemoryActor): Promise<Row> {
+  private async getLocked(tx: Tx, id: string, actor: MemoryActor): Promise<Row> {
     // Scope lock is acquired before the row lock by every writer, avoiding lock-order inversions.
-    const first = await client.query<Row>("select * from memory_items where id=$1", [id]);
-    if (!first.rows[0] || !canRead(actor, first.rows[0].bot_id))
-      throw new MemoryError(404, "Memory not found.");
-    await this.lockScope(client, first.rows[0].bot_id);
-    const { rows } = await client.query<Row>("select * from memory_items where id=$1 for update", [
-      id,
-    ]);
-    if (!rows[0] || rows[0].state === "deleted") throw new MemoryError(404, "Memory not found.");
-    if (!canWrite(actor, rows[0].bot_id))
+    const [first] = await tx.select().from(memoryItems).where(eq(memoryItems.id, id));
+    if (!first || !canRead(actor, first.botId)) throw new MemoryError(404, "Memory not found.");
+    await this.lockScope(tx, first.botId);
+    const [row] = await tx.select().from(memoryItems).where(eq(memoryItems.id, id)).for("update");
+    if (!row || row.state === "deleted") throw new MemoryError(404, "Memory not found.");
+    if (!canWrite(actor, row.botId))
       throw new MemoryError(403, "Only the user can change this shared memory.");
-    return rows[0];
+    return row;
   }
 
   async update(
@@ -329,11 +399,11 @@ export class MemoryService {
     options: { allowExpired?: boolean } = {},
   ): Promise<MemoryItem> {
     const data = validate(memoryEditSchema, input);
-    return this.transaction(async (client) => {
-      const old = await this.getLocked(client, data.id, actor);
+    return this.db.transaction(async (tx) => {
+      const old = await this.getLocked(tx, data.id, actor);
       if (old.revision !== data.expectedRevision)
         throw new MemoryError(409, "This memory changed. Reload it before saving.");
-      if (old.bot_id !== data.botId)
+      if (old.botId !== data.botId)
         throw new MemoryError(400, "Scope cannot be changed. Save a separate memory instead.");
       if (actor.kind === "bot" && !actor.verified && old.state === "active")
         throw new MemoryError(
@@ -343,95 +413,126 @@ export class MemoryService {
       if (!options.allowExpired && data.expiresAt && new Date(data.expiresAt) <= new Date())
         throw new MemoryError(400, "Choose a future expiry.");
       const hash = fingerprint(data.content);
-      const clashes = await client.query(
-        `select id from memory_items where bot_id is not distinct from $1 and id<>$2
-        and state<>'deleted' and (fingerprint=$3 or ($4::text is not null and key=$4 and state='active'))`,
-        [old.bot_id, old.id, hash, data.key],
-      );
-      if (clashes.rowCount)
+      const clashes = await tx
+        .select({ id: memoryItems.id })
+        .from(memoryItems)
+        .where(
+          and(
+            inScope(old.botId),
+            ne(memoryItems.id, old.id),
+            ne(memoryItems.state, "deleted"),
+            or(
+              eq(memoryItems.fingerprint, hash),
+              data.key
+                ? and(eq(memoryItems.key, data.key), eq(memoryItems.state, "active"))
+                : undefined,
+            ),
+          ),
+        );
+      if (clashes.length)
         throw new MemoryError(409, "Another memory already has this content or key.");
-      const { rows } = await client.query<Row>(
-        `update memory_items set content=$2,kind=$3,key=$4,fingerprint=$5,pinned=$6,expires_at=$7,
-        revision=revision+1,updated_at=now(),source=$8 where id=$1 returning *`,
-        [
-          old.id,
-          data.content,
-          data.kind,
-          data.key,
-          hash,
-          data.pinned,
-          data.expiresAt,
-          sourceOf(actor),
-        ],
-      );
-      await client.query("delete from memory_embeddings where memory_id=$1", [old.id]);
-      await this.revision(client, rows[0]!);
-      await this.changed(client, old.bot_id, actor, old.state === "active");
-      return itemView(rows[0]!);
+      const [row] = await tx
+        .update(memoryItems)
+        .set({
+          content: data.content,
+          kind: data.kind,
+          key: data.key,
+          fingerprint: hash,
+          pinned: data.pinned,
+          expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
+          revision: sql`${memoryItems.revision} + 1`,
+          updatedAt: now(),
+          source: sourceOf(actor),
+        })
+        .where(eq(memoryItems.id, old.id))
+        .returning();
+      await tx.delete(memoryEmbeddings).where(eq(memoryEmbeddings.memoryId, old.id));
+      await this.revision(tx, row!);
+      await this.changed(tx, old.botId, actor, old.state === "active");
+      return itemView(row!);
     });
   }
 
   async approve(input: z.infer<typeof memoryReferenceSchema>): Promise<MemoryItem> {
     const data = validate(memoryReferenceSchema, input);
-    return this.transaction(async (client) => {
-      const old = await this.getLocked(client, data.id, { kind: "user" });
+    return this.db.transaction(async (tx) => {
+      const old = await this.getLocked(tx, data.id, { kind: "user" });
       if (old.revision !== data.expectedRevision)
         throw new MemoryError(409, "This memory changed. Reload it first.");
       if (old.state !== "candidate")
         throw new MemoryError(409, "This memory is already confirmed.");
-      if (old.expires_at && old.expires_at <= new Date())
+      if (old.expiresAt && old.expiresAt <= new Date())
         throw new MemoryError(409, "This suggestion expired.");
       if (old.key) {
-        const clash = await client.query(
-          `select id from memory_items where bot_id is not distinct from $1 and key=$2 and state='active' and id<>$3`,
-          [old.bot_id, old.key, old.id],
-        );
-        if (clash.rowCount)
+        const clash = await tx
+          .select({ id: memoryItems.id })
+          .from(memoryItems)
+          .where(
+            and(
+              inScope(old.botId),
+              eq(memoryItems.key, old.key),
+              eq(memoryItems.state, "active"),
+              ne(memoryItems.id, old.id),
+            ),
+          );
+        if (clash.length)
           throw new MemoryError(
             409,
             "This conflicts with a confirmed memory. Edit that memory instead.",
           );
       }
-      const { rows } = await client.query<Row>(
-        `update memory_items set state='active',revision=revision+1,updated_at=now() where id=$1 returning *`,
-        [old.id],
-      );
-      await this.revision(client, rows[0]!);
-      await this.changed(client, old.bot_id, { kind: "user" }, true);
-      return itemView(rows[0]!);
+      const [row] = await tx
+        .update(memoryItems)
+        .set({ state: "active", revision: sql`${memoryItems.revision} + 1`, updatedAt: now() })
+        .where(eq(memoryItems.id, old.id))
+        .returning();
+      await this.revision(tx, row!);
+      await this.changed(tx, old.botId, { kind: "user" }, true);
+      return itemView(row!);
     });
   }
 
   async forget(input: z.infer<typeof memoryReferenceSchema>, actor: MemoryActor): Promise<void> {
     const data = validate(memoryReferenceSchema, input);
-    await this.transaction(async (client) => {
-      const old = await this.getLocked(client, data.id, actor);
+    await this.db.transaction(async (tx) => {
+      const old = await this.getLocked(tx, data.id, actor);
       if (actor.kind === "bot" && !actor.verified)
         throw new MemoryError(403, "Only forget memory when the user explicitly asks.");
       if (old.revision !== data.expectedRevision)
         throw new MemoryError(409, "This memory changed. Reload it before forgetting.");
-      const previous = await client.query<{ content: string; source: MemorySource }>(
-        "select content,source from memory_revisions where memory_id=$1",
-        [old.id],
-      );
-      for (const revision of previous.rows) {
-        await client.query("insert into memory_imports(key) values($1) on conflict do nothing", [
-          `forgotten:${scopeOf(old.bot_id)}:${fingerprint(revision.content)}`,
-        ]);
+      const previous = await tx
+        .select({ content: memoryRevisions.content, source: memoryRevisions.source })
+        .from(memoryRevisions)
+        .where(eq(memoryRevisions.memoryId, old.id));
+      for (const revision of previous) {
+        await tx
+          .insert(memoryImports)
+          .values({ key: `forgotten:${scopeOf(old.botId)}:${fingerprint(revision.content)}` })
+          .onConflictDoNothing();
         if (revision.source.messageId)
-          await client.query("insert into memory_imports(key) values($1) on conflict do nothing", [
-            `forget-source:${revision.source.messageId}`,
-          ]);
+          await tx
+            .insert(memoryImports)
+            .values({ key: `forget-source:${revision.source.messageId}` })
+            .onConflictDoNothing();
       }
-      await client.query(
-        `update memory_items set content='', key=null,state='deleted',source='{}',revision=revision+1,
-        pinned=false,expires_at=null,updated_at=now() where id=$1`,
-        [old.id],
-      );
-      await client.query("delete from memory_revisions where memory_id=$1", [old.id]);
-      await client.query("delete from memory_embeddings where memory_id=$1", [old.id]);
-      await client.query("delete from memory_jobs where memory_id=$1", [old.id]);
-      await this.changed(client, old.bot_id, actor, old.state === "active");
+      await tx
+        .update(memoryItems)
+        .set({
+          content: "",
+          key: null,
+          state: "deleted",
+          // A tombstone keeps no trace of who said it.
+          source: sql`'{}'::jsonb`,
+          revision: sql`${memoryItems.revision} + 1`,
+          pinned: false,
+          expiresAt: null,
+          updatedAt: now(),
+        })
+        .where(eq(memoryItems.id, old.id));
+      await tx.delete(memoryRevisions).where(eq(memoryRevisions.memoryId, old.id));
+      await tx.delete(memoryEmbeddings).where(eq(memoryEmbeddings.memoryId, old.id));
+      await tx.delete(memoryJobs).where(eq(memoryJobs.memoryId, old.id));
+      await this.changed(tx, old.botId, actor, old.state === "active");
     });
   }
 
@@ -441,38 +542,56 @@ export class MemoryService {
     validate(z.string().uuid(), toBotId);
     if (fromBotId === toBotId)
       throw new MemoryError(400, "Choose a different teammate for the copy.");
-    await this.transaction(async (client) => {
-      for (const id of [fromBotId, toBotId].sort()) await this.lockScope(client, id);
-      const source = await client.query<Row>(
-        "select * from memory_items where bot_id=$1 and state='active' and kind<>'lesson' and (expires_at is null or expires_at>now()) order by created_at,id",
-        [fromBotId],
-      );
+    await this.db.transaction(async (tx) => {
+      for (const id of [fromBotId, toBotId].sort()) await this.lockScope(tx, id);
+      const source = await tx
+        .select()
+        .from(memoryItems)
+        .where(
+          and(
+            eq(memoryItems.botId, fromBotId),
+            eq(memoryItems.state, "active"),
+            ne(memoryItems.kind, "lesson"),
+            unexpired(),
+          ),
+        )
+        .orderBy(asc(memoryItems.createdAt), asc(memoryItems.id));
       let changed = false;
-      for (const item of source.rows) {
-        const duplicate = await client.query(
-          "select id from memory_items where bot_id=$1 and fingerprint=$2 and state<>'deleted'",
-          [toBotId, item.fingerprint],
-        );
-        if (duplicate.rowCount) continue;
-        const { rows } = await client.query<Row>(
-          `insert into memory_items(bot_id,kind,content,key,fingerprint,pinned,expires_at,source)
-          values($1,$2,$3,$4,$5,$6,$7,$8) returning *`,
-          [
-            toBotId,
-            item.kind,
-            item.content,
-            item.key,
-            item.fingerprint,
-            item.pinned,
-            item.expires_at,
-            { type: "import" },
-          ],
-        );
-        await this.revision(client, rows[0]!);
+      for (const copied of source) {
+        if (await this.has(tx, toBotId, copied.fingerprint)) continue;
+        const [row] = await tx
+          .insert(memoryItems)
+          .values({
+            botId: toBotId,
+            kind: copied.kind,
+            content: copied.content,
+            key: copied.key,
+            fingerprint: copied.fingerprint,
+            pinned: copied.pinned,
+            expiresAt: copied.expiresAt,
+            source: { type: "import" },
+          })
+          .returning();
+        await this.revision(tx, row!);
         changed = true;
       }
-      if (changed) await this.changed(client, toBotId, { kind: "user" }, true);
+      if (changed) await this.changed(tx, toBotId, { kind: "user" }, true);
     });
+  }
+
+  /** Whether a teammate already has a live memory with this fingerprint. */
+  private async has(tx: Tx, teammateId: string, hash: string): Promise<boolean> {
+    const rows = await tx
+      .select({ id: memoryItems.id })
+      .from(memoryItems)
+      .where(
+        and(
+          eq(memoryItems.botId, teammateId),
+          eq(memoryItems.fingerprint, hash),
+          ne(memoryItems.state, "deleted"),
+        ),
+      );
+    return rows.length > 0;
   }
 
   /**
@@ -481,76 +600,67 @@ export class MemoryService {
    * `within`, in the caller's transaction, so the lessons are saved if and only if the caller's
    * change is.
    */
-  async addLessons(
-    botId: string,
-    lessons: readonly string[],
-    within?: pg.PoolClient,
-  ): Promise<void> {
-    validate(z.string().uuid(), botId);
+  async addLessons(teammateId: string, lessons: readonly string[], within?: Tx): Promise<void> {
+    validate(z.string().uuid(), teammateId);
     // What a teammate file allows, so no lesson it carried is lost, however short.
     const contents = lessons.flatMap((content) => {
       const parsed = IMPORTED_LESSON.safeParse(content);
       return parsed.success ? [parsed.data] : [];
     });
     if (contents.length === 0) return;
-    const work = async (client: pg.PoolClient) => {
-      await this.lockScope(client, botId);
+    const work = async (tx: Tx) => {
+      await this.lockScope(tx, teammateId);
       let changed = false;
       for (const content of contents) {
         const hash = fingerprint(content);
-        const duplicate = await client.query(
-          "select id from memory_items where bot_id=$1 and fingerprint=$2 and state<>'deleted'",
-          [botId, hash],
-        );
-        if (duplicate.rowCount) continue;
-        const { rows } = await client.query<Row>(
-          `insert into memory_items(bot_id,kind,content,fingerprint,pinned,source)
-          values($1,'lesson',$2,$3,true,$4) returning *`,
-          [botId, content, hash, { type: "import" }],
-        );
-        await this.revision(client, rows[0]!);
+        if (await this.has(tx, teammateId, hash)) continue;
+        const [row] = await tx
+          .insert(memoryItems)
+          .values({
+            botId: teammateId,
+            kind: "lesson",
+            content,
+            fingerprint: hash,
+            pinned: true,
+            source: { type: "import" },
+          })
+          .returning();
+        await this.revision(tx, row!);
         changed = true;
       }
-      if (changed) await this.changed(client, botId, { kind: "user" }, true);
+      if (changed) await this.changed(tx, teammateId, { kind: "user" }, true);
     };
-    await (within ? work(within) : this.transaction(work));
+    await (within ? work(within) : this.db.transaction(work));
+  }
+
+  /** A memory that isn't forgotten, if `actor` may read it. */
+  private async readable(db: Queryable, id: string, actor: MemoryActor): Promise<Row> {
+    validate(z.string().uuid(), id);
+    const [row] = await db
+      .select()
+      .from(memoryItems)
+      .where(and(eq(memoryItems.id, id), ne(memoryItems.state, "deleted")));
+    if (!row || !canRead(actor, row.botId)) throw new MemoryError(404, "Memory not found.");
+    return row;
   }
 
   async get(id: string, actor: MemoryActor): Promise<MemoryItem> {
-    validate(z.string().uuid(), id);
-    const { rows } = await this.pool.query<Row>(
-      "select * from memory_items where id=$1 and state<>'deleted'",
-      [id],
-    );
-    if (!rows[0] || !canRead(actor, rows[0].bot_id))
-      throw new MemoryError(404, "Memory not found.");
-    return itemView(rows[0]);
+    return itemView(await this.readable(this.db, id, actor));
   }
 
   async history(id: string, actor: MemoryActor): Promise<MemoryRevision[]> {
-    validate(z.string().uuid(), id);
-    const { rows } = await this.pool.query<Row>(
-      "select * from memory_items where id=$1 and state<>'deleted'",
-      [id],
-    );
-    if (!rows[0] || !canRead(actor, rows[0].bot_id))
-      throw new MemoryError(404, "Memory not found.");
-    const result = await this.pool.query<{
-      revision: number;
-      content: string;
-      snapshot: { state: MemoryItem["state"] };
-      source: MemorySource;
-      created_at: Date;
-    }>(
-      "select revision,content,snapshot,source,created_at from memory_revisions where memory_id=$1 order by revision desc",
-      [id],
-    );
-    return result.rows.map((r) => ({
+    await this.readable(this.db, id, actor);
+    const rows = await this.db
+      .select()
+      .from(memoryRevisions)
+      .where(eq(memoryRevisions.memoryId, id))
+      .orderBy(desc(memoryRevisions.revision));
+    return rows.map((r) => ({
       revision: r.revision,
       content: r.content,
       state: r.snapshot.state,
       source: r.source,
-      createdAt: r.created_at.toISOString(),
+      createdAt: r.createdAt.toISOString(),
     }));
   }
 
@@ -562,27 +672,23 @@ export class MemoryService {
     const revisions = await this.history(input.id, { kind: "user" });
     const target = revisions.find((r) => r.revision === input.revision);
     if (!target) throw new MemoryError(404, "That revision no longer exists.");
-    const { rows } = await this.pool.query<Row>("select * from memory_items where id=$1", [
-      input.id,
-    ]);
-    const current = itemView(rows[0]!);
-    const snapshot = await this.pool.query<{
-      snapshot: {
-        kind: MemoryItem["kind"];
-        key: string | null;
-        pinned: boolean;
-        expiresAt: string | null;
-      };
-    }>("select snapshot from memory_revisions where memory_id=$1 and revision=$2", [
-      input.id,
-      input.revision,
-    ]);
-    const metadata = snapshot.rows[0]?.snapshot;
-    if (!metadata) throw new MemoryError(404, "That revision no longer exists.");
+    const [row] = await this.db.select().from(memoryItems).where(eq(memoryItems.id, input.id));
+    const current = itemView(row!);
+    const [saved] = await this.db
+      .select({ snapshot: memoryRevisions.snapshot })
+      .from(memoryRevisions)
+      .where(
+        and(eq(memoryRevisions.memoryId, input.id), eq(memoryRevisions.revision, input.revision)),
+      );
+    if (!saved) throw new MemoryError(404, "That revision no longer exists.");
+    const { kind, key, pinned, expiresAt } = saved.snapshot;
     return this.update(
       {
         ...current,
-        ...metadata,
+        kind,
+        key,
+        pinned,
+        expiresAt,
         content: target.content,
         expectedRevision: input.expectedRevision,
       },
@@ -605,34 +711,41 @@ export class MemoryService {
     if (options.botId) validate(z.string().uuid(), options.botId);
     if (!canRead(actor, options.botId)) throw new MemoryError(404, "Memory not found.");
     const query = (options.query ?? "").trim().slice(0, 500);
-    const { rows } = await this.pool.query<Row>(
-      `select * from memory_items where
-      (bot_id is not distinct from $1::uuid or ($2 and bot_id is null)) and state=any($3::text[])
-      and ($5 or expires_at is null or expires_at>now())
-      and ($4='' or to_tsvector('english',content || ' ' || regexp_replace(coalesce(key,''),'[^[:alnum:]]+',' ','g')) @@ websearch_to_tsquery('english',$4) or content ilike '%' || replace(replace(replace($4,'\\','\\\\'),'%','\\%'),'_','\\_') || '%')
-      order by pinned desc,updated_at desc,id limit $6`,
-      [
-        options.botId,
-        options.includeShared ?? false,
-        options.candidates ? ["active", "candidate"] : ["active"],
-        query,
-        options.includeExpired ?? false,
-        Math.max(1, Math.min(options.limit ?? 200, 10001)),
-      ],
-    );
+    const rows = await this.db
+      .select()
+      .from(memoryItems)
+      .where(
+        and(
+          options.includeShared
+            ? or(inScope(options.botId), isNull(memoryItems.botId))
+            : inScope(options.botId),
+          inArray(memoryItems.state, options.candidates ? ["active", "candidate"] : ["active"]),
+          options.includeExpired ? undefined : unexpired(),
+          query
+            ? or(
+                sql`${document()} @@ websearch_to_tsquery('english', ${query})`,
+                ilike(memoryItems.content, containing(query)),
+              )
+            : undefined,
+        ),
+      )
+      .orderBy(desc(memoryItems.pinned), desc(memoryItems.updatedAt), asc(memoryItems.id))
+      .limit(Math.max(1, Math.min(options.limit ?? 200, 10001)));
     return rows.map(itemView);
   }
 
   async generation(botId: string): Promise<string> {
-    const { rows } = await this.pool.query<{ scope: string; generation: number }>(
-      "select * from memory_generations where scope=any($1)",
-      [["shared", scopeOf(botId)]],
-    );
-    const expired = await this.pool.query<{ count: string }>(
-      `select count(*) from memory_items where (bot_id=$1 or bot_id is null) and state='active' and expires_at<=now()`,
-      [botId],
-    );
-    return `${rows.find((r) => r.scope === "shared")?.generation ?? 0}:${rows.find((r) => r.scope === scopeOf(botId))?.generation ?? 0}:${expired.rows[0]!.count}`;
+    const rows = await this.db
+      .select()
+      .from(memoryGenerations)
+      .where(inArray(memoryGenerations.scope, ["shared", scopeOf(botId)]));
+    const [expired] = await this.db
+      .select({ count: count() })
+      .from(memoryItems)
+      .where(
+        and(visibleTo(botId), eq(memoryItems.state, "active"), lte(memoryItems.expiresAt, now())),
+      );
+    return `${rows.find((r) => r.scope === "shared")?.generation ?? 0}:${rows.find((r) => r.scope === scopeOf(botId))?.generation ?? 0}:${expired!.count}`;
   }
 
   async recall(
@@ -641,34 +754,55 @@ export class MemoryService {
     options: { vector?: number[]; model?: string; maxDistance?: number } = {},
   ): Promise<MemoryItem[]> {
     validate(z.string().uuid(), botId);
-    const q = query.slice(0, 1000);
-    const lexical = await this.pool.query<Row>(
-      `with query as (select to_tsquery('english',replace(plainto_tsquery('english',$2)::text,' & ',' | ')) as terms)
-      select memory_items.*,ts_rank_cd(to_tsvector('english',content || ' ' || regexp_replace(coalesce(key,''),'[^[:alnum:]]+',' ','g')),query.terms) as rank
-      from memory_items cross join query where (bot_id=$1 or bot_id is null) and state='active' and (expires_at is null or expires_at>now())
-      and (pinned or to_tsvector('english',content || ' ' || regexp_replace(coalesce(key,''),'[^[:alnum:]]+',' ','g')) @@ query.terms)
-      order by pinned desc,rank desc,updated_at desc,id limit 30`,
-      [botId, q],
-    );
+    // Any of the query's words, not all of them.
+    const terms = sql`to_tsquery('english', replace(plainto_tsquery('english', ${query.slice(0, 1000)})::text, ' & ', ' | '))`;
+    const lexical = await this.db
+      .select(getTableColumns(memoryItems))
+      .from(memoryItems)
+      .where(
+        and(
+          visibleTo(botId),
+          eq(memoryItems.state, "active"),
+          unexpired(),
+          or(memoryItems.pinned, sql`${document()} @@ ${terms}`),
+        ),
+      )
+      .orderBy(
+        desc(memoryItems.pinned),
+        desc(sql`ts_rank_cd(${document()}, ${terms})`),
+        desc(memoryItems.updatedAt),
+        asc(memoryItems.id),
+      )
+      .limit(30);
     let semantic: Row[] = [];
     if (options.vector?.length && options.model) {
-      const result = await this.pool.query<Row>(
-        `select m.* from memory_items m join memory_embeddings e on e.memory_id=m.id and e.revision=m.revision
-        where (m.bot_id=$1 or m.bot_id is null) and m.state='active' and (m.expires_at is null or m.expires_at>now())
-          and e.model=$2 and vector_dims(e.embedding)=$3 and (e.embedding <=> $4::vector) <= $5
-        order by e.embedding <=> $4::vector limit 30`,
-        [
-          botId,
-          options.model,
-          options.vector.length,
-          JSON.stringify(options.vector),
-          options.maxDistance ?? 0.4,
-        ],
-      );
-      semantic = result.rows;
+      const embedding = memoryEmbeddings.embedding;
+      const distance = sql`(${embedding} <=> ${JSON.stringify(options.vector)}::vector)`;
+      semantic = await this.db
+        .select(getTableColumns(memoryItems))
+        .from(memoryItems)
+        .innerJoin(
+          memoryEmbeddings,
+          and(
+            eq(memoryEmbeddings.memoryId, memoryItems.id),
+            eq(memoryEmbeddings.revision, memoryItems.revision),
+          ),
+        )
+        .where(
+          and(
+            visibleTo(botId),
+            eq(memoryItems.state, "active"),
+            unexpired(),
+            eq(memoryEmbeddings.model, options.model),
+            sql`vector_dims(${embedding}) = ${options.vector.length}`,
+            sql`${distance} <= ${options.maxDistance ?? 0.4}`,
+          ),
+        )
+        .orderBy(distance)
+        .limit(30);
     }
     const scores = new Map<string, { row: Row; score: number }>();
-    for (const list of [lexical.rows, semantic])
+    for (const list of [lexical, semantic])
       list.forEach((row, i) => {
         const previous = scores.get(row.id);
         scores.set(row.id, { row, score: (previous?.score ?? 0) + 1 / (60 + i + 1) });
@@ -687,27 +821,27 @@ export class MemoryService {
 
   /** Import legacy sources once. Tombstones keep legacy keys, so forgotten content never returns. */
   async importLegacy(): Promise<void> {
-    const { rows: profiles } = await this.pool.query<{ about_me: string }>(
-      "select about_me from settings where id=1",
-    );
-    await this.importOnce("legacy:profile", null, profiles[0]?.about_me ?? "", "note", true);
-    const { rows: lessons } = await this.pool.query<{
-      id: string;
-      bot_id: string;
-      text: string;
-      run_id: string | null;
-    }>(
-      "select l.id,l.bot_id,l.text,l.run_id from lessons l join bots b on b.id=l.bot_id where b.archived_at is null",
-    );
-    for (const lesson of lessons)
+    const profile = await ownerSettings(this.db);
+    await this.importOnce("legacy:profile", null, profile?.aboutMe ?? "", "note", true);
+    const legacy = await this.db
+      .select({
+        id: lessons.id,
+        botId: lessons.botId,
+        text: lessons.text,
+        runId: lessons.runId,
+      })
+      .from(lessons)
+      .innerJoin(teammates, eq(teammates.id, lessons.botId))
+      .where(isNull(teammates.archivedAt));
+    for (const lesson of legacy)
       await this.importOnce(
         `legacy:lesson:${lesson.id}`,
-        lesson.bot_id,
+        lesson.botId,
         lesson.text,
         "lesson",
         true,
         lesson.id,
-        lesson.run_id ? { type: "feedback", runId: lesson.run_id } : { type: "import" },
+        lesson.runId ? { type: "feedback", runId: lesson.runId } : { type: "import" },
       );
   }
 
@@ -720,40 +854,54 @@ export class MemoryService {
     id?: string,
     source?: MemorySource,
   ): Promise<void> {
-    const done = await this.pool.query("select key from memory_imports where key=$1", [key]);
-    if (done.rowCount) return;
+    const done = await this.db
+      .select({ key: memoryImports.key })
+      .from(memoryImports)
+      .where(eq(memoryImports.key, key));
+    if (done.length) return;
     // Import into one scope transaction through a dedicated lock, then mark even empty sources.
-    await this.transaction(async (client) => {
-      await this.lockScope(client, botId);
-      const claimed = await client.query(
-        "insert into memory_imports(key) values($1) on conflict do nothing returning key",
-        [key],
-      );
-      if (!claimed.rowCount || !content.trim()) return;
+    await this.db.transaction(async (tx) => {
+      await this.lockScope(tx, botId);
+      const claimed = await tx
+        .insert(memoryImports)
+        .values({ key })
+        .onConflictDoNothing()
+        .returning({ key: memoryImports.key });
+      if (!claimed.length || !content.trim()) return;
       const hash = fingerprint(content);
-      const existing = await client.query(
-        "select id from memory_items where (legacy_key=$1 or (bot_id is not distinct from $2 and fingerprint=$3))",
-        [key, botId, hash],
-      );
-      if (existing.rowCount) return;
-      const { rows } = await client.query<Row>(
-        `insert into memory_items(id,bot_id,kind,content,fingerprint,pinned,source,legacy_key)
-        values($1,$2,$3,$4,$5,$6,$7,$8) returning *`,
-        [id ?? randomUUID(), botId, kind, content, hash, pinned, source ?? { type: "import" }, key],
-      );
-      await this.revision(client, rows[0]!);
+      const existing = await tx
+        .select({ id: memoryItems.id })
+        .from(memoryItems)
+        .where(
+          or(
+            eq(memoryItems.legacyKey, key),
+            and(inScope(botId), eq(memoryItems.fingerprint, hash)),
+          ),
+        );
+      if (existing.length) return;
+      const [row] = await tx
+        .insert(memoryItems)
+        .values({
+          id: id ?? randomUUID(),
+          botId,
+          kind,
+          content,
+          fingerprint: hash,
+          pinned,
+          source: source ?? { type: "import" },
+          legacyKey: key,
+        })
+        .returning();
+      await this.revision(tx, row!);
       // Importing a batch must not erase other legacy rows before they are imported.
-      await client.query(
-        `insert into memory_generations(scope,generation) values($1,1) on conflict(scope) do update set generation=memory_generations.generation+1`,
-        [scopeOf(botId)],
-      );
+      await bumpGeneration(tx, botId);
     });
   }
 
   async queueExtraction(runId: string): Promise<void> {
-    await this.pool.query(
-      `insert into memory_jobs(kind,run_id,dedupe_key) values('extract',$1,$2) on conflict(dedupe_key) do nothing`,
-      [runId, `extract:${runId}`],
-    );
+    await this.db
+      .insert(memoryJobs)
+      .values({ kind: "extract", runId, dedupeKey: `extract:${runId}` })
+      .onConflictDoNothing({ target: memoryJobs.dedupeKey });
   }
 }

@@ -9,8 +9,8 @@ import { memoryInputSchema } from "@open-bot/domain";
 const databaseServer = testDatabaseServer();
 describe.skipIf(!databaseServer)("memory with real Postgres", () => {
   const database = testDatabase(databaseServer);
-  const { pool } = database;
-  const memory = new MemoryService(pool);
+  const { pool, db } = database;
+  const memory = new MemoryService(db);
   let bot: string, peer: string, run: string, message: string, server: Server, url: string;
   let response: unknown = { data: [{ embedding: [1, 0, 0] }] };
   let requestCount = 0;
@@ -386,8 +386,9 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
       "create trigger memory_test_job_failure before insert on memory_jobs for each row execute function memory_test_fail_job()",
     );
     try {
+      // Drizzle wraps the database's error.
       await expect(memory.save(input("A transaction that must roll back"), user)).rejects.toThrow(
-        "test fault",
+        expect.objectContaining({ cause: expect.objectContaining({ message: "test fault" }) }),
       );
       expect(await memory.list({ botId: bot }, user)).toHaveLength(0);
       expect((await pool.query("select * from memory_revisions")).rowCount).toBe(0);
@@ -417,7 +418,7 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
   });
   it("indexes a current revision through an actual compatible HTTP endpoint", async () => {
     const saved = await memory.save(input("Prefers remote roles"), user);
-    const jobs = new MemoryJobs(memory, new MemoryAI(pool, config()));
+    const jobs = new MemoryJobs(memory, new MemoryAI(db, config()));
     await jobs.tick();
     const { rows } = await pool.query(
       "select revision,model from memory_embeddings where memory_id=$1",
@@ -428,7 +429,7 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
   });
   it("does not recreate vectors when forgotten during an embedding request", async () => {
     const saved = await memory.save(input("Prefers remote roles"), user);
-    const jobs = new MemoryJobs(memory, new MemoryAI(pool, config()));
+    const jobs = new MemoryJobs(memory, new MemoryAI(db, config()));
     hold = () => {};
     const tick = jobs.tick();
     await expect.poll(() => requestCount).toBe(1);
@@ -464,7 +465,7 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
     await memory.queueExtraction(run);
     const cfg = config();
     delete cfg.embeddingUrl;
-    await new MemoryJobs(memory, new MemoryAI(pool, cfg)).tick();
+    await new MemoryJobs(memory, new MemoryAI(db, cfg)).tick();
     const items = await memory.list({ botId: bot, candidates: true }, user);
     expect(items).toHaveLength(1);
     expect(items[0]!.state).toBe("candidate");
@@ -473,7 +474,7 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
   it("defers budget-exhausted jobs without exhausting their retry allowance", async () => {
     await memory.save(input("Prefers remote roles"), user);
     await pool.query("insert into memory_usage(day,requests) values(current_date,1)");
-    await new MemoryJobs(memory, new MemoryAI(pool, { ...config(), dailyRequestLimit: 1 })).tick();
+    await new MemoryJobs(memory, new MemoryAI(db, { ...config(), dailyRequestLimit: 1 })).tick();
     const { rows } = await pool.query(
       "select attempts,available_at>now() as deferred from memory_jobs",
     );
@@ -491,10 +492,10 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
     expect(items.every((item) => item.source.type === "import")).toBe(true);
   }, 10000);
   it("does not call an endpoint when disabled and enforces the daily request limit", async () => {
-    const disabled = new MemoryAI(pool, { ...config(), dailyRequestLimit: 0 });
+    const disabled = new MemoryAI(db, { ...config(), dailyRequestLimit: 0 });
     expect(await disabled.embed("fact")).toBeUndefined();
     expect(requestCount).toBe(0);
-    const ai = new MemoryAI(pool, { ...config(), dailyRequestLimit: 1 });
+    const ai = new MemoryAI(db, { ...config(), dailyRequestLimit: 1 });
     await ai.embed("fact");
     await expect(ai.embed("fact")).rejects.toThrow("limit");
     expect(requestCount).toBe(1);

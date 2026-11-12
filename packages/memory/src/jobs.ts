@@ -1,5 +1,15 @@
-import type pg from "pg";
+import { and, asc, eq, gt, inArray, isNull, lt, lte, notExists, or, sql } from "drizzle-orm";
 import { z } from "zod";
+import {
+  memoryEmbeddings,
+  memoryImports,
+  memoryItems,
+  memoryJobs,
+  memoryUsage,
+  messages,
+  runs,
+  type Db,
+} from "@open-bot/db";
 import { normalizeMemory, type MemoryKind } from "@open-bot/domain";
 import { MemoryService } from "./index";
 
@@ -66,19 +76,22 @@ export class MemoryBudgetError extends Error {}
 /** Optional compatible HTTP endpoints. Requests are bounded and never reuse plan credentials. */
 export class MemoryAI {
   constructor(
-    private readonly pool: pg.Pool,
+    private readonly db: Db,
     readonly config: MemoryAIConfig,
   ) {}
 
   private async request(url: string, body: unknown): Promise<unknown> {
     if (this.config.dailyRequestLimit === 0) throw new Error("Memory AI is disabled.");
-    const budget = await this.pool.query(
-      `insert into memory_usage(day,requests) values(current_date,1)
-      on conflict(day) do update set requests=memory_usage.requests+1 where memory_usage.requests<$1
-      returning requests`,
-      [this.config.dailyRequestLimit],
-    );
-    if (this.config.dailyRequestLimit === 0 || !budget.rowCount)
+    const budget = await this.db
+      .insert(memoryUsage)
+      .values({ day: sql`current_date`, requests: 1 })
+      .onConflictDoUpdate({
+        target: memoryUsage.day,
+        set: { requests: sql`${memoryUsage.requests} + 1` },
+        setWhere: lt(memoryUsage.requests, this.config.dailyRequestLimit),
+      })
+      .returning({ requests: memoryUsage.requests });
+    if (this.config.dailyRequestLimit === 0 || !budget.length)
       throw new MemoryBudgetError("Memory AI daily request limit reached.");
     const response = await fetch(url, {
       method: "POST",
@@ -157,14 +170,16 @@ export class MemoryAI {
   }
 }
 
-interface Job {
-  id: string;
-  kind: "embed" | "extract";
-  memory_id: string | null;
-  revision: number | null;
-  run_id: string | null;
-  attempts: number;
-}
+type Job = typeof memoryJobs.$inferSelect;
+const now = () => sql<Date>`now()`;
+/** The memory at this revision, while it's still live: a job for an older one has nothing to do. */
+const liveRevision = (memoryId: string, revision: number) =>
+  and(
+    eq(memoryItems.id, memoryId),
+    eq(memoryItems.revision, revision),
+    eq(memoryItems.state, "active"),
+    or(isNull(memoryItems.expiresAt), gt(memoryItems.expiresAt, now())),
+  );
 export class MemoryJobs {
   private timer: ReturnType<typeof setInterval> | null = null;
   private pumping = false;
@@ -202,15 +217,55 @@ export class MemoryJobs {
   }
   private async seed() {
     if (!this.ai.config.embeddingUrl) return;
-    await this.memory.pool.query(
-      `insert into memory_jobs(kind,memory_id,revision,dedupe_key)
-      select 'embed',m.id,m.revision,'embed:'||$1||':'||m.id||':'||m.revision from memory_items m
-      left join memory_embeddings e on e.memory_id=m.id and e.revision=m.revision and e.model=$1
-      where m.state='active' and (m.expires_at is null or m.expires_at>now()) and e.memory_id is null
-      and not exists(select 1 from memory_jobs j where j.kind='embed' and j.memory_id=m.id and j.revision=m.revision
-        and j.completed_at is null and j.attempts<5)
-      on conflict(dedupe_key) do nothing`,
-      [`${this.ai.config.embeddingModel}:${this.ai.config.embeddingDimensions}`],
+    const model = `${this.ai.config.embeddingModel}:${this.ai.config.embeddingDimensions}`;
+    const embedding = memoryEmbeddings;
+    // Every live memory with no vector from this model, and no job that may still make one.
+    const missing = this.memory.db
+      .select({
+        kind: sql`'embed'`,
+        memoryId: memoryItems.id,
+        revision: memoryItems.revision,
+        dedupeKey: sql`'embed:' || ${model} || ':' || ${memoryItems.id} || ':' || ${memoryItems.revision}`,
+      })
+      .from(memoryItems)
+      .leftJoin(
+        embedding,
+        and(
+          eq(embedding.memoryId, memoryItems.id),
+          eq(embedding.revision, memoryItems.revision),
+          eq(embedding.model, model),
+        ),
+      )
+      .where(
+        and(
+          eq(memoryItems.state, "active"),
+          or(isNull(memoryItems.expiresAt), gt(memoryItems.expiresAt, now())),
+          isNull(embedding.memoryId),
+          notExists(
+            this.memory.db
+              .select({ one: sql`1` })
+              .from(memoryJobs)
+              .where(
+                and(
+                  eq(memoryJobs.kind, "embed"),
+                  eq(memoryJobs.memoryId, memoryItems.id),
+                  eq(memoryJobs.revision, memoryItems.revision),
+                  isNull(memoryJobs.completedAt),
+                  lt(memoryJobs.attempts, 5),
+                ),
+              ),
+          ),
+        ),
+      );
+    // Drizzle's insert-select needs every column, so the column list is written out.
+    const columns = [
+      memoryJobs.kind,
+      memoryJobs.memoryId,
+      memoryJobs.revision,
+      memoryJobs.dedupeKey,
+    ].map((column) => sql.identifier(column.name));
+    await this.memory.db.execute(
+      sql`insert into ${memoryJobs} (${sql.join(columns, sql`, `)}) ${missing} on conflict (${sql.identifier(memoryJobs.dedupeKey.name)}) do nothing`,
     );
   }
   async tick(): Promise<void> {
@@ -218,109 +273,140 @@ export class MemoryJobs {
     this.pumping = true;
     try {
       const kinds = [
-        ...(this.ai.config.embeddingUrl ? ["embed"] : []),
-        ...(this.ai.config.extractionUrl ? ["extract"] : []),
+        ...(this.ai.config.embeddingUrl ? (["embed"] as const) : []),
+        ...(this.ai.config.extractionUrl ? (["extract"] as const) : []),
       ];
       if (!kinds.length || this.ai.config.dailyRequestLimit === 0) return;
+      const db = this.memory.db;
       for (let i = 0; i < 4 && !this.stopping; i++) {
-        const { rows } = await this.memory.pool.query<Job>(
-          `update memory_jobs set locked_until=now()+interval '2 minutes',attempts=attempts+1
-          where id=(select id from memory_jobs where kind=any($1::text[]) and completed_at is null and attempts<5
-          and available_at<=now() and (locked_until is null or locked_until<now()) order by available_at,id limit 1 for update skip locked) returning *`,
-          [kinds],
-        );
-        const job = rows[0];
-        if (!job) break;
+        const next = db
+          .select({ id: memoryJobs.id })
+          .from(memoryJobs)
+          .where(
+            and(
+              inArray(memoryJobs.kind, kinds),
+              isNull(memoryJobs.completedAt),
+              lt(memoryJobs.attempts, 5),
+              lte(memoryJobs.availableAt, now()),
+              or(isNull(memoryJobs.lockedUntil), lt(memoryJobs.lockedUntil, now())),
+            ),
+          )
+          .orderBy(asc(memoryJobs.availableAt), asc(memoryJobs.id))
+          .limit(1)
+          .for("update", { skipLocked: true });
+        const [claimed] = await db
+          .update(memoryJobs)
+          .set({
+            lockedUntil: sql`now() + interval '2 minutes'`,
+            attempts: sql`${memoryJobs.attempts} + 1`,
+          })
+          .where(eq(memoryJobs.id, next))
+          .returning();
+        if (!claimed) break;
         try {
-          if (job.kind === "embed") await this.embed(job);
-          else await this.extract(job);
-          await this.memory.pool.query(
-            "update memory_jobs set completed_at=now(),locked_until=null where id=$1",
-            [job.id],
-          );
+          if (claimed.kind === "embed") await this.embed(claimed);
+          else await this.extract(claimed);
+          await db
+            .update(memoryJobs)
+            .set({ completedAt: now(), lockedUntil: null })
+            .where(eq(memoryJobs.id, claimed.id));
         } catch (error) {
           if (error instanceof MemoryBudgetError) {
-            await this.memory.pool.query(
-              `update memory_jobs set attempts=greatest(attempts-1,0),locked_until=null,
-              available_at=date_trunc('day',now())+interval '1 day' where id=$1`,
-              [job.id],
-            );
+            await db
+              .update(memoryJobs)
+              .set({
+                attempts: sql`greatest(${memoryJobs.attempts} - 1, 0)`,
+                lockedUntil: null,
+                availableAt: sql`date_trunc('day', now()) + interval '1 day'`,
+              })
+              .where(eq(memoryJobs.id, claimed.id));
             break;
           }
           // Endpoint errors may contain user data or credentials. Only a fixed message reaches logs.
           this.onError("Memory indexing or extraction failed; queued for retry.");
-          await this.memory.pool.query(
-            `update memory_jobs set locked_until=null,available_at=now()+($2 * interval '1 minute') where id=$1`,
-            [job.id, Math.min(60, 2 ** job.attempts)],
-          );
+          await db
+            .update(memoryJobs)
+            .set({
+              lockedUntil: null,
+              availableAt: sql`now() + (${Math.min(60, 2 ** claimed.attempts)} * interval '1 minute')`,
+            })
+            .where(eq(memoryJobs.id, claimed.id));
         }
       }
     } finally {
       this.pumping = false;
     }
   }
-  private async embed(job: Job) {
-    const { rows } = await this.memory.pool.query<{ content: string }>(
-      `select content from memory_items where id=$1 and revision=$2 and state='active' and (expires_at is null or expires_at>now())`,
-      [job.memory_id, job.revision],
-    );
-    if (!rows[0]) return;
-    const vector = await this.ai.embed(rows[0].content);
+  private async embed({ memoryId, revision }: Job) {
+    if (!memoryId || revision === null) return;
+    const [memory] = await this.memory.db
+      .select({ content: memoryItems.content })
+      .from(memoryItems)
+      .where(liveRevision(memoryId, revision));
+    if (!memory) return;
+    const vector = await this.ai.embed(memory.content);
     if (!vector) return;
     // Lock the item while checking and writing: a concurrent forget either wins first or deletes this vector afterwards.
-    const client = await this.memory.pool.connect();
-    try {
-      await client.query("begin");
-      const current = await client.query(
-        `select id from memory_items where id=$1 and revision=$2 and state='active' and (expires_at is null or expires_at>now()) for update`,
-        [job.memory_id, job.revision],
-      );
-      if (current.rowCount)
-        await client.query(
-          `insert into memory_embeddings(memory_id,revision,model,embedding) values($1,$2,$3,$4::vector)
-        on conflict(memory_id,model) do update set revision=excluded.revision,embedding=excluded.embedding`,
-          [
-            job.memory_id,
-            job.revision,
-            `${this.ai.config.embeddingModel}:${this.ai.config.embeddingDimensions}`,
-            JSON.stringify(vector),
-          ],
-        );
-      await client.query("commit");
-    } catch (error) {
-      await client.query("rollback");
-      throw error;
-    } finally {
-      client.release();
-    }
+    await this.memory.db.transaction(async (tx) => {
+      const current = await tx
+        .select({ id: memoryItems.id })
+        .from(memoryItems)
+        .where(liveRevision(memoryId, revision))
+        .for("update");
+      if (current.length)
+        await tx
+          .insert(memoryEmbeddings)
+          .values({
+            memoryId,
+            revision,
+            model: `${this.ai.config.embeddingModel}:${this.ai.config.embeddingDimensions}`,
+            embedding: vector,
+          })
+          .onConflictDoUpdate({
+            target: [memoryEmbeddings.memoryId, memoryEmbeddings.model],
+            set: { revision: sql`excluded.revision`, embedding: sql`excluded.embedding` },
+          });
+    });
   }
-  private async extract(job: Job) {
-    const { rows } = await this.memory.pool.query<{
-      id: string;
-      bot_id: string;
-      message_id: string;
-      text: string;
-    }>(
-      `select r.id,r.bot_id,r.message_id,m.text from runs r
-      join messages m on m.id=r.message_id where r.id=$1 and r.status='completed' and r.trigger='user' and m.role='user'
-        and not exists(select 1 from memory_imports where key='forget-source:'||m.id)`,
-      [job.run_id],
-    );
-    const run = rows[0];
+  private async extract({ runId }: Job) {
+    if (!runId) return;
+    const [run] = await this.memory.db
+      .select({
+        id: runs.id,
+        botId: runs.botId,
+        messageId: messages.id,
+        text: messages.text,
+      })
+      .from(runs)
+      .innerJoin(messages, eq(messages.id, runs.messageId))
+      .where(
+        and(
+          eq(runs.id, runId),
+          eq(runs.status, "completed"),
+          eq(runs.trigger, "user"),
+          eq(messages.role, "user"),
+          notExists(
+            this.memory.db
+              .select({ one: sql`1` })
+              .from(memoryImports)
+              .where(eq(memoryImports.key, sql`'forget-source:' || ${messages.id}`)),
+          ),
+        ),
+      );
     if (!run) return;
     const candidates = await this.ai.extract(run.text);
     for (const candidate of candidates)
       await this.memory.save(
         {
-          botId: run.bot_id,
+          botId: run.botId,
           kind: candidate.kind,
           content: candidate.content,
           key: null,
           pinned: false,
           expiresAt: null,
         },
-        { kind: "bot", botId: run.bot_id, runId: run.id, messageId: run.message_id },
-        { source: { type: "extraction", runId: run.id, messageId: run.message_id } },
+        { kind: "bot", botId: run.botId, runId: run.id, messageId: run.messageId },
+        { source: { type: "extraction", runId: run.id, messageId: run.messageId } },
       );
   }
 }

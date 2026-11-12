@@ -802,7 +802,7 @@
     "bot": 1
   },
   "packages/memory/src/index.ts": {
-    "bot": 135
+    "bot": 96
   },
   "packages/memory/src/jobs.ts": {
     "bot": 7

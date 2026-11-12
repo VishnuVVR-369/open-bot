@@ -29,8 +29,8 @@ export class MemoryCoordinator {
   readonly ai: MemoryAI;
   readonly jobs: MemoryJobs;
   constructor(private readonly ctx: Context) {
-    this.store = new MemoryService(ctx.pool);
-    this.ai = new MemoryAI(ctx.pool, memoryAIConfig(process.env));
+    this.store = new MemoryService(ctx.db);
+    this.ai = new MemoryAI(ctx.db, memoryAIConfig(process.env));
     this.jobs = new MemoryJobs(this.store, this.ai, (message) => ctx.log.warn(message));
   }
   async start() {

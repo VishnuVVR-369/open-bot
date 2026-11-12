@@ -15,7 +15,12 @@ Tool wiring and routes go in `apps/worker`, memory tables in `packages/db`, shar
 - Search combines full text with optional vector search; vectors are optional when no embedding provider is configured.
 - Embedding and extraction calls respect `dailyRequestLimit`.
 - Derived vectors are fenced by model and dimensions, so changing either means rebuilding them (see the embeddings table in `packages/db/src/schema.ts`).
-- Queries use `pg` directly with parameters; keep user text out of SQL strings.
+- Queries go through Drizzle and the tables in `packages/db/src/schema.ts`, so a renamed column fails typecheck.
+  Postgres-only parts (full text search, pgvector distance, `pg_notify`) are `sql` fragments with columns interpolated; user text is always a parameter.
+  The search expression matches the `memory_items_search` index exactly; change both together.
+- `MemoryService` takes the Drizzle database (`Db`). `addLessons` also takes a caller's transaction (`Tx`), so a new teammate's lessons commit with it.
+- The `lessons` table, `bots.lessons_changed_at` and `settings.about_me` are projections rebuilt in the same transaction as each change.
+  The two writes to other owners' tables are SQL text on purpose: Drizzle's `update` would also bump their `updated_at`, and the table-owners lint reads the columns they set.
 
 ## Tests
 

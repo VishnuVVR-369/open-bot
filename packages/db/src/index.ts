@@ -30,29 +30,6 @@ export function createDb(pool: pg.Pool): Db {
 }
 
 /**
- * One transaction on one connection, given to `work` both through Drizzle and as the `pg` client,
- * for a change that also calls code written with `pg` (the memory package). It commits when `work`
- * returns and rolls back when it throws.
- */
-export async function transactionOnClient<T>(
-  pool: pg.Pool,
-  work: (tx: Db, client: pg.PoolClient) => Promise<T>,
-): Promise<T> {
-  const client = await pool.connect();
-  try {
-    await client.query("begin");
-    const value = await work(drizzle(client, { schema }), client);
-    await client.query("commit");
-    return value;
-  } catch (error) {
-    await client.query("rollback");
-    throw error;
-  } finally {
-    client.release();
-  }
-}
-
-/**
  * Postgres NOTIFY channels.
  * - `chat`: payload is a chat id; something in that chat changed (events, messages, runs).
  * - `app`: payload is JSON `AppEvent` (`@open-bot/domain`); something app-wide changed.

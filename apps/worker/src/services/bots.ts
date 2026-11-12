@@ -12,7 +12,6 @@ import {
   lockUntilCommit,
   notify,
   ownerTimeZone,
-  transactionOnClient,
   type Queryable,
   schedules,
   skills,
@@ -411,10 +410,9 @@ export class BotService {
     copiedFrom?: string,
   ): Promise<{ teammate: Teammate; chatId: string }> {
     const timezone = await ownerTimeZone(this.ctx.db);
-    // Its lessons live in memory, which the memory package writes with `pg`: one connection, so
-    // they're saved in the same transaction as the rest.
-    return transactionOnClient(this.ctx.pool, async (tx, client) => {
-      await lockUntilCommit(client, LOCKS.team);
+    // Its lessons live in memory: saved in the same transaction as the rest.
+    return this.ctx.db.transaction(async (tx) => {
+      await lockUntilCommit(tx, LOCKS.team);
       const team = await tx
         .select({ id: teammates.id, slug: teammates.slug, archivedAt: teammates.archivedAt })
         .from(teammates);
@@ -438,7 +436,7 @@ export class BotService {
       await addPausedWatches(tx, id, parts.watches);
       await addApprovalRules(tx, id, parts.allowed);
       if (copiedFrom) await copyUpcomingReminders(tx, copiedFrom, id);
-      await this.memory.addLessons(id, parts.lessons, client);
+      await this.memory.addLessons(id, parts.lessons, tx);
       return { teammate: teammate!, chatId };
     });
   }

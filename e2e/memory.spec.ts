@@ -1,6 +1,7 @@
 import { test, expect } from "./fixtures";
 import pg from "pg";
 import { randomUUID } from "node:crypto";
+import { createDb } from "../packages/db/src/index";
 import { MemoryService } from "../packages/memory/src/index";
 
 test.describe("versioned memory in an isolated database", () => {
@@ -104,7 +105,7 @@ test.describe("versioned memory in an isolated database", () => {
   test("duplicate saves cannot offer a destructive Undo; new entries can be undone", async ({
     page,
   }) => {
-    const memory = new MemoryService(pool);
+    const memory = new MemoryService(createDb(pool));
     const saved = await memory.save(
       {
         botId,
@@ -219,7 +220,7 @@ test.describe("versioned memory in an isolated database", () => {
   test("the run inspector shows supplied facts and redacts them after forgetting", async ({
     page,
   }) => {
-    const memory = new MemoryService(pool);
+    const memory = new MemoryService(createDb(pool));
     const item = await memory.save(
       {
         botId,

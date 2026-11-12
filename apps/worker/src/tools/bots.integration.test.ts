@@ -50,7 +50,7 @@ describe.skipIf(!url)("bot management with Postgres", () => {
   const skills = new SkillService(ctx);
   const triggers = new TriggerService(ctx);
   const sync = vi.fn(async () => {});
-  const service = new BotService(ctx, schedules, skills, new MemoryService(pool), sync);
+  const service = new BotService(ctx, schedules, skills, new MemoryService(db), sync);
   const approvalService = new ApprovalService(ctx, new SessionRegistry());
   const requestAction = vi.spyOn(approvalService, "requestAction").mockResolvedValue("approved");
   const dependencies = [

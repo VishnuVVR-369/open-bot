@@ -131,7 +131,7 @@ describe.skipIf(!url)("worker internal API, end to end", () => {
   const skills = new SkillService(ctx);
   const triggers = new TriggerService(ctx);
   const sync = vi.fn(async () => {});
-  const memory = new MemoryService(pool);
+  const memory = new MemoryService(db);
   const teammates = new BotService(ctx, schedules, skills, memory, sync);
   const executor = {
     dispatchMessage: vi.fn(async (_messageId: string) => {}),

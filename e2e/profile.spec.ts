@@ -1,5 +1,6 @@
 import { expect, test } from "./fixtures";
 import pg from "pg";
+import { createDb } from "../packages/db/src/index";
 import { MemoryService } from "../packages/memory/src/index";
 import { createTeammate, sendMessage, uniqueName, waitForLastRun } from "./helpers";
 
@@ -14,7 +15,7 @@ async function cleanupFact(content: string) {
       "select id,revision from memory_items where bot_id is null and content=$1 and state<>'deleted'",
       [content],
     );
-    const memory = new MemoryService(pool);
+    const memory = new MemoryService(createDb(pool));
     for (const row of rows)
       await memory.forget({ id: row.id, expectedRevision: row.revision }, { kind: "user" });
   } finally {
