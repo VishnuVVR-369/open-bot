@@ -21,28 +21,28 @@ Workspace packages are consumed as TypeScript source (`exports` point at `src/*.
 A new workspace dependency must also be added to the consumer's bundler config: `apps/worker/build.mjs`, `transpilePackages` in `apps/web/next.config.ts`, and the esbuild calls of botd and pages.
 For a deployed service it must also be added to that service's list in `.railway/watch-paths.ts`, or changes to it never redeploy the service (`pnpm test:railway` catches a missing folder).
 
-| Folder              | Owns                                                                          | Entry                            | Test                                    |
-| ------------------- | ----------------------------------------------------------------------------- | -------------------------------- | --------------------------------------- |
-| `apps/web`          | Next.js app: UI, the oRPC API for browser and mobile, SSE                     | `apps/web/src/app`               | `pnpm --filter @open-bot/web test`      |
-| `apps/worker`       | Runs teammates: run queue, tools, services, internal HTTP API, egress relay   | `apps/worker/src/index.ts`       | `pnpm --filter @open-bot/worker test`   |
-| `apps/botd`         | Daemon inside the computer: screens, Chromium, VNC, Codex proxy, leases       | `apps/botd/src/index.ts`         | `pnpm --filter @open-bot/botd test`     |
-| `apps/pages`        | Serves published pages on their own origin                                    | `apps/pages/src/index.ts`        | `pnpm --filter @open-bot/pages test`    |
-| `apps/mobile`       | Expo Android app, native modules (egress, passkey, share intent, SMS consent) | `apps/mobile/src/app`            | `pnpm --filter @open-bot/mobile test`   |
-| `apps/desktop`      | Electron Mac app: egress agent and notifications                              | `apps/desktop/src/main.ts`       | typecheck only                          |
-| `apps/site`         | Landing page and the technical docs (Cloudflare)                              | `apps/site/src/app`              | `pnpm --filter @open-bot/site test:e2e` |
-| `packages/domain`   | Isomorphic types, zod schemas and pure logic; Node-only helpers in `/server`  | `packages/domain/src/index.ts`   | `pnpm --filter @open-bot/domain test`   |
-| `packages/api`      | oRPC contracts (web and mobile, worker internal, botd) and serializable views | `packages/api/src/contract.ts`   | `pnpm --filter @open-bot/api test`      |
-| `packages/db`       | Drizzle schema, migrations, pool, NOTIFY channels and app events              | `packages/db/src/schema.ts`      | `pnpm test:integration`                 |
-| `packages/accounts` | OAuth flows and the token store for Google and Notion                         | `packages/accounts/src/index.ts` | `pnpm test:integration`                 |
-| `packages/memory`   | Versioned memory and its background jobs                                      | `packages/memory/src/index.ts`   | `pnpm test:memory`                      |
-| `packages/egress`   | Tunnel framing, mux, IP policy, SOCKS; vectors shared with Kotlin             | `packages/egress/src/index.ts`   | `pnpm --filter @open-bot/egress test`   |
-| `packages/page-kit` | Page CSS/JS, bundled libraries, page runtime and the `/page` skill            | `packages/page-kit/src/index.ts` | `pnpm --filter @open-bot/page-kit test` |
-| `packages/agent`    | Codex app-server client; `src/protocol` is generated, never edit it           | `packages/agent/src/client.ts`   | `pnpm --filter @open-bot/agent test`    |
-| `images/computer`   | The computer's Docker image and filesystem overlay                            | `images/computer/Dockerfile`     | `pnpm computer:build`                   |
-| `e2e`               | Playwright specs for the whole stack, plus stand-ins for outside services     | `playwright.config.ts`           | `pnpm e2e`                              |
-| `tools/showcase`    | Typed demo-data seed and screenshots for UI review                            | `tools/showcase/seed.ts`         | `pnpm --filter @open-bot/showcase seed` |
-| `scripts/test`      | Test runners (`pg.sh` starts a throwaway Postgres)                            | `scripts/test/integration.sh`    | -                                       |
-| `.railway`          | The Railway project as code: services, builds, watch paths                    | `.railway/railway.ts`            | `pnpm test:railway`                     |
+| Folder                  | Owns                                                                          | Entry                                 | Test                                    |
+| ----------------------- | ----------------------------------------------------------------------------- | ------------------------------------- | --------------------------------------- |
+| `apps/web`              | Next.js app: UI, the oRPC API for browser and mobile, SSE                     | `apps/web/src/app`                    | `pnpm --filter @open-bot/web test`      |
+| `apps/worker`           | Runs teammates: run queue, tools, services, internal HTTP API, egress relay   | `apps/worker/src/index.ts`            | `pnpm --filter @open-bot/worker test`   |
+| `apps/botd`             | Daemon inside the computer: screens, Chromium, VNC, Codex proxy, leases       | `apps/botd/src/index.ts`              | `pnpm --filter @open-bot/botd test`     |
+| `apps/pages`            | Serves published pages on their own origin                                    | `apps/pages/src/index.ts`             | `pnpm --filter @open-bot/pages test`    |
+| `apps/mobile`           | Expo Android app, native modules (egress, passkey, share intent, SMS consent) | `apps/mobile/src/app`                 | `pnpm --filter @open-bot/mobile test`   |
+| `apps/desktop`          | Electron Mac app: egress agent and notifications                              | `apps/desktop/src/main.ts`            | typecheck only                          |
+| `apps/site`             | Landing page and the technical docs (Cloudflare)                              | `apps/site/src/app`                   | `pnpm --filter @open-bot/site test:e2e` |
+| `packages/domain`       | Isomorphic types, zod schemas and pure logic; Node-only helpers in `/server`  | `packages/domain/src/index.ts`        | `pnpm --filter @open-bot/domain test`   |
+| `packages/api`          | oRPC contracts (web and mobile, worker internal, botd) and serializable views | `packages/api/src/contract.ts`        | `pnpm --filter @open-bot/api test`      |
+| `packages/db`           | Drizzle schema, migrations, pool, NOTIFY channels and app events              | `packages/db/src/schema.ts`           | `pnpm test:integration`                 |
+| `packages/integrations` | Sign-in (OAuth) and the token store for Google and Notion                     | `packages/integrations/src/server.ts` | `pnpm test:integration`                 |
+| `packages/memory`       | Versioned memory and its background jobs                                      | `packages/memory/src/index.ts`        | `pnpm test:memory`                      |
+| `packages/egress`       | Tunnel framing, mux, IP policy, SOCKS; vectors shared with Kotlin             | `packages/egress/src/index.ts`        | `pnpm --filter @open-bot/egress test`   |
+| `packages/page-kit`     | Page CSS/JS, bundled libraries, page runtime and the `/page` skill            | `packages/page-kit/src/index.ts`      | `pnpm --filter @open-bot/page-kit test` |
+| `packages/agent`        | Codex app-server client; `src/protocol` is generated, never edit it           | `packages/agent/src/client.ts`        | `pnpm --filter @open-bot/agent test`    |
+| `images/computer`       | The computer's Docker image and filesystem overlay                            | `images/computer/Dockerfile`          | `pnpm computer:build`                   |
+| `e2e`                   | Playwright specs for the whole stack, plus stand-ins for outside services     | `playwright.config.ts`                | `pnpm e2e`                              |
+| `tools/showcase`        | Typed demo-data seed and screenshots for UI review                            | `tools/showcase/seed.ts`              | `pnpm --filter @open-bot/showcase seed` |
+| `scripts/test`          | Test runners (`pg.sh` starts a throwaway Postgres)                            | `scripts/test/integration.sh`         | -                                       |
+| `.railway`              | The Railway project as code: services, builds, watch paths                    | `.railway/railway.ts`                 | `pnpm test:railway`                     |
 
 ## Glossary
 
@@ -125,7 +125,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 **Add an account provider** (OAuth)
 
 1. `packages/domain/src/integrations/accounts/<provider>.ts`: provider and integration definitions; register them in `packages/domain/src/integrations/accounts/registry.ts`.
-2. `packages/accounts/src/<provider>.ts` (a `ProviderAdapter`), registered in `PROVIDER_ADAPTERS` (`packages/accounts/src/providers.ts`); endpoints with an env override in `packages/accounts/src/endpoints.ts`.
+2. `packages/integrations/src/providers/<provider>/oauth.ts` (a `ProviderAdapter`), registered in `PROVIDER_ADAPTERS` (`packages/integrations/src/provider-registry.ts`); endpoints with an env override in `packages/integrations/src/core/endpoints.ts`.
 3. `apps/worker/src/accounts/<integration>.ts`, added to `ADAPTERS` in `apps/worker/src/accounts/registry.ts`. The worker refuses to start if adapters and definitions disagree. Bump `TOOLS_VERSION`.
 4. Web: `CLIENT_GUIDES` in `apps/web/src/components/settings/provider-guides.tsx` for owner-supplied OAuth clients; icons in `accounts-section.tsx` and `items.tsx` if new.
 5. A stand-in in `e2e/accounts-stand-in.ts`, and docs in `apps/site/src/app/docs/flows/accounts/page.mdx`.

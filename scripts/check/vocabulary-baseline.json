@@ -668,9 +668,6 @@
   "e2e/vault.spec.ts": {
     "bot": 16
   },
-  "packages/accounts/src/notion.ts": {
-    "bot": 1
-  },
   "packages/api/src/automations.ts": {
     "bot": 6
   },

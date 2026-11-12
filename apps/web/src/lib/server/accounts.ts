@@ -7,7 +7,7 @@ import {
   providerAdapter,
   randomToken,
   redirectUri,
-} from "@open-bot/accounts";
+} from "@open-bot/integrations/server";
 import { accounts, connections, oauthStates, type OAuthPurpose } from "@open-bot/db";
 import {
   authProvider,

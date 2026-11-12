@@ -1,4 +1,4 @@
-import { googleEndpoints } from "@open-bot/accounts";
+import { googleEndpoints } from "@open-bot/integrations/server";
 import { outsideData, type AccountActionPreview } from "@open-bot/domain";
 import { z } from "zod";
 import type { Context } from "../context";

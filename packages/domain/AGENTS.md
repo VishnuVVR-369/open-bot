@@ -2,7 +2,7 @@
 
 Isomorphic types, zod schemas and pure logic used by web, worker, mobile and the other packages.
 It must stay runnable in a browser and in React Native.
-Database access goes in `packages/db`, OAuth and token storage in `packages/accounts`, runtime behavior in the apps.
+Database access goes in `packages/db`, OAuth and token storage in `packages/integrations`, runtime behavior in the apps.
 
 ## Layout
 
@@ -34,7 +34,7 @@ One folder per feature under `packages/domain/src`, each with an `index.ts` barr
 ## Why accounts are split in three
 
 - `packages/domain/src/integrations/accounts`: definitions that both web and mobile can read (providers, scopes, tools, settings). It has no Node or database code.
-- `packages/accounts`: OAuth flows and the encrypted token store. It needs Node, `node:crypto` and the database.
+- `packages/integrations`: OAuth flows and the encrypted token store. It needs Node, `node:crypto` and the database.
 - `apps/worker/src/accounts`: runtime adapters that call Gmail, Calendar and Notion and serve the tools.
 - The worker refuses to start if adapters and definitions disagree (`specProblem` in `apps/worker/src/accounts/registry.ts`).
 - The step-by-step recipe is "Add an account provider" in the root `AGENTS.md`.

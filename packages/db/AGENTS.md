@@ -47,7 +47,7 @@ Better Auth's `account` table is sign-in and is unrelated to the integrations `a
 ## Tests
 
 - This package has no tests of its own. `pnpm --filter @open-bot/db typecheck` checks types.
-- `pnpm test:integration` applies every migration to a throwaway Postgres and runs all `*.integration.test.ts` suites (for example `packages/accounts/src/store.integration.test.ts` and `apps/worker/src/runs/dispatch.integration.test.ts`).
+- `pnpm test:integration` applies every migration to a throwaway Postgres and runs all `*.integration.test.ts` suites (for example `packages/integrations/src/core/store.integration.test.ts` and `apps/worker/src/runs/dispatch.integration.test.ts`).
 
 ## Docs
 

@@ -15,10 +15,10 @@ const nextConfig: NextConfig = {
   // List a new folder's type globs in tsconfig.json's `include`, or `next dev` rewrites that file.
   distDir: process.env.OPENBOT_NEXT_DIST_DIR ?? ".next",
   transpilePackages: [
-    "@open-bot/accounts",
     "@open-bot/api",
     "@open-bot/db",
     "@open-bot/domain",
+    "@open-bot/integrations",
     "@open-bot/memory",
   ],
   serverExternalPackages: ["pg"],

@@ -432,9 +432,6 @@ importers:
       '@novnc/novnc':
         specifier: ^1.7.0
         version: 1.7.0
-      '@open-bot/accounts':
-        specifier: workspace:*
-        version: link:../../packages/accounts
       '@open-bot/api':
         specifier: workspace:*
         version: link:../../packages/api
@@ -444,6 +441,9 @@ importers:
       '@open-bot/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@open-bot/integrations':
+        specifier: workspace:*
+        version: link:../../packages/integrations
       '@open-bot/memory':
         specifier: workspace:*
         version: link:../../packages/memory
@@ -562,9 +562,6 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: 1.32.1
         version: 1.32.1(zod@4.6.7)
-      '@open-bot/accounts':
-        specifier: workspace:*
-        version: link:../../packages/accounts
       '@open-bot/agent':
         specifier: workspace:*
         version: link:../../packages/agent
@@ -580,6 +577,9 @@ importers:
       '@open-bot/egress':
         specifier: workspace:*
         version: link:../../packages/egress
+      '@open-bot/integrations':
+        specifier: workspace:*
+        version: link:../../packages/integrations
       '@open-bot/memory':
         specifier: workspace:*
         version: link:../../packages/memory
@@ -632,34 +632,6 @@ importers:
       tsx:
         specifier: ^4.23.15
         version: 4.23.15
-      typescript:
-        specifier: ~6.0.3
-        version: 6.0.3
-      vitest:
-        specifier: ^5.0.4
-        version: 5.0.4(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15))
-
-  packages/accounts:
-    dependencies:
-      '@open-bot/db':
-        specifier: workspace:*
-        version: link:../db
-      '@open-bot/domain':
-        specifier: workspace:*
-        version: link:../domain
-      drizzle-orm:
-        specifier: ^0.45.4
-        version: 0.45.4(@types/pg@8.23.1)(kysely@0.29.6)(pg@8.23.1)
-    devDependencies:
-      '@types/node':
-        specifier: ^24.19.2
-        version: 24.19.2
-      '@types/pg':
-        specifier: ^8.15.6
-        version: 8.23.1
-      pg:
-        specifier: ^8.23.1
-        version: 8.23.1
       typescript:
         specifier: ~6.0.3
         version: 6.0.3
@@ -763,6 +735,34 @@ importers:
       '@types/node':
         specifier: ^24.19.2
         version: 24.19.2
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^5.0.4
+        version: 5.0.4(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15))
+
+  packages/integrations:
+    dependencies:
+      '@open-bot/db':
+        specifier: workspace:*
+        version: link:../db
+      '@open-bot/domain':
+        specifier: workspace:*
+        version: link:../domain
+      drizzle-orm:
+        specifier: ^0.45.4
+        version: 0.45.4(@types/pg@8.23.1)(kysely@0.29.6)(pg@8.23.1)
+    devDependencies:
+      '@types/node':
+        specifier: ^24.19.2
+        version: 24.19.2
+      '@types/pg':
+        specifier: ^8.15.6
+        version: 8.23.1
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
       typescript:
         specifier: ~6.0.3
         version: 6.0.3

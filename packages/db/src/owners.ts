@@ -119,8 +119,8 @@ export const TABLE_OWNERS = {
 
   // Integrations: connections (MCP servers) and accounts (OAuth).
   connections: { owner: `${WORKER}services/connections.ts` },
-  accounts: { owner: "packages/accounts/src/store.ts" },
-  oauth_clients: { owner: "packages/accounts/src/clients.ts" },
+  accounts: { owner: "packages/integrations/src/core/store.ts" },
+  oauth_clients: { owner: "packages/integrations/src/core/clients.ts" },
   oauth_states: { owner: `${WEB}lib/server/accounts.ts` },
   account_actions: { owner: `${WORKER}accounts/actions.ts` },
   account_resources: { owner: `${WORKER}accounts/notion.ts` },

@@ -1,7 +1,7 @@
-import type { OAuthClient } from "./clients";
-import { notionMcpUrl } from "./endpoints";
-import { OAuthError, revokeToken, tokenRequest } from "./oauth";
-import type { ProviderAdapter } from "./provider";
+import type { OAuthClient } from "../../core/clients";
+import { notionMcpUrl } from "../../core/endpoints";
+import { OAuthError, revokeToken, tokenRequest } from "../../core/oauth";
+import type { ProviderAdapter } from "../../core/provider";
 
 /**
  * Notion: its hosted MCP server, with OAuth 2.0, PKCE and dynamic client registration. This app
@@ -159,7 +159,7 @@ export const notion: ProviderAdapter = {
     const workspaceId = field(tokens.extra, "workspace_id");
     const userId = field(tokens.extra, "user_id");
     const externalId =
-      workspaceId && userId ? `${workspaceId}:${userId}` : field(tokens.extra, "bot_id");
+      workspaceId && userId ? `${workspaceId}:${userId}` : field(tokens.extra, "bot_id"); // vocabulary: allow (Notion's field)
     if (!externalId) throw new OAuthError("Notion didn't say which workspace you connected.");
     return { externalId, display: field(tokens.extra, "workspace_name") ?? "Notion" };
   },

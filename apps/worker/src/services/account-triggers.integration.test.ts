@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { AccountStore } from "@open-bot/accounts";
+import { AccountStore } from "@open-bot/integrations/server";
 import { bots, chats, connections, runs, triggerFirings, triggers } from "@open-bot/db";
 import { ACCOUNT_TRIGGER_NOTE, GOOGLE_SCOPES } from "@open-bot/domain";
 import { eq } from "drizzle-orm";

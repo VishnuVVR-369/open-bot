@@ -9,22 +9,22 @@ export type DeployedService = "web" | "worker" | "pages" | "computer";
 export const SERVICE_FOLDERS: Record<DeployedService, readonly string[]> = {
   web: [
     "apps/web",
-    "packages/accounts",
     "packages/api",
     "packages/db",
-    "packages/memory",
     "packages/domain",
+    "packages/integrations",
+    "packages/memory",
   ],
   worker: [
     "apps/worker",
-    "packages/accounts",
     "packages/agent",
     "packages/api",
     "packages/db",
+    "packages/domain",
     "packages/egress",
+    "packages/integrations",
     "packages/memory",
     "packages/page-kit",
-    "packages/domain",
   ],
   pages: ["apps/pages", "packages/db", "packages/page-kit", "packages/domain"],
   computer: [
