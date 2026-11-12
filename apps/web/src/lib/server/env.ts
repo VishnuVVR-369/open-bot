@@ -13,6 +13,10 @@ export const serverEnv = {
     process.env.PAGES_SECRET ??
     (process.env.NODE_ENV === "production" ? "" : "dev-pages-secret-change-me-0123456789"),
   encryptionKey: process.env.ENCRYPTION_KEY ?? DEV_SECRETS.ENCRYPTION_KEY,
+  /** Google's sign-in under another base, for a stand-in in tests. Set the same in the worker. */
+  googleBaseUrl: process.env.GOOGLE_BASE_URL,
+  /** Notion's MCP server, for a stand-in in tests. Set the same in the worker. */
+  notionMcpUrl: process.env.NOTION_MCP_URL,
 };
 
 /** Refuses to serve in production with a public development secret. Runs at server start. */

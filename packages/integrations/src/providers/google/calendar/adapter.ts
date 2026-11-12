@@ -329,17 +329,16 @@ export class CalendarTools implements IntegrationAdapter {
 
   /** A cheap call that proves the connection works, for Settings' Test. */
   async probe(_resolved: ResolvedConnection, tokens: TokenSource): Promise<string> {
-    const { items = [] } = await new CalendarApi(tokens).get<{ items?: unknown[] }>(
-      "/users/me/calendarList",
-      {
-        maxResults: 250,
-      },
-    );
+    const { items = [] } = await new CalendarApi(tokens, this.host.endpoints).get<{
+      items?: unknown[];
+    }>("/users/me/calendarList", {
+      maxResults: 250,
+    });
     return `${items.length} calendar${items.length === 1 ? "" : "s"}`;
   }
 
   async call(tool: string, tc: ToolContext): Promise<ToolResult> {
-    const api = new CalendarApi(tc.tokens);
+    const api = new CalendarApi(tc.tokens, this.host.endpoints);
     const timeZone = await ownerTimeZone(this.host.db);
     switch (tool) {
       case "list_calendars":
@@ -755,7 +754,7 @@ export class CalendarTools implements IntegrationAdapter {
   /** Runs Calendar actions for the executor. */
   readonly runner: ActionRunner = {
     execute: async (action, tokens) => {
-      const api = new CalendarApi(tokens);
+      const api = new CalendarApi(tokens, this.host.endpoints);
       const request = action.request as Record<string, unknown>;
       const calendarId = String(request.calendarId);
       switch (action.tool) {
@@ -811,7 +810,7 @@ export class CalendarTools implements IntegrationAdapter {
       }
     },
     reconcile: async (action, tokens) => {
-      const api = new CalendarApi(tokens);
+      const api = new CalendarApi(tokens, this.host.endpoints);
       const request = action.request as Record<string, unknown>;
       const calendarId = String(request.calendarId);
       const eventId =

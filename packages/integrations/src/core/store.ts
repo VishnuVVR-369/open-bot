@@ -4,7 +4,9 @@ import { decryptSecret, encryptSecret } from "@open-bot/domain/server";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { OAuthClients } from "./clients";
 import { OAuthError, type TokenResponse } from "./oauth";
-import { providerAdapter } from "../provider-registry";
+import { providerAdapters, type ProviderAdapters } from "../provider-registry";
+import type { IntegrationEndpoints } from "./endpoints";
+import type { ProviderAdapter } from "./provider";
 
 type Account = typeof accounts.$inferSelect;
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
@@ -34,13 +36,22 @@ export class AccountIdentityError extends Error {}
  */
 export class AccountStore {
   readonly clients: OAuthClients;
+  /** Every provider's sign-in, talking to these endpoints. */
+  readonly providers: ProviderAdapters;
   private readonly inflight = new Map<string, Promise<string>>();
 
   constructor(
     private readonly db: Db,
     private readonly encryptionKey: string,
+    /** Where the providers live: from the app's env, so tests can use a stand-in. */
+    readonly endpoints: IntegrationEndpoints,
   ) {
     this.clients = new OAuthClients(db, encryptionKey);
+    this.providers = providerAdapters(endpoints);
+  }
+
+  provider(id: AccountProvider): ProviderAdapter {
+    return this.providers[id];
   }
 
   tokens(row: Pick<Account, "encrypted">): AccountTokens {
@@ -116,7 +127,7 @@ export class AccountStore {
       const tokens = this.tokens(row);
       // Another refresh may have finished while this one waited for the lock.
       if (!force && fresh(tokens)) return tokens.accessToken;
-      const adapter = providerAdapter(row.provider);
+      const adapter = this.provider(row.provider);
       const loseGrant = async (reason: string) => {
         lost = { reason, provider: row.provider };
         await tx
@@ -187,7 +198,7 @@ export class AccountStore {
     /** Reconnecting this account: signing in as anyone else is refused. */
     expectedAccountId?: string;
   }): Promise<{ account: Account; created: boolean; grantChanged: boolean }> {
-    const adapter = providerAdapter(input.provider);
+    const adapter = this.provider(input.provider);
     for (let attempt = 0; ; attempt += 1) {
       try {
         return await this.db.transaction(async (tx) => {
@@ -307,7 +318,7 @@ export class AccountStore {
       try {
         const client = await this.clients.byId(row.oauthClientId);
         if (client)
-          await providerAdapter(row.provider).revoke(
+          await this.provider(row.provider).revoke(
             client,
             tokens.refreshToken ?? tokens.accessToken,
           );

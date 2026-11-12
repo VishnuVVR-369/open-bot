@@ -100,7 +100,7 @@ const botService = new BotService(ctx, schedules, skills, memory.store, async (b
 });
 const pages = new PageService(ctx);
 const accountAccess = new AccountAccess(ctx);
-const integrations = Integrations.create(ctx);
+const integrations = Integrations.create({ db: ctx.db, endpoints: accountAccess.store.endpoints });
 const accountActions = new AccountActions(ctx, sessions, approvals, accountAccess, integrations);
 const accountTools = new AccountTools(ctx, accountAccess, accountActions, integrations);
 const accountTriggers = new AccountTriggers(ctx, accountAccess, triggers);

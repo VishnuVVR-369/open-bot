@@ -1,5 +1,5 @@
 import type { OAuthClient } from "../../core/clients";
-import { notionMcpUrl } from "../../core/endpoints";
+import type { IntegrationEndpoints } from "../../core/endpoints";
 import { OAuthError, revokeToken, tokenRequest } from "../../core/oauth";
 import type { ProviderAdapter } from "../../core/provider";
 
@@ -9,7 +9,7 @@ import type { ProviderAdapter } from "../../core/provider";
  * grants made to the old one, so an old client is only retired.
  */
 
-export interface AuthorizationServer {
+interface AuthorizationServer {
   issuer: string;
   authorizationEndpoint: string;
   tokenEndpoint: string;
@@ -30,9 +30,11 @@ async function getJson(url: string): Promise<Record<string, unknown>> {
   return (await response.json()) as Record<string, unknown>;
 }
 
-/** Find Notion's authorization server: protected resource metadata (RFC 9728), then RFC 8414. */
-export async function notionAuthorizationServer(): Promise<AuthorizationServer> {
-  const mcpUrl = notionMcpUrl();
+/**
+ * Find Notion's authorization server for its MCP server at `mcpUrl`: protected resource metadata
+ * (RFC 9728), then RFC 8414.
+ */
+async function authorizationServer(mcpUrl: string): Promise<AuthorizationServer> {
   if (cached && cached.url === mcpUrl && Date.now() - cached.at < 60 * 60_000) return cached.server;
   const mcp = new URL(mcpUrl);
   const resourceMetadata = await getJson(
@@ -100,84 +102,87 @@ function field(extra: Record<string, unknown>, key: string): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-export const notion: ProviderAdapter = {
-  id: "notion",
-  refreshTokens: "required",
-  // Notion doesn't report scopes: what you can see in the workspace is the grant.
-  scopesOnRefresh: false,
-  // Its grants last 180 days from each authorization.
-  signInRenewsGrant: true,
-  noLastingAccess: "Notion didn't give open-bot lasting access. Connect again.",
+export function notion({ notionMcpUrl }: IntegrationEndpoints): ProviderAdapter {
+  const notionAuthorizationServer = () => authorizationServer(notionMcpUrl);
+  return {
+    id: "notion",
+    refreshTokens: "required",
+    // Notion doesn't report scopes: what you can see in the workspace is the grant.
+    scopesOnRefresh: false,
+    // Its grants last 180 days from each authorization.
+    signInRenewsGrant: true,
+    noLastingAccess: "Notion didn't give open-bot lasting access. Connect again.",
 
-  async signInClient(clients, redirectUri) {
-    const server = await notionAuthorizationServer();
-    const current = await clients.current("notion");
-    if (current && current.issuer === server.issuer && current.redirectUri === redirectUri)
-      return current;
-    // First sign-in, or the app moved (a new redirect URI) or Notion's sign-in server did.
-    const registered = await register(server, redirectUri);
-    return clients.makeCurrent({
-      provider: "notion",
-      source: "registered",
-      clientId: registered.clientId,
-      clientSecret: registered.clientSecret,
-      hint: null,
-      issuer: server.issuer,
-      redirectUri,
-    });
-  },
+    async signInClient(clients, redirectUri) {
+      const server = await notionAuthorizationServer();
+      const current = await clients.current("notion");
+      if (current && current.issuer === server.issuer && current.redirectUri === redirectUri)
+        return current;
+      // First sign-in, or the app moved (a new redirect URI) or Notion's sign-in server did.
+      const registered = await register(server, redirectUri);
+      return clients.makeCurrent({
+        provider: "notion",
+        source: "registered",
+        clientId: registered.clientId,
+        clientSecret: registered.clientSecret,
+        hint: null,
+        issuer: server.issuer,
+        redirectUri,
+      });
+    },
 
-  async authorizationUrl({ client, redirectUri, state, challenge }) {
-    const server = await notionAuthorizationServer();
-    const url = new URL(server.authorizationEndpoint);
-    url.search = new URLSearchParams({
-      client_id: client.clientId,
-      redirect_uri: redirectUri,
-      response_type: "code",
-      state,
-      code_challenge: challenge,
-      code_challenge_method: "S256",
-      resource: server.resource,
-    }).toString();
-    return url.toString();
-  },
+    async authorizationUrl({ client, redirectUri, state, challenge }) {
+      const server = await notionAuthorizationServer();
+      const url = new URL(server.authorizationEndpoint);
+      url.search = new URLSearchParams({
+        client_id: client.clientId,
+        redirect_uri: redirectUri,
+        response_type: "code",
+        state,
+        code_challenge: challenge,
+        code_challenge_method: "S256",
+        resource: server.resource,
+      }).toString();
+      return url.toString();
+    },
 
-  async exchange(client, code, verifier, redirectUri) {
-    const server = await notionAuthorizationServer();
-    return tokenRequest(server.tokenEndpoint, {
-      grant_type: "authorization_code",
-      code,
-      code_verifier: verifier,
-      redirect_uri: redirectUri,
-      resource: server.resource,
-      ...clientForm(client),
-    });
-  },
+    async exchange(client, code, verifier, redirectUri) {
+      const server = await notionAuthorizationServer();
+      return tokenRequest(server.tokenEndpoint, {
+        grant_type: "authorization_code",
+        code,
+        code_verifier: verifier,
+        redirect_uri: redirectUri,
+        resource: server.resource,
+        ...clientForm(client),
+      });
+    },
 
-  /** From the code exchange: Notion says who connected only then. */
-  async identity(tokens) {
-    const workspaceId = field(tokens.extra, "workspace_id");
-    const userId = field(tokens.extra, "user_id");
-    const externalId =
-      workspaceId && userId ? `${workspaceId}:${userId}` : field(tokens.extra, "bot_id"); // vocabulary: allow (Notion's field)
-    if (!externalId) throw new OAuthError("Notion didn't say which workspace you connected.");
-    return { externalId, display: field(tokens.extra, "workspace_name") ?? "Notion" };
-  },
+    /** From the code exchange: Notion says who connected only then. */
+    async identity(tokens) {
+      const workspaceId = field(tokens.extra, "workspace_id");
+      const userId = field(tokens.extra, "user_id");
+      const externalId =
+        workspaceId && userId ? `${workspaceId}:${userId}` : field(tokens.extra, "bot_id"); // vocabulary: allow (Notion's field)
+      if (!externalId) throw new OAuthError("Notion didn't say which workspace you connected.");
+      return { externalId, display: field(tokens.extra, "workspace_name") ?? "Notion" };
+    },
 
-  /** Every refresh rotates the refresh token; the store keeps the new one before it's used. */
-  async refresh(client, refreshToken) {
-    const server = await notionAuthorizationServer();
-    return tokenRequest(server.tokenEndpoint, {
-      grant_type: "refresh_token",
-      refresh_token: refreshToken,
-      resource: server.resource,
-      ...clientForm(client),
-    });
-  },
+    /** Every refresh rotates the refresh token; the store keeps the new one before it's used. */
+    async refresh(client, refreshToken) {
+      const server = await notionAuthorizationServer();
+      return tokenRequest(server.tokenEndpoint, {
+        grant_type: "refresh_token",
+        refresh_token: refreshToken,
+        resource: server.resource,
+        ...clientForm(client),
+      });
+    },
 
-  async revoke(client, token) {
-    const server = await notionAuthorizationServer();
-    if (!server.revocationEndpoint) return;
-    await revokeToken(server.revocationEndpoint, token, clientForm(client));
-  },
-};
+    async revoke(client, token) {
+      const server = await notionAuthorizationServer();
+      if (!server.revocationEndpoint) return;
+      await revokeToken(server.revocationEndpoint, token, clientForm(client));
+    },
+  };
+}

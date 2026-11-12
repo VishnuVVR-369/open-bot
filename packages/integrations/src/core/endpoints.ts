@@ -1,8 +1,8 @@
 import type { AccountProvider } from "@open-bot/domain";
 
 /**
- * Where the providers live. Tests point these at a stand-in with `GOOGLE_BASE_URL` and
- * `NOTION_MCP_URL`; nothing else changes.
+ * Where the providers live. Each app reads the overrides from its own env module and passes them
+ * in; tests and e2e runs point them at a stand-in, and nothing else changes.
  */
 
 export interface GoogleEndpoints {
@@ -14,7 +14,20 @@ export interface GoogleEndpoints {
   calendar: string;
 }
 
-export function googleEndpoints(base = process.env.GOOGLE_BASE_URL): GoogleEndpoints {
+export interface IntegrationEndpoints {
+  google: GoogleEndpoints;
+  /** Notion's hosted MCP server, which also leads to its sign-in. */
+  notionMcpUrl: string;
+}
+
+export interface EndpointOverrides {
+  /** One base for Google's sign-in, Gmail and Calendar (`GOOGLE_BASE_URL`). */
+  googleBaseUrl?: string;
+  /** Notion's MCP server (`NOTION_MCP_URL`). */
+  notionMcpUrl?: string;
+}
+
+function googleEndpoints(base: string | undefined): GoogleEndpoints {
   if (base) {
     const root = base.replace(/\/+$/, "");
     return {
@@ -36,9 +49,12 @@ export function googleEndpoints(base = process.env.GOOGLE_BASE_URL): GoogleEndpo
   };
 }
 
-/** Notion's hosted MCP server. */
-export function notionMcpUrl(): string {
-  return process.env.NOTION_MCP_URL ?? "https://mcp.notion.com/mcp";
+/** The providers' real endpoints, or the stand-ins the overrides name. */
+export function integrationEndpoints(overrides: EndpointOverrides = {}): IntegrationEndpoints {
+  return {
+    google: googleEndpoints(overrides.googleBaseUrl || undefined),
+    notionMcpUrl: overrides.notionMcpUrl || "https://mcp.notion.com/mcp",
+  };
 }
 
 /** Where a provider sends you back after you sign in: the web app's callback route. */

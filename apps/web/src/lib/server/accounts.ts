@@ -3,8 +3,8 @@ import {
   AccountIdentityError,
   AccountStore,
   OAuthError,
+  integrationEndpoints,
   pkce,
-  providerAdapter,
   randomToken,
   redirectUri,
 } from "@open-bot/integrations/server";
@@ -31,7 +31,14 @@ import { worker, WorkerError } from "./worker";
 /** How long a sign-in may take, from pressing Connect to coming back. */
 const STATE_TTL_MS = 10 * 60_000;
 
-export const accountStore = new AccountStore(db, serverEnv.encryptionKey);
+export const accountStore = new AccountStore(
+  db,
+  serverEnv.encryptionKey,
+  integrationEndpoints({
+    googleBaseUrl: serverEnv.googleBaseUrl,
+    notionMcpUrl: serverEnv.notionMcpUrl,
+  }),
+);
 
 /** Connecting or changing an account can't go ahead, for the reason it says. */
 export class AccountConnectError extends ApiError {
@@ -53,7 +60,7 @@ export async function startAuthorization(input: {
   accountId: string | null;
 }): Promise<string> {
   const provider = integration(input.kind).provider;
-  const adapter = providerAdapter(provider);
+  const adapter = accountStore.provider(provider);
   const capabilities = normalizeCapabilities(input.kind, input.capabilities);
   const account = input.accountId
     ? (await db.select().from(accounts).where(eq(accounts.id, input.accountId)))[0]
@@ -154,7 +161,7 @@ export async function completeAuthorization(input: {
 
   const verifier = decryptSecret(state.verifier, serverEnv.encryptionKey);
   const purpose = state.purpose;
-  const adapter = providerAdapter(input.provider);
+  const adapter = accountStore.provider(input.provider);
   const label = authProvider(input.provider).label;
   const callback = redirectUri(BASE_URL, input.provider);
   const client = await accountStore.clients.byId(purpose.oauthClientId);
@@ -223,7 +230,7 @@ export async function saveOwnerClient(input: {
   clientId: string;
   clientSecret: string;
 }): Promise<void> {
-  const adapter = providerAdapter(input.provider);
+  const adapter = accountStore.provider(input.provider);
   if (authProvider(input.provider).client !== "owner" || !adapter.invalidOwnerClient)
     throw new AccountConnectError(`${authProvider(input.provider).label} doesn't take a client.`);
   const client = { clientId: input.clientId.trim(), clientSecret: input.clientSecret.trim() };

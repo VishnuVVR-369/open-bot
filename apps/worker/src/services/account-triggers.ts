@@ -311,7 +311,7 @@ export class AccountTriggers {
       await publishApp(this.ctx, { type: "triggers" });
       return { ok: false, changed: false, summary: problem };
     }
-    const api = new GmailApi(this.access.tokens(usable[0]!.resolved));
+    const api = new GmailApi(this.access.tokens(usable[0]!.resolved), this.access.store.endpoints);
     let result: CheckResult = { ok: true, changed: false, summary: "No new mail" };
     try {
       const fresh = usable.filter(({ trigger }) => trigger.cursor === null);
@@ -528,7 +528,7 @@ export class AccountTriggers {
     let result: CheckResult;
     try {
       const resolved = await this.connectionFor(trigger);
-      const api = new CalendarApi(this.access.tokens(resolved));
+      const api = new CalendarApi(this.access.tokens(resolved), this.access.store.endpoints);
       const now = new Date();
       const leadMinutes = trigger.leadMinutes ?? 30;
       const filter = isCalendarEventFilter(trigger.query) ? trigger.query : "all";

@@ -50,7 +50,13 @@ describe.skipIf(!url)("account actions with Postgres", () => {
     db,
     pool,
     events: new EventEmitter(),
-    env: { APP_URL: "https://openbot.test", ENCRYPTION_KEY: key },
+    // Nothing here may reach a real provider.
+    env: {
+      APP_URL: "https://openbot.test",
+      ENCRYPTION_KEY: key,
+      GOOGLE_BASE_URL: "http://127.0.0.1:1",
+      NOTION_MCP_URL: "http://127.0.0.1:1/mcp",
+    },
     log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   } as unknown as Context;
   const sessions = new SessionRegistry();
@@ -118,7 +124,7 @@ describe.skipIf(!url)("account actions with Postgres", () => {
         status: "completed",
       })
       .returning();
-    const store = new AccountStore(db, key);
+    const store = new AccountStore(db, key, access.store.endpoints);
     const client = await store.clients.makeCurrent({
       provider: "google",
       source: "owner",
@@ -296,7 +302,7 @@ describe.skipIf(!url)("account actions with Postgres", () => {
   });
 
   it("picks an account by its id, and refuses a name two accounts share", async () => {
-    const store = new AccountStore(db, key);
+    const store = new AccountStore(db, key, access.store.endpoints);
     const [client] = await db.select().from(oauthClients);
     const { account: twin } = await store.saveGrant({
       provider: "google",
