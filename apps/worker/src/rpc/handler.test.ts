@@ -378,6 +378,9 @@ describe("worker internal API transport", () => {
   /**
    * Sends a body over the limit without waiting to finish writing it, since the worker may answer
    * and close the connection first: `declared` says its size up front, otherwise it is chunked.
+   * A chunked body is one byte over the limit and no more, so the worker has read all of it when
+   * it answers: closing with bytes it never read would reset the connection, and a reset can drop
+   * the answer on its way.
    */
   function oversized(declared: boolean) {
     return new Promise<{ status: number; body: unknown }>((resolve, reject) => {
@@ -404,11 +407,13 @@ describe("worker internal API transport", () => {
       const chunk = Buffer.alloc(1024 * 1024, 32);
       let sent = 0;
       const write = () => {
-        while (sent <= MAX_BODY_BYTES && !request.destroyed) {
-          sent += chunk.length;
-          if (!request.write(chunk)) return void request.once("drain", write);
+        while (sent < MAX_BODY_BYTES && !request.destroyed) {
+          const part = chunk.subarray(0, Math.min(chunk.length, MAX_BODY_BYTES - sent));
+          sent += part.length;
+          if (!request.write(part)) return void request.once("drain", write);
         }
       };
+      // With the bytes after it, one over the limit.
       request.write("{");
       if (declared) return;
       write();
