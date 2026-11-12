@@ -4,7 +4,6 @@ import {
   bots as teammates,
   CHANNELS,
   chatMembers,
-  chats,
   configurationRevision,
   connections,
   instructionProposals,
@@ -41,7 +40,7 @@ import { errorMessage } from "../logger";
 import type { Bot } from "../runs/session";
 import { requestTeammateRunsCancel } from "../runs/cancel";
 import { addApprovalRules } from "./approvals";
-import { addChat, archiveChatsOf, renameDirectChats } from "./chats";
+import { addChat, archiveChatsOf, renameDirectChats, shownMainChats } from "./chats";
 import { addPausedRoutines, copyUpcomingReminders, pauseSchedulesOf } from "./schedules";
 import type { ScheduleService } from "./schedules";
 import { addTeammateSkills } from "./skills";
@@ -147,25 +146,21 @@ export class BotService {
         role: bots.role,
         emoji: bots.emoji,
         autonomy: bots.autonomy,
-        chatId: chats.id,
       })
       .from(bots)
-      .leftJoin(
-        chats,
-        and(eq(chats.botId, bots.id), eq(chats.main, true), isNull(chats.archivedAt)),
-      )
       .where(isNull(bots.archivedAt))
       .orderBy(asc(bots.createdAt));
-    return rows.map(({ chatId, ...row }) => ({
-      ...row,
-      chatPath: chatId ? `/chats/${chatId}` : null,
-    }));
+    const mainChats = await shownMainChats(this.ctx.db);
+    return rows.map((row) => {
+      const chatId = mainChats.get(row.id);
+      return { ...row, chatPath: chatId ? `/chats/${chatId}` : null };
+    });
   }
 
   /** A teammate's whole setup: profile, skills, automations and the connections it can use. */
   async get(id: string) {
     const bot = await this.requireBot(id);
-    const [skills, routines, watches, services, direct] = await Promise.all([
+    const [skills, routines, watches, services, mainChats] = await Promise.all([
       this.skills.forBot(id),
       this.ctx.db
         .select({
@@ -196,11 +191,9 @@ export class BotService {
         .from(triggers)
         .where(eq(triggers.botId, id)),
       this.listConnections(),
-      this.ctx.db
-        .select({ id: chats.id })
-        .from(chats)
-        .where(and(eq(chats.botId, id), eq(chats.main, true), isNull(chats.archivedAt))),
+      shownMainChats(this.ctx.db, [id]),
     ]);
+    const mainChatId = mainChats.get(id);
     return {
       id: bot.id,
       name: bot.name,
@@ -210,7 +203,7 @@ export class BotService {
       emoji: bot.emoji,
       autonomy: bot.autonomy,
       revision: BotService.revision(bot),
-      chatPath: direct[0] ? `/chats/${direct[0].id}` : null,
+      chatPath: mainChatId ? `/chats/${mainChatId}` : null,
       skills: skills.map(({ id, name, description, instructions, botId }) => ({
         id,
         name,
@@ -530,7 +523,8 @@ export class BotService {
   async archive(id: string): Promise<void> {
     const now = new Date();
     await this.ctx.db.transaction(async (tx) => {
-      await lockUntilCommit(tx, LOCKS.team);
+      // Its main chat lock too, so a main chat being made for it now is archived with the rest.
+      await lockUntilCommit(tx, LOCKS.team, LOCKS.mainChat(id));
       // Its runs before its row, the order a memory write takes them in, so the two can't deadlock.
       await requestTeammateRunsCancel(tx, id, now);
       await tx

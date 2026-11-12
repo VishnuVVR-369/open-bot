@@ -6,6 +6,7 @@ import { BUNDLE_FORMAT, BUNDLE_VERSION, DAILY_CHECK_IN } from "@open-bot/domain"
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import { ORPCError } from "@orpc/client";
 import { createRouterClient } from "@orpc/server";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 const url = testDatabaseServer();
@@ -236,6 +237,31 @@ describe.skipIf(!url)("API reads, end to end", () => {
     expect(state.computer.workerOnline).toBe(true);
     expect(state.skills[0]).not.toHaveProperty("instructions");
     expect(state.unreadNotifications).toBe(1);
+  });
+
+  it("links a teammate to its main chat, or to its latest direct chat while none is marked", async () => {
+    const s = await import("@open-bot/db");
+    const db = database.db;
+    const linked = async () => (await api.app.state()).bots[0]!.directChatId; // vocabulary: allow
+    // As a worker from before main chats leaves it: direct chats, none of them marked.
+    expect(await linked()).toBe(ids.chat);
+    const [newer] = await db
+      .insert(s.chats)
+      .values({
+        kind: "direct",
+        title: "Scout",
+        lastActivityAt: new Date(Date.now() + 60_000),
+        ...owned(ids.teammate),
+      })
+      .returning();
+    try {
+      expect(await linked()).toBe(newer!.id);
+      await db.update(s.chats).set({ main: true }).where(eq(s.chats.id, ids.chat));
+      expect(await linked()).toBe(ids.chat);
+    } finally {
+      await db.update(s.chats).set({ main: false }).where(eq(s.chats.id, ids.chat));
+      await db.delete(s.chats).where(eq(s.chats.id, newer!.id));
+    }
   });
 
   it("serves Home with the same badges as the shell", async () => {

@@ -47,3 +47,17 @@ export function chatTitle(chat: ChatSummary, bot: BotSummary | undefined): strin
   if (chat.kind === "inbox") return `${bot?.name ?? ""} · Email`;
   return chat.title;
 }
+
+/** Your conversation with a teammate: its main chat, or else its most recently active direct chat. */
+export function conversationWith(
+  teammate: BotSummary, // vocabulary: allow
+  chats: ChatSummary[],
+): ChatSummary | undefined {
+  const direct = chats.filter(
+    (chat) => chat.kind === "direct" && chat.botId === teammate.id, // vocabulary: allow
+  );
+  return (
+    direct.find((chat) => chat.id === teammate.directChatId) ??
+    [...direct].sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt))[0]
+  );
+}

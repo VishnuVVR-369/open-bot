@@ -45,7 +45,7 @@
     "bot": 7
   },
   "apps/mobile/src/app/(tabs)/index.tsx": {
-    "bot": 148,
+    "bot": 143,
     "primary teammate": 2
   },
   "apps/mobile/src/app/(tabs)/pages.tsx": {
@@ -404,7 +404,7 @@
     "desktop takeover": 3
   },
   "apps/web/src/lib/server/queries.ts": {
-    "bot": 145,
+    "bot": 142,
     "desktop takeover": 17,
     "primary teammate": 2
   },
@@ -506,7 +506,7 @@
     "bot": 31
   },
   "apps/worker/src/services/bots.ts": {
-    "bot": 177,
+    "bot": 174,
     "primary teammate": 5
   },
   "apps/worker/src/services/chats.ts": {

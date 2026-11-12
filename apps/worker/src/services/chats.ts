@@ -135,6 +135,29 @@ export async function mainChat(ctx: Context, teammateId: string): Promise<string
   return result!.id;
 }
 
+/**
+ * Each teammate's main chat, to show and link to, by teammate. A teammate whose main chat isn't
+ * marked, because a worker from before main chats added or archived it, shows its most recently
+ * active open direct chat: the one mainChat() hands the role to when work arrives.
+ */
+export async function shownMainChats(
+  db: Queryable,
+  teammateIds?: string[],
+): Promise<Map<string, string>> {
+  const rows = await db
+    .selectDistinctOn([chatTeammate], { teammateId: chatTeammate, id: chats.id })
+    .from(chats)
+    .where(
+      and(
+        eq(chats.kind, "direct"),
+        isNull(chats.archivedAt),
+        teammateIds ? inArray(chatTeammate, teammateIds) : undefined,
+      ),
+    )
+    .orderBy(chatTeammate, desc(chats.main), desc(chats.lastActivityAt), desc(chats.createdAt));
+  return new Map(rows.map((row) => [row.teammateId!, row.id]));
+}
+
 /** A renamed teammate's direct chats follow its name, unless they have a title of their own. */
 export async function renameDirectChats(tx: Tx, teammateId: string, name: string) {
   await tx

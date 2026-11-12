@@ -51,6 +51,7 @@ import { Separator } from "@/components/list-row";
 import { Card, Section } from "@/components/section";
 import { Empty, LoadError, Loading } from "@/components/states";
 import { Text } from "@/components/text";
+import { conversationWith } from "@/lib/chats";
 import { haptics } from "@/lib/haptics";
 import { animateLayout } from "@/lib/motion";
 import { usePresence } from "@/lib/presence";
@@ -500,15 +501,6 @@ function Briefing({
   );
 }
 
-/** A teammate's latest conversation with you, for the roster's preview. */
-function latestChat(bot: BotSummary, chats: ChatSummary[]): ChatSummary | undefined {
-  const direct = chats.filter((chat) => chat.kind === "direct" && chat.botId === bot.id);
-  return (
-    direct.find((chat) => chat.id === bot.directChatId) ??
-    [...direct].sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt))[0]
-  );
-}
-
 /**
  * One teammate: their face, name and job, and their status from the fixed list (the same words as
  * the web and the Computer tab). When you last talked is on the right.
@@ -602,7 +594,7 @@ function Teammates({
   const newChat = useNewDirectChat();
   const open = (bot: BotSummary) => {
     haptics.tap();
-    const chatId = bot.activeRun?.chatId ?? latestChat(bot, chats)?.id ?? bot.directChatId;
+    const chatId = bot.activeRun?.chatId ?? conversationWith(bot, chats)?.id ?? bot.directChatId;
     if (chatId) router.push(`/chats/${chatId}`);
     else newChat.mutate(bot.id);
   };
@@ -611,7 +603,7 @@ function Teammates({
   const sorted = [...bots].sort((a, b) => {
     const byState = rank[botActivity(a)] - rank[botActivity(b)];
     if (byState) return byState;
-    const at = (bot: BotSummary) => latestChat(bot, chats)?.lastActivityAt ?? "";
+    const at = (bot: BotSummary) => conversationWith(bot, chats)?.lastActivityAt ?? "";
     return at(b).localeCompare(at(a));
   });
   return (
@@ -621,7 +613,7 @@ function Teammates({
           <TeammateRow
             key={bot.id}
             bot={bot}
-            chat={latestChat(bot, chats)}
+            chat={conversationWith(bot, chats)}
             first={index === 0}
             computerOffline={computerOffline}
             onPress={() => open(bot)}

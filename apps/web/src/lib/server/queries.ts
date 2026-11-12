@@ -132,10 +132,15 @@ export async function listBots(): Promise<BotSummary[]> {
     .from(bots)
     .where(isNull(bots.archivedAt))
     .orderBy(asc(bots.createdAt));
+  // Each teammate's main chat. One whose main chat isn't marked, because a worker from before main
+  // chats added or archived it, shows its most recently active open direct chat: the one the
+  // worker hands the role to when work arrives.
+  const chatTeammate = chats.botId; // vocabulary: allow
   const mainChats = await db
-    .select({ id: chats.id, botId: chats.botId })
+    .selectDistinctOn([chatTeammate], { id: chats.id, teammateId: chatTeammate })
     .from(chats)
-    .where(and(eq(chats.main, true), isNull(chats.archivedAt)));
+    .where(and(eq(chats.kind, "direct"), isNull(chats.archivedAt)))
+    .orderBy(chatTeammate, desc(chats.main), desc(chats.lastActivityAt), desc(chats.createdAt));
   const active = await db
     .select({
       id: runs.id,
@@ -170,7 +175,7 @@ export async function listBots(): Promise<BotSummary[]> {
       emoji: bot.emoji,
       autonomy: bot.autonomy,
       isPrimary: bot.isPrimary,
-      directChatId: mainChats.find((chat) => chat.botId === bot.id)?.id ?? null,
+      directChatId: mainChats.find((chat) => chat.teammateId === bot.id)?.id ?? null,
       lastActiveAt: latest.find((entry) => entry.botId === bot.id)?.at.toISOString() ?? null,
       activeRun: run
         ? { id: run.id, chatId: run.chatId, status: run.status, waitingFor: run.waitingFor ?? null }

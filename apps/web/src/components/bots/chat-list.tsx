@@ -58,7 +58,10 @@ export function ChatList({
                     : chat.title}
               </span>
               {chat.main && (
-                <Badge variant="secondary" title="Where work that isn't started from a chat arrives">
+                <Badge
+                  variant="secondary"
+                  title="Where work that isn't started from a chat arrives"
+                >
                   Main
                 </Badge>
               )}

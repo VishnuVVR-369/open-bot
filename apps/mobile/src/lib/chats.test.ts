@@ -1,6 +1,6 @@
 import type { BotSummary, ChatSummary } from "@open-bot/api";
 import { describe, expect, it } from "vitest";
-import { chatSubtitle, chatTitle } from "./chats";
+import { chatSubtitle, chatTitle, conversationWith } from "./chats";
 
 const rex = { id: "rex", name: "Rex", role: "software engineer" } as BotSummary;
 const iris = { id: "iris", name: "Iris", role: "research assistant" } as BotSummary;
@@ -62,5 +62,23 @@ describe("chat titles", () => {
     expect(chatTitle(chat({ kind: "scheduled" }), rex)).toBe("Rex · Scheduled");
     expect(chatTitle(chat({ kind: "inbox" }), rex)).toBe("Rex · Email");
     expect(chatTitle(chat({}), rex)).toBe("Rex");
+  });
+});
+
+describe("conversationWith", () => {
+  const older = chat({ id: "older", lastActivityAt: "2026-11-01T09:00:00Z" });
+  const newer = chat({ id: "newer", lastActivityAt: "2026-11-10T09:00:00Z" });
+  const group = chat({ id: "group", kind: "group", lastActivityAt: "2026-11-11T09:00:00Z" });
+
+  it("opens the main chat, even when another direct chat is newer", () => {
+    expect(conversationWith({ ...rex, directChatId: "older" }, [newer, older, group])?.id).toBe(
+      "older",
+    );
+  });
+
+  it("opens the newest direct chat when the main chat isn't in the list", () => {
+    expect(conversationWith({ ...rex, directChatId: null }, [older, newer, group])?.id).toBe(
+      "newer",
+    );
   });
 });

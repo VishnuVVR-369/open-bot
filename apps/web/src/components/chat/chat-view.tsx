@@ -297,6 +297,8 @@ export function ChatView({ chatId }: { chatId: string }) {
         })
       : null;
   const elsewhere = status?.elsewhere ?? null;
+  // From the chat list, which every change refreshes: another device may have picked a new main chat.
+  const isMain = state?.chats.find((entry) => entry.id === chatId)?.main ?? chat?.main ?? false;
   const title = chat
     ? chat.kind === "scheduled"
       ? `${bot?.name ?? ""} · Scheduled`
@@ -475,7 +477,7 @@ export function ChatView({ chatId }: { chatId: string }) {
                       Duplicate {bot.name}
                     </DropdownMenuItem>
                   )}
-                  {chat.kind === "direct" && !chat.main && (
+                  {chat.kind === "direct" && !isMain && (
                     <DropdownMenuItem
                       onSelect={async () => {
                         const result = await attempt(api.chats.makeMain({ chatId: chat.id }));
