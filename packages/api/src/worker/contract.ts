@@ -8,14 +8,17 @@ import {
   botProfileSchema as teammateProfileSchema,
   createBotSchema,
   createdTeammateSchema,
+  egressModeSchema,
   isPageSourcePath,
   MAX_PAGE_SUMMARY,
   MAX_PAGE_TITLE,
+  phoneModeSchema,
   screenOperationSchema,
   skillInputSchema,
   teammateBundleSchema,
   type TeammateBundle,
   typeOnScreenSchema,
+  unavailableReasonSchema,
   updatedTeammateSchema,
 } from "@open-bot/domain";
 import { z } from "zod";
@@ -28,7 +31,6 @@ import {
   runRatingSchema,
   sendMessageInputSchema,
 } from "../contract";
-import { egressModeSchema, phoneEgressModeSchema, unavailableReasonSchema } from "../egress";
 import {
   accountConnectInputSchema,
   accountConnectionChangesSchema,
@@ -677,7 +679,7 @@ export const workerContract = {
       .output(ok),
     setPhoneMode: base
       .route({ method: "POST", path: "/internal/egress/phone-mode" })
-      .input(z.object({ mode: phoneEgressModeSchema }))
+      .input(z.object({ mode: phoneModeSchema }))
       .output(ok),
     /** Phones were paired, renamed or revoked: read them again. */
     devicesChanged: base

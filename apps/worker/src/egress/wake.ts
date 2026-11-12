@@ -1,5 +1,5 @@
-import { UNAVAILABLE_MESSAGES, type EgressStatusView } from "@open-bot/api";
-import type { EgressMode, PhoneMode, UnavailableReason } from "@open-bot/egress";
+import { UNAVAILABLE_MESSAGES, type EgressStatusView, type PhoneWakeStage } from "@open-bot/api";
+import type { EgressMode, PhoneMode, UnavailableReason } from "@open-bot/domain";
 import type { PairedPhone } from "./relay";
 import { errorMessage } from "../logger";
 
@@ -74,8 +74,6 @@ export const WAKE_TIMINGS: WakeTimings = {
   noticeMs: 60 * 60_000,
 };
 
-type Stage = "wake" | "retry" | "ask";
-
 interface PhoneState {
   suppressedUntil: number;
   reason: UnavailableReason | null;
@@ -92,7 +90,7 @@ interface PhoneState {
 /** `fallback`: one try at bringing a phone back while the Mac is away and a screen needs it. */
 interface Episode {
   startedAt: number;
-  stage: Stage | "done";
+  stage: PhoneWakeStage | "done";
 }
 
 /** `always`: wakes with backoff for as long as no phone is connected. */
@@ -187,7 +185,7 @@ export class WakeController {
         : eligible && this.always
           ? {
               since: iso(this.always.startedAt),
-              stage: (this.always.askedAt ? "ask" : "wake") as Stage,
+              stage: (this.always.askedAt ? "ask" : "wake") as PhoneWakeStage,
             }
           : null;
     return {

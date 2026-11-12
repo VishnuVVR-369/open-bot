@@ -5,6 +5,30 @@
     "maxInFlight": 8388608,
     "agentGone": "AGENT_GONE"
   },
+  "enums": {
+    "egressMode": [
+      "off",
+      "prefer",
+      "require"
+    ],
+    "phoneMode": [
+      "off",
+      "fallback",
+      "always"
+    ],
+    "agentRole": [
+      "active",
+      "standby",
+      "release"
+    ],
+    "unavailableReason": [
+      "wifi-only",
+      "data-cap",
+      "low-battery",
+      "low-power-standby",
+      "stopped"
+    ]
+  },
   "valid": [
     {
       "type": 1,

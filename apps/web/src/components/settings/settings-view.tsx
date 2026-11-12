@@ -4,7 +4,7 @@ import {
   EGRESS_OPTIONS,
   formatDollars,
   relativeTime,
-  type EgressModeSetting,
+  type EgressMode,
 } from "@open-bot/domain";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNowStrict } from "date-fns";
@@ -375,7 +375,7 @@ function BrowsingSection() {
             onSelect={() =>
               startTransition(async () => {
                 const result = await attempt(
-                  api.egress.setMode({ mode: option.value as EgressModeSetting }),
+                  api.egress.setMode({ mode: option.value as EgressMode }),
                 );
                 if (!result.ok) toast.error(result.error);
                 await queryClient.invalidateQueries({ queryKey: orpc.app.state.key() });

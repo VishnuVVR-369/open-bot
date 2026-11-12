@@ -5,6 +5,17 @@
  * Text websocket messages carry JSON control messages (see `ControlMessage`).
  */
 
+// The egress mode, the phone mode and the phone's unavailable reasons are settings and API values
+// too, so `@open-bot/domain` defines them once; the test vectors carry them to the Kotlin agent.
+import {
+  EGRESS_MODES,
+  PHONE_MODES,
+  UNAVAILABLE_REASONS,
+  type EgressMode,
+  type PhoneMode,
+  type UnavailableReason,
+} from "@open-bot/domain";
+
 export const FrameType = {
   /** Open a TCP connection. Payload: UTF-8 JSON `{ host, port }`. Sent by the computer side. */
   Open: 1,
@@ -74,28 +85,12 @@ export function encodeWindow(streamId: number, bytes: number): Buffer {
  */
 export const AGENT_GONE = "AGENT_GONE";
 
-export type EgressMode = "off" | "prefer" | "require";
-
-/** When the phone carries the computer's traffic: never, while the Mac is offline, or first. */
-export type PhoneMode = "off" | "fallback" | "always";
-
 /**
  * What the relay wants from an agent: carry new connections, carry only the ones it already has,
  * or disconnect (a phone then stops its foreground service; the Mac ignores it).
  */
-export type AgentRole = "active" | "standby" | "release";
-
-/** Why a phone can't carry traffic right now, by its own rules or its owner's choice. */
-export type UnavailableReason =
-  "wifi-only" | "data-cap" | "low-battery" | "low-power-standby" | "stopped";
-
-export const UNAVAILABLE_REASONS: readonly UnavailableReason[] = [
-  "wifi-only",
-  "data-cap",
-  "low-battery",
-  "low-power-standby",
-  "stopped",
-];
+export const AGENT_ROLES = ["active", "standby", "release"] as const;
+export type AgentRole = (typeof AGENT_ROLES)[number];
 
 /** JSON control messages exchanged as text websocket messages. */
 export type ControlMessage =
@@ -126,9 +121,6 @@ export type ControlMessage =
   /** Phone to worker, once connected: it carries traffic again, so its reports up to `seq` are over. */
   | { type: "available"; seq: number };
 
-const EGRESS_MODES: readonly EgressMode[] = ["off", "prefer", "require"];
-const PHONE_MODES: readonly PhoneMode[] = ["off", "fallback", "always"];
-const ROLES: readonly AgentRole[] = ["active", "standby", "release"];
 
 const isCount = (value: unknown): value is number =>
   typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
@@ -169,7 +161,7 @@ export function parseControlMessage(text: string): ControlMessage | null {
     case "peer-up":
       return { type: value.type };
     case "role":
-      return isOneOf(ROLES, value.role) ? { type: "role", role: value.role } : null;
+      return isOneOf(AGENT_ROLES, value.role) ? { type: "role", role: value.role } : null;
     case "policy":
       return isOneOf(PHONE_MODES, value.phoneMode)
         ? { type: "policy", phoneMode: value.phoneMode }

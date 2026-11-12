@@ -8,8 +8,8 @@ import {
   encodeFrame,
   FrameType,
   type ControlMessage,
-  type EgressMode,
 } from "@open-bot/egress";
+import type { EgressMode } from "@open-bot/domain";
 import { afterEach, describe, expect, it } from "vitest";
 import WebSocket, { WebSocketServer } from "ws";
 import { EgressRouter, type EgressLimits } from "./egress";

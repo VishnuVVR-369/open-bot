@@ -18,6 +18,16 @@ class VectorsTest {
   }
 
   @Test
+  fun `enums carry the same wire values`() {
+    val enums = Vectors.obj("frames.json").getJSONObject("enums")
+    fun wire(name: String) = enums.getJSONArray(name).let { list -> List(list.length()) { list.getString(it) } }
+    assertEquals(wire("egressMode"), EgressMode.entries.map { it.wire })
+    assertEquals(wire("phoneMode"), PhoneMode.entries.map { it.wire })
+    assertEquals(wire("agentRole"), AgentRole.entries.map { it.wire })
+    assertEquals(wire("unavailableReason"), UnavailableReason.entries.map { it.wire })
+  }
+
+  @Test
   fun `frames encode and decode`() {
     val vectors = Vectors.obj("frames.json")
     for (case in vectors.getJSONArray("valid").objects()) {

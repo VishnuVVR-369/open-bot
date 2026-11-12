@@ -11,9 +11,8 @@ import {
   FrameType,
   type AgentRole,
   type ControlMessage,
-  type EgressMode,
-  type PhoneMode,
 } from "@open-bot/egress";
+import type { EgressMode, PhoneMode } from "@open-bot/domain";
 import type { EgressAgentClaim } from "@open-bot/domain/server";
 import { afterEach, describe, expect, it } from "vitest";
 import WebSocket, { WebSocketServer } from "ws";

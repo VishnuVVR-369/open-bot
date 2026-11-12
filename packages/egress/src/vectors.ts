@@ -9,8 +9,10 @@
 import { createHash } from "node:crypto";
 import { EventEmitter } from "node:events";
 import type { Socket } from "node:net";
+import { EGRESS_MODES, PHONE_MODES, UNAVAILABLE_REASONS } from "@open-bot/domain";
 import {
   AGENT_GONE,
+  AGENT_ROLES,
   decodeFrame,
   encodeFrame,
   encodeWindow,
@@ -615,6 +617,13 @@ export async function buildVectors(): Promise<Record<string, unknown>> {
         maxFramePayload: MAX_FRAME_PAYLOAD,
         maxInFlight: MAX_IN_FLIGHT,
         agentGone: AGENT_GONE,
+      },
+      // Every wire value of each control message enum, in order, so the Kotlin enums can't drift.
+      enums: {
+        egressMode: EGRESS_MODES,
+        phoneMode: PHONE_MODES,
+        agentRole: AGENT_ROLES,
+        unavailableReason: UNAVAILABLE_REASONS,
       },
       ...frameVectors(),
     },

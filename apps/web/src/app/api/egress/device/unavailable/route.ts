@@ -1,4 +1,4 @@
-import { unavailableReasonSchema } from "@open-bot/api";
+import { unavailableReasonSchema } from "@open-bot/domain";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { deviceRoute } from "@/lib/server/egress-device";
