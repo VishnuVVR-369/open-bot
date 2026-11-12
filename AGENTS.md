@@ -32,7 +32,7 @@ For a deployed service it must also be added to that service's list in `.railway
 | `apps/site`             | Landing page and the technical docs (Cloudflare)                              | `apps/site/src/app`                   | `pnpm --filter @open-bot/site test:e2e`  |
 | `packages/domain`       | Isomorphic types, zod schemas and pure logic; Node-only helpers in `/server`  | `packages/domain/src/index.ts`        | `pnpm --filter @open-bot/domain test`    |
 | `packages/api`          | oRPC contracts (web and mobile, worker internal, botd) and serializable views | `packages/api/src/contract.ts`        | `pnpm --filter @open-bot/api test`       |
-| `packages/chat-core`    | Chat logic web and mobile share: turn timeline, triggers, formatting          | `packages/chat-core/src/index.ts`     | `pnpm --filter @open-bot/chat-core test` |
+| `packages/chat-core`    | Chat logic web and mobile share: turns, mentions, search, formatting          | `packages/chat-core/src/index.ts`     | `pnpm --filter @open-bot/chat-core test` |
 | `packages/db`           | Drizzle schema, migrations, pool, NOTIFY channels and app events              | `packages/db/src/schema.ts`           | `pnpm test:integration`                  |
 | `packages/integrations` | Google and Notion: sign-in, the token store, and the integrations' adapters   | `packages/integrations/src/server.ts` | `pnpm test:integration`                  |
 | `packages/memory`       | Versioned memory and its background jobs                                      | `packages/memory/src/index.ts`        | `pnpm test:memory`                       |

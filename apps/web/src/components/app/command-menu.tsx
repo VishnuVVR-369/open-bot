@@ -1,5 +1,14 @@
 "use client";
 
+import {
+  excerptLine,
+  highlightParts,
+  matchScore,
+  preferWordStarts,
+  queryWords,
+  rankFound,
+  rankMatches,
+} from "@open-bot/chat-core";
 import { keepPreviousData, skipToken, useQuery } from "@tanstack/react-query";
 import { formatDistanceToNowStrict } from "date-fns";
 import {
@@ -43,14 +52,6 @@ import {
 } from "@/components/ui/command";
 import { orpc } from "@/lib/client/rpc";
 import { useAppState } from "@/lib/client/queries";
-import {
-  excerptLine,
-  highlightParts,
-  matchScore,
-  preferWordStarts,
-  queryWords,
-  rankFound,
-} from "@/lib/search-match";
 import { chatHref } from "@/lib/utils";
 
 const CommandMenuContext = createContext<{ open: () => void }>({ open: () => {} });
@@ -125,15 +126,6 @@ function Highlighted({ text, query }: { text: string; query: string }) {
   );
 }
 
-/** Items that match the query, best first: by score, then in their own order. */
-function ranked<T>(items: T[], texts: (item: T) => string[], words: string[]): T[] {
-  return items
-    .map((item, index) => ({ item, index, score: matchScore(texts(item), words) }))
-    .filter((entry): entry is { item: T; index: number; score: number } => entry.score !== null)
-    .sort((a, b) => b.score - a.score || a.index - b.index)
-    .map((entry) => entry.item);
-}
-
 function CommandMenu({
   open,
   onOpenChange,
@@ -179,13 +171,13 @@ function CommandMenu({
   // Every word you type has to start a word in the item: "lis" finds Lisbon, not Publish.
   const words = queryWords(query);
   const matches = (...texts: string[]) => matchScore(texts, words) !== null;
-  const bots = ranked(allBots, (bot) => [bot.name, bot.role], words);
-  const groups = ranked(
+  const bots = rankMatches(allBots, (bot) => [bot.name, bot.role], words);
+  const groups = rankMatches(
     chats.filter((chat) => chat.kind === "group"),
     (chat) => [chat.title, ...chat.memberIds.map((id) => botOf(id)?.name ?? "")],
     words,
   );
-  const pages = ranked(
+  const pages = rankMatches(
     PAGES,
     (page) => [page.label, ("keywords" in page && page.keywords) || ""],
     words,

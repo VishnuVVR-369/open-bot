@@ -9,6 +9,9 @@ Shapes and rules the servers also use belong in `packages/domain`; the API's vie
 - `packages/chat-core/src/format.ts`: counts, the work stopwatch, file sizes, the greeting and diff line counts.
 - `packages/chat-core/src/timeline.ts`: a turn's parts (`turnParts`: computer stretches, steps that only repeat the next one, approved commands, the step count), what stays pinned when steps fold, the reply text, what the teammate is doing, and how long it worked.
 - `packages/chat-core/src/triggers.ts`: what started a turn, as `{ kind, text, automation }`; each app maps `kind` to its icon.
+- `packages/chat-core/src/mentions.ts`: @mentions in a group chat: who a message mentions, and the composer's @ menu.
+- `packages/chat-core/src/search.ts`: search as you type, matching where words start, with ranking, highlights and excerpts.
+- `packages/chat-core/src/send.ts`: the id a message is sent with, kept when you send the same thing again so it is saved once.
 - `packages/chat-core/src/index.ts` re-exports every module; import from `@open-bot/chat-core`.
 
 ## Invariants

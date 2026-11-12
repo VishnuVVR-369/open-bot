@@ -1,4 +1,7 @@
-/** Matching for the command menu: words match where a word starts, not in the middle of one. */
+/**
+ * Search as you type, on the web's command menu and the phone's search: each word of the query
+ * matches where a word starts, not in the middle of one.
+ */
 
 /** The words of a query, lower-cased. */
 export function queryWords(query: string): string[] {
@@ -26,6 +29,19 @@ export function matchScore(texts: string[], words: string[]): number | null {
   if (title.startsWith(words.join(" "))) return 3;
   if (words.every((word) => wordStart(word).test(title))) return 2;
   return 1;
+}
+
+/** Items that match the query, best first: by score, then in their own order. */
+export function rankMatches<T>(
+  items: readonly T[],
+  texts: (item: T) => string[],
+  words: string[],
+): T[] {
+  return items
+    .map((item, index) => ({ item, index, score: matchScore(texts(item), words) }))
+    .filter((entry): entry is { item: T; index: number; score: number } => entry.score !== null)
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .map((entry) => entry.item);
 }
 
 /** True when every word starts a word somewhere in the text. */

@@ -1,4 +1,11 @@
 import type { BotSummary, PageSummary, SearchResult } from "@open-bot/api";
+import {
+  excerptLine,
+  highlightParts,
+  preferWordStarts,
+  queryWords,
+  rankMatches,
+} from "@open-bot/chat-core";
 import { useQuery } from "@tanstack/react-query";
 import { router, Stack, useNavigation, type Href } from "expo-router";
 import type { NativeStackNavigationProp } from "expo-router/native-stack";
@@ -107,25 +114,19 @@ type Row =
       where: string | null;
     };
 
-const matches = (query: string, ...texts: (string | undefined)[]) =>
-  texts.some((text) => text?.toLowerCase().includes(query));
-
-/** Your text, with the part that matched in bold. */
-function Highlight({ text, query }: { text: string; query: string }) {
-  const index = query ? text.toLowerCase().indexOf(query) : -1;
-  if (index < 0)
-    return (
-      <Text variant="small" muted numberOfLines={2}>
-        {text}
-      </Text>
-    );
+/** A found message's text from shortly before the match, with each word of the query in bold. */
+function Highlight({ text, words }: { text: string; words: string[] }) {
   return (
     <Text variant="small" muted numberOfLines={2}>
-      {text.slice(0, index)}
-      <Text variant="small" style={{ fontWeight: "600" }}>
-        {text.slice(index, index + query.length)}
-      </Text>
-      {text.slice(index + query.length)}
+      {highlightParts(excerptLine(text, words), words).map((part, index) =>
+        part.mark ? (
+          <Text key={index} variant="small" style={{ fontWeight: "600" }}>
+            {part.text}
+          </Text>
+        ) : (
+          part.text
+        ),
+      )}
     </Text>
   );
 }
@@ -236,6 +237,8 @@ export default function Search() {
     [navigation],
   );
   const query = text.trim().toLowerCase();
+  // Each word you type has to start a word in what it finds: "lis" finds Lisbon, not Publish.
+  const words = useMemo(() => queryWords(text), [text]);
   const { data: bots = [] } = useTeammates();
   const { data: chats = [] } = useChats();
   const { data: home } = useHome();
@@ -253,11 +256,10 @@ export default function Search() {
 
   const sections = useMemo(() => {
     const only = scope !== "all";
-    const teammateRows: Row[] = bots
-      .filter((bot) => !query || matches(query, bot.name, bot.role))
+    const teammateRows: Row[] = rankMatches(bots, (bot) => [bot.name, bot.role], words)
       .slice(0, only ? undefined : query ? 6 : 8)
       .map((bot) => ({ kind: "bot", key: `b:${bot.id}`, bot }));
-    const chatRows: Row[] = [...chats]
+    const recent = [...chats]
       .sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt))
       .map((chat) => {
         const bot = bots.find((candidate) => candidate.id === chat.botId);
@@ -283,12 +285,13 @@ export default function Search() {
                   .filter((member): member is BotSummary => Boolean(member))
               : undefined,
         };
-      })
-      .filter((row) => !query || matches(query, row.title, row.subtitle))
-      .slice(0, only ? undefined : query ? 8 : 5);
+      });
+    const chatRows: Row[] = rankMatches(recent, (row) => [row.title, row.subtitle], words).slice(
+      0,
+      only ? undefined : query ? 8 : 5,
+    );
     const madeRows: Row[] = query
-      ? madePages
-          .filter((page) => matches(query, page.title, page.summary))
+      ? rankMatches(madePages, (page) => [page.title, page.summary], words)
           .slice(0, only ? undefined : 5)
           .map((page) => ({
             kind: "made",
@@ -297,12 +300,12 @@ export default function Search() {
             bot: bots.find((candidate) => candidate.id === page.botId),
           }))
       : [];
-    const pageRows: Row[] = PAGES.filter(
-      (page) => !query || matches(query, page.title, page.keywords),
-    ).map((page) => ({ kind: "page", key: `p:${page.title}`, ...page }));
+    const pageRows: Row[] = rankMatches(PAGES, (page) => [page.title, page.keywords], words).map(
+      (page) => ({ kind: "page", key: `p:${page.title}`, ...page }),
+    );
     const messageRows: Row[] =
       query.length >= 2
-        ? (messages.data ?? []).map((result) => {
+        ? preferWordStarts(messages.data ?? [], (result) => result.excerpt, words).map((result) => {
             const chat = chats.find((candidate) => candidate.id === result.chatId);
             const chatBot = bots.find((candidate) => candidate.id === chat?.botId);
             const bot = bots.find((candidate) => candidate.id === result.botId);
@@ -336,7 +339,7 @@ export default function Search() {
     return all.filter(
       (section) => section.data.length > 0 && (scope === "all" || section.scope === scope),
     );
-  }, [bots, chats, madePages, messages.data, query, scope]);
+  }, [bots, chats, madePages, messages.data, query, scope, words]);
 
   const open = (row: Row) => {
     switch (row.kind) {
@@ -525,7 +528,7 @@ export default function Search() {
                       {ago(row.result.createdAt)}
                     </Text>
                   </View>
-                  <Highlight text={row.result.excerpt} query={query} />
+                  <Highlight text={row.result.excerpt} words={words} />
                 </>
               )}
             </View>
