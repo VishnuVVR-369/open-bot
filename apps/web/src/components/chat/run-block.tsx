@@ -1,14 +1,17 @@
 "use client";
 
-import { elapsed } from "@open-bot/chat-core";
 import {
-  formatDollars,
-  isNothingToReport,
-  isRunActive,
-  shellScript,
-  type ComputerItem,
-  type TimelineItem,
-} from "@open-bot/domain";
+  elapsed,
+  isPinned,
+  replyText,
+  triggerLabel,
+  turnParts,
+  workDuration,
+  workingText,
+  workSummary,
+  type TriggerKind,
+} from "@open-bot/chat-core";
+import { formatDollars, isNothingToReport, isRunActive, type TimelineItem } from "@open-bot/domain";
 import { format } from "date-fns";
 import {
   AlertTriangle,
@@ -70,15 +73,6 @@ import {
 } from "./items";
 import { Markdown } from "./markdown";
 import { ReplyFeedback } from "./reply-feedback";
-
-/** The bot's reply as text, for copying. */
-function replyText(run: RunView): string {
-  return run.timeline.items
-    .filter((item) => item.kind === "message")
-    .map((item) => item.text.trim())
-    .filter(Boolean)
-    .join("\n\n");
-}
 
 /** A reply action: a 32px target with a 16px glyph, quiet until you point at the reply. */
 const ACTION = "size-8 text-muted-foreground [&_svg:not([class*='size-'])]:size-4";
@@ -253,227 +247,69 @@ function RetryRun({ runId }: { runId: string }) {
   );
 }
 
-type Segment =
-  | { kind: "desktop"; id: string; items: ComputerItem[] }
-  | { kind: "item"; id: string; item: TimelineItem };
+/** Each trigger's icon; the words come from `triggerLabel` (packages/chat-core). */
+const TRIGGER_ICONS: Record<TriggerKind, typeof CalendarClock> = {
+  schedule: CalendarClock,
+  watch: Eye,
+  webhook: Webhook,
+  gmail: Mail,
+  calendar: CalendarDays,
+  hand_back: Undo2,
+  approval: ShieldCheck,
+  handoff: ArrowRightLeft,
+  question: MessageCircleQuestion,
+  answer: MessageCircleReply,
+  task: ListTodo,
+  email: Mail,
+  swarm: Network,
+  swarm_results: Network,
+};
 
-function segment(items: TimelineItem[]): Segment[] {
-  const segments: Segment[] = [];
-  for (const item of items) {
-    const last = segments.at(-1);
-    if (item.kind === "computer") {
-      if (last?.kind === "desktop") last.items.push(item);
-      else segments.push({ kind: "desktop", id: item.id, items: [item] });
-    } else {
-      segments.push({ kind: "item", id: item.id, item });
-    }
-  }
-  return segments;
-}
-
-/** Tools whose call is itself a request for your approval: the approval card says it all. */
-const ASKS_APPROVAL = new Set(["request_approval", "start_purchase", "send_email"]);
-
-/**
- * Steps the pending approval right after them already states, like "Asked to pay $842.30" above
- * the payment card. A tool that asks blocks on the answer, so it is still running, or it is one of
- * the tools that exist to ask.
- */
-function restatedSteps(items: TimelineItem[]): Set<string> {
-  const ids = new Set<string>();
-  const shown = items.filter((item) => item.kind !== "computer");
-  shown.forEach((item, index) => {
-    const next = shown[index + 1];
-    if (
-      item.kind === "tool" &&
-      next?.kind === "approval" &&
-      next.decision === "pending" &&
-      (item.status === "running" || ASKS_APPROVAL.has(item.name))
-    )
-      ids.add(item.id);
-  });
-  return ids;
-}
-
-/**
- * Approved commands that ran right after their approval. The command step says it once, marked as
- * approved, instead of an approval line followed by the same command again.
- */
-function approvedCommands(items: TimelineItem[]): {
-  approvals: Set<string>;
-  commands: Set<string>;
-} {
-  const approvals = new Set<string>();
-  const commands = new Set<string>();
-  const shown = items.filter((item) => item.kind !== "computer");
-  shown.forEach((item, index) => {
-    const next = shown[index + 1];
-    if (
-      item.kind === "approval" &&
-      item.decision === "approved" &&
-      item.approvalKind === "command" &&
-      next?.kind === "command" &&
-      item.title.trim() === shellScript(next.command).trim()
-    ) {
-      approvals.add(item.id);
-      commands.add(next.id);
-    }
-  });
-  return { approvals, commands };
-}
-
-/** Items that always stay visible, even when the steps are collapsed. */
-function isPinned(item: TimelineItem): boolean {
-  return (
-    (item.kind === "message" && item.phase === "final") ||
-    item.kind === "user_message" ||
-    item.kind === "error" ||
-    item.kind === "swarm" ||
-    item.kind === "page" ||
-    (item.kind === "approval" && item.decision === "pending") ||
-    (item.kind === "takeover_request" &&
-      (item.resolution === "pending" || item.resolution === "taken"))
+/** What started the run: an automation opens what it gave the teammate, a task links the board. */
+function TriggerLabel({ run, bots }: { run: RunView; bots: BotSummary[] }) {
+  const label = triggerLabel(run, bots);
+  if (!label) return null;
+  const Icon = TRIGGER_ICONS[label.kind];
+  const content = (
+    <>
+      <Icon className="size-3.5" />
+      {label.text}
+    </>
   );
-}
-
-/** An automation's name; opens what it gave the teammate, like the request a webhook received. */
-function AutomationLabel({
-  run,
-  icon: Icon,
-  title,
-}: {
-  run: RunView;
-  icon: typeof CalendarClock;
-  title: string;
-}) {
-  if (!run.automationPrompt)
+  if (label.automation && run.automationPrompt)
     return (
-      <span className="flex items-center gap-1 text-muted-foreground">
-        <Icon className="size-3.5" />
-        {title}
-      </span>
+      <Popover>
+        <PopoverTrigger
+          className="-mx-1 flex items-center gap-1 rounded-md px-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          data-testid="automation-label"
+        >
+          {content}
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-[min(32rem,calc(100vw-2rem))] gap-2 p-0">
+          <div className="border-b px-3.5 py-2.5 text-[12.5px] font-medium text-muted-foreground">
+            What started this
+          </div>
+          <div className="max-h-80 overflow-y-auto px-3.5 pb-3">
+            <Markdown text={run.automationPrompt} className="text-[13px]" />
+          </div>
+        </PopoverContent>
+      </Popover>
+    );
+  if (label.kind === "task")
+    return (
+      <Link
+        href="/tasks"
+        className="flex items-center gap-1 text-muted-foreground hover:text-foreground"
+        data-testid="run-trigger"
+      >
+        {content}
+      </Link>
     );
   return (
-    <Popover>
-      <PopoverTrigger
-        className="-mx-1 flex items-center gap-1 rounded-md px-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-        data-testid="automation-label"
-      >
-        <Icon className="size-3.5" />
-        {title}
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-[min(32rem,calc(100vw-2rem))] gap-2 p-0">
-        <div className="border-b px-3.5 py-2.5 text-[12.5px] font-medium text-muted-foreground">
-          What started this
-        </div>
-        <div className="max-h-80 overflow-y-auto px-3.5 pb-3">
-          <Markdown text={run.automationPrompt} className="text-[13px]" />
-        </div>
-      </PopoverContent>
-    </Popover>
+    <span className="flex items-center gap-1 text-muted-foreground" data-testid="run-trigger">
+      {content}
+    </span>
   );
-}
-
-function TriggerLabel({ run, bots }: { run: RunView; bots: BotSummary[] }) {
-  switch (run.trigger) {
-    case "schedule":
-      return (
-        <AutomationLabel
-          run={run}
-          icon={CalendarClock}
-          title={run.scheduleTitle ?? "Scheduled task"}
-        />
-      );
-    case "watch":
-      return <AutomationLabel run={run} icon={Eye} title={run.triggerTitle ?? "Page watch"} />;
-    case "webhook":
-      return <AutomationLabel run={run} icon={Webhook} title={run.triggerTitle ?? "Webhook"} />;
-    case "gmail":
-      return <AutomationLabel run={run} icon={Mail} title={run.triggerTitle ?? "New mail"} />;
-    case "calendar":
-      return (
-        <AutomationLabel
-          run={run}
-          icon={CalendarDays}
-          title={run.triggerTitle ?? "Calendar event"}
-        />
-      );
-    case "hand_back":
-      return (
-        <span className="flex items-center gap-1 text-muted-foreground">
-          <Undo2 className="size-3.5" />
-          After you handed back
-        </span>
-      );
-    case "approval":
-      return (
-        <span className="flex items-center gap-1 text-muted-foreground">
-          <ShieldCheck className="size-3.5" />
-          After your decision
-        </span>
-      );
-    case "handoff": {
-      const from = bots.find((bot) => bot.id === run.fromBotId);
-      return (
-        <span className="flex items-center gap-1 text-muted-foreground">
-          <ArrowRightLeft className="size-3.5" />
-          {from ? `From ${from.name}` : "Handed over"}
-        </span>
-      );
-    }
-    case "question": {
-      const from = bots.find((bot) => bot.id === run.fromBotId);
-      return (
-        <span className="flex items-center gap-1 text-muted-foreground" data-testid="run-trigger">
-          <MessageCircleQuestion className="size-3.5" />
-          {from ? `${from.name} asked` : "A teammate asked"}
-        </span>
-      );
-    }
-    case "task":
-      return (
-        <Link
-          href="/tasks"
-          className="flex items-center gap-1 text-muted-foreground hover:text-foreground"
-          data-testid="run-trigger"
-        >
-          <ListTodo className="size-3.5" />
-          From the task board
-        </Link>
-      );
-    case "answer": {
-      const from = bots.find((bot) => bot.id === run.fromBotId);
-      return (
-        <span className="flex items-center gap-1 text-muted-foreground" data-testid="run-trigger">
-          <MessageCircleReply className="size-3.5" />
-          {from ? `${from.name} answered` : "A teammate answered"}
-        </span>
-      );
-    }
-    case "email":
-      return (
-        <span className="flex items-center gap-1 text-muted-foreground" data-testid="run-trigger">
-          <Mail className="size-3.5" />
-          An email
-        </span>
-      );
-    case "swarm":
-      return (
-        <span className="flex items-center gap-1 text-muted-foreground" data-testid="run-trigger">
-          <Network className="size-3.5" />
-          Swarm helper
-        </span>
-      );
-    case "swarm_results":
-      return (
-        <span className="flex items-center gap-1 text-muted-foreground" data-testid="run-trigger">
-          <Network className="size-3.5" />
-          With the helpers&apos; results
-        </span>
-      );
-    default:
-      return null;
-  }
 }
 
 function Elapsed({ since }: { since: string }) {
@@ -493,8 +329,7 @@ function WorkingLine({ run }: { run: RunView }) {
   const { status } = run.timeline;
   // The approval or takeover card above already says what the run needs from you.
   if (status === "waiting") return null;
-  const label =
-    status === "queued" ? "Up next" : status === "starting" ? "Getting ready" : "Working";
+  // A running turn's steps show right above, so the line doesn't repeat the latest one.
   return (
     <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
       <span
@@ -503,7 +338,7 @@ function WorkingLine({ run }: { run: RunView }) {
           status === "queued" ? "bg-idle" : "animate-tally bg-working",
         )}
       />
-      <span>{label}</span>
+      <span>{workingText(run, { activity: false })}</span>
       {status !== "queued" && <Elapsed since={run.createdAt} />}
     </div>
   );
@@ -578,35 +413,17 @@ export function RunBlock({
   latest?: boolean;
 }) {
   const active = isRunActive(run.timeline.status);
-  const allItems = run.timeline.items;
-  const { items, approved } = useMemo(() => {
-    const restated = restatedSteps(allItems);
-    const merged = approvedCommands(allItems);
-    const hidden = new Set([...restated, ...merged.approvals]);
-    return {
-      items: hidden.size ? allItems.filter((item) => !hidden.has(item.id)) : allItems,
-      approved: merged.commands,
-    };
-  }, [allItems]);
-  const segments = useMemo(() => segment(items), [items]);
+  const items = run.timeline.items;
   // A stretch of computer use is one step, as it shows as one strip.
-  const stepCount = segments.filter(
-    (part) =>
-      part.kind === "desktop" ||
-      (!isPinned(part.item) && !(part.item.kind === "reasoning" && !part.item.text)),
-  ).length;
+  const { parts, approved, steps: stepCount } = useMemo(() => turnParts(items), [items]);
   // A finished run folds its steps into one line, the same as on the phone, so the chat reads as a
   // conversation; what you need to see (the reply, a pending approval, an error, a page) stays out.
   // A run that is still going shows its steps as they happen.
   const collapsible = !active && stepCount > 0;
   const [expanded, setExpanded] = useState(false);
   const showSteps = !collapsible || expanded;
-  const took =
-    run.startedAt && run.completedAt
-      ? new Date(run.completedAt).getTime() - new Date(run.startedAt).getTime()
-      : null;
   const name = bot?.name ?? "Former teammate";
-  const reply = replyText(run);
+  const reply = replyText(items);
   // A reply's actions sit in one row under it, the same with a mouse or a finger.
   const actions = !active && (
     <span
@@ -689,14 +506,13 @@ export function RunBlock({
             <ChevronDown
               className={cn("size-3.5 transition-transform", !expanded && "-rotate-90")}
             />
-            {took !== null ? `Worked for ${formatDuration(took)}` : "Worked"} · {stepCount}{" "}
-            {stepCount === 1 ? "step" : "steps"}
+            {workSummary(workDuration(run), stepCount)}
           </button>
         )}
 
         <div className="flex flex-col gap-1.5">
-          {segments.map((part) => {
-            if (part.kind === "desktop") {
+          {parts.map((part) => {
+            if (part.kind === "computer") {
               return showSteps ? (
                 <div key={part.id} className="my-1">
                   <DesktopStrip items={part.items} live={active} />

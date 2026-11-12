@@ -1,5 +1,18 @@
 import type { BotSummary, RunView } from "@open-bot/api";
-import { diffStats, elapsed } from "@open-bot/chat-core";
+import {
+  diffStats,
+  elapsed,
+  isPinned,
+  pendingRequest,
+  plural,
+  replyText,
+  triggerLabel,
+  turnParts,
+  workDuration,
+  workingText,
+  workSummary,
+  type TriggerKind,
+} from "@open-bot/chat-core";
 import {
   isNothingToReport,
   isRunActive,
@@ -53,80 +66,23 @@ import { CodeBlock, Step, type StepIcon } from "./step";
 import { PageCard } from "./page-card";
 import { SwarmCard } from "./swarm-card";
 
-/** Items that stay visible when the steps are collapsed. */
-function isPinned(item: TimelineItem): boolean {
-  return (
-    (item.kind === "message" && item.phase === "final") ||
-    item.kind === "user_message" ||
-    item.kind === "error" ||
-    item.kind === "swarm" ||
-    item.kind === "page" ||
-    (item.kind === "approval" && item.decision === "pending") ||
-    (item.kind === "takeover_request" &&
-      (item.resolution === "pending" || item.resolution === "taken"))
-  );
-}
-
-type Part =
-  | { kind: "computer"; id: string; count: number; running: boolean }
-  | { kind: "item"; id: string; item: TimelineItem };
-
-/** Computer actions in a row become one step: the phone doesn't show the screen yet. */
-function parts(items: TimelineItem[]): Part[] {
-  const result: Part[] = [];
-  for (const item of items) {
-    const last = result.at(-1);
-    if (item.kind === "computer") {
-      if (last?.kind === "computer") {
-        last.count += 1;
-        last.running = item.status === "running";
-      } else
-        result.push({
-          kind: "computer",
-          id: item.id,
-          count: 1,
-          running: item.status === "running",
-        });
-    } else result.push({ kind: "item", id: item.id, item });
-  }
-  return result;
-}
-
-function triggerLabel(run: RunView, bots: BotSummary[]): { icon: StepIcon; text: string } | null {
-  const from = bots.find((bot) => bot.id === run.fromBotId)?.name;
-  switch (run.trigger) {
-    case "schedule":
-      return { icon: CalendarClock, text: run.scheduleTitle ?? "Scheduled task" };
-    case "watch":
-      return { icon: Eye, text: run.triggerTitle ?? "Page watch" };
-    case "webhook":
-      return { icon: Webhook, text: run.triggerTitle ?? "Webhook" };
-    case "gmail":
-      return { icon: Mail, text: run.triggerTitle ?? "New mail" };
-    case "calendar":
-      return { icon: CalendarDays, text: run.triggerTitle ?? "Calendar event" };
-    case "hand_back":
-      return { icon: Undo2, text: "After you handed back" };
-    case "approval":
-      return { icon: ShieldCheck, text: "After your decision" };
-    case "handoff":
-      return { icon: ArrowRightLeft, text: from ? `From ${from}` : "Handed over" };
-    case "question":
-      return { icon: MessageCircleQuestion, text: from ? `${from} asked` : "A teammate asked" };
-    case "answer":
-      return { icon: MessageCircleReply, text: from ? `${from} answered` : "A teammate answered" };
-    case "task":
-      return { icon: ListTodo, text: "From the task board" };
-    case "email":
-      return { icon: Mail, text: "An email" };
-    case "swarm":
-      return { icon: Network, text: "Swarm helper" };
-    case "swarm_results":
-      return { icon: Network, text: "With the helpers' results" };
-    default:
-      return null;
-  }
-}
+/** Each trigger's icon; the words come from `triggerLabel` (packages/chat-core). */
+const TRIGGER_ICONS: Record<TriggerKind, StepIcon> = {
+  schedule: CalendarClock,
+  watch: Eye,
+  webhook: Webhook,
+  gmail: Mail,
+  calendar: CalendarDays,
+  hand_back: Undo2,
+  approval: ShieldCheck,
+  handoff: ArrowRightLeft,
+  question: MessageCircleQuestion,
+  answer: MessageCircleReply,
+  task: ListTodo,
+  email: Mail,
+  swarm: Network,
+  swarm_results: Network,
+};
 
 function Elapsed({ since }: { since: string }) {
   const [now, setNow] = useState(() => Date.now());
@@ -150,33 +106,6 @@ function Elapsed({ since }: { since: string }) {
   );
 }
 
-/** What the teammate is doing right now, in a few words, from their latest step. */
-function currentActivity(items: TimelineItem[]): string | null {
-  for (let index = items.length - 1; index >= 0; index -= 1) {
-    const item = items[index]!;
-    switch (item.kind) {
-      case "command":
-        return `Running ${shellScript(item.command).split("\n")[0]}`;
-      case "file_change":
-        return `Editing ${item.changes.map((c) => c.path.split("/").pop()).join(", ")}`;
-      case "web_search":
-        return item.query ? `Searching for “${item.query}”` : "Searching the web";
-      case "computer":
-        return "Using the computer";
-      case "tool":
-        return item.label;
-      case "reasoning":
-        return "Thinking";
-      case "message":
-        if (item.phase !== "final") return null;
-        return "Writing";
-      default:
-        continue;
-    }
-  }
-  return null;
-}
-
 function WorkingLine({ run }: { run: RunView }) {
   const colors = useColors();
   const { status, waitingFor } = run.timeline;
@@ -190,7 +119,6 @@ function WorkingLine({ run }: { run: RunView }) {
       </View>
     );
   }
-  const doing = status === "running" ? currentActivity(run.timeline.items) : null;
   return (
     <View style={styles.working} testID="working" accessibilityLiveRegion="polite">
       {status === "queued" ? (
@@ -208,11 +136,7 @@ function WorkingLine({ run }: { run: RunView }) {
         numberOfLines={1}
         style={{ flexShrink: 1, color: colors.mutedForeground }}
       >
-        {status === "queued"
-          ? "Up next"
-          : status === "starting"
-            ? "Getting ready…"
-            : `${doing ?? "Working"}…`}
+        {status === "queued" ? workingText(run) : `${workingText(run)}…`}
       </Text>
       {status !== "queued" && <Elapsed since={run.createdAt} />}
     </View>
@@ -224,11 +148,14 @@ function ItemView({
   item,
   chatId,
   botName,
+  approved = false,
 }: {
   botId: string;
   item: TimelineItem;
   chatId: string;
   botName: string;
+  /** A command you approved just before it ran: it says so instead of a separate approval line. */
+  approved?: boolean;
 }): ReactNode {
   const colors = useColors();
   switch (item.kind) {
@@ -265,7 +192,13 @@ function ItemView({
           mono
           running={item.status === "running"}
           failed={failed && item.status !== "running"}
-          summary={failed && item.exitCode !== null ? `${command}  exit ${item.exitCode}` : command}
+          summary={[
+            command,
+            failed && item.exitCode !== null && `exit ${item.exitCode}`,
+            approved && "you approved",
+          ]
+            .filter(Boolean)
+            .join("  · ")}
           detail={<CodeBlock>{`$ ${command}\n${item.output.trim() || "(no output)"}`}</CodeBlock>}
         />
       );
@@ -464,29 +397,6 @@ function MentionedFiles({ text }: { text: string }) {
 }
 
 /**
- * How long the teammate worked, like "21s" or "2m 05s": until the run finished, or until it
- * stopped to wait on you. Null while it's still working.
- */
-function took(run: RunView): string | null {
-  if (!run.startedAt) return null;
-  const pending = run.timeline.items.find(
-    (item) =>
-      (item.kind === "approval" && item.decision === "pending") ||
-      (item.kind === "takeover_request" && item.resolution === "pending"),
-  );
-  const end =
-    run.completedAt ?? (run.timeline.status === "waiting" ? pending?.startedAt : undefined);
-  if (!end) return null;
-  return elapsed(Math.max(0, new Date(end).getTime() - new Date(run.startedAt).getTime()));
-}
-
-/** The steps toggle's words: "Worked for 8s · 2 steps", the same on every turn. */
-export function workSummary(duration: string | null, steps: number): string {
-  const count = `${steps} ${steps === 1 ? "step" : "steps"}`;
-  return duration ? `Worked for ${duration} · ${count}` : count;
-}
-
-/**
  * A teammate's turn: what they did (folded away unless you ask, so the chat reads like a
  * conversation and not a log) and their reply. In a group, who answered heads the turn; in a
  * direct chat the header already says who it is.
@@ -513,10 +423,7 @@ export const RunBlock = memo(function RunBlock({
   const colors = useColors();
   const active = isRunActive(run.timeline.status);
   const items = run.timeline.items;
-  const segments = useMemo(() => parts(items), [items]);
-  const stepCount = segments.filter(
-    (part) => part.kind === "computer" || !isPinned(part.item),
-  ).length;
+  const { parts, approved, steps: stepCount } = useMemo(() => turnParts(items), [items]);
   const failed = run.timeline.status === "failed";
   // A turn that's still working shows its steps; a finished one (or one waiting on you) folds
   // them into one line, until you open it.
@@ -526,21 +433,12 @@ export const RunBlock = memo(function RunBlock({
   const showSteps = expanded || stepCount === 0;
   const name = bot?.name ?? "Former teammate";
   const trigger = triggerLabel(run, bots);
-  const reply = items
-    .flatMap((item) =>
-      item.kind === "message" && item.phase === "final" ? [item.text.trim()] : [],
-    )
-    .join("\n\n");
+  const reply = replyText(items);
   const finished = !active && (reply || run.timeline.status === "completed");
   // A pending approval or takeover card already says what they're waiting for.
-  const waitingOnCard =
-    run.timeline.status === "waiting" &&
-    items.some(
-      (item) =>
-        (item.kind === "approval" && item.decision === "pending") ||
-        (item.kind === "takeover_request" && item.resolution === "pending"),
-    );
-  const duration = took(run);
+  const waitingOnCard = run.timeline.status === "waiting" && Boolean(pendingRequest(items));
+  const duration = workDuration(run);
+  const TriggerIcon = trigger && TRIGGER_ICONS[trigger.kind];
 
   if (!active && run.trigger === "schedule" && isNothingToReport(reply)) {
     return (
@@ -597,7 +495,7 @@ export const RunBlock = memo(function RunBlock({
           )}
           {trigger && (
             <View style={[styles.row, { flexShrink: 1, gap: space(1.5) }]}>
-              <trigger.icon size={13} color={colors.mutedForeground} />
+              {TriggerIcon && <TriggerIcon size={13} color={colors.mutedForeground} />}
               <Text variant="small" muted numberOfLines={1} style={{ flexShrink: 1 }}>
                 {trigger.text}
               </Text>
@@ -632,15 +530,15 @@ export const RunBlock = memo(function RunBlock({
             />
           </Pressable>
         )}
-        {segments.map((part) => {
+        {parts.map((part) => {
           if (part.kind === "computer") {
             if (!showSteps) return null;
             return (
               <Step
                 key={part.id}
                 icon={Monitor}
-                running={part.running && active}
-                summary={`Used the computer · ${part.count} ${part.count === 1 ? "action" : "actions"}`}
+                running={part.items.at(-1)?.status === "running" && active}
+                summary={`Used the computer · ${plural(part.items.length, "action")}`}
               />
             );
           }
@@ -655,7 +553,13 @@ export const RunBlock = memo(function RunBlock({
           ].includes(part.item.kind);
           return (
             <View key={part.id} style={spaced && styles.spaced}>
-              <ItemView botId={run.botId} item={part.item} chatId={chatId} botName={name} />
+              <ItemView
+                botId={run.botId}
+                item={part.item}
+                chatId={chatId}
+                botName={name}
+                approved={approved.has(part.id)}
+              />
             </View>
           );
         })}

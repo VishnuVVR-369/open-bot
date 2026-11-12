@@ -10,7 +10,12 @@
     "typecheck": "tsc -p .",
     "test": "vitest run"
   },
+  "dependencies": {
+    "@open-bot/api": "workspace:*",
+    "@open-bot/domain": "workspace:*"
+  },
   "devDependencies": {
+    "@types/node": "^24.19.2",
     "typescript": "~6.0.3",
     "vitest": "^5.0.4"
   }

@@ -111,7 +111,7 @@
     "bot": 9
   },
   "apps/mobile/src/components/chat/run-block.tsx": {
-    "bot": 38
+    "bot": 32
   },
   "apps/mobile/src/components/chat/swarm-card.tsx": {
     "bot": 4
@@ -297,7 +297,7 @@
     "bot": 6
   },
   "apps/web/src/components/chat/run-block.tsx": {
-    "bot": 52
+    "bot": 40
   },
   "apps/web/src/components/chat/swarm-card.tsx": {
     "bot": 4
@@ -707,6 +707,12 @@
   },
   "packages/api/src/worker/contract.ts": {
     "bot": 11
+  },
+  "packages/chat-core/src/timeline.test.ts": {
+    "bot": 3
+  },
+  "packages/chat-core/src/triggers.ts": {
+    "bot": 2
   },
   "packages/db/src/schema.ts": {
     "bot": 151,
