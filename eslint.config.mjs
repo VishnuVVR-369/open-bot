@@ -5,8 +5,12 @@ import { builtinModules } from "node:module";
 import tseslint from "typescript-eslint";
 import tableOwners from "./scripts/lint/table-owners.mjs";
 
-/** Node's built-in modules, bare or `node:` prefixed, with any subpath (`fs/promises`). */
-const NODE_BUILTIN = `^(node:.*|(${builtinModules.filter((name) => !name.includes("/")).join("|")})(\\W.*)?)$`;
+/**
+ * Node's built-in modules, bare or `node:` prefixed, with any subpath (`fs/promises`), but not a
+ * package whose name only starts with one (`path-to-regexp`). `\x2F` is "/", which a selector regex
+ * can't contain.
+ */
+const NODE_BUILTIN = `^(node:.*|(${builtinModules.filter((name) => !name.includes("/")).join("|")})(\\x2F.*)?)$`;
 
 /**
  * Bans import sources, in static imports and re-exports and in dynamic `import()` with a literal
@@ -103,11 +107,12 @@ export default tseslint.config(
         message: "packages/chat-core runs in the browser and in React Native; it can't use Node.",
       },
       {
-        regex: "^(react-native|react-dom|next|expo|lucide-react)(\\W.*)?$",
+        regex:
+          "^(react-native|react-dom|next|expo|lucide-react|@react-native|@expo|@notifee)(\\W.*)?$",
         message: "packages/chat-core is platform-free. Render in the apps; return data from here.",
       },
       {
-        regex: "^@open-bot.(db|integrations|memory|domain.server)(\\W.*)?$",
+        regex: "^@open-bot.(db|integrations|memory|agent|egress|domain.server)(\\W.*)?$",
         message: "packages/chat-core is client code and can't use server-only packages.",
       },
     ]),

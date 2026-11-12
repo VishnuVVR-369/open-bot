@@ -52,13 +52,27 @@ test("chat-core can't import Node, platform UI or server-only packages", async (
     "expo-router",
     "lucide-react",
     "lucide-react-native",
+    "@react-native-async-storage/async-storage",
+    "@react-native-firebase/app",
+    "@notifee/react-native",
+    "@expo/vector-icons",
     "@open-bot/db",
     "@open-bot/integrations/server",
     "@open-bot/memory",
+    "@open-bot/agent",
+    "@open-bot/egress",
     "@open-bot/domain/server",
   ]) {
     const code = `import * as x from "${source}";\nexport { x };\n`;
     assert.equal((await boundaryErrors(file, code)).length, 1, source);
+    assert.equal((await boundaryErrors(file, `export * from "${source}";\n`)).length, 1, source);
+    const dynamic = `export const x = () => import("${source}");\n`;
+    assert.equal((await boundaryErrors(file, dynamic)).length, 1, source);
+  }
+  // A package whose name only starts with a Node module's is not Node.
+  for (const source of ["path-to-regexp", "assert-never", "url-parse"]) {
+    const code = `import * as x from "${source}";\nexport { x };\n`;
+    assert.deepEqual(await boundaryErrors(file, code), [], source);
   }
   const allowed =
     'import { isRunActive } from "@open-bot/domain";\nimport type { RunView } from "@open-bot/api";\nexport const x: [typeof isRunActive, RunView?] = [isRunActive];\n';
