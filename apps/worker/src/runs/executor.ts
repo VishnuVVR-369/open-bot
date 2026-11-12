@@ -252,6 +252,7 @@ export class RunExecutor {
     if (news) {
       // What it passes on may carry what those runs read from your accounts.
       if (news.readOutsideData) await session.markReadOutsideData();
+      session.passOn(news.runIds);
       lines.push(news.text);
     }
 

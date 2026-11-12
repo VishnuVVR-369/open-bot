@@ -29,6 +29,7 @@ import type { ToolHandlers } from "../tools/handlers";
 import { ModelAccess, providerFor } from "../services/model-access";
 import { RunEventWriter } from "./events";
 import { touchChat } from "../services/chats";
+import { markPassedOn } from "./lane-news";
 import { finalText, mapPlan, mapThreadItem } from "./mapper";
 
 export type Bot = typeof schema.bots.$inferSelect;
@@ -145,6 +146,7 @@ export class RunSession {
   private apiKey: string | null = null;
   /** The AGENTS.md written for this run. */
   private agentsFile = "";
+  private passingOn: string[] = [];
 
   constructor(
     private readonly ctx: Context,
@@ -188,6 +190,11 @@ export class RunSession {
     if (this.run.readOutsideData) return;
     this.run.readOutsideData = true;
     await this.ctx.db.update(runs).set({ readOutsideData: true }).where(eq(runs.id, this.run.id));
+  }
+
+  /** Results from the chat's other lanes in this turn's prompt, marked once Codex has the turn. */
+  passOn(runIds: string[]): void {
+    this.passingOn = runIds;
   }
 
   /** Insert or replace a timeline item. */
@@ -350,6 +357,7 @@ export class RunSession {
       .update(runs)
       .set({ codexThreadId: threadId, codexTurnId: turn.id, authMode: this.authMode })
       .where(eq(runs.id, run.id));
+    await markPassedOn(ctx.db, this.passingOn);
     await this.setStatus("running");
     if (this.cancelled) void this.interrupt();
     const outcome = await completion;

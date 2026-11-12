@@ -1,5 +1,5 @@
 {
-  "id": "3c2f81dc-1a25-408f-b3af-bc7db1acf951",
+  "id": "37cb82d3-7ff0-49af-b161-27e3fc01e775",
   "prevId": "ee80e4c0-7a44-4d89-b327-13e40508ab43",
   "version": "7",
   "dialect": "postgresql",
@@ -4617,6 +4617,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "passed_on_at": {
+          "name": "passed_on_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         },
         "attachments": {
           "name": "attachments",

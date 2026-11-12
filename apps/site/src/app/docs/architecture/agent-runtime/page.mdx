@@ -77,8 +77,9 @@ A run continuing another run of the same teammate in the same chat, like an appr
 A message you send only steers a running turn in the `chat` lane; with another lane busy, it starts its own run.
 
 Lanes share the chat you see, but not their threads, so the `chat` lane hears what the others did another way.
-When a `chat`-lane run starts, `laneNews()` (`apps/worker/src/runs/lane-news.ts`) puts what other lanes finished before its prompt: up to 5 results, each cut at 1,500 characters, oldest first, leaving out quiet runs that had nothing to report.
-It takes what finished after the previous `chat`-lane run whose Codex turn began, and before this run started, so a result is passed on once even when a run fails before reaching Codex.
+When a `chat`-lane run starts, `laneNews()` (`apps/worker/src/runs/lane-news.ts`) puts what other lanes finished, and the conversation hasn't heard, before its prompt: up to 5 results, each cut at 1,500 characters, oldest first, leaving out quiet runs that had nothing to report.
+Once the Codex turn begins, `markPassedOn()` sets `runs.passed_on_at` on every result it covered, including those only counted.
+A run that fails before reaching Codex marks nothing, so its results go to the next turn, and a result whose completion is saved late is still passed on once.
 If one of them read outside data, the new run is marked as having read it too.
 Only `chat`-lane runs may rename the chat with `set_chat_title`.
 

@@ -8,7 +8,7 @@ import {
   schedules,
   type RunLane,
 } from "@open-bot/db";
-import { LANE_NEWS_LENGTH, LANE_NEWS_LIMIT, laneNews } from "./lane-news";
+import { LANE_NEWS_LENGTH, LANE_NEWS_LIMIT, laneNews, markPassedOn } from "./lane-news";
 
 const url = testDatabaseServer();
 
@@ -57,15 +57,14 @@ describe.skipIf(!url)("lane news with Postgres", () => {
 
   async function run(values: {
     lane: RunLane;
-    startedAt?: Date | null;
     completedAt?: Date | null;
-    status?: "queued" | "completed" | "failed";
+    status?: "queued" | "running" | "completed" | "failed";
     finalText?: string | null;
     error?: string | null;
     quiet?: boolean;
     readOutsideData?: boolean;
     scheduleId?: string | null;
-    codexTurnId?: string | null;
+    passedOnAt?: Date | null;
   }) {
     const [row] = await db
       .insert(runs)
@@ -81,25 +80,16 @@ describe.skipIf(!url)("lane news with Postgres", () => {
     return row!;
   }
 
-  /** The conversation's run that has just started, and is about to take its turn. */
-  const conversation = (startedAt = new Date()) =>
-    run({ lane: "chat", status: "queued", startedAt, completedAt: null });
-  /** A turn of the conversation that Codex took. */
-  const turn = (started: number) =>
-    run({
-      lane: "chat",
-      startedAt: minutesAgo(started),
-      completedAt: minutesAgo(started - 1),
-      codexTurnId: `turn-${started}`,
-    });
+  /** The conversation's run that is about to take its turn. */
+  const conversation = () => run({ lane: "chat", status: "queued", completedAt: null });
 
-  it("passes on what other lanes finished since the conversation's last turn", async () => {
+  it("passes on what other lanes finished that the conversation hasn't heard", async () => {
     await run({
       lane: "inbox",
       completedAt: minutesAgo(50),
       finalText: "Old email, heard already",
+      passedOnAt: minutesAgo(40),
     });
-    await turn(40);
     await run({
       lane: `schedule:${scheduleId}`,
       scheduleId,
@@ -113,10 +103,11 @@ describe.skipIf(!url)("lane news with Postgres", () => {
       completedAt: minutesAgo(10),
       quiet: true,
     });
-    const current = await conversation();
+    await run({ lane: "inbox", status: "running", completedAt: null });
 
-    const news = await laneNews(db, current, time);
+    const news = await laneNews(db, await conversation(), time);
     expect(news!.readOutsideData).toBe(false);
+    expect(news!.runIds).toHaveLength(2);
     expect(news!.text).toContain('Your routine "Morning briefing", at ');
     expect(news!.text).toContain("  Three meetings today.");
     expect(news!.text).toContain("An email you received");
@@ -127,7 +118,6 @@ describe.skipIf(!url)("lane news with Postgres", () => {
   });
 
   it("passes on nothing for another lane, or when nothing finished", async () => {
-    await turn(5);
     expect(await laneNews(db, await conversation(), time)).toBeNull();
     const automation = await run({ lane: "inbox", status: "queued", completedAt: null });
     await run({ lane: `schedule:${scheduleId}`, completedAt: minutesAgo(1), finalText: "Done" });
@@ -154,31 +144,33 @@ describe.skipIf(!url)("lane news with Postgres", () => {
     expect(news!.text).toContain(`Email ${LANE_NEWS_LIMIT + 1}`);
     expect(news!.text).toContain("cut short");
     expect(news!.text).not.toContain("x".repeat(LANE_NEWS_LENGTH + 1));
+    // Those only counted are heard too, so they don't come back next turn.
+    expect(news!.runIds).toHaveLength(LANE_NEWS_LIMIT + 3);
+    await markPassedOn(db, news!.runIds);
+    expect(await laneNews(db, await conversation(), time)).toBeNull();
   });
 
-  it("counts only turns Codex took as having heard it, and leaves later results for the next", async () => {
-    await turn(40);
-    await run({ lane: "inbox", completedAt: minutesAgo(30), finalText: "Invoice filed" });
-    // This one failed while the computer woke, before Codex heard anything.
-    await run({
-      lane: "chat",
-      status: "failed",
-      startedAt: minutesAgo(20),
-      completedAt: minutesAgo(19),
+  it("passes a result on once its turn began, however late its completion was saved", async () => {
+    const briefing = await run({
+      lane: `schedule:${scheduleId}`,
+      scheduleId,
+      status: "running",
+      completedAt: null,
     });
-    await run({ lane: "inbox", completedAt: minutesAgo(1), finalText: "Refund drafted" });
-    const current = await conversation(minutesAgo(2));
-
-    const news = await laneNews(db, current, time);
-    expect(news!.text).toContain("Invoice filed");
-    // It finished after this turn started: the next turn hears it, once.
-    expect(news!.text).not.toContain("Refund drafted");
+    // A turn whose prompt was built but that never reached Codex didn't hear it.
+    const first = await laneNews(db, await conversation(), time);
+    expect(first).toBeNull();
+    // The briefing's completion is saved after the conversation's turn began, with the time it
+    // finished, which is earlier.
     await db
       .update(runs)
-      .set({ codexTurnId: "turn-now", status: "completed", completedAt: new Date() })
-      .where(eq(runs.id, current.id));
+      .set({ status: "completed", completedAt: minutesAgo(5), finalText: "Three meetings today." })
+      .where(eq(runs.id, briefing.id));
     const next = await laneNews(db, await conversation(), time);
-    expect(next!.text).toContain("Refund drafted");
-    expect(next!.text).not.toContain("Invoice filed");
+    expect(next!.text).toContain("Three meetings today.");
+    // Building a prompt doesn't count as hearing it; a turn that began does.
+    expect((await laneNews(db, await conversation(), time))!.runIds).toEqual([briefing.id]);
+    await markPassedOn(db, next!.runIds);
+    expect(await laneNews(db, await conversation(), time)).toBeNull();
   });
 });

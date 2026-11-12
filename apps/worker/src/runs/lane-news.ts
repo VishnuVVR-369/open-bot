@@ -1,5 +1,5 @@
 import { runs, schedules, triggers, type Queryable, type RunLane } from "@open-bot/db";
-import { and, desc, eq, gt, inArray, isNotNull, lte, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, ne } from "drizzle-orm";
 
 /** At most this many results are passed on, newest first; older ones are only counted. */
 export const LANE_NEWS_LIMIT = 5;
@@ -12,6 +12,8 @@ export interface LaneNews {
   text: string;
   /** One of the runs read your accounts, so what the conversation does next must ask first. */
   readOutsideData: boolean;
+  /** Every run it covers, to mark passed on once Codex has the turn (`markPassedOn`). */
+  runIds: string[];
 }
 
 interface Finished {
@@ -26,40 +28,38 @@ interface Finished {
 }
 
 /**
- * What the teammate's other lanes in this chat (its automations and email) finished since its
- * conversation last took a turn. They run in threads of their own, so the conversation only knows
+ * What the teammate's other lanes in this chat (its automations and email) finished that its
+ * conversation hasn't heard yet. They run in threads of their own, so the conversation only knows
  * about them from this note, and you may well be replying to one of them.
+ *
+ * Each result is marked when a turn that carried it begins, rather than inferred from times: a
+ * result whose completion is saved late, or a turn that fails before reaching Codex, would
+ * otherwise be skipped or told twice.
  */
 export async function laneNews(
   db: Queryable,
-  run: { id: string; chatId: string; botId: string; lane: RunLane }, // vocabulary: allow
+  run: { chatId: string; botId: string; lane: RunLane }, // vocabulary: allow
   formatTime: (at: Date) => string,
 ): Promise<LaneNews | null> {
   if (run.lane !== "chat") return null;
   const teammateId = run.botId; // vocabulary: allow
   const runTeammate = runs.botId; // vocabulary: allow
-  // The conversation heard everything that finished before its last turn started. Only a turn
-  // Codex began counts: a run that failed before it, say while the computer woke, told it nothing.
-  const [previous] = await db
-    .select({ at: sql<Date | null>`max(${runs.startedAt})`.mapWith(runs.startedAt) })
+  const unheard = await db
+    .select({ id: runs.id })
     .from(runs)
     .where(
       and(
         eq(runs.chatId, run.chatId),
         eq(runTeammate, teammateId),
-        eq(runs.lane, "chat"),
-        ne(runs.id, run.id),
-        isNotNull(runs.startedAt),
-        isNotNull(runs.codexTurnId),
+        ne(runs.lane, "chat"),
+        inArray(runs.status, ["completed", "failed"]),
+        // A quiet routine that found nothing has nothing to pass on.
+        eq(runs.quiet, false),
+        isNull(runs.passedOnAt),
       ),
-    );
-  const since = previous?.at ?? null;
-  // And this turn hears what finished before it started; what finishes after is for the next one.
-  const [current] = await db
-    .select({ startedAt: runs.startedAt })
-    .from(runs)
-    .where(eq(runs.id, run.id));
-  const until = current?.startedAt ?? null;
+    )
+    .orderBy(desc(runs.completedAt), desc(runs.id));
+  if (unheard.length === 0) return null;
   const rows: Finished[] = await db
     .select({
       lane: runs.lane,
@@ -75,22 +75,13 @@ export async function laneNews(
     .leftJoin(schedules, eq(schedules.id, runs.scheduleId))
     .leftJoin(triggers, eq(triggers.id, runs.triggerId))
     .where(
-      and(
-        eq(runs.chatId, run.chatId),
-        eq(runTeammate, teammateId),
-        ne(runs.lane, "chat"),
-        inArray(runs.status, ["completed", "failed"]),
-        // A quiet routine that found nothing has nothing to pass on.
-        eq(runs.quiet, false),
-        since ? gt(runs.completedAt, since) : undefined,
-        until ? lte(runs.completedAt, until) : undefined,
+      inArray(
+        runs.id,
+        unheard.slice(0, LANE_NEWS_LIMIT).map((row) => row.id),
       ),
     )
-    .orderBy(desc(runs.completedAt))
-    .limit(LANE_NEWS_LIMIT + 1);
-  if (rows.length === 0) return null;
-  const shown = rows.slice(0, LANE_NEWS_LIMIT);
-  const lines = shown.reverse().map((row) => {
+    .orderBy(asc(runs.completedAt), asc(runs.id));
+  const lines = rows.map((row) => {
     const when = row.completedAt ? formatTime(row.completedAt) : "earlier";
     const said =
       row.status === "failed"
@@ -98,12 +89,22 @@ export async function laneNews(
         : (row.finalText ?? "(No reply.)");
     return `- ${origin(row)}, ${when}:\n${indent(cut(said))}`;
   });
-  if (rows.length > LANE_NEWS_LIMIT)
+  if (unheard.length > LANE_NEWS_LIMIT)
     lines.unshift("- (More finished before these. They are in this chat's history.)");
   return {
     text: `[While you weren't in this conversation, work you did on your own in this chat finished. The user saw it here and may be replying to it:]\n${lines.join("\n")}`,
-    readOutsideData: shown.some((row) => row.readOutsideData),
+    readOutsideData: rows.some((row) => row.readOutsideData),
+    runIds: unheard.map((row) => row.id),
   };
+}
+
+/** The conversation's turn carrying these results began, so it won't hear them again. */
+export async function markPassedOn(db: Queryable, runIds: string[]): Promise<void> {
+  if (runIds.length === 0) return;
+  await db
+    .update(runs)
+    .set({ passedOnAt: new Date() })
+    .where(and(inArray(runs.id, runIds), isNull(runs.passedOnAt)));
 }
 
 function origin(row: Finished): string {

@@ -16,7 +16,7 @@ Each automation works in its own lane of that chat: `schedule:<id>` for a schedu
 A lane has its own Codex thread, so an automation remembers its earlier runs, and its work never runs inside your conversation's turn.
 See [Threads](/docs/architecture/agent-runtime#threads).
 
-The next time you talk to the teammate, your turn starts with what its automations finished since your last turn: up to 5 results, each cut at 1,500 characters, oldest first.
+The next time you talk to the teammate, your turn starts with what its automations finished that it hasn't told your conversation yet: up to 5 results, each cut at 1,500 characters, oldest first.
 That way, when you answer "do the first one", the teammate knows what you are looking at.
 If one of those results came from reading your accounts, your turn counts as having read outside data too (see [Your accounts](/docs/flows/accounts#mail-events-and-pages-are-not-instructions)).
 

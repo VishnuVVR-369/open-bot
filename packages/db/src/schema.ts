@@ -379,6 +379,11 @@ export const runs = pgTable(
      * make it unread or become its preview.
      */
     quiet: boolean("quiet").notNull().default(false),
+    /**
+     * When a run outside the `chat` lane was passed on to its chat's conversation: the moment a
+     * Codex turn whose prompt carried its result began. Null until then (see `laneNews`).
+     */
+    passedOnAt: timestamp("passed_on_at", { withTimezone: true }),
     attachments: jsonb("attachments").$type<Attachment[]>().notNull().default([]),
     messageId: uuid("message_id").references(() => messages.id, { onDelete: "set null" }),
     scheduleId: uuid("schedule_id"),
