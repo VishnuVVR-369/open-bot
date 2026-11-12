@@ -1,5 +1,5 @@
-import { CHANNELS, notify, runEvents, type Db } from "@open-bot/db";
-import type { RunEventPayload } from "@open-bot/domain";
+import { notify, runEvents, type Db } from "@open-bot/db";
+import { NOTIFY_CHANNELS, type RunEventPayload } from "@open-bot/domain";
 import type pg from "pg";
 import type { Context } from "../context";
 
@@ -11,7 +11,7 @@ export async function appendRunEvent(
   payload: RunEventPayload,
 ): Promise<void> {
   await ctx.db.insert(runEvents).values({ runId, chatId, payload });
-  await notify(ctx.pool, CHANNELS.chat, chatId);
+  await notify(ctx.pool, NOTIFY_CHANNELS.chat, chatId);
 }
 
 const DELTA_FLUSH_MS = 120;
@@ -78,7 +78,7 @@ export class RunEventWriter {
   private scheduleNotify() {
     this.notifyTimer ??= setTimeout(() => {
       this.notifyTimer = null;
-      notify(this.pool, CHANNELS.chat, this.chatId).catch(this.onError);
+      notify(this.pool, NOTIFY_CHANNELS.chat, this.chatId).catch(this.onError);
     }, 30);
   }
 

@@ -283,7 +283,7 @@ It is pure and shared: the web app uses it on the server to build a chat's first
 
 ## Notification channels
 
-`packages/db/src/index.ts` defines three channels:
+`packages/domain/src/events/notify.ts` defines three channels (`NOTIFY_CHANNELS`), and `notify()` in `packages/db/src/index.ts` sends on them:
 
 | Channel          | Payload                                                 | Sent by                              | Listened to by            |
 | ---------------- | ------------------------------------------------------- | ------------------------------------ | ------------------------- |

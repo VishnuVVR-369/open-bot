@@ -26,7 +26,7 @@ The shared code lives in `packages/*`:
 
 | Package               | Used by               | What it holds                                                                                                     |
 | --------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `@open-bot/db`        | web, worker           | The Drizzle schema, migrations, `CHANNELS` and `notify()`                                                         |
+| `@open-bot/db`        | web, worker           | The Drizzle schema, migrations and `notify()`                                                                     |
 | `@open-bot/chat-core` | web, Android app      | Chat logic both apps show the same way, as pure functions: a turn's steps, triggers, mentions, search, formatting |
 | `@open-bot/domain`    | everyone              | Types and pure logic: timeline items, approval rules, schedules, page diffing, vault, templates, tokens, secrets  |
 | `@open-bot/agent`     | worker                | A typed JSON-RPC client for Codex app-server, with the protocol types generated from Codex                        |

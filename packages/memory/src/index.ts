@@ -18,7 +18,6 @@ import {
 import { z } from "zod";
 import {
   bots as teammates,
-  CHANNELS,
   databaseError,
   lessons,
   LOCKS,
@@ -35,7 +34,6 @@ import {
   type Db,
   type Queryable,
   type Tx,
-  type WorkerSignal,
 } from "@open-bot/db";
 import {
   type AppEvent,
@@ -48,6 +46,8 @@ import {
   type MemorySaveOutcome,
   type MemorySource,
   normalizeMemory,
+  NOTIFY_CHANNELS,
+  type WorkerSignal,
 } from "@open-bot/domain";
 
 export class MemoryError extends Error {
@@ -216,7 +216,7 @@ export class MemoryService {
           ),
         );
       const cancel: WorkerSignal = "cancel";
-      await tx.execute(sql`select pg_notify(${CHANNELS.worker}, ${cancel})`);
+      await tx.execute(sql`select pg_notify(${NOTIFY_CHANNELS.worker}, ${cancel})`);
     }
     if (teammateId) {
       await tx.delete(lessons).where(eq(lessons.botId, teammateId));
@@ -272,7 +272,7 @@ export class MemoryService {
     }
     for (const type of ["memory", "profile", "lessons"] as const) {
       const event: AppEvent = { type };
-      await tx.execute(sql`select pg_notify(${CHANNELS.app}, ${JSON.stringify(event)})`);
+      await tx.execute(sql`select pg_notify(${NOTIFY_CHANNELS.app}, ${JSON.stringify(event)})`);
     }
   }
 
