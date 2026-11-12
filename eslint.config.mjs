@@ -134,9 +134,9 @@ export default tseslint.config(
     ]),
   },
   {
-    // The integrations take their endpoints from each app's env module, so a stand-in is one
-    // setting in each app and nothing reads the environment behind its back.
-    files: ["packages/integrations/src/**/*.ts"],
+    // The integrations and memory take their settings from each app's env module, so a stand-in
+    // is one setting in each app and nothing reads the environment behind its back.
+    files: ["packages/integrations/src/**/*.ts", "packages/memory/src/**/*.ts"],
     ignores: ["**/*.test.ts"],
     rules: {
       "no-restricted-properties": [

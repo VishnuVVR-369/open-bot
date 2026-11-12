@@ -52,6 +52,12 @@ export interface MemorySnapshot {
 
 export type MemoryJobKind = "embed" | "extract";
 
+/** One memory a run was given, at the revision it saw. */
+export interface MemoryRef {
+  id: string;
+  revision: number;
+}
+
 export const memoryInputSchema = z.object({
   botId: z.string().uuid().nullable().default(null),
   kind: memoryKindSchema.default("fact"),
@@ -91,9 +97,9 @@ export function memoryMarkdown(
 export function memoryContext(
   items: MemoryItem[],
   maxChars = 6000,
-): { text: string; refs: { id: string; revision: number }[] } {
+): { text: string; refs: MemoryRef[] } {
   let text = "";
-  const refs: { id: string; revision: number }[] = [];
+  const refs: MemoryRef[] = [];
   for (const item of items) {
     const heading = `[memory:${item.id}@${item.revision}; ${item.botId ? "this bot" : "shared"}; ${item.kind}]\n`;
     const available = maxChars - text.length - heading.length - 2;
