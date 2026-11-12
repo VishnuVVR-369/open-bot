@@ -109,6 +109,8 @@ describe("a turn's words", () => {
     expect(workingText(timeline("starting"))).toBe("Getting ready");
     expect(workingText(timeline("running", [tool("t1", "browse", "running")]))).toBe("Used browse");
     expect(workingText(timeline("running"))).toBe("Working");
+    const searching = timeline("running", [tool("t1", "browse", "running")]);
+    expect(workingText(searching, { activity: false })).toBe("Working");
   });
 
   it("times the work until it finished or stopped to wait on you", () => {

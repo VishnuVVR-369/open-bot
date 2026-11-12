@@ -168,12 +168,18 @@ export function currentActivity(items: readonly TimelineItem[]): string | null {
   return null;
 }
 
-/** The line under a turn that's still going: "Up next", "Getting ready", or what it's doing. */
-export function workingText(run: Pick<RunView, "timeline">): string {
+/**
+ * The line under a turn that's still going: "Up next", "Getting ready", then what it's doing, or
+ * "Working". Leave out the activity where the running steps already show right above the line.
+ */
+export function workingText(
+  run: Pick<RunView, "timeline">,
+  { activity = true }: { activity?: boolean } = {},
+): string {
   const { status, items } = run.timeline;
   if (status === "queued") return "Up next";
   if (status === "starting") return "Getting ready";
-  return (status === "running" && currentActivity(items)) || "Working";
+  return (activity && status === "running" && currentActivity(items)) || "Working";
 }
 
 /**

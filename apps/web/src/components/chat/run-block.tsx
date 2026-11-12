@@ -329,17 +329,16 @@ function WorkingLine({ run }: { run: RunView }) {
   const { status } = run.timeline;
   // The approval or takeover card above already says what the run needs from you.
   if (status === "waiting") return null;
+  // A running turn's steps show right above, so the line doesn't repeat the latest one.
   return (
     <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
       <span
         className={cn(
-          "size-2 shrink-0 rounded-full",
+          "size-2 rounded-full",
           status === "queued" ? "bg-idle" : "animate-tally bg-working",
         )}
       />
-      <span className="min-w-0 truncate" data-testid="working-text">
-        {workingText(run)}
-      </span>
+      <span>{workingText(run, { activity: false })}</span>
       {status !== "queued" && <Elapsed since={run.createdAt} />}
     </div>
   );
