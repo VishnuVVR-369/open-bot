@@ -1123,14 +1123,14 @@ export async function seedMemory(ctx: SeedContext) {
         pinned: row.pinned ?? false,
         key: row.key ?? null,
         kind: row.kind ?? "fact",
-        expiresAt: row.expiresAt ?? null,
+        expiresAt: row.expiresAt?.toISOString() ?? null,
         state,
       },
       source: row.source ?? { type: "user" },
       createdAt: created,
     });
   };
-  const bySource = (run) => ({ type: "bot", runId: run.id });
+  const bySource = (run) => ({ type: "bot" as const, runId: run.id });
 
   // Shared, confirmed
   await memory({
@@ -1267,7 +1267,7 @@ export async function seedMemory(ctx: SeedContext) {
   const lesson = async (bot, run, text, daysAgo) => {
     const id = randomUUID();
     const createdAt = ago(daysAgo);
-    const source = run ? { type: "feedback", runId: run.id } : { type: "import" };
+    const source = run ? { type: "feedback" as const, runId: run.id } : { type: "import" as const };
     await db.insert(lessons, { id, botId: bot.id, runId: run?.id ?? null, text, createdAt });
     await db.insert(memoryItems, {
       id,
