@@ -1,4 +1,8 @@
-import { computerLifecycleSchema, type ComputerHealth } from "@open-bot/domain";
+import {
+  chatgptAuthSourceSchema,
+  type ComputerHealth,
+  computerLifecycleSchema,
+} from "@open-bot/domain";
 import { z } from "zod";
 import { egressStatusSchema } from "../egress";
 
@@ -9,7 +13,7 @@ export const codexStatusSchema = z.object({
   connected: z.boolean(),
   stale: z.boolean().optional(),
   /** "device" signs in with a code here; "host" reuses the login of the Mac running the stack. */
-  authSource: z.enum(["device", "host"]),
+  authSource: chatgptAuthSourceSchema,
   account: z
     .object({
       type: z.enum(["chatgpt", "apiKey"]),

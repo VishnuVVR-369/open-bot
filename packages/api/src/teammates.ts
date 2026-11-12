@@ -1,3 +1,4 @@
+import { purchaseStatusSchema } from "@open-bot/domain";
 import { z } from "zod";
 import { id } from "./base";
 
@@ -34,7 +35,7 @@ export const purchaseViewSchema = z.object({
   amountCents: z.number(),
   merchant: z.string(),
   description: z.string(),
-  status: z.enum(["pending", "approved", "denied", "paid", "not_paid"]),
+  status: purchaseStatusSchema,
   note: z.string().nullable(),
   chatId: z.string().nullable(),
   runId: z.string().nullable(),

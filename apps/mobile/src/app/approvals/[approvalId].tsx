@@ -1,4 +1,4 @@
-import { approvalRisk, approveLabel, commandParts } from "@open-bot/domain";
+import { type ApprovalDecision, approvalRisk, approveLabel, commandParts } from "@open-bot/domain";
 import { useQuery } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import {
@@ -32,7 +32,7 @@ import { LoadError, Loading } from "@/components/states";
 import { Text } from "@/components/text";
 import { api } from "@/lib/api";
 import { approvalFacts, detailRows, sendsEmail } from "@/lib/approval-text";
-import { canAlwaysAllow, useDecideApproval, type Decision } from "@/lib/approvals";
+import { canAlwaysAllow, useDecideApproval } from "@/lib/approvals";
 import { recently } from "@/lib/day-groups";
 import { approvalDetail } from "@/lib/format";
 import { haptics } from "@/lib/haptics";
@@ -151,7 +151,7 @@ export default function ApprovalScreen() {
   const allowable = pending && canAlwaysAllow(approval);
   const busy = deciding !== null || !online;
 
-  const onDecide = async (decision: Decision, alwaysAllow: string | null = null) => {
+  const onDecide = async (decision: ApprovalDecision, alwaysAllow: string | null = null) => {
     setMessage(null);
     const result = await decide(approval, decision, alwaysAllow);
     setAllowing(false);

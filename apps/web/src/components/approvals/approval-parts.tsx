@@ -1,17 +1,18 @@
 "use client";
 
 import {
+  type AccountActionPreview,
   approvalCommand,
+  type ApprovalDecision,
+  type ApprovalFacts,
   approvalHeadline,
+  type ApprovalKind,
   approvalRisk,
+  type ApprovalRisk,
   approveLabel,
   commandParts,
   detailFields,
   ruleAllowed,
-  type AccountActionPreview,
-  type ApprovalFacts,
-  type ApprovalKind,
-  type ApprovalRisk,
 } from "@open-bot/domain";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -227,7 +228,7 @@ export function ApprovalDecision({
   const { data: state } = useAppState();
   // Deciding works offline; an approved action just waits for the computer.
   const offline = Boolean(state) && !isComputerOnline(state);
-  const decide = (decision: "approved" | "denied", alwaysAllow?: string) =>
+  const decide = (decision: ApprovalDecision, alwaysAllow?: string) =>
     startTransition(async () => {
       const result = await attempt(
         api.approvals.decide({

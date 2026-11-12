@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  type AccountTriggerKind,
   CALENDAR_EVENT_FILTERS,
   CALENDAR_LEADS,
   describeInterval,
@@ -11,8 +12,8 @@ import {
   isCalendarEventFilter,
   MAX_GMAIL_QUERY_CHARS,
   TRIGGER_CONNECTION_KIND,
-  WATCH_INTERVALS,
   type TriggerKind,
+  WATCH_INTERVALS,
 } from "@open-bot/domain";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
@@ -98,7 +99,7 @@ const CONNECTION_LABEL = { gmail: "Gmail", calendar: "Google Calendar" } as cons
 /** The connections a trigger of this kind can watch for the teammate: on, signed in, and theirs. */
 function watchable(
   connections: ConnectionView[] | undefined,
-  kind: "gmail" | "calendar",
+  kind: AccountTriggerKind,
   botId: string,
 ): ConnectionView[] {
   return (connections ?? []).filter(

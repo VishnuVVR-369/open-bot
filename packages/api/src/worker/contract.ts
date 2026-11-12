@@ -4,8 +4,10 @@ import {
   oc,
 } from "@orpc/contract";
 import {
+  approvalStatusSchema,
   botProfileChangesSchema,
   botProfileSchema as teammateProfileSchema,
+  chatgptAuthSourceSchema,
   createBotSchema,
   createdTeammateSchema,
   egressModeSchema,
@@ -13,10 +15,11 @@ import {
   MAX_PAGE_SUMMARY,
   MAX_PAGE_TITLE,
   phoneModeSchema,
+  runRatingSchema,
   screenOperationSchema,
   skillInputSchema,
-  teammateBundleSchema,
   type TeammateBundle,
+  teammateBundleSchema,
   typeOnScreenSchema,
   unavailableReasonSchema,
   updatedTeammateSchema,
@@ -28,7 +31,6 @@ import {
   decideApprovalInputSchema,
   feedbackInputSchema,
   groupTeammatesSchema,
-  runRatingSchema,
   sendMessageInputSchema,
 } from "../contract";
 import {
@@ -42,7 +44,7 @@ import { apiKeyInputSchema, monthlyCapInputSchema } from "../settings";
 import { vaultItemInputSchema } from "../vault";
 import { budgetInputSchema } from "../teammates";
 import { taskChangesSchema, taskInputSchema } from "../tasks";
-import { approvalStatusSchema, messageViewSchema, uploadViewSchema } from "../views";
+import { messageViewSchema, uploadViewSchema } from "../views";
 import {
   codexRateLimitsSchema,
   codexStatusSchema,
@@ -91,7 +93,6 @@ export {
   type ScheduleInput,
   type TriggerInput,
 } from "../automations";
-export { taskStatusSchema } from "../tasks";
 
 export const workerContract = {
   status: {
@@ -247,7 +248,7 @@ export const workerContract = {
       .output(ok),
     rate: base
       .route({ method: "POST", path: "/internal/runs/{runId}/rate" })
-      .input(z.object({ runId: id, rating: runRatingSchema }))
+      .input(z.object({ runId: id, rating: runRatingSchema.nullable() }))
       .output(ok),
     /**
      * A thumbs down with what to change: kept as a lesson with `remember`, and with `redo` sent to
@@ -664,7 +665,7 @@ export const workerContract = {
     /** Sign in with a device code, or with the login of the Mac running the stack. */
     setAuthSource: computer
       .route({ method: "POST", path: "/internal/codex/auth-source" })
-      .input(z.object({ source: z.enum(["device", "host"]) }))
+      .input(z.object({ source: chatgptAuthSourceSchema }))
       .output(codexStatusSchema),
     logout: computer.route({ method: "POST", path: "/internal/codex/logout" }).output(ok),
     /** ChatGPT's usage limits, as last read; reading them never wakes the computer. */

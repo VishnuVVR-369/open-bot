@@ -1,5 +1,5 @@
 import { credentials, ownerSettings, usageEntries } from "@open-bot/db";
-import { decideAuthMode, formatDollars, type AuthDecision } from "@open-bot/domain";
+import { type AuthDecision, type AuthMode, decideAuthMode, formatDollars } from "@open-bot/domain";
 import { decryptSecret } from "@open-bot/domain/server";
 import { and, eq, gte, sql } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
@@ -15,7 +15,7 @@ const FALLBACK_LIMIT_MS = 60 * 60_000;
 
 /** Codex provider settings for a thread on the given access mode. */
 export function providerFor(
-  mode: "plan" | "api_key",
+  mode: AuthMode,
   apiKey: string | null,
   env: { OPENAI_API_BASE_URL: string; OPEN_BOT_PLAN_BASE_URL?: string },
 ): { modelProvider: string; config?: Record<string, unknown> } {

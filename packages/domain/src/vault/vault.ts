@@ -1,9 +1,25 @@
+import { z } from "zod";
+
 /**
  * The vault: logins and payment cards that teammates fill in on the computer without ever reading
  * them, and the monthly budget each teammate spends cards from.
  */
 
-export type VaultKind = "login" | "card";
+export const VAULT_KINDS = ["login", "card"] as const;
+export const vaultKindSchema = z.enum(VAULT_KINDS);
+export type VaultKind = (typeof VAULT_KINDS)[number];
+
+/** A purchase: waiting for you, approved or denied, then paid or not paid on the merchant's site. */
+export const PURCHASE_STATUSES = ["pending", "approved", "denied", "paid", "not_paid"] as const;
+export const purchaseStatusSchema = z.enum(PURCHASE_STATUSES);
+export type PurchaseStatus = (typeof PURCHASE_STATUSES)[number];
+
+/** Purchases that count against a budget: everything not denied or called off. */
+export const SPENDING_PURCHASE_STATUSES = [
+  "pending",
+  "approved",
+  "paid",
+] as const satisfies readonly PurchaseStatus[];
 
 export interface LoginSecret {
   username: string;

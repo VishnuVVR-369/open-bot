@@ -1,4 +1,10 @@
 import { CronExpressionParser } from "cron-parser";
+import { z } from "zod";
+
+/** A schedule repeats on a cron expression, or runs once at a time. */
+export const SCHEDULE_KINDS = ["cron", "once"] as const;
+export const scheduleKindSchema = z.enum(SCHEDULE_KINDS);
+export type ScheduleKind = (typeof SCHEDULE_KINDS)[number];
 
 /** Offset of `timeZone` from UTC at `date`, in minutes. */
 function offsetMinutes(date: Date, timeZone: string): number {
@@ -146,7 +152,16 @@ export function nextCronRun(cron: string, timeZone: string, after: Date = new Da
   return CronExpressionParser.parse(cron, { tz: timeZone, currentDate: after }).next().toDate();
 }
 
-const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+/** Weekday names in cron order: 0 is Sunday. */
+export const WEEKDAYS = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+] as const;
 
 function time(hour: string, minute: string) {
   const h = Number(hour);

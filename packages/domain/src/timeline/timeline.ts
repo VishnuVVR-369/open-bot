@@ -1,6 +1,7 @@
 import type { ComputerAction } from "../computer/protocol";
 import type { AccountActionPreview } from "../integrations/accounts";
-import type { ApprovalKind } from "../approvals/rules";
+import { z } from "zod";
+import type { ApprovalKind, ApprovalStatus } from "../approvals/rules";
 
 /**
  * A run's activity, as the UI renders it.
@@ -84,7 +85,7 @@ export interface ApprovalItem extends BaseItem {
   askEveryTime?: boolean;
   title: string;
   detail: string;
-  decision: "pending" | "approved" | "denied" | "expired";
+  decision: ApprovalStatus;
   /** For an action on one of your accounts: what will happen, exactly, to render properly. */
   preview?: AccountActionPreview;
 }
@@ -116,14 +117,19 @@ export interface UserMessageItem extends BaseItem {
 /** How many helpers a swarm can have, each with its own screen. */
 export const MAX_SWARM_TASKS = 6;
 
-export type SwarmTaskState = "queued" | "running" | "completed" | "failed" | "stopped";
+export const SWARM_TASK_STATES = ["queued", "running", "completed", "failed", "stopped"] as const;
+export const swarmTaskStateSchema = z.enum(SWARM_TASK_STATES);
+export type SwarmTaskState = (typeof SWARM_TASK_STATES)[number];
+
+export const SWARM_STATES = ["running", "done", "stopped"] as const;
+export type SwarmState = (typeof SWARM_STATES)[number];
 
 /** A job split across helpers working at the same time, each on its own screen. */
 export interface SwarmItem extends BaseItem {
   kind: "swarm";
   swarmId: string;
   title: string;
-  state: "running" | "done" | "stopped";
+  state: SwarmState;
   tasks: {
     /** Also the helper's screen. */
     id: string;
@@ -168,18 +174,65 @@ export type TimelineItem =
   | PageItem
   | ErrorItem;
 
-export type RunStatus =
-  "queued" | "starting" | "running" | "waiting" | "completed" | "failed" | "interrupted";
-
-export const ACTIVE_RUN_STATUSES: readonly RunStatus[] = [
+export const RUN_STATUSES = [
   "queued",
   "starting",
   "running",
   "waiting",
-];
+  "completed",
+  "failed",
+  "interrupted",
+] as const;
+export const runStatusSchema = z.enum(RUN_STATUSES);
+export type RunStatus = (typeof RUN_STATUSES)[number];
+
+/** What started a run. */
+export const RUN_TRIGGERS = [
+  "user",
+  "schedule",
+  "watch",
+  "webhook",
+  "hand_back",
+  "approval",
+  "handoff",
+  /** Another teammate asked this teammate something with ask_teammate. */
+  "question",
+  /** The answer to a question this teammate asked, coming back to it. */
+  "answer",
+  /** A task from the board this teammate was asked to work on. */
+  "task",
+  "takeover_ended",
+  /** A helper working on one part of a swarm, on its own screen. */
+  "swarm",
+  /** A swarm's merged results, coming back to the teammate that started it. */
+  "swarm_results",
+  /** An email to the teammate's address. */
+  "email",
+  /** New mail in your Gmail matched a trigger. */
+  "gmail",
+  /** An event on your calendar is about to start. */
+  "calendar",
+] as const;
+export const runTriggerSchema = z.enum(RUN_TRIGGERS);
+export type RunTrigger = (typeof RUN_TRIGGERS)[number];
+
+/** What a `waiting` run waits for: your answer to an approval, or a screen you took over. */
+export const RUN_WAITS = ["approval", "takeover"] as const;
+export const runWaitSchema = z.enum(RUN_WAITS);
+export type RunWait = (typeof RUN_WAITS)[number];
+
+export const ACTIVE_RUN_STATUSES = [
+  "queued",
+  "starting",
+  "running",
+  "waiting",
+] as const satisfies readonly RunStatus[];
+
+/** How a run ended. */
+export type FinishedRunStatus = Exclude<RunStatus, (typeof ACTIVE_RUN_STATUSES)[number]>;
 
 export function isRunActive(status: RunStatus): boolean {
-  return ACTIVE_RUN_STATUSES.includes(status);
+  return (ACTIVE_RUN_STATUSES as readonly RunStatus[]).includes(status);
 }
 
 /** What one stored run event contains. */
@@ -188,13 +241,13 @@ export type RunEventPayload =
   | { type: "item"; item: TimelineItem }
   /** Append streamed text to an item's `text` (message, reasoning) or `output` (command). */
   | { type: "delta"; itemId: string; delta: string }
-  | { type: "status"; status: RunStatus; error?: string; waitingFor?: "approval" | "takeover" }
+  | { type: "status"; status: RunStatus; error?: string; waitingFor?: RunWait }
   | { type: "usage"; inputTokens: number; cachedInputTokens: number; outputTokens: number };
 
 export interface RunTimelineState {
   status: RunStatus;
   error?: string;
-  waitingFor?: "approval" | "takeover";
+  waitingFor?: RunWait;
   items: TimelineItem[];
 }
 

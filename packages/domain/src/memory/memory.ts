@@ -1,9 +1,15 @@
 import { z } from "zod";
 
-export const memoryKindSchema = z.enum(["fact", "preference", "lesson", "note"]);
-export type MemoryKind = z.infer<typeof memoryKindSchema>;
-export const memoryStateSchema = z.enum(["active", "candidate", "deleted"]);
-export type MemoryState = z.infer<typeof memoryStateSchema>;
+export const MEMORY_KINDS = ["fact", "preference", "lesson", "note"] as const;
+export const memoryKindSchema = z.enum(MEMORY_KINDS);
+export type MemoryKind = (typeof MEMORY_KINDS)[number];
+export const MEMORY_STATES = ["active", "candidate", "deleted"] as const;
+export const memoryStateSchema = z.enum(MEMORY_STATES);
+export type MemoryState = (typeof MEMORY_STATES)[number];
+
+/** What saving a memory did: added it, confirmed one that said the same, or found it unchanged. */
+export const memorySaveOutcomeSchema = z.enum(["created", "confirmed", "unchanged"]);
+export type MemorySaveOutcome = z.infer<typeof memorySaveOutcomeSchema>;
 
 export const memorySourceSchema = z.object({
   type: z.enum(["user", "feedback", "bot", "import", "extraction"]),
@@ -50,7 +56,8 @@ export interface MemorySnapshot {
   state: MemoryState;
 }
 
-export type MemoryJobKind = "embed" | "extract";
+export const MEMORY_JOB_KINDS = ["embed", "extract"] as const;
+export type MemoryJobKind = (typeof MEMORY_JOB_KINDS)[number];
 
 /** One memory a run was given, at the revision it saw. */
 export interface MemoryRef {

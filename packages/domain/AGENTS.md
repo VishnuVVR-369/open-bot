@@ -16,7 +16,9 @@ One folder per feature under `packages/domain/src`, each with an `index.ts` barr
 - `approvals`: always-allow rules, how approvals are shown, and the job-application guard.
 - `automations`: schedules and triggers.
 - `integrations`: MCP connections and the OAuth account definitions (`integrations/accounts`).
-- `pages`, `skills`, `memory`, `vault`, `models`, `channels` (Telegram, email), `auth` (password, recovery) and `text`.
+- `chats`: chat kinds, message roles, reply ratings and upload statuses.
+- `tasks`: the task board's statuses.
+- `pages`, `skills`, `memory`, `vault`, `models`, `channels` (Telegram, email, phone pushes), `auth` (password, recovery) and `text`.
 - `server`: Node-only helpers, see below.
 
 ## Entry points
@@ -28,6 +30,10 @@ One folder per feature under `packages/domain/src`, each with an `index.ts` barr
 
 - Code in `packages/domain/src/server` imports `node:crypto`, so it is a separate entry and is never re-exported from `index.ts`.
 - Lint enforces both directions: the isomorphic folders cannot import `node:*` or `server`, and `apps/mobile`, `packages/api` and web client code cannot import `@open-bot/domain/server`.
+- Every set of values that crosses a package (a database column, an API field, a wire message) is defined once, here, as a value list, its schema and its type: `TASK_STATUSES`, `taskStatusSchema`, `TaskStatus`.
+  The database types the column with `$type<TaskStatus>()` (and builds a `check()` from the list, like the memory tables), the API composes `taskStatusSchema`, and the apps import `TaskStatus`; nobody spells the values out again.
+  A subset is derived (`Exclude`, `Extract`, or a list that `satisfies` the full type), never retyped.
+- The egress enums are also the egress tunnel's wire values: `@open-bot/egress` writes them into its test vectors, and the phone's Kotlin `VectorsTest` checks them.
 - Keep zod schemas for stored or exported data optional or defaulted, so old exports and old rows still parse (`packages/domain/src/teammates/bundle.ts`).
 - New workspace dependencies must also be added to the consumer bundlers (see the repo map in the root `AGENTS.md`).
 

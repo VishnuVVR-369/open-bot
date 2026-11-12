@@ -1,3 +1,4 @@
+import { ruleKindSchema } from "../approvals/rules";
 import { z } from "zod";
 import { botProfileSchema } from "./management";
 import { MAX_LESSON_CHARS } from "./profile";
@@ -60,7 +61,7 @@ export const teammateBundleSchema = z.object({
   allowed: z
     .array(
       z.object({
-        kind: z.enum(["command", "file_change", "action", "account_write"]),
+        kind: ruleKindSchema,
         pattern: z.string().max(500),
       }),
     )

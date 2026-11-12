@@ -1,5 +1,13 @@
-import { UNAVAILABLE_MESSAGES, type EgressStatusView, type PhoneWakeStage } from "@open-bot/api";
-import type { EgressMode, PhoneMode, UnavailableReason } from "@open-bot/domain";
+import { UNAVAILABLE_MESSAGES, type EgressStatusView } from "@open-bot/api";
+import type {
+  CarryingPhoneMode,
+  EgressMode,
+  EgressPushStage,
+  PhoneMode,
+  PhoneWakeStage,
+  UnavailableReason,
+} from "@open-bot/domain";
+import type { PushResult } from "../services/fcm";
 import type { PairedPhone } from "./relay";
 import { errorMessage } from "../logger";
 
@@ -28,9 +36,9 @@ export interface WakeDeps {
   /** Push to one phone, with the phone mode now. A token that's gone has already been forgotten. */
   push: (
     phone: PairedPhone,
-    stage: "wake" | "ask",
-    phoneMode: "fallback" | "always",
-  ) => Promise<"sent" | "gone" | "failed">;
+    stage: EgressPushStage,
+    phoneMode: CarryingPhoneMode,
+  ) => Promise<PushResult>;
   /** Paired phones changed (a token was forgotten). */
   phonesChanged: () => void;
   /** Tell you through your other channels that the phone didn't answer. */
@@ -326,7 +334,7 @@ export class WakeController {
     }
   }
 
-  private pushAll(stage: "wake" | "ask"): void {
+  private pushAll(stage: EgressPushStage): void {
     const phoneMode = this.deps.relay.currentPhoneMode;
     if (phoneMode === "off") return;
     for (const phone of this.eligible()) {

@@ -1,3 +1,4 @@
+import type { ScreenViewMode } from "@open-bot/domain";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { AppState, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
@@ -27,7 +28,7 @@ export function DesktopView({
   style,
 }: {
   screenId: string;
-  mode: "view" | "control";
+  mode: ScreenViewMode;
   enabled: boolean;
   handleRef?: React.RefObject<DesktopHandle | null>;
   onConnectedChange?: (connected: boolean) => void;

@@ -1,3 +1,4 @@
+import type { ApprovalDecision } from "@open-bot/domain";
 import notifee, {
   AndroidImportance,
   AndroidCategory,
@@ -124,7 +125,7 @@ export async function clearChatNotifications(
   );
 }
 
-async function decide(approvalId: string, decision: "approved" | "denied"): Promise<DecideOutcome> {
+async function decide(approvalId: string, decision: ApprovalDecision): Promise<DecideOutcome> {
   const result = await safe(api.approvals.decide({ approvalId, decision, alwaysAllow: null }));
   if (!result.error) return { kind: "decided", status: decision };
   if (isDefinedError(result.error) && result.error.code === "ALREADY_DECIDED")

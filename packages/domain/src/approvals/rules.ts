@@ -1,13 +1,58 @@
+import { z } from "zod";
+
 /**
  * What a teammate asks you about. Purchases, emails and outward actions on your accounts always
  * ask: no rule covers spending money, or acting as you where other people see it.
  * `account_write` is a change to one of your accounts only you see; a rule names its tool.
  */
-export type ApprovalKind =
-  "command" | "file_change" | "action" | "purchase" | "email" | "account_write" | "account_outward";
+export const APPROVAL_KINDS = [
+  "command",
+  "file_change",
+  "action",
+  "purchase",
+  "email",
+  "account_write",
+  "account_outward",
+] as const;
+export const approvalKindSchema = z.enum(APPROVAL_KINDS);
+export type ApprovalKind = (typeof APPROVAL_KINDS)[number];
+
+/** What Codex itself stops to ask about, before running a command or changing files. */
+export type NativeApprovalKind = Extract<ApprovalKind, "command" | "file_change">;
 
 /** What an "always allow" rule can cover. */
-export type RuleKind = Exclude<ApprovalKind, "purchase" | "email" | "account_outward">;
+export const RULE_KINDS = [
+  "command",
+  "file_change",
+  "action",
+  "account_write",
+] as const satisfies readonly ApprovalKind[];
+export const ruleKindSchema = z.enum(RULE_KINDS);
+export type RuleKind = (typeof RULE_KINDS)[number];
+
+/** Actions on your accounts: a change only you see, or one other people see (always asks). */
+export const ACCOUNT_APPROVAL_KINDS = [
+  "account_write",
+  "account_outward",
+] as const satisfies readonly ApprovalKind[];
+export type AccountApprovalKind = (typeof ACCOUNT_APPROVAL_KINDS)[number];
+
+export function isAccountApproval(kind: ApprovalKind): kind is AccountApprovalKind {
+  return (ACCOUNT_APPROVAL_KINDS as readonly ApprovalKind[]).includes(kind);
+}
+
+/** Where an approval stands; `expired` when its run ended before you answered. */
+export const APPROVAL_STATUSES = ["pending", "approved", "denied", "expired"] as const;
+export const approvalStatusSchema = z.enum(APPROVAL_STATUSES);
+export type ApprovalStatus = (typeof APPROVAL_STATUSES)[number];
+
+/** Your answer to an approval. */
+export const APPROVAL_DECISIONS = [
+  "approved",
+  "denied",
+] as const satisfies readonly ApprovalStatus[];
+export const approvalDecisionSchema = z.enum(APPROVAL_DECISIONS);
+export type ApprovalDecision = (typeof APPROVAL_DECISIONS)[number];
 
 /** Approvals that act by themselves when you decide, even long after their run ended. */
 export const DEFERRED_APPROVAL_KINDS = [

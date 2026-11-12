@@ -5,6 +5,7 @@ import {
 } from "@orpc/contract";
 import {
   codeEntryResultSchema,
+  computePhaseSchema,
   computerActionErrorSchema,
   computerActionResultSchema,
   computerActionSchema,
@@ -64,7 +65,7 @@ export const lifecycleCapabilitiesSchema = z.object({
   version: z.number(),
   enabled: z.boolean(),
   /** Missing when the lifecycle is off. */
-  phase: z.enum(["idle", "awake", "starting", "stopping"]).optional(),
+  phase: computePhaseSchema.optional(),
 });
 export type LifecycleCapabilities = z.infer<typeof lifecycleCapabilitiesSchema>;
 

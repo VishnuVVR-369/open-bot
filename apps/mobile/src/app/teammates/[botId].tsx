@@ -1,5 +1,5 @@
 import type { ChatSummary } from "@open-bot/api";
-import { AUTONOMY_OPTIONS, plainText } from "@open-bot/domain";
+import { AUTONOMY_OPTIONS, plainText, type RunWait } from "@open-bot/domain";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import {
   CalendarClock,
@@ -95,7 +95,7 @@ function PendingBanner({
   title,
   onPress,
 }: {
-  kind: "approval" | "takeover";
+  kind: RunWait;
   title: string;
   onPress: () => void;
 }) {

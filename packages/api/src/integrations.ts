@@ -5,6 +5,8 @@ import {
   type AccountCapability,
   type AccountConnectionKind,
   type AccountProvider,
+  connectionTransportSchema,
+  providerClientKindSchema,
 } from "@open-bot/domain";
 import { z } from "zod";
 import { id, teammateAccessSchema } from "./base";
@@ -65,7 +67,7 @@ export const connectionViewSchema = z.object({
   /** An MCP server you added, or one of your accounts. */
   kind: connectionKindSchema,
   /** MCP servers only. */
-  transport: z.enum(["http", "stdio"]).nullable(),
+  transport: connectionTransportSchema.nullable(),
   url: z.string().nullable(),
   command: z.string().nullable(),
   args: z.array(z.string()),
@@ -90,7 +92,7 @@ export const providerSetupViewSchema = z.object({
   id: accountProviderSchema,
   label: z.string(),
   /** `owner`: you paste a client from the provider's console; `automatic`: open-bot registers. */
-  client: z.enum(["owner", "automatic"]),
+  client: providerClientKindSchema,
   /** Ready for sign-ins: always, for automatic clients. */
   configured: z.boolean(),
   /** What Settings shows of your client, without its secret. */
@@ -126,7 +128,7 @@ const capabilityNamesSchema = z.array(z.string().max(40)).max(20);
 export const connectionInputSchema = z.object({
   id: id.nullable(),
   label: z.string().trim().min(1, "Give it a name.").max(60),
-  transport: z.enum(["http", "stdio"]),
+  transport: connectionTransportSchema,
   /** For http: the MCP endpoint. */
   url: z.string().trim().max(2000),
   /** For stdio: the command the computer runs, and its arguments as you'd type them. */

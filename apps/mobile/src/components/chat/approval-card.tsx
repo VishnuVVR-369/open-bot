@@ -1,4 +1,10 @@
-import { approvalRisk, approveLabel, type ApprovalItem, type ApprovalRisk } from "@open-bot/domain";
+import {
+  type ApprovalDecision,
+  type ApprovalItem,
+  approvalRisk,
+  type ApprovalRisk,
+  approveLabel,
+} from "@open-bot/domain";
 import {
   AlertTriangle,
   Check,
@@ -19,7 +25,7 @@ import { Button } from "@/components/button";
 import { CodeScroll } from "@/components/code-scroll";
 import { Text } from "@/components/text";
 import { approvalFacts, detailRows, sendsEmail } from "@/lib/approval-text";
-import { canAlwaysAllow, useDecideApproval, type Decision } from "@/lib/approvals";
+import { canAlwaysAllow, useDecideApproval } from "@/lib/approvals";
 import { approvalDetail } from "@/lib/format";
 import { haptics } from "@/lib/haptics";
 import { animateLayout } from "@/lib/motion";
@@ -94,7 +100,7 @@ export function ApprovalCard({
     preview: item.preview,
   });
   const risk = approvalRisk(facts);
-  const onDecide = async (decision: Decision, alwaysAllow: string | null = null) => {
+  const onDecide = async (decision: ApprovalDecision, alwaysAllow: string | null = null) => {
     setError(null);
     if (decision === "approved") haptics.press();
     const result = await decide(

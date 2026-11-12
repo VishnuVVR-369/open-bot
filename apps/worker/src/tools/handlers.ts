@@ -2,6 +2,7 @@ import type { v2 } from "@open-bot/agent";
 import { artifacts, bots, chatMembers, chats, messages, runs, schedules } from "@open-bot/db";
 import {
   applyBlockedMessage,
+  calendarEventFilterSchema,
   chatTitleText,
   COMPUTER_PATHS,
   type PageCheckResult,
@@ -136,7 +137,7 @@ const updateArgs = z.object({
   look_for: z.string().max(200).optional(),
   query: z.string().max(500).optional(),
   lead_minutes: z.number().int().optional(),
-  events: z.enum(["all", "guests"]).optional(),
+  events: calendarEventFilterSchema.optional(),
   quiet: z.boolean().optional(),
 });
 

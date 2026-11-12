@@ -1,7 +1,12 @@
-import { triggerKindSchema } from "@open-bot/domain";
+import {
+  creatorSchema,
+  runStatusSchema,
+  runTriggerSchema,
+  scheduleKindSchema,
+  triggerKindSchema,
+} from "@open-bot/domain";
 import { z } from "zod";
 import { id } from "./base";
-import { runStatusSchema, runTriggerSchema } from "./views";
 
 /** Automations as the app shows them: schedules, and the triggers (watches, webhooks, accounts). */
 
@@ -15,14 +20,14 @@ export const scheduleViewSchema = z.object({
   botId: z.string(),
   title: z.string(),
   prompt: z.string(),
-  kind: z.enum(["cron", "once"]),
+  kind: scheduleKindSchema,
   cron: z.string().nullable(),
   runAt: isoDate.nullable(),
   timezone: z.string(),
   enabled: z.boolean(),
   /** Only tells you when there's news. */
   quiet: z.boolean(),
-  createdBy: z.enum(["user", "bot"]),
+  createdBy: creatorSchema,
   nextRunAt: isoDate.nullable(),
   lastRunAt: isoDate.nullable(),
   lastRun: lastRunSchema.nullable(),
@@ -37,7 +42,7 @@ export const triggerViewSchema = z.object({
   title: z.string(),
   prompt: z.string(),
   enabled: z.boolean(),
-  createdBy: z.enum(["user", "bot"]),
+  createdBy: creatorSchema,
   url: z.string().nullable(),
   intervalMinutes: z.number().nullable(),
   lookFor: z.string().nullable(),

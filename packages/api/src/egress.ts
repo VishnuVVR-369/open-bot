@@ -1,8 +1,10 @@
 import {
+  egressAgentKindSchema,
   egressModeSchema,
   phoneModeSchema,
-  unavailableReasonSchema,
+  phoneWakeStageSchema,
   type UnavailableReason,
+  unavailableReasonSchema,
 } from "@open-bot/domain";
 import { z } from "zod";
 
@@ -11,7 +13,6 @@ import { z } from "zod";
  * The worker builds this; the web app and the phone show it.
  */
 
-
 const statsSchema = z.object({
   openStreams: z.number().int().nonnegative(),
   bytesIn: z.number().nonnegative(),
@@ -19,7 +20,7 @@ const statsSchema = z.object({
 });
 
 export const egressAgentViewSchema = z.object({
-  kind: z.enum(["desktop", "phone"]),
+  kind: egressAgentKindSchema,
   id: z.string(),
   name: z.string(),
   /** `active` carries new connections; `standby` only finishes the ones it has. */
@@ -27,10 +28,6 @@ export const egressAgentViewSchema = z.object({
   since: z.string(),
   stats: statsSchema.nullable(),
 });
-
-/** How far waking a phone got: the first push, a retry, or asking the owner to open the app. */
-export const phoneWakeStageSchema = z.enum(["wake", "retry", "ask"]);
-export type PhoneWakeStage = z.infer<typeof phoneWakeStageSchema>;
 
 export const egressPhoneViewSchema = z.object({
   id: z.string(),

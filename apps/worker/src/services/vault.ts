@@ -1,19 +1,22 @@
 import { bots, purchases, vaultItems, type Queryable } from "@open-bot/db";
 import {
+  type ApprovalDecision,
   budgetDecision,
   cardHint,
-  invalidCard,
-  normalizeExpiry,
+  type CardSecret,
   FIELD_LABEL,
   formatMoney,
+  invalidCard,
+  type LoginSecret,
   monthStart,
   normalizeDomain,
+  normalizeExpiry,
   PURCHASE_WINDOW_MS,
+  SPENDING_PURCHASE_STATUSES,
   toCents,
   VAULT_FIELDS,
-  type CardSecret,
-  type LoginSecret,
   type VaultField,
+  type VaultKind,
 } from "@open-bot/domain";
 import { decryptSecret, encryptSecret } from "@open-bot/domain/server";
 import { and, desc, eq, gte, gt, inArray, isNull, or, sql } from "drizzle-orm";
@@ -23,9 +26,6 @@ import type { ApprovalService } from "./approvals";
 import type { VaultItemInput } from "@open-bot/api";
 
 type Item = typeof vaultItems.$inferSelect;
-
-/** Purchases that count against a budget: everything not denied or called off. */
-const SPENDING = ["pending", "approved", "paid"] as const;
 
 export class VaultError extends Error {}
 
@@ -41,7 +41,7 @@ export class VaultItemError extends Error {
 
 /** A login's or card's secret, and the hint the vault shows of it, or why it can't be saved. */
 function vaultSecret(
-  kind: "login" | "card",
+  kind: VaultKind,
   fields: Record<string, string>,
   domainInput: string,
 ): { secret: LoginSecret | CardSecret; hint: string; domain: string | null } {
@@ -82,7 +82,7 @@ export async function askAboutPurchase(
 export async function decidePurchase(
   db: Queryable,
   approvalId: string,
-  decision: "approved" | "denied",
+  decision: ApprovalDecision,
 ): Promise<typeof purchases.$inferSelect | undefined> {
   const [decided] = await db
     .update(purchases)
@@ -174,7 +174,7 @@ export class VaultService {
       .where(
         and(
           eq(purchases.botId, botId),
-          inArray(purchases.status, [...SPENDING]),
+          inArray(purchases.status, [...SPENDING_PURCHASE_STATUSES]),
           gte(purchases.createdAt, monthStart()),
         ),
       );

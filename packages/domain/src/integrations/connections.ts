@@ -1,7 +1,14 @@
+import { z } from "zod";
+
+/** How Codex reaches an MCP server: over HTTP, or by starting it on the computer. */
+export const CONNECTION_TRANSPORTS = ["http", "stdio"] as const;
+export const connectionTransportSchema = z.enum(CONNECTION_TRANSPORTS);
+export type ConnectionTransport = (typeof CONNECTION_TRANSPORTS)[number];
+
 /** A service teammates use through MCP, with its secrets decrypted, as Codex needs it. */
 export interface ConnectionConfig {
   name: string;
-  transport: "http" | "stdio";
+  transport: ConnectionTransport;
   url: string | null;
   command: string | null;
   args: string[];

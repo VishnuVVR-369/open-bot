@@ -1,6 +1,6 @@
 import { CHANNELS, notify, type Db, type NotificationKind, type WorkerSignal } from "@open-bot/db";
 import type { EventEmitter } from "node:events";
-import type { AppEvent, ApprovalKind } from "@open-bot/domain";
+import type { AppEvent, ApprovalKind, FinishedRunStatus } from "@open-bot/domain";
 import type pg from "pg";
 import type { ComputerLifecycle } from "./computer-lifecycle";
 import type { CodexManager } from "./codex";
@@ -38,7 +38,7 @@ export type WorkerEvents = {
   /** A run ended, with its final reply. */
   runFinished: [
     run: { id: string; trigger: string },
-    status: "completed" | "failed" | "interrupted",
+    status: FinishedRunStatus,
     text: string | null,
     error?: string,
   ];
