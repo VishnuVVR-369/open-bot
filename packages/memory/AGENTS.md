@@ -14,6 +14,7 @@ Tool wiring and routes go in `apps/worker`, memory tables in `packages/db`, shar
 - Edits create revisions; items are not overwritten silently.
 - Search combines full text with optional vector search; vectors are optional when no embedding provider is configured.
 - Embedding and extraction calls respect `dailyRequestLimit`.
+- The package never reads `process.env` (lint enforces it): `memoryAIConfig(env)` validates the `MEMORY_*` values the worker's env module (`apps/worker/src/env.ts`) declares.
 - Derived vectors are fenced by model and dimensions, so changing either means rebuilding them (see the embeddings table in `packages/db/src/schema.ts`).
 - Queries go through Drizzle and the tables in `packages/db/src/schema.ts`, so a renamed column fails typecheck.
   Postgres-only parts (full text search, pgvector distance, `pg_notify`) are `sql` fragments with columns interpolated; user text is always a parameter.

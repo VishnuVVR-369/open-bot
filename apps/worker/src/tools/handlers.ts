@@ -1030,7 +1030,7 @@ export class ToolHandlers {
         result: items.map((x) => `${x.id}@${x.revision}`).join(", "),
       });
       await addContextRefs(
-        this.ctx.pool,
+        this.ctx.db,
         session.run.id,
         items.map((item) => ({ id: item.id, revision: item.revision })),
       );

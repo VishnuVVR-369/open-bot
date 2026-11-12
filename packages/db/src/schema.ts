@@ -15,6 +15,7 @@ import type {
   EgressModeSetting,
   MemoryJobKind,
   MemoryKind,
+  MemoryRef,
   MemorySnapshot,
   MemorySource,
   MemoryState,
@@ -1551,6 +1552,6 @@ export const memoryContexts = pgTable("memory_contexts", {
     .notNull()
     .references(() => bots.id, { onDelete: "cascade" }),
   generation: text("generation").notNull(),
-  refs: jsonb("refs").notNull().default([]),
+  refs: jsonb("refs").$type<MemoryRef[]>().notNull().default([]),
   createdAt: createdAt(),
 });
