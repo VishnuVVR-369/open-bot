@@ -2,7 +2,6 @@ import type { CodexClient, ServerNotification, ServerRequest, v2 } from "@open-b
 import {
   botThreads,
   runs,
-  schedules,
   usageEntries,
   configurationRevision,
   type Attachment,
@@ -11,7 +10,6 @@ import {
 import {
   COMPUTER_PATHS,
   costMicros,
-  isNothingToReport,
   type NativeApprovalKind,
   type RunStatus,
   type RunWait,
@@ -26,6 +24,7 @@ import { errorMessage } from "../logger";
 import type { MemoryCoordinator } from "../services/memory";
 import { ModelAccess, providerFor } from "../services/model-access";
 import { answerBack } from "./answer-back";
+import { quietWithNothingToReport } from "./quiet";
 import { approvalPolicy } from "./approval-policy";
 import { toolsRevision } from "./tools-revision";
 import { RunEventWriter } from "./events";
@@ -37,6 +36,12 @@ export type Chat = typeof schema.chats.$inferSelect;
 export type Run = typeof schema.runs.$inferSelect;
 
 const MAX_COMMAND_OUTPUT = 20_000;
+
+/**
+ * `tools_version` of a thread this worker saved. A worker from before `tools_revision` writes its
+ * TOOLS_VERSION there and leaves the revision as it was, so only this value vouches for it.
+ */
+const REVISED_THREAD = 0;
 
 /** The agent tools, as a session uses them (ToolHandlers in ../tools/handlers.ts). */
 export interface SessionTools {
@@ -354,6 +359,7 @@ export class RunSession {
           chatId: run.chatId,
           botId: bot.id,
           codexThreadId: threadId,
+          toolsVersion: REVISED_THREAD,
           toolsRevision: revision,
           memoryGeneration: this.memoryGeneration,
           authMode: mode,
@@ -364,6 +370,7 @@ export class RunSession {
           // Memory generations fence old context; a fork is only allowed within the same generation.
           set: {
             codexThreadId: threadId,
+            toolsVersion: REVISED_THREAD,
             toolsRevision: revision,
             memoryGeneration: this.memoryGeneration,
             authMode: mode,
@@ -380,6 +387,7 @@ export class RunSession {
       .where(and(eq(botThreads.chatId, run.chatId), eq(botThreads.botId, bot.id)));
     if (
       existing &&
+      existing.toolsVersion === REVISED_THREAD &&
       existing.toolsRevision === revision &&
       existing.memoryGeneration === this.memoryGeneration
     ) {
@@ -615,17 +623,6 @@ export class RunSession {
     }
   }
 
-  /** A quiet routine's run that found nothing worth telling you. */
-  private async quietWithNothingToReport(text: string | null): Promise<boolean> {
-    const { run, ctx } = this;
-    if (run.trigger !== "schedule" || !run.scheduleId || !isNothingToReport(text)) return false;
-    const [schedule] = await ctx.db
-      .select({ quiet: schedules.quiet })
-      .from(schedules)
-      .where(eq(schedules.id, run.scheduleId));
-    return schedule?.quiet ?? false;
-  }
-
   private async complete(outcome: Outcome) {
     const { ctx, run, bot, chat } = this;
     this.finish = null;
@@ -715,7 +712,7 @@ export class RunSession {
       run.trigger !== "question" &&
       // A helper's part comes back to its teammate, not to you.
       run.trigger !== "swarm" &&
-      !(await this.quietWithNothingToReport(text))
+      !(await quietWithNothingToReport(ctx, run, text))
     ) {
       // An answer to a teammate isn't news for you; their reply to you is.
       await createNotification(ctx, {
