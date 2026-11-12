@@ -223,7 +223,7 @@ test(".env.example sets nothing that no app reads", () => {
   assert.deepEqual(stale, [], "Remove these from .env.example, or read them in an env module");
 });
 
-test("production refuses every secret .env.example sets", () => {
+test(".env.example's secrets are the public defaults production refuses", () => {
   const example = Object.fromEntries(
     [...read(".env.example").matchAll(/^([A-Z][A-Z0-9_]*)=(.*)$/gm)].map(([, name, value]) => [
       name,

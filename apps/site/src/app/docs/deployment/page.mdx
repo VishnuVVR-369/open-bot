@@ -69,7 +69,7 @@ openssl rand -base64 32   # PAGES_SECRET: at least 32 characters
 | `BOTD_TOKEN`         | worker, computer (same value) |
 | `PAGES_SECRET`       | web, pages (same value)       |
 
-In production, the web app, the worker and the pages service refuse to start while any of these is still its public development default or `.env.example` placeholder (`DEV_SECRETS` in `packages/domain/src/server/secrets.ts`).
+In production (`NODE_ENV=production`), the web app, the worker, the pages service and the computer refuse to start while any of these is still its public development default or `.env.example` placeholder (`DEV_SECRETS` in `packages/domain/src/server/secrets.ts`).
 
 Back up `ENCRYPTION_KEY`.
 Every stored API key, vault item and connection secret depends on it.
@@ -87,6 +87,7 @@ Use a Postgres image or template that includes it, such as `pgvector/pgvector:pg
 - Health check `/healthz`, with up to 300 seconds to start.
 
 ```dotenv title="computer variables"
+NODE_ENV=production            # botd refuses the public development BOTD_TOKEN
 BOTD_TOKEN=<same as the worker>
 MAX_SCREENS=2                  # start low, measure memory, then raise
 RAILWAY_RUN_UID=0              # botd must start as root to manage its users
