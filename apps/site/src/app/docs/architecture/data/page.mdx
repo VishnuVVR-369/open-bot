@@ -9,7 +9,7 @@ This page covers the schema, how runs are queued, how events are stored and stre
 
 ## The schema
 
-The schema is one file, `packages/db/src/schema.ts`, written with Drizzle ORM.
+The schema is written with Drizzle ORM, one file per area in `packages/db/src/schema/`, all re-exported by `packages/db/src/schema/index.ts`.
 It has about 60 tables.
 Here they are grouped by what they're for:
 
@@ -223,7 +223,7 @@ Their keys never change once shipped, because the web app and the worker deploy 
 Migrations are generated SQL files in `packages/db/drizzle/`; `meta/_journal.json` records their authoritative order.
 
 ```sh title="Terminal"
-pnpm db:generate   # write a new migration from changes to schema.ts
+pnpm db:generate   # write a new migration from changes to the schema
 pnpm db:migrate    # apply pending migrations
 ```
 

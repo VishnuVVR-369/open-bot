@@ -17,7 +17,9 @@ Better Auth's `account` table is sign-in and is unrelated to the integrations `a
 - `packages/db/src/locks.ts`: every advisory lock, by name in `LOCKS`, taken with `lockUntilCommit(tx, ...)` or `withTryLock(pool, ...)`.
   Never change a shipped key: the web app and the worker deploy separately and must still exclude each other.
 - `packages/db/src/settings.ts`: `ownerSettings(db)` and `ownerTimeZone(db)`, the only way to read the settings row.
-- `@open-bot/db/schema` is `packages/db/src/schema.ts`, the single source of truth for tables.
+- `@open-bot/db/schema` is `packages/db/src/schema/index.ts`, the single source of truth for tables: one file per area (`teammates.ts`, `chats.ts`, `runs.ts`, `integrations.ts`, `memory.ts`, ...), re-exported by `index.ts`, which drizzle-kit reads too.
+  `packages/db/src/schema/columns.ts` holds the column helpers they share and is not exported.
+  A schema file imports only the files of tables its foreign keys name, so the files never form a cycle.
 - `@open-bot/db/testing` is `packages/db/src/testing.ts`: a fresh migrated database per integration suite.
 - `packages/db/src/migrate.ts` applies `packages/db/drizzle/*.sql`; `packages/db/drizzle.config.ts` configures drizzle-kit.
 
@@ -44,7 +46,7 @@ Better Auth's `account` table is sign-in and is unrelated to the integrations `a
 
 ## Migration workflow
 
-1. Edit `packages/db/src/schema.ts`, and give a new table its owner in `packages/db/src/owners.ts`.
+1. Edit the area's file in `packages/db/src/schema/` (a new area gets a file, exported from `index.ts`), and give a new table its owner in `packages/db/src/owners.ts`.
 2. Run `pnpm db:generate --name <snake_name>`.
 3. Read the SQL. Add backfills by hand, separated by `--> statement-breakpoint`.
 4. Run `pnpm db:migrate` locally, then `pnpm test:integration`.

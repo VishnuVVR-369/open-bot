@@ -33,7 +33,7 @@ For a deployed service it must also be added to that service's list in `.railway
 | `packages/domain`       | Isomorphic types, zod schemas and pure logic; Node-only helpers in `/server`  | `packages/domain/src/index.ts`        | `pnpm --filter @open-bot/domain test`    |
 | `packages/api`          | oRPC contracts (web and mobile, worker internal, botd) and serializable views | `packages/api/src/contract.ts`        | `pnpm --filter @open-bot/api test`       |
 | `packages/chat-core`    | Chat logic web and mobile share: turns, mentions, search, formatting          | `packages/chat-core/src/index.ts`     | `pnpm --filter @open-bot/chat-core test` |
-| `packages/db`           | Drizzle schema, migrations, pool, NOTIFY channels and app events              | `packages/db/src/schema.ts`           | `pnpm test:integration`                  |
+| `packages/db`           | Drizzle schema, migrations, pool, NOTIFY channels and app events              | `packages/db/src/schema/index.ts`     | `pnpm test:integration`                  |
 | `packages/integrations` | Google and Notion: sign-in, the token store, and the integrations' adapters   | `packages/integrations/src/server.ts` | `pnpm test:integration`                  |
 | `packages/memory`       | Versioned memory and its background jobs                                      | `packages/memory/src/index.ts`        | `pnpm test:memory`                       |
 | `packages/egress`       | Tunnel framing, mux, IP policy, SOCKS; vectors shared with Kotlin             | `packages/egress/src/index.ts`        | `pnpm --filter @open-bot/egress test`    |
@@ -107,7 +107,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 
 **Add a field to a teammate** (web and mobile)
 
-1. `packages/db/src/schema.ts` (`bots`, with a default), then the migration recipe below.
+1. `packages/db/src/schema/teammates.ts` (`bots`, with a default), then the migration recipe below.
 2. `packages/domain/src/teammates/management.ts` (`botProfileSchema`, `botCreation()`), `packages/domain/src/teammates/bundle.ts` (optional or defaulted so old exports import).
 3. `packages/api/src/views.ts` (`botSummarySchema`) if lists or mobile need it; `apps/web/src/lib/server/queries.ts` (`listBots`).
 4. Worker: `apps/worker/src/services/bots.ts` (`list`, `get`, `exportBundle`, `addTeammate`, which duplicate and import share), `apps/worker/src/tools/definitions.ts` (`profileProperties`), `apps/worker/src/tools/bots.ts` (`PROFILE_LABELS`).
@@ -117,7 +117,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 
 **Add a database table or column**
 
-1. Edit `packages/db/src/schema.ts`. Keep changes additive (nullable or defaulted): the old web and worker keep running until the deploy finishes.
+1. Edit the area's file in `packages/db/src/schema/` (a new area gets a file, exported from `index.ts`). Keep changes additive (nullable or defaulted): the old web and worker keep running until the deploy finishes.
    A new table gets its owner, the one module that writes it, in `packages/db/src/owners.ts`; the `open-bot/table-owners` lint rule refuses writes anywhere else.
 2. `pnpm db:generate --name <snake_name>` writes `packages/db/drizzle/<NNNN>_<name>.sql` plus the `meta/` snapshot and journal. Commit all three.
 3. Read the SQL. Add backfills by hand before it ships, separated by `--> statement-breakpoint`. Never edit a migration that has shipped.
@@ -185,7 +185,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 | Changed path                               | Run                                                                                                  |
 | ------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
 | any TS                                     | `pnpm verify:affected`                                                                               |
-| `packages/db/src/schema.ts`                | `pnpm db:generate`, review the SQL, `pnpm test:integration`                                          |
+| `packages/db/src/schema/**`                | `pnpm db:generate`, review the SQL, `pnpm test:integration`                                          |
 | `packages/egress/**`                       | `pnpm --filter @open-bot/egress vectors`, then `./gradlew test` in `apps/mobile/modules/egress/core` |
 | `apps/worker/**` deps or bundling          | `pnpm --filter @open-bot/worker build && node apps/worker/dist/worker.mjs`                           |
 | `apps/pages/**`, `packages/page-kit/**`    | `pnpm --filter @open-bot/pages build && node apps/pages/dist/pages.mjs`                              |

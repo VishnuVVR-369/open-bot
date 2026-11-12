@@ -714,10 +714,55 @@
   "packages/chat-core/src/triggers.ts": {
     "bot": 2
   },
-  "packages/db/src/schema.ts": {
-    "bot": 143,
-    "desktop takeover": 4,
+  "packages/db/src/schema/approvals.ts": {
+    "bot": 9
+  },
+  "packages/db/src/schema/automations.ts": {
+    "bot": 9
+  },
+  "packages/db/src/schema/chats.ts": {
+    "bot": 26
+  },
+  "packages/db/src/schema/computer.ts": {
+    "bot": 9,
+    "desktop takeover": 4
+  },
+  "packages/db/src/schema/email.ts": {
+    "bot": 6
+  },
+  "packages/db/src/schema/integrations.ts": {
+    "bot": 7
+  },
+  "packages/db/src/schema/learning.ts": {
+    "bot": 24
+  },
+  "packages/db/src/schema/memory.ts": {
+    "bot": 10
+  },
+  "packages/db/src/schema/notifications.ts": {
+    "bot": 5
+  },
+  "packages/db/src/schema/pages.ts": {
+    "bot": 8
+  },
+  "packages/db/src/schema/runs.ts": {
+    "bot": 9
+  },
+  "packages/db/src/schema/settings.ts": {
+    "bot": 5
+  },
+  "packages/db/src/schema/tasks.ts": {
+    "bot": 13
+  },
+  "packages/db/src/schema/teammates.ts": {
+    "bot": 4,
     "primary teammate": 2
+  },
+  "packages/db/src/schema/telegram.ts": {
+    "bot": 4
+  },
+  "packages/db/src/schema/vault.ts": {
+    "bot": 8
   },
   "packages/domain/src/approvals/apply-guard.test.ts": {
     "bot": 1
