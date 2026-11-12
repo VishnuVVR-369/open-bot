@@ -5,7 +5,6 @@ import {
   usageEntries,
   configurationRevision,
   type Attachment,
-  type schema,
 } from "@open-bot/db";
 import {
   COMPUTER_PATHS,
@@ -18,6 +17,7 @@ import {
 } from "@open-bot/domain";
 import { and, eq } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
+import type { Bot, Chat, Run } from "../core/db-types";
 import { createNotification } from "../services/notifications";
 import { DEVELOPER_INSTRUCTIONS } from "../instructions";
 import { errorMessage } from "../logger";
@@ -30,10 +30,6 @@ import { toolsRevision } from "./tools-revision";
 import { RunEventWriter } from "./events";
 import { touchChat } from "../services/chats";
 import { finalText, mapPlan, mapThreadItem } from "./mapper";
-
-export type Bot = typeof schema.bots.$inferSelect;
-export type Chat = typeof schema.chats.$inferSelect;
-export type Run = typeof schema.runs.$inferSelect;
 
 const MAX_COMMAND_OUTPUT = 20_000;
 

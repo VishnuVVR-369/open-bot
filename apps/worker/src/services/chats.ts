@@ -14,6 +14,7 @@ import {
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
 import { errorMessage } from "../logger";
+import { WorkerError } from "../core/errors";
 
 /**
  * Chats, who is in them, and the messages you send: this module owns those tables (see
@@ -22,14 +23,7 @@ import { errorMessage } from "../logger";
  */
 
 /** A chat change that can't be made as asked; the message says why. */
-export class ChatError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
-    super(message);
-  }
-}
+export class ChatError extends WorkerError {}
 
 type Message = typeof messages.$inferSelect;
 type NewChat = Pick<typeof chats.$inferInsert, "kind" | "title" | "titled" | "main"> & {

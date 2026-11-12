@@ -29,6 +29,7 @@ import { publishApp, type Context } from "../context";
 import { enqueueRun } from "../runs/queue";
 import { errorMessage } from "../logger";
 import { teammateChat } from "./chats";
+import { WorkerError } from "../core/errors";
 
 export type Trigger = typeof triggers.$inferSelect;
 
@@ -44,7 +45,11 @@ export const WEBHOOK_RUNS_PER_HOUR = 30;
 export const ACCOUNT_TRIGGER_RUNS_PER_HOUR = 30;
 const MAX_PAYLOAD_CHARS = 20_000;
 
-export class TriggerError extends Error {}
+export class TriggerError extends WorkerError {
+  constructor(message: string) {
+    super(400, message);
+  }
+}
 
 /** A trigger as the owner or a teammate sets it up; see `triggerInputSchema`. */
 export type TriggerInput = TriggerFormInput;

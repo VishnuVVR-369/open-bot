@@ -5,8 +5,7 @@ import { isAccountNamespace } from "@open-bot/integrations/adapters";
 import { z } from "zod";
 import { errorMessage } from "../logger";
 import type { RunSession, SessionTools } from "../runs/session";
-import { BotError } from "../services/bots";
-import { PageError } from "../services/pages";
+import { WorkerError } from "../core/errors";
 import { BotTools } from "./bots";
 import { toolNamed, toolsFor } from "./definitions";
 import { parseArgs, text, type ToolDeps, type ToolResponse, type ToolServices } from "./define";
@@ -57,9 +56,8 @@ export class ToolHandlers implements SessionTools {
         this.deps,
       );
     } catch (error) {
-      // Problems the bot can fix itself, said plainly.
-      if (error instanceof BotError || error instanceof PageError)
-        return text(error.message, false);
+      // A request the teammate can fix itself, or tell the owner about: said plainly.
+      if (error instanceof WorkerError) return text(error.message, false);
       if (error instanceof z.ZodError)
         return text(
           error.issues

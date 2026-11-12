@@ -31,16 +31,10 @@ import { and, asc, eq, isNull, or, sql } from "drizzle-orm";
 import { cancelConnectionActions, cancelEarlierGrantActions } from "../accounts/actions";
 import { publishApp, type Context } from "../context";
 import { errorMessage } from "../logger";
+import { WorkerError } from "../core/errors";
 
 /** A connection change that can't be made as asked; the message says why. */
-export class ConnectionError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
-    super(message);
-  }
-}
+export class ConnectionError extends WorkerError {}
 
 const GONE = "That connection is gone.";
 

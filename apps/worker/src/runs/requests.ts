@@ -5,16 +5,10 @@ import { eq } from "drizzle-orm";
 import type { Context } from "../context";
 import { REUSED_ID, saveUserMessage, type ChatService } from "../services/chats";
 import { requestRunsCancel } from "./cancel";
+import { WorkerError } from "../core/errors";
 
 /** A request about a run that can't be done as asked; the message says why. */
-export class RunError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
-    super(message);
-  }
-}
+export class RunError extends WorkerError {}
 
 const GONE = "That reply is gone.";
 

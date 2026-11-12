@@ -25,7 +25,8 @@ It runs every teammate turn, serves every tool call, and owns every timer and lo
 8. Start the egress relay, the scheduler, page watches, Gmail and Calendar triggers, the account action executor, the email outbox sweep, push and Telegram.
 9. `LISTEN openbot_worker` on a dedicated connection, and start the HTTP server on `WORKER_PORT` (4001).
 
-On `SIGTERM` or `SIGINT` it closes the server, stops every timer and socket, and drains the pool.
+Whatever starts a timer, a listener, a socket or a background loop registers how to stop it with the `Runtime` (`src/core/runtime.ts`).
+On `SIGTERM` or `SIGINT` it stops them all in reverse: the server and the `LISTEN` connection first, then the timers and services, the computer lifecycle, the egress relay, Codex and botd, and the pool last.
 
 ## Waking up
 
@@ -218,6 +219,7 @@ The worker refuses to start when an integration has no adapter, or its tools dif
 - The routes are `workerContract` (`packages/api/src/worker/contract.ts`), served by oRPC's OpenAPI handler at fixed `/internal/...` paths, so a web app from the previous deploy can still call them.
 - `src/rpc/router.ts` implements each procedure by calling services; rules about what is allowed live in the services, where the teammates' tools use them too.
 - `src/rpc/handler.ts` runs around every procedure: one marked `wakesComputer` runs inside the lifecycle, so it wakes the computer and keeps it awake until it finishes, and whatever a procedure throws becomes a status and a message in `src/rpc/errors.ts`, the only place a service's error becomes a status.
+  Every service's own error class extends `WorkerError` (`src/core/errors.ts`), which carries the status; a tool that throws one fails with its message (`src/tools/handlers.ts`), and anything else is logged as a fault.
 - `PUT /internal/uploads/:id` streams raw bytes, so it is handled in `src/http.ts` outside the contract.
 - Websocket upgrades on `/vnc` and `/egress/agent` (`src/ws.ts`) check a signed token from the query string instead.
 

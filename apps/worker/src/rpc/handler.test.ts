@@ -67,7 +67,7 @@ describe("worker internal API transport", () => {
     },
     email: {
       inbound: vi.fn(async (token: string) => {
-        if (token !== "known-token") throw new EmailError("unknown address");
+        if (token !== "known-token") throw new EmailError("Not found.", 404);
         return { botId: ID };
       }),
     },

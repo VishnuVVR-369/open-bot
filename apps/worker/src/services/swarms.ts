@@ -14,6 +14,7 @@ import { addChat } from "./chats";
 import { errorMessage } from "../logger";
 import type { RunSession } from "../runs/session";
 import type { SessionRegistry } from "./registry";
+import { WorkerError } from "../core/errors";
 
 type Swarm = typeof swarms.$inferSelect;
 type Task = typeof swarmTasks.$inferSelect;
@@ -21,7 +22,11 @@ type Task = typeof swarmTasks.$inferSelect;
 /** How much of each helper's result comes back to the teammate. */
 const MAX_RESULT_CHARS = 12_000;
 
-export class SwarmError extends Error {}
+export class SwarmError extends WorkerError {
+  constructor(message: string) {
+    super(400, message);
+  }
+}
 
 const DONE: SwarmTaskState[] = ["completed", "failed", "stopped"];
 

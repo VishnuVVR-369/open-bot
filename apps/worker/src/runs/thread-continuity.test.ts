@@ -1,14 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import type { CodexClient } from "@open-bot/agent";
 import type { Context } from "../context";
-import {
-  RunSession,
-  type SessionServices,
-  type SessionTools,
-  type Bot,
-  type Run,
-  type Chat,
-} from "./session";
+import type { Bot, Chat, Run } from "../core/db-types";
+import { RunSession, type SessionServices, type SessionTools } from "./session";
 import { DEVELOPER_INSTRUCTIONS } from "../instructions";
 import { toolsRevision } from "./tools-revision";
 import { configurationRevision } from "@open-bot/db";
