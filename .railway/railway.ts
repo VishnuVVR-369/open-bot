@@ -30,7 +30,10 @@ export default defineRailway(() => {
     start: "pnpm --filter @open-bot/web start",
     healthcheck: "/api/auth/ok",
     replicas: { sfo: 1 },
-    deploy: { limitOverride: { containers: { cpu: 4, memoryBytes: 4000000000 } } },
+    deploy: {
+      limitOverride: { containers: { cpu: 4, memoryBytes: 4000000000 } },
+      sleepApplication: true,
+    },
   });
   const computer = service("computer", {
     source: openBot,
@@ -57,6 +60,10 @@ export default defineRailway(() => {
     start: "pnpm --filter @open-bot/pages start",
     healthcheck: "/healthz",
     replicas: { sfo: 1 },
+    deploy: {
+      limitOverride: { containers: { cpu: 2, memoryBytes: 2000000000 } },
+      sleepApplication: true,
+    },
   });
   const Postgres = service("Postgres", {
     source: image("pgvector/pgvector:pg17"),
