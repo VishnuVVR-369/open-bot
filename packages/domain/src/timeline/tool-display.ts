@@ -32,9 +32,16 @@ export interface ToolDisplay {
 }
 
 /**
- * Tools shown with more than the default, by name. `model_fallback` is a step the worker adds
- * itself, not a tool. The worker's tool list test checks every other name is a tool.
+ * Names in TOOL_DISPLAY that no teammate can call today: a step the worker adds itself, and
+ * retired tools whose steps are still in older chats.
  */
+export const NOT_CURRENT_TOOLS: readonly string[] = [
+  "model_fallback",
+  "cancel_schedule",
+  "list_schedules",
+];
+
+/** Tools shown with more than the default, by name. */
 export const TOOL_DISPLAY: Readonly<Record<string, ToolDisplay>> = {
   notify_user: { icon: "notification" },
   request_approval: { icon: "tool", asksApproval: true },
@@ -60,6 +67,8 @@ export const TOOL_DISPLAY: Readonly<Record<string, ToolDisplay>> = {
   start_purchase: { icon: "payment", asksApproval: true },
   finish_purchase: { icon: "payment" },
   model_fallback: { icon: "key" },
+  cancel_schedule: { icon: "schedule" },
+  list_schedules: { icon: "schedule" },
 };
 
 /** Account tools are named by namespace: `gmail.search`, `calendar.create_event`. */
@@ -73,6 +82,9 @@ const DEFAULT_DISPLAY: ToolDisplay = { icon: "tool" };
 
 /** How to show a step of the tool `name`. */
 export function toolDisplay(name: string): ToolDisplay {
-  const namespaced = NAMESPACE_ICONS[name.split(".")[0]!];
-  return TOOL_DISPLAY[name] ?? (namespaced ? { icon: namespaced } : DEFAULT_DISPLAY);
+  // Own keys only, so a name like `constructor` gets the default, not Object's.
+  if (Object.hasOwn(TOOL_DISPLAY, name)) return TOOL_DISPLAY[name]!;
+  const namespace = name.split(".")[0]!;
+  if (Object.hasOwn(NAMESPACE_ICONS, namespace)) return { icon: NAMESPACE_ICONS[namespace]! };
+  return DEFAULT_DISPLAY;
 }

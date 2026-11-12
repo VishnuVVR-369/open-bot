@@ -7,6 +7,17 @@ test("a tool step gets its own icon, its account's, or the default", () => {
   expect(toolDisplay("calendar.create_event").icon).toBe("calendar");
   expect(toolDisplay("set_chat_title")).toEqual({ icon: "tool" });
   expect(toolDisplay("unknown.thing")).toEqual({ icon: "tool" });
+  for (const name of [
+    "constructor",
+    "toString",
+    "__proto__",
+    "constructor.x",
+    "hasOwnProperty.y",
+    "",
+  ])
+    expect(toolDisplay(name)).toEqual({ icon: "tool" });
+  // Retired tools keep their icon in older chats.
+  expect(toolDisplay("list_schedules").icon).toBe("schedule");
 });
 
 test("only the tools that exist to ask fold into their approval card", () => {
