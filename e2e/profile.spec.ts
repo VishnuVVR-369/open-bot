@@ -1,7 +1,7 @@
 import { expect, test } from "./fixtures";
 import pg from "pg";
-import { createDb } from "../packages/db/src/index";
-import { MemoryService } from "../packages/memory/src/index";
+import { createDb } from "@open-bot/db";
+import { MemoryService } from "@open-bot/memory";
 import { createTeammate, sendMessage, uniqueName, waitForLastRun } from "./helpers";
 
 /** Remove only facts this test created; never clear or overwrite the owner's existing profile. */

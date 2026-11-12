@@ -1,5 +1,6 @@
-// Proves the import boundaries in eslint.config.mjs fire: @open-bot/domain stays isomorphic, and code
-// that can reach a phone or a browser never loads @open-bot/domain/server. Lints in memory.
+// Proves the import boundaries in eslint.config.mjs fire: @open-bot/domain stays isomorphic, code
+// that can reach a phone or a browser never loads @open-bot/domain/server, and workspace code is
+// imported through package names and `exports` (open-bot/workspace-imports). Lints in memory.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ESLint } from "eslint";
@@ -97,5 +98,77 @@ test("mobile, the API contract and web client code can't import the server entry
 test("web server code may import the server entry", async () => {
   for (const file of ["apps/web/src/lib/server/probe.ts", "apps/web/src/app/api/probe/route.ts"]) {
     assert.deepEqual(await boundaryErrors(file, SERVER), [], file);
+  }
+});
+
+/** The open-bot/workspace-imports messages ESLint reports for `code` at `filePath`. */
+async function workspaceErrors(filePath, code) {
+  const [result] = await eslint.lintText(code, { filePath });
+  return result.messages
+    .filter((m) => m.ruleId === "open-bot/workspace-imports")
+    .map((m) => m.message);
+}
+
+/** The import as a static import, a re-export, a dynamic import and a require. */
+const forms = (source) => [
+  `import * as x from "${source}";\nexport { x };\n`,
+  `export * from "${source}";\n`,
+  `export const x = () => import("${source}");\n`,
+  `export const x = require("${source}");\n`,
+];
+
+test("packages are imported only through their exports", async () => {
+  for (const [file, source, message] of [
+    [
+      "apps/worker/src/probe.ts",
+      "@open-bot/domain/src/teammates",
+      /Import @open-bot\/domain, @open-bot\/domain\/server, or add "\.\/src\/teammates" to "exports" in packages\/domain\/package\.json/,
+    ],
+    [
+      "apps/web/src/lib/server/probe.ts",
+      "@open-bot/integrations",
+      /not an entry point of @open-bot\/integrations\. Import @open-bot\/integrations\/server, @open-bot\/integrations\/adapters/,
+    ],
+    ["e2e/probe.ts", "@open-bot/db/src/index", /not an entry point of @open-bot\/db/],
+    [
+      "apps/worker/src/probe.ts",
+      "../../../packages/db/src/index",
+      /reaches into packages\/db by path\. Import @open-bot\/db/,
+    ],
+    [
+      "e2e/probe.ts",
+      "../packages/memory/src/index",
+      /reaches into packages\/memory by path\. Import @open-bot\/memory/,
+    ],
+    ["packages/memory/src/probe.ts", "../../db/src/schema", /reaches into packages\/db by path/],
+    [
+      "apps/worker/src/probe.ts",
+      "@open-bot/web",
+      /@open-bot\/web is an app \(apps\/web\), and apps export no code/,
+    ],
+  ]) {
+    for (const code of forms(source)) {
+      const errors = await workspaceErrors(file, code);
+      assert.equal(errors.length, 1, `${file}: ${code}`);
+      assert.match(errors[0], message);
+    }
+  }
+});
+
+test("exported entry points, a workspace's own files and other apps' paths pass the lint rule", async () => {
+  for (const [file, source] of [
+    ["apps/worker/src/probe.ts", "@open-bot/domain"],
+    ["apps/worker/src/probe.ts", "@open-bot/domain/server"],
+    ["apps/worker/src/probe.ts", "@open-bot/api/worker"],
+    ["apps/worker/src/probe.ts", "../services/approvals"],
+    ["packages/db/src/probe.ts", "./schema"],
+    ["apps/web/src/probe.ts", "@/lib/utils"],
+    ["apps/worker/src/probe.ts", "zod"],
+    // Another app's source by path is pnpm check:imports' boundary, with a baseline.
+    ["apps/worker/src/probe.ts", "../../web/src/lib/server/api/pages"],
+  ]) {
+    for (const code of forms(source)) {
+      assert.deepEqual(await workspaceErrors(file, code), [], `${file}: ${code}`);
+    }
   }
 });

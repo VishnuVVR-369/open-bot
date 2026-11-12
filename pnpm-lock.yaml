@@ -17,6 +17,12 @@ importers:
       '@open-bot/api':
         specifier: workspace:*
         version: link:packages/api
+      '@open-bot/db':
+        specifier: workspace:*
+        version: link:packages/db
+      '@open-bot/memory':
+        specifier: workspace:*
+        version: link:packages/memory
       '@orpc/client':
         specifier: ^1.16.1
         version: 1.16.1

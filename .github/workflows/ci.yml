@@ -47,6 +47,10 @@ jobs:
       - run: pnpm check:doc-paths
       # No new uses of legacy names (bot, primary, desktop takeover); see the glossary in AGENTS.md.
       - run: pnpm check:vocabulary
+      # No new file over 600 lines of code, and no baselined file growing (scripts/check/file-size.mjs).
+      - run: pnpm check:file-size
+      # No new import cycles, and no app importing another app's source (scripts/check/imports.mjs).
+      - run: pnpm check:imports
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm test:scripts
