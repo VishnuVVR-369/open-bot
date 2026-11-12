@@ -57,6 +57,10 @@ Past decisions are grouped by day.
 Notification approvals can be decided without opening the app; purchases use Review and require the phone's authentication check before approval.
 Reply on a message notification sends directly to its teammate, including in a group chat.
 
+Visible notifications, including automation results and replies, use high-priority FCM data messages so Android can start the background handler that displays them while the app is closed.
+Android's notification channels still control sound and alert prominence; delivery priority does not change those settings.
+Silent dismissal messages use normal priority.
+
 ## Settings
 
 Settings, from your initial on Home, has Light, Dark or System appearance and a switch for haptics.

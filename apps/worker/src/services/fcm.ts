@@ -43,8 +43,9 @@ export interface NativePushData {
 export interface NativePush {
   data: NativePushData;
   /**
-   * `high` only for what always shows a notification right away (approvals, takeover requests)
-   * or starts a foreground service: FCM deprioritizes apps whose urgent messages show nothing.
+   * `high` for messages that show a notification or start a foreground service. Android can
+   * refuse to start the background JavaScript that displays a normal-priority data message.
+   * FCM deprioritizes apps whose urgent messages show nothing.
    */
   priority: "high" | "normal";
   /** Only the latest message with the same key is delivered, like progress updates. */
@@ -87,9 +88,6 @@ export function nativeEgressPush(
 
 const MAX_BODY = 180;
 
-/** Notifications that need you now go out at high priority; the rest can wait a little. */
-const URGENT_KINDS = new Set(["approval", "takeover_request"]);
-
 /** The phone's in-app route for a notification. */
 function nativeUrl(event: NotificationEvent): string {
   if (event.kind === "approval" && event.approvalId) return `/approvals/${event.approvalId}`;
@@ -119,7 +117,9 @@ export function nativeNotification(event: NotificationEvent): NativePush {
     ...(event.takeoverId ? { takeoverId: event.takeoverId } : {}),
     ...(event.pageId ? { pageId: event.pageId } : {}),
   };
-  return { data, priority: URGENT_KINDS.has(event.kind) ? "high" : "normal" };
+  // Every visible notification needs Android to start the app's background display handler,
+  // including automation results and replies. The channel still controls how it alerts you.
+  return { data, priority: "high" };
 }
 
 /** Removes an approval's notification once it's decided anywhere. */

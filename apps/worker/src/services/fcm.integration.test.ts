@@ -156,23 +156,32 @@ describe.skipIf(!url)("FCM fan-out", () => {
     expect(tokenRequests).toBe(before);
   });
 
-  it("sends replies at normal priority, opening the chat at the run", async () => {
-    await fcm.register({ token: "phone-1", platform: "android", device: "Pixel 9" });
-    events.emit("notification", {
-      id: "n3",
-      kind: "run_finished",
-      title: "Rex replied",
-      body: "word ".repeat(100),
-      botId: "b1",
-      chatId: "c1",
-      runId: "r1",
-    } satisfies NotificationEvent);
-    await until(() => sent.length === 1);
-    expect(sent[0]!.android.priority).toBe("NORMAL");
-    expect(sent[0]!.data).toMatchObject({ url: "/chats/c1?run=r1", tag: "r1" });
-    expect(sent[0]!.data.body).toHaveLength(180);
-    expect(sent[0]!.data).not.toHaveProperty("approvalId");
-  });
+  it.each([
+    "run_finished",
+    "run_failed",
+    "bot_message", // Existing notification contract. vocabulary: allow
+    "cap_reached",
+    "egress_unanswered",
+  ] as const)(
+    "sends %s at high priority so Android can display it from the background",
+    async (kind) => {
+      await fcm.register({ token: "phone-1", platform: "android", device: "Pixel 9" });
+      events.emit("notification", {
+        id: "n3",
+        kind,
+        title: "Rex replied",
+        body: "word ".repeat(100),
+        botId: "b1",
+        chatId: "c1",
+        runId: "r1",
+      } satisfies NotificationEvent);
+      await until(() => sent.length === 1);
+      expect(sent[0]!.android.priority).toBe("HIGH");
+      expect(sent[0]!.data).toMatchObject({ url: "/chats/c1?run=r1", tag: "r1" });
+      expect(sent[0]!.data.body).toHaveLength(180);
+      expect(sent[0]!.data).not.toHaveProperty("approvalId");
+    },
+  );
 
   it("removes an approval's notification once it's decided anywhere", async () => {
     await fcm.register({ token: "phone-1", platform: "android", device: "Pixel 9" });
