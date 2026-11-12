@@ -56,14 +56,53 @@ test("the teardown leaves names the old pattern deleted", () => {
     assert.doesNotMatch(name, TEST_TEAMMATE_NAME);
 });
 
+test("a stack URL that leaves its target to defaults is refused", () => {
+  for (const url of ["postgres://", "postgres://u@127.0.0.1:5432", "postgres://u@127.0.0.1/", "x"])
+    assert.throws(() => readStack({ ...named, DATABASE_URL: url }), /DATABASE_URL/);
+  for (const url of ["127.0.0.1:4101", "ws://127.0.0.1:4101", "http://"])
+    assert.throws(() => readStack({ ...named, WORKER_URL: url }), /WORKER_URL/);
+});
+
+const STACK_VARIABLES = "DATABASE_URL|WORKER_URL|BOTD_URL|E2E_BASE_URL";
+
+/** Whether `source` reads a stack variable itself, in any of the usual ways. */
+function readsStackVariable(source) {
+  return [
+    new RegExp(`process\\.env\\s*\\.\\s*(${STACK_VARIABLES})\\b`),
+    new RegExp(`process\\.env\\s*\\[\\s*["'\`](${STACK_VARIABLES})["'\`]\\s*\\]`),
+    new RegExp(`\\{[^}]*\\b(${STACK_VARIABLES})\\b[^}]*\\}\\s*=\\s*process\\.env\\b`),
+  ].some((pattern) => pattern.test(source));
+}
+
+test("the check finds every way of reading a stack variable", () => {
+  for (const source of [
+    "const url = process.env.DATABASE_URL ?? fallback;",
+    'const url = process.env["WORKER_URL"] ?? fallback;',
+    "const url = process.env['BOTD_URL'];",
+    "const { E2E_BASE_URL } = process.env;",
+    "const { A, DATABASE_URL: url = fallback } = process.env;",
+  ])
+    assert.ok(readsStackVariable(source), source);
+  for (const source of ["e2eStack().databaseUrl", "process.env.WORKER_SECRET", "process.env[name]"])
+    assert.ok(!readsStackVariable(source), source);
+});
+
 test("no spec or helper falls back to a default stack", () => {
   const dir = path.join(root, "e2e");
-  const offenders = readdirSync(dir)
+  const files = readdirSync(dir)
     .filter((file) => file.endsWith(".ts") && file !== "stack.ts")
-    .filter((file) =>
-      /process\.env\.(DATABASE_URL|WORKER_URL|BOTD_URL|E2E_BASE_URL)\b/.test(
-        readFileSync(path.join(dir, file), "utf8"),
-      ),
-    );
+    .map((file) => path.join(dir, file));
+  const offenders = [...files, path.join(root, "playwright.config.ts")]
+    .filter((file) => readsStackVariable(readFileSync(file, "utf8")))
+    .map((file) => path.relative(root, file));
   assert.deepEqual(offenders, []);
+});
+
+test("the teardown only deletes rows the run created", () => {
+  const source = readFileSync(path.join(root, "e2e", "global-teardown.ts"), "utf8");
+  const deletes = source.split("\n").filter((line) => line.includes("delete from "));
+  assert.ok(deletes.length > 0);
+  // Each goes through recent() (created since the run started) or deletes run-made teammates.
+  for (const line of deletes)
+    assert.match(line, /recent\([`"]delete from |delete from bots where id in \(\$\{teammates\}\)/);
 });

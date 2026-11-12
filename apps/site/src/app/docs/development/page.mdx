@@ -107,7 +107,7 @@ It removes only its own container.
 
 Playwright drives a real stack and writes to its database and computer directly, so it has to be told which stack.
 `E2E_STACK=dev` means the local development stack, started with `pnpm infra:up` and `pnpm dev`.
-For any other stack, set `E2E_BASE_URL`, `DATABASE_URL`, `WORKER_URL` and `BOTD_URL` instead; a run with any of them missing, or mixed with `E2E_STACK=dev`, stops before the first test (`e2e/stack.ts`).
+For any other stack, set `E2E_BASE_URL`, `DATABASE_URL`, `WORKER_URL` and `BOTD_URL` instead; a run with any of them missing, mixed with `E2E_STACK=dev`, or with a URL that leaves out its host or database, stops before the first test (`e2e/stack.ts`).
 
 ```sh title="Terminal"
 E2E_STACK=dev E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e --grep-invert @agent   # fast
@@ -117,7 +117,9 @@ E2E_STACK=dev E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e --grep @agent 
 - A `setup` project signs in once and saves the session to `e2e/.auth/owner.json`.
 - Tests tagged `@agent` run real turns on the computer, take minutes, and use your ChatGPT plan.
 - Tests run serially (`workers: 1`), because they share one computer and one database.
-- Test teammates are named with `uniqueName()` (`e2e/stack.ts`), which starts every name with `E2e`, and `e2e/global-teardown.ts` deletes only names of that exact shape, so it never deletes one of yours.
+- Test teammates are named with `uniqueName()` (`e2e/stack.ts`), which starts every name with `E2e`.
+  `e2e/global-setup.ts` notes when the run started, by the database's clock, and `e2e/global-teardown.ts` deletes only rows created since then that carry the tests' names, so it never deletes one of yours.
+  What an interrupted run left behind stays until you delete it.
 
 Stand-ins replace outside services, so the default run needs no outside account:
 

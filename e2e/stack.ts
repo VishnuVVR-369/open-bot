@@ -47,9 +47,36 @@ export function readStack(env: Record<string, string | undefined>): E2eStack {
       `The end-to-end tests write to the stack they test, so they need it named: set ${missing.join(", ")}, ` +
         "or E2E_STACK=dev for the local development stack.",
     );
-  return Object.fromEntries(
+  const stack = Object.fromEntries(
     Object.entries(PARTS).map(([key, name]) => [key, env[name]!]),
   ) as unknown as E2eStack;
+  for (const [key, name] of Object.entries(PARTS))
+    checkUrl(name, stack[key as keyof E2eStack], key === "databaseUrl");
+  return stack;
+}
+
+/**
+ * Refuses a URL that leaves part of its target to defaults: the Postgres driver fills in a missing
+ * host or database from PGHOST, PGDATABASE or its own defaults, which is a database nobody named.
+ */
+function checkUrl(name: string, value: string, database: boolean) {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(`${name} isn't a URL: set it to the full address of the stack's part.`);
+  }
+  if (database) {
+    if (
+      !["postgres:", "postgresql:"].includes(url.protocol) ||
+      !url.hostname ||
+      url.pathname.length < 2
+    )
+      throw new Error(
+        `${name} must name the host and the database, like postgres://user@host:5432/db.`,
+      );
+  } else if (!["http:", "https:"].includes(url.protocol) || !url.hostname)
+    throw new Error(`${name} must be an http(s) URL with a host.`);
 }
 
 let stack: E2eStack | undefined;
@@ -61,10 +88,13 @@ export function e2eStack(): E2eStack {
 }
 
 /**
- * Every teammate a spec creates is named with this, so the teardown deletes exactly those and
- * never one of yours that happens to look like a test name.
+ * Every teammate a spec creates is named with this. Teardown deletes the teammates named like
+ * that which were created during the run, so a teammate of yours never qualifies.
  */
 export const TEST_NAME_TAG = "E2e";
+
+/** The environment variable global setup leaves for teardown: when the run started, by the database's clock. */
+export const RUN_STARTED = "E2E_RUN_STARTED";
 
 /**
  * Test teammate names: the tag, a word, 4 random letters or digits, and the " 2" a duplicate
@@ -79,7 +109,7 @@ export function uniqueWord(prefix: string) {
 
 /**
  * A teammate name for a test, such as `E2eTess4kq9`. `prefix` is a capitalized word. Only for
- * teammates: the teardown deletes every teammate named like this.
+ * teammates: the teardown deletes every teammate named like this that the run created.
  */
 export function uniqueName(prefix: string) {
   if (!/^[A-Z][a-z]+$/.test(prefix)) throw new Error(`Use a capitalized word, not "${prefix}".`);
