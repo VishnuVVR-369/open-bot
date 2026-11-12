@@ -802,13 +802,13 @@
     "bot": 1
   },
   "packages/memory/src/index.ts": {
-    "bot": 135
+    "bot": 96
   },
   "packages/memory/src/jobs.ts": {
     "bot": 7
   },
   "packages/memory/src/memory.integration.test.ts": {
-    "bot": 93
+    "bot": 50
   },
   "packages/memory/src/memory.test.ts": {
     "bot": 3

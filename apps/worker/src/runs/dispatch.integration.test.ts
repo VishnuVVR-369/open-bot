@@ -25,7 +25,7 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
   } as unknown as Context;
   const sessions = new SessionRegistry();
   // Dispatching only uses the database and the running sessions.
-  const memory = new MemoryService(pool);
+  const memory = new MemoryService(db);
   const unused = [{}, {}, {}, {}, {}, {}, { store: memory }];
   const executor = new RunExecutor(
     ...([ctx, sessions, ...unused] as unknown as ConstructorParameters<typeof RunExecutor>),

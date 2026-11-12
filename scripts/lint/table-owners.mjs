@@ -220,6 +220,24 @@ function importedTable(context, node) {
 
 const snake = (key) => key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
 
+/** The column `sql.identifier(table.column.name)` names, for a schema table, or null. */
+function identifiedColumn(context, node) {
+  if (node?.type !== "CallExpression" || node.arguments.length !== 1) return null;
+  const { callee } = node;
+  if (
+    callee.type !== "MemberExpression" ||
+    callee.computed ||
+    callee.property.name !== "identifier"
+  )
+    return null;
+  const name = node.arguments[0];
+  if (name.type !== "MemberExpression" || name.computed || name.property.name !== "name")
+    return null;
+  const column = name.object;
+  if (column.type !== "MemberExpression" || column.computed) return null;
+  return importedTable(context, column.object) ? snake(column.property.name) : null;
+}
+
 /** The columns `.update(t).set({ ... })` assigns, or null when they can't be read. */
 function drizzleSetColumns(call) {
   const member = call.parent;
@@ -249,13 +267,15 @@ function visitWrites(context, found) {
       for (const { table, ...write } of sqlWrites(node.value)) found(node, table, write);
     },
     TemplateLiteral(node) {
-      // sql`update ${table} set ...`: an interpolated table reads as its name, anything else as a
-      // parameter.
+      // sql`update ${table} set ${sql.identifier(table.column.name)} = ...`: an interpolated table,
+      // or a column's name, reads as itself, anything else as a parameter.
       const text = node.quasis
         .map((quasi, i) => {
           const expression = node.expressions[i];
-          const table = expression ? importedTable(context, expression) : null;
-          const value = expression ? (table ? `"${table}"` : "$0") : "";
+          const name = expression
+            ? (importedTable(context, expression) ?? identifiedColumn(context, expression))
+            : null;
+          const value = expression ? (name ? `"${name}"` : "$0") : "";
           return (quasi.value.cooked ?? quasi.value.raw) + value;
         })
         .join("");

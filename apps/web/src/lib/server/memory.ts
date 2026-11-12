@@ -1,8 +1,8 @@
 import "server-only";
 import { MemoryService } from "@open-bot/memory";
-import { pool } from "./db";
+import { db } from "./db";
 
-const memory = new MemoryService(pool);
+const memory = new MemoryService(db);
 let imported: Promise<void> | undefined;
 export async function memoryReady(): Promise<MemoryService> {
   imported ??= memory.importLegacy().catch((error) => {

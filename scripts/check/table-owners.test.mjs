@@ -99,11 +99,15 @@ test("the owner, a folder owner's files and listed writers may write", async () 
 test("a module sharing columns may set only those columns", async () => {
   const memory = "packages/memory/src/probe.ts";
   const runs = 'import { runs } from "@open-bot/db";\n';
+  const settings = 'import { settings } from "@open-bot/db";\n';
+  const drizzleSql = 'import { sql } from "drizzle-orm";\n';
   for (const code of [
     'export const q = "update runs set cancel_requested_at = now() where id = $1";\n',
     "export const q = `update runs r set cancel_requested_at = now() -- stop it\n where id = $1`;\n",
     `${runs}export const f = (db: any) => db.update(runs).set({ cancelRequestedAt: new Date() });\n`,
     "export const q = `insert into settings(id, about_me) values(1, $1)\n on conflict(id) do update set about_me = $1, about_me_updated_at = now()`;\n",
+    `${drizzleSql}${runs}export const q = sql\`update \${runs} set \${sql.identifier(runs.cancelRequestedAt.name)} = now()\`;\n`,
+    `${drizzleSql}${settings}export const q = sql\`insert into \${settings} (\${sql.identifier(settings.aboutMe.name)}) values ($1)\n on conflict (\${sql.identifier(settings.id.name)}) do update set \${sql.identifier(settings.aboutMe.name)} = excluded.\${sql.identifier(settings.aboutMe.name)}\`;\n`,
   ]) {
     assert.deepEqual(await ownerErrors(memory, code), [], code);
   }
@@ -119,6 +123,9 @@ test("a module sharing columns may set only those columns", async () => {
     "export const q = `update runs set cancel_requested_at = (select now() where true), status = 'x'`;\n",
     "export const q = `update runs set cancel_requested_at = nullif('--', '--')::timestamptz,\n status = 'x'`;\n",
     "export const q = `insert into settings(id, about_me) values(1, $1)\n on conflict(id) do update set about_me = (select $1 where true), timezone = 'UTC'`;\n",
+    `${drizzleSql}${runs}export const q = sql\`update \${runs} set \${sql.identifier(runs.status.name)} = 'x'\`;\n`,
+    // A name that isn't a schema column's can't be read, so it isn't allowed either.
+    `${drizzleSql}${runs}export const q = sql\`update \${runs} set \${sql.identifier(column)} = now()\`;\n`,
   ]) {
     const errors = await ownerErrors(memory, code);
     assert.equal(errors.length, 1, code);

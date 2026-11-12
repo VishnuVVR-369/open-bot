@@ -1,3 +1,4 @@
+import { DrizzleQueryError } from "drizzle-orm";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import * as schema from "./schema";
@@ -30,26 +31,12 @@ export function createDb(pool: pg.Pool): Db {
 }
 
 /**
- * One transaction on one connection, given to `work` both through Drizzle and as the `pg` client,
- * for a change that also calls code written with `pg` (the memory package). It commits when `work`
- * returns and rolls back when it throws.
+ * The database's own error behind Drizzle's `DrizzleQueryError`, whose message repeats the failed
+ * SQL and every parameter. Use it where a message can reach a person or a log; anything else is
+ * returned as is.
  */
-export async function transactionOnClient<T>(
-  pool: pg.Pool,
-  work: (tx: Db, client: pg.PoolClient) => Promise<T>,
-): Promise<T> {
-  const client = await pool.connect();
-  try {
-    await client.query("begin");
-    const value = await work(drizzle(client, { schema }), client);
-    await client.query("commit");
-    return value;
-  } catch (error) {
-    await client.query("rollback");
-    throw error;
-  } finally {
-    client.release();
-  }
+export function databaseError(error: unknown): unknown {
+  return error instanceof DrizzleQueryError && error.cause instanceof Error ? error.cause : error;
 }
 
 /**

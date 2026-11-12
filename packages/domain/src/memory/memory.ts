@@ -40,6 +40,18 @@ export const memoryRevisionSchema = z.object({
 });
 export type MemoryRevision = z.infer<typeof memoryRevisionSchema>;
 
+/** What a revision keeps besides its content: the memory's settings when it was saved. */
+export interface MemorySnapshot {
+  kind: MemoryKind;
+  key: string | null;
+  pinned: boolean;
+  /** ISO time, as JSON keeps it. */
+  expiresAt: string | null;
+  state: MemoryState;
+}
+
+export type MemoryJobKind = "embed" | "extract";
+
 export const memoryInputSchema = z.object({
   botId: z.string().uuid().nullable().default(null),
   kind: memoryKindSchema.default("fact"),
