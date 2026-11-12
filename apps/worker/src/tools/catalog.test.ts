@@ -112,3 +112,25 @@ test("calls are parsed with the tool's input before the handler runs", async () 
   expect((await call({ reason: "  Sign in  " })).success).toBe(true);
   expect(requested).toHaveBeenCalledWith(session, { reason: "Sign in", itemId: "call-1" });
 });
+
+// The teammate tools that change setup keep their strict domain schemas: a misspelled field is
+// refused, not silently dropped.
+test("a teammate change with a misspelled field is refused", async () => {
+  const requireTeammate = vi.fn();
+  const handlers = new ToolHandlers({
+    ctx: { log: { error: vi.fn() } },
+    teammates: { requireBot: requireTeammate }, // vocabulary: allow
+  } as unknown as ToolServices);
+  const session = { isHelper: false, now: () => "now" } as unknown as RunSession;
+  const response = await handlers.handle(session, {
+    tool: "update_bot", // vocabulary: allow
+    callId: "call-1",
+    arguments: {
+      bot_id: "00000000-0000-4000-8000-000000000001", // vocabulary: allow
+      expected_revision: "r1",
+      changes: { name: "Alex", rol: "Researcher" },
+    },
+  } as never);
+  expect(response.success).toBe(false);
+  expect(requireTeammate).not.toHaveBeenCalled();
+});

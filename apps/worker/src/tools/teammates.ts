@@ -86,6 +86,8 @@ const setConnectionInput = z.object({
   expected_revision: z.string().min(1).max(128),
 });
 
+// The tools that create or change a teammate pass on the arguments as Codex sent them: the domain
+// schemas that check them are strict, so a misspelled field is refused, not dropped.
 const createTeammateInput = z.object({
   ...profileFields,
   template_id: z.string().optional(),
@@ -168,8 +170,8 @@ export const TEAMMATE_TOOLS: AnyTool[] = [
     helpers: "forbidden",
     handle: teammateTool<typeof createTeammateInput>(
       "create_bot",
-      async (botTools, { session, callId, args }) => {
-        const result = await botTools.create(session, callId, args);
+      async (botTools, { session, callId, raw }) => {
+        const result = await botTools.create(session, callId, raw);
         return { result, label: `Created the teammate ${result.name}` };
       },
     ),
@@ -182,8 +184,8 @@ export const TEAMMATE_TOOLS: AnyTool[] = [
     helpers: "forbidden",
     handle: teammateTool<typeof updateTeammateInput>(
       "update_bot",
-      async (botTools, { session, callId, args }) => {
-        const { result, name } = await botTools.update(session, callId, args);
+      async (botTools, { session, callId, raw }) => {
+        const { result, name } = await botTools.update(session, callId, raw);
         return { result, label: `Updated ${name}'s profile` };
       },
     ),
@@ -206,8 +208,8 @@ export const TEAMMATE_TOOLS: AnyTool[] = [
     helpers: "forbidden",
     handle: teammateTool<typeof setConnectionInput>(
       "set_bot_connection",
-      async (botTools, { session, callId, args }) => {
-        const result = await botTools.setConnection(session, callId, args);
+      async (botTools, { session, callId, raw }) => {
+        const result = await botTools.setConnection(session, callId, raw);
         return { result, label: "unchanged" in result ? undefined : "Changed a teammate's access" };
       },
     ),
