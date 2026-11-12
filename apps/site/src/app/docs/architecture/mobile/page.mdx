@@ -10,7 +10,7 @@ This page covers how it is built: where its parts live, how it signs in, how it 
 Building and device testing are in `apps/mobile/README.md`.
 
 The app is a client only.
-It imports the shared contract in `packages/api`, never web code, and it has no database or worker of its own.
+It imports the shared contract in `packages/api` and the chat logic it shares with the web app in `packages/chat-core`, never web code, and it has no database or worker of its own.
 
 ## The parts
 

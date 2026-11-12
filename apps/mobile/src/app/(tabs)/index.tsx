@@ -7,8 +7,9 @@ import type {
   Home,
   PageSummary,
 } from "@open-bot/api";
+import { greeting, plural } from "@open-bot/chat-core";
 import { isRunActive, plainText } from "@open-bot/domain";
-import { router, type Href } from "expo-router";
+import { router } from "expo-router";
 import {
   AlertCircle,
   CalendarClock,
@@ -52,6 +53,7 @@ import { Card, Section } from "@/components/section";
 import { Empty, LoadError, Loading } from "@/components/states";
 import { Text } from "@/components/text";
 import { conversationWith } from "@/lib/chats";
+import { chatHref } from "@/lib/links";
 import { haptics } from "@/lib/haptics";
 import { animateLayout } from "@/lib/motion";
 import { usePresence } from "@/lib/presence";
@@ -72,25 +74,6 @@ import { screenHref } from "@/lib/screens";
 import { ago } from "@/lib/time";
 import { radius, space, useColors } from "@/theme";
 import { mix } from "@/theme/mix";
-
-function greeting(name: string, hour = new Date().getHours()) {
-  const part =
-    hour < 5
-      ? "Good night"
-      : hour < 12
-        ? "Good morning"
-        : hour < 18
-          ? "Good afternoon"
-          : "Good evening";
-  const first = name.trim().split(/\s+/)[0];
-  return first ? `${part}, ${first}` : part;
-}
-
-const plural = (count: number, one: string, many = `${one}s`) =>
-  `${count} ${count === 1 ? one : many}`;
-
-const chatHref = (chatId: string, runId?: string | null): Href =>
-  runId ? `/chats/${chatId}?run=${runId}` : `/chats/${chatId}`;
 
 /** How many recent turns from groups and automations Home shows. */
 const RECENT = 4;
@@ -826,7 +809,7 @@ export default function HomeScreen() {
       <View style={styles.greeting}>
         <View style={{ gap: space(1) }}>
           <Text variant="title" style={{ fontSize: 30, lineHeight: 36 }}>
-            {greeting(data.user.name)}
+            {greeting(data.user.name, new Date().getHours())}
           </Text>
           <Text muted style={{ fontSize: 16, lineHeight: 22 }} testID="home-status">
             {statusLine(data, bots, computerOffline, pending?.length)}

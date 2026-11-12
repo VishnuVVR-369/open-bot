@@ -22,6 +22,7 @@
     "@notifee/react-native": "^9.1.8",
     "@novnc/novnc": "1.7.0",
     "@open-bot/api": "workspace:*",
+    "@open-bot/chat-core": "workspace:*",
     "@open-bot/domain": "workspace:*",
     "@orpc/client": "^1.16.1",
     "@react-native-async-storage/async-storage": "2.2.0",

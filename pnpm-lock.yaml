@@ -162,6 +162,9 @@ importers:
       '@open-bot/api':
         specifier: workspace:*
         version: link:../../packages/api
+      '@open-bot/chat-core':
+        specifier: workspace:*
+        version: link:../../packages/chat-core
       '@open-bot/domain':
         specifier: workspace:*
         version: link:../../packages/domain
@@ -435,6 +438,9 @@ importers:
       '@open-bot/api':
         specifier: workspace:*
         version: link:../../packages/api
+      '@open-bot/chat-core':
+        specifier: workspace:*
+        version: link:../../packages/chat-core
       '@open-bot/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -672,6 +678,15 @@ importers:
       zod:
         specifier: ^4.6.7
         version: 4.6.7
+    devDependencies:
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^5.0.4
+        version: 5.0.4(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15))
+
+  packages/chat-core:
     devDependencies:
       typescript:
         specifier: ~6.0.3

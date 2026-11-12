@@ -24,14 +24,15 @@ This page shows what each one owns, every connection between them, and the reaso
 
 The shared code lives in `packages/*`:
 
-| Package              | Used by               | What it holds                                                                                                    |
-| -------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `@open-bot/db`       | web, worker           | The Drizzle schema, migrations, `CHANNELS` and `notify()`                                                        |
-| `@open-bot/domain`   | everyone              | Types and pure logic: timeline items, approval rules, schedules, page diffing, vault, templates, tokens, secrets |
-| `@open-bot/agent`    | worker                | A typed JSON-RPC client for Codex app-server, with the protocol types generated from Codex                       |
-| `@open-bot/egress`   | worker, botd, desktop | The tunnel's framing, multiplexer, SOCKS server and agent                                                        |
-| `@open-bot/memory`   | web, worker           | The memory service: scopes, revisions, search and background jobs                                                |
-| `@open-bot/page-kit` | pages, worker, botd   | The pages' styles, scripts and libraries in `/lib`, their runtime, and the `/page` skill                         |
+| Package               | Used by               | What it holds                                                                                                    |
+| --------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `@open-bot/db`        | web, worker           | The Drizzle schema, migrations, `CHANNELS` and `notify()`                                                        |
+| `@open-bot/chat-core` | web, Android app      | Chat logic both apps show the same way, as pure functions: formatting                                            |
+| `@open-bot/domain`    | everyone              | Types and pure logic: timeline items, approval rules, schedules, page diffing, vault, templates, tokens, secrets |
+| `@open-bot/agent`     | worker                | A typed JSON-RPC client for Codex app-server, with the protocol types generated from Codex                       |
+| `@open-bot/egress`    | worker, botd, desktop | The tunnel's framing, multiplexer, SOCKS server and agent                                                        |
+| `@open-bot/memory`    | web, worker           | The memory service: scopes, revisions, search and background jobs                                                |
+| `@open-bot/page-kit`  | pages, worker, botd   | The pages' styles, scripts and libraries in `/lib`, their runtime, and the `/page` skill                         |
 
 ## Every connection
 

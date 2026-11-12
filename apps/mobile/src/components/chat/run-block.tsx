@@ -1,4 +1,5 @@
 import type { BotSummary, RunView } from "@open-bot/api";
+import { diffStats, elapsed } from "@open-bot/chat-core";
 import {
   isNothingToReport,
   isRunActive,
@@ -39,12 +40,10 @@ import { Button } from "@/components/button";
 import { FoldableText } from "@/components/chat/foldable-text";
 import { Markdown } from "@/components/markdown";
 import { Text } from "@/components/text";
-import { diffStats } from "@/lib/format";
 import { haptics } from "@/lib/haptics";
 import { animateLayout } from "@/lib/motion";
 import { phoneClock } from "@/lib/phone-clock";
 import { screenHref } from "@/lib/screens";
-import { elapsed } from "@/lib/time";
 import { radius, space, useColors } from "@/theme";
 import { mix } from "@/theme/mix";
 import { FileChip } from "@/components/file-chip";

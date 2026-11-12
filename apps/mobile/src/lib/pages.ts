@@ -77,10 +77,3 @@ export function sortPages(pages: PageSummary[]): PageSummary[] {
     (a, b) => Number(b.pinned) - Number(a.pinned) || b.updatedAt.localeCompare(a.updatedAt),
   );
 }
-
-/** "2.1 MB", for a version's size. */
-export function pageSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}

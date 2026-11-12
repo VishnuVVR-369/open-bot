@@ -16,6 +16,7 @@ const nextConfig: NextConfig = {
   distDir: process.env.OPENBOT_NEXT_DIST_DIR ?? ".next",
   transpilePackages: [
     "@open-bot/api",
+    "@open-bot/chat-core",
     "@open-bot/db",
     "@open-bot/domain",
     "@open-bot/integrations",

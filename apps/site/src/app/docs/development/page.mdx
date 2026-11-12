@@ -21,9 +21,10 @@ open-bot/
 │   └── site/         This site: the landing page, the tour and these docs
 ├── packages/
 │   ├── db/           Drizzle schema, migrations, NOTIFY channels, the test database helper
-│   ├── shared/       Types and pure logic shared by every app
+│   ├── domain/       Types, zod schemas and pure logic shared by every app
 │   ├── api/          Shared web/phone RPC contract and serializable views
-│   ├── accounts/     OAuth flows and the token store for Google and Notion
+│   ├── chat-core/    Chat logic the web app and the phone app share, platform-free
+│   ├── integrations/ Google and Notion sign-in, the token store and their adapters
 │   ├── agent/        Codex app-server client and generated protocol types
 │   ├── egress/       Tunnel framing, multiplexer, SOCKS server, agent
 │   ├── page-kit/     The pages' styles, scripts, libraries, runtime and /page skill

@@ -11,6 +11,7 @@ export const SERVICE_FOLDERS: Record<DeployedService, readonly string[]> = {
     "apps/web",
     "packages/agent",
     "packages/api",
+    "packages/chat-core",
     "packages/db",
     "packages/domain",
     "packages/integrations",

@@ -1,6 +1,7 @@
 "use client";
 
 import type { ScreenFrame as LastFrame } from "@open-bot/api";
+import { fileSize } from "@open-bot/chat-core";
 import { relativeTime } from "@open-bot/domain";
 import { useQuery } from "@tanstack/react-query";
 import { CloudOff, Globe, Hand, Home } from "lucide-react";
@@ -19,12 +20,6 @@ import {
   type ScreenInfo,
 } from "./computer-panel";
 import type { DesktopHandle } from "./desktop-view";
-
-function formatBytes(bytes: number) {
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
-}
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
@@ -343,7 +338,7 @@ export function ComputerPage({ initialScreen }: { initialScreen: string | null }
                 </span>
                 <span className="text-[12.5px] leading-snug text-pretty text-muted-foreground">
                   {home && egress?.stats
-                    ? `Sites see your home connection. ${egress.stats.openStreams} open connections, ${formatBytes(egress.stats.bytesIn + egress.stats.bytesOut)} passed through.`
+                    ? `Sites see your home connection. ${egress.stats.openStreams} open connections, ${fileSize(egress.stats.bytesIn + egress.stats.bytesOut)} passed through.`
                     : home
                       ? "Sites see your home connection, by way of your desktop app."
                       : egress?.mode === "off"
