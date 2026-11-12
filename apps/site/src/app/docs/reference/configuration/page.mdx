@@ -98,6 +98,7 @@ If the app's URL changes, add the new URI to your Google client; the app registe
 ## Pages service
 
 See [The pages service](/docs/architecture/pages).
+Parsed in `apps/pages/src/env.ts`; the service refuses to start when a value is invalid.
 
 | Variable                | Default                                                        | Purpose                                                                 |
 | ----------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------- |
@@ -115,6 +116,7 @@ In production, the pages service refuses to start without it.
 The computer does not read the repository's `.env`.
 Locally, `docker-compose.yml` passes it only `BOTD_TOKEN` and `APPLY_GUARD_EXTRA_DOMAINS` (taken from your shell or `.env` when set), so set any other variable below in a Compose override.
 On Railway, set them on the `computer` service.
+botd parses them in `apps/botd/src/env.ts` and refuses to start when one is invalid.
 
 | Variable                     | Default                            | Purpose                                                                                                   |
 | ---------------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------- |

@@ -9,7 +9,7 @@
     "bot": 7
   },
   "apps/botd/src/index.ts": {
-    "bot": 28
+    "bot": 27
   },
   "apps/botd/src/lease.test.ts": {
     "bot": 6

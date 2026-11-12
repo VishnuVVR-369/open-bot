@@ -1,0 +1,74 @@
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { parseEnv, unsetIfEmpty } from "@open-bot/domain/server";
+import { z } from "zod";
+
+const schema = z.object({
+  NODE_ENV: z.string().optional(),
+  DATABASE_URL: z.string().default("postgres://openbot:openbot@127.0.0.1:54329/openbot"),
+  PORT: unsetIfEmpty(z.coerce.number().int().min(1).max(65535)),
+  /** Shared with the web app. The development default works only outside production. */
+  PAGES_SECRET: z.string().optional(),
+  /** This service's own address. Defaults to Railway's public domain, or the local one. */
+  PAGES_URL: unsetIfEmpty(z.string().url()),
+  RAILWAY_PUBLIC_DOMAIN: unsetIfEmpty(z.string()),
+  /** The app's origins, comma-separated: the only ones that may frame a page. */
+  APP_URL: z.string().default("http://localhost:3000"),
+  /** Where `/lib` is served from. Defaults to next to the built server, or the page kit's build. */
+  PAGE_LIB_DIR: unsetIfEmpty(z.string()),
+});
+
+export interface PagesEnv {
+  databaseUrl: string;
+  port: number;
+  secret: string;
+  /** This service's own origin, which page links and `/lib` addresses use. */
+  origin: string;
+  /** The app's origins, the only ones that may show a page in a frame. */
+  appOrigins: string[];
+  libDir: string;
+}
+
+/**
+ * The pages service's settings, the only place it reads the environment. Throws a readable
+ * message when one is missing or invalid.
+ */
+export function readEnv(source: NodeJS.ProcessEnv = process.env): PagesEnv {
+  const env = parseEnv(schema, source);
+  const port = env.PORT ?? 3400;
+
+  const secret =
+    env.PAGES_SECRET ??
+    (env.NODE_ENV === "production" ? "" : "dev-pages-secret-change-me-0123456789");
+  if (secret.length < 32)
+    throw new Error(
+      "PAGES_SECRET must be set to at least 32 characters (the same value as the web app's)",
+    );
+
+  const libDir =
+    env.PAGE_LIB_DIR ??
+    [
+      new URL("./lib", import.meta.url),
+      new URL("../../../packages/page-kit/dist/lib", import.meta.url),
+    ]
+      .map((url) => fileURLToPath(url))
+      .find((path) => existsSync(path));
+  if (!libDir)
+    throw new Error("The page kit isn't built: run pnpm --filter @open-bot/page-kit build");
+
+  return {
+    databaseUrl: env.DATABASE_URL,
+    port,
+    secret,
+    origin:
+      env.PAGES_URL?.replace(/\/+$/, "") ??
+      (env.RAILWAY_PUBLIC_DOMAIN
+        ? `https://${env.RAILWAY_PUBLIC_DOMAIN}`
+        : `http://127.0.0.1:${port}`),
+    appOrigins: env.APP_URL.split(",")
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .map((value) => new URL(value).origin),
+    libDir,
+  };
+}

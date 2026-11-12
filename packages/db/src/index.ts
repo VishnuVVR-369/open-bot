@@ -21,7 +21,8 @@ export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 /** Something that runs queries: the database, or a transaction in it. */
 export type Queryable = Db | Tx;
 
-export function createPool(url = process.env.DATABASE_URL): pg.Pool {
+/** A pool for `url`, which each app reads from its own env module. */
+export function createPool(url: string): pg.Pool {
   if (!url) throw new Error("DATABASE_URL is not set");
   return new pg.Pool({ connectionString: url, max: 10 });
 }

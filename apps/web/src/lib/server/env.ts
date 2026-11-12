@@ -3,6 +3,13 @@ import { assertNoDevSecrets, DEV_SECRETS } from "@open-bot/domain/server";
 
 export const serverEnv = {
   ownerEmail: (process.env.OWNER_EMAIL ?? "").trim().toLowerCase(),
+  /** Where the app is served. Passkeys are bound to its hostname. */
+  baseUrl: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
+  /**
+   * SHA-256 fingerprints of the certificates the Android app is signed with, comma-separated, as
+   * `keytool -list` prints them. Only the release key belongs there in production.
+   */
+  androidCertSha256: process.env.ANDROID_CERT_SHA256,
   databaseUrl: process.env.DATABASE_URL ?? "postgres://openbot:openbot@127.0.0.1:54329/openbot",
   workerUrl: process.env.WORKER_URL ?? "http://127.0.0.1:4001",
   workerSecret: process.env.WORKER_SECRET ?? DEV_SECRETS.WORKER_SECRET,

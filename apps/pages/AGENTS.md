@@ -5,7 +5,8 @@ It does not render the app UI, publish pages or know who the owner is: publishin
 
 ## Entry points
 
-- `apps/pages/src/index.ts`: process entry that reads env (`PAGES_SECRET`, `PAGES_URL`, `APP_URL`, `PAGE_LIB_DIR`), opens the database and listens on `PORT` (3400).
+- `apps/pages/src/index.ts`: process entry that opens the database and listens on `PORT` (3400).
+- `apps/pages/src/env.ts`: `readEnv()`, the only place the service reads the environment (`DATABASE_URL`, `PAGES_SECRET`, `PAGES_URL`, `APP_URL`, `PAGE_LIB_DIR`, `PORT`).
 - `apps/pages/src/server.ts`: `createPagesHandler()` with `/healthz`, `/lib/*` and `/v/<uuid>?k=...`.
 - `apps/pages/build.mjs`: esbuild bundle to `apps/pages/dist/pages.mjs`, then copies the page-kit libraries to `apps/pages/dist/lib`.
 
