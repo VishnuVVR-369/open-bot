@@ -33,14 +33,6 @@ const READ_ELSEWHERE = {
   OPENBOT_NEXT_DIST_DIR: "read by apps/web/next.config.ts, a development option",
 };
 
-const isProcessEnv = (node) =>
-  node?.type === "MemberExpression" &&
-  !node.computed &&
-  node.object.type === "Identifier" &&
-  node.object.name === "process" &&
-  node.property.type === "Identifier" &&
-  node.property.name === "env";
-
 /** A property's name when it is written literally: `NAME`, `"NAME"` or `` `NAME` ``. */
 function literalName(node, computed) {
   if (!computed && node.type === "Identifier") return node.name;
@@ -49,6 +41,28 @@ function literalName(node, computed) {
     return node.quasis[0].value.cooked;
   return null;
 }
+
+/** `process.env` or `process["env"]`. */
+const isProcessEnv = (node) =>
+  node?.type === "MemberExpression" &&
+  node.object.type === "Identifier" &&
+  node.object.name === "process" &&
+  literalName(node.property, node.computed) === "env";
+
+/** Calls `fn(node, parent)` for every node of a syntax tree. */
+function walk(node, fn, parent = null) {
+  fn(node, parent);
+  for (const [key, value] of Object.entries(node)) {
+    if (key === "parent" || key === "loc" || key === "range") continue;
+    for (const child of Array.isArray(value) ? value : [value])
+      if (child && typeof child.type === "string") walk(child, fn, node);
+  }
+}
+
+/** An identifier that refers to a variable, not a property name or an object key. */
+const isReference = (node, parent) =>
+  !(parent?.type === "MemberExpression" && parent.property === node && !parent.computed) &&
+  !(parent?.type === "Property" && parent.key === node && !parent.computed);
 
 /** Calls that may take the whole environment: an env schema parses it, by its keys. */
 const PARSERS = new Set(["parse", "safeParse", "parseEnv"]);
@@ -62,8 +76,10 @@ const calleeName = (callee) =>
 /**
  * The variables an env module's source reads, from its syntax tree: `process.env.NAME` (also
  * optional and bracketed with a literal), `const { NAME } = process.env`, and the upper-case keys
- * of an object, such as a zod env schema, which parses `process.env` whole. Throws on any other use
- * of `process.env`, such as `process.env[name]` or an alias, so no variable slips past the checks.
+ * of an object, such as a zod env schema, which parses `process.env` whole (directly, or through a
+ * parameter that defaults to it and only goes to the parser). Throws on any other use of
+ * `process.env` or `process`, such as `process.env[name]` or an alias, so no variable slips past
+ * the checks.
  */
 function variablesIn(source) {
   const { ast } = tseslint.parser.parseForESLint(source, { sourceType: "module", loc: true });
@@ -75,7 +91,13 @@ function variablesIn(source) {
       `Read each variable by its literal name (line ${line}): ${lines[line - 1].trim()}`,
     );
   };
-  const visit = (node, parent) => {
+  /** Parameters that default to `process.env`; each may only be handed to the parser. */
+  const sources = new Set();
+  const parsed = (node, parent) =>
+    parent?.type === "CallExpression" &&
+    parent.arguments.includes(node) &&
+    PARSERS.has(calleeName(parent.callee));
+  walk(ast, (node, parent) => {
     if (isProcessEnv(node)) {
       if (parent.type === "MemberExpression" && parent.object === node) {
         const name = literalName(parent.property, parent.computed);
@@ -92,24 +114,28 @@ function variablesIn(source) {
           if (name === null) refuse(property);
           names.add(name);
         }
-      } else if (parent.type === "CallExpression" && PARSERS.has(calleeName(parent.callee))) {
+      } else if (parsed(node, parent)) {
         // The schema's keys name what it reads.
-      } else if (parent.type === "AssignmentPattern" && parent.right === node) {
-        // `source = process.env`, a default the module parses with its schema.
+      } else if (
+        parent.type === "AssignmentPattern" &&
+        parent.right === node &&
+        parent.left.type === "Identifier"
+      ) {
+        sources.add(parent.left.name);
       } else refuse(node);
-      return;
-    }
-    if (node.type === "Property") {
+    } else if (node.type === "Identifier" && node.name === "process" && isReference(node, parent)) {
+      // Only `process.<something>`: `const { env } = process` or an alias would hide the reads.
+      if (!(parent.type === "MemberExpression" && parent.object === node)) refuse(node);
+    } else if (node.type === "Property") {
       const name = literalName(node.key, node.computed);
       if (name && /^[A-Z][A-Z0-9_]*$/.test(name)) names.add(name);
     }
-    for (const [key, value] of Object.entries(node)) {
-      if (key === "parent" || key === "loc" || key === "range") continue;
-      for (const child of Array.isArray(value) ? value : [value])
-        if (child && typeof child.type === "string") visit(child, node);
-    }
-  };
-  visit(ast, null);
+  });
+  walk(ast, (node, parent) => {
+    if (node.type !== "Identifier" || !sources.has(node.name) || !isReference(node, parent)) return;
+    const declaration = parent.type === "AssignmentPattern" && parent.left === node;
+    if (!declaration && !parsed(node, parent)) refuse(node);
+  });
   return names;
 }
 
@@ -123,6 +149,8 @@ test("the scanner names every way an env module can read a variable", () => {
     "const a = process.env.DOT_READ;",
     'const b = process.env["BRACKET_READ"];',
     "const c = process.env?.OPTIONAL_READ;",
+    'const e = process["env"].BRACKET_ENV_READ;',
+    "process.exit(1);",
     "const d = process.env?.[`OPTIONAL_BRACKET`];",
     "const { DESTRUCTURED, RENAMED: renamed, DEFAULTED = 1 } = process.env;",
     "const schema = z.object({",
@@ -133,6 +161,7 @@ test("the scanner names every way an env module can read a variable", () => {
     "export function readEnv(source = process.env) { return parseEnv(schema, source); }",
   ].join("\n");
   assert.deepEqual([...variablesIn(source)].sort(), [
+    "BRACKET_ENV_READ",
     "BRACKET_READ",
     "DEFAULTED",
     "DESTRUCTURED",
@@ -150,6 +179,10 @@ test("the scanner names every way an env module can read a variable", () => {
     "const env = process.env;",
     "const { ...rest } = process.env;",
     "use(process.env);",
+    'const v = process["env"][name];',
+    "const { env } = process;",
+    "const p = process;",
+    "function readEnv(source = process.env) { return Number(source.FALLBACK_PORT ?? parseEnv(schema, source)); }",
   ])
     assert.throws(() => variablesIn(unnamed), /literal name/, unnamed);
 });
