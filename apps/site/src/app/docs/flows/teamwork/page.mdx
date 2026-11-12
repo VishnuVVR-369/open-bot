@@ -170,7 +170,7 @@ The developer instructions tell every teammate how to do it well:
 Fields you give override the template's, and a skill of its own replaces a template skill with the same name.
 A new teammate asks before risky actions unless you asked for more, whatever its template says.
 
-`BotService` (`apps/worker/src/services/bots.ts`) does the work, for the web app's New teammate form and for teammates alike:
+`BotService` (`apps/worker/src/features/teammates/service.ts`) does the work, for the web app's New teammate form and for teammates alike:
 
 1. resolves the request into a plan, with the least used color when none is given;
 2. checks every schedule's timing, so you are never asked to approve one that can't be saved;

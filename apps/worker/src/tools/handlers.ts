@@ -6,7 +6,7 @@ import { z } from "zod";
 import { errorMessage } from "../logger";
 import type { RunSession, SessionTools } from "../runs/session";
 import { WorkerError } from "../core/errors";
-import { BotTools } from "./bots";
+import { BotTools } from "../features/teammates";
 import { toolNamed, toolsFor } from "./definitions";
 import { parseArgs, text, type ToolDeps, type ToolResponse, type ToolServices } from "./define";
 

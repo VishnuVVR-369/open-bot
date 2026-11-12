@@ -12,7 +12,7 @@ import { MEMORY_TOOLS } from "./memory";
 import { PAGE_TOOLS } from "./pages";
 import { SKILL_TOOLS } from "./skills";
 import { SWARM_TOOLS } from "./swarms";
-import { TEAMMATE_TOOLS } from "./teammates";
+import { TEAMMATE_TOOLS } from "../features/teammates";
 import { TEAMWORK_TOOLS } from "./teamwork";
 import { VAULT_TOOLS } from "./vault";
 

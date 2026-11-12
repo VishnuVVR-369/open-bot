@@ -559,10 +559,26 @@
     "bot": 39
   },
   "apps/worker/src/features/tasks/tools.ts": {
-    "bot": 15
+    "bot": 14
+  },
+  "apps/worker/src/features/teammates/changes.ts": {
+    "bot": 83
+  },
+  "apps/worker/src/features/teammates/index.ts": {
+    "bot": 3
+  },
+  "apps/worker/src/features/teammates/routes.ts": {
+    "bot": 4
+  },
+  "apps/worker/src/features/teammates/service.ts": {
+    "bot": 174,
+    "primary teammate": 5
+  },
+  "apps/worker/src/features/teammates/tools.ts": {
+    "bot": 69
   },
   "apps/worker/src/index.ts": {
-    "bot": 8
+    "bot": 7
   },
   "apps/worker/src/instructions.test.ts": {
     "bot": 4
@@ -571,13 +587,13 @@
     "bot": 26
   },
   "apps/worker/src/rpc/handler.test.ts": {
-    "bot": 5
+    "bot": 4
   },
   "apps/worker/src/rpc/router.integration.test.ts": {
-    "bot": 18
+    "bot": 17
   },
   "apps/worker/src/rpc/router.ts": {
-    "bot": 3
+    "bot": 2
   },
   "apps/worker/src/runs/answer-back.ts": {
     "bot": 9
@@ -613,10 +629,6 @@
   "apps/worker/src/services/approvals.ts": {
     "bot": 31
   },
-  "apps/worker/src/services/bots.ts": {
-    "bot": 174,
-    "primary teammate": 5
-  },
   "apps/worker/src/services/chats.ts": {
     "bot": 2
   },
@@ -624,7 +636,7 @@
     "bot": 15
   },
   "apps/worker/src/services/email.ts": {
-    "bot": 42
+    "bot": 41
   },
   "apps/worker/src/services/fcm.integration.test.ts": {
     "bot": 3
@@ -691,11 +703,8 @@
     "bot": 60
   },
   "apps/worker/src/tools/bots.integration.test.ts": {
-    "bot": 131,
+    "bot": 129,
     "primary teammate": 1
-  },
-  "apps/worker/src/tools/bots.ts": {
-    "bot": 84
   },
   "apps/worker/src/tools/catalog.test.ts": {
     "bot": 4
@@ -704,7 +713,7 @@
     "bot": 5
   },
   "apps/worker/src/tools/define.ts": {
-    "bot": 7
+    "bot": 5
   },
   "apps/worker/src/tools/definitions.ts": {
     "bot": 1
@@ -716,7 +725,7 @@
     "bot": 1
   },
   "apps/worker/src/tools/handlers.ts": {
-    "bot": 5
+    "bot": 4
   },
   "apps/worker/src/tools/memory.ts": {
     "bot": 16
@@ -727,11 +736,8 @@
   "apps/worker/src/tools/skills.ts": {
     "bot": 21
   },
-  "apps/worker/src/tools/teammates.ts": {
-    "bot": 67
-  },
   "apps/worker/src/tools/teamwork.ts": {
-    "bot": 30
+    "bot": 29
   },
   "apps/worker/src/tools/vault.ts": {
     "bot": 1

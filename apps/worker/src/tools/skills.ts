@@ -2,7 +2,7 @@
 import { z } from "zod";
 import type { RunSession } from "../runs/session";
 import { SkillError } from "../services/skills";
-import { optionalTarget } from "./teammates";
+import { optionalTarget } from "../features/teammates";
 import {
   defineTool,
   text,

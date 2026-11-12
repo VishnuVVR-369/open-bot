@@ -63,7 +63,7 @@ A tab still running code from before sends itself to sign in on a 401, which tak
 Every write goes through the API, by the browser and the Android app alike; the web app has no server actions.
 The web app's procedures (`apps/web/src/lib/server/api/`) pass almost every write to the worker, whose services own those tables (`packages/db/src/owners.ts`):
 
-- teammates: creating, duplicating, importing and archiving one, choosing the lead, budgets and suggested instructions (`apps/worker/src/services/bots.ts`);
+- teammates: creating, duplicating, importing and archiving one, choosing the lead, budgets and suggested instructions (`apps/worker/src/features/teammates/`);
 - chats and the messages you send (`apps/worker/src/services/chats.ts`), and stopping, rating and giving feedback on a run (`apps/worker/src/runs/requests.ts`);
 - your settings, the API key and your email setup (`apps/worker/src/services/settings.ts`, `apps/worker/src/services/credentials.ts` and `apps/worker/src/services/email.ts`);
 - connections, both MCP servers and accounts (`apps/worker/src/services/connections.ts`), and pairing and unpairing phones (`apps/worker/src/egress/devices.ts`);

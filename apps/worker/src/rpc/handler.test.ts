@@ -7,7 +7,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import type { Context } from "../context";
 import { createHttpServer, type HttpDeps } from "../http";
 import { MAX_BODY_BYTES } from "./handler";
-import { BotError } from "../services/bots";
+import { BotError } from "../features/teammates";
 import { EmailError } from "../services/email";
 import { ScreenBusy } from "../services/screen-lock";
 import { TriggerError } from "../services/triggers";

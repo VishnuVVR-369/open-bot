@@ -39,7 +39,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Context } from "../context";
 import { createHttpServer, type HttpDeps } from "../http";
 import { ApprovalService } from "../services/approvals";
-import { BotService } from "../services/bots";
+import { BotService } from "../features/teammates";
 import { ChatService, mainChat, REUSED_ID } from "../services/chats";
 import { RunRequests } from "../runs/requests";
 import { CodexAccountService } from "../services/codex-account";
