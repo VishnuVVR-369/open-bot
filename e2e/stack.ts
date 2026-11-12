@@ -87,20 +87,31 @@ export function e2eStack(): E2eStack {
   return stack;
 }
 
-/**
- * Every teammate a spec creates is named with this. Teardown deletes the teammates named like
- * that which were created during the run, so a teammate of yours never qualifies.
- */
-export const TEST_NAME_TAG = "E2e";
+/** The environment variable that holds this run's tag, which global setup makes. */
+export const RUN_TAG = "E2E_RUN_TAG";
 
-/** The environment variable global setup leaves for teardown: when the run started, by the database's clock. */
-export const RUN_STARTED = "E2E_RUN_STARTED";
+/** A new run tag: 4 random lowercase letters or digits. */
+export function newRunTag() {
+  return Math.random().toString(36).slice(2, 6).padEnd(4, "0");
+}
 
 /**
- * Test teammate names: the tag, a word, 4 random letters or digits, and the " 2" a duplicate
- * gets. Kept in step with `uniqueName()`.
+ * This run's tag. Everything a spec creates carries it, and teardown deletes only what does, so
+ * nothing of yours, and nothing another run made at the same time, can match.
  */
-export const TEST_TEAMMATE_NAME = new RegExp(`^${TEST_NAME_TAG}[A-Z][a-z]+[a-z0-9]{4}( \\d+)?$`);
+export function runTag(env: Record<string, string | undefined> = process.env): string {
+  const tag = env[RUN_TAG];
+  if (!tag || !/^[a-z0-9]{4}$/.test(tag))
+    throw new Error(
+      `${RUN_TAG} isn't set: the end-to-end tests run through Playwright's global setup.`,
+    );
+  return tag;
+}
+
+/** The names `uniqueName()` gives teammates in the run tagged `tag`, and the " 2" a duplicate gets. */
+export function testTeammateName(tag: string) {
+  return new RegExp(`^E2e${tag}[A-Z][a-z]+[a-z0-9]{4}( \\d+)?$`);
+}
 
 /** `prefix` and 4 random letters or digits, such as `allergy4kq9`, for text a test looks for. */
 export function uniqueWord(prefix: string) {
@@ -108,10 +119,31 @@ export function uniqueWord(prefix: string) {
 }
 
 /**
- * A teammate name for a test, such as `E2eTess4kq9`. `prefix` is a capitalized word. Only for
- * teammates: the teardown deletes every teammate named like this that the run created.
+ * A teammate name for a test, such as `E2ek7q2Tess4kq9`: `E2e`, the run's tag, `prefix` (a
+ * capitalized word) and 4 random letters or digits. Only for teammates: the teardown deletes every
+ * teammate this run named like this.
  */
 export function uniqueName(prefix: string) {
   if (!/^[A-Z][a-z]+$/.test(prefix)) throw new Error(`Use a capitalized word, not "${prefix}".`);
-  return `${TEST_NAME_TAG}${uniqueWord(prefix)}`;
+  return `E2e${runTag()}${uniqueWord(prefix)}`;
 }
+
+/**
+ * A title or label for something a test creates, such as `E2E GitHub k7q2`, which the teardown
+ * deletes (`TEST_LABEL`). `words` is what the test calls it.
+ */
+export function testLabel(words: string) {
+  return `E2E ${words} ${runTag()}`;
+}
+
+/**
+ * A lowercase name for a skill or a file a test creates, such as `e2e-k7q2-x9f3a`, which the
+ * teardown deletes (`TEST_SLUG`). `words` is what the test calls it.
+ */
+export function testSlug(words: string) {
+  return `e2e-${runTag()}-${words}`;
+}
+
+/** SQL `like` patterns for `testLabel()` and `testSlug()` in the run tagged `tag`. */
+export const TEST_LABEL = (tag: string) => `E2E % ${tag}`;
+export const TEST_SLUG = (tag: string) => `e2e-${tag}-%`;

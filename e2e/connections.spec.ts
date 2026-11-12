@@ -4,7 +4,10 @@ import {
   e2eStack,
   apiFor,
   createTeammate,
+  runTag,
   sendMessage,
+  TEST_LABEL,
+  testLabel,
   uniqueName,
   waitForLastRun,
 } from "./helpers";
@@ -15,7 +18,9 @@ const pool = new pg.Pool({
 });
 
 // A test's connections would reach every teammate in the tests after it.
-test.afterEach(() => pool.query("delete from connections where label like 'E2E %'"));
+test.afterEach(() =>
+  pool.query("delete from connections where label like $1", [TEST_LABEL(runTag())]),
+);
 test.afterAll(() => pool.end());
 
 async function connect(page: Page, input: { label: string; url: string; headers?: string }) {
@@ -34,7 +39,7 @@ async function connect(page: Page, input: { label: string; url: string; headers?
 test("connect a service through MCP and see its tools", async ({ page }) => {
   test.setTimeout(3 * 60_000);
   const service = await ordersService();
-  const label = `E2E Orders ${Math.random().toString(36).slice(2, 6)}`;
+  const label = testLabel(`Orders ${Math.random().toString(36).slice(2, 6)}`);
   try {
     const row = await connect(page, {
       label,
@@ -79,7 +84,7 @@ test("connect a service through MCP and see its tools", async ({ page }) => {
 
 test("a service that can't be reached says so", async ({ page }) => {
   test.setTimeout(3 * 60_000);
-  const label = `E2E Nowhere ${Math.random().toString(36).slice(2, 6)}`;
+  const label = testLabel(`Nowhere ${Math.random().toString(36).slice(2, 6)}`);
   const row = await connect(page, { label, url: "http://host.docker.internal:9/mcp" });
   await expect(row.getByTestId("connection-test")).toContainText("Couldn't reach", {
     timeout: 90_000,
@@ -89,7 +94,7 @@ test("a service that can't be reached says so", async ({ page }) => {
 test("@agent a teammate uses a connected service's tools", async ({ page }) => {
   test.setTimeout(6 * 60_000);
   const service = await ordersService();
-  const label = `E2E Orders ${Math.random().toString(36).slice(2, 6)}`;
+  const label = testLabel(`Orders ${Math.random().toString(36).slice(2, 6)}`);
   try {
     const row = await connect(page, { label, url: service.url });
     await expect(row.getByTestId("connection-test")).toContainText("Connected", {

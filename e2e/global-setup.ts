@@ -1,16 +1,9 @@
-import pg from "pg";
-import { e2eStack, RUN_STARTED } from "./stack";
+import { newRunTag, RUN_TAG } from "./stack";
 
 /**
- * Notes when the run started, by the database's clock. Teardown only removes what was created
- * since, so nothing that was there before the run can match its name patterns.
+ * Tags the run. Everything the specs create carries the tag, and teardown only removes what does,
+ * so nothing that was there before, and nothing another run is making at the same time, can match.
  */
-export default async function globalSetup() {
-  const pool = new pg.Pool({ connectionString: e2eStack().databaseUrl });
-  try {
-    const { rows } = await pool.query<{ now: Date }>("select now()");
-    process.env[RUN_STARTED] = rows[0]!.now.toISOString();
-  } finally {
-    await pool.end();
-  }
+export default function globalSetup() {
+  process.env[RUN_TAG] = newRunTag();
 }

@@ -1,17 +1,25 @@
 import { expect, test } from "./fixtures";
 import pg from "pg";
-import { e2eStack, createTeammate, sendMessage, uniqueName, waitForLastRun } from "./helpers";
+import {
+  e2eStack,
+  createTeammate,
+  savePlanSettings,
+  sendMessage,
+  uniqueName,
+  waitForLastRun,
+} from "./helpers";
 
 const pool = new pg.Pool({
   connectionString: e2eStack().databaseUrl,
 });
 
 test.describe("when the plan runs out", () => {
+  let restore: (() => Promise<void>) | undefined;
+  test.beforeAll(async () => {
+    restore = await savePlanSettings(pool);
+  });
   test.afterAll(async () => {
-    await pool.query(
-      "update settings set plan_limited_until = null, monthly_cap_micros = 20000000",
-    );
-    await pool.query("delete from credentials");
+    await restore?.();
     await pool.end();
   });
 

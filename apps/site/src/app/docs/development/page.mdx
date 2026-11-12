@@ -117,9 +117,10 @@ E2E_STACK=dev E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e --grep @agent 
 - A `setup` project signs in once and saves the session to `e2e/.auth/owner.json`.
 - Tests tagged `@agent` run real turns on the computer, take minutes, and use your ChatGPT plan.
 - Tests run serially (`workers: 1`), because they share one computer and one database.
-- Test teammates are named with `uniqueName()` (`e2e/stack.ts`), which starts every name with `E2e`.
-  `e2e/global-setup.ts` notes when the run started, by the database's clock, and `e2e/global-teardown.ts` deletes only rows created since then that carry the tests' names, so it never deletes one of yours.
+- `e2e/global-setup.ts` gives each run a random tag, and everything a spec creates carries it: teammates are named with `uniqueName()`, titles and labels with `testLabel()`, skills and uploaded files with `testSlug()` (`e2e/stack.ts`).
+  `e2e/global-teardown.ts`, and a spec cleaning up after itself, deletes only what carries the run's tag, so it never deletes one of yours, or what another run is making at the same time.
   What an interrupted run left behind stays until you delete it.
+- A spec that changes your settings saves them first and puts them back afterwards (`savePlanSettings()` in `e2e/helpers.ts`).
 
 Stand-ins replace outside services, so the default run needs no outside account:
 

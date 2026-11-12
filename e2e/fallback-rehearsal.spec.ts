@@ -1,7 +1,14 @@
 import http from "node:http";
 import { expect, test } from "./fixtures";
 import pg from "pg";
-import { e2eStack, createTeammate, sendMessage, uniqueName, waitForLastRun } from "./helpers";
+import {
+  e2eStack,
+  createTeammate,
+  savePlanSettings,
+  sendMessage,
+  uniqueName,
+  waitForLastRun,
+} from "./helpers";
 
 /**
  * Rehearses a real plan limit end to end: the real worker and the real Codex app-server,
@@ -23,8 +30,10 @@ const pool = new pg.Pool({
 });
 const requests: string[] = [];
 let server: http.Server;
+let restore: (() => Promise<void>) | undefined;
 
 test.beforeAll(async () => {
+  restore = await savePlanSettings(pool);
   server = http.createServer((req, res) => {
     req.resume();
     req.on("end", () => {
@@ -76,8 +85,7 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await pool.query("update settings set plan_limited_until = null, monthly_cap_micros = 20000000");
-  await pool.query("delete from credentials");
+  await restore?.();
   await pool.end();
   await new Promise((resolve) => server.close(resolve));
 });

@@ -1,10 +1,21 @@
 // The end-to-end specs write to and clean up the stack they test, so they must be told which one,
-// and the teardown must delete only the teammates they made (e2e/stack.ts).
+// and the teardown must delete only what the run made (e2e/stack.ts).
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
-import { readStack, TEST_TEAMMATE_NAME, uniqueName } from "../../e2e/stack.ts";
+import {
+  newRunTag,
+  readStack,
+  RUN_TAG,
+  runTag,
+  TEST_LABEL,
+  TEST_SLUG,
+  testLabel,
+  testSlug,
+  testTeammateName,
+  uniqueName,
+} from "../../e2e/stack.ts";
 
 const root = path.join(import.meta.dirname, "..", "..");
 const named = {
@@ -43,17 +54,56 @@ test("E2E_STACK=dev is the development stack, and can't be mixed with another", 
   assert.throws(() => readStack({ ...named, E2E_STACK: "prod" }), /only be "dev"/);
 });
 
-test("the teardown matches the names tests make, and their duplicates", () => {
+/** Runs `work` as a spec in the run tagged `tag` would. */
+function inRun(tag, work) {
+  const before = process.env[RUN_TAG];
+  process.env[RUN_TAG] = tag;
+  try {
+    return work();
+  } finally {
+    if (before === undefined) delete process.env[RUN_TAG];
+    else process.env[RUN_TAG] = before;
+  }
+}
+
+/** SQL `like`, for the patterns the teardown uses. */
+const like = (pattern) =>
+  new RegExp(
+    `^${pattern
+      .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+      .replaceAll("%", ".*")
+      .replaceAll("_", ".")}$`,
+  );
+
+test("the teardown matches what its run names, and their duplicates", () => {
   for (let i = 0; i < 200; i++) {
-    const name = uniqueName("Tess");
-    assert.match(name, TEST_TEAMMATE_NAME);
-    assert.match(`${name} 2`, TEST_TEAMMATE_NAME);
+    const tag = newRunTag();
+    inRun(tag, () => {
+      const name = uniqueName("Tess");
+      assert.match(name, testTeammateName(tag));
+      assert.match(`${name} 2`, testTeammateName(tag));
+      assert.match(testLabel("GitHub x1y2"), like(TEST_LABEL(tag)));
+      assert.match(testSlug("x1y2.txt"), like(TEST_SLUG(tag)));
+    });
   }
 });
 
-test("the teardown leaves names the old pattern deleted", () => {
-  for (const name of ["Annabel", "Solaris", "Bobbie1", "Ivy2026", "Tess1a2b", "E2e", "E2eTess"])
-    assert.doesNotMatch(name, TEST_TEAMMATE_NAME);
+test("the teardown leaves what another run, or you, named", () => {
+  const [mine, theirs] = ["k7q2", "a1b2"];
+  const other = inRun(theirs, () => [uniqueName("Tess"), testLabel("group"), testSlug("x1y2")]);
+  assert.doesNotMatch(other[0], testTeammateName(mine));
+  assert.doesNotMatch(other[1], like(TEST_LABEL(mine)));
+  assert.doesNotMatch(other[2], like(TEST_SLUG(mine)));
+  for (const name of ["Annabel", "Tess1a2b", "E2e", "E2eTess", "E2eReviewer", "E2eTess4kq9"])
+    assert.doesNotMatch(name, testTeammateName(mine));
+  for (const label of ["E2E group", "E2E GitHub", "E2E Orders x1y2"])
+    assert.doesNotMatch(label, like(TEST_LABEL(mine)));
+  assert.doesNotMatch("e2e-delete-me.txt", like(TEST_SLUG(mine)));
+});
+
+test("specs can't name things outside a run", () => {
+  assert.throws(() => runTag({}), /E2E_RUN_TAG isn't set/);
+  assert.throws(() => runTag({ [RUN_TAG]: "x%" }), /E2E_RUN_TAG isn't set/);
 });
 
 test("a stack URL that leaves its target to defaults is refused", () => {
@@ -98,11 +148,20 @@ test("no spec or helper falls back to a default stack", () => {
   assert.deepEqual(offenders, []);
 });
 
-test("the teardown only deletes rows the run created", () => {
+test("cleanup only deletes what carries the run's tag", () => {
   const source = readFileSync(path.join(root, "e2e", "global-teardown.ts"), "utf8");
   const deletes = source.split("\n").filter((line) => line.includes("delete from "));
   assert.ok(deletes.length > 0);
-  // Each goes through recent() (created since the run started) or deletes run-made teammates.
+  // Each matches with the run's label or slug pattern, or deletes the run's teammates.
   for (const line of deletes)
-    assert.match(line, /recent\([`"]delete from |delete from bots where id in \(\$\{teammates\}\)/);
+    assert.match(
+      line,
+      /(like \$\d.*(label|slug)\b|bot_id in \(\$\{theirs\}\)|id in \(\$\{theirs\}\))/,
+    );
+  // No spec cleans up by the old shared prefixes, which match every run's rows and yours.
+  const dir = path.join(root, "e2e");
+  const shared = readdirSync(dir)
+    .filter((file) => file.endsWith(".ts"))
+    .filter((file) => /like '(E2E |e2e-)/i.test(readFileSync(path.join(dir, file), "utf8")));
+  assert.deepEqual(shared, []);
 });

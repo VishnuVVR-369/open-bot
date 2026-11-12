@@ -3,7 +3,7 @@ import { createApiClient, UPLOAD_HEADERS, type ApiClient } from "@open-bot/api";
 import { isDefinedError, safe } from "@orpc/client";
 import pg from "pg";
 import { expect, test } from "./fixtures";
-import { e2eStack, createTeammate, uniqueName } from "./helpers";
+import { e2eStack, createTeammate, testLabel, testSlug, uniqueName } from "./helpers";
 
 /**
  * The API the phone uses (`/api/rpc`), called the way the phone calls it: with the session
@@ -191,7 +191,7 @@ test.describe("the phone's API", () => {
     await createTeammate(page, name);
     const teammate = (await api.teammates.list()).find((bot) => bot.name === name)!;
     const data = Buffer.from("Flight AB123 leaves at 09:40\n");
-    const fileName = `e2e-${crypto.randomUUID().slice(0, 5)}.txt`;
+    const fileName = testSlug(`${crypto.randomUUID().slice(0, 5)}.txt`);
     const id = crypto.randomUUID();
 
     // Cut short on the way: refused, and nothing is kept.
@@ -322,13 +322,14 @@ test.describe("the phone's API", () => {
     const ids = (await api.teammates.list())
       .filter((bot) => names.includes(bot.name))
       .map((bot) => bot.id);
-    const tooFew = await safe(api.chats.createGroup({ title: "E2E group", botIds: [ids[0]!] }));
+    const title = testLabel("group");
+    const tooFew = await safe(api.chats.createGroup({ title, botIds: [ids[0]!] }));
     expect(tooFew.error).toMatchObject({ code: "BAD_REQUEST" });
-    const { chatId } = await api.chats.createGroup({ title: "E2E group", botIds: ids });
+    const { chatId } = await api.chats.createGroup({ title, botIds: ids });
     const group = (await api.chats.list()).find((chat) => chat.id === chatId);
-    expect(group).toMatchObject({ kind: "group", title: "E2E group", unread: false });
+    expect(group).toMatchObject({ kind: "group", title, unread: false });
     expect(group?.memberIds.sort()).toEqual([...ids].sort());
-    await api.chats.rename({ chatId, title: "E2E group" });
+    await api.chats.rename({ chatId, title });
     await api.chats.archive({ chatId });
     expect((await api.chats.list()).some((chat) => chat.id === chatId)).toBe(false);
   });
@@ -357,7 +358,7 @@ test.describe("the phone's API", () => {
         await db.query(
           `insert into notifications (kind, title, created_at)
            values ('run_failed', $1, $2) returning id`,
-          [`E2E ${title}`, at],
+          [testLabel(title), at],
         )
       ).rows[0].id as string;
     const old = await insert("Too old for the list", "2000-01-01");

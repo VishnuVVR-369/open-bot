@@ -1,5 +1,12 @@
 import { expect, test } from "./fixtures";
-import { createTeammate, sendMessage, uniqueName, waitForLastRun, worker } from "./helpers";
+import {
+  createTeammate,
+  sendMessage,
+  testSlug,
+  uniqueName,
+  waitForLastRun,
+  worker,
+} from "./helpers";
 
 // Bigger than Next.js's 1 MB default body limit, to show the upload route takes the raw bytes.
 const twoMegabytes = Buffer.alloc(2 * 1024 * 1024, 7);
@@ -25,7 +32,7 @@ test("attach a file over 1 MB to a message", async ({ page }) => {
     .locator('input[type="file"]')
     .first()
     .setInputFiles({
-      name: `e2e-${Math.random().toString(36).slice(2, 7)}.bin`,
+      name: testSlug(`${Math.random().toString(36).slice(2, 7)}.bin`),
       mimeType: "application/octet-stream",
       buffer: twoMegabytes,
     });

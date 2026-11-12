@@ -4,7 +4,10 @@ import {
   e2eStack,
   botIdOf,
   createTeammate,
+  runTag,
   sendMessage,
+  TEST_LABEL,
+  testLabel,
   uniqueName,
   waitForLastRun,
 } from "./helpers";
@@ -17,7 +20,12 @@ const pool = new pg.Pool({
 });
 
 // A test's connections would reach every teammate in the tests after it.
-test.afterEach(() => pool.query("delete from connections where label like 'E2E %'"));
+test.afterEach(() =>
+  pool.query("delete from connections where label like $1", [TEST_LABEL(runTag())]),
+);
+
+/** The tracker connection's name. */
+const trackerLabel = () => testLabel("Application tracker");
 test.afterAll(() => pool.end());
 
 async function botdPost<T>(path: string, body: unknown): Promise<T> {
@@ -133,7 +141,7 @@ async function connectTracker(page: Page, url: string, token?: string) {
   const section = page.getByTestId("connections");
   await section.getByRole("button", { name: "Connect a service" }).click();
   const dialog = page.getByTestId("connection-dialog");
-  await dialog.getByLabel("Name").fill("E2E Application tracker");
+  await dialog.getByLabel("Name").fill(trackerLabel());
   await dialog.getByLabel("MCP address").fill(url);
   if (token) await dialog.getByLabel("Headers").fill(`Authorization: Bearer ${token}`);
   await dialog.getByTestId("connection-save").click();
@@ -141,7 +149,7 @@ async function connectTracker(page: Page, url: string, token?: string) {
   await expect(
     section
       .getByTestId("connection")
-      .filter({ hasText: "E2E Application tracker" })
+      .filter({ hasText: trackerLabel() })
       .getByTestId("connection-test"),
   ).toContainText("Connected", { timeout: 60_000 });
 }
@@ -238,7 +246,7 @@ test("@agent the Job Scout fills a real Application tracker's inbox", async ({ p
     const row = page
       .getByTestId("connections")
       .getByTestId("connection")
-      .filter({ hasText: "E2E Application tracker" });
+      .filter({ hasText: trackerLabel() });
     // Codex's MCP client lists the tracker's tools.
     await expect(row.getByTestId("connection-test")).toContainText("4 tools");
 
