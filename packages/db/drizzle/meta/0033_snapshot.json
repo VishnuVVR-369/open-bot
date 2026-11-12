@@ -1,5 +1,5 @@
 {
-  "id": "365583cb-5073-40d2-a201-76a76bb17ccb",
+  "id": "ee80e4c0-7a44-4d89-b327-13e40508ab43",
   "prevId": "94797eec-1058-419a-a9bf-a59725c17640",
   "version": "7",
   "dialect": "postgresql",
@@ -4637,6 +4637,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'chat'"
+        },
+        "quiet": {
+          "name": "quiet",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "attachments": {
           "name": "attachments",

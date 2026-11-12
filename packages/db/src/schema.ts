@@ -377,6 +377,11 @@ export const runs = pgTable(
     prompt: text("prompt").notNull(),
     /** Which of its chat's lanes the run works in (see `RunLane`). */
     lane: text("lane").$type<RunLane>().notNull().default("chat"),
+    /**
+     * A quiet routine's run that found nothing to report. It doesn't move its chat up the list,
+     * make it unread or become its preview.
+     */
+    quiet: boolean("quiet").notNull().default(false),
     attachments: jsonb("attachments").$type<Attachment[]>().notNull().default([]),
     messageId: uuid("message_id").references(() => messages.id, { onDelete: "set null" }),
     scheduleId: uuid("schedule_id"),
