@@ -33,8 +33,13 @@ export const MEMORY_TOOLS: AnyTool[] = [
         .describe("One short line, e.g. 'Vegetarian; allergic to peanuts.'"),
     }),
     helpers: "allowed",
-    handle: ({ session, callId, args }, deps) =>
-      memoryTool(deps, session, callId, "remember_memory", { content: args.fact, shared: true }),
+    // Like remember_memory, a kind, key or expires_at sent along is saved, once memory has checked it.
+    handle: ({ session, callId, args, raw }, deps) =>
+      memoryTool(deps, session, callId, "remember_memory", {
+        ...(raw as MemoryArgs),
+        content: args.fact,
+        shared: true,
+      }),
   }),
   defineTool({
     name: "remember_memory",
