@@ -1,5 +1,5 @@
 import { runs, schedules, triggers, type Queryable, type RunLane } from "@open-bot/db";
-import { and, desc, eq, gt, inArray, isNotNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNotNull, lte, ne, sql } from "drizzle-orm";
 
 /** At most this many results are passed on, newest first; older ones are only counted. */
 export const LANE_NEWS_LIMIT = 5;
@@ -38,7 +38,8 @@ export async function laneNews(
   if (run.lane !== "chat") return null;
   const teammateId = run.botId; // vocabulary: allow
   const runTeammate = runs.botId; // vocabulary: allow
-  // The conversation heard everything that finished before its last turn started.
+  // The conversation heard everything that finished before its last turn started. Only a turn
+  // Codex began counts: a run that failed before it, say while the computer woke, told it nothing.
   const [previous] = await db
     .select({ at: sql<Date | null>`max(${runs.startedAt})`.mapWith(runs.startedAt) })
     .from(runs)
@@ -49,9 +50,16 @@ export async function laneNews(
         eq(runs.lane, "chat"),
         ne(runs.id, run.id),
         isNotNull(runs.startedAt),
+        isNotNull(runs.codexTurnId),
       ),
     );
   const since = previous?.at ?? null;
+  // And this turn hears what finished before it started; what finishes after is for the next one.
+  const [current] = await db
+    .select({ startedAt: runs.startedAt })
+    .from(runs)
+    .where(eq(runs.id, run.id));
+  const until = current?.startedAt ?? null;
   const rows: Finished[] = await db
     .select({
       lane: runs.lane,
@@ -75,6 +83,7 @@ export async function laneNews(
         // A quiet routine that found nothing has nothing to pass on.
         eq(runs.quiet, false),
         since ? gt(runs.completedAt, since) : undefined,
+        until ? lte(runs.completedAt, until) : undefined,
       ),
     )
     .orderBy(desc(runs.completedAt))

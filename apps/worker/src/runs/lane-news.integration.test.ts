@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import {
@@ -64,6 +65,7 @@ describe.skipIf(!url)("lane news with Postgres", () => {
     quiet?: boolean;
     readOutsideData?: boolean;
     scheduleId?: string | null;
+    codexTurnId?: string | null;
   }) {
     const [row] = await db
       .insert(runs)
@@ -79,8 +81,17 @@ describe.skipIf(!url)("lane news with Postgres", () => {
     return row!;
   }
 
-  /** The conversation's run that is about to take its turn. */
-  const conversation = () => run({ lane: "chat", status: "queued", completedAt: null });
+  /** The conversation's run that has just started, and is about to take its turn. */
+  const conversation = (startedAt = new Date()) =>
+    run({ lane: "chat", status: "queued", startedAt, completedAt: null });
+  /** A turn of the conversation that Codex took. */
+  const turn = (started: number) =>
+    run({
+      lane: "chat",
+      startedAt: minutesAgo(started),
+      completedAt: minutesAgo(started - 1),
+      codexTurnId: `turn-${started}`,
+    });
 
   it("passes on what other lanes finished since the conversation's last turn", async () => {
     await run({
@@ -88,7 +99,7 @@ describe.skipIf(!url)("lane news with Postgres", () => {
       completedAt: minutesAgo(50),
       finalText: "Old email, heard already",
     });
-    await run({ lane: "chat", startedAt: minutesAgo(40), completedAt: minutesAgo(39) });
+    await turn(40);
     await run({
       lane: `schedule:${scheduleId}`,
       scheduleId,
@@ -116,7 +127,7 @@ describe.skipIf(!url)("lane news with Postgres", () => {
   });
 
   it("passes on nothing for another lane, or when nothing finished", async () => {
-    await run({ lane: "chat", startedAt: minutesAgo(5), completedAt: minutesAgo(4) });
+    await turn(5);
     expect(await laneNews(db, await conversation(), time)).toBeNull();
     const automation = await run({ lane: "inbox", status: "queued", completedAt: null });
     await run({ lane: `schedule:${scheduleId}`, completedAt: minutesAgo(1), finalText: "Done" });
@@ -143,5 +154,31 @@ describe.skipIf(!url)("lane news with Postgres", () => {
     expect(news!.text).toContain(`Email ${LANE_NEWS_LIMIT + 1}`);
     expect(news!.text).toContain("cut short");
     expect(news!.text).not.toContain("x".repeat(LANE_NEWS_LENGTH + 1));
+  });
+
+  it("counts only turns Codex took as having heard it, and leaves later results for the next", async () => {
+    await turn(40);
+    await run({ lane: "inbox", completedAt: minutesAgo(30), finalText: "Invoice filed" });
+    // This one failed while the computer woke, before Codex heard anything.
+    await run({
+      lane: "chat",
+      status: "failed",
+      startedAt: minutesAgo(20),
+      completedAt: minutesAgo(19),
+    });
+    await run({ lane: "inbox", completedAt: minutesAgo(1), finalText: "Refund drafted" });
+    const current = await conversation(minutesAgo(2));
+
+    const news = await laneNews(db, current, time);
+    expect(news!.text).toContain("Invoice filed");
+    // It finished after this turn started: the next turn hears it, once.
+    expect(news!.text).not.toContain("Refund drafted");
+    await db
+      .update(runs)
+      .set({ codexTurnId: "turn-now", status: "completed", completedAt: new Date() })
+      .where(eq(runs.id, current.id));
+    const next = await laneNews(db, await conversation(), time);
+    expect(next!.text).toContain("Refund drafted");
+    expect(next!.text).not.toContain("Invoice filed");
   });
 });

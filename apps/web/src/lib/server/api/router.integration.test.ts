@@ -339,6 +339,33 @@ describe.skipIf(!url)("API reads, end to end", () => {
     expect(chat.preview).toMatchObject({ text: "Prices dropped" });
   });
 
+  it("previews the reply that came last, though another lane's run started earlier", async () => {
+    const s = await import("@open-bot/db");
+    const db = database.db;
+    const chatId = crypto.randomUUID();
+    await db
+      .insert(s.chats)
+      .values({ id: chatId, kind: "direct", title: "Lanes", ...owned(ids.teammate) });
+    const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000);
+    const run = (finalText: string, lane: "chat" | "inbox", started: number, finished: number) => ({
+      chatId,
+      ...owned(ids.teammate),
+      trigger: lane === "chat" ? ("user" as const) : ("email" as const),
+      lane,
+      prompt: "Go",
+      status: "completed" as const,
+      finalText,
+      createdAt: ago(started),
+      completedAt: ago(finished),
+    });
+    // The email's run began first, and finished after your conversation's reply.
+    await db
+      .insert(s.runs)
+      .values([run("Invoice filed", "inbox", 10, 1), run("Sure", "chat", 5, 4)]);
+    const chat = (await api.chats.list()).find((entry) => entry.id === chatId)!;
+    expect(chat.preview).toMatchObject({ text: "Invoice filed" });
+  });
+
   it("passes the worker's reads through", async () => {
     expect(await api.telegram.status()).toMatchObject({ connected: false });
     expect(await api.push.status()).toEqual({ publicKey: "key", devices: [] });

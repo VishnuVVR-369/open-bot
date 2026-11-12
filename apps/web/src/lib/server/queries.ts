@@ -254,7 +254,9 @@ async function chatPreviews(): Promise<Map<string, NonNullable<ChatSummary["prev
       })
       .from(runs)
       .where(and(isNotNull(runs.finalText), eq(runs.quiet, false)))
-      .orderBy(runs.chatId, desc(runs.createdAt)),
+      // The reply that came last: a chat's lanes work side by side, so one started earlier can
+      // finish later.
+      .orderBy(runs.chatId, desc(sql`coalesce(${runs.completedAt}, ${runs.createdAt})`)),
   ]);
   const previews = new Map<string, { text: string; botId: string | null; at: Date }>();
   for (const message of sent) {
