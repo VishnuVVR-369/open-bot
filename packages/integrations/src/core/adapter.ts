@@ -1,5 +1,6 @@
 import type { accountActions, accounts, connections, Db } from "@open-bot/db";
 import type { AccountActionPreview, AccountConnectionKind, ActionEffect } from "@open-bot/domain";
+import type { IntegrationEndpoints } from "./endpoints";
 import type { ProviderError, TokenSource } from "./http";
 import type { NamespaceSpec } from "./tool-spec";
 
@@ -14,9 +15,10 @@ export interface ResolvedConnection {
   account: AccountRow;
 }
 
-/** What adapters are built with: the database, for what they remember and read. */
+/** What adapters are built with: the database, for what they remember and read, and where the providers live. */
 export interface IntegrationHost {
   db: Db;
+  endpoints: IntegrationEndpoints;
 }
 
 /** A change to one of your accounts, worked out and frozen before anything is asked or done. */

@@ -2,7 +2,6 @@ import { randomBytes } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { AccountStore } from "@open-bot/integrations/server";
 import { bots, chats, connections, runs, triggerFirings, triggers } from "@open-bot/db";
 import { ACCOUNT_TRIGGER_NOTE, GOOGLE_SCOPES } from "@open-bot/domain";
 import { eq } from "drizzle-orm";
@@ -179,7 +178,8 @@ describe.skipIf(!url)("Gmail and Calendar triggers with Postgres", () => {
       response.end(JSON.stringify(body));
     });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-    process.env.GOOGLE_BASE_URL = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    // Every AccountAccess made from here on calls the stand-in.
+    ctx.env.GOOGLE_BASE_URL = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   });
 
   beforeEach(async () => {
@@ -191,7 +191,7 @@ describe.skipIf(!url)("Gmail and Calendar triggers with Postgres", () => {
       .insert(bots)
       .values({ name: "Otto", slug: "otto", role: "assistant", color: "#4f46e5" })
       .returning();
-    const store = new AccountStore(db, key);
+    const store = new AccountAccess(ctx).store;
     const client = await store.clients.makeCurrent({
       provider: "google",
       source: "owner",
@@ -236,7 +236,6 @@ describe.skipIf(!url)("Gmail and Calendar triggers with Postgres", () => {
   });
 
   afterAll(async () => {
-    delete process.env.GOOGLE_BASE_URL;
     await new Promise((resolve) => server?.close(resolve));
     await database.drop();
   });

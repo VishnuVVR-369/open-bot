@@ -1,4 +1,4 @@
-import { googleEndpoints } from "../../../core/endpoints";
+import type { IntegrationEndpoints } from "../../../core/endpoints";
 import type { ProviderError, TokenSource } from "../../../core/http";
 import { providerJson } from "../http";
 import { isoInZone, readableTime } from "./time";
@@ -42,8 +42,13 @@ export interface CalendarEvent {
 const MAX_DESCRIPTION = 4_000;
 /** Google Calendar's API, for one account. */
 export class CalendarApi {
-  private readonly base = googleEndpoints().calendar;
-  constructor(private readonly tokens: TokenSource) {}
+  private readonly base: string;
+  constructor(
+    private readonly tokens: TokenSource,
+    endpoints: IntegrationEndpoints,
+  ) {
+    this.base = endpoints.google.calendar;
+  }
 
   async get<T>(
     path: string,

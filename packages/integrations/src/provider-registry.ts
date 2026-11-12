@@ -1,14 +1,18 @@
 import type { AccountProvider } from "@open-bot/domain";
+import type { IntegrationEndpoints } from "./core/endpoints";
+import type { ProviderAdapter } from "./core/provider";
 import { google } from "./providers/google/oauth";
 import { notion } from "./providers/notion/oauth";
-import type { ProviderAdapter } from "./core/provider";
 
-/** Every provider's adapter. A provider in shared's AUTH_PROVIDERS without one doesn't compile. */
-export const PROVIDER_ADAPTERS: Readonly<Record<AccountProvider, ProviderAdapter>> = {
-  google,
-  notion,
-};
+export type ProviderAdapters = Readonly<Record<AccountProvider, ProviderAdapter>>;
 
-export function providerAdapter(id: AccountProvider): ProviderAdapter {
-  return PROVIDER_ADAPTERS[id];
+/**
+ * Every provider's sign-in adapter, one line each, talking to these endpoints. A provider in
+ * `AUTH_PROVIDERS` (`@open-bot/domain`) without one doesn't compile.
+ */
+export function providerAdapters(endpoints: IntegrationEndpoints): ProviderAdapters {
+  return {
+    google: google(endpoints),
+    notion: notion(endpoints),
+  };
 }

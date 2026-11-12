@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import type { OAuthClient } from "./clients";
+import { integrationEndpoints, type IntegrationEndpoints } from "./endpoints";
 import type { TokenResponse } from "./oauth";
 import { AccountIdentityError, AccountStore, AccountUnavailableError } from "./store";
 
@@ -23,6 +24,8 @@ describe.skipIf(!url)("account tokens with Postgres", () => {
   const database = testDatabase(url);
   const { db } = database;
   const key = randomBytes(32).toString("base64");
+  /** Google at the stand-in, once it listens. */
+  let endpoints: IntegrationEndpoints;
   const client = {
     clientId: "test-client.apps.googleusercontent.com",
     clientSecret: "secret-1234567",
@@ -72,13 +75,15 @@ describe.skipIf(!url)("account tokens with Postgres", () => {
       });
     });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-    process.env.GOOGLE_BASE_URL = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    endpoints = integrationEndpoints({
+      googleBaseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+    });
   });
 
   beforeEach(async () => {
     await db.delete(accounts);
     await db.delete(oauthClients);
-    current = await new AccountStore(db, key).clients.makeCurrent({
+    current = await new AccountStore(db, key, endpoints).clients.makeCurrent({
       provider: "google",
       source: "owner",
       clientId: client.clientId,
@@ -90,13 +95,12 @@ describe.skipIf(!url)("account tokens with Postgres", () => {
   });
 
   afterAll(async () => {
-    delete process.env.GOOGLE_BASE_URL;
     await new Promise((resolve) => server?.close(resolve));
     await database.drop();
   });
 
   it("uses a fresh token without asking Google", async () => {
-    const store = new AccountStore(db, key);
+    const store = new AccountStore(db, key, endpoints);
     const account = await saveAccount(store);
     expect(await store.accessToken(account.id)).toBe("access-1");
     expect(endpoint.requests).toHaveLength(0);
@@ -109,9 +113,9 @@ describe.skipIf(!url)("account tokens with Postgres", () => {
       status: 200,
       body: { access_token: `access-new-${++issued}`, expires_in: 3600, token_type: "Bearer" },
     });
-    const first = new AccountStore(db, key);
+    const first = new AccountStore(db, key, endpoints);
     // Another worker process, with its own memory: only the row lock keeps it from refreshing too.
-    const second = new AccountStore(db, key);
+    const second = new AccountStore(db, key, endpoints);
     const account = await saveAccount(first, grant({ expiresAt: Date.now() - 1000 }));
     const tokens = await Promise.all([
       first.accessToken(account.id),
@@ -128,7 +132,7 @@ describe.skipIf(!url)("account tokens with Postgres", () => {
       status: 200,
       body: { access_token: "access-2", expires_in: 3600 },
     });
-    const store = new AccountStore(db, key);
+    const store = new AccountStore(db, key, endpoints);
     const account = await saveAccount(store, grant({ expiresAt: Date.now() - 1000 }));
     expect(await store.accessToken(account.id)).toBe("access-2");
     const [row] = await db.select().from(accounts).where(eq(accounts.id, account.id));
@@ -149,7 +153,7 @@ describe.skipIf(!url)("account tokens with Postgres", () => {
         },
       };
     };
-    const store = new AccountStore(db, key);
+    const store = new AccountStore(db, key, endpoints);
     const account = await saveAccount(store, grant({ expiresAt: Date.now() - 1000 }));
     await store.refreshNow(account.id);
     await store.refreshNow(account.id);
@@ -164,7 +168,7 @@ describe.skipIf(!url)("account tokens with Postgres", () => {
       status: 400,
       body: { error: "invalid_grant", error_description: "Token has been expired or revoked." },
     });
-    const store = new AccountStore(db, key);
+    const store = new AccountStore(db, key, endpoints);
     const account = await saveAccount(store, grant({ expiresAt: Date.now() - 1000 }));
     await expect(store.accessToken(account.id)).rejects.toBeInstanceOf(AccountUnavailableError);
     const [row] = await db.select().from(accounts).where(eq(accounts.id, account.id));
@@ -176,7 +180,7 @@ describe.skipIf(!url)("account tokens with Postgres", () => {
 
   it("doesn't lose the account to a network failure", async () => {
     endpoint.answer = () => ({ status: 503, body: {} });
-    const store = new AccountStore(db, key);
+    const store = new AccountStore(db, key, endpoints);
     const account = await saveAccount(store, grant({ expiresAt: Date.now() - 1000 }));
     await expect(store.accessToken(account.id)).rejects.not.toBeInstanceOf(AccountUnavailableError);
     const [row] = await db.select().from(accounts).where(eq(accounts.id, account.id));
@@ -184,7 +188,7 @@ describe.skipIf(!url)("account tokens with Postgres", () => {
   });
 
   it("keeps the refresh token across a sign-in that didn't send one, and refuses the wrong person", async () => {
-    const store = new AccountStore(db, key);
+    const store = new AccountStore(db, key, endpoints);
     const account = await saveAccount(store);
     const again = await store.saveGrant({
       provider: "google",
@@ -214,7 +218,7 @@ describe.skipIf(!url)("account tokens with Postgres", () => {
   });
 
   it("says when a sign-in lost something, and not when it only added", async () => {
-    const store = new AccountStore(db, key);
+    const store = new AccountStore(db, key, endpoints);
     const account = await saveAccount(store);
     const signIn = (scope: string) =>
       store.saveGrant({
@@ -241,7 +245,7 @@ describe.skipIf(!url)("account tokens with Postgres", () => {
       status: 200,
       body: { access_token: "access-old-client", expires_in: 3600 },
     });
-    const store = new AccountStore(db, key);
+    const store = new AccountStore(db, key, endpoints);
     const account = await saveAccount(store, grant({ expiresAt: Date.now() - 1000 }));
     const replacement = await store.clients.makeCurrent({
       provider: "google",
@@ -261,7 +265,7 @@ describe.skipIf(!url)("account tokens with Postgres", () => {
   });
 
   it("updates the same client in place, so a new secret keeps its grants", async () => {
-    const store = new AccountStore(db, key);
+    const store = new AccountStore(db, key, endpoints);
     const account = await saveAccount(store);
     const again = await store.clients.makeCurrent({
       provider: "google",
@@ -284,7 +288,7 @@ describe.skipIf(!url)("account tokens with Postgres", () => {
       await before.query("begin");
       open = true;
       await before.query("select pg_advisory_xact_lock(hashtext('oauth_clients:google'))");
-      const setup = new AccountStore(db, key).clients.makeCurrent({
+      const setup = new AccountStore(db, key, endpoints).clients.makeCurrent({
         provider: "google",
         source: "owner",
         clientId: "other-client.apps.googleusercontent.com",
@@ -311,7 +315,7 @@ describe.skipIf(!url)("account tokens with Postgres", () => {
   });
 
   it("makes one account when two sign-ins race", async () => {
-    const store = new AccountStore(db, key);
+    const store = new AccountStore(db, key, endpoints);
     const results = await Promise.all([saveAccount(store), saveAccount(store)]);
     expect(new Set(results.map((account) => account.id)).size).toBe(1);
     expect(await db.select().from(accounts)).toHaveLength(1);

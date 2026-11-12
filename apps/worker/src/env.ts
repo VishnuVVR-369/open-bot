@@ -3,7 +3,13 @@ import path from "node:path";
 import { assertNoDevSecrets, DEV_SECRETS } from "@open-bot/domain/server";
 import { z } from "zod";
 
-const schema = z.object({
+/** A URL that may be left out; set but empty counts as left out, as the web app reads it. */
+const optionalUrl = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z.string().url().optional(),
+);
+
+export const envSchema = z.object({
   DATABASE_URL: z.string().default("postgres://openbot:openbot@127.0.0.1:54329/openbot"),
   COMPUTER_IDLE_MINUTES: z.coerce.number().positive().max(60).default(5),
   COMPUTER_LIFECYCLE_ENABLED: z
@@ -42,6 +48,10 @@ const schema = z.object({
    * through Firebase Cloud Messaging. Without it, phones get no notifications.
    */
   FCM_SERVICE_ACCOUNT_JSON: z.string().optional(),
+  /** Google's sign-in, Gmail and Calendar under one base. Tests point it at a stand-in. */
+  GOOGLE_BASE_URL: optionalUrl,
+  /** Notion's hosted MCP server and, through it, its sign-in. Tests point it at a stand-in. */
+  NOTION_MCP_URL: optionalUrl,
   /** Firebase Cloud Messaging's API. Tests point it at a stand-in. */
   FCM_API_BASE_URL: z.string().url().default("https://fcm.googleapis.com"),
   MAX_CONCURRENT_RUNS: z.coerce.number().default(4),
@@ -54,7 +64,7 @@ const schema = z.object({
   OPEN_BOT_PLAN_BASE_URL: z.string().url().optional(),
 });
 
-export const env = schema.parse(process.env);
+export const env = envSchema.parse(process.env);
 assertNoDevSecrets(
   {
     WORKER_SECRET: env.WORKER_SECRET,

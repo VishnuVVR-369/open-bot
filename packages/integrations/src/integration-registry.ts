@@ -30,23 +30,29 @@ export function specProblem(spec: NamespaceSpec): string | null {
   return null;
 }
 
-function checked(classes: readonly IntegrationAdapterClass[]): NamespaceSpec[] {
+/** Why these adapters don't serve exactly the integrations defined, or null when they do. */
+export function adaptersProblem(
+  classes: readonly IntegrationAdapterClass[] = ADAPTERS,
+): string | null {
   const specs = classes.map((adapter) => adapter.spec);
   for (const spec of specs) {
     const problem = specProblem(spec);
-    if (problem) throw new Error(problem);
+    if (problem) return problem;
   }
   const names = specs.map((spec) => spec.name);
   const missing = ACCOUNT_CONNECTION_KINDS.filter(
     (kind) => !names.includes(integration(kind).namespace),
   );
-  if (missing.length) throw new Error(`No worker adapter for ${missing.join(", ")}.`);
-  if (new Set(names).size !== names.length) throw new Error("Two adapters serve one namespace.");
-  return specs;
+  if (missing.length) return `No adapter for ${missing.join(", ")}.`;
+  if (new Set(names).size !== names.length) return "Two adapters serve one namespace.";
+  return null;
 }
 
-/** The account tools every thread gets; access is checked per call. */
-export const ACCOUNT_TOOL_SPECS: readonly NamespaceSpec[] = checked(ADAPTERS);
+/**
+ * The account tools every thread gets; access is checked per call. `Integrations.create()`, at
+ * the worker's start, refuses adapters that don't match their definitions.
+ */
+export const ACCOUNT_TOOL_SPECS: readonly NamespaceSpec[] = ADAPTERS.map((adapter) => adapter.spec);
 
 /** Whether a namespace is one of an integration's (the tool call goes to the integrations). */
 export function isAccountNamespace(namespace: string): boolean {
@@ -64,7 +70,10 @@ export class Integrations {
     }
   }
 
+  /** The adapters, checked against the definitions first: a mismatch stops the worker starting. */
   static create(host: IntegrationHost): Integrations {
+    const problem = adaptersProblem();
+    if (problem) throw new Error(problem);
     return new Integrations(
       ADAPTERS.map((Adapter) => {
         const adapter = new Adapter(host);

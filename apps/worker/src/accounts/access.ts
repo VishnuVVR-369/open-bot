@@ -3,7 +3,11 @@ import {
   type ResolvedConnection,
   type TokenSource,
 } from "@open-bot/integrations/adapters";
-import { AccountStore, AccountUnavailableError } from "@open-bot/integrations/server";
+import {
+  AccountStore,
+  AccountUnavailableError,
+  integrationEndpoints,
+} from "@open-bot/integrations/server";
 import { accounts, connections } from "@open-bot/db";
 import {
   ACCOUNT_PROVIDERS,
@@ -42,7 +46,14 @@ export class AccountAccess {
   private readonly touched = new Map<string, number>();
 
   constructor(private readonly ctx: Context) {
-    this.store = new AccountStore(ctx.db, ctx.env.ENCRYPTION_KEY);
+    this.store = new AccountStore(
+      ctx.db,
+      ctx.env.ENCRYPTION_KEY,
+      integrationEndpoints({
+        googleBaseUrl: ctx.env.GOOGLE_BASE_URL,
+        notionMcpUrl: ctx.env.NOTION_MCP_URL,
+      }),
+    );
   }
 
   /** The account connections a teammate may use: enabled, and shared with it. */

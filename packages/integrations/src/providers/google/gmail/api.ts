@@ -1,4 +1,4 @@
-import { googleEndpoints } from "../../../core/endpoints";
+import type { IntegrationEndpoints } from "../../../core/endpoints";
 import type { ProviderError, TokenSource } from "../../../core/http";
 import { providerJson } from "../http";
 import type { GmailPart } from "./mime";
@@ -26,8 +26,13 @@ export interface GmailDraft {
 
 /** Gmail's REST API, for one account. */
 export class GmailApi {
-  private readonly base = `${googleEndpoints().gmail}/users/me`;
-  constructor(private readonly tokens: TokenSource) {}
+  private readonly base: string;
+  constructor(
+    private readonly tokens: TokenSource,
+    endpoints: IntegrationEndpoints,
+  ) {
+    this.base = `${endpoints.google.gmail}/users/me`;
+  }
 
   async get<T>(
     path: string,

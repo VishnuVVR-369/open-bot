@@ -2,13 +2,17 @@ import { ACCOUNT_CONNECTION_KINDS, integration } from "@open-bot/domain";
 import type { Db } from "@open-bot/db";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { IntegrationAdapter } from "./core/adapter";
+import { integrationEndpoints } from "./core/endpoints";
 import { namespace, tool } from "./core/tool-spec";
 import {
   ACCOUNT_TOOL_SPECS,
+  adaptersProblem,
   Integrations,
   isAccountNamespace,
   specProblem,
 } from "./integration-registry";
+import { CalendarTools } from "./providers/google/calendar/adapter";
+import { GmailTools } from "./providers/google/gmail/adapter";
 import { NotionTools } from "./providers/notion/adapter";
 
 const stub = (kind: IntegrationAdapter["kind"]): IntegrationAdapter => ({
@@ -33,6 +37,14 @@ describe("the integrations' adapters", () => {
         expect(entry.inputSchema).toHaveProperty("properties.account");
       }
     }
+  });
+
+  it("refuses, when the worker starts, adapters that don't serve every integration", () => {
+    expect(adaptersProblem()).toBeNull();
+    expect(adaptersProblem([GmailTools, CalendarTools])).toBe("No adapter for notion.");
+    expect(adaptersProblem([GmailTools, CalendarTools, NotionTools, GmailTools])).toBe(
+      "Two adapters serve one namespace.",
+    );
   });
 
   it("says when a namespace's tools drift from their definition", () => {
@@ -60,7 +72,9 @@ describe("the integrations' adapters", () => {
 
   it("stops Notion's idle sweep through the integrations", async () => {
     vi.useFakeTimers();
-    const integrations = new Integrations([new NotionTools({ db: {} as Db })]);
+    const integrations = new Integrations([
+      new NotionTools({ db: {} as Db, endpoints: integrationEndpoints() }),
+    ]);
     expect(vi.getTimerCount()).toBe(1);
     await integrations.stop();
     expect(vi.getTimerCount()).toBe(0);

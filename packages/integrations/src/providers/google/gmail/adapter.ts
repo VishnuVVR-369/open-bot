@@ -28,6 +28,7 @@ import type {
   ActionRow,
   ActionRunner,
   IntegrationAdapter,
+  IntegrationHost,
   PreparedAction,
   ToolContext,
   ResolvedConnection,
@@ -221,12 +222,14 @@ export class GmailTools implements IntegrationAdapter {
   );
   readonly kind = "gmail" as const;
 
+  constructor(private readonly host: IntegrationHost) {}
+
   problem(error: ProviderError): string {
     return gmailProblem(error);
   }
 
   async probe(_resolved: ResolvedConnection, tokens: TokenSource): Promise<string> {
-    const profile = await new GmailApi(tokens).get<{
+    const profile = await new GmailApi(tokens, this.host.endpoints).get<{
       emailAddress: string;
       messagesTotal?: number;
     }>("/profile");
@@ -234,7 +237,7 @@ export class GmailTools implements IntegrationAdapter {
   }
 
   async call(tool: string, tc: ToolContext): Promise<ToolResult> {
-    const api = new GmailApi(tc.tokens);
+    const api = new GmailApi(tc.tokens, this.host.endpoints);
     switch (tool) {
       case "search":
         return this.search(api, schemas.search.parse(tc.args));
@@ -626,7 +629,7 @@ export class GmailTools implements IntegrationAdapter {
   /** Runs Gmail actions for the executor. */
   readonly runner: ActionRunner = {
     execute: async (action, tokens) => {
-      const api = new GmailApi(tokens);
+      const api = new GmailApi(tokens, this.host.endpoints);
       const request = action.request as Record<string, unknown>;
       switch (action.tool) {
         case "gmail.create_draft": {
@@ -673,7 +676,7 @@ export class GmailTools implements IntegrationAdapter {
       }
     },
     reconcile: async (action, tokens) => {
-      const api = new GmailApi(tokens);
+      const api = new GmailApi(tokens, this.host.endpoints);
       const request = action.request as Record<string, unknown>;
       switch (action.tool) {
         // Changing labels or a draft again leaves it the same, so running it again is safe.

@@ -110,6 +110,22 @@ export default tseslint.config(
     ]),
   },
   {
+    // The integrations take their endpoints from each app's env module, so a stand-in is one
+    // setting in each app and nothing reads the environment behind its back.
+    files: ["packages/integrations/src/**/*.ts"],
+    ignores: ["**/*.test.ts"],
+    rules: {
+      "no-restricted-properties": [
+        "error",
+        {
+          object: "process",
+          property: "env",
+          message: "Take it as config from the app's env module instead.",
+        },
+      ],
+    },
+  },
+  {
     // Only a table's owner writes it (packages/db/src/owners.ts). Tests, seeds and stand-ins set
     // up whatever rows they need.
     files: ["apps/**/*.{ts,tsx}", "packages/**/*.ts"],

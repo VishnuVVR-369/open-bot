@@ -1,4 +1,3 @@
-import { notionMcpUrl } from "../../core/endpoints";
 import { accountResources } from "@open-bot/db";
 import {
   NOTION_AREA_SETTING,
@@ -320,9 +319,12 @@ export class NotionTools implements IntegrationAdapter {
         await response.body?.cancel().catch(() => {});
         return send(await tokens.refresh());
       };
-      const transport = new StreamableHTTPClientTransport(new URL(notionMcpUrl()), {
-        fetch: authorized,
-      });
+      const transport = new StreamableHTTPClientTransport(
+        new URL(this.host.endpoints.notionMcpUrl),
+        {
+          fetch: authorized,
+        },
+      );
       const client = new Client({ name: "open-bot", version: "1.0.0" });
       await client.connect(transport);
       return { client, lastUsed: Date.now() };
