@@ -24,7 +24,8 @@ describe("shutdown order", () => {
     return order.indexOf(name);
   };
 
-  it("drains account actions after everything that adds to them has stopped", () => {
+  // These pin the order of the stop calls, not that each part has finished all its work by then.
+  it("drains account actions after the stop of everything that adds to them", () => {
     for (const producer of [
       "http server",
       "signal listener",
