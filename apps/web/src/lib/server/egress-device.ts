@@ -1,6 +1,6 @@
 import "server-only";
 import { timingSafeEqual } from "node:crypto";
-import { egressDevices } from "@open-bot/db";
+import { egressDevices, errorMessage } from "@open-bot/db";
 import { hashDeviceSecret } from "@open-bot/domain/server";
 import { and, eq, isNull } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -27,10 +27,7 @@ export function deviceRoute(
       if (error instanceof z.ZodError)
         return NextResponse.json({ error: "Invalid request." }, { status: 400 });
       const status = error instanceof WorkerError && error.status < 500 ? error.status : 503;
-      return NextResponse.json(
-        { error: error instanceof Error ? error.message : String(error) },
-        { status },
-      );
+      return NextResponse.json({ error: errorMessage(error) }, { status });
     }
   };
 }

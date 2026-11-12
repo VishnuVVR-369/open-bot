@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { inspect } from "node:util";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { OFFLINE_EGRESS_STATUS, type ApiClient } from "@open-bot/api";
@@ -352,6 +353,27 @@ describe.skipIf(!url)("API reads, end to end", () => {
       message: "Name the chat.",
       data: { issues: [expect.objectContaining({ path: ["title"] })] },
     });
+  });
+
+  it("answers a failed query with the database's error, never its SQL or parameters", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      // Postgres refuses a NUL byte in text, so the search fails with the query as a parameter.
+      const failed = await api.search.messages({ query: "a private\u0000phrase" }).then(
+        () => null,
+        (error: unknown) => error,
+      );
+      expect(failed).toBeInstanceOf(ORPCError);
+      expect(failed).toMatchObject({
+        status: 500,
+        message: "The database refused the query (SQLSTATE 22021).",
+      });
+      expect(logged).toHaveBeenCalledOnce();
+      expect(logged.mock.calls[0]![1]).toMatchObject({ code: "22021", query: expect.any(String) });
+      expect(inspect(logged.mock.calls, { depth: 6 })).not.toContain("private");
+    } finally {
+      logged.mockRestore();
+    }
   });
 
   /* The writes the web app does itself, and how worker failures reach the caller. */

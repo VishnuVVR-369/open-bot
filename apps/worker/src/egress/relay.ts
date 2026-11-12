@@ -12,6 +12,7 @@ import {
 } from "@open-bot/egress";
 import type { EgressAgentClaim } from "@open-bot/domain/server";
 import WebSocket from "ws";
+import { errorMessage } from "../logger";
 
 /** What the relay needs from the database. */
 export interface RelayStore {
@@ -353,7 +354,7 @@ export class EgressRelay {
       try {
         await this.loadPhones();
       } catch (error) {
-        this.options.log.warn("could not check a phone's pairing", { error: String(error) });
+        this.options.log.warn("could not check a phone's pairing", { error: errorMessage(error) });
         socket.close(1011, "Try again");
         return;
       }
@@ -393,7 +394,7 @@ export class EgressRelay {
     try {
       await this.loadPhones();
     } catch (error) {
-      this.options.log.warn("could not load paired phones", { error: String(error) });
+      this.options.log.warn("could not load paired phones", { error: errorMessage(error) });
     }
   }
 
@@ -837,7 +838,7 @@ export class EgressRelay {
     try {
       await this.loadPhones();
     } catch (error) {
-      this.options.log.warn("could not reconcile paired phones", { error: String(error) });
+      this.options.log.warn("could not reconcile paired phones", { error: errorMessage(error) });
       return;
     }
     for (const agent of [...this.agents.values()]) {

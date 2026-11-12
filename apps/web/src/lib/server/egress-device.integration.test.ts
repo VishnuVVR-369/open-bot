@@ -3,6 +3,7 @@ import type { AddressInfo } from "node:net";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import { randomBytes } from "node:crypto";
 import { hashDeviceSecret, readToken } from "@open-bot/domain/server";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 const url = testDatabaseServer();
@@ -134,6 +135,22 @@ describe.skipIf(!url)("egress device credential", () => {
     expect(workerCalls.map((entry) => entry.path)).toContain(
       `/internal/egress/devices/${PHONE}/used`,
     );
+  });
+
+  it("answers a failed query with the database's error, never its SQL or parameters", async () => {
+    const { secret } = await pair();
+    const { deviceRoute } = await import("./egress-device");
+    const { db, schema } = { db: modules.db.db, schema: modules.schema };
+    // Postgres refuses a NUL byte in text, so the query fails with the title as a parameter.
+    const route = deviceRoute(async () => {
+      await db.select().from(schema.tasks).where(eq(schema.tasks.title, "a private\u0000title"));
+      return new Response("unreachable");
+    });
+    const response = await call({ POST: route }, secret);
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      error: "The database refused the query (SQLSTATE 22021).",
+    });
   });
 
   it("answers 401 revoked for a wrong secret, an unknown phone and a missing header", async () => {
