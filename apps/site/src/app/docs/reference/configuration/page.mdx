@@ -9,6 +9,7 @@ In development, the web app, the worker and the pages service all read the repos
 Every value has a development default except `OWNER_EMAIL`.
 `BETTER_AUTH_SECRET` is the one exception in the code: it is read by the sign-in library and has no default, so `.env.example` supplies a placeholder.
 The variables for tests and tooling are listed apart, under [Test and tooling variables](#test-and-tooling-variables).
+Each app reads the environment in one module, listed in `scripts/lint/env-modules.mjs`, and packages take their settings as arguments; lint refuses `process.env` anywhere else outside tests and scripts.
 
 <Callout kind="warning">
   The defaults for `BETTER_AUTH_SECRET`, `WORKER_SECRET`, `BOTD_TOKEN`, `ENCRYPTION_KEY` and
@@ -40,6 +41,7 @@ The variables for tests and tooling are listed apart, under [Test and tooling va
 | `OPENBOT_NEXT_DIST_DIR`     | `.next`                 | The web app's Next.js output folder. Set it to run a second dev server beside the first, as the showcase does with `.next-showcase`.                                                                       |
 | `RAILWAY_GIT_COMMIT_SHA`    | unset                   | Set by Railway, read at build time. Names the deploy, so open tabs reload onto new code after one.                                                                                                         |
 | `NEXT_DEPLOYMENT_ID`        | unset                   | Names the deploy at build time where `RAILWAY_GIT_COMMIT_SHA` isn't set. Without either, tabs are never told to reload.                                                                                    |
+| `OPENBOT_DEPLOYMENT_ID`     | set by the build        | Not a setting: `apps/web/next.config.ts` inlines the deploy name under this name, for `apps/web/src/lib/public-env.ts`.                                                                                    |
 
 ## Worker
 

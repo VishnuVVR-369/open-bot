@@ -159,6 +159,14 @@ Paths are relative to the repo root; symbols are in parentheses.
 4. Mobile still has its own keys: add the type to `keysForAppEvent` in `apps/mobile/src/lib/query.ts`.
 5. Run timeline events are a different path: `RunEventWriter` or `appendRunEvent()`, reduced by `applyRunEvent` in `packages/domain/src/timeline/timeline.ts`.
 
+**Add an environment variable**
+
+1. Read it only in the app's env module, listed in `scripts/lint/env-modules.mjs` (for example `apps/worker/src/env.ts`, `apps/web/src/lib/server/env.ts`); ESLint refuses `process.env` anywhere else in apps and packages.
+   A package never reads it: take the value as an argument or config object from the app.
+2. A secret with a development default goes in `DEV_SECRETS` (`packages/domain/src/server/secrets.ts`), so production refuses to start with it.
+3. Document it in `apps/site/src/app/docs/reference/configuration/page.mdx`, and in `.env.example` with a comment if the web app, the worker or the pages service reads it.
+   `pnpm test:scripts` (`scripts/check/env.test.mjs`) fails when either is missing.
+
 ## Verification
 
 - Pick checks by the boundary you changed. If you touched deps, bundling, or native config, run the built artifact, not just source tests.

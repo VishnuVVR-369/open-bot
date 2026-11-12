@@ -17,9 +17,8 @@ import {
   Tray,
   type MenuItemConstructorOptions,
 } from "electron";
+import { APP_URL } from "./env";
 
-/** Where the web app lives. Locally the Next.js dev server; in production the deployed app. */
-const APP_URL = process.env.OPEN_BOT_URL ?? "https://openbot.up.railway.app";
 const APP_ORIGIN = new URL(APP_URL).origin;
 const QUICK_CAPTURE_SHORTCUT = "CommandOrControl+Shift+Space";
 
