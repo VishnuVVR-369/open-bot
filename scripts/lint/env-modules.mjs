@@ -25,7 +25,9 @@ export const ENV_MODULES = [
 export const ENV_EXCEPTIONS = [
   "**/*.test.ts",
   "**/*.test.tsx",
-  "**/*.config.{ts,mts,mjs,js}",
+  // Tool configs at a workspace's root (next, Expo, Playwright, drizzle-kit), never under src.
+  "apps/*/*.config.{ts,mts,mjs,js}",
+  "packages/*/*.config.{ts,mts,mjs,js}",
   "apps/*/scripts/**",
   "apps/*/build.mjs",
   "apps/*/e2e/**",

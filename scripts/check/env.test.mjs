@@ -32,17 +32,53 @@ const READ_ELSEWHERE = {
   OPENBOT_NEXT_DIST_DIR: "read by apps/web/next.config.ts, a development option",
 };
 
-/** The variables an env module reads: `process.env.NAME`, and the keys of a zod env schema. */
-function variablesOf(path) {
-  const source = read(path);
+/**
+ * The variables an env module's source reads: `process.env.NAME`, `process.env["NAME"]`,
+ * `const { NAME } = process.env`, and the keys of a zod env schema. Throws on a read it can't name,
+ * such as `process.env[name]`, so no variable slips past the checks below.
+ */
+function variablesIn(source) {
   const names = new Set();
-  for (const [, name] of source.matchAll(/process\.env\.([A-Z][A-Z0-9_]*)/g)) names.add(name);
-  for (const [, name] of source.matchAll(/^\s+([A-Z][A-Z0-9_]*): /gm)) names.add(name);
+  for (const [, name] of source.matchAll(/process\.env\.([A-Za-z_]\w*)/g)) names.add(name);
+  for (const [, , name] of source.matchAll(/process\.env\[\s*(["'`])([A-Za-z_]\w*)\1\s*\]/g))
+    names.add(name);
+  for (const [, list] of source.matchAll(/\{([^}]*)\}\s*=\s*process\.env\b/g))
+    for (const item of list.split(",")) {
+      const name = item.trim().split(/[\s:=]/)[0];
+      if (name) names.add(name);
+    }
+  for (const [, name] of source.matchAll(/^\s+["']?([A-Z][A-Z0-9_]*)["']?\s*:/gm)) names.add(name);
+  const unnamed = source.match(/process\.env\[(?!\s*(["'`])[A-Za-z_]\w*\1\s*\])[^\]]*\]/);
+  if (unnamed) throw new Error(`Read each variable by its literal name, not ${unnamed[0]}`);
   return names;
 }
 
+const variablesOf = (path) => variablesIn(read(path));
+
 /** `.env.example` sets the variable, or shows it commented out. */
 const lists = (text, name) => new RegExp(`^#?\\s*${name}=`, "m").test(text);
+
+test("the scanner names every way an env module can read a variable", () => {
+  const source = [
+    "const a = process.env.DOT_READ;",
+    'const b = process.env["BRACKET_READ"];',
+    "const { DESTRUCTURED, RENAMED: renamed, DEFAULTED = 1 } = process.env;",
+    "const schema = z.object({",
+    "  SCHEMA_KEY: z.string(),",
+    '  "QUOTED_KEY": z.string(),',
+    "});",
+  ].join("\n");
+  assert.deepEqual([...variablesIn(source)].sort(), [
+    "BRACKET_READ",
+    "DEFAULTED",
+    "DESTRUCTURED",
+    "DOT_READ",
+    "QUOTED_KEY",
+    "RENAMED",
+    "SCHEMA_KEY",
+  ]);
+  assert.throws(() => variablesIn("const v = process.env[name];"), /literal name/);
+});
 
 test("every env module exists and reads something", () => {
   for (const { path } of ENV_MODULES) {
@@ -94,6 +130,7 @@ test("process.env is refused outside the env modules, scripts and tests", async 
     "apps/mobile/src/app/probe.tsx",
     "packages/db/src/probe.ts",
     "packages/memory/src/probe.ts",
+    "apps/worker/src/services/probe.config.ts",
   ])
     assert.equal(await errors(file), 2, file);
   for (const file of [
@@ -101,6 +138,8 @@ test("process.env is refused outside the env modules, scripts and tests", async 
     "apps/worker/scripts/probe.ts",
     "apps/worker/src/probe.test.ts",
     "apps/web/next.config.ts",
+    "apps/mobile/app.config.ts",
+    "packages/db/drizzle.config.ts",
     "packages/db/src/testing.ts",
   ])
     assert.equal(await errors(file), 0, file);
