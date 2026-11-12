@@ -44,6 +44,13 @@ describe("readEnv", () => {
     });
   });
 
+  it("lets an unused screen stop at the next sweep", () => {
+    expect(readEnv({ BOTD_TOKEN: TOKEN, SCREEN_IDLE_MINUTES: "0" }).screenIdleMs).toBe(0);
+    expect(() => readEnv({ BOTD_TOKEN: TOKEN, SCREEN_IDLE_MINUTES: "-1" })).toThrow(
+      /^SCREEN_IDLE_MINUTES: /,
+    );
+  });
+
   it("refuses a screen limit that isn't a positive number", () => {
     expect(() => readEnv({ BOTD_TOKEN: TOKEN, MAX_SCREENS: "lots" })).toThrow(/^MAX_SCREENS: /);
     expect(() => readEnv({ BOTD_TOKEN: TOKEN, MAX_SCREENS: "0" })).toThrow(/^MAX_SCREENS: /);

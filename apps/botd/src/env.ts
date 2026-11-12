@@ -16,7 +16,8 @@ const schema = z.object({
   /** Extra sites the apply guard covers, besides the job portals: the e2e tests' stand-in portal. */
   APPLY_GUARD_EXTRA_DOMAINS: z.string().default(""),
   MAX_SCREENS: unsetIfEmpty(z.coerce.number().int().positive()),
-  SCREEN_IDLE_MINUTES: unsetIfEmpty(z.coerce.number().positive()),
+  /** 0 stops a screen nobody uses at the next sweep. */
+  SCREEN_IDLE_MINUTES: unsetIfEmpty(z.coerce.number().nonnegative()),
   /** Where the page preview server serves `/lib` from. The image copies the page kit there. */
   PAGE_LIB_DIR: unsetIfEmpty(z.string()),
 });
