@@ -4,7 +4,7 @@ import { eq, inArray } from "drizzle-orm";
 import { memoryContexts, memoryItems, runs } from "@open-bot/db";
 import type { MemoryInput, MemoryItem, MemoryRevision } from "@open-bot/domain";
 import { db } from "../db";
-import { memoryReady } from "../memory";
+import { memory } from "../memory";
 
 /** Memory as you see it in the app: what's saved, how it changed, and what a reply was given. */
 
@@ -19,7 +19,6 @@ export async function listMemories(
   { botId, query }: ApiInputs["memory"]["list"],
   limit = 200,
 ): Promise<MemoryItem[]> {
-  const memory = await memoryReady();
   const items = await memory.list(
     { botId, candidates: true, includeExpired: true, limit, query },
     { kind: "user" },
@@ -43,7 +42,6 @@ export async function listMemories(
 export async function memoryHistory({
   memoryId,
 }: ApiInputs["memory"]["history"]): Promise<MemoryRevision[]> {
-  const memory = await memoryReady();
   const revisions = await memory.history(memoryId, { kind: "user" });
   const ids = revisions.flatMap((r) => (r.source.runId ? [r.source.runId] : []));
   const sources = ids.length
@@ -59,7 +57,6 @@ export async function memoryHistory({
 export async function memoriesForRun({
   runId,
 }: ApiInputs["memory"]["forRun"]): Promise<MemoryRunRef[]> {
-  await memoryReady();
   const [context] = await db
     .select({ refs: memoryContexts.refs })
     .from(memoryContexts)
@@ -103,22 +100,22 @@ const you = { kind: "user" } as const;
 type Edit = MemoryInput & { id: string; expectedRevision: number };
 
 export async function createMemory(input: MemoryInput): Promise<Outputs["create"]> {
-  return (await memoryReady()).save(input, you);
+  return memory.save(input, you);
 }
 
 export async function updateMemory(input: Edit): Promise<Outputs["update"]> {
-  return (await memoryReady()).update(input, you);
+  return memory.update(input, you);
 }
 
 export async function forgetMemory(input: Inputs["forget"]): Promise<{ ok: true }> {
-  await (await memoryReady()).forget(input, you);
+  await memory.forget(input, you);
   return { ok: true };
 }
 
 export async function confirmMemory(input: Inputs["confirm"]): Promise<Outputs["confirm"]> {
-  return (await memoryReady()).approve(input);
+  return memory.approve(input);
 }
 
 export async function restoreMemory(input: Inputs["restore"]): Promise<Outputs["restore"]> {
-  return (await memoryReady()).restore(input);
+  return memory.restore(input);
 }

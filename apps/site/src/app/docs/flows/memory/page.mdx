@@ -119,11 +119,7 @@ The teammate can recover it with `search_history`.
 
 ## MEMORY.md
 
-Earlier versions kept memory in a `MEMORY.md` file in each workspace.
-On a teammate's first run after the upgrade, that file is imported once, as a pinned note, and the import is recorded so it never happens twice.
-If the file can't be read, preparation fails rather than overwriting it.
-
-After that, `MEMORY.md` is only a generated pointer to the memory tools.
+Each workspace has a `MEMORY.md`, rewritten before every run as a pointer to the memory tools.
 Edits to it are never read, and memory bodies are never written back to the computer, so forgotten facts don't linger in files.
 
 ## Feedback and lessons

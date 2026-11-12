@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import {
   and,
   asc,
@@ -29,7 +29,6 @@ import {
   memoryItems,
   memoryJobs,
   memoryRevisions,
-  ownerSettings,
   runs,
   settings,
   SETTINGS_ID,
@@ -60,7 +59,6 @@ export class MemoryError extends Error {
 }
 export type MemoryActor =
   | { kind: "user" }
-  | { kind: "import" }
   | {
       kind: "bot";
       botId: string;
@@ -99,7 +97,7 @@ function sourceOf(actor: MemoryActor): MemorySource {
         runId: actor.runId,
         ...(actor.messageId ? { messageId: actor.messageId } : {}),
       }
-    : { type: actor.kind === "import" ? "import" : "user" };
+    : { type: "user" };
 }
 function canRead(actor: MemoryActor, teammateId: string | null): boolean {
   return actor.kind !== "bot" || teammateId === null || teammateId === actor.botId;
@@ -280,7 +278,7 @@ export class MemoryService {
   async save(
     input: MemoryInput,
     actor: MemoryActor,
-    options: { source?: MemorySource; legacyKey?: string; id?: string } = {},
+    options: { source?: MemorySource } = {},
   ): Promise<MemorySaveResult> {
     return this.guarded(async () => {
       const data = validate(memoryInputSchema, input);
@@ -384,7 +382,6 @@ export class MemoryService {
         const [row] = await tx
           .insert(memoryItems)
           .values({
-            id: options.id ?? randomUUID(),
             botId: data.botId,
             kind: data.kind,
             content: data.content,
@@ -394,7 +391,6 @@ export class MemoryService {
             pinned: actor.kind === "bot" ? false : data.pinned,
             expiresAt,
             source: options.source ?? sourceOf(actor),
-            legacyKey: options.legacyKey ?? null,
           })
           .returning();
         await this.revision(tx, row!);
@@ -861,89 +857,6 @@ export class MemoryService {
         )
         .slice(0, 12)
         .map(({ row }) => itemView(row));
-    });
-  }
-
-  /** Import legacy sources once. Tombstones keep legacy keys, so forgotten content never returns. */
-  async importLegacy(): Promise<void> {
-    return this.guarded(async () => {
-      const profile = await ownerSettings(this.db);
-      await this.importOnce("legacy:profile", null, profile?.aboutMe ?? "", "note", true);
-      const legacy = await this.db
-        .select({
-          id: lessons.id,
-          botId: lessons.botId,
-          text: lessons.text,
-          runId: lessons.runId,
-        })
-        .from(lessons)
-        .innerJoin(teammates, eq(teammates.id, lessons.botId))
-        .where(isNull(teammates.archivedAt));
-      for (const lesson of legacy)
-        await this.importOnce(
-          `legacy:lesson:${lesson.id}`,
-          lesson.botId,
-          lesson.text,
-          "lesson",
-          true,
-          lesson.id,
-          lesson.runId ? { type: "feedback", runId: lesson.runId } : { type: "import" },
-        );
-    });
-  }
-
-  async importOnce(
-    key: string,
-    botId: string | null,
-    content: string,
-    kind: MemoryInput["kind"] = "note",
-    pinned = false,
-    id?: string,
-    source?: MemorySource,
-  ): Promise<void> {
-    return this.guarded(async () => {
-      const done = await this.db
-        .select({ key: memoryImports.key })
-        .from(memoryImports)
-        .where(eq(memoryImports.key, key));
-      if (done.length) return;
-      // Import into one scope transaction through a dedicated lock, then mark even empty sources.
-      await this.db.transaction(async (tx) => {
-        await this.lockScope(tx, botId);
-        const claimed = await tx
-          .insert(memoryImports)
-          .values({ key })
-          .onConflictDoNothing()
-          .returning({ key: memoryImports.key });
-        if (!claimed.length || !content.trim()) return;
-        const hash = fingerprint(content);
-        const existing = await tx
-          .select({ id: memoryItems.id })
-          .from(memoryItems)
-          .where(
-            or(
-              eq(memoryItems.legacyKey, key),
-              and(inScope(botId), eq(memoryItems.fingerprint, hash)),
-            ),
-          );
-        if (existing.length) return;
-        const [row] = await tx
-          .insert(memoryItems)
-          .values({
-            id: id ?? randomUUID(),
-            botId,
-            kind,
-            content,
-            fingerprint: hash,
-            pinned,
-            source: source ?? { type: "import" },
-            legacyKey: key,
-          })
-          .returning();
-        await this.revision(tx, row!);
-        // Importing a batch must not erase other legacy rows before they are imported.
-        await bumpGeneration(tx, botId);
-      });
     });
   }
 

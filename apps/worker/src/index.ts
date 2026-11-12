@@ -78,7 +78,7 @@ const ctx: Context = { env, db, pool, computer, codex, log, events: new EventEmi
 
 const sessions = new SessionRegistry();
 const memory = new MemoryCoordinator(ctx);
-await memory.start();
+memory.start();
 const approvals = new ApprovalService(ctx, sessions);
 const takeovers = new TakeoverService(ctx, sessions);
 const screenOperations = new ScreenOperationService(ctx, takeovers);
@@ -95,7 +95,6 @@ const swarms = new SwarmService(ctx, sessions);
 const uploads = new UploadService(db, computerFiles(ctx), log.child("uploads"));
 const email = new EmailService(ctx, approvals, sessions, uploads);
 const botService = new BotService(ctx, schedules, skills, memory.store, async (bot) => {
-  await memory.store.importLegacy();
   await executor.syncWorkspace(bot);
 });
 const pages = new PageService(ctx);

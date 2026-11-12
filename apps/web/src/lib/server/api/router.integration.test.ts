@@ -187,7 +187,6 @@ describe.skipIf(!url)("API reads, end to end", () => {
       instructions: "Read it and summarize it.",
       createdBy: "user",
     });
-    await db.insert(s.lessons).values({ ...owned(ids.teammate), text: "Keep it short." });
     await db
       .insert(s.notifications)
       .values({ kind: "run_finished", title: "Done", ...owned(ids.teammate) });
@@ -213,8 +212,7 @@ describe.skipIf(!url)("API reads, end to end", () => {
     });
     await db.update(s.pages).set({ currentVersionId: ids.version, versionCount: 1 });
     // A memory a teammate saved during the run, so its list names the teammate and the chat.
-    const { memoryReady } = await import("../memory");
-    const memory = await memoryReady();
+    const { memory } = await import("../memory");
     const saved = await memory.save(
       {
         ...owned(ids.teammate),
@@ -227,6 +225,8 @@ describe.skipIf(!url)("API reads, end to end", () => {
       { kind: "bot", botId: ids.teammate, runId: ids.run, verified: true },
     );
     ids.memory = saved.id;
+    // A lesson is a memory; the lessons table is its projection.
+    await memory.addLessons(ids.teammate, ["Keep it short."]);
   }
 
   it("serves the shell's state with the worker's status", async () => {
@@ -912,10 +912,8 @@ describe.skipIf(!url)("API reads, end to end", () => {
   });
 
   it("confirms a teammate's suggested memory", async () => {
-    const { memoryReady } = await import("../memory");
-    const suggested = await (
-      await memoryReady()
-    ).save(
+    const { memory } = await import("../memory");
+    const suggested = await memory.save(
       {
         ...owned(ids.teammate),
         kind: "fact",

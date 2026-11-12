@@ -10,7 +10,7 @@ Tool wiring and routes go in `apps/worker`, memory tables in `packages/db`, shar
 
 ## Invariants
 
-- Every write records who made it through a `MemoryActor` (user, import or a teammate with run id).
+- Every write records who made it through a `MemoryActor` (the user, or a teammate with its run id).
 - Edits create revisions; items are not overwritten silently.
 - Search combines full text with optional vector search; vectors are optional when no embedding provider is configured.
 - Embedding and extraction calls respect `dailyRequestLimit`.
