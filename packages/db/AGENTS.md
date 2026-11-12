@@ -8,7 +8,8 @@ Better Auth's `account` table is sign-in and is unrelated to the integrations `a
 ## Entry points
 
 - `packages/db/src/index.ts`: `createPool`, `createDb`, `notify`, `CHANNELS`, `AppEvent`, `WorkerSignal`, plus the schema.
-  `databaseError(error)` is the database's own error behind a `DrizzleQueryError`, for messages a person or a log sees.
+  A failed query throws Drizzle's `DrizzleQueryError`, whose message repeats the SQL and every parameter.
+  Anything a person or a log sees uses `errorMessage(error)` (the database's own message) or `databaseError(error)` (its error); `failedQuery(error)` is the SQL alone, for a log line.
 - `packages/db/src/owners.ts`: who writes each table (see "One writer per table" below).
 - `packages/db/src/locks.ts`: every advisory lock, by name in `LOCKS`, taken with `lockUntilCommit(tx, ...)` or `withTryLock(pool, ...)`.
   Never change a shipped key: the web app and the worker deploy separately and must still exclude each other.

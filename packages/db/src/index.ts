@@ -32,11 +32,23 @@ export function createDb(pool: pg.Pool): Db {
 
 /**
  * The database's own error behind Drizzle's `DrizzleQueryError`, whose message repeats the failed
- * SQL and every parameter. Use it where a message can reach a person or a log; anything else is
+ * SQL and every parameter. Use it where an error can reach a person or a log; anything else is
  * returned as is.
  */
 export function databaseError(error: unknown): unknown {
-  return error instanceof DrizzleQueryError && error.cause instanceof Error ? error.cause : error;
+  if (!(error instanceof DrizzleQueryError)) return error;
+  return error.cause instanceof Error ? error.cause : new Error("A database query failed.");
+}
+
+/** An error's message for a person or a log: a failed query says the database's error only. */
+export function errorMessage(error: unknown): string {
+  const shown = databaseError(error);
+  return shown instanceof Error ? shown.message : String(shown);
+}
+
+/** The SQL of a failed query, without its parameters, for a log line. */
+export function failedQuery(error: unknown): string | undefined {
+  return error instanceof DrizzleQueryError ? error.query : undefined;
 }
 
 /**

@@ -354,6 +354,26 @@ describe.skipIf(!url)("API reads, end to end", () => {
     });
   });
 
+  it("answers a failed query with the database's error, never its SQL or parameters", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      // Postgres refuses a NUL byte in text, so the search fails with the query as a parameter.
+      const failed = await api.search.messages({ query: "a private\u0000phrase" }).then(
+        () => null,
+        (error: unknown) => error,
+      );
+      expect(failed).toBeInstanceOf(ORPCError);
+      expect(failed).toMatchObject({
+        status: 500,
+        message: 'invalid byte sequence for encoding "UTF8": 0x00',
+      });
+      expect(logged).toHaveBeenCalledOnce();
+      expect(String((logged.mock.calls[0]![1] as Error).message)).not.toContain("private");
+    } finally {
+      logged.mockRestore();
+    }
+  });
+
   /* The writes the web app does itself, and how worker failures reach the caller. */
 
   const PROFILE = {

@@ -25,6 +25,5 @@ export function createLogger(scope = "worker"): Logger {
   };
 }
 
-export function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
+/** An error's message for a person or a log; a failed query's never repeats its parameters. */
+export { errorMessage } from "@open-bot/db";

@@ -475,6 +475,24 @@ describe.skipIf(!url)("worker internal API, end to end", () => {
     expect(await db.select().from(tasks).where(eq(tasks.id, id))).toEqual([]);
   });
 
+  it("answers a failed query with the database's error, never its SQL or parameters", async () => {
+    const logged = vi.mocked(ctx.log.error);
+    logged.mockClear();
+    // Postgres refuses a NUL byte in text, so the insert fails with the title as a parameter.
+    expect(await failure(worker.tasks.create({ title: "A private\u0000title" }))).toEqual({
+      status: 500,
+      message: 'invalid byte sequence for encoding "UTF8": 0x00',
+    });
+    expect(logged).toHaveBeenCalledOnce();
+    const [, fields] = logged.mock.calls[0]!;
+    expect(fields).toMatchObject({
+      path: "/internal/tasks",
+      error: 'invalid byte sequence for encoding "UTF8": 0x00',
+      query: expect.stringContaining('insert into "tasks"'),
+    });
+    expect(JSON.stringify(fields)).not.toContain("private");
+  });
+
   it("triggers and hooks: a webhook gets a URL, and an unknown one is a 404", async () => {
     const created = await newTeammate("Ida", "watcher");
     const hook = await worker.triggers.create({

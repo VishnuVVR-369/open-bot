@@ -1,4 +1,5 @@
 import "server-only";
+import { errorMessage } from "@open-bot/db";
 import { NextResponse } from "next/server";
 import { crossSiteRefusal } from "./origin";
 import { sessionOrNull } from "./session";
@@ -20,10 +21,7 @@ export function authed<Args extends [Request, ...unknown[]]>(
       return await handler(...args);
     } catch (error) {
       const status = error instanceof WorkerError ? error.status : 500;
-      return NextResponse.json(
-        { error: error instanceof Error ? error.message : String(error) },
-        { status },
-      );
+      return NextResponse.json({ error: errorMessage(error) }, { status });
     }
   };
 }

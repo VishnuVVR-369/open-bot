@@ -1,4 +1,5 @@
 import type { WorkerMeta } from "@open-bot/api/worker";
+import { failedQuery } from "@open-bot/db";
 import { OpenAPIHandler } from "@orpc/openapi/node";
 import { BodyLimitPlugin } from "@orpc/server/node";
 import type { Context } from "../context";
@@ -33,7 +34,11 @@ export function createRpcHandler(
           // Never log or echo what failed when the input carries a code: it could include it.
           if (meta.secretInput) throw maskedError(failure);
           if (failure.status >= 500)
-            ctx.log.error("request failed", { path: context.path, error: errorMessage(error) });
+            ctx.log.error("request failed", {
+              path: context.path,
+              error: errorMessage(error),
+              query: failedQuery(error),
+            });
           throw failure;
         }
       },
