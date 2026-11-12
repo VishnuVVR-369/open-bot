@@ -1,7 +1,7 @@
 import type { NotifyChannel } from "@open-bot/domain";
-import { DrizzleQueryError } from "drizzle-orm";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import pg from "pg";
+import { SafeClient } from "./errors";
 import * as schema from "./schema";
 
 export * from "./schema";
@@ -14,6 +14,7 @@ export {
   type OwnerSettings,
 } from "./settings";
 export { configurationRevision } from "./configuration";
+export { databaseError, errorFields, errorMessage, withoutValues } from "./errors";
 export { schema };
 
 export type Db = NodePgDatabase<typeof schema>;
@@ -22,10 +23,13 @@ export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 /** Something that runs queries: the database, or a transaction in it. */
 export type Queryable = Db | Tx;
 
-/** A pool for `url`, which each app reads from its own env module. */
+/**
+ * A pool for `url`, which each app reads from its own env module. Its failed queries never carry a
+ * value: see `errors.ts`.
+ */
 export function createPool(url: string): pg.Pool {
   if (!url) throw new Error("DATABASE_URL is not set");
-  return new pg.Pool({ connectionString: url, max: 10 });
+  return new pg.Pool({ connectionString: url, max: 10, Client: SafeClient });
 }
 
 export function createDb(pool: pg.Pool): Db {
@@ -33,52 +37,6 @@ export function createDb(pool: pg.Pool): Db {
 }
 
 /**
- * The database's own error behind Drizzle's `DrizzleQueryError`, whose message repeats the failed
- * SQL and every parameter. Rethrow this, but never show or log it whole: its `detail` can hold
- * values. `errorMessage` and `errorFields` say what may be shown. Anything else is returned as is.
- */
-export function databaseError(error: unknown): unknown {
-  if (!(error instanceof DrizzleQueryError)) return error;
-  return error.cause instanceof Error ? error.cause : new Error("A database query failed.");
-}
-
-/**
- * An error's message for a person or a log. A database error says only its SQLSTATE: Postgres's
- * own message can repeat a value it refused (`invalid input syntax for type integer: "..."`).
- */
-export function errorMessage(error: unknown): string {
-  const shown = databaseError(error);
-  if (shown instanceof pg.DatabaseError)
-    return `The database refused the query (SQLSTATE ${shown.code ?? "unknown"}).`;
-  return shown instanceof Error ? shown.message : String(shown);
-}
-
-/** Text that may hold a `DrizzleQueryError`'s message, without the parameters that end it. */
-export function withoutParameters(text: string): string {
-  return text.replace(/\nparams: [\s\S]*$/, "");
-}
-
-/**
- * An error as a log line may record it. A database error gives only its safe message, its SQL
- * without parameters, and what it names (code, table, column, constraint), never its `detail`
- * or `where`, which can hold values. Any other error keeps its stack.
- */
-export function errorFields(error: unknown): Record<string, string | undefined> {
-  const shown = databaseError(error);
-  const fields: Record<string, string | undefined> = { error: errorMessage(error) };
-  if (error instanceof DrizzleQueryError) fields.query = error.query;
-  if (shown instanceof pg.DatabaseError)
-    Object.assign(fields, {
-      code: shown.code,
-      table: shown.table,
-      column: shown.column,
-      constraint: shown.constraint,
-    });
-  else if (!(error instanceof DrizzleQueryError) && error instanceof Error)
-    fields.stack = error.stack;
-  return fields;
-}
-
 /** Send on one of the NOTIFY channels (`NOTIFY_CHANNELS` in `@open-bot/domain`). */
 export async function notify(
   client: Pick<pg.Pool, "query">,

@@ -364,9 +364,10 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
       "create trigger memory_test_job_failure before insert on memory_jobs for each row execute function memory_test_fail_job()",
     );
     try {
-      // The database's own message, never Drizzle's, which repeats the SQL and its parameters.
+      // The database's own error, never Drizzle's, whose message is the SQL. A raised exception's
+      // message can quote any value, so it says only its SQLSTATE.
       await expect(memory.save(input("A transaction that must roll back"), user)).rejects.toThrow(
-        /^test fault$/,
+        /^The database refused the query \(SQLSTATE P0001\)\.$/,
       );
       expect(await memory.list({ botId: teammate }, user)).toHaveLength(0);
       expect((await pool.query("select * from memory_revisions")).rowCount).toBe(0);

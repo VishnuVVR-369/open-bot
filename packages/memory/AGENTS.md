@@ -23,7 +23,7 @@ Tool wiring and routes go in `apps/worker`, memory tables in `packages/db`, shar
 - The `lessons` table, `bots.lessons_changed_at` and `settings.about_me` are projections rebuilt in the same transaction as each change.
   The two writes to other owners' tables are SQL text on purpose: Drizzle's `update` would also bump their `updated_at`.
   Their column names come from the schema (`sql.identifier(table.column.name)`), which the table-owners lint reads.
-- Public `MemoryService` methods fail with the database's own error, never Drizzle's `DrizzleQueryError`, whose message repeats the SQL and its parameters (memory content).
+- Public `MemoryService` methods fail with the database's own error (`databaseError` in `@open-bot/db`, already without values), never Drizzle's `DrizzleQueryError`, whose message is the failed SQL.
 
 ## Tests
 

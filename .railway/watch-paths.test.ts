@@ -5,7 +5,13 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { type DeployedService, ROOT_FILES, SERVICE_FOLDERS, watchPatterns } from "./watch-paths.ts";
+import {
+  type DeployedService,
+  ROOT_FILES,
+  ROOT_FOLDERS,
+  SERVICE_FOLDERS,
+  watchPatterns,
+} from "./watch-paths.ts";
 
 const root = join(import.meta.dirname, "..");
 
@@ -70,7 +76,7 @@ for (const service of Object.keys(ENTRIES) as DeployedService[]) {
 }
 
 test("every watched folder and root file exists", () => {
-  for (const folder of new Set(Object.values(SERVICE_FOLDERS).flat())) {
+  for (const folder of new Set([...Object.values(SERVICE_FOLDERS).flat(), ...ROOT_FOLDERS])) {
     assert.ok(existsSync(join(root, folder, ".")), `${folder} does not exist`);
   }
   for (const file of ROOT_FILES) {
@@ -88,12 +94,35 @@ test("the computer image copies nothing from outside its watched paths", () => {
     return parts.slice(0, -1);
   });
   assert.ok(sources.length > 0, "no COPY sources found in the Dockerfile");
-  const watched = [...ROOT_FILES, ...SERVICE_FOLDERS.computer];
+  const watched = [...ROOT_FILES, ...ROOT_FOLDERS, ...SERVICE_FOLDERS.computer];
   for (const source of sources) {
     const path = source.replace(/^\.\//, "").replace(/\/$/, "");
     assert.ok(
       watched.some((entry) => path === entry || path.startsWith(`${entry}/`)),
       `the Dockerfile copies ${source}, which the computer's watch paths miss`,
+    );
+  }
+});
+
+test("the computer image copies every dependency patch before it installs", () => {
+  // A frozen install refuses to run when a patch the workspace names is missing.
+  const workspace = readFileSync(join(root, "pnpm-workspace.yaml"), "utf8");
+  const patches = [...workspace.matchAll(/^\s+\S+:\s+(patches\/\S+)\s*$/gm)].map(
+    (match) => match[1]!,
+  );
+  assert.ok(patches.length > 0, "no patchedDependencies found in pnpm-workspace.yaml");
+  const dockerfile = readFileSync(join(root, "images/computer/Dockerfile"), "utf8");
+  const install = dockerfile.search(/^RUN pnpm install/m);
+  assert.ok(install > 0, "the Dockerfile never runs pnpm install");
+  const copied = [...dockerfile.slice(0, install).matchAll(/^COPY\s+(?!--from)(.+)$/gm)].flatMap(
+    (match) => match[1]!.trim().split(/\s+/).slice(0, -1),
+  );
+  for (const patch of patches) {
+    assert.ok(
+      copied.some(
+        (source) => patch === source || patch.startsWith(`${source.replace(/\/$/, "")}/`),
+      ),
+      `the Dockerfile installs before it copies ${patch}`,
     );
   }
 });

@@ -2,8 +2,12 @@ packages:
   - apps/*
   - packages/*
   - tools/*
+
 onlyBuiltDependencies:
   - electron
   - esbuild
   - sharp
   - unrs-resolver
+
+patchedDependencies:
+  drizzle-orm@0.45.4: patches/drizzle-orm@0.45.4.patch

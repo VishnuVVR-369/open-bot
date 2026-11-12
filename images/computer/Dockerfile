@@ -5,6 +5,7 @@ FROM node:24-trixie-slim AS build
 RUN corepack enable
 WORKDIR /src
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY patches patches/
 COPY packages/api/package.json packages/api/
 COPY packages/domain/package.json packages/domain/
 COPY packages/egress/package.json packages/egress/
