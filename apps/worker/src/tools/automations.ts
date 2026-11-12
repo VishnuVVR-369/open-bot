@@ -240,7 +240,13 @@ async function scheduleTask(
   raw: Record<string, unknown>,
 ): Promise<ToolResponse> {
   const startedAt = session.now();
-  const target = await deps.botTools.setupTarget(session, callId, "schedule_task", args);
+  const target = await deps.botTools.setupTarget(
+    session,
+    callId,
+    "schedule_task",
+    args,
+    ({ teammate }) => `Schedule "${args.title}" for ${teammate}`,
+  );
   const schedule = await deps.schedules.create({
     botId: target.id,
     title: args.title,
@@ -283,7 +289,13 @@ async function watchPage(
   raw: Record<string, unknown>,
 ): Promise<ToolResponse> {
   const startedAt = session.now();
-  const target = await deps.botTools.setupTarget(session, callId, "watch_page", args);
+  const target = await deps.botTools.setupTarget(
+    session,
+    callId,
+    "watch_page",
+    args,
+    ({ teammate }) => `Watch ${args.url} for ${teammate}`,
+  );
   let watch;
   try {
     watch = await deps.triggers.create(
@@ -336,7 +348,11 @@ async function watchAccount(
 ): Promise<ToolResponse> {
   const startedAt = session.now();
   const kind = tool === "watch_gmail" ? "gmail" : "calendar";
-  const target = await deps.botTools.setupTarget(session, callId, tool, args);
+  const target = await deps.botTools.setupTarget(session, callId, tool, args, ({ teammate }) =>
+    tool === "watch_gmail"
+      ? `Wake ${teammate} for new mail: "${args.title}"`
+      : `Wake ${teammate} before events: "${args.title}"`,
+  );
   let row;
   let display;
   try {
@@ -398,7 +414,13 @@ async function createWebhook(
   raw: Record<string, unknown>,
 ): Promise<ToolResponse> {
   const startedAt = session.now();
-  const target = await deps.botTools.setupTarget(session, callId, "create_webhook", args);
+  const target = await deps.botTools.setupTarget(
+    session,
+    callId,
+    "create_webhook",
+    args,
+    ({ teammate }) => `Create the webhook "${args.title}" for ${teammate}`,
+  );
   // A webhook is a way in from outside; a run that read your accounts asks before opening one.
   if (session.run.readOutsideData) {
     const decision = await deps.approvals.requestAction(session, {
@@ -461,7 +483,15 @@ async function cancelAutomation(
   raw: Record<string, unknown>,
 ): Promise<ToolResponse> {
   const { id } = args;
-  const botId = (await deps.botTools.setupTarget(session, callId, "cancel_automation", args)).id;
+  const botId = (
+    await deps.botTools.setupTarget(
+      session,
+      callId,
+      "cancel_automation",
+      args,
+      ({ teammate, automation }) => `Delete ${automation} for ${teammate}`,
+    )
+  ).id;
   const schedule = await deps.schedules.cancelForBot(botId, id);
   const trigger = schedule
     ? null
@@ -484,7 +514,15 @@ async function updateAutomation(
   change: z.output<typeof updateAutomationInput>,
   raw: Record<string, unknown>,
 ): Promise<ToolResponse> {
-  const botId = (await deps.botTools.setupTarget(session, callId, "update_automation", change)).id;
+  const botId = (
+    await deps.botTools.setupTarget(
+      session,
+      callId,
+      "update_automation",
+      change,
+      ({ teammate, automation }) => `Change ${automation} for ${teammate}`,
+    )
+  ).id;
   const startedAt = session.now();
   const [schedule] = await deps.ctx.db
     .select()

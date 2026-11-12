@@ -64,7 +64,13 @@ async function saveSkill(
   const shared = args.for_everyone;
   if (shared && args.bot_id !== undefined)
     return text("Choose bot_id or for_everyone, not both.", false);
-  const target = await deps.botTools.setupTarget(session, callId, "save_skill", args);
+  const target = await deps.botTools.setupTarget(
+    session,
+    callId,
+    "save_skill",
+    args,
+    ({ teammate }) => `Save the /${args.name} skill for ${teammate}`,
+  );
   const skillId = args.skill_id;
   if (skillId) {
     const existing = (await deps.skills.forBot(target.id)).find((skill) => skill.id === skillId);
