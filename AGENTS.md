@@ -32,7 +32,7 @@ For a deployed service it must also be added to that service's list in `.railway
 | `apps/site`             | Landing page and the technical docs (Cloudflare)                              | `apps/site/src/app`                   | `pnpm --filter @open-bot/site test:e2e`  |
 | `packages/domain`       | Isomorphic types, zod schemas and pure logic; Node-only helpers in `/server`  | `packages/domain/src/index.ts`        | `pnpm --filter @open-bot/domain test`    |
 | `packages/api`          | oRPC contracts (web and mobile, worker internal, botd) and serializable views | `packages/api/src/contract.ts`        | `pnpm --filter @open-bot/api test`       |
-| `packages/chat-core`    | Chat logic web and mobile share: formatting, with no platform imports         | `packages/chat-core/src/index.ts`     | `pnpm --filter @open-bot/chat-core test` |
+| `packages/chat-core`    | Chat logic web and mobile share: turn timeline, triggers, formatting          | `packages/chat-core/src/index.ts`     | `pnpm --filter @open-bot/chat-core test` |
 | `packages/db`           | Drizzle schema, migrations, pool, NOTIFY channels and app events              | `packages/db/src/schema.ts`           | `pnpm test:integration`                  |
 | `packages/integrations` | Google and Notion: sign-in, the token store, and the integrations' adapters   | `packages/integrations/src/server.ts` | `pnpm test:integration`                  |
 | `packages/memory`       | Versioned memory and its background jobs                                      | `packages/memory/src/index.ts`        | `pnpm test:memory`                       |
@@ -87,7 +87,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 1. `apps/worker/src/tools/definitions.ts`: add a `tool(...)` spec to the right group array (`CONTROL_TOOLS`, `PAGE_TOOLS`, ...) and bump `TOOLS_VERSION`. Without the bump, existing threads never see the tool.
 2. `apps/worker/src/tools/handlers.ts`: a zod args schema, a `case` in `ToolHandlers.handle()`, a timeline item via `session.putItem(this.toolItem(...))`, `publishApp` if the UI shows the change, and `HELPER_FORBIDDEN` if swarm helpers must not call it. Nothing checks definitions against the switch; a missing case fails only at call time.
 3. A new service is a constructor parameter: wire it in `apps/worker/src/index.ts` and `apps/worker/src/tools/bots.integration.test.ts`.
-4. Optional: rules in `DEVELOPER_INSTRUCTIONS` (`apps/worker/src/instructions.ts`, bump `TOOLS_VERSION` again), `TOOL_ICONS` in `apps/web/src/components/chat/items.tsx`, `ASKS_APPROVAL` in `apps/web/src/components/chat/run-block.tsx`. Mobile renders every tool generically.
+4. Optional: rules in `DEVELOPER_INSTRUCTIONS` (`apps/worker/src/instructions.ts`, bump `TOOLS_VERSION` again), `TOOL_ICONS` in `apps/web/src/components/chat/items.tsx`, `ASKS_APPROVAL` in `packages/chat-core/src/timeline.ts` (both apps). Mobile renders every tool generically.
 5. Document it in `apps/site/src/app/docs/reference/tools/page.mdx`.
 
 **Add a worker internal route** (called by web)

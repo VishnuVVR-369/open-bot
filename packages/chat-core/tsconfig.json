@@ -1,8 +1,8 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    // Runs in the browser and in React Native: no Node or DOM types.
-    "types": []
+    // For `URL` in @open-bot/domain's sources, as in packages/api; lint keeps Node imports out.
+    "types": ["node"]
   },
   "include": ["src"]
 }
