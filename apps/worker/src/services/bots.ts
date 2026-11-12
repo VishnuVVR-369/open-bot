@@ -2,7 +2,6 @@ import {
   approvalRules,
   bots,
   bots as teammates,
-  CHANNELS,
   chatMembers,
   configurationRevision,
   connections,
@@ -29,6 +28,7 @@ import {
   type CreatedBot,
   newTeammateSlot,
   nextTeammateColor,
+  NOTIFY_CHANNELS,
   TEAMMATE_TEMPLATES,
   type TeammateBundle,
   toCents,
@@ -533,7 +533,7 @@ export class BotService {
       await pauseSchedulesOf(tx, id);
       await pauseTriggersOf(tx, id);
     });
-    await notify(this.ctx.pool, CHANNELS.worker, "cancel").catch((error: unknown) =>
+    await notify(this.ctx.pool, NOTIFY_CHANNELS.worker, "cancel").catch((error: unknown) =>
       this.ctx.log.warn("teammate archived, but its runs weren't told to stop", {
         teammateId: id,
         error: errorMessage(error),

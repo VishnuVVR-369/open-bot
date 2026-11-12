@@ -1,5 +1,6 @@
+import { isWorkerSignal, NOTIFY_CHANNELS, type WorkerSignal } from "@open-bot/domain";
 import { BOTD_SOCKETS, type LifecycleCapabilities } from "@open-bot/api/botd";
-import { CHANNELS, createDb, createPool, ownerSettings } from "@open-bot/db";
+import { createDb, createPool, ownerSettings } from "@open-bot/db";
 import { ComputerLifecycle } from "./computer-lifecycle";
 import { CodexManager } from "./codex";
 import { BotdError, ComputerClient } from "./computer";
@@ -354,28 +355,23 @@ void telegram
 
 // Wake up on signals from the web server.
 const listener = await pool.connect();
-await listener.query(`listen ${CHANNELS.worker}`);
+await listener.query(`listen ${NOTIFY_CHANNELS.worker}`);
+// One handler per signal, so a new `WorkerSignal` doesn't compile until it has one.
+const onSignal: Record<WorkerSignal, () => void> = {
+  runs: () => executor.pump(),
+  schedules: () => schedules.kick(),
+  triggers: () => {
+    triggers.kick();
+    accountTriggers.kick();
+  },
+  accounts: () => accountActions.kick(),
+  cancel: () =>
+    void executor
+      .processCancellations()
+      .catch((error: unknown) => log.error("cancel failed", { error: errorMessage(error) })),
+};
 listener.on("notification", (message) => {
-  switch (message.payload) {
-    case "runs":
-      executor.pump();
-      return;
-    case "schedules":
-      schedules.kick();
-      return;
-    case "triggers":
-      triggers.kick();
-      accountTriggers.kick();
-      return;
-    case "accounts":
-      accountActions.kick();
-      return;
-    case "cancel":
-      void executor
-        .processCancellations()
-        .catch((error: unknown) => log.error("cancel failed", { error: errorMessage(error) }));
-      return;
-  }
+  if (message.payload && isWorkerSignal(message.payload)) onSignal[message.payload]();
 });
 // Catch anything queued while no one was listening.
 setInterval(() => {

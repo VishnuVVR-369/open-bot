@@ -1,6 +1,6 @@
+import { NOTIFY_CHANNELS } from "@open-bot/domain";
 import "server-only";
 import { EventEmitter } from "node:events";
-import { CHANNELS } from "@open-bot/db";
 import type pg from "pg";
 import { pool } from "./db";
 
@@ -35,15 +35,17 @@ class Realtime extends EventEmitter<{ chat: [string]; app: [string]; shutdown: [
   private async connect() {
     const client = await pool.connect();
     client.on("notification", (message) => {
-      if (message.channel === CHANNELS.chat && message.payload) this.emit("chat", message.payload);
-      if (message.channel === CHANNELS.app && message.payload) this.emit("app", message.payload);
+      if (message.channel === NOTIFY_CHANNELS.chat && message.payload)
+        this.emit("chat", message.payload);
+      if (message.channel === NOTIFY_CHANNELS.app && message.payload)
+        this.emit("app", message.payload);
     });
     client.on("error", () => {
       this.client = null;
       client.release(true);
     });
-    await client.query(`listen ${CHANNELS.chat}`);
-    await client.query(`listen ${CHANNELS.app}`);
+    await client.query(`listen ${NOTIFY_CHANNELS.chat}`);
+    await client.query(`listen ${NOTIFY_CHANNELS.app}`);
     this.client = client;
   }
 }

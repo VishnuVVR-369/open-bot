@@ -7,7 +7,7 @@ Better Auth's `account` table is sign-in and is unrelated to the integrations `a
 
 ## Entry points
 
-- `packages/db/src/index.ts`: `createPool`, `createDb`, `notify`, `CHANNELS`, `AppEvent`, `WorkerSignal`, plus the schema.
+- `packages/db/src/index.ts`: `createPool`, `createDb`, `notify`, plus the schema.
   A failed query throws Drizzle's `DrizzleQueryError`, whose message repeats the SQL and every parameter, and Postgres's own error can hold values too (a data error's message, any `detail` or `where`).
   So the app's own answers and logs give an unexpected error only as `errorMessage(error)` (a database error becomes its SQLSTATE) or `errorFields(error)` (for a log line: that message, SQL without parameters, code, table, column, constraint).
   `databaseError(error)` is the error to rethrow, never to show or log whole; `withoutParameters(text)` cuts the parameters off text that may hold a failed query's message.
@@ -26,8 +26,8 @@ Better Auth's `account` table is sign-in and is unrelated to the integrations `a
 - Keep schema changes additive (nullable or defaulted), because the old web and worker keep running until the deploy finishes.
 - The worker's Railway pre-deploy step runs migrations. If one fails, Railway stays on the old commit.
 - Commit the SQL, `packages/db/drizzle/meta/` snapshot and journal together.
-- `CHANNELS` are `openbot_chat`, `openbot_app` and `openbot_worker`. Adding an `AppEvent` also needs client invalidation (see "Add a realtime event" in the root `AGENTS.md`).
-- `WorkerSignal` wakes the worker; a new value needs a listener in the worker.
+- The NOTIFY channels (`NOTIFY_CHANNELS`: `openbot_chat`, `openbot_app` and `openbot_worker`), `AppEvent` and `WorkerSignal` live in `packages/domain/src/events`; `notify()` here sends on them. Adding an `AppEvent` also needs client invalidation (see "Add a realtime event" in the root `AGENTS.md`).
+- `WorkerSignal` wakes the worker; a new value doesn't compile until the worker's `onSignal` (`apps/worker/src/index.ts`) handles it.
 - `testing.ts` only writes to and drops databases named `openbot_test_*`.
 
 ## One writer per table

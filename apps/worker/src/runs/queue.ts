@@ -1,5 +1,5 @@
-import type { RunTrigger } from "@open-bot/domain";
-import { CHANNELS, notify, runEvents, runs, type Attachment, type Queryable } from "@open-bot/db";
+import { NOTIFY_CHANNELS, type RunTrigger } from "@open-bot/domain";
+import { notify, runEvents, runs, type Attachment, type Queryable } from "@open-bot/db";
 import { sql } from "drizzle-orm";
 import { signalWorker, type Context } from "../context";
 
@@ -63,7 +63,7 @@ export async function insertRun(db: Queryable, input: RunInput): Promise<string>
 
 /** Tell open chats about a saved run, and wake the executor. */
 export async function announceRun(ctx: Pick<Context, "pool">, chatId: string): Promise<void> {
-  await notify(ctx.pool, CHANNELS.chat, chatId);
+  await notify(ctx.pool, NOTIFY_CHANNELS.chat, chatId);
   await signalWorker(ctx, "runs");
 }
 

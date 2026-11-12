@@ -1,3 +1,4 @@
+import type { NotifyChannel } from "@open-bot/domain";
 import { DrizzleQueryError } from "drizzle-orm";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import pg from "pg";
@@ -78,23 +79,10 @@ export function errorFields(error: unknown): Record<string, string | undefined> 
   return fields;
 }
 
-/**
- * Postgres NOTIFY channels.
- * - `chat`: payload is a chat id; something in that chat changed (events, messages, runs).
- * - `app`: payload is JSON `AppEvent` (`@open-bot/domain`); something app-wide changed.
- * - `worker`: payload is a `WorkerSignal`; wakes the worker.
- */
-export const CHANNELS = {
-  chat: "openbot_chat",
-  app: "openbot_app",
-  worker: "openbot_worker",
-} as const;
-
-export type WorkerSignal = "runs" | "schedules" | "triggers" | "cancel" | "accounts";
-
+/** Send on one of the NOTIFY channels (`NOTIFY_CHANNELS` in `@open-bot/domain`). */
 export async function notify(
   client: Pick<pg.Pool, "query">,
-  channel: (typeof CHANNELS)[keyof typeof CHANNELS],
+  channel: NotifyChannel,
   payload: string,
 ): Promise<void> {
   await client.query("select pg_notify($1, $2)", [channel, payload]);

@@ -1,6 +1,12 @@
-import { CHANNELS, notify, type Db, type NotificationKind, type WorkerSignal } from "@open-bot/db";
+import { notify, type Db, type NotificationKind } from "@open-bot/db";
 import type { EventEmitter } from "node:events";
-import type { AppEvent, ApprovalKind, FinishedRunStatus } from "@open-bot/domain";
+import {
+  type AppEvent,
+  type ApprovalKind,
+  type FinishedRunStatus,
+  NOTIFY_CHANNELS,
+  type WorkerSignal,
+} from "@open-bot/domain";
 import type pg from "pg";
 import type { ComputerLifecycle } from "./computer-lifecycle";
 import type { CodexManager } from "./codex";
@@ -58,12 +64,12 @@ export interface Context {
 
 /** Tell open browser tabs that something changed. Best effort: a missed signal only delays a refresh. */
 export async function publishApp(ctx: Pick<Context, "pool">, event: AppEvent): Promise<void> {
-  await notify(ctx.pool, CHANNELS.app, JSON.stringify(event)).catch(() => {});
+  await notify(ctx.pool, NOTIFY_CHANNELS.app, JSON.stringify(event)).catch(() => {});
 }
 
 export async function signalWorker(
   ctx: Pick<Context, "pool">,
   signal: WorkerSignal,
 ): Promise<void> {
-  await notify(ctx.pool, CHANNELS.worker, signal);
+  await notify(ctx.pool, NOTIFY_CHANNELS.worker, signal);
 }
