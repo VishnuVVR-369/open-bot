@@ -1,9 +1,7 @@
+import type { PhoneMode, UnavailableReason } from "@open-bot/domain";
 import { requireNativeModule } from "expo";
 
-export type PhoneMode = "off" | "fallback" | "always";
 export type RunPhase = "off" | "running" | "paused" | "stopped" | "released" | "revoked";
-export type UnavailableReason =
-  "wifi-only" | "data-cap" | "low-battery" | "low-power-standby" | "stopped";
 
 export interface EgressRules {
   /** Only on an unmetered network (Wi-Fi), so traffic never moves to mobile data. */

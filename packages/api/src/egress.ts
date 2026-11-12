@@ -1,4 +1,9 @@
-import { egressModeSchema, phoneEgressModeSchema } from "@open-bot/domain";
+import {
+  egressModeSchema,
+  phoneModeSchema,
+  unavailableReasonSchema,
+  type UnavailableReason,
+} from "@open-bot/domain";
 import { z } from "zod";
 
 /**
@@ -6,15 +11,6 @@ import { z } from "zod";
  * The worker builds this; the web app and the phone show it.
  */
 
-export { egressModeSchema, phoneEgressModeSchema };
-export const unavailableReasonSchema = z.enum([
-  "wifi-only",
-  "data-cap",
-  "low-battery",
-  "low-power-standby",
-  "stopped",
-]);
-export type UnavailableReasonView = z.infer<typeof unavailableReasonSchema>;
 
 const statsSchema = z.object({
   openStreams: z.number().int().nonnegative(),
@@ -32,12 +28,16 @@ export const egressAgentViewSchema = z.object({
   stats: statsSchema.nullable(),
 });
 
+/** How far waking a phone got: the first push, a retry, or asking the owner to open the app. */
+export const phoneWakeStageSchema = z.enum(["wake", "retry", "ask"]);
+export type PhoneWakeStage = z.infer<typeof phoneWakeStageSchema>;
+
 export const egressPhoneViewSchema = z.object({
   id: z.string(),
   name: z.string(),
   online: z.boolean(),
   /** Being woken right now, and how far the wake got. */
-  waking: z.object({ since: z.string(), stage: z.enum(["wake", "retry", "ask"]) }).nullable(),
+  waking: z.object({ since: z.string(), stage: phoneWakeStageSchema }).nullable(),
   /** The phone said it can't help, and why; it isn't asked again until `until`. */
   unavailable: z
     .object({ reason: unavailableReasonSchema, message: z.string(), until: z.string() })
@@ -60,7 +60,7 @@ export const egressStatusSchema = z.object({
   stats: statsSchema.nullable(),
   /** Since when the active device has been connected. */
   agentSince: z.string().nullable(),
-  phoneMode: phoneEgressModeSchema,
+  phoneMode: phoneModeSchema,
   /** Where new connections go right now. */
   path: egressPathSchema,
   agents: z.array(egressAgentViewSchema),
@@ -90,7 +90,7 @@ export const egressDeviceViewSchema = z.object({
 });
 export type EgressDeviceView = z.infer<typeof egressDeviceViewSchema>;
 
-export const UNAVAILABLE_MESSAGES: Record<UnavailableReasonView, string> = {
+export const UNAVAILABLE_MESSAGES: Record<UnavailableReason, string> = {
   "wifi-only": "Phone is on mobile data",
   "data-cap": "Phone reached its mobile data limit",
   "low-battery": "Phone battery is low",

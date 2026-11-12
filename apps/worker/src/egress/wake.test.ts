@@ -1,4 +1,4 @@
-import type { EgressMode, PhoneMode } from "@open-bot/egress";
+import type { EgressMode, PhoneMode } from "@open-bot/domain";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { PairedPhone } from "./relay";
 import { WAKE_TIMINGS, WakeController, type WakeRelay } from "./wake";

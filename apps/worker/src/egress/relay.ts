@@ -6,10 +6,8 @@ import {
   parseControlMessage,
   type AgentRole,
   type ControlMessage,
-  type EgressMode,
-  type PhoneMode,
-  type UnavailableReason,
 } from "@open-bot/egress";
+import type { EgressMode, PhoneMode, UnavailableReason } from "@open-bot/domain";
 import type { EgressAgentClaim } from "@open-bot/domain/server";
 import WebSocket from "ws";
 import { errorMessage } from "../logger";

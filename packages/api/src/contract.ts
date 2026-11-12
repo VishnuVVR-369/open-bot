@@ -2,12 +2,14 @@ import type { InferContractRouterInputs, InferContractRouterOutputs } from "@orp
 import {
   botProfileSchema as profileSchema,
   createdTeammateSchema,
+  egressModeSchema,
   MAX_LESSON_CHARS,
   memoryEditSchema,
   memoryInputSchema,
   memoryItemSchema,
   memoryReferenceSchema,
   memoryRevisionSchema,
+  phoneModeSchema,
   skillInputSchema,
   updatedTeammateSchema,
 } from "@open-bot/domain";
@@ -20,12 +22,7 @@ import {
   triggerViewSchema,
 } from "./automations";
 import { base, id, ok } from "./base";
-import {
-  egressDeviceViewSchema,
-  egressModeSchema,
-  egressStatusSchema,
-  phoneEgressModeSchema,
-} from "./egress";
+import { egressDeviceViewSchema, egressStatusSchema } from "./egress";
 import { appStateSchema, homeSchema } from "./home";
 import {
   accountConnectInputSchema,
@@ -559,7 +556,7 @@ export const contract = {
     /** Where the computer's browser traffic goes now, and each device's state. */
     status: base.output(egressStatusSchema),
     setMode: base.input(z.object({ mode: egressModeSchema })).output(ok),
-    setPhoneMode: base.input(z.object({ mode: phoneEgressModeSchema })).output(ok),
+    setPhoneMode: base.input(z.object({ mode: phoneModeSchema })).output(ok),
     /** Phones paired to carry the traffic. */
     devices: base.output(z.array(egressDeviceViewSchema)),
     /**

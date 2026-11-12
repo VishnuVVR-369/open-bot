@@ -10,8 +10,8 @@ import {
   socksReply,
   SocksReply,
   type ControlMessage,
-  type EgressMode,
 } from "@open-bot/egress";
+import { egressModeSchema, type EgressMode } from "@open-bot/domain";
 import type { WebSocket } from "ws";
 
 /** Chromium gives up on a SOCKS connection 30 s after connecting; answer before that. */
@@ -24,7 +24,6 @@ export const MAX_HELD = 256;
 export const DEMAND_MS = 2 * 60_000;
 const DEMAND_RESEND_MS = 30_000;
 const REFUSED_WINDOW_MS = 60_000;
-const EGRESS_MODES: readonly EgressMode[] = ["off", "prefer", "require"];
 
 interface Config {
   mode: EgressMode;
@@ -305,7 +304,7 @@ export class EgressRouter {
 function readLastMode(path: string): EgressMode | null {
   try {
     const { mode } = JSON.parse(readFileSync(path, "utf8")) as { mode?: unknown };
-    return EGRESS_MODES.includes(mode as EgressMode) ? (mode as EgressMode) : null;
+    return egressModeSchema.safeParse(mode).data ?? null;
   } catch {
     return null;
   }
