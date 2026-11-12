@@ -82,6 +82,41 @@ export function approvalPolicy(bot: Pick<Bot, "autonomy">): ApprovalPolicy {
 }
 
 /** Executes one run: a single Codex turn for one bot in one chat. */
+/**
+ * Sends the answer to a teammate's question back to them: a run in the chat and the lane they asked
+ * from, since the answering run's parent is the asker's run but belongs to another teammate.
+ */
+export async function answerTheAsker(
+  ctx: Context,
+  run: Pick<Run, "id" | "parentRunId">,
+  teammateName: string,
+  status: Outcome["status"],
+  text: string | null,
+  error?: string,
+) {
+  if (!run.parentRunId) return;
+  const [asker] = await ctx.db
+    .select({ chatId: runs.chatId, botId: runs.botId, lane: runs.lane })
+    .from(runs)
+    .innerJoin(bots, eq(bots.id, runs.botId))
+    .where(and(eq(runs.id, run.parentRunId), isNull(bots.archivedAt)));
+  if (!asker) return;
+  const answer =
+    status === "completed"
+      ? `[${teammateName} answered your question:]\n${text ?? "(No reply.)"}`
+      : status === "failed"
+        ? `[${teammateName} couldn't answer your question: ${error ?? "the run failed"}. Carry on without it, or ask the user.]`
+        : `[The user stopped ${teammateName} before they answered. Carry on without it, or ask the user.]`;
+  await enqueueRun(ctx, {
+    chatId: asker.chatId,
+    botId: asker.botId,
+    lane: asker.lane,
+    trigger: "answer",
+    prompt: answer,
+    parentRunId: run.id,
+  });
+}
+
 export class RunSession {
   readonly writer: RunEventWriter;
   readonly items = new Map<string, TimelineItem>();
@@ -324,7 +359,7 @@ export class RunSession {
     return outcome;
   }
 
-  /** The thread for this bot and chat, on the access mode this run uses. */
+  /** The thread for this teammate, chat and lane, on the access mode this run uses. */
   private async ensureThread(client: CodexClient): Promise<string> {
     const { ctx, run, bot } = this;
     const mode = this.authMode;
@@ -350,6 +385,7 @@ export class RunSession {
         .values({
           chatId: run.chatId,
           botId: bot.id,
+          lane: run.lane,
           codexThreadId: threadId,
           toolsVersion: TOOLS_VERSION,
           memoryGeneration: this.memoryGeneration,
@@ -357,7 +393,7 @@ export class RunSession {
           configurationKey,
         })
         .onConflictDoUpdate({
-          target: [botThreads.chatId, botThreads.botId],
+          target: [botThreads.chatId, botThreads.botId, botThreads.lane], // vocabulary: allow
           // Memory generations fence old context; a fork is only allowed within the same generation.
           set: {
             codexThreadId: threadId,
@@ -374,7 +410,13 @@ export class RunSession {
     const [existing] = await ctx.db
       .select()
       .from(botThreads)
-      .where(and(eq(botThreads.chatId, run.chatId), eq(botThreads.botId, bot.id)));
+      .where(
+        and(
+          eq(botThreads.chatId, run.chatId),
+          eq(botThreads.botId, bot.id),
+          eq(botThreads.lane, run.lane), // vocabulary: allow
+        ),
+      );
     if (
       existing &&
       existing.toolsVersion === TOOLS_VERSION &&
@@ -623,31 +665,6 @@ export class RunSession {
     return schedule?.quiet ?? false;
   }
 
-  /** Sends the answer to a teammate's question back to them, in the chat they asked from. */
-  private async answerBack(status: Outcome["status"], text: string | null, error?: string) {
-    const { ctx, run, bot } = this;
-    if (!run.parentRunId) return;
-    const [asker] = await ctx.db
-      .select({ chatId: runs.chatId, botId: runs.botId })
-      .from(runs)
-      .innerJoin(bots, eq(bots.id, runs.botId))
-      .where(and(eq(runs.id, run.parentRunId), isNull(bots.archivedAt)));
-    if (!asker) return;
-    const answer =
-      status === "completed"
-        ? `[${bot.name} answered your question:]\n${text ?? "(No reply.)"}`
-        : status === "failed"
-          ? `[${bot.name} couldn't answer your question: ${error ?? "the run failed"}. Carry on without it, or ask the user.]`
-          : `[The user stopped ${bot.name} before they answered. Carry on without it, or ask the user.]`;
-    await enqueueRun(ctx, {
-      chatId: asker.chatId,
-      botId: asker.botId,
-      trigger: "answer",
-      prompt: answer,
-      parentRunId: run.id,
-    });
-  }
-
   private async complete(outcome: Outcome) {
     const { ctx, run, bot, chat } = this;
     this.finish = null;
@@ -720,7 +737,7 @@ export class RunSession {
         .onConflictDoNothing();
     }
 
-    if (run.trigger === "question") await this.answerBack(status, text, error);
+    if (run.trigger === "question") await answerTheAsker(ctx, run, bot.name, status, text, error);
     ctx.events.emit("runFinished", run, status, text, error);
 
     if (status === "failed" && run.trigger !== "swarm") {

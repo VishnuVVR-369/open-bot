@@ -494,7 +494,7 @@
     "bot": 1
   },
   "apps/worker/src/runs/session.ts": {
-    "bot": 66
+    "bot": 59
   },
   "apps/worker/src/services/account-triggers.integration.test.ts": {
     "bot": 13
@@ -543,7 +543,7 @@
     "bot": 1
   },
   "apps/worker/src/services/registry.ts": {
-    "bot": 4
+    "bot": 1
   },
   "apps/worker/src/services/retries.ts": {
     "bot": 9
@@ -715,7 +715,7 @@
     "bot": 11
   },
   "packages/db/src/schema.ts": {
-    "bot": 151,
+    "bot": 150,
     "desktop takeover": 4,
     "primary teammate": 2
   },

@@ -136,4 +136,4 @@ open-bot is built for one person, and runs as single replicas:
 
 - **One worker.** Run executors, schedule and watch timers, Telegram long polling, in-memory approval waiters and websockets all assume one worker process.
 - **One computer.** All teammates share it. At most `MAX_SCREENS` screens (default 4) run at once, and the least recently used idle screen stops to make room.
-- **Concurrency.** The worker executes up to `MAX_CONCURRENT_RUNS` runs at once (default 4), and at most one per teammate per chat.
+- **Concurrency.** The worker executes up to `MAX_CONCURRENT_RUNS` runs at once (default 4), and at most one per teammate per lane of a chat.

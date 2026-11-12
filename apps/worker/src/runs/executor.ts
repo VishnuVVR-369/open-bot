@@ -108,7 +108,7 @@ export class RunExecutor {
           where r.status = 'queued'
             and not exists (
               select 1 from runs a
-              where a.chat_id = r.chat_id and a.bot_id = r.bot_id
+              where a.chat_id = r.chat_id and a.bot_id = r.bot_id and a.lane = r.lane
                 and a.status in ('starting', 'running', 'waiting')
             )
           order by r.created_at
@@ -368,7 +368,8 @@ export class RunExecutor {
 
     let delivered = false;
     for (const botId of targets) {
-      const session = this.sessions.find(chat.id, botId);
+      // A message joins the conversation's running turn, never a run in another lane.
+      const session = this.sessions.find(chat.id, botId, "chat");
       if (session && message.attachments.length === 0) {
         // Claim the teammate before steering: a steer can't be undone or repeated safely.
         const [claimed] = await this.ctx.db

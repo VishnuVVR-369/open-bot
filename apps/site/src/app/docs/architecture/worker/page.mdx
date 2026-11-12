@@ -57,7 +57,7 @@ where id = (
   where r.status = 'queued'
     and not exists (
       select 1 from runs a
-      where a.chat_id = r.chat_id and a.bot_id = r.bot_id
+      where a.chat_id = r.chat_id and a.bot_id = r.bot_id and a.lane = r.lane
         and a.status in ('starting', 'running', 'waiting')
     )
   order by r.created_at
@@ -70,7 +70,8 @@ returning id
 Three properties come from this one statement:
 
 - **Oldest first.** Runs start in the order they were queued.
-- **One per teammate per chat.** A run waits while another run of the same teammate in the same chat is active, so a conversation is never processed out of order.
+- **One per teammate per lane.** A run waits while another run of the same teammate in the same lane of the same chat is active, so a conversation is never processed out of order.
+  A chat's lanes are described under [Threads](/docs/architecture/agent-runtime#threads).
 - **No double claims.** `FOR UPDATE SKIP LOCKED` makes concurrent claims skip a row another transaction holds.
 
 The pass stops when `MAX_CONCURRENT_RUNS` sessions are executing.
