@@ -481,13 +481,13 @@ describe.skipIf(!url)("worker internal API, end to end", () => {
     // Postgres refuses a NUL byte in text, so the insert fails with the title as a parameter.
     expect(await failure(worker.tasks.create({ title: "A private\u0000title" }))).toEqual({
       status: 500,
-      message: "The database refused a value (SQLSTATE 22021).",
+      message: "The database refused the query (SQLSTATE 22021).",
     });
     expect(logged).toHaveBeenCalledOnce();
     const [, fields] = logged.mock.calls[0]!;
     expect(fields).toMatchObject({
       path: "/internal/tasks",
-      error: "The database refused a value (SQLSTATE 22021).",
+      error: "The database refused the query (SQLSTATE 22021).",
       query: expect.stringContaining('insert into "tasks"'),
       code: "22021",
     });

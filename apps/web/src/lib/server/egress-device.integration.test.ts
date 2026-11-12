@@ -149,7 +149,7 @@ describe.skipIf(!url)("egress device credential", () => {
     const response = await call({ POST: route }, secret);
     expect(response.status).toBe(503);
     expect(await response.json()).toEqual({
-      error: "The database refused a value (SQLSTATE 22021).",
+      error: "The database refused the query (SQLSTATE 22021).",
     });
   });
 

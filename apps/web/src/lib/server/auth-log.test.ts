@@ -34,7 +34,7 @@ describe("Better Auth's log", () => {
     expect(logged.mock.calls.map((call) => call.slice(1))).toEqual([
       [
         {
-          error: 'duplicate key value violates unique constraint "user_email_unique"',
+          error: "The database refused the query (SQLSTATE 23505).",
           query: SQL,
           code: "23505",
           table: "user",
@@ -44,7 +44,7 @@ describe("Better Auth's log", () => {
       ],
       [
         {
-          error: "The database refused a value (SQLSTATE 22P02).",
+          error: "The database refused the query (SQLSTATE 22P02).",
           query: SQL,
           code: "22P02",
           table: undefined,
@@ -54,6 +54,17 @@ describe("Better Auth's log", () => {
       ],
     ]);
     expect(JSON.stringify(logged.mock.calls)).not.toMatch(/private/i);
+  });
+
+  it("cuts the parameters off a failed query's message given as the line's text", () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const failed = new DrizzleQueryError(SQL, PARAMS, new Error("boom"));
+    authLog("error", failed.message);
+    const [line] = logged.mock.calls[0]!;
+    expect(line).toMatch(
+      / ERROR \[Better Auth\]: Failed query: insert into "user" \("name", "email"\) values \(\$1, \$2\)$/,
+    );
+    expect(String(line)).not.toMatch(/private/i);
   });
 
   it("keeps everything else as Better Auth logs it", () => {

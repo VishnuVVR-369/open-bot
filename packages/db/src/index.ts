@@ -41,14 +41,19 @@ export function databaseError(error: unknown): unknown {
 }
 
 /**
- * An error's message for a person or a log. A failed query says the database's message, except a
- * data error (SQLSTATE class 22), whose message can repeat the value it refused.
+ * An error's message for a person or a log. A database error says only its SQLSTATE: Postgres's
+ * own message can repeat a value it refused (`invalid input syntax for type integer: "..."`).
  */
 export function errorMessage(error: unknown): string {
   const shown = databaseError(error);
-  if (shown instanceof pg.DatabaseError && shown.code?.startsWith("22"))
-    return `The database refused a value (SQLSTATE ${shown.code}).`;
+  if (shown instanceof pg.DatabaseError)
+    return `The database refused the query (SQLSTATE ${shown.code ?? "unknown"}).`;
   return shown instanceof Error ? shown.message : String(shown);
+}
+
+/** Text that may hold a `DrizzleQueryError`'s message, without the parameters that end it. */
+export function withoutParameters(text: string): string {
+  return text.replace(/\nparams: [\s\S]*$/, "");
 }
 
 /**

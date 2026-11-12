@@ -366,7 +366,7 @@ describe.skipIf(!url)("API reads, end to end", () => {
       expect(failed).toBeInstanceOf(ORPCError);
       expect(failed).toMatchObject({
         status: 500,
-        message: "The database refused a value (SQLSTATE 22021).",
+        message: "The database refused the query (SQLSTATE 22021).",
       });
       expect(logged).toHaveBeenCalledOnce();
       expect(logged.mock.calls[0]![1]).toMatchObject({ code: "22021", query: expect.any(String) });

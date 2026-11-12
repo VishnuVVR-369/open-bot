@@ -9,8 +9,9 @@ Better Auth's `account` table is sign-in and is unrelated to the integrations `a
 
 - `packages/db/src/index.ts`: `createPool`, `createDb`, `notify`, `CHANNELS`, `AppEvent`, `WorkerSignal`, plus the schema.
   A failed query throws Drizzle's `DrizzleQueryError`, whose message repeats the SQL and every parameter, and Postgres's own error can hold values too (a data error's message, any `detail` or `where`).
-  So an unexpected error reaches a person or a log only as `errorMessage(error)` (a message) or `errorFields(error)` (fields for a log line: message, SQL without parameters, code, table, column, constraint).
-  `databaseError(error)` is the error to rethrow, never to show or log whole.
+  So the app's own answers and logs give an unexpected error only as `errorMessage(error)` (a database error becomes its SQLSTATE) or `errorFields(error)` (for a log line: that message, SQL without parameters, code, table, column, constraint).
+  `databaseError(error)` is the error to rethrow, never to show or log whole; `withoutParameters(text)` cuts the parameters off text that may hold a failed query's message.
+  A framework that logs an error our code never caught (Next.js, Better Auth's HTTP layer) still logs it whole.
 - `packages/db/src/owners.ts`: who writes each table (see "One writer per table" below).
 - `packages/db/src/locks.ts`: every advisory lock, by name in `LOCKS`, taken with `lockUntilCommit(tx, ...)` or `withTryLock(pool, ...)`.
   Never change a shipped key: the web app and the worker deploy separately and must still exclude each other.
