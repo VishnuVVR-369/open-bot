@@ -18,7 +18,7 @@ It runs every teammate turn, serves every tool call, and owns every timer and lo
 1. Parse the environment with zod (`src/env.ts`). Every value has a development default.
 2. Open a Postgres pool and insert the single-row tables (`settings`, `computers`) if missing.
 3. Build `ComputerClient` (botd), `CodexManager` (Codex through botd) and a shared `Context`: the env, the database, the logger, and a typed `EventEmitter` for in-process events.
-4. Start the memory coordinator, which imports legacy memory once and starts its background jobs.
+4. Start the memory coordinator's background jobs (embedding and extraction).
 5. Build every service, then `ToolHandlers`, then the `RunExecutor`.
 6. **Recover**: mark every run still in `starting`, `running` or `waiting` as `interrupted`, with the error "The worker restarted while this was running". A Codex turn can't be resumed after its driver went away, so this is honest rather than optimistic.
 7. Connect to botd's `/events` socket. When it opens, connect to Codex and start claiming runs. When Codex first reports a connection, write every saved skill to the computer.

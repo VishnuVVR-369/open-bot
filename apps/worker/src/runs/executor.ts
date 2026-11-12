@@ -166,7 +166,7 @@ export class RunExecutor {
     })();
   }
 
-  /** Write the bot's AGENTS.md and skills, and a starter MEMORY.md if it has none. */
+  /** Write the teammate's AGENTS.md, MEMORY.md and skills. */
   async syncWorkspace(
     bot: Pick<Bot, "id" | "slug" | "name" | "role" | "instructions" | "autonomy">,
   ): Promise<string> {

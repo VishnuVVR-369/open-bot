@@ -1448,6 +1448,7 @@ export const memoryItems = pgTable(
       .$type<MemorySource>()
       .notNull()
       .default({} as MemorySource),
+    /** Unused since the one-time legacy import was removed; a later migration can drop it. */
     legacyKey: text("legacy_key").unique(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -1534,6 +1535,10 @@ export const memoryEmbeddings = pgTable(
   (table) => [primaryKey({ columns: [table.memoryId, table.model] })],
 );
 
+/**
+ * Markers that keep forgotten memory from being learned again: `forgotten:<scope>:<fingerprint>`
+ * and `forget-source:<message id>`. Older rows also mark the removed one-time legacy imports.
+ */
 export const memoryImports = pgTable("memory_imports", {
   key: text("key").primaryKey(),
   createdAt: createdAt(),

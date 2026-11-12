@@ -478,7 +478,7 @@
     "bot": 22
   },
   "apps/worker/src/runs/executor.ts": {
-    "bot": 104,
+    "bot": 103,
     "primary teammate": 3
   },
   "apps/worker/src/runs/queue.ts": {
@@ -525,7 +525,7 @@
     "bot": 5
   },
   "apps/worker/src/services/memory.ts": {
-    "bot": 17
+    "bot": 15
   },
   "apps/worker/src/services/notifications.ts": {
     "bot": 5
@@ -802,13 +802,13 @@
     "bot": 1
   },
   "packages/memory/src/index.ts": {
-    "bot": 96
+    "bot": 87
   },
   "packages/memory/src/jobs.ts": {
     "bot": 7
   },
   "packages/memory/src/memory.integration.test.ts": {
-    "bot": 50
+    "bot": 45
   },
   "packages/memory/src/memory.test.ts": {
     "bot": 3

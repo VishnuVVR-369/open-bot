@@ -11,7 +11,6 @@ import {
   emails,
   instructionProposals,
   lessons,
-  memoryImports,
   memoryItems,
   memoryRevisions,
   nativePushDevices,
@@ -1248,10 +1247,8 @@ export async function seedMemory(ctx: SeedContext) {
     createdAt: ago({ d: 23 }),
   });
 
-  // The "about you" text, marked as already imported into memory so that opening Settings
-  // doesn't copy it into a second, raw-Markdown note.
+  // The owner's settings, with the "about you" text Settings shows.
   const aboutMe = `Founder and CEO of Kestrel, a privacy-first web analytics tool. Based in San Francisco, on Pacific time. Shipping Kestrel 2.0, then Lisbon for the Atlantic Product Summit.`;
-  await db.insert(memoryImports, { key: "legacy:profile" });
   const profile: Partial<InferInsertModel<typeof settings>> = {
     monthlyCapMicros: 20_000_000,
     timezone: TIMEZONE,
@@ -1277,7 +1274,6 @@ export async function seedMemory(ctx: SeedContext) {
       fingerprint: memoryFingerprint(text),
       pinned: true,
       source: source,
-      legacyKey: `legacy:lesson:${id}`,
       createdAt,
       updatedAt: createdAt,
     });
@@ -1289,7 +1285,6 @@ export async function seedMemory(ctx: SeedContext) {
       source: source,
       createdAt,
     });
-    await db.insert(memoryImports, { key: `legacy:lesson:${id}` });
   };
   await lesson(
     juno,
