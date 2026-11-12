@@ -348,33 +348,6 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
       }),
     ).rejects.toMatchObject({ status: 409 });
   });
-  it("imports legacy data once and does not resurrect forgotten notes", async () => {
-    await pool.query("update settings set about_me='Lives in Lisbon' where id=1");
-    await memory.importLegacy();
-    await memory.importLegacy();
-    const items = await memory.list({ botId: null }, user);
-    expect(items).toHaveLength(1);
-    await memory.forget({ id: items[0]!.id, expectedRevision: 1 }, user);
-    await memory.importLegacy();
-    expect(await memory.list({ botId: null }, user)).toHaveLength(0);
-  });
-  it("marks an empty legacy profile imported before new shared facts exist", async () => {
-    await memory.importLegacy();
-    await memory.save(input("Lives in Lisbon", null), user);
-    await memory.importLegacy();
-    expect(await memory.list({ botId: null }, user)).toHaveLength(1);
-  });
-  it("imports every legacy lesson before maintaining its compatibility view", async () => {
-    await pool.query(
-      "insert into lessons(bot_id,text) values($1,'Use concise replies'),($1,'Use citations')",
-      [teammate],
-    );
-    await memory.importLegacy();
-    await memory.save(input("Prefers remote roles"), user);
-    expect(
-      (await pool.query("select text from lessons where bot_id=$1", [teammate])).rows,
-    ).toHaveLength(2);
-  });
   it("keeps shared memory scalable while bounding the compatibility profile", async () => {
     await memory.save(input("x".repeat(7999), null), user);
     await memory.save(input("another shared fact", null), user);

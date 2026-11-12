@@ -236,6 +236,7 @@ describe("worker internal API transport", () => {
     expect(log.error).toHaveBeenCalledWith("request failed", {
       path: `/internal/schedules/${ID}/run`,
       error: "connection reset",
+      stack: expect.stringContaining("connection reset"),
     });
   });
 

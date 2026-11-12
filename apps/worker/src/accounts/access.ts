@@ -25,6 +25,7 @@ import { and, asc, eq, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
 import { createNotification } from "../services/notifications";
 import type { AccountAccessLine } from "../instructions";
+import { errorMessage } from "../logger";
 
 /** Usage is recorded at most this often per account. */
 const TOUCH_EVERY_MS = 5 * 60_000;
@@ -209,7 +210,7 @@ export class AccountAccess {
       this.ctx.log.warn("could not keep an idle sign-in alive", {
         accountId: id,
         provider,
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage(error),
       });
       if (error instanceof AccountUnavailableError)
         await publishApp(this.ctx, { type: "connections" });

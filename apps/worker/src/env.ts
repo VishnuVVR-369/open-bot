@@ -62,6 +62,18 @@ export const envSchema = z.object({
    * so the fallback can be rehearsed against a server that reports a usage limit.
    */
   OPEN_BOT_PLAN_BASE_URL: z.string().url().optional(),
+  /**
+   * Optional memory AI: embeddings for semantic recall and extraction of facts from your messages.
+   * Validated by `memoryAIConfig` (`@open-bot/memory/jobs`), which knows their rules.
+   */
+  MEMORY_EMBEDDING_URL: z.string().optional(),
+  MEMORY_EMBEDDING_MODEL: z.string().optional(),
+  MEMORY_EMBEDDING_DIMENSIONS: z.string().optional(),
+  MEMORY_SEMANTIC_MAX_DISTANCE: z.string().optional(),
+  MEMORY_EXTRACTION_URL: z.string().optional(),
+  MEMORY_EXTRACTION_MODEL: z.string().optional(),
+  MEMORY_AI_API_KEY: z.string().optional(),
+  MEMORY_AI_DAILY_REQUEST_LIMIT: z.string().optional(),
 });
 
 export const env = envSchema.parse(process.env);

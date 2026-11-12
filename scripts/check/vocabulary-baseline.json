@@ -388,7 +388,7 @@
     "bot": 2
   },
   "apps/web/src/lib/server/api/memory.ts": {
-    "bot": 7
+    "bot": 5
   },
   "apps/web/src/lib/server/api/pages.ts": {
     "bot": 8
@@ -478,11 +478,8 @@
     "bot": 22
   },
   "apps/worker/src/runs/executor.ts": {
-    "bot": 104,
+    "bot": 103,
     "primary teammate": 3
-  },
-  "apps/worker/src/runs/memory.test.ts": {
-    "bot": 8
   },
   "apps/worker/src/runs/queue.ts": {
     "bot": 3
@@ -492,6 +489,9 @@
   },
   "apps/worker/src/runs/session.ts": {
     "bot": 66
+  },
+  "apps/worker/src/runs/thread-continuity.test.ts": {
+    "bot": 4
   },
   "apps/worker/src/services/account-triggers.integration.test.ts": {
     "bot": 13
@@ -525,7 +525,7 @@
     "bot": 5
   },
   "apps/worker/src/services/memory.ts": {
-    "bot": 17
+    "bot": 15
   },
   "apps/worker/src/services/notifications.ts": {
     "bot": 5
@@ -802,13 +802,13 @@
     "bot": 1
   },
   "packages/memory/src/index.ts": {
-    "bot": 96
+    "bot": 87
   },
   "packages/memory/src/jobs.ts": {
     "bot": 7
   },
   "packages/memory/src/memory.integration.test.ts": {
-    "bot": 50
+    "bot": 45
   },
   "packages/memory/src/memory.test.ts": {
     "bot": 3

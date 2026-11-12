@@ -46,7 +46,21 @@ const configSchema = z
         });
     }
   });
-export function memoryAIConfig(env: NodeJS.ProcessEnv): MemoryAIConfig {
+/** The memory AI variables, as the app's env module read them; this package never reads `process.env`. */
+export type MemoryEnv = Partial<
+  Record<
+    | "MEMORY_EMBEDDING_URL"
+    | "MEMORY_EMBEDDING_MODEL"
+    | "MEMORY_EMBEDDING_DIMENSIONS"
+    | "MEMORY_SEMANTIC_MAX_DISTANCE"
+    | "MEMORY_EXTRACTION_URL"
+    | "MEMORY_EXTRACTION_MODEL"
+    | "MEMORY_AI_API_KEY"
+    | "MEMORY_AI_DAILY_REQUEST_LIMIT",
+    string
+  >
+>;
+export function memoryAIConfig(env: MemoryEnv): MemoryAIConfig {
   return configSchema.parse({
     embeddingUrl: env.MEMORY_EMBEDDING_URL || undefined,
     embeddingModel: env.MEMORY_EMBEDDING_MODEL,

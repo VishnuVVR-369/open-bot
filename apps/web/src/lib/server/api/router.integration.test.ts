@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { inspect } from "node:util";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { OFFLINE_EGRESS_STATUS, type ApiClient } from "@open-bot/api";
@@ -187,7 +188,6 @@ describe.skipIf(!url)("API reads, end to end", () => {
       instructions: "Read it and summarize it.",
       createdBy: "user",
     });
-    await db.insert(s.lessons).values({ ...owned(ids.teammate), text: "Keep it short." });
     await db
       .insert(s.notifications)
       .values({ kind: "run_finished", title: "Done", ...owned(ids.teammate) });
@@ -213,8 +213,7 @@ describe.skipIf(!url)("API reads, end to end", () => {
     });
     await db.update(s.pages).set({ currentVersionId: ids.version, versionCount: 1 });
     // A memory a teammate saved during the run, so its list names the teammate and the chat.
-    const { memoryReady } = await import("../memory");
-    const memory = await memoryReady();
+    const { memory } = await import("../memory");
     const saved = await memory.save(
       {
         ...owned(ids.teammate),
@@ -227,6 +226,8 @@ describe.skipIf(!url)("API reads, end to end", () => {
       { kind: "bot", botId: ids.teammate, runId: ids.run, verified: true },
     );
     ids.memory = saved.id;
+    // A lesson is a memory; the lessons table is its projection.
+    await memory.addLessons(ids.teammate, ["Keep it short."]);
   }
 
   it("serves the shell's state with the worker's status", async () => {
@@ -352,6 +353,27 @@ describe.skipIf(!url)("API reads, end to end", () => {
       message: "Name the chat.",
       data: { issues: [expect.objectContaining({ path: ["title"] })] },
     });
+  });
+
+  it("answers a failed query with the database's error, never its SQL or parameters", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      // Postgres refuses a NUL byte in text, so the search fails with the query as a parameter.
+      const failed = await api.search.messages({ query: "a private\u0000phrase" }).then(
+        () => null,
+        (error: unknown) => error,
+      );
+      expect(failed).toBeInstanceOf(ORPCError);
+      expect(failed).toMatchObject({
+        status: 500,
+        message: "The database refused the query (SQLSTATE 22021).",
+      });
+      expect(logged).toHaveBeenCalledOnce();
+      expect(logged.mock.calls[0]![1]).toMatchObject({ code: "22021", query: expect.any(String) });
+      expect(inspect(logged.mock.calls, { depth: 6 })).not.toContain("private");
+    } finally {
+      logged.mockRestore();
+    }
   });
 
   /* The writes the web app does itself, and how worker failures reach the caller. */
@@ -912,10 +934,8 @@ describe.skipIf(!url)("API reads, end to end", () => {
   });
 
   it("confirms a teammate's suggested memory", async () => {
-    const { memoryReady } = await import("../memory");
-    const suggested = await (
-      await memoryReady()
-    ).save(
+    const { memory } = await import("../memory");
+    const suggested = await memory.save(
       {
         ...owned(ids.teammate),
         kind: "fact",

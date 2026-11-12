@@ -1,3 +1,4 @@
+import { DrizzleQueryError } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 import { authed } from "./route";
 
@@ -27,5 +28,23 @@ describe("authed routes", () => {
     expect((await route(request("PUT", null))).status).toBe(200);
     expect((await route(request("GET", "https://evil.test"))).status).toBe(200);
     expect(handler).toHaveBeenCalledTimes(3);
+  });
+
+  it("answer a failed query with the database's error, never its SQL or parameters", async () => {
+    const sql = "select * from messages where text = $1";
+    for (const [cause, error] of [
+      [
+        new Error("canceling statement due to statement timeout"),
+        "canceling statement due to statement timeout",
+      ],
+      [undefined, "A database query failed."],
+    ] as const) {
+      const route = authed(async () => {
+        throw new DrizzleQueryError(sql, ["a private phrase"], cause);
+      });
+      const response = await route(request("GET", null));
+      expect(response.status).toBe(500);
+      expect(await response.json()).toEqual({ error });
+    }
   });
 });

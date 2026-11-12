@@ -9,12 +9,14 @@ import { nextCookies } from "better-auth/next-js";
 import { count } from "drizzle-orm";
 import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@open-bot/domain";
 import { BASE_URL, defaultPasskeyName, passkeyConfig, TRUSTED_ORIGINS } from "./auth-config";
+import { authLog } from "./auth-log";
 import { db } from "./db";
 import { serverEnv } from "./env";
 import { noteUserVerification, passkeyReset } from "./passkey-reset";
 
 export const auth = betterAuth({
   baseURL: BASE_URL,
+  logger: { log: authLog },
   database: drizzleAdapter(db, {
     provider: "pg",
     schema: {
