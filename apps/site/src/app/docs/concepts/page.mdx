@@ -40,6 +40,11 @@ Its `kind` is one of five values:
 
 The last three are created on demand, one per teammate.
 
+Each teammate has one main chat: a direct chat marked `chats.main`, at most one per teammate.
+Work that isn't started from a chat arrives there: tasks, questions from teammates, and Telegram messages named for the teammate.
+A teammate's first direct chat is its main chat, and you can make another one main from the chat's menu.
+Archiving the main chat hands the role to the teammate's most recently active direct chat, and a teammate without one gets a new direct chat when work arrives.
+
 ## Run
 
 A run is one turn of one teammate in one chat, stored in `runs`.

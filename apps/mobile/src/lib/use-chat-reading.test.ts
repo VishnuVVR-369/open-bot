@@ -74,6 +74,7 @@ function page(last = 1, chatId = "a"): ChatData {
       kind: "direct",
       title: "Rex",
       botId: "b",
+      main: true,
       memberIds: ["b"],
       lastActivityAt: entry(last).at,
       active: false,

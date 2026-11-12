@@ -120,6 +120,7 @@ A path or input field is removed only once no deployed web app calls it.
 | `POST /internal/runs/:id/stop`, `/rate`, `/feedback`   | Stop a run, rate it, or say what to change (409 for a reused redo id) |
 | `POST /internal/chats/direct`, `/internal/chats/group` | Start a direct or group chat                                          |
 | `POST /internal/chats/:id/rename`, `/archive`, `/read` | Rename, archive, or mark a chat read                                  |
+| `POST /internal/chats/:id/main`                        | Make a direct chat its teammate's main chat (400 for any other chat)  |
 | `POST /internal/chats/:id/messages`                    | Save a message you sent and dispatch it (409 for a reused id)         |
 | `POST /internal/bots`                                  | Create a teammate with its chat, skills and starter automations       |
 | `POST /internal/bots/:id`                              | Change profile fields, with `expected_revision` (409 when stale)      |

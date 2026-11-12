@@ -21,7 +21,7 @@ import { errorMessage } from "../logger";
 import type { RunExecutor } from "../runs/executor";
 import type { UploadService } from "../uploads";
 import type { ApprovalService } from "./approvals";
-import { saveUserMessage } from "./chats";
+import { mainChat, saveUserMessage } from "./chats";
 import { removeCredential, saveCredential } from "./credentials";
 
 const POLL_SECONDS = 25;
@@ -510,16 +510,6 @@ export class TelegramService {
     return lead ?? null;
   }
 
-  private async directChat(botId: string): Promise<string | null> {
-    const [chat] = await this.ctx.db
-      .select({ id: chats.id })
-      .from(chats)
-      .where(and(eq(chats.botId, botId), eq(chats.kind, "direct"), isNull(chats.archivedAt)))
-      .orderBy(desc(chats.lastActivityAt))
-      .limit(1);
-    return chat?.id ?? null;
-  }
-
   /** Which chat a message from Telegram goes to, and its text without the teammate's name. */
   private async route(
     lastChatId: string | null,
@@ -549,8 +539,7 @@ export class TelegramService {
       const name = bot.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const match = new RegExp(`^@?${name}(?:[:,]\\s*|\\s+)([\\s\\S]*)$`, "i").exec(text);
       if (match) {
-        const chatId = await this.directChat(bot.id);
-        if (chatId) return { chatId, text: match[1]!.trim() };
+        return { chatId: await mainChat(this.ctx, bot.id), text: match[1]!.trim() };
       }
     }
     if (lastChatId) {
@@ -561,8 +550,7 @@ export class TelegramService {
       if (chat) return { chatId: chat.id, text };
     }
     const lead = await this.leadBot();
-    const chatId = lead ? await this.directChat(lead.id) : null;
-    return chatId ? { chatId, text } : null;
+    return lead ? { chatId: await mainChat(this.ctx, lead.id), text } : null;
   }
 
   private async receive(lastChatId: string | null, message: TgMessage, text: string) {

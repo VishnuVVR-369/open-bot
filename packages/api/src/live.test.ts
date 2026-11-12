@@ -72,6 +72,7 @@ const snapshot: ChatData = {
     kind: "direct",
     title: "Rex",
     botId: "b",
+    main: true,
     memberIds: ["b"],
     lastActivityAt: "2026-11-02T00:00:00.000Z",
     active: true,

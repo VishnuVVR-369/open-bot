@@ -13,6 +13,7 @@ import {
   MessageCircle,
   Pencil,
   SquarePen,
+  Star,
   Users,
 } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -516,7 +517,7 @@ export default function ChatScreen() {
 }
 
 /**
- * What you can do with a chat: start another, rename it, or archive it. Renaming happens in the
+ * What you can do with a chat: start another, make it the main chat, rename it, or archive it. Renaming happens in the
  * same sheet, so its field gets the keyboard (a second sheet opening as this one closes doesn't).
  */
 function ChatMenu({
@@ -536,6 +537,16 @@ function ChatMenu({
   useEffect(() => {
     if (open) setRenaming(false);
   }, [open]);
+  const makeMain = async () => {
+    onClose();
+    const result = await safe(api.chats.makeMain({ chatId: chat.id }));
+    if (result.error) {
+      Alert.alert("Couldn't change the main chat", errorMessage(result.error));
+      return;
+    }
+    void queryClient.invalidateQueries({ queryKey: queryKeys.chats });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.chat(chat.id) });
+  };
   const archive = () => {
     onClose();
     Alert.alert(
@@ -576,6 +587,14 @@ function ChatMenu({
             onPress={onNewChat}
             testID="menu-new-chat"
           />
+          {chat.kind === "direct" && !chat.main && (
+            <SheetItem
+              icon={<Star size={20} color={colors.foreground} />}
+              label="Make this the main chat"
+              onPress={makeMain}
+              testID="menu-make-main"
+            />
+          )}
           <SheetItem
             icon={<Pencil size={20} color={colors.foreground} />}
             label="Rename"

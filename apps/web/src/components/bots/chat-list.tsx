@@ -5,6 +5,7 @@ import Link from "next/link";
 import { TimeAgo } from "@/components/time-ago";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { attempt } from "@/lib/client/mutate";
 import { api } from "@/lib/client/rpc";
@@ -14,13 +15,11 @@ export function ChatList({
   botId,
   botName,
 }: {
-  chats: { id: string; kind: string; title: string; lastActivityAt: string }[];
+  chats: { id: string; kind: string; title: string; main: boolean; lastActivityAt: string }[];
   botId: string;
   botName: string;
 }) {
   const router = useRouter();
-  // Chats come newest first; the newest direct one is the current conversation.
-  const latestDirect = chats.find((chat) => chat.kind === "direct")?.id;
   return (
     <div className="flex flex-col gap-3">
       <div>
@@ -50,14 +49,22 @@ export function ChatList({
             ) : (
               <MessageSquare className="size-4 text-muted-foreground" />
             )}
-            <span className="flex-1 text-[14px]">
-              {chat.kind === "scheduled"
-                ? "Scheduled tasks"
-                : chat.kind === "inbox"
-                  ? "Email"
-                  : chat.id === latestDirect
-                    ? chat.title
-                    : `${chat.title} (earlier)`}
+            <span className="flex min-w-0 flex-1 items-center gap-2 text-[14px]">
+              <span className="truncate">
+                {chat.kind === "scheduled"
+                  ? "Scheduled tasks"
+                  : chat.kind === "inbox"
+                    ? "Email"
+                    : chat.title}
+              </span>
+              {chat.main && (
+                <Badge
+                  variant="secondary"
+                  title="Where work that isn't started from a chat arrives"
+                >
+                  Main
+                </Badge>
+              )}
             </span>
             <span className="text-[12.5px] text-muted-foreground">
               <TimeAgo date={chat.lastActivityAt} />

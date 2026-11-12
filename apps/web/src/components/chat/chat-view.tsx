@@ -15,9 +15,11 @@ import {
   Pencil,
   Plus,
   Settings2,
+  Star,
   Upload,
   Users,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -40,7 +42,7 @@ import { DuplicateBotDialog } from "@/components/bots/duplicate-bot";
 import { FileIcon } from "@/components/files/file-chip";
 import { FilePreview } from "@/components/files/file-preview";
 import { attempt } from "@/lib/client/mutate";
-import { api } from "@/lib/client/rpc";
+import { api, orpc } from "@/lib/client/rpc";
 import { useAppState } from "@/lib/client/queries";
 import { fileKind, fileUrl } from "@/lib/files";
 import { chatStatus } from "@/lib/status";
@@ -172,6 +174,7 @@ export function ChatView({ chatId }: { chatId: string }) {
   const router = useRouter();
   const { data: state } = useAppState();
   const { chat, members, entries, runs, loading, error, addOptimistic, helper } = useChat(chatId);
+  const queryClient = useQueryClient();
   const composer = useRef<ComposerHandle>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const [atBottom, setAtBottom] = useState(true);
@@ -294,6 +297,8 @@ export function ChatView({ chatId }: { chatId: string }) {
         })
       : null;
   const elsewhere = status?.elsewhere ?? null;
+  // From the chat list, which every change refreshes: another device may have picked a new main chat.
+  const isMain = state?.chats.find((entry) => entry.id === chatId)?.main ?? chat?.main ?? false;
   const title = chat
     ? chat.kind === "scheduled"
       ? `${bot?.name ?? ""} · Scheduled`
@@ -447,7 +452,7 @@ export function ChatView({ chatId }: { chatId: string }) {
                     <MoreHorizontal />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuContent align="end" className="w-56">
                   {/* On a phone, New chat lives here so the title keeps its room. */}
                   {!isGroup && bot && chat.kind === "direct" && (
                     <DropdownMenuItem
@@ -470,6 +475,24 @@ export function ChatView({ chatId }: { chatId: string }) {
                     <DropdownMenuItem onSelect={() => setDialog("duplicate")}>
                       <Copy />
                       Duplicate {bot.name}
+                    </DropdownMenuItem>
+                  )}
+                  {chat.kind === "direct" && !isMain && (
+                    <DropdownMenuItem
+                      onSelect={async () => {
+                        const result = await attempt(api.chats.makeMain({ chatId: chat.id }));
+                        if (!result.ok) {
+                          toast.error(result.error);
+                          return;
+                        }
+                        await queryClient.invalidateQueries({
+                          queryKey: orpc.chats.get.key({ input: { chatId: chat.id } }),
+                        });
+                        toast("This is now the main chat");
+                      }}
+                    >
+                      <Star />
+                      Make this the main chat
                     </DropdownMenuItem>
                   )}
                   {chat.kind !== "scheduled" && (

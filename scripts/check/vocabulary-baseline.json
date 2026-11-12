@@ -45,7 +45,7 @@
     "bot": 7
   },
   "apps/mobile/src/app/(tabs)/index.tsx": {
-    "bot": 148,
+    "bot": 143,
     "primary teammate": 2
   },
   "apps/mobile/src/app/(tabs)/pages.tsx": {
@@ -404,7 +404,7 @@
     "desktop takeover": 3
   },
   "apps/web/src/lib/server/queries.ts": {
-    "bot": 145,
+    "bot": 142,
     "desktop takeover": 17,
     "primary teammate": 2
   },
@@ -506,11 +506,11 @@
     "bot": 31
   },
   "apps/worker/src/services/bots.ts": {
-    "bot": 179,
+    "bot": 174,
     "primary teammate": 5
   },
   "apps/worker/src/services/chats.ts": {
-    "bot": 8
+    "bot": 2
   },
   "apps/worker/src/services/connections.ts": {
     "bot": 15
@@ -563,17 +563,17 @@
     "bot": 70
   },
   "apps/worker/src/services/swarms.ts": {
-    "bot": 11
+    "bot": 10
   },
   "apps/worker/src/services/takeovers.ts": {
     "bot": 35,
     "desktop takeover": 33
   },
   "apps/worker/src/services/tasks.ts": {
-    "bot": 41
+    "bot": 40
   },
   "apps/worker/src/services/telegram.ts": {
-    "bot": 69,
+    "bot": 66,
     "primary teammate": 1
   },
   "apps/worker/src/services/triggers.ts": {
@@ -593,7 +593,7 @@
     "bot": 59
   },
   "apps/worker/src/tools/handlers.ts": {
-    "bot": 168
+    "bot": 167
   },
   "apps/worker/src/uploads.integration.test.ts": {
     "bot": 7
@@ -708,7 +708,7 @@
     "bot": 1
   },
   "packages/api/src/views.ts": {
-    "bot": 21,
+    "bot": 20,
     "primary teammate": 1
   },
   "packages/api/src/worker/contract.ts": {
@@ -828,7 +828,7 @@
     "bot": 130
   },
   "tools/showcase/lib.ts": {
-    "bot": 23
+    "bot": 21
   },
   "tools/showcase/shoot.mjs": {
     "bot": 13

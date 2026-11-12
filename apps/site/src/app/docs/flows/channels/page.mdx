@@ -71,9 +71,9 @@ Replies to what you started in the app stay in the app.
 A message you send to the bot goes to:
 
 1. the chat of the Telegram message you're replying to, if you reply to one;
-2. otherwise, the teammate you name at the start: `Rex: what's on today?`, `Rex, ...` or `@Rex ...` (longer names are matched first);
+2. otherwise, the main chat of the teammate you name at the start: `Rex: what's on today?`, `Rex, ...` or `@Rex ...` (longer names are matched first);
 3. otherwise, the chat you last talked in;
-4. otherwise, the lead teammate.
+4. otherwise, the lead teammate's main chat.
 
 Photos and files up to 20 MB (Telegram's limit for bots) come along as attachments.
 The message is saved with `via = 'telegram'`, dispatched like any other, and the teammate's reply comes back as a reply to your message, with its Markdown converted to Telegram's HTML subset.

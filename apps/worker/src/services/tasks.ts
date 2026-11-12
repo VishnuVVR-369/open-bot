@@ -1,6 +1,7 @@
-import { bots, chats, tasks, type TaskStatus } from "@open-bot/db";
+import { bots, tasks, type TaskStatus } from "@open-bot/db";
 import { and, asc, desc, eq, isNull, max, ne } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
+import { mainChat } from "./chats";
 import { enqueueRun } from "../runs/queue";
 
 export class TaskError extends Error {}
@@ -120,7 +121,7 @@ export class TaskService {
   }
 
   /**
-   * Asks the task's owner to work on it, in their latest chat, and moves it to Doing. The run
+   * Asks the task's owner to work on it, in their main chat, and moves it to Doing. The run
    * carries the task's id, so the owner can mark it done.
    */
   async start(id: string, by: { botName: string; runId: string } | null): Promise<Task> {
@@ -128,18 +129,10 @@ export class TaskService {
     if (!task) throw new TaskError("That task no longer exists.");
     if (!task.ownerBotId) throw new TaskError("Give the task to a teammate first.");
     if (task.status === "done") throw new TaskError("That task is already done.");
-    const [chat] = await this.ctx.db
-      .select({ id: chats.id })
-      .from(chats)
-      .where(
-        and(eq(chats.botId, task.ownerBotId), eq(chats.kind, "direct"), isNull(chats.archivedAt)),
-      )
-      .orderBy(desc(chats.lastActivityAt))
-      .limit(1);
-    if (!chat) throw new TaskError("That teammate has no chat to work in.");
+    const chatId = await mainChat(this.ctx, task.ownerBotId);
     const from = by ? `${by.botName} asked you` : "The user asked you";
     await enqueueRun(this.ctx, {
-      chatId: chat.id,
+      chatId,
       botId: task.ownerBotId,
       trigger: "task",
       prompt: [
@@ -156,7 +149,7 @@ export class TaskService {
       .update(tasks)
       .set({
         status: "doing",
-        chatId: chat.id,
+        chatId,
         ...(task.status !== "doing" ? { position: await this.endOf("doing") } : {}),
       })
       .where(eq(tasks.id, task.id))

@@ -204,6 +204,11 @@ export const workerContract = {
       .route({ method: "POST", path: "/internal/chats/{chatId}/archive" })
       .input(z.object({ chatId: id }))
       .output(ok),
+    /** Make a direct chat its teammate's main chat. 400 for a group or an archived chat. */
+    makeMain: base
+      .route({ method: "POST", path: "/internal/chats/{chatId}/main" })
+      .input(z.object({ chatId: id }))
+      .output(ok),
     /** The owner has seen what's in the chat. */
     markRead: base
       .route({ method: "POST", path: "/internal/chats/{chatId}/read" })

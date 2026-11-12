@@ -178,6 +178,13 @@ export const chats = pgTable(
     titled: boolean("titled").notNull().default(false),
     /** The bot of a direct or scheduled chat. */
     botId: uuid("bot_id").references(() => bots.id, { onDelete: "cascade" }),
+    /**
+     * The teammate's main chat: the direct chat where work that isn't started from a chat arrives,
+     * such as tasks and questions from teammates. At most one per teammate. Archiving it hands the
+     * role to another direct chat; `mainChat()` in the worker also repairs a main chat archived by
+     * an older worker.
+     */
+    main: boolean("main").notNull().default(false),
     createdAt: createdAt(),
     lastActivityAt: timestamp("last_activity_at", { withTimezone: true }).notNull().defaultNow(),
     /** When you last looked at the chat, on any device. Replies after this are unread. */
@@ -187,6 +194,10 @@ export const chats = pgTable(
   (table) => [
     index("chats_bot_idx").on(table.botId),
     index("chats_activity_idx").on(table.lastActivityAt),
+    uniqueIndex("chats_main_unique")
+      .on(table.botId) // vocabulary: allow
+      .where(sql`${table.main}`),
+    check("chats_main_direct", sql`not ${table.main} or ${table.kind} = 'direct'`),
   ],
 );
 

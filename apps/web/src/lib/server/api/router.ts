@@ -263,6 +263,7 @@ export const router = os.router({
     createGroup: os.chats.createGroup.handler(({ input }) => api.createGroupChat(input)),
     rename: os.chats.rename.handler(({ input }) => api.renameChat(input)),
     archive: os.chats.archive.handler(({ input }) => api.archiveChat(input)),
+    makeMain: os.chats.makeMain.handler(({ input }) => api.makeMainChat(input)),
     markRead: os.chats.markRead.handler(({ input }) => api.markChatRead(input)),
     send: os.chats.send.handler(({ input }) => api.sendMessage(input)),
   },
