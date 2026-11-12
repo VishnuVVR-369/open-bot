@@ -1,4 +1,6 @@
 import { expect, test } from "vitest";
+import { z } from "zod";
+import { inputJsonSchema } from "./define";
 import { TOOLS, toolsFor } from "./definitions";
 
 /** Sorted the same way however the tools are grouped in code: tools by name, keys, `required`. */
@@ -60,4 +62,16 @@ test("the tools swarm helpers may not call", () => {
     "watch_gmail",
     "watch_page",
   ]);
+});
+
+// Objects are closed to unlisted properties, but a record still takes any key with its value schema.
+test("a tool input's JSON schema closes objects and keeps records open", () => {
+  const schema = inputJsonSchema(
+    z.object({
+      headers: z.record(z.string(), z.string()),
+      nested: z.object({ a: z.string() }),
+    }),
+  ) as { properties: Record<string, { additionalProperties: unknown }> };
+  expect(schema.properties.headers.additionalProperties).toEqual({ type: "string" });
+  expect(schema.properties.nested.additionalProperties).toBe(false);
 });

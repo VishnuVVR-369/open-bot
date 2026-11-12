@@ -88,7 +88,7 @@ type JsonSchema = v2.DynamicToolFunctionSpec["inputSchema"];
 /**
  * The JSON schema Codex is offered for `input`: zod's, without what zod adds that a tool spec
  * doesn't say (the `$schema` URL, the pattern behind `format: "uuid"`, the safe-integer bounds
- * of `.int()`), and closed to properties it doesn't list.
+ * of `.int()`), and with each object closed to properties it doesn't list.
  */
 export function inputJsonSchema(input: z.ZodObject): JsonSchema {
   const { $schema: _, ...schema } = z.toJSONSchema(input, {
@@ -104,7 +104,9 @@ export function inputJsonSchema(input: z.ZodObject): JsonSchema {
       if (record.minimum === Number.MIN_SAFE_INTEGER) delete record.minimum;
       if (record.maximum === Number.MAX_SAFE_INTEGER) delete record.maximum;
     }
-    if (record.type === "object") record.additionalProperties = false;
+    // A fixed-shape object is closed; a record keeps the schema it gives its values.
+    if (record.type === "object" && record.additionalProperties === undefined)
+      record.additionalProperties = false;
     Object.values(record).forEach(tidy);
   };
   tidy(schema);
