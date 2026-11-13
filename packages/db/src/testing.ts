@@ -63,16 +63,18 @@ export function testDatabase(server = process.env.TEST_DATABASE_URL): TestDataba
   }
 
   /**
-   * Waits until nothing is connected to the database, for up to `CLOSE_WAIT_MS`. `pool.end()`
+   * Waits until no client is connected to the database, for up to `CLOSE_WAIT_MS`. `pool.end()`
    * resolves once the pool has asked its connections to close, not once they have, and a forced
    * drop would cut off one still closing: its "terminating connection" error reaches a client
    * nothing listens to any more, and vitest fails the run on it.
+   * Postgres's own workers (autovacuum) are left to the drop: no client hears them stop.
    */
   async function closed(client: pg.Client) {
     const deadline = Date.now() + CLOSE_WAIT_MS;
     for (;;) {
       const { rows } = await client.query<{ open: number }>(
-        "select count(*)::int as open from pg_stat_activity where datname = $1",
+        `select count(*)::int as open from pg_stat_activity
+         where datname = $1 and backend_type = 'client backend'`,
         [name],
       );
       const open = rows[0]?.open ?? 0;
