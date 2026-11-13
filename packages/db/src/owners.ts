@@ -91,8 +91,8 @@ export const TABLE_OWNERS = {
 
   // Approvals, spending and the vault.
   approvals: { owner: `${WORKER}features/approvals/service.ts` },
-  vault_items: { owner: `${WORKER}services/vault.ts` },
-  purchases: { owner: `${WORKER}services/vault.ts` },
+  vault_items: { owner: `${WORKER}features/vault/service.ts` },
+  purchases: { owner: `${WORKER}features/vault/service.ts` },
 
   // The computer, its screens and egress.
   computers: { owner: `${WORKER}egress/store.ts` },

@@ -33,7 +33,7 @@ import {
 } from "../features/automations";
 import { rpcError } from "./errors";
 import type { EgressDevices } from "../egress/devices";
-import type { VaultService } from "../services/vault";
+import { vaultRoutes, type VaultService } from "../features/vault";
 
 /** The services the worker's internal API calls. */
 export interface WorkerServices {
@@ -148,13 +148,7 @@ export function createWorkerRouter(services: WorkerServices) {
     ...notificationRoutes(ctx, s.push, s.fcm),
     tasks: taskRoutes(s.tasks),
     email: emailRoutes(s.email),
-    vault: {
-      save: os.vault.save.handler(({ input }) => s.vault.saveItem(input)),
-      remove: os.vault.remove.handler(async ({ input }) => {
-        await s.vault.removeItem(input.itemId);
-        return ok;
-      }),
-    },
+    vault: vaultRoutes(s.vault),
     settings: {
       setTimezone: os.settings.setTimezone.handler(async ({ input }) => {
         await s.settings.setTimezone(input.timezone);
