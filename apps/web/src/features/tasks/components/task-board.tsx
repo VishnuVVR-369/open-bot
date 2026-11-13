@@ -11,12 +11,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAppState, useApprovals, useTasks } from "@/lib/client/queries";
+import { useAppState, useApprovals } from "@/lib/client/queries";
 import { attempt } from "@/lib/client/mutate";
 import { api, orpc } from "@/lib/client/rpc";
 import type { BotSummary, TaskView } from "@/lib/types";
 import { isComputerOnline, STATUS } from "@/lib/status";
 import { cn } from "@/lib/utils";
+import { useTasks } from "../hooks";
 import { STATUS_LABELS, TaskDialog } from "./task-dialog";
 
 function Due({ dueOn, done }: { dueOn: string; done: boolean }) {

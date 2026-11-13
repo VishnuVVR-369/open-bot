@@ -66,10 +66,6 @@ export function useSkills() {
   return useQuery(orpc.skills.list.queryOptions());
 }
 
-export function useTasks() {
-  return useQuery(orpc.tasks.list.queryOptions());
-}
-
 export function useProfile() {
   return useQuery(orpc.profile.get.queryOptions());
 }

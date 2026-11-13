@@ -22,7 +22,6 @@ import {
   skills,
   swarms,
   swarmTasks,
-  tasks,
   triggers,
   usageEntries,
   vaultItems,
@@ -78,7 +77,6 @@ import type {
   EmailStatusView,
   LessonView,
   ProposalView,
-  TaskView,
   ModelAccessView,
   NotificationView,
   RunView,
@@ -557,33 +555,6 @@ function automationPrompt(run: { trigger: string; prompt: string }): string | nu
       .replace(` ${PAGE_TEXT_NOTE}`, "")
       .replace(` ${ACCOUNT_TRIGGER_NOTE}`, ""),
   );
-}
-
-/** Open tasks, and the 30 most recently finished. */
-export async function listTasks(): Promise<TaskView[]> {
-  const [open, done] = await Promise.all([
-    db.select().from(tasks).where(ne(tasks.status, "done")).orderBy(asc(tasks.position)),
-    db
-      .select()
-      .from(tasks)
-      .where(eq(tasks.status, "done"))
-      .orderBy(desc(tasks.completedAt))
-      .limit(30),
-  ]);
-  return [...open, ...done].map((task) => ({
-    id: task.id,
-    title: task.title,
-    notes: task.notes,
-    status: task.status,
-    ownerBotId: task.ownerBotId,
-    dueOn: task.dueOn,
-    position: task.position,
-    createdBy: task.createdBy,
-    createdByBotId: task.createdByBotId,
-    chatId: task.chatId,
-    completedAt: task.completedAt?.toISOString() ?? null,
-    createdAt: task.createdAt.toISOString(),
-  }));
 }
 
 /** The color a new teammate starts with: the one the team uses least, as the worker picks. */

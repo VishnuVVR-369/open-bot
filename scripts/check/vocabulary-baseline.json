@@ -375,17 +375,20 @@
   "apps/web/src/components/skills/skills-list.tsx": {
     "bot": 24
   },
-  "apps/web/src/components/tasks/task-board.tsx": {
-    "bot": 18
-  },
-  "apps/web/src/components/tasks/task-dialog.tsx": {
-    "bot": 32
-  },
   "apps/web/src/components/vault/vault-dialog.tsx": {
     "bot": 1
   },
   "apps/web/src/components/vault/vault-view.tsx": {
     "bot": 26
+  },
+  "apps/web/src/features/tasks/components/task-board.tsx": {
+    "bot": 18
+  },
+  "apps/web/src/features/tasks/components/task-dialog.tsx": {
+    "bot": 32
+  },
+  "apps/web/src/features/tasks/server/queries.ts": {
+    "bot": 4
   },
   "apps/web/src/lib/client/queries.ts": {
     "bot": 2
@@ -425,7 +428,7 @@
     "desktop takeover": 3
   },
   "apps/web/src/lib/server/queries.ts": {
-    "bot": 142,
+    "bot": 138,
     "desktop takeover": 17,
     "primary teammate": 2
   },
