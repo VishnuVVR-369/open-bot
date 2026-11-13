@@ -63,7 +63,7 @@ function teammateTool<Input extends z.ZodObject = z.ZodObject>(
     botTools: BotTools,
     call: ToolCall<z.output<Input>>,
   ) => Promise<{ result: unknown; label?: string | undefined }>,
-): ToolDefinition<Input>["handle"] {
+): ToolDefinition<Input, ToolDeps>["handle"] {
   return async (call, deps) => {
     const startedAt = call.session.now();
     const { result, label } = await run(deps.botTools, call);

@@ -20,7 +20,7 @@ import { RunRequests } from "./runs/requests";
 import { computerFiles, UploadService } from "./uploads";
 import { PushService } from "./services/push";
 import { FcmService, nativeEgressPush } from "./services/fcm";
-import { TaskService } from "./services/tasks";
+import { TaskService } from "./features/tasks";
 import { ConnectionService } from "./services/connections";
 import { EmailService } from "./services/email";
 import { SwarmService } from "./services/swarms";

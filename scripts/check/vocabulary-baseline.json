@@ -555,6 +555,12 @@
   "apps/worker/src/env.ts": {
     "bot": 1
   },
+  "apps/worker/src/features/tasks/service.ts": {
+    "bot": 39
+  },
+  "apps/worker/src/features/tasks/tools.ts": {
+    "bot": 15
+  },
   "apps/worker/src/index.ts": {
     "bot": 8
   },
@@ -671,9 +677,6 @@
     "bot": 35,
     "desktop takeover": 33
   },
-  "apps/worker/src/services/tasks.ts": {
-    "bot": 39
-  },
   "apps/worker/src/services/telegram.ts": {
     "bot": 67,
     "primary teammate": 1
@@ -723,9 +726,6 @@
   },
   "apps/worker/src/tools/skills.ts": {
     "bot": 21
-  },
-  "apps/worker/src/tools/tasks.ts": {
-    "bot": 15
   },
   "apps/worker/src/tools/teammates.ts": {
     "bot": 67

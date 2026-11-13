@@ -62,7 +62,7 @@ export const TABLE_OWNERS = {
   triggers: { owner: `${WORKER}services/triggers.ts` },
   trigger_firings: { owner: `${WORKER}services/account-triggers.ts` },
   approval_rules: { owner: `${WORKER}services/approvals.ts` },
-  tasks: { owner: `${WORKER}services/tasks.ts` },
+  tasks: { owner: `${WORKER}features/tasks/service.ts` },
 
   // Chats and the work done in them.
   chats: { owner: `${WORKER}services/chats.ts` },
