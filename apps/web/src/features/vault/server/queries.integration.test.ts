@@ -20,7 +20,7 @@ describe.skipIf(!url)("the vault's read", () => {
     await database.drop();
   });
 
-  it("lists logins, then cards, by name ignoring case, and never the secret", async () => {
+  it("lists cards, then logins, by name ignoring case, and never the secret", async () => {
     const used = new Date(Date.UTC(2026, 9, 2));
     const item = (kind: "login" | "card", name: string) => ({
       kind,

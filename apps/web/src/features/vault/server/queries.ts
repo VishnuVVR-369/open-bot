@@ -4,7 +4,7 @@ import { asc, sql } from "drizzle-orm";
 import { db } from "@/lib/server/db";
 import type { VaultItemView } from "@/lib/types";
 
-/** Logins, then cards, each by name. The secret is never read: the worker alone decrypts it. */
+/** Cards, then logins (by kind), each by name ignoring case. The secret is never read: the worker alone decrypts it. */
 export async function listVaultItems(): Promise<VaultItemView[]> {
   const rows = await db
     .select({
