@@ -36,17 +36,11 @@ export const TEAMMATE_RULES = {
   setup: "Set up other teammates' skills and automations",
 } as const;
 
-/** The tools that set up a teammate's skills and automations, as approval titles. */
-const SETUP_TITLES: Record<string, (args: Record<string, unknown>, name: string) => string> = {
-  schedule_task: (args, name) => `Schedule "${String(args.title ?? "")}" for ${name}`,
-  save_skill: (args, name) => `Save the /${String(args.name ?? "")} skill for ${name}`,
-  watch_page: (args, name) => `Watch ${String(args.url ?? "a page")} for ${name}`,
-  watch_gmail: (args, name) => `Wake ${name} for new mail: "${String(args.title ?? "")}"`,
-  watch_calendar: (args, name) => `Wake ${name} before events: "${String(args.title ?? "")}"`,
-  create_webhook: (args, name) => `Create the webhook "${String(args.title ?? "")}" for ${name}`,
-  update_automation: (args, name) => `Change ${String(args.automation)} for ${name}`,
-  cancel_automation: (args, name) => `Delete ${String(args.automation)} for ${name}`,
-};
+/**
+ * The approval title when a tool sets up another teammate: `teammate` is their name, and
+ * `automation` the quoted title of the automation the call names by id ("an automation" if none).
+ */
+export type SetupTitle = (names: { teammate: string; automation: string }) => string;
 
 function autonomyLabel(autonomy: Autonomy): string {
   return AUTONOMY_OPTIONS.find((option) => option.value === autonomy)?.label ?? autonomy;
@@ -191,17 +185,16 @@ export class BotTools {
     callId: string,
     tool: string,
     args: TargetArgs & { id?: string | undefined },
+    title: SetupTitle,
   ): Promise<Bot> {
     const target = await this.target(session, args);
     if (target.id === session.bot.id) return target;
-    const named =
-      typeof args.id === "string"
-        ? { ...args, automation: await this.automationName(target.id, args.id) }
-        : args;
+    const automation =
+      typeof args.id === "string" ? await this.automationName(target.id, args.id) : "an automation";
     await this.authorize(session, callId, {
       tool,
       args,
-      title: SETUP_TITLES[tool]?.(named, target.name) ?? `${tool} for ${target.name}`,
+      title: title({ teammate: target.name, automation }),
       detail: argumentsDetail(args),
       subject: TEAMMATE_RULES.setup,
     });
