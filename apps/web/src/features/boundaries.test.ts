@@ -1,4 +1,12 @@
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import ts from "typescript";
@@ -24,7 +32,10 @@ function files(dir: string): string[] {
 /** What an `import(…)` call reaches when its module isn't a plain string, so it can't be checked. */
 const COMPUTED = "a computed import(…)";
 
-/** A file's module specifiers, its directives, and how many `import(…)` calls can't be read. */
+/**
+ * A file's module specifiers, its directives, how many `import(…)` calls can't be read, and whether
+ * it really imports `server-only` (an import statement, not a comment or a string that says so).
+ */
 function parse(file: string, source: string) {
   const specifiers: string[] = [];
   let computed = 0;
@@ -54,26 +65,49 @@ function parse(file: string, source: string) {
     .map((statement) => statement.expression)
     .filter(ts.isStringLiteral)
     .map((literal) => literal.text);
-  return { specifiers, computed, directives };
+  const serverOnly = tree.statements.some(
+    (statement) =>
+      ts.isImportDeclaration(statement) &&
+      !statement.importClause?.isTypeOnly &&
+      ts.isStringLiteral(statement.moduleSpecifier) &&
+      statement.moduleSpecifier.text === "server-only",
+  );
+  return { specifiers, computed, directives, serverOnly };
+}
+
+/** A specifier that can only name a folder (`./`, `..`, `server/`), so it reaches the folder's index. */
+const FOLDER = /(?:^|\/)\.{0,2}$/;
+
+/**
+ * The file TypeScript picks for `target` (a path without an extension): `target.ts` and its kin
+ * when one exists, or else the folder's `index`. A spelling that only names a folder skips the file.
+ */
+function pick(target: string, folder: boolean): string {
+  const file = (base: string) => [".ts", ".tsx", ".d.ts"].some((ext) => existsSync(base + ext));
+  if (folder || (!file(target) && file(path.join(target, "index"))))
+    return path.join(target, "index");
+  return target;
 }
 
 /**
- * The modules `file` reaches under `root`, as paths without an extension: relative imports and
- * the `@/` alias for `root`. An `import(…)` of anything but a string is `COMPUTED`.
+ * The modules `file` reaches under `root`, as paths without an extension, resolved to the file
+ * TypeScript picks: relative imports and the `@/` alias for `root`. An `import(…)` of anything but
+ * a string is `COMPUTED`.
  */
 function imports(root: string, file: string, source: string): string[] {
   const { specifiers, computed } = parse(file, source);
-  const resolve = (specifier: string) =>
-    specifier.startsWith("@/")
+  const resolve = (specifier: string) => {
+    const target = specifier.startsWith("@/")
       ? path.join(root, specifier.slice(2))
       : specifier.startsWith(".")
         ? path.resolve(path.dirname(file), specifier)
         : null;
+    if (target === null) return null;
+    if (TS_EXTENSION.test(specifier)) return target.replace(TS_EXTENSION, "");
+    return pick(path.resolve(target), FOLDER.test(specifier));
+  };
   return [
-    ...specifiers
-      .map(resolve)
-      .filter((target) => target !== null)
-      .map((target) => target.replace(TS_EXTENSION, "")),
+    ...specifiers.map(resolve).filter((target) => target !== null),
     ...Array<string>(computed).fill(COMPUTED),
   ];
 }
@@ -101,7 +135,8 @@ function featureOf(root: string, target: string) {
 function problems(root: string, file: string, source = readFileSync(file, "utf8")): string[] {
   const at = path.relative(root, file);
   const home = featureOf(root, file);
-  const client = parse(file, source).directives.includes("use client");
+  const { directives, serverOnly } = parse(file, source);
+  const client = directives.includes("use client");
   const found: string[] = [];
   for (const target of imports(root, file, source)) {
     if (target === COMPUTED) {
@@ -116,7 +151,7 @@ function problems(root: string, file: string, source = readFileSync(file, "utf8"
     else if (feature.server && (client || (home?.name === feature.name && !home.server)))
       found.push(`${at} -> ${to}: client code importing server code`);
   }
-  if (home?.server && !TEST_FILE.test(file) && !source.includes(`import "server-only";`))
+  if (home?.server && !TEST_FILE.test(file) && !serverOnly)
     found.push(`${at}: server code without import "server-only"`);
   return found;
 }
@@ -152,7 +187,14 @@ describe("feature folders", () => {
         `import "server-only";\nexport * from "./server/queries";\n`,
       );
       write("features/tasks/server/queries.ts", server);
-      write("features/tasks/server/routes.ts", `export const routes = {};\n`);
+      write(
+        "features/tasks/server/routes.ts",
+        `// import "server-only";\nexport const routes = {};\n`,
+      );
+      write("features/tasks/server/jobs.ts", `import 'server-only';\nexport const jobs = [];\n`);
+      write("features/tasks/server/types.ts", `import type {} from "server-only";\nexport {};\n`);
+      write("features/notes/index.ts", `export {};\n`);
+      write("features/notes/server/index.ts", server);
       write("features/tasks/server/queries.test.ts", `export {};\n`);
       write("features/tasks/components/board.tsx", `import { listTasks } from "../server";\n`);
       write(
@@ -167,12 +209,17 @@ describe("feature folders", () => {
       );
       write("lib/router.ts", `import { listTasks } from "../features/tasks/server/queries";\n`);
       write("lib/types.d.ts", `export type { Board } from "@/features/tasks/components/board";\n`);
+      write("lib/folder.ts", `import { listTasks } from "@/features/tasks/server/";\n`);
+      write("lib/notes.ts", `import { listNotes } from "@/features/notes/server";\n`);
       write("lib/notes.md", `import { listTasks } from "@/features/tasks/server/queries";\n`);
       expect(violations(root).sort()).toEqual([
         "app/tasks/view.tsx -> features/tasks/server: client code importing server code",
         "features/pages/load.ts: a computed import(…)",
         "features/tasks/components/board.tsx -> features/tasks/server: client code importing server code",
         'features/tasks/server/routes.ts: server code without import "server-only"',
+        'features/tasks/server/types.ts: server code without import "server-only"',
+        "lib/folder.ts -> features/tasks/server/index: past its entries",
+        "lib/notes.ts -> features/notes/server/index: past its entries",
         "lib/router.ts -> features/tasks/server/queries: past its entries",
         "lib/types.d.ts -> features/tasks/components/board: past its entries",
       ]);
@@ -195,6 +242,12 @@ describe("feature folders", () => {
         `type Tasks = import("${internal}").Tasks;`,
       ])
         expect(problems(SOURCE, outside, source), source).toHaveLength(1);
+    for (const folder of [
+      "@/features/tasks/server/",
+      "../features/tasks/server/",
+      "../features/tasks/server/.",
+    ])
+      expect(problems(SOURCE, outside, `import { x } from "${folder}";`), folder).toHaveLength(1);
     for (const entry of [
       "@/features/tasks",
       "@/features/tasks/index",
