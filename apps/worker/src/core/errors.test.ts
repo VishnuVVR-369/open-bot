@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { toRpcError } from "../rpc/errors";
 import { PageGone } from "../features/pages";
 import { ScreenBusy } from "../features/screens";
-import { SwarmError } from "../services/swarms";
+import { SwarmError } from "../features/teamwork";
 import { TelegramError } from "../features/telegram";
 import { WorkerError } from "./errors";
 

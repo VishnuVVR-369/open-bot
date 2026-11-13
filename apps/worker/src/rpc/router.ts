@@ -21,7 +21,7 @@ import {
   type TakeoverService,
 } from "../features/screens";
 import { skillRoutes, type SkillService } from "../features/skills";
-import type { SwarmService } from "../services/swarms";
+import { swarmRoutes, type SwarmService } from "../features/teamwork";
 import { chatRoutes, type ChatService } from "../features/chat";
 import type { RunRequests } from "../runs/requests";
 import { telegramRoutes, type TelegramService } from "../features/telegram";
@@ -184,12 +184,7 @@ export function createWorkerRouter(services: WorkerServices) {
       ),
       test: os.connections.test.handler(({ input }) => s.connections.test(input.connectionId)),
     },
-    swarms: {
-      stop: os.swarms.stop.handler(async ({ input }) => {
-        await s.swarms.stop(input.swarmId);
-        return ok;
-      }),
-    },
+    swarms: swarmRoutes(s.swarms),
     telegram: telegramRoutes(s.telegram),
     skills: skillRoutes(s.skills),
     codex: {

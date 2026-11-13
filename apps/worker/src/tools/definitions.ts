@@ -13,9 +13,9 @@ import { EMAIL_TOOLS } from "../features/email";
 import { MEMORY_TOOLS } from "../features/memory";
 import { PAGE_TOOLS } from "../features/pages";
 import { SKILL_TOOLS } from "../features/skills";
-import { SWARM_TOOLS } from "./swarms";
+import { SWARM_TOOLS } from "../features/teamwork";
 import { TEAMMATE_TOOLS } from "../features/teammates";
-import { TEAMWORK_TOOLS } from "./teamwork";
+import { TEAMWORK_TOOLS } from "../features/teamwork";
 import { VAULT_TOOLS } from "../features/vault";
 
 export const TOOLS: readonly AnyTool[] = [
