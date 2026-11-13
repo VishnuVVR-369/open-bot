@@ -9,7 +9,7 @@ import { TimeAgo } from "@/components/time-ago";
 import { useBriefingItems } from "./briefing";
 import { useBriefingSince } from "@/lib/client/presence";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/features/app-shell";
 import { useHome } from "../hooks";
 import { failureLine, isComputerOnline, STATUS } from "@/lib/status";
 import type { ActivityView } from "@/lib/types";

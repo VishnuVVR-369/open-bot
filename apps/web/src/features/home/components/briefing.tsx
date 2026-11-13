@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { attempt } from "@/lib/client/mutate";
 import { api } from "@/lib/client/rpc";
 import { dismissBriefing, useBriefingSince } from "@/lib/client/presence";
-import { useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/features/app-shell";
 import { useHome } from "../hooks";
 import { failureLine, isComputerOnline } from "@/lib/status";
 import type { BriefingItem } from "@/lib/types";

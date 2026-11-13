@@ -285,6 +285,12 @@
   "apps/web/src/components/bot-avatar.tsx": {
     "bot": 3
   },
+  "apps/web/src/features/app-shell/server/attention.ts": {
+    "bot": 7
+  },
+  "apps/web/src/features/app-shell/server/queries.ts": {
+    "bot": 1
+  },
   "apps/web/src/features/approvals/components/always-allow.tsx": {
     "bot": 17
   },
@@ -396,6 +402,10 @@
   "apps/web/src/features/computer/hooks.ts": {
     "bot": 23
   },
+  "apps/web/src/features/computer/server/queries.ts": {
+    "bot": 14,
+    "desktop takeover": 17
+  },
   "apps/web/src/features/computer/server/service.ts": {
     "bot": 11,
     "desktop takeover": 3
@@ -460,6 +470,9 @@
   },
   "apps/web/src/features/memory/server/service.ts": {
     "bot": 5
+  },
+  "apps/web/src/features/notifications/server/queries.ts": {
+    "bot": 2
   },
   "apps/web/src/features/pages/components/page-viewer.tsx": {
     "bot": 30
@@ -550,10 +563,6 @@
   },
   "apps/web/src/lib/server/api/router.integration.test.ts": {
     "bot": 17
-  },
-  "apps/web/src/lib/server/queries.ts": {
-    "bot": 25,
-    "desktop takeover": 17
   },
   "apps/web/src/lib/status.test.ts": {
     "bot": 22

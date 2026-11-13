@@ -8,7 +8,7 @@ import { ComputerPanel, useComputer } from "@/features/computer";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/features/app-shell";
 import { chatStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
 import { Composer, type ComposerHandle } from "./composer";

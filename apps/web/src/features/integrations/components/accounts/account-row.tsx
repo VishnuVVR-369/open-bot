@@ -25,7 +25,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { attempt } from "@/lib/client/mutate";
-import { useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/features/app-shell";
 import { api } from "@/lib/client/rpc";
 import type { ConnectionTestView, ConnectionView } from "@/lib/types";
 import { cn } from "@/lib/utils";

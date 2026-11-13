@@ -3,7 +3,7 @@
 import { Check } from "lucide-react";
 import { BotAvatar } from "@/components/bot-avatar";
 import { Switch } from "@/components/ui/switch";
-import { useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/features/app-shell";
 import { cn } from "@/lib/utils";
 
 /** Every teammate, or the ones you pick. */

@@ -8,12 +8,12 @@ import { Wordmark } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useComputer } from "@/features/computer";
-import { useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/features/app-shell";
 import type { AppState } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { CommandMenuProvider } from "./command-menu";
 import { MobileMenuContext } from "./mobile-menu";
-import { NotificationsButton } from "./notifications";
+import { NotificationsButton } from "@/features/notifications";
 import { Sidebar } from "./sidebar";
 
 /** Pages whose own toolbar carries the menu button on a phone. */

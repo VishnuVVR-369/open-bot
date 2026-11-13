@@ -4,7 +4,7 @@ import { formatDistanceToNowStrict } from "date-fns";
 import { CalendarClock, CalendarDays, Eye, Mail, Webhook } from "lucide-react";
 import Link from "next/link";
 import { PageThumbnail, usePages } from "@/features/pages";
-import { useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/features/app-shell";
 import type { ActivityView } from "@/lib/types";
 import { SideHeading } from "./side-heading";
 

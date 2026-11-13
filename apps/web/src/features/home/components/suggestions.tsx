@@ -2,7 +2,7 @@
 
 import { ArrowRight, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/features/app-shell";
 
 /**
  * A teammate's suggested new instructions: worth a look when you have a minute, so a quiet row

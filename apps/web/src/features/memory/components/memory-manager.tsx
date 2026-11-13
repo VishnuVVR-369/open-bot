@@ -49,7 +49,7 @@ import {
 import { attempt } from "@/lib/client/mutate";
 import { api, orpc } from "@/lib/client/rpc";
 import { useMemories, useMemoryHistory } from "../hooks";
-import { useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/features/app-shell";
 
 /** Who saved a memory, by name when a teammate did. */
 function sourceLabel(item: MemoryItem, teammate: string | null) {

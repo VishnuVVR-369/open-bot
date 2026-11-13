@@ -4,7 +4,7 @@ import { approvalShortTitle } from "@open-bot/domain";
 import { ArrowRight, Hand, ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import { useApprovals } from "@/features/approvals";
-import { useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/features/app-shell";
 import { isComputerOnline } from "@/lib/status";
 import type { AppState, TakeoverRequestSummary } from "@/lib/types";
 import { chatHref } from "@/lib/utils";

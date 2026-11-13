@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { attempt } from "@/lib/client/mutate";
-import { useNotifications } from "@/lib/client/queries";
+import { useNotifications } from "../hooks";
 import { api, orpc } from "@/lib/client/rpc";
 import { cn, notificationHref, plainText } from "@/lib/utils";
 

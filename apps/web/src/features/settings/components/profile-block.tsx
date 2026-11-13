@@ -2,7 +2,7 @@
 
 import { ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/features/app-shell";
 
 /** Who's signed in: the owner's mark, name and email, at the top of Account. */
 export function ProfileBlock() {

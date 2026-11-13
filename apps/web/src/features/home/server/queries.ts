@@ -4,7 +4,7 @@ import { chats, runs, schedules, triggers } from "@open-bot/db";
 import { isNothingToReport } from "@open-bot/domain";
 import { and, desc, eq, gte, inArray, isNull, ne } from "drizzle-orm";
 import { db } from "@/lib/server/db";
-import { getAttention } from "@/lib/server/queries";
+import { getAttention } from "@/features/app-shell/server";
 import type { ActivityView, BriefingItem } from "@/lib/types";
 
 /** Home: what needs you, what you missed since `awaySince`, and what teammates did lately. */

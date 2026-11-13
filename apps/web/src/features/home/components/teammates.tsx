@@ -5,7 +5,7 @@ import { ArrowRight, Plus } from "lucide-react";
 import Link from "next/link";
 import { BotAvatar } from "@/components/bot-avatar";
 import { Button } from "@/components/ui/button";
-import { useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/features/app-shell";
 import { isComputerOnline, teammateStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
 

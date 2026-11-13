@@ -39,7 +39,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { attempt } from "@/lib/client/mutate";
 import { api } from "@/lib/client/rpc";
 import { useDictation } from "@/lib/client/dictation";
-import { useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/features/app-shell";
 import type { BotSummary, ChatSummary, MessageView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { skillOptions, skillQueryAt, type SkillOption } from "../skill-options";

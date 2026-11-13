@@ -7,7 +7,7 @@ import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { attempt } from "@/lib/client/mutate";
-import { useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/features/app-shell";
 import { api, orpc } from "@/lib/client/rpc";
 import type { RateLimitWindowView } from "@/lib/types";
 import { cn } from "@/lib/utils";

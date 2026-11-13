@@ -51,7 +51,7 @@ import {
   CommandShortcut,
 } from "@/components/ui/command";
 import { orpc } from "@/lib/client/rpc";
-import { useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/features/app-shell";
 import { chatHref } from "@/lib/utils";
 
 const CommandMenuContext = createContext<{ open: () => void }>({ open: () => {} });

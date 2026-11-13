@@ -5,7 +5,7 @@ import { format } from "date-fns";
 import { useSyncExternalStore } from "react";
 import { ComputerOffline, ComputerPanel, useComputer } from "@/features/computer";
 import { Briefing } from "./briefing";
-import { useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/features/app-shell";
 import { botActivity, isComputerOnline } from "@/lib/status";
 import type { AppState } from "@/lib/types";
 import { cn } from "@/lib/utils";
