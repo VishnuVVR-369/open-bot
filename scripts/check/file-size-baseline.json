@@ -1,6 +1,5 @@
 {
   "apps/botd/src/screens.ts": 835,
-  "apps/mobile/src/app/pages/[pageId].tsx": 646,
   "apps/mobile/src/components/chat/run-block.tsx": 614,
   "apps/mobile/src/lib/use-chat.test.ts": 617,
   "apps/site/src/components/docs/diagrams.tsx": 1753,
