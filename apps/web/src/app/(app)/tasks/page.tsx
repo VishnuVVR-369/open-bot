@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Page } from "@/components/page";
-import { NewTaskButton, TaskBoard } from "@/components/tasks/task-board";
+import { NewTaskButton, TaskBoard } from "@/features/tasks";
 
 export const metadata: Metadata = { title: "Tasks" };
 

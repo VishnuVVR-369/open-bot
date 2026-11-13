@@ -21,6 +21,8 @@ It serves the browser UI and the Android app's API: it reads Postgres directly, 
   Client components query them with TanStack Query through `orpc` (`src/lib/client/rpc.ts`), whose cache keys are procedure paths.
   Next.js runs server actions one at a time per client, so reads and writes done as actions queued behind each other and made pages slow; that is one reason the app has none.
   Server components read through functions in `src/lib/server`, never the database directly.
+- **Features** that have moved into their own folder (`src/features/<feature>/`, so far the task board) keep their views, hooks, reads and API procedures together.
+  Other code reaches a feature only through its `index.ts`, or `server.ts` for its server side, which `src/features/boundaries.test.ts` checks.
 - **The event stream** (`GET /api/stream`) is one server-sent events connection per tab. It tells the tab when anything changes, and streams the run events of the chat on screen.
 
 The browser never talks to Codex or botd.

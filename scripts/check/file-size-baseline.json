@@ -11,7 +11,7 @@
   "apps/web/src/components/settings/accounts-section.tsx": 901,
   "apps/web/src/components/settings/settings-view.tsx": 1054,
   "apps/web/src/lib/server/api/router.integration.test.ts": 898,
-  "apps/web/src/lib/server/queries.ts": 1075,
+  "apps/web/src/lib/server/queries.ts": 1048,
   "apps/worker/src/accounts/actions.ts": 671,
   "apps/worker/src/egress/relay.test.ts": 622,
   "apps/worker/src/egress/relay.ts": 751,

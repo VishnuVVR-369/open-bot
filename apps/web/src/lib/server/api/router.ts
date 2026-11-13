@@ -1,10 +1,4 @@
 import "server-only";
-import { API_ERRORS, contract } from "@open-bot/api";
-import { errorFields, errorMessage } from "@open-bot/db";
-import { MemoryError } from "@open-bot/memory";
-import { implement, ORPCError, ValidationError } from "@orpc/server";
-import { z } from "zod";
-import { auth } from "../auth";
 import {
   getAccountsSetup,
   getAppState,
@@ -23,81 +17,19 @@ import {
   listNotifications,
   listSchedules,
   listSkills,
-  listTasks,
   listTriggers,
   listVaultItems,
   searchMessages,
 } from "../queries";
-import { worker, WorkerError } from "../worker";
+import { worker } from "../worker";
 import { ApiError } from "./errors";
 import { listMemories, memoriesForRun, memoryHistory } from "./memory";
 import { searchPages } from "./pages";
+import { taskRoutes } from "@/features/tasks/server";
+import { os } from "./rpc";
 import * as api from "./services";
 
-export interface RpcContext {
-  headers: Headers;
-}
-
-/** The code for a failure that only has an HTTP status, from the worker or the memory store. */
-const STATUS_CODES: Record<number, string> = {
-  400: "BAD_REQUEST",
-  403: "FORBIDDEN",
-  404: "NOT_FOUND",
-  409: "CONFLICT",
-  413: "PAYLOAD_TOO_LARGE",
-  503: "SERVICE_UNAVAILABLE",
-};
-
-/** Errors as callers see them: the same messages the web shows, with a code to act on. */
-function toRpcError(error: unknown): ORPCError<string, unknown> {
-  // Input the contract refused: say what the schema says ("Name the chat."), not that it failed.
-  if (
-    error instanceof ORPCError &&
-    error.code === "BAD_REQUEST" &&
-    error.cause instanceof ValidationError
-  )
-    return new ORPCError("BAD_REQUEST", {
-      message: error.cause.issues.map((issue) => issue.message).join(". "),
-      data: error.data,
-      cause: error.cause,
-    });
-  if (error instanceof ORPCError) return error;
-  if (error instanceof ApiError) {
-    // A defined error only counts as one with the status the contract gives it.
-    const status = error.code === "BAD_REQUEST" ? 400 : API_ERRORS[error.code].status;
-    return new ORPCError(error.code, {
-      status,
-      message: error.message,
-      ...(error.data === undefined ? {} : { data: error.data }),
-    });
-  }
-  if (error instanceof z.ZodError)
-    return new ORPCError("BAD_REQUEST", { message: error.issues.map((i) => i.message).join(". ") });
-  if (error instanceof WorkerError || error instanceof MemoryError) {
-    const code = STATUS_CODES[error.status] ?? "INTERNAL_SERVER_ERROR";
-    // A 409 here is a state conflict (STATE_CONFLICT), never a reused id (CONFLICT).
-    return new ORPCError(code === "CONFLICT" ? "STATE_CONFLICT" : code, {
-      status: error.status,
-      message: error.message,
-    });
-  }
-  // Never the error itself: a failed query's repeats its parameters.
-  console.error("rpc failed", errorFields(error));
-  return new ORPCError("INTERNAL_SERVER_ERROR", { message: errorMessage(error) });
-}
-
-const os = implement(contract)
-  .$context<RpcContext>()
-  .use(async ({ context, next }) => {
-    const session = await auth.api.getSession({ headers: context.headers });
-    if (!session) throw new ORPCError("UNAUTHORIZED", { message: "Sign in first." });
-    try {
-      return await next({ context: { user: session.user, sessionId: session.session.id } });
-    } catch (error) {
-      throw toRpcError(error);
-    }
-  });
-
+/** The API (`contract` in `@open-bot/api`), for the browser and the phone. */
 export const router = os.router({
   app: {
     state: os.app.state.handler(({ context }) =>
@@ -177,13 +109,7 @@ export const router = os.router({
     save: os.skills.save.handler(({ input }) => worker.skills.save(input)),
     remove: os.skills.remove.handler(({ input }) => worker.skills.remove(input)),
   },
-  tasks: {
-    list: os.tasks.list.handler(() => listTasks()),
-    create: os.tasks.create.handler(({ input }) => worker.tasks.create(input)),
-    update: os.tasks.update.handler(({ input }) => worker.tasks.update(input)),
-    remove: os.tasks.remove.handler(({ input }) => worker.tasks.remove(input)),
-    start: os.tasks.start.handler(({ input }) => worker.tasks.start(input)),
-  },
+  tasks: taskRoutes(),
   vault: {
     list: os.vault.list.handler(() => listVaultItems()),
     save: os.vault.save.handler(({ input }) => api.saveVaultItem(input)),

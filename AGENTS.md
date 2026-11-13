@@ -139,8 +139,10 @@ Paths are relative to the repo root; symbols are in parentheses.
 
 **Add a web screen**
 
-1. `apps/web/src/app/(app)/<route>/page.tsx` (thin, wraps `<Page>`), and a `"use client"` view in `apps/web/src/components/<area>/`.
-2. A read in `apps/web/src/lib/server/queries.ts`, a procedure in `packages/api/src/contract.ts` with its view schema, its handler in `apps/web/src/lib/server/api/router.ts`, and a hook in `apps/web/src/lib/client/queries.ts` (`orpc.<path>.queryOptions()`).
+1. `apps/web/src/app/(app)/<route>/page.tsx` (thin, wraps `<Page>`), importing its view from the feature's `index.ts`.
+   A feature is a folder in `apps/web/src/features/<feature>/` (`apps/web/src/features/tasks` is the example): `"use client"` views in `components/`, hooks in `hooks.ts`, and the server side in `server/`, reached through `server.ts`.
+   Areas not moved yet still live in `apps/web/src/components/<area>/`, `apps/web/src/lib/server/queries.ts` and `apps/web/src/lib/client/queries.ts`.
+2. A procedure in `packages/api/src/contract.ts` with its view schema; its read in the feature's `server/queries.ts` and its handlers in `server/routes.ts` (built with `os` from `apps/web/src/lib/server/api/rpc.ts`), mounted in `apps/web/src/lib/server/api/router.ts`; and a hook in the feature's `hooks.ts` (`orpc.<path>.queryOptions()`).
    Say which app events refresh it in `APP_EVENT_REFRESHES` (`packages/api/src/events.ts`).
 3. Nav: `apps/web/src/components/app/sidebar.tsx` and `apps/web/src/components/app/command-menu.tsx`.
 
