@@ -8,6 +8,8 @@ import pg from "pg";
 import { createDb, createPool, type Db } from "./index";
 
 const MIGRATIONS = fileURLToPath(new URL("../drizzle", import.meta.url));
+/** How long a drop waits for the database's connections to close before forcing them off. */
+const CLOSE_WAIT_MS = 5_000;
 
 /**
  * The server integration suites run against, or undefined when they should skip.
@@ -50,13 +52,38 @@ export function testDatabase(server = process.env.TEST_DATABASE_URL): TestDataba
   const pool = createPool(url);
   const db = createDb(pool);
 
-  async function asAdmin(sql: string) {
+  async function asAdmin(work: (client: pg.Client) => Promise<unknown>) {
     const client = new pg.Client({ connectionString: admin.toString() });
     await client.connect();
     try {
-      await client.query(sql);
+      await work(client);
     } finally {
       await client.end();
+    }
+  }
+
+  /**
+   * Waits until nothing is connected to the database, for up to `CLOSE_WAIT_MS`. `pool.end()`
+   * resolves once the pool has asked its connections to close, not once they have, and a forced
+   * drop would cut off one still closing: its "terminating connection" error reaches a client
+   * nothing listens to any more, and vitest fails the run on it.
+   */
+  async function closed(client: pg.Client) {
+    const deadline = Date.now() + CLOSE_WAIT_MS;
+    for (;;) {
+      const { rows } = await client.query<{ open: number }>(
+        "select count(*)::int as open from pg_stat_activity where datname = $1",
+        [name],
+      );
+      const open = rows[0]?.open ?? 0;
+      if (open === 0) return;
+      if (Date.now() >= deadline) {
+        process.stderr.write(
+          `${open} connection(s) to ${name} still open after ${CLOSE_WAIT_MS} ms: a pool the suite never ended?\n`,
+        );
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20));
     }
   }
 
@@ -67,12 +94,17 @@ export function testDatabase(server = process.env.TEST_DATABASE_URL): TestDataba
     async create() {
       if (!server) throw new Error("TEST_DATABASE_URL is not set.");
       // The name is generated above from hex digits, never from input.
-      await asAdmin(`create database ${name}`);
+      await asAdmin((client) => client.query(`create database ${name}`));
       await migrate(db, { migrationsFolder: MIGRATIONS });
     },
     async drop() {
       await pool.end();
-      if (server) await asAdmin(`drop database if exists ${name} with (force)`);
+      if (!server) return;
+      await asAdmin(async (client) => {
+        await closed(client);
+        // Forces off only what a suite left open past the wait.
+        await client.query(`drop database if exists ${name} with (force)`);
+      });
     },
   };
 }
