@@ -6,8 +6,10 @@ import {
   realpathSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
+import { isBuiltin } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import ts from "typescript";
@@ -186,12 +188,30 @@ function problems(
   return found;
 }
 
-/** Packages that only run on the server: the database and the server entries of workspace packages. */
-const SERVER_PACKAGE = /^(@open-bot\/db|@open-bot\/[\w-]+\/server|pg)(\/|$)/;
+/**
+ * Modules that only run on the server: `server-only` itself, the database, the server entries of
+ * workspace packages, and Node's built-in modules.
+ */
+const SERVER_PACKAGE = /^(server-only|@open-bot\/db|@open-bot\/[\w-]+\/server|pg)(\/|$)/;
+const serverModule = (specifier: string) => SERVER_PACKAGE.test(specifier) || isBuiltin(specifier);
+
+/** Workspace packages, which the apps consume as TypeScript source, so the walk follows them. */
+const WORKSPACE_PACKAGE = /^@open-bot\//;
 
 /**
- * Server code a feature's client entry (`index.ts`) reaches through the imports that run, one line
- * each. A client component that imports the entry would bundle it for the browser, where it fails.
+ * The source file an import of a workspace package reaches, or `null` when it reaches none or lands
+ * in `node_modules` (the walk could not see past it, so the check would pass unseen).
+ */
+function workspaceFile(options: ts.CompilerOptions, file: string, specifier: string) {
+  const resolved = ts.resolveModuleName(specifier, file, options, ts.sys).resolvedModule;
+  if (!resolved || resolved.resolvedFileName.split(path.sep).includes("node_modules")) return null;
+  return resolved.resolvedFileName;
+}
+
+/**
+ * Server code a feature's client entry (`index.ts`) reaches through the imports that run, workspace
+ * packages included, one line each. A client component that imports the entry would bundle it for
+ * the browser, where it fails.
  */
 function clientReach(root: string, options: ts.CompilerOptions): string[] {
   const found: string[] = [];
@@ -199,25 +219,26 @@ function clientReach(root: string, options: ts.CompilerOptions): string[] {
     (file) => featureOf(root, file)?.entry === "index",
   );
   for (const entry of entries) {
+    const from = path.relative(root, entry);
     const seen = new Set([entry]);
     const queue = [entry];
     for (let file = queue.shift(); file; file = queue.shift()) {
-      const { edges, serverOnly } = parse(file, readFileSync(file, "utf8"));
-      const server = serverOnly
-        ? "server-only"
-        : edges.find(
-            (edge): edge is Edge =>
-              edge !== COMPUTED && !edge.typeOnly && SERVER_PACKAGE.test(edge.specifier),
-          )?.specifier;
+      const at = path.relative(root, file);
+      const runs = parse(file, readFileSync(file, "utf8")).edges.filter(
+        (edge): edge is Edge => edge !== COMPUTED && !edge.typeOnly,
+      );
+      const server = runs.find((edge) => serverModule(edge.specifier))?.specifier;
       if (server) {
-        found.push(
-          `${path.relative(root, entry)} reaches ${path.relative(root, file)}, which imports ${server}`,
-        );
+        found.push(`${from} reaches ${at}, which imports ${server}`);
         continue;
       }
-      for (const edge of edges) {
-        if (edge === COMPUTED || edge.typeOnly) continue;
-        const target = resolve(root, options, file, edge.specifier);
+      for (const edge of runs) {
+        let target = resolve(root, options, file, edge.specifier);
+        if (target === undefined && WORKSPACE_PACKAGE.test(edge.specifier)) {
+          target = workspaceFile(options, file, edge.specifier);
+          if (target === null)
+            found.push(`${from} reaches ${at}, whose ${edge.specifier} can't be followed`);
+        }
         if (target && SOURCE_FILE.test(target) && !seen.has(target)) {
           seen.add(target);
           queue.push(target);
@@ -321,9 +342,36 @@ describe("feature folders", () => {
       );
       write("lib/broken.ts", `export const = ;\n`);
       write("lib/notes.md", `import { listTasks } from "@/features/tasks/server/queries";\n`);
+      // server-only reached without an import statement.
+      write("features/jobs/index.ts", `export { load } from "./lazy";\n`);
+      write("features/jobs/lazy.ts", `export const load = () => import("server-only");\n`);
+      write("features/marks/index.ts", `export * from "server-only";\n`);
+      // A workspace package, linked into node_modules as pnpm links it, whose files need the server.
+      write(
+        "packages/memo/package.json",
+        `{ "name": "@open-bot/memo", "exports": { ".": "./src/index.ts" } }\n`,
+      );
+      write("packages/memo/src/index.ts", `export * from "./service";\nexport * from "./ids";\n`);
+      write(
+        "packages/memo/src/service.ts",
+        `import { revision } from "@open-bot/db";\nexport const MemoryService = revision;\n`,
+      );
+      write(
+        "packages/memo/src/ids.ts",
+        `import { randomUUID } from "node:crypto";\nexport const id = randomUUID;\n`,
+      );
+      mkdirSync(path.join(root, "node_modules/@open-bot"), { recursive: true });
+      symlinkSync(path.join(root, "packages/memo"), path.join(root, "node_modules/@open-bot/memo"));
+      write("features/memory/index.ts", `export { MemoryService } from "@open-bot/memo";\n`);
+      write("features/lost/index.ts", `export { x } from "@open-bot/missing";\n`);
       expect(violations(root).sort()).toEqual([
         "app/tasks/kept.tsx -> features/tasks/server.ts: client code importing server code",
         "app/tasks/view.tsx -> features/tasks/server.ts: client code importing server code",
+        "features/jobs/index.ts reaches features/jobs/lazy.ts, which imports server-only",
+        "features/lost/index.ts reaches features/lost/index.ts, whose @open-bot/missing can't be followed",
+        "features/marks/index.ts reaches features/marks/index.ts, which imports server-only",
+        "features/memory/index.ts reaches packages/memo/src/ids.ts, which imports node:crypto",
+        "features/memory/index.ts reaches packages/memo/src/service.ts, which imports @open-bot/db",
         "features/notes/index.ts reaches features/notes/components/note.tsx, which imports @open-bot/db",
         "features/pages/load.ts: a computed import(…) or require(…)",
         "features/tasks/components/board.tsx -> features/tasks/server.ts: client code importing server code",
