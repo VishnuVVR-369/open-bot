@@ -20,7 +20,7 @@ import type { ConnectionService } from "../features/connections";
 import { emailSettingsRow } from "../features/email";
 import type { SkillService } from "../features/skills";
 import type { MemoryCoordinator } from "../features/memory";
-import type { ModelAccess } from "../services/model-access";
+import type { ModelAccess } from "../features/model-access";
 import type { TakeoverService } from "../features/screens";
 import type { AccountAccess } from "../features/integrations";
 import { markDispatched, markSteered, touchChat } from "../features/chat";

@@ -22,7 +22,7 @@ import { createNotification } from "../features/notifications";
 import { DEVELOPER_INSTRUCTIONS } from "../instructions";
 import { errorMessage } from "../logger";
 import type { MemoryService } from "@open-bot/memory";
-import { ModelAccess, providerFor } from "../services/model-access";
+import { ModelAccess, providerFor } from "../features/model-access";
 import { answerBack } from "./answer-back";
 import { quietWithNothingToReport } from "./quiet";
 import { approvalPolicy } from "./approval-policy";

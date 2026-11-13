@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { API_PROVIDER_ID, PLAN_PROVIDER_ID, providerFor } from "./model-access";
+import { API_PROVIDER_ID, PLAN_PROVIDER_ID, providerFor } from "./service";
 
 const env = { OPENAI_API_BASE_URL: "https://api.openai.com/v1" };
 
