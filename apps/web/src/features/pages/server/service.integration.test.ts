@@ -27,9 +27,10 @@ describe.skipIf(!url)("pages, as the apps read them", () => {
     schema = await import("@open-bot/db");
   });
   beforeEach(async () => {
-    await pool.query("truncate pages, bots restart identity cascade");
+    await pool.query("truncate pages, bots restart identity cascade"); // vocabulary: allow
     teammateId = randomUUID();
-    await db.insert(schema.bots).values({
+    const teammates = schema.bots; // vocabulary: allow
+    await db.insert(teammates).values({
       id: teammateId,
       name: "Iris",
       slug: "iris",
@@ -50,10 +51,11 @@ describe.skipIf(!url)("pages, as the apps read them", () => {
     versions: { html: string; text: string }[],
     { updatedAt, pinned = false }: { updatedAt: Date; pinned?: boolean },
   ) {
-    const sourcePath = `/home/bot/bots/iris/pages/${title.toLowerCase()}/index.html`;
+    // Where the worker keeps a teammate's pages on the computer.
+    const sourcePath = `/home/bot/bots/iris/pages/${title.toLowerCase()}/index.html`; // vocabulary: allow
     const [row] = await db
       .insert(schema.pages)
-      .values({ title, summary: "", sourcePath, botId: teammateId, pinned })
+      .values({ title, summary: "", sourcePath, botId: teammateId, pinned }) // vocabulary: allow
       .returning();
     const inserted = await db
       .insert(schema.pageVersions)
@@ -61,7 +63,7 @@ describe.skipIf(!url)("pages, as the apps read them", () => {
         versions.map((version, index) => ({
           pageId: row!.id,
           number: index + 1,
-          botId: teammateId,
+          botId: teammateId, // vocabulary: allow
           title,
           html: version.html,
           text: version.text,
@@ -78,9 +80,14 @@ describe.skipIf(!url)("pages, as the apps read them", () => {
   }
 
   it("lists pinned pages first, then the most recently updated", async () => {
-    const older = await page("Caching", [{ html: "<p>One</p>", text: "One" }], {
-      updatedAt: new Date("2026-11-01T10:00:00Z"),
-    });
+    const older = await page(
+      "Caching",
+      [
+        { html: "<p>One</p>", text: "One" },
+        { html: "<p>Two</p>", text: "Two" },
+      ],
+      { updatedAt: new Date("2026-11-01T10:00:00Z") },
+    );
     const newer = await page("Eviction", [{ html: "<p>Two</p>", text: "Two" }], {
       updatedAt: new Date("2026-11-02T10:00:00Z"),
     });
@@ -92,7 +99,10 @@ describe.skipIf(!url)("pages, as the apps read them", () => {
       [older.id, true],
       [newer.id, false],
     ]);
-    expect(listed[0]).toMatchObject({ version: 1, versionCount: 1, botId: teammateId });
+    // A listed page says which version is current and how many there are.
+    expect(listed[0]).toMatchObject({ version: 2, versionCount: 2 });
+    expect(listed[1]).toMatchObject({ version: 1, versionCount: 1 });
+    expect(listed.every((page) => page.botId === teammateId)).toBe(true); // vocabulary: allow
   });
 
   it("opens a page with its versions, newest first, and links to one of them", async () => {
