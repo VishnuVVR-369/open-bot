@@ -905,8 +905,14 @@
     "bot": 20,
     "primary teammate": 1
   },
-  "packages/api/src/worker/contract.ts": {
-    "bot": 11
+  "packages/api/src/worker/contracts/integrations.ts": {
+    "bot": 2
+  },
+  "packages/api/src/worker/contracts/pages.ts": {
+    "bot": 1
+  },
+  "packages/api/src/worker/contracts/teammates.ts": {
+    "bot": 8
   },
   "packages/chat-core/src/timeline.test.ts": {
     "bot": 3
