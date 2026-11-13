@@ -19,7 +19,7 @@ import { errorMessage } from "../logger";
 import type { RunSession } from "../runs/session";
 import type { UploadService } from "../uploads";
 import type { ApprovalService } from "./approvals";
-import { teammateChat } from "./chats";
+import { teammateChat } from "../features/chat";
 import { removeCredential, saveCredential } from "./credentials";
 import type { SessionRegistry } from "./registry";
 import { activeTeammates } from "../features/teammates";

@@ -12,7 +12,7 @@ import { and, asc, eq, lte } from "drizzle-orm";
 import { publishApp, type Context } from "../../context";
 import { enqueueRun } from "../../runs/queue";
 import { errorMessage } from "../../logger";
-import { teammateChat } from "../../services/chats";
+import { teammateChat } from "../chat";
 import { WorkerError } from "../../core/errors";
 
 export type Schedule = typeof schedules.$inferSelect;

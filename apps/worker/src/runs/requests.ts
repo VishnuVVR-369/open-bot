@@ -3,7 +3,7 @@ import { bots as teammates, chats, messages, runs } from "@open-bot/db"; // voca
 import type { MemoryService } from "@open-bot/memory";
 import { eq } from "drizzle-orm";
 import type { Context } from "../context";
-import { REUSED_ID, saveUserMessage, type ChatService } from "../services/chats";
+import { REUSED_ID, saveUserMessage, type ChatService } from "../features/chat";
 import { requestRunsCancel } from "./cancel";
 import { WorkerError } from "../core/errors";
 

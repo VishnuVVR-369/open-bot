@@ -585,6 +585,12 @@
   "apps/worker/src/features/automations/triggers.ts": {
     "bot": 44
   },
+  "apps/worker/src/features/chat/service.ts": {
+    "bot": 2
+  },
+  "apps/worker/src/features/chat/tools.ts": {
+    "bot": 4
+  },
   "apps/worker/src/features/pages/service.integration.test.ts": {
     "bot": 12
   },
@@ -662,9 +668,6 @@
   "apps/worker/src/services/approvals.ts": {
     "bot": 31
   },
-  "apps/worker/src/services/chats.ts": {
-    "bot": 2
-  },
   "apps/worker/src/services/connections.ts": {
     "bot": 15
   },
@@ -720,15 +723,15 @@
   "apps/worker/src/services/vault.ts": {
     "bot": 40
   },
+  "apps/worker/src/tools/approvals.ts": {
+    "bot": 1
+  },
   "apps/worker/src/tools/bots.integration.test.ts": {
     "bot": 129,
     "primary teammate": 1
   },
   "apps/worker/src/tools/catalog.test.ts": {
     "bot": 4
-  },
-  "apps/worker/src/tools/chat.ts": {
-    "bot": 5
   },
   "apps/worker/src/tools/define.ts": {
     "bot": 5

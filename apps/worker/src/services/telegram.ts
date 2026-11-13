@@ -21,7 +21,7 @@ import { errorMessage } from "../logger";
 import type { RunExecutor } from "../runs/executor";
 import type { UploadService } from "../uploads";
 import type { ApprovalService } from "./approvals";
-import { mainChat, saveUserMessage } from "./chats";
+import { mainChat, saveUserMessage } from "../features/chat";
 import { removeCredential, saveCredential } from "./credentials";
 import { WorkerError } from "../core/errors";
 

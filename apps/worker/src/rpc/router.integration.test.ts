@@ -40,7 +40,7 @@ import type { Context } from "../context";
 import { createHttpServer, type HttpDeps } from "../http";
 import { ApprovalService } from "../services/approvals";
 import { BotService } from "../features/teammates";
-import { ChatService, mainChat, REUSED_ID } from "../services/chats";
+import { ChatService, mainChat, REUSED_ID } from "../features/chat";
 import { RunRequests } from "../runs/requests";
 import { CodexAccountService } from "../services/codex-account";
 import { ConnectionService } from "../services/connections";

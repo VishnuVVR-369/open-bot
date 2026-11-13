@@ -23,7 +23,7 @@ import type { MemoryCoordinator } from "../services/memory";
 import type { ModelAccess } from "../services/model-access";
 import type { TakeoverService } from "../services/takeovers";
 import type { AccountAccess } from "../accounts/access";
-import { markDispatched, markSteered, touchChat } from "../services/chats";
+import { markDispatched, markSteered, touchChat } from "../features/chat";
 import type { Bot, Run } from "../core/db-types";
 import { RunSession, type SessionTools } from "./session";
 
@@ -141,6 +141,7 @@ export class RunExecutor {
         tools: this.tools,
         requestNativeApproval: (s, input) => this.approvals.requestNative(s, input),
         buildPrompt: (s) => this.buildPrompt(s),
+        touchChat: (chatId) => touchChat(this.ctx.db, chatId),
         skillInputs: (text, botId) => this.skills.inputsFor(text, botId),
         connections: (botId) => this.connections.forBot(botId),
         model: this.model,

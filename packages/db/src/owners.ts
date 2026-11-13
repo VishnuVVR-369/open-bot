@@ -65,9 +65,9 @@ export const TABLE_OWNERS = {
   tasks: { owner: `${WORKER}features/tasks/service.ts` },
 
   // Chats and the work done in them.
-  chats: { owner: `${WORKER}services/chats.ts` },
-  chat_members: { owner: `${WORKER}services/chats.ts` },
-  messages: { owner: `${WORKER}services/chats.ts` },
+  chats: { owner: `${WORKER}features/chat/service.ts` },
+  chat_members: { owner: `${WORKER}features/chat/service.ts` },
+  messages: { owner: `${WORKER}features/chat/service.ts` },
   uploads: { owner: `${WORKER}uploads.ts` },
   runs: {
     owner: `${WORKER}runs/`,
