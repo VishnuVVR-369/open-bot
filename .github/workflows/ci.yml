@@ -43,6 +43,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
+      # Every file Prettier covers is formatted (.prettierignore lists what it skips).
+      - run: pnpm format:check
       # Every apps/... or packages/... path named in a Markdown or MDX file must exist.
       - run: pnpm check:doc-paths
       # No new uses of legacy names (bot, primary, desktop takeover); see the glossary in AGENTS.md.

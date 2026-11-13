@@ -121,7 +121,6 @@ export type ControlMessage =
   /** Phone to worker, once connected: it carries traffic again, so its reports up to `seq` are over. */
   | { type: "available"; seq: number };
 
-
 const isCount = (value: unknown): value is number =>
   typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 const isOneOf = <T extends string>(values: readonly T[], value: unknown): value is T =>
