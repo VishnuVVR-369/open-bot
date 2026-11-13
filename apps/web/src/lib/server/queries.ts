@@ -1,4 +1,5 @@
 import "server-only";
+import { listSkills } from "@/features/skills/server";
 import {
   accounts,
   approvalRules,
@@ -19,7 +20,6 @@ import {
   runEvents,
   runs,
   schedules,
-  skills,
   swarms,
   swarmTasks,
   triggers,
@@ -83,14 +83,12 @@ import type {
   ScheduleRunView,
   SearchResultView,
   ScheduleView,
-  SkillView,
   ProfileView,
   TakeoverRequestSummary,
   PurchaseView,
   SpendingView,
   TriggerView,
   UsageView,
-  VaultItemView,
 } from "../types";
 import { toApprovalView } from "./views";
 import { accountRedirectUri, accountStore } from "./accounts";
@@ -272,20 +270,6 @@ async function chatPreviews(): Promise<Map<string, NonNullable<ChatSummary["prev
       { text: text.slice(0, PREVIEW_LENGTH), botId },
     ]),
   );
-}
-
-export async function listSkills(): Promise<SkillView[]> {
-  const rows = await db.select().from(skills).orderBy(asc(skills.name));
-  return rows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    description: row.description,
-    instructions: row.instructions,
-    botId: row.botId,
-    createdBy: row.createdBy,
-    createdByBotId: row.createdByBotId,
-    updatedAt: row.updatedAt.toISOString(),
-  }));
 }
 
 /** Teammates waiting for you to take over their screen, newest first. */
@@ -977,28 +961,7 @@ export async function getMonthlyUsage(): Promise<UsageView[]> {
   }));
 }
 
-/* ------------------------------------------------------------------ Vault */
-
-export async function listVaultItems(): Promise<VaultItemView[]> {
-  const rows = await db
-    .select({
-      id: vaultItems.id,
-      kind: vaultItems.kind,
-      name: vaultItems.name,
-      domain: vaultItems.domain,
-      hint: vaultItems.hint,
-      botIds: vaultItems.botIds,
-      lastUsedAt: vaultItems.lastUsedAt,
-      updatedAt: vaultItems.updatedAt,
-    })
-    .from(vaultItems)
-    .orderBy(asc(vaultItems.kind), asc(sql`lower(${vaultItems.name})`));
-  return rows.map((row) => ({
-    ...row,
-    lastUsedAt: row.lastUsedAt?.toISOString() ?? null,
-    updatedAt: row.updatedAt.toISOString(),
-  }));
-}
+/* ------------------------------------------------------------------ Spending */
 
 export async function getSpending(botId: string): Promise<SpendingView | null> {
   const [bot] = await db

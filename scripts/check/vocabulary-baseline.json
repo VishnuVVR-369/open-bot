@@ -344,9 +344,6 @@
   "apps/web/src/components/computer/desktop-view.tsx": {
     "bot": 1
   },
-  "apps/web/src/components/files/files-view.tsx": {
-    "bot": 27
-  },
   "apps/web/src/components/home/briefing.tsx": {
     "bot": 41
   },
@@ -381,17 +378,17 @@
   "apps/web/src/components/settings/telegram-section.tsx": {
     "bot": 8
   },
-  "apps/web/src/components/skills/skill-dialog.tsx": {
+  "apps/web/src/features/files/components/files-view.tsx": {
+    "bot": 27
+  },
+  "apps/web/src/features/skills/components/skill-dialog.tsx": {
     "bot": 19
   },
-  "apps/web/src/components/skills/skills-list.tsx": {
+  "apps/web/src/features/skills/components/skills-list.tsx": {
     "bot": 24
   },
-  "apps/web/src/components/vault/vault-dialog.tsx": {
-    "bot": 1
-  },
-  "apps/web/src/components/vault/vault-view.tsx": {
-    "bot": 26
+  "apps/web/src/features/skills/server/queries.ts": {
+    "bot": 4
   },
   "apps/web/src/features/tasks/components/task-board.tsx": {
     "bot": 18
@@ -401,6 +398,15 @@
   },
   "apps/web/src/features/tasks/server/queries.ts": {
     "bot": 4
+  },
+  "apps/web/src/features/vault/components/vault-dialog.tsx": {
+    "bot": 1
+  },
+  "apps/web/src/features/vault/components/vault-view.tsx": {
+    "bot": 26
+  },
+  "apps/web/src/features/vault/server/queries.ts": {
+    "bot": 2
   },
   "apps/web/src/lib/client/queries.ts": {
     "bot": 2
@@ -440,7 +446,7 @@
     "desktop takeover": 3
   },
   "apps/web/src/lib/server/queries.ts": {
-    "bot": 138,
+    "bot": 132,
     "desktop takeover": 17,
     "primary teammate": 2
   },

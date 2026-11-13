@@ -62,16 +62,8 @@ export function useTriggerRuns(triggerId: string, enabled: boolean) {
   return useQuery(orpc.triggers.runs.queryOptions({ input: enabled ? { triggerId } : skipToken }));
 }
 
-export function useSkills() {
-  return useQuery(orpc.skills.list.queryOptions());
-}
-
 export function useProfile() {
   return useQuery(orpc.profile.get.queryOptions());
-}
-
-export function useVault() {
-  return useQuery(orpc.vault.list.queryOptions());
 }
 
 export function useSpending(botId: string) {

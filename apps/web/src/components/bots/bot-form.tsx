@@ -15,7 +15,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { BotAvatar } from "@/components/bot-avatar";
-import { Markdown } from "@/components/chat/markdown";
+import { MarkdownText } from "@/components/markdown-text";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -95,7 +95,7 @@ function InstructionsField({
         data-testid="instructions-preview"
       >
         {value.trim() ? (
-          <Markdown text={value} files={false} />
+          <MarkdownText text={value} />
         ) : (
           <p className="text-muted-foreground">Nothing to preview yet.</p>
         )}

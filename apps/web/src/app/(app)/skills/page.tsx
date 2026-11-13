@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Page } from "@/components/page";
-import { SkillDialog } from "@/components/skills/skill-dialog";
-import { SkillsList } from "@/components/skills/skills-list";
+import { SkillDialog, SkillsList } from "@/features/skills";
 
 export const metadata: Metadata = { title: "Skills" };
 

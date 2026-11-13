@@ -2,9 +2,6 @@
   "cycles": [
     "apps/botd/src/code-screens.ts -> apps/botd/src/screens.ts",
     "apps/botd/src/screens.ts -> apps/botd/src/code-screens.ts",
-    "apps/web/src/components/chat/markdown.tsx -> apps/web/src/components/files/file-chip.tsx",
-    "apps/web/src/components/files/file-chip.tsx -> apps/web/src/components/files/file-preview.tsx",
-    "apps/web/src/components/files/file-preview.tsx -> apps/web/src/components/chat/markdown.tsx",
     "apps/worker/src/accounts/actions.ts -> apps/worker/src/services/approvals.ts",
     "apps/worker/src/runs/session.ts -> apps/worker/src/services/memory.ts",
     "apps/worker/src/services/approvals.ts -> apps/worker/src/accounts/actions.ts",
