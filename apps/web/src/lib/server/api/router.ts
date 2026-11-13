@@ -7,18 +7,15 @@ import {
   getModelAccess,
   getMonthlyUsage,
   getProfile,
-  getSpending,
-  listBots,
   listChats,
   listConnections,
-  listLessons,
   listNotifications,
   searchMessages,
 } from "../queries";
 import { worker } from "../worker";
 import { ApiError } from "./errors";
-import { automationRoutes } from "@/features/automations/server";
 import { approvalRoutes } from "@/features/approvals/server";
+import { automationRoutes } from "@/features/automations/server";
 import { computerRoutes } from "@/features/computer/server";
 import { fileRoutes } from "@/features/files/server";
 import { homeRoutes } from "@/features/home/server";
@@ -26,6 +23,7 @@ import { memoryRoutes } from "@/features/memory/server";
 import { pageRoutes } from "@/features/pages/server";
 import { skillRoutes } from "@/features/skills/server";
 import { taskRoutes } from "@/features/tasks/server";
+import { teammateRoutes } from "@/features/teammates/server";
 import { vaultRoutes } from "@/features/vault/server";
 import { os } from "./rpc";
 import * as api from "./services";
@@ -39,26 +37,7 @@ export const router = os.router({
   },
   ...computerRoutes(),
   home: homeRoutes(),
-  teammates: {
-    list: os.teammates.list.handler(() => listBots()),
-    lessons: os.teammates.lessons.handler(({ input }) => listLessons(input.botId)),
-    spending: os.teammates.spending.handler(async ({ input }) => {
-      const spending = await getSpending(input.botId);
-      if (!spending) throw new ApiError("NOT_FOUND", "No such teammate.");
-      return spending;
-    }),
-    create: os.teammates.create.handler(({ input }) => api.createTeammate(input)),
-    update: os.teammates.update.handler(({ input }) => api.updateTeammate(input)),
-    duplicate: os.teammates.duplicate.handler(({ input }) => api.duplicateTeammate(input)),
-    import: os.teammates.import.handler(({ input }) => api.importTeammate(input)),
-    setLead: os.teammates.setLead.handler(({ input }) => api.setLead(input)),
-    archive: os.teammates.archive.handler(({ input }) => api.archiveTeammate(input)),
-    setBudget: os.teammates.setBudget.handler(({ input }) => api.setBudget(input)),
-  },
-  proposals: {
-    accept: os.proposals.accept.handler(({ input }) => api.acceptProposal(input)),
-    dismiss: os.proposals.dismiss.handler(({ input }) => api.dismissProposal(input)),
-  },
+  ...teammateRoutes(),
   ...automationRoutes(),
   skills: skillRoutes(),
   tasks: taskRoutes(),

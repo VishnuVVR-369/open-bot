@@ -186,10 +186,55 @@ function problems(
   return found;
 }
 
+/** Packages that only run on the server: the database and the server entries of workspace packages. */
+const SERVER_PACKAGE = /^(@open-bot\/db|@open-bot\/[\w-]+\/server|pg)(\/|$)/;
+
+/**
+ * Server code a feature's client entry (`index.ts`) reaches through the imports that run, one line
+ * each. A client component that imports the entry would bundle it for the browser, where it fails.
+ */
+function clientReach(root: string, options: ts.CompilerOptions): string[] {
+  const found: string[] = [];
+  const entries = files(path.join(root, "features")).filter(
+    (file) => featureOf(root, file)?.entry === "index",
+  );
+  for (const entry of entries) {
+    const seen = new Set([entry]);
+    const queue = [entry];
+    for (let file = queue.shift(); file; file = queue.shift()) {
+      const { edges, serverOnly } = parse(file, readFileSync(file, "utf8"));
+      const server = serverOnly
+        ? "server-only"
+        : edges.find(
+            (edge): edge is Edge =>
+              edge !== COMPUTED && !edge.typeOnly && SERVER_PACKAGE.test(edge.specifier),
+          )?.specifier;
+      if (server) {
+        found.push(
+          `${path.relative(root, entry)} reaches ${path.relative(root, file)}, which imports ${server}`,
+        );
+        continue;
+      }
+      for (const edge of edges) {
+        if (edge === COMPUTED || edge.typeOnly) continue;
+        const target = resolve(root, options, file, edge.specifier);
+        if (target && SOURCE_FILE.test(target) && !seen.has(target)) {
+          seen.add(target);
+          queue.push(target);
+        }
+      }
+    }
+  }
+  return found;
+}
+
 /** Every problem with the feature boundaries under `root`. */
 function violations(root: string): string[] {
   const options = compilerOptions(root);
-  return files(root).flatMap((file) => problems(root, file, undefined, options));
+  return [
+    ...files(root).flatMap((file) => problems(root, file, undefined, options)),
+    ...clientReach(root, options),
+  ];
 }
 
 describe("feature folders", () => {
@@ -234,9 +279,16 @@ describe("feature folders", () => {
         "features/tasks/components/types.ts",
         `import type { listTasks } from "../server";\nexport type Tasks = typeof listTasks;\n`,
       );
-      write("features/notes/index.ts", `export {};\n`);
+      write("features/notes/index.ts", `export { Note } from "./components/note";\n`);
+      write(
+        "features/notes/components/note.tsx",
+        `import { revision } from "@open-bot/db";\nexport const Note = () => revision;\n`,
+      );
       write("features/notes/server/index.js", server);
-      write("features/docs/index.ts", `export {};\n`);
+      write(
+        "features/docs/index.ts",
+        `import type { Db } from "@open-bot/db";\nimport type {} from "./server/queries";\nexport type { Db };\n`,
+      );
       write("features/docs/server/package.json", `{ "types": "queries.ts" }\n`);
       write("features/docs/server/queries.ts", server);
       write(
@@ -272,8 +324,10 @@ describe("feature folders", () => {
       expect(violations(root).sort()).toEqual([
         "app/tasks/kept.tsx -> features/tasks/server.ts: client code importing server code",
         "app/tasks/view.tsx -> features/tasks/server.ts: client code importing server code",
+        "features/notes/index.ts reaches features/notes/components/note.tsx, which imports @open-bot/db",
         "features/pages/load.ts: a computed import(…) or require(…)",
         "features/tasks/components/board.tsx -> features/tasks/server.ts: client code importing server code",
+        "features/tasks/index.ts reaches features/tasks/server.ts, which imports server-only",
         'features/tasks/server/routes.ts: server code without import "server-only"',
         'features/tasks/server/types.ts: server code without import "server-only"',
         expect.stringMatching(/^lib\/broken\.ts: doesn't parse/),

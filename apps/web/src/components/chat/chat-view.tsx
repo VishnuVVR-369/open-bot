@@ -38,7 +38,7 @@ import {
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { DuplicateBotDialog } from "@/components/bots/duplicate-bot";
+import { DuplicateBotDialog } from "@/features/teammates";
 import { FileIcon, FilePreview } from "@/features/files";
 import { attempt } from "@/lib/client/mutate";
 import { api, orpc } from "@/lib/client/rpc";

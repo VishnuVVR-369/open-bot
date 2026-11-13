@@ -6,7 +6,7 @@ import { isNull } from "drizzle-orm";
 import { saveOwnerClient, startAuthorization } from "../accounts";
 import { db } from "../db";
 import { worker } from "../worker";
-import { syncWorkspace } from "./teammates";
+import { syncWorkspace } from "@/features/teammates/server";
 
 /** Connections, accounts and email: what teammates use outside the computer. */
 
