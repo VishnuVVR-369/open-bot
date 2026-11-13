@@ -291,6 +291,9 @@
   "apps/web/src/features/app-shell/server/queries.ts": {
     "bot": 1
   },
+  "apps/web/src/features/app-shell/server/routes.integration.test.ts": {
+    "bot": 10
+  },
   "apps/web/src/features/approvals/components/always-allow.tsx": {
     "bot": 17
   },
@@ -368,6 +371,9 @@
   },
   "apps/web/src/features/chat/server/queries.ts": {
     "bot": 14
+  },
+  "apps/web/src/features/chat/server/routes.integration.test.ts": {
+    "bot": 2
   },
   "apps/web/src/features/chat/skill-options.test.ts": {
     "bot": 2
@@ -543,6 +549,9 @@
     "bot": 29,
     "primary teammate": 2
   },
+  "apps/web/src/features/teammates/server/routes.integration.test.ts": {
+    "bot": 1
+  },
   "apps/web/src/features/teammates/server/routes.ts": {
     "bot": 2
   },
@@ -561,9 +570,6 @@
   "apps/web/src/lib/files.test.ts": {
     "bot": 2
   },
-  "apps/web/src/lib/server/api/router.integration.test.ts": {
-    "bot": 17
-  },
   "apps/web/src/lib/status.test.ts": {
     "bot": 22
   },
@@ -572,6 +578,9 @@
   },
   "apps/web/src/lib/types.ts": {
     "bot": 1
+  },
+  "apps/web/src/test/api/seed.ts": {
+    "bot": 4
   },
   "apps/worker/scripts/computer-sleep-smoke.ts": {
     "bot": 25
