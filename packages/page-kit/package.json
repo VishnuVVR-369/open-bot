@@ -7,7 +7,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./serve": "./src/serve.ts",
-    "./skill": "./src/skill.ts"
+    "./skill": "./src/skill.ts",
+    "./lib/*": "./dist/lib/*"
   },
   "scripts": {
     "build": "node scripts/build.mjs",

@@ -1,4 +1,6 @@
 import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { assertNoDevSecrets, DEV_SECRETS, parseEnv, unsetIfEmpty } from "@open-bot/domain/server";
 import { z } from "zod";
@@ -44,14 +46,12 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): PagesEnv {
       "PAGES_SECRET must be set to at least 32 characters (the same value as the web app's)",
     );
 
+  // The bundle carries its own copy in dist/lib; run from source, it's page-kit's build.
   const libDir =
     env.PAGE_LIB_DIR ??
-    [
-      new URL("./lib", import.meta.url),
-      new URL("../../../packages/page-kit/dist/lib", import.meta.url),
-    ]
-      .map((url) => fileURLToPath(url))
-      .find((path) => existsSync(path));
+    [fileURLToPath(new URL("./lib", import.meta.url)), pageKitLibDir()].find(
+      (path) => path !== null && existsSync(path),
+    );
   if (!libDir)
     throw new Error("The page kit isn't built: run pnpm --filter @open-bot/page-kit build");
 
@@ -70,4 +70,13 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): PagesEnv {
       .map((value) => new URL(value).origin),
     libDir,
   };
+}
+
+/** Where page-kit's built libraries are, or null when page-kit isn't built (or isn't installed). */
+function pageKitLibDir(): string | null {
+  try {
+    return dirname(createRequire(import.meta.url).resolve("@open-bot/page-kit/lib/runtime.js"));
+  } catch {
+    return null;
+  }
 }
