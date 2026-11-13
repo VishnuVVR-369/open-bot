@@ -104,7 +104,10 @@
     "bot": 3
   },
   "apps/mobile/src/components/chat/composer.tsx": {
-    "bot": 7
+    "bot": 4
+  },
+  "apps/mobile/src/components/chat/mention-menu.tsx": {
+    "bot": 3
   },
   "apps/mobile/src/components/chat/run-actions.tsx": {
     "bot": 9
