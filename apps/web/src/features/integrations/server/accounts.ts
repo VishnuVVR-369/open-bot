@@ -21,12 +21,12 @@ import {
 } from "@open-bot/domain";
 import { decryptSecret, encryptSecret } from "@open-bot/domain/server";
 import { and, eq, lt } from "drizzle-orm";
-import { ApiError } from "./api/errors";
-import { BASE_URL } from "./auth-config";
-import { db } from "./db";
-import { serverEnv } from "./env";
-import { publish } from "./publish";
-import { worker, WorkerError } from "./worker";
+import { ApiError } from "@/lib/server/api/errors";
+import { BASE_URL } from "@/lib/server/auth-config";
+import { db } from "@/lib/server/db";
+import { serverEnv } from "@/lib/server/env";
+import { publish } from "@/lib/server/publish";
+import { worker, WorkerError } from "@/lib/server/worker";
 
 /** How long a sign-in may take, from pressing Connect to coming back. */
 const STATE_TTL_MS = 10 * 60_000;

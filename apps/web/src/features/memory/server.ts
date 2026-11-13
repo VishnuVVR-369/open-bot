@@ -4,3 +4,4 @@
 import "server-only";
 export { memoryRoutes } from "./server/routes";
 export { listMemories, MEMORY_EXPORT_LIMIT } from "./server/service";
+export { memory } from "./server/store";

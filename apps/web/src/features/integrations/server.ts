@@ -2,3 +2,4 @@
 // from here; client code imports from `index.ts`.
 import "server-only";
 export { integrationRoutes } from "./server/routes";
+export { completeAuthorization } from "./server/accounts";
