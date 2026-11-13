@@ -1,6 +1,6 @@
 "use client";
 
-import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
   Check,
@@ -48,6 +48,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { attempt } from "@/lib/client/mutate";
 import { api, orpc } from "@/lib/client/rpc";
+import { useMemories, useMemoryHistory } from "../hooks";
 import { useAppState } from "@/lib/client/queries";
 
 /** Who saved a memory, by name when a teammate did. */
@@ -190,15 +191,9 @@ export function MemoryManager({ botId, name }: { botId: string | null; name: str
   const [problem, setProblem] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const downloadUrl = `/api/memory${botId ? `?botId=${encodeURIComponent(botId)}` : ""}`;
-  const {
-    data: items,
-    error,
-    refetch,
-  } = useQuery(orpc.memory.list.queryOptions({ input: { botId, query: query.slice(0, 200) } }));
+  const { data: items, error, refetch } = useMemories(botId, query);
   // Saving a memory refreshes everything under `memory`, its history too.
-  const revisions = useQuery(
-    orpc.memory.history.queryOptions({ input: history ? { memoryId: history.id } : skipToken }),
-  );
+  const revisions = useMemoryHistory(history?.id ?? null);
   const refresh = () => queryClient.invalidateQueries({ queryKey: orpc.memory.key() });
   const { data: state } = useAppState();
   const savedBy = (item: MemoryItem) =>

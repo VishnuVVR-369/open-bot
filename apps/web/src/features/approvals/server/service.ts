@@ -2,11 +2,11 @@ import "server-only";
 import type { ApiInputs, ApprovalRule, ApprovalView } from "@open-bot/api";
 import { approvalRules, approvals, bots } from "@open-bot/db";
 import type { ApprovalStatus } from "@open-bot/domain";
-import { asc, eq, isNull } from "drizzle-orm";
-import { db } from "../db";
-import { toApprovalView } from "../views";
-import { worker } from "../worker";
-import { ApiError } from "./errors";
+import { asc, desc, eq, isNull, sql } from "drizzle-orm";
+import { db } from "@/lib/server/db";
+import { toApprovalView } from "@/lib/server/views";
+import { worker } from "@/lib/server/worker";
+import { ApiError } from "@/lib/server/api/errors";
 
 const OUTCOME: Record<Exclude<ApprovalStatus, "pending">, string> = {
   approved: "This was already approved.",
@@ -53,4 +53,17 @@ export async function listApprovalRules(): Promise<ApprovalRule[]> {
 export async function removeApprovalRule({ ruleId }: ApiInputs["approvals"]["removeRule"]) {
   await worker.approvals.removeRule({ ruleId });
   return { ok: true as const };
+}
+
+/** Waiting approvals first, then the latest decided ones, newest first. */
+export async function listApprovals(): Promise<ApprovalView[]> {
+  const rows = await db
+    .select()
+    .from(approvals)
+    .orderBy(
+      sql`case when ${approvals.status} = 'pending' then 0 else 1 end`,
+      desc(approvals.createdAt),
+    )
+    .limit(100);
+  return rows.map(toApprovalView);
 }

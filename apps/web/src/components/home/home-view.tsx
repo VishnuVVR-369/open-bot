@@ -25,17 +25,11 @@ import { TimeAgo } from "@/components/time-ago";
 import { ComputerOffline, ComputerPanel, useComputer } from "@/components/computer/computer-panel";
 import { Briefing, useBriefingItems } from "@/components/home/briefing";
 import { useBriefingSince } from "@/lib/client/presence";
-import { PageThumbnail } from "@/components/pages/page-thumbnail";
+import { useApprovals } from "@/features/approvals";
+import { PageThumbnail, usePages } from "@/features/pages";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  useApprovals,
-  useAppState,
-  useHome,
-  usePages,
-  useProfile,
-  useSchedules,
-} from "@/lib/client/queries";
+import { useAppState, useHome, useProfile, useSchedules } from "@/lib/client/queries";
 import {
   botActivity,
   failureLine,

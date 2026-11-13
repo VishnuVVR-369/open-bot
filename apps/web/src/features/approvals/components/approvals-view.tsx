@@ -5,7 +5,8 @@ import Link from "next/link";
 import { BotAvatar } from "@/components/bot-avatar";
 import { TimeAgo } from "@/components/time-ago";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAppState, useApprovals } from "@/lib/client/queries";
+import { useAppState } from "@/lib/client/queries";
+import { useApprovals } from "../hooks";
 import type { ApprovalView, BotSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {

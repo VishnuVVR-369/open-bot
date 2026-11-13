@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { PageViewer } from "@/components/pages/page-viewer";
+import { PageViewer } from "@/features/pages";
 
 export const metadata: Metadata = { title: "Page" };
 

@@ -58,7 +58,7 @@ import {
   RiskChip,
   riskOf,
   type ApprovalSubject,
-} from "@/components/approvals/approval-parts";
+} from "@/features/approvals";
 import { CollapsibleText } from "./collapsible-text";
 import { MessageText } from "./message-text";
 import { Button } from "@/components/ui/button";

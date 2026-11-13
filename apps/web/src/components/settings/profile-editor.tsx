@@ -1,6 +1,6 @@
 "use client";
 
-import { MemoryManager } from "@/components/memory/memory-manager";
+import { MemoryManager } from "@/features/memory";
 
 export function ProfileEditor() {
   return <MemoryManager botId={null} name="Shared memory" />;

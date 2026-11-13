@@ -65,7 +65,6 @@ import type { Attention } from "@open-bot/api";
 import type {
   ActivityView,
   AppState,
-  ApprovalView,
   BotSummary,
   BriefingItem,
   ChatData,
@@ -90,7 +89,6 @@ import type {
   TriggerView,
   UsageView,
 } from "../types";
-import { toApprovalView } from "./views";
 import { accountRedirectUri, accountStore } from "./accounts";
 import { db } from "./db";
 import type { WorkerStatus } from "@open-bot/api/worker";
@@ -643,18 +641,6 @@ export async function listNotifications(limit = 40): Promise<NotificationView[]>
     readAt: row.readAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
   }));
-}
-
-export async function listApprovals(): Promise<ApprovalView[]> {
-  const rows = await db
-    .select()
-    .from(approvals)
-    .orderBy(
-      sql`case when ${approvals.status} = 'pending' then 0 else 1 end`,
-      desc(approvals.createdAt),
-    )
-    .limit(100);
-  return rows.map(toApprovalView);
 }
 
 export async function listSchedules(): Promise<ScheduleView[]> {

@@ -1,7 +1,6 @@
 import "server-only";
 
 /** The API's operations, behind its procedures. */
-export { decideApproval, getApproval, listApprovalRules, removeApprovalRule } from "./approvals";
 export { removeSchedule, setCheckIn, testWebhook } from "./automations";
 export {
   archiveChat,
@@ -32,9 +31,7 @@ export {
   startAccountConnect,
   testConnection,
 } from "./integrations";
-export { confirmMemory, createMemory, forgetMemory, restoreMemory, updateMemory } from "./memory";
 export { markNotificationsRead } from "./notifications";
-export { getPage, listPages, openPage, pinPage, removePage } from "./pages";
 export { registerPushDevice, sendTestPush, unregisterPushDevice } from "./push";
 export { removeApiKey, saveApiKey, setMonthlyCap, setTimezone } from "./settings";
 export { cancelRun, giveFeedback, rateRun, retryRun, stopSwarm } from "./runs";

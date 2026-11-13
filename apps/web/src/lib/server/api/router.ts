@@ -8,7 +8,6 @@ import {
   getMonthlyUsage,
   getProfile,
   getSpending,
-  listApprovals,
   listAutomationRuns,
   listBots,
   listChats,
@@ -21,9 +20,10 @@ import {
 } from "../queries";
 import { worker } from "../worker";
 import { ApiError } from "./errors";
-import { listMemories, memoriesForRun, memoryHistory } from "./memory";
-import { searchPages } from "./pages";
+import { approvalRoutes } from "@/features/approvals/server";
 import { fileRoutes } from "@/features/files/server";
+import { memoryRoutes } from "@/features/memory/server";
+import { pageRoutes } from "@/features/pages/server";
 import { skillRoutes } from "@/features/skills/server";
 import { taskRoutes } from "@/features/tasks/server";
 import { vaultRoutes } from "@/features/vault/server";
@@ -111,16 +111,7 @@ export const router = os.router({
   profile: {
     get: os.profile.get.handler(() => getProfile()),
   },
-  memory: {
-    list: os.memory.list.handler(({ input }) => listMemories(input)),
-    history: os.memory.history.handler(({ input }) => memoryHistory(input)),
-    forRun: os.memory.forRun.handler(({ input }) => memoriesForRun(input)),
-    create: os.memory.create.handler(({ input }) => api.createMemory(input)),
-    update: os.memory.update.handler(({ input }) => api.updateMemory(input)),
-    forget: os.memory.forget.handler(({ input }) => api.forgetMemory(input)),
-    confirm: os.memory.confirm.handler(({ input }) => api.confirmMemory(input)),
-    restore: os.memory.restore.handler(({ input }) => api.restoreMemory(input)),
-  },
+  memory: memoryRoutes(),
   files: fileRoutes(),
   connections: {
     list: os.connections.list.handler(() => listConnections()),
@@ -199,24 +190,11 @@ export const router = os.router({
     list: os.notifications.list.handler(() => listNotifications()),
     markRead: os.notifications.markRead.handler(({ input }) => api.markNotificationsRead(input)),
   },
-  pages: {
-    list: os.pages.list.handler(() => api.listPages()),
-    search: os.pages.search.handler(({ input }) => searchPages(input.query)),
-    get: os.pages.get.handler(({ input }) => api.getPage(input.pageId)),
-    open: os.pages.open.handler(({ input }) => api.openPage(input)),
-    pin: os.pages.pin.handler(({ input }) => api.pinPage(input)),
-    remove: os.pages.remove.handler(({ input }) => api.removePage(input)),
-  },
+  pages: pageRoutes(),
   search: {
     messages: os.search.messages.handler(({ input }) => searchMessages(input.query)),
   },
-  approvals: {
-    list: os.approvals.list.handler(() => listApprovals()),
-    get: os.approvals.get.handler(({ input }) => api.getApproval(input.approvalId)),
-    decide: os.approvals.decide.handler(({ input }) => api.decideApproval(input)),
-    rules: os.approvals.rules.handler(() => api.listApprovalRules()),
-    removeRule: os.approvals.removeRule.handler(({ input }) => api.removeApprovalRule(input)),
-  },
+  approvals: approvalRoutes(),
   push: {
     status: os.push.status.handler(() => worker.push.status()),
     registerDevice: os.push.registerDevice.handler(({ input }) => api.registerPushDevice(input)),

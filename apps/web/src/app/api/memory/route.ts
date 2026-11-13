@@ -3,7 +3,7 @@ import { MemoryError } from "@open-bot/memory";
 import { memoryMarkdown } from "@open-bot/domain";
 import { z } from "zod";
 import { authed } from "@/lib/server/route";
-import { listMemories, MEMORY_EXPORT_LIMIT } from "@/lib/server/api/memory";
+import { listMemories, MEMORY_EXPORT_LIMIT } from "@/features/memory/server";
 
 const botIdSchema = z.string().uuid().nullable();
 

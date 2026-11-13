@@ -238,7 +238,7 @@
     "bot": 1
   },
   "apps/web/src/app/(app)/bots/[botId]/page.tsx": {
-    "bot": 76,
+    "bot": 75,
     "primary teammate": 2
   },
   "apps/web/src/app/(app)/bots/new/page.tsx": {
@@ -274,15 +274,6 @@
   "apps/web/src/components/app/sidebar.tsx": {
     "bot": 34
   },
-  "apps/web/src/components/approvals/always-allow.tsx": {
-    "bot": 17
-  },
-  "apps/web/src/components/approvals/approval-parts.tsx": {
-    "bot": 9
-  },
-  "apps/web/src/components/approvals/approvals-view.tsx": {
-    "bot": 32
-  },
   "apps/web/src/components/automations/automations-view.tsx": {
     "bot": 53
   },
@@ -313,9 +304,6 @@
   },
   "apps/web/src/components/bots/duplicate-bot.tsx": {
     "bot": 13
-  },
-  "apps/web/src/components/bots/memory-editor.tsx": {
-    "bot": 4
   },
   "apps/web/src/components/bots/spending.tsx": {
     "bot": 8
@@ -357,15 +345,6 @@
     "bot": 89,
     "primary teammate": 1
   },
-  "apps/web/src/components/memory/memory-manager.tsx": {
-    "bot": 14
-  },
-  "apps/web/src/components/pages/page-viewer.tsx": {
-    "bot": 30
-  },
-  "apps/web/src/components/pages/pages-view.tsx": {
-    "bot": 27
-  },
   "apps/web/src/components/settings/accounts-section.tsx": {
     "bot": 10
   },
@@ -384,8 +363,38 @@
   "apps/web/src/components/settings/telegram-section.tsx": {
     "bot": 8
   },
+  "apps/web/src/features/approvals/components/always-allow.tsx": {
+    "bot": 17
+  },
+  "apps/web/src/features/approvals/components/approval-parts.tsx": {
+    "bot": 9
+  },
+  "apps/web/src/features/approvals/components/approvals-view.tsx": {
+    "bot": 32
+  },
+  "apps/web/src/features/approvals/server/service.ts": {
+    "bot": 7
+  },
   "apps/web/src/features/files/components/files-view.tsx": {
     "bot": 27
+  },
+  "apps/web/src/features/memory/components/memory-manager.tsx": {
+    "bot": 14
+  },
+  "apps/web/src/features/memory/hooks.ts": {
+    "bot": 3
+  },
+  "apps/web/src/features/memory/server/service.ts": {
+    "bot": 5
+  },
+  "apps/web/src/features/pages/components/page-viewer.tsx": {
+    "bot": 30
+  },
+  "apps/web/src/features/pages/components/pages-view.tsx": {
+    "bot": 27
+  },
+  "apps/web/src/features/pages/server/service.ts": {
+    "bot": 8
   },
   "apps/web/src/features/skills/components/skill-dialog.tsx": {
     "bot": 19
@@ -423,9 +432,6 @@
   "apps/web/src/lib/server/accounts.ts": {
     "bot": 4
   },
-  "apps/web/src/lib/server/api/approvals.ts": {
-    "bot": 7
-  },
   "apps/web/src/lib/server/api/automations.ts": {
     "bot": 2
   },
@@ -434,12 +440,6 @@
   },
   "apps/web/src/lib/server/api/integrations.ts": {
     "bot": 2
-  },
-  "apps/web/src/lib/server/api/memory.ts": {
-    "bot": 5
-  },
-  "apps/web/src/lib/server/api/pages.ts": {
-    "bot": 8
   },
   "apps/web/src/lib/server/api/router.integration.test.ts": {
     "bot": 17
