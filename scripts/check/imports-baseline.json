@@ -9,7 +9,5 @@
     "packages/db/src/locks.ts -> packages/db/src/index.ts",
     "packages/db/src/settings.ts -> packages/db/src/index.ts"
   ],
-  "appImports": [
-    "apps/worker/src/features/pages/service.integration.test.ts -> apps/web/src/features/pages/server/service.ts"
-  ]
+  "appImports": []
 }
