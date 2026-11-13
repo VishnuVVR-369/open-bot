@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Fails when a Markdown or MDX file names a repo path that does not exist: inline code spans that
-// start with apps/ or packages/, and relative link, image and link reference definition targets.
+// start with a top-level code folder (apps/, packages/, e2e/, scripts/, ...), and relative link,
+// image and link reference definition targets.
 // Code-span globs (`packages/*`) and placeholders (`apps/worker/src/accounts/<integration>.ts`)
 // must match at least one path. Build output that .gitignore covers (`apps/worker/dist/worker.mjs`)
 // counts as existing when the folder it is built in exists. Documents are parsed the way the site
@@ -16,8 +17,11 @@ import { mdxFromMarkdown } from "mdast-util-mdx";
 import { gfm } from "micromark-extension-gfm";
 import { mdxjs } from "micromark-extension-mdxjs";
 
-/** Repo-root paths in code spans start with one of these. */
-const ROOTS = ["apps/", "packages/"];
+/**
+ * Repo-root paths in code spans start with one of these. A path inside an app is written from the
+ * repo root too (`apps/mobile/scripts/build-viewer.mjs`), so `scripts/x.mjs` means the root's.
+ */
+const ROOTS = ["apps/", "packages/", "e2e/", "scripts/", "images/", "tools/", ".railway/"];
 
 /** The syntax tree of a document: GFM always, MDX for .mdx files. Throws on invalid MDX. */
 export function parse(text, { mdx = false } = {}) {
@@ -52,7 +56,7 @@ export function referencedPaths(text, options) {
   return found.sort((a, b) => a.line - b.line);
 }
 
-/** A code span is a path when the whole span is one, rooted at apps/ or packages/. */
+/** A code span is a path when the whole span is one, rooted at a folder in ROOTS. */
 export function codeSpanPath(span) {
   const text = span.replace(/\n/g, " ").trim();
   if (!ROOTS.some((root) => text.startsWith(root))) return null;
