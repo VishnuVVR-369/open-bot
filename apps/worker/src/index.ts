@@ -104,7 +104,7 @@ const integrations = Integrations.create({ db: ctx.db, endpoints: accountAccess.
 const accountActions = new AccountActions(ctx, sessions, approvals, accountAccess, integrations);
 const accountTools = new AccountTools(ctx, accountAccess, accountActions, integrations);
 const accountTriggers = new AccountTriggers(ctx, accountAccess, triggers);
-const tools = new ToolHandlers(
+const tools = new ToolHandlers({
   ctx,
   approvals,
   takeovers,
@@ -116,10 +116,10 @@ const tools = new ToolHandlers(
   swarms,
   email,
   memory,
-  botService,
+  teammates: botService,
   pages,
-  accountTools,
-);
+  accounts: accountTools,
+});
 const model = new ModelAccess(ctx);
 const connections = new ConnectionService(ctx, accountTools, accountAccess.store, accountActions);
 const executor = new RunExecutor(

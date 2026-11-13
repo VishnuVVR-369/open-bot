@@ -27,6 +27,7 @@ import { ScheduleService } from "../services/schedules";
 import { SkillService } from "../services/skills";
 import { TriggerService } from "../services/triggers";
 import { TEAMMATE_RULES } from "./bots";
+import type { ToolServices } from "./define";
 import { ToolHandlers } from "./handlers";
 import { MemoryService } from "@open-bot/memory";
 
@@ -53,21 +54,17 @@ describe.skipIf(!url)("bot management with Postgres", () => {
   const service = new BotService(ctx, schedules, skills, new MemoryService(db), sync);
   const approvalService = new ApprovalService(ctx, new SessionRegistry());
   const requestAction = vi.spyOn(approvalService, "requestAction").mockResolvedValue("approved");
-  const dependencies = [
+  // Only what the teammate tools use; the rest stay empty.
+  const services = {
     ctx,
-    approvalService,
-    {},
+    approvals: approvalService,
     schedules,
     skills,
     triggers,
-    {},
-    {},
-    {},
-    {},
-    {},
-    service,
-  ] as unknown as ConstructorParameters<typeof ToolHandlers>;
-  const handlers = new ToolHandlers(...dependencies);
+    memory: {},
+    teammates: service,
+  } as unknown as ToolServices;
+  const handlers = new ToolHandlers(services);
 
   beforeAll(async () => {
     await database.create();
@@ -613,11 +610,7 @@ describe.skipIf(!url)("bot management with Postgres", () => {
     const wait = vi
       .spyOn(actual as unknown as { wait(): Promise<"pending"> }, "wait")
       .mockResolvedValue("pending");
-    const tools = new ToolHandlers(
-      ...(dependencies.map((dependency) =>
-        dependency === approvalService ? actual : dependency,
-      ) as typeof dependencies),
-    );
+    const tools = new ToolHandlers({ ...services, approvals: actual });
     const create = (name: string) =>
       tools.handle(session, {
         tool: "create_bot",

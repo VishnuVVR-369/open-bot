@@ -5,7 +5,9 @@ export const metadata = docMetadata("/docs/reference/tools");
 # Teammate tools
 
 Besides Codex's built-in shell, file and web search tools, every teammate has the dynamic tools below, plus the tools for [your accounts](#your-accounts), one namespace per account integration.
-They are defined in `apps/worker/src/tools/definitions.ts` and handled in `apps/worker/src/tools/handlers.ts`, with the teammate tools in `apps/worker/src/tools/bots.ts` and the account tools in `apps/worker/src/accounts/tools.ts`, which routes each to its adapter in `packages/integrations`.
+Each is one `defineTool()` in its feature's file in `apps/worker/src/tools/` (for example `pages.ts` or `automations.ts`): its name, description, zod input schema, whether swarm helpers may call it, and its handler.
+`apps/worker/src/tools/definitions.ts` lists them, and the JSON schema Codex is offered comes from the zod schema, so the two can't drift.
+The account tools are in `apps/worker/src/accounts/tools.ts`, which routes each to its adapter in `packages/integrations`.
 
 ## How tools are served
 

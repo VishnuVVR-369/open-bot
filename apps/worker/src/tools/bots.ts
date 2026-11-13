@@ -1,4 +1,3 @@
-import type { v2 } from "@open-bot/agent";
 import { runs, schedules, triggers } from "@open-bot/db";
 import {
   AUTONOMY_OPTIONS,
@@ -16,26 +15,17 @@ import type { Bot, RunSession } from "../runs/session";
 import type { ApprovalService } from "../services/approvals";
 import { BotError, BotService } from "../services/bots";
 
-const botId = z.string().uuid("Use a teammate id from list_bots.");
+/** A teammate id, as tools take it. */
+export const teammateId = z.string().uuid("Use a teammate id from list_bots.");
 
 const assignmentSchema = z
   .object({
-    bot_id: botId,
+    bot_id: teammateId,
     connection_id: z.string().uuid("Use a connection id from list_bot_connections."),
     assigned: z.boolean(),
     expected_revision: z.string().min(1).max(128),
   })
   .strict();
-
-export const BOT_TOOL_NAMES = new Set([
-  "list_bots",
-  "get_bot",
-  "list_bot_templates",
-  "create_bot",
-  "update_bot",
-  "list_bot_connections",
-  "set_bot_connection",
-]);
 
 /**
  * What an "always allow" rule covers for each kind of teammate change, so allowing one covers the
@@ -145,7 +135,7 @@ export class BotTools {
   /** The teammate a tool acts on: `bot_id` when given, otherwise the caller. */
   async target(session: RunSession, args: Record<string, unknown>): Promise<Bot> {
     return this.bots.requireBot(
-      args.bot_id === undefined ? session.bot.id : botId.parse(args.bot_id),
+      args.bot_id === undefined ? session.bot.id : teammateId.parse(args.bot_id),
     );
   }
 
@@ -237,39 +227,7 @@ export class BotTools {
     return row ? `"${row.title}"` : "an automation";
   }
 
-  /** Runs a teammate tool. Changes come with a label for the chat's timeline. */
-  async handle(
-    session: RunSession,
-    params: v2.DynamicToolCallParams,
-  ): Promise<{ result: unknown; label?: string }> {
-    const args = (params.arguments ?? {}) as Record<string, unknown>;
-    switch (params.tool) {
-      case "list_bots":
-        return { result: await this.bots.list() };
-      case "get_bot":
-        return { result: await this.bots.get(botId.parse(args.bot_id)) };
-      case "list_bot_templates":
-        return { result: this.bots.templates() };
-      case "list_bot_connections":
-        return { result: await this.bots.listConnections() };
-      case "create_bot": {
-        const result = await this.create(session, params.callId, args);
-        return { result, label: `Created the teammate ${result.name}` };
-      }
-      case "update_bot": {
-        const { result, name } = await this.update(session, params.callId, args);
-        return { result, label: `Updated ${name}'s profile` };
-      }
-      case "set_bot_connection": {
-        const result = await this.setConnection(session, params.callId, args);
-        return { result, label: "unchanged" in result ? undefined : "Changed a teammate's access" };
-      }
-      default:
-        throw new BotError(400, `Unknown tool ${params.tool}.`);
-    }
-  }
-
-  private async create(session: RunSession, callId: string, args: Record<string, unknown>) {
+  async create(session: RunSession, callId: string, args: Record<string, unknown>) {
     const input = createBotSchema.parse(args);
     const plan = await this.bots.plan(input);
     await this.bots.checkPlan(plan);
@@ -286,7 +244,7 @@ export class BotTools {
     return this.bots.create(plan, { kind: "bot", botId: session.bot.id, runId: session.run.id });
   }
 
-  private async update(session: RunSession, callId: string, args: Record<string, unknown>) {
+  async update(session: RunSession, callId: string, args: Record<string, unknown>) {
     const input = updateBotSchema.parse(args);
     const current = await this.bots.requireBot(input.bot_id);
     if (BotService.revision(current) !== input.expected_revision)
@@ -317,7 +275,7 @@ export class BotTools {
     }
   }
 
-  private async setConnection(session: RunSession, callId: string, args: Record<string, unknown>) {
+  async setConnection(session: RunSession, callId: string, args: Record<string, unknown>) {
     const input = assignmentSchema.parse(args);
     const bot = await this.bots.requireBot(input.bot_id);
     const connection = (await this.bots.listConnections()).find(
