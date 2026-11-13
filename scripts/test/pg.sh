@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Runs a command against a throwaway pgvector Postgres: `scripts/test/pg.sh <command...>`.
 # Needs Docker. Exports TEST_DATABASE_URL for the command and always removes the container
-# afterwards. The database is `postgres`, or TEST_PG_DATABASE when set. The normal app database is
-# never contacted.
+# afterwards, with its data: the image declares a volume for it, which `docker rm` without `-v`
+# leaves behind, a full database per run. The database is `postgres`, or TEST_PG_DATABASE when set.
+# The normal app database is never contacted.
 set -euo pipefail
 if [[ $# -eq 0 ]]; then
   echo "usage: scripts/test/pg.sh <command...>" >&2
@@ -10,7 +11,7 @@ if [[ $# -eq 0 ]]; then
 fi
 container="openbot-test-pg-$$"
 database="${TEST_PG_DATABASE:-postgres}"
-cleanup() { docker rm -f "$container" >/dev/null 2>&1 || true; }
+cleanup() { docker rm -fv "$container" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 # The same image as docker-compose.yml and CI, so pgvector migrations behave identically.
 docker run --detach --name "$container" -e POSTGRES_PASSWORD=test-only -e POSTGRES_DB="$database" \
