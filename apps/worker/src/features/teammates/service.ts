@@ -50,7 +50,7 @@ import {
 } from "../automations";
 import { addTeammateSkills, type SkillService } from "../skills";
 import { type MemoryService } from "@open-bot/memory";
-import { setConnectionTeammates } from "../../services/connections";
+import { setConnectionTeammates } from "../connections";
 import { WorkerError } from "../../core/errors";
 
 /** What a teammate is made of besides its profile: what copying and exporting carry over. */

@@ -44,7 +44,7 @@ import { BotService } from "../features/teammates";
 import { ChatService, mainChat, REUSED_ID } from "../features/chat";
 import { RunRequests } from "../runs/requests";
 import { CodexAccountService } from "../services/codex-account";
-import { ConnectionService } from "../services/connections";
+import { ConnectionService } from "../features/connections";
 import { EgressDevices } from "../egress/devices";
 import { PageService } from "../features/pages";
 import { VaultService } from "../features/vault";

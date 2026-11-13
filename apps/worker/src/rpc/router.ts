@@ -9,7 +9,7 @@ import { approvalRoutes, type ApprovalService } from "../features/approvals";
 import { teammateRoutes, type BotService } from "../features/teammates";
 import type { CodexAccountService } from "../services/codex-account";
 import type { SettingsService } from "../services/settings";
-import type { ConnectionService } from "../services/connections";
+import { connectionsRoutes, type ConnectionService } from "../features/connections";
 import { emailRoutes, type EmailService } from "../features/email";
 import type { FileService } from "../services/files";
 import { pageRoutes, type PageService } from "../features/pages";
@@ -167,23 +167,7 @@ export function createWorkerRouter(services: WorkerServices) {
         return ok;
       }),
     },
-    connections: {
-      save: os.connections.save.handler(({ input }) => s.connections.saveMcp(input)),
-      setEnabled: os.connections.setEnabled.handler(async ({ input }) => {
-        await s.connections.setEnabled(input.connectionId, input.enabled);
-        return ok;
-      }),
-      remove: os.connections.remove.handler(({ input }) =>
-        s.connections.remove(input.connectionId),
-      ),
-      updateAccount: os.connections.updateAccount.handler(({ input }) =>
-        s.connections.updateAccount(input),
-      ),
-      linkAccount: os.connections.linkAccount.handler(({ input }) =>
-        s.connections.linkAccount(input),
-      ),
-      test: os.connections.test.handler(({ input }) => s.connections.test(input.connectionId)),
-    },
+    connections: connectionsRoutes(s.connections),
     swarms: swarmRoutes(s.swarms),
     telegram: telegramRoutes(s.telegram),
     skills: skillRoutes(s.skills),
