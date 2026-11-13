@@ -57,7 +57,7 @@ export const TABLE_OWNERS = {
     ),
   },
   instruction_proposals: { owner: `${WORKER}features/teammates/service.ts` },
-  skills: { owner: `${WORKER}services/skills.ts` },
+  skills: { owner: `${WORKER}features/skills/service.ts` },
   schedules: { owner: `${WORKER}features/automations/schedules.ts` },
   triggers: { owner: `${WORKER}features/automations/triggers.ts` },
   trigger_firings: { owner: `${WORKER}features/automations/account-triggers.ts` },

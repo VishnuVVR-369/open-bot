@@ -25,7 +25,7 @@ import { ApprovalService } from "../features/approvals";
 import { APPROVAL_OUTCOMES } from "../approval-outcomes";
 import { SessionRegistry } from "../services/registry";
 import { ScheduleService, TriggerService } from "../features/automations";
-import { SkillService } from "../services/skills";
+import { SkillService } from "../features/skills";
 import type { ToolServices } from "./define";
 import { ToolHandlers } from "./handlers";
 import { MemoryService } from "@open-bot/memory";

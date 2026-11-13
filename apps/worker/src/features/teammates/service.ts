@@ -48,7 +48,7 @@ import {
   pauseTriggersOf,
   type ScheduleService,
 } from "../automations";
-import { addTeammateSkills, type SkillService } from "../../services/skills";
+import { addTeammateSkills, type SkillService } from "../skills";
 import { type MemoryService } from "@open-bot/memory";
 import { setConnectionTeammates } from "../../services/connections";
 import { WorkerError } from "../../core/errors";

@@ -12,7 +12,7 @@ import { DESKTOP_TOOLS } from "../features/screens";
 import { EMAIL_TOOLS } from "../features/email";
 import { MEMORY_TOOLS } from "../features/memory";
 import { PAGE_TOOLS } from "../features/pages";
-import { SKILL_TOOLS } from "./skills";
+import { SKILL_TOOLS } from "../features/skills";
 import { SWARM_TOOLS } from "./swarms";
 import { TEAMMATE_TOOLS } from "../features/teammates";
 import { TEAMWORK_TOOLS } from "./teamwork";
@@ -46,7 +46,7 @@ export function toolNamed(name: string): AnyTool | undefined {
   return BY_NAME.get(name);
 }
 
-// Every thread gets every tool, so a bot's threads behave the same in any chat.
+// Every thread gets every tool, so a teammate's threads behave the same in any chat.
 const SPECS: readonly v2.DynamicToolSpec[] = [...TOOLS.map(toolSpec), ...ACCOUNT_TOOL_SPECS];
 
 export function toolsFor(): v2.DynamicToolSpec[] {
