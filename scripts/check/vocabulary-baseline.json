@@ -283,21 +283,6 @@
   "apps/web/src/components/app/sidebar.tsx": {
     "bot": 34
   },
-  "apps/web/src/components/automations/automations-view.tsx": {
-    "bot": 53
-  },
-  "apps/web/src/components/automations/schedule-dialog.tsx": {
-    "bot": 32
-  },
-  "apps/web/src/components/automations/schedules-list.tsx": {
-    "bot": 15
-  },
-  "apps/web/src/components/automations/trigger-dialog.tsx": {
-    "bot": 37
-  },
-  "apps/web/src/components/automations/trigger-row.tsx": {
-    "bot": 26
-  },
   "apps/web/src/components/bot-avatar.tsx": {
     "bot": 3
   },
@@ -367,6 +352,24 @@
   },
   "apps/web/src/features/approvals/server/service.ts": {
     "bot": 7
+  },
+  "apps/web/src/features/automations/components/automations-view.tsx": {
+    "bot": 53
+  },
+  "apps/web/src/features/automations/components/schedule-dialog.tsx": {
+    "bot": 32
+  },
+  "apps/web/src/features/automations/components/schedules-list.tsx": {
+    "bot": 15
+  },
+  "apps/web/src/features/automations/components/trigger-dialog.tsx": {
+    "bot": 37
+  },
+  "apps/web/src/features/automations/components/trigger-row.tsx": {
+    "bot": 26
+  },
+  "apps/web/src/features/automations/server/service.ts": {
+    "bot": 6
   },
   "apps/web/src/features/computer/components/computer-page.tsx": {
     "bot": 29
@@ -487,9 +490,6 @@
   "apps/web/src/lib/server/accounts.ts": {
     "bot": 4
   },
-  "apps/web/src/lib/server/api/automations.ts": {
-    "bot": 2
-  },
   "apps/web/src/lib/server/api/chats.ts": {
     "bot": 4
   },
@@ -503,7 +503,7 @@
     "bot": 4
   },
   "apps/web/src/lib/server/queries.ts": {
-    "bot": 128,
+    "bot": 124,
     "desktop takeover": 17,
     "primary teammate": 2
   },

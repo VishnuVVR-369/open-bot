@@ -2,7 +2,8 @@
 
 import { format, isToday, isTomorrow } from "date-fns";
 import { BotAvatar } from "@/components/bot-avatar";
-import { useAppState, useSchedules } from "@/lib/client/queries";
+import { useSchedules } from "@/features/automations";
+import { useAppState } from "@/lib/client/queries";
 import { isComputerOnline, runIsHeldBack, WAITING_FOR_COMPUTER } from "@/lib/status";
 import { SideHeading } from "./side-heading";
 

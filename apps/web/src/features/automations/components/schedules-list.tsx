@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { BotAvatar } from "@/components/bot-avatar";
 import { Switch } from "@/components/ui/switch";
 import { attempt } from "@/lib/client/mutate";
-import { useScheduleRuns } from "@/lib/client/queries";
+import { useScheduleRuns } from "../hooks";
 import { api } from "@/lib/client/rpc";
 import { runIsHeldBack, WAITING_FOR_COMPUTER } from "@/lib/status";
 import type { BotSummary, ScheduleView } from "@/lib/types";

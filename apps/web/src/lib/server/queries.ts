@@ -76,14 +76,11 @@ import type {
   ModelAccessView,
   NotificationView,
   RunView,
-  ScheduleRunView,
   SearchResultView,
-  ScheduleView,
   ProfileView,
   TakeoverRequestSummary,
   PurchaseView,
   SpendingView,
-  TriggerView,
   UsageView,
 } from "../types";
 import { accountRedirectUri, accountStore } from "./accounts";
@@ -640,108 +637,12 @@ export async function listNotifications(limit = 40): Promise<NotificationView[]>
   }));
 }
 
-export async function listSchedules(): Promise<ScheduleView[]> {
-  const rows = await db.select().from(schedules).orderBy(asc(schedules.createdAt));
-  const lastRuns = rows.length
-    ? await db
-        .selectDistinctOn([runs.scheduleId], {
-          id: runs.id,
-          scheduleId: runs.scheduleId,
-          status: runs.status,
-          chatId: runs.chatId,
-        })
-        .from(runs)
-        .where(
-          inArray(
-            runs.scheduleId,
-            rows.map((row) => row.id),
-          ),
-        )
-        .orderBy(runs.scheduleId, desc(runs.createdAt))
-    : [];
-  return rows.map((row) => {
-    const last = lastRuns.find((run) => run.scheduleId === row.id);
-    return {
-      id: row.id,
-      botId: row.botId,
-      title: row.title,
-      prompt: row.prompt,
-      kind: row.kind,
-      cron: row.cron,
-      runAt: row.runAt?.toISOString() ?? null,
-      timezone: row.timezone,
-      enabled: row.enabled,
-      quiet: row.quiet,
-      createdBy: row.createdBy,
-      nextRunAt: row.nextRunAt?.toISOString() ?? null,
-      lastRunAt: row.lastRunAt?.toISOString() ?? null,
-      lastRun: last ? { id: last.id, status: last.status, chatId: last.chatId } : null,
-    };
-  });
-}
-
 export async function getProfile(): Promise<ProfileView> {
   const row = await ownerSettings(db);
   return {
     aboutMe: row?.aboutMe ?? "",
     updatedAt: row?.aboutMeUpdatedAt?.toISOString() ?? null,
   };
-}
-
-export async function listTriggers(): Promise<TriggerView[]> {
-  const rows = await db.select().from(triggers).orderBy(asc(triggers.createdAt));
-  const connectionIds = [
-    ...new Set(rows.map((row) => row.connectionId).filter((id): id is string => id !== null)),
-  ];
-  const watched = connectionIds.length
-    ? await db
-        .select({ id: connections.id, display: accounts.display, status: accounts.status })
-        .from(connections)
-        .innerJoin(accounts, eq(accounts.id, connections.accountId))
-        .where(inArray(connections.id, connectionIds))
-    : [];
-  const lastRuns = rows.length
-    ? await db
-        .selectDistinctOn([runs.triggerId], {
-          id: runs.id,
-          triggerId: runs.triggerId,
-          status: runs.status,
-          chatId: runs.chatId,
-        })
-        .from(runs)
-        .where(
-          inArray(
-            runs.triggerId,
-            rows.map((row) => row.id),
-          ),
-        )
-        .orderBy(runs.triggerId, desc(runs.createdAt))
-    : [];
-  return rows.map((row) => {
-    const last = lastRuns.find((run) => run.triggerId === row.id);
-    return {
-      id: row.id,
-      botId: row.botId,
-      kind: row.kind,
-      title: row.title,
-      prompt: row.prompt,
-      enabled: row.enabled,
-      createdBy: row.createdBy,
-      url: row.url,
-      intervalMinutes: row.intervalMinutes,
-      lookFor: row.lookFor,
-      connectionId: row.connectionId,
-      account: watched.find((entry) => entry.id === row.connectionId)?.display ?? null,
-      query: row.query,
-      leadMinutes: row.leadMinutes,
-      hookPath: row.token ? `/api/hooks/${row.token}` : null,
-      nextCheckAt: row.nextCheckAt?.toISOString() ?? null,
-      lastCheckedAt: row.lastCheckedAt?.toISOString() ?? null,
-      lastError: row.lastError,
-      lastFiredAt: row.lastFiredAt?.toISOString() ?? null,
-      lastRun: last ? { id: last.id, status: last.status, chatId: last.chatId } : null,
-    };
-  });
 }
 
 /** The text around the first match, on one line, so a result shows why it matched. */
@@ -812,30 +713,6 @@ export async function searchMessages(query: string, limit = 12): Promise<SearchR
   ]
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, limit);
-}
-
-/** A schedule's, watch's or webhook's most recent runs, newest first. */
-export async function listAutomationRuns(
-  by: { scheduleId: string } | { triggerId: string },
-  limit = 20,
-): Promise<ScheduleRunView[]> {
-  const rows = await db
-    .select()
-    .from(runs)
-    .where(
-      "scheduleId" in by ? eq(runs.scheduleId, by.scheduleId) : eq(runs.triggerId, by.triggerId),
-    )
-    .orderBy(desc(runs.createdAt))
-    .limit(limit);
-  return rows.map((run) => ({
-    id: run.id,
-    chatId: run.chatId,
-    status: run.status,
-    trigger: run.trigger,
-    preview: run.finalText ?? run.error ?? null,
-    createdAt: run.createdAt.toISOString(),
-    completedAt: run.completedAt?.toISOString() ?? null,
-  }));
 }
 
 /** The API key fallback: the key's hint, this month's spend and cap, and whether the plan ran out. */

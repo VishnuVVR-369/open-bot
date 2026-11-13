@@ -25,7 +25,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { useAppState, useSchedules, useTriggers } from "@/lib/client/queries";
+import { useAppState } from "@/lib/client/queries";
+import { useSchedules, useTriggers } from "../hooks";
 import { attempt } from "@/lib/client/mutate";
 import { api, orpc } from "@/lib/client/rpc";
 import { ScheduleDialog } from "./schedule-dialog";

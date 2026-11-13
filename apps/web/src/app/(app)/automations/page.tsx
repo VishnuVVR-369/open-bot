@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { AutomationsView, NewAutomationMenu } from "@/components/automations/automations-view";
+import { AutomationsView, NewAutomationMenu } from "@/features/automations";
 import { Page } from "@/components/page";
 
 export const metadata: Metadata = { title: "Automations" };
