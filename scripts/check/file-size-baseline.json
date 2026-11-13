@@ -7,7 +7,6 @@
   "apps/worker/src/features/integrations/actions.ts": 671,
   "apps/worker/src/features/teammates/service.ts": 666,
   "apps/worker/src/features/telegram/service.ts": 753,
-  "apps/worker/src/rpc/router.integration.test.ts": 1063,
   "apps/worker/src/runs/session.ts": 662,
   "apps/worker/src/tools/bots.integration.test.ts": 702,
   "packages/integrations/src/providers/google/calendar/adapter.ts": 898,
