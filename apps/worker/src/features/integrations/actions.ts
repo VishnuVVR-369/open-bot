@@ -19,13 +19,13 @@ import {
   type ToolItem,
 } from "@open-bot/domain";
 import { and, asc, eq, inArray, isNotNull, isNull, lt, lte, sql, type SQL } from "drizzle-orm";
-import { publishApp, type Context } from "../context";
-import { enqueueRun } from "../runs/queue";
-import { appendRunEvent } from "../runs/events";
-import { errorMessage } from "../logger";
-import type { RunSession } from "../runs/session";
-import type { ApprovalService } from "../features/approvals";
-import type { SessionRegistry } from "../services/registry";
+import { publishApp, type Context } from "../../context";
+import { enqueueRun } from "../../runs/queue";
+import { appendRunEvent } from "../../runs/events";
+import { errorMessage } from "../../logger";
+import type { RunSession } from "../../runs/session";
+import type { ApprovalService } from "../approvals";
+import type { SessionRegistry } from "../../services/registry";
 import {
   AccountToolError,
   ProviderError,
@@ -39,7 +39,7 @@ import {
 } from "@open-bot/integrations/adapters";
 import type { AccountAccess } from "./access";
 import { approvalFor } from "./effects";
-import { expireApprovals } from "../features/approvals";
+import { expireApprovals } from "../approvals";
 
 /** An action being run holds it this long; after that, the worker is taken to have stopped. */
 const LEASE_MS = 5 * 60_000;

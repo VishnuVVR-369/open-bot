@@ -27,7 +27,7 @@ import {
 import { and, count, eq, gte, inArray, like, lt, lte } from "drizzle-orm";
 import { publishApp, type Context } from "../../context";
 import { errorMessage } from "../../logger";
-import type { AccountAccess } from "../../accounts/access";
+import type { AccountAccess } from "../integrations";
 import {
   addedMessages,
   calendarWindow,

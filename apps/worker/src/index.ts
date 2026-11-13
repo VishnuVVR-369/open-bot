@@ -50,9 +50,12 @@ import { PageService } from "./features/pages";
 import { ToolHandlers } from "./tools/handlers";
 import { BotService } from "./features/teammates";
 import { Integrations } from "@open-bot/integrations/adapters";
-import { AccountAccess } from "./accounts/access";
-import { AccountActions } from "./accounts/actions";
-import { AccountTools } from "./accounts/tools";
+import {
+  AccountAccess,
+  AccountActions,
+  AccountTools,
+  integrationsFeature,
+} from "./features/integrations";
 import { EventEmitter } from "node:events";
 import { addSettingsRow, SettingsService } from "./services/settings";
 import { signalHandlers } from "./core/feature";
@@ -122,6 +125,10 @@ const integrations = Integrations.create({ db: ctx.db, endpoints: accountAccess.
 runtime.add("integrations", () => integrations.stop());
 const accountActions = new AccountActions(ctx, sessions, approvals, accountAccess, integrations);
 const accountTools = new AccountTools(ctx, accountAccess, accountActions, integrations);
+const integrationJobs = integrationsFeature(
+  { actions: accountActions, access: accountAccess },
+  log,
+);
 const accountTriggers = new AccountTriggers(ctx, accountAccess, triggers);
 const automations = automationsFeature({ schedules, triggers, accountTriggers });
 const tools = new ToolHandlers({
@@ -352,25 +359,13 @@ await notifications.start(runtime);
 await telegramPolling.start(runtime);
 // Account actions drain at shutdown, after everything that adds to them has stopped: the lifecycle
 // (no run starts once it pauses Codex), schedules and triggers.
-accountActions.start();
-runtime.add("account actions", async () => {
-  accountActions.stop();
-  await accountActions.idle();
-});
+await integrationJobs.start(runtime);
 // It pauses the computer's connections, egress's among them, so it stops first.
 runtime.add("computer lifecycle", () => lifecycle.stop());
 computer.on("lease", () => wake.evaluate());
 runtime.every("egress wake", 1_000, () => wake.evaluate());
 await automations.start(runtime);
 await emailJobs.start(runtime);
-const keepAccountsAlive = () =>
-  void accountAccess
-    .keepAlive()
-    .catch((error: unknown) =>
-      log.warn("account keep-alive failed", { error: errorMessage(error) }),
-    );
-runtime.after("first account keep-alive", 60_000, keepAccountsAlive);
-runtime.every("account keep-alive", 12 * 60 * 60_000, keepAccountsAlive);
 
 // Wake up on signals from the web server.
 const listener = await pool.connect();
@@ -378,9 +373,8 @@ runtime.add("signal listener", () => listener.release());
 await listener.query(`listen ${NOTIFY_CHANNELS.worker}`);
 // One handler per signal, here or in the feature that answers it: a new `WorkerSignal` doesn't
 // compile until it has one, and the worker doesn't start with two.
-const onSignal = signalHandlers([automations], {
+const onSignal = signalHandlers([automations, integrationJobs], {
   runs: () => executor.pump(),
-  accounts: () => accountActions.kick(),
   cancel: () =>
     void executor
       .processCancellations()

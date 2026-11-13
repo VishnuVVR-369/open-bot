@@ -22,10 +22,10 @@ import {
   type AccountConnectionKind,
 } from "@open-bot/domain";
 import { and, asc, eq, isNull, lt, ne, or, sql } from "drizzle-orm";
-import { publishApp, type Context } from "../context";
-import { createNotification } from "../features/notifications";
-import type { AccountAccessLine } from "../instructions";
-import { errorMessage } from "../logger";
+import { publishApp, type Context } from "../../context";
+import { createNotification } from "../notifications";
+import type { AccountAccessLine } from "../../instructions";
+import { errorMessage } from "../../logger";
 
 /** Usage is recorded at most this often per account. */
 const TOUCH_EVERY_MS = 5 * 60_000;

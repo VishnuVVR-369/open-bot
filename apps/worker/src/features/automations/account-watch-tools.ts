@@ -8,7 +8,7 @@ import {
 } from "@open-bot/domain";
 import { AccountToolError } from "@open-bot/integrations/adapters";
 import { z } from "zod";
-import type { AccountTools } from "../../accounts/tools";
+import type { AccountTools } from "../integrations";
 import { optionalTarget, type TeammateTargets } from "../../core/targets";
 import {
   defineTool,

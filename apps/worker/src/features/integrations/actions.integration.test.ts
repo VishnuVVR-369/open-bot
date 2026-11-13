@@ -15,10 +15,10 @@ import { ACCOUNT_CONNECTION_KINDS, GOOGLE_SCOPES } from "@open-bot/domain";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
-import type { Context } from "../context";
-import { ApprovalService } from "../features/approvals";
-import { APPROVAL_OUTCOMES } from "../approval-outcomes";
-import { SessionRegistry } from "../services/registry";
+import type { Context } from "../../context";
+import { ApprovalService } from "../approvals";
+import { APPROVAL_OUTCOMES } from "../../approval-outcomes";
+import { SessionRegistry } from "../../services/registry";
 import {
   AccountToolError,
   Integrations,

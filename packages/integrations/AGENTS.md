@@ -2,7 +2,7 @@
 
 Everything particular to each account provider (Google, Notion), in Node with the database: signing in, the encrypted token store, and the adapters that serve Gmail, Calendar and Notion to teammates.
 Provider and integration definitions (labels, scopes, tool names) go in `packages/domain/src/integrations/accounts`.
-What every integration shares at run time (access checks, approvals, the durable action executor, timeline items) stays in `apps/worker/src/accounts`.
+What every integration shares at run time (access checks, approvals, the durable action executor, timeline items) stays in `apps/worker/src/features/integrations`.
 
 ## Layout
 

@@ -13,10 +13,10 @@ import {
 } from "@open-bot/domain";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import type { Context } from "../context";
-import { errorMessage } from "../logger";
-import type { RunSession } from "../runs/session";
-import type { ConnectionTest } from "../services/connections";
+import type { Context } from "../../context";
+import { errorMessage } from "../../logger";
+import type { RunSession } from "../../runs/session";
+import type { ConnectionTest } from "@open-bot/api/worker";
 import {
   AccountToolError,
   ProviderError,

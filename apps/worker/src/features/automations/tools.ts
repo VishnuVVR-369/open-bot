@@ -4,7 +4,7 @@ import { schedules } from "@open-bot/db";
 import { calendarEventFilterSchema, describeInterval } from "@open-bot/domain";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
-import type { AccountTools } from "../../accounts/tools";
+import type { AccountTools } from "../integrations";
 import type { Context } from "../../context";
 import { optionalTarget, type TeammateTargets } from "../../core/targets";
 import {

@@ -159,7 +159,7 @@ Services talk to each other through constructor injection and the typed `ctx.eve
 | Vault            | `services/vault.ts`                        | Filling secrets, budgets, purchases                                                                       |
 | Swarms           | `services/swarms.ts`                       | Starting helpers, collecting results, merging back                                                        |
 | Connections      | `services/connections.ts`                  | MCP server config per teammate, connection tests                                                          |
-| Accounts         | `accounts/`                                | Your Gmail, Calendar and Notion: access, tokens, tools and the action executor (below)                    |
+| Accounts         | `features/integrations/`                   | Your Gmail, Calendar and Notion: access, tokens, tools and the action executor (below)                    |
 | Account triggers | `features/automations/account-triggers.ts` | Gmail and Calendar triggers: polling, firing once, the hourly limit                                       |
 | Email            | `features/email/`                          | Inbound mail from Postmark, the outbox, sending, the email tools                                          |
 | Telegram         | `features/telegram/`                       | Long polling, linking, routing messages, approval buttons                                                 |
@@ -172,14 +172,14 @@ Services talk to each other through constructor injection and the typed `ctx.eve
 
 The worker serves your Gmail, Google Calendar and Notion to teammates.
 The worker is the only process that decrypts their tokens, and makes every call to the providers.
-What every integration shares is in `apps/worker/src/accounts/`; what is particular to each provider is in `packages/integrations`, one folder per provider.
+What every integration shares is in `apps/worker/src/features/integrations/`; what is particular to each provider is in `packages/integrations`, one folder per provider.
 
 | Part             | File                                                   | Responsibility                                                                                                                   |
 | ---------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| `AccountAccess`  | `apps/worker/src/accounts/access.ts`                   | Which connections a teammate may use, checking capabilities and granted scopes, tokens, and telling you once when a sign-in ends |
-| `AccountTools`   | `apps/worker/src/accounts/tools.ts`                    | Routes each integration's tools to its adapter: checks access, runs reads, hands every change to the executor                    |
-| `AccountActions` | `apps/worker/src/accounts/actions.ts`                  | The durable executor: claims, rechecks, runs, reconciles and reports every change, at most once                                  |
-| Approvals        | `apps/worker/src/accounts/effects.ts`                  | `approvalFor()`, which decides from a change's effect whether it asks you                                                        |
+| `AccountAccess`  | `apps/worker/src/features/integrations/access.ts`      | Which connections a teammate may use, checking capabilities and granted scopes, tokens, and telling you once when a sign-in ends |
+| `AccountTools`   | `apps/worker/src/features/integrations/tools.ts`       | Routes each integration's tools to its adapter: checks access, runs reads, hands every change to the executor                    |
+| `AccountActions` | `apps/worker/src/features/integrations/actions.ts`     | The durable executor: claims, rechecks, runs, reconciles and reports every change, at most once                                  |
+| Approvals        | `apps/worker/src/features/integrations/effects.ts`     | `approvalFor()`, which decides from a change's effect whether it asks you                                                        |
 | `Integrations`   | `packages/integrations/src/integration-registry.ts`    | One adapter per integration, its tool specs checked at start against the integration's definition in `@open-bot/domain`          |
 | Gmail            | `packages/integrations/src/providers/google/gmail/`    | Gmail's REST API, building and freezing MIME, HTML to text                                                                       |
 | Calendar         | `packages/integrations/src/providers/google/calendar/` | Calendar's REST API, time zones and free time, and each change's effect                                                          |

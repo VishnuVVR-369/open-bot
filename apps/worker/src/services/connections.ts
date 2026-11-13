@@ -28,7 +28,7 @@ import {
 } from "@open-bot/domain";
 import { decryptSecret, encryptSecret } from "@open-bot/domain/server";
 import { and, asc, eq, isNull, or, sql } from "drizzle-orm";
-import { cancelConnectionActions, cancelEarlierGrantActions } from "../accounts/actions";
+import { cancelConnectionActions, cancelEarlierGrantActions } from "../features/integrations";
 import { publishApp, type Context } from "../context";
 import { errorMessage } from "../logger";
 import { WorkerError } from "../core/errors";

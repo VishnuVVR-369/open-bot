@@ -3,11 +3,11 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AccountActions } from "./accounts/actions";
 import type { Context } from "./context";
 import type { Feature } from "./core/feature";
 import { automationsFeature } from "./features/automations";
 import { emailFeature } from "./features/email";
+import { AccountActions, integrationsFeature } from "./features/integrations";
 import { memoryFeature } from "./features/memory";
 import { telegramFeature } from "./features/telegram";
 import { FcmService, notificationsFeature, PushService } from "./features/notifications";
@@ -19,6 +19,10 @@ const loop = { start() {}, stop() {}, kick() {} };
 const FEATURES: Record<string, Pick<Feature, "start">> = {
   automations: automationsFeature({ schedules: loop, triggers: loop, accountTriggers: loop }),
   emailJobs: emailFeature({ recover: async () => {}, sweep: async () => {} }, { warn() {} }),
+  integrationJobs: integrationsFeature(
+    { actions: { ...loop, idle: async () => {} }, access: { keepAlive: async () => {} } },
+    { warn() {} },
+  ),
   memoryJobs: memoryFeature(loop),
   notifications: notificationsFeature({ push: loop, fcm: loop }),
   telegramPolling: telegramFeature({ start: async () => {}, stop() {} }, { error() {} }),

@@ -564,18 +564,6 @@
   "apps/worker/scripts/computer-sleep-web-smoke.ts": {
     "bot": 5
   },
-  "apps/worker/src/accounts/access.ts": {
-    "bot": 12
-  },
-  "apps/worker/src/accounts/actions.integration.test.ts": {
-    "bot": 22
-  },
-  "apps/worker/src/accounts/actions.ts": {
-    "bot": 19
-  },
-  "apps/worker/src/accounts/tools.ts": {
-    "bot": 3
-  },
   "apps/worker/src/computer.ts": {
     "bot": 6
   },
@@ -626,6 +614,18 @@
   },
   "apps/worker/src/features/email/tools.ts": {
     "bot": 1
+  },
+  "apps/worker/src/features/integrations/access.ts": {
+    "bot": 12
+  },
+  "apps/worker/src/features/integrations/actions.integration.test.ts": {
+    "bot": 22
+  },
+  "apps/worker/src/features/integrations/actions.ts": {
+    "bot": 19
+  },
+  "apps/worker/src/features/integrations/tools.ts": {
+    "bot": 3
   },
   "apps/worker/src/features/memory/service.ts": {
     "bot": 18
