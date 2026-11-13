@@ -16,6 +16,6 @@
     "packages/db/src/settings.ts -> packages/db/src/index.ts"
   ],
   "appImports": [
-    "apps/worker/src/services/pages.integration.test.ts -> apps/web/src/lib/server/api/pages.ts"
+    "apps/worker/src/services/pages.integration.test.ts -> apps/web/src/features/pages/server/service.ts"
   ]
 }
