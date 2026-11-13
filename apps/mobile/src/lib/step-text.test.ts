@@ -42,8 +42,12 @@ describe("step text", () => {
       failed: true,
       summary: "pnpm test  · exit 1  · you approved",
     });
-    // Still running: not failed yet, even with a failed status.
-    expect(commandStep(command({ status: "running", exitCode: null }), false).failed).toBe(false);
+    // Still running: not failed yet, even with a nonzero exit code, and the summary keeps it.
+    expect(commandStep(command({ status: "running", exitCode: 1 }), true)).toEqual({
+      command: "pnpm test",
+      failed: false,
+      summary: "pnpm test  · exit 1  · you approved",
+    });
     expect(commandStep(command({ status: "failed", exitCode: null }), false)).toMatchObject({
       failed: true,
       summary: "pnpm test",
