@@ -8,7 +8,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import type { Context } from "../../context";
-import { AccountAccess } from "../../accounts/access";
+import { AccountAccess } from "../integrations";
 import { AccountTriggers } from "./account-triggers";
 import { ACCOUNT_TRIGGER_RUNS_PER_HOUR, TriggerService } from "./triggers";
 

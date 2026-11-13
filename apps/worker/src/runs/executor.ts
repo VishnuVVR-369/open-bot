@@ -22,7 +22,7 @@ import type { SkillService } from "../services/skills";
 import type { MemoryCoordinator } from "../features/memory";
 import type { ModelAccess } from "../services/model-access";
 import type { TakeoverService } from "../features/screens";
-import type { AccountAccess } from "../accounts/access";
+import type { AccountAccess } from "../features/integrations";
 import { markDispatched, markSteered, touchChat } from "../features/chat";
 import type { Bot, Run } from "../core/db-types";
 import { RunSession, type SessionTools } from "./session";

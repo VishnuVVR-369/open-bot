@@ -2,7 +2,7 @@
 // own; the tools still here take all of them, until their feature moves.
 import type { z } from "zod";
 import type { Context } from "../context";
-import type { AccountTools } from "../accounts/tools";
+import type { AccountTools } from "../features/integrations";
 import { defineTool as defineFeatureTool, type ToolDefinition } from "../core/tool";
 import type { TaskService } from "../features/tasks";
 import type { ApprovalService } from "../features/approvals";

@@ -2,7 +2,7 @@
 // Fails when a Markdown or MDX file names a repo path that does not exist: inline code spans that
 // start with a top-level code folder (apps/, packages/, e2e/, scripts/, ...), and relative link,
 // image and link reference definition targets.
-// Code-span globs (`packages/*`) and placeholders (`apps/worker/src/accounts/<integration>.ts`)
+// Code-span globs (`packages/*`) and placeholders (`apps/worker/src/features/<feature>/tools.ts`)
 // must match at least one path. Build output that .gitignore covers (`apps/worker/dist/worker.mjs`)
 // counts as existing when the folder it is built in exists. Documents are parsed the way the site
 // renders them (CommonMark with GFM, plus MDX for .mdx), so code blocks, containers and escapes
