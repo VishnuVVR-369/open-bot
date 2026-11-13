@@ -35,7 +35,6 @@ One folder per feature under `packages/domain/src`, each with an `index.ts` barr
   A subset is derived (`Exclude`, `Extract`, or a list that `satisfies` the full type), never retyped.
 - The egress enums are also the egress tunnel's wire values: `@open-bot/egress` writes them into its test vectors, and the phone's Kotlin `VectorsTest` checks them.
 - Keep zod schemas for stored or exported data optional or defaulted, so old exports and old rows still parse (`packages/domain/src/teammates/bundle.ts`).
-- New workspace dependencies must also be added to the consumer bundlers (see the repo map in the root `AGENTS.md`).
 
 ## Why account definitions live here
 
@@ -43,7 +42,32 @@ One folder per feature under `packages/domain/src`, each with an `index.ts` barr
 - `packages/db` types its columns with unions derived from them, so they sit below `packages/db`.
 - `packages/integrations` has the rest of each provider: sign-in, the token store, and the adapters that call Gmail, Calendar and Notion. It needs Node and the database.
 - The worker refuses to start if adapters and definitions disagree (`specProblem` in `packages/integrations/src/integration-registry.ts`).
-- The step-by-step recipe is "Add an account provider" in the root `AGENTS.md`.
+- The step-by-step recipe is "Add an account provider" in `packages/integrations/AGENTS.md`.
+
+## Recipes
+
+Paths are relative to the repo root; symbols are in parentheses.
+
+### Add a field to a teammate
+
+The field crosses every layer, from the database to web and mobile.
+
+1. `packages/db/src/schema/teammates.ts` (`bots`, with a default), then the migration recipe in `packages/db/AGENTS.md`.
+2. `packages/domain/src/teammates/management.ts` (`botProfileSchema`, `botCreation()`), `packages/domain/src/teammates/bundle.ts` (optional or defaulted so old exports import).
+3. `packages/api/src/views.ts` (`botSummarySchema`) if lists or mobile need it; `apps/web/src/lib/server/queries.ts` (`listBots`).
+4. Worker: `apps/worker/src/features/teammates/service.ts` (`list`, `get`, `exportBundle`, `addTeammate`, which duplicate and import share), `apps/worker/src/features/teammates/tools.ts` (`profileFields`), `apps/worker/src/features/teammates/changes.ts` (`PROFILE_LABELS`).
+5. Web: `apps/web/src/features/teammates/components/bot-form.tsx` (`BotFormValues`), `apps/web/src/app/(app)/bots/new/page.tsx`, `apps/web/src/features/teammates/components/teammate-view.tsx`.
+6. Mobile (display only; the contract has no teammate edit procedure): `apps/mobile/src/app/teammates/[botId].tsx`.
+7. Ship web and worker together: the worker's schemas are strict and reject unknown keys.
+
+### Add a realtime event (UI refresh after a change)
+
+1. Add the type to `APP_EVENT_TYPES` in `packages/domain/src/events/app-events.ts`.
+2. Say which procedures it refreshes in `APP_EVENT_REFRESHES` (`packages/api/src/events.ts`); it won't compile until you do.
+   The web app applies it as is.
+3. Publish with `publishApp(ctx, { type })` in the worker or `publish({ type })` (`apps/web/src/lib/server/publish.ts`) in web.
+4. Mobile still has its own keys: add the type to `keysForAppEvent` in `apps/mobile/src/lib/query.ts`.
+5. Run timeline events are a different path: `RunEventWriter` or `appendRunEvent()`, reduced by `applyRunEvent` in `packages/domain/src/timeline/timeline.ts`.
 
 ## Tests
 

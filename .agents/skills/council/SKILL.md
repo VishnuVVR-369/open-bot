@@ -19,7 +19,7 @@ Give each delegate the request and relevant context. For review or feedback,
 keep their work read-only. Collect their responses and summarize the useful
 findings, disagreements, and recommended next steps.
 
-For a code review, design review ask each delegate for a score out of 10.
+For a code review or a design review, ask each delegate for a score out of 10.
 Count each full review pass as one round.
 A fresh review after fixes starts a new round.
 
@@ -56,7 +56,5 @@ keep scope limited.
   load all evidence is incomplete, not a pass.
 - Label every finding accepted, rejected (with reason), deferred, or fixed and
   verified. Findings outside the requested scope are deferred.
-- When the user says pause, wait, or stop, end the turn once. Do not repeat
-  status messages.
 - If a delegate fails (for example a rate limit), report it and keep its
   partial findings. Do not silently drop it.

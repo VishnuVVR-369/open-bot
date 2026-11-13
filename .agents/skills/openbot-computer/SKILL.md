@@ -5,9 +5,12 @@ description: Use when changing apps/botd (the computer), its Chromium browser, c
 
 # open-bot computer and async code
 
+botd's own invariants are in `apps/botd/AGENTS.md`.
+This applies to any change that touches the computer or async lifecycle code, in any workspace.
+
 ## Railway is stricter than local
 
-- Local docker is more permissive (seccomp, user namespaces). On Railway, Chromium's sandbox fails, so botd probes it and falls back to `--no-sandbox`.
+- Railway blocks user namespaces, so Chromium's sandbox fails there: botd probes it and falls back to `--no-sandbox`.
 - A fix that works locally is not done until checked under Railway constraints or on Railway.
 - Keep the computer's `/home` volume, browser profiles, and logins intact.
 

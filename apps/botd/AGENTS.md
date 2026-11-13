@@ -19,7 +19,6 @@ Tunnel framing and IP policy live in `packages/egress`.
 ## Invariants
 
 - Railway blocks user namespaces, so `browserSandboxAvailable()` in `apps/botd/src/sandbox.ts` probes and Chromium falls back to `--no-sandbox`.
-- A fix that works in local Docker is not done until it holds under Railway constraints.
 - botd must not keep the computer awake: failed or cancelled work does not count as activity, and a lost controller or expired lease never stops compute on its own.
 - Reading status (`/healthz`, `/health`, `/lifecycle/*`) must not begin activity or wake the computer.
 - Every HTTP route is a procedure in `botdContract`. One that works on the computer is built with `work` (`wakesComputer`), so the worker wakes the computer for it and botd counts it as activity; a new route without it can run while the computer quiesces.
@@ -27,7 +26,23 @@ Tunnel framing and IP policy live in `packages/egress`.
 - Watching a screen never starts it; `ScreenManager.ensure()` does, and a screen a run or the owner holds is never stopped.
 - Anything that touches a display runs as the `desktop` user, and nothing in the `bot` user's reach may get display access.
 - Teammates must never submit a job application; the `*apply*` request pause in the browser setup must stay.
-- Async changes need tests for cancellation, late callbacks after shutdown, stale messages after reconnect, readiness on both socket ends and state saved at shutdown.
+- Async changes are tested against the checklist in the openbot-computer skill.
+
+## Recipes
+
+Paths are relative to the repo root; symbols are in parentheses.
+
+### Add a botd route (called by the worker)
+
+1. Shapes botd sends or takes go in `packages/domain/src/computer/protocol.ts` as zod schemas.
+2. `packages/api/src/botd/contract.ts`: add a procedure to `botdContract` with its `route`, input and output. Build it with `work` if it touches the computer, or it will not wake it and botd will not count it as activity.
+   Never use `work` for a status read.
+3. `apps/botd/src/router.ts`: implement it.
+   Throw `ORPCError` with a status for a refusal; `apps/botd/src/rpc.ts` maps every other error in one place.
+4. `apps/worker/src/computer.ts`: call it with `this.botd.<domain>.<procedure>(input)` behind a `ComputerClient` method.
+   The answer is already validated; failures are `BotdError` with botd's status.
+5. The computer and the worker deploy separately: keep old paths and input fields until no deployed worker sends them.
+   Test it in `apps/botd/src/contract.test.ts` and document it in `apps/site/src/app/docs/reference/http-api/page.mdx`.
 
 ## Tests
 

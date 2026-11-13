@@ -23,7 +23,16 @@ The native phone-egress code is here, but the tunnel protocol itself belongs in 
 - The merged Android manifest must pass `apps/mobile/scripts/check-egress-manifest.mjs` for both variants.
 - Release builds need the Android checks from the openbot-mobile skill; debug success proves little.
 - Mobile renders agent tools generically, so a new tool needs no change here.
-- Use "teammate" in new UI copy; see the root `AGENTS.md` glossary.
+
+## Recipes
+
+Paths are relative to the repo root; symbols are in parentheses.
+
+### Add a mobile screen
+
+1. A file in `apps/mobile/src/app/` plus its `Tabs.Screen` in `(tabs)/_layout.tsx` or `Stack.Screen` in `_layout.tsx`.
+2. Data: a view in `packages/api/src/views.ts`, a procedure in `packages/api/src/contract.ts`, its handler in the web feature's `server/routes.ts` (`apps/web/src/features/<feature>/server/routes.ts`, mounted in `apps/web/src/lib/server/api/router.ts`), a hook in `apps/mobile/src/lib/queries.ts` and a key in `apps/mobile/src/lib/query.ts` (`keysForAppEvent`).
+3. Search entry in `apps/mobile/src/app/search.tsx` (`PAGES`); notification links in `apps/mobile/src/lib/links.ts` and the worker's `nativeUrl()` in `apps/worker/src/features/notifications/fcm.ts`.
 
 ## Tests
 

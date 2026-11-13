@@ -17,16 +17,25 @@ Serving pages and signing links go in `apps/pages` and `packages/domain/src/serv
 - Library versions in `package.json` are exact; `build.mjs` copies files from `node_modules`.
 - Kit assets are versioned by path (`kit@1`); a breaking change needs a new path.
 - `./serve` imports Node modules; do not import it from the web client.
-- The computer image bundles page-kit too, so changes require a computer redeploy.
 - `apps/pages/build.mjs` copies the built libraries (`@open-bot/page-kit/lib/*`), so build page-kit first.
 - Libraries are the extension point; pages have no type.
+- The computer image bundles page-kit too, so a change here also redeploys the computer.
+
+## Recipes
+
+Paths are relative to the repo root; symbols are in parentheses.
+
+### Add a page-kit library
+
+1. `packages/page-kit/package.json` (exact version), `packages/page-kit/scripts/build.mjs` (`files`), `packages/page-kit/src/index.ts` (`PAGE_LIBRARIES`; the `/page` skill lists it automatically).
+2. Optional theming in `packages/page-kit/src/kit/kit.js` and `page.css`.
+   `packages/page-kit/src/kit.test.ts` checks every `/lib` path.
 
 ## Tests
 
 - `pnpm --filter @open-bot/page-kit test` builds first (see `packages/page-kit/turbo.json`) and then runs `packages/page-kit/src/kit.test.ts` against `dist/lib`.
 - Built-artifact check: `pnpm --filter @open-bot/pages build && node apps/pages/dist/pages.mjs`.
 - `pnpm test:integration` includes `apps/worker/src/features/pages/service.integration.test.ts`; `e2e/pages.spec.ts` covers the full stack.
-- See "Add a page-kit library" in the root `AGENTS.md`.
 
 ## Docs
 

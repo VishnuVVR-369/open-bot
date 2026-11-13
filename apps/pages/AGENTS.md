@@ -22,7 +22,6 @@ It does not render the app UI, publish pages or know who the owner is: publishin
 - `PAGES_SECRET` must be at least 32 characters and the same value as the web app's.
 - `build.mjs` bundles everything, and the build fails if anything but Node built-ins would be imported at runtime.
 - Page links come from `@open-bot/domain/server`, which is Node-only: fine here but never in client code.
-- The computer image bundles page-kit too, so page-kit changes also need a computer redeploy.
 
 ## Tests
 

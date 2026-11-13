@@ -5,21 +5,24 @@ description: Use before opening a PR, merging, deploying open-bot to Railway, or
 
 # Ship open-bot
 
+The rules are in the root `AGENTS.md` ("Verification", "Workflow and scope").
+This is the checklist for following them.
+
 ## Before the PR
 
-- Run `pnpm lint`, `pnpm typecheck`, `pnpm test`. Add `--force` to turbo runs when the result must prove something; cache hits prove nothing.
-- Run commands with `set -o pipefail` so a pipe never hides a failure.
+- Run `pnpm verify:affected`, or `pnpm verify` when the change crosses many workspaces.
 - Changed deps, bundling, or a workspace import? Build and start the real artifact: `node apps/worker/dist/worker.mjs`, `node apps/pages/dist/pages.mjs`. Missing bundled modules (`ERR_MODULE_NOT_FOUND`) only show up here.
+- Start the worker artifact with `DATABASE_URL` and `BOTD_URL` set to throwaway targets (`scripts/test/pg.sh` gives a database). With neither set it uses the owner's development database and computer.
 - Changed native Android code or config? Review [Android CI coverage](../../../apps/site/src/app/docs/development/page.mdx#android-ci), then run a release build or `./gradlew lintRelease` locally.
-- Every PR check must pass, including Cloudflare. Treat any red check as a real failure.
 
 ## Merge and deploy
 
 - Only when asked. Squash merge.
-- Merging to `main` auto-deploys only the Railway services (`web`, `worker`, `computer`, `pages`) whose watch paths in `.railway/watch-paths.ts` match a changed file. A docs-only merge deploys nothing. `Postgres` only changes when migrations run.
-- Changed `.railway/`? The `Railway plan` workflow comments the plan on the PR; it must list only your changes. After the merge, follow the `Railway apply` workflow to success, then the deploys it causes. If apply fails, read `.railway/README.md`.
+- Retarget a stacked PR to `main` before merging it. Merged into its parent branch, its code never reaches `main`.
+- The services are `web`, `worker`, `computer` and `pages`. `Postgres` only changes when migrations run.
 - The worker's pre-deploy step runs DB migrations. If it fails, Railway stays on the old commit.
-- Wait for every affected service to reach a final state, confirm it runs the merged commit, and check startup logs (see `railway-cli-ssh`). Report the result. Never hand back mid-deploy.
+- Changed `.railway/`? The `Railway plan` workflow comments the plan on the PR; it must list only your changes. After the merge, follow the `Railway apply` workflow to success, then the deploys it causes. If apply fails, read `.railway/README.md`.
+- For every affected service, confirm it runs the merged commit and check its startup logs (see `railway-cli-ssh`).
 
 ## Phone builds
 

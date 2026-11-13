@@ -2,7 +2,7 @@
 
 The oRPC contracts: the API the web app serves to its browser pages and the Android app, the worker's internal API the web app calls, and botd's API the worker calls.
 It holds shapes only, with no handlers.
-Handlers go in `apps/web/src/lib/server/api/router.ts` and the queries behind them in `apps/web`.
+Handlers and the queries behind them go in the web app's features (`apps/web/src/features/<feature>/server/`), mounted in `apps/web/src/lib/server/api/router.ts`.
 Shared domain logic goes in `packages/domain`.
 
 ## Entry points
@@ -24,7 +24,7 @@ Shared domain logic goes in `packages/domain`.
 
 - Everything exported must be serializable and safe for React Native, with no Node imports.
 - The only dependencies are `@open-bot/domain`, zod and oRPC.
-- Adding a procedure needs a handler in `apps/web/src/lib/server/api/router.ts`, for `workerContract` in `apps/worker/src/rpc/router.ts`, or for `botdContract` in `apps/botd/src/router.ts`.
+- Adding a procedure needs a handler: in the web feature's `server/routes.ts` for the app's contract, in `apps/worker/src/rpc/router.ts` for `workerContract`, or in `apps/botd/src/router.ts` for `botdContract`.
 - `workerContract` paths are fixed REST paths that old deployed web apps still call: keep them, and keep input fields, until none does. The same holds for `botdContract` and deployed workers.
 - Schemas for botd's wire shapes (health, leases, events, action results) live in `packages/domain/src/computer/protocol.ts`; the contract composes them.
 - The worker bundler resolves this package for its types, so new deps must be declared (`apps/worker/build.mjs`).
@@ -43,4 +43,4 @@ Shared domain logic goes in `packages/domain`.
 
 - `apps/site/src/app/docs/reference/http-api/page.mdx`
 - `apps/site/src/app/docs/architecture/web-app/page.mdx`
-- See "Add a mobile screen" in the root `AGENTS.md` for the files a new procedure touches.
+- The files a new procedure touches are in "Add a web screen" (`apps/web/AGENTS.md`) and "Add a mobile screen" (`apps/mobile/AGENTS.md`).
