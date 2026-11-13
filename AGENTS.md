@@ -87,7 +87,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 1. `apps/worker/src/tools/definitions.ts`: add a `tool(...)` spec to the right group array (`CONTROL_TOOLS`, `PAGE_TOOLS`, ...) and bump `TOOLS_VERSION`. Without the bump, existing threads never see the tool.
 2. `apps/worker/src/tools/handlers.ts`: a zod args schema, a `case` in `ToolHandlers.handle()`, a timeline item via `session.putItem(this.toolItem(...))`, `publishApp` if the UI shows the change, and `HELPER_FORBIDDEN` if swarm helpers must not call it. Nothing checks definitions against the switch; a missing case fails only at call time.
 3. A new service is a constructor parameter: wire it in `apps/worker/src/index.ts` and `apps/worker/src/tools/bots.integration.test.ts`.
-4. Optional: rules in `DEVELOPER_INSTRUCTIONS` (`apps/worker/src/instructions.ts`, bump `TOOLS_VERSION` again), `TOOL_ICONS` in `apps/web/src/components/chat/items.tsx`, `ASKS_APPROVAL` in `packages/chat-core/src/timeline.ts` (both apps). Mobile renders every tool generically.
+4. Optional: rules in `DEVELOPER_INSTRUCTIONS` (`apps/worker/src/instructions.ts`, bump `TOOLS_VERSION` again), an icon, or `asksApproval` for a tool whose call is itself the approval request, in `TOOL_DISPLAY` (`packages/domain/src/timeline/tool-display.ts`), which web and mobile both read. A new icon meaning needs its icon in `apps/web/src/components/chat/items.tsx` and `apps/mobile/src/components/chat/tool-icons.ts`.
 5. Document it in `apps/site/src/app/docs/reference/tools/page.mdx`.
 
 **Add a worker internal route** (called by web)
