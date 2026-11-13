@@ -335,15 +335,6 @@
   "apps/web/src/components/chat/swarm-card.tsx": {
     "bot": 4
   },
-  "apps/web/src/components/computer/computer-page.tsx": {
-    "bot": 29
-  },
-  "apps/web/src/components/computer/computer-panel.tsx": {
-    "bot": 85
-  },
-  "apps/web/src/components/computer/desktop-view.tsx": {
-    "bot": 1
-  },
   "apps/web/src/components/settings/accounts-section.tsx": {
     "bot": 10
   },
@@ -373,6 +364,37 @@
   },
   "apps/web/src/features/approvals/server/service.ts": {
     "bot": 7
+  },
+  "apps/web/src/features/computer/components/computer-page.tsx": {
+    "bot": 29
+  },
+  "apps/web/src/features/computer/components/computer-panel.tsx": {
+    "bot": 12
+  },
+  "apps/web/src/features/computer/components/desktop-view.tsx": {
+    "bot": 1
+  },
+  "apps/web/src/features/computer/components/screen-controls.tsx": {
+    "bot": 2
+  },
+  "apps/web/src/features/computer/components/screen-glass.tsx": {
+    "bot": 5
+  },
+  "apps/web/src/features/computer/components/screen-picker.tsx": {
+    "bot": 25
+  },
+  "apps/web/src/features/computer/components/screen-status.tsx": {
+    "bot": 13
+  },
+  "apps/web/src/features/computer/components/takeover-buttons.tsx": {
+    "bot": 5
+  },
+  "apps/web/src/features/computer/hooks.ts": {
+    "bot": 23
+  },
+  "apps/web/src/features/computer/server/service.ts": {
+    "bot": 13,
+    "desktop takeover": 3
   },
   "apps/web/src/features/files/components/files-view.tsx": {
     "bot": 27
@@ -476,10 +498,6 @@
   },
   "apps/web/src/lib/server/api/router.ts": {
     "bot": 4
-  },
-  "apps/web/src/lib/server/api/screens.ts": {
-    "bot": 13,
-    "desktop takeover": 3
   },
   "apps/web/src/lib/server/queries.ts": {
     "bot": 128,

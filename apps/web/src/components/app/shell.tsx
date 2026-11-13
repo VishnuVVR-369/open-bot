@@ -7,7 +7,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { Wordmark } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import { useComputer } from "@/components/computer/computer-panel";
+import { useComputer } from "@/features/computer";
 import { useAppState } from "@/lib/client/queries";
 import type { AppState } from "@/lib/types";
 import { cn } from "@/lib/utils";

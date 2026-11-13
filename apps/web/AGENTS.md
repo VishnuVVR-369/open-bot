@@ -17,7 +17,7 @@ Shared types and the mobile contract belong in `packages/domain` and `packages/a
 ## Entry points
 
 - `apps/web/src/app` is the App Router tree: `(app)` pages, `(auth)` sign-in, and `api/*` routes.
-- `apps/web/src/features/<feature>/` holds a feature that has moved into its own folder (so far `tasks`, `vault`, `skills`, `files`, `memory`, `pages`, `approvals` and `home`): its views in `components/`, its hooks in `hooks.ts`, and its server side (reads in `server/queries.ts`, or a `server/service.ts` when it also changes things, and API procedures in `server/routes.ts`).
+- `apps/web/src/features/<feature>/` holds a feature that has moved into its own folder (so far `tasks`, `vault`, `skills`, `files`, `memory`, `pages`, `approvals`, `home` and `computer`): its views in `components/`, its hooks in `hooks.ts`, and its server side (reads in `server/queries.ts`, or a `server/service.ts` when it also changes things, and API procedures in `server/routes.ts`).
   Code outside the folder imports only its `index.ts` (client side) or `server.ts` (server side); `apps/web/src/features/boundaries.test.ts` checks it.
 - `apps/web/src/lib/server/api/` has the API's services: what a procedure does beyond calling the worker, such as `teammates.ts` (duplicate, import, lead, archive, budget), `integrations.ts` (connections, accounts, email) and `settings.ts`.
 - `apps/web/src/app/api/stream/route.ts` is the SSE stream, fed by `apps/web/src/lib/server/realtime.ts`.

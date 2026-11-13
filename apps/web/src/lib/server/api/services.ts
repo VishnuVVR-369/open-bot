@@ -46,5 +46,3 @@ export {
   updateTeammate,
 } from "./teammates";
 export { putUpload, uploadStatus } from "./uploads";
-
-export * from "./screens";

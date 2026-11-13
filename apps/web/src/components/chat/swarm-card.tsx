@@ -5,8 +5,7 @@ import { Check, Clock, Loader2, Network, Square, X } from "lucide-react";
 import Link from "next/link";
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { useComputer } from "@/components/computer/computer-panel";
-import { DesktopView } from "@/components/computer/desktop-view";
+import { DesktopView, useComputer } from "@/features/computer";
 import {
   AlertDialog,
   AlertDialogAction,

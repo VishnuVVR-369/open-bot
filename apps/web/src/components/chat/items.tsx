@@ -49,7 +49,7 @@ import {
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { TakeOverButton, useComputer } from "@/components/computer/computer-panel";
+import { TakeOverButton, useComputer } from "@/features/computer";
 import {
   ApprovalIcon,
   ApprovalReview,

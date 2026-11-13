@@ -3,7 +3,6 @@
   "apps/mobile/src/lib/use-chat.test.ts": 617,
   "apps/site/src/components/docs/diagrams.tsx": 1753,
   "apps/web/src/components/chat/chat-view.tsx": 686,
-  "apps/web/src/components/computer/computer-panel.tsx": 904,
   "apps/web/src/components/settings/accounts-section.tsx": 901,
   "apps/web/src/components/settings/settings-view.tsx": 1049,
   "apps/web/src/lib/server/api/router.integration.test.ts": 898,

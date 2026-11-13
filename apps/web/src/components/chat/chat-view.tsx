@@ -26,7 +26,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { BotAvatar } from "@/components/bot-avatar";
 import { useOpenMobileMenu } from "@/components/app/shell";
-import { ComputerPanel, useComputer } from "@/components/computer/computer-panel";
+import { ComputerPanel, useComputer } from "@/features/computer";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
