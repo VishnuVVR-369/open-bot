@@ -38,7 +38,7 @@ import {
   TriggerService,
 } from "./features/automations";
 import { ScreenOperationService } from "./features/screens";
-import { MemoryCoordinator } from "./services/memory";
+import { MemoryCoordinator, memoryFeature } from "./features/memory";
 import { SkillService } from "./services/skills";
 import { TakeoverService } from "./features/screens";
 import { TelegramService } from "./services/telegram";
@@ -90,7 +90,8 @@ const ctx: Context = { env, db, pool, computer, codex, log, events: new EventEmi
 
 const sessions = new SessionRegistry();
 const memory = new MemoryCoordinator(ctx);
-await runtime.start("memory", memory);
+const memoryJobs = memoryFeature(memory);
+await memoryJobs.start(runtime);
 const approvals = new ApprovalService(ctx, sessions, APPROVAL_OUTCOMES);
 const takeovers = new TakeoverService(ctx, sessions);
 const screenOperations = new ScreenOperationService(ctx, takeovers);

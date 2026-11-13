@@ -8,7 +8,7 @@ import type { TaskService } from "../features/tasks";
 import type { ApprovalService } from "../features/approvals";
 import type { BotService } from "../features/teammates";
 import type { EmailService } from "../services/email";
-import type { MemoryCoordinator } from "../services/memory";
+import type { MemoryCoordinator } from "../features/memory";
 import type { PageService } from "../features/pages";
 import type { ScheduleService, TriggerService } from "../features/automations";
 import type { SkillService } from "../services/skills";

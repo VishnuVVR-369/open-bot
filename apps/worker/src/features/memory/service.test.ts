@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import type { CodexClient } from "@open-bot/agent";
-import type { Context } from "../context";
-import { MemoryCoordinator, type MemorySession } from "./memory";
+import type { Context } from "../../context";
+import { MemoryCoordinator, type MemorySession } from "./service";
 
 const teammateId = "00000000-0000-4000-8000-000000000001";
 const runId = "00000000-0000-4000-8000-000000000002";

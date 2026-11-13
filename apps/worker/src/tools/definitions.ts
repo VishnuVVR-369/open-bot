@@ -10,7 +10,7 @@ import { TASK_TOOLS } from "../features/tasks";
 import { toolSpec, type AnyTool } from "./define";
 import { DESKTOP_TOOLS } from "../features/screens";
 import { EMAIL_TOOLS } from "./email";
-import { MEMORY_TOOLS } from "./memory";
+import { MEMORY_TOOLS } from "../features/memory";
 import { PAGE_TOOLS } from "../features/pages";
 import { SKILL_TOOLS } from "./skills";
 import { SWARM_TOOLS } from "./swarms";
