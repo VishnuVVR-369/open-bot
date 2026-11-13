@@ -16,15 +16,13 @@ import {
   rulesCover,
 } from "@open-bot/domain";
 import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
-import { publishApp, type Context } from "../context";
-import { createNotification } from "./notifications";
-import { enqueueRun } from "../runs/queue";
-import { appendRunEvent } from "../runs/events";
-import type { RunSession } from "../runs/session";
-import type { SessionRegistry } from "./registry";
-import { decideAccountAction } from "../accounts/actions";
-import { askAboutPurchase, decidePurchase } from "./vault";
-import { WorkerError } from "../core/errors";
+import { publishApp, type Context } from "../../context";
+import { createNotification } from "../../services/notifications";
+import { enqueueRun } from "../../runs/queue";
+import { appendRunEvent } from "../../runs/events";
+import type { RunSession } from "../../runs/session";
+import type { SessionRegistry } from "../../services/registry";
+import { WorkerError } from "../../core/errors";
 
 const ACTION_WAIT_MS = 10 * 60_000;
 
@@ -62,6 +60,24 @@ export async function expireApprovals(db: Queryable, approvalIds: string[]): Pro
     .where(and(inArray(approvals.id, approvalIds), eq(approvals.status, "pending")));
 }
 
+/**
+ * What a decision moves along elsewhere: the purchase or account action it was asked about. Their
+ * owners write those tables; the approvals feature takes these by name instead of importing them,
+ * so the two don't import each other (`APPROVAL_OUTCOMES` in apps/worker/src/approval-outcomes.ts).
+ */
+export interface ApprovalOutcomes {
+  /** Links a purchase to the approval that asks about it. */
+  askAboutPurchase(db: Queryable, purchaseId: string, approvalId: string): Promise<void>;
+  /** Records the decision on a purchase; the purchase, if this approval was about one. */
+  decidePurchase(
+    db: Queryable,
+    approvalId: string,
+    decision: ApprovalDecision,
+  ): Promise<{ id: string; amountCents: number } | undefined>;
+  /** Moves an action on your accounts on with its approval, in the same transaction. */
+  decideAccountAction(db: Queryable, approvalId: string, decision: ApprovalDecision): Promise<void>;
+}
+
 export class ApprovalService {
   /** Runs waiting for a decision, by approval id. */
   private readonly waiters = new Map<
@@ -72,6 +88,7 @@ export class ApprovalService {
   constructor(
     private readonly ctx: Context,
     private readonly sessions: SessionRegistry,
+    private readonly outcomes: ApprovalOutcomes,
   ) {}
 
   private async create(session: RunSession, input: ApprovalInput): Promise<string> {
@@ -358,7 +375,7 @@ export class ApprovalService {
       detail: input.detail,
       itemId: input.itemId,
     });
-    await askAboutPurchase(this.ctx.db, input.purchaseId, approvalId);
+    await this.outcomes.askAboutPurchase(this.ctx.db, input.purchaseId, approvalId);
     return session.whileWaiting("approval", () =>
       this.wait(session.run.id, approvalId, ACTION_WAIT_MS),
     );
@@ -381,7 +398,7 @@ export class ApprovalService {
         .returning();
       // An action on your accounts moves on with its approval, or not at all.
       if (decided && isAccountApproval(decided.kind))
-        await decideAccountAction(tx, decided.id, decision);
+        await this.outcomes.decideAccountAction(tx, decided.id, decision);
       return decided;
     });
     if (!row) return false;
@@ -400,7 +417,9 @@ export class ApprovalService {
     }
     // An approved purchase opens its card to the teammate for a while.
     const purchase =
-      row.kind === "purchase" ? await decidePurchase(this.ctx.db, row.id, decision) : undefined;
+      row.kind === "purchase"
+        ? await this.outcomes.decidePurchase(this.ctx.db, row.id, decision)
+        : undefined;
     if (purchase) await publishApp(this.ctx, { type: "purchases" });
 
     const item: ApprovalItem = {

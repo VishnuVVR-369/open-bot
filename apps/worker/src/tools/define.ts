@@ -5,7 +5,7 @@ import type { Context } from "../context";
 import type { AccountTools } from "../accounts/tools";
 import { defineTool as defineFeatureTool, type ToolDefinition } from "../core/tool";
 import type { TaskService } from "../features/tasks";
-import type { ApprovalService } from "../services/approvals";
+import type { ApprovalService } from "../features/approvals";
 import type { BotService } from "../features/teammates";
 import type { EmailService } from "../services/email";
 import type { MemoryCoordinator } from "../services/memory";

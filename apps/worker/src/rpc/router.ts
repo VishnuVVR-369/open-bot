@@ -5,7 +5,7 @@ import type { EgressRelay } from "../egress/relay";
 import type { WakeController } from "../egress/wake";
 import type { UploadService } from "../uploads";
 import type { RunExecutor } from "../runs/executor";
-import type { ApprovalService } from "../services/approvals";
+import { approvalRoutes, type ApprovalService } from "../features/approvals";
 import { teammateRoutes, type BotService } from "../features/teammates";
 import type { CodexAccountService } from "../services/codex-account";
 import type { SettingsService } from "../services/settings";
@@ -123,15 +123,7 @@ export function createWorkerRouter(services: WorkerServices) {
         return ok;
       }),
     },
-    approvals: {
-      decide: os.approvals.decide.handler(({ input }) =>
-        s.approvals.decideAsOwner(input.approvalId, input.decision, input.alwaysAllow),
-      ),
-      removeRule: os.approvals.removeRule.handler(async ({ input }) => {
-        await s.approvals.removeRule(input.ruleId);
-        return ok;
-      }),
-    },
+    approvals: approvalRoutes(s.approvals),
     screens: {
       wake: os.screens.wake.handler(async ({ input }) => {
         await ctx.computer.startScreen(await screenOf(input.screenId));

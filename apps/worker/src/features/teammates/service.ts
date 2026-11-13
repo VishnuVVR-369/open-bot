@@ -38,7 +38,7 @@ import { publishApp, type Context } from "../../context";
 import { errorMessage } from "../../logger";
 import type { Bot } from "../../core/db-types";
 import { requestTeammateRunsCancel } from "../../runs/cancel";
-import { addApprovalRules } from "../../services/approvals";
+import { addApprovalRules } from "../approvals";
 import { addChat, archiveChatsOf, renameDirectChats, shownMainChats } from "../chat";
 import {
   addPausedRoutines,

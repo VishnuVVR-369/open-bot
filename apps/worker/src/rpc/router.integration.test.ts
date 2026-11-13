@@ -38,7 +38,8 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Context } from "../context";
 import { createHttpServer, type HttpDeps } from "../http";
-import { ApprovalService } from "../services/approvals";
+import { ApprovalService } from "../features/approvals";
+import { APPROVAL_OUTCOMES } from "../approval-outcomes";
 import { BotService } from "../features/teammates";
 import { ChatService, mainChat, REUSED_ID } from "../features/chat";
 import { RunRequests } from "../runs/requests";
@@ -138,7 +139,7 @@ describe.skipIf(!url)("worker internal API, end to end", () => {
     syncWorkspace: vi.fn(async () => {}),
   };
   const chatService = new ChatService(ctx, (messageId) => executor.dispatchMessage(messageId));
-  const approvalService = new ApprovalService(ctx, new SessionRegistry());
+  const approvalService = new ApprovalService(ctx, new SessionRegistry(), APPROVAL_OUTCOMES);
   const email = new EmailService(ctx, approvalService, new SessionRegistry(), {
     save: vi.fn(async () => {
       throw new Error("No attachments here.");

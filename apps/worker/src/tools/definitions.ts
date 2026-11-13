@@ -4,7 +4,8 @@ import type { v2 } from "@open-bot/agent";
 import { ACCOUNT_TOOL_SPECS } from "@open-bot/integrations/adapters";
 import { AUTOMATION_TOOLS } from "../features/automations";
 import { CHAT_TOOLS } from "../features/chat";
-import { APPROVAL_TOOLS } from "./approvals";
+import { APPROVAL_TOOLS } from "../features/approvals";
+import { TAKEOVER_TOOLS } from "./takeovers";
 import { TASK_TOOLS } from "../features/tasks";
 import { toolSpec, type AnyTool } from "./define";
 import { DESKTOP_TOOLS } from "./desktop";
@@ -22,6 +23,7 @@ export const TOOLS: readonly AnyTool[] = [
   ...TEAMMATE_TOOLS,
   ...CHAT_TOOLS,
   ...APPROVAL_TOOLS,
+  ...TAKEOVER_TOOLS,
   ...AUTOMATION_TOOLS,
   ...SKILL_TOOLS,
   ...TASK_TOOLS,

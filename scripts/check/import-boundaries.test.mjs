@@ -160,7 +160,7 @@ test("exported entry points, a workspace's own files and other apps' paths pass 
     ["apps/worker/src/probe.ts", "@open-bot/domain"],
     ["apps/worker/src/probe.ts", "@open-bot/domain/server"],
     ["apps/worker/src/probe.ts", "@open-bot/api/worker"],
-    ["apps/worker/src/probe.ts", "../services/approvals"],
+    ["apps/worker/src/probe.ts", "../services/vault"],
     ["packages/db/src/probe.ts", "./schema"],
     ["apps/web/src/probe.ts", "@/lib/utils"],
     ["apps/worker/src/probe.ts", "zod"],

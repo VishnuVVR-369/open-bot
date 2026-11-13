@@ -20,12 +20,12 @@ import type { v2 } from "@open-bot/agent";
 import type { Context } from "../context";
 import type { RunSession } from "../runs/session";
 import { createHttpServer, type HttpDeps } from "../http";
-import { BotService } from "../features/teammates";
-import { ApprovalService } from "../services/approvals";
+import { BotService, TEAMMATE_RULES } from "../features/teammates";
+import { ApprovalService } from "../features/approvals";
+import { APPROVAL_OUTCOMES } from "../approval-outcomes";
 import { SessionRegistry } from "../services/registry";
 import { ScheduleService, TriggerService } from "../features/automations";
 import { SkillService } from "../services/skills";
-import { TEAMMATE_RULES } from "../features/teammates";
 import type { ToolServices } from "./define";
 import { ToolHandlers } from "./handlers";
 import { MemoryService } from "@open-bot/memory";
@@ -51,7 +51,7 @@ describe.skipIf(!url)("bot management with Postgres", () => {
   const triggers = new TriggerService(ctx);
   const sync = vi.fn(async () => {});
   const service = new BotService(ctx, schedules, skills, new MemoryService(db), sync);
-  const approvalService = new ApprovalService(ctx, new SessionRegistry());
+  const approvalService = new ApprovalService(ctx, new SessionRegistry(), APPROVAL_OUTCOMES);
   const requestAction = vi.spyOn(approvalService, "requestAction").mockResolvedValue("approved");
   // Only what the teammate tools use; the rest stay empty.
   const services = {
@@ -550,7 +550,7 @@ describe.skipIf(!url)("bot management with Postgres", () => {
       ...session,
       run: { ...session.run, trigger: "approval", parentRunId: session.run.id },
     } as unknown as RunSession;
-    const actual = new ApprovalService(ctx, new SessionRegistry());
+    const actual = new ApprovalService(ctx, new SessionRegistry(), APPROVAL_OUTCOMES);
     const wait = vi
       .spyOn(actual as unknown as { wait(): Promise<"pending"> }, "wait")
       .mockResolvedValue("pending");
@@ -584,7 +584,7 @@ describe.skipIf(!url)("bot management with Postgres", () => {
 
   it("forces a fresh decision for permission changes despite a matching always-allow rule", async () => {
     const { session } = await fixture();
-    const actual = new ApprovalService(ctx, new SessionRegistry());
+    const actual = new ApprovalService(ctx, new SessionRegistry(), APPROVAL_OUTCOMES);
     vi.spyOn(actual, "rulesFor").mockResolvedValue([
       { kind: "action", pattern: "Change autonomy" },
     ] as Awaited<ReturnType<ApprovalService["rulesFor"]>>);
@@ -605,7 +605,7 @@ describe.skipIf(!url)("bot management with Postgres", () => {
 
   it("lets one 'always allow' cover a kind of teammate change, not just one teammate", async () => {
     const { session } = await fixture("risky");
-    const actual = new ApprovalService(ctx, new SessionRegistry());
+    const actual = new ApprovalService(ctx, new SessionRegistry(), APPROVAL_OUTCOMES);
     const wait = vi
       .spyOn(actual as unknown as { wait(): Promise<"pending"> }, "wait")
       .mockResolvedValue("pending");
