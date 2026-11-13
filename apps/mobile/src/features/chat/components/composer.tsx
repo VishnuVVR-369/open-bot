@@ -24,11 +24,11 @@ import {
 } from "react-native";
 import { Text } from "@/components/text";
 import { api } from "@/lib/api";
-import { useDictation } from "@/lib/dictation";
-import { readDraft, writeDraft } from "@/lib/drafts";
+import { useDictation } from "@/features/chat/dictation";
+import { readDraft, writeDraft } from "@/features/chat/drafts";
 import { errorMessage } from "@/lib/errors";
 import { haptics } from "@/lib/haptics";
-import { useAttachments } from "@/lib/use-attachments";
+import { useAttachments } from "@/features/chat/use-attachments";
 import { fonts, radius, space, useColors } from "@/theme";
 import { mix } from "@/theme/mix";
 import { AttachSheet } from "./attach-sheet";

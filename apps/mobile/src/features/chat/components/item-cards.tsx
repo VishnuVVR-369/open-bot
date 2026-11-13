@@ -3,10 +3,10 @@ import { router } from "expo-router";
 import { AlertTriangle, CircleCheck, Hand, Undo2 } from "lucide-react-native";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { Button } from "@/components/button";
-import { FoldableText } from "@/components/chat/foldable-text";
+import { FoldableText } from "@/features/chat/components/foldable-text";
 import { Text } from "@/components/text";
 import { screenHref } from "@/lib/screens";
-import { handBackText, takeoverTitle } from "@/lib/step-text";
+import { handBackText, takeoverTitle } from "@/features/chat/step-text";
 import { radius, space, useColors } from "@/theme";
 import { mix } from "@/theme/mix";
 

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("expo-router", () => ({ router: { push: vi.fn() }, usePathname: () => "/" }));
-vi.mock("../../modules/share-intent", () => ({ default: null }));
+vi.mock("../../../modules/share-intent", () => ({ default: null }));
 
 const { shareInbox, shouldOpenShare } = await import("./share-inbox");
 

@@ -27,11 +27,13 @@ vi.mock("expo-router", async () => {
     useNavigation: () => state.navigation,
   };
 });
-vi.mock("./api", () => ({ api: { chats: { get: state.get, markRead: state.markRead } } }));
-vi.mock("./query", () => ({ queryKeys: { chats: ["chats"], chat: (id: string) => ["chat", id] } }));
+vi.mock("../../lib/api", () => ({ api: { chats: { get: state.get, markRead: state.markRead } } }));
+vi.mock("../../lib/query", () => ({
+  queryKeys: { chats: ["chats"], chat: (id: string) => ["chat", id] },
+}));
 vi.mock("react-native", () => ({ AppState: state.app }));
-vi.mock("../push/notifications", () => ({ clearChatNotifications: state.clear }));
-vi.mock("./realtime", () => ({
+vi.mock("../../push/notifications", () => ({ clearChatNotifications: state.clear }));
+vi.mock("../../lib/realtime", () => ({
   useRealtime: () => ({ watchChat: state.watch }),
   visibleChat: {
     get: () => state.visible,

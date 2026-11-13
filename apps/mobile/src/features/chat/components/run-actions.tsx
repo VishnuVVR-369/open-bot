@@ -28,7 +28,7 @@ import { errorMessage } from "@/lib/errors";
 import { haptics } from "@/lib/haptics";
 import { phoneDayClock } from "@/lib/phone-clock";
 import { queryKeys } from "@/lib/query";
-import { readAloud, readingNow, stopReading, useReading } from "@/lib/read-aloud";
+import { readAloud, readingNow, stopReading, useReading } from "@/features/chat/read-aloud";
 import { space, useColors } from "@/theme";
 
 type Rating = RunView["rating"];

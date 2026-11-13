@@ -35,7 +35,7 @@ import { Text } from "@/components/text";
 import { haptics } from "@/lib/haptics";
 import { animateLayout } from "@/lib/motion";
 import { phoneClock } from "@/lib/phone-clock";
-import { CARD_KINDS } from "@/lib/step-text";
+import { CARD_KINDS } from "@/features/chat/step-text";
 import { space, useColors } from "@/theme";
 import { RetryRun, RunActions } from "./run-actions";
 import { Step, type StepIcon } from "./step";

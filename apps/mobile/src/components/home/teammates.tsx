@@ -10,9 +10,9 @@ import {
 } from "@/components/bot-avatar";
 import { Card, Section } from "@/components/section";
 import { Text } from "@/components/text";
-import { conversationWith } from "@/lib/chats";
+import { conversationWith } from "@/features/chat/chats";
 import { haptics } from "@/lib/haptics";
-import { useNewDirectChat } from "@/lib/queries";
+import { useNewDirectChat } from "@/features/chat/hooks";
 import { ago } from "@/lib/time";
 import { useColors, space } from "@/theme";
 import { rankTeammates } from "@/lib/home";

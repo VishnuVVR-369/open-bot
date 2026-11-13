@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { Sheet } from "@/components/sheet";
 import { Text } from "@/components/text";
 import { haptics } from "@/lib/haptics";
-import type { AttachSource } from "@/lib/picked-files";
+import type { AttachSource } from "@/features/chat/picked-files";
 import { radius, space, useColors } from "@/theme";
 
 const SOURCES = [

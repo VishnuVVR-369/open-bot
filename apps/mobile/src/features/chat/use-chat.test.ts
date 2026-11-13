@@ -21,9 +21,9 @@ vi.mock("expo-router", async () => {
     },
   };
 });
-vi.mock("./api", () => ({ api: { chats: { get: state.get } } }));
-vi.mock("./query", () => ({ queryKeys: { chat: (id: string) => ["chat", id] } }));
-vi.mock("./realtime", () => ({ useRealtime: () => ({ watchChat: state.watch }) }));
+vi.mock("../../lib/api", () => ({ api: { chats: { get: state.get } } }));
+vi.mock("../../lib/query", () => ({ queryKeys: { chat: (id: string) => ["chat", id] } }));
+vi.mock("../../lib/realtime", () => ({ useRealtime: () => ({ watchChat: state.watch }) }));
 vi.mock("./use-chat-visibility", () => ({
   useChatVisibility: vi.fn(
     (

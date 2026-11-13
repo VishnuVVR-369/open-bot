@@ -29,17 +29,16 @@ import {
 import { Card, Section } from "@/components/section";
 import { LoadError, Loading, NotFound } from "@/components/states";
 import { Text } from "@/components/text";
-import { chatSubtitle, chatTitle, conversationWith } from "@/lib/chats";
+import { chatSubtitle, chatTitle, conversationWith } from "@/features/chat/chats";
 import { haptics } from "@/lib/haptics";
 import {
   useApprovalRules,
   useApprovals,
-  useChats,
   useComputerOffline,
   useHome,
-  useNewDirectChat,
   useTeammates,
 } from "@/lib/queries";
+import { useChats, useNewDirectChat } from "@/features/chat/hooks";
 import { screenHref } from "@/lib/screens";
 import { ago, lastActive } from "@/lib/time";
 import { useSafeBottom } from "@/lib/use-safe-bottom";

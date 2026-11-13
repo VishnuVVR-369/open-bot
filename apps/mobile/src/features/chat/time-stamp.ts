@@ -1,4 +1,4 @@
-import { phoneClock } from "./phone-clock";
+import { phoneClock } from "../../lib/phone-clock";
 
 /** A pause this long between two turns earns a time stamp, as in a messaging app. */
 const STAMP_GAP_MS = 60 * 60_000;

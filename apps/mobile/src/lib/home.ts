@@ -1,7 +1,7 @@
 import type { ActivityItem, BotSummary, BriefingItem, ChatSummary, Home } from "@open-bot/api";
 import { plural } from "@open-bot/chat-core";
 import { teammateStatus } from "@open-bot/domain";
-import { conversationWith } from "./chats";
+import { conversationWith } from "../features/chat/chats";
 
 /** How many recent turns from groups and automations Home shows. */
 export const RECENT = 4;

@@ -1,7 +1,7 @@
 import { AlertCircle, Paperclip, RotateCcw, X } from "lucide-react-native";
 import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
-import type { PendingFile } from "@/lib/use-attachments";
+import type { PendingFile } from "@/features/chat/use-attachments";
 import { radius, space, useColors } from "@/theme";
 import { mix } from "@/theme/mix";
 

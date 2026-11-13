@@ -77,14 +77,14 @@ A new feature adds its procedure-path keys in `queryKeys` and its event semantic
 
 A few things are plain HTTP on the web app, because they carry bytes or streams, with the session cookie in the header:
 
-| Route                                    | Used for                                                                                                 | Mobile code                                         |
-| ---------------------------------------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| `GET /api/stream`                        | The live stream                                                                                          | `src/lib/live-stream.ts`, `src/lib/realtime.tsx`    |
-| `PUT /api/uploads/<id>`                  | Attachments, as raw bytes with name, type, size and SHA-256 headers, so a retry with the same id is safe | `src/lib/uploads.ts`, `packages/api/src/uploads.ts` |
-| `GET /api/files/download`                | Files on the computer, shown or saved                                                                    | `src/lib/files.ts`                                  |
-| `GET /api/artifacts/<id>`                | The last screenshot of a screen while the computer is offline                                            | `src/components/computer/last-frames.tsx`           |
-| `GET /api/pages/versions/<id>/thumbnail` | Page card pictures, in light or dark                                                                     | `src/lib/pages.ts`                                  |
-| `GET /api/desktop/token`                 | A short-lived token for the screen viewer                                                                | `src/components/computer/desktop-view.tsx`          |
+| Route                                    | Used for                                                                                                 | Mobile code                                                   |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `GET /api/stream`                        | The live stream                                                                                          | `src/lib/live-stream.ts`, `src/lib/realtime.tsx`              |
+| `PUT /api/uploads/<id>`                  | Attachments, as raw bytes with name, type, size and SHA-256 headers, so a retry with the same id is safe | `src/features/chat/uploads.ts`, `packages/api/src/uploads.ts` |
+| `GET /api/files/download`                | Files on the computer, shown or saved                                                                    | `src/lib/files.ts`                                            |
+| `GET /api/artifacts/<id>`                | The last screenshot of a screen while the computer is offline                                            | `src/components/computer/last-frames.tsx`                     |
+| `GET /api/pages/versions/<id>/thumbnail` | Page card pictures, in light or dark                                                                     | `src/lib/pages.ts`                                            |
+| `GET /api/desktop/token`                 | A short-lived token for the screen viewer                                                                | `src/components/computer/desktop-view.tsx`                    |
 
 ## Live updates
 
@@ -98,7 +98,7 @@ A few things are plain HTTP on the web app, because they carry bytes or streams,
 - Coming back to the app, or coming back online, reconnects at once. Going to the background closes the stream, and push takes over.
 - A 401 stops the stream and signs you out.
 
-For a chat, `src/lib/chat-history.ts` merges a bounded history snapshot with the events buffered while it loaded.
+For a chat, `src/features/chat/chat-history.ts` merges a bounded history snapshot with the events buffered while it loaded.
 `applyLiveEvent()` from `packages/api/src/live.ts` applies each event to the timeline.
 Each run keeps a watermark, the last event id its snapshot already includes, so a newer page can't move the replay point past a run it left out.
 `connected` from the provider drives the "Reconnecting" notice, so stale data is never shown as live.

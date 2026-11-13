@@ -1,9 +1,9 @@
 import { uploadHeaders, uploadUrl, uploadWithRetries, type UploadAnswer } from "@open-bot/api";
 import * as Crypto from "expo-crypto";
 import { File, UploadType } from "expo-file-system";
-import { api } from "./api";
-import { sessionCookie } from "./auth";
-import { APP_URL } from "./config";
+import { api } from "../../lib/api";
+import { sessionCookie } from "../../lib/auth";
+import { APP_URL } from "../../lib/config";
 
 /** A file picked on the phone, read from disk when it's sent. */
 export interface PickedFile {

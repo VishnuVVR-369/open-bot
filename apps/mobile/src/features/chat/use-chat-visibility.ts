@@ -3,10 +3,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useFocusEffect, useNavigation } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState } from "react-native";
-import { clearChatNotifications } from "../push/notifications";
-import { api } from "./api";
-import { queryKeys } from "./query";
-import { visibleChat } from "./realtime";
+import { clearChatNotifications } from "../../push/notifications";
+import { api } from "../../lib/api";
+import { queryKeys } from "../../lib/query";
+import { visibleChat } from "../../lib/realtime";
 
 /**
  * Require a fresh snapshot merged into visible history after each focus/foreground transition

@@ -1,6 +1,6 @@
 import type { ChatEntry, RunView } from "@open-bot/api";
 import { isRunActive, type ChatStatus } from "@open-bot/domain";
-import { lastActive } from "./time";
+import { lastActive } from "../../lib/time";
 
 /**
  * The chat's rows, newest first: the list is inverted, so it starts at the bottom and stays there

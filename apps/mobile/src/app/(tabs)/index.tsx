@@ -13,14 +13,8 @@ import { Empty, LoadError, Loading } from "@/components/states";
 import { Text } from "@/components/text";
 import { statusLine } from "@/lib/home";
 import { usePresence } from "@/lib/presence";
-import {
-  useApprovals,
-  useChats,
-  useComputerOffline,
-  useHome,
-  usePages,
-  useTeammates,
-} from "@/lib/queries";
+import { useApprovals, useComputerOffline, useHome, usePages, useTeammates } from "@/lib/queries";
+import { useChats } from "@/features/chat/hooks";
 import { takePasswordResetRequest } from "@/lib/password";
 import { usePullToRefresh } from "@/lib/use-pull-to-refresh";
 import { space, useColors } from "@/theme";

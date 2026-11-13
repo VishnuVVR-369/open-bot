@@ -11,7 +11,7 @@ import {
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { Text } from "@/components/text";
 import { haptics } from "@/lib/haptics";
-import { FOLDED_LINES, folds, mightFold } from "@/lib/fold";
+import { FOLDED_LINES, folds, mightFold } from "@/features/chat/fold";
 import { space } from "@/theme";
 import { mix } from "@/theme/mix";
 

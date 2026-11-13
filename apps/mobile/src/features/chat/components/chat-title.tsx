@@ -4,7 +4,7 @@ import { router } from "expo-router";
 import { Pressable, StyleSheet, View } from "react-native";
 import { AvatarStack, BotAvatar, StatusLine } from "@/components/bot-avatar";
 import { Text } from "@/components/text";
-import { namedForTopic } from "@/lib/chats";
+import { namedForTopic } from "@/features/chat/chats";
 import { space, useColors } from "@/theme";
 
 /**

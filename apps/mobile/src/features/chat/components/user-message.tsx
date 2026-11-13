@@ -3,7 +3,7 @@ import { fileKind } from "@open-bot/domain";
 import { RotateCcw } from "lucide-react-native";
 import { memo } from "react";
 import { StyleSheet, View } from "react-native";
-import { FoldableText } from "@/components/chat/foldable-text";
+import { FoldableText } from "@/features/chat/components/foldable-text";
 import { FileChip } from "@/components/file-chip";
 import { ImageThumb } from "@/components/image-thumb";
 import { Text } from "@/components/text";
