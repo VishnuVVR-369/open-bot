@@ -1,7 +1,7 @@
 import type { ApprovalView } from "@open-bot/api";
 import { router } from "expo-router";
 import { Check, ChevronRight, ShieldCheck, WifiOff } from "lucide-react-native";
-import { useCallback, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { ApprovalRow } from "@/components/approval-row";
 import { ApproveWhileAwayNote, ConnectionNotice } from "@/components/connection-notice";
@@ -17,6 +17,7 @@ import { useApprovalRules, useApprovals, useTeammates } from "@/lib/queries";
 import { ago } from "@/lib/time";
 import { radius, space, useColors } from "@/theme";
 import { mix } from "@/theme/mix";
+import { usePullToRefresh } from "@/lib/use-pull-to-refresh";
 
 /** When a decision was made; the section above already says which day. */
 function decidedWhen(iso: string, group: DayGroup): string {
@@ -55,12 +56,7 @@ export default function Approvals() {
   const { data: bots = [] } = useTeammates();
   const { data: rules = [] } = useApprovalRules();
   const online = useOnline();
-  const [refreshing, setRefreshing] = useState(false);
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await approvals.refetch();
-    setRefreshing(false);
-  }, [approvals]);
+  const { refreshing, onRefresh } = usePullToRefresh(approvals.refetch);
   const { pending, history } = useMemo(() => {
     const all = approvals.data ?? [];
     const decidedAt = (approval: ApprovalView) => approval.decidedAt ?? approval.createdAt;

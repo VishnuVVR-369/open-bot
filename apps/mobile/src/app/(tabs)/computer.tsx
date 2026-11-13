@@ -20,6 +20,7 @@ import { useScreens } from "@/lib/queries";
 import { screenHref, screenState, sortScreens } from "@/lib/screens";
 import { useSafeBottom } from "@/lib/use-safe-bottom";
 import { radius, space, useColors } from "@/theme";
+import { usePullToRefresh } from "@/lib/use-pull-to-refresh";
 
 /** The computer is away: say so once, in words you can act on, instead of on every screen. */
 function OfflineBanner({ onRetry, retrying }: { onRetry: () => void; retrying: boolean }) {
@@ -91,9 +92,9 @@ export default function Computer() {
   const colors = useColors();
   const bottom = useSafeBottom({ tabs: true });
   const screens = useScreens();
+  const { refreshing, onRefresh } = usePullToRefresh(screens.refetch);
   // What each screen is in the middle of, so waking one doesn't hold up the others.
   const [pending, setPending] = useState<Record<string, ScreenAction>>({});
-  const [refreshing, setRefreshing] = useState(false);
   const { live, offline } = useMemo(() => {
     const sorted = sortScreens(screens.data ?? []);
     const isOffline = (screen: ScreenView) => screenState(screen).kind === "offline";
@@ -102,12 +103,6 @@ export default function Computer() {
       offline: sorted.filter(isOffline),
     };
   }, [screens.data]);
-
-  async function refresh() {
-    setRefreshing(true);
-    await screens.refetch();
-    setRefreshing(false);
-  }
 
   async function act(screenId: string, action: ScreenAction) {
     if (action === "watch" || action === "open") {
@@ -144,7 +139,7 @@ export default function Computer() {
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
-          onRefresh={() => void refresh()}
+          onRefresh={() => void onRefresh()}
           colors={[colors.foreground]}
           progressBackgroundColor={colors.surface}
         />
@@ -158,7 +153,7 @@ export default function Computer() {
           body="Every teammate gets their own screen on the shared computer."
         />
       )}
-      {allOffline && <OfflineBanner onRetry={() => void refresh()} retrying={refreshing} />}
+      {allOffline && <OfflineBanner onRetry={() => void onRefresh()} retrying={refreshing} />}
       {live.map((screen) => (
         <ScreenCard
           key={screen.id}

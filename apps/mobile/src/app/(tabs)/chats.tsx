@@ -11,7 +11,7 @@ import {
   MessagesSquare,
   SquarePen,
 } from "lucide-react-native";
-import { useCallback, useLayoutEffect, useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useState } from "react";
 import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, View } from "react-native";
 import {
   activityText,
@@ -36,6 +36,7 @@ import { queryKeys } from "@/lib/query";
 import { useChats, useComputerOffline, useTeammates } from "@/lib/queries";
 import { ago } from "@/lib/time";
 import { space, useColors } from "@/theme";
+import { usePullToRefresh } from "@/lib/use-pull-to-refresh";
 
 const FILTERS = [
   { key: "all", label: "All" },
@@ -200,7 +201,6 @@ export default function Chats() {
   const { data: bots = [] } = useTeammates();
   const [filter, setFilter] = useState<Filter>("all");
   const [menuFor, setMenuFor] = useState<ChatSummary | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
   const computerOffline = useComputerOffline();
   const navigation = useNavigation();
   // New chat lives in the header, beside search, so nothing floats over the list's rows.
@@ -224,11 +224,7 @@ export default function Chats() {
       ),
     });
   }, [navigation, colors.foreground]);
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await chats.refetch();
-    setRefreshing(false);
-  }, [chats]);
+  const { refreshing, onRefresh } = usePullToRefresh(chats.refetch);
   const sorted = useMemo(
     () => [...(chats.data ?? [])].sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt)),
     [chats.data],
