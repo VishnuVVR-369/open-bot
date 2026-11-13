@@ -2,13 +2,19 @@ import { expect, test } from "./fixtures";
 import pg from "pg";
 import { createDb } from "@open-bot/db";
 import { MemoryService } from "@open-bot/memory";
-import { createTeammate, sendMessage, uniqueName, waitForLastRun } from "./helpers";
+import {
+  e2eStack,
+  createTeammate,
+  sendMessage,
+  uniqueName,
+  uniqueWord,
+  waitForLastRun,
+} from "./helpers";
 
 /** Remove only facts this test created; never clear or overwrite the owner's existing profile. */
 async function cleanupFact(content: string) {
   const pool = new pg.Pool({
-    connectionString:
-      process.env.DATABASE_URL ?? "postgres://openbot:openbot@127.0.0.1:54329/openbot",
+    connectionString: e2eStack().databaseUrl,
   });
   try {
     const { rows } = await pool.query<{ id: string; revision: number }>(
@@ -24,7 +30,7 @@ async function cleanupFact(content: string) {
 }
 
 test("write a shared preference without replacing existing profile facts", async ({ page }) => {
-  const fact = `E2E ${uniqueName("profile")}: I prefer vegetarian meals.`;
+  const fact = `E2E ${uniqueWord("profile")}: I prefer vegetarian meals.`;
   try {
     await page.goto("/settings#about");
     const manager = page.getByTestId("memory-manager");
@@ -43,7 +49,7 @@ test("write a shared preference without replacing existing profile facts", async
 
 test("@agent a shared fact is recalled by a new teammate", async ({ page }) => {
   test.setTimeout(8 * 60_000);
-  const fact = `E2E ${uniqueName("allergy")}: Vegetarian; allergic to peanuts.`;
+  const fact = `E2E ${uniqueWord("allergy")}: Vegetarian; allergic to peanuts.`;
   try {
     await createTeammate(page, uniqueName("Ann"), "travel planner");
     await sendMessage(

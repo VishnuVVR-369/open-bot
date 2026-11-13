@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures";
-import { botIdOf, createTeammate, uniqueName, worker } from "./helpers";
+import { botIdOf, createTeammate, testLabel, testSlug, uniqueName, worker } from "./helpers";
 
 test("create, edit and archive a teammate", async ({ page }) => {
   const name = uniqueName("Tess");
@@ -31,7 +31,7 @@ test("create a group chat", async ({ page }) => {
   await createTeammate(page, a);
   await createTeammate(page, b);
   await page.getByRole("button", { name: "New group chat" }).click();
-  await page.getByLabel("Name").fill("E2E group");
+  await page.getByLabel("Name").fill(testLabel("group"));
   await page.getByRole("checkbox", { name: new RegExp(a) }).click();
   await page.getByRole("checkbox", { name: new RegExp(b) }).click();
   await page.getByRole("button", { name: "Create group" }).click();
@@ -53,7 +53,7 @@ test("duplicate a teammate with their skills and memory", async ({ page }) => {
   const name = uniqueName("Tess");
   await createTeammate(page, name, "qa assistant");
   const id = await botIdOf(page, name);
-  const skill = `e2e-${Math.random().toString(36).slice(2, 7)}`;
+  const skill = testSlug(Math.random().toString(36).slice(2, 7));
   await worker.skills.save({
     name: skill,
     description: "Only for the original",

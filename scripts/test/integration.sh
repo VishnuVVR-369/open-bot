@@ -9,3 +9,4 @@ if [[ -z "${TEST_DATABASE_URL:-}" ]]; then
   exec bash scripts/test/pg.sh bash scripts/test/integration.sh "$@"
 fi
 pnpm exec turbo run test:integration "$@"
+node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --test-timeout=60000 --test-force-exit scripts/test/e2e-shared-state.test.mjs

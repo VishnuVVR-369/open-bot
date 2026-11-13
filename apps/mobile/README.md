@@ -53,7 +53,7 @@ Run `pnpm test` for platform-free logic and mounted React hook regressions, and 
 
 From the repository root, `pnpm test:integration` checks durable dispatch, FCM fan-out and retry-safe uploads against disposable Postgres.
 The normal database is not contacted by that command.
-`pnpm e2e --grep-invert @agent` checks the web and RPC regression against the running local stack.
+`E2E_STACK=dev pnpm e2e --grep-invert @agent` checks the web and RPC regression against the running local stack.
 
 Install Maestro locally and keep the local web, worker and Metro running.
 Start Metro with the development variant and the notification-test flag:

@@ -1,12 +1,15 @@
 import { defineConfig, devices } from "@playwright/test";
+import { e2eStack } from "./e2e/stack";
 
 /**
- * End-to-end tests against the running stack (`pnpm infra:up` and `pnpm dev`).
+ * End-to-end tests against a running stack, named in full (see `e2e/stack.ts`); `E2E_STACK=dev`
+ * means the local development stack (`pnpm infra:up` and `pnpm dev`).
  * Tests tagged @agent drive real bots on the computer, so they take minutes and use your ChatGPT plan.
  * Run the fast ones with: pnpm e2e --grep-invert @agent
  */
 export default defineConfig({
   testDir: "e2e",
+  globalSetup: "./e2e/global-setup.ts",
   globalTeardown: "./e2e/global-teardown.ts",
   timeout: 60_000,
   expect: { timeout: 15_000 },
@@ -15,7 +18,7 @@ export default defineConfig({
   retries: 0,
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
-    baseURL: process.env.E2E_BASE_URL ?? "http://localhost:3000",
+    baseURL: e2eStack().baseUrl,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     viewport: { width: 1440, height: 900 },

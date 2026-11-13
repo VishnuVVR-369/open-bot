@@ -1,7 +1,16 @@
 import { expect, test, type Page } from "./fixtures";
-import { apiFor, createTeammate, sendMessage, uniqueName, waitForLastRun, worker } from "./helpers";
+import {
+  e2eStack,
+  apiFor,
+  createTeammate,
+  sendMessage,
+  testLabel,
+  uniqueName,
+  waitForLastRun,
+  worker,
+} from "./helpers";
 
-const workerUrl = process.env.WORKER_URL ?? "http://127.0.0.1:4001";
+const workerUrl = e2eStack().workerUrl;
 const workerSecret = process.env.WORKER_SECRET ?? "dev-worker-secret-change-me";
 
 /** A small page that passes the check: the kit's styles, a heading, and text to select. */
@@ -73,7 +82,7 @@ test("a published page opens in the library, isolated from the app, with its ver
   page,
 }) => {
   const bot = await teammate(page);
-  const title = `E2E Page ${bot.slug}`;
+  const title = testLabel(`Page ${bot.slug}`);
   await writeFile(
     `${bot.folder}/index.html`,
     pageHtml("How caching works", "Caches keep hot data close."),
@@ -219,7 +228,7 @@ test("page links are signed and expire", async ({ page }) => {
   const published = await publish({
     botId: bot.id,
     path: `${bot.folder}/links.html`,
-    title: `E2E Links ${bot.slug}`,
+    title: testLabel(`Links ${bot.slug}`),
   });
   expect(published.status, published.data.error).toBe(200);
   const { url, expiresAt } = await apiFor(page).pages.open({
@@ -274,7 +283,7 @@ test("a page with problems isn't published, and the check says why", async ({ pa
   const result = await publish({
     botId: bot.id,
     path: `${bot.folder}/broken.html`,
-    title: `E2E Broken ${bot.slug}`,
+    title: testLabel(`Broken ${bot.slug}`),
   });
   expect(result.status).toBe(400);
   expect(result.data.error).toContain("Not published");
@@ -287,7 +296,7 @@ test("a page with problems isn't published, and the check says why", async ({ pa
   const outside = await publish({
     botId: bot.id,
     path: "/etc/passwd.html",
-    title: "E2E Outside",
+    title: testLabel("Outside"),
   });
   expect(outside.status).toBe(400);
 });
@@ -298,7 +307,7 @@ test("selecting text in a page offers to ask its teammate about it", async ({ pa
   const published = await publish({
     botId: bot.id,
     path: `${bot.folder}/ask.html`,
-    title: `E2E Ask ${bot.slug}`,
+    title: testLabel(`Ask ${bot.slug}`),
   });
   expect(published.status, published.data.error).toBe(200);
   await page.goto(`/pages/${published.data.pageId}`);

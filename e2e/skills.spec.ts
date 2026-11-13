@@ -1,8 +1,8 @@
 import { expect, test } from "./fixtures";
-import { createTeammate, uniqueName } from "./helpers";
+import { createTeammate, testSlug, uniqueName } from "./helpers";
 
 test("save a skill and pick it from the composer with /", async ({ page }) => {
-  const name = `e2e-${Math.random().toString(36).slice(2, 7)}`;
+  const name = testSlug(Math.random().toString(36).slice(2, 7));
   await page.goto("/skills");
   await page.getByTestId("new-skill").click();
   await page.getByTestId("skill-name").pressSequentially(name.replace(/-/g, " "));

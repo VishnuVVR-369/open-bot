@@ -626,7 +626,7 @@
     "bot": 14
   },
   "e2e/global-teardown.ts": {
-    "bot": 10
+    "bot": 5
   },
   "e2e/helpers.ts": {
     "bot": 5
@@ -859,6 +859,9 @@
     "bot": 3
   },
   "playwright.config.ts": {
+    "bot": 1
+  },
+  "scripts/check/e2e-stack.test.mjs": {
     "bot": 1
   },
   "scripts/test/mobile-ui.mjs": {

@@ -1,26 +1,18 @@
 import { createWorkerClient } from "@open-bot/api/worker";
 import pg from "pg";
+import { e2eStack, RUN_TAG, runTag, TEST_LABEL, TEST_SLUG, testTeammateName } from "./stack";
 
-const TEST_BOT_NAMES =
-  /^(Tess|Ava|Ben|Ivy|Ora|Sol|Scr|Held|Free|Ann|Bob|Alw|Acc)[a-z0-9]{4}( \d+)?$/;
 /**
- * Attachments the tests upload are named e2e-…, behind the prefix uploads get: 8 characters for
- * ones saved from email or Telegram, the upload id for ones the apps upload.
+ * Attachments the run uploaded are named with `testSlug()`, behind the prefix uploads get: 8
+ * characters for ones saved from email or Telegram, the upload id for ones the apps upload.
  */
-const TEST_UPLOADS =
-  /^(?:[0-9a-f]{8}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-e2e-/;
-
-const workerUrl = process.env.WORKER_URL ?? "http://127.0.0.1:4001";
-const botdUrl = process.env.BOTD_URL ?? "http://127.0.0.1:7070";
-
-/** Cleanup is best effort: a worker that is down leaves nothing to clean on the computer. */
-const worker = createWorkerClient({
-  url: workerUrl,
-  secret: process.env.WORKER_SECRET ?? "dev-worker-secret-change-me",
-});
+const testUploads = (tag: string) =>
+  new RegExp(
+    `^(?:[0-9a-f]{8}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-e2e-${tag}-`,
+  );
 
 async function forgetScreen(screenId: string) {
-  await fetch(`${botdUrl}/screens/forget`, {
+  await fetch(`${e2eStack().botdUrl}/screens/forget`, {
     method: "POST",
     headers: {
       authorization: `Bearer ${process.env.BOTD_TOKEN ?? "dev-botd-token-change-me"}`,
@@ -30,33 +22,48 @@ async function forgetScreen(screenId: string) {
   }).catch(() => {});
 }
 
-/** Remove what the tests created (teammates, chats, screens, workspaces, uploads) so they don't clutter your app. */
+/**
+ * Remove what the run created (teammates, chats, screens, workspaces, uploads) so it doesn't
+ * clutter your app. Only what carries this run's tag goes, so nothing of yours, and nothing another
+ * run is making at the same time, can match; what an interrupted run left stays until you delete it.
+ */
 export default async function globalTeardown() {
-  const pool = new pg.Pool({
-    connectionString:
-      process.env.DATABASE_URL ?? "postgres://openbot:openbot@127.0.0.1:54329/openbot",
+  // Global setup tags the run. Without a tag nothing is provably the run's.
+  if (!process.env[RUN_TAG]) return;
+  const tag = runTag();
+  const { databaseUrl, workerUrl } = e2eStack();
+  const pool = new pg.Pool({ connectionString: databaseUrl });
+  /** Cleanup is best effort: a worker that is down leaves nothing to clean on the computer. */
+  const worker = createWorkerClient({
+    url: workerUrl,
+    secret: process.env.WORKER_SECRET ?? "dev-worker-secret-change-me",
   });
   try {
-    await pool.query("delete from chats where kind = 'group' and title = 'E2E group'");
-    await pool.query("delete from skills where name like 'e2e-%'");
-    await pool.query("delete from notifications where title like 'E2E %'");
-    await pool.query("delete from uploads where name like 'e2e-%'");
-    await pool.query("delete from vault_items where name like 'E2E %'");
-    await pool.query("delete from connections where label like 'E2E %'");
-    // Pages outlive their teammate, so the tests' go first.
-    await pool.query(
-      "delete from pages where title like 'E2E %' or bot_id in (select id from bots where name ~ $1)",
-      [TEST_BOT_NAMES.source],
-    );
+    // Each query's parameters start with the run's pattern for that table.
+    const label = [TEST_LABEL(tag)];
+    const slug = [TEST_SLUG(tag)];
+    const teammates = [testTeammateName(tag).source];
+    const theirs = "select id from bots where name ~ $1";
+    await pool.query("delete from chats where kind = 'group' and title like $1", label);
+    await pool.query("delete from skills where name like $1", slug);
+    await pool.query("delete from notifications where title like $1", label);
+    await pool.query("delete from uploads where name like $1", slug);
+    await pool.query("delete from vault_items where name like $1", label);
+    await pool.query("delete from connections where label like $1", label);
+    // Pages outlive their teammate, so the run's go first.
+    await pool.query(`delete from pages where title like $2 or bot_id in (${theirs})`, [
+      ...teammates,
+      ...label,
+    ]);
     // Helpers' screens go when their part is done; these are from runs that were cut short.
     const helpers = await pool.query<{ id: string }>(
-      "select t.id from swarm_tasks t join swarms s on s.id = t.swarm_id join bots b on b.id = s.bot_id where b.name ~ $1",
-      [TEST_BOT_NAMES.source],
+      `select t.id from swarm_tasks t join swarms s on s.id = t.swarm_id where s.bot_id in (${theirs})`,
+      teammates,
     );
     for (const { id } of helpers.rows) await forgetScreen(id);
     const { rows } = await pool.query<{ id: string; slug: string }>(
-      "delete from bots where name ~ $1 returning id, slug",
-      [TEST_BOT_NAMES.source],
+      `delete from bots where id in (${theirs}) returning id, slug`,
+      teammates,
     );
     for (const { id, slug } of rows) {
       await forgetScreen(id);
@@ -64,7 +71,7 @@ export default async function globalTeardown() {
     }
     const uploads = await worker.files.list({ path: "/home/bot/shared/uploads" }).catch(() => null);
     for (const entry of uploads?.entries ?? []) {
-      if (TEST_UPLOADS.test(entry.name))
+      if (testUploads(tag).test(entry.name))
         await worker.files.remove({ path: entry.path }).catch(() => {});
     }
   } finally {

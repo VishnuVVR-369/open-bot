@@ -1,13 +1,20 @@
 import { createHash } from "node:crypto";
 import pg from "pg";
 import { expect, test, type Page } from "./fixtures";
-import { createTeammate, uniqueName, waitForLastRun, worker } from "./helpers";
+import {
+  e2eStack,
+  createTeammate,
+  suiteLock,
+  testSlug,
+  uniqueName,
+  waitForLastRun,
+  worker,
+} from "./helpers";
 import { MOCK_BOT, MOCK_TOKEN, TelegramMock, USER } from "./telegram-mock";
 
 const MOCK_PORT = 4797;
 const db = new pg.Pool({
-  connectionString:
-    process.env.DATABASE_URL ?? "postgres://openbot:openbot@127.0.0.1:54329/openbot",
+  connectionString: e2eStack().databaseUrl,
   max: 2,
 });
 test.afterAll(() => db.end());
@@ -52,16 +59,34 @@ test.describe("Telegram, against a stand-in", () => {
 
   const telegram = new TelegramMock();
   let page: Page;
+  /** Lets the next run of this suite against the app in. */
+  let releaseLock: (() => Promise<void>) | null = null;
+  let standInUp = false;
 
   test.beforeAll(async ({ browser }) => {
+    // The lock and the check come first: a second run must not touch the first's connection.
+    releaseLock = await suiteLock(db, "telegram");
+    test.skip(!releaseLock, "Another run of this suite is using this app.");
+    const status = await worker.telegram.status();
+    test.skip(status.connected, "Telegram is connected on this app; leave it alone.");
     await telegram.start(MOCK_PORT);
+    standInUp = true;
     page = await browser.newPage({ storageState: "e2e/.auth/owner.json" });
   });
 
   test.afterAll(async () => {
-    await worker.telegram.disconnect().catch(() => {});
-    await page.close();
-    await telegram.stop();
+    try {
+      if (standInUp) {
+        // Only the stand-in's connection goes: one you made meanwhile is a different account.
+        const status = await worker.telegram.status().catch(() => null);
+        const account = status?.connected ? status.botUsername : null; // vocabulary: allow
+        if (account === MOCK_BOT) await worker.telegram.disconnect().catch(() => {}); // vocabulary: allow
+        await (page as Page | undefined)?.close();
+        await telegram.stop();
+      }
+    } finally {
+      await releaseLock?.();
+    }
   });
 
   test("connect a bot and link your account with a code", async () => {
@@ -157,7 +182,7 @@ test.describe("Telegram, against a stand-in", () => {
     const name = uniqueName("Ora");
     await createTeammate(page, name, "file clerk");
     telegram.say(
-      `${name}: Ask my approval to create the file /home/bot/shared/e2e-telegram.txt, then create it with the text 'hi' and delete it again.`,
+      `${name}: Ask my approval to create the file /home/bot/shared/${testSlug("telegram")}.txt, then create it with the text 'hi' and delete it again.`,
     );
     const approval = await eventually(() =>
       telegram.sent.find(

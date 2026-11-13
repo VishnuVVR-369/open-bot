@@ -29,7 +29,7 @@
     "check:vocabulary": "node scripts/check/vocabulary.mjs",
     "check:file-size": "node scripts/check/file-size.mjs",
     "check:imports": "node scripts/check/imports.mjs",
-    "test:scripts": "node --test scripts/check/*.test.mjs scripts/ci/*.test.mjs",
+    "test:scripts": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/check/*.test.mjs scripts/ci/*.test.mjs",
     "test:railway": "node --test .railway/watch-paths.test.ts",
     "verify": "pnpm lint && pnpm check:doc-paths && pnpm check:vocabulary && pnpm check:file-size && pnpm check:imports && pnpm typecheck && pnpm test && pnpm test:scripts && pnpm test:railway && pnpm test:integration",
     "verify:affected": "pnpm lint && pnpm check:doc-paths && pnpm check:vocabulary && pnpm check:file-size && pnpm check:imports && turbo run typecheck test --affected && tsc -p e2e && tsc -p .railway && pnpm test:scripts && pnpm test:railway && bash scripts/test/integration.sh --affected"

@@ -1,6 +1,19 @@
 import { createApiClient, type ApiClient } from "@open-bot/api";
 import { createWorkerClient } from "@open-bot/api/worker";
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { e2eStack } from "./stack";
+
+export { savePlanSettings, suiteLock } from "./shared-state";
+export {
+  e2eStack,
+  runTag,
+  TEST_LABEL,
+  testApiKey,
+  testLabel,
+  testSlug,
+  uniqueName,
+  uniqueWord,
+} from "./stack";
 
 export const owner = {
   email: process.env.E2E_EMAIL ?? process.env.OWNER_EMAIL ?? "",
@@ -9,7 +22,7 @@ export const owner = {
 
 /** The worker's internal API, for setup the UI doesn't need to cover. */
 export const worker = createWorkerClient({
-  url: process.env.WORKER_URL ?? "http://127.0.0.1:4001",
+  url: e2eStack().workerUrl,
   secret: process.env.WORKER_SECRET ?? "dev-worker-secret-change-me",
 });
 
@@ -61,10 +74,6 @@ export async function waitForLastRun(page: Page, states: string[], timeout = 240
       intervals: [1_000],
     })
     .toMatch(new RegExp(`^(${states.join("|")})$`));
-}
-
-export function uniqueName(prefix: string) {
-  return `${prefix}${Math.random().toString(36).slice(2, 6)}`;
 }
 
 /** A teammate's id, by name. */

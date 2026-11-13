@@ -164,7 +164,7 @@ Passkeys keep working.
 
 ```sh
 pnpm verify                                     # lint, doc paths, typecheck, unit and integration tests (needs Docker)
-E2E_EMAIL=you@example.com E2E_PASSWORD=... pnpm e2e --grep-invert @agent   # end-to-end tests against the running stack
+E2E_STACK=dev E2E_EMAIL=you@example.com E2E_PASSWORD=... pnpm e2e --grep-invert @agent   # end-to-end tests against the local stack
 ```
 
 The full list of suites, what each needs, the stand-ins for outside services and how to run them is in the Development docs: `apps/site/src/app/docs/development/page.mdx` (`/docs/development` on the site).

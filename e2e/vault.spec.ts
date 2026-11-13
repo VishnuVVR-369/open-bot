@@ -2,15 +2,17 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { expect, test, type Page } from "./fixtures";
 import {
+  e2eStack,
   apiFor,
   botIdOf,
   createTeammate,
   sendMessage,
+  testLabel,
   uniqueName,
   waitForLastRun,
 } from "./helpers";
 
-const botd = process.env.BOTD_URL ?? "http://127.0.0.1:7070";
+const botd = e2eStack().botdUrl;
 const botdToken = process.env.BOTD_TOKEN ?? "dev-botd-token-change-me";
 
 async function botdPost<T>(path: string, body: unknown): Promise<T> {
@@ -39,8 +41,8 @@ async function addLogin(
 
 test("keep logins and cards in the vault without showing them again", async ({ page }) => {
   const marker = uniqueName("Tess");
-  const login = `E2E GitHub ${marker}`;
-  const card = `E2E Visa ${marker}`;
+  const login = testLabel(`GitHub ${marker}`);
+  const card = testLabel(`Visa ${marker}`);
   const password = `pw-${marker}-secret`;
   await addLogin(page, {
     name: login,
@@ -230,13 +232,13 @@ test("@agent a teammate signs in and pays from the vault without seeing either",
   const site = await shop.start();
   try {
     await addLogin(page, {
-      name: `E2E Tea shop ${marker}`,
+      name: testLabel(`Tea shop ${marker}`),
       site: "host.docker.internal",
       ...account,
     });
     await page.getByTestId("vault-cards").getByRole("button", { name: "Add card" }).click();
     const dialog = page.getByTestId("vault-dialog");
-    await dialog.getByLabel("Name", { exact: true }).fill(`E2E Mastercard ${marker}`);
+    await dialog.getByLabel("Name", { exact: true }).fill(testLabel(`Mastercard ${marker}`));
     await dialog.getByLabel("Card number").fill(card);
     await dialog.getByLabel("Expiry").fill("1129");
     await dialog.getByLabel("Security code").fill("737");

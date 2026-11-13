@@ -1,15 +1,26 @@
 import pg from "pg";
 import { expect, test, type Page } from "./fixtures";
-import { apiFor, createTeammate, sendMessage, uniqueName, waitForLastRun } from "./helpers";
+import {
+  e2eStack,
+  apiFor,
+  createTeammate,
+  runTag,
+  sendMessage,
+  TEST_LABEL,
+  testLabel,
+  uniqueName,
+  waitForLastRun,
+} from "./helpers";
 import { ordersService } from "./mcp-stand-in";
 
 const pool = new pg.Pool({
-  connectionString:
-    process.env.DATABASE_URL ?? "postgres://openbot:openbot@127.0.0.1:54329/openbot",
+  connectionString: e2eStack().databaseUrl,
 });
 
 // A test's connections would reach every teammate in the tests after it.
-test.afterEach(() => pool.query("delete from connections where label like 'E2E %'"));
+test.afterEach(() =>
+  pool.query("delete from connections where label like $1", [TEST_LABEL(runTag())]),
+);
 test.afterAll(() => pool.end());
 
 async function connect(page: Page, input: { label: string; url: string; headers?: string }) {
@@ -28,7 +39,7 @@ async function connect(page: Page, input: { label: string; url: string; headers?
 test("connect a service through MCP and see its tools", async ({ page }) => {
   test.setTimeout(3 * 60_000);
   const service = await ordersService();
-  const label = `E2E Orders ${Math.random().toString(36).slice(2, 6)}`;
+  const label = testLabel(`Orders ${Math.random().toString(36).slice(2, 6)}`);
   try {
     const row = await connect(page, {
       label,
@@ -73,7 +84,7 @@ test("connect a service through MCP and see its tools", async ({ page }) => {
 
 test("a service that can't be reached says so", async ({ page }) => {
   test.setTimeout(3 * 60_000);
-  const label = `E2E Nowhere ${Math.random().toString(36).slice(2, 6)}`;
+  const label = testLabel(`Nowhere ${Math.random().toString(36).slice(2, 6)}`);
   const row = await connect(page, { label, url: "http://host.docker.internal:9/mcp" });
   await expect(row.getByTestId("connection-test")).toContainText("Couldn't reach", {
     timeout: 90_000,
@@ -83,7 +94,7 @@ test("a service that can't be reached says so", async ({ page }) => {
 test("@agent a teammate uses a connected service's tools", async ({ page }) => {
   test.setTimeout(6 * 60_000);
   const service = await ordersService();
-  const label = `E2E Orders ${Math.random().toString(36).slice(2, 6)}`;
+  const label = testLabel(`Orders ${Math.random().toString(36).slice(2, 6)}`);
   try {
     const row = await connect(page, { label, url: service.url });
     await expect(row.getByTestId("connection-test")).toContainText("Connected", {

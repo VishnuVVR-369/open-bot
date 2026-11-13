@@ -3,49 +3,88 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 import pg from "pg";
 import { expect, test, type Page } from "./fixtures";
-import { apiFor, approve, botIdOf, createTeammate, uniqueName, waitForLastRun } from "./helpers";
+import {
+  e2eStack,
+  apiFor,
+  approve,
+  botIdOf,
+  createTeammate,
+  suiteLock,
+  uniqueName,
+  waitForLastRun,
+} from "./helpers";
 
 const pool = new pg.Pool({
-  connectionString:
-    process.env.DATABASE_URL ?? "postgres://openbot:openbot@127.0.0.1:54329/openbot",
+  connectionString: e2eStack().databaseUrl,
 });
 
 test.afterAll(() => pool.end());
 
-/** Your email settings, put back as they were after each test. */
+/** The domain and Postmark token the tests set up, and the token's hint (`secretHint()`). */
+const TEST_DOMAIN = "mail.e2e.test";
+const TEST_TOKEN = "e2e-postmark-token-0123456789abcdef";
+const TEST_TOKEN_HINT = "e2e…cdef";
+
+/**
+ * Your email settings, put back after each test. It holds the email-settings lock until then, so
+ * a second run skips instead of noting the first run's settings as yours. Only what the test set
+ * is undone: settings you change meanwhile, to another domain or token, stay.
+ */
 async function keepEmailSettings() {
-  const settings = await pool.query("select * from email_settings where id = 1");
-  const token = await pool.query("select * from credentials where kind = 'postmark_token'");
-  return async () => {
-    const row = settings.rows[0] as
-      | {
-          domain: string | null;
-          inbound_token: string;
-          api_base_url: string;
-          last_received_at: Date | null;
-        }
-      | undefined;
-    if (row)
-      await pool.query(
-        "update email_settings set domain = $1, inbound_token = $2, api_base_url = $3, last_received_at = $4 where id = 1",
-        [row.domain, row.inbound_token, row.api_base_url, row.last_received_at],
-      );
-    else await pool.query("delete from email_settings");
-    await pool.query("delete from credentials where kind = 'postmark_token'");
-    const saved = token.rows[0] as { encrypted: string; hint: string } | undefined;
-    if (saved)
-      await pool.query(
-        "insert into credentials (kind, encrypted, hint) values ('postmark_token', $1, $2)",
-        [saved.encrypted, saved.hint],
-      );
-  };
+  const release = await suiteLock(pool, "email settings");
+  test.skip(!release, "Another run is testing the email settings on this app.");
+  try {
+    const settings = await pool.query("select * from email_settings where id = 1");
+    const token = await pool.query("select * from credentials where kind = 'postmark_token'");
+    /** `postmarkUrl`: the stand-in's address, when the test pointed sending at it. */
+    return async (postmarkUrl?: string) => {
+      try {
+        const row = settings.rows[0] as
+          | {
+              domain: string | null;
+              inbound_token: string;
+              api_base_url: string;
+              last_received_at: Date | null;
+            }
+          | undefined;
+        if (row) {
+          await pool.query(
+            "update email_settings set domain = $1, inbound_token = $2, last_received_at = $3 where id = 1 and lower(domain) = $4",
+            [row.domain, row.inbound_token, row.last_received_at, TEST_DOMAIN],
+          );
+          if (postmarkUrl)
+            await pool.query(
+              "update email_settings set api_base_url = $1 where id = 1 and api_base_url = $2",
+              [row.api_base_url, postmarkUrl],
+            );
+        } else
+          await pool.query("delete from email_settings where lower(domain) = $1", [TEST_DOMAIN]);
+        // Yours comes back only in place of the test's: if you removed it meanwhile, it stays gone.
+        const removed = await pool.query(
+          "delete from credentials where kind = 'postmark_token' and hint = $1",
+          [TEST_TOKEN_HINT],
+        );
+        const saved = token.rows[0] as { encrypted: string; hint: string } | undefined;
+        if (saved && removed.rowCount)
+          await pool.query(
+            "insert into credentials (kind, encrypted, hint) values ('postmark_token', $1, $2) on conflict (kind) do nothing",
+            [saved.encrypted, saved.hint],
+          );
+      } finally {
+        await release!();
+      }
+    };
+  } catch (error) {
+    await release!();
+    throw error;
+  }
 }
 
 async function setUpEmail(page: Page, domain: string) {
   await page.goto("/settings#email");
   const section = page.getByTestId("email-section");
   await section.getByLabel("Domain").fill(domain);
-  await section.getByLabel("Postmark server token").fill("e2e-postmark-token-0123456789abcdef");
+  await section.getByLabel("Postmark server token").fill(TEST_TOKEN);
   await section.getByRole("button", { name: "Save" }).click();
   await expect(section.getByLabel("Postmark server token")).toHaveAttribute(
     "placeholder",
@@ -116,14 +155,13 @@ test("@agent a teammate answers an email from its own address, after you approve
     response.end(JSON.stringify({ ErrorCode: 0, Message: "OK", MessageID: "sent-1" }));
   });
   await new Promise<void>((resolve) => postmark.listen(0, "127.0.0.1", resolve));
+  const postmarkUrl = `http://127.0.0.1:${(postmark.address() as AddressInfo).port}`;
   try {
     const name = uniqueName("Ann");
     await createTeammate(page, name, "executive assistant");
     const botId = await botIdOf(page, name);
     const section = await setUpEmail(page, "mail.e2e.test");
-    await pool.query("update email_settings set api_base_url = $1 where id = 1", [
-      `http://127.0.0.1:${(postmark.address() as AddressInfo).port}`,
-    ]);
+    await pool.query("update email_settings set api_base_url = $1 where id = 1", [postmarkUrl]);
     const path = new URL((await section.getByTestId("inbound-url").textContent())!).pathname;
 
     const address = `${name.toLowerCase()}@mail.e2e.test`;
@@ -166,7 +204,7 @@ test("@agent a teammate answers an email from its own address, after you approve
     });
   } finally {
     postmark.close();
-    await restore();
+    await restore(postmarkUrl);
   }
 });
 

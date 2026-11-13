@@ -95,6 +95,7 @@ The worker and botd test their trickiest parts directly: the lease, the cookie j
 
 `pnpm test:integration` runs every `*.integration.test.ts` against real Postgres: teammate management, the phone API, every web API read, uploads, pages, account sign-ins, actions and triggers, screen operations and memory.
 Each suite creates its own fresh database on the server named by `TEST_DATABASE_URL`, applies every migration, and drops it afterwards (`@open-bot/db/testing`), so suites run in parallel.
+It then runs `scripts/test/e2e-shared-state.test.mjs`, which checks in a schema of its own that the e2e specs changing your settings take turns and leave them as they were.
 Without `TEST_DATABASE_URL`, the command starts a throwaway pgvector container (`scripts/test/pg.sh`) and removes it when it finishes.
 CI runs them against a Postgres service; there a missing `TEST_DATABASE_URL` fails the run instead of skipping.
 
@@ -105,17 +106,23 @@ It removes only its own container.
 
 ### End-to-end tests
 
-Playwright drives the real stack: start it with `pnpm infra:up` and `pnpm dev`, then:
+Playwright drives a real stack and writes to its database and computer directly, so it has to be told which stack.
+`E2E_STACK=dev` means the local development stack, started with `pnpm infra:up` and `pnpm dev`.
+For any other stack, set `E2E_BASE_URL`, `DATABASE_URL`, `WORKER_URL` and `BOTD_URL` instead; a run with any of them missing, mixed with `E2E_STACK=dev`, or with a URL that leaves out its host or database, stops before the first test (`e2e/stack.ts`).
 
 ```sh title="Terminal"
-E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e --grep-invert @agent   # fast
-E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e --grep @agent          # real teammates at work
+E2E_STACK=dev E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e --grep-invert @agent   # fast
+E2E_STACK=dev E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e --grep @agent          # real teammates at work
 ```
 
 - A `setup` project signs in once and saves the session to `e2e/.auth/owner.json`.
 - Tests tagged `@agent` run real turns on the computer, take minutes, and use your ChatGPT plan.
 - Tests run serially (`workers: 1`), because they share one computer and one database.
-- `e2e/global-teardown.ts` deletes test teammates by a name pattern. New test name prefixes must be added to it.
+- `e2e/global-setup.ts` gives each run a random 8-digit hex tag, and everything a spec creates carries it: teammates are named with `uniqueName()`, titles and labels with `testLabel()`, skills, uploaded files and files on the computer with `testSlug()`, and API keys with `testApiKey()` (`e2e/stack.ts`).
+  `e2e/global-teardown.ts`, and a spec cleaning up after itself, deletes only what carries the run's tag, so it never deletes one of yours, or what another run is making at the same time.
+  What an interrupted run left behind stays until you delete it.
+- Specs that change what the whole app shares (the plan settings, email settings, accounts and Telegram) hold a database lock while they run (`suiteLock()` in `e2e/shared-state.ts`), and skip when another run holds it.
+  They save your settings first and put back only what they changed (`savePlanSettings()`), so a key or setting you save while they run stays.
 
 Stand-ins replace outside services, so the default run needs no outside account:
 
@@ -137,17 +144,17 @@ To run the suites that need a stand-in, start the services pointed at it:
 
 ```sh title="Telegram"
 TELEGRAM_API_BASE_URL=http://127.0.0.1:4797 pnpm --filter @open-bot/worker dev
-E2E_TELEGRAM=1 E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e --grep Telegram
+E2E_TELEGRAM=1 E2E_STACK=dev E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e --grep Telegram
 ```
 
 ```sh title="Accounts (with no accounts connected)"
 GOOGLE_BASE_URL=http://127.0.0.1:4796 NOTION_MCP_URL=http://127.0.0.1:4796/mcp pnpm dev
-E2E_ACCOUNTS=1 E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e e2e/accounts.spec.ts
+E2E_ACCOUNTS=1 E2E_STACK=dev E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e e2e/accounts.spec.ts
 ```
 
 ```sh title="Plan fallback"
 OPEN_BOT_PLAN_BASE_URL=http://host.docker.internal:4799/plan OPENAI_API_BASE_URL=http://host.docker.internal:4799/api pnpm --filter @open-bot/worker dev
-E2E_PLAN_REHEARSAL=1 E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e --grep rehearsal
+E2E_PLAN_REHEARSAL=1 E2E_STACK=dev E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e --grep rehearsal
 ```
 
 Every variable the tests read is listed in [Configuration](/docs/reference/configuration).
