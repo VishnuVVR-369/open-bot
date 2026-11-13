@@ -3,4 +3,4 @@
 export { BotTools, TEAMMATE_RULES } from "./changes";
 export { teammateRoutes } from "./routes";
 export { activeTeammates, BotError, BotService } from "./service";
-export { optionalTarget, TEAMMATE_TOOLS } from "./tools";
+export { TEAMMATE_TOOLS } from "./tools";

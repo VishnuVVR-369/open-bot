@@ -67,6 +67,7 @@ The web app's procedures (`apps/web/src/lib/server/api/`) pass almost every writ
 - chats and the messages you send (`apps/worker/src/services/chats.ts`), and stopping, rating and giving feedback on a run (`apps/worker/src/runs/requests.ts`);
 - your settings, the API key and your email setup (`apps/worker/src/services/settings.ts`, `apps/worker/src/services/credentials.ts` and `apps/worker/src/services/email.ts`);
 - connections, both MCP servers and accounts (`apps/worker/src/services/connections.ts`), and pairing and unpairing phones (`apps/worker/src/egress/devices.ts`);
+- schedules, page watches, webhooks and Gmail and Calendar triggers (`apps/worker/src/features/automations/`);
 - the vault (`apps/worker/src/services/vault.ts`), pinning, deleting and publishing pages (`apps/worker/src/features/pages/`), and marking notifications read (`apps/worker/src/services/notifications.ts`).
 
 An account's sign-in stays in the web app, which keeps the sign-in's state and saves the grant; the worker then makes or changes the account's connection.

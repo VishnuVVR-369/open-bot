@@ -10,7 +10,7 @@ import { MAX_BODY_BYTES } from "./handler";
 import { BotError } from "../features/teammates";
 import { EmailError } from "../services/email";
 import { ScreenBusy } from "../services/screen-lock";
-import { TriggerError } from "../services/triggers";
+import { TriggerError } from "../features/automations";
 
 const SECRET = "handler-test-secret";
 const ID = "6f1c1f3e-8a5b-4c39-9a51-1c1e1d0f0a01";

@@ -53,10 +53,9 @@ import { FileService } from "../services/files";
 import { PushService } from "../services/push";
 import { SessionRegistry } from "../services/registry";
 import { RetryService } from "../services/retries";
-import { ScheduleService } from "../services/schedules";
+import { ScheduleService, TriggerService } from "../features/automations";
 import { SkillService } from "../services/skills";
 import { TaskService } from "../features/tasks";
-import { TriggerService } from "../services/triggers";
 import { MemoryService } from "@open-bot/memory";
 
 const url = testDatabaseServer();

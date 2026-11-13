@@ -2,7 +2,7 @@
 // in its feature's file; this list, the specs Codex is given and dispatch all follow from it.
 import type { v2 } from "@open-bot/agent";
 import { ACCOUNT_TOOL_SPECS } from "@open-bot/integrations/adapters";
-import { AUTOMATION_TOOLS } from "./automations";
+import { AUTOMATION_TOOLS } from "../features/automations";
 import { CHAT_TOOLS } from "./chat";
 import { TASK_TOOLS } from "../features/tasks";
 import { toolSpec, type AnyTool } from "./define";
