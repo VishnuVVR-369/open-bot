@@ -71,9 +71,6 @@
   "apps/mobile/src/app/screens/[screenId].tsx": {
     "bot": 1
   },
-  "apps/mobile/src/app/search.tsx": {
-    "bot": 67
-  },
   "apps/mobile/src/app/share.tsx": {
     "bot": 24,
     "primary teammate": 1
@@ -149,6 +146,9 @@
   "apps/mobile/src/components/page-row.tsx": {
     "bot": 10
   },
+  "apps/mobile/src/components/search/search-row.tsx": {
+    "bot": 5
+  },
   "apps/mobile/src/lib/approval-text.ts": {
     "bot": 1
   },
@@ -206,6 +206,12 @@
   },
   "apps/mobile/src/lib/screens.ts": {
     "bot": 4
+  },
+  "apps/mobile/src/lib/search.test.ts": {
+    "bot": 7
+  },
+  "apps/mobile/src/lib/search.ts": {
+    "bot": 6
   },
   "apps/mobile/src/lib/use-chat-reading.test.ts": {
     "bot": 3
