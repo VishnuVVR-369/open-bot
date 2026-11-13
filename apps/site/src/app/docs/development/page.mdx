@@ -42,20 +42,27 @@ Every app and package has an `AGENTS.md` with its entry points, invariants and t
 
 ## Commands
 
-| Command                               | What it does                                                                                               |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `pnpm dev`                            | The web app, the worker and the pages service, with reload                                                 |
-| `pnpm infra:up`                       | Postgres and the computer in Docker, waiting until healthy                                                 |
-| `pnpm computer:build`                 | Rebuilds the computer image (after changing botd or the image)                                             |
-| `pnpm db:migrate`, `pnpm db:generate` | Apply migrations, or generate one from the schema                                                          |
-| `pnpm lint`                           | ESLint over the repository, with no warnings allowed                                                       |
-| `pnpm format`, `pnpm format:check`    | Prettier                                                                                                   |
-| `pnpm typecheck`                      | `tsc` in every package (and `next typegen` for the Next.js apps)                                           |
-| `pnpm test`                           | Vitest unit tests in every package                                                                         |
-| `pnpm verify`                         | Lint, the doc path, vocabulary, file size and import checks, typecheck, unit, script and integration tests |
-| `pnpm verify:affected`                | The same, limited to what changed since `main`                                                             |
+| Command                               | What it does                                                                |
+| ------------------------------------- | --------------------------------------------------------------------------- |
+| `pnpm dev`                            | The web app, the worker and the pages service, with reload                  |
+| `pnpm infra:up`                       | Postgres and the computer in Docker, waiting until healthy                  |
+| `pnpm computer:build`                 | Rebuilds the computer image (after changing botd or the image)              |
+| `pnpm db:migrate`, `pnpm db:generate` | Apply migrations, or generate one from the schema                           |
+| `pnpm lint`                           | ESLint over the repository, with no warnings allowed                        |
+| `pnpm format`, `pnpm format:check`    | Prettier                                                                    |
+| `pnpm check:fast`                     | Formatting, lint and the four repository guards; only failures print output |
+| `pnpm typecheck`                      | `tsc` in every package (and `next typegen` for the Next.js apps)            |
+| `pnpm test`                           | Vitest unit tests in every package                                          |
+| `pnpm verify`                         | Fast checks, typecheck, unit, script and integration tests                  |
+| `pnpm verify:affected`                | The same, limited to what changed since `main`                              |
 
 ## Tests
+
+Codex and Claude Code format files after their file-edit tools run, using
+`scripts/dev/format-edited.mjs`. The hooks respect `.prettierignore` and
+`.gitignore` and skip unknown file types. Codex asks for trust in `/hooks`
+before running repo hooks. Shell edits and harnesses that disable hooks still
+need `pnpm format` or a targeted Prettier run before `pnpm check:fast`.
 
 This is the complete list of test suites and checks.
 CI runs every row marked "CI" on each pull request.

@@ -42,17 +42,8 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm lint
-      # Every file Prettier covers is formatted (.prettierignore lists what it skips).
-      - run: pnpm format:check
-      # Every apps/... or packages/... path named in a Markdown or MDX file must exist.
-      - run: pnpm check:doc-paths
-      # No new uses of legacy names (bot, primary, desktop takeover); see the glossary in AGENTS.md.
-      - run: pnpm check:vocabulary
-      # No new file over 600 lines of code, and no baselined file growing (scripts/check/file-size.mjs).
-      - run: pnpm check:file-size
-      # No new import cycles, and no app importing another app's source (scripts/check/imports.mjs).
-      - run: pnpm check:imports
+      # Formatting, lint and all four repository guards; only failures print output.
+      - run: pnpm check:fast
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm test:scripts
