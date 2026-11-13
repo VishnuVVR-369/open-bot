@@ -85,8 +85,17 @@ export const botThreads = pgTable(
       .references(() => bots.id, { onDelete: "cascade" }),
     codexThreadId: text("codex_thread_id").notNull(),
     memoryGeneration: text("memory_generation").notNull().default(""),
-    /** Threads keep the tools they started with, so a new tool set starts a new thread. */
-    toolsVersion: integer("tools_version").notNull(),
+    /**
+     * 0 once a worker that records tools_revision saved the thread. Workers from before it write
+     * their TOOLS_VERSION here and leave tools_revision alone, so a nonzero value means the
+     * revision can't be trusted. Drop it once no such worker runs.
+     */
+    toolsVersion: integer("tools_version").notNull().default(0),
+    /**
+     * A hash of the tools and developer instructions the thread started with. Codex keeps both for
+     * a thread's life, so a change starts a new thread.
+     */
+    toolsRevision: text("tools_revision"),
     /** Whether the thread talks to the model through the ChatGPT plan or the API key. */
     authMode: text("auth_mode").$type<AuthMode>().notNull().default("plan"),
     /**

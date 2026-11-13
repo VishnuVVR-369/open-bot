@@ -14,7 +14,7 @@
   "apps/worker/src/egress/relay.test.ts": 622,
   "apps/worker/src/egress/relay.ts": 751,
   "apps/worker/src/rpc/router.integration.test.ts": 1523,
-  "apps/worker/src/runs/session.ts": 669,
+  "apps/worker/src/runs/session.ts": 665,
   "apps/worker/src/services/bots.ts": 668,
   "apps/worker/src/services/telegram.ts": 752,
   "apps/worker/src/tools/bots.integration.test.ts": 703,

@@ -229,7 +229,7 @@ Generated code (`packages/agent/src/protocol`, `apps/mobile/src/computer/viewer-
 
 ### Agent and protocol
 
-- **Bump `TOOLS_VERSION`** (`apps/worker/src/tools/definitions.ts`) whenever you change a tool or `DEVELOPER_INSTRUCTIONS`. Threads keep the tools they started with, and the bump makes the next run of every chat start a fresh thread.
+- **Changing a tool or `DEVELOPER_INSTRUCTIONS` starts fresh threads.** Threads keep the tools and instructions they started with, so each records a hash of both (`apps/worker/src/runs/tools-revision.ts`), and the next run of every chat after a change starts a fresh thread. There is nothing to bump.
 - **Regenerate the protocol** after changing `CODEX_VERSION` in the image: `pnpm --filter @open-bot/agent generate:protocol`, then fix any type errors in the `Methods` map.
 - **Never block a tool for long.** Codex hands control back to the model after about 30 seconds. Anything that waits on the user must be decidable after the run ends (see the email outbox).
 - **Unwrap shell commands** with `shellScript()` before showing or matching them. Codex wraps every command in `/bin/bash -lc '...'`.

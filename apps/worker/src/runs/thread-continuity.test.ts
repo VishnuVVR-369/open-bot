@@ -9,13 +9,23 @@ import {
   type Run,
   type Chat,
 } from "./session";
+import { DEVELOPER_INSTRUCTIONS } from "../instructions";
+import { toolsRevision } from "./tools-revision";
 import { configurationRevision } from "@open-bot/db";
 
 const botId = "00000000-0000-4000-8000-000000000001";
 const runId = "00000000-0000-4000-8000-000000000002";
-const tools: SessionTools = { version: 7, specs: () => [], handle: vi.fn() };
+const spec = { type: "function", name: "a_tool", description: "Does a thing.", inputSchema: {} };
+const tools: SessionTools = { specs: () => [spec] as never, handle: vi.fn() };
+/** The revision a thread started with the current tools and instructions has. */
+const current = toolsRevision(DEVELOPER_INSTRUCTIONS, tools.specs());
 /** A thread that last saw `seen` as its AGENTS.md; this run wrote `written`. */
-function fixture(generation = "1:0:0", agents = { seen: "# Test", written: "# Test" }) {
+function fixture(
+  generation = "1:0:0",
+  agents = { seen: "# Test", written: "# Test" },
+  revision: string | null = current,
+  version = 0,
+) {
   const request = vi.fn(async (method: string) => ({
     thread: { id: method === "thread/fork" ? "forked" : "fresh" },
   }));
@@ -24,7 +34,8 @@ function fixture(generation = "1:0:0", agents = { seen: "# Test", written: "# Te
       where: async () => [
         {
           codexThreadId: "old",
-          toolsVersion: tools.version,
+          toolsVersion: version,
+          toolsRevision: revision,
           memoryGeneration: generation,
           authMode: "plan",
           configurationKey: configurationRevision({ connections: "", agents: agents.seen }),
@@ -88,6 +99,21 @@ describe("memory and Codex thread continuity", () => {
     // Codex ignores developer instructions on a fork, so none are sent.
     const [, params] = f.request.mock.calls[0] as unknown as [string, object];
     expect(params).not.toHaveProperty("developerInstructions");
+  });
+  it("starts a fresh thread when the tools or developer instructions changed", async () => {
+    // Codex keeps a thread's tools and instructions for life, so it can't continue onto new ones.
+    for (const revision of [toolsRevision("Older rules.", tools.specs()), null]) {
+      const f = fixture("1:0:0", undefined, revision);
+      expect(await f.ensure()).toBe("fresh");
+      expect(f.request.mock.calls[0]![0]).toBe("thread/start");
+    }
+    expect(toolsRevision(DEVELOPER_INSTRUCTIONS, [])).not.toBe(current);
+  });
+  it("starts a fresh thread when a worker from before the revision saved it last", async () => {
+    // That worker writes its TOOLS_VERSION and leaves the revision another worker recorded.
+    const f = fixture("1:0:0", undefined, current, 21);
+    expect(await f.ensure()).toBe("fresh");
+    expect(f.request.mock.calls[0]![0]).toBe("thread/start");
   });
   it("clears MCP servers on a fork, so removed connections don't carry over", async () => {
     const f = fixture("1:0:0", { seen: "# Old", written: "# New" });

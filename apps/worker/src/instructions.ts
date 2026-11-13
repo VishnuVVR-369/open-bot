@@ -7,7 +7,7 @@ import {
   type Autonomy,
 } from "@open-bot/domain";
 
-/** Rules every bot follows. Set once per Codex thread (see TOOLS_VERSION). */
+/** Rules every bot follows. Set once per Codex thread (see runs/tools-revision.ts). */
 export const DEVELOPER_INSTRUCTIONS = `You are one of the user's AI teammates in open-bot. You do real work on a computer, not just describe it.
 
 # The computer

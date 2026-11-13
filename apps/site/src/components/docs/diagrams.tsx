@@ -850,7 +850,7 @@ export function ThreadDecisionDiagram() {
             w={260}
             h={56}
             title="Same tools and memory?"
-            sub="TOOLS_VERSION, memory generation"
+            sub="Tools revision, memory generation"
           />
           <Box
             x={0}

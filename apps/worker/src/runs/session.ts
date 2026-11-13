@@ -2,7 +2,6 @@ import type { CodexClient, ServerNotification, ServerRequest, v2 } from "@open-b
 import {
   botThreads,
   runs,
-  schedules,
   usageEntries,
   configurationRevision,
   type Attachment,
@@ -11,7 +10,6 @@ import {
 import {
   COMPUTER_PATHS,
   costMicros,
-  isNothingToReport,
   type NativeApprovalKind,
   type RunStatus,
   type RunWait,
@@ -26,7 +24,9 @@ import { errorMessage } from "../logger";
 import type { MemoryCoordinator } from "../services/memory";
 import { ModelAccess, providerFor } from "../services/model-access";
 import { answerBack } from "./answer-back";
+import { quietWithNothingToReport } from "./quiet";
 import { approvalPolicy } from "./approval-policy";
+import { toolsRevision } from "./tools-revision";
 import { RunEventWriter } from "./events";
 import { touchChat } from "../services/chats";
 import { finalText, mapPlan, mapThreadItem } from "./mapper";
@@ -37,10 +37,14 @@ export type Run = typeof schema.runs.$inferSelect;
 
 const MAX_COMMAND_OUTPUT = 20_000;
 
+/**
+ * `tools_version` of a thread this worker saved. A worker from before `tools_revision` writes its
+ * TOOLS_VERSION there and leaves the revision as it was, so only this value vouches for it.
+ */
+const REVISED_THREAD = 0;
+
 /** The agent tools, as a session uses them (ToolHandlers in ../tools/handlers.ts). */
 export interface SessionTools {
-  /** Threads keep the tools they started with; a thread from another version starts afresh. */
-  readonly version: number;
   /** The tools a new thread is given. */
   specs(): v2.DynamicToolSpec[];
   handle(
@@ -345,6 +349,9 @@ export class RunSession {
       ...access,
       ...(Object.keys(config).length ? { config } : {}),
     };
+    // Threads keep the tools and instructions they started with; a change starts a fresh one.
+    const dynamicTools = this.services.tools.specs();
+    const revision = toolsRevision(DEVELOPER_INSTRUCTIONS, dynamicTools);
     const save = async (threadId: string, fresh: boolean) => {
       await ctx.db
         .insert(botThreads)
@@ -352,7 +359,8 @@ export class RunSession {
           chatId: run.chatId,
           botId: bot.id,
           codexThreadId: threadId,
-          toolsVersion: this.services.tools.version,
+          toolsVersion: REVISED_THREAD,
+          toolsRevision: revision,
           memoryGeneration: this.memoryGeneration,
           authMode: mode,
           configurationKey,
@@ -362,7 +370,8 @@ export class RunSession {
           // Memory generations fence old context; a fork is only allowed within the same generation.
           set: {
             codexThreadId: threadId,
-            toolsVersion: this.services.tools.version,
+            toolsVersion: REVISED_THREAD,
+            toolsRevision: revision,
             memoryGeneration: this.memoryGeneration,
             authMode: mode,
             configurationKey,
@@ -378,7 +387,8 @@ export class RunSession {
       .where(and(eq(botThreads.chatId, run.chatId), eq(botThreads.botId, bot.id)));
     if (
       existing &&
-      existing.toolsVersion === this.services.tools.version &&
+      existing.toolsVersion === REVISED_THREAD &&
+      existing.toolsRevision === revision &&
       existing.memoryGeneration === this.memoryGeneration
     ) {
       try {
@@ -413,7 +423,7 @@ export class RunSession {
       approvalPolicy: approvalPolicy(bot),
       sandbox: "danger-full-access",
       developerInstructions: DEVELOPER_INSTRUCTIONS,
-      dynamicTools: this.services.tools.specs(),
+      dynamicTools,
       serviceName: "open-bot",
       ...provider,
     } as v2.ThreadStartParams);
@@ -613,17 +623,6 @@ export class RunSession {
     }
   }
 
-  /** A quiet routine's run that found nothing worth telling you. */
-  private async quietWithNothingToReport(text: string | null): Promise<boolean> {
-    const { run, ctx } = this;
-    if (run.trigger !== "schedule" || !run.scheduleId || !isNothingToReport(text)) return false;
-    const [schedule] = await ctx.db
-      .select({ quiet: schedules.quiet })
-      .from(schedules)
-      .where(eq(schedules.id, run.scheduleId));
-    return schedule?.quiet ?? false;
-  }
-
   private async complete(outcome: Outcome) {
     const { ctx, run, bot, chat } = this;
     this.finish = null;
@@ -713,7 +712,7 @@ export class RunSession {
       run.trigger !== "question" &&
       // A helper's part comes back to its teammate, not to you.
       run.trigger !== "swarm" &&
-      !(await this.quietWithNothingToReport(text))
+      !(await quietWithNothingToReport(ctx, run, text))
     ) {
       // An answer to a teammate isn't news for you; their reply to you is.
       await createNotification(ctx, {
