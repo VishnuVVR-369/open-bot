@@ -83,7 +83,7 @@ export const TABLE_OWNERS = {
   artifacts: { owner: `${WORKER}features/screens/tools.ts` },
   swarms: { owner: `${WORKER}services/swarms.ts` },
   swarm_tasks: { owner: `${WORKER}services/swarms.ts` },
-  notifications: { owner: `${WORKER}services/notifications.ts` },
+  notifications: { owner: `${WORKER}features/notifications/service.ts` },
 
   // Pages.
   pages: { owner: `${WORKER}features/pages/service.ts` },
@@ -112,8 +112,8 @@ export const TABLE_OWNERS = {
   credentials: { owner: `${WORKER}services/credentials.ts` },
   telegram: { owner: `${WORKER}services/telegram.ts` },
   telegram_messages: { owner: `${WORKER}services/telegram.ts` },
-  push_subscriptions: { owner: `${WORKER}services/push.ts` },
-  native_push_devices: { owner: `${WORKER}services/fcm.ts` },
+  push_subscriptions: { owner: `${WORKER}features/notifications/push.ts` },
+  native_push_devices: { owner: `${WORKER}features/notifications/fcm.ts` },
   email_settings: { owner: `${WORKER}services/email.ts` },
   emails: { owner: `${WORKER}services/email.ts` },
 

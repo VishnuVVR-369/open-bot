@@ -5,7 +5,13 @@ import { ComputerLifecycle } from "./computer-lifecycle";
 import { CodexManager } from "./codex";
 import { BotdError, ComputerClient } from "./computer";
 import { publishApp, type Context } from "./context";
-import { createNotification } from "./services/notifications";
+import {
+  createNotification,
+  FcmService,
+  nativeEgressPush,
+  notificationsFeature,
+  PushService,
+} from "./features/notifications";
 import { addComputerRow, databaseStore } from "./egress/store";
 import { EgressDevices } from "./egress/devices";
 import { EgressRelay } from "./egress/relay";
@@ -18,8 +24,6 @@ import { RetryService } from "./services/retries";
 import { ChatService } from "./features/chat";
 import { RunRequests } from "./runs/requests";
 import { computerFiles, UploadService } from "./uploads";
-import { PushService } from "./services/push";
-import { FcmService, nativeEgressPush } from "./services/fcm";
 import { TaskService } from "./features/tasks";
 import { ConnectionService } from "./services/connections";
 import { EmailService } from "./services/email";
@@ -102,6 +106,7 @@ const triggers = new TriggerService(ctx);
 const tasks = new TaskService(ctx);
 const push = new PushService(ctx);
 const fcm = new FcmService(ctx);
+const notifications = notificationsFeature({ push, fcm });
 const vault = new VaultService(ctx, approvals);
 const swarms = new SwarmService(ctx, sessions);
 // Files you attach, and files that arrive by email or Telegram.
@@ -341,8 +346,7 @@ runtime.every("takeover reconciliation", 30_000, reconcileTakeovers);
 await runtime.start("egress relay", egress);
 // What tells you about decisions starts before what makes them, so it still hears the last ones
 // at shutdown: account actions expire approvals while they drain.
-await runtime.start("web push", push);
-await runtime.start("phone notifications", fcm);
+await notifications.start(runtime);
 // Connecting to Telegram can take a while, and the worker doesn't wait for it.
 void telegram
   .start()

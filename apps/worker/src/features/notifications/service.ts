@@ -1,7 +1,7 @@
 import { notifications, type NotificationKind } from "@open-bot/db";
 import type { ApprovalKind } from "@open-bot/domain";
 import { and, eq, inArray, isNull, lte } from "drizzle-orm";
-import { publishApp, type Context } from "../context";
+import { publishApp, type Context } from "../../context";
 
 /** What open-bot tells you about. Only this module writes `notifications`. */
 

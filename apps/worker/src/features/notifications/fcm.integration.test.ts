@@ -5,7 +5,7 @@ import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import { egressDevices, nativePushDevices } from "@open-bot/db";
-import type { Context, NotificationEvent } from "../context";
+import type { Context, NotificationEvent } from "../../context";
 import { FcmService, nativeEgressPush } from "./fcm";
 
 const url = testDatabaseServer();

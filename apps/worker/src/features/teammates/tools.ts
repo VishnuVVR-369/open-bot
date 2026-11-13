@@ -14,7 +14,7 @@ import {
 } from "../../core/tool";
 import { targetTeammate } from "../../core/targets";
 import type { RunSession } from "../../runs/session";
-import { createNotification } from "../../services/notifications";
+import { createNotification } from "../notifications";
 import type { BotTools } from "./changes";
 import type { BotService } from "./service";
 

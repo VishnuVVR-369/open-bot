@@ -11,10 +11,9 @@ import type { CodexAccountService } from "../services/codex-account";
 import type { SettingsService } from "../services/settings";
 import type { ConnectionService } from "../services/connections";
 import type { EmailService } from "../services/email";
-import type { FcmService } from "../services/fcm";
 import type { FileService } from "../services/files";
 import { pageRoutes, type PageService } from "../features/pages";
-import type { PushService } from "../services/push";
+import { notificationRoutes, type FcmService, type PushService } from "../features/notifications";
 import type { RetryService } from "../services/retries";
 import {
   screenRoutes,
@@ -34,7 +33,6 @@ import {
 } from "../features/automations";
 import { rpcError } from "./errors";
 import type { EgressDevices } from "../egress/devices";
-import { markNotificationsRead } from "../services/notifications";
 import type { VaultService } from "../services/vault";
 
 /** The services the worker's internal API calls. */
@@ -147,54 +145,7 @@ export function createWorkerRouter(services: WorkerServices) {
         return upload;
       }),
     },
-    push: {
-      status: os.push.status.handler(async () => ({
-        publicKey: await s.push.publicKey(),
-        devices: (await s.push.devices()).map((row) => ({
-          endpoint: row.endpoint,
-          device: row.device,
-          createdAt: row.createdAt.toISOString(),
-        })),
-      })),
-      subscribe: os.push.subscribe.handler(async ({ input }) => {
-        await s.push.subscribe(input.subscription, input.device);
-        return ok;
-      }),
-      unsubscribe: os.push.unsubscribe.handler(async ({ input }) => {
-        await s.push.unsubscribe(input.endpoint);
-        return ok;
-      }),
-      test: os.push.test.handler(async () => {
-        const [browsers, phones] = await Promise.all([
-          s.push.sendAll({
-            title: "open-bot",
-            body: "Notifications work on this device.",
-            url: "/settings#notifications",
-            tag: "push-test",
-          }),
-          s.fcm.sendAll({
-            data: {
-              type: "notification",
-              kind: "test",
-              title: "open-bot",
-              body: "Notifications work on this phone.",
-              tag: "push-test",
-              url: "/",
-            },
-            priority: "normal",
-          }),
-        ]);
-        return { sent: browsers + phones };
-      }),
-      registerNative: os.push.registerNative.handler(async ({ input }) => {
-        await s.fcm.register(input);
-        return ok;
-      }),
-      unregisterNative: os.push.unregisterNative.handler(async ({ input }) => {
-        await s.fcm.unregister(input.token);
-        return ok;
-      }),
-    },
+    ...notificationRoutes(ctx, s.push, s.fcm),
     tasks: taskRoutes(s.tasks),
     email: {
       inbound: os.email.inbound.handler(async ({ input }) => ({
@@ -215,12 +166,6 @@ export function createWorkerRouter(services: WorkerServices) {
       save: os.vault.save.handler(({ input }) => s.vault.saveItem(input)),
       remove: os.vault.remove.handler(async ({ input }) => {
         await s.vault.removeItem(input.itemId);
-        return ok;
-      }),
-    },
-    notifications: {
-      markRead: os.notifications.markRead.handler(async ({ input }) => {
-        await markNotificationsRead(ctx, input);
         return ok;
       }),
     },

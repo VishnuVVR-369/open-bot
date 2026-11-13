@@ -103,7 +103,7 @@ Each run keeps a watermark, the last event id its snapshot already includes, so 
 
 ## Push notifications
 
-The worker sends FCM **data messages**, never notification messages (`apps/worker/src/services/fcm.ts`).
+The worker sends FCM **data messages**, never notification messages (`apps/worker/src/features/notifications/fcm.ts`).
 The app draws every notification itself with Notifee, which is how approvals get buttons and replies get an inline editor.
 Data messages have a `type` of `notification`, `dismiss`, `egress-needed` or `run-progress`.
 

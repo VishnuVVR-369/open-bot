@@ -627,6 +627,18 @@
   "apps/worker/src/features/memory/tools.ts": {
     "bot": 16
   },
+  "apps/worker/src/features/notifications/fcm.integration.test.ts": {
+    "bot": 3
+  },
+  "apps/worker/src/features/notifications/fcm.ts": {
+    "bot": 3
+  },
+  "apps/worker/src/features/notifications/push.test.ts": {
+    "bot": 1
+  },
+  "apps/worker/src/features/notifications/service.ts": {
+    "bot": 5
+  },
   "apps/worker/src/features/pages/service.integration.test.ts": {
     "bot": 12
   },
@@ -725,20 +737,8 @@
   "apps/worker/src/services/email.ts": {
     "bot": 41
   },
-  "apps/worker/src/services/fcm.integration.test.ts": {
-    "bot": 3
-  },
-  "apps/worker/src/services/fcm.ts": {
-    "bot": 3
-  },
   "apps/worker/src/services/files.ts": {
     "bot": 5
-  },
-  "apps/worker/src/services/notifications.ts": {
-    "bot": 5
-  },
-  "apps/worker/src/services/push.test.ts": {
-    "bot": 1
   },
   "apps/worker/src/services/registry.ts": {
     "bot": 4

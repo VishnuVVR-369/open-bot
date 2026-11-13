@@ -11,7 +11,7 @@ import {
   type ToolResponse,
 } from "../../core/tool";
 import type { RunSession } from "../../runs/session";
-import { createNotification } from "../../services/notifications";
+import { createNotification } from "../notifications";
 
 /** What the screen tools use. */
 interface DesktopToolDeps {

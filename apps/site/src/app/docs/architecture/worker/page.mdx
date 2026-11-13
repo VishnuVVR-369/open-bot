@@ -163,7 +163,7 @@ Services talk to each other through constructor injection and the typed `ctx.eve
 | Account triggers | `features/automations/account-triggers.ts` | Gmail and Calendar triggers: polling, firing once, the hourly limit                                       |
 | Email            | `services/email.ts`                        | Inbound mail from Postmark, the outbox, sending                                                           |
 | Telegram         | `services/telegram.ts`                     | Long polling, linking, routing messages, approval buttons                                                 |
-| Push             | `services/push.ts`                         | VAPID keys, Web Push delivery                                                                             |
+| Notifications    | `features/notifications/`                  | Saving notifications, VAPID keys and Web Push, FCM to your phones, the devices that get them              |
 | Model access     | `services/model-access.ts`                 | Plan or API key, the cap, plan limits                                                                     |
 | Settings         | `services/settings.ts`                     | Your settings row: time zone, the API key and its monthly cap, when the plan ran out                      |
 | Credentials      | `services/credentials.ts`                  | Secrets, encrypted, one per kind; the only writer of `credentials`                                        |
