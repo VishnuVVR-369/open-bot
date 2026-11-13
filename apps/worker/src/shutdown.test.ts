@@ -36,39 +36,58 @@ const REGISTER = new Set(["start", "add", "every", "after"]);
 /**
  * The order index.ts stops its parts in: the reverse of the order it registers them with the
  * Runtime, itself (`runtime.add("name", …)`) or through a feature it starts
- * (`<feature>.start(runtime)`). Any other call that is handed the runtime fails the test, since
- * what it registers can't be seen, and so does a feature in FEATURES that index.ts never starts.
+ * (`<feature>.start(runtime)`), and stops it with `runtime.stop()`. Any other use of `runtime`
+ * fails the test, since what it registers can't be seen, and so does a feature in FEATURES that
+ * index.ts never starts.
  */
 async function stopOrder(): Promise<string[]> {
   const file = path.join(import.meta.dirname, "index.ts");
-  const source = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest);
+  const source = ts.createSourceFile(
+    file,
+    readFileSync(file, "utf8"),
+    ts.ScriptTarget.Latest,
+    true,
+  );
   const steps: ({ part: string } | { feature: string })[] = [];
   const unknown: string[] = [];
-  const isRuntime = (node: ts.Node) => ts.isIdentifier(node) && node.text === "runtime";
-  const visit = (node: ts.Node): void => {
-    if (ts.isCallExpression(node)) {
-      const callee = node.expression;
-      const [first] = node.arguments;
-      if (ts.isPropertyAccessExpression(callee) && isRuntime(callee.expression)) {
-        if (REGISTER.has(callee.name.text)) {
-          if (first && ts.isStringLiteralLike(first)) steps.push({ part: first.text });
-          else unknown.push(node.getText(source));
-        }
-      } else if (node.arguments.some(isRuntime)) {
-        if (
-          ts.isPropertyAccessExpression(callee) &&
-          callee.name.text === "start" &&
-          ts.isIdentifier(callee.expression) &&
-          node.arguments.length === 1
-        )
-          steps.push({ feature: callee.expression.text });
-        else unknown.push(node.getText(source));
+  // Every use of the `runtime` binding must be one of the forms below; anything else (an alias,
+  // `runtime["add"]`, passing it inside an object, ...) could register parts this can't see.
+  const use = (id: ts.Identifier): void => {
+    const parent = id.parent;
+    if (ts.isVariableDeclaration(parent) && parent.name === id) return;
+    if (
+      ts.isPropertyAccessExpression(parent) &&
+      parent.expression === id &&
+      ts.isCallExpression(parent.parent) &&
+      parent.parent.expression === parent
+    ) {
+      const method = parent.name.text;
+      const [first] = parent.parent.arguments;
+      if (method === "stop") return;
+      if (REGISTER.has(method) && first && ts.isStringLiteralLike(first)) {
+        steps.push({ part: first.text });
+        return;
       }
     }
+    if (
+      ts.isCallExpression(parent) &&
+      parent.arguments.length === 1 &&
+      parent.arguments[0] === id &&
+      ts.isPropertyAccessExpression(parent.expression) &&
+      parent.expression.name.text === "start" &&
+      ts.isIdentifier(parent.expression.expression)
+    ) {
+      steps.push({ feature: parent.expression.expression.text });
+      return;
+    }
+    unknown.push(parent.getText(source));
+  };
+  const visit = (node: ts.Node): void => {
+    if (ts.isIdentifier(node) && node.text === "runtime") use(node);
     ts.forEachChild(node, visit);
   };
   visit(source);
-  expect(unknown, "calls handed the runtime that this test can't follow").toEqual([]);
+  expect(unknown, "uses of the runtime this test can't follow").toEqual([]);
   const started = steps.flatMap((step) => ("feature" in step ? [step.feature] : []));
   expect(started.toSorted(), "features index.ts starts").toEqual(Object.keys(FEATURES).toSorted());
   const names: string[] = [];

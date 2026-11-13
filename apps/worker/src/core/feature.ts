@@ -18,17 +18,26 @@ export interface Feature<Signal extends WorkerSignal = never> {
 
 type Handler = () => void;
 
+/**
+ * Any feature, whatever it answers. Not `Feature<never>`: checked against that, a feature built by
+ * a generic call in the list loses its signals and answers every one.
+ */
+type AnyFeature = Pick<Feature, "name" | "start"> & {
+  signals: Partial<Record<WorkerSignal, Handler>>;
+};
+
 /** The signals a feature answers. */
-type SignalsOf<F> = F extends Feature<infer Signal> ? Signal : never;
+type SignalsOf<F> = F extends { signals: infer Signals } ? keyof Signals & WorkerSignal : never;
 
 /**
  * Every signal's one handler: the features' and `own`, the ones `index.ts` answers itself. `own`
- * must answer exactly the signals no feature does, or it doesn't compile; a signal two features
+ * must answer exactly the signals no feature does, or it doesn't compile, a literal or not; a signal two features
  * answer, or none, throws, so the worker doesn't start with one handler hiding another.
  */
-export function signalHandlers<const Features extends readonly Feature<never>[]>(
+export function signalHandlers<const Features extends readonly AnyFeature[]>(
   features: Features,
-  own: Record<Exclude<WorkerSignal, SignalsOf<Features[number]>>, Handler>,
+  own: Record<Exclude<WorkerSignal, SignalsOf<Features[number]>>, Handler> &
+    Partial<Record<SignalsOf<Features[number]>, never>>,
 ): Record<WorkerSignal, Handler> {
   const handlers = new Map<string, { owner: string; handle: Handler }>();
   const sources: [string, Record<string, Handler>][] = [
