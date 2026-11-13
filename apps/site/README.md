@@ -122,12 +122,12 @@ A build on Cloudflare stops with an error if either URL is missing, so a deploy 
 A push to `main` deploys, and a push to another branch gets a preview version, but only when the push changes the site.
 Under **Settings → Build → Build watch paths**, set these for both the production branch and preview branches:
 
-| Setting       | Value                                                                                  |
-| ------------- | -------------------------------------------------------------------------------------- |
-| Include paths | `apps/site/*`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `turbo.json`   |
-| Exclude paths | `apps/site/AGENTS.md`, `apps/site/CLAUDE.md`, `apps/site/README.md`, `apps/site/e2e/*` |
+| Setting       | Value                                                                                                      |
+| ------------- | ---------------------------------------------------------------------------------------------------------- |
+| Include paths | `apps/site/*`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `turbo.json`, `tsconfig.base.json` |
+| Exclude paths | `apps/site/AGENTS.md`, `apps/site/CLAUDE.md`, `apps/site/README.md`, `apps/site/e2e/*`                     |
 
-The site uses no workspace packages, so only its own folder and the root install and build files can change what it ships.
+The site uses no workspace packages, so only its own folder, the root install and build files, and `tsconfig.base.json` (which `apps/site/tsconfig.json` extends) can change what it ships.
 A push that changes nothing else, such as a `web` or `worker` change, skips the build and posts no Cloudflare check.
 The first push of a new branch always builds, because Cloudflare has no earlier commit on that branch to compare against.
 If the site ever imports a workspace package or reads another repo file, add that path here.
