@@ -344,13 +344,6 @@
   "apps/web/src/components/computer/desktop-view.tsx": {
     "bot": 1
   },
-  "apps/web/src/components/home/briefing.tsx": {
-    "bot": 41
-  },
-  "apps/web/src/components/home/home-view.tsx": {
-    "bot": 89,
-    "primary teammate": 1
-  },
   "apps/web/src/components/settings/accounts-section.tsx": {
     "bot": 10
   },
@@ -383,6 +376,37 @@
   },
   "apps/web/src/features/files/components/files-view.tsx": {
     "bot": 27
+  },
+  "apps/web/src/features/home/components/activity.tsx": {
+    "bot": 13
+  },
+  "apps/web/src/features/home/components/briefing.tsx": {
+    "bot": 41
+  },
+  "apps/web/src/features/home/components/coming-up.tsx": {
+    "bot": 11
+  },
+  "apps/web/src/features/home/components/home-view.tsx": {
+    "bot": 22
+  },
+  "apps/web/src/features/home/components/needs-you.tsx": {
+    "bot": 4
+  },
+  "apps/web/src/features/home/components/profile-nudge.tsx": {
+    "bot": 1
+  },
+  "apps/web/src/features/home/components/recent-pages.tsx": {
+    "bot": 2
+  },
+  "apps/web/src/features/home/components/suggestions.tsx": {
+    "bot": 3
+  },
+  "apps/web/src/features/home/components/teammates.tsx": {
+    "bot": 27,
+    "primary teammate": 1
+  },
+  "apps/web/src/features/home/server/queries.ts": {
+    "bot": 4
   },
   "apps/web/src/features/memory/components/memory-manager.tsx": {
     "bot": 14
@@ -458,7 +482,7 @@
     "desktop takeover": 3
   },
   "apps/web/src/lib/server/queries.ts": {
-    "bot": 132,
+    "bot": 128,
     "desktop takeover": 17,
     "primary teammate": 2
   },

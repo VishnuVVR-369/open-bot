@@ -22,6 +22,7 @@ import { worker } from "../worker";
 import { ApiError } from "./errors";
 import { approvalRoutes } from "@/features/approvals/server";
 import { fileRoutes } from "@/features/files/server";
+import { homeRoutes } from "@/features/home/server";
 import { memoryRoutes } from "@/features/memory/server";
 import { pageRoutes } from "@/features/pages/server";
 import { skillRoutes } from "@/features/skills/server";
@@ -54,9 +55,7 @@ export const router = os.router({
     get: os.screenOperations.get.handler(({ input }) => api.getScreenOperation(input)),
     cancel: os.screenOperations.cancel.handler(({ input }) => api.cancelScreenOperation(input)),
   },
-  home: {
-    get: os.home.get.handler(({ input, context }) => api.getHome(context.user, input)),
-  },
+  home: homeRoutes(),
   teammates: {
     list: os.teammates.list.handler(() => listBots()),
     lessons: os.teammates.lessons.handler(({ input }) => listLessons(input.botId)),

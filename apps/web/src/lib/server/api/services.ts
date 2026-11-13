@@ -19,7 +19,6 @@ export {
   setEgressMode,
   setPhoneEgressMode,
 } from "./egress";
-export { getHome } from "./home";
 export {
   removeConnection,
   removeEmailToken,
