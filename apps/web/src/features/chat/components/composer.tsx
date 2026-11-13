@@ -1,6 +1,5 @@
 "use client";
 
-import { cantAttach } from "@open-bot/api";
 import {
   fileSize,
   insertMention,
@@ -10,7 +9,7 @@ import {
   sendAttempt,
   type SendAttempt,
 } from "@open-bot/chat-core";
-import { BUILT_IN_SKILLS, type RunStatus } from "@open-bot/domain";
+import { type RunStatus } from "@open-bot/domain";
 import {
   ArrowUp,
   CloudOff,
@@ -24,9 +23,7 @@ import {
   Square,
   X,
 } from "lucide-react";
-import Link from "next/link";
 import {
-  useCallback,
   useEffect,
   useImperativeHandle,
   useMemo,
@@ -37,22 +34,19 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import { toast } from "sonner";
-import { BotAvatar } from "@/components/bot-avatar";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { attempt } from "@/lib/client/mutate";
 import { api } from "@/lib/client/rpc";
-import { describeFile, uploadAttachment } from "@/lib/client/uploads";
 import { useDictation } from "@/lib/client/dictation";
 import { useAppState } from "@/lib/client/queries";
-import type { BotSummary, ChatSummary, MessageView, SkillSummary } from "@/lib/types";
+import type { BotSummary, ChatSummary, MessageView } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-/** A skill the menu offers: one you saved, or one that comes with the app. */
-type SkillOption =
-  SkillSummary | { id: string; name: string; description: string; botId: null; builtIn: true };
-
-type Attachment = MessageView["attachments"][number];
+import { skillOptions, skillQueryAt, type SkillOption } from "../skill-options";
+import { useDraft } from "../use-draft";
+import { useUploads } from "../use-uploads";
+import { MentionMenu } from "./mention-menu";
+import { SkillMenu } from "./skill-menu";
 
 /** The message box's id, so a page that just opened a chat can put focus in it. */
 export const COMPOSER_INPUT_ID = "composer-input";
@@ -61,13 +55,6 @@ export interface ComposerHandle {
   addFiles: (files: FileList | File[]) => void;
   focus: () => void;
   setDraft: (text: string) => void;
-}
-
-interface Upload {
-  id: string;
-  name: string;
-  status: "uploading" | "done";
-  attachment?: Attachment;
 }
 
 /** The run going on in the chat, if any, and what it is waiting for. */
@@ -93,8 +80,8 @@ export function Composer({
   onSent: (message: MessageView) => void;
   ref?: Ref<ComposerHandle>;
 }) {
-  const [text, setText] = useState("");
-  const [uploads, setUploads] = useState<Upload[]>([]);
+  const [text, setText] = useDraft(chat.id);
+  const { uploads, addFiles, ready, remove, clear } = useUploads();
   const [mentioning, setMentioning] = useState<string | null>(null);
   const [skillQuery, setSkillQuery] = useState<string | null>(null);
   const [menuIndex, setMenuIndex] = useState(0);
@@ -110,15 +97,6 @@ export function Composer({
   });
   const isGroup = chat.kind === "group";
 
-  const draftKey = `open-bot:draft:${chat.id}`;
-  useEffect(() => {
-    setText(localStorage.getItem(draftKey) ?? "");
-  }, [draftKey]);
-  useEffect(() => {
-    if (text) localStorage.setItem(draftKey, text);
-    else localStorage.removeItem(draftKey);
-  }, [text, draftKey]);
-
   // Grow with the text, up to a limit.
   useEffect(() => {
     const element = textarea.current;
@@ -126,31 +104,6 @@ export function Composer({
     element.style.height = "0px";
     element.style.height = `${Math.min(element.scrollHeight, 240)}px`;
   }, [text]);
-
-  const addFiles = useCallback((files: FileList | File[]) => {
-    for (const file of Array.from(files)) {
-      const { name } = describeFile(file);
-      const refused = cantAttach(file);
-      if (refused) {
-        toast.error(`Couldn't attach ${name}`, { description: refused });
-        continue;
-      }
-      const id = crypto.randomUUID();
-      setUploads((current) => [...current, { id, name, status: "uploading" }]);
-      void uploadAttachment(file).then((result) => {
-        if (!result.ok) {
-          toast.error(`Couldn't attach ${name}`, { description: result.error });
-          setUploads((current) => current.filter((upload) => upload.id !== id));
-          return;
-        }
-        setUploads((current) =>
-          current.map((upload) =>
-            upload.id === id ? { ...upload, status: "done", attachment: result.data } : upload,
-          ),
-        );
-      });
-    }
-  }, []);
 
   useImperativeHandle(
     ref,
@@ -162,7 +115,7 @@ export function Composer({
         requestAnimationFrame(() => textarea.current?.focus());
       },
     }),
-    [addFiles],
+    [addFiles, setText],
   );
 
   const mentionable = useMemo(
@@ -170,35 +123,16 @@ export function Composer({
     [isGroup, mentioning, members],
   );
 
-  /** Skills this chat's teammates can use: the built-in ones, the shared ones and their own. */
-  const skillOptions = useMemo((): SkillOption[] => {
-    if (skillQuery === null) return [];
-    const memberIds = new Set(members.map((member) => member.id));
-    const usable: SkillOption[] = [
-      ...BUILT_IN_SKILLS.map((skill) => ({
-        id: `built-in:${skill.name}`,
-        name: skill.name,
-        description: skill.description,
-        botId: null,
-        builtIn: true as const,
-      })),
-      ...(state?.skills ?? []).filter(
-        (skill) => skill.botId === null || memberIds.has(skill.botId),
-      ),
-    ];
-    const query = skillQuery.toLowerCase();
-    return usable
-      .filter((skill) => skill.name.includes(query))
-      .sort((a, b) => Number(!a.name.startsWith(query)) - Number(!b.name.startsWith(query)))
-      .slice(0, 8);
-  }, [skillQuery, members, state?.skills]);
+  const skills = useMemo(
+    () => (skillQuery === null ? [] : skillOptions(skillQuery, members, state?.skills ?? [])),
+    [skillQuery, members, state?.skills],
+  );
 
-  const menuSize = mentionable.length || skillOptions.length;
+  const menuSize = mentionable.length || skills.length;
 
   function updateMenus(value: string, caret: number) {
-    const skill = /(^|\s)\/([a-z0-9-]*)$/.exec(value.slice(0, caret));
     setMentioning(isGroup ? mentionQuery(value, caret) : null);
-    setSkillQuery(skill ? skill[2]! : null);
+    setSkillQuery(skillQueryAt(value, caret));
     setMenuIndex(0);
   }
 
@@ -242,10 +176,9 @@ export function Composer({
 
   function pick(index: number) {
     if (mentionable.length) pickMention(mentionable[index]!);
-    else if (skillOptions.length) insertSkill(skillOptions[index]!);
+    else if (skills.length) insertSkill(skills[index]!);
   }
 
-  const ready = uploads.every((upload) => upload.status === "done");
   const canSend = (text.trim().length > 0 || uploads.length > 0) && ready && !sending;
 
   function submit() {
@@ -260,7 +193,7 @@ export function Composer({
     const { clientId } = thisSend;
     dictation.cancel();
     setText("");
-    setUploads([]);
+    clear();
     startSending(async () => {
       const result = await attempt(
         api.chats.send({ clientId, chatId: chat.id, text: draft, attachments, mentions }),
@@ -290,100 +223,21 @@ export function Composer({
   return (
     <div className="relative">
       {mentionable.length > 0 && (
-        <div
-          className="absolute bottom-full left-0 mb-2 w-64 overflow-hidden rounded-xl border bg-popover p-1 shadow-lg"
-          role="listbox"
-          aria-label="Teammates"
-        >
-          {mentionable.map((member, index) => (
-            <button
-              key={member.id}
-              role="option"
-              aria-selected={index === menuIndex}
-              onMouseDown={(event) => {
-                event.preventDefault();
-                pickMention(member);
-              }}
-              onMouseEnter={() => setMenuIndex(index)}
-              className={cn(
-                "flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left",
-                index === menuIndex && "bg-muted",
-              )}
-            >
-              <BotAvatar name={member.name} color={member.color} emoji={member.emoji} size="xs" />
-              <span className="text-sm font-medium">{member.name}</span>
-              <span className="truncate text-xs text-muted-foreground">{member.role}</span>
-            </button>
-          ))}
-        </div>
+        <MentionMenu
+          options={mentionable}
+          selected={menuIndex}
+          onHover={setMenuIndex}
+          onPick={pickMention}
+        />
       )}
       {skillQuery !== null && mentionable.length === 0 && (
-        <div
-          className="absolute bottom-full left-0 mb-2 w-[min(420px,100%)] overflow-hidden rounded-xl border bg-popover p-1 shadow-lg"
-          role="listbox"
-          aria-label="Skills"
-          data-testid="skill-menu"
-        >
-          <div className="flex items-center justify-between px-2 pt-1 pb-1.5 text-[12.5px] font-medium text-muted-foreground">
-            Skills
-            <Link
-              href="/skills"
-              onMouseDown={(event) => event.preventDefault()}
-              className="text-[12px] font-normal tracking-normal normal-case hover:text-foreground"
-            >
-              Manage
-            </Link>
-          </div>
-          {skillOptions.length === 0 ? (
-            <p className="px-2 pb-2 text-[13px] text-muted-foreground">
-              No skill matches that name.
-            </p>
-          ) : (
-            skillOptions.map((skill, index) => {
-              const owner = skill.botId ? members.find((m) => m.id === skill.botId) : null;
-              return (
-                <button
-                  key={skill.id}
-                  role="option"
-                  aria-selected={index === menuIndex}
-                  onMouseDown={(event) => {
-                    event.preventDefault();
-                    insertSkill(skill);
-                  }}
-                  onMouseEnter={() => setMenuIndex(index)}
-                  className={cn(
-                    "flex w-full items-start gap-2.5 rounded-lg px-2 py-1.5 text-left",
-                    index === menuIndex && "bg-muted",
-                  )}
-                >
-                  <Sparkles className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="flex items-center gap-1.5">
-                      <span className="font-mono text-[13px] font-medium">/{skill.name}</span>
-                      {"builtIn" in skill && (
-                        <span className="rounded bg-subtle px-1.5 text-[11px] leading-[18px] font-medium text-muted-foreground">
-                          Built in
-                        </span>
-                      )}
-                      {owner && (
-                        <BotAvatar
-                          name={owner.name}
-                          color={owner.color}
-                          emoji={owner.emoji}
-                          size="xs"
-                          className="scale-90"
-                        />
-                      )}
-                    </span>
-                    <span className="truncate text-[12.5px] text-muted-foreground">
-                      {skill.description}
-                    </span>
-                  </span>
-                </button>
-              );
-            })
-          )}
-        </div>
+        <SkillMenu
+          options={skills}
+          members={members}
+          selected={menuIndex}
+          onHover={setMenuIndex}
+          onPick={insertSkill}
+        />
       )}
       <div
         className={cn(
@@ -434,7 +288,7 @@ export function Composer({
                 )}
                 <button
                   aria-label={`Remove ${upload.name}`}
-                  onClick={() => setUploads((current) => current.filter((u) => u.id !== upload.id))}
+                  onClick={() => remove(upload.id)}
                   className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
                 >
                   <X className="size-3.5" />
