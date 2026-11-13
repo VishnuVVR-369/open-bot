@@ -44,6 +44,22 @@ function compilerOptions(root: string): ts.CompilerOptions {
   return options;
 }
 
+/** One resolution cache per set of options: the walk asks the same questions for every entry. */
+const resolutionCaches = new WeakMap<ts.CompilerOptions, ts.ModuleResolutionCache>();
+
+/** The module `specifier` in `file` reaches, as TypeScript resolves it with `options`. */
+function resolveModule(options: ts.CompilerOptions, file: string, specifier: string) {
+  let cache = resolutionCaches.get(options);
+  if (!cache) {
+    const canonical = ts.sys.useCaseSensitiveFileNames
+      ? (name: string) => name
+      : (name: string) => name.toLowerCase();
+    cache = ts.createModuleResolutionCache(ts.sys.getCurrentDirectory(), canonical, options);
+    resolutionCaches.set(options, cache);
+  }
+  return ts.resolveModuleName(specifier, file, options, ts.sys, cache).resolvedModule;
+}
+
 /** How TypeScript parses `file`, by its extension: JSX only in `.tsx` and JavaScript files. */
 function scriptKind(file: string): ts.ScriptKind {
   if (file.endsWith(".tsx")) return ts.ScriptKind.TSX;
@@ -119,7 +135,7 @@ function resolve(root: string, options: ts.CompilerOptions, file: string, specif
   const local =
     specifier.startsWith("@/") || specifier.startsWith(".") || path.isAbsolute(specifier);
   if (!local) return undefined;
-  const resolved = ts.resolveModuleName(specifier, file, options, ts.sys).resolvedModule;
+  const resolved = resolveModule(options, file, specifier);
   if (resolved) return resolved.resolvedFileName;
   const target = specifier.startsWith("@/")
     ? path.join(root, specifier.slice(2))
@@ -226,7 +242,7 @@ function flatExports(exports: unknown): boolean {
  * conditional exports.
  */
 function workspaceFile(options: ts.CompilerOptions, file: string, specifier: string) {
-  const resolved = ts.resolveModuleName(specifier, file, options, ts.sys).resolvedModule;
+  const resolved = resolveModule(options, file, specifier);
   if (!resolved || resolved.resolvedFileName.split(path.sep).includes("node_modules")) return null;
   if (!flatExports(packageJson(resolved.resolvedFileName).exports)) return null;
   return resolved.resolvedFileName;
@@ -247,6 +263,13 @@ function clientReach(root: string, options: ts.CompilerOptions): string[] {
   const entries = files(path.join(root, "features")).filter(
     (file) => featureOf(root, file)?.entry === "index",
   );
+  // Entries share most of what they reach, so each file is parsed once.
+  const parsed = new Map<string, ReturnType<typeof parse>>();
+  const imports = (file: string) => {
+    let result = parsed.get(file);
+    if (!result) parsed.set(file, (result = parse(file, readFileSync(file, "utf8"))));
+    return result.edges;
+  };
   for (const entry of entries) {
     const from = path.relative(root, entry);
     const seen = new Set([entry]);
@@ -257,7 +280,7 @@ function clientReach(root: string, options: ts.CompilerOptions): string[] {
         found.push(`${from} reaches ${at}, declarations whose code can't be checked`);
         continue;
       }
-      const { edges } = parse(file, readFileSync(file, "utf8"));
+      const edges = imports(file);
       if (edges.includes(COMPUTED)) found.push(`${from} reaches ${at}, which has ${COMPUTED}`);
       const runs = edges.filter((edge): edge is Edge => edge !== COMPUTED && !edge.typeOnly);
       const server = runs.find((edge) => serverModule(edge.specifier))?.specifier;
