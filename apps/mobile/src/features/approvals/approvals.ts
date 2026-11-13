@@ -3,9 +3,9 @@ import { safe, isDefinedError } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
 import * as LocalAuthentication from "expo-local-authentication";
 import { useCallback, useState } from "react";
-import { api } from "./api";
-import { errorMessage } from "./errors";
-import { queryKeys } from "./query";
+import { api } from "../../lib/api";
+import { errorMessage } from "../../lib/errors";
+import { queryKeys } from "../../lib/query";
 
 export type DecideResult =
   | { ok: true; status: ApprovalDecision }

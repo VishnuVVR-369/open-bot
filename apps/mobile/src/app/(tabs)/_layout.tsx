@@ -4,7 +4,7 @@ import { StyleSheet, View } from "react-native";
 import { AppMark } from "@/components/app-mark";
 import { HeaderActions } from "@/components/header-actions";
 import { haptics } from "@/lib/haptics";
-import { useApprovals } from "@/lib/queries";
+import { useApprovals } from "@/features/approvals/hooks";
 import { useChats } from "@/features/chat/hooks";
 import { fonts, space, useColors } from "@/theme";
 

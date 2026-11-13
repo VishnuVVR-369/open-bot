@@ -3,9 +3,13 @@ import { approvalShortTitle, commandParts, commandSummary } from "@open-bot/doma
 import { router } from "expo-router";
 import { ChevronRight } from "lucide-react-native";
 import { Pressable, StyleSheet, View } from "react-native";
-import { ApprovalAvatar, ApprovalStatusChip, ApprovalTitle } from "@/components/approval-parts";
+import {
+  ApprovalAvatar,
+  ApprovalStatusChip,
+  ApprovalTitle,
+} from "@/features/approvals/components/approval-parts";
 import { Text } from "@/components/text";
-import { shortenPaths } from "@/lib/approval-text";
+import { shortenPaths } from "@/features/approvals/approval-text";
 import { space, useColors } from "@/theme";
 
 /**

@@ -12,7 +12,7 @@ import {
 import { Pressable, StyleSheet, View } from "react-native";
 import { BotAvatar, botActivity, GroupAvatar } from "@/components/bot-avatar";
 import { Text } from "@/components/text";
-import { useComputerOffline } from "@/lib/queries";
+import { useComputerOffline } from "@/features/computer/hooks";
 import type { SearchRow as Row } from "@/lib/search";
 import { ago } from "@/lib/time";
 import { fonts, radius, space, useColors } from "@/theme";

@@ -9,7 +9,7 @@ import { Text } from "@/components/text";
 import { APP_URL } from "@/lib/config";
 import { fileHeaders } from "@/lib/files";
 import { haptics } from "@/lib/haptics";
-import { screenHref } from "@/lib/screens";
+import { screenHref } from "@/features/computer/screens";
 import { lastSeen } from "@/lib/time";
 import { radius, space, useColors } from "@/theme";
 

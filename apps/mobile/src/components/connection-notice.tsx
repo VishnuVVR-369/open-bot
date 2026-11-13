@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { Text } from "@/components/text";
 import { haptics } from "@/lib/haptics";
-import { useComputerOffline } from "@/lib/queries";
+import { useComputerOffline } from "@/features/computer/hooks";
 import { useRealtime } from "@/lib/realtime";
 import { radius, space, useColors } from "@/theme";
 

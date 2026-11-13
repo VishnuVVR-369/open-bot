@@ -34,7 +34,7 @@ import { errorMessage } from "@/lib/errors";
 import { haptics } from "@/lib/haptics";
 import { addPasskey } from "@/lib/passkey";
 import { setPreference, usePreferences, type Preferences } from "@/lib/preferences";
-import { useApprovalRules } from "@/lib/queries";
+import { useApprovalRules } from "@/features/approvals/hooks";
 import { signOut } from "@/lib/session";
 import { hasFirebase } from "@/push/firebase";
 import { useSafeBottom } from "@/lib/use-safe-bottom";

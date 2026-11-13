@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { BotAvatar, botActivity } from "@/components/bot-avatar";
 import { Button } from "@/components/button";
 import { Text } from "@/components/text";
-import { screenState, screenStatus, type ScreenState } from "@/lib/screens";
+import { screenState, screenStatus, type ScreenState } from "@/features/computer/screens";
 import { radius, space, useColors } from "@/theme";
 import { mix } from "@/theme/mix";
 import { DESKTOP_ASPECT_RATIO } from "./desktop-view";

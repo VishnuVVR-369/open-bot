@@ -3,10 +3,14 @@ import { Eye, MousePointer2 } from "lucide-react-native";
 import type { Dispatch, ReactNode, RefObject } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { Button } from "@/components/button";
-import type { DesktopHandle } from "@/components/computer/desktop-view";
+import type { DesktopHandle } from "@/features/computer/components/desktop-view";
 import { Text } from "@/components/text";
 import { TextField } from "@/components/text-field";
-import { typedChange, type ScreenEvent, type ScreenSession } from "@/lib/screen-session";
+import {
+  typedChange,
+  type ScreenEvent,
+  type ScreenSession,
+} from "@/features/computer/screen-session";
 import { radius, space, useColors } from "@/theme";
 
 const keys = [

@@ -5,7 +5,7 @@ import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { Button } from "@/components/button";
 import { FoldableText } from "@/features/chat/components/foldable-text";
 import { Text } from "@/components/text";
-import { screenHref } from "@/lib/screens";
+import { screenHref } from "@/features/computer/screens";
 import { handBackText, takeoverTitle } from "@/features/chat/step-text";
 import { radius, space, useColors } from "@/theme";
 import { mix } from "@/theme/mix";
