@@ -18,6 +18,7 @@ import {
 import { and, eq, inArray, lt, notExists, or, sql } from "drizzle-orm";
 import type { Context } from "./context";
 import { errorMessage } from "./logger";
+import { WorkerError } from "./core/errors";
 
 /** Where files you attach to messages, and files that arrive by email or Telegram, go on the computer. */
 export const UPLOAD_DIR = `${COMPUTER_PATHS.shared}/uploads`;
@@ -73,14 +74,7 @@ export interface UploadView {
   attachment: { name: string; path: string; mime: string; size: number } | null;
 }
 
-export class UploadError extends Error {
-  constructor(
-    readonly status: 400 | 404 | 409 | 413,
-    message: string,
-  ) {
-    super(message);
-  }
-}
+export class UploadError extends WorkerError {}
 
 const sha256 = (data: Buffer) => createHash("sha256").update(data).digest("hex");
 

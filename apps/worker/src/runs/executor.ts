@@ -24,7 +24,8 @@ import type { ModelAccess } from "../services/model-access";
 import type { TakeoverService } from "../services/takeovers";
 import type { AccountAccess } from "../accounts/access";
 import { markDispatched, markSteered, touchChat } from "../services/chats";
-import { RunSession, type Bot, type Run, type SessionTools } from "./session";
+import type { Bot, Run } from "../core/db-types";
+import { RunSession, type SessionTools } from "./session";
 
 /** How long a saved message may wait for its dispatch before the worker dispatches it itself. */
 export const DISPATCH_GRACE_MS = 15_000;

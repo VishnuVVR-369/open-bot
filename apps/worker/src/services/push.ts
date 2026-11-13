@@ -5,6 +5,7 @@ import webpush from "web-push";
 import type { Context, NotificationEvent } from "../context";
 import { errorMessage } from "../logger";
 import { addCredential } from "./credentials";
+import { WorkerError } from "../core/errors";
 
 /** What the service worker shows: a notification that opens the right place when tapped. */
 export interface PushPayload {
@@ -55,7 +56,11 @@ export interface Subscription {
  * sign them are made once and kept encrypted.
  */
 /** A subscription a browser can't be notified at; the message says why. */
-export class PushError extends Error {}
+export class PushError extends WorkerError {
+  constructor(message: string) {
+    super(400, message);
+  }
+}
 
 export class PushService {
   private keys: { publicKey: string; privateKey: string } | null = null;

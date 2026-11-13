@@ -3,15 +3,9 @@ import { isRunActive } from "@open-bot/domain";
 import { and, asc, eq, gt, sql } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
 import { enqueueRun } from "../runs/queue";
+import { WorkerError } from "../core/errors";
 
-export class RetryError extends Error {
-  constructor(
-    readonly status: 404 | 409,
-    message: string,
-  ) {
-    super(message);
-  }
-}
+export class RetryError extends WorkerError {}
 
 /** Runs a finished run's request again, once, however many times it is asked. */
 export class RetryService {

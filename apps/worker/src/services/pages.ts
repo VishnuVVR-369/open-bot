@@ -9,13 +9,18 @@ import { and, desc, eq } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { dirname } from "node:path";
 import { publishApp, type Context } from "../context";
+import { WorkerError } from "../core/errors";
 
-export class PageError extends Error {}
+export class PageError extends WorkerError {
+  constructor(message: string) {
+    super(400, message);
+  }
+}
 
 /** The page asked about was deleted. */
-export class PageGone extends Error {
+export class PageGone extends WorkerError {
   constructor() {
-    super("That page was deleted.");
+    super(404, "That page was deleted.");
   }
 }
 

@@ -23,18 +23,20 @@ import type { UploadService } from "../uploads";
 import type { ApprovalService } from "./approvals";
 import { mainChat, saveUserMessage } from "./chats";
 import { removeCredential, saveCredential } from "./credentials";
+import { WorkerError } from "../core/errors";
 
 const POLL_SECONDS = 25;
 const LINK_CODE_MINUTES = 15;
 /** Telegram's limit on files a bot can download. */
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 
-export class TelegramError extends Error {
+export class TelegramError extends WorkerError {
+  /** `code` is the Bot API's error code, or 0 when it didn't answer with one. */
   constructor(
     message: string,
     readonly code = 0,
   ) {
-    super(message);
+    super(400, message);
   }
 }
 

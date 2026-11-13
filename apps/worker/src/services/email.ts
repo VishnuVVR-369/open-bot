@@ -24,6 +24,7 @@ import { removeCredential, saveCredential } from "./credentials";
 import type { SessionRegistry } from "./registry";
 import { activeTeammates } from "./bots";
 import { SettingsError } from "./settings";
+import { type RefusalStatus, WorkerError } from "../core/errors";
 
 type Email = typeof emails.$inferSelect;
 
@@ -32,7 +33,11 @@ const MAX_TEXT = 20_000;
 /** Attachments bigger than this are mentioned, not saved. */
 const MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024;
 
-export class EmailError extends Error {}
+export class EmailError extends WorkerError {
+  constructor(message: string, status: RefusalStatus = 400) {
+    super(status, message);
+  }
+}
 
 /** The email row, made once with a fresh inbound secret. */
 export async function emailSettingsRow(ctx: Pick<Context, "db">) {
@@ -131,7 +136,7 @@ export class EmailService {
   /** An email arrived at the webhook. Returns which teammate got it, if any. */
   async inbound(token: string, payload: unknown): Promise<{ botId: string | null }> {
     const settings = await emailSettingsRow(this.ctx);
-    if (token !== settings.inboundToken) throw new EmailError("unknown");
+    if (token !== settings.inboundToken) throw new EmailError("Not found.", 404);
     if (!settings.domain) return { botId: null };
     const email = parseInboundEmail(payload);
     if (!email) return { botId: null };

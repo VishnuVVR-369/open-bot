@@ -1,8 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import type { CodexClient } from "@open-bot/agent";
 import type { Context } from "../context";
-import type { RunSession } from "../runs/session";
-import { MemoryCoordinator } from "./memory";
+import { MemoryCoordinator, type MemorySession } from "./memory";
 
 const teammateId = "00000000-0000-4000-8000-000000000001";
 const runId = "00000000-0000-4000-8000-000000000002";
@@ -23,7 +22,7 @@ function fixture() {
     chat: { id: "chat" },
     memoryGeneration: "1:0:0",
     interrupt: vi.fn(async () => {}),
-  } as unknown as RunSession;
+  } as unknown as MemorySession;
   return {
     ctx,
     session,

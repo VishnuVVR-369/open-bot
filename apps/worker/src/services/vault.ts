@@ -24,20 +24,18 @@ import { publishApp, type Context } from "../context";
 import type { RunSession } from "../runs/session";
 import type { ApprovalService } from "./approvals";
 import type { VaultItemInput } from "@open-bot/api";
+import { WorkerError } from "../core/errors";
 
 type Item = typeof vaultItems.$inferSelect;
 
-export class VaultError extends Error {}
-
-/** A change to the vault you asked for that can't be made; the message says why. */
-export class VaultItemError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
-    super(message);
+export class VaultError extends WorkerError {
+  constructor(message: string) {
+    super(400, message);
   }
 }
+
+/** A change to the vault you asked for that can't be made; the message says why. */
+export class VaultItemError extends WorkerError {}
 
 /** A login's or card's secret, and the hint the vault shows of it, or why it can't be saved. */
 function vaultSecret(

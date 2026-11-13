@@ -13,11 +13,16 @@ import { publishApp, type Context } from "../context";
 import { enqueueRun } from "../runs/queue";
 import { errorMessage } from "../logger";
 import { teammateChat } from "./chats";
+import { WorkerError } from "../core/errors";
 
 export type Schedule = typeof schedules.$inferSelect;
 
 /** A schedule that can't be saved or run as asked; the message says why. */
-export class ScheduleError extends Error {}
+export class ScheduleError extends WorkerError {
+  constructor(message: string) {
+    super(400, message);
+  }
+}
 
 const TICK_MS = 10_000;
 

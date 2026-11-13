@@ -12,7 +12,18 @@ import {
   type MemoryRef,
 } from "@open-bot/domain";
 import type { Context } from "../context";
-import type { RunSession } from "../runs/session";
+import type { Bot, Chat, Run } from "../core/db-types";
+
+/** What memory needs of a run's session (a RunSession), without importing what runs it. */
+export interface MemorySession {
+  readonly bot: Pick<Bot, "id">;
+  readonly chat: Pick<Chat, "id">;
+  readonly run: Pick<Run, "id" | "messageId" | "prompt">;
+  /** The memory generation this run's recalled context was built from. */
+  memoryGeneration: string;
+  /** Stops the run's turn. */
+  interrupt(): Promise<void>;
+}
 
 /** Add memories a run recalled to the refs of what it was given, once each. */
 export async function addContextRefs(
@@ -58,7 +69,7 @@ export class MemoryCoordinator {
    * What the owner wrote in the message this run answers, or "" for a run no message started.
    * Memory changes need evidence from it, not from an argument the teammate made up.
    */
-  async requestText(session: RunSession): Promise<string> {
+  async requestText(session: MemorySession): Promise<string> {
     const messageId = session.run.messageId;
     if (!messageId) return "";
     const [message] = await this.ctx.db
@@ -76,7 +87,7 @@ export class MemoryCoordinator {
 
   /** Evidence must come from this run's actual user message, not an argument invented by a bot. */
   async actor(
-    session: RunSession,
+    session: MemorySession,
     content: string,
     shared = false,
   ): Promise<Extract<MemoryActor, { kind: "bot" }>> {
@@ -111,7 +122,7 @@ export class MemoryCoordinator {
     });
   }
 
-  async refreshAfterWrite(session: RunSession): Promise<void> {
+  async refreshAfterWrite(session: MemorySession): Promise<void> {
     const generation = await this.store.generation(session.bot.id);
     // Read cancellation after generation: never adopt a concurrent user's correction as our own.
     const [run] = await this.ctx.db
@@ -125,7 +136,7 @@ export class MemoryCoordinator {
     session.memoryGeneration = generation;
   }
 
-  async context(session: RunSession): Promise<string> {
+  async context(session: MemorySession): Promise<string> {
     for (let attempt = 0; attempt < 3; attempt++) {
       const before = await this.store.generation(session.bot.id);
       const items = await this.recall(session.bot.id, session.run.prompt);

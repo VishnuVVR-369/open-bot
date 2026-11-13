@@ -16,6 +16,7 @@ import {
 } from "@open-bot/domain";
 import { and, eq, isNull, or } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
+import { WorkerError } from "../core/errors";
 
 /** Skills every teammate can use. Codex reads this folder for every thread. */
 const SHARED_ROOT = "/home/bot/.agents/skills";
@@ -43,7 +44,11 @@ const BUILT_IN_SKILLS: { name: string; files: Record<string, string> }[] = [
 type Skill = typeof skills.$inferSelect;
 type BotRef = { id: string; slug: string };
 
-export class SkillError extends Error {}
+export class SkillError extends WorkerError {
+  constructor(message: string) {
+    super(400, message);
+  }
+}
 
 /**
  * Saved skills: the database is the source of truth, and each skill is written to the computer

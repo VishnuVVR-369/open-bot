@@ -24,6 +24,7 @@ import type { RunSession } from "../runs/session";
 import type { SessionRegistry } from "./registry";
 import { decideAccountAction } from "../accounts/actions";
 import { askAboutPurchase, decidePurchase } from "./vault";
+import { WorkerError } from "../core/errors";
 
 const ACTION_WAIT_MS = 10 * 60_000;
 
@@ -47,14 +48,7 @@ interface ApprovalInput {
  * and the bots' request_approval tool (which waits up to 10 minutes, then continues in a new run).
  */
 /** An owner's decision that can't be recorded; the message says why. */
-export class ApprovalError extends Error {
-  constructor(
-    readonly status: 400 | 404,
-    message: string,
-  ) {
-    super(message);
-  }
-}
+export class ApprovalError extends WorkerError {}
 
 /**
  * Close these approvals, if they still wait: what they asked about was cancelled or expired

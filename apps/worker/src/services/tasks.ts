@@ -4,8 +4,13 @@ import { and, asc, desc, eq, isNull, max, ne } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
 import { mainChat } from "./chats";
 import { enqueueRun } from "../runs/queue";
+import { WorkerError } from "../core/errors";
 
-export class TaskError extends Error {}
+export class TaskError extends WorkerError {
+  constructor(message: string) {
+    super(400, message);
+  }
+}
 
 type Task = typeof tasks.$inferSelect;
 

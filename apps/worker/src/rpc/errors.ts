@@ -1,25 +1,7 @@
 import { MemoryError } from "@open-bot/memory";
 import { ORPCError, ValidationError } from "@orpc/server";
+import { WorkerError } from "../core/errors";
 import { errorMessage } from "../logger";
-import { UploadError } from "../uploads";
-import { ApprovalError } from "../services/approvals";
-import { BotError } from "../services/bots";
-import { ChatError } from "../services/chats";
-import { ConnectionError } from "../services/connections";
-import { RunError } from "../runs/requests";
-import { EmailError } from "../services/email";
-import { FileError } from "../services/files";
-import { PageError, PageGone } from "../services/pages";
-import { PushError } from "../services/push";
-import { RetryError } from "../services/retries";
-import { ScheduleError } from "../services/schedules";
-import { ScreenBusy } from "../services/screen-lock";
-import { SettingsError } from "../services/settings";
-import { SkillError } from "../services/skills";
-import { TaskError } from "../services/tasks";
-import { TelegramError } from "../services/telegram";
-import { TriggerError } from "../services/triggers";
-import { VaultItemError } from "../services/vault";
 
 /** The code each status a procedure fails with is sent as, next to the message. */
 const CODES: Record<number, string> = {
@@ -38,21 +20,10 @@ export function rpcError(status: number, message: string): ORPCError<string, und
   return new ORPCError(CODES[status] ?? CODES[500]!, { status, message });
 }
 
-/** Services' errors whose message is for the owner: a request the service can't do as asked. */
-const BAD_REQUESTS = [
-  PageError,
-  PushError,
-  ScheduleError,
-  SettingsError,
-  SkillError,
-  TaskError,
-  TelegramError,
-  TriggerError,
-] as const;
-
 /**
  * Every error a procedure throws, as the status and message the caller sees. This is the only
- * place a service's error becomes an HTTP status.
+ * place a service's error becomes an HTTP status: a `WorkerError` (or the memory
+ * package's `MemoryError`) says its own, and anything else is a fault.
  */
 export function toRpcError(error: unknown): ORPCError<string, unknown> {
   if (error instanceof ORPCError) {
@@ -61,24 +32,8 @@ export function toRpcError(error: unknown): ORPCError<string, unknown> {
       return rpcError(400, error.cause.issues.map((issue) => issue.message).join("; "));
     return error;
   }
-  if (
-    error instanceof ApprovalError ||
-    error instanceof BotError ||
-    error instanceof ChatError ||
-    error instanceof ConnectionError ||
-    error instanceof RunError ||
-    error instanceof FileError ||
-    error instanceof MemoryError ||
-    error instanceof RetryError ||
-    error instanceof UploadError ||
-    error instanceof VaultItemError
-  )
+  if (error instanceof WorkerError || error instanceof MemoryError)
     return rpcError(error.status, error.message);
-  if (error instanceof ScreenBusy) return rpcError(409, error.message);
-  if (error instanceof PageGone) return rpcError(404, error.message);
-  // An inbound address that isn't one: nothing more is said about why.
-  if (error instanceof EmailError) return rpcError(404, "Not found.");
-  if (BAD_REQUESTS.some((type) => error instanceof type)) return rpcError(400, errorMessage(error));
   return new ORPCError("INTERNAL_SERVER_ERROR", {
     status: 500,
     message: errorMessage(error),

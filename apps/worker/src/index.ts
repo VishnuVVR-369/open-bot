@@ -47,6 +47,7 @@ import { AccountActions } from "./accounts/actions";
 import { AccountTools } from "./accounts/tools";
 import { EventEmitter } from "node:events";
 import { addSettingsRow, SettingsService } from "./services/settings";
+import { Runtime } from "./core/runtime";
 
 /** botd's lifecycle calls (lease, quiesce) give up after this. */
 const CONTROL_CALL = { context: { timeoutMs: 10_000 } };
@@ -57,7 +58,10 @@ const log = createLogger();
 process.on("unhandledRejection", (reason) =>
   log.error("unhandled rejection", { error: errorMessage(reason) }),
 );
+// What runs until shutdown, which stops it all in reverse: the database goes last.
+const runtime = new Runtime(log);
 const pool = createPool(env.DATABASE_URL);
+runtime.add("database", () => pool.end());
 const db = createDb(pool);
 
 // Single-row tables exist from the start.
@@ -65,6 +69,7 @@ await addSettingsRow(db);
 await addComputerRow(db);
 
 const computer = new ComputerClient(env.BOTD_URL, env.BOTD_TOKEN, log.child("computer"));
+runtime.add("computer", () => computer.stop());
 const codex = new CodexManager(
   computer,
   env.HOST_CODEX_AUTH_FILE,
@@ -75,11 +80,12 @@ const codex = new CodexManager(
   },
   log.child("codex"),
 );
+runtime.add("codex", () => codex.stop());
 const ctx: Context = { env, db, pool, computer, codex, log, events: new EventEmitter() };
 
 const sessions = new SessionRegistry();
 const memory = new MemoryCoordinator(ctx);
-memory.start();
+await runtime.start("memory", memory);
 const approvals = new ApprovalService(ctx, sessions);
 const takeovers = new TakeoverService(ctx, sessions);
 const screenOperations = new ScreenOperationService(ctx, takeovers);
@@ -101,6 +107,7 @@ const botService = new BotService(ctx, schedules, skills, memory.store, async (b
 const pages = new PageService(ctx);
 const accountAccess = new AccountAccess(ctx);
 const integrations = Integrations.create({ db: ctx.db, endpoints: accountAccess.store.endpoints });
+runtime.add("integrations", () => integrations.stop());
 const accountActions = new AccountActions(ctx, sessions, approvals, accountAccess, integrations);
 const accountTools = new AccountTools(ctx, accountAccess, accountActions, integrations);
 const accountTriggers = new AccountTriggers(ctx, accountAccess, triggers);
@@ -323,14 +330,31 @@ const reconcileTakeovers = () =>
       log.warn("takeover reconciliation deferred", { error: errorMessage(error) }),
     );
 reconcileTakeovers();
-setInterval(reconcileTakeovers, 30_000).unref();
-await egress.start();
-computer.on("lease", () => wake.evaluate());
-setInterval(() => wake.evaluate(), 1_000).unref();
-schedules.start();
-triggers.start();
-accountTriggers.start();
+runtime.every("takeover reconciliation", 30_000, reconcileTakeovers);
+await runtime.start("egress relay", egress);
+// What tells you about decisions starts before what makes them, so it still hears the last ones
+// at shutdown: account actions expire approvals while they drain.
+await runtime.start("web push", push);
+await runtime.start("phone notifications", fcm);
+// Connecting to Telegram can take a while, and the worker doesn't wait for it.
+void telegram
+  .start()
+  .catch((error: unknown) => log.error("Telegram didn't start", { error: errorMessage(error) }));
+runtime.add("telegram", () => telegram.stop());
+// Account actions drain at shutdown, after everything that adds to them has stopped: the lifecycle
+// (no run starts once it pauses Codex), schedules and triggers.
 accountActions.start();
+runtime.add("account actions", async () => {
+  accountActions.stop();
+  await accountActions.idle();
+});
+// It pauses the computer's connections, egress's among them, so it stops first.
+runtime.add("computer lifecycle", () => lifecycle.stop());
+computer.on("lease", () => wake.evaluate());
+runtime.every("egress wake", 1_000, () => wake.evaluate());
+await runtime.start("schedules", schedules);
+await runtime.start("triggers", triggers);
+await runtime.start("account triggers", accountTriggers);
 const sweepEmail = () =>
   void email
     .sweep()
@@ -338,23 +362,19 @@ const sweepEmail = () =>
 await email
   .recover()
   .catch((error: unknown) => log.warn("email recovery failed", { error: errorMessage(error) }));
-setInterval(sweepEmail, 30_000).unref();
+runtime.every("email sweep", 30_000, sweepEmail);
 const keepAccountsAlive = () =>
   void accountAccess
     .keepAlive()
     .catch((error: unknown) =>
       log.warn("account keep-alive failed", { error: errorMessage(error) }),
     );
-setTimeout(keepAccountsAlive, 60_000).unref();
-setInterval(keepAccountsAlive, 12 * 60 * 60_000).unref();
-push.start();
-fcm.start();
-void telegram
-  .start()
-  .catch((error: unknown) => log.error("Telegram didn't start", { error: errorMessage(error) }));
+runtime.after("first account keep-alive", 60_000, keepAccountsAlive);
+runtime.every("account keep-alive", 12 * 60 * 60_000, keepAccountsAlive);
 
 // Wake up on signals from the web server.
 const listener = await pool.connect();
+runtime.add("signal listener", () => listener.release());
 await listener.query(`listen ${NOTIFY_CHANNELS.worker}`);
 // One handler per signal, so a new `WorkerSignal` doesn't compile until it has one.
 const onSignal: Record<WorkerSignal, () => void> = {
@@ -374,10 +394,10 @@ listener.on("notification", (message) => {
   if (message.payload && isWorkerSignal(message.payload)) onSignal[message.payload]();
 });
 // Catch anything queued while no one was listening.
-setInterval(() => {
+runtime.every("safety sweep", 15_000, () => {
   executor.pump();
   void executor.processCancellations();
-}, 15_000).unref();
+});
 // Messages saved but never dispatched, like when the worker was down or crashed in between.
 const reconcileDispatches = () =>
   void executor
@@ -386,17 +406,18 @@ const reconcileDispatches = () =>
       log.error("reconciling dispatches failed", { error: errorMessage(error) }),
     );
 reconcileDispatches();
-setInterval(reconcileDispatches, 30_000).unref();
+runtime.every("dispatch reconciliation", 30_000, reconcileDispatches);
 // Attachments that never finished uploading, or that nothing ended up using.
-setInterval(
+runtime.every(
+  "upload cleanup",
+  10 * 60_000,
   () =>
     void uploads
       .cleanup()
       .catch((error: unknown) =>
         log.warn("cleaning up uploads failed", { error: errorMessage(error) }),
       ),
-  10 * 60_000,
-).unref();
+);
 
 const chats = new ChatService(ctx, (messageId) => executor.dispatchMessage(messageId));
 const server = createHttpServer({
@@ -431,26 +452,11 @@ const server = createHttpServer({
   vault,
 });
 server.listen(env.WORKER_PORT, () => log.info(`worker listening on :${env.WORKER_PORT}`));
+runtime.add("http server", () => server.close());
 
 async function shutdown(signal: string) {
   log.info(`received ${signal}, shutting down`);
-  server.close();
-  lifecycle.stop();
-  await memory.stop();
-  schedules.stop();
-  triggers.stop();
-  accountTriggers.stop();
-  accountActions.stop();
-  await accountActions.idle();
-  await integrations.stop();
-  push.stop();
-  fcm.stop();
-  telegram.stop();
-  egress.stop();
-  codex.stop();
-  computer.stop();
-  listener.release();
-  await pool.end();
+  await runtime.stop();
   process.exit(0);
 }
 process.on("SIGTERM", () => void shutdown("SIGTERM"));

@@ -522,6 +522,9 @@
   "apps/worker/src/context.ts": {
     "bot": 1
   },
+  "apps/worker/src/core/db-types.ts": {
+    "bot": 2
+  },
   "apps/worker/src/egress/relay.test.ts": {
     "bot": 2
   },
@@ -539,9 +542,6 @@
   },
   "apps/worker/src/instructions.ts": {
     "bot": 26
-  },
-  "apps/worker/src/rpc/errors.ts": {
-    "bot": 3
   },
   "apps/worker/src/rpc/handler.test.ts": {
     "bot": 5
@@ -572,7 +572,7 @@
     "bot": 1
   },
   "apps/worker/src/runs/session.ts": {
-    "bot": 51
+    "bot": 50
   },
   "apps/worker/src/runs/thread-continuity.test.ts": {
     "bot": 4
@@ -609,7 +609,7 @@
     "bot": 5
   },
   "apps/worker/src/services/memory.ts": {
-    "bot": 15
+    "bot": 18
   },
   "apps/worker/src/services/notifications.ts": {
     "bot": 5
@@ -654,7 +654,7 @@
     "bot": 39
   },
   "apps/worker/src/services/telegram.ts": {
-    "bot": 66,
+    "bot": 67,
     "primary teammate": 1
   },
   "apps/worker/src/services/triggers.ts": {
@@ -692,7 +692,7 @@
     "bot": 1
   },
   "apps/worker/src/tools/handlers.ts": {
-    "bot": 9
+    "bot": 5
   },
   "apps/worker/src/tools/memory.ts": {
     "bot": 16

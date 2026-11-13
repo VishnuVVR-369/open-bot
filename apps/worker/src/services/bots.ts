@@ -36,7 +36,7 @@ import {
 import { and, asc, eq, gt, isNotNull, isNull, sql } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
 import { errorMessage } from "../logger";
-import type { Bot } from "../runs/session";
+import type { Bot } from "../core/db-types";
 import { requestTeammateRunsCancel } from "../runs/cancel";
 import { addApprovalRules } from "./approvals";
 import { addChat, archiveChatsOf, renameDirectChats, shownMainChats } from "./chats";
@@ -47,6 +47,7 @@ import type { SkillService } from "./skills";
 import { addPausedWatches, pauseTriggersOf } from "./triggers";
 import { type MemoryService } from "@open-bot/memory";
 import { setConnectionTeammates } from "./connections";
+import { WorkerError } from "../core/errors";
 
 /** What a teammate is made of besides its profile: what copying and exporting carry over. */
 export type TeammateParts = Omit<TeammateBundle, "format" | "version" | "teammate">;
@@ -57,14 +58,7 @@ export type TeammateMemory = Pick<MemoryService, "copyBot" | "addLessons">;
 /** A teammate row, under the legacy type name. */
 type Teammate = Bot;
 
-export class BotError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
-    super(message);
-  }
-}
+export class BotError extends WorkerError {}
 
 /** A connection as teammates see it: no credentials, with a revision for safe edits. */
 export interface ConnectionSummary {
