@@ -5,7 +5,6 @@ import type { EgressRelay } from "../egress/relay";
 import type { WakeController } from "../egress/wake";
 import type { UploadService } from "../uploads";
 import type { RunExecutor } from "../runs/executor";
-import type { AccountTriggers } from "../services/account-triggers";
 import type { ApprovalService } from "../services/approvals";
 import { teammateRoutes, type BotService } from "../features/teammates";
 import type { CodexAccountService } from "../services/codex-account";
@@ -17,7 +16,6 @@ import type { FileService } from "../services/files";
 import { pageRoutes, type PageService } from "../features/pages";
 import type { PushService } from "../services/push";
 import type { RetryService } from "../services/retries";
-import type { ScheduleService } from "../services/schedules";
 import { withScreenLock } from "../services/screen-lock";
 import type { ScreenOperationService } from "../services/screen-operations";
 import type { SkillService } from "../services/skills";
@@ -26,7 +24,12 @@ import type { TakeoverService } from "../services/takeovers";
 import type { ChatService } from "../services/chats";
 import type { RunRequests } from "../runs/requests";
 import type { TelegramService } from "../services/telegram";
-import type { TriggerService } from "../services/triggers";
+import {
+  automationRoutes,
+  type AccountTriggers,
+  type ScheduleService,
+  type TriggerService,
+} from "../features/automations";
 import { rpcError } from "./errors";
 import type { EgressDevices } from "../egress/devices";
 import { markNotificationsRead } from "../services/notifications";
@@ -93,6 +96,7 @@ export function createWorkerRouter(services: WorkerServices) {
       })),
     },
     ...teammateRoutes(s.teammates, s.executor),
+    ...automationRoutes(s.schedules, s.triggers, s.accountTriggers),
     chats: {
       newDirect: os.chats.newDirect.handler(({ input }) => s.chats.newDirect(input.teammateId)),
       createGroup: os.chats.createGroup.handler(({ input }) =>
@@ -217,26 +221,6 @@ export function createWorkerRouter(services: WorkerServices) {
         return upload;
       }),
     },
-    schedules: {
-      create: os.schedules.create.handler(async ({ input }) => ({
-        id: (await s.schedules.create({ ...input, createdBy: "user" })).id,
-      })),
-      update: os.schedules.update.handler(async ({ input: { scheduleId, ...input } }) => ({
-        id: (await s.schedules.update(scheduleId, input)).id,
-      })),
-      setEnabled: os.schedules.setEnabled.handler(async ({ input }) => {
-        await s.schedules.setEnabled(input.scheduleId, input.enabled);
-        return ok;
-      }),
-      remove: os.schedules.remove.handler(async ({ input }) => {
-        await s.schedules.remove(input.scheduleId);
-        return ok;
-      }),
-      runNow: os.schedules.runNow.handler(async ({ input }) => {
-        await s.schedules.runNow(input.scheduleId);
-        return ok;
-      }),
-    },
     push: {
       status: os.push.status.handler(async () => ({
         publicKey: await s.push.publicKey(),
@@ -353,39 +337,6 @@ export function createWorkerRouter(services: WorkerServices) {
       stop: os.swarms.stop.handler(async ({ input }) => {
         await s.swarms.stop(input.swarmId);
         return ok;
-      }),
-    },
-    triggers: {
-      create: os.triggers.create.handler(async ({ input }) => {
-        const row = await s.triggers.create(input, { kind: "user" });
-        return { id: row.id, hookPath: row.token ? `/api/hooks/${row.token}` : null };
-      }),
-      update: os.triggers.update.handler(async ({ input: { triggerId, ...input } }) => ({
-        id: (await s.triggers.update(triggerId, input)).id,
-      })),
-      setEnabled: os.triggers.setEnabled.handler(async ({ input }) => {
-        await s.triggers.setEnabled(input.triggerId, input.enabled);
-        return ok;
-      }),
-      remove: os.triggers.remove.handler(async ({ input }) => {
-        await s.triggers.remove(input.triggerId);
-        return ok;
-      }),
-      check: os.triggers.check.handler(async ({ input }) => {
-        const kind = await s.triggers.kindOf(input.triggerId);
-        return kind === "gmail" || kind === "calendar"
-          ? s.accountTriggers.checkNow(input.triggerId)
-          : s.triggers.checkNow(input.triggerId);
-      }),
-      rotateToken: os.triggers.rotateToken.handler(async ({ input }) => ({
-        token: await s.triggers.rotateToken(input.triggerId),
-      })),
-    },
-    hooks: {
-      fire: os.hooks.fire.handler(async ({ input: { token, ...request } }) => {
-        const result = await s.triggers.fireWebhook(token, request);
-        if ("error" in result) throw rpcError(result.status, result.error);
-        return result;
       }),
     },
     telegram: {

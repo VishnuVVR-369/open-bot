@@ -12,6 +12,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Context } from "../../context";
 import type { Bot } from "../../core/db-types";
+import type { SetupTitle, TeammateTargets } from "../../core/targets";
 import type { RunSession } from "../../runs/session";
 import type { ApprovalService } from "../../services/approvals";
 import { BotError, BotService } from "./service";
@@ -36,12 +37,6 @@ export const TEAMMATE_RULES = {
   edit: "Edit teammates' profiles",
   setup: "Set up other teammates' skills and automations",
 } as const;
-
-/**
- * The approval title when a tool sets up another teammate: `teammate` is their name, and
- * `automation` the quoted title of the automation the call names by id ("an automation" if none).
- */
-export type SetupTitle = (names: { teammate: string; automation: string }) => string;
 
 function autonomyLabel(autonomy: Autonomy): string {
   return AUTONOMY_OPTIONS.find((option) => option.value === autonomy)?.label ?? autonomy;
@@ -119,7 +114,7 @@ function argumentsDetail(args: Record<string, unknown>): string {
 }
 
 /** The tools teammates use to create and configure other teammates. */
-export class BotTools {
+export class BotTools implements TeammateTargets {
   constructor(
     private readonly ctx: Context,
     readonly bots: BotService,

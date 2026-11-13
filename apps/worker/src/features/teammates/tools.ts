@@ -12,6 +12,7 @@ import {
   type ToolDefinition,
   type ToolResponse,
 } from "../../core/tool";
+import { targetTeammate } from "../../core/targets";
 import type { RunSession } from "../../runs/session";
 import { createNotification } from "../../services/notifications";
 import type { BotTools } from "./changes";
@@ -23,18 +24,6 @@ interface TeammateToolDeps {
   teammates: Pick<BotService, "proposeInstructions">;
   botTools: BotTools;
 }
-
-const TARGET_DESCRIPTION =
-  "A teammate's id from list_bots. Where optional, leave it out for yourself. Changing another teammate's setup may ask the user first.";
-
-/** `bot_id`: a teammate's id, required. */
-export const targetTeammate = z
-  .string()
-  .uuid("Use a teammate id from list_bots.") // vocabulary: allow
-  .describe(TARGET_DESCRIPTION);
-
-/** `bot_id` where it may be left out for the caller. */
-export const optionalTarget = targetTeammate.optional();
 
 /** A teammate's profile fields, as create_bot and update_bot take them. */
 const profileFields = {

@@ -42,12 +42,13 @@ import { addApprovalRules } from "../../services/approvals";
 import { addChat, archiveChatsOf, renameDirectChats, shownMainChats } from "../../services/chats";
 import {
   addPausedRoutines,
+  addPausedWatches,
   copyUpcomingReminders,
   pauseSchedulesOf,
-} from "../../services/schedules";
-import type { ScheduleService } from "../../services/schedules";
+  pauseTriggersOf,
+  type ScheduleService,
+} from "../automations";
 import { addTeammateSkills, type SkillService } from "../../services/skills";
-import { addPausedWatches, pauseTriggersOf } from "../../services/triggers";
 import { type MemoryService } from "@open-bot/memory";
 import { setConnectionTeammates } from "../../services/connections";
 import { WorkerError } from "../../core/errors";

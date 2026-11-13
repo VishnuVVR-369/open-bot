@@ -48,7 +48,7 @@ A schedule is a row in `schedules`:
 
 ### The scheduler
 
-`ScheduleService` (`apps/worker/src/services/schedules.ts`) ticks every 10 seconds, and right away when a schedule is created or changed (the web app sends `NOTIFY openbot_worker, 'schedules'`).
+`ScheduleService` (`apps/worker/src/features/automations/schedules.ts`) ticks every 10 seconds, and right away when a schedule is created or changed (the web app sends `NOTIFY openbot_worker, 'schedules'`).
 
 Each tick runs in one transaction:
 
@@ -112,7 +112,7 @@ It is a row in `triggers` with `kind = 'watch'`, the URL, the interval, optional
 
 ### Checking
 
-`TriggerService` (`apps/worker/src/services/triggers.ts`) ticks every 30 seconds and checks up to 4 watches at a time.
+`TriggerService` (`apps/worker/src/features/automations/triggers.ts`) ticks every 30 seconds and checks up to 4 watches at a time.
 A check:
 
 - fetches from the worker, without a browser, cookies or sign-ins, with a 20-second timeout;
@@ -171,7 +171,7 @@ Mail you send, drafts and chats never count, and `older_than` and `before` can't
 - Each check starts one run with all the new mail that matches: up to 10 messages in full, and any others listed by subject.
 - A message never wakes the same trigger twice.
 
-`AccountTriggers` (`apps/worker/src/services/account-triggers.ts`) checks all the triggers on one mailbox with one Gmail `history.list` request, from the oldest trigger's place in the mailbox, and each trigger takes what is newer than its own.
+`AccountTriggers` (`apps/worker/src/features/automations/account-triggers.ts`) checks all the triggers on one mailbox with one Gmail `history.list` request, from the oldest trigger's place in the mailbox, and each trigger takes what is newer than its own.
 New messages are matched with the trigger's search in parentheses, plus `-in:sent -in:drafts -in:chats newer_than:2d`, so an `OR` in your search can't undo the rest.
 If Gmail no longer has the history, after a long outage, the trigger looks at the last day's mail instead, and skips mail older than the trigger itself.
 

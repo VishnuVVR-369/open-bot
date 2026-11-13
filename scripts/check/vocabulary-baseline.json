@@ -555,6 +555,24 @@
   "apps/worker/src/env.ts": {
     "bot": 1
   },
+  "apps/worker/src/features/automations/account-triggers.integration.test.ts": {
+    "bot": 13
+  },
+  "apps/worker/src/features/automations/account-triggers.ts": {
+    "bot": 2
+  },
+  "apps/worker/src/features/automations/account-watch-tools.ts": {
+    "bot": 13
+  },
+  "apps/worker/src/features/automations/schedules.ts": {
+    "bot": 26
+  },
+  "apps/worker/src/features/automations/tools.ts": {
+    "bot": 49
+  },
+  "apps/worker/src/features/automations/triggers.ts": {
+    "bot": 44
+  },
   "apps/worker/src/features/pages/service.integration.test.ts": {
     "bot": 12
   },
@@ -584,7 +602,7 @@
     "primary teammate": 5
   },
   "apps/worker/src/features/teammates/tools.ts": {
-    "bot": 69
+    "bot": 66
   },
   "apps/worker/src/index.ts": {
     "bot": 7
@@ -629,12 +647,6 @@
   "apps/worker/src/runs/thread-continuity.test.ts": {
     "bot": 4
   },
-  "apps/worker/src/services/account-triggers.integration.test.ts": {
-    "bot": 13
-  },
-  "apps/worker/src/services/account-triggers.ts": {
-    "bot": 2
-  },
   "apps/worker/src/services/approvals.ts": {
     "bot": 31
   },
@@ -671,9 +683,6 @@
   "apps/worker/src/services/retries.ts": {
     "bot": 9
   },
-  "apps/worker/src/services/schedules.ts": {
-    "bot": 26
-  },
   "apps/worker/src/services/screen-operations.integration.test.ts": {
     "bot": 8,
     "desktop takeover": 15
@@ -696,14 +705,8 @@
     "bot": 67,
     "primary teammate": 1
   },
-  "apps/worker/src/services/triggers.ts": {
-    "bot": 44
-  },
   "apps/worker/src/services/vault.ts": {
     "bot": 40
-  },
-  "apps/worker/src/tools/automations.ts": {
-    "bot": 60
   },
   "apps/worker/src/tools/bots.integration.test.ts": {
     "bot": 129,
