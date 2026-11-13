@@ -25,10 +25,6 @@ export function useNotifications(enabled = true) {
   return useQuery(orpc.notifications.list.queryOptions({ enabled }));
 }
 
-export function useProfile() {
-  return useQuery(orpc.profile.get.queryOptions());
-}
-
 /** False while the computer (the worker) is offline, so views skip requests that would fail. */
 export function useComputerOnline(): boolean | undefined {
   const { data: state } = useAppState();

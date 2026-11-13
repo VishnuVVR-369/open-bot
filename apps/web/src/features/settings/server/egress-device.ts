@@ -5,8 +5,8 @@ import { hashDeviceSecret } from "@open-bot/domain/server";
 import { and, eq, isNull } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { db } from "./db";
-import { WorkerError } from "./worker";
+import { db } from "@/lib/server/db";
+import { WorkerError } from "@/lib/server/worker";
 
 export type EgressDevice = typeof egressDevices.$inferSelect;
 

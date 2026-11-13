@@ -3,7 +3,7 @@ import { issueToken } from "@open-bot/domain/server";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/server/db";
-import { deviceRoute } from "@/lib/server/egress-device";
+import { deviceRoute } from "@/features/settings/server";
 import { serverEnv } from "@/lib/server/env";
 import { worker } from "@/lib/server/worker";
 

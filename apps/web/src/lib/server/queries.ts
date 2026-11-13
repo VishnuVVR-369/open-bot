@@ -8,13 +8,12 @@ import {
   desktopTakeovers,
   instructionProposals,
   notifications,
-  ownerSettings,
   ownerTimeZone,
   runs,
 } from "@open-bot/db";
 import { and, count, desc, eq, isNull } from "drizzle-orm";
 import { OFFLINE_EGRESS_STATUS, type EgressStatusView, type Attention } from "@open-bot/api";
-import type { AppState, NotificationView, ProfileView, TakeoverRequestSummary } from "../types";
+import type { AppState, NotificationView, TakeoverRequestSummary } from "../types";
 import { db } from "./db";
 import type { WorkerStatus } from "@open-bot/api/worker";
 import { worker } from "./worker";
@@ -160,12 +159,4 @@ export async function listNotifications(limit = 40): Promise<NotificationView[]>
     readAt: row.readAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
   }));
-}
-
-export async function getProfile(): Promise<ProfileView> {
-  const row = await ownerSettings(db);
-  return {
-    aboutMe: row?.aboutMe ?? "",
-    updatedAt: row?.aboutMeUpdatedAt?.toISOString() ?? null,
-  };
 }

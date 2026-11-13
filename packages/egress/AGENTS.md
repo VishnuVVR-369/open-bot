@@ -28,7 +28,7 @@ The computer's end (`EgressRouter`, which botd runs) is here too; the relay live
 ## Tests
 
 - `pnpm --filter @open-bot/egress test` runs `egress.test.ts`, `flow.test.ts`, `router.test.ts` and `vectors.test.ts`.
-- `apps/web/src/lib/server/egress-device.integration.test.ts` is the nearest integration suite (`pnpm test:integration`).
+- `apps/web/src/features/settings/server/egress-device.integration.test.ts` is the nearest integration suite (`pnpm test:integration`).
 - See the openbot-computer skill for sleep and wake and egress behavior.
 
 ## Docs

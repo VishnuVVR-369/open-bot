@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { deviceRoute } from "@/lib/server/egress-device";
+import { deviceRoute } from "@/features/settings/server";
 import { worker } from "@/lib/server/worker";
 
 /** FCM gave the phone a new token; the worker wakes the phone with it from now on. */
