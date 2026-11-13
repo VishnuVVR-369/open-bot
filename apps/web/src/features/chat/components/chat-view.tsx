@@ -1,190 +1,36 @@
 "use client";
 
 import { isRunActive } from "@open-bot/domain";
-import {
-  ArrowDown,
-  ArrowRight,
-  Archive,
-  CloudOff,
-  Copy,
-  Menu,
-  RotateCcw,
-  Monitor,
-  MoreHorizontal,
-  PanelRightClose,
-  Pencil,
-  Plus,
-  Settings2,
-  Star,
-  Upload,
-  Users,
-} from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { ArrowDown, Upload } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
-import { BotAvatar } from "@/components/bot-avatar";
-import { useOpenMobileMenu } from "@/components/app/mobile-menu";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ComputerPanel, useComputer } from "@/features/computer";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { DuplicateBotDialog } from "@/features/teammates";
-import { FileIcon, FilePreview } from "@/features/files";
-import { attempt } from "@/lib/client/mutate";
-import { api, orpc } from "@/lib/client/rpc";
 import { useAppState } from "@/lib/client/queries";
-import { fileKind, fileUrl } from "@/lib/files";
 import { chatStatus } from "@/lib/status";
-import type { BotSummary, MessageView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Composer, type ComposerHandle } from "./composer";
-import { CollapsibleText } from "./collapsible-text";
-import { MessageText } from "./message-text";
-import { RenameChatDialog } from "./rename-chat";
 import { RunBlock } from "./run-block";
 import { HelperScreen } from "./helper-screen";
 import { useChat } from "../use-chat";
-import { completedRepliesKey } from "../read-marker";
+import { UserMessage } from "./user-message";
+import { EmptyState } from "./empty-state";
+import { ChatHeader } from "./chat-header";
+import { useChatScroll } from "../use-chat-scroll";
+import { useMarkRead } from "../use-mark-read";
 
 const PANEL_KEY = "open-bot:computer-panel";
 
-/** A file you attached. Opens a preview when the app can show it, and downloads otherwise. */
-function Attachment({ file }: { file: MessageView["attachments"][number] }) {
-  const [open, setOpen] = useState(false);
-  const className =
-    "flex items-center gap-1.5 rounded-lg border bg-card px-2.5 py-1.5 text-[12.5px] transition-colors hover:bg-muted";
-  const content = (
-    <>
-      <FileIcon name={file.name} className="size-3.5 text-muted-foreground" />
-      {file.name}
-    </>
-  );
-  if (fileKind(file.name) === "other")
-    return (
-      <a href={fileUrl(file.path)} className={className}>
-        {content}
-      </a>
-    );
-  return (
-    <>
-      <button type="button" onClick={() => setOpen(true)} className={className}>
-        {content}
-      </button>
-      <FilePreview path={file.path} open={open} onOpenChange={setOpen} />
-    </>
-  );
-}
-
-function UserMessage({ message }: { message: MessageView }) {
-  return (
-    <div className="flex flex-col items-end gap-1.5" data-testid="user-message">
-      {message.redoOfRunId && (
-        <span className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
-          <RotateCcw className="size-3" />
-          Asked to try again
-        </span>
-      )}
-      {message.attachments.length > 0 && (
-        <div className="flex flex-wrap justify-end gap-1.5">
-          {message.attachments.map((file) => (
-            <Attachment key={file.path} file={file} />
-          ))}
-        </div>
-      )}
-      <div className="max-w-[85%] rounded-[18px] rounded-br-[6px] bg-[color-mix(in_oklab,var(--foreground)_6.5%,var(--surface))] px-4 py-2.5 text-[14.5px] leading-relaxed whitespace-pre-wrap text-foreground">
-        <CollapsibleText watch={message.text}>
-          <MessageText text={message.text} />
-        </CollapsibleText>
-      </div>
-    </div>
-  );
-}
-
-const STARTERS = [
-  "Open news.ycombinator.com and give me the 5 most interesting stories, with links.",
-  "Every weekday at 9:00, check the weather in my city and send me a one-line summary.",
-  "Remember that I prefer short answers with bullet points.",
-];
-
-function EmptyState({
-  members,
-  onPick,
-  isGroup,
-}: {
-  members: BotSummary[];
-  onPick: (text: string) => void;
-  isGroup: boolean;
-}) {
-  const bot = members[0];
-  return (
-    <div className="m-auto flex w-full max-w-[560px] flex-col items-center gap-6 px-6 py-16 text-center">
-      {isGroup ? (
-        <div className="flex -space-x-2">
-          {members.map((member) => (
-            <BotAvatar
-              key={member.id}
-              name={member.name}
-              color={member.color}
-              emoji={member.emoji}
-              size="lg"
-              className="rounded-[14px] ring-4 ring-surface"
-            />
-          ))}
-        </div>
-      ) : (
-        bot && <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="xl" />
-      )}
-      <div className="flex flex-col gap-1.5">
-        <h2 className="text-xl font-semibold">
-          {isGroup ? "Start the conversation" : `Give ${bot?.name ?? "them"} something to do`}
-        </h2>
-        <p className="text-[14px] text-muted-foreground">
-          {isGroup
-            ? "Your message goes to the lead teammate, or to whoever you @mention. They pass work to each other."
-            : `${bot?.name ?? "Your teammate"} works on the shared computer. Watch on the right, and take over whenever you want.`}
-        </p>
-      </div>
-      <div className="flex w-full flex-col gap-2">
-        {STARTERS.map((starter) => (
-          <button
-            key={starter}
-            onClick={() => onPick(starter)}
-            className="rounded-xl bg-card px-4 py-3 text-left text-[13.5px] text-foreground/85 shadow-raised transition-shadow hover:shadow-float"
-          >
-            {starter}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 export function ChatView({ chatId }: { chatId: string }) {
-  const router = useRouter();
   const { data: state } = useAppState();
   const { chat, members, entries, runs, loading, error, addOptimistic, helper } = useChat(chatId);
-  const queryClient = useQueryClient();
   const composer = useRef<ComposerHandle>(null);
-  const scroller = useRef<HTMLDivElement>(null);
-  const [atBottom, setAtBottom] = useState(true);
-  // Scrolled away from the top: the header gets a hairline so content doesn't slide under it unmarked.
-  const [scrolled, setScrolled] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
-  const [dialog, setDialog] = useState<"rename" | "duplicate" | null>(null);
   const allBots = state?.bots ?? members;
-  const openMenu = useOpenMobileMenu();
   const { online, state: computerState } = useComputer();
   // Known offline, not just unknown yet: the panel collapses to a chip in the header.
   const offline = Boolean(computerState) && !online;
@@ -229,45 +75,11 @@ export function ChatView({ chatId }: { chatId: string }) {
     };
   }, [runs, allBots]);
 
-  // Seen here means read everywhere: the phone doesn't list this chat as unread anymore.
-  const finished = useMemo(() => completedRepliesKey(runs), [runs]);
-  useEffect(() => {
-    if (loading || error) return;
-    const mark = () => {
-      if (document.visibilityState === "visible") void attempt(api.chats.markRead({ chatId }));
-    };
-    mark();
-    document.addEventListener("visibilitychange", mark);
-    return () => document.removeEventListener("visibilitychange", mark);
-  }, [chatId, finished, loading, error]);
-
-  // Stick to the bottom while new content streams in, unless you scrolled up to read.
-  useLayoutEffect(() => {
-    const element = scroller.current;
-    if (element && atBottom) element.scrollTop = element.scrollHeight;
-  });
-
-  // A link to one run, like from a schedule's history, opens the chat at that run.
-  const jumpedTo = useRef<string | null>(null);
-  useLayoutEffect(() => {
-    if (loading) return;
-    const hash = window.location.hash.slice(1);
-    if (!hash.startsWith("run-") || jumpedTo.current === hash) return;
-    const target = document.getElementById(hash);
-    if (!target) return;
-    jumpedTo.current = hash;
-    target.scrollIntoView({ block: "start" });
-    onScroll();
-    target.classList.add("run-highlight");
-    setTimeout(() => target.classList.remove("run-highlight"), 2500);
-  }, [loading, entries]);
-
-  function onScroll() {
-    const element = scroller.current;
-    if (!element) return;
-    setAtBottom(element.scrollHeight - element.scrollTop - element.clientHeight < 80);
-    setScrolled(element.scrollTop > 4);
-  }
+  useMarkRead(chatId, runs, loading, error);
+  const { scroller, onScroll, atBottom, scrolled, stickToBottom, scrollToLatest } = useChatScroll(
+    loading,
+    entries,
+  );
 
   if (error) {
     return (
@@ -295,7 +107,6 @@ export function ChatView({ chatId }: { chatId: string }) {
           chatById: (id) => state?.chats.find((entry) => entry.id === id),
         })
       : null;
-  const elsewhere = status?.elsewhere ?? null;
   // From the chat list, which every change refreshes: another device may have picked a new main chat.
   const isMain = state?.chats.find((entry) => entry.id === chatId)?.main ?? chat?.main ?? false;
   const title = chat
@@ -305,12 +116,6 @@ export function ChatView({ chatId }: { chatId: string }) {
         ? `${bot?.name ?? ""} · Email`
         : chat.title
     : "";
-
-  async function startNewChat(botId: string) {
-    const result = await attempt(api.chats.newDirect({ botId }));
-    if (result.ok) router.push(`/chats/${result.data.chatId}`);
-    else toast.error(result.error);
-  }
 
   function togglePanel() {
     setPanelOpen((open) => {
@@ -339,250 +144,21 @@ export function ChatView({ chatId }: { chatId: string }) {
         }}
       >
         {/* On a phone this is the only bar: it carries the menu button the app bar would have. */}
-        <header
-          className={cn(
-            "relative z-10 flex h-14 shrink-0 items-center gap-2 border-b pr-2 pl-1.5 transition-[border-color,box-shadow] duration-200 sm:gap-3 sm:px-4 lg:pl-4 [&_button[data-variant=ghost]]:text-muted-foreground [&_button[data-variant=ghost]:hover]:text-foreground",
-            scrolled
-              ? "border-border/70 shadow-[0_6px_14px_-10px_rgb(0_0_0/0.18)] dark:shadow-[0_6px_14px_-10px_rgb(0_0_0/0.6)]"
-              : "border-transparent",
-          )}
-        >
-          {openMenu && (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Open menu"
-              className="shrink-0 lg:hidden"
-              onClick={openMenu}
-            >
-              <Menu />
-            </Button>
-          )}
-          {loading || !chat ? (
-            <Skeleton className="h-6 w-40" />
-          ) : (
-            <>
-              {isGroup ? (
-                <span className="flex size-8 items-center justify-center rounded-[9px] bg-subtle text-muted-foreground">
-                  <Users className="size-4" />
-                </span>
-              ) : (
-                bot && (
-                  <BotAvatar
-                    name={bot.name}
-                    color={bot.color}
-                    emoji={bot.emoji}
-                    size="sm"
-                    activity={status?.activity}
-                  />
-                )
-              )}
-              <div
-                className="flex min-w-0 flex-col"
-                title={bot && !isGroup ? `${bot.name}, ${bot.role}` : undefined}
-              >
-                <h1 className="truncate text-[15px] leading-tight font-semibold">{title}</h1>
-                <span
-                  className="truncate text-[12.5px] leading-tight text-muted-foreground"
-                  data-testid="chat-status"
-                >
-                  {helper ? (
-                    `${bot?.name ?? "A teammate"}'s helper in ${helper.swarmTitle}`
-                  ) : isGroup ? (
-                    members.map((member) => member.name).join(", ")
-                  ) : bot && status ? (
-                    <>
-                      {/* Titled after its topic, so say who it's with. */}
-                      {chat.kind === "direct" && chat.title !== bot.name && `${bot.name} · `}
-                      <span
-                        className={cn(
-                          status.needsYou && "text-attention-ink",
-                          elsewhere && "max-sm:hidden",
-                        )}
-                      >
-                        {status.label}
-                      </span>
-                      {/* On a phone there's no room for the chip: the line links there instead. */}
-                      {elsewhere && (
-                        <Link
-                          href={`/chats/${elsewhere.chatId}`}
-                          className="text-attention-ink underline-offset-2 hover:underline sm:hidden"
-                          aria-label={elsewhere.label}
-                        >
-                          {elsewhere.short} →
-                        </Link>
-                      )}
-                    </>
-                  ) : null}
-                </span>
-              </div>
-              {elsewhere && (
-                // What the teammate waits for in another chat, and a way there.
-                <Link
-                  href={`/chats/${elsewhere.chatId}`}
-                  className="flex h-7 min-w-0 shrink items-center gap-1.5 rounded-full bg-attention/[0.1] px-2.5 text-[12.5px] font-medium text-attention-ink transition-colors hover:bg-attention/[0.16] max-sm:hidden"
-                  data-testid="chat-elsewhere"
-                >
-                  <span className="size-1.5 shrink-0 rounded-full bg-attention" />
-                  <span className="truncate">{elsewhere.label}</span>
-                  <ArrowRight className="size-3.5 shrink-0" />
-                </Link>
-              )}
-              <span className="flex-1" />
-              {!isGroup && bot && chat.kind === "direct" && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label="New chat"
-                      className="max-sm:hidden"
-                      onClick={() => void startNewChat(bot.id)}
-                    >
-                      <Plus />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>New chat with {bot.name}</TooltipContent>
-                </Tooltip>
-              )}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" aria-label="Chat options">
-                    <MoreHorizontal />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  {/* On a phone, New chat lives here so the title keeps its room. */}
-                  {!isGroup && bot && chat.kind === "direct" && (
-                    <DropdownMenuItem
-                      className="sm:hidden"
-                      onSelect={() => void startNewChat(bot.id)}
-                    >
-                      <Plus />
-                      New chat with {bot.name}
-                    </DropdownMenuItem>
-                  )}
-                  {bot && (
-                    <DropdownMenuItem asChild>
-                      <Link href={`/bots/${bot.id}`}>
-                        <Settings2 />
-                        {bot.name}&apos;s settings
-                      </Link>
-                    </DropdownMenuItem>
-                  )}
-                  {bot && (
-                    <DropdownMenuItem onSelect={() => setDialog("duplicate")}>
-                      <Copy />
-                      Duplicate {bot.name}
-                    </DropdownMenuItem>
-                  )}
-                  {chat.kind === "direct" && !isMain && (
-                    <DropdownMenuItem
-                      onSelect={async () => {
-                        const result = await attempt(api.chats.makeMain({ chatId: chat.id }));
-                        if (!result.ok) {
-                          toast.error(result.error);
-                          return;
-                        }
-                        await queryClient.invalidateQueries({
-                          queryKey: orpc.chats.get.key({ input: { chatId: chat.id } }),
-                        });
-                        toast("This is now the main chat");
-                      }}
-                    >
-                      <Star />
-                      Make this the main chat
-                    </DropdownMenuItem>
-                  )}
-                  {chat.kind !== "scheduled" && (
-                    <DropdownMenuItem onSelect={() => setDialog("rename")}>
-                      <Pencil />
-                      Rename
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    variant="destructive"
-                    onSelect={async () => {
-                      const result = await attempt(api.chats.archive({ chatId: chat.id }));
-                      if (!result.ok) {
-                        toast.error(result.error);
-                        return;
-                      }
-                      toast("Chat archived");
-                      router.push("/");
-                    }}
-                  >
-                    <Archive />
-                    Archive chat
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <RenameChatDialog
-                chat={chat}
-                open={dialog === "rename"}
-                onOpenChange={(open) => setDialog(open ? "rename" : null)}
-              />
-              {bot && (
-                <DuplicateBotDialog
-                  bot={bot}
-                  open={dialog === "duplicate"}
-                  onOpenChange={(open) => setDialog(open ? "duplicate" : null)}
-                />
-              )}
-              {offline && !helper ? (
-                // An offline computer has no screen to watch: a chip says so and opens the details.
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      onClick={() => setSheetOpen(true)}
-                      className="flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-border bg-subtle px-2.5 text-[12.5px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                      data-testid="computer-offline-chip"
-                    >
-                      <CloudOff className="size-3.5" />
-                      <span className="max-sm:hidden">Computer offline</span>
-                      <span className="sm:hidden">Offline</span>
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    Work that needs the computer waits until it&apos;s back
-                  </TooltipContent>
-                </Tooltip>
-              ) : (
-                <>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={panelOpen ? "Hide the computer" : "Show the computer"}
-                        className="hidden xl:inline-flex"
-                        onClick={togglePanel}
-                      >
-                        {panelOpen ? <PanelRightClose /> : <Monitor />}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {panelOpen ? "Hide the computer" : "Show the computer"}
-                    </TooltipContent>
-                  </Tooltip>
-                  {/* On a phone the label would squeeze the chat title, so only the icon shows. */}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    aria-label="Computer"
-                    className="max-sm:size-9 max-sm:border-transparent max-sm:bg-transparent max-sm:px-0 max-sm:text-muted-foreground max-sm:shadow-none xl:hidden"
-                    onClick={() => setSheetOpen(true)}
-                  >
-                    <Monitor />
-                    <span className="max-sm:sr-only">Computer</span>
-                  </Button>
-                </>
-              )}
-            </>
-          )}
-        </header>
+        <ChatHeader
+          chat={chat}
+          loading={loading}
+          members={members}
+          teammate={bot}
+          helper={helper}
+          title={title}
+          status={status}
+          isMain={isMain}
+          scrolled={scrolled}
+          offline={offline}
+          panelOpen={panelOpen}
+          onTogglePanel={togglePanel}
+          onOpenComputer={() => setSheetOpen(true)}
+        />
 
         <div
           ref={scroller}
@@ -638,12 +214,7 @@ export function ChatView({ chatId }: { chatId: string }) {
               size="icon-sm"
               aria-label="Scroll to the latest"
               className="absolute -top-11 left-1/2 -translate-x-1/2 rounded-full bg-card shadow-float"
-              onClick={() =>
-                scroller.current?.scrollTo({
-                  top: scroller.current.scrollHeight,
-                  behavior: "smooth",
-                })
-              }
+              onClick={scrollToLatest}
             >
               <ArrowDown />
             </Button>
@@ -671,7 +242,7 @@ export function ChatView({ chatId }: { chatId: string }) {
                   computerOnline={!offline}
                   onSent={(message) => {
                     addOptimistic(message);
-                    setAtBottom(true);
+                    stickToBottom();
                   }}
                 />
               )
