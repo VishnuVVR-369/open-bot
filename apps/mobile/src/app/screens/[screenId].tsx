@@ -1,20 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { isOwnerLease } from "@open-bot/domain";
-import * as Clipboard from "expo-clipboard";
-import * as Orientation from "expo-screen-orientation";
-import { Stack, useLocalSearchParams, usePreventRemove } from "expo-router";
-import { CloudOff, Eye, Moon, MousePointer2, Scan } from "lucide-react-native";
-import { useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import {
-  Alert,
-  BackHandler,
-  Keyboard,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-  useWindowDimensions,
-} from "react-native";
+import { Stack, useLocalSearchParams } from "expo-router";
+import { CloudOff, Moon, Scan } from "lucide-react-native";
+import { useCallback, useContext, useEffect, useReducer, useRef, useState } from "react";
+import { Alert, Keyboard, ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/button";
 import { CodeSheet } from "@/components/computer/code-sheet";
@@ -23,45 +12,30 @@ import {
   DesktopView,
   type DesktopHandle,
 } from "@/components/computer/desktop-view";
+import { HandBackSheet } from "@/components/computer/hand-back-sheet";
+import { RemoteControls, WatchHint } from "@/components/computer/remote-controls";
 import { ControlNotice, ScreenTitle, TakeoverNotice } from "@/components/computer/screen-notice";
 import { ScreenMessage, useScreenSurface } from "@/components/computer/screen-surface";
-import { Sheet } from "@/components/sheet";
 import { Loading, LoadError } from "@/components/states";
-import { Text } from "@/components/text";
-import { TextField } from "@/components/text-field";
 import { api } from "@/lib/api";
 import { ComputerAccess } from "@/lib/computer-access";
 import { errorMessage } from "@/lib/errors";
 import { haptics } from "@/lib/haptics";
 import { queryKeys } from "@/lib/query";
+import {
+  reduceScreenSession,
+  screenActions,
+  screenSession,
+  type Pending,
+  type ScreenAction,
+} from "@/lib/screen-session";
 import { screenState } from "@/lib/screens";
 import { useKeyboardHeight } from "@/lib/use-keyboard";
-import { radius, space, useColors } from "@/theme";
-
-const keys = [
-  ["Esc", 0xff1b, "Escape"],
-  ["Tab", 0xff09, "Tab"],
-  ["Ctrl", 0xffe3, "ControlLeft"],
-  ["Alt", 0xffe9, "AltLeft"],
-  ["←", 0xff51, "ArrowLeft"],
-  ["↑", 0xff52, "ArrowUp"],
-  ["↓", 0xff54, "ArrowDown"],
-  ["→", 0xff53, "ArrowRight"],
-  ["Enter", 0xff0d, "Enter"],
-] as const;
+import { useHandBackOnLeave, useScreenOrientation } from "@/lib/use-screen-page";
+import { space, useColors } from "@/theme";
 
 const LANDSCAPE_CONTROLS_WIDTH = 220;
 const GUTTER = space(4);
-
-type Pending = "wake" | "take-over" | "hand-back";
-
-interface Action {
-  title: string;
-  onPress: () => void;
-  primary: boolean;
-  busy: boolean;
-  testID: string;
-}
 
 export default function ScreenPage() {
   const { screenId, takeover, code } = useLocalSearchParams<{
@@ -76,15 +50,13 @@ export default function ScreenPage() {
   const screen = screens.data?.find((item) => item.id === screenId);
   const owner = isOwnerLease(screen?.lease ?? null);
   const desktop = useRef<DesktopHandle | null>(null);
-  const [pending, setPending] = useState<Pending | null>(null);
   const [connected, setConnected] = useState(false);
-  const [handBack, setHandBack] = useState(false);
-  const [showCode, setShowCode] = useState(code === "1");
-  const [codeTakeover, setCodeTakeover] = useState<string | null>(takeover ?? null);
-  const [note, setNote] = useState("");
-  const [draft, setDraft] = useState("");
-  const [trackpad, setTrackpad] = useState(false);
-  const [held, setHeld] = useState<string[]>([]);
+  const [session, dispatch] = useReducer(
+    reduceScreenSession,
+    { takeoverId: takeover ?? null, code: code === "1" },
+    screenSession,
+  );
+  const { pending } = session;
   const insets = useSafeAreaInsets();
   const keyboard = useKeyboardHeight();
   const { width, height } = useWindowDimensions();
@@ -92,49 +64,20 @@ export default function ScreenPage() {
   const request = screen?.requests.find((r) => r.id === takeover) ?? screen?.requests[0];
 
   useEffect(() => {
-    setCodeTakeover(takeover ?? null);
-    setShowCode(code === "1");
+    dispatch({ type: "link", takeoverId: takeover ?? null, code: code === "1" });
   }, [screenId, takeover, code]);
-
+  useScreenOrientation(owner, landscape);
   useEffect(() => {
-    const previous = Orientation.getOrientationLockAsync();
-    void Orientation.unlockAsync();
-    return () => {
-      void previous.then((lock) => Orientation.lockAsync(lock));
-    };
-  }, []);
-  // Rotating during a takeover keeps landscape until you hand back or leave.
-  useEffect(() => {
-    if (owner && landscape) void Orientation.lockAsync(Orientation.OrientationLock.LANDSCAPE);
-    else if (!owner) void Orientation.unlockAsync();
-  }, [owner, landscape]);
-  useEffect(() => {
-    if (access) return;
-    setShowCode(false);
-    setDraft("");
-    setHeld([]);
+    if (!access) dispatch({ type: "access-lost" });
   }, [access]);
   useEffect(() => {
-    setTrackpad(false);
-    setHeld([]);
-    setDraft("");
+    dispatch({ type: "input-reset" });
   }, [owner, connected]);
-  const confirmBack = useCallback(() => {
-    if (!owner) return false;
-    Keyboard.dismiss();
-    setHandBack(true);
-    return true;
-  }, [owner]);
-  usePreventRemove(owner, () => {
-    confirmBack();
-  });
-  useEffect(() => {
-    const sub = BackHandler.addEventListener("hardwareBackPress", confirmBack);
-    return () => sub.remove();
-  }, [confirmBack]);
+  const askHandBack = useCallback(() => dispatch({ type: "ask-hand-back" }), []);
+  useHandBackOnLeave(owner, askHandBack);
 
   async function act(kind: Pending, action: () => Promise<unknown>): Promise<boolean> {
-    setPending(kind);
+    dispatch({ type: "start", pending: kind });
     try {
       await action();
       await screens.refetch();
@@ -144,37 +87,29 @@ export default function ScreenPage() {
       Alert.alert("Couldn't change the screen", errorMessage(e));
       return false;
     } finally {
-      setPending(null);
+      dispatch({ type: "settle" });
     }
   }
-  function takeOver() {
-    haptics.press();
-    void act("take-over", () => api.screens.takeOver({ screenId }));
-  }
-  async function returnScreen(clearCode = false) {
+  async function returnScreen(clearCode: boolean) {
     const done = await act("hand-back", async () => {
-      await api.screens.handBack({ screenId, note: note.trim() || null, clearCode });
-      setHandBack(false);
-      setNote("");
+      await api.screens.handBack({ screenId, note: session.note.trim() || null, clearCode });
+      dispatch({ type: "handed-back" });
     });
     if (done) haptics.success();
   }
-  function key(sym: number, code: string, modifier = false) {
-    if (!connected) return;
-    const down = !held.includes(code);
-    desktop.current?.send({ type: "key", keysym: sym, code, ...(modifier ? { down } : {}) });
-    if (modifier)
-      setHeld((previous) =>
-        down ? [...previous, code] : previous.filter((value) => value !== code),
-      );
-  }
-  function type(value: string) {
-    let prefix = 0;
-    while (prefix < value.length && prefix < draft.length && value[prefix] === draft[prefix])
-      prefix++;
-    for (let i = prefix; i < draft.length; i++) key(0xff08, "Backspace");
-    desktop.current?.send({ type: "text", text: value.slice(prefix) });
-    setDraft(value);
+  function press(action: ScreenAction) {
+    switch (action.kind) {
+      case "hand-back":
+        Keyboard.dismiss();
+        return askHandBack();
+      case "retry":
+        return void screens.refetch();
+      case "take-over":
+        haptics.press();
+        return void act("take-over", () => api.screens.takeOver({ screenId }));
+      case "wake":
+        return void act("wake", () => api.screens.wake({ screenId }));
+    }
   }
   if (screens.isLoading) return <Loading />;
   if (!screen)
@@ -191,57 +126,7 @@ export default function ScreenPage() {
   // The software keyboard needs the room, and you're typing, not reaching for actions.
   const typing = keyboard > 0;
   const busy = pending !== null;
-
-  // One main action, on the right where the thumb is, with at most one quieter one beside it.
-  const actions: Action[] = owner
-    ? [
-        {
-          title: "Hand back",
-          onPress: () => {
-            Keyboard.dismiss();
-            setHandBack(true);
-          },
-          primary: true,
-          busy: pending === "hand-back",
-          testID: "hand-back",
-        },
-      ]
-    : state.kind === "offline"
-      ? [
-          {
-            title: "Try again",
-            onPress: () => void screens.refetch(),
-            primary: true,
-            busy: screens.isRefetching,
-            testID: "retry-screen",
-          },
-        ]
-      : state.kind === "asleep"
-        ? [
-            {
-              title: "Take over",
-              onPress: takeOver,
-              primary: false,
-              busy: pending === "take-over",
-              testID: "take-over",
-            },
-            {
-              title: "Wake screen",
-              onPress: () => void act("wake", () => api.screens.wake({ screenId })),
-              primary: true,
-              busy: pending === "wake",
-              testID: "wake-screen",
-            },
-          ]
-        : [
-            {
-              title: "Take over",
-              onPress: takeOver,
-              primary: true,
-              busy: pending === "take-over",
-              testID: "take-over",
-            },
-          ];
+  const actions = screenActions(owner, state);
 
   // What the screen shows while there's no stream to show.
   const placeholder = !screen.online ? (
@@ -265,10 +150,7 @@ export default function ScreenPage() {
     <TakeoverNotice
       name={name}
       reason={request.reason}
-      onTypeCode={() => {
-        setCodeTakeover(request.id);
-        setShowCode(true);
-      }}
+      onTypeCode={() => dispatch({ type: "open-code", takeoverId: request.id })}
     />
   ) : null;
 
@@ -283,75 +165,15 @@ export default function ScreenPage() {
   );
 
   const tools = owner ? (
-    <>
-      <View style={styles.row}>
-        <Button
-          title={trackpad ? "Touch mode" : "Trackpad"}
-          variant="outline"
-          icon={<MousePointer2 size={16} color={colors.foreground} />}
-          onPress={() => {
-            setTrackpad(!trackpad);
-            desktop.current?.send({ type: "pointerMode", trackpad: !trackpad });
-          }}
-          testID="trackpad"
-          disabled={!connected}
-        />
-        {fit}
-      </View>
-      <View style={[styles.row, { gap: space(1.5) }]}>
-        {keys.map(([label, sym, code]) => (
-          <Key
-            key={code}
-            label={label}
-            held={held.includes(code)}
-            disabled={!connected}
-            onPress={() => key(sym, code, label === "Ctrl" || label === "Alt")}
-          />
-        ))}
-        <Key
-          label="Paste from phone"
-          disabled={!connected}
-          onPress={() =>
-            void Clipboard.getStringAsync().then((text) =>
-              desktop.current?.send({ type: "text", text: text.slice(0, 5000) }),
-            )
-          }
-        />
-      </View>
-      <TextField
-        value={draft}
-        editable={connected}
-        onChangeText={type}
-        placeholder="Keyboard"
-        autoCorrect={false}
-        autoCapitalize="none"
-        onSubmitEditing={() => {
-          key(0xff0d, "Enter");
-          setDraft("");
-        }}
-        onKeyPress={(event) => {
-          if (event.nativeEvent.key === "Backspace" && !draft) key(0xff08, "Backspace");
-        }}
-        testID="remote-keyboard"
-      />
-      <Text variant="caption" muted>
-        {trackpad
-          ? "Drag to move the pointer, tap to click where it is."
-          : "Tap to click, hold for a right click, and drag with two fingers to scroll."}
-      </Text>
-    </>
+    <RemoteControls
+      desktop={desktop}
+      connected={connected}
+      session={session}
+      dispatch={dispatch}
+      fit={fit}
+    />
   ) : (
-    connected && (
-      <View style={[styles.row, { alignItems: "center" }]}>
-        <View style={styles.hint}>
-          <Eye size={16} color={colors.mutedForeground} />
-          <Text variant="small" muted style={{ flex: 1 }}>
-            {`Watching doesn't interrupt ${name}. Pinch to zoom.`}
-          </Text>
-        </View>
-        {fit}
-      </View>
-    )
+    connected && <WatchHint name={name} fit={fit} />
   );
 
   const desktopView = (style: object) => (
@@ -368,57 +190,25 @@ export default function ScreenPage() {
 
   const sheets = (
     <>
-      <Sheet
-        open={handBack && access}
-        onClose={() => setHandBack(false)}
-        title="Hand the screen back"
-        description="Your teammate will take a screenshot and continue."
-      >
-        <View style={styles.sheetBody}>
-          <TextField
-            value={note}
-            onChangeText={setNote}
-            placeholder="Optional note, such as Logged in, continue"
-            multiline
-            maxLength={2000}
-            testID="hand-back-note"
-          />
-          <Button
-            title="Hand back"
-            onPress={() => void returnScreen()}
-            busy={pending === "hand-back"}
-            testID="hand-back-confirm"
-          />
-          {isOwnerLease(screen.lease) &&
-            (screen.lease.kind === "user-code" || screen.lease.pausedForSafety) && (
-              <Button
-                title="Clear the code and hand back"
-                variant="outline"
-                busy={pending === "hand-back"}
-                onPress={() =>
-                  Alert.alert(
-                    "Clear code and hand back?",
-                    "If the computer restarted, this discards all pages on this screen to keep the forgotten code private.",
-                    [
-                      { text: "Keep control", style: "cancel" },
-                      { text: "Clear and hand back", onPress: () => void returnScreen(true) },
-                    ],
-                  )
-                }
-                testID="clear-code-hand-back"
-              />
-            )}
-          <Button title="Stay in control" variant="ghost" onPress={() => setHandBack(false)} />
-        </View>
-      </Sheet>
-      {codeTakeover && (
+      <HandBackSheet
+        open={session.handBack && access}
+        onClose={() => dispatch({ type: "cancel-hand-back" })}
+        note={session.note}
+        onNote={(note) => dispatch({ type: "note", note })}
+        busy={pending === "hand-back"}
+        canClearCode={
+          isOwnerLease(screen.lease) &&
+          (screen.lease.kind === "user-code" || screen.lease.pausedForSafety === true)
+        }
+        onHandBack={(clearCode) => void returnScreen(clearCode)}
+      />
+      {session.code.takeoverId && (
         <CodeSheet
           screenId={screenId}
-          takeoverId={codeTakeover}
-          open={showCode}
+          takeoverId={session.code.takeoverId}
+          open={session.code.open}
           onClose={() => {
-            setShowCode(false);
-            setCodeTakeover(null);
+            dispatch({ type: "close-code" });
             void screens.refetch();
           }}
         />
@@ -427,18 +217,21 @@ export default function ScreenPage() {
   );
 
   const buttons = (layout: "row" | "column") =>
-    actions.map((action) => (
-      <Button
-        key={action.testID}
-        title={action.title}
-        variant={action.primary ? "primary" : "outline"}
-        onPress={action.onPress}
-        busy={action.busy}
-        disabled={busy && !action.busy}
-        testID={action.testID}
-        style={layout === "row" ? { flex: 1 } : undefined}
-      />
-    ));
+    actions.map((action) => {
+      const actionBusy = action.kind === "retry" ? screens.isRefetching : pending === action.kind;
+      return (
+        <Button
+          key={action.testID}
+          title={action.title}
+          variant={action.primary ? "primary" : "outline"}
+          onPress={() => press(action)}
+          busy={actionBusy}
+          disabled={busy && !actionBusy}
+          testID={action.testID}
+          style={layout === "row" ? { flex: 1 } : undefined}
+        />
+      );
+    });
 
   if (landscape) {
     // The header is hidden, so keep clear of the status bar and any cutout, and give the desktop
@@ -526,61 +319,13 @@ export default function ScreenPage() {
   );
 }
 
-/** A key on the keyboard bar; Ctrl and Alt stay down until pressed again. */
-function Key({
-  label,
-  held,
-  disabled,
-  onPress,
-}: {
-  label: string;
-  held?: boolean;
-  disabled: boolean;
-  onPress: () => void;
-}): ReactNode {
-  const colors = useColors();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled, selected: held }}
-      onPress={onPress}
-      disabled={disabled}
-      android_ripple={{ color: colors.muted, borderless: false }}
-      style={[
-        styles.key,
-        {
-          backgroundColor: held ? colors.input : colors.surface,
-          borderColor: held ? colors.foreground : colors.border,
-          opacity: disabled ? 0.5 : 1,
-        },
-      ]}
-    >
-      <Text variant="small">{label}</Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   landscape: { flex: 1, flexDirection: "row", gap: space(3) },
   stack: { gap: space(3) },
-  row: { flexDirection: "row", flexWrap: "wrap", gap: space(2) },
-  hint: { flex: 1, flexDirection: "row", alignItems: "center", gap: space(2) },
   bar: {
     flexDirection: "row",
     gap: space(3),
     paddingTop: space(3),
     borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  sheetBody: { paddingHorizontal: space(5), gap: space(3) },
-  key: {
-    minHeight: 48,
-    minWidth: 48,
-    paddingHorizontal: space(3),
-    borderWidth: 1,
-    borderRadius: radius.md,
-    justifyContent: "center",
-    alignItems: "center",
-    overflow: "hidden",
   },
 });
