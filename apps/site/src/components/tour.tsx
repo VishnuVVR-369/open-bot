@@ -152,7 +152,7 @@ function HeroLoop() {
     if (!video || still) return;
     // Plays only while it is on screen.
     const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) video.play().catch(() => {});
+      if (entry?.isIntersecting) video.play().catch(() => {});
       else video.pause();
     });
     observer.observe(video);
@@ -336,6 +336,7 @@ export function PlayChapter({ id }: { id: string }) {
   const { playFrom, monitorRef } = useTour();
   const index = chapters.findIndex((c) => c.id === id);
   const chapter = chapters[index];
+  if (!chapter) throw new Error(`The tour has no chapter ${id}.`);
   return (
     <button
       type="button"

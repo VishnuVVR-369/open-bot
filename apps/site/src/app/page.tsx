@@ -1,7 +1,7 @@
 import { CopyButton } from "@/components/copy-button";
 import { Heading } from "@/components/heading";
 import { GitHubMark, Logo } from "@/components/icons";
-import { Story, type StoryChapter } from "@/components/story";
+import { Story, type StoryChapters } from "@/components/story";
 import { ChapterRail, Monitor, PlayChapter, TourProvider } from "@/components/tour";
 import { site } from "@/lib/site";
 import { tour } from "@/lib/tour";
@@ -56,7 +56,7 @@ const more = [
   },
 ];
 
-const story: StoryChapter[] = [
+const story: StoryChapters = [
   {
     id: "job",
     title: "Give them a job",

@@ -1,6 +1,5 @@
 import "server-only";
 import { schema } from "@open-bot/db";
-import { count } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
@@ -17,8 +16,7 @@ export async function requireUser() {
 }
 
 export async function ownerExists(): Promise<boolean> {
-  const [{ value }] = await db.select({ value: count() }).from(schema.user);
-  return value > 0;
+  return (await db.$count(schema.user)) > 0;
 }
 
 /** For route handlers: the session, or null. */

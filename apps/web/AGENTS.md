@@ -43,7 +43,8 @@ Shared types and the mobile contract belong in `packages/domain` and `packages/a
 - Every oRPC procedure goes through the session middleware in `apps/web/src/lib/server/api/router.ts`.
 - `apps/web/src/components/ui` is shadcn output (`apps/web/components.json`); do not edit it by hand, and eslint ignores it.
 - A new workspace dependency must be added to `transpilePackages` in `apps/web/next.config.ts`.
-- A new folder with generated types must be listed in `include` of `apps/web/tsconfig.json`, or `next dev` rewrites that file.
+- `apps/web/tsconfig.json` extends `tsconfig.base.json`, so the app is type-checked as strictly as the packages, and Next.js never edits it.
+  A new folder with generated types (a new `distDir`) must be added to its `include` by hand, or its route types go unchecked.
 - Use "teammate" in new UI copy; `bots` and `botId` are legacy names (see the root AGENTS.md glossary).
 - For recipes (new tool, setting, route), see "Where to make common changes" in the root `AGENTS.md`.
 

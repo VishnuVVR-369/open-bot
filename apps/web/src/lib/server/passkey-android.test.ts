@@ -180,7 +180,7 @@ function phone(auth: ReturnType<typeof server>) {
       }),
     );
     for (const cookie of response.headers.getSetCookie()) {
-      const [pair] = cookie.split(";");
+      const [pair = ""] = cookie.split(";");
       const at = pair.indexOf("=");
       jar.set(pair.slice(0, at), pair.slice(at + 1));
     }
