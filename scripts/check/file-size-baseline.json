@@ -24,7 +24,6 @@
   "apps/worker/src/tools/definitions.ts": 861,
   "apps/worker/src/tools/handlers.ts": 1702,
   "packages/api/src/worker/contract.ts": 617,
-  "packages/db/src/schema.ts": 1177,
   "packages/integrations/src/providers/google/calendar/adapter.ts": 898,
   "packages/integrations/src/providers/google/gmail/adapter.ts": 718,
   "packages/integrations/src/providers/notion/adapter.ts": 674,

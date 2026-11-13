@@ -3,20 +3,25 @@
 // @open-bot/db (by name, or through its `schema` object), and SQL text that writes a table
 // (`insert into t`, `update t set`, `delete from t`), in any file but the table's owner. A module
 // sharing columns may only set those columns.
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { TABLE_OWNERS } from "../../packages/db/src/owners.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
-/** Schema export name to SQL table name, read from the schema's `pgTable("name", ...)` calls. */
+const SCHEMA_DIR = path.join(ROOT, "packages/db/src/schema");
+
+/** Schema export name to SQL table name, read from the `pgTable("name", ...)` calls of every schema file. */
 export const TABLE_NAMES = new Map(
-  [
-    ...readFileSync(path.join(ROOT, "packages/db/src/schema.ts"), "utf8").matchAll(
-      /export const (\w+) = pgTable\(\s*"(\w+)"/g,
-    ),
-  ].map(([, name, table]) => [name, table]),
+  readdirSync(SCHEMA_DIR)
+    .filter((file) => file.endsWith(".ts") && !file.endsWith(".test.ts"))
+    .flatMap((file) => [
+      ...readFileSync(path.join(SCHEMA_DIR, file), "utf8").matchAll(
+        /export const (\w+) = pgTable\(\s*"(\w+)"/g,
+      ),
+    ])
+    .map(([, name, table]) => [name, table]),
 );
 
 const SQL_TABLES = new Set(TABLE_NAMES.values());
