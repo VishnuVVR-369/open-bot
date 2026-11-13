@@ -61,8 +61,6 @@ test.describe("Telegram, against a stand-in", () => {
   let page: Page;
   /** Lets the next run of this suite against the app in. */
   let releaseLock: (() => Promise<void>) | null = null;
-  /** Telegram wasn't connected when the suite started, so the connection it ends with is its own. */
-  let startedClean = false;
   let standInUp = false;
 
   test.beforeAll(async ({ browser }) => {
@@ -71,7 +69,6 @@ test.describe("Telegram, against a stand-in", () => {
     test.skip(!releaseLock, "Another run of this suite is using this app.");
     const status = await worker.telegram.status();
     test.skip(status.connected, "Telegram is connected on this app; leave it alone.");
-    startedClean = true;
     await telegram.start(MOCK_PORT);
     standInUp = true;
     page = await browser.newPage({ storageState: "e2e/.auth/owner.json" });
@@ -79,8 +76,11 @@ test.describe("Telegram, against a stand-in", () => {
 
   test.afterAll(async () => {
     try {
-      if (startedClean) await worker.telegram.disconnect().catch(() => {});
       if (standInUp) {
+        // Only the stand-in's connection goes: one you made meanwhile is a different account.
+        const status = await worker.telegram.status().catch(() => null);
+        const account = status?.connected ? status.botUsername : null; // vocabulary: allow
+        if (account === MOCK_BOT) await worker.telegram.disconnect().catch(() => {}); // vocabulary: allow
         await (page as Page | undefined)?.close();
         await telegram.stop();
       }

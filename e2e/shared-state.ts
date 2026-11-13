@@ -51,8 +51,10 @@ export interface PlanChanges {
  * Notes the OpenAI API key and the plan settings (limit and monthly cap) a spec is about to change,
  * and returns how to put them back, or null when another run is testing them. It holds the
  * plan-settings lock until then. Only what the spec wrote is undone: its own key (by `keyHint`)
- * gives way to yours, and the cap goes back only if it's still one the spec set. A
- * key or cap you save meanwhile stays.
+ * gives way to yours, and the cap goes back only if it's still one the spec set. A key or cap you
+ * save meanwhile stays, and a key you remove stays removed. The plan's limit always goes back: the
+ * spec simulates one, so it can't tell it from a real one that starts during the run, which the
+ * worker records again on the next turn that hits it.
  */
 export async function savePlanSettings(
   pool: pg.Pool,
@@ -80,16 +82,19 @@ export async function savePlanSettings(
             [plan.monthly_cap_micros, changes.caps],
           );
         }
-        await pool.query("delete from credentials where kind = 'openai_api_key' and hint = $1", [
-          changes.keyHint,
-        ]);
-        for (const row of keys) {
-          const columns = Object.keys(row);
-          await pool.query(
-            `insert into credentials (${columns.join(", ")}) values (${columns.map((_, i) => `$${i + 1}`).join(", ")}) on conflict (kind) do nothing`,
-            Object.values(row),
-          );
-        }
+        // Yours comes back only in place of the spec's: if you removed it meanwhile, it stays gone.
+        const removed = await pool.query(
+          "delete from credentials where kind = 'openai_api_key' and hint = $1",
+          [changes.keyHint],
+        );
+        if (removed.rowCount)
+          for (const row of keys) {
+            const columns = Object.keys(row);
+            await pool.query(
+              `insert into credentials (${columns.join(", ")}) values (${columns.map((_, i) => `$${i + 1}`).join(", ")}) on conflict (kind) do nothing`,
+              Object.values(row),
+            );
+          }
       } finally {
         await release();
       }

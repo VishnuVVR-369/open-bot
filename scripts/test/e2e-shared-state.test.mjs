@@ -89,6 +89,15 @@ describe("e2e shared state", { skip: !url && "Set TEST_DATABASE_URL." }, () => {
     assert.equal(await capNow(run), 7_000_000);
   });
 
+  it("leaves a key you remove while the spec runs removed", async () => {
+    const run = runPool();
+    const restore = await savePlanSettings(run, PLAN);
+    await setKey(run, testKey("sk-…e2e1"));
+    await admin.query("delete from credentials where kind = 'openai_api_key'");
+    await restore();
+    assert.equal(await keyNow(run), undefined);
+  });
+
   it("refuses a second run while the first holds the settings, so it can't note the first's", async () => {
     const [first, second] = [runPool(), runPool()];
     const restoreFirst = await savePlanSettings(first, PLAN);
