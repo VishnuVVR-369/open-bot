@@ -350,7 +350,7 @@ function Teammates() {
                 key={template.id}
                 name={template.name}
                 emoji={template.emoji}
-                color={BOT_COLORS[index * 2]}
+                color={BOT_COLORS[index * 2]!}
                 size="md"
                 className="rounded-[10px] ring-4 ring-card"
               />

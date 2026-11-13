@@ -7,6 +7,9 @@ import { PlayChapter } from "./tour";
 /** The screen's state, shown the way the app shows it: red is live, amber is "you have control". */
 export type Signal = "off" | "live" | "manual";
 
+/** At least one chapter: the story opens on the first. */
+export type StoryChapters = readonly [StoryChapter, ...StoryChapter[]];
+
 export type StoryChapter = {
   id: string;
   title: string;
@@ -49,7 +52,7 @@ function Screen({
   active,
   className = "",
 }: {
-  chapters: StoryChapter[];
+  chapters: StoryChapters;
   active: string;
   className?: string;
 }) {
@@ -84,7 +87,7 @@ function Screen({
  * The chapters of the tour as a story: the text scrolls while the screen beside it stays put and
  * shows the moment each chapter describes. On narrow screens each chapter carries its own screen.
  */
-export function Story({ chapters }: { chapters: StoryChapter[] }) {
+export function Story({ chapters }: { chapters: StoryChapters }) {
   const [active, setActive] = useState(chapters[0].id);
   const listRef = useRef<HTMLDivElement>(null);
 
