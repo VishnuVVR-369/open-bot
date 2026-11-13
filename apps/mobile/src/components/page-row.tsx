@@ -112,6 +112,7 @@ export async function setPagePinned(page: PageSummary, pinned: boolean) {
   haptics.success();
   animateLayout();
   void queryClient.invalidateQueries({ queryKey: queryKeys.pages });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.page(page.id) });
 }
 
 /** Ask, then delete a page and all its versions. */

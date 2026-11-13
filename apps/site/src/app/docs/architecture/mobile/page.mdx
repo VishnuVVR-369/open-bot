@@ -69,9 +69,11 @@ Requests time out after five minutes.
 
 `src/lib/query.ts` owns the react-query client and the keys (`queryKeys`).
 Queries stay fresh for 10 seconds and retry twice, only for errors `isRetryable` accepts.
-`keysForAppEvent()` maps a stream event type (`approvals`, `chats`, `bots`, `pages`, `screens` and so on) to the keys it makes stale.
-`keysForPush()` does the same for a push.
-A new feature adds its keys in `queryKeys`, and its refresh rule in one of those two functions.
+`queryKeys` use procedure paths, so `keysForAppEvent()` applies `APP_EVENT_REFRESHES` and `ALWAYS_REFRESHED` from `packages/api/src/events.ts`.
+Mobile also refreshes reads that embed data from the changed procedures: chat details after approvals or chat-list changes, approval rules after teammate changes, and teammate status after approvals or screen changes.
+These dependencies expand once, without recursively refreshing other reads.
+`keysForPush()` keeps the push-specific list, badge and addressed-detail refreshes.
+A new feature adds its procedure-path keys in `queryKeys` and its event semantics in the shared API map.
 
 A few things are plain HTTP on the web app, because they carry bytes or streams, with the session cookie in the header:
 
