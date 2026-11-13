@@ -7,7 +7,7 @@ import type { UploadService } from "../uploads";
 import type { RunExecutor } from "../runs/executor";
 import type { AccountTriggers } from "../services/account-triggers";
 import type { ApprovalService } from "../services/approvals";
-import type { BotService } from "../services/bots";
+import { teammateRoutes, type BotService } from "../features/teammates";
 import type { CodexAccountService } from "../services/codex-account";
 import type { SettingsService } from "../services/settings";
 import type { ConnectionService } from "../services/connections";
@@ -92,45 +92,7 @@ export function createWorkerRouter(services: WorkerServices) {
         egress: s.egress.status,
       })),
     },
-    teammates: {
-      create: os.teammates.create.handler(({ input }) => s.teammates.create(input)),
-      update: os.teammates.update.handler(({ input }) =>
-        s.teammates.update(input.teammateId, input.changes, input.expected_revision),
-      ),
-      export: os.teammates.export.handler(({ input }) =>
-        s.teammates.exportBundle(input.teammateId),
-      ),
-      duplicate: os.teammates.duplicate.handler(({ input }) =>
-        s.teammates.duplicate(input.teammateId, input.name, input.copyMemory),
-      ),
-      import: os.teammates.import.handler(({ input }) => s.teammates.importBundle(input.bundle)),
-      setLead: os.teammates.setLead.handler(async ({ input }) => {
-        await s.teammates.setLead(input.teammateId);
-        return ok;
-      }),
-      archive: os.teammates.archive.handler(async ({ input }) => {
-        await s.teammates.archive(input.teammateId);
-        return ok;
-      }),
-      setBudget: os.teammates.setBudget.handler(async ({ input }) => {
-        await s.teammates.setBudget(input.teammateId, input.budget, input.autoApprove);
-        return ok;
-      }),
-      sync: os.teammates.sync.handler(async ({ input }) => {
-        await s.executor.syncWorkspace(await s.teammates.findTeammate(input.teammateId));
-        return ok;
-      }),
-    },
-    proposals: {
-      accept: os.proposals.accept.handler(async ({ input }) => {
-        await s.teammates.acceptProposal(input.proposalId);
-        return ok;
-      }),
-      dismiss: os.proposals.dismiss.handler(async ({ input }) => {
-        await s.teammates.dismissProposal(input.proposalId);
-        return ok;
-      }),
-    },
+    ...teammateRoutes(s.teammates, s.executor),
     chats: {
       newDirect: os.chats.newDirect.handler(({ input }) => s.chats.newDirect(input.teammateId)),
       createGroup: os.chats.createGroup.handler(({ input }) =>

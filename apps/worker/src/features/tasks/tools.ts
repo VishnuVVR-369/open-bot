@@ -10,7 +10,7 @@ import {
   type ToolResponse,
 } from "../../core/tool";
 import type { RunSession } from "../../runs/session";
-import { activeTeammates } from "../../services/bots";
+import { activeTeammates } from "../teammates";
 import { TaskError, type TaskService } from "./service";
 
 /** What the task tools use. */

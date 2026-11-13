@@ -22,7 +22,7 @@ import type { ApprovalService } from "./approvals";
 import { teammateChat } from "./chats";
 import { removeCredential, saveCredential } from "./credentials";
 import type { SessionRegistry } from "./registry";
-import { activeTeammates } from "./bots";
+import { activeTeammates } from "../features/teammates";
 import { SettingsError } from "./settings";
 import { type RefusalStatus, WorkerError } from "../core/errors";
 

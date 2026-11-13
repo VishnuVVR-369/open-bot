@@ -13,7 +13,7 @@ import { z } from "zod";
 import { errorMessage } from "../logger";
 import type { RunSession } from "../runs/session";
 import { TriggerError } from "../services/triggers";
-import { optionalTarget } from "./teammates";
+import { optionalTarget } from "../features/teammates";
 import {
   defineTool,
   text,

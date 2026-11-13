@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { enqueueRun } from "../runs/queue";
 import type { RunSession } from "../runs/session";
-import { activeTeammates } from "../services/bots";
+import { activeTeammates } from "../features/teammates";
 import { mainChat } from "../services/chats";
 import {
   defineTool,

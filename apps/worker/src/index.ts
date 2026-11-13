@@ -40,7 +40,7 @@ import { AccountTriggers } from "./services/account-triggers";
 import { TriggerService } from "./services/triggers";
 import { PageService } from "./services/pages";
 import { ToolHandlers } from "./tools/handlers";
-import { BotService } from "./services/bots";
+import { BotService } from "./features/teammates";
 import { Integrations } from "@open-bot/integrations/adapters";
 import { AccountAccess } from "./accounts/access";
 import { AccountActions } from "./accounts/actions";

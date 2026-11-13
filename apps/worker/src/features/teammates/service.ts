@@ -34,20 +34,23 @@ import {
   toCents,
 } from "@open-bot/domain";
 import { and, asc, eq, gt, isNotNull, isNull, sql } from "drizzle-orm";
-import { publishApp, type Context } from "../context";
-import { errorMessage } from "../logger";
-import type { Bot } from "../core/db-types";
-import { requestTeammateRunsCancel } from "../runs/cancel";
-import { addApprovalRules } from "./approvals";
-import { addChat, archiveChatsOf, renameDirectChats, shownMainChats } from "./chats";
-import { addPausedRoutines, copyUpcomingReminders, pauseSchedulesOf } from "./schedules";
-import type { ScheduleService } from "./schedules";
-import { addTeammateSkills } from "./skills";
-import type { SkillService } from "./skills";
-import { addPausedWatches, pauseTriggersOf } from "./triggers";
+import { publishApp, type Context } from "../../context";
+import { errorMessage } from "../../logger";
+import type { Bot } from "../../core/db-types";
+import { requestTeammateRunsCancel } from "../../runs/cancel";
+import { addApprovalRules } from "../../services/approvals";
+import { addChat, archiveChatsOf, renameDirectChats, shownMainChats } from "../../services/chats";
+import {
+  addPausedRoutines,
+  copyUpcomingReminders,
+  pauseSchedulesOf,
+} from "../../services/schedules";
+import type { ScheduleService } from "../../services/schedules";
+import { addTeammateSkills, type SkillService } from "../../services/skills";
+import { addPausedWatches, pauseTriggersOf } from "../../services/triggers";
 import { type MemoryService } from "@open-bot/memory";
-import { setConnectionTeammates } from "./connections";
-import { WorkerError } from "../core/errors";
+import { setConnectionTeammates } from "../../services/connections";
+import { WorkerError } from "../../core/errors";
 
 /** What a teammate is made of besides its profile: what copying and exporting carry over. */
 export type TeammateParts = Omit<TeammateBundle, "format" | "version" | "teammate">;

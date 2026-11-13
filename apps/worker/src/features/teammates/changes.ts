@@ -10,11 +10,11 @@ import {
 } from "@open-bot/domain";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
-import type { Context } from "../context";
-import type { Bot } from "../core/db-types";
-import type { RunSession } from "../runs/session";
-import type { ApprovalService } from "../services/approvals";
-import { BotError, BotService } from "../services/bots";
+import type { Context } from "../../context";
+import type { Bot } from "../../core/db-types";
+import type { RunSession } from "../../runs/session";
+import type { ApprovalService } from "../../services/approvals";
+import { BotError, BotService } from "./service";
 
 const assignmentSchema = z
   .object({

@@ -1,21 +1,28 @@
 // Teammate tools: list, read, create and change teammates, their connections, and proposing new
-// instructions for yourself. Creating and changing go through BotTools (./bots.ts), which asks.
+// instructions for yourself. Creating and changing go through BotTools (./changes.ts), which asks.
 import { bots } from "@open-bot/db";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import type { RunSession } from "../runs/session";
-import { createNotification } from "../services/notifications";
-import type { BotTools } from "./bots";
+import type { Context } from "../../context";
 import {
   defineTool,
   text,
   toolItem,
   type ToolCall,
-  type AnyTool,
   type ToolDefinition,
-  type ToolDeps,
   type ToolResponse,
-} from "./define";
+} from "../../core/tool";
+import type { RunSession } from "../../runs/session";
+import { createNotification } from "../../services/notifications";
+import type { BotTools } from "./changes";
+import type { BotService } from "./service";
+
+/** What the teammate tools use. */
+interface TeammateToolDeps {
+  ctx: Pick<Context, "db" | "pool" | "events">;
+  teammates: Pick<BotService, "proposeInstructions">;
+  botTools: BotTools;
+}
 
 const TARGET_DESCRIPTION =
   "A teammate's id from list_bots. Where optional, leave it out for yourself. Changing another teammate's setup may ask the user first.";
@@ -63,7 +70,7 @@ function teammateTool<Input extends z.ZodObject = z.ZodObject>(
     botTools: BotTools,
     call: ToolCall<z.output<Input>>,
   ) => Promise<{ result: unknown; label?: string | undefined }>,
-): ToolDefinition<Input, ToolDeps>["handle"] {
+): ToolDefinition<Input, TeammateToolDeps>["handle"] {
   return async (call, deps) => {
     const startedAt = call.session.now();
     const { result, label } = await run(deps.botTools, call);
@@ -133,7 +140,7 @@ const updateTeammateInput = z.object({
   changes: z.object(profileFields).meta({ minProperties: 1 }),
 });
 
-export const TEAMMATE_TOOLS: AnyTool[] = [
+export const TEAMMATE_TOOLS: ToolDefinition<z.ZodObject, TeammateToolDeps>[] = [
   defineTool({
     name: "list_bots",
     description:
@@ -239,7 +246,7 @@ export const TEAMMATE_TOOLS: AnyTool[] = [
 ];
 
 async function proposeInstructions(
-  deps: ToolDeps,
+  deps: TeammateToolDeps,
   session: RunSession,
   callId: string,
   args: { instructions: string; reason: string },

@@ -50,13 +50,13 @@ export const TABLE_OWNERS = {
 
   // Teammates and what they're set up with.
   bots: {
-    owner: `${WORKER}services/bots.ts`,
+    owner: `${WORKER}features/teammates/service.ts`,
     shared: MEMORY_KEEPS(
       ["lessons_changed_at"],
       "lessons are rebuilt from memory in the memory write's transaction",
     ),
   },
-  instruction_proposals: { owner: `${WORKER}services/bots.ts` },
+  instruction_proposals: { owner: `${WORKER}features/teammates/service.ts` },
   skills: { owner: `${WORKER}services/skills.ts` },
   schedules: { owner: `${WORKER}services/schedules.ts` },
   triggers: { owner: `${WORKER}services/triggers.ts` },
