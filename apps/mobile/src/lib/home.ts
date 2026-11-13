@@ -20,9 +20,7 @@ export function statusLine(
   const needs = approvals + home.takeoverRequests.length;
   if (needs > 0) return `${plural(needs, "thing")} ${needs === 1 ? "needs" : "need"} you.`;
   if (computerOffline) return "Nothing needs you. Work picks up when the computer is back.";
-  const working = teammates.filter(
-    (teammate) => teammateStatus(teammate).activity === "working",
-  );
+  const working = teammates.filter((teammate) => teammateStatus(teammate).activity === "working");
   if (working.length === 1) return `${working[0]!.name} is working on something.`;
   if (working.length > 1) return `${plural(working.length, "teammate")} are working right now.`;
   return "All quiet. Your teammates are ready when you are.";
