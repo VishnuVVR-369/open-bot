@@ -169,6 +169,7 @@ export default tseslint.config(
       "**/*.test.tsx",
       "apps/*/scripts/**",
       "packages/db/src/testing.ts",
+      "apps/worker/src/testing/**",
       "packages/db/src/migrate.ts",
     ],
     plugins: { "open-bot": openBot },
