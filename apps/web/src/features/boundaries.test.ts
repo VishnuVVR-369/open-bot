@@ -1,10 +1,11 @@
 import {
-  existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -13,12 +14,11 @@ import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
 const SOURCE = path.join(import.meta.dirname, "..");
+const TSCONFIG = path.join(SOURCE, "..", "tsconfig.json");
 
-/** The files TypeScript reads, declaration files included. */
-const SOURCE_FILE = /\.(?:[cm]?ts|tsx)$/;
-/** Extensions an import may name for the same file as none. Any other reaches a different file. */
-const TS_EXTENSION = /\.(?:tsx?|jsx?)$/;
-const TEST_FILE = /\.test\.tsx?$/;
+/** The files TypeScript reads (the app sets `allowJs`), declaration files included. */
+const SOURCE_FILE = /\.[cm]?[jt]sx?$/;
+const TEST_FILE = /\.test\.[cm]?[jt]sx?$/;
 
 /** Every file TypeScript reads under `dir`. */
 function files(dir: string): string[] {
@@ -29,36 +29,62 @@ function files(dir: string): string[] {
   });
 }
 
-/** What an `import(…)` call reaches when its module isn't a plain string, so it can't be checked. */
-const COMPUTED = "a computed import(…)";
+/** The app's compiler options, with the `@/` alias pointing at `root` as it points at `src`. */
+function compilerOptions(root: string): ts.CompilerOptions {
+  const { options, errors } = ts.parseJsonConfigFileContent(
+    { extends: TSCONFIG, compilerOptions: { paths: { "@/*": ["./*"] } } },
+    ts.sys,
+    root,
+  );
+  if (errors.length > 0)
+    throw new Error(ts.flattenDiagnosticMessageText(errors[0]?.messageText, "\n"));
+  return options;
+}
+
+/** How TypeScript parses `file`, by its extension: JSX only in `.tsx` and JavaScript files. */
+function scriptKind(file: string): ts.ScriptKind {
+  if (file.endsWith(".tsx")) return ts.ScriptKind.TSX;
+  if (file.endsWith(".jsx")) return ts.ScriptKind.JSX;
+  if (/\.[cm]?js$/.test(file)) return ts.ScriptKind.JS;
+  return ts.ScriptKind.TS;
+}
+
+/** One module a file reaches, and whether TypeScript erases the import (so it never runs). */
+type Edge = { specifier: string; typeOnly: boolean };
+/** What an `import(…)` or `require(…)` reaches when its module isn't a plain string. */
+const COMPUTED = "a computed import(…) or require(…)";
 
 /**
- * A file's module specifiers, its directives, how many `import(…)` calls can't be read, and whether
- * it really imports `server-only` (an import statement, not a comment or a string that says so).
+ * A file's imports, its directives, whether it really imports `server-only` (an import statement,
+ * not a comment or a string that says so), and the first syntax error, which could hide imports.
+ * Under `verbatimModuleSyntax` only a whole `import type` is erased, never `import { type X }`.
  */
 function parse(file: string, source: string) {
-  const specifiers: string[] = [];
-  let computed = 0;
+  const edges: (Edge | typeof COMPUTED)[] = [];
+  const module = (node: ts.Expression | undefined, typeOnly: boolean) => {
+    if (node && ts.isStringLiteralLike(node)) edges.push({ specifier: node.text, typeOnly });
+    else edges.push(COMPUTED);
+  };
   const visit = (node: ts.Node): void => {
-    if (
-      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
-      node.moduleSpecifier &&
-      ts.isStringLiteral(node.moduleSpecifier)
+    if (ts.isImportDeclaration(node)) module(node.moduleSpecifier, !!node.importClause?.isTypeOnly);
+    else if (ts.isExportDeclaration(node) && node.moduleSpecifier)
+      module(node.moduleSpecifier, node.isTypeOnly);
+    else if (
+      ts.isImportEqualsDeclaration(node) &&
+      ts.isExternalModuleReference(node.moduleReference)
     )
-      specifiers.push(node.moduleSpecifier.text);
-    else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
-      const [module] = node.arguments;
-      if (module && ts.isStringLiteralLike(module)) specifiers.push(module.text);
-      else computed++;
-    } else if (
-      ts.isImportTypeNode(node) &&
-      ts.isLiteralTypeNode(node.argument) &&
-      ts.isStringLiteral(node.argument.literal)
+      module(node.moduleReference.expression, node.isTypeOnly);
+    else if (
+      ts.isCallExpression(node) &&
+      (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+        (ts.isIdentifier(node.expression) && node.expression.text === "require"))
     )
-      specifiers.push(node.argument.literal.text);
+      module(node.arguments[0], false);
+    else if (ts.isImportTypeNode(node))
+      module(ts.isLiteralTypeNode(node.argument) ? node.argument.literal : undefined, true);
     ts.forEachChild(node, visit);
   };
-  const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, false, ts.ScriptKind.TSX);
+  const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind(file));
   visit(tree);
   const directives = tree.statements
     .filter(ts.isExpressionStatement)
@@ -72,75 +98,74 @@ function parse(file: string, source: string) {
       ts.isStringLiteral(statement.moduleSpecifier) &&
       statement.moduleSpecifier.text === "server-only",
   );
-  return { specifiers, computed, directives, serverOnly };
+  // Not in TypeScript's public types, but always set; without it, a file that doesn't parse
+  // could hide the imports after the error.
+  const { parseDiagnostics } = tree as unknown as { parseDiagnostics?: readonly ts.Diagnostic[] };
+  if (!parseDiagnostics) throw new Error("TypeScript no longer reports parse errors this way.");
+  const [error] = parseDiagnostics;
+  const syntaxError = error && ts.flattenDiagnosticMessageText(error.messageText, " ");
+  return { edges, directives, serverOnly, syntaxError };
 }
 
-/** A specifier that can only name a folder (`./`, `..`, `server/`), so it reaches the folder's index. */
-const FOLDER = /(?:^|\/)\.{0,2}$/;
-
 /**
- * The file TypeScript picks for `target` (a path without an extension): `target.ts` and its kin
- * when one exists, or else the folder's `index`. A spelling that only names a folder skips the file.
+ * The file an import in `file` reaches, as TypeScript resolves it with the app's options (`@/`,
+ * folders, `index`, `package.json`, `.js`), or as a plain path for files it doesn't resolve, such
+ * as stylesheets. `undefined` for a package; `null` for a path that reaches no file.
  */
-function pick(target: string, folder: boolean): string {
-  const file = (base: string) => [".ts", ".tsx", ".d.ts"].some((ext) => existsSync(base + ext));
-  if (folder || (!file(target) && file(path.join(target, "index"))))
-    return path.join(target, "index");
-  return target;
+function resolve(root: string, options: ts.CompilerOptions, file: string, specifier: string) {
+  const local =
+    specifier.startsWith("@/") || specifier.startsWith(".") || path.isAbsolute(specifier);
+  if (!local) return undefined;
+  const resolved = ts.resolveModuleName(specifier, file, options, ts.sys).resolvedModule;
+  if (resolved) return resolved.resolvedFileName;
+  const target = specifier.startsWith("@/")
+    ? path.join(root, specifier.slice(2))
+    : path.resolve(path.dirname(file), specifier);
+  try {
+    return statSync(target).isFile() ? target : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
- * The modules `file` reaches under `root`, as paths without an extension, resolved to the file
- * TypeScript picks: relative imports and the `@/` alias for `root`. An `import(…)` of anything but
- * a string is `COMPUTED`.
- */
-function imports(root: string, file: string, source: string): string[] {
-  const { specifiers, computed } = parse(file, source);
-  const resolve = (specifier: string) => {
-    const target = specifier.startsWith("@/")
-      ? path.join(root, specifier.slice(2))
-      : specifier.startsWith(".")
-        ? path.resolve(path.dirname(file), specifier)
-        : null;
-    if (target === null) return null;
-    if (TS_EXTENSION.test(specifier)) return target.replace(TS_EXTENSION, "");
-    return pick(path.resolve(target), FOLDER.test(specifier));
-  };
-  return [
-    ...specifiers.map(resolve).filter((target) => target !== null),
-    ...Array<string>(computed).fill(COMPUTED),
-  ];
-}
-
-/**
- * Where `target` is among `root`'s features: which feature, whether it is one of its two entries
+ * Where `file` is among `root`'s features: which feature, whether it is one of its two entries
  * (`index.ts`, the client side, or `server.ts`), and whether it is server code (`server.ts` or
  * anything under `server/`).
  */
-function featureOf(root: string, target: string) {
-  const relative = path.relative(path.join(root, "features"), target.replace(TS_EXTENSION, ""));
+function featureOf(root: string, file: string) {
+  const relative = path.relative(path.join(root, "features"), file);
   if (relative.startsWith("..") || path.isAbsolute(relative)) return null;
   const [name, ...rest] = relative.split(path.sep);
-  if (!name || (rest.length === 0 && name.includes("."))) return null;
-  const entry =
-    rest.length === 0 || rest.join("/") === "index"
-      ? "index"
-      : rest.join("/") === "server"
-        ? "server"
-        : null;
-  return { name, entry, server: rest[0] === "server" };
+  // A file right in features/, such as this test, belongs to no feature.
+  if (!name || rest.length === 0) return null;
+  const inside = rest.join("/");
+  const entry = inside === "index.ts" ? "index" : inside === "server.ts" ? "server" : null;
+  return { name, entry, server: rest[0] === "server" || inside === "server.ts" };
 }
 
 /** What `file` (under `root`) does that the feature boundaries don't allow, one line each. */
-function problems(root: string, file: string, source = readFileSync(file, "utf8")): string[] {
+function problems(
+  root: string,
+  file: string,
+  source = readFileSync(file, "utf8"),
+  options = compilerOptions(root),
+): string[] {
   const at = path.relative(root, file);
   const home = featureOf(root, file);
-  const { directives, serverOnly } = parse(file, source);
+  const { edges, directives, serverOnly, syntaxError } = parse(file, source);
   const client = directives.includes("use client");
   const found: string[] = [];
-  for (const target of imports(root, file, source)) {
-    if (target === COMPUTED) {
+  if (syntaxError) found.push(`${at}: doesn't parse (${syntaxError})`);
+  for (const edge of edges) {
+    if (edge === COMPUTED) {
       found.push(`${at}: ${COMPUTED}`);
+      continue;
+    }
+    const target = resolve(root, options, file, edge.specifier);
+    if (target === undefined) continue;
+    if (target === null) {
+      found.push(`${at} -> ${edge.specifier}: reaches no file`);
       continue;
     }
     const feature = featureOf(root, target);
@@ -148,7 +173,12 @@ function problems(root: string, file: string, source = readFileSync(file, "utf8"
     const to = path.relative(root, target);
     if (feature.name !== home?.name && !feature.entry)
       found.push(`${at} -> ${to}: past its entries`);
-    else if (feature.server && (client || (home?.name === feature.name && !home.server)))
+    // An erased import puts no server code in the browser.
+    else if (
+      !edge.typeOnly &&
+      feature.server &&
+      (client || (home?.name === feature.name && !home.server))
+    )
       found.push(`${at} -> ${to}: client code importing server code`);
   }
   if (home?.server && !TEST_FILE.test(file) && !serverOnly)
@@ -158,7 +188,8 @@ function problems(root: string, file: string, source = readFileSync(file, "utf8"
 
 /** Every problem with the feature boundaries under `root`. */
 function violations(root: string): string[] {
-  return files(root).flatMap((file) => problems(root, file));
+  const options = compilerOptions(root);
+  return files(root).flatMap((file) => problems(root, file, undefined, options));
 }
 
 describe("feature folders", () => {
@@ -174,7 +205,8 @@ describe("feature folders", () => {
   });
 
   it("are checked in every file TypeScript reads", () => {
-    const root = mkdtempSync(path.join(tmpdir(), "open-bot-web-boundaries-"));
+    // The resolver answers with real paths, and the temporary folder may be behind a symlink.
+    const root = realpathSync(mkdtempSync(path.join(tmpdir(), "open-bot-web-boundaries-")));
     try {
       const write = (file: string, source: string) => {
         mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
@@ -186,6 +218,7 @@ describe("feature folders", () => {
         "features/tasks/server.ts",
         `import "server-only";\nexport * from "./server/queries";\n`,
       );
+      write("features/tasks/server.ts.ts", `export {};\n`);
       write("features/tasks/server/queries.ts", server);
       write(
         "features/tasks/server/routes.ts",
@@ -193,10 +226,17 @@ describe("feature folders", () => {
       );
       write("features/tasks/server/jobs.ts", `import 'server-only';\nexport const jobs = [];\n`);
       write("features/tasks/server/types.ts", `import type {} from "server-only";\nexport {};\n`);
-      write("features/notes/index.ts", `export {};\n`);
-      write("features/notes/server/index.ts", server);
       write("features/tasks/server/queries.test.ts", `export {};\n`);
       write("features/tasks/components/board.tsx", `import { listTasks } from "../server";\n`);
+      write(
+        "features/tasks/components/types.ts",
+        `import type { listTasks } from "../server";\nexport type Tasks = typeof listTasks;\n`,
+      );
+      write("features/notes/index.ts", `export {};\n`);
+      write("features/notes/server/index.js", server);
+      write("features/docs/index.ts", `export {};\n`);
+      write("features/docs/server/package.json", `{ "types": "queries.ts" }\n`);
+      write("features/docs/server/queries.ts", server);
       write(
         "features/pages/load.ts",
         `export const load = (name: string) => import("./" + name);\n`,
@@ -207,21 +247,41 @@ describe("feature folders", () => {
         "app/tasks/view.tsx",
         `"use client";\nimport { listTasks } from "@/features/tasks/server";\n`,
       );
+      write(
+        "app/tasks/types.tsx",
+        `"use client";\nimport type { listTasks } from "@/features/tasks/server";\n`,
+      );
+      write(
+        "app/tasks/kept.tsx",
+        `"use client";\nimport { type listTasks } from "@/features/tasks/server";\n`,
+      );
       write("lib/router.ts", `import { listTasks } from "../features/tasks/server/queries";\n`);
       write("lib/types.d.ts", `export type { Board } from "@/features/tasks/components/board";\n`);
       write("lib/folder.ts", `import { listTasks } from "@/features/tasks/server/";\n`);
-      write("lib/notes.ts", `import { listNotes } from "@/features/notes/server";\n`);
+      write("lib/notes.js", `import { listNotes } from "@/features/notes/server";\n`);
+      write("lib/docs.ts", `import { listDocs } from "@/features/docs/server";\n`);
+      write("lib/twice.ts", `import { x } from "@/features/tasks/server.ts.ts";\n`);
+      write(
+        "lib/generic.ts",
+        `export const same = <T>(x: T): T => x;\nimport { listTasks } from "@/features/tasks/server/jobs";\n`,
+      );
+      write("lib/broken.ts", `export const = ;\n`);
       write("lib/notes.md", `import { listTasks } from "@/features/tasks/server/queries";\n`);
       expect(violations(root).sort()).toEqual([
-        "app/tasks/view.tsx -> features/tasks/server: client code importing server code",
-        "features/pages/load.ts: a computed import(…)",
-        "features/tasks/components/board.tsx -> features/tasks/server: client code importing server code",
+        "app/tasks/kept.tsx -> features/tasks/server.ts: client code importing server code",
+        "app/tasks/view.tsx -> features/tasks/server.ts: client code importing server code",
+        "features/pages/load.ts: a computed import(…) or require(…)",
+        "features/tasks/components/board.tsx -> features/tasks/server.ts: client code importing server code",
         'features/tasks/server/routes.ts: server code without import "server-only"',
         'features/tasks/server/types.ts: server code without import "server-only"',
-        "lib/folder.ts -> features/tasks/server/index: past its entries",
-        "lib/notes.ts -> features/notes/server/index: past its entries",
-        "lib/router.ts -> features/tasks/server/queries: past its entries",
-        "lib/types.d.ts -> features/tasks/components/board: past its entries",
+        expect.stringMatching(/^lib\/broken\.ts: doesn't parse/),
+        "lib/docs.ts -> features/docs/server/queries.ts: past its entries",
+        "lib/folder.ts -> @/features/tasks/server/: reaches no file",
+        "lib/generic.ts -> features/tasks/server/jobs.ts: past its entries",
+        "lib/notes.js -> features/notes/server/index.js: past its entries",
+        "lib/router.ts -> features/tasks/server/queries.ts: past its entries",
+        "lib/twice.ts -> features/tasks/server.ts.ts: past its entries",
+        "lib/types.d.ts -> features/tasks/components/board.tsx: past its entries",
       ]);
     } finally {
       rmSync(root, { recursive: true, force: true });
@@ -230,7 +290,13 @@ describe("feature folders", () => {
 
   it("are checked for every way of importing", () => {
     const outside = path.join(SOURCE, "lib", "example.ts");
-    for (const internal of ["@/features/tasks/server/queries", "../features/tasks/server/queries"])
+    const options = compilerOptions(SOURCE);
+    const check = (source: string) => problems(SOURCE, outside, source, options);
+    for (const internal of [
+      "@/features/tasks/server/queries",
+      "../features/tasks/server/queries",
+      path.join(SOURCE, "features/tasks/server/queries"),
+    ])
       for (const source of [
         `import { listTasks } from "${internal}";`,
         `import { listTasks } from "${internal}.ts";`,
@@ -240,14 +306,16 @@ describe("feature folders", () => {
         `import "${internal}";`,
         `const { listTasks } = await import("${internal}");`,
         `type Tasks = import("${internal}").Tasks;`,
+        `const { listTasks } = require("${internal}");`,
+        `import type Queries = require("${internal}");`,
       ])
-        expect(problems(SOURCE, outside, source), source).toHaveLength(1);
+        expect(check(source), source).toHaveLength(1);
     for (const folder of [
       "@/features/tasks/server/",
       "../features/tasks/server/",
       "../features/tasks/server/.",
     ])
-      expect(problems(SOURCE, outside, `import { x } from "${folder}";`), folder).toHaveLength(1);
+      expect(check(`import { x } from "${folder}";`), folder).toHaveLength(1);
     for (const entry of [
       "@/features/tasks",
       "@/features/tasks/index",
@@ -256,6 +324,6 @@ describe("feature folders", () => {
       "../features/tasks",
       "../features/tasks/server.ts",
     ])
-      expect(problems(SOURCE, outside, `import { x } from "${entry}";`), entry).toEqual([]);
+      expect(check(`import { x } from "${entry}";`), entry).toEqual([]);
   });
 });

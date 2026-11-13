@@ -35,14 +35,14 @@ Shared types and the mobile contract belong in `packages/domain` and `packages/a
 - Query keys are procedure paths (`orpc.tasks.key()`); never write a key by hand.
   App events refresh queries by `APP_EVENT_REFRESHES` in `packages/api/src/events.ts`.
 - Routes in `apps/web/src/app/api/*/route.ts` are only for streams, bytes (downloads, uploads, thumbnails), tokens and outside callers (webhooks, OAuth); a JSON read is a procedure.
-- Server components read through functions in `apps/web/src/lib/server`, never `db` directly.
+- Server components read through functions in `apps/web/src/lib/server` or a feature's `server.ts`, never `db` directly.
 - Browser writes go through the API too: `attempt(api.chats.archive({ chatId }))` (`apps/web/src/lib/client/mutate.ts`) returns `{ ok, data }` or `{ ok, error }`.
   A new write is a procedure in `packages/api/src/contract.ts` with its handler in `apps/web/src/lib/server/api/router.ts`, never a server action: those run one at a time per client and the phone can't call them.
   `apps/web/src/no-server-actions.test.ts` fails on any `"use server"`.
 - A service throws `ApiError` (`apps/web/src/lib/server/api/errors.ts`) for a refusal you see, with a code the router turns into the API's error and status.
 - Route handlers are wrapped in `authed()` (`apps/web/src/lib/server/route.ts`), which also refuses writes from other sites.
   A route that takes writes without `authed()` must be listed, with why, in `apps/web/src/app/api/routes.test.ts`.
-- Every oRPC procedure goes through the session middleware in `apps/web/src/lib/server/api/router.ts`.
+- Every oRPC procedure is built with `os` from `apps/web/src/lib/server/api/rpc.ts`, so it goes through the session middleware there.
 - `apps/web/src/components/ui` is shadcn output (`apps/web/components.json`); do not edit it by hand, and eslint ignores it.
 - A new workspace dependency must be added to `transpilePackages` in `apps/web/next.config.ts`.
 - `apps/web/tsconfig.json` extends `tsconfig.base.json`, so the app is type-checked as strictly as the packages, and Next.js never edits it.
