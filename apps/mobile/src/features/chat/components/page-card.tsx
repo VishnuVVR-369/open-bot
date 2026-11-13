@@ -2,10 +2,10 @@ import type { PageItem } from "@open-bot/domain";
 import { router } from "expo-router";
 import { ArrowUpRight } from "lucide-react-native";
 import { Pressable, StyleSheet, View } from "react-native";
-import { PageThumb } from "@/components/page-thumb";
+import { PageThumb } from "@/features/pages/components/page-thumb";
 import { Text } from "@/components/text";
 import { haptics } from "@/lib/haptics";
-import { pageHref } from "@/lib/pages";
+import { pageHref } from "@/features/pages/pages";
 import { radius, space, useColors } from "@/theme";
 
 /** A page the teammate published in this turn. Opens the version it published. */

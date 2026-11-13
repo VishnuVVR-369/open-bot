@@ -25,7 +25,7 @@ import {
 } from "@/features/approvals/components/approval-parts";
 import { Button } from "@/components/button";
 import { CodeScroll } from "@/components/code-scroll";
-import { ApproveWhileAwayNote } from "@/components/connection-notice";
+import { ApproveWhileAwayNote } from "@/features/computer/components/connection-notice";
 import { ListRow } from "@/components/list-row";
 import { Card } from "@/components/section";
 import { LoadError, Loading } from "@/components/states";
@@ -38,7 +38,7 @@ import { approvalDetail } from "@/features/approvals/format";
 import { haptics } from "@/lib/haptics";
 import { useOnline } from "@/lib/network";
 import { phoneDayClock } from "@/lib/phone-clock";
-import { useTeammates } from "@/lib/queries";
+import { useTeammates } from "@/features/teammates/hooks";
 import { queryKeys } from "@/lib/query";
 import { radius, space, useColors } from "@/theme";
 

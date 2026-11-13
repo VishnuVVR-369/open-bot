@@ -2,7 +2,7 @@ import { splitComputerPaths, type TimelineItem } from "@open-bot/domain";
 import { ArrowRightLeft, CircleDashed, FilePen, Search, SquareTerminal } from "lucide-react-native";
 import { useMemo, type ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
-import { FileChip } from "@/components/file-chip";
+import { FileChip } from "@/features/files/components/file-chip";
 import { Markdown } from "@/components/markdown";
 import {
   commandStep,

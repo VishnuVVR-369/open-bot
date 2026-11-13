@@ -2,7 +2,7 @@ import type { RunView } from "@open-bot/api";
 import { elapsed, workingText } from "@open-bot/chat-core";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
-import { needsYouText } from "@/components/bot-avatar";
+import { needsYouText } from "@/features/teammates/components/bot-avatar";
 import { Text } from "@/components/text";
 import { space, useColors } from "@/theme";
 import { mix } from "@/theme/mix";

@@ -1,7 +1,7 @@
 import type { BotSummary } from "@open-bot/api";
 import { Users } from "lucide-react-native";
 import { StyleSheet, View } from "react-native";
-import { BotAvatar } from "@/components/bot-avatar";
+import { BotAvatar } from "@/features/teammates/components/bot-avatar";
 import { Empty } from "@/components/states";
 import { useColors } from "@/theme";
 

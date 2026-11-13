@@ -20,7 +20,7 @@ import { StyleSheet, View } from "react-native";
 import { ActionPreview, previewIcon } from "@/features/approvals/components/action-preview";
 import { AlwaysAllowSheet } from "@/features/approvals/components/always-allow-sheet";
 import { ApprovalTitle, DetailRows } from "@/features/approvals/components/approval-parts";
-import { ApproveWhileAwayNote } from "@/components/connection-notice";
+import { ApproveWhileAwayNote } from "@/features/computer/components/connection-notice";
 import { Button } from "@/components/button";
 import { CodeScroll } from "@/components/code-scroll";
 import { Text } from "@/components/text";

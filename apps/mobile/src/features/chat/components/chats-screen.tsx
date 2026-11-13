@@ -19,10 +19,13 @@ import {
   GroupAvatar,
   StatusLine,
   type BotActivity,
-} from "@/components/bot-avatar";
-import { ComputerOfflineNotice, ConnectionNotice } from "@/components/connection-notice";
+} from "@/features/teammates/components/bot-avatar";
+import {
+  ComputerOfflineNotice,
+  ConnectionNotice,
+} from "@/features/computer/components/connection-notice";
 import { FilterChips } from "@/components/filter-chips";
-import { HeaderActions, HeaderButton } from "@/components/header-actions";
+import { HeaderActions, HeaderButton } from "@/features/home/components/header-actions";
 import { Separator } from "@/components/list-row";
 import { Sheet, SheetItem } from "@/components/sheet";
 import { Empty, LoadError, Loading } from "@/components/states";
@@ -35,7 +38,7 @@ import { animateLayout } from "@/lib/motion";
 import { queryKeys } from "@/lib/query";
 import { useChats } from "@/features/chat/hooks";
 import { useComputerOffline } from "@/features/computer/hooks";
-import { useTeammates } from "@/lib/queries";
+import { useTeammates } from "@/features/teammates/hooks";
 import { ago } from "@/lib/time";
 import { space, useColors } from "@/theme";
 import { usePullToRefresh } from "@/lib/use-pull-to-refresh";
