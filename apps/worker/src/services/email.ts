@@ -12,7 +12,7 @@ import {
 import { decryptSecret } from "@open-bot/domain/server";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
-import { createNotification } from "./notifications";
+import { createNotification } from "../features/notifications";
 import { enqueueRun } from "../runs/queue";
 import { appendRunEvent } from "../runs/events";
 import { errorMessage } from "../logger";

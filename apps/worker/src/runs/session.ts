@@ -18,7 +18,7 @@ import {
 import { and, eq } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
 import type { Bot, Chat, Run } from "../core/db-types";
-import { createNotification } from "../services/notifications";
+import { createNotification } from "../features/notifications";
 import { DEVELOPER_INSTRUCTIONS } from "../instructions";
 import { errorMessage } from "../logger";
 import type { MemoryService } from "@open-bot/memory";

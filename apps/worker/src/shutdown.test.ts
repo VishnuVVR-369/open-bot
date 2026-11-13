@@ -8,8 +8,7 @@ import type { Context } from "./context";
 import type { Feature } from "./core/feature";
 import { automationsFeature } from "./features/automations";
 import { memoryFeature } from "./features/memory";
-import { FcmService } from "./services/fcm";
-import { PushService } from "./services/push";
+import { FcmService, notificationsFeature, PushService } from "./features/notifications";
 
 /** A loop that does nothing: features here are only asked what they register. */
 const loop = { start() {}, stop() {}, kick() {} };
@@ -18,6 +17,7 @@ const loop = { start() {}, stop() {}, kick() {} };
 const FEATURES: Record<string, Pick<Feature, "start">> = {
   automations: automationsFeature({ schedules: loop, triggers: loop, accountTriggers: loop }),
   memoryJobs: memoryFeature(loop),
+  notifications: notificationsFeature({ push: loop, fcm: loop }),
 };
 
 /** The names of the parts `feature` registers with the Runtime, in order, without starting any. */

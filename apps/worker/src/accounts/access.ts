@@ -23,7 +23,7 @@ import {
 } from "@open-bot/domain";
 import { and, asc, eq, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
-import { createNotification } from "../services/notifications";
+import { createNotification } from "../features/notifications";
 import type { AccountAccessLine } from "../instructions";
 import { errorMessage } from "../logger";
 

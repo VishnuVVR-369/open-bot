@@ -51,7 +51,7 @@ import { VaultService } from "../services/vault";
 import { EmailService } from "../services/email";
 import { SettingsService } from "../services/settings";
 import { FileService } from "../services/files";
-import { PushService } from "../services/push";
+import { PushService } from "../features/notifications";
 import { SessionRegistry } from "../services/registry";
 import { RetryService } from "../services/retries";
 import { ScheduleService, TriggerService } from "../features/automations";

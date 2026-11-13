@@ -2,10 +2,10 @@ import { credentials, pushSubscriptions } from "@open-bot/db";
 import { decryptSecret } from "@open-bot/domain/server";
 import { eq } from "drizzle-orm";
 import webpush from "web-push";
-import type { Context, NotificationEvent } from "../context";
-import { errorMessage } from "../logger";
-import { addCredential } from "./credentials";
-import { WorkerError } from "../core/errors";
+import type { Context, NotificationEvent } from "../../context";
+import { errorMessage } from "../../logger";
+import { addCredential } from "../../services/credentials";
+import { WorkerError } from "../../core/errors";
 
 /** What the service worker shows: a notification that opens the right place when tapped. */
 export interface PushPayload {

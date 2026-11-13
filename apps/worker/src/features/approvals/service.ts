@@ -17,7 +17,7 @@ import {
 } from "@open-bot/domain";
 import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 import { publishApp, type Context } from "../../context";
-import { createNotification } from "../../services/notifications";
+import { createNotification } from "../notifications";
 import { enqueueRun } from "../../runs/queue";
 import { appendRunEvent } from "../../runs/events";
 import type { RunSession } from "../../runs/session";

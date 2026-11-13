@@ -7,7 +7,7 @@ import type {
   PhoneWakeStage,
   UnavailableReason,
 } from "@open-bot/domain";
-import type { PushResult } from "../services/fcm";
+import type { PushResult } from "../features/notifications";
 import type { PairedPhone } from "./relay";
 import { errorMessage } from "../logger";
 

@@ -10,7 +10,7 @@ import {
   type ToolResponse,
 } from "../../core/tool";
 import type { RunSession } from "../../runs/session";
-import { createNotification } from "../../services/notifications";
+import { createNotification } from "../notifications";
 import { titleChat } from "./service";
 
 /** What the chat tools use. */
