@@ -27,6 +27,7 @@ It runs every teammate turn, serves every tool call, and owns every timer and lo
 
 Whatever starts a timer, a listener, a socket or a background loop registers how to stop it with the `Runtime` (`src/core/runtime.ts`).
 A feature folder with background work exports a `Feature` (`src/core/feature.ts`): its `start(runtime)` registers each part, and its `signals` answer the web app's signals that belong to it (`automationsFeature` in `src/features/automations/feature.ts`).
+`signalHandlers` puts every feature's handlers together with the ones `index.ts` answers itself: a signal with no handler, or one `index.ts` answers for a feature, doesn't compile, and the worker refuses to start with a signal two features answer.
 On `SIGTERM` or `SIGINT` it stops them all in reverse.
 The server, the `LISTEN` connection and the timers are stopped first, then the triggers, the scheduler and the computer lifecycle.
 Then account actions drain while push, phone notifications and Telegram still listen, and the egress relay, Codex, botd and the pool stop last (`src/shutdown.test.ts` pins the order of these stop calls, including the parts features register).

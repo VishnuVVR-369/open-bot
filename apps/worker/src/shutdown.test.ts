@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import ts from "typescript";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountActions } from "./accounts/actions";
 import type { Context } from "./context";
@@ -12,7 +13,7 @@ import { PushService } from "./services/push";
 /** A loop that does nothing: features here are only asked what they register. */
 const loop = { start() {}, stop() {}, kick() {} };
 
-/** The features index.ts starts with `<name>.start(runtime)`, by that name. */
+/** The features index.ts starts, each with `<name>.start(runtime)`, by that name. */
 const FEATURES: Record<string, Pick<Feature, "start">> = {
   automations: automationsFeature({ schedules: loop, triggers: loop, accountTriggers: loop }),
 };
@@ -30,22 +31,49 @@ async function partsOf(feature: Pick<Feature, "start">): Promise<string[]> {
   return names;
 }
 
+const REGISTER = new Set(["start", "add", "every", "after"]);
+
 /**
  * The order index.ts stops its parts in: the reverse of the order it registers them with the
- * Runtime, itself or through a feature it starts.
+ * Runtime, itself (`runtime.add("name", …)`) or through a feature it starts
+ * (`<feature>.start(runtime)`). Any other call that is handed the runtime fails the test, since
+ * what it registers can't be seen, and so does a feature in FEATURES that index.ts never starts.
  */
 async function stopOrder(): Promise<string[]> {
-  const source = readFileSync(path.join(import.meta.dirname, "index.ts"), "utf8");
-  const names: string[] = [];
-  for (const [, name, feature] of source.matchAll(
-    /runtime\.(?:start|add|every|after)\(\s*"([^"]+)"|await (\w+)\.start\(runtime\)/g,
-  )) {
-    if (name) names.push(name);
-    else {
-      expect(FEATURES, `${feature} is started in index.ts`).toHaveProperty(feature!);
-      names.push(...(await partsOf(FEATURES[feature!]!)));
+  const file = path.join(import.meta.dirname, "index.ts");
+  const source = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest);
+  const steps: ({ part: string } | { feature: string })[] = [];
+  const unknown: string[] = [];
+  const isRuntime = (node: ts.Node) => ts.isIdentifier(node) && node.text === "runtime";
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node)) {
+      const callee = node.expression;
+      const [first] = node.arguments;
+      if (ts.isPropertyAccessExpression(callee) && isRuntime(callee.expression)) {
+        if (REGISTER.has(callee.name.text)) {
+          if (first && ts.isStringLiteralLike(first)) steps.push({ part: first.text });
+          else unknown.push(node.getText(source));
+        }
+      } else if (node.arguments.some(isRuntime)) {
+        if (
+          ts.isPropertyAccessExpression(callee) &&
+          callee.name.text === "start" &&
+          ts.isIdentifier(callee.expression) &&
+          node.arguments.length === 1
+        )
+          steps.push({ feature: callee.expression.text });
+        else unknown.push(node.getText(source));
+      }
     }
-  }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  expect(unknown, "calls handed the runtime that this test can't follow").toEqual([]);
+  const started = steps.flatMap((step) => ("feature" in step ? [step.feature] : []));
+  expect(started.toSorted(), "features index.ts starts").toEqual(Object.keys(FEATURES).toSorted());
+  const names: string[] = [];
+  for (const step of steps)
+    names.push(...("part" in step ? [step.part] : await partsOf(FEATURES[step.feature]!)));
   expect(new Set(names).size).toBe(names.length);
   return names.reverse();
 }

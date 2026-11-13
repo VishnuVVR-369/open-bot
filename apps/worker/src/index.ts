@@ -1,4 +1,4 @@
-import { isWorkerSignal, NOTIFY_CHANNELS, type WorkerSignal } from "@open-bot/domain";
+import { isWorkerSignal, NOTIFY_CHANNELS } from "@open-bot/domain";
 import { BOTD_SOCKETS, type LifecycleCapabilities } from "@open-bot/api/botd";
 import { createDb, createPool, ownerSettings } from "@open-bot/db";
 import { ComputerLifecycle } from "./computer-lifecycle";
@@ -50,6 +50,7 @@ import { AccountActions } from "./accounts/actions";
 import { AccountTools } from "./accounts/tools";
 import { EventEmitter } from "node:events";
 import { addSettingsRow, SettingsService } from "./services/settings";
+import { signalHandlers } from "./core/feature";
 import { Runtime } from "./core/runtime";
 
 /** botd's lifecycle calls (lease, quiesce) give up after this. */
@@ -378,17 +379,16 @@ runtime.every("account keep-alive", 12 * 60 * 60_000, keepAccountsAlive);
 const listener = await pool.connect();
 runtime.add("signal listener", () => listener.release());
 await listener.query(`listen ${NOTIFY_CHANNELS.worker}`);
-// One handler per signal, here or in the feature that answers it, so a new `WorkerSignal`
-// doesn't compile until it has one.
-const onSignal: Record<WorkerSignal, () => void> = {
+// One handler per signal, here or in the feature that answers it: a new `WorkerSignal` doesn't
+// compile until it has one, and the worker doesn't start with two.
+const onSignal = signalHandlers([automations], {
   runs: () => executor.pump(),
-  ...automations.signals,
   accounts: () => accountActions.kick(),
   cancel: () =>
     void executor
       .processCancellations()
       .catch((error: unknown) => log.error("cancel failed", { error: errorMessage(error) })),
-};
+});
 listener.on("notification", (message) => {
   if (message.payload && isWorkerSignal(message.payload)) onSignal[message.payload]();
 });
