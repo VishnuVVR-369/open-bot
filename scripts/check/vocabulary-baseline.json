@@ -862,8 +862,14 @@
   "packages/api/src/automations.ts": {
     "bot": 4
   },
-  "packages/api/src/contract.ts": {
-    "bot": 8
+  "packages/api/src/contracts/chat.ts": {
+    "bot": 2
+  },
+  "packages/api/src/contracts/memory.ts": {
+    "bot": 1
+  },
+  "packages/api/src/contracts/teammates.ts": {
+    "bot": 5
   },
   "packages/api/src/events.ts": {
     "bot": 1

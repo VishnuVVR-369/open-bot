@@ -31,7 +31,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 ### Add a mobile screen
 
 1. A file in `apps/mobile/src/app/` plus its `Tabs.Screen` in `(tabs)/_layout.tsx` or `Stack.Screen` in `_layout.tsx`.
-2. Data: a view in `packages/api/src/views.ts`, a procedure in `packages/api/src/contract.ts`, its handler in the web feature's `server/routes.ts` (`apps/web/src/features/<feature>/server/routes.ts`, mounted in `apps/web/src/lib/server/api/router.ts`), a hook in `apps/mobile/src/lib/queries.ts` and a key in `apps/mobile/src/lib/query.ts` (`keysForAppEvent`).
+2. Data: a view in `packages/api/src/views.ts`, a procedure in `packages/api/src/contracts/<feature>.ts` (composed in `packages/api/src/contract.ts`), its handler in the web feature's `server/routes.ts` (`apps/web/src/features/<feature>/server/routes.ts`, mounted in `apps/web/src/lib/server/api/router.ts`), a hook in `apps/mobile/src/lib/queries.ts` and a key in `apps/mobile/src/lib/query.ts` (`keysForAppEvent`).
 3. Search entry in `apps/mobile/src/app/search.tsx` (`PAGES`); notification links in `apps/mobile/src/lib/links.ts` and the worker's `nativeUrl()` in `apps/worker/src/features/notifications/fcm.ts`.
 
 ## Tests

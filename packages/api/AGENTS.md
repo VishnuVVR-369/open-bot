@@ -11,7 +11,7 @@ Shared domain logic goes in `packages/domain`.
 - `@open-bot/api/worker` is `packages/api/src/worker/index.ts`: `workerContract`, the worker's views and `createWorkerClient`. The phone never imports it.
 - `@open-bot/api/botd` is `packages/api/src/botd/index.ts`: `botdContract`, `BOTD_SOCKETS` and `createBotdClient`. botd implements it in `apps/botd/src/router.ts`; only the worker calls it.
 - `@open-bot/api/desktop` is `packages/api/src/desktop.ts`: what the desktop app gets from `/api/desktop/egress-token`. It imports only zod, so the Electron bundle stays small.
-- `packages/api/src/contract.ts` is the oRPC contract, grouped by namespace; `packages/api/src/base.ts` has its error map and shared input pieces.
+- `packages/api/src/contract.ts` composes the app's oRPC namespaces from `packages/api/src/contracts/<feature>.ts`, where procedures and their shared input schemas live; it re-exports the public inputs and constants. `packages/api/src/base.ts` has its error map and shared input pieces.
 - `packages/api/src/views.ts` has the view schemas (`botSummarySchema`, `chatDataSchema`, ...); feature files (`home.ts`, `automations.ts`, `teammates.ts`, `integrations.ts`, `settings.ts`, `skills.ts`, `tasks.ts`, `vault.ts`, `memory.ts`) have the rest.
 - `packages/api/src/events.ts` has `APP_EVENT_REFRESHES`: which procedures each app event refreshes.
   The web app applies it in `apps/web/src/lib/client/refresh.ts`.
