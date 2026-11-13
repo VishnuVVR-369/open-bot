@@ -1,8 +1,13 @@
-import type { BotSummary, ChatSummary, PageSummary } from "@open-bot/api";
+import type { BotSummary, ChatSummary, PageDetail, PageSummary } from "@open-bot/api";
 import { describe, expect, it } from "vitest";
 import {
   isLinkFresh,
+  isPageAddress,
+  newerVersion,
+  openingVersion,
   pageHref,
+  pageLoadFailure,
+  pageSubtitle,
   pageThumbnailUrl,
   parsePageMessage,
   questionTarget,
@@ -95,5 +100,59 @@ describe("the page list", () => {
       page("new", false, "2026-11-04T00:00:00Z"),
     ]);
     expect(sorted.map((entry) => entry.id)).toEqual(["pinned", "new", "old"]);
+  });
+});
+
+describe("the page viewer", () => {
+  const version = (id: string, number: number, createdAt = new Date().toISOString()) =>
+    ({ id, number, createdAt }) as PageDetail["versions"][number];
+  // Newest first, as the server sends them.
+  const page = {
+    versionId: "v3",
+    versions: [version("v3", 3), version("v2", 2), version("v1", 1)],
+  };
+
+  it("opens at the version a link names, if the page has it, else the latest", () => {
+    expect(openingVersion(page, "v2")).toBe("v2");
+    expect(openingVersion(page, "gone")).toBe("v3");
+    expect(openingVersion(page, undefined)).toBe("v3");
+  });
+
+  it("offers the newest version over an older one until it was offered", () => {
+    expect(newerVersion(page, "v2", "v2")?.id).toBe("v3");
+    expect(newerVersion(page, "v2", "v3")).toBeNull();
+    expect(newerVersion(page, "v3", "v2")).toBeNull();
+    expect(newerVersion(page, null, null)).toBeNull();
+  });
+
+  it("names the teammate and the version under the title", () => {
+    expect(pageSubtitle(page, page.versions[0]!, "Iris")).toBe("Iris · Version 3");
+    expect(pageSubtitle(page, page.versions[1]!, undefined)).toBe(
+      "Former teammate · Version 2 (older)",
+    );
+    const single = { versionId: "v1", versions: [version("v1", 1)] };
+    expect(pageSubtitle(single, single.versions[0]!, "Iris")).toBe("Iris · now");
+    expect(pageSubtitle(single, null, "Iris")).toBe("Iris");
+  });
+
+  it("loads only the page itself, a place in it, or a blank frame", () => {
+    const url = "https://pages.example/p/1?t=abc";
+    expect(isPageAddress(url, url)).toBe(true);
+    expect(isPageAddress(`${url}#costs`, url)).toBe(true);
+    expect(isPageAddress("about:blank", url)).toBe(true);
+    expect(isPageAddress("https://pages.example/p/2", url)).toBe(false);
+  });
+
+  it("renews a turned-down link once, rechecks a missing page, and shows the rest", () => {
+    expect(pageLoadFailure(403, false)).toEqual({ kind: "renew" });
+    expect(pageLoadFailure(403, true)).toEqual({
+      kind: "show",
+      message: "The link to this page expired. Try again for a new one.",
+    });
+    expect(pageLoadFailure(404, false)).toEqual({ kind: "recheck" });
+    expect(pageLoadFailure(502, false)).toEqual({
+      kind: "show",
+      message: "open-bot's pages service didn't answer. Try again in a moment.",
+    });
   });
 });
