@@ -1,12 +1,9 @@
 import "server-only";
 import {
-  getAccountsSetup,
   getAppState,
   getChatData,
-  getEmailStatus,
   getProfile,
   listChats,
-  listConnections,
   listNotifications,
   searchMessages,
 } from "../queries";
@@ -16,6 +13,7 @@ import { automationRoutes } from "@/features/automations/server";
 import { computerRoutes } from "@/features/computer/server";
 import { fileRoutes } from "@/features/files/server";
 import { homeRoutes } from "@/features/home/server";
+import { integrationRoutes } from "@/features/integrations/server";
 import { memoryRoutes } from "@/features/memory/server";
 import { pageRoutes } from "@/features/pages/server";
 import { settingsRoutes } from "@/features/settings/server";
@@ -37,6 +35,7 @@ export const router = os.router({
   home: homeRoutes(),
   ...teammateRoutes(),
   ...settingsRoutes(),
+  ...integrationRoutes(),
   ...automationRoutes(),
   skills: skillRoutes(),
   tasks: taskRoutes(),
@@ -46,26 +45,6 @@ export const router = os.router({
   },
   memory: memoryRoutes(),
   files: fileRoutes(),
-  connections: {
-    list: os.connections.list.handler(() => listConnections()),
-    save: os.connections.save.handler(({ input }) => api.saveConnection(input)),
-    setEnabled: os.connections.setEnabled.handler(({ input }) => api.setConnectionEnabled(input)),
-    remove: os.connections.remove.handler(({ input }) => api.removeConnection(input)),
-    test: os.connections.test.handler(({ input }) => api.testConnection(input)),
-  },
-  accounts: {
-    setup: os.accounts.setup.handler(() => getAccountsSetup()),
-    saveClient: os.accounts.saveClient.handler(({ input }) => api.saveOAuthClient(input)),
-    connect: os.accounts.connect.handler(({ input, context }) =>
-      api.startAccountConnect(input, context.sessionId),
-    ),
-    update: os.accounts.update.handler(({ input }) => api.saveAccountConnection(input)),
-  },
-  email: {
-    status: os.email.status.handler(() => getEmailStatus()),
-    save: os.email.save.handler(({ input }) => api.saveEmailSettings(input)),
-    removeToken: os.email.removeToken.handler(() => api.removeEmailToken()),
-  },
   chats: {
     list: os.chats.list.handler(() => listChats()),
     get: os.chats.get.handler(async ({ input }) => {

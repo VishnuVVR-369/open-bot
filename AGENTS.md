@@ -128,7 +128,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 1. `packages/domain/src/integrations/accounts/<provider>.ts`: provider and integration definitions; register them in `packages/domain/src/integrations/accounts/registry.ts`.
 2. `packages/integrations/src/providers/<provider>/oauth.ts` (a `ProviderAdapter`), registered in `providerAdapters()` (`packages/integrations/src/provider-registry.ts`); its endpoints in `integrationEndpoints()` (`packages/integrations/src/core/endpoints.ts`), with the override read in `apps/worker/src/env.ts` and `apps/web/src/lib/server/env.ts`.
 3. `packages/integrations/src/providers/<provider>/<integration>/adapter.ts` (an `IntegrationAdapter`), added to `ADAPTERS` in `packages/integrations/src/integration-registry.ts`. The worker refuses to start if adapters and definitions disagree.
-4. Web: `CLIENT_GUIDES` in `apps/web/src/components/settings/provider-guides.tsx` for owner-supplied OAuth clients; icons in `accounts-section.tsx` and `items.tsx` if new.
+4. Web: `CLIENT_GUIDES` in `apps/web/src/features/integrations/components/provider-guides.tsx` for owner-supplied OAuth clients; icons in `apps/web/src/features/integrations/components/accounts/shared.tsx` and `items.tsx` if new.
 5. A stand-in in `e2e/stand-ins/` (one file per service, served by `AccountsStandIn` in `e2e/stand-ins/accounts.ts`), and docs in `apps/site/src/app/docs/flows/accounts/page.mdx`.
 
 **Add a page-kit library**

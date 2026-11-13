@@ -18,17 +18,6 @@ export {
   setEgressMode,
   setPhoneEgressMode,
 } from "./egress";
-export {
-  removeConnection,
-  removeEmailToken,
-  saveAccountConnection,
-  saveConnection,
-  saveEmailSettings,
-  saveOAuthClient,
-  setConnectionEnabled,
-  startAccountConnect,
-  testConnection,
-} from "./integrations";
 export { markNotificationsRead } from "./notifications";
 export { cancelRun, giveFeedback, rateRun, retryRun, stopSwarm } from "./runs";
 export { putUpload, uploadStatus } from "./uploads";

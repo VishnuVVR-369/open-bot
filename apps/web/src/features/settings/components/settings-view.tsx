@@ -3,8 +3,7 @@
 import { Bell, Brain, Plug, ShieldCheck, SunMoon, UserRound } from "lucide-react";
 import { useEffect, useSyncExternalStore } from "react";
 import { cn } from "@/lib/utils";
-import { ConnectionsSection } from "@/components/settings/connections-section";
-import { EmailSection } from "@/components/settings/email-section";
+import { ConnectionsSection, EmailSection } from "@/features/integrations";
 import { PushSection } from "./push-section";
 import { ProfileEditor } from "./profile-editor";
 import { PasswordSection } from "./password-section";
