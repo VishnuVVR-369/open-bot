@@ -10,7 +10,7 @@ import {
 } from "@open-bot/domain";
 import { WebSocket, WebSocketServer } from "ws";
 import type { ComputeLifecycle } from "./lifecycle";
-import type { EgressRouter } from "./egress";
+import type { EgressRouter } from "@open-bot/egress/router";
 import type { PageChecker } from "./pages";
 import { createRouter } from "./router";
 import { createRpcHandler } from "./rpc";

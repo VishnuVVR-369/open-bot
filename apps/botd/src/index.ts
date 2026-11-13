@@ -5,7 +5,7 @@ import { ComputeLifecycle } from "./lifecycle";
 import { CodeScreens } from "./code-screens";
 import { CookieSync } from "./cookies";
 import { readEnv, type BotdEnv } from "./env";
-import { EgressRouter } from "./egress";
+import { EgressRouter } from "@open-bot/egress/router";
 import { PageChecker, PagePreviewServer } from "./pages";
 import { browserSandboxAvailable } from "./sandbox";
 import { ScreenManager } from "./screens";

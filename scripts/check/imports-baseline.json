@@ -54,7 +54,6 @@
     "packages/db/src/settings.ts -> packages/db/src/index.ts"
   ],
   "appImports": [
-    "apps/worker/src/egress/relay.test.ts -> apps/botd/src/egress.ts",
     "apps/worker/src/services/pages.integration.test.ts -> apps/web/src/lib/server/api/pages.ts"
   ]
 }

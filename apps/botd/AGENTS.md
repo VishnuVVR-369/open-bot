@@ -12,7 +12,8 @@ Tunnel framing and IP policy live in `packages/egress`.
 - `apps/botd/src/router.ts`: the HTTP API, implementing `botdContract` (`packages/api/src/botd/contract.ts`); `apps/botd/src/rpc.ts` counts activity and turns errors into statuses.
 - `apps/botd/src/screens.ts`, `apps/botd/src/lease.ts`, `apps/botd/src/desktop.ts`, `apps/botd/src/cdp.ts`: screens, input leases, display and browser control.
 - `apps/botd/src/lifecycle.ts`: `ComputeLifecycle`, the sleep and quiesce state machine.
-- `apps/botd/src/supervisor.ts`, `apps/botd/src/egress.ts`, `apps/botd/src/pages.ts`, `apps/botd/src/cookies.ts`: process restarts, phone and desktop egress, page preview and checks, shared cookie jar.
+- `apps/botd/src/supervisor.ts`, `apps/botd/src/pages.ts`, `apps/botd/src/cookies.ts`: process restarts, page preview and checks, shared cookie jar.
+- Phone and desktop egress: botd runs `EgressRouter` from `packages/egress/src/router.ts` (`@open-bot/egress/router`).
 - Build: `pnpm --filter @open-bot/botd build` writes `apps/botd/dist/botd.mjs`, which `images/computer/Dockerfile` copies to `/opt/botd/botd.mjs`.
 
 ## Invariants
