@@ -1,0 +1,3 @@
+# Keep long implementation and review sessions from repeatedly carrying huge histories.
+# This changes the compaction threshold, not the model's context window.
+model_auto_compact_token_limit = 200000

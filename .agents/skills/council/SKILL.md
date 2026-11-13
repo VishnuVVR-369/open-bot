@@ -5,6 +5,11 @@ description: Trigger this if the user says 'council'.
 
 # Council
 
+Use council when the owner asks for it. For a pure move or rename with no
+behavior change, use the repository checks unless the owner explicitly asks
+for council. Review a related PR stack together, with findings assigned to
+the PR that owns them, rather than commissioning the same review per layer.
+
 Bring in two delegates to help with the user's request, usually for review
 or feedback. Use one model from each of two different providers, at
 high reasoning effort. If the user's instructions name council members, use
@@ -41,12 +46,13 @@ If a delegate gives no score, write `no score`. Do not invent one.
 If the PR is open, edit the description. Do not post a comment for this.
 If there is no PR, put the same results in the final reply only.
 
-If you agree with their recommendations, make the changes and request a fresh
-review after. Continue this process until all delegates are satisfied with the
-outcome.
-
-Do not let repeated reviews result in scope creep. It is your job to fight to
-keep scope limited.
+Use at most two rounds unless the owner explicitly requests more. Round 1
+reviews the scoped change. Fix accepted findings, then use round 2 only to
+verify those fixes and regressions they introduce, not to reopen the whole
+design. If issues remain after round 2, fix what is in scope, run the relevant
+checks and report any fixes that have not had another delegate review. Never
+call unresolved or unreviewed work an approval; leave blocking issues clearly
+marked in the PR. Defer unrelated improvements instead of expanding scope.
 
 ## Round rules
 
