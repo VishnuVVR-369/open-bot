@@ -208,10 +208,14 @@ function workspaceFile(options: ts.CompilerOptions, file: string, specifier: str
   return resolved.resolvedFileName;
 }
 
+/** A declaration file: TypeScript resolved to the types, so the code that runs went unread. */
+const DECLARATION_FILE = /\.d\.[cm]?ts$/;
+
 /**
  * Server code a feature's client entry (`index.ts`) reaches through the imports that run, workspace
  * packages included, one line each. A client component that imports the entry would bundle it for
- * the browser, where it fails.
+ * the browser, where it fails. What the walk can't read through (a computed import, an import that
+ * resolves to declarations) is reported too, so nothing passes unseen.
  */
 function clientReach(root: string, options: ts.CompilerOptions): string[] {
   const found: string[] = [];
@@ -224,9 +228,13 @@ function clientReach(root: string, options: ts.CompilerOptions): string[] {
     const queue = [entry];
     for (let file = queue.shift(); file; file = queue.shift()) {
       const at = path.relative(root, file);
-      const runs = parse(file, readFileSync(file, "utf8")).edges.filter(
-        (edge): edge is Edge => edge !== COMPUTED && !edge.typeOnly,
-      );
+      if (DECLARATION_FILE.test(file)) {
+        found.push(`${from} reaches ${at}, declarations whose code can't be checked`);
+        continue;
+      }
+      const { edges } = parse(file, readFileSync(file, "utf8"));
+      if (edges.includes(COMPUTED)) found.push(`${from} reaches ${at}, which has ${COMPUTED}`);
+      const runs = edges.filter((edge): edge is Edge => edge !== COMPUTED && !edge.typeOnly);
       const server = runs.find((edge) => serverModule(edge.specifier))?.specifier;
       if (server) {
         found.push(`${from} reaches ${at}, which imports ${server}`);
@@ -349,7 +357,7 @@ describe("feature folders", () => {
       // A workspace package, linked into node_modules as pnpm links it, whose files need the server.
       write(
         "packages/memo/package.json",
-        `{ "name": "@open-bot/memo", "exports": { ".": "./src/index.ts" } }\n`,
+        `{ "name": "@open-bot/memo", "exports": { ".": "./src/index.ts", "./plugins": "./src/plugins.ts" } }\n`,
       );
       write("packages/memo/src/index.ts", `export * from "./service";\nexport * from "./ids";\n`);
       write(
@@ -364,6 +372,27 @@ describe("feature folders", () => {
       symlinkSync(path.join(root, "packages/memo"), path.join(root, "node_modules/@open-bot/memo"));
       write("features/memory/index.ts", `export { MemoryService } from "@open-bot/memo";\n`);
       write("features/lost/index.ts", `export { x } from "@open-bot/missing";\n`);
+      // What the walk can't read through: a computed import in a package, and declarations that
+      // stand in for the code that runs (a package's `types` condition, a `.d.ts` beside a `.js`).
+      write(
+        "packages/memo/src/plugins.ts",
+        "export const plugin = (name: string) => import(`./${name}.js`);\n",
+      );
+      write("features/plugins/index.ts", `export { plugin } from "@open-bot/memo/plugins";\n`);
+      write(
+        "packages/typed/package.json",
+        `{ "name": "@open-bot/typed", "exports": { ".": { "types": "./index.d.ts", "default": "./index.ts" } } }\n`,
+      );
+      write("packages/typed/index.d.ts", `export declare const x: number;\n`);
+      write("packages/typed/index.ts", `import "@open-bot/db";\nexport const x = 1;\n`);
+      symlinkSync(
+        path.join(root, "packages/typed"),
+        path.join(root, "node_modules/@open-bot/typed"),
+      );
+      write("features/typed/index.ts", `export { x } from "@open-bot/typed";\n`);
+      write("features/secret/index.ts", `export * from "./secret.js";\n`);
+      write("features/secret/secret.d.ts", `export declare const s: string;\n`);
+      write("features/secret/secret.js", `import "server-only";\nexport const s = "";\n`);
       expect(violations(root).sort()).toEqual([
         "app/tasks/kept.tsx -> features/tasks/server.ts: client code importing server code",
         "app/tasks/view.tsx -> features/tasks/server.ts: client code importing server code",
@@ -374,10 +403,13 @@ describe("feature folders", () => {
         "features/memory/index.ts reaches packages/memo/src/service.ts, which imports @open-bot/db",
         "features/notes/index.ts reaches features/notes/components/note.tsx, which imports @open-bot/db",
         "features/pages/load.ts: a computed import(…) or require(…)",
+        "features/plugins/index.ts reaches packages/memo/src/plugins.ts, which has a computed import(…) or require(…)",
+        "features/secret/index.ts reaches features/secret/secret.d.ts, declarations whose code can't be checked",
         "features/tasks/components/board.tsx -> features/tasks/server.ts: client code importing server code",
         "features/tasks/index.ts reaches features/tasks/server.ts, which imports server-only",
         'features/tasks/server/routes.ts: server code without import "server-only"',
         'features/tasks/server/types.ts: server code without import "server-only"',
+        "features/typed/index.ts reaches packages/typed/index.d.ts, declarations whose code can't be checked",
         expect.stringMatching(/^lib\/broken\.ts: doesn't parse/),
         "lib/docs.ts -> features/docs/server/queries.ts: past its entries",
         "lib/folder.ts -> @/features/tasks/server/: reaches no file",
@@ -386,6 +418,7 @@ describe("feature folders", () => {
         "lib/router.ts -> features/tasks/server/queries.ts: past its entries",
         "lib/twice.ts -> features/tasks/server.ts.ts: past its entries",
         "lib/types.d.ts -> features/tasks/components/board.tsx: past its entries",
+        "packages/memo/src/plugins.ts: a computed import(…) or require(…)",
       ]);
     } finally {
       rmSync(root, { recursive: true, force: true });
