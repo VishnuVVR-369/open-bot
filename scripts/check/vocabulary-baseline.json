@@ -42,8 +42,7 @@
     "bot": 7
   },
   "apps/mobile/src/app/(tabs)/index.tsx": {
-    "bot": 143,
-    "primary teammate": 2
+    "bot": 8
   },
   "apps/mobile/src/app/(tabs)/pages.tsx": {
     "bot": 6
@@ -122,6 +121,25 @@
   "apps/mobile/src/components/computer/screen-notice.tsx": {
     "bot": 10
   },
+  "apps/mobile/src/components/home/briefing.tsx": {
+    "bot": 22
+  },
+  "apps/mobile/src/components/home/elsewhere.tsx": {
+    "bot": 18
+  },
+  "apps/mobile/src/components/home/needs-you.tsx": {
+    "bot": 20
+  },
+  "apps/mobile/src/components/home/pages.tsx": {
+    "bot": 4
+  },
+  "apps/mobile/src/components/home/takeover-later.tsx": {
+    "bot": 10
+  },
+  "apps/mobile/src/components/home/teammates.tsx": {
+    "bot": 34,
+    "primary teammate": 2
+  },
   "apps/mobile/src/components/page-row.tsx": {
     "bot": 10
   },
@@ -136,6 +154,12 @@
   },
   "apps/mobile/src/lib/chats.ts": {
     "bot": 21
+  },
+  "apps/mobile/src/lib/home.test.ts": {
+    "bot": 6
+  },
+  "apps/mobile/src/lib/home.ts": {
+    "bot": 8
   },
   "apps/mobile/src/lib/links.ts": {
     "bot": 3

@@ -39,6 +39,7 @@ import { ago } from "@/lib/time";
 import { useSafeBottom } from "@/lib/use-safe-bottom";
 import { radius, space, useColors } from "@/theme";
 import { mix } from "@/theme/mix";
+import { usePullToRefresh } from "@/lib/use-pull-to-refresh";
 
 const ICONS: Record<string, LucideIcon> = {
   approval: ShieldAlert,
@@ -106,7 +107,7 @@ export default function Notifications() {
   const queryClient = useQueryClient();
   const query = useNotifications();
   const { data: bots = [] } = useTeammates();
-  const [refreshing, setRefreshing] = useState(false);
+  const { refreshing, onRefresh } = usePullToRefresh(query.refetch);
   const notifications = useMemo(() => query.data ?? [], [query.data]);
   const unread = notifications.filter((notification) => !notification.readAt);
   const { data: home } = useHome();
@@ -205,11 +206,7 @@ export default function Notifications() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={async () => {
-              setRefreshing(true);
-              await query.refetch();
-              setRefreshing(false);
-            }}
+            onRefresh={() => void onRefresh()}
             colors={[colors.foreground]}
             progressBackgroundColor={colors.surface}
           />
