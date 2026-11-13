@@ -45,7 +45,7 @@ import { ScreenOperationService } from "./features/screens";
 import { MemoryCoordinator, memoryFeature } from "./features/memory";
 import { SkillService } from "./services/skills";
 import { TakeoverService } from "./features/screens";
-import { TelegramService } from "./services/telegram";
+import { TelegramService, telegramFeature } from "./features/telegram";
 import { PageService } from "./features/pages";
 import { ToolHandlers } from "./tools/handlers";
 import { BotService } from "./features/teammates";
@@ -308,6 +308,7 @@ codex.lifecycle = lifecycle;
 if (lifecycle.enabled) egress.pauseComputer();
 
 const telegram = new TelegramService(ctx, executor, approvals, uploads);
+const telegramPolling = telegramFeature(telegram, log);
 
 await executor.recover();
 await executor.recoverSteers();
@@ -348,11 +349,7 @@ await runtime.start("egress relay", egress);
 // What tells you about decisions starts before what makes them, so it still hears the last ones
 // at shutdown: account actions expire approvals while they drain.
 await notifications.start(runtime);
-// Connecting to Telegram can take a while, and the worker doesn't wait for it.
-void telegram
-  .start()
-  .catch((error: unknown) => log.error("Telegram didn't start", { error: errorMessage(error) }));
-runtime.add("telegram", () => telegram.stop());
+await telegramPolling.start(runtime);
 // Account actions drain at shutdown, after everything that adds to them has stopped: the lifecycle
 // (no run starts once it pauses Codex), schedules and triggers.
 accountActions.start();

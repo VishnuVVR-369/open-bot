@@ -694,6 +694,10 @@
   "apps/worker/src/features/teammates/tools.ts": {
     "bot": 66
   },
+  "apps/worker/src/features/telegram/service.ts": {
+    "bot": 67,
+    "primary teammate": 1
+  },
   "apps/worker/src/index.ts": {
     "bot": 7
   },
@@ -754,10 +758,6 @@
   },
   "apps/worker/src/services/swarms.ts": {
     "bot": 10
-  },
-  "apps/worker/src/services/telegram.ts": {
-    "bot": 67,
-    "primary teammate": 1
   },
   "apps/worker/src/services/vault.ts": {
     "bot": 40

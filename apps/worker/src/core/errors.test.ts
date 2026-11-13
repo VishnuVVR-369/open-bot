@@ -5,7 +5,7 @@ import { toRpcError } from "../rpc/errors";
 import { PageGone } from "../features/pages";
 import { ScreenBusy } from "../features/screens";
 import { SwarmError } from "../services/swarms";
-import { TelegramError } from "../services/telegram";
+import { TelegramError } from "../features/telegram";
 import { WorkerError } from "./errors";
 
 const SOURCE = path.join(import.meta.dirname, "..");
