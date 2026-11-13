@@ -26,9 +26,11 @@ It runs every teammate turn, serves every tool call, and owns every timer and lo
 9. `LISTEN openbot_worker` on a dedicated connection, and start the HTTP server on `WORKER_PORT` (4001).
 
 Whatever starts a timer, a listener, a socket or a background loop registers how to stop it with the `Runtime` (`src/core/runtime.ts`).
+A feature folder with background work exports a `Feature` (`src/core/feature.ts`): its `start(runtime)` registers each part, and its `signals` answer the web app's signals that belong to it (`automationsFeature` in `src/features/automations/feature.ts`).
+`signalHandlers` puts every feature's handlers together with the ones `index.ts` answers itself: a signal with no handler, or one `index.ts` answers for a feature, doesn't compile, and the worker refuses to start with a signal two features answer.
 On `SIGTERM` or `SIGINT` it stops them all in reverse.
 The server, the `LISTEN` connection and the timers are stopped first, then the triggers, the scheduler and the computer lifecycle.
-Then account actions drain while push, phone notifications and Telegram still listen, and the egress relay, Codex, botd and the pool stop last (`src/shutdown.test.ts` pins the order of these stop calls).
+Then account actions drain while push, phone notifications and Telegram still listen, and the egress relay, Codex, botd and the pool stop last (`src/shutdown.test.ts` pins the order of these stop calls, including the parts features register).
 Stopping a part doesn't wait for everything it started: the server isn't awaited until its last connection closes, and Telegram can still receive messages while account actions drain.
 
 ## Waking up
