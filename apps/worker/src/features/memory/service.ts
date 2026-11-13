@@ -11,8 +11,8 @@ import {
   type MemoryItem,
   type MemoryRef,
 } from "@open-bot/domain";
-import type { Context } from "../context";
-import type { Bot, Chat, Run } from "../core/db-types";
+import type { Context } from "../../context";
+import type { Bot, Chat, Run } from "../../core/db-types";
 
 /** What memory needs of a run's session (a RunSession), without importing what runs it. */
 export interface MemorySession {

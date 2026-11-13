@@ -7,6 +7,7 @@ import { AccountActions } from "./accounts/actions";
 import type { Context } from "./context";
 import type { Feature } from "./core/feature";
 import { automationsFeature } from "./features/automations";
+import { memoryFeature } from "./features/memory";
 import { FcmService } from "./services/fcm";
 import { PushService } from "./services/push";
 
@@ -16,6 +17,7 @@ const loop = { start() {}, stop() {}, kick() {} };
 /** The features index.ts starts, each with `<name>.start(runtime)`, by that name. */
 const FEATURES: Record<string, Pick<Feature, "start">> = {
   automations: automationsFeature({ schedules: loop, triggers: loop, accountTriggers: loop }),
+  memoryJobs: memoryFeature(loop),
 };
 
 /** The names of the parts `feature` registers with the Runtime, in order, without starting any. */

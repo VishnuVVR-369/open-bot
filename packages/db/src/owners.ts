@@ -133,6 +133,6 @@ export const TABLE_OWNERS = {
   memory_embeddings: { owner: MEMORY },
   memory_imports: { owner: MEMORY },
   memory_usage: { owner: MEMORY },
-  memory_contexts: { owner: `${WORKER}services/memory.ts` },
+  memory_contexts: { owner: `${WORKER}features/memory/service.ts` },
   lessons: { owner: MEMORY },
 } as const satisfies Record<Tables, TableOwner>;

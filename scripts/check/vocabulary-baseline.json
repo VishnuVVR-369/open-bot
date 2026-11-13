@@ -621,6 +621,12 @@
   "apps/worker/src/features/chat/tools.ts": {
     "bot": 4
   },
+  "apps/worker/src/features/memory/service.ts": {
+    "bot": 18
+  },
+  "apps/worker/src/features/memory/tools.ts": {
+    "bot": 16
+  },
   "apps/worker/src/features/pages/service.integration.test.ts": {
     "bot": 12
   },
@@ -728,9 +734,6 @@
   "apps/worker/src/services/files.ts": {
     "bot": 5
   },
-  "apps/worker/src/services/memory.ts": {
-    "bot": 18
-  },
   "apps/worker/src/services/notifications.ts": {
     "bot": 5
   },
@@ -774,9 +777,6 @@
   },
   "apps/worker/src/tools/handlers.ts": {
     "bot": 4
-  },
-  "apps/worker/src/tools/memory.ts": {
-    "bot": 16
   },
   "apps/worker/src/tools/skills.ts": {
     "bot": 21

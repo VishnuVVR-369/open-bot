@@ -21,7 +21,7 @@ import type { Bot, Chat, Run } from "../core/db-types";
 import { createNotification } from "../services/notifications";
 import { DEVELOPER_INSTRUCTIONS } from "../instructions";
 import { errorMessage } from "../logger";
-import type { MemoryCoordinator } from "../services/memory";
+import type { MemoryService } from "@open-bot/memory";
 import { ModelAccess, providerFor } from "../services/model-access";
 import { answerBack } from "./answer-back";
 import { quietWithNothingToReport } from "./quiet";
@@ -71,7 +71,11 @@ export interface SessionServices {
     botId: string,
   ) => Promise<{ key: string; config: NonNullable<v2.ThreadStartParams["config"]> }>;
   model: ModelAccess;
-  memory: MemoryCoordinator;
+  /**
+   * The memory store and its AI, from the memory feature's coordinator: typed from the memory
+   * package, since importing the feature would close a cycle through its tools.
+   */
+  memory: { store: MemoryService; ai: { config: { extractionUrl?: string | undefined } } };
   /** Writes the bot's workspace; returns the AGENTS.md it wrote. */
   prepareWorkspace: () => Promise<string>;
 }

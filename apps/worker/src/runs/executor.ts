@@ -19,7 +19,7 @@ import type { SessionRegistry } from "../services/registry";
 import type { ConnectionService } from "../services/connections";
 import { emailSettingsRow } from "../services/email";
 import type { SkillService } from "../services/skills";
-import type { MemoryCoordinator } from "../services/memory";
+import type { MemoryCoordinator } from "../features/memory";
 import type { ModelAccess } from "../services/model-access";
 import type { TakeoverService } from "../features/screens";
 import type { AccountAccess } from "../accounts/access";

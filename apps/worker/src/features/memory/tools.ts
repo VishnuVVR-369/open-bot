@@ -9,18 +9,24 @@ import {
 import { MemoryError } from "@open-bot/memory";
 import { and, desc, eq, ilike, inArray, or } from "drizzle-orm";
 import { z } from "zod";
-import type { RunSession } from "../runs/session";
-import { addContextRefs } from "../services/memory";
+import type { Context } from "../../context";
 import {
   defineTool,
   text,
-  type AnyTool,
-  type ToolDeps,
-  type ToolResponse,
   toolItem,
-} from "./define";
+  type ToolDefinition,
+  type ToolResponse,
+} from "../../core/tool";
+import type { RunSession } from "../../runs/session";
+import { addContextRefs, type MemoryCoordinator } from "./service";
 
-export const MEMORY_TOOLS: AnyTool[] = [
+/** What the memory tools use. */
+interface MemoryToolDeps {
+  ctx: Pick<Context, "db">;
+  memory: MemoryCoordinator;
+}
+
+export const MEMORY_TOOLS: ToolDefinition<z.ZodObject, MemoryToolDeps>[] = [
   defineTool({
     name: "remember_about_user",
     description:
@@ -110,7 +116,7 @@ export const MEMORY_TOOLS: AnyTool[] = [
 ];
 
 async function recallMemory(
-  deps: ToolDeps,
+  deps: MemoryToolDeps,
   session: RunSession,
   callId: string,
   query: string,
@@ -145,7 +151,7 @@ interface MemoryArgs {
 }
 
 async function memoryTool(
-  deps: ToolDeps,
+  deps: MemoryToolDeps,
   session: RunSession,
   callId: string,
   name: "remember_memory" | "update_memory" | "forget_memory",
@@ -208,7 +214,7 @@ async function memoryTool(
 }
 
 async function searchHistory(
-  deps: ToolDeps,
+  deps: MemoryToolDeps,
   session: RunSession,
   callId: string,
   query: string,

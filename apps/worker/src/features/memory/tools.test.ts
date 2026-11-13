@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import type { RunSession } from "../runs/session";
-import { toolNamed } from "./definitions";
-import { parseArgs, type ToolDeps } from "./define";
+import type { RunSession } from "../../runs/session";
+import { toolNamed } from "../../tools/definitions";
+import { parseArgs, type ToolDeps } from "../../tools/define";
 
 const SESSION = {
   bot: { id: "b1" }, // vocabulary: allow
