@@ -57,7 +57,7 @@
     "bot": 12
   },
   "apps/mobile/src/app/chats/[chatId].tsx": {
-    "bot": 52
+    "bot": 5
   },
   "apps/mobile/src/app/new-chat.tsx": {
     "bot": 37
@@ -96,6 +96,12 @@
   },
   "apps/mobile/src/components/chat/approval-card.tsx": {
     "bot": 5
+  },
+  "apps/mobile/src/components/chat/chat-empty.tsx": {
+    "bot": 5
+  },
+  "apps/mobile/src/components/chat/chat-title.tsx": {
+    "bot": 6
   },
   "apps/mobile/src/components/chat/composer.test.ts": {
     "bot": 3
@@ -145,6 +151,12 @@
   },
   "apps/mobile/src/lib/approval-text.ts": {
     "bot": 1
+  },
+  "apps/mobile/src/lib/chat-screen.test.ts": {
+    "bot": 1
+  },
+  "apps/mobile/src/lib/chat-screen.ts": {
+    "bot": 2
   },
   "apps/mobile/src/lib/chat-status.ts": {
     "bot": 3
