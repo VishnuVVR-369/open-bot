@@ -1,64 +1,43 @@
-import type { BotSummary, PageSummary, SearchResult } from "@open-bot/api";
-import {
-  excerptLine,
-  highlightParts,
-  preferWordStarts,
-  queryWords,
-  rankMatches,
-} from "@open-bot/chat-core";
+import { queryWords } from "@open-bot/chat-core";
 import { useQuery } from "@tanstack/react-query";
-import { router, Stack, useNavigation, type Href } from "expo-router";
+import { router, Stack, useNavigation } from "expo-router";
 import type { NativeStackNavigationProp } from "expo-router/native-stack";
 import {
   Bell,
-  CalendarClock,
   FileText,
   House,
-  Mail,
   MessageSquare,
   MessagesSquare,
-  Search as SearchIcon,
   SearchX,
   Settings,
   ShieldCheck,
   TextSearch,
-  X,
-  type LucideIcon,
 } from "lucide-react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Pressable,
-  ScrollView,
   SectionList,
   StyleSheet,
-  TextInput,
   View,
   type TextInputInstance,
 } from "react-native";
-import { BotAvatar, botActivity, GroupAvatar } from "@/components/bot-avatar";
 import { Button } from "@/components/button";
+import { ScopeChips, SearchField } from "@/components/search/search-controls";
+import { SearchResultRow, type AppPlace, type AppSearchRow } from "@/components/search/search-row";
 import { Empty } from "@/components/states";
 import { Text } from "@/components/text";
 import { api } from "@/lib/api";
-import { chatSubtitle, chatTitle } from "@/lib/chats";
 import { haptics } from "@/lib/haptics";
 import { chatHref } from "@/lib/links";
 import { pageHref } from "@/lib/pages";
-import {
-  useChats,
-  useComputerOffline,
-  useHome,
-  useNewDirectChat,
-  usePages,
-  useTeammates,
-} from "@/lib/queries";
+import { useChats, useHome, useNewDirectChat, usePages, useTeammates } from "@/lib/queries";
 import { queryKeys } from "@/lib/query";
-import { ago } from "@/lib/time";
+import { SCOPES, searchSections, type Scope } from "@/lib/search";
+import { useDebounced } from "@/lib/use-debounced";
 import { useSafeBottom } from "@/lib/use-safe-bottom";
-import { fonts, radius, space, useColors } from "@/theme";
+import { space, useColors } from "@/theme";
 
-const PAGES: { title: string; href: Href; icon: LucideIcon; keywords: string }[] = [
+const PAGES: AppPlace[] = [
   { title: "Home", href: "/", icon: House, keywords: "briefing activity away" },
   { title: "Chats", href: "/chats", icon: MessagesSquare, keywords: "conversations messages" },
   { title: "Approvals", href: "/approvals", icon: ShieldCheck, keywords: "approve deny rules" },
@@ -77,148 +56,6 @@ const PAGES: { title: string; href: Href; icon: LucideIcon; keywords: string }[]
     keywords: "account sign out lock appearance dark haptics passkey",
   },
 ];
-
-/** What to look through: everything, or one kind of thing. Messages are searched on the server. */
-const SCOPES = [
-  { key: "all", label: "All" },
-  { key: "teammates", label: "Teammates" },
-  { key: "chats", label: "Chats" },
-  { key: "pages", label: "Pages" },
-  { key: "messages", label: "Messages" },
-] as const;
-type Scope = (typeof SCOPES)[number]["key"];
-
-type Row =
-  | { kind: "bot"; key: string; bot: BotSummary }
-  | {
-      kind: "chat";
-      key: string;
-      chatId: string;
-      title: string;
-      subtitle: string;
-      icon: LucideIcon;
-      bot?: BotSummary;
-      members?: BotSummary[];
-    }
-  | { kind: "page"; key: string; title: string; href: Href; icon: LucideIcon }
-  /** A page a teammate made. */
-  | { kind: "made"; key: string; page: PageSummary; bot?: BotSummary }
-  | {
-      kind: "message";
-      key: string;
-      result: SearchResult;
-      /** Who said it: a teammate, or you (undefined). */
-      bot?: BotSummary;
-      /** Who said it, and where when that adds something: "Rex", "You to Rex", "Iris in Trip". */
-      who: string;
-      where: string | null;
-    };
-
-/** A found message's text from shortly before the match, with each word of the query in bold. */
-function Highlight({ text, words }: { text: string; words: string[] }) {
-  return (
-    <Text variant="small" muted numberOfLines={2}>
-      {highlightParts(excerptLine(text, words), words).map((part, index) =>
-        part.mark ? (
-          <Text key={index} variant="small" style={{ fontWeight: "600" }}>
-            {part.text}
-          </Text>
-        ) : (
-          part.text
-        ),
-      )}
-    </Text>
-  );
-}
-
-/** A teammate's face for what's theirs, your initial for what you said, an icon for the rest. */
-function Leading({ row, you }: { row: Row; you: string }) {
-  const colors = useColors();
-  const computerOffline = useComputerOffline();
-  if (row.kind === "chat" && row.members && row.members.length > 1)
-    return <GroupAvatar members={row.members} size="md" />;
-  if (row.kind === "made")
-    return (
-      <View style={[styles.mark, { backgroundColor: colors.subtle }]}>
-        <FileText size={20} color={colors.foreground} />
-      </View>
-    );
-  const bot = row.kind === "page" ? undefined : row.bot;
-  if (bot)
-    return (
-      <BotAvatar
-        name={bot.name}
-        color={bot.color}
-        emoji={bot.emoji}
-        size="md"
-        activity={row.kind === "bot" ? botActivity(bot, computerOffline) : "idle"}
-      />
-    );
-  if (row.kind === "message")
-    return (
-      <View style={[styles.mark, styles.you, { backgroundColor: colors.primary }]}>
-        <Text
-          allowFontScaling={false}
-          style={[styles.youText, { color: colors.primaryForeground }]}
-        >
-          {you}
-        </Text>
-      </View>
-    );
-  const Icon = row.kind === "chat" || row.kind === "page" ? row.icon : MessageSquare;
-  return (
-    <View style={[styles.mark, { backgroundColor: colors.subtle }]}>
-      <Icon size={20} color={colors.foreground} />
-    </View>
-  );
-}
-
-function Chip({
-  label,
-  selected,
-  onPress,
-}: {
-  label: string;
-  selected: boolean;
-  onPress: () => void;
-}) {
-  const colors = useColors();
-  return (
-    <Pressable
-      onPress={onPress}
-      hitSlop={{ top: 8, bottom: 8 }}
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-      accessibilityLabel={`Search ${label.toLowerCase()}`}
-      testID={`search-scope-${label.toLowerCase()}`}
-      style={[
-        styles.chip,
-        selected
-          ? { backgroundColor: colors.primary, borderColor: colors.primary }
-          : { backgroundColor: colors.surface, borderColor: colors.input },
-      ]}
-    >
-      <Text
-        variant="small"
-        style={{
-          color: selected ? colors.primaryForeground : colors.foreground,
-          fontWeight: "500",
-        }}
-      >
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
-function useDebounced<T>(value: T, ms: number): T {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(value), ms);
-    return () => clearTimeout(timer);
-  }, [value, ms]);
-  return debounced;
-}
 
 /** Find a teammate, a chat, a page, or something said, like the web's command menu. */
 export default function Search() {
@@ -239,7 +76,7 @@ export default function Search() {
   const query = text.trim().toLowerCase();
   // Each word you type has to start a word in what it finds: "lis" finds Lisbon, not Publish.
   const words = useMemo(() => queryWords(text), [text]);
-  const { data: bots = [] } = useTeammates();
+  const { data: teammates = [] } = useTeammates();
   const { data: chats = [] } = useChats();
   const { data: home } = useHome();
   const { data: madePages = [] } = usePages();
@@ -254,106 +91,34 @@ export default function Search() {
     placeholderData: (previous) => previous,
   });
 
-  const sections = useMemo(() => {
-    const only = scope !== "all";
-    const teammateRows: Row[] = rankMatches(bots, (bot) => [bot.name, bot.role], words)
-      .slice(0, only ? undefined : query ? 6 : 8)
-      .map((bot) => ({ kind: "bot", key: `b:${bot.id}`, bot }));
-    const recent = [...chats]
-      .sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt))
-      .map((chat) => {
-        const bot = bots.find((candidate) => candidate.id === chat.botId);
-        return {
-          kind: "chat" as const,
-          key: `c:${chat.id}`,
-          chatId: chat.id,
-          title: chatTitle(chat, bot),
-          subtitle: chatSubtitle(chat, bot, bots),
-          icon:
-            chat.kind === "group"
-              ? MessagesSquare
-              : chat.kind === "scheduled"
-                ? CalendarClock
-                : chat.kind === "inbox"
-                  ? Mail
-                  : MessageSquare,
-          bot: chat.kind === "group" ? undefined : bot,
-          members:
-            chat.kind === "group"
-              ? chat.memberIds
-                  .map((id) => bots.find((member) => member.id === id))
-                  .filter((member): member is BotSummary => Boolean(member))
-              : undefined,
-        };
-      });
-    const chatRows: Row[] = rankMatches(recent, (row) => [row.title, row.subtitle], words).slice(
-      0,
-      only ? undefined : query ? 8 : 5,
-    );
-    const madeRows: Row[] = query
-      ? rankMatches(madePages, (page) => [page.title, page.summary], words)
-          .slice(0, only ? undefined : 5)
-          .map((page) => ({
-            kind: "made",
-            key: `pg:${page.id}`,
-            page,
-            bot: bots.find((candidate) => candidate.id === page.botId),
-          }))
-      : [];
-    const pageRows: Row[] = rankMatches(PAGES, (page) => [page.title, page.keywords], words).map(
-      (page) => ({ kind: "page", key: `p:${page.title}`, ...page }),
-    );
-    const messageRows: Row[] =
-      query.length >= 2
-        ? preferWordStarts(messages.data ?? [], (result) => result.excerpt, words).map((result) => {
-            const chat = chats.find((candidate) => candidate.id === result.chatId);
-            const chatBot = bots.find((candidate) => candidate.id === chat?.botId);
-            const bot = bots.find((candidate) => candidate.id === result.botId);
-            const place = chat ? chatTitle(chat, chatBot) : null;
-            const direct = chat?.kind === "direct";
-            const speaker = result.from === "you" ? "You" : (bot?.name ?? "A teammate");
-            // A direct chat is named after its teammate: "Rex in Rex" says nothing new.
-            const where =
-              result.from === "you"
-                ? place && (direct ? `to ${place}` : `in ${place}`)
-                : place && place !== speaker && !(direct && chatBot?.id === bot?.id)
-                  ? `in ${place}`
-                  : null;
-            return {
-              kind: "message",
-              key: `m:${result.id}`,
-              result,
-              bot: result.from === "you" ? undefined : bot,
-              who: speaker,
-              where,
-            };
-          })
-        : [];
-    const all = [
-      { scope: "teammates", title: "Teammates", data: teammateRows },
-      { scope: "chats", title: query ? "Chats" : "Recent chats", data: chatRows },
-      { scope: "pages", title: "Pages", data: madeRows },
-      { scope: "messages", title: "Messages", data: messageRows },
-      { scope: "all", title: "Go to", data: pageRows },
-    ];
-    return all.filter(
-      (section) => section.data.length > 0 && (scope === "all" || section.scope === scope),
-    );
-  }, [bots, chats, madePages, messages.data, query, scope, words]);
+  const sections = useMemo(
+    () =>
+      searchSections({
+        words,
+        query,
+        scope,
+        teammates,
+        chats,
+        pages: madePages,
+        places: PAGES,
+        messages: messages.data ?? [],
+      }),
+    [teammates, chats, madePages, messages.data, query, scope, words],
+  );
 
-  const open = (row: Row) => {
+  const open = (row: AppSearchRow) => {
     switch (row.kind) {
-      case "bot":
-        if (row.bot.directChatId) router.replace(`/chats/${row.bot.directChatId}`);
-        else newChat.mutate(row.bot.id);
+      case "teammate":
+        if (row.teammate.directChatId) router.replace(`/chats/${row.teammate.directChatId}`);
+        else newChat.mutate(row.teammate.id);
         return;
       case "chat":
         router.replace(`/chats/${row.chatId}`);
         return;
-      case "page":
+      case "place":
         router.replace(row.href);
         return;
-      case "made":
+      case "page":
         router.replace(pageHref(row.page.id));
         return;
       case "message":
@@ -402,61 +167,16 @@ export default function Search() {
       <Stack.Screen
         options={{
           headerTitle: () => (
-            <View
-              style={[
-                styles.field,
-                { backgroundColor: colors.surface, borderColor: colors.border },
-              ]}
-            >
-              <SearchIcon size={18} color={colors.mutedForeground} />
-              <TextInput
-                value={text}
-                ref={input}
-                onChangeText={setText}
-                placeholder="Search teammates, chats, pages"
-                placeholderTextColor={colors.mutedForeground}
-                cursorColor={colors.foreground}
-                selectionColor={colors.input}
-                returnKeyType="search"
-                autoCorrect={false}
-                style={[styles.input, { color: colors.foreground }]}
-                testID="search-input"
-              />
-              {searchingMessages ? (
-                <ActivityIndicator size={16} color={colors.mutedForeground} />
-              ) : text ? (
-                <Pressable
-                  onPress={() => {
-                    setText("");
-                    input.current?.focus();
-                  }}
-                  hitSlop={12}
-                  accessibilityRole="button"
-                  accessibilityLabel="Clear"
-                >
-                  <X size={18} color={colors.mutedForeground} />
-                </Pressable>
-              ) : null}
-            </View>
+            <SearchField
+              input={input}
+              text={text}
+              onChangeText={setText}
+              searching={searchingMessages}
+            />
           ),
         }}
       />
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        style={styles.chipBar}
-        contentContainerStyle={styles.chips}
-      >
-        {SCOPES.map((entry) => (
-          <Chip
-            key={entry.key}
-            label={entry.label}
-            selected={scope === entry.key}
-            onPress={() => pickScope(entry.key)}
-          />
-        ))}
-      </ScrollView>
+      <ScopeChips scope={scope} onPick={pickScope} />
       <SectionList
         sections={sections}
         keyExtractor={(row) => row.key}
@@ -474,65 +194,7 @@ export default function Search() {
         }
         ListEmptyComponent={empty}
         renderItem={({ item: row }) => (
-          <Pressable
-            onPress={() => open(row)}
-            android_ripple={{ color: colors.muted }}
-            style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.subtle }]}
-            accessibilityRole="button"
-            testID={`search-${row.kind}`}
-          >
-            <Leading row={row} you={you} />
-            <View style={{ flex: 1, gap: 2 }}>
-              {row.kind === "bot" ? (
-                <>
-                  <Text variant="label" numberOfLines={1}>
-                    {row.bot.name}
-                  </Text>
-                  <Text variant="small" muted numberOfLines={1}>
-                    {row.bot.role}
-                  </Text>
-                </>
-              ) : row.kind === "chat" ? (
-                <>
-                  <Text variant="label" numberOfLines={1}>
-                    {row.title}
-                  </Text>
-                  <Text variant="small" muted numberOfLines={1}>
-                    {row.subtitle}
-                  </Text>
-                </>
-              ) : row.kind === "page" ? (
-                <Text variant="label">{row.title}</Text>
-              ) : row.kind === "made" ? (
-                <>
-                  <Text variant="label" numberOfLines={1}>
-                    {row.page.title}
-                  </Text>
-                  <Text variant="small" muted numberOfLines={1}>
-                    {[row.bot?.name ?? "Former teammate", ago(row.page.updatedAt)].join(" · ")}
-                  </Text>
-                </>
-              ) : (
-                <>
-                  <View style={styles.messageHead}>
-                    <Text variant="label" numberOfLines={1} style={{ flexShrink: 1 }}>
-                      {row.who}
-                      {row.where && (
-                        <Text variant="small" muted>
-                          {" "}
-                          {row.where}
-                        </Text>
-                      )}
-                    </Text>
-                    <Text variant="caption" muted style={{ marginLeft: "auto" }}>
-                      {ago(row.result.createdAt)}
-                    </Text>
-                  </View>
-                  <Highlight text={row.result.excerpt} words={words} />
-                </>
-              )}
-            </View>
-          </Pressable>
+          <SearchResultRow row={row} words={words} you={you} onPress={() => open(row)} />
         )}
       />
     </View>
@@ -540,51 +202,10 @@ export default function Search() {
 }
 
 const styles = StyleSheet.create({
-  field: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space(2),
-    height: 44,
-    // A pill, like the chat composer.
-    borderRadius: radius.full,
-    borderWidth: StyleSheet.hairlineWidth * 2,
-    paddingLeft: space(3.5),
-    paddingRight: space(3),
-    // The header leaves room for the back button.
-    width: "100%",
-    minWidth: 260,
-  },
-  input: { flex: 1, fontFamily: fonts.sans, fontSize: 15, paddingVertical: 0 },
-  chipBar: { flexGrow: 0 },
-  chips: {
-    gap: space(2),
-    paddingHorizontal: space(4),
-    paddingTop: space(1),
-    paddingBottom: space(2),
-  },
-  chip: {
-    height: 32,
-    paddingHorizontal: space(3.5),
-    borderRadius: radius.full,
-    borderWidth: 1,
-    justifyContent: "center",
-  },
   section: {
     paddingHorizontal: space(4),
     paddingTop: space(4),
     paddingBottom: space(1),
   },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space(3),
-    paddingHorizontal: space(4),
-    paddingVertical: space(2.5),
-    minHeight: 60,
-  },
-  mark: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  you: { borderRadius: radius.full },
-  youText: { fontFamily: fonts.heading, fontWeight: "600", fontSize: 16, lineHeight: 20 },
-  messageHead: { flexDirection: "row", alignItems: "center", gap: space(2) },
   searching: { padding: space(8), alignItems: "center" },
 });
