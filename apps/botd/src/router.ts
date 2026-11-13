@@ -14,7 +14,7 @@ import {
 } from "@open-bot/domain";
 import { implement, ORPCError } from "@orpc/server";
 import { ActionAbortedError, Desktop } from "./desktop";
-import type { EgressRouter } from "./egress";
+import type { EgressRouter } from "@open-bot/egress/router";
 import type { ComputeLifecycle } from "./lifecycle";
 import type { PageChecker } from "./pages";
 import type { Screen, ScreenManager } from "./screens";

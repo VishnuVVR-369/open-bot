@@ -1,11 +1,12 @@
 # packages/egress
 
 The tunnel that sends the computer's browser traffic out through the owner's Mac or phone: frames, the mux, IP policy, SOCKS and the agent.
-The relay lives in `apps/worker/src/egress`, the Mac app in `apps/desktop`, and the Kotlin agent in `apps/mobile/modules/egress`.
+The computer's end (`EgressRouter`, which botd runs) is here too; the relay lives in `apps/worker/src/egress`, the Mac app in `apps/desktop`, and the Kotlin agent in `apps/mobile/modules/egress`.
 
 ## Entry points
 
-- `packages/egress/src/index.ts` is the only export (`.`).
+- `packages/egress/src/index.ts` (`.`): frames, the mux, IP policy, SOCKS and the agent.
+- `packages/egress/src/router.ts` (`./router`): `EgressRouter`, the computer's end, which routes each browser connection over the tunnel, directly, or nowhere. Node only; botd runs it, and the worker's relay test talks to it.
 - `packages/egress/src/frames.ts` is the wire format; `packages/egress/src/mux.ts` is stream multiplexing and flow control.
 - `packages/egress/src/ip-policy.ts` decides which addresses an agent may dial.
 - `packages/egress/src/socks.ts` is the SOCKS side used by botd; `packages/egress/src/agent.ts` runs inside Electron.
@@ -26,7 +27,7 @@ The relay lives in `apps/worker/src/egress`, the Mac app in `apps/desktop`, and 
 
 ## Tests
 
-- `pnpm --filter @open-bot/egress test` runs `egress.test.ts`, `flow.test.ts` and `vectors.test.ts`.
+- `pnpm --filter @open-bot/egress test` runs `egress.test.ts`, `flow.test.ts`, `router.test.ts` and `vectors.test.ts`.
 - `apps/web/src/lib/server/egress-device.integration.test.ts` is the nearest integration suite (`pnpm test:integration`).
 - See the openbot-computer skill for sleep and wake and egress behavior.
 

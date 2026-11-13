@@ -17,7 +17,7 @@ import type { EgressAgentClaim } from "@open-bot/domain/server";
 import { afterEach, describe, expect, it } from "vitest";
 import WebSocket, { WebSocketServer } from "ws";
 // The real computer side, as botd runs it.
-import { EgressRouter } from "../../../botd/src/egress";
+import { EgressRouter } from "@open-bot/egress/router";
 import { CLOSE_REVOKED, EgressRelay, type PairedPhone, type RelayStore } from "./relay";
 import { WakeController } from "./wake";
 

@@ -1,16 +1,9 @@
 import { readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import type { Server, Socket } from "node:net";
-import {
-  connectDirect,
-  createSocksServer,
-  Mux,
-  OpenError,
-  parseControlMessage,
-  socksReply,
-  SocksReply,
-  type ControlMessage,
-} from "@open-bot/egress";
+import { parseControlMessage, type ControlMessage } from "./frames";
+import { Mux, OpenError } from "./mux";
+import { connectDirect, createSocksServer, socksReply, SocksReply } from "./socks";
 import { egressModeSchema, type EgressMode } from "@open-bot/domain";
 import type { WebSocket } from "ws";
 

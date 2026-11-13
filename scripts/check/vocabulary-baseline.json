@@ -5,9 +5,6 @@
   "apps/botd/src/contract.test.ts": {
     "bot": 3
   },
-  "apps/botd/src/egress.test.ts": {
-    "bot": 7
-  },
   "apps/botd/src/index.ts": {
     "bot": 27
   },
@@ -800,6 +797,9 @@
   },
   "packages/egress/src/ip-policy.ts": {
     "bot": 1
+  },
+  "packages/egress/src/router.test.ts": {
+    "bot": 7
   },
   "packages/memory/src/index.ts": {
     "bot": 87

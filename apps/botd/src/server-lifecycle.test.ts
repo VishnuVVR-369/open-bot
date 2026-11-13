@@ -6,7 +6,7 @@ import { WebSocket, WebSocketServer } from "ws";
 import { ComputeLifecycle } from "./lifecycle";
 import { createServer } from "./server";
 import type { Screen, ScreenManager } from "./screens";
-import type { EgressRouter } from "./egress";
+import type { EgressRouter } from "@open-bot/egress/router";
 import type { PageChecker } from "./pages";
 const cleanup: (() => Promise<void>)[] = [];
 afterEach(async () => {

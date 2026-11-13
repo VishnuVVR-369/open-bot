@@ -4,7 +4,7 @@ import type { AddressInfo } from "node:net";
 import { BotdError, createBotdClient, type BotdClient } from "@open-bot/api/botd";
 import type { ComputerHealth, PageCheckResult } from "@open-bot/domain";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { EgressRouter } from "./egress";
+import type { EgressRouter } from "@open-bot/egress/router";
 import { DesktopLease } from "./lease";
 import { ComputeLifecycle } from "./lifecycle";
 import type { PageChecker } from "./pages";

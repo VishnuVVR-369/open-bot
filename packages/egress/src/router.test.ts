@@ -2,17 +2,11 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import net, { type AddressInfo, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import {
-  AGENT_GONE,
-  decodeFrame,
-  encodeFrame,
-  FrameType,
-  type ControlMessage,
-} from "@open-bot/egress";
+import { AGENT_GONE, decodeFrame, encodeFrame, FrameType, type ControlMessage } from "./frames";
 import type { EgressMode } from "@open-bot/domain";
 import { afterEach, describe, expect, it } from "vitest";
 import WebSocket, { WebSocketServer } from "ws";
-import { EgressRouter, type EgressLimits } from "./egress";
+import { EgressRouter, type EgressLimits } from "./router";
 
 const LIMITS: EgressLimits = { deadlineMs: 900, openReserveMs: 300, maxHeld: 256 };
 

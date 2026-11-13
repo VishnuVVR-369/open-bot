@@ -23,7 +23,7 @@ Codex's model traffic, package installs and anything else the shell does go stra
 </Figure>
 
 1. Chromium sends every connection to botd's SOCKS5 server on `127.0.0.1:1080`, with the hostname unresolved (the browser's resolver rule refuses to resolve names locally).
-2. botd's `EgressRouter` decides the route. If your Mac's agent is online and the mode allows it, it opens a stream on the tunnel. Otherwise it connects directly, or refuses.
+2. botd's `EgressRouter` (`packages/egress/src/router.ts`) decides the route. If your Mac's agent is online and the mode allows it, it opens a stream on the tunnel. Otherwise it connects directly, or refuses.
 3. botd keeps one websocket to the worker's `/egress` endpoint, opened by the worker. The worker's `EgressRelay` forwards binary frames between that socket and the agent's socket unchanged.
 4. The agent on your Mac receives an `Open` frame with the host and port. It resolves the name on your network, refuses private addresses, and opens a real TCP connection.
 5. Bytes flow both ways as `Data` frames until either side ends or resets the stream.
