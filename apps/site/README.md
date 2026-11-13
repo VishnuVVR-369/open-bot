@@ -38,7 +38,7 @@ export const metadata = docMetadata("/docs/<path>");
 # Title
 ```
 
-`e2e/docs.spec.ts` loads every page in every browser, and checks that every link between pages lands on a page and a heading that exist.
+`apps/site/e2e/docs.spec.ts` loads every page in every browser, and checks that every link between pages lands on a page and a heading that exist.
 
 ## Run it locally
 
@@ -156,4 +156,4 @@ When you have a domain:
 ## A new cut of the video
 
 Files under `tour/v1` never change once published, and they are cached for a year.
-For a new cut, encode into `tour/v2` (change the folder in `scripts/encode-media.sh` and `version` in `src/lib/tour.ts`), upload it, and deploy.
+For a new cut, encode into `tour/v2` (change the folder in `apps/site/scripts/encode-media.sh` and `version` in `src/lib/tour.ts`), upload it, and deploy.

@@ -16,6 +16,20 @@ describe("referencedPaths", () => {
     assert.deepEqual(paths(text), ["1:apps/web/src/app", "1:packages/db"]);
   });
 
+  it("finds code spans rooted at the other top-level code folders", () => {
+    const text = [
+      "`e2e/helpers.ts`, `scripts/test/pg.sh`, `images/computer/Dockerfile`,",
+      "`tools/showcase/seed.ts` and `.railway/railway.ts`; not `docs/plan.md` or `.env`.",
+    ].join("\n");
+    assert.deepEqual(paths(text), [
+      "1:e2e/helpers.ts",
+      "1:scripts/test/pg.sh",
+      "1:images/computer/Dockerfile",
+      "2:tools/showcase/seed.ts",
+      "2:.railway/railway.ts",
+    ]);
+  });
+
   it("reads double-backtick spans, spans across lines and spans in table-like lines", () => {
     const text = [
       "``apps/double.ts`` and `` `apps/padded.ts` ``",
