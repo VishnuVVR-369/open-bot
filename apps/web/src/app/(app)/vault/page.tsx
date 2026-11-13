@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Page } from "@/components/page";
-import { VaultView } from "@/components/vault/vault-view";
+import { VaultView } from "@/features/vault";
 
 export const metadata: Metadata = { title: "Vault" };
 

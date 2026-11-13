@@ -1,7 +1,7 @@
 "use client";
 
 import { MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL, undeletablePath } from "@open-bot/domain";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNowStrict } from "date-fns";
 import {
   ChevronRight,
@@ -37,8 +37,9 @@ import { attempt } from "@/lib/client/mutate";
 import { api, orpc } from "@/lib/client/rpc";
 import { uploadToFolder } from "@/lib/client/uploads";
 import { BotAvatar } from "@/components/bot-avatar";
-import { FileIcon } from "@/components/files/file-chip";
-import { FilePreview } from "@/components/files/file-preview";
+import { useFolder } from "../hooks";
+import { FileIcon } from "./file-chip";
+import { FilePreview } from "./file-preview";
 import { fileKind, fileUrl } from "@/lib/files";
 import { cn } from "@/lib/utils";
 
@@ -106,9 +107,7 @@ export function FilesView() {
   const setPreviewing = (path: string) => setPreview({ path, open: true });
   const { data: state } = useAppState();
   const online = useComputerOnline();
-  const { data, isLoading, error } = useQuery(
-    orpc.files.list.queryOptions({ input: { path }, enabled: online !== false }),
-  );
+  const { data, isLoading, error } = useFolder(path, online !== false);
   const offline = online === false || isOffline(error);
   const parts = path.slice(ROOT.length).split("/").filter(Boolean);
   const botBySlug = (slug: string) => state?.bots.find((bot) => bot.slug === slug);

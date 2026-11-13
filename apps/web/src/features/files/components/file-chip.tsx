@@ -9,7 +9,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useState } from "react";
-import { FilePreview } from "@/components/files/file-preview";
+import { FilePreview } from "./file-preview";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { fileKind, type FileKind } from "@/lib/files";
 import { cn } from "@/lib/utils";

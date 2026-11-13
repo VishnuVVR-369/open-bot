@@ -12,7 +12,7 @@ import { InstructionsProposal } from "@/components/bots/instructions-proposal";
 import { MemoryEditor } from "@/components/bots/memory-editor";
 import { Spending } from "@/components/bots/spending";
 import { AutomationsView } from "@/components/automations/automations-view";
-import { SkillsList } from "@/components/skills/skills-list";
+import { SkillsList } from "@/features/skills";
 import { Page } from "@/components/page";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getTeammatePage, teammateName } from "@/lib/server/queries";

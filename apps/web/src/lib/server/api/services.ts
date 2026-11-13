@@ -50,6 +50,5 @@ export {
   updateTeammate,
 } from "./teammates";
 export { putUpload, uploadStatus } from "./uploads";
-export { removeVaultItem, saveVaultItem } from "./vault";
 
 export * from "./screens";

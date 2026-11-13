@@ -17,9 +17,9 @@ Shared types and the mobile contract belong in `packages/domain` and `packages/a
 ## Entry points
 
 - `apps/web/src/app` is the App Router tree: `(app)` pages, `(auth)` sign-in, and `api/*` routes.
-- `apps/web/src/features/<feature>/` holds a feature that has moved into its own folder (so far `tasks`): its views in `components/`, its hooks in `hooks.ts`, and its server side (reads in `server/queries.ts`, API procedures in `server/routes.ts`).
+- `apps/web/src/features/<feature>/` holds a feature that has moved into its own folder (so far `tasks`, `vault`, `skills` and `files`): its views in `components/`, its hooks in `hooks.ts`, and its server side (reads in `server/queries.ts`, API procedures in `server/routes.ts`).
   Code outside the folder imports only its `index.ts` (client side) or `server.ts` (server side); `apps/web/src/features/boundaries.test.ts` checks it.
-- `apps/web/src/lib/server/api/` has the API's services: what a procedure does beyond calling the worker, such as `teammates.ts` (duplicate, import, lead, archive, budget), `integrations.ts` (connections, accounts, email), `vault.ts`, `settings.ts` and `memory.ts`.
+- `apps/web/src/lib/server/api/` has the API's services: what a procedure does beyond calling the worker, such as `teammates.ts` (duplicate, import, lead, archive, budget), `integrations.ts` (connections, accounts, email), `settings.ts` and `memory.ts`.
 - `apps/web/src/app/api/stream/route.ts` is the SSE stream, fed by `apps/web/src/lib/server/realtime.ts`.
 - `apps/web/src/app/api/rpc/[[...rest]]` serves the oRPC router in `apps/web/src/lib/server/api/router.ts` for the browser and mobile; features build their procedures with `os` from `apps/web/src/lib/server/api/rpc.ts`, which checks the session and maps errors.
 - `apps/web/src/lib/client/rpc.ts` is the browser's typed client (`api`) and its TanStack Query helpers (`orpc`); `apps/web/src/lib/client/errors.ts` tells offline, signed-out and not-found failures apart.

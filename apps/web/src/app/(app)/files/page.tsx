@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { FilesView } from "@/components/files/files-view";
+import { FilesView } from "@/features/files";
 import { Page } from "@/components/page";
 
 export const metadata: Metadata = { title: "Files" };

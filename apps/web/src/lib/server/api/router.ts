@@ -16,16 +16,17 @@ import {
   listLessons,
   listNotifications,
   listSchedules,
-  listSkills,
   listTriggers,
-  listVaultItems,
   searchMessages,
 } from "../queries";
 import { worker } from "../worker";
 import { ApiError } from "./errors";
 import { listMemories, memoriesForRun, memoryHistory } from "./memory";
 import { searchPages } from "./pages";
+import { fileRoutes } from "@/features/files/server";
+import { skillRoutes } from "@/features/skills/server";
 import { taskRoutes } from "@/features/tasks/server";
+import { vaultRoutes } from "@/features/vault/server";
 import { os } from "./rpc";
 import * as api from "./services";
 
@@ -104,17 +105,9 @@ export const router = os.router({
     rotateToken: os.triggers.rotateToken.handler(({ input }) => worker.triggers.rotateToken(input)),
     test: os.triggers.test.handler(({ input }) => api.testWebhook(input)),
   },
-  skills: {
-    list: os.skills.list.handler(() => listSkills()),
-    save: os.skills.save.handler(({ input }) => worker.skills.save(input)),
-    remove: os.skills.remove.handler(({ input }) => worker.skills.remove(input)),
-  },
+  skills: skillRoutes(),
   tasks: taskRoutes(),
-  vault: {
-    list: os.vault.list.handler(() => listVaultItems()),
-    save: os.vault.save.handler(({ input }) => api.saveVaultItem(input)),
-    remove: os.vault.remove.handler(({ input }) => api.removeVaultItem(input)),
-  },
+  vault: vaultRoutes(),
   profile: {
     get: os.profile.get.handler(() => getProfile()),
   },
@@ -128,10 +121,7 @@ export const router = os.router({
     confirm: os.memory.confirm.handler(({ input }) => api.confirmMemory(input)),
     restore: os.memory.restore.handler(({ input }) => api.restoreMemory(input)),
   },
-  files: {
-    list: os.files.list.handler(({ input }) => worker.files.list({ path: input.path })),
-    remove: os.files.remove.handler(({ input }) => worker.files.remove(input)),
-  },
+  files: fileRoutes(),
   connections: {
     list: os.connections.list.handler(() => listConnections()),
     save: os.connections.save.handler(({ input }) => api.saveConnection(input)),

@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Download, ExternalLink, FileText, FileWarning, Loader2, X } from "lucide-react";
 import { useState } from "react";
-import { Markdown } from "@/components/chat/markdown";
+import { MarkdownText } from "@/components/markdown-text";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -121,7 +121,7 @@ function Body({ path, name }: { path: string; name: string }) {
     <>
       {kind === "markdown" ? (
         <div className="px-6 py-5">
-          <Markdown text={text} files={false} />
+          <MarkdownText text={text} />
         </div>
       ) : kind === "csv" ? (
         <CsvTable text={text} delimiter={name.toLowerCase().endsWith(".tsv") ? "\t" : ","} />
