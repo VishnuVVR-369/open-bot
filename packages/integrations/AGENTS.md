@@ -43,7 +43,7 @@ What every integration shares at run time (access checks, approvals, the durable
 - `pnpm --filter @open-bot/integrations test` runs the unit tests next to the code.
 - `pnpm test:integration` runs `packages/integrations/src/core/store.integration.test.ts` and the other integration suites.
 - `pnpm --filter @open-bot/integrations typecheck` checks types.
-- `e2e/accounts.spec.ts` runs against `e2e/accounts-stand-in.ts`.
+- `e2e/accounts.spec.ts` runs against `e2e/stand-ins/accounts.ts`, which serves Google (`google.ts`, `gmail.ts`, `calendar.ts`) and Notion (`notion.ts`) from that folder on one port.
 
 ## Docs
 

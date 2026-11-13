@@ -71,7 +71,7 @@ A line that must keep a legacy word, such as a third-party API name, can end wit
 | automation      | Umbrella for schedules, page watches, webhooks and account triggers                  | schedule or trigger as the umbrella (`/schedules` only redirects)                              |
 | page            | An HTML page a teammate publishes, served by `apps/pages`                            | -                                                                                              |
 | run / turn      | One queued unit of teammate work / one Codex turn inside it                          | -                                                                                              |
-| stand-in        | A test double for an outside service                                                 | mock, fake, fixture (`e2e/telegram-mock.ts`)                                                   |
+| stand-in        | A test double for an outside service                                                 | mock, fake, fixture                                                                            |
 
 The guard checks code files for bot, primary (meaning the lead), desktop takeover, and `e2e/` files named mock or fake; the other terms are kept by review.
 The owner has approved the renames, which happen after feature slicing so files move once: `bots` and `bot_id` to teammates, `is_primary` to lead, `desktop_takeovers` to `screen_takeovers`, and the integrations `accounts` table to `account_connections`.
@@ -129,7 +129,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 2. `packages/integrations/src/providers/<provider>/oauth.ts` (a `ProviderAdapter`), registered in `providerAdapters()` (`packages/integrations/src/provider-registry.ts`); its endpoints in `integrationEndpoints()` (`packages/integrations/src/core/endpoints.ts`), with the override read in `apps/worker/src/env.ts` and `apps/web/src/lib/server/env.ts`.
 3. `packages/integrations/src/providers/<provider>/<integration>/adapter.ts` (an `IntegrationAdapter`), added to `ADAPTERS` in `packages/integrations/src/integration-registry.ts`. The worker refuses to start if adapters and definitions disagree. Bump `TOOLS_VERSION`.
 4. Web: `CLIENT_GUIDES` in `apps/web/src/components/settings/provider-guides.tsx` for owner-supplied OAuth clients; icons in `accounts-section.tsx` and `items.tsx` if new.
-5. A stand-in in `e2e/accounts-stand-in.ts`, and docs in `apps/site/src/app/docs/flows/accounts/page.mdx`.
+5. A stand-in in `e2e/stand-ins/` (one file per service, served by `AccountsStandIn` in `e2e/stand-ins/accounts.ts`), and docs in `apps/site/src/app/docs/flows/accounts/page.mdx`.
 
 **Add a page-kit library**
 

@@ -124,16 +124,17 @@ E2E_STACK=dev E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e --grep @agent 
 - Specs that change what the whole app shares (the plan settings, email settings, accounts and Telegram) hold a database lock while they run (`suiteLock()` in `e2e/shared-state.ts`), and skip when another run holds it.
   They save your settings first and put back only what they changed (`savePlanSettings()`), so a key or setting you save while they run stays.
 
-Stand-ins replace outside services, so the default run needs no outside account:
+Stand-ins replace outside services, so the default run needs no outside account.
+They live in `e2e/stand-ins/`, one file per service:
 
-| Stand-in                               | Replaces                                                       | Used with                                                               |
-| -------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `e2e/telegram-mock.ts` (port 4797)     | The Telegram Bot API                                           | `TELEGRAM_API_BASE_URL`, `E2E_TELEGRAM=1`                               |
-| `e2e/accounts-stand-in.ts` (port 4796) | Google sign-in, Gmail, Google Calendar and Notion's MCP server | `GOOGLE_BASE_URL`, `NOTION_MCP_URL`, `E2E_ACCOUNTS=1`                   |
-| The plan rehearsal mock (port 4799)    | ChatGPT and the OpenAI API, answering like an exhausted plan   | `OPEN_BOT_PLAN_BASE_URL`, `OPENAI_API_BASE_URL`, `E2E_PLAN_REHEARSAL=1` |
-| `e2e/mcp-stand-in.ts`                  | An MCP server                                                  | Connection tests                                                        |
-| `e2e/job-scout-stand-ins.ts`           | Job portals and a tracker                                      | Job Scout and the apply guard                                           |
-| A plain-HTTP push service              | Web Push endpoints                                             | Push tests                                                              |
+| Stand-in                                | Replaces                                                       | Used with                                                               |
+| --------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `e2e/stand-ins/telegram.ts` (port 4797) | The Telegram Bot API                                           | `TELEGRAM_API_BASE_URL`, `E2E_TELEGRAM=1`                               |
+| `e2e/stand-ins/accounts.ts` (port 4796) | Google sign-in, Gmail, Google Calendar and Notion's MCP server | `GOOGLE_BASE_URL`, `NOTION_MCP_URL`, `E2E_ACCOUNTS=1`                   |
+| The plan rehearsal stand-in (port 4799) | ChatGPT and the OpenAI API, answering like an exhausted plan   | `OPEN_BOT_PLAN_BASE_URL`, `OPENAI_API_BASE_URL`, `E2E_PLAN_REHEARSAL=1` |
+| `e2e/stand-ins/mcp.ts`                  | An MCP server                                                  | Connection tests                                                        |
+| `e2e/stand-ins/job-scout.ts`            | Job portals and a tracker                                      | Job Scout and the apply guard                                           |
+| A plain-HTTP push service               | Web Push endpoints                                             | Push tests                                                              |
 
 Two kinds of test do use real accounts, and both are opt-in:
 

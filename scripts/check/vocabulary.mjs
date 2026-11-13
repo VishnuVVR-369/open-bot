@@ -62,7 +62,7 @@ const EXCLUDE = [
 
 export const BASELINE = "scripts/check/vocabulary-baseline.json";
 
-/** Test doubles for outside services are stand-ins: `e2e/accounts-stand-in.ts`, not `-mock` or `-fake`. */
+/** Test doubles for outside services are stand-ins, in `e2e/stand-ins/`: never named `mock` or `fake`. */
 export const STAND_IN = { term: "mock (test double)", use: "stand-in" };
 export function standInName(file) {
   return /^e2e\//.test(file) && /(mock|fake)/i.test(path.basename(file));

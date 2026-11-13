@@ -5,8 +5,8 @@ import http from "node:http";
  * when started with TELEGRAM_API_BASE_URL pointing here.
  */
 
-export const MOCK_TOKEN = "123456789:AAE2E-test-token-for-open-bot-0000000";
-export const MOCK_BOT = "openbot_e2e_bot";
+export const TELEGRAM_TOKEN = "123456789:AAE2E-test-token-for-open-bot-0000000";
+export const TELEGRAM_USERNAME = "openbot_e2e_bot";
 export const USER = { id: 424242, first_name: "Erin", username: "erin_e2e" };
 
 export interface SentMessage {
@@ -15,7 +15,7 @@ export interface SentMessage {
   message_id: number;
 }
 
-export class TelegramMock {
+export class TelegramStandIn {
   private server: http.Server | null = null;
   private updates: Record<string, unknown>[] = [];
   private nextUpdate = 1;
@@ -109,7 +109,7 @@ export class TelegramMock {
     // Downloads come from /file/bot<token>/<file_path>, as getFile said.
     const download = /^\/file\/bot([^/]+)\/(.+)$/.exec(request.url ?? "");
     if (download) {
-      const data = download[1] === MOCK_TOKEN ? this.files.get(download[2]!) : undefined;
+      const data = download[1] === TELEGRAM_TOKEN ? this.files.get(download[2]!) : undefined;
       if (!data) return reply(404, { ok: false, error_code: 404, description: "Not Found" });
       response.writeHead(200, { "content-type": "application/octet-stream" });
       return response.end(data);
@@ -117,7 +117,7 @@ export class TelegramMock {
     const match = /^\/bot([^/]+)\/(\w+)$/.exec(request.url ?? "");
     if (!match) return reply(404, { ok: false, error_code: 404, description: "Not Found" });
     const [, token, method] = match;
-    if (token !== MOCK_TOKEN)
+    if (token !== TELEGRAM_TOKEN)
       return reply(401, { ok: false, error_code: 401, description: "Unauthorized" });
 
     switch (method) {
@@ -138,7 +138,12 @@ export class TelegramMock {
       case "getMe":
         return reply(200, {
           ok: true,
-          result: { id: 123456789, is_bot: true, first_name: "E2E bot", username: MOCK_BOT },
+          result: {
+            id: 123456789,
+            is_bot: true,
+            first_name: "E2E bot",
+            username: TELEGRAM_USERNAME,
+          },
         });
       case "getUpdates": {
         const offset = Number(params.offset ?? 0);

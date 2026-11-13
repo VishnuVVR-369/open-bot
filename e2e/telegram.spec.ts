@@ -10,9 +10,9 @@ import {
   waitForLastRun,
   worker,
 } from "./helpers";
-import { MOCK_BOT, MOCK_TOKEN, TelegramMock, USER } from "./telegram-mock";
+import { TELEGRAM_TOKEN, TELEGRAM_USERNAME, TelegramStandIn, USER } from "./stand-ins/telegram";
 
-const MOCK_PORT = 4797;
+const STAND_IN_PORT = 4797;
 const db = new pg.Pool({
   connectionString: e2eStack().databaseUrl,
   max: 2,
@@ -53,11 +53,14 @@ test("Telegram setup explains the steps and checks the token", async ({ page }) 
  * then run with E2E_TELEGRAM=1.
  */
 test.describe("Telegram, against a stand-in", () => {
-  test.skip(!process.env.E2E_TELEGRAM, "Set E2E_TELEGRAM=1 with the worker pointed at the mock.");
+  test.skip(
+    !process.env.E2E_TELEGRAM,
+    "Set E2E_TELEGRAM=1 with the worker pointed at the stand-in.",
+  );
   test.describe.configure({ mode: "serial" });
   test.setTimeout(6 * 60_000);
 
-  const telegram = new TelegramMock();
+  const telegram = new TelegramStandIn();
   let page: Page;
   /** Lets the next run of this suite against the app in. */
   let releaseLock: (() => Promise<void>) | null = null;
@@ -69,7 +72,7 @@ test.describe("Telegram, against a stand-in", () => {
     test.skip(!releaseLock, "Another run of this suite is using this app.");
     const status = await worker.telegram.status();
     test.skip(status.connected, "Telegram is connected on this app; leave it alone.");
-    await telegram.start(MOCK_PORT);
+    await telegram.start(STAND_IN_PORT);
     standInUp = true;
     page = await browser.newPage({ storageState: "e2e/.auth/owner.json" });
   });
@@ -80,7 +83,7 @@ test.describe("Telegram, against a stand-in", () => {
         // Only the stand-in's connection goes: one you made meanwhile is a different account.
         const status = await worker.telegram.status().catch(() => null);
         const account = status?.connected ? status.botUsername : null; // vocabulary: allow
-        if (account === MOCK_BOT) await worker.telegram.disconnect().catch(() => {}); // vocabulary: allow
+        if (account === TELEGRAM_USERNAME) await worker.telegram.disconnect().catch(() => {}); // vocabulary: allow
         await (page as Page | undefined)?.close();
         await telegram.stop();
       }
@@ -92,9 +95,9 @@ test.describe("Telegram, against a stand-in", () => {
   test("connect a bot and link your account with a code", async () => {
     await page.goto("/settings#telegram");
     const section = page.locator("#telegram");
-    await section.getByTestId("telegram-token").fill(MOCK_TOKEN);
+    await section.getByTestId("telegram-token").fill(TELEGRAM_TOKEN);
     await section.getByRole("button", { name: "Connect" }).click();
-    await expect(section).toContainText(`Connected @${MOCK_BOT}`);
+    await expect(section).toContainText(`Connected @${TELEGRAM_USERNAME}`);
 
     // Someone who isn't linked gets turned away.
     telegram.say("hello?", { id: 999, first_name: "Stranger" });
