@@ -68,7 +68,7 @@ export const TABLE_OWNERS = {
   chats: { owner: `${WORKER}features/chat/service.ts` },
   chat_members: { owner: `${WORKER}features/chat/service.ts` },
   messages: { owner: `${WORKER}features/chat/service.ts` },
-  uploads: { owner: `${WORKER}uploads.ts` },
+  uploads: { owner: `${WORKER}features/uploads/service.ts` },
   runs: {
     owner: `${WORKER}runs/`,
     shared: MEMORY_KEEPS(

@@ -17,7 +17,7 @@ import { enqueueRun } from "../../runs/queue";
 import { appendRunEvent } from "../../runs/events";
 import { errorMessage } from "../../logger";
 import type { RunSession } from "../../runs/session";
-import type { UploadService } from "../../uploads";
+import type { UploadService } from "../uploads";
 import type { ApprovalService } from "../approvals";
 import { teammateChat } from "../chat";
 import { removeCredential, saveCredential } from "../credentials";

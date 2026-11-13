@@ -16,9 +16,9 @@ import {
   type UploadStatus,
 } from "@open-bot/domain";
 import { and, eq, inArray, lt, notExists, or, sql } from "drizzle-orm";
-import type { Context } from "./context";
-import { errorMessage } from "./logger";
-import { WorkerError } from "./core/errors";
+import type { Context } from "../../context";
+import { errorMessage } from "../../logger";
+import { WorkerError } from "../../core/errors";
 
 /** Where files you attach to messages, and files that arrive by email or Telegram, go on the computer. */
 export const UPLOAD_DIR = `${COMPUTER_PATHS.shared}/uploads`;
