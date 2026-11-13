@@ -15,7 +15,7 @@ import { createHttpServer } from "./http";
 import { CodexAccountService } from "./services/codex-account";
 import { FileService } from "./services/files";
 import { RetryService } from "./services/retries";
-import { ChatService } from "./services/chats";
+import { ChatService } from "./features/chat";
 import { RunRequests } from "./runs/requests";
 import { computerFiles, UploadService } from "./uploads";
 import { PushService } from "./services/push";

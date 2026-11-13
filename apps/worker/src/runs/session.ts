@@ -28,7 +28,6 @@ import { quietWithNothingToReport } from "./quiet";
 import { approvalPolicy } from "./approval-policy";
 import { toolsRevision } from "./tools-revision";
 import { RunEventWriter } from "./events";
-import { touchChat } from "../services/chats";
 import { finalText, mapPlan, mapThreadItem } from "./mapper";
 
 const MAX_COMMAND_OUTPUT = 20_000;
@@ -63,6 +62,8 @@ export interface SessionServices {
     },
   ) => Promise<boolean>;
   buildPrompt: (session: RunSession) => Promise<string>;
+  /** Marks the chat as active now, when the run has finished. */
+  touchChat: (chatId: string) => Promise<void>;
   /** The saved skills a text invokes with `/name`. */
   skillInputs: (text: string, botId: string) => Promise<v2.UserInput[]>;
   /** The MCP servers the bot may use, as Codex config, and a key that changes with them. */
@@ -665,7 +666,7 @@ export class RunSession {
         completedAt: new Date(),
       })
       .where(eq(runs.id, run.id));
-    await touchChat(ctx.db, chat.id);
+    await this.services.touchChat(chat.id);
     const total = {
       inputTokens: this.usage.plan.inputTokens + this.usage.api_key.inputTokens,
       cachedInputTokens: this.usage.plan.cachedInputTokens + this.usage.api_key.cachedInputTokens,

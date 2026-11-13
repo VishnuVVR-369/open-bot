@@ -21,7 +21,7 @@ import type { ScreenOperationService } from "../services/screen-operations";
 import type { SkillService } from "../services/skills";
 import type { SwarmService } from "../services/swarms";
 import type { TakeoverService } from "../services/takeovers";
-import type { ChatService } from "../services/chats";
+import { chatRoutes, type ChatService } from "../features/chat";
 import type { RunRequests } from "../runs/requests";
 import type { TelegramService } from "../services/telegram";
 import {
@@ -97,29 +97,7 @@ export function createWorkerRouter(services: WorkerServices) {
     },
     ...teammateRoutes(s.teammates, s.executor),
     ...automationRoutes(s.schedules, s.triggers, s.accountTriggers),
-    chats: {
-      newDirect: os.chats.newDirect.handler(({ input }) => s.chats.newDirect(input.teammateId)),
-      createGroup: os.chats.createGroup.handler(({ input }) =>
-        s.chats.createGroup(input.title, input.teammateIds),
-      ),
-      rename: os.chats.rename.handler(async ({ input }) => {
-        await s.chats.rename(input.chatId, input.title);
-        return ok;
-      }),
-      makeMain: os.chats.makeMain.handler(async ({ input }) => {
-        await s.chats.makeMain(input.chatId);
-        return ok;
-      }),
-      archive: os.chats.archive.handler(async ({ input }) => {
-        await s.chats.archive(input.chatId);
-        return ok;
-      }),
-      markRead: os.chats.markRead.handler(async ({ input }) => {
-        await s.chats.markRead(input.chatId);
-        return ok;
-      }),
-      send: os.chats.send.handler(({ input }) => s.chats.send(input)),
-    },
+    chats: chatRoutes(s.chats),
     messages: {
       dispatch: os.messages.dispatch.handler(async ({ input }) => {
         await s.executor.dispatchMessage(input.messageId);

@@ -54,7 +54,7 @@ The example: you ask Milo, your travel planner, "Find me a nonstop flight to Lis
 ## Saving the message
 
 The web composer and the phone both call `chats.send` through the API.
-The web app checks your session and passes the message to the worker's chat service (`apps/worker/src/services/chats.ts`), which owns chats and messages and also saves what arrives from Telegram:
+The web app checks your session and passes the message to the worker's chat service (`apps/worker/src/features/chat/service.ts`), which owns chats and messages and also saves what arrives from Telegram:
 
 ```http
 POST /internal/chats/<chatId>/messages

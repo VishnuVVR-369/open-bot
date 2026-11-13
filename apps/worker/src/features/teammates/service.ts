@@ -39,7 +39,7 @@ import { errorMessage } from "../../logger";
 import type { Bot } from "../../core/db-types";
 import { requestTeammateRunsCancel } from "../../runs/cancel";
 import { addApprovalRules } from "../../services/approvals";
-import { addChat, archiveChatsOf, renameDirectChats, shownMainChats } from "../../services/chats";
+import { addChat, archiveChatsOf, renameDirectChats, shownMainChats } from "../chat";
 import {
   addPausedRoutines,
   addPausedWatches,

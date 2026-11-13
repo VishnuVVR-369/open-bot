@@ -5,7 +5,7 @@ import { z } from "zod";
 import { enqueueRun } from "../runs/queue";
 import type { RunSession } from "../runs/session";
 import { activeTeammates } from "../features/teammates";
-import { mainChat } from "../services/chats";
+import { mainChat } from "../features/chat";
 import {
   defineTool,
   text,

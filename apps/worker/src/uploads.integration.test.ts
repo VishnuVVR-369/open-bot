@@ -12,7 +12,7 @@ import {
 } from "./uploads";
 
 import type { Context } from "./context";
-import { ChatService } from "./services/chats";
+import { ChatService } from "./features/chat";
 
 function deferred() {
   let resolve!: () => void;
