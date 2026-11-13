@@ -285,27 +285,6 @@
   "apps/web/src/components/bot-avatar.tsx": {
     "bot": 3
   },
-  "apps/web/src/components/chat/chat-view.tsx": {
-    "bot": 74
-  },
-  "apps/web/src/components/chat/composer.tsx": {
-    "bot": 21
-  },
-  "apps/web/src/components/chat/desktop-strip.tsx": {
-    "bot": 1
-  },
-  "apps/web/src/components/chat/items.tsx": {
-    "bot": 14
-  },
-  "apps/web/src/components/chat/reply-feedback.tsx": {
-    "bot": 6
-  },
-  "apps/web/src/components/chat/run-block.tsx": {
-    "bot": 40
-  },
-  "apps/web/src/components/chat/swarm-card.tsx": {
-    "bot": 4
-  },
   "apps/web/src/features/approvals/components/always-allow.tsx": {
     "bot": 17
   },
@@ -335,6 +314,33 @@
   },
   "apps/web/src/features/automations/server/service.ts": {
     "bot": 6
+  },
+  "apps/web/src/features/chat/components/chat-view.tsx": {
+    "bot": 74
+  },
+  "apps/web/src/features/chat/components/composer.tsx": {
+    "bot": 21
+  },
+  "apps/web/src/features/chat/components/desktop-strip.tsx": {
+    "bot": 1
+  },
+  "apps/web/src/features/chat/components/items.tsx": {
+    "bot": 14
+  },
+  "apps/web/src/features/chat/components/reply-feedback.tsx": {
+    "bot": 6
+  },
+  "apps/web/src/features/chat/components/run-block.tsx": {
+    "bot": 40
+  },
+  "apps/web/src/features/chat/components/swarm-card.tsx": {
+    "bot": 4
+  },
+  "apps/web/src/features/chat/server/chats.ts": {
+    "bot": 4
+  },
+  "apps/web/src/features/chat/server/queries.ts": {
+    "bot": 16
   },
   "apps/web/src/features/computer/components/computer-page.tsx": {
     "bot": 29
@@ -511,14 +517,11 @@
   "apps/web/src/lib/server/accounts.ts": {
     "bot": 4
   },
-  "apps/web/src/lib/server/api/chats.ts": {
-    "bot": 4
-  },
   "apps/web/src/lib/server/api/router.integration.test.ts": {
     "bot": 17
   },
   "apps/web/src/lib/server/queries.ts": {
-    "bot": 85,
+    "bot": 68,
     "desktop takeover": 17,
     "primary teammate": 2
   },

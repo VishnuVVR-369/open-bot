@@ -2,7 +2,7 @@
   "apps/botd/src/screens.ts": 835,
   "apps/mobile/src/lib/use-chat.test.ts": 617,
   "apps/site/src/components/docs/diagrams.tsx": 1753,
-  "apps/web/src/components/chat/chat-view.tsx": 686,
+  "apps/web/src/features/chat/components/chat-view.tsx": 686,
   "apps/web/src/lib/server/api/router.integration.test.ts": 898,
   "apps/worker/src/accounts/actions.ts": 671,
   "apps/worker/src/egress/relay.test.ts": 622,

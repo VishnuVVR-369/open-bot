@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { BotAvatar } from "@/components/bot-avatar";
-import { COMPOSER_INPUT_ID } from "@/components/chat/composer";
+import { COMPOSER_INPUT_ID } from "@/features/chat";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,

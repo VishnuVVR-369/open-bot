@@ -1,7 +1,7 @@
 import "server-only";
 import type { ApiInputs, MessageView } from "@open-bot/api";
-import { worker, WorkerError } from "../worker";
-import { ApiError } from "./errors";
+import { worker, WorkerError } from "@/lib/server/worker";
+import { ApiError } from "@/lib/server/api/errors";
 
 /**
  * Your changes to chats and the messages you send. The worker's chat service makes them (it owns
