@@ -88,8 +88,11 @@ test.describe("Telegram, against a stand-in", () => {
 
     await section.getByRole("button", { name: "Send a test" }).click();
     await expect.poll(() => telegram.texts().join("\n")).toContain("open-bot is connected");
+    // /team lists teammates, so have one of our own rather than count on an earlier test's.
+    const name = uniqueName("Tess");
+    await createTeammate(page, name);
     telegram.say("/team");
-    await expect.poll(() => telegram.texts().at(-1)).toMatch(/·/);
+    await expect.poll(() => telegram.texts().at(-1)).toContain(name);
   });
 
   test("a photo you send becomes a file open-bot keeps track of", async () => {
