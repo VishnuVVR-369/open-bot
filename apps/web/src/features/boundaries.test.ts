@@ -193,9 +193,11 @@ function violations(root: string): string[] {
 }
 
 describe("feature folders", () => {
+  // It parses and resolves every file in the app, like a lint pass: about 0.3s alone, but several
+  // seconds on a CI runner busy with every package's tests at once.
   it("keep their boundaries", () => {
     expect(violations(SOURCE)).toEqual([]);
-  });
+  }, 30_000);
 
   it("each have an index.ts", () => {
     const features = path.join(SOURCE, "features");
