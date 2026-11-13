@@ -25,7 +25,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { BotAvatar } from "@/components/bot-avatar";
-import { useOpenMobileMenu } from "@/components/app/shell";
+import { useOpenMobileMenu } from "@/components/app/mobile-menu";
 import { ComputerPanel, useComputer } from "@/features/computer";
 import { Button } from "@/components/ui/button";
 import {
@@ -53,8 +53,8 @@ import { MessageText } from "./message-text";
 import { RenameChatDialog } from "./rename-chat";
 import { RunBlock } from "./run-block";
 import { HelperScreen } from "./helper-screen";
-import { useChat } from "./use-chat";
-import { completedRepliesKey } from "./read-marker";
+import { useChat } from "../use-chat";
+import { completedRepliesKey } from "../read-marker";
 
 const PANEL_KEY = "open-bot:computer-panel";
 

@@ -1,6 +1,6 @@
 import "server-only";
 import type { ApiInputs } from "@open-bot/api";
-import { worker } from "../worker";
+import { worker } from "@/lib/server/worker";
 import { reusedId } from "./chats";
 
 /** Your requests about runs. The worker makes them (it owns runs, see packages/db/src/owners.ts). */

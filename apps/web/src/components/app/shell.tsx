@@ -3,7 +3,7 @@
 import { Hand, Menu } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Wordmark } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -12,18 +12,9 @@ import { useAppState } from "@/lib/client/queries";
 import type { AppState } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { CommandMenuProvider } from "./command-menu";
+import { MobileMenuContext } from "./mobile-menu";
 import { NotificationsButton } from "./notifications";
 import { Sidebar } from "./sidebar";
-
-/**
- * Opens the menu on screens too narrow for the sidebar. A page with its own toolbar, like a chat,
- * puts the menu button there, so a phone shows one bar instead of two.
- */
-const MobileMenuContext = createContext<(() => void) | null>(null);
-
-export function useOpenMobileMenu() {
-  return useContext(MobileMenuContext);
-}
 
 /** Pages whose own toolbar carries the menu button on a phone. */
 function hasOwnToolbar(pathname: string) {
