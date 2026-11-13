@@ -1,6 +1,7 @@
 // Automations: schedules (routines and reminders), page watches, webhooks and account triggers.
 // Code outside this folder imports only from here.
 export { AccountTriggers } from "./account-triggers";
+export { automationsFeature } from "./feature";
 export { automationRoutes } from "./routes";
 export {
   addPausedRoutines,

@@ -4,21 +4,54 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountActions } from "./accounts/actions";
 import type { Context } from "./context";
+import type { Feature } from "./core/feature";
+import { automationsFeature } from "./features/automations";
 import { FcmService } from "./services/fcm";
 import { PushService } from "./services/push";
 
-/** The order index.ts stops its parts in: the reverse of the order it registers them with the Runtime. */
-function stopOrder(): string[] {
+/** A loop that does nothing: features here are only asked what they register. */
+const loop = { start() {}, stop() {}, kick() {} };
+
+/** The features index.ts starts with `<name>.start(runtime)`, by that name. */
+const FEATURES: Record<string, Pick<Feature, "start">> = {
+  automations: automationsFeature({ schedules: loop, triggers: loop, accountTriggers: loop }),
+};
+
+/** The names of the parts `feature` registers with the Runtime, in order, without starting any. */
+async function partsOf(feature: Pick<Feature, "start">): Promise<string[]> {
+  const names: string[] = [];
+  const record = (name: string) => void names.push(name);
+  await feature.start({
+    add: record,
+    start: async (name) => record(name),
+    every: record,
+    after: record,
+  });
+  return names;
+}
+
+/**
+ * The order index.ts stops its parts in: the reverse of the order it registers them with the
+ * Runtime, itself or through a feature it starts.
+ */
+async function stopOrder(): Promise<string[]> {
   const source = readFileSync(path.join(import.meta.dirname, "index.ts"), "utf8");
-  const names = [...source.matchAll(/runtime\.(?:start|add|every|after)\(\s*"([^"]+)"/g)].map(
-    ([, name]) => name!,
-  );
+  const names: string[] = [];
+  for (const [, name, feature] of source.matchAll(
+    /runtime\.(?:start|add|every|after)\(\s*"([^"]+)"|await (\w+)\.start\(runtime\)/g,
+  )) {
+    if (name) names.push(name);
+    else {
+      expect(FEATURES, `${feature} is started in index.ts`).toHaveProperty(feature!);
+      names.push(...(await partsOf(FEATURES[feature!]!)));
+    }
+  }
   expect(new Set(names).size).toBe(names.length);
   return names.reverse();
 }
 
-describe("shutdown order", () => {
-  const order = stopOrder();
+describe("shutdown order", async () => {
+  const order = await stopOrder();
   const at = (name: string) => {
     expect(order).toContain(name);
     return order.indexOf(name);

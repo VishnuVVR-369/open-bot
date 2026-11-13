@@ -30,7 +30,12 @@ import { RunExecutor } from "./runs/executor";
 import { ApprovalService } from "./services/approvals";
 import { ModelAccess } from "./services/model-access";
 import { SessionRegistry } from "./services/registry";
-import { ScheduleService, AccountTriggers, TriggerService } from "./features/automations";
+import {
+  AccountTriggers,
+  automationsFeature,
+  ScheduleService,
+  TriggerService,
+} from "./features/automations";
 import { ScreenOperationService } from "./services/screen-operations";
 import { MemoryCoordinator } from "./services/memory";
 import { SkillService } from "./services/skills";
@@ -109,6 +114,7 @@ runtime.add("integrations", () => integrations.stop());
 const accountActions = new AccountActions(ctx, sessions, approvals, accountAccess, integrations);
 const accountTools = new AccountTools(ctx, accountAccess, accountActions, integrations);
 const accountTriggers = new AccountTriggers(ctx, accountAccess, triggers);
+const automations = automationsFeature({ schedules, triggers, accountTriggers });
 const tools = new ToolHandlers({
   ctx,
   approvals,
@@ -350,9 +356,7 @@ runtime.add("account actions", async () => {
 runtime.add("computer lifecycle", () => lifecycle.stop());
 computer.on("lease", () => wake.evaluate());
 runtime.every("egress wake", 1_000, () => wake.evaluate());
-await runtime.start("schedules", schedules);
-await runtime.start("triggers", triggers);
-await runtime.start("account triggers", accountTriggers);
+await automations.start(runtime);
 const sweepEmail = () =>
   void email
     .sweep()
@@ -374,14 +378,11 @@ runtime.every("account keep-alive", 12 * 60 * 60_000, keepAccountsAlive);
 const listener = await pool.connect();
 runtime.add("signal listener", () => listener.release());
 await listener.query(`listen ${NOTIFY_CHANNELS.worker}`);
-// One handler per signal, so a new `WorkerSignal` doesn't compile until it has one.
+// One handler per signal, here or in the feature that answers it, so a new `WorkerSignal`
+// doesn't compile until it has one.
 const onSignal: Record<WorkerSignal, () => void> = {
   runs: () => executor.pump(),
-  schedules: () => schedules.kick(),
-  triggers: () => {
-    triggers.kick();
-    accountTriggers.kick();
-  },
+  ...automations.signals,
   accounts: () => accountActions.kick(),
   cancel: () =>
     void executor
