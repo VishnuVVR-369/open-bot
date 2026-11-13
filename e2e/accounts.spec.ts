@@ -1,17 +1,8 @@
 import pg from "pg";
-import {
-  AccountsStandIn,
-  GOOGLE_CLIENT,
-  GOOGLE_USER,
-  NOTION_EXTERNAL_ID,
-  NOTION_PAGES,
-  SCOPES,
-  STAND_IN_PORT,
-  STAND_IN_URL,
-  headerOf,
-  messageText,
-  parseMime,
-} from "./accounts-stand-in";
+import { AccountsStandIn, STAND_IN_PORT, STAND_IN_URL } from "./stand-ins/accounts";
+import { GOOGLE_CLIENT, GOOGLE_USER, SCOPES } from "./stand-ins/google";
+import { headerOf, messageText, parseMime } from "./stand-ins/mime";
+import { NOTION_EXTERNAL_ID, NOTION_PAGES } from "./stand-ins/notion";
 import { expect, test, type Page } from "./fixtures";
 import {
   e2eStack,

@@ -616,9 +616,6 @@
   "apps/worker/src/uploads.integration.test.ts": {
     "bot": 7
   },
-  "e2e/accounts-stand-in.ts": {
-    "bot": 3
-  },
   "e2e/accounts.spec.ts": {
     "bot": 5
   },
@@ -670,18 +667,20 @@
   "e2e/profile.spec.ts": {
     "bot": 1
   },
+  "e2e/stand-ins/notion.ts": {
+    "bot": 3
+  },
+  "e2e/stand-ins/telegram.ts": {
+    "bot": 10
+  },
   "e2e/teammates.spec.ts": {
     "bot": 25
   },
   "e2e/teamwork.spec.ts": {
     "bot": 5
   },
-  "e2e/telegram-mock.ts": {
-    "bot": 12,
-    "mock (test double)": 1
-  },
   "e2e/telegram.spec.ts": {
-    "bot": 7
+    "bot": 5
   },
   "e2e/vault.spec.ts": {
     "bot": 16

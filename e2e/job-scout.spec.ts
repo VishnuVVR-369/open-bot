@@ -11,7 +11,7 @@ import {
   uniqueName,
   waitForLastRun,
 } from "./helpers";
-import { freshPostings, jobPortal, POSTINGS, trackerService } from "./job-scout-stand-ins";
+import { freshPostings, jobPortal, POSTINGS, trackerService } from "./stand-ins/job-scout";
 
 const botd = e2eStack().botdUrl;
 const botdToken = process.env.BOTD_TOKEN ?? "dev-botd-token-change-me";

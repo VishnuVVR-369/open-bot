@@ -11,7 +11,7 @@ import {
   uniqueName,
   waitForLastRun,
 } from "./helpers";
-import { ordersService } from "./mcp-stand-in";
+import { ordersService } from "./stand-ins/mcp";
 
 const pool = new pg.Pool({
   connectionString: e2eStack().databaseUrl,
