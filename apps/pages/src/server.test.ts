@@ -1,6 +1,7 @@
 import http from "node:http";
+import { createRequire } from "node:module";
 import type { AddressInfo } from "node:net";
-import { fileURLToPath } from "node:url";
+import { dirname } from "node:path";
 import { signPageVersion } from "@open-bot/domain/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createPagesHandler } from "./server";
@@ -8,7 +9,7 @@ import { createPagesHandler } from "./server";
 const secret = "test-pages-secret-0123456789-abcdefgh";
 const id = "2b148551-94eb-4df1-90ef-231f7386f89a";
 const html = "<!doctype html><html><head><title>T</title></head><body><h1>Hello</h1></body></html>";
-const libDir = fileURLToPath(new URL("../../../packages/page-kit/dist/lib", import.meta.url));
+const libDir = dirname(createRequire(import.meta.url).resolve("@open-bot/page-kit/lib/runtime.js"));
 
 describe("pages service", () => {
   let server: http.Server;

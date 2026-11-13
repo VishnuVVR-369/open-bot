@@ -9,6 +9,7 @@ Serving pages and signing links go in `apps/pages` and `packages/domain/src/serv
 - `packages/page-kit/src/serve.ts` (`./serve`): Node-only `/lib` file serving, shared by `apps/pages` and the computer's preview server.
 - `packages/page-kit/src/skill.ts` (`./skill`): the `/page` skill text, built from `PAGE_LIBRARIES` and `packages/page-kit/src/template.ts`.
 - `packages/page-kit/scripts/build.mjs` assembles `packages/page-kit/dist/lib`, which is gitignored.
+- `./lib/*`: the built libraries, for Node to resolve (`@open-bot/page-kit/lib/runtime.js`); `apps/pages` finds the folder that way.
 
 ## Invariants
 
@@ -17,7 +18,7 @@ Serving pages and signing links go in `apps/pages` and `packages/domain/src/serv
 - Kit assets are versioned by path (`kit@1`); a breaking change needs a new path.
 - `./serve` imports Node modules; do not import it from the web client.
 - The computer image bundles page-kit too, so changes require a computer redeploy.
-- `apps/pages/build.mjs` reads `packages/page-kit/dist/lib`, so build page-kit first.
+- `apps/pages/build.mjs` copies the built libraries (`@open-bot/page-kit/lib/*`), so build page-kit first.
 - Libraries are the extension point; pages have no type.
 
 ## Tests

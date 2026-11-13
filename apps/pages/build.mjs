@@ -1,6 +1,7 @@
 import { build } from "esbuild";
 import { cp } from "node:fs/promises";
-import { builtinModules } from "node:module";
+import { builtinModules, createRequire } from "node:module";
+import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // Bundle everything, workspace packages and libraries alike, so `node dist/pages.mjs` runs on
@@ -37,7 +38,7 @@ if (external.length > 0) {
 
 // The libraries pages load from /lib, next to the server.
 await cp(
-  fileURLToPath(new URL("../../packages/page-kit/dist/lib", import.meta.url)),
+  dirname(createRequire(import.meta.url).resolve("@open-bot/page-kit/lib/runtime.js")),
   fileURLToPath(new URL("./dist/lib", import.meta.url)),
   { recursive: true },
 );
