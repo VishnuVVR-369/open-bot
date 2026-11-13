@@ -247,11 +247,10 @@
     "bot": 1
   },
   "apps/web/src/app/(app)/bots/[botId]/page.tsx": {
-    "bot": 75,
-    "primary teammate": 2
+    "bot": 10
   },
   "apps/web/src/app/(app)/bots/new/page.tsx": {
-    "bot": 5
+    "bot": 3
   },
   "apps/web/src/app/(auth)/layout.tsx": {
     "bot": 7
@@ -286,24 +285,8 @@
   "apps/web/src/components/bot-avatar.tsx": {
     "bot": 3
   },
-  "apps/web/src/components/bots/bot-danger-zone.tsx": {
-    "bot": 5,
-    "primary teammate": 5
-  },
-  "apps/web/src/components/bots/bot-form.tsx": {
-    "bot": 29
-  },
-  "apps/web/src/components/bots/chat-list.tsx": {
-    "bot": 6
-  },
-  "apps/web/src/components/bots/duplicate-bot.tsx": {
-    "bot": 13
-  },
-  "apps/web/src/components/bots/spending.tsx": {
-    "bot": 8
-  },
   "apps/web/src/components/chat/chat-view.tsx": {
-    "bot": 76
+    "bot": 74
   },
   "apps/web/src/components/chat/composer.tsx": {
     "bot": 21
@@ -472,6 +455,38 @@
   "apps/web/src/features/tasks/server/queries.ts": {
     "bot": 4
   },
+  "apps/web/src/features/teammates/components/bot-danger-zone.tsx": {
+    "bot": 5,
+    "primary teammate": 5
+  },
+  "apps/web/src/features/teammates/components/bot-form.tsx": {
+    "bot": 29
+  },
+  "apps/web/src/features/teammates/components/chat-list.tsx": {
+    "bot": 6
+  },
+  "apps/web/src/features/teammates/components/duplicate-bot.tsx": {
+    "bot": 13
+  },
+  "apps/web/src/features/teammates/components/spending.tsx": {
+    "bot": 8
+  },
+  "apps/web/src/features/teammates/components/teammate-view.tsx": {
+    "bot": 57,
+    "primary teammate": 2
+  },
+  "apps/web/src/features/teammates/hooks.ts": {
+    "bot": 1
+  },
+  "apps/web/src/features/teammates/index.ts": {
+    "bot": 4
+  },
+  "apps/web/src/features/teammates/server/routes.ts": {
+    "bot": 4
+  },
+  "apps/web/src/features/teammates/server/service.ts": {
+    "bot": 35
+  },
   "apps/web/src/features/vault/components/vault-dialog.tsx": {
     "bot": 1
   },
@@ -479,9 +494,6 @@
     "bot": 26
   },
   "apps/web/src/features/vault/server/queries.ts": {
-    "bot": 2
-  },
-  "apps/web/src/lib/client/queries.ts": {
     "bot": 2
   },
   "apps/web/src/lib/files.test.ts": {
@@ -499,11 +511,8 @@
   "apps/web/src/lib/server/api/router.integration.test.ts": {
     "bot": 17
   },
-  "apps/web/src/lib/server/api/router.ts": {
-    "bot": 4
-  },
   "apps/web/src/lib/server/queries.ts": {
-    "bot": 124,
+    "bot": 90,
     "desktop takeover": 17,
     "primary teammate": 2
   },

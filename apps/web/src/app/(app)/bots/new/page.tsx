@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { BotForm } from "@/components/bots/bot-form";
+import { BotForm } from "@/features/teammates";
 import { Page } from "@/components/page";
-import { nextColor } from "@/lib/server/queries";
+import { nextColor } from "@/features/teammates/server";
 
 export const metadata: Metadata = { title: "New teammate" };
 

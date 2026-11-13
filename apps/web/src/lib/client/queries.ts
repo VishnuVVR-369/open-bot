@@ -29,10 +29,6 @@ export function useProfile() {
   return useQuery(orpc.profile.get.queryOptions());
 }
 
-export function useSpending(botId: string) {
-  return useQuery(orpc.teammates.spending.queryOptions({ input: { botId } }));
-}
-
 export function useConnections() {
   return useQuery(orpc.connections.list.queryOptions());
 }

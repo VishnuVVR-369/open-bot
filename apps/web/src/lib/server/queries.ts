@@ -2,7 +2,6 @@ import "server-only";
 import { listSkills } from "@/features/skills/server";
 import {
   accounts,
-  approvalRules,
   approvals,
   bots,
   chatMembers,
@@ -11,12 +10,10 @@ import {
   credentials,
   desktopTakeovers,
   instructionProposals,
-  lessons,
   messages,
   notifications,
   ownerSettings,
   ownerTimeZone,
-  purchases,
   runEvents,
   runs,
   schedules,
@@ -24,7 +21,6 @@ import {
   swarmTasks,
   triggers,
   usageEntries,
-  vaultItems,
 } from "@open-bot/db";
 import {
   ACCOUNT_PROVIDERS,
@@ -37,10 +33,8 @@ import {
   integrationSettings,
   missingCapabilities,
   monthStart,
-  nextTeammateColor,
   PAGE_TEXT_NOTE,
   type RunStatus,
-  SPENDING_PURCHASE_STATUSES,
   WEBHOOK_PAYLOAD_NOTE,
 } from "@open-bot/domain";
 import {
@@ -71,16 +65,12 @@ import type {
   AccountView,
   ConnectionView,
   EmailStatusView,
-  LessonView,
-  ProposalView,
   ModelAccessView,
   NotificationView,
   RunView,
   SearchResultView,
   ProfileView,
   TakeoverRequestSummary,
-  PurchaseView,
-  SpendingView,
   UsageView,
 } from "../types";
 import { accountRedirectUri, accountStore } from "./accounts";
@@ -533,90 +523,6 @@ function automationPrompt(run: { trigger: string; prompt: string }): string | nu
   );
 }
 
-/** The color a new teammate starts with: the one the team uses least, as the worker picks. */
-export async function nextColor(): Promise<string> {
-  const rows = await db.select({ color: bots.color }).from(bots).where(isNull(bots.archivedAt));
-  return nextTeammateColor(rows.map((row) => row.color));
-}
-
-/** A teammate's page: its profile, its chats, a suggestion waiting for you, and its rules. */
-export async function getTeammatePage(teammateId: string) {
-  const [teammate] = await db
-    .select()
-    .from(bots)
-    .where(and(eq(bots.id, teammateId), isNull(bots.archivedAt)));
-  if (!teammate) return null;
-  const [teammateChats, proposal, rules] = await Promise.all([
-    db
-      .select({
-        id: chats.id,
-        kind: chats.kind,
-        title: chats.title,
-        main: chats.main,
-        lastActivityAt: chats.lastActivityAt,
-      })
-      .from(chats)
-      .where(and(eq(chats.botId, teammateId), isNull(chats.archivedAt), ne(chats.kind, "helper")))
-      .orderBy(desc(chats.lastActivityAt)),
-    pendingProposal(teammateId),
-    db
-      .select({ id: approvalRules.id, kind: approvalRules.kind, pattern: approvalRules.pattern })
-      .from(approvalRules)
-      .where(eq(approvalRules.botId, teammateId))
-      .orderBy(asc(approvalRules.createdAt)),
-  ]);
-  return {
-    bot: teammate,
-    chats: teammateChats.map((chat) => ({
-      ...chat,
-      lastActivityAt: chat.lastActivityAt.toISOString(),
-    })),
-    proposal,
-    rules,
-  };
-}
-
-/** A teammate's name, for the page title, or null if there's none by that id. */
-export async function teammateName(teammateId: string): Promise<string | null> {
-  if (!/^[0-9a-f-]{36}$/i.test(teammateId)) return null;
-  const [row] = await db.select({ name: bots.name }).from(bots).where(eq(bots.id, teammateId));
-  return row?.name ?? null;
-}
-
-export async function pendingProposal(botId: string): Promise<ProposalView | null> {
-  const [row] = await db
-    .select()
-    .from(instructionProposals)
-    .where(and(eq(instructionProposals.botId, botId), eq(instructionProposals.status, "pending")))
-    .orderBy(desc(instructionProposals.createdAt))
-    .limit(1);
-  return row
-    ? {
-        id: row.id,
-        current: row.current,
-        proposed: row.proposed,
-        reason: row.reason,
-        createdAt: row.createdAt.toISOString(),
-      }
-    : null;
-}
-
-export async function listLessons(botId: string): Promise<LessonView[]> {
-  const rows = await db
-    .select({ lesson: lessons, chatId: runs.chatId })
-    .from(lessons)
-    .leftJoin(runs, eq(runs.id, lessons.runId))
-    .where(eq(lessons.botId, botId))
-    .orderBy(desc(lessons.createdAt));
-  return rows.map(({ lesson, chatId }) => ({
-    id: lesson.id,
-    text: lesson.text,
-    createdAt: lesson.createdAt.toISOString(),
-    runId: lesson.runId,
-    chatId,
-  }));
-}
-
 export async function listNotifications(limit = 40): Promise<NotificationView[]> {
   const rows = await db
     .select()
@@ -755,57 +661,6 @@ export async function getMonthlyUsage(): Promise<UsageView[]> {
     cachedInputTokens: Number(row.cachedInputTokens),
     outputTokens: Number(row.outputTokens),
   }));
-}
-
-/* ------------------------------------------------------------------ Spending */
-
-export async function getSpending(botId: string): Promise<SpendingView | null> {
-  const [bot] = await db
-    .select({ budget: bots.monthlyBudgetCents, autoApprove: bots.autoApproveCents })
-    .from(bots)
-    .where(eq(bots.id, botId));
-  if (!bot) return null;
-  const [rows, [spent]] = await Promise.all([
-    db
-      .select({
-        purchase: purchases,
-        cardName: vaultItems.name,
-        cardHint: vaultItems.hint,
-      })
-      .from(purchases)
-      .leftJoin(vaultItems, eq(vaultItems.id, purchases.cardId))
-      .where(eq(purchases.botId, botId))
-      .orderBy(desc(purchases.createdAt))
-      .limit(50),
-    db
-      .select({ total: sql<number>`coalesce(sum(${purchases.amountCents}), 0)::int` })
-      .from(purchases)
-      .where(
-        and(
-          eq(purchases.botId, botId),
-          inArray(purchases.status, [...SPENDING_PURCHASE_STATUSES]),
-          gte(purchases.createdAt, monthStart()),
-        ),
-      ),
-  ]);
-  return {
-    budgetCents: bot.budget,
-    autoApproveCents: bot.autoApprove,
-    spentCents: spent?.total ?? 0,
-    purchases: rows.map(({ purchase, cardName, cardHint }): PurchaseView => ({
-      id: purchase.id,
-      botId: purchase.botId,
-      card: cardName ? `${cardName} (${cardHint})` : null,
-      amountCents: purchase.amountCents,
-      merchant: purchase.merchant,
-      description: purchase.description,
-      status: purchase.status,
-      note: purchase.note,
-      chatId: purchase.chatId,
-      runId: purchase.runId,
-      createdAt: purchase.createdAt.toISOString(),
-    })),
-  };
 }
 
 /* ------------------------------------------------------------------ Connections */

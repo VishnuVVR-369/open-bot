@@ -14,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { attempt } from "@/lib/client/mutate";
 import { useVault } from "@/features/vault";
-import { useSpending } from "@/lib/client/queries";
+import { useSpending } from "../hooks";
 import { api, orpc } from "@/lib/client/rpc";
 import type { PurchaseView } from "@/lib/types";
 import { cn } from "@/lib/utils";
