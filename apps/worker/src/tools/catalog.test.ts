@@ -1,7 +1,10 @@
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { z } from "zod";
-import { inputJsonSchema } from "./define";
-import { TOOLS, toolsFor } from "./definitions";
+import type { RunSession } from "../runs/session";
+import { inputJsonSchema, parseArgs } from "./define";
+import { toolNamed, TOOLS, toolsFor } from "./definitions";
+import { ToolHandlers } from "./handlers";
+import type { ToolServices } from "./define";
 
 /** Sorted the same way however the tools are grouped in code: tools by name, keys, `required`. */
 function canonical(value: unknown, key?: string): unknown {
@@ -74,4 +77,62 @@ test("a tool input's JSON schema closes objects and keeps records open", () => {
   ) as { properties: Record<"headers" | "nested", { additionalProperties: unknown }> };
   expect(schema.properties.headers.additionalProperties).toEqual({ type: "string" });
   expect(schema.properties.nested.additionalProperties).toBe(false);
+});
+
+// A null is refused, not read as left out: a refused target must not become "yourself".
+test("a null argument is refused like any other wrong type", () => {
+  const tool = toolNamed("cancel_automation")!;
+  const id = "00000000-0000-4000-8000-000000000001";
+  expect(() => parseArgs(tool, { id, bot_id: null })).toThrow(); // vocabulary: allow
+  expect(parseArgs(tool, { id })).toEqual({ id });
+});
+
+test("calls are parsed with the tool's input before the handler runs", async () => {
+  const requested = vi.fn(async () => ({ status: "dismissed" as const }));
+  const handlers = new ToolHandlers({
+    ctx: { log: { error: vi.fn() } },
+    takeovers: { requestFromBot: requested }, // vocabulary: allow
+  } as unknown as ToolServices);
+  const session = { isHelper: false, now: () => "now" } as unknown as RunSession;
+  const call = (args: Record<string, unknown>) =>
+    handlers.handle(session, {
+      tool: "request_takeover",
+      callId: "call-1",
+      arguments: args,
+    } as never);
+
+  const wrongType = await call({ reason: 5 });
+  expect(wrongType.success).toBe(false);
+  expect(wrongType.contentItems[0]).toMatchObject({
+    text: expect.stringMatching(/^reason: /),
+  });
+  const nullReason = await call({ reason: null });
+  expect(nullReason.success).toBe(false);
+  expect(requested).not.toHaveBeenCalled();
+
+  // The handler gets the parsed value: the schema trims it.
+  expect((await call({ reason: "  Sign in  " })).success).toBe(true);
+  expect(requested).toHaveBeenCalledWith(session, { reason: "Sign in", itemId: "call-1" });
+});
+
+// The teammate tools that change setup keep their strict domain schemas: a misspelled field is
+// refused, not silently dropped.
+test("a teammate change with a misspelled field is refused", async () => {
+  const requireTeammate = vi.fn();
+  const handlers = new ToolHandlers({
+    ctx: { log: { error: vi.fn() } },
+    teammates: { requireBot: requireTeammate }, // vocabulary: allow
+  } as unknown as ToolServices);
+  const session = { isHelper: false, now: () => "now" } as unknown as RunSession;
+  const response = await handlers.handle(session, {
+    tool: "update_bot", // vocabulary: allow
+    callId: "call-1",
+    arguments: {
+      bot_id: "00000000-0000-4000-8000-000000000001", // vocabulary: allow
+      expected_revision: "r1",
+      changes: { name: "Alex", rol: "Researcher" },
+    },
+  } as never);
+  expect(response.success).toBe(false);
+  expect(requireTeammate).not.toHaveBeenCalled();
 });

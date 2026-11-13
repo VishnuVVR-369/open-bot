@@ -14,13 +14,13 @@ import { addContextRefs } from "../services/memory";
 import {
   defineTool,
   text,
-  type ToolDefinition,
+  type AnyTool,
   type ToolDeps,
   type ToolResponse,
   toolItem,
 } from "./define";
 
-export const MEMORY_TOOLS: ToolDefinition[] = [
+export const MEMORY_TOOLS: AnyTool[] = [
   defineTool({
     name: "remember_about_user",
     description:
@@ -33,9 +33,10 @@ export const MEMORY_TOOLS: ToolDefinition[] = [
         .describe("One short line, e.g. 'Vegetarian; allergic to peanuts.'"),
     }),
     helpers: "allowed",
-    handle: ({ session, callId, args }, deps) =>
+    // Like remember_memory, a kind, key or expires_at sent along is saved, once memory has checked it.
+    handle: ({ session, callId, args, raw }, deps) =>
       memoryTool(deps, session, callId, "remember_memory", {
-        ...args,
+        ...(raw as MemoryArgs),
         content: args.fact,
         shared: true,
       }),
@@ -63,15 +64,14 @@ export const MEMORY_TOOLS: ToolDefinition[] = [
       query: z.string().min(2).max(500),
     }),
     helpers: "allowed",
-    handle: ({ session, callId, args }, deps) =>
-      memoryTool(deps, session, callId, "recall_memory", args),
+    handle: ({ session, callId, args }, deps) => recallMemory(deps, session, callId, args.query),
   }),
   defineTool({
     name: "update_memory",
     description:
       "Correct a saved memory using its current ID and revision. An inference cannot replace a confirmed user fact. Recall first.",
     input: z.object({
-      id: z.string(),
+      id: z.string().uuid(),
       expected_revision: z.number().int().min(1),
       content: z.string().min(3).max(2000),
     }),
@@ -84,7 +84,7 @@ export const MEMORY_TOOLS: ToolDefinition[] = [
     description:
       "Forget a saved memory when the user asks. Removes saved versions and search indexes; original conversations remain separate. Recall first to get its current revision.",
     input: z.object({
-      id: z.string(),
+      id: z.string().uuid(),
       expected_revision: z.number().int().min(1),
     }),
     helpers: "allowed",
@@ -96,40 +96,63 @@ export const MEMORY_TOOLS: ToolDefinition[] = [
     description:
       "Search past conversations you were part of: the user's messages and the replies, newest first. Use it when the user refers to something from an earlier chat.",
     input: z.object({
-      query: z.string().min(2).max(200).describe("Words or a phrase to find."),
+      query: z
+        .string()
+        .trim()
+        .min(2, "Search for at least 2 characters.")
+        .max(200)
+        .describe("Words or a phrase to find."),
     }),
     helpers: "allowed",
-    handle: ({ session, callId, args }, deps) => searchHistory(deps, session, callId, args),
+    handle: ({ session, callId, args, raw }, deps) =>
+      searchHistory(deps, session, callId, args.query, raw),
   }),
 ];
+
+async function recallMemory(
+  deps: ToolDeps,
+  session: RunSession,
+  callId: string,
+  query: string,
+): Promise<ToolResponse> {
+  const startedAt = session.now();
+  const items = await deps.memory.recall(session.bot.id, query);
+  session.putItem({
+    ...toolItem(callId, "recall_memory", `Recalled ${items.length} memories`, {}, startedAt),
+    status: "completed",
+    completedAt: session.now(),
+    result: items.map((x) => `${x.id}@${x.revision}`).join(", "),
+  });
+  await addContextRefs(
+    deps.ctx.db,
+    session.run.id,
+    items.map((item) => ({ id: item.id, revision: item.revision })),
+  );
+  return text(
+    JSON.stringify(items.map((item) => ({ ...item, content: item.content.slice(0, 2000) }))),
+  );
+}
+
+/** The arguments of the tools that save, correct or forget a memory; each tool sends the ones it has. */
+interface MemoryArgs {
+  content?: string;
+  kind?: (typeof MEMORY_KINDS)[number];
+  shared?: boolean;
+  key?: string;
+  expires_at?: string;
+  id?: string;
+  expected_revision?: number;
+}
 
 async function memoryTool(
   deps: ToolDeps,
   session: RunSession,
   callId: string,
-  name: string,
-  args: Record<string, unknown>,
+  name: "remember_memory" | "update_memory" | "forget_memory",
+  args: MemoryArgs,
 ): Promise<ToolResponse> {
   const startedAt = session.now();
-  if (name === "recall_memory") {
-    const query = z.string().min(2).max(500).parse(args.query);
-    const items = await deps.memory.recall(session.bot.id, query);
-    session.putItem({
-      ...toolItem(callId, name, `Recalled ${items.length} memories`, {}, startedAt),
-      status: "completed",
-      completedAt: session.now(),
-      result: items.map((x) => `${x.id}@${x.revision}`).join(", "),
-    });
-    await addContextRefs(
-      deps.ctx.db,
-      session.run.id,
-      items.map((item) => ({ id: item.id, revision: item.revision })),
-    );
-    return text(
-      JSON.stringify(items.map((item) => ({ ...item, content: item.content.slice(0, 2000) }))),
-    );
-  }
-  const content = String(args.content ?? "");
+  const content = args.content ?? "";
   const actor = await deps.memory.actor(session, content, args.shared === true);
   let saved;
   if (name === "remember_memory") {
@@ -188,10 +211,9 @@ async function searchHistory(
   deps: ToolDeps,
   session: RunSession,
   callId: string,
-  args: Record<string, unknown>,
+  query: string,
+  raw: Record<string, unknown>,
 ): Promise<ToolResponse> {
-  const query = String(args.query ?? "").trim();
-  if (query.length < 2) return text("Search for at least 2 characters.", false);
   const startedAt = session.now();
   const botId = session.bot.id;
   // Chats the bot is part of: its own, and the groups it's a member of.
@@ -242,7 +264,7 @@ async function searchHistory(
     .sort((a, b) => b.at.getTime() - a.at.getTime())
     .slice(0, 10);
   session.putItem({
-    ...toolItem(callId, "search_history", `Searched past chats for “${query}”`, args, startedAt),
+    ...toolItem(callId, "search_history", `Searched past chats for “${query}”`, raw, startedAt),
     status: "completed",
     completedAt: session.now(),
     result: found.length === 1 ? "1 match" : `${found.length} matches`,

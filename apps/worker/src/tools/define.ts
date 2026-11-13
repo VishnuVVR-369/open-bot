@@ -46,25 +46,38 @@ export interface ToolDeps extends ToolServices {
 }
 
 /** One call of a tool, in a teammate's run. */
-export interface ToolCall {
+export interface ToolCall<Args = Record<string, unknown>> {
   session: RunSession;
   callId: string;
-  /** The arguments as Codex sent them. */
-  args: Record<string, unknown>;
+  /** The arguments, parsed with the tool's input schema. */
+  args: Args;
+  /** The arguments as Codex sent them, for the chat's timeline. */
+  raw: Record<string, unknown>;
 }
 
-export interface ToolDefinition {
+export interface ToolDefinition<Input extends z.ZodObject = z.ZodObject> {
   name: string;
   description: string;
-  /** The arguments, as an object schema. Codex is offered its JSON schema. */
-  input: z.ZodObject;
+  /** The arguments, as an object schema. Codex is offered its JSON schema, and calls are parsed with it. */
+  input: Input;
   /** Whether swarm helpers may call it. Helpers do their one part; they don't reach out. */
   helpers: "allowed" | "forbidden";
-  handle(call: ToolCall, deps: ToolDeps): Promise<ToolResponse>;
+  handle(call: ToolCall<z.output<Input>>, deps: ToolDeps): Promise<ToolResponse>;
 }
 
-export function defineTool(definition: ToolDefinition): ToolDefinition {
-  return definition;
+/** A tool of any input, as the catalog holds it. */
+export type AnyTool = ToolDefinition<z.ZodObject>;
+
+export function defineTool<Input extends z.ZodObject>(definition: ToolDefinition<Input>): AnyTool {
+  return definition as unknown as AnyTool;
+}
+
+/**
+ * Parses a call's arguments with the tool's input schema, which is the whole contract: a field
+ * Codex sends as null is refused like any other wrong type, never read as left out.
+ */
+export function parseArgs(tool: AnyTool, raw: Record<string, unknown>): Record<string, unknown> {
+  return tool.input.parse(raw);
 }
 
 /** A plain text reply to the teammate. */
@@ -87,7 +100,7 @@ type JsonSchema = v2.DynamicToolFunctionSpec["inputSchema"];
 
 /**
  * The JSON schema Codex is offered for `input`: zod's, without what zod adds that a tool spec
- * doesn't say (the `$schema` URL, the pattern behind `format: "uuid"`, the safe-integer bounds
+ * doesn't say (the `$schema` URL, the pattern behind `format: "uuid"` or `"email"`, the safe-integer bounds
  * of `.int()`), and with each object closed to properties it doesn't list.
  */
 export function inputJsonSchema(input: z.ZodObject): JsonSchema {
@@ -99,7 +112,7 @@ export function inputJsonSchema(input: z.ZodObject): JsonSchema {
     if (!node || typeof node !== "object") return;
     if (Array.isArray(node)) return node.forEach(tidy);
     const record = node as Record<string, unknown>;
-    if (record.format === "uuid") delete record.pattern;
+    if (record.format === "uuid" || record.format === "email") delete record.pattern;
     if (record.type === "integer") {
       if (record.minimum === Number.MIN_SAFE_INTEGER) delete record.minimum;
       if (record.maximum === Number.MAX_SAFE_INTEGER) delete record.maximum;
@@ -114,7 +127,7 @@ export function inputJsonSchema(input: z.ZodObject): JsonSchema {
 }
 
 /** The spec Codex is given for a tool. */
-export function toolSpec(definition: ToolDefinition): v2.DynamicToolSpec {
+export function toolSpec(definition: AnyTool): v2.DynamicToolSpec {
   return {
     type: "function",
     name: definition.name,

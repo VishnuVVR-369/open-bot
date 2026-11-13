@@ -15,17 +15,16 @@ import type { Bot, RunSession } from "../runs/session";
 import type { ApprovalService } from "../services/approvals";
 import { BotError, BotService } from "../services/bots";
 
-/** A teammate id, as tools take it. */
-export const teammateId = z.string().uuid("Use a teammate id from list_bots.");
-
 const assignmentSchema = z
   .object({
-    bot_id: teammateId,
+    bot_id: z.string().uuid("Use a teammate id from list_bots."),
     connection_id: z.string().uuid("Use a connection id from list_bot_connections."),
     assigned: z.boolean(),
     expected_revision: z.string().min(1).max(128),
   })
   .strict();
+
+type TargetArgs = { bot_id?: string | undefined };
 
 /**
  * What an "always allow" rule covers for each kind of teammate change, so allowing one covers the
@@ -133,10 +132,8 @@ export class BotTools {
   ) {}
 
   /** The teammate a tool acts on: `bot_id` when given, otherwise the caller. */
-  async target(session: RunSession, args: Record<string, unknown>): Promise<Bot> {
-    return this.bots.requireBot(
-      args.bot_id === undefined ? session.bot.id : teammateId.parse(args.bot_id),
-    );
+  async target(session: RunSession, args: TargetArgs): Promise<Bot> {
+    return this.bots.requireBot(args.bot_id ?? session.bot.id);
   }
 
   /**
@@ -193,7 +190,7 @@ export class BotTools {
     session: RunSession,
     callId: string,
     tool: string,
-    args: Record<string, unknown>,
+    args: TargetArgs & { id?: string | undefined },
   ): Promise<Bot> {
     const target = await this.target(session, args);
     if (target.id === session.bot.id) return target;
