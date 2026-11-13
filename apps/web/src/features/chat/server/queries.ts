@@ -23,7 +23,8 @@ import { and, asc, desc, eq, ilike, inArray, isNull, lt, max, ne, sql } from "dr
 import { toMessageView } from "@open-bot/api";
 import type { ChatData, ChatEntry, RunView, SearchResultView } from "@/lib/types";
 import { db } from "@/lib/server/db";
-import { listBots, listChats } from "@/lib/server/queries";
+import { listTeammates } from "@/features/teammates/server";
+import { listChats } from "./lists";
 import { plainText } from "@/lib/utils";
 
 const PAGE = 30;
@@ -33,7 +34,7 @@ export async function getChatData(chatId: string, before?: string): Promise<Chat
   const chat = chatList.find((entry) => entry.id === chatId);
   if (!chat) return null;
   const helper = chat.kind === "helper" ? await helperOf(chatId) : null;
-  const allBots = await listBots();
+  const allBots = await listTeammates();
   const members = allBots.filter((teammate) => chat.memberIds.includes(teammate.id));
   const beforeDate = before ? new Date(before) : null;
 

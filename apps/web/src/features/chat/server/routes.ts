@@ -1,4 +1,5 @@
 import "server-only";
+import { uploadStatus } from "./uploads";
 import { ApiError } from "@/lib/server/api/errors";
 import { os } from "@/lib/server/api/rpc";
 import {
@@ -10,17 +11,19 @@ import {
   renameChat,
   sendMessage,
 } from "./chats";
-import { listChats } from "@/lib/server/queries";
+import { listChats } from "./lists";
 import { getChatData, searchMessages } from "./queries";
 import { cancelRun, giveFeedback, rateRun, retryRun, stopSwarm } from "./runs";
 
 /**
  * Chats, the runs in them and their swarms, and searching messages, as the browser and the phone
- * ask (`contract.chats`, `contract.runs`, `contract.swarms` and `contract.search`). The chat list
- * list (`chats.list`) is read in `lib/server/queries.ts`, since the app's state carries it too.
+ * ask (`contract.chats`, `contract.runs`, `contract.swarms` and `contract.search`).
  */
 export function chatRoutes() {
   return {
+    uploads: {
+      status: os.uploads.status.handler(({ input }) => uploadStatus(input.uploadId)),
+    },
     chats: {
       list: os.chats.list.handler(() => listChats()),
       get: os.chats.get.handler(async ({ input }) => {

@@ -39,9 +39,6 @@ export const router = os.router({
   },
   memory: memoryRoutes(),
   files: fileRoutes(),
-  uploads: {
-    status: os.uploads.status.handler(({ input }) => api.uploadStatus(input.uploadId)),
-  },
   notifications: {
     list: os.notifications.list.handler(() => listNotifications()),
     markRead: os.notifications.markRead.handler(({ input }) => api.markNotificationsRead(input)),

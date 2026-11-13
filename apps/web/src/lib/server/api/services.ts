@@ -10,4 +10,3 @@ export {
   setPhoneEgressMode,
 } from "./egress";
 export { markNotificationsRead } from "./notifications";
-export { putUpload, uploadStatus } from "./uploads";

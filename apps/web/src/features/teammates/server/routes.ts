@@ -1,7 +1,7 @@
 import "server-only";
 import { ApiError } from "@/lib/server/api/errors";
 import { os } from "@/lib/server/api/rpc";
-import { listBots } from "@/lib/server/queries";
+import { listTeammates } from "./queries";
 import {
   acceptProposal,
   archiveTeammate,
@@ -23,7 +23,7 @@ import {
 export function teammateRoutes() {
   return {
     teammates: {
-      list: os.teammates.list.handler(() => listBots()),
+      list: os.teammates.list.handler(() => listTeammates()),
       lessons: os.teammates.lessons.handler(({ input }) => listLessons(input.botId)),
       spending: os.teammates.spending.handler(async ({ input }) => {
         const spending = await getSpending(input.botId);

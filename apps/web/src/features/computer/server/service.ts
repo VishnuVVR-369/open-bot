@@ -3,7 +3,8 @@ import type { ApiInputs, ScreenFrame, ScreenView } from "@open-bot/api";
 import { artifacts, desktopTakeovers, runs } from "@open-bot/db";
 import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/server/db";
-import { listBots, workerStatus } from "@/lib/server/queries";
+import { listTeammates } from "@/features/teammates/server";
+import { workerStatus } from "@/lib/server/queries";
 import { worker } from "@/lib/server/worker";
 
 /**
@@ -28,7 +29,7 @@ export async function lastScreenFrames(): Promise<Record<string, ScreenFrame>> {
 
 export async function listScreens(): Promise<ScreenView[]> {
   const [bots, status, requests, frames] = await Promise.all([
-    listBots(),
+    listTeammates(),
     workerStatus(),
     db
       .select()
