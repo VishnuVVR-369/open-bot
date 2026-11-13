@@ -80,7 +80,7 @@ export const TABLE_OWNERS = {
   bot_threads: { owner: `${WORKER}runs/` },
   message_dispatches: { owner: `${WORKER}runs/` },
   usage_entries: { owner: `${WORKER}runs/` },
-  artifacts: { owner: `${WORKER}tools/desktop.ts` },
+  artifacts: { owner: `${WORKER}features/screens/tools.ts` },
   swarms: { owner: `${WORKER}services/swarms.ts` },
   swarm_tasks: { owner: `${WORKER}services/swarms.ts` },
   notifications: { owner: `${WORKER}services/notifications.ts` },
@@ -96,9 +96,9 @@ export const TABLE_OWNERS = {
 
   // The computer, its screens and egress.
   computers: { owner: `${WORKER}egress/store.ts` },
-  desktop_takeovers: { owner: `${WORKER}services/takeovers.ts` },
-  takeover_deliveries: { owner: `${WORKER}services/takeovers.ts` },
-  screen_operations: { owner: `${WORKER}services/screen-operations.ts` },
+  desktop_takeovers: { owner: `${WORKER}features/screens/takeovers.ts` },
+  takeover_deliveries: { owner: `${WORKER}features/screens/takeovers.ts` },
+  screen_operations: { owner: `${WORKER}features/screens/screen-operations.ts` },
   egress_devices: { owner: `${WORKER}egress/devices.ts` },
 
   // Settings, secrets and notifications to the owner's devices.

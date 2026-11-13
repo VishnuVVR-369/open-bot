@@ -14,13 +14,13 @@ import {
   type TakeoverRequestItem,
 } from "@open-bot/domain";
 import { and, desc, eq, isNull } from "drizzle-orm";
-import { publishApp, type Context } from "../context";
-import { createNotification } from "./notifications";
-import { enqueueRun } from "../runs/queue";
-import { appendRunEvent } from "../runs/events";
-import { errorMessage } from "../logger";
-import type { RunSession } from "../runs/session";
-import type { SessionRegistry } from "./registry";
+import { publishApp, type Context } from "../../context";
+import { createNotification } from "../../services/notifications";
+import { enqueueRun } from "../../runs/queue";
+import { appendRunEvent } from "../../runs/events";
+import { errorMessage } from "../../logger";
+import type { RunSession } from "../../runs/session";
+import type { SessionRegistry } from "../../services/registry";
 import { ScreenBusy, withScreenLock } from "./screen-lock";
 import { handBackEndedOperations, operationNeedsOwner } from "./screen-operations";
 

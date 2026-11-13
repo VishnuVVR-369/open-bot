@@ -6,7 +6,7 @@ import {
   type TypeOnScreen,
 } from "@open-bot/domain";
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { publishApp, type Context } from "../context";
+import { publishApp, type Context } from "../../context";
 import { ScreenBusy, withScreenLock } from "./screen-lock";
 import { CODE_HANDED_BACK_NOTE, type TakeoverService } from "./takeovers";
 

@@ -630,6 +630,24 @@
   "apps/worker/src/features/pages/tools.ts": {
     "bot": 4
   },
+  "apps/worker/src/features/screens/screen-operations.integration.test.ts": {
+    "bot": 8,
+    "desktop takeover": 15
+  },
+  "apps/worker/src/features/screens/screen-operations.ts": {
+    "bot": 1,
+    "desktop takeover": 8
+  },
+  "apps/worker/src/features/screens/takeover-tools.ts": {
+    "bot": 1
+  },
+  "apps/worker/src/features/screens/takeovers.ts": {
+    "bot": 35,
+    "desktop takeover": 33
+  },
+  "apps/worker/src/features/screens/tools.ts": {
+    "bot": 6
+  },
   "apps/worker/src/features/tasks/service.ts": {
     "bot": 39
   },
@@ -725,23 +743,11 @@
   "apps/worker/src/services/retries.ts": {
     "bot": 9
   },
-  "apps/worker/src/services/screen-operations.integration.test.ts": {
-    "bot": 8,
-    "desktop takeover": 15
-  },
-  "apps/worker/src/services/screen-operations.ts": {
-    "bot": 1,
-    "desktop takeover": 8
-  },
   "apps/worker/src/services/skills.ts": {
     "bot": 70
   },
   "apps/worker/src/services/swarms.ts": {
     "bot": 10
-  },
-  "apps/worker/src/services/takeovers.ts": {
-    "bot": 35,
-    "desktop takeover": 33
   },
   "apps/worker/src/services/telegram.ts": {
     "bot": 67,
@@ -763,9 +769,6 @@
   "apps/worker/src/tools/definitions.ts": {
     "bot": 1
   },
-  "apps/worker/src/tools/desktop.ts": {
-    "bot": 6
-  },
   "apps/worker/src/tools/email.ts": {
     "bot": 1
   },
@@ -777,9 +780,6 @@
   },
   "apps/worker/src/tools/skills.ts": {
     "bot": 21
-  },
-  "apps/worker/src/tools/takeovers.ts": {
-    "bot": 1
   },
   "apps/worker/src/tools/teamwork.ts": {
     "bot": 29

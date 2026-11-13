@@ -37,10 +37,10 @@ import {
   ScheduleService,
   TriggerService,
 } from "./features/automations";
-import { ScreenOperationService } from "./services/screen-operations";
+import { ScreenOperationService } from "./features/screens";
 import { MemoryCoordinator } from "./services/memory";
 import { SkillService } from "./services/skills";
-import { TakeoverService } from "./services/takeovers";
+import { TakeoverService } from "./features/screens";
 import { TelegramService } from "./services/telegram";
 import { PageService } from "./features/pages";
 import { ToolHandlers } from "./tools/handlers";

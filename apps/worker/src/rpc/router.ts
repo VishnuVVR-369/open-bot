@@ -16,11 +16,13 @@ import type { FileService } from "../services/files";
 import { pageRoutes, type PageService } from "../features/pages";
 import type { PushService } from "../services/push";
 import type { RetryService } from "../services/retries";
-import { withScreenLock } from "../services/screen-lock";
-import type { ScreenOperationService } from "../services/screen-operations";
+import {
+  screenRoutes,
+  type ScreenOperationService,
+  type TakeoverService,
+} from "../features/screens";
 import type { SkillService } from "../services/skills";
 import type { SwarmService } from "../services/swarms";
-import type { TakeoverService } from "../services/takeovers";
 import { chatRoutes, type ChatService } from "../features/chat";
 import type { RunRequests } from "../runs/requests";
 import type { TelegramService } from "../services/telegram";
@@ -80,9 +82,6 @@ export function createWorkerRouter(services: WorkerServices) {
   const s = services;
   const { ctx } = s;
 
-  /** A screen is a teammate's, so its id must be one. */
-  const screenOf = async (id: string) => (await s.teammates.findTeammate(id)).id;
-
   return os.router({
     status: {
       get: os.status.get.handler(() => ({
@@ -124,50 +123,7 @@ export function createWorkerRouter(services: WorkerServices) {
       }),
     },
     approvals: approvalRoutes(s.approvals),
-    screens: {
-      wake: os.screens.wake.handler(async ({ input }) => {
-        await ctx.computer.startScreen(await screenOf(input.screenId));
-        return ok;
-      }),
-      forget: os.screens.forget.handler(async ({ input }) => {
-        await ctx.computer.forgetScreen(await screenOf(input.screenId));
-        return ok;
-      }),
-      take: os.screens.take.handler(async ({ input }) => {
-        const id = await screenOf(input.screenId);
-        await withScreenLock(ctx, id, () => s.takeovers.take(id));
-        return ok;
-      }),
-      handBack: os.screens.handBack.handler(async ({ input }) => {
-        const id = await screenOf(input.screenId);
-        await withScreenLock(ctx, id, () =>
-          s.takeovers.handBack(id, input.note ?? null, input.clearCode),
-        );
-        return ok;
-      }),
-      touch: os.screens.touch.handler(async ({ input }) => {
-        await ctx.computer.touchUser(await screenOf(input.screenId));
-        return ok;
-      }),
-      typeCode: os.screens.typeCode.handler(({ input }) => s.screenOperations.type(input)),
-    },
-    screenOperations: {
-      get: os.screenOperations.get.handler(({ input }) =>
-        s.screenOperations.get(input.operationId),
-      ),
-      cancel: os.screenOperations.cancel.handler(({ input }) =>
-        s.screenOperations.cancel(input.operationId),
-      ),
-    },
-    takeovers: {
-      codeContext: os.takeovers.codeContext.handler(({ input }) =>
-        s.screenOperations.context(input.takeoverId),
-      ),
-      dismiss: os.takeovers.dismiss.handler(async ({ input }) => {
-        await s.takeovers.dismiss(input.takeoverId);
-        return ok;
-      }),
-    },
+    ...screenRoutes(ctx, s.teammates, s.takeovers, s.screenOperations),
     files: {
       list: os.files.list.handler(({ input }) => s.files.list(input.path)),
       read: os.files.read.handler(({ input }) => s.files.read(input.path)),
