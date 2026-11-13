@@ -44,13 +44,11 @@ describe("screenSession", () => {
   });
 
   it("holds modifier keys until they come back up", () => {
-    const held = run(
-      fresh,
-      { type: "hold", code: "ControlLeft", down: true },
-      { type: "hold", code: "AltLeft", down: true },
-      { type: "hold", code: "ControlLeft", down: false },
-    );
-    expect(held.held).toEqual(["AltLeft"]);
+    const ctrl = run(fresh, { type: "hold", code: "ControlLeft", down: true });
+    expect(ctrl.held).toEqual(["ControlLeft"]);
+    const both = run(ctrl, { type: "hold", code: "AltLeft", down: true });
+    expect(both.held).toEqual(["ControlLeft", "AltLeft"]);
+    expect(run(both, { type: "hold", code: "ControlLeft", down: false }).held).toEqual(["AltLeft"]);
   });
 
   it("starts the remote keyboard over when control or the stream changes", () => {
