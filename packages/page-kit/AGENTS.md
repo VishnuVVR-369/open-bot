@@ -25,7 +25,7 @@ Serving pages and signing links go in `apps/pages` and `packages/domain/src/serv
 
 - `pnpm --filter @open-bot/page-kit test` builds first (see `packages/page-kit/turbo.json`) and then runs `packages/page-kit/src/kit.test.ts` against `dist/lib`.
 - Built-artifact check: `pnpm --filter @open-bot/pages build && node apps/pages/dist/pages.mjs`.
-- `pnpm test:integration` includes `apps/worker/src/services/pages.integration.test.ts`; `e2e/pages.spec.ts` covers the full stack.
+- `pnpm test:integration` includes `apps/worker/src/features/pages/service.integration.test.ts`; `e2e/pages.spec.ts` covers the full stack.
 - See "Add a page-kit library" in the root `AGENTS.md`.
 
 ## Docs

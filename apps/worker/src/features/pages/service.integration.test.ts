@@ -6,24 +6,24 @@ import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import { bots, notifications, pages, pageVersions, type Db } from "@open-bot/db";
 import type { PageCheckResult, PageIssue } from "@open-bot/domain";
 import { verifyPageVersion } from "@open-bot/domain/server";
-import type { Context } from "../context";
-import { PageError, PageService, type PageFiles } from "./pages";
+import type { Context } from "../../context";
+import { PageError, PageService, type PageFiles } from "./service";
 
 const fixture = vi.hoisted(() => ({ db: null as Db | null }));
-vi.mock("../../../web/node_modules/server-only/index.js", () => ({}));
-vi.mock("../../../web/src/lib/server/db", () => ({
+vi.mock("../../../../web/node_modules/server-only/index.js", () => ({}));
+vi.mock("../../../../web/src/lib/server/db", () => ({
   get db() {
     return fixture.db;
   },
 }));
-vi.mock("../../../web/src/lib/server/publish", () => ({ publish: vi.fn() }));
+vi.mock("../../../../web/src/lib/server/publish", () => ({ publish: vi.fn() }));
 import {
   getPage,
   listPages,
   openPage,
   pageDownload,
   searchPages,
-} from "../../../web/src/features/pages/server/service";
+} from "../../../../web/src/features/pages/server/service";
 
 const url = testDatabaseServer();
 

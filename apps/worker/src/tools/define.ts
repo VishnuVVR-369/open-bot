@@ -9,7 +9,7 @@ import type { ApprovalService } from "../services/approvals";
 import type { BotService } from "../features/teammates";
 import type { EmailService } from "../services/email";
 import type { MemoryCoordinator } from "../services/memory";
-import type { PageService } from "../services/pages";
+import type { PageService } from "../features/pages";
 import type { ScheduleService } from "../services/schedules";
 import type { SkillService } from "../services/skills";
 import type { SwarmService } from "../services/swarms";

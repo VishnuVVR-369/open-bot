@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { toRpcError } from "../rpc/errors";
-import { PageGone } from "../services/pages";
+import { PageGone } from "../features/pages";
 import { ScreenBusy } from "../services/screen-lock";
 import { SwarmError } from "../services/swarms";
 import { TelegramError } from "../services/telegram";

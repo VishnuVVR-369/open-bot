@@ -8,8 +8,8 @@ import {
 import { and, desc, eq } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { dirname } from "node:path";
-import { publishApp, type Context } from "../context";
-import { WorkerError } from "../core/errors";
+import { publishApp, type Context } from "../../context";
+import { WorkerError } from "../../core/errors";
 
 export class PageError extends WorkerError {
   constructor(message: string) {

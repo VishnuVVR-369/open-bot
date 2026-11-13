@@ -86,7 +86,7 @@ Warnings that remain are kept with the version.
 ## Publishing
 
 `publish_page` checks the file again and stores the exact bytes that were checked, so the version is what the teammate saw.
-`PageService.publish()` in `apps/worker/src/services/pages.ts` decides which page it belongs to:
+`PageService.publish()` in `apps/worker/src/features/pages/service.ts` decides which page it belongs to:
 
 1. the page named by `page_id`, if given;
 2. otherwise the page this teammate last published from the same file;
