@@ -14,7 +14,7 @@ import type { ConnectionService } from "../services/connections";
 import type { EmailService } from "../services/email";
 import type { FcmService } from "../services/fcm";
 import type { FileService } from "../services/files";
-import type { PageService } from "../services/pages";
+import { pageRoutes, type PageService } from "../features/pages";
 import type { PushService } from "../services/push";
 import type { RetryService } from "../services/retries";
 import type { ScheduleService } from "../services/schedules";
@@ -209,25 +209,7 @@ export function createWorkerRouter(services: WorkerServices) {
         return ok;
       }),
     },
-    pages: {
-      pin: os.pages.pin.handler(async ({ input }) => {
-        await s.pages.pin(input.pageId, input.pinned);
-        return ok;
-      }),
-      remove: os.pages.remove.handler(async ({ input }) => {
-        await s.pages.remove(input.pageId);
-        return ok;
-      }),
-      publish: os.pages.publish.handler(async ({ input }) => {
-        const { page, version, check } = await s.pages.checkAndPublish({ ...input, runId: null });
-        return {
-          pageId: page.id,
-          versionId: version.id,
-          version: version.number,
-          warnings: check.issues.map((issue) => issue.message),
-        };
-      }),
-    },
+    pages: pageRoutes(s.pages),
     uploads: {
       status: os.uploads.status.handler(async ({ input }) => {
         const upload = await s.uploads.status(input.uploadId);

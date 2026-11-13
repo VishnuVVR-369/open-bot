@@ -9,7 +9,7 @@ import { toolSpec, type AnyTool } from "./define";
 import { DESKTOP_TOOLS } from "./desktop";
 import { EMAIL_TOOLS } from "./email";
 import { MEMORY_TOOLS } from "./memory";
-import { PAGE_TOOLS } from "./pages";
+import { PAGE_TOOLS } from "../features/pages";
 import { SKILL_TOOLS } from "./skills";
 import { SWARM_TOOLS } from "./swarms";
 import { TEAMMATE_TOOLS } from "../features/teammates";

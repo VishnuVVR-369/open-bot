@@ -1,7 +1,7 @@
 # apps/pages
 
 A small Node service that serves published pages on an origin of their own, behind short links the web app signs.
-It does not render the app UI, publish pages or know who the owner is: publishing is in `apps/worker/src/services/pages.ts`, and page CSS, JS and libraries are in `packages/page-kit`.
+It does not render the app UI, publish pages or know who the owner is: publishing is in `apps/worker/src/features/pages/`, and page CSS, JS and libraries are in `packages/page-kit`.
 
 ## Entry points
 
@@ -30,7 +30,7 @@ It does not render the app UI, publish pages or know who the owner is: publishin
 - Unit suite: `apps/pages/src/server.test.ts`.
 - Built artifact: `pnpm --filter @open-bot/pages build && node apps/pages/dist/pages.mjs`.
 - E2E: `e2e/pages.spec.ts`.
-- Related integration suite: `apps/worker/src/services/pages.integration.test.ts`.
+- Related integration suite: `apps/worker/src/features/pages/service.integration.test.ts`.
 
 ## Docs
 

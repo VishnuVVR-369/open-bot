@@ -49,7 +49,7 @@ test("Drizzle writes outside the owner fail, through aliases and multi-line call
   ]) {
     const errors = await ownerErrors(file, code);
     assert.equal(errors.length, 1, code);
-    assert.match(errors[0], /Only apps\/worker\/src\/services\/pages\.ts writes `pages`/);
+    assert.match(errors[0], /Only apps\/worker\/src\/features\/pages\/service\.ts writes `pages`/);
   }
 });
 
@@ -92,7 +92,10 @@ test("reads, other tables' namesakes and prose are not writes", async () => {
 test("the owner, a folder owner's files and listed writers may write", async () => {
   const drizzle = (table) =>
     `import { ${table} } from "@open-bot/db";\nexport const f = (db: any) => db.delete(${table});\n`;
-  assert.deepEqual(await ownerErrors("apps/worker/src/services/pages.ts", drizzle("pages")), []);
+  assert.deepEqual(
+    await ownerErrors("apps/worker/src/features/pages/service.ts", drizzle("pages")),
+    [],
+  );
   assert.deepEqual(await ownerErrors("apps/worker/src/runs/probe.ts", drizzle("runs")), []);
   assert.equal((await ownerErrors("apps/worker/src/runsx.ts", drizzle("runs"))).length, 1);
 });

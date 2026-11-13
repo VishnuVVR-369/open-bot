@@ -38,7 +38,7 @@ import { TakeoverService } from "./services/takeovers";
 import { TelegramService } from "./services/telegram";
 import { AccountTriggers } from "./services/account-triggers";
 import { TriggerService } from "./services/triggers";
-import { PageService } from "./services/pages";
+import { PageService } from "./features/pages";
 import { ToolHandlers } from "./tools/handlers";
 import { BotService } from "./features/teammates";
 import { Integrations } from "@open-bot/integrations/adapters";

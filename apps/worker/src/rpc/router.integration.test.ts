@@ -45,7 +45,7 @@ import { RunRequests } from "../runs/requests";
 import { CodexAccountService } from "../services/codex-account";
 import { ConnectionService } from "../services/connections";
 import { EgressDevices } from "../egress/devices";
-import { PageService } from "../services/pages";
+import { PageService } from "../features/pages";
 import { VaultService } from "../services/vault";
 import { EmailService } from "../services/email";
 import { SettingsService } from "../services/settings";

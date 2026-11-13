@@ -86,8 +86,8 @@ export const TABLE_OWNERS = {
   notifications: { owner: `${WORKER}services/notifications.ts` },
 
   // Pages.
-  pages: { owner: `${WORKER}services/pages.ts` },
-  page_versions: { owner: `${WORKER}services/pages.ts` },
+  pages: { owner: `${WORKER}features/pages/service.ts` },
+  page_versions: { owner: `${WORKER}features/pages/service.ts` },
 
   // Approvals, spending and the vault.
   approvals: { owner: `${WORKER}services/approvals.ts` },

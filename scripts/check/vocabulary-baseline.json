@@ -555,6 +555,15 @@
   "apps/worker/src/env.ts": {
     "bot": 1
   },
+  "apps/worker/src/features/pages/service.integration.test.ts": {
+    "bot": 12
+  },
+  "apps/worker/src/features/pages/service.ts": {
+    "bot": 22
+  },
+  "apps/worker/src/features/pages/tools.ts": {
+    "bot": 4
+  },
   "apps/worker/src/features/tasks/service.ts": {
     "bot": 39
   },
@@ -653,12 +662,6 @@
   "apps/worker/src/services/notifications.ts": {
     "bot": 5
   },
-  "apps/worker/src/services/pages.integration.test.ts": {
-    "bot": 12
-  },
-  "apps/worker/src/services/pages.ts": {
-    "bot": 22
-  },
   "apps/worker/src/services/push.test.ts": {
     "bot": 1
   },
@@ -729,9 +732,6 @@
   },
   "apps/worker/src/tools/memory.ts": {
     "bot": 16
-  },
-  "apps/worker/src/tools/pages.ts": {
-    "bot": 4
   },
   "apps/worker/src/tools/skills.ts": {
     "bot": 21

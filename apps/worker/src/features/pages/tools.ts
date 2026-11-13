@@ -1,16 +1,22 @@
 // Page tools: check, publish, list and read pages.
 import { COMPUTER_PATHS, type PageCheckResult } from "@open-bot/domain";
 import { z } from "zod";
-import type { RunSession } from "../runs/session";
-import { PageError } from "../services/pages";
+import type { Context } from "../../context";
 import {
   defineTool,
   text,
-  type AnyTool,
-  type ToolDeps,
   toolItem,
+  type ToolDefinition,
   type ToolResponse,
-} from "./define";
+} from "../../core/tool";
+import type { RunSession } from "../../runs/session";
+import { PageError, type PageService } from "./service";
+
+/** What the page tools use. */
+interface PageToolDeps {
+  ctx: Pick<Context, "computer">;
+  pages: PageService;
+}
 
 const pagePathField = z
   .string()
@@ -52,7 +58,7 @@ const getPageInput = z.object({
   restore: z.boolean().default(false),
 });
 
-export const PAGE_TOOLS: AnyTool[] = [
+export const PAGE_TOOLS: ToolDefinition<z.ZodObject, PageToolDeps>[] = [
   defineTool({
     name: "check_page",
     description:
@@ -115,7 +121,7 @@ function describeCheck(check: PageCheckResult, path: string): string {
 }
 
 async function checkPage(
-  deps: ToolDeps,
+  deps: PageToolDeps,
   session: RunSession,
   callId: string,
   pathArg: string,
@@ -157,7 +163,7 @@ async function checkPage(
 }
 
 async function publishPage(
-  deps: ToolDeps,
+  deps: PageToolDeps,
   session: RunSession,
   callId: string,
   parsed: z.output<typeof publishPageInput>,
@@ -215,7 +221,7 @@ async function publishPage(
 }
 
 async function getPage(
-  deps: ToolDeps,
+  deps: PageToolDeps,
   session: RunSession,
   { page_id: pageId, restore }: z.output<typeof getPageInput>,
 ): Promise<ToolResponse> {
