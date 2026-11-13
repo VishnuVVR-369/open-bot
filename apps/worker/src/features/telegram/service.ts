@@ -16,14 +16,14 @@ import {
 import { newLinkCode, splitTelegram, telegramHtml, TELEGRAM_MAX_CHARS } from "@open-bot/domain";
 import { decryptSecret, secretHint } from "@open-bot/domain/server";
 import { and, asc, desc, eq, inArray, isNull, or } from "drizzle-orm";
-import { publishApp, type Context, type NotificationEvent } from "../context";
-import { errorMessage } from "../logger";
-import type { RunExecutor } from "../runs/executor";
-import type { UploadService } from "../uploads";
-import type { ApprovalService } from "../features/approvals";
-import { mainChat, saveUserMessage } from "../features/chat";
-import { removeCredential, saveCredential } from "./credentials";
-import { WorkerError } from "../core/errors";
+import { publishApp, type Context, type NotificationEvent } from "../../context";
+import { errorMessage } from "../../logger";
+import type { RunExecutor } from "../../runs/executor";
+import type { UploadService } from "../../uploads";
+import type { ApprovalService } from "../approvals";
+import { mainChat, saveUserMessage } from "../chat";
+import { removeCredential, saveCredential } from "../../services/credentials";
+import { WorkerError } from "../../core/errors";
 
 const POLL_SECONDS = 25;
 const LINK_CODE_MINUTES = 15;

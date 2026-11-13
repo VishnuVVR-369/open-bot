@@ -9,6 +9,7 @@ import type { Feature } from "./core/feature";
 import { automationsFeature } from "./features/automations";
 import { emailFeature } from "./features/email";
 import { memoryFeature } from "./features/memory";
+import { telegramFeature } from "./features/telegram";
 import { FcmService, notificationsFeature, PushService } from "./features/notifications";
 
 /** A loop that does nothing: features here are only asked what they register. */
@@ -20,6 +21,7 @@ const FEATURES: Record<string, Pick<Feature, "start">> = {
   emailJobs: emailFeature({ recover: async () => {}, sweep: async () => {} }, { warn() {} }),
   memoryJobs: memoryFeature(loop),
   notifications: notificationsFeature({ push: loop, fcm: loop }),
+  telegramPolling: telegramFeature({ start: async () => {}, stop() {} }, { error() {} }),
 };
 
 /** The names of the parts `feature` registers with the Runtime, in order, without starting any. */

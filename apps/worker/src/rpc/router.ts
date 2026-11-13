@@ -24,7 +24,7 @@ import type { SkillService } from "../services/skills";
 import type { SwarmService } from "../services/swarms";
 import { chatRoutes, type ChatService } from "../features/chat";
 import type { RunRequests } from "../runs/requests";
-import type { TelegramService } from "../services/telegram";
+import { telegramRoutes, type TelegramService } from "../features/telegram";
 import {
   automationRoutes,
   type AccountTriggers,
@@ -196,23 +196,7 @@ export function createWorkerRouter(services: WorkerServices) {
         return ok;
       }),
     },
-    telegram: {
-      status: os.telegram.status.handler(() => s.telegram.status()),
-      connect: os.telegram.connect.handler(({ input }) => s.telegram.connect(input.token)),
-      linkCode: os.telegram.linkCode.handler(() => s.telegram.linkCode()),
-      sendTest: os.telegram.sendTest.handler(async () => {
-        await s.telegram.sendTest();
-        return ok;
-      }),
-      unlink: os.telegram.unlink.handler(async () => {
-        await s.telegram.unlink();
-        return ok;
-      }),
-      disconnect: os.telegram.disconnect.handler(async () => {
-        await s.telegram.disconnect();
-        return ok;
-      }),
-    },
+    telegram: telegramRoutes(s.telegram),
     skills: {
       save: os.skills.save.handler(async ({ input: { id, ...skill } }) => ({
         id: (await s.skills.save(skill, { kind: "user" }, id ?? undefined)).id,
