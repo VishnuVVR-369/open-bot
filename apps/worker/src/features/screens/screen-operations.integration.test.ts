@@ -4,12 +4,12 @@ import { eq } from "drizzle-orm";
 import { beforeAll, beforeEach, afterAll, describe, expect, it, vi } from "vitest";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import { bots, desktopTakeovers, screenOperations, takeoverDeliveries } from "@open-bot/db";
-import type { Context } from "../context";
+import type { Context } from "../../context";
 import type { TakeoverService } from "./takeovers";
 import { withScreenLock } from "./screen-lock";
 import { ScreenOperationService } from "./screen-operations";
 import { TakeoverService as RealTakeoverService } from "./takeovers";
-import { SessionRegistry } from "./registry";
+import { SessionRegistry } from "../../services/registry";
 
 const url = testDatabaseServer();
 describe.skipIf(!url)("screen operations with Postgres", () => {

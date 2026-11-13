@@ -1,10 +1,15 @@
 // request_takeover: asking the user to take over the screen for a step only a human should do.
-// It moves with the takeovers feature.
 import { z } from "zod";
-import type { RunSession } from "../runs/session";
-import { defineTool, text, type AnyTool, type ToolDeps, type ToolResponse } from "./define";
+import { defineTool, text, type ToolDefinition, type ToolResponse } from "../../core/tool";
+import type { RunSession } from "../../runs/session";
+import type { TakeoverService } from "./takeovers";
 
-export const TAKEOVER_TOOLS: AnyTool[] = [
+/** What the takeover tools use. */
+interface TakeoverToolDeps {
+  takeovers: TakeoverService;
+}
+
+export const TAKEOVER_TOOLS: ToolDefinition<z.ZodObject, TakeoverToolDeps>[] = [
   defineTool({
     name: "request_takeover",
     description:
@@ -24,7 +29,7 @@ export const TAKEOVER_TOOLS: AnyTool[] = [
 ];
 
 async function requestTakeover(
-  deps: ToolDeps,
+  deps: TakeoverToolDeps,
   session: RunSession,
   callId: string,
   reason: string,

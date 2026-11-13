@@ -2,16 +2,21 @@
 import { artifacts } from "@open-bot/db";
 import { applyBlockedMessage, computerActionSchema, SCREEN } from "@open-bot/domain";
 import { z } from "zod";
-import type { RunSession } from "../runs/session";
-import { createNotification } from "../services/notifications";
+import type { Context } from "../../context";
 import {
   defineTool,
   text,
-  type AnyTool,
-  type ToolDeps,
   toolItem,
+  type ToolDefinition,
   type ToolResponse,
-} from "./define";
+} from "../../core/tool";
+import type { RunSession } from "../../runs/session";
+import { createNotification } from "../../services/notifications";
+
+/** What the screen tools use. */
+interface DesktopToolDeps {
+  ctx: Pick<Context, "db" | "pool" | "events" | "computer">;
+}
 
 const SCREENSHOT_NOTE =
   "Returns a JPEG screenshot taken after the action, as a data URL string. In exec, pass it to image() to look at it, for example `image(await tools.desktop_click({x: 10, y: 20}))`.";
@@ -29,7 +34,7 @@ const pointY = z
   .max(SCREEN.height - 1)
   .describe("Pixels from the top edge.");
 
-export const DESKTOP_TOOLS: AnyTool[] = [
+export const DESKTOP_TOOLS: ToolDefinition<z.ZodObject, DesktopToolDeps>[] = [
   defineTool({
     name: "desktop_screenshot",
     description: `Look at your screen (${SCREEN.width}x${SCREEN.height}). ${SCREENSHOT_NOTE}`,
@@ -156,7 +161,7 @@ export function egressRefusedNotice(refusedRecently: number | undefined): string
 }
 
 async function desktop(
-  deps: ToolDeps,
+  deps: DesktopToolDeps,
   session: RunSession,
   callId: string,
   candidate: Record<string, unknown>,
@@ -213,7 +218,7 @@ async function desktop(
 
 /** The apply guard stopped a job application on this bot's screen: it shows in the run, and you're told. */
 async function reportBlocked(
-  deps: ToolDeps,
+  deps: DesktopToolDeps,
   session: RunSession,
   callId: string,
   portals: string[],
@@ -239,7 +244,7 @@ async function reportBlocked(
 
 /** The page in front of the bot's browser, as text. */
 async function readPage(
-  deps: ToolDeps,
+  deps: DesktopToolDeps,
   session: RunSession,
   callId: string,
   rawSelector: string | undefined,

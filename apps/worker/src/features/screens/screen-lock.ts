@@ -1,6 +1,6 @@
 import { LOCKS, withTryLock } from "@open-bot/db";
-import type { Context } from "../context";
-import { WorkerError } from "../core/errors";
+import type { Context } from "../../context";
+import { WorkerError } from "../../core/errors";
 
 export class ScreenBusy extends WorkerError {
   constructor(message = "The screen is busy. Check it before trying again.") {

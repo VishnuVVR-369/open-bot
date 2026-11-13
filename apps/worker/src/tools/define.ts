@@ -13,7 +13,7 @@ import type { PageService } from "../features/pages";
 import type { ScheduleService, TriggerService } from "../features/automations";
 import type { SkillService } from "../services/skills";
 import type { SwarmService } from "../services/swarms";
-import type { TakeoverService } from "../services/takeovers";
+import type { TakeoverService } from "../features/screens";
 import type { VaultService } from "../services/vault";
 import type { BotTools } from "../features/teammates";
 

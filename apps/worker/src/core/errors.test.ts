@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { toRpcError } from "../rpc/errors";
 import { PageGone } from "../features/pages";
-import { ScreenBusy } from "../services/screen-lock";
+import { ScreenBusy } from "../features/screens";
 import { SwarmError } from "../services/swarms";
 import { TelegramError } from "../services/telegram";
 import { WorkerError } from "./errors";

@@ -21,7 +21,7 @@ import { emailSettingsRow } from "../services/email";
 import type { SkillService } from "../services/skills";
 import type { MemoryCoordinator } from "../services/memory";
 import type { ModelAccess } from "../services/model-access";
-import type { TakeoverService } from "../services/takeovers";
+import type { TakeoverService } from "../features/screens";
 import type { AccountAccess } from "../accounts/access";
 import { markDispatched, markSteered, touchChat } from "../features/chat";
 import type { Bot, Run } from "../core/db-types";

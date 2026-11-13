@@ -145,28 +145,28 @@ That is what makes frame-by-frame replay possible after the fact.
 Each service is a class built with the shared `Context`.
 Services talk to each other through constructor injection and the typed `ctx.events` emitter (`runStarted`, `runFinished`, `approvalDecided`, `notification`).
 
-| Service          | File                                       | Responsibility                                                                           |
-| ---------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| Teammates        | `features/teammates/`                      | Creating and editing teammates, with revisions, for the web app and teammates' tools     |
-| Chat             | `features/chat/`                           | Direct and group chats and their messages, from the app and Telegram                     |
-| Approvals        | `features/approvals/`                      | Creating approvals, waiting for decisions, Always allow rules, expiring native approvals |
-| Takeovers        | `services/takeovers.ts`                    | Recording takeovers, bot requests for help, delivering hand-back notes                   |
-| Schedules        | `features/automations/schedules.ts`        | Cron routines and reminders, the 10 s scheduler tick                                     |
-| Triggers         | `features/automations/triggers.ts`         | Page watches (fetch, diff, fire) and webhooks (rate limit, fire)                         |
-| Skills           | `services/skills.ts`                       | Writing skills to the computer as `SKILL.md`, expanding `/name`                          |
-| Tasks            | `features/tasks/`                          | The shared task board                                                                    |
-| Memory           | `services/memory.ts`                       | Preparing workspaces, recall, the memory packet, generations                             |
-| Vault            | `services/vault.ts`                        | Filling secrets, budgets, purchases                                                      |
-| Swarms           | `services/swarms.ts`                       | Starting helpers, collecting results, merging back                                       |
-| Connections      | `services/connections.ts`                  | MCP server config per teammate, connection tests                                         |
-| Accounts         | `accounts/`                                | Your Gmail, Calendar and Notion: access, tokens, tools and the action executor (below)   |
-| Account triggers | `features/automations/account-triggers.ts` | Gmail and Calendar triggers: polling, firing once, the hourly limit                      |
-| Email            | `services/email.ts`                        | Inbound mail from Postmark, the outbox, sending                                          |
-| Telegram         | `services/telegram.ts`                     | Long polling, linking, routing messages, approval buttons                                |
-| Push             | `services/push.ts`                         | VAPID keys, Web Push delivery                                                            |
-| Model access     | `services/model-access.ts`                 | Plan or API key, the cap, plan limits                                                    |
-| Settings         | `services/settings.ts`                     | Your settings row: time zone, the API key and its monthly cap, when the plan ran out     |
-| Credentials      | `services/credentials.ts`                  | Secrets, encrypted, one per kind; the only writer of `credentials`                       |
+| Service          | File                                       | Responsibility                                                                                            |
+| ---------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| Teammates        | `features/teammates/`                      | Creating and editing teammates, with revisions, for the web app and teammates' tools                      |
+| Chat             | `features/chat/`                           | Direct and group chats and their messages, from the app and Telegram                                      |
+| Approvals        | `features/approvals/`                      | Creating approvals, waiting for decisions, Always allow rules, expiring native approvals                  |
+| Screens          | `features/screens/`                        | The screen tools, takeovers and teammates' requests for help, hand-back notes, codes you type on a screen |
+| Schedules        | `features/automations/schedules.ts`        | Cron routines and reminders, the 10 s scheduler tick                                                      |
+| Triggers         | `features/automations/triggers.ts`         | Page watches (fetch, diff, fire) and webhooks (rate limit, fire)                                          |
+| Skills           | `services/skills.ts`                       | Writing skills to the computer as `SKILL.md`, expanding `/name`                                           |
+| Tasks            | `features/tasks/`                          | The shared task board                                                                                     |
+| Memory           | `services/memory.ts`                       | Preparing workspaces, recall, the memory packet, generations                                              |
+| Vault            | `services/vault.ts`                        | Filling secrets, budgets, purchases                                                                       |
+| Swarms           | `services/swarms.ts`                       | Starting helpers, collecting results, merging back                                                        |
+| Connections      | `services/connections.ts`                  | MCP server config per teammate, connection tests                                                          |
+| Accounts         | `accounts/`                                | Your Gmail, Calendar and Notion: access, tokens, tools and the action executor (below)                    |
+| Account triggers | `features/automations/account-triggers.ts` | Gmail and Calendar triggers: polling, firing once, the hourly limit                                       |
+| Email            | `services/email.ts`                        | Inbound mail from Postmark, the outbox, sending                                                           |
+| Telegram         | `services/telegram.ts`                     | Long polling, linking, routing messages, approval buttons                                                 |
+| Push             | `services/push.ts`                         | VAPID keys, Web Push delivery                                                                             |
+| Model access     | `services/model-access.ts`                 | Plan or API key, the cap, plan limits                                                                     |
+| Settings         | `services/settings.ts`                     | Your settings row: time zone, the API key and its monthly cap, when the plan ran out                      |
+| Credentials      | `services/credentials.ts`                  | Secrets, encrypted, one per kind; the only writer of `credentials`                                        |
 
 ## Accounts
 
