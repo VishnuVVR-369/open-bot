@@ -20,7 +20,7 @@ import { publishApp, type Context, type NotificationEvent } from "../context";
 import { errorMessage } from "../logger";
 import type { RunExecutor } from "../runs/executor";
 import type { UploadService } from "../uploads";
-import type { ApprovalService } from "./approvals";
+import type { ApprovalService } from "../features/approvals";
 import { mainChat, saveUserMessage } from "../features/chat";
 import { removeCredential, saveCredential } from "./credentials";
 import { WorkerError } from "../core/errors";

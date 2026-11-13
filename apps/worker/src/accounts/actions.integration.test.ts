@@ -16,7 +16,8 @@ import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import type { Context } from "../context";
-import { ApprovalService } from "../services/approvals";
+import { ApprovalService } from "../features/approvals";
+import { APPROVAL_OUTCOMES } from "../approval-outcomes";
 import { SessionRegistry } from "../services/registry";
 import {
   AccountToolError,
@@ -60,7 +61,7 @@ describe.skipIf(!url)("account actions with Postgres", () => {
     log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   } as unknown as Context;
   const sessions = new SessionRegistry();
-  const approvalService = new ApprovalService(ctx, sessions);
+  const approvalService = new ApprovalService(ctx, sessions, APPROVAL_OUTCOMES);
   const access = new AccountAccess(ctx);
 
   const done: ActionOutcome = { status: "done", message: "Sent." };

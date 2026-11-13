@@ -22,7 +22,7 @@ import { decryptSecret, encryptSecret } from "@open-bot/domain/server";
 import { and, desc, eq, gte, gt, inArray, isNull, or, sql } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
 import type { RunSession } from "../runs/session";
-import type { ApprovalService } from "./approvals";
+import type { ApprovalService } from "../features/approvals";
 import type { VaultItemInput } from "@open-bot/api";
 import { WorkerError } from "../core/errors";
 

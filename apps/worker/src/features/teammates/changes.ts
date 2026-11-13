@@ -14,7 +14,7 @@ import type { Context } from "../../context";
 import type { Bot } from "../../core/db-types";
 import type { SetupTitle, TeammateTargets } from "../../core/targets";
 import type { RunSession } from "../../runs/session";
-import type { ApprovalService } from "../../services/approvals";
+import type { ApprovalService } from "../approvals";
 import { BotError, BotService } from "./service";
 
 const assignmentSchema = z

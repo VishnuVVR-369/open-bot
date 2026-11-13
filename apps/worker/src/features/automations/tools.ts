@@ -16,7 +16,7 @@ import {
 } from "../../core/tool";
 import { errorMessage } from "../../logger";
 import type { RunSession } from "../../runs/session";
-import type { ApprovalService } from "../../services/approvals";
+import type { ApprovalService } from "../approvals";
 import type { ScheduleService } from "./schedules";
 import { ACCOUNT_WATCH_TOOLS } from "./account-watch-tools";
 import { TriggerError, type TriggerService } from "./triggers";

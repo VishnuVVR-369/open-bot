@@ -570,6 +570,9 @@
   "apps/worker/src/env.ts": {
     "bot": 1
   },
+  "apps/worker/src/features/approvals/service.ts": {
+    "bot": 31
+  },
   "apps/worker/src/features/automations/account-triggers.integration.test.ts": {
     "bot": 13
   },
@@ -668,9 +671,6 @@
   "apps/worker/src/runs/thread-continuity.test.ts": {
     "bot": 4
   },
-  "apps/worker/src/services/approvals.ts": {
-    "bot": 31
-  },
   "apps/worker/src/services/connections.ts": {
     "bot": 15
   },
@@ -726,9 +726,6 @@
   "apps/worker/src/services/vault.ts": {
     "bot": 40
   },
-  "apps/worker/src/tools/approvals.ts": {
-    "bot": 1
-  },
   "apps/worker/src/tools/bots.integration.test.ts": {
     "bot": 129,
     "primary teammate": 1
@@ -756,6 +753,9 @@
   },
   "apps/worker/src/tools/skills.ts": {
     "bot": 21
+  },
+  "apps/worker/src/tools/takeovers.ts": {
+    "bot": 1
   },
   "apps/worker/src/tools/teamwork.ts": {
     "bot": 29

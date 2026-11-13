@@ -24,7 +24,7 @@ import { enqueueRun } from "../runs/queue";
 import { appendRunEvent } from "../runs/events";
 import { errorMessage } from "../logger";
 import type { RunSession } from "../runs/session";
-import type { ApprovalService } from "../services/approvals";
+import type { ApprovalService } from "../features/approvals";
 import type { SessionRegistry } from "../services/registry";
 import {
   AccountToolError,
@@ -39,7 +39,7 @@ import {
 } from "@open-bot/integrations/adapters";
 import type { AccountAccess } from "./access";
 import { approvalFor } from "./effects";
-import { expireApprovals } from "../services/approvals";
+import { expireApprovals } from "../features/approvals";
 
 /** An action being run holds it this long; after that, the worker is taken to have stopped. */
 const LEASE_MS = 5 * 60_000;

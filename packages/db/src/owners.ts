@@ -61,7 +61,7 @@ export const TABLE_OWNERS = {
   schedules: { owner: `${WORKER}features/automations/schedules.ts` },
   triggers: { owner: `${WORKER}features/automations/triggers.ts` },
   trigger_firings: { owner: `${WORKER}features/automations/account-triggers.ts` },
-  approval_rules: { owner: `${WORKER}services/approvals.ts` },
+  approval_rules: { owner: `${WORKER}features/approvals/service.ts` },
   tasks: { owner: `${WORKER}features/tasks/service.ts` },
 
   // Chats and the work done in them.
@@ -90,7 +90,7 @@ export const TABLE_OWNERS = {
   page_versions: { owner: `${WORKER}features/pages/service.ts` },
 
   // Approvals, spending and the vault.
-  approvals: { owner: `${WORKER}services/approvals.ts` },
+  approvals: { owner: `${WORKER}features/approvals/service.ts` },
   vault_items: { owner: `${WORKER}services/vault.ts` },
   purchases: { owner: `${WORKER}services/vault.ts` },
 

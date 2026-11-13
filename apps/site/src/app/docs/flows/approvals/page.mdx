@@ -64,7 +64,7 @@ Payments, emails and changes to your accounts don't depend on these instructions
 
 ### Creating an approval
 
-`ApprovalService` (`apps/worker/src/services/approvals.ts`) first checks the teammate's Always allow rules.
+`ApprovalService` (`apps/worker/src/features/approvals/service.ts`) first checks the teammate's Always allow rules.
 If a rule covers the request, it is approved on the spot and nothing is shown.
 
 Otherwise it:

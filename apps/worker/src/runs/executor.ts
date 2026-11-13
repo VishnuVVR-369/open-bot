@@ -14,7 +14,7 @@ import { announceRun, insertRun } from "./queue";
 import { appendRunEvent } from "./events";
 import { agentsMarkdown, allowedList, redoPrompt } from "../instructions";
 import { errorMessage } from "../logger";
-import type { ApprovalService } from "../services/approvals";
+import type { ApprovalService } from "../features/approvals";
 import type { SessionRegistry } from "../services/registry";
 import type { ConnectionService } from "../services/connections";
 import { emailSettingsRow } from "../services/email";

@@ -27,7 +27,8 @@ import { SwarmService } from "./services/swarms";
 import { VaultService } from "./services/vault";
 import { createLogger, errorMessage } from "./logger";
 import { RunExecutor } from "./runs/executor";
-import { ApprovalService } from "./services/approvals";
+import { ApprovalService } from "./features/approvals";
+import { APPROVAL_OUTCOMES } from "./approval-outcomes";
 import { ModelAccess } from "./services/model-access";
 import { SessionRegistry } from "./services/registry";
 import {
@@ -90,7 +91,7 @@ const ctx: Context = { env, db, pool, computer, codex, log, events: new EventEmi
 const sessions = new SessionRegistry();
 const memory = new MemoryCoordinator(ctx);
 await runtime.start("memory", memory);
-const approvals = new ApprovalService(ctx, sessions);
+const approvals = new ApprovalService(ctx, sessions, APPROVAL_OUTCOMES);
 const takeovers = new TakeoverService(ctx, sessions);
 const screenOperations = new ScreenOperationService(ctx, takeovers);
 await screenOperations.recover();
