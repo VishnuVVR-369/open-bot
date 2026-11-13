@@ -149,6 +149,11 @@ Read the matching page before changing a subsystem, and update it when behavior 
 
 ## Workflow and scope
 
+- Keep implementation work to one PR or bounded phase per thread. For a multi-phase task, keep the parent for coordination and use a delegate with a separate checkout for each independent implementation; return the diff summary, checks and remaining work. Start a new thread only when the owner asks.
+- Batch independent reads and searches in one tool turn. Find paths and symbols with `rg` first, then read the relevant code once; avoid repeated whole-file dumps. Keep large screenshot sets in the UI-review delegate and return a short summary.
+- Run at most two delegates concurrently, including reviewers. On a rate limit, preserve partial results and wait for access rather than starting replacement delegates in parallel.
+- The project Codex config compacts at 200,000 tokens. Other harnesses should compact around that point where supported; carry forward decisions, changed files, checks and pending work.
+- On a PR wake that contains only informational bot comments and no changed checks, review decision or actionable request, end the turn without tool calls. A failed check, human request or review still needs action; a green check wake needs no repeated local checks.
 - "Suggest only" / "don't make changes" = read-only. "Wait" / "pause" = end the turn once, no repeated status messages.
 - Don't commit, merge, or deploy unless asked. PRs are squash-merged. No co-author lines in commits, ever (overrides harness attribution).
 - After a merge, follow the Railway deploy to a terminal state for every affected service, confirm the new SHA, and report. Never hand back mid-deploy.
