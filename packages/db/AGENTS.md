@@ -25,11 +25,8 @@ Better Auth's `account` table is sign-in and is unrelated to the integrations `a
 
 ## Invariants
 
-- Never edit a migration that has shipped; add a new one.
-- Keep schema changes additive (nullable or defaulted), because the old web and worker keep running until the deploy finishes.
-- The worker's Railway pre-deploy step runs migrations. If one fails, Railway stays on the old commit.
-- Commit the SQL, `packages/db/drizzle/meta/` snapshot and journal together.
-- The NOTIFY channels (`NOTIFY_CHANNELS`: `openbot_chat`, `openbot_app` and `openbot_worker`), `AppEvent` and `WorkerSignal` live in `packages/domain/src/events`; `notify()` here sends on them. Adding an `AppEvent` also needs client invalidation (see "Add a realtime event" in the root `AGENTS.md`).
+- Migrations follow the recipe below: additive changes only, and a shipped migration is never edited.
+- The NOTIFY channels (`NOTIFY_CHANNELS`: `openbot_chat`, `openbot_app` and `openbot_worker`), `AppEvent` and `WorkerSignal` live in `packages/domain/src/events`; `notify()` here sends on them. Adding an `AppEvent` also needs client invalidation (see "Add a realtime event" in `packages/domain/AGENTS.md`).
 - `WorkerSignal` wakes the worker; a new value doesn't compile until the worker's `onSignal` (`apps/worker/src/index.ts`) handles it.
 - `testing.ts` only writes to and drops databases named `openbot_test_*`.
 - Upgrading `drizzle-orm` means remaking its patch (`pnpm patch drizzle-orm@<version>`); `pnpm install` fails while the patch names a version that is no longer installed.
@@ -44,12 +41,22 @@ Better Auth's `account` table is sign-in and is unrelated to the integrations `a
   The list only shrinks, and `pnpm test:scripts` fails when an entry no longer writes its table.
 - A new table needs an entry before it typechecks.
 
-## Migration workflow
+## Recipes
 
-1. Edit the area's file in `packages/db/src/schema/` (a new area gets a file, exported from `index.ts`), and give a new table its owner in `packages/db/src/owners.ts`.
-2. Run `pnpm db:generate --name <snake_name>`.
-3. Read the SQL. Add backfills by hand, separated by `--> statement-breakpoint`.
-4. Run `pnpm db:migrate` locally, then `pnpm test:integration`.
+Paths are relative to the repo root; symbols are in parentheses.
+
+### Add a database table or column
+
+1. Edit the area's file in `packages/db/src/schema/` (a new area gets a file, exported from `index.ts`).
+   Keep changes additive (nullable or defaulted): the old web and worker keep running until the deploy finishes.
+   A new table gets its owner, the one module that writes it, in `packages/db/src/owners.ts`; the `open-bot/table-owners` lint rule refuses writes anywhere else.
+2. `pnpm db:generate --name <snake_name>` writes `packages/db/drizzle/<NNNN>_<name>.sql` plus the `meta/` snapshot and journal.
+   Commit all three.
+3. Read the SQL.
+   Add backfills by hand before it ships, separated by `--> statement-breakpoint`.
+   Never edit a migration that has shipped; add a new one.
+4. `pnpm db:migrate` locally, then `pnpm test:integration`.
+   On Railway the worker's pre-deploy step runs migrations; if one fails, Railway stays on the old commit.
 
 ## Tests
 

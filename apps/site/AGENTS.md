@@ -30,9 +30,7 @@ Product behavior belongs in the other workspaces; this one only describes it.
 - If the site starts importing a workspace package or another repo file, add that path to the watch paths.
 - The output is static; do not add server-only features.
 - The tour stream lives in a Cloudflare R2 bucket, not in `apps/site/public/media`.
-- Port 3200 is shared with the showcase web app, so never run both.
 - Update the matching docs page when behavior elsewhere changes (see "Architecture docs" in the root `AGENTS.md`).
-- Do not reference the gitignored `docs/` folder from here.
 
 ## Tests
 

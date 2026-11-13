@@ -1,6 +1,6 @@
 ---
 name: railway-cli-ssh
-description: Access open-bot on Railway using the CLI and SSH for logs, resource inspection, troubleshooting, and explicitly requested operations.
+description: Use when reading open-bot's Railway logs, inspecting or troubleshooting a deployed service, or running a command inside one over SSH.
 ---
 
 # Railway CLI and SSH
@@ -8,27 +8,24 @@ description: Access open-bot on Railway using the CLI and SSH for logs, resource
 Project: `open-bot` (`ffe4f999-838d-41fe-b21b-1703469a7039`).
 Environment: `production` (`52dce811-6c4d-49ab-9db9-ef29d85510aa`).
 Services: `computer`, `worker`, `web`, `pages`, `Postgres`.
-Local SSH identity: `~/.ssh/railway_ed25519` (private key stays on this Mac).
+SSH identity: `~/.ssh/railway_ed25519` (the private key stays on this Mac).
 
-Use explicit project/environment flags: commands may run outside the linked
-repository. If the user specifies another project or environment, use that
-instead. Check `railway <command> --help` when unsure of supported options.
+Pass the project and environment flags every time: commands may run outside the linked repository.
+Check `railway <command> --help` when unsure of an option.
 
-## CLI
+## Logs
 
 ```sh
-railway --version
-railway whoami --json
 railway logs --project ffe4f999-838d-41fe-b21b-1703469a7039 \
   --environment production --service computer --lines 100
 ```
 
-Change `--service` for other services. Bound log requests rather than streaming
-indefinitely. CLI operations run on the local Mac; use SSH for container commands.
+Change `--service` for other services.
+Bound every log request; never stream without an end.
 
-## SSH
+## A command in a container
 
-For agent execution, pass a command after `--` so the session exits:
+Pass the command after `--` so the session exits:
 
 ```sh
 railway ssh --project ffe4f999-838d-41fe-b21b-1703469a7039 \
@@ -36,35 +33,26 @@ railway ssh --project ffe4f999-838d-41fe-b21b-1703469a7039 \
   -i ~/.ssh/railway_ed25519 -- ps -eo pid,ppid,rss,comm --sort=-rss
 ```
 
-Omit `--` and the remote command only when the user wants an interactive shell.
-`railway run` executes locally with service variables; it is not a remote shell.
-Railway SSH needs no public domain, exposed port 22, or container SSH daemon.
+Leave out `--` and the command only when the user wants an interactive shell.
+`railway run` executes locally with the service's variables; it is not a remote shell.
 
-## Access failures and scope
+## Scope
 
-- Missing project link: supply `--project`; do not link the home directory.
-- Missing key: inspect `railway ssh keys list`. If setup is requested, register
-  the existing public key with `railway ssh keys add --key ~/.ssh/railway_ed25519.pub
---name "Railway Mac"`. Never overwrite an existing key or expose its contents.
-- `ssh openbot-computer` works only after a successful `railway ssh config`
-  command created that alias. Prefer the explicit CLI command above.
-- Diagnose with reads. Deploys, restarts, configuration/data changes and key
-  registration must be within the user's requested scope; this skill alone
-  does not authorize them. Preserve the computer's persistent `/home` volume.
-- Never print environment variables wholesale, even to redact afterwards. Ask
-  for specific names, or check presence only. Avoid printing auth files, tokens
-  or private keys. Report authentication/permission failures without
-  provisioning a replacement.
-
-## Deploys
-
-- Merging to `main` deploys only the services among `web`, `worker`, `computer`
-  and `pages` whose watch paths (`.railway/watch-paths.ts`) match a changed
-  file. A docs-only merge deploys nothing. The
-  worker's pre-deploy step runs DB migrations; if it fails, Railway keeps the
-  old commit.
+- Diagnose with reads.
+  Deploys, restarts, configuration or data changes and key registration need the user to ask for them; this skill does not authorize them.
+- Keep the computer's persistent `/home` volume.
+- Never print environment variables wholesale, even to redact afterwards.
+  Ask for specific names, or check presence only.
+  Never print auth files, tokens or private keys.
 - `WORKER_SECRET` and `ENCRYPTION_KEY` must match between `web` and `worker`.
-- Read a service's real build and start settings from Railway before assuming
-  them.
+- Read a service's real build and start settings from Railway before assuming them.
+
+## Access failures
+
+- Missing project link: pass `--project`; do not link the home directory.
+- Missing key: check `railway ssh keys list`.
+  If the user asks for setup, register the existing public key with `railway ssh keys add --key ~/.ssh/railway_ed25519.pub --name "Railway Mac"`.
+  Never overwrite an existing key.
+- Report an authentication or permission failure; do not provision a replacement.
 
 Reference: https://docs.railway.com/cli/ssh

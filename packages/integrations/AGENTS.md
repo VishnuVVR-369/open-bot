@@ -38,6 +38,18 @@ What every integration shares at run time (access checks, approvals, the durable
   Each app builds `IntegrationEndpoints` from its env module and passes it to `AccountStore` and the adapters, so tests and e2e runs point every call at a stand-in, never at the real providers.
 - The `accounts` table is unrelated to Better Auth's `account` table.
 
+## Recipes
+
+Paths are relative to the repo root; symbols are in parentheses.
+
+### Add an account provider
+
+1. `packages/domain/src/integrations/accounts/<provider>.ts`: provider and integration definitions; register them in `packages/domain/src/integrations/accounts/registry.ts`.
+2. `packages/integrations/src/providers/<provider>/oauth.ts` (a `ProviderAdapter`), registered in `providerAdapters()` (`packages/integrations/src/provider-registry.ts`); its endpoints in `integrationEndpoints()` (`packages/integrations/src/core/endpoints.ts`), with the override read in `apps/worker/src/env.ts` and `apps/web/src/lib/server/env.ts`.
+3. `packages/integrations/src/providers/<provider>/<integration>/adapter.ts` (an `IntegrationAdapter`), added to `ADAPTERS` in `packages/integrations/src/integration-registry.ts`. The worker refuses to start if adapters and definitions disagree.
+4. Web: `CLIENT_GUIDES` in `apps/web/src/features/integrations/components/provider-guides.tsx` for owner-supplied OAuth clients; icons in `apps/web/src/features/integrations/components/accounts/shared.tsx` and `items.tsx` if new.
+5. A stand-in in `e2e/stand-ins/` (one file per service, served by `AccountsStandIn` in `e2e/stand-ins/accounts.ts`), and docs in `apps/site/src/app/docs/flows/accounts/page.mdx`.
+
 ## Tests
 
 - `pnpm --filter @open-bot/integrations test` runs the unit tests next to the code.
@@ -49,4 +61,3 @@ What every integration shares at run time (access checks, approvals, the durable
 
 - `apps/site/src/app/docs/flows/accounts/page.mdx`
 - `apps/site/src/app/docs/architecture/worker/page.mdx` (Accounts)
-- The recipe is "Add an account provider" in the root `AGENTS.md`.

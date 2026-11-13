@@ -17,7 +17,7 @@ Shared types and the mobile contract belong in `packages/domain` and `packages/a
 ## Entry points
 
 - `apps/web/src/app` is the App Router tree: `(app)` pages, `(auth)` sign-in, and `api/*` routes.
-- `apps/web/src/features/<feature>/` holds a feature that has moved into its own folder (so far `tasks`, `vault`, `skills`, `files`, `memory`, `pages`, `approvals`, `home`, `computer`, `automations`, `teammates`, `settings`, `integrations` and `chat`): its views in `components/`, its hooks in `hooks.ts`, and its server side (reads in `server/queries.ts`, or a `server/service.ts` when it also changes things, and API procedures in `server/routes.ts`).
+- `apps/web/src/features/<feature>/` is one folder per feature: its views in `components/`, its hooks in `hooks.ts`, and its server side (reads in `server/queries.ts`, or a `server/service.ts` when it also changes things, and API procedures in `server/routes.ts`).
   Code outside the folder imports only its `index.ts` (client side) or `server.ts` (server side); `apps/web/src/features/boundaries.test.ts` checks it.
   Nothing `index.ts` reaches may import server code (`server-only`, `@open-bot/db`, a package's `/server` entry), since a client component that imports it puts it in the browser; the same test checks that too.
 - `apps/web/src/lib/server/api/` has the API's services: what a procedure does beyond calling the worker, such as `egress.ts` and `uploads.ts`.
@@ -38,7 +38,7 @@ Shared types and the mobile contract belong in `packages/domain` and `packages/a
 - Routes in `apps/web/src/app/api/*/route.ts` are only for streams, bytes (downloads, uploads, thumbnails), tokens and outside callers (webhooks, OAuth); a JSON read is a procedure.
 - Server components read through functions in `apps/web/src/lib/server` or a feature's `server.ts`, never `db` directly.
 - Browser writes go through the API too: `attempt(api.chats.archive({ chatId }))` (`apps/web/src/lib/client/mutate.ts`) returns `{ ok, data }` or `{ ok, error }`.
-  A new write is a procedure in `packages/api/src/contract.ts` with its handler in `apps/web/src/lib/server/api/router.ts`, never a server action: those run one at a time per client and the phone can't call them.
+  A new write is a procedure in `packages/api/src/contract.ts` with its handler in the feature's `server/routes.ts`, never a server action: those run one at a time per client and the phone can't call them.
   `apps/web/src/no-server-actions.test.ts` fails on any `"use server"`.
 - A service throws `ApiError` (`apps/web/src/lib/server/api/errors.ts`) for a refusal you see, with a code the router turns into the API's error and status.
 - Route handlers are wrapped in `authed()` (`apps/web/src/lib/server/route.ts`), which also refuses writes from other sites.
@@ -48,8 +48,19 @@ Shared types and the mobile contract belong in `packages/domain` and `packages/a
 - A new workspace dependency must be added to `transpilePackages` in `apps/web/next.config.ts`.
 - `apps/web/tsconfig.json` extends `tsconfig.base.json`, so the app is type-checked as strictly as the packages, and Next.js never edits it.
   A new folder with generated types (a new `distDir`) must be added to its `include` by hand, or its route types go unchecked.
-- Use "teammate" in new UI copy; `bots` and `botId` are legacy names (see the root AGENTS.md glossary).
-- For recipes (new tool, setting, route), see "Where to make common changes" in the root `AGENTS.md`.
+
+## Recipes
+
+Paths are relative to the repo root; symbols are in parentheses.
+
+### Add a web screen
+
+1. `apps/web/src/app/(app)/<route>/page.tsx` (thin, wraps `<Page>`), importing its view from the feature's `index.ts`.
+   A feature is a folder in `apps/web/src/features/<feature>/` (`apps/web/src/features/tasks` is the example): `"use client"` views in `components/`, hooks in `hooks.ts`, and the server side in `server/`, reached through `server.ts`.
+   What no feature owns yet (app state, chat lists, notifications, the profile, egress, uploads) is in `apps/web/src/lib/server/queries.ts`, `apps/web/src/lib/server/api/` and `apps/web/src/lib/client/queries.ts`.
+2. A procedure in `packages/api/src/contract.ts` with its view schema; its read in the feature's `server/queries.ts` and its handlers in `server/routes.ts` (built with `os` from `apps/web/src/lib/server/api/rpc.ts`), mounted in `apps/web/src/lib/server/api/router.ts`; and a hook in the feature's `hooks.ts` (`orpc.<path>.queryOptions()`).
+   Say which app events refresh it in `APP_EVENT_REFRESHES` (`packages/api/src/events.ts`).
+3. Nav: `apps/web/src/components/app/sidebar.tsx` and `apps/web/src/components/app/command-menu.tsx`.
 
 ## Tests
 

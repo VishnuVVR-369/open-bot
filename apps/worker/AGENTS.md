@@ -9,12 +9,11 @@ Shared types and pure logic go in `packages/domain`, and schema changes go in `p
 - `apps/worker/src/index.ts`: process entry that builds the context, services and HTTP server.
 - `apps/worker/src/http.ts`: the HTTP server, shared-secret auth and the raw upload route; `apps/worker/src/ws.ts` has the VNC and egress websockets.
 - `apps/worker/src/rpc/router.ts`: the internal API (`workerContract` in `packages/api/src/worker/contract.ts`), each procedure calling a service; `apps/worker/src/rpc/handler.ts` wakes the computer around procedures that need it and maps errors (`apps/worker/src/rpc/errors.ts`).
-- `apps/worker/src/features/<feature>/`: a feature moved into its own folder (so far `tasks`, `teammates`, `pages`, `automations`, `chat`, `approvals`, `screens`, `memory`, `notifications`, `email`, `telegram` and `integrations`): `service.ts`, its agent tools in `tools.ts`, its internal API procedures in `routes.ts`, any background work and web app signals it answers in `feature.ts` (a `Feature`, started from `apps/worker/src/index.ts`; add it to `FEATURES` in `apps/worker/src/shutdown.test.ts`), and `index.ts`, the only file code outside the folder imports (`apps/worker/src/features/boundaries.test.ts` checks it).
+- `apps/worker/src/features/<feature>/`: one folder per feature (list the folder to see which have moved): `service.ts`, its agent tools in `tools.ts`, its internal API procedures in `routes.ts`, any background work and web app signals it answers in `feature.ts` (a `Feature`, started from `apps/worker/src/index.ts`; add it to `FEATURES` in `apps/worker/src/shutdown.test.ts`), and `index.ts`, the only file code outside the folder imports (`apps/worker/src/features/boundaries.test.ts` checks it).
 - `apps/worker/src/core/`: what features build on: `WorkerError`, the `Runtime`, the `Feature` manifest (`feature.ts`), row types, `defineTool()` (`tool.ts`) and the oRPC implementer (`rpc.ts`).
 - `apps/worker/src/tools/`: one file per feature not yet moved defines its tools with `defineTool()` (`define.ts`): name, description, zod input, helper policy and handler. `definitions.ts` lists them (`TOOLS`), and `handlers.ts` (`ToolHandlers.handle()`) finds the called tool by name and runs it. `DEVELOPER_INSTRUCTIONS` is in `apps/worker/src/instructions.ts`.
 - `apps/worker/src/computer-lifecycle.ts` and `apps/worker/src/computer.ts`: computer sleep and wake, and `ComputerClient`, which calls botd through `botdContract` (`@open-bot/api/botd`) and validates every answer and event.
 - `apps/worker/build.mjs`: esbuild bundle to `apps/worker/dist/worker.mjs`.
-- For adding a tool, route, account or event, see "Where to make common changes" in the root `AGENTS.md`.
 
 ## Invariants
 
@@ -30,6 +29,36 @@ Shared types and pure logic go in `packages/domain`, and schema changes go in `p
 - `RunEventWriter` is the only way a session writes run events.
 - Swarm helpers are refused tools defined with `helpers: "forbidden"`; `apps/worker/src/tools/catalog.test.ts` lists them.
 - The worker refuses to start if account adapters and their definitions disagree (`packages/integrations/src/integration-registry.ts`).
+
+## Recipes
+
+Paths are relative to the repo root; symbols are in parentheses.
+
+### Add an agent tool (non-account)
+
+1. One `defineTool({ name, description, input, helpers, handle })` in the feature's tools file: `apps/worker/src/features/<feature>/tools.ts` when the feature has a folder, otherwise its file in `apps/worker/src/tools/` (`skills.ts`, `vault.ts`, ...).
+   `input` is a zod object: Codex is offered its JSON schema, and a call is parsed with it before `handle` runs, so the handler gets typed `call.args` (`call.raw` is what Codex sent, for the timeline item).
+   `helpers: "forbidden"` keeps swarm helpers from calling it.
+   `handle` records a timeline item with `session.putItem(toolItem(...))` and calls `publishApp` if the UI shows the change.
+   A new feature's file adds its list to `TOOLS` in `apps/worker/src/tools/definitions.ts`.
+2. `pnpm --filter @open-bot/worker test -u` updates the tool list snapshot (`apps/worker/src/tools/__snapshots__/tools.json`); review its diff.
+   Nothing to bump: threads started with other tools or instructions are replaced by fresh ones (`apps/worker/src/runs/tools-revision.ts`).
+3. A new service goes in `ToolServices` (`apps/worker/src/tools/define.ts`), passed by name in `apps/worker/src/index.ts`.
+   A feature's tools declare only the services they use (`TaskToolDeps` in `apps/worker/src/features/tasks/tools.ts`).
+4. Optional: rules in `DEVELOPER_INSTRUCTIONS` (`apps/worker/src/instructions.ts`), an icon, or `asksApproval` for a tool whose call is itself the approval request, in `TOOL_DISPLAY` (`packages/domain/src/timeline/tool-display.ts`), which web and mobile both read.
+   A new icon meaning needs its icon in `apps/web/src/features/chat/components/items.tsx` and `apps/mobile/src/components/chat/tool-icons.ts`.
+5. Document it in `apps/site/src/app/docs/reference/tools/page.mdx`.
+
+### Add a worker internal route (called by web)
+
+1. `packages/api/src/worker/contract.ts`: add a procedure to `workerContract` with its `route` (`/internal/...`), input and output schemas.
+   Use `computer` instead of `base` if it touches the computer, or it will not wake it; never for a status read.
+2. `apps/worker/src/rpc/router.ts`: implement it by calling a service.
+   Put rules in the service, and throw the service's own error class, which extends `WorkerError` (`apps/worker/src/core/errors.ts`) with a status; `apps/worker/src/rpc/errors.ts` turns it into the answer in one place.
+   Auth (`x-worker-secret`) is automatic.
+3. Call it from web with the typed client: `worker.<domain>.<procedure>(input)` (`apps/web/src/lib/server/worker.ts`) in a feature's `server/` folder (`apps/web/src/features/<feature>/server/`).
+   Failures are `WorkerError` with the worker's status and message.
+4. Document it in `apps/site/src/app/docs/reference/http-api/page.mdx`.
 
 ## Tests
 

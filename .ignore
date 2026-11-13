@@ -1,0 +1,5 @@
+# Generated files that only add noise to a search (ripgrep and the tools built on it read this file).
+# Git still tracks them. Pass --no-ignore to search them.
+packages/db/drizzle/meta/
+apps/mobile/src/computer/viewer-html.ts
+pnpm-lock.yaml
