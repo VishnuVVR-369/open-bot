@@ -42,7 +42,13 @@ const result = (id: string, fields: Partial<SearchResult>) =>
 /** What a search result says a teammate said; the API still calls it this. */
 const BY_TEAMMATE = "bot" as const; // vocabulary: allow
 
-const search = (text: string, scope: Scope = "all", messages: SearchResult[] = []) =>
+type Data = Pick<Parameters<typeof searchSections>[0], "teammates" | "chats" | "pages">;
+const search = (
+  text: string,
+  scope: Scope = "all",
+  messages: SearchResult[] = [],
+  data: Partial<Data> = {},
+) =>
   searchSections({
     words: queryWords(text),
     query: text.trim().toLowerCase(),
@@ -52,6 +58,7 @@ const search = (text: string, scope: Scope = "all", messages: SearchResult[] = [
     pages,
     places,
     messages,
+    ...data,
   });
 const titles = (sections: ReturnType<typeof search>) =>
   sections.map((section) => `${section.title}: ${section.data.map((row) => row.key).join(" ")}`);
@@ -86,6 +93,56 @@ describe("searchSections", () => {
     expect(sections).toHaveLength(1);
     expect(sections[0]!.data).toHaveLength(8);
     expect(search("helper", "chats")).toEqual([]);
+  });
+
+  it("caps each kind with every scope, and shows all of one scope", () => {
+    const many: Data = {
+      teammates: Array.from({ length: 10 }, (_, i) => teammate(`h${i}`, `Standup helper ${i}`)),
+      chats: Array.from({ length: 10 }, (_, i) =>
+        chat(`s${i}`, {
+          kind: "group",
+          title: `Standup ${i}`,
+          lastActivityAt: `2026-11-1${i}T00:00:00Z`,
+        }),
+      ),
+      pages: Array.from(
+        { length: 7 },
+        (_, i) => ({ id: `r${i}`, title: `Standup notes ${i}`, summary: "" }) as PageSummary,
+      ),
+    };
+    const counts = (text: string, scope: Scope = "all") =>
+      Object.fromEntries(
+        search(text, scope, [], many).map((section) => [section.title, section.data.length]),
+      );
+    expect(counts("standup")).toEqual({ Teammates: 6, Chats: 8, Pages: 5 });
+    expect(counts("")).toEqual({ Teammates: 8, "Recent chats": 5, "Go to": 2 });
+    expect(search("", "all", [], many)[1]!.data.map((row) => row.key)).toEqual([
+      "c:s9",
+      "c:s8",
+      "c:s7",
+      "c:s6",
+      "c:s5",
+    ]);
+    expect(counts("standup", "teammates")).toEqual({ Teammates: 10 });
+    expect(counts("standup", "chats")).toEqual({ Chats: 10 });
+    expect(counts("standup", "pages")).toEqual({ Pages: 7 });
+  });
+
+  it("matches a role, a chat's last message, a page's summary and a place's keywords", () => {
+    const booked = chat("plans", {
+      kind: "group",
+      title: "Plans",
+      preview: { botId: null, text: "Booked the flights" } as ChatSummary["preview"], // vocabulary: allow
+    });
+    expect(titles(search("travel", "teammates"))).toEqual(["Teammates: b:iris"]);
+    expect(titles(search("booked", "all", [], { chats: [...chats, booked] }))).toEqual([
+      "Chats: c:plans",
+    ]);
+    expect(titles(search("day"))).toEqual(["Pages: pg:p1"]);
+    expect(titles(search("lock"))).toEqual(["Go to: p:Settings"]);
+    // Inside a word is not a match.
+    expect(search("ravel")).toEqual([]);
+    expect(search("isbon")).toEqual([]);
   });
 
   it("says who said a message, and where when the chat's name doesn't", () => {
