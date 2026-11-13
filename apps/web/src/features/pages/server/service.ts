@@ -4,12 +4,10 @@ import { pages, pageVersions } from "@open-bot/db";
 import { pageViewQuery } from "@open-bot/domain";
 import { PAGE_LINK_TTL_SECONDS, pageVersionUrl } from "@open-bot/domain/server";
 import { desc, eq, sql } from "drizzle-orm";
-// Relative, not `@/`: the worker's pages.integration.test.ts imports this file and mocks these
-// modules by path, and it doesn't know the `@/` alias.
-import { ApiError } from "../../../lib/server/api/errors";
-import { db } from "../../../lib/server/db";
-import { serverEnv } from "../../../lib/server/env";
-import { worker } from "../../../lib/server/worker";
+import { ApiError } from "@/lib/server/api/errors";
+import { db } from "@/lib/server/db";
+import { serverEnv } from "@/lib/server/env";
+import { worker } from "@/lib/server/worker";
 
 const summaryColumns = {
   id: pages.id,
