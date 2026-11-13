@@ -35,7 +35,6 @@ import {
   emptyTimeline,
   hideOutsideDataNote,
   integrationSettings,
-  isNothingToReport,
   missingCapabilities,
   monthStart,
   nextTeammateColor,
@@ -63,10 +62,8 @@ import {
 import { OFFLINE_EGRESS_STATUS, toMessageView, type EgressStatusView } from "@open-bot/api";
 import type { Attention } from "@open-bot/api";
 import type {
-  ActivityView,
   AppState,
   BotSummary,
-  BriefingItem,
   ChatData,
   ChatEntry,
   ChatSummary,
@@ -838,70 +835,6 @@ export async function listAutomationRuns(
     preview: run.finalText ?? run.error ?? null,
     createdAt: run.createdAt.toISOString(),
     completedAt: run.completedAt?.toISOString() ?? null,
-  }));
-}
-
-export async function listActivity(limit = 12): Promise<ActivityView[]> {
-  const rows = await db
-    .select({ run: runs, chat: chats, prompt: runs.prompt })
-    .from(runs)
-    .innerJoin(chats, eq(chats.id, runs.chatId))
-    .where(and(isNull(chats.archivedAt), ne(chats.kind, "helper")))
-    .orderBy(desc(runs.createdAt))
-    .limit(limit);
-  return rows.map(({ run, chat }) => ({
-    runId: run.id,
-    chatId: chat.id,
-    chatKind: chat.kind,
-    chatTitle: chat.title,
-    botId: run.botId,
-    trigger: run.trigger,
-    status: run.status,
-    preview: run.finalText ?? run.error ?? null,
-    createdAt: run.createdAt.toISOString(),
-  }));
-}
-
-/** Runs that finished since a time, newest first, for the "While you were away" briefing. */
-export async function listFinishedSince(since: Date, limit = 60): Promise<BriefingItem[]> {
-  const rows = await db
-    .select({
-      run: runs,
-      chat: chats,
-      scheduleTitle: schedules.title,
-      scheduleQuiet: schedules.quiet,
-      triggerTitle: triggers.title,
-    })
-    .from(runs)
-    .innerJoin(chats, eq(chats.id, runs.chatId))
-    .leftJoin(schedules, eq(schedules.id, runs.scheduleId))
-    .leftJoin(triggers, eq(triggers.id, runs.triggerId))
-    .where(
-      and(
-        isNull(chats.archivedAt),
-        ne(chats.kind, "helper"),
-        inArray(runs.status, ["completed", "failed"]),
-        gte(runs.completedAt, since),
-      ),
-    )
-    .orderBy(desc(runs.completedAt))
-    .limit(limit);
-  // A quiet routine that found nothing isn't news.
-  const news = rows.filter(
-    ({ run, scheduleQuiet }) => !(scheduleQuiet && isNothingToReport(run.finalText)),
-  );
-  return news.map(({ run, chat, scheduleTitle, triggerTitle }) => ({
-    runId: run.id,
-    chatId: chat.id,
-    chatKind: chat.kind,
-    chatTitle: chat.title,
-    botId: run.botId,
-    trigger: run.trigger,
-    status: run.status,
-    preview: run.finalText ?? run.error ?? null,
-    createdAt: run.createdAt.toISOString(),
-    completedAt: run.completedAt!.toISOString(),
-    automationTitle: scheduleTitle ?? triggerTitle ?? null,
   }));
 }
 

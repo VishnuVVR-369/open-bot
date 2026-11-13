@@ -1,6 +1,6 @@
 "use client";
 
-import { keepPreviousData, skipToken, useQuery } from "@tanstack/react-query";
+import { skipToken, useQuery } from "@tanstack/react-query";
 import type { AppState } from "../types";
 import { orpc } from "./rpc";
 
@@ -17,17 +17,6 @@ export function useAppState(initial?: AppState) {
       initialData: initial,
       // The worker's and the computer's health have no events of their own.
       refetchInterval: 15_000,
-    }),
-  );
-}
-
-/** Home: recent work, and what finished since `awaySince` (a time in milliseconds) if given. */
-export function useHome(awaySince: number | null) {
-  return useQuery(
-    orpc.home.get.queryOptions({
-      input: { awaySince: awaySince === null ? null : new Date(awaySince).toISOString() },
-      // Recent work stays on screen while the briefing starts or ends.
-      placeholderData: keepPreviousData,
     }),
   );
 }
