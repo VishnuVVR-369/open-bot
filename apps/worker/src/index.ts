@@ -26,7 +26,7 @@ import { RunRequests } from "./runs/requests";
 import { computerFiles, UploadService } from "./uploads";
 import { TaskService } from "./features/tasks";
 import { ConnectionService } from "./services/connections";
-import { EmailService } from "./services/email";
+import { emailFeature, EmailService } from "./features/email";
 import { SwarmService } from "./services/swarms";
 import { VaultService } from "./services/vault";
 import { createLogger, errorMessage } from "./logger";
@@ -112,6 +112,7 @@ const swarms = new SwarmService(ctx, sessions);
 // Files you attach, and files that arrive by email or Telegram.
 const uploads = new UploadService(db, computerFiles(ctx), log.child("uploads"));
 const email = new EmailService(ctx, approvals, sessions, uploads);
+const emailJobs = emailFeature(email, log);
 const botService = new BotService(ctx, schedules, skills, memory.store, async (bot) => {
   await executor.syncWorkspace(bot);
 });
@@ -364,14 +365,7 @@ runtime.add("computer lifecycle", () => lifecycle.stop());
 computer.on("lease", () => wake.evaluate());
 runtime.every("egress wake", 1_000, () => wake.evaluate());
 await automations.start(runtime);
-const sweepEmail = () =>
-  void email
-    .sweep()
-    .catch((error: unknown) => log.warn("email sweep failed", { error: errorMessage(error) }));
-await email
-  .recover()
-  .catch((error: unknown) => log.warn("email recovery failed", { error: errorMessage(error) }));
-runtime.every("email sweep", 30_000, sweepEmail);
+await emailJobs.start(runtime);
 const keepAccountsAlive = () =>
   void accountAccess
     .keepAlive()

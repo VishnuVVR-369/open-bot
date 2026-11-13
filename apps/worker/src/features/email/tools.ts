@@ -1,16 +1,20 @@
 // The teammate's own email: send and list.
 
 import { z } from "zod";
-import type { RunSession } from "../runs/session";
-import { EmailError } from "../services/email";
+import type { RunSession } from "../../runs/session";
 import {
   defineTool,
   text,
-  type AnyTool,
-  type ToolDeps,
   toolItem,
+  type ToolDefinition,
   type ToolResponse,
-} from "./define";
+} from "../../core/tool";
+import { EmailError, type EmailService } from "./service";
+
+/** What the email tools use. */
+interface EmailToolDeps {
+  email: Pick<EmailService, "send" | "describe">;
+}
 
 const sendEmailInput = z.object({
   // Models sometimes send one comma-separated string; Codex is offered the array.
@@ -30,7 +34,7 @@ const sendEmailInput = z.object({
     .optional(),
 });
 
-export const EMAIL_TOOLS: AnyTool[] = [
+export const EMAIL_TOOLS: ToolDefinition<z.ZodObject, EmailToolDeps>[] = [
   defineTool({
     name: "send_email",
     description:
@@ -49,7 +53,7 @@ export const EMAIL_TOOLS: AnyTool[] = [
 ];
 
 async function sendEmail(
-  deps: ToolDeps,
+  deps: EmailToolDeps,
   session: RunSession,
   callId: string,
   { to, subject, body, reply_to }: z.output<typeof sendEmailInput>,

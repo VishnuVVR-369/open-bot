@@ -7,6 +7,7 @@ import { AccountActions } from "./accounts/actions";
 import type { Context } from "./context";
 import type { Feature } from "./core/feature";
 import { automationsFeature } from "./features/automations";
+import { emailFeature } from "./features/email";
 import { memoryFeature } from "./features/memory";
 import { FcmService, notificationsFeature, PushService } from "./features/notifications";
 
@@ -16,6 +17,7 @@ const loop = { start() {}, stop() {}, kick() {} };
 /** The features index.ts starts, each with `<name>.start(runtime)`, by that name. */
 const FEATURES: Record<string, Pick<Feature, "start">> = {
   automations: automationsFeature({ schedules: loop, triggers: loop, accountTriggers: loop }),
+  emailJobs: emailFeature({ recover: async () => {}, sweep: async () => {} }, { warn() {} }),
   memoryJobs: memoryFeature(loop),
   notifications: notificationsFeature({ push: loop, fcm: loop }),
 };

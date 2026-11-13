@@ -48,7 +48,7 @@ import { ConnectionService } from "../services/connections";
 import { EgressDevices } from "../egress/devices";
 import { PageService } from "../features/pages";
 import { VaultService } from "../services/vault";
-import { EmailService } from "../services/email";
+import { EmailService } from "../features/email";
 import { SettingsService } from "../services/settings";
 import { FileService } from "../services/files";
 import { PushService } from "../features/notifications";

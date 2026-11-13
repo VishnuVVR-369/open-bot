@@ -621,6 +621,12 @@
   "apps/worker/src/features/chat/tools.ts": {
     "bot": 4
   },
+  "apps/worker/src/features/email/service.ts": {
+    "bot": 41
+  },
+  "apps/worker/src/features/email/tools.ts": {
+    "bot": 1
+  },
   "apps/worker/src/features/memory/service.ts": {
     "bot": 18
   },
@@ -734,9 +740,6 @@
   "apps/worker/src/services/connections.ts": {
     "bot": 15
   },
-  "apps/worker/src/services/email.ts": {
-    "bot": 41
-  },
   "apps/worker/src/services/files.ts": {
     "bot": 5
   },
@@ -770,9 +773,6 @@
     "bot": 5
   },
   "apps/worker/src/tools/definitions.ts": {
-    "bot": 1
-  },
-  "apps/worker/src/tools/email.ts": {
     "bot": 1
   },
   "apps/worker/src/tools/handlers.ts": {

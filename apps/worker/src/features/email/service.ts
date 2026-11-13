@@ -11,20 +11,20 @@ import {
 } from "@open-bot/domain";
 import { decryptSecret } from "@open-bot/domain/server";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
-import { publishApp, type Context } from "../context";
-import { createNotification } from "../features/notifications";
-import { enqueueRun } from "../runs/queue";
-import { appendRunEvent } from "../runs/events";
-import { errorMessage } from "../logger";
-import type { RunSession } from "../runs/session";
-import type { UploadService } from "../uploads";
-import type { ApprovalService } from "../features/approvals";
-import { teammateChat } from "../features/chat";
-import { removeCredential, saveCredential } from "./credentials";
-import type { SessionRegistry } from "./registry";
-import { activeTeammates } from "../features/teammates";
-import { SettingsError } from "./settings";
-import { type RefusalStatus, WorkerError } from "../core/errors";
+import { publishApp, type Context } from "../../context";
+import { createNotification } from "../notifications";
+import { enqueueRun } from "../../runs/queue";
+import { appendRunEvent } from "../../runs/events";
+import { errorMessage } from "../../logger";
+import type { RunSession } from "../../runs/session";
+import type { UploadService } from "../../uploads";
+import type { ApprovalService } from "../approvals";
+import { teammateChat } from "../chat";
+import { removeCredential, saveCredential } from "../../services/credentials";
+import type { SessionRegistry } from "../../services/registry";
+import { activeTeammates } from "../teammates";
+import { SettingsError } from "../../services/settings";
+import { type RefusalStatus, WorkerError } from "../../core/errors";
 
 type Email = typeof emails.$inferSelect;
 

@@ -1,8 +1,8 @@
 import { EventEmitter } from "node:events";
 import { describe, expect, it } from "vitest";
-import type { Context } from "../context";
-import { toRpcError } from "../rpc/errors";
-import { EmailService } from "./email";
+import type { Context } from "../../context";
+import { toRpcError } from "../../rpc/errors";
+import { EmailService } from "./service";
 
 describe("inbound email", () => {
   it("answers mail to an address that isn't one with a bare 404", async () => {
