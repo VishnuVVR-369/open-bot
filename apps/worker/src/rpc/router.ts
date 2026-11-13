@@ -14,7 +14,7 @@ import { emailRoutes, type EmailService } from "../features/email";
 import { filesRoutes, type FileService } from "../features/files";
 import { pageRoutes, type PageService } from "../features/pages";
 import { notificationRoutes, type FcmService, type PushService } from "../features/notifications";
-import type { RetryService } from "../services/retries";
+import type { RetryService } from "../runs/retries";
 import {
   screenRoutes,
   type ScreenOperationService,

@@ -20,7 +20,7 @@ import { env } from "./env";
 import { createHttpServer } from "./http";
 import { CodexAccountService } from "./features/codex-account";
 import { FileService } from "./features/files";
-import { RetryService } from "./services/retries";
+import { RetryService } from "./runs/retries";
 import { ChatService } from "./features/chat";
 import { RunRequests } from "./runs/requests";
 import { computerFiles, UploadService } from "./features/uploads";
@@ -34,7 +34,7 @@ import { RunExecutor } from "./runs/executor";
 import { ApprovalService } from "./features/approvals";
 import { APPROVAL_OUTCOMES } from "./approval-outcomes";
 import { ModelAccess } from "./features/model-access";
-import { SessionRegistry } from "./services/registry";
+import { SessionRegistry } from "./runs/registry";
 import {
   AccountTriggers,
   automationsFeature,

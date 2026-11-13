@@ -21,7 +21,7 @@ import type { UploadService } from "../uploads";
 import type { ApprovalService } from "../approvals";
 import { teammateChat } from "../chat";
 import { removeCredential, saveCredential } from "../credentials";
-import type { SessionRegistry } from "../../services/registry";
+import type { SessionRegistry } from "../../runs/registry";
 import { activeTeammates } from "../teammates";
 import { SettingsError } from "../settings";
 import { type RefusalStatus, WorkerError } from "../../core/errors";

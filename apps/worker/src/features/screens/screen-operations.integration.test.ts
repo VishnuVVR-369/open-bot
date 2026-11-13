@@ -9,7 +9,7 @@ import type { TakeoverService } from "./takeovers";
 import { withScreenLock } from "./screen-lock";
 import { ScreenOperationService } from "./screen-operations";
 import { TakeoverService as RealTakeoverService } from "./takeovers";
-import { SessionRegistry } from "../../services/registry";
+import { SessionRegistry } from "../../runs/registry";
 
 const url = testDatabaseServer();
 describe.skipIf(!url)("screen operations with Postgres", () => {

@@ -1,10 +1,10 @@
 import { expect, test, vi } from "vitest";
 import { z } from "zod";
 import type { RunSession } from "../runs/session";
-import { inputJsonSchema, parseArgs } from "./define";
+import { inputJsonSchema, parseArgs } from "../core/tool";
 import { toolNamed, TOOLS, toolsFor } from "./definitions";
 import { ToolHandlers } from "./handlers";
-import type { ToolServices } from "./define";
+import type { ToolRegistryServices } from "./dependencies";
 
 /** Sorted the same way however the tools are grouped in code: tools by name, keys, `required`. */
 function canonical(value: unknown, key?: string): unknown {
@@ -92,7 +92,7 @@ test("calls are parsed with the tool's input before the handler runs", async () 
   const handlers = new ToolHandlers({
     ctx: { log: { error: vi.fn() } },
     takeovers: { requestFromBot: requested }, // vocabulary: allow
-  } as unknown as ToolServices);
+  } as unknown as ToolRegistryServices);
   const session = { isHelper: false, now: () => "now" } as unknown as RunSession;
   const call = (args: Record<string, unknown>) =>
     handlers.handle(session, {
@@ -122,7 +122,7 @@ test("a teammate change with a misspelled field is refused", async () => {
   const handlers = new ToolHandlers({
     ctx: { log: { error: vi.fn() } },
     teammates: { requireBot: requireTeammate }, // vocabulary: allow
-  } as unknown as ToolServices);
+  } as unknown as ToolRegistryServices);
   const session = { isHelper: false, now: () => "now" } as unknown as RunSession;
   const response = await handlers.handle(session, {
     tool: "update_bot", // vocabulary: allow

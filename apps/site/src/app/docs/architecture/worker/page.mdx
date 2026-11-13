@@ -111,7 +111,7 @@ In short, it:
 6. answers Codex's requests: dynamic tool calls, and approvals for commands and file changes;
 7. on completion, writes the final status and reply, the usage ledger and notifications.
 
-The `SessionRegistry` keeps executing sessions by run id and by chat and teammate.
+The `SessionRegistry` (`src/runs/registry.ts`) keeps executing sessions by run id and by chat and teammate.
 Steering, approvals and takeovers use it to find a live session to deliver to.
 
 ### Writing events efficiently
@@ -140,8 +140,12 @@ The handler:
 Desktop screenshots are stored as `artifacts` rows (JPEG bytes in Postgres), and the timeline item points to the artifact.
 That is what makes frame-by-frame replay possible after the fact.
 
+`src/tools/` contains only the registry: the catalog, its composed dependencies, and dispatch. Features define tools with the single `defineTool()` in `src/core/tool.ts`, declaring only the dependencies they use.
+The live session registry and retries are run plumbing in `src/runs/`; there is no `src/services/` directory.
+
 ## Services
 
+Feature services live in `src/features/<feature>/`, alongside their tools and internal API routes. Code outside a feature imports only its `index.ts`.
 Each service is a class built with the shared `Context`.
 Services talk to each other through constructor injection and the typed `ctx.events` emitter (`runStarted`, `runFinished`, `approvalDecided`, `notification`).
 

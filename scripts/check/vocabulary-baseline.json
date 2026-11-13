@@ -783,20 +783,20 @@
   "apps/worker/src/runs/queue.ts": {
     "bot": 3
   },
+  "apps/worker/src/runs/registry.ts": {
+    "bot": 4
+  },
   "apps/worker/src/runs/requests.ts": {
     "bot": 1
+  },
+  "apps/worker/src/runs/retries.ts": {
+    "bot": 9
   },
   "apps/worker/src/runs/session.ts": {
     "bot": 50
   },
   "apps/worker/src/runs/thread-continuity.test.ts": {
     "bot": 4
-  },
-  "apps/worker/src/services/registry.ts": {
-    "bot": 4
-  },
-  "apps/worker/src/services/retries.ts": {
-    "bot": 9
   },
   "apps/worker/src/tools/bots.integration.test.ts": {
     "bot": 129,
@@ -805,7 +805,7 @@
   "apps/worker/src/tools/catalog.test.ts": {
     "bot": 4
   },
-  "apps/worker/src/tools/define.ts": {
+  "apps/worker/src/tools/dependencies.ts": {
     "bot": 5
   },
   "apps/worker/src/tools/handlers.ts": {

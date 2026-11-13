@@ -2,7 +2,7 @@ import { bots, runs } from "@open-bot/db";
 import { isRunActive } from "@open-bot/domain";
 import { and, asc, eq, gt, sql } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
-import { enqueueRun } from "../runs/queue";
+import { enqueueRun } from "./queue";
 import { WorkerError } from "../core/errors";
 
 export class RetryError extends WorkerError {}

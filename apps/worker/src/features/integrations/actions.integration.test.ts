@@ -18,7 +18,7 @@ import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import type { Context } from "../../context";
 import { ApprovalService } from "../approvals";
 import { APPROVAL_OUTCOMES } from "../../approval-outcomes";
-import { SessionRegistry } from "../../services/registry";
+import { SessionRegistry } from "../../runs/registry";
 import {
   AccountToolError,
   Integrations,
