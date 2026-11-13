@@ -114,8 +114,8 @@ export const TABLE_OWNERS = {
   telegram_messages: { owner: `${WORKER}services/telegram.ts` },
   push_subscriptions: { owner: `${WORKER}features/notifications/push.ts` },
   native_push_devices: { owner: `${WORKER}features/notifications/fcm.ts` },
-  email_settings: { owner: `${WORKER}services/email.ts` },
-  emails: { owner: `${WORKER}services/email.ts` },
+  email_settings: { owner: `${WORKER}features/email/service.ts` },
+  emails: { owner: `${WORKER}features/email/service.ts` },
 
   // Integrations: connections (MCP servers) and accounts (OAuth).
   connections: { owner: `${WORKER}services/connections.ts` },

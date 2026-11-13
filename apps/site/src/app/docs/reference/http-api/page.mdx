@@ -65,7 +65,7 @@ The web app's procedures (`apps/web/src/lib/server/api/`) pass almost every writ
 
 - teammates: creating, duplicating, importing and archiving one, choosing the lead, budgets and suggested instructions (`apps/worker/src/features/teammates/`);
 - chats and the messages you send (`apps/worker/src/features/chat/service.ts`), and stopping, rating and giving feedback on a run (`apps/worker/src/runs/requests.ts`);
-- your settings, the API key and your email setup (`apps/worker/src/services/settings.ts`, `apps/worker/src/services/credentials.ts` and `apps/worker/src/services/email.ts`);
+- your settings, the API key and your email setup (`apps/worker/src/services/settings.ts`, `apps/worker/src/services/credentials.ts` and `apps/worker/src/features/email/service.ts`);
 - connections, both MCP servers and accounts (`apps/worker/src/services/connections.ts`), and pairing and unpairing phones (`apps/worker/src/egress/devices.ts`);
 - schedules, page watches, webhooks and Gmail and Calendar triggers (`apps/worker/src/features/automations/`);
 - the vault (`apps/worker/src/services/vault.ts`), pinning, deleting and publishing pages (`apps/worker/src/features/pages/`), and marking notifications read (`apps/worker/src/features/notifications/service.ts`).

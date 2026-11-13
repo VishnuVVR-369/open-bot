@@ -8,7 +8,7 @@ import type { Context } from "../context";
 import { createHttpServer, type HttpDeps } from "../http";
 import { MAX_BODY_BYTES } from "./handler";
 import { BotError } from "../features/teammates";
-import { EmailError } from "../services/email";
+import { EmailError } from "../features/email";
 import { ScreenBusy } from "../features/screens";
 import { TriggerError } from "../features/automations";
 

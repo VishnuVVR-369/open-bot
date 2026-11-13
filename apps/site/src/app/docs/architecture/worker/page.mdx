@@ -161,7 +161,7 @@ Services talk to each other through constructor injection and the typed `ctx.eve
 | Connections      | `services/connections.ts`                  | MCP server config per teammate, connection tests                                                          |
 | Accounts         | `accounts/`                                | Your Gmail, Calendar and Notion: access, tokens, tools and the action executor (below)                    |
 | Account triggers | `features/automations/account-triggers.ts` | Gmail and Calendar triggers: polling, firing once, the hourly limit                                       |
-| Email            | `services/email.ts`                        | Inbound mail from Postmark, the outbox, sending                                                           |
+| Email            | `features/email/`                          | Inbound mail from Postmark, the outbox, sending, the email tools                                          |
 | Telegram         | `services/telegram.ts`                     | Long polling, linking, routing messages, approval buttons                                                 |
 | Notifications    | `features/notifications/`                  | Saving notifications, VAPID keys and Web Push, FCM to your phones, the devices that get them              |
 | Model access     | `services/model-access.ts`                 | Plan or API key, the cap, plan limits                                                                     |

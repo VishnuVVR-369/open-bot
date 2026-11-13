@@ -17,7 +17,7 @@ import { errorMessage } from "../logger";
 import type { ApprovalService } from "../features/approvals";
 import type { SessionRegistry } from "../services/registry";
 import type { ConnectionService } from "../services/connections";
-import { emailSettingsRow } from "../services/email";
+import { emailSettingsRow } from "../features/email";
 import type { SkillService } from "../services/skills";
 import type { MemoryCoordinator } from "../features/memory";
 import type { ModelAccess } from "../services/model-access";

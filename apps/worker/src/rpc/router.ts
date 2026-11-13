@@ -10,7 +10,7 @@ import { teammateRoutes, type BotService } from "../features/teammates";
 import type { CodexAccountService } from "../services/codex-account";
 import type { SettingsService } from "../services/settings";
 import type { ConnectionService } from "../services/connections";
-import type { EmailService } from "../services/email";
+import { emailRoutes, type EmailService } from "../features/email";
 import type { FileService } from "../services/files";
 import { pageRoutes, type PageService } from "../features/pages";
 import { notificationRoutes, type FcmService, type PushService } from "../features/notifications";
@@ -147,21 +147,7 @@ export function createWorkerRouter(services: WorkerServices) {
     },
     ...notificationRoutes(ctx, s.push, s.fcm),
     tasks: taskRoutes(s.tasks),
-    email: {
-      inbound: os.email.inbound.handler(async ({ input }) => ({
-        ok: true as const,
-        ...(await s.email.inbound(input.params.token, input.body)),
-      })),
-      status: os.email.status.handler(() => s.email.status()),
-      save: os.email.save.handler(async ({ input }) => {
-        await s.email.saveSettings(input);
-        return ok;
-      }),
-      removeToken: os.email.removeToken.handler(async () => {
-        await s.email.removeToken();
-        return ok;
-      }),
-    },
+    email: emailRoutes(s.email),
     vault: {
       save: os.vault.save.handler(({ input }) => s.vault.saveItem(input)),
       remove: os.vault.remove.handler(async ({ input }) => {
