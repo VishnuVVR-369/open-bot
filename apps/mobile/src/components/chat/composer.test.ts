@@ -57,7 +57,9 @@ vi.mock("@/lib/haptics", () => ({
     error: () => {},
   },
 }));
-vi.mock("@/lib/uploads", () => ({ uploadAttachment: state.upload }));
+// The real attachments hook, which the app imports through the `@/` alias the tests don't have.
+vi.mock("@/lib/use-attachments", () => import("../../lib/use-attachments"));
+vi.mock("../../lib/uploads", () => ({ uploadAttachment: state.upload }));
 vi.mock("@/theme", () => ({
   fonts: { sans: "sans" },
   radius: { xl: 10, lg: 8 },
