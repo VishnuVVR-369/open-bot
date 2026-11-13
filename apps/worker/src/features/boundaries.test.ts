@@ -1,21 +1,25 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
 const SOURCE = path.join(import.meta.dirname, "..");
-const FEATURES = path.join(SOURCE, "features");
 
-/** The source extensions TypeScript compiles, and the ones an import may name instead. */
+/** The files TypeScript reads: .ts, .mts and .cts, declaration files included. */
 const SOURCE_FILE = /\.[cm]?ts$/;
-const MODULE_EXTENSION = /\.(?:[cm]?ts|[cm]?js)$/;
+/**
+ * The extensions an import may name for a .ts file: `.ts`, or `.js` as it is spelled when built.
+ * Any other (`.mts`, `.mjs`, ...) reaches a different file, so it is kept.
+ */
+const TS_EXTENSION = /\.(?:ts|js)$/;
 
-/** Every TypeScript file under `dir`. */
+/** Every file TypeScript reads under `dir`. */
 function files(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const file = path.join(dir, entry.name);
     if (entry.isDirectory()) return entry.name === "node_modules" ? [] : files(file);
-    return SOURCE_FILE.test(entry.name) && !entry.name.endsWith(".d.ts") ? [file] : [];
+    return SOURCE_FILE.test(entry.name) ? [file] : [];
   });
 }
 
@@ -23,9 +27,10 @@ function files(dir: string): string[] {
 const COMPUTED = "a computed import(…)";
 
 /**
- * The relative modules `source` (the text of `file`) reaches, resolved to paths without an
- * extension: static imports and re-exports, side-effect imports, `import("…")` calls and
- * `import("…")` types. An `import(…)` of anything but a string is `COMPUTED`.
+ * The relative modules `source` (the text of `file`) reaches, resolved to paths: static imports
+ * and re-exports, side-effect imports, `import("…")` calls and `import("…")` types. A `.ts` or
+ * `.js` extension is dropped, as it names the same file as none. An `import(…)` of anything but a
+ * string is `COMPUTED`.
  */
 function imports(file: string, source = readFileSync(file, "utf8")): string[] {
   const specifiers: string[] = [];
@@ -53,60 +58,94 @@ function imports(file: string, source = readFileSync(file, "utf8")): string[] {
   return [
     ...specifiers
       .filter((specifier) => specifier.startsWith("."))
-      .map((specifier) =>
-        path.resolve(path.dirname(file), specifier).replace(MODULE_EXTENSION, ""),
-      ),
+      .map((specifier) => path.resolve(path.dirname(file), specifier).replace(TS_EXTENSION, "")),
     ...Array<string>(computed).fill(COMPUTED),
   ];
 }
 
-/** The feature folder `target` is in, if any, and whether it is that feature's index.ts. */
-function featureOf(target: string) {
-  const relative = path.relative(FEATURES, target.replace(MODULE_EXTENSION, ""));
+/**
+ * The feature folder `target` is in, under `root`'s features folder, if any, and whether it is
+ * that feature's index.ts (the folder itself, or `index` with a `.ts` or `.js` extension or none).
+ */
+function featureOf(root: string, target: string) {
+  const relative = path.relative(path.join(root, "features"), target);
   if (relative.startsWith("..") || path.isAbsolute(relative)) return null;
   const [name, ...rest] = relative.split(path.sep);
   return { name: name!, index: rest.length === 0 || rest.join("/") === "index" };
 }
 
 /**
- * The imports in `file` that reach into a feature it isn't part of, past its index.ts. A computed
- * `import(…)` counts anywhere: what it reaches can't be checked.
+ * The imports in `file` (under `root`) that reach into a feature it isn't part of, past its
+ * index.ts. A computed `import(…)` counts anywhere: what it reaches can't be checked.
  */
-function reachesIn(file: string, source?: string): string[] {
-  const home = featureOf(file)?.name;
+function reachesIn(root: string, file: string, source?: string): string[] {
+  const home = featureOf(root, file)?.name;
   return imports(file, source)
     .filter((target) => {
       if (target === COMPUTED) return true;
-      const feature = featureOf(target);
+      const feature = featureOf(root, target);
       return feature && feature.name !== home && !feature.index;
     })
     .map((target) =>
       target === COMPUTED
-        ? `${path.relative(SOURCE, file)}: ${COMPUTED}`
-        : `${path.relative(SOURCE, file)} -> ${path.relative(SOURCE, target)}`,
+        ? `${path.relative(root, file)}: ${COMPUTED}`
+        : `${path.relative(root, file)} -> ${path.relative(root, target)}`,
     );
+}
+
+/** Every import under `root` that reaches into a feature past its index.ts. */
+function violations(root: string): string[] {
+  return files(root).flatMap((file) => reachesIn(root, file));
 }
 
 describe("feature folders", () => {
   it("are reached from outside only through their index.ts", () => {
-    expect(files(SOURCE).flatMap((file) => reachesIn(file))).toEqual([]);
+    expect(violations(SOURCE)).toEqual([]);
   });
 
   it("each have an index.ts", () => {
-    for (const entry of readdirSync(FEATURES, { withFileTypes: true }))
+    const features = path.join(SOURCE, "features");
+    for (const entry of readdirSync(features, { withFileTypes: true }))
       if (entry.isDirectory())
-        expect(readdirSync(path.join(FEATURES, entry.name)), entry.name).toContain("index.ts");
+        expect(readdirSync(path.join(features, entry.name)), entry.name).toContain("index.ts");
   });
 
-  it("are checked in every kind of source file", () => {
-    const found = files(SOURCE).map((file) => path.relative(SOURCE, file));
-    expect(found).toContain("features/boundaries.test.ts");
-    for (const name of ["a.ts", "a.mts", "a.cts"]) expect(SOURCE_FILE.test(name), name).toBe(true);
+  it("are checked in every file TypeScript reads", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "open-bot-boundaries-"));
+    try {
+      const write = (file: string, source: string) => {
+        mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
+        writeFileSync(path.join(root, file), source);
+      };
+      const internal = `import { TaskService } from "../features/tasks/service";\n`;
+      write("features/tasks/index.ts", `export * from "./service";\n`);
+      write("features/tasks/index.mts", `export {};\n`);
+      write("features/tasks/service.ts", `export class TaskService {}\n`);
+      write(
+        "features/pages/load.ts",
+        `export const load = (name: string) => import("./" + name);\n`,
+      );
+      write("runs/module.mts", internal);
+      write("runs/common.cts", internal);
+      write("runs/types.d.ts", `export { TaskService } from "../features/tasks/service";\n`);
+      write("runs/other-index.ts", `import "../features/tasks/index.mjs";\n`);
+      write("runs/fine.ts", `import { TaskService } from "../features/tasks";\n`);
+      write("runs/notes.md", internal);
+      expect(violations(root).sort()).toEqual([
+        "features/pages/load.ts: a computed import(…)",
+        "runs/common.cts -> features/tasks/service",
+        "runs/module.mts -> features/tasks/service",
+        "runs/other-index.ts -> features/tasks/index.mjs",
+        "runs/types.d.ts -> features/tasks/service",
+      ]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("are checked for every way of importing", () => {
     const outside = path.join(SOURCE, "runs", "example.ts");
-    const inside = path.join(FEATURES, "tasks", "example.ts");
+    const inside = path.join(SOURCE, "features", "tasks", "example.ts");
     const internal = "../features/tasks/service";
     for (const source of [
       `import { TaskService } from "${internal}";`,
@@ -119,14 +158,19 @@ describe("feature folders", () => {
       `const { TaskService } = await import("${internal}");`,
       `const { TaskService } = await import("../features/tasks/" + "service");`,
       `type Service = import("${internal}").TaskService;`,
+      `import { TaskService } from "../features/tasks/index.mjs";`,
+      `import { TaskService } from "../features/tasks/index.cts";`,
     ])
-      expect(reachesIn(outside, source), source).toHaveLength(1);
+      expect(reachesIn(SOURCE, outside, source), source).toHaveLength(1);
     for (const entry of [
       "../features/tasks",
+      "../features/tasks/index",
       "../features/tasks/index.ts",
       "../features/tasks/index.js",
     ])
-      expect(reachesIn(outside, `import { TaskService } from "${entry}";`), entry).toEqual([]);
-    expect(reachesIn(inside, `import { TaskService } from "./service";`)).toEqual([]);
+      expect(reachesIn(SOURCE, outside, `import { TaskService } from "${entry}";`), entry).toEqual(
+        [],
+      );
+    expect(reachesIn(SOURCE, inside, `import { TaskService } from "./service";`)).toEqual([]);
   });
 });
