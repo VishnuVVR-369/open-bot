@@ -29,14 +29,6 @@ export function useProfile() {
   return useQuery(orpc.profile.get.queryOptions());
 }
 
-export function useConnections() {
-  return useQuery(orpc.connections.list.queryOptions());
-}
-
-export function useAccountsSetup() {
-  return useQuery(orpc.accounts.setup.queryOptions());
-}
-
 /** False while the computer (the worker) is offline, so views skip requests that would fail. */
 export function useComputerOnline(): boolean | undefined {
   const { data: state } = useAppState();

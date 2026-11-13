@@ -33,12 +33,13 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { attempt } from "@/lib/client/mutate";
-import { useAppState, useConnections } from "@/lib/client/queries";
+import { useAppState } from "@/lib/client/queries";
+import { useConnections } from "../hooks";
 import { refreshForAppEvent } from "@/lib/client/refresh";
 import { api } from "@/lib/client/rpc";
 import type { ConnectionTestView, ConnectionView } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { AccountsSection } from "./accounts-section";
+import { AccountsSection } from "./accounts/accounts-section";
 import { TestResult } from "./connection-test-result";
 
 function where(connection: ConnectionView): string {

@@ -306,15 +306,6 @@
   "apps/web/src/components/chat/swarm-card.tsx": {
     "bot": 4
   },
-  "apps/web/src/components/settings/accounts-section.tsx": {
-    "bot": 10
-  },
-  "apps/web/src/components/settings/connections-section.tsx": {
-    "bot": 8
-  },
-  "apps/web/src/components/settings/email-section.tsx": {
-    "bot": 1
-  },
   "apps/web/src/features/approvals/components/always-allow.tsx": {
     "bot": 17
   },
@@ -408,6 +399,21 @@
     "primary teammate": 1
   },
   "apps/web/src/features/home/server/queries.ts": {
+    "bot": 4
+  },
+  "apps/web/src/features/integrations/components/accounts/account-row.tsx": {
+    "bot": 8
+  },
+  "apps/web/src/features/integrations/components/accounts/edit-dialog.tsx": {
+    "bot": 2
+  },
+  "apps/web/src/features/integrations/components/connections-section.tsx": {
+    "bot": 8
+  },
+  "apps/web/src/features/integrations/components/email-section.tsx": {
+    "bot": 1
+  },
+  "apps/web/src/features/integrations/server/service.ts": {
     "bot": 4
   },
   "apps/web/src/features/memory/components/memory-manager.tsx": {
@@ -508,14 +514,11 @@
   "apps/web/src/lib/server/api/chats.ts": {
     "bot": 4
   },
-  "apps/web/src/lib/server/api/integrations.ts": {
-    "bot": 2
-  },
   "apps/web/src/lib/server/api/router.integration.test.ts": {
     "bot": 17
   },
   "apps/web/src/lib/server/queries.ts": {
-    "bot": 87,
+    "bot": 85,
     "desktop takeover": 17,
     "primary teammate": 2
   },

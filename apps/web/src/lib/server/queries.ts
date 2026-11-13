@@ -1,12 +1,10 @@
 import "server-only";
 import { listSkills } from "@/features/skills/server";
 import {
-  accounts,
   approvals,
   bots,
   chatMembers,
   chats,
-  connections,
   desktopTakeovers,
   instructionProposals,
   messages,
@@ -22,15 +20,11 @@ import {
   usageEntries,
 } from "@open-bot/db";
 import {
-  ACCOUNT_PROVIDERS,
   ACCOUNT_TRIGGER_NOTE,
   ACTIVE_RUN_STATUSES,
   applyRunEvent,
-  authProvider,
   emptyTimeline,
   hideOutsideDataNote,
-  integrationSettings,
-  missingCapabilities,
   PAGE_TEXT_NOTE,
   type RunStatus,
   WEBHOOK_PAYLOAD_NOTE,
@@ -58,17 +52,12 @@ import type {
   ChatData,
   ChatEntry,
   ChatSummary,
-  AccountsSetupView,
-  AccountView,
-  ConnectionView,
-  EmailStatusView,
   NotificationView,
   RunView,
   SearchResultView,
   ProfileView,
   TakeoverRequestSummary,
 } from "../types";
-import { accountRedirectUri, accountStore } from "./accounts";
 import { db } from "./db";
 import type { WorkerStatus } from "@open-bot/api/worker";
 import { worker } from "./worker";
@@ -614,93 +603,4 @@ export async function searchMessages(query: string, limit = 12): Promise<SearchR
   ]
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, limit);
-}
-
-/* ------------------------------------------------------------------ Connections */
-
-export async function listConnections(): Promise<ConnectionView[]> {
-  const rows = await db
-    .select({ connection: connections, account: accounts })
-    .from(connections)
-    .leftJoin(accounts, eq(accounts.id, connections.accountId))
-    .orderBy(asc(sql`lower(${connections.label})`));
-  return rows.map(({ connection: row, account }) => ({
-    id: row.id,
-    label: row.label,
-    name: row.name,
-    kind: row.kind,
-    transport: row.transport,
-    url: row.url,
-    command: row.command,
-    args: row.args,
-    secretNames: row.secretNames,
-    botIds: row.botIds,
-    enabled: row.enabled,
-    updatedAt: row.updatedAt.toISOString(),
-    account: account ? toAccountView(account) : null,
-    capabilities: row.capabilities,
-    missingCapabilities:
-      account && row.kind !== "mcp"
-        ? missingCapabilities(row.kind, row.capabilities, account.scopes)
-        : [],
-    askBeforeActing: row.askBeforeActing,
-    settings:
-      row.kind === "mcp"
-        ? []
-        : integrationSettings(row.kind).flatMap((setting) => {
-            const value = row.settings[setting.key];
-            return value
-              ? [{ key: setting.key, id: value.id, title: value.title, url: value.url }]
-              : [];
-          }),
-  }));
-}
-
-function toAccountView(row: typeof accounts.$inferSelect): AccountView {
-  return {
-    id: row.id,
-    provider: row.provider,
-    display: row.display,
-    status: row.status,
-    lastError: row.lastError,
-    lastUsedAt: row.lastUsedAt?.toISOString() ?? null,
-    expiresAt: grantEnds(row),
-  };
-}
-
-/** When the provider ends the grant however it's used, if it does. */
-function grantEnds(row: typeof accounts.$inferSelect): string | null {
-  const days = authProvider(row.provider).grantMaxDays;
-  return days ? new Date(row.grantedAt.getTime() + days * 86_400_000).toISOString() : null;
-}
-
-/**
- * What connecting needs, per provider: whether its client is set up (yours, for providers that
- * take one), and the redirect address to register. And the accounts signed in, to reuse.
- */
-export async function getAccountsSetup(): Promise<AccountsSetupView> {
-  const rows = await db.select().from(accounts).orderBy(asc(accounts.createdAt));
-  const providers = await Promise.all(
-    ACCOUNT_PROVIDERS.map(async (id) => {
-      const definition = authProvider(id);
-      const current = definition.client === "owner" ? await accountStore.clients.current(id) : null;
-      return {
-        id,
-        label: definition.label,
-        client: definition.client,
-        configured: definition.client === "automatic" || current !== null,
-        hint: current?.hint ?? null,
-        redirectUri: accountRedirectUri(id),
-      };
-    }),
-  );
-  return { providers, accounts: rows.map(toAccountView) };
-}
-
-/* ------------------------------------------------------------------ Email */
-
-/** The email settings row, made once with a fresh inbound secret. */
-/** Email setup; the worker reads it, since the first read makes the row (it owns it). */
-export async function getEmailStatus(): Promise<EmailStatusView> {
-  return worker.email.status();
 }
