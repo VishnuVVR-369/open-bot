@@ -11,7 +11,7 @@ import { BotForm } from "@/components/bots/bot-form";
 import { InstructionsProposal } from "@/components/bots/instructions-proposal";
 import { MemoryManager } from "@/features/memory";
 import { Spending } from "@/components/bots/spending";
-import { AutomationsView } from "@/components/automations/automations-view";
+import { AutomationsView } from "@/features/automations";
 import { SkillsList } from "@/features/skills";
 import { Page } from "@/components/page";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";

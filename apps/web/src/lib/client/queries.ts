@@ -1,6 +1,6 @@
 "use client";
 
-import { skipToken, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import type { AppState } from "../types";
 import { orpc } from "./rpc";
 
@@ -23,26 +23,6 @@ export function useAppState(initial?: AppState) {
 
 export function useNotifications(enabled = true) {
   return useQuery(orpc.notifications.list.queryOptions({ enabled }));
-}
-
-export function useSchedules() {
-  return useQuery(orpc.schedules.list.queryOptions());
-}
-
-/** A schedule's recent runs, loaded when you open its history. */
-export function useScheduleRuns(scheduleId: string, enabled: boolean) {
-  return useQuery(
-    orpc.schedules.runs.queryOptions({ input: enabled ? { scheduleId } : skipToken }),
-  );
-}
-
-export function useTriggers() {
-  return useQuery(orpc.triggers.list.queryOptions());
-}
-
-/** A watch's or webhook's recent runs, loaded when you open its history. */
-export function useTriggerRuns(triggerId: string, enabled: boolean) {
-  return useQuery(orpc.triggers.runs.queryOptions({ input: enabled ? { triggerId } : skipToken }));
 }
 
 export function useProfile() {

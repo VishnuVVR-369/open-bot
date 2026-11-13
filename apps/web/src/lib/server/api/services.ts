@@ -1,7 +1,6 @@
 import "server-only";
 
 /** The API's operations, behind its procedures. */
-export { removeSchedule, setCheckIn, testWebhook } from "./automations";
 export {
   archiveChat,
   createGroupChat,

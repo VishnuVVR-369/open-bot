@@ -25,7 +25,7 @@ import { toast } from "sonner";
 import { BotAvatar } from "@/components/bot-avatar";
 import { Switch } from "@/components/ui/switch";
 import { attempt } from "@/lib/client/mutate";
-import { useTriggerRuns } from "@/lib/client/queries";
+import { useTriggerRuns } from "../hooks";
 import { api } from "@/lib/client/rpc";
 import type { BotSummary, TriggerView } from "@/lib/types";
 import { cn } from "@/lib/utils";
