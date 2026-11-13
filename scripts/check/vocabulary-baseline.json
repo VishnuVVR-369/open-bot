@@ -110,10 +110,16 @@
     "bot": 9
   },
   "apps/mobile/src/components/chat/run-block.tsx": {
-    "bot": 32
+    "bot": 19
   },
   "apps/mobile/src/components/chat/swarm-card.tsx": {
     "bot": 4
+  },
+  "apps/mobile/src/components/chat/timeline-item.tsx": {
+    "bot": 3
+  },
+  "apps/mobile/src/components/chat/working-line.tsx": {
+    "bot": 1
   },
   "apps/mobile/src/components/computer/last-frames.tsx": {
     "bot": 8
