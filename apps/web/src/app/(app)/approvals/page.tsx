@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ApprovalsView } from "@/components/approvals/approvals-view";
+import { ApprovalsView } from "@/features/approvals";
 import { Page } from "@/components/page";
 
 export const metadata: Metadata = { title: "Approvals" };

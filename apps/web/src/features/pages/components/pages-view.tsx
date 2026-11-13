@@ -25,7 +25,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAppState, usePages } from "@/lib/client/queries";
+import { useAppState } from "@/lib/client/queries";
+import { usePages } from "../hooks";
 import type { BotSummary, PageSummary } from "@/lib/types";
 import { DeletePageDialog, downloadPage, openPageInTab, usePinPage } from "./page-actions";
 import { pageHref } from "./page-card";

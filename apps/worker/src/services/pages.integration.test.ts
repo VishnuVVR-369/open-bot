@@ -23,7 +23,7 @@ import {
   openPage,
   pageDownload,
   searchPages,
-} from "../../../web/src/lib/server/api/pages";
+} from "../../../web/src/features/pages/server/service";
 
 const url = testDatabaseServer();
 

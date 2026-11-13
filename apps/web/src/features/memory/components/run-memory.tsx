@@ -1,10 +1,9 @@
 "use client";
 
-import { skipToken, useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
-import { orpc } from "@/lib/client/rpc";
 import { cn } from "@/lib/utils";
+import { useRunMemories } from "../hooks";
 
 /**
  * Which saved memories a reply was given, in a popover beside `children` (what it opens from,
@@ -21,9 +20,7 @@ export function RunMemory({
   onOpenChange: (open: boolean) => void;
   children: ReactNode;
 }) {
-  const { data, error } = useQuery(
-    orpc.memory.forRun.queryOptions({ input: open ? { runId } : skipToken }),
-  );
+  const { data, error } = useRunMemories(runId, open);
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverAnchor asChild>{children}</PopoverAnchor>

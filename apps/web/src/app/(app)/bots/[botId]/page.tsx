@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { BotDangerZone } from "@/components/bots/bot-danger-zone";
 import { BotForm } from "@/components/bots/bot-form";
 import { InstructionsProposal } from "@/components/bots/instructions-proposal";
-import { MemoryEditor } from "@/components/bots/memory-editor";
+import { MemoryManager } from "@/features/memory";
 import { Spending } from "@/components/bots/spending";
 import { AutomationsView } from "@/components/automations/automations-view";
 import { SkillsList } from "@/features/skills";
@@ -107,7 +107,7 @@ export default async function BotPage({ params, searchParams }: PageProps<"/bots
           <BotDangerZone botId={bot.id} name={bot.name} isPrimary={bot.isPrimary} />
         </TabsContent>
         <TabsContent value="memory" className="flex flex-col gap-8">
-          <MemoryEditor botId={bot.id} name={bot.name} />
+          <MemoryManager botId={bot.id} name={bot.name} />
         </TabsContent>
         <TabsContent value="skills">
           <SkillsList botId={bot.id} />

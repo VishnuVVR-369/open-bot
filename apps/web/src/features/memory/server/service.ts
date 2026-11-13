@@ -3,8 +3,8 @@ import type { ApiInputs, ApiOutputs, MemoryRunRef } from "@open-bot/api";
 import { eq, inArray } from "drizzle-orm";
 import { memoryContexts, memoryItems, runs } from "@open-bot/db";
 import type { MemoryInput, MemoryItem, MemoryRevision } from "@open-bot/domain";
-import { db } from "../db";
-import { memory } from "../memory";
+import { db } from "@/lib/server/db";
+import { memory } from "@/lib/server/memory";
 
 /** Memory as you see it in the app: what's saved, how it changed, and what a reply was given. */
 

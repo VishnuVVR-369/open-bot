@@ -55,8 +55,8 @@ import { api } from "@/lib/client/rpc";
 import { readAloud, readingNow, stopReading, useReadAloud } from "@/lib/client/read-aloud";
 import type { BotSummary, RunView } from "@/lib/types";
 import { cn, compactNumber, formatDuration, REVEAL_ON_RUN_HOVER } from "@/lib/utils";
-import { RunMemory } from "@/components/memory/run-memory";
-import { PageCard } from "@/components/pages/page-card";
+import { RunMemory } from "@/features/memory";
+import { PageCard } from "@/features/pages";
 import { SwarmCard } from "./swarm-card";
 import { DesktopStrip } from "./desktop-strip";
 import {

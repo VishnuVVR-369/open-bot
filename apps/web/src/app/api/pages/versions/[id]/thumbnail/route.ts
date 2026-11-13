@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { pageThumbnail } from "@/lib/server/api/pages";
+import { pageThumbnail } from "@/features/pages/server";
 import { authed } from "@/lib/server/route";
 import { isUuid } from "@/lib/utils";
 

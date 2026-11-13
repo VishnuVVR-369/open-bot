@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Page } from "@/components/page";
-import { PagesView } from "@/components/pages/pages-view";
+import { PagesView } from "@/features/pages";
 
 export const metadata: Metadata = { title: "Pages" };
 
