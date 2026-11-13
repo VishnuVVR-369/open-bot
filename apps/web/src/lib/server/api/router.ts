@@ -4,15 +4,12 @@ import {
   getAppState,
   getChatData,
   getEmailStatus,
-  getModelAccess,
-  getMonthlyUsage,
   getProfile,
   listChats,
   listConnections,
   listNotifications,
   searchMessages,
 } from "../queries";
-import { worker } from "../worker";
 import { ApiError } from "./errors";
 import { approvalRoutes } from "@/features/approvals/server";
 import { automationRoutes } from "@/features/automations/server";
@@ -21,6 +18,7 @@ import { fileRoutes } from "@/features/files/server";
 import { homeRoutes } from "@/features/home/server";
 import { memoryRoutes } from "@/features/memory/server";
 import { pageRoutes } from "@/features/pages/server";
+import { settingsRoutes } from "@/features/settings/server";
 import { skillRoutes } from "@/features/skills/server";
 import { taskRoutes } from "@/features/tasks/server";
 import { teammateRoutes } from "@/features/teammates/server";
@@ -38,6 +36,7 @@ export const router = os.router({
   ...computerRoutes(),
   home: homeRoutes(),
   ...teammateRoutes(),
+  ...settingsRoutes(),
   ...automationRoutes(),
   skills: skillRoutes(),
   tasks: taskRoutes(),
@@ -66,32 +65,6 @@ export const router = os.router({
     status: os.email.status.handler(() => getEmailStatus()),
     save: os.email.save.handler(({ input }) => api.saveEmailSettings(input)),
     removeToken: os.email.removeToken.handler(() => api.removeEmailToken()),
-  },
-  telegram: {
-    status: os.telegram.status.handler(() => worker.telegram.status()),
-    connect: os.telegram.connect.handler(({ input }) => worker.telegram.connect(input)),
-    linkCode: os.telegram.linkCode.handler(() => worker.telegram.linkCode()),
-    sendTest: os.telegram.sendTest.handler(() => worker.telegram.sendTest()),
-    unlink: os.telegram.unlink.handler(() => worker.telegram.unlink()),
-    disconnect: os.telegram.disconnect.handler(() => worker.telegram.disconnect()),
-  },
-  chatgpt: {
-    setAuthSource: os.chatgpt.setAuthSource.handler(({ input }) =>
-      worker.codex.setAuthSource(input),
-    ),
-    startLogin: os.chatgpt.startLogin.handler(() => worker.codex.deviceLogin()),
-    signOut: os.chatgpt.signOut.handler(() => worker.codex.logout()),
-  },
-  settings: {
-    modelAccess: os.settings.modelAccess.handler(() => getModelAccess()),
-    usage: os.settings.usage.handler(() => getMonthlyUsage()),
-    rateLimits: os.settings.rateLimits.handler(
-      async () => (await worker.codex.rateLimits()).rateLimits,
-    ),
-    setTimezone: os.settings.setTimezone.handler(({ input }) => api.setTimezone(input)),
-    saveApiKey: os.settings.saveApiKey.handler(({ input }) => api.saveApiKey(input)),
-    removeApiKey: os.settings.removeApiKey.handler(() => api.removeApiKey()),
-    setMonthlyCap: os.settings.setMonthlyCap.handler(({ input }) => api.setMonthlyCap(input)),
   },
   chats: {
     list: os.chats.list.handler(() => listChats()),
@@ -129,16 +102,6 @@ export const router = os.router({
     messages: os.search.messages.handler(({ input }) => searchMessages(input.query)),
   },
   approvals: approvalRoutes(),
-  push: {
-    status: os.push.status.handler(() => worker.push.status()),
-    registerDevice: os.push.registerDevice.handler(({ input }) => api.registerPushDevice(input)),
-    unregisterDevice: os.push.unregisterDevice.handler(({ input }) =>
-      api.unregisterPushDevice(input),
-    ),
-    test: os.push.test.handler(() => api.sendTestPush()),
-    subscribe: os.push.subscribe.handler(({ input }) => worker.push.subscribe(input)),
-    unsubscribe: os.push.unsubscribe.handler(({ input }) => worker.push.unsubscribe(input)),
-  },
   egress: {
     status: os.egress.status.handler(() => api.getEgressStatus()),
     setMode: os.egress.setMode.handler(({ input }) => api.setEgressMode(input)),

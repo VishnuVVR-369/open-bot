@@ -1,6 +1,6 @@
 import "server-only";
 import type { ApiInputs } from "@open-bot/api";
-import { worker } from "../worker";
+import { worker } from "@/lib/server/worker";
 
 type Inputs = ApiInputs["push"];
 

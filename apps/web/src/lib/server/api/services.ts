@@ -30,7 +30,5 @@ export {
   testConnection,
 } from "./integrations";
 export { markNotificationsRead } from "./notifications";
-export { registerPushDevice, sendTestPush, unregisterPushDevice } from "./push";
-export { removeApiKey, saveApiKey, setMonthlyCap, setTimezone } from "./settings";
 export { cancelRun, giveFeedback, rateRun, retryRun, stopSwarm } from "./runs";
 export { putUpload, uploadStatus } from "./uploads";
