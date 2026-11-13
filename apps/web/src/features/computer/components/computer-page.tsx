@@ -12,13 +12,9 @@ import { orpc } from "@/lib/client/rpc";
 import { useAppState } from "@/lib/client/queries";
 import { STATUS, teammateStatus, type TeammateStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
-import {
-  ScreenControls,
-  ScreenFrame,
-  useComputer,
-  useFollowedScreen,
-  type ScreenInfo,
-} from "./computer-panel";
+import { type ScreenInfo, useComputer, useFollowedScreen } from "../hooks";
+import { ScreenFrame } from "./screen-glass";
+import { ScreenControls } from "./screen-controls";
 import type { DesktopHandle } from "./desktop-view";
 
 function SectionTitle({ children }: { children: React.ReactNode }) {

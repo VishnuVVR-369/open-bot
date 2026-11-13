@@ -3,7 +3,7 @@
 import { greeting, plural } from "@open-bot/chat-core";
 import { format } from "date-fns";
 import { useSyncExternalStore } from "react";
-import { ComputerOffline, ComputerPanel, useComputer } from "@/components/computer/computer-panel";
+import { ComputerOffline, ComputerPanel, useComputer } from "@/features/computer";
 import { Briefing } from "./briefing";
 import { useAppState } from "@/lib/client/queries";
 import { botActivity, isComputerOnline } from "@/lib/status";

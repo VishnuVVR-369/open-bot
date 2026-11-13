@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ComputerPage } from "@/components/computer/computer-page";
+import { ComputerPage } from "@/features/computer";
 
 export const metadata: Metadata = { title: "Computer" };
 

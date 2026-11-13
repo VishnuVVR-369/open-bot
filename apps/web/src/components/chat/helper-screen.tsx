@@ -2,8 +2,7 @@
 
 import { Network } from "lucide-react";
 import Link from "next/link";
-import { useComputer } from "@/components/computer/computer-panel";
-import { DesktopView } from "@/components/computer/desktop-view";
+import { DesktopView, useComputer } from "@/features/computer";
 import type { ChatData } from "@/lib/types";
 
 /** A swarm helper's own screen, which you can watch while it works on its part. */

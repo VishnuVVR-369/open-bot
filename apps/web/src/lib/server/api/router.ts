@@ -21,6 +21,7 @@ import {
 import { worker } from "../worker";
 import { ApiError } from "./errors";
 import { approvalRoutes } from "@/features/approvals/server";
+import { computerRoutes } from "@/features/computer/server";
 import { fileRoutes } from "@/features/files/server";
 import { homeRoutes } from "@/features/home/server";
 import { memoryRoutes } from "@/features/memory/server";
@@ -38,23 +39,7 @@ export const router = os.router({
       getAppState({ name: context.user.name, email: context.user.email }),
     ),
   },
-  screens: {
-    list: os.screens.list.handler(() => api.listScreens()),
-    frames: os.screens.frames.handler(() => api.lastScreenFrames()),
-    takeOver: os.screens.takeOver.handler(({ input }) => api.takeOverScreen(input)),
-    handBack: os.screens.handBack.handler(({ input }) => api.handBackScreen(input)),
-    wake: os.screens.wake.handler(({ input }) => api.wakeScreen(input)),
-    activity: os.screens.activity.handler(({ input }) => api.reportScreenActivity(input)),
-  },
-  takeovers: {
-    dismiss: os.takeovers.dismiss.handler(({ input }) => api.dismissTakeoverRequest(input)),
-    codeContext: os.takeovers.codeContext.handler(({ input }) => api.codeContext(input)),
-  },
-  screenOperations: {
-    type: os.screenOperations.type.handler(({ input }) => api.typeOnScreen(input)),
-    get: os.screenOperations.get.handler(({ input }) => api.getScreenOperation(input)),
-    cancel: os.screenOperations.cancel.handler(({ input }) => api.cancelScreenOperation(input)),
-  },
+  ...computerRoutes(),
   home: homeRoutes(),
   teammates: {
     list: os.teammates.list.handler(() => listBots()),

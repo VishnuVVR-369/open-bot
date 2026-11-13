@@ -2,9 +2,9 @@ import "server-only";
 import type { ApiInputs, ScreenFrame, ScreenView } from "@open-bot/api";
 import { artifacts, desktopTakeovers, runs } from "@open-bot/db";
 import { desc, eq, inArray } from "drizzle-orm";
-import { db } from "../db";
-import { listBots, workerStatus } from "../queries";
-import { worker } from "../worker";
+import { db } from "@/lib/server/db";
+import { listBots, workerStatus } from "@/lib/server/queries";
+import { worker } from "@/lib/server/worker";
 
 /**
  * Each screen's last frame: the newest screenshot its teammate took, by screen (a teammate's
