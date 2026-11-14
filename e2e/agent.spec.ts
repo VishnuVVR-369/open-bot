@@ -84,7 +84,7 @@ test.describe("@agent bots at work", () => {
     await expect(page.getByTestId("approval-card")).toHaveCount(asked);
     await expect(page.getByTestId("run").last()).toContainText(String(new Date().getUTCFullYear()));
 
-    await page.goto(`/bots/${await botIdOf(page, name)}`);
+    await page.goto(`/teammates/${await botIdOf(page, name)}`);
     const rule = page.getByTestId("allowed-rule");
     await expect(rule).toHaveCount(1);
     await expect(rule).toContainText("Commands starting with date");

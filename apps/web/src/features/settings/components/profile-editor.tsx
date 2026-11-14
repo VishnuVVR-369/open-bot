@@ -3,5 +3,5 @@
 import { MemoryManager } from "@/features/memory";
 
 export function ProfileEditor() {
-  return <MemoryManager botId={null} name="Shared memory" />;
+  return <MemoryManager teammateId={null} name="Shared memory" />;
 }

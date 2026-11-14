@@ -24,7 +24,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
-import { BotAvatar } from "@/components/bot-avatar";
+import { TeammateAvatar } from "@/components/teammate-avatar";
 import { Wordmark } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import {
@@ -237,7 +237,7 @@ export function Sidebar({
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button variant="ghost" size="icon-xs" asChild>
-                        <Link href="/bots/new" onClick={onNavigate} aria-label="New teammate">
+                        <Link href="/teammates/new" onClick={onNavigate} aria-label="New teammate">
                           <Plus />
                         </Link>
                       </Button>
@@ -249,51 +249,53 @@ export function Sidebar({
             />
             {state.teammates.length === 0 && (
               <Link
-                href="/bots/new"
+                href="/teammates/new"
                 onClick={onNavigate}
                 className="mx-1 mt-1 rounded-lg border border-dashed border-border px-3 py-3 text-[13px] text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
               >
                 Create your first teammate
               </Link>
             )}
-            {state.teammates.map((bot) => {
-              const href = bot.directChatId ? `/chats/${bot.directChatId}` : `/bots/${bot.id}`;
+            {state.teammates.map((teammate) => {
+              const href = teammate.directChatId
+                ? `/chats/${teammate.directChatId}`
+                : `/teammates/${teammate.id}`;
               const active =
-                (currentChat?.kind !== "group" && currentChat?.teammateId === bot.id) ||
-                pathname === `/bots/${bot.id}`;
-              const status = teammateStatus(bot, computerOnline);
+                (currentChat?.kind !== "group" && currentChat?.teammateId === teammate.id) ||
+                pathname === `/teammates/${teammate.id}`;
+              const status = teammateStatus(teammate, computerOnline);
               return (
                 <Link
-                  key={bot.id}
+                  key={teammate.id}
                   href={href}
                   onClick={onNavigate}
                   aria-current={active ? "page" : undefined}
                   // The line under the name is status only; their job shows on hover.
-                  title={`${bot.name}, ${bot.role}`}
+                  title={`${teammate.name}, ${teammate.role}`}
                   className={cn(
                     "flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-[background-color,box-shadow] hover:bg-sidebar-accent/70",
                     active &&
                       "bg-surface shadow-raised [--avatar-ring:var(--surface)] hover:bg-surface dark:bg-sidebar-accent dark:[--avatar-ring:var(--sidebar-accent)]",
                   )}
-                  data-testid={`sidebar-bot-${bot.slug}`}
+                  data-testid={`sidebar-teammate-${teammate.slug}`}
                 >
-                  <BotAvatar
-                    name={bot.name}
-                    color={bot.color}
-                    emoji={bot.emoji}
+                  <TeammateAvatar
+                    name={teammate.name}
+                    color={teammate.color}
+                    emoji={teammate.emoji}
                     size="sm"
                     activity={status.activity}
                   />
                   <span className="flex min-w-0 flex-col">
                     <span className="truncate text-[13.5px] leading-tight font-medium">
-                      {bot.name}
+                      {teammate.name}
                     </span>
                     <span
                       className={cn(
                         "truncate text-[12px] leading-tight text-muted-foreground",
                         status.needsYou && "text-attention-ink",
                       )}
-                      data-testid="bot-status"
+                      data-testid="teammate-status"
                     >
                       {status.label}
                     </span>
@@ -307,7 +309,7 @@ export function Sidebar({
             <div className="flex flex-col gap-0.5">
               <SectionHeader
                 title="Group chats"
-                action={<NewGroupDialog bots={state.teammates} />}
+                action={<NewGroupDialog teammates={state.teammates} />}
               />
               {groups.length === 0 && (
                 <p className="px-2 py-1 text-[12.5px] text-muted-foreground">
@@ -315,7 +317,9 @@ export function Sidebar({
                 </p>
               )}
               {groups.map((chat) => {
-                const members = state.teammates.filter((bot) => chat.memberIds.includes(bot.id));
+                const members = state.teammates.filter((teammate) =>
+                  chat.memberIds.includes(teammate.id),
+                );
                 return (
                   <Link
                     key={chat.id}

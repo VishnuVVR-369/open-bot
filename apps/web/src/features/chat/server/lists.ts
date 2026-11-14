@@ -90,9 +90,9 @@ async function chatPreviews(): Promise<Map<string, NonNullable<ChatSummary["prev
       previews.set(reply.chatId, { text, teammateId: reply.teammateId, at });
   }
   return new Map(
-    [...previews].map(([chatId, { text, teammateId: botId }]) => [
+    [...previews].map(([chatId, { text, teammateId }]) => [
       chatId,
-      { text: text.slice(0, PREVIEW_LENGTH), teammateId: botId },
+      { text: text.slice(0, PREVIEW_LENGTH), teammateId },
     ]),
   );
 }

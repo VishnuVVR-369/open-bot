@@ -9,7 +9,7 @@ async function notificationsFor(page: Page, botId: string) {
 test("turn a teammate's daily check-in on and off", async ({ page }) => {
   const name = uniqueName("Sol");
   await createTeammate(page, name);
-  await page.goto(`/bots/${await botIdOf(page, name)}?tab=automations`);
+  await page.goto(`/teammates/${await botIdOf(page, name)}?tab=automations`);
   const toggle = page.getByTestId("check-in").getByRole("switch", { name: "Daily check-in" });
   await expect(toggle).toHaveAttribute("aria-checked", "false");
 
@@ -43,7 +43,7 @@ test("@agent a quiet routine stays quiet until there's news", async ({ page }) =
   const botId = await botIdOf(page, name);
   const title = `E2E sweep ${Math.random().toString(36).slice(2, 6)}`;
 
-  await page.goto(`/bots/${botId}?tab=automations`);
+  await page.goto(`/teammates/${botId}?tab=automations`);
   await page.getByRole("button", { name: "New automation" }).click();
   await page.getByRole("menuitem", { name: "Schedule" }).click();
   const dialog = page.getByRole("dialog");
@@ -71,7 +71,7 @@ test("@agent a quiet routine stays quiet until there's news", async ({ page }) =
   expect(await notificationsFor(page, botId)).toHaveLength(0);
 
   // News: a full reply, and a notification.
-  await page.goto(`/bots/${botId}?tab=automations`);
+  await page.goto(`/teammates/${botId}?tab=automations`);
   await row.getByRole("button", { name: /^More actions/ }).click();
   await page.getByRole("menuitem", { name: "Edit" }).click();
   await dialog

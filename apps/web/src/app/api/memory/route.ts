@@ -2,22 +2,25 @@ import { NextResponse } from "next/server";
 import { MemoryError } from "@open-bot/memory";
 import { memoryMarkdown } from "@open-bot/domain";
 import { z } from "zod";
+import { memoryExportTeammateId } from "@/lib/renamed-routes";
 import { authed } from "@/lib/server/route";
 import { listMemories, MEMORY_EXPORT_LIMIT } from "@/features/memory/server";
 
-const botIdSchema = z.string().uuid().nullable();
+const teammateIdSchema = z.string().uuid().nullable();
 
 /**
- * Memories as a Markdown file: one teammate's with `?botId=`, or everyone's. Reading memory in the
- * app goes through the API (`memory.list`); this is only the download.
+ * Memories as a Markdown file: one teammate's with `?teammateId=`, or everyone's. Reading memory in
+ * the app goes through the API (`memory.list`); this is only the download.
  */
 export const GET = authed(async (request: Request) => {
-  const botId = botIdSchema.safeParse(new URL(request.url).searchParams.get("botId") || null);
-  if (!botId.success)
+  const teammateId = teammateIdSchema.safeParse(
+    memoryExportTeammateId(new URL(request.url).searchParams),
+  );
+  if (!teammateId.success)
     return NextResponse.json({ error: "Invalid memory request." }, { status: 400 });
   try {
     const items = await listMemories(
-      { teammateId: botId.data, query: "" },
+      { teammateId: teammateId.data, query: "" },
       MEMORY_EXPORT_LIMIT + 1,
     );
     if (items.length > MEMORY_EXPORT_LIMIT)

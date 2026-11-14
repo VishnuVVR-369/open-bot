@@ -4,8 +4,8 @@ import { isPinned, replyText, turnParts, workDuration, workSummary } from "@open
 import { isNothingToReport, isRunActive, type TimelineItem } from "@open-bot/domain";
 import { AlertTriangle, ChevronDown, KeyRound, Square } from "lucide-react";
 import { useMemo, useState } from "react";
-import { BotAvatar } from "@/components/bot-avatar";
-import type { BotSummary, RunView } from "@/lib/types";
+import { TeammateAvatar } from "@/components/teammate-avatar";
+import type { TeammateSummary, RunView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { PageCard } from "@/features/pages";
 import { SwarmCard } from "./swarm-card";
@@ -30,8 +30,8 @@ import { WorkingLine } from "./working-line";
 
 function renderItem(
   item: TimelineItem,
-  botId: string,
-  bot: BotSummary | undefined,
+  teammateId: string,
+  teammate: TeammateSummary | undefined,
   approved = false,
 ) {
   switch (item.kind) {
@@ -54,17 +54,21 @@ function renderItem(
     case "plan":
       return <PlanCard item={item} />;
     case "approval":
-      return <ApprovalCard item={item} botName={bot?.name ?? "Your teammate"} />;
+      return <ApprovalCard item={item} teammateName={teammate?.name ?? "Your teammate"} />;
     case "takeover_request":
       return (
-        <TakeoverRequestCard item={item} botId={botId} botName={bot?.name ?? "Your teammate"} />
+        <TakeoverRequestCard
+          item={item}
+          teammateId={teammateId}
+          teammateName={teammate?.name ?? "Your teammate"}
+        />
       );
     case "handoff":
       return <HandoffStep item={item} />;
     case "user_message":
       return <SteeredMessage item={item} />;
     case "swarm":
-      return <SwarmCard item={item} botName={bot?.name ?? "Your teammate"} />;
+      return <SwarmCard item={item} teammateName={teammate?.name ?? "Your teammate"} />;
     case "page":
       return <PageCard item={item} />;
     case "error":
@@ -82,16 +86,16 @@ function renderItem(
 export function RunBlock({
   run,
   chatId,
-  bot,
-  bots,
+  teammate,
+  teammates,
   superseded = false,
   latest = false,
 }: {
   run: RunView;
   chatId: string;
-  bot: BotSummary | undefined;
-  bots: BotSummary[];
-  /** The same bot ran again after this, so there's nothing to retry. */
+  teammate: TeammateSummary | undefined;
+  teammates: TeammateSummary[];
+  /** The same teammate ran again after this, so there's nothing to retry. */
   superseded?: boolean;
   /** The last entry in the chat: its actions always show. */
   latest?: boolean;
@@ -106,7 +110,7 @@ export function RunBlock({
   const collapsible = !active && stepCount > 0;
   const [expanded, setExpanded] = useState(false);
   const showSteps = !collapsible || expanded;
-  const name = bot?.name ?? "Former teammate";
+  const name = teammate?.name ?? "Former teammate";
   const reply = replyText(items);
   // A reply's actions sit in one row under it, the same with a mouse or a finger.
   const actions = !active && (
@@ -121,8 +125,8 @@ export function RunBlock({
       data-testid="run-actions"
     >
       {reply && <CopyReply text={reply} />}
-      {reply && run.timeline.status === "completed" && bot && (
-        <ReplyFeedback run={run} botName={name} chatId={chatId} />
+      {reply && run.timeline.status === "completed" && teammate && (
+        <ReplyFeedback run={run} teammateName={name} chatId={chatId} />
       )}
       <MoreActions runId={run.id} text={reply} />
     </span>
@@ -139,11 +143,16 @@ export function RunBlock({
         data-quiet
       >
         <span className="flex w-9 shrink-0 justify-center">
-          <BotAvatar name={name} color={bot?.color ?? "#888888"} emoji={bot?.emoji} size="xs" />
+          <TeammateAvatar
+            name={name}
+            color={teammate?.color ?? "#888888"}
+            emoji={teammate?.emoji}
+            size="xs"
+          />
         </span>
         <span className="flex min-w-0 flex-wrap items-center gap-x-2">
           <span className="font-medium text-foreground/80">{name}</span>
-          <TriggerLabel run={run} bots={bots} />
+          <TriggerLabel run={run} teammates={teammates} />
           <span>· Nothing to report</span>
           <RunTime run={run} />
         </span>
@@ -159,17 +168,17 @@ export function RunBlock({
       data-testid="run"
       data-status={run.timeline.status}
     >
-      <BotAvatar
+      <TeammateAvatar
         name={name}
-        color={bot?.color ?? "#888888"}
-        emoji={bot?.emoji}
+        color={teammate?.color ?? "#888888"}
+        emoji={teammate?.emoji}
         size="md"
         className="mt-0.5"
       />
       <div className="relative flex min-w-0 flex-1 flex-col gap-2">
         <header className="flex h-6 items-center gap-2 text-[13px]">
           <span className="text-[14px] font-semibold">{name}</span>
-          <TriggerLabel run={run} bots={bots} />
+          <TriggerLabel run={run} teammates={teammates} />
           {run.authMode === "api_key" && (
             <span className="flex items-center gap-1 rounded-full bg-subtle px-2 py-px text-[11.5px] text-muted-foreground">
               <KeyRound className="size-3" />
@@ -204,7 +213,12 @@ export function RunBlock({
               ) : null;
             }
             if (!showSteps && !isPinned(part.item)) return null;
-            const content = renderItem(part.item, run.teammateId, bot, approved.has(part.item.id));
+            const content = renderItem(
+              part.item,
+              run.teammateId,
+              teammate,
+              approved.has(part.item.id),
+            );
             if (!content) return null;
             const spaced =
               part.item.kind === "message" ||

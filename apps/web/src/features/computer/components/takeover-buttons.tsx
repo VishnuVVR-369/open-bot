@@ -15,11 +15,11 @@ import { useComputer } from "../hooks";
 
 export function HandBackButton({
   screenId,
-  botName,
+  teammateName,
   size = "default",
 }: {
   screenId: string;
-  botName: string;
+  teammateName: string;
   size?: "default" | "lg";
 }) {
   const [open, setOpen] = useState(false);
@@ -44,7 +44,7 @@ export function HandBackButton({
       }
       setOpen(false);
       setNote("");
-      toast("Handed back", { description: `${botName} can use the screen again.` });
+      toast("Handed back", { description: `${teammateName} can use the screen again.` });
       await queryClient.invalidateQueries({ queryKey: orpc.app.state.key() });
     });
   }
@@ -70,9 +70,9 @@ export function HandBackButton({
           }}
         >
           <div className="flex flex-col gap-1">
-            <span className="text-sm font-medium">Hand the screen back to {botName}</span>
+            <span className="text-sm font-medium">Hand the screen back to {teammateName}</span>
             <span className="text-[13px] text-muted-foreground">
-              Leave a note so {botName} knows what you did. Optional.
+              Leave a note so {teammateName} knows what you did. Optional.
             </span>
           </div>
           <Textarea

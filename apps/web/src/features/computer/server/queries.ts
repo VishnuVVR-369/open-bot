@@ -29,7 +29,7 @@ export async function listTakeoverRequests(): Promise<TakeoverRequestSummary[]> 
         id: row.id,
         screenId,
         teammateId: row.teammateId,
-        teammateName: row.teammateName ?? "A bot",
+        teammateName: row.teammateName ?? "A teammate",
         reason: row.reason ?? "",
         chatId: row.chatId,
         createdAt: row.createdAt.toISOString(),

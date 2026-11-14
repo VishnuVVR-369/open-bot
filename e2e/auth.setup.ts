@@ -23,7 +23,7 @@ setup("sign in as the owner", async ({ page }) => {
   await page.context().storageState({ path: "e2e/.auth/owner.json" });
   // A dev server compiles each route on its first visit; do that here, so no test races a compile.
   for (const route of [
-    "/bots/new",
+    "/teammates/new",
     "/computer",
     "/approvals",
     "/automations",
@@ -34,6 +34,6 @@ setup("sign in as the owner", async ({ page }) => {
     await page.waitForLoadState("networkidle").catch(() => {});
   }
   const state = await apiFor(page).app.state();
-  if (state.teammates[0]) await page.goto(`/bots/${state.teammates[0].id}`);
+  if (state.teammates[0]) await page.goto(`/teammates/${state.teammates[0].id}`);
   if (state.chats[0]) await page.goto(`/chats/${state.chats[0].id}`);
 });

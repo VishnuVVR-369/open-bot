@@ -13,7 +13,7 @@ import {
 import Link from "next/link";
 import { useTheme } from "next-themes";
 import { useMemo, useState } from "react";
-import { BotAvatar } from "@/components/bot-avatar";
+import { TeammateAvatar } from "@/components/teammate-avatar";
 import { TimeAgo } from "@/components/time-ago";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,12 +27,18 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/in
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAppState } from "@/features/app-shell";
 import { usePages } from "../hooks";
-import type { BotSummary, PageSummary } from "@/lib/types";
+import type { TeammateSummary, PageSummary } from "@/lib/types";
 import { DeletePageDialog, downloadPage, openPageInTab, usePinPage } from "./page-actions";
 import { pageHref } from "./page-card";
 import { PageThumbnail } from "./page-thumbnail";
 
-function PageTile({ page, bot }: { page: PageSummary; bot: BotSummary | undefined }) {
+function PageTile({
+  page,
+  teammate,
+}: {
+  page: PageSummary;
+  teammate: TeammateSummary | undefined;
+}) {
   const pin = usePinPage();
   const { resolvedTheme } = useTheme();
   const [deleting, setDeleting] = useState(false);
@@ -58,13 +64,13 @@ function PageTile({ page, bot }: { page: PageSummary; bot: BotSummary | undefine
             </p>
           )}
           <div className="mt-auto flex items-center gap-1.5 pt-2 text-[12.5px] text-muted-foreground">
-            <BotAvatar
-              name={bot?.name ?? "Former teammate"}
-              color={bot?.color ?? "#888888"}
-              emoji={bot?.emoji}
+            <TeammateAvatar
+              name={teammate?.name ?? "Former teammate"}
+              color={teammate?.color ?? "#888888"}
+              emoji={teammate?.emoji}
               size="xs"
             />
-            <span className="truncate">{bot?.name ?? "Former teammate"}</span>
+            <span className="truncate">{teammate?.name ?? "Former teammate"}</span>
             <span aria-hidden>·</span>
             <TimeAgo date={page.updatedAt} className="shrink-0" />
             {page.versionCount > 1 && (
@@ -130,10 +136,10 @@ function PageTile({ page, bot }: { page: PageSummary; bot: BotSummary | undefine
   );
 }
 
-function matches(page: PageSummary, bot: BotSummary | undefined, query: string) {
+function matches(page: PageSummary, teammate: TeammateSummary | undefined, query: string) {
   const q = query.trim().toLowerCase();
   if (!q) return true;
-  return [page.title, page.summary, bot?.name ?? ""].some((value) =>
+  return [page.title, page.summary, teammate?.name ?? ""].some((value) =>
     value.toLowerCase().includes(q),
   );
 }
@@ -143,12 +149,12 @@ export function PagesView() {
   const { data, isLoading } = usePages();
   const { data: state } = useAppState();
   const [query, setQuery] = useState("");
-  const botOf = useMemo(() => {
-    const bots = new Map((state?.teammates ?? []).map((bot) => [bot.id, bot]));
-    return (id: string | null) => (id ? bots.get(id) : undefined);
+  const teammateOf = useMemo(() => {
+    const teammates = new Map((state?.teammates ?? []).map((teammate) => [teammate.id, teammate]));
+    return (id: string | null) => (id ? teammates.get(id) : undefined);
   }, [state?.teammates]);
   const pages = data ?? [];
-  const shown = pages.filter((page) => matches(page, botOf(page.teammateId), query));
+  const shown = pages.filter((page) => matches(page, teammateOf(page.teammateId), query));
 
   if (isLoading) {
     return (
@@ -196,7 +202,7 @@ export function PagesView() {
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {shown.map((page) => (
-            <PageTile key={page.id} page={page} bot={botOf(page.teammateId)} />
+            <PageTile key={page.id} page={page} teammate={teammateOf(page.teammateId)} />
           ))}
         </ul>
       )}

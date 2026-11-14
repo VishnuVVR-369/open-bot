@@ -101,7 +101,7 @@ test("give a teammate a monthly budget", async ({ page }) => {
   const name = uniqueName("Ava");
   await createTeammate(page, name);
   const botId = await botIdOf(page, name);
-  await page.goto(`/bots/${botId}?tab=spending`);
+  await page.goto(`/teammates/${botId}?tab=spending`);
   const budget = page.getByTestId("budget");
   await budget.getByRole("switch", { name: `${name} can pay for things` }).click();
   await budget.getByLabel("Monthly budget").fill("50");
@@ -250,7 +250,7 @@ test("@agent a teammate signs in and pays from the vault without seeing either",
     const name = uniqueName("Ora");
     await createTeammate(page, name, "shopper");
     const botId = await botIdOf(page, name);
-    await page.goto(`/bots/${botId}?tab=spending`);
+    await page.goto(`/teammates/${botId}?tab=spending`);
     const budget = page.getByTestId("budget");
     await budget.getByRole("switch", { name: `${name} can pay for things` }).click();
     await budget.getByLabel("Monthly budget").fill("40");
@@ -289,7 +289,7 @@ test("@agent a teammate signs in and pays from the vault without seeing either",
     expect(chat).not.toContain("5555 5555 5555 4444");
 
     // The purchase counts against its budget.
-    await page.goto(`/bots/${botId}?tab=spending`);
+    await page.goto(`/teammates/${botId}?tab=spending`);
     await expect(page.getByTestId("purchase").first()).toContainText("$12");
     await expect(page.getByTestId("purchase").first()).toContainText("Paid");
     await expect(page.getByTestId("spent")).toContainText("$12 of $40");

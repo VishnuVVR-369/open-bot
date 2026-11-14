@@ -30,7 +30,7 @@ export function ChatView({ chatId }: { chatId: string }) {
   const [panelOpen, setPanelOpen] = useState(true);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
-  const allBots = state?.teammates ?? members;
+  const allTeammates = state?.teammates ?? members;
   const { online, state: computerState } = useComputer();
   // Known offline, not just unknown yet: the panel collapses to a chip in the header.
   const offline = Boolean(computerState) && !online;
@@ -39,7 +39,7 @@ export function ChatView({ chatId }: { chatId: string }) {
     setPanelOpen(localStorage.getItem(PANEL_KEY) !== "closed");
   }, []);
 
-  // A run is superseded once the same bot has run again after it in this chat.
+  // A run is superseded once the same teammate has run again after it in this chat.
   const supersededRuns = useMemo(() => {
     const superseded = new Map<string, boolean>();
     const seen = new Set<string>();
@@ -69,11 +69,12 @@ export function ChatView({ chatId }: { chatId: string }) {
     if (!active) return null;
     return {
       id: active.id,
-      botName: allBots.find((bot) => bot.id === active.teammateId)?.name ?? "Your teammate",
+      teammateName:
+        allTeammates.find((teammate) => teammate.id === active.teammateId)?.name ?? "Your teammate",
       status: active.timeline.status,
       waitingFor: active.timeline.waitingFor ?? null,
     };
-  }, [runs, allBots]);
+  }, [runs, allTeammates]);
 
   useMarkRead(chatId, runs, loading, error);
   const { scroller, onScroll, atBottom, scrolled, stickToBottom, scrollToLatest } = useChatScroll(
@@ -94,14 +95,15 @@ export function ChatView({ chatId }: { chatId: string }) {
   }
 
   const isGroup = chat?.kind === "group";
-  const bot = !isGroup ? members[0] : undefined;
+  const teammate = !isGroup ? members[0] : undefined;
   // This chat's state, not the teammate's: what they wait for elsewhere is a link to there. While
   // the computer's state is still loading, nothing is shown as paused.
-  const liveBot = bot && (allBots.find((entry) => entry.id === bot.id) ?? bot);
+  const liveTeammate =
+    teammate && (allTeammates.find((entry) => entry.id === teammate.id) ?? teammate);
   const status =
-    liveBot && !isGroup && !helper
+    liveTeammate && !isGroup && !helper
       ? chatStatus({
-          teammate: liveBot,
+          teammate: liveTeammate,
           chatId,
           computerOnline: !offline,
           chatById: (id) => state?.chats.find((entry) => entry.id === id),
@@ -111,9 +113,9 @@ export function ChatView({ chatId }: { chatId: string }) {
   const isMain = state?.chats.find((entry) => entry.id === chatId)?.main ?? chat?.main ?? false;
   const title = chat
     ? chat.kind === "scheduled"
-      ? `${bot?.name ?? ""} · Scheduled`
+      ? `${teammate?.name ?? ""} · Scheduled`
       : chat.kind === "inbox"
-        ? `${bot?.name ?? ""} · Email`
+        ? `${teammate?.name ?? ""} · Email`
         : chat.title
     : "";
 
@@ -148,7 +150,7 @@ export function ChatView({ chatId }: { chatId: string }) {
           chat={chat}
           loading={loading}
           members={members}
-          teammate={bot}
+          teammate={teammate}
           helper={helper}
           title={title}
           status={status}
@@ -198,8 +200,8 @@ export function ChatView({ chatId }: { chatId: string }) {
                     chatId={chatId}
                     superseded={supersededRuns.get(run.id) ?? false}
                     latest={index === lastRunIndex}
-                    bot={allBots.find((b) => b.id === run.teammateId)}
-                    bots={allBots}
+                    teammate={allTeammates.find((b) => b.id === run.teammateId)}
+                    teammates={allTeammates}
                   />
                 );
               })}
@@ -223,7 +225,7 @@ export function ChatView({ chatId }: { chatId: string }) {
             {chat && helper ? (
               <p className="mb-4 rounded-xl bg-subtle px-4 py-3 text-center text-[13px] text-muted-foreground">
                 A helper works on its part alone. Its result goes back to{" "}
-                {bot?.name ?? "its teammate"},{" "}
+                {teammate?.name ?? "its teammate"},{" "}
                 <Link
                   href={`/chats/${helper.swarmChatId}#run-${helper.swarmRunId}`}
                   className="text-foreground underline-offset-2 hover:underline"
@@ -268,7 +270,7 @@ export function ChatView({ chatId }: { chatId: string }) {
         {helper ? (
           <HelperScreen helper={helper} />
         ) : (
-          <ComputerPanel botIds={members.map((member) => member.id)} loading={loading} />
+          <ComputerPanel teammateIds={members.map((member) => member.id)} loading={loading} />
         )}
       </aside>
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
@@ -286,7 +288,7 @@ export function ChatView({ chatId }: { chatId: string }) {
             (helper ? (
               <HelperScreen helper={helper} />
             ) : (
-              <ComputerPanel botIds={members.map((member) => member.id)} loading={loading} />
+              <ComputerPanel teammateIds={members.map((member) => member.id)} loading={loading} />
             ))}
         </SheetContent>
       </Sheet>

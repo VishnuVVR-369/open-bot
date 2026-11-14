@@ -1,7 +1,7 @@
 "use client";
 
-import { BotAvatar } from "@/components/bot-avatar";
-import type { BotSummary } from "@/lib/types";
+import { TeammateAvatar } from "@/components/teammate-avatar";
+import type { TeammateSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /** The teammates you can @mention in a group, as you type their name. */
@@ -11,11 +11,11 @@ export function MentionMenu({
   onHover,
   onPick,
 }: {
-  options: BotSummary[];
+  options: TeammateSummary[];
   /** The option the arrow keys are on. */
   selected: number;
   onHover: (index: number) => void;
-  onPick: (option: BotSummary) => void;
+  onPick: (option: TeammateSummary) => void;
 }) {
   return (
     <div
@@ -38,7 +38,7 @@ export function MentionMenu({
             index === selected && "bg-muted",
           )}
         >
-          <BotAvatar name={member.name} color={member.color} emoji={member.emoji} size="xs" />
+          <TeammateAvatar name={member.name} color={member.color} emoji={member.emoji} size="xs" />
           <span className="text-sm font-medium">{member.name}</span>
           <span className="truncate text-xs text-muted-foreground">{member.role}</span>
         </button>

@@ -10,16 +10,16 @@ import { ScreenFrame } from "./screen-glass";
 import { ScreenControls } from "./screen-controls";
 import { ScreenPicker } from "./screen-picker";
 
-/** The computer as a panel: the bots' screens, one at a time, with their controls. */
+/** The computer as a panel: the teammates' screens, one at a time, with their controls. */
 export function ComputerPanel({
-  botIds,
+  teammateIds,
   initial,
   loading = false,
   showRequests = true,
   className,
 }: {
   /** Whose screens to offer. The panel follows whichever is busy. */
-  botIds: string[];
+  teammateIds: string[];
   initial?: AppState;
   /** Whose screens they are isn't known yet. */
   loading?: boolean;
@@ -29,10 +29,12 @@ export function ComputerPanel({
 }) {
   const handleRef = useRef<ScreenHandle | null>(null);
   const { state, online } = useComputer(initial);
-  const { screenId, pick } = useFollowedScreen(botIds, initial);
-  if (state && !online && botIds.length > 0) {
-    const names = botIds.flatMap((id) => state.teammates.find((bot) => bot.id === id)?.name ?? []);
-    return <ComputerOffline botNames={names} className={className} />;
+  const { screenId, pick } = useFollowedScreen(teammateIds, initial);
+  if (state && !online && teammateIds.length > 0) {
+    const names = teammateIds.flatMap(
+      (id) => state.teammates.find((teammate) => teammate.id === id)?.name ?? [],
+    );
+    return <ComputerOffline teammateNames={names} className={className} />;
   }
   if (!screenId) {
     return (
@@ -57,7 +59,7 @@ export function ComputerPanel({
   }
   return (
     <section aria-label="Computer" className={cn("flex flex-col gap-3", className)}>
-      <ScreenPicker botIds={botIds} value={screenId} onChange={pick} initial={initial} />
+      <ScreenPicker teammateIds={teammateIds} value={screenId} onChange={pick} initial={initial} />
       <ScreenFrame screenId={screenId} initial={initial} handleRef={handleRef} expand />
       <ScreenControls
         screenId={screenId}

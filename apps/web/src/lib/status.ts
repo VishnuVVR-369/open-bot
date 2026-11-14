@@ -1,6 +1,5 @@
-import { teammateStatus } from "@open-bot/domain";
-import type { BotActivity } from "@/components/bot-avatar";
-import type { AppState, BotSummary } from "./types";
+import { teammateStatus, type TeammateActivity } from "@open-bot/domain";
+import type { AppState, TeammateSummary } from "./types";
 
 // The words and the rules for a teammate's status are shared with the phone (packages/domain).
 export { chatStatus, STATUS, teammateStatus } from "@open-bot/domain";
@@ -28,16 +27,16 @@ export function isComputerOnline(state: Pick<AppState, "computer"> | undefined):
 }
 
 /** What a teammate is doing, for their status light. */
-export function botActivity(
-  bot: Pick<BotSummary, "activeRun">,
+export function teammateActivity(
+  teammate: Pick<TeammateSummary, "activeRun">,
   computerOnline = true,
-): BotActivity {
-  return teammateStatus(bot, computerOnline).activity;
+): TeammateActivity {
+  return teammateStatus(teammate, computerOnline).activity;
 }
 
 /** What a teammate needs from you, in the words used everywhere, or null when they need nothing. */
-export function botNeedsText(bot: Pick<BotSummary, "activeRun">): string | null {
-  const status = teammateStatus(bot);
+export function teammateNeedsText(teammate: Pick<TeammateSummary, "activeRun">): string | null {
+  const status = teammateStatus(teammate);
   return status.needsYou ? status.label : null;
 }
 

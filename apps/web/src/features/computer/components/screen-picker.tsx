@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown } from "lucide-react";
-import { BotAvatar } from "@/components/bot-avatar";
+import { TeammateAvatar } from "@/components/teammate-avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,10 +36,15 @@ function ScreenTab({
           ? "border-transparent bg-card text-foreground shadow-raised"
           : "border-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
-      data-testid={`screen-tab-${info.bot.slug}`}
+      data-testid={`screen-tab-${info.teammate.slug}`}
     >
-      <BotAvatar name={info.bot.name} color={info.bot.color} emoji={info.bot.emoji} size="xs" />
-      <span className="max-w-[112px] truncate">{info.bot.name}</span>
+      <TeammateAvatar
+        name={info.teammate.name}
+        color={info.teammate.color}
+        emoji={info.teammate.emoji}
+        size="xs"
+      />
+      <span className="max-w-[112px] truncate">{info.teammate.name}</span>
       {info.activity === "working" || info.activity === "you" ? (
         <ActivityDot activity={info.activity} className="size-1.5" />
       ) : info.requests.length > 0 ? (
@@ -54,37 +59,37 @@ function ScreenTab({
  * the rest wait in a "+N" menu, so the row never runs off the edge.
  */
 export function ScreenPicker({
-  botIds,
+  teammateIds,
   value,
   onChange,
   initial,
   className,
 }: {
-  botIds: string[];
+  teammateIds: string[];
   value: string | null;
   onChange: (screenId: string) => void;
   initial?: AppState;
   className?: string;
 }) {
   const { screen } = useComputer(initial);
-  const infos = botIds.map(screen).filter((info): info is ScreenInfo => info !== null);
+  const infos = teammateIds.map(screen).filter((info): info is ScreenInfo => info !== null);
   if (infos.length < 2) return null;
 
   const shown = new Set<string>();
   const want = (info: ScreenInfo) => {
-    if (shown.size < VISIBLE_SCREENS) shown.add(info.bot.id);
+    if (shown.size < VISIBLE_SCREENS) shown.add(info.teammate.id);
   };
   const awake = (info: ScreenInfo) => info.activity !== "asleep" && info.activity !== "offline";
   // With one spare tab or less, show them all rather than a "+1" menu.
   const overflow = infos.length > VISIBLE_SCREENS + 1;
   if (overflow) {
-    infos.filter((info) => info.bot.id === value).forEach(want);
+    infos.filter((info) => info.teammate.id === value).forEach(want);
     infos.filter((info) => info.activity === "you" || info.activity === "working").forEach(want);
     infos.filter(awake).forEach(want);
     infos.forEach(want);
   }
-  const visible = overflow ? infos.filter((info) => shown.has(info.bot.id)) : infos;
-  const hidden = overflow ? infos.filter((info) => !shown.has(info.bot.id)) : [];
+  const visible = overflow ? infos.filter((info) => shown.has(info.teammate.id)) : infos;
+  const hidden = overflow ? infos.filter((info) => !shown.has(info.teammate.id)) : [];
 
   return (
     <div
@@ -94,10 +99,10 @@ export function ScreenPicker({
     >
       {visible.map((info) => (
         <ScreenTab
-          key={info.bot.id}
+          key={info.teammate.id}
           info={info}
-          selected={info.bot.id === value}
-          onSelect={() => onChange(info.bot.id)}
+          selected={info.teammate.id === value}
+          onSelect={() => onChange(info.teammate.id)}
         />
       ))}
       {hidden.length > 0 && (
@@ -114,14 +119,14 @@ export function ScreenPicker({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="max-h-80 w-56">
             {hidden.map((info) => (
-              <DropdownMenuItem key={info.bot.id} onSelect={() => onChange(info.bot.id)}>
-                <BotAvatar
-                  name={info.bot.name}
-                  color={info.bot.color}
-                  emoji={info.bot.emoji}
+              <DropdownMenuItem key={info.teammate.id} onSelect={() => onChange(info.teammate.id)}>
+                <TeammateAvatar
+                  name={info.teammate.name}
+                  color={info.teammate.color}
+                  emoji={info.teammate.emoji}
                   size="xs"
                 />
-                <span className="min-w-0 flex-1 truncate">{info.bot.name}</span>
+                <span className="min-w-0 flex-1 truncate">{info.teammate.name}</span>
                 <span className="text-[12px] text-muted-foreground">{activityLabel(info)}</span>
               </DropdownMenuItem>
             ))}

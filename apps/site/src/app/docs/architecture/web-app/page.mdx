@@ -122,19 +122,22 @@ See [Screens and takeover](/docs/flows/screens-and-takeover).
 
 ## Pages
 
-| Route                        | What it shows                                                                                |
-| ---------------------------- | -------------------------------------------------------------------------------------------- |
-| `/`                          | Home: what each teammate finished or got stuck on, and what needs you.                       |
-| `/chats/[chatId]`            | A chat, with the live timeline and the teammate's screen beside it.                          |
-| `/bots/new`, `/bots/[botId]` | Creating and editing a teammate: job, memory, lessons, rules, automations, spending.         |
-| `/computer`                  | Every screen, live, with takeover.                                                           |
-| `/approvals`                 | The approvals inbox.                                                                         |
-| `/automations`               | Schedules, page watches and webhooks, with their run history.                                |
-| `/tasks`                     | The shared task board.                                                                       |
-| `/skills`                    | Saved skills.                                                                                |
-| `/vault`                     | Logins and cards.                                                                            |
-| `/files`                     | A file browser for the computer's `/home/bot`.                                               |
-| `/pages`, `/pages/[pageId]`  | The library of [pages](/docs/flows/pages), and one page in a sandboxed frame, with Ask.      |
-| `/settings`                  | ChatGPT sign-in, the API key and cap, egress, Telegram, email, push, connections, About you. |
+| Route                                       | What it shows                                                                                |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `/`                                         | Home: what each teammate finished or got stuck on, and what needs you.                       |
+| `/chats/[chatId]`                           | A chat, with the live timeline and the teammate's screen beside it.                          |
+| `/teammates/new`, `/teammates/[teammateId]` | Creating and editing a teammate: job, memory, lessons, rules, automations, spending.         |
+| `/computer`                                 | Every screen, live, with takeover.                                                           |
+| `/approvals`                                | The approvals inbox.                                                                         |
+| `/automations`                              | Schedules, page watches and webhooks, with their run history.                                |
+| `/tasks`                                    | The shared task board.                                                                       |
+| `/skills`                                   | Saved skills.                                                                                |
+| `/vault`                                    | Logins and cards.                                                                            |
+| `/files`                                    | A file browser for the computer's `/home/bot`.                                               |
+| `/pages`, `/pages/[pageId]`                 | The library of [pages](/docs/flows/pages), and one page in a sandboxed frame, with Ask.      |
+| `/settings`                                 | ChatGPT sign-in, the API key and cap, egress, Telegram, email, push, connections, About you. |
+
+Renamed routes keep their old addresses: `next.config.ts` redirects them permanently (308) with the id, any sub-path and the query string, from the list in `apps/web/src/lib/renamed-routes.ts`.
+So a bookmark of `/bots/<id>?tab=memory` from before teammates had that name opens `/teammates/<id>?tab=memory`.
 
 The app is installable: `manifest.ts` provides the web manifest, and `public/sw.js` is the service worker for push notifications.

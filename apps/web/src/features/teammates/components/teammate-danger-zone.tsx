@@ -20,12 +20,12 @@ import { Button } from "@/components/ui/button";
 import { attempt } from "@/lib/client/mutate";
 import { api, orpc } from "@/lib/client/rpc";
 
-export function BotDangerZone({
-  botId,
+export function TeammateDangerZone({
+  teammateId,
   name,
   isLead,
 }: {
-  botId: string;
+  teammateId: string;
   name: string;
   isLead: boolean;
 }) {
@@ -49,7 +49,7 @@ export function BotDangerZone({
           disabled={isLead || pending}
           onClick={() =>
             startTransition(async () => {
-              const result = await attempt(api.teammates.setLead({ teammateId: botId }));
+              const result = await attempt(api.teammates.setLead({ teammateId }));
               if (!result.ok) toast.error(result.error);
               await queryClient.invalidateQueries({ queryKey: orpc.app.state.key() });
               router.refresh();
@@ -85,7 +85,7 @@ export function BotDangerZone({
                 variant="destructive"
                 onClick={() =>
                   startTransition(async () => {
-                    const result = await attempt(api.teammates.archive({ teammateId: botId }));
+                    const result = await attempt(api.teammates.archive({ teammateId }));
                     if (!result.ok) {
                       toast.error(result.error);
                       return;

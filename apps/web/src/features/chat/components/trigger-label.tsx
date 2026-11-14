@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { BotSummary, RunView } from "@/lib/types";
+import type { TeammateSummary, RunView } from "@/lib/types";
 import { Markdown } from "./markdown";
 
 /** Each trigger's icon; the words come from `triggerLabel` (packages/chat-core). */
@@ -39,8 +39,8 @@ const TRIGGER_ICONS: Record<TriggerKind, typeof CalendarClock> = {
 };
 
 /** What started the run: an automation opens what it gave the teammate, a task links the board. */
-export function TriggerLabel({ run, bots }: { run: RunView; bots: BotSummary[] }) {
-  const label = triggerLabel(run, bots);
+export function TriggerLabel({ run, teammates }: { run: RunView; teammates: TeammateSummary[] }) {
+  const label = triggerLabel(run, teammates);
   if (!label) return null;
   const Icon = TRIGGER_ICONS[label.kind];
   const content = (

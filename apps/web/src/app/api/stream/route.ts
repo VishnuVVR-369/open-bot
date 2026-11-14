@@ -28,7 +28,7 @@ function turnedAway() {
 
 /**
  * Server-sent events for one browser tab:
- * - `app`: something app-wide changed (bots, computer, approvals, notifications...).
+ * - `app`: something app-wide changed (teammates, computer, approvals, notifications...).
  * - `ready`: connected, with the deploy that serves it.
  * - `run`: a new run event in the chat the tab is looking at, in order, starting after `after`.
  */

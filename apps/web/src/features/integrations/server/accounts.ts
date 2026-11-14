@@ -55,7 +55,7 @@ export async function startAuthorization(input: {
   sessionId: string;
   kind: AccountConnectionKind;
   capabilities: AccountCapability[];
-  botIds: string[] | null;
+  teammateIds: string[] | null;
   /** Reuse, reconnect or widen this account (it must sign in as the same identity). */
   accountId: string | null;
 }): Promise<string> {
@@ -105,7 +105,7 @@ export async function startAuthorization(input: {
   const purpose: OAuthPurpose = {
     kind: input.kind,
     capabilities,
-    botIds: input.botIds,
+    botIds: input.teammateIds,
     oauthClientId: client.id,
     ...(account ? { accountId: account.id, expectedExternalId: account.externalId } : {}),
   };

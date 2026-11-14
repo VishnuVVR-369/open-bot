@@ -1,6 +1,6 @@
 import { TEAMMATE_COLORS, TEAMMATE_TEMPLATES } from "@open-bot/domain";
 import { Check } from "lucide-react";
-import { BotAvatar } from "@/components/bot-avatar";
+import { TeammateAvatar } from "@/components/teammate-avatar";
 import { Logo, Wordmark } from "@/components/logo";
 
 /**
@@ -67,7 +67,7 @@ export default function AuthLayout({ children }: LayoutProps<"/">) {
                     key={entry.template}
                     className="flex items-center gap-3 rounded-xl bg-white/[0.04] px-3.5 py-3 ring-1 ring-white/[0.06]"
                   >
-                    <BotAvatar
+                    <TeammateAvatar
                       name={template.name}
                       color={entry.color}
                       emoji={template.emoji}

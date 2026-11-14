@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus, Users } from "lucide-react";
 import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
-import { BotAvatar } from "@/components/bot-avatar";
+import { TeammateAvatar } from "@/components/teammate-avatar";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -51,14 +51,14 @@ Tell me what blocked you instead of guessing.`;
 export function SkillDialog({
   skill,
   trigger,
-  defaultBotId,
+  defaultTeammateId,
 }: {
   skill?: SkillView;
   trigger?: ReactNode;
-  defaultBotId?: string;
+  defaultTeammateId?: string;
 }) {
   const { data: state } = useAppState();
-  const bots = state?.teammates ?? [];
+  const teammates = state?.teammates ?? [];
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -73,8 +73,8 @@ export function SkillDialog({
     setName(skill?.name ?? "");
     setDescription(skill?.description ?? "");
     setInstructions(skill?.instructions ?? "");
-    setOwner(skill ? (skill.teammateId ?? EVERYONE) : (defaultBotId ?? EVERYONE));
-  }, [open, skill, defaultBotId]);
+    setOwner(skill ? (skill.teammateId ?? EVERYONE) : (defaultTeammateId ?? EVERYONE));
+  }, [open, skill, defaultTeammateId]);
 
   const canSave = name.length >= 2 && description.trim() && instructions.trim() && !pending;
 
@@ -163,10 +163,15 @@ export function SkillDialog({
                     <Users className="size-4" />
                     Every teammate
                   </SelectItem>
-                  {bots.map((bot) => (
-                    <SelectItem key={bot.id} value={bot.id}>
-                      <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="xs" />
-                      Only {bot.name}
+                  {teammates.map((teammate) => (
+                    <SelectItem key={teammate.id} value={teammate.id}>
+                      <TeammateAvatar
+                        name={teammate.name}
+                        color={teammate.color}
+                        emoji={teammate.emoji}
+                        size="xs"
+                      />
+                      Only {teammate.name}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -36,7 +36,7 @@ import { useAppState, useComputerOnline } from "@/features/app-shell";
 import { attempt } from "@/lib/client/mutate";
 import { api, orpc } from "@/lib/client/rpc";
 import { uploadToFolder } from "../uploads";
-import { BotAvatar } from "@/components/bot-avatar";
+import { TeammateAvatar } from "@/components/teammate-avatar";
 import { useFolder } from "../hooks";
 import { FileIcon } from "./file-chip";
 import { FilePreview } from "./file-preview";
@@ -110,8 +110,9 @@ export function FilesView() {
   const { data, isLoading, error } = useFolder(path, online !== false);
   const offline = online === false || isOffline(error);
   const parts = path.slice(ROOT.length).split("/").filter(Boolean);
-  const botBySlug = (slug: string) => state?.teammates.find((bot) => bot.slug === slug);
-  const botSlugs = new Set(state?.teammates.map((bot) => bot.slug) ?? []);
+  const teammateBySlug = (slug: string) =>
+    state?.teammates.find((teammate) => teammate.slug === slug);
+  const teammateSlugs = new Set(state?.teammates.map((teammate) => teammate.slug) ?? []);
   const queryClient = useQueryClient();
   const picker = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(0);
@@ -171,8 +172,8 @@ export function FilesView() {
                   onClick={() => setPath(target)}
                   className="rounded-md px-1.5 py-0.5 hover:bg-muted"
                 >
-                  {index === 1 && parts[0] === "bots" && botBySlug(part)
-                    ? `${botBySlug(part)!.name}'s workspace`
+                  {index === 1 && parts[0] === "bots" && teammateBySlug(part)
+                    ? `${teammateBySlug(part)!.name}'s workspace`
                     : part}
                 </button>
               </span>
@@ -243,15 +244,22 @@ export function FilesView() {
         ) : (
           <ul className="divide-y">
             {entries.map((entry) => {
-              const bot =
-                path === `${ROOT}/bots` && entry.isDirectory ? botBySlug(entry.name) : undefined;
+              const teammate =
+                path === `${ROOT}/bots` && entry.isDirectory
+                  ? teammateBySlug(entry.name)
+                  : undefined;
               return (
                 <li
                   key={entry.path}
                   className="group flex items-center gap-3 px-4 py-2.5 hover:bg-muted/40"
                 >
-                  {bot ? (
-                    <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="xs" />
+                  {teammate ? (
+                    <TeammateAvatar
+                      name={teammate.name}
+                      color={teammate.color}
+                      emoji={teammate.emoji}
+                      size="xs"
+                    />
                   ) : (
                     icon(entry.name, entry.isDirectory)
                   )}
@@ -260,7 +268,7 @@ export function FilesView() {
                       onClick={() => setPath(entry.path)}
                       className="flex-1 truncate text-left text-[14px] hover:underline"
                     >
-                      {bot ? `${bot.name}'s workspace` : entry.name}
+                      {teammate ? `${teammate.name}'s workspace` : entry.name}
                     </button>
                   ) : fileKind(entry.name) === "other" ? (
                     <span className="flex-1 truncate text-[14px]">{entry.name}</span>
@@ -302,10 +310,10 @@ export function FilesView() {
                         </Button>
                       </>
                     )}
-                    {!undeletablePath(entry.path, botSlugs) && (
+                    {!undeletablePath(entry.path, teammateSlugs) && (
                       <DeleteEntry
                         entry={entry}
-                        label={bot ? `${bot.name}'s workspace` : entry.name}
+                        label={teammate ? `${teammate.name}'s workspace` : entry.name}
                         onDeleted={refresh}
                       />
                     )}

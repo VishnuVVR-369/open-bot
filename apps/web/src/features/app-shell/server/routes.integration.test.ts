@@ -17,7 +17,7 @@ describe.skipIf(!apiTestUrl)("API reads, end to end", () => {
     const state = await api.app.state();
     expect(state.user).toEqual({ name: OWNER.name, email: OWNER.email });
     expect(state.timezone).toBe("Europe/Berlin");
-    expect(state.teammates.map((bot) => bot.name)).toEqual(["Scout"]);
+    expect(state.teammates.map((teammate) => teammate.name)).toEqual(["Scout"]);
     expect(state.computer.workerOnline).toBe(true);
     expect(state.skills[0]).not.toHaveProperty("instructions");
     expect(state.unreadNotifications).toBe(1);
