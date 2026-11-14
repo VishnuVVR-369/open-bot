@@ -40,6 +40,8 @@ export class FileService {
       entries
         .filter((entry) => !entry.fileName.startsWith("."))
         .map(async (entry) => {
+          // An entry can go between the listing and this lookup, or be unreadable: it is still
+          // listed, without a date, rather than failing the whole folder.
           const meta = await client
             .request("fs/getMetadata", { path: `${path}/${entry.fileName}` })
             .catch(() => null);

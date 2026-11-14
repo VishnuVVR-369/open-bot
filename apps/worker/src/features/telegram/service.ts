@@ -40,6 +40,9 @@ export class TelegramError extends WorkerError {
   }
 }
 
+/** Telegram's answers to an edit that has nothing to do: already made, or the message is gone. */
+const EXPECTED_EDIT_REFUSAL = /message is not modified|message to edit not found/i;
+
 interface TgUser {
   id: number;
   first_name: string;
@@ -668,9 +671,14 @@ export class TelegramService {
       chat_id: chatId,
       message_id: messageId,
       reply_markup: { inline_keyboard: [[{ text: label, callback_data: "noop" }]] },
+    }).catch((error: unknown) => {
       // Both the button press and the decision event mark the message, so Telegram refuses the
-      // second edit as "not modified"; a deleted message refuses it too.
-    }).catch(() => {});
+      // second edit as "not modified"; a deleted message is refused as "not found".
+      if (error instanceof TelegramError && EXPECTED_EDIT_REFUSAL.test(error.message)) return;
+      this.ctx.log.warn("couldn't mark a Telegram approval decided", {
+        error: errorMessage(error),
+      });
+    });
   }
 
   /* -------------------------------------------------------------- Sending */

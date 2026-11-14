@@ -84,8 +84,7 @@ export class CodexManager extends EventEmitter<{ status: [CodexStatus]; disconne
 
   start(): void {
     this.stopped = false;
-    // A failure is already in `status.error` and schedules the next attempt.
-    void this.ready().catch(() => {});
+    this.readyInBackground();
   }
 
   async resume(signal?: AbortSignal): Promise<void> {
@@ -196,10 +195,20 @@ export class CodexManager extends EventEmitter<{ status: [CodexStatus]; disconne
     if (this.stopped || this.idleIntent || this.retryTimer) return;
     this.retryTimer = setTimeout(() => {
       this.retryTimer = null;
-      // A failure is already in `status.error` and schedules the next attempt; logging it here
-      // would repeat it every 3 s while the computer is unreachable.
-      if (!this.client?.isOpen) void this.ready().catch(() => {});
+      if (!this.client?.isOpen) this.readyInBackground();
     }, 3_000);
+  }
+
+  /**
+   * Connect and sign in with no caller waiting. A connection that fails is already in
+   * `status.error` and schedules the next attempt, so only other failures are logged; logging
+   * those too would repeat every 3 s while the computer is unreachable.
+   */
+  private readyInBackground(): void {
+    void this.ready().catch((error: unknown) => {
+      if (!this.state.connected) return;
+      this.log.warn("couldn't get Codex ready", { error: errorMessage(error) });
+    });
   }
 
   private async readHostFile(): Promise<HostTokens & { expiry: number | null }> {

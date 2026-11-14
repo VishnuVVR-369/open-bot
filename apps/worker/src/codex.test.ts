@@ -95,6 +95,64 @@ describe("Codex intentional idle", () => {
   });
 });
 
+describe("Codex connecting in the background", () => {
+  const logger = () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() });
+
+  it("logs a sign-in that fails once connected, since status doesn't show it", async () => {
+    const server = new WebSocketServer({ port: 0 });
+    await once(server, "listening");
+    // Codex answers every request, so connecting succeeds.
+    server.on("connection", (socket) =>
+      socket.on("message", (data) => {
+        const message = JSON.parse(data.toString());
+        if (message.id !== undefined) socket.send(JSON.stringify({ id: message.id, result: {} }));
+      }),
+    );
+    cleanup.push(() => {
+      for (const socket of server.clients) socket.terminate();
+      server.close();
+    });
+    const computer = {
+      wsUrl: () => `ws://127.0.0.1:${(server.address() as AddressInfo).port}`,
+    } as unknown as ComputerClient;
+    const log = logger();
+    const codex = new CodexManager(
+      computer,
+      "/unused",
+      "codex",
+      async () => {
+        throw new Error("settings unreadable");
+      },
+      log as unknown as Logger,
+    );
+    cleanup.push(() => codex.stop());
+    codex.start();
+    await vi.waitFor(() =>
+      expect(log.warn).toHaveBeenCalledWith("couldn't get Codex ready", {
+        error: "settings unreadable",
+      }),
+    );
+    expect(codex.status.error).toBeNull();
+  });
+
+  it("leaves an unreachable computer to the status and its retry", async () => {
+    const computer = { wsUrl: () => "ws://127.0.0.1:9" } as unknown as ComputerClient;
+    const log = logger();
+    const codex = new CodexManager(
+      computer,
+      "/unused",
+      "codex",
+      async () => "device",
+      log as unknown as Logger,
+    );
+    cleanup.push(() => codex.stop());
+    codex.start();
+    await vi.waitFor(() => expect(codex.status.error).toMatch(/Can't reach Codex/));
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(log.warn).not.toHaveBeenCalled();
+  });
+});
+
 it("returns failed awake reconnects to lifecycle admission instead of polling a stopped agent", async () => {
   const computer = { wsUrl: () => "ws://127.0.0.1:9" } as unknown as ComputerClient;
   const codex = new CodexManager(computer, "/unused", "codex", async () => "device", {
