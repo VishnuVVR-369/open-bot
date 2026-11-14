@@ -200,13 +200,13 @@ export class CodexManager extends EventEmitter<{ status: [CodexStatus]; disconne
   }
 
   /**
-   * Connect and sign in with no caller waiting. A connection that fails is already in
-   * `status.error` and schedules the next attempt, so only other failures are logged; logging
-   * those too would repeat every 3 s while the computer is unreachable.
+   * Connect and sign in with no caller waiting. Only a failure that `status.error` doesn't show is
+   * logged: a failed connection (retried every 3 s while the computer is unreachable) and a sign-in
+   * the owner still has to do are already there.
    */
   private readyInBackground(): void {
     void this.ready().catch((error: unknown) => {
-      if (!this.state.connected) return;
+      if (!this.state.connected || this.state.error) return;
       this.log.warn("couldn't get Codex ready", { error: errorMessage(error) });
     });
   }

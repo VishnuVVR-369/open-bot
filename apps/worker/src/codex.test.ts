@@ -135,6 +135,40 @@ describe("Codex connecting in the background", () => {
     expect(codex.status.error).toBeNull();
   });
 
+  it("leaves a device sign-in the owner still has to do to the status", async () => {
+    const server = new WebSocketServer({ port: 0 });
+    await once(server, "listening");
+    // Codex is up, with no account signed in.
+    server.on("connection", (socket) =>
+      socket.on("message", (data) => {
+        const message = JSON.parse(data.toString());
+        if (message.id === undefined) return;
+        const result = message.method === "account/read" ? { account: null } : {};
+        socket.send(JSON.stringify({ id: message.id, result }));
+      }),
+    );
+    cleanup.push(() => {
+      for (const socket of server.clients) socket.terminate();
+      server.close();
+    });
+    const computer = {
+      wsUrl: () => `ws://127.0.0.1:${(server.address() as AddressInfo).port}`,
+    } as unknown as ComputerClient;
+    const log = logger();
+    const codex = new CodexManager(
+      computer,
+      "/unused",
+      "codex",
+      async () => "device",
+      log as unknown as Logger,
+    );
+    cleanup.push(() => codex.stop());
+    codex.start();
+    await vi.waitFor(() => expect(codex.status.error).toMatch(/not signed in/));
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(log.warn).not.toHaveBeenCalled();
+  });
+
   it("leaves an unreachable computer to the status and its retry", async () => {
     const computer = { wsUrl: () => "ws://127.0.0.1:9" } as unknown as ComputerClient;
     const log = logger();
