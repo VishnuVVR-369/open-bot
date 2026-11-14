@@ -24,25 +24,35 @@ const REFUSED = [/^\/login(\/|$)/, /^\/setup(\/|$)/, /^\/api(\/|$)/];
 
 /**
  * `value` if it's a page of this app (a path, with its query and hash), otherwise `/`.
- * Refuses another origin in any spelling (`//evil.com`, `/\evil.com`, `https://evil.com`,
- * `javascript:`), control characters (encoded or not), and the sign-in pages and the API.
+ * Refuses another origin in any spelling (`//evil.com`, `/\\evil.com`, `https://evil.com`,
+ * `javascript:`, or one that normalizing makes, like `/.//evil.com`), control characters (encoded
+ * or not), and the sign-in pages and the API.
  */
 export function safeNext(value: string | null | undefined): string {
-  if (!value || value.length > MAX_LENGTH) return HOME;
-  // A path, and not one a browser reads as another host: `//host` and `/\host` both are.
-  if (!value.startsWith("/") || value.startsWith("//") || value.startsWith("/\\")) return HOME;
-  if (value.includes("\\") || CONTROL.test(value)) return HOME;
+  const page = checked(value);
+  // Normalizing can turn a path into another host's: `/.//evil.com` and `/a/..//evil.com` become
+  // `//evil.com`. So what it returns must pass unchanged too, and that is what the browser follows.
+  return page !== undefined && checked(page) === page ? page : HOME;
+}
+
+/** `value` normalized (dot segments resolved), if it passes every check before normalizing. */
+function checked(value: string | null | undefined): string | undefined {
+  if (!value || value.length > MAX_LENGTH) return undefined;
+  // A path, and not one a browser reads as another host: `//host` and `/\\host` both are.
+  if (!value.startsWith("/") || value.startsWith("//") || value.startsWith("/\\")) return undefined;
+  if (value.includes("\\") || CONTROL.test(value)) return undefined;
   const decoded = decodeFully(value);
-  if (CONTROL.test(decoded) || decoded.startsWith("//") || decoded.startsWith("/\\")) return HOME;
+  if (CONTROL.test(decoded) || decoded.startsWith("//") || decoded.startsWith("/\\"))
+    return undefined;
   let url: URL;
   try {
     url = new URL(value, BASE);
   } catch {
-    return HOME;
+    return undefined;
   }
-  if (url.origin !== BASE) return HOME;
+  if (url.origin !== BASE) return undefined;
   const path = decodeFully(url.pathname).toLowerCase();
-  if (REFUSED.some((pattern) => pattern.test(path))) return HOME;
+  if (REFUSED.some((pattern) => pattern.test(path))) return undefined;
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
