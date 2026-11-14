@@ -1,14 +1,10 @@
 import type { ApprovalView, TeammateSummary } from "@open-bot/api";
-import type { ApprovalRisk } from "@open-bot/domain";
+import type { ApprovalRisk, TeammateActivity } from "@open-bot/domain";
 import { Check, CircleDashed, Clock, OctagonAlert, TriangleAlert, X } from "lucide-react-native";
 import type { ReactNode } from "react";
 import { StyleSheet, View, type TextProps } from "react-native";
 import { ApprovalIcon } from "@/features/approvals/components/approval-icon";
-import {
-  BotAvatar,
-  type AvatarSize,
-  type BotActivity,
-} from "@/features/teammates/components/bot-avatar";
+import { TeammateAvatar, type AvatarSize } from "@/features/teammates/components/teammate-avatar";
 import { Text, type TextVariant } from "@/components/text";
 import { detailRows, titleParts } from "@/features/approvals/approval-text";
 import { fonts, radius, space, useColors } from "@/theme";
@@ -41,18 +37,18 @@ export function AvatarBadge({
 
 /** A teammate's face with what they asked to do in its corner. */
 export function ApprovalAvatar({
-  bot,
+  teammate,
   approval,
   pending,
   size = "lg",
   activity = "idle",
   behind,
 }: {
-  bot: Pick<TeammateSummary, "name" | "color" | "emoji"> | undefined;
+  teammate: Pick<TeammateSummary, "name" | "color" | "emoji"> | undefined;
   approval: Pick<ApprovalView, "kind" | "title" | "preview">;
   pending: boolean;
   size?: AvatarSize;
-  activity?: BotActivity;
+  activity?: TeammateActivity;
   /** What's behind the avatar, so the badge looks cut out of it. */
   behind: string;
 }) {
@@ -71,10 +67,10 @@ export function ApprovalAvatar({
         />
       }
     >
-      <BotAvatar
-        name={bot?.name ?? "?"}
-        color={bot?.color ?? colors.mutedForeground}
-        emoji={bot?.emoji}
+      <TeammateAvatar
+        name={teammate?.name ?? "?"}
+        color={teammate?.color ?? colors.mutedForeground}
+        emoji={teammate?.emoji}
         size={size}
         activity={activity}
       />

@@ -30,7 +30,7 @@ import {
 } from "lucide-react-native";
 import { memo, useMemo, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
-import { BotAvatar } from "@/features/teammates/components/bot-avatar";
+import { TeammateAvatar } from "@/features/teammates/components/teammate-avatar";
 import { Text } from "@/components/text";
 import { haptics } from "@/lib/haptics";
 import { animateLayout } from "@/lib/motion";
@@ -68,16 +68,16 @@ const TRIGGER_ICONS: Record<TriggerKind, StepIcon> = {
 export const RunBlock = memo(function RunBlock({
   run,
   chatId,
-  bot,
-  bots,
+  teammate,
+  teammates,
   superseded = false,
   isGroup = false,
   latest = false,
 }: {
   run: RunView;
   chatId: string;
-  bot: TeammateSummary | undefined;
-  bots: TeammateSummary[];
+  teammate: TeammateSummary | undefined;
+  teammates: TeammateSummary[];
   /** The same teammate ran again after this, so there's nothing to retry. */
   superseded?: boolean;
   isGroup?: boolean;
@@ -95,8 +95,8 @@ export const RunBlock = memo(function RunBlock({
   const expanded = toggled ?? (active && run.timeline.status !== "waiting");
   const [menuOpen, setMenuOpen] = useState(false);
   const showSteps = expanded || stepCount === 0;
-  const name = bot?.name ?? "Former teammate";
-  const trigger = triggerLabel(run, bots);
+  const name = teammate?.name ?? "Former teammate";
+  const trigger = triggerLabel(run, teammates);
   const reply = replyText(items);
   const finished = !active && (reply || run.timeline.status === "completed");
   // A pending approval or takeover card already says what they're waiting for.
@@ -107,7 +107,12 @@ export const RunBlock = memo(function RunBlock({
   if (!active && run.trigger === "schedule" && isNothingToReport(reply)) {
     return (
       <View style={styles.quiet} testID="run">
-        <BotAvatar name={name} color={bot?.color ?? "#888888"} emoji={bot?.emoji} size="xs" />
+        <TeammateAvatar
+          name={name}
+          color={teammate?.color ?? "#888888"}
+          emoji={teammate?.emoji}
+          size="xs"
+        />
         <Text variant="small" muted style={{ flex: 1 }} numberOfLines={1}>
           {isGroup && (
             <Text variant="small" style={{ fontWeight: "500" }}>
@@ -140,10 +145,10 @@ export const RunBlock = memo(function RunBlock({
         <View style={styles.header}>
           {isGroup && (
             <>
-              <BotAvatar
+              <TeammateAvatar
                 name={name}
-                color={bot?.color ?? "#888888"}
-                emoji={bot?.emoji}
+                color={teammate?.color ?? "#888888"}
+                emoji={teammate?.emoji}
                 size="sm"
                 activity={
                   active ? (run.timeline.status === "waiting" ? "waiting" : "working") : "idle"
@@ -236,7 +241,7 @@ export const RunBlock = memo(function RunBlock({
           <RunActions
             run={run}
             chatId={chatId}
-            botName={name}
+            teammateName={name}
             reply={reply}
             showRow={latest}
             menuOpen={menuOpen}

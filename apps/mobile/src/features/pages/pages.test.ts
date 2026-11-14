@@ -77,7 +77,7 @@ describe("where a question goes", () => {
         [iris],
         [group, chat("dm-iris", "direct")],
       ),
-    ).toEqual({ bot: iris, chat: group });
+    ).toEqual({ teammate: iris, chat: group });
   });
 
   it("falls back to the teammate's own chat for a scheduled or missing one", () => {
@@ -88,7 +88,7 @@ describe("where a question goes", () => {
         [iris],
         [chat("s1", "scheduled"), direct],
       ),
-    ).toEqual({ bot: iris, chat: direct });
+    ).toEqual({ teammate: iris, chat: direct });
     expect(questionTarget({ teammateId: "iris", chatId: null }, [iris], [direct])?.chat).toBe(
       direct,
     );

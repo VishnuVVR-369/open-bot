@@ -125,8 +125,8 @@ export default function ChatScreen() {
             <RunBlock
               run={runs[entry.run.id] ?? entry.run}
               chatId={chatId}
-              bot={team.find((candidate) => candidate.id === entry.run.teammateId)}
-              bots={team}
+              teammate={team.find((candidate) => candidate.id === entry.run.teammateId)}
+              teammates={team}
               superseded={superseded.has(entry.run.id)}
               isGroup={isGroup}
               latest={entry.type === "run" && entry.run.id === latestRunId}
@@ -278,7 +278,7 @@ export default function ChatScreen() {
             members={members}
             isGroup={isGroup}
             activeRun={
-              activeRun ? { id: activeRun.id, botName: activeName ?? "your teammate" } : null
+              activeRun ? { id: activeRun.id, teammateName: activeName ?? "your teammate" } : null
             }
             canStop={!runHeld}
             onSent={(message) => {

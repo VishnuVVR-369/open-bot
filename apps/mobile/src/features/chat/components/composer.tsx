@@ -55,7 +55,7 @@ export function Composer({
   members: TeammateSummary[];
   isGroup: boolean;
   /** The reply being written right now, which Stop stops. */
-  activeRun: { id: string; botName: string } | null;
+  activeRun: { id: string; teammateName: string } | null;
   /**
    * False while the run waits on you (the request itself has Deny) or the computer is offline
    * (stopping needs it), so Stop only shows while they're actually working.
@@ -263,7 +263,7 @@ export function Composer({
             onPress={() => void stop()}
             disabled={stopping}
             accessibilityRole="button"
-            accessibilityLabel={`Stop ${activeRun?.botName ?? "your teammate"}`}
+            accessibilityLabel={`Stop ${activeRun?.teammateName ?? "your teammate"}`}
             style={[styles.send, { backgroundColor: colors.primary }]}
             testID="stop-run"
           >

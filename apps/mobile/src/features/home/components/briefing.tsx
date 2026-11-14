@@ -4,7 +4,7 @@ import { plainText } from "@open-bot/domain";
 import { router } from "expo-router";
 import { AlertCircle, History, X } from "lucide-react-native";
 import { Pressable, View, StyleSheet } from "react-native";
-import { BotAvatar } from "@/features/teammates/components/bot-avatar";
+import { TeammateAvatar } from "@/features/teammates/components/teammate-avatar";
 import { Text } from "@/components/text";
 import { chatHref } from "@/lib/links";
 import { animateLayout } from "@/lib/motion";
@@ -16,7 +16,7 @@ import { shared } from "./styles";
 import { briefingGroups } from "@/features/home/home";
 
 /** The most replies shown for each teammate in the briefing. */
-const PER_BOT = 3;
+const PER_TEAMMATE = 3;
 
 export function Briefing({
   items,
@@ -62,27 +62,27 @@ export function Briefing({
           <X size={18} color={colors.mutedForeground} />
         </Pressable>
       </View>
-      {groups.map(([botId, botItems]) => {
-        const bot = teammates.find((entry) => entry.id === botId);
-        const extra = botItems.length - PER_BOT;
+      {groups.map(([teammateId, teammateItems]) => {
+        const teammate = teammates.find((entry) => entry.id === teammateId);
+        const extra = teammateItems.length - PER_TEAMMATE;
         return (
-          <View key={botId} style={styles.briefingBot}>
-            <BotAvatar
-              name={bot?.name ?? "?"}
-              color={bot?.color ?? "#888888"}
-              emoji={bot?.emoji}
+          <View key={teammateId} style={styles.briefingTeammate}>
+            <TeammateAvatar
+              name={teammate?.name ?? "?"}
+              color={teammate?.color ?? "#888888"}
+              emoji={teammate?.emoji}
               size="sm"
             />
             <View style={{ flex: 1 }}>
               <View style={styles.briefingName}>
                 <Text variant="label" style={{ fontSize: 14 }}>
-                  {bot?.name ?? "Former teammate"}
+                  {teammate?.name ?? "Former teammate"}
                 </Text>
                 <Text variant="small" muted>
-                  · {plural(botItems.length, "task")}
+                  · {plural(teammateItems.length, "task")}
                 </Text>
               </View>
-              {botItems.slice(0, PER_BOT).map((item) => {
+              {teammateItems.slice(0, PER_TEAMMATE).map((item) => {
                 const Icon =
                   item.status === "failed"
                     ? AlertCircle
@@ -157,7 +157,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: -space(2),
   },
-  briefingBot: { flexDirection: "row", gap: space(3) },
+  briefingTeammate: { flexDirection: "row", gap: space(3) },
   briefingName: { flexDirection: "row", alignItems: "center", gap: space(1.5), height: 28 },
   briefingItem: {
     flexDirection: "row",

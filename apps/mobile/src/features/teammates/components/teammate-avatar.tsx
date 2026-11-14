@@ -6,12 +6,6 @@ import { useReducedMotion } from "@/lib/motion";
 import { fonts, useColors, type Colors } from "@/theme";
 import { mix } from "@/theme/mix";
 
-/**
- * What a teammate is up to, which their avatar shows. `waiting` means waiting for you; `paused`
- * means waiting for the offline computer. The same as the shared `TeammateActivity`.
- */
-export type BotActivity = TeammateActivity;
-
 const SIZES = {
   xs: { box: 24, radius: 7, font: 13 },
   sm: { box: 28, radius: 8, font: 15 },
@@ -48,15 +42,15 @@ export const PAUSED_OFFLINE = `${STATUS.paused}, computer offline`;
  * still needs you, offline or not; everyone else is paused while the computer (from
  * `useComputerOffline`) is offline.
  */
-export function botActivity(
-  bot: Pick<TeammateSummary, "activeRun">,
+export function teammateActivity(
+  teammate: Pick<TeammateSummary, "activeRun">,
   computerOffline = false,
-): BotActivity {
-  return teammateStatus(bot, !computerOffline).activity;
+): TeammateActivity {
+  return teammateStatus(teammate, !computerOffline).activity;
 }
 
 /** The words for what a teammate is up to, from the fixed list in `STATUS`. */
-export function activityText(activity: BotActivity, waitingFor?: string | null): string {
+export function activityText(activity: TeammateActivity, waitingFor?: string | null): string {
   switch (activity) {
     case "waiting":
       return needsYouText(waitingFor);
@@ -72,7 +66,7 @@ export function activityText(activity: BotActivity, waitingFor?: string | null):
 }
 
 /** The color those words are in: amber when it needs you, blue while working, quiet otherwise. */
-export function activityColor(activity: BotActivity, colors: Colors): string {
+export function activityColor(activity: TeammateActivity, colors: Colors): string {
   if (activity === "waiting") return colors.attentionInk;
   if (activity === "working") return colors.working;
   return colors.mutedForeground;
@@ -95,7 +89,7 @@ export function StatusLine({
   children,
   testID,
 }: {
-  activity: BotActivity;
+  activity: TeammateActivity;
   waitingFor?: string | null;
   size?: "small" | "caption";
   children?: ReactNode;
@@ -172,7 +166,7 @@ export function LeadBadge() {
   );
 }
 
-const ACTIVITY_LABEL: Record<BotActivity, string> = {
+const ACTIVITY_LABEL: Record<TeammateActivity, string> = {
   idle: "",
   working: "working",
   paused: "paused",
@@ -185,7 +179,7 @@ const ACTIVITY_LABEL: Record<BotActivity, string> = {
  * separate light: a ring that breathes while they work and a dashed ring while they're up next. Waiting
  * for you is said in words beside the face (amber text), not on it.
  */
-export function BotAvatar({
+export function TeammateAvatar({
   name,
   color,
   emoji,
@@ -196,7 +190,7 @@ export function BotAvatar({
   color: string;
   emoji?: string;
   size?: AvatarSize;
-  activity?: BotActivity;
+  activity?: TeammateActivity;
 }) {
   const colors = useColors();
   const dims = SIZES[size];
@@ -311,7 +305,7 @@ export function GroupAvatar({
   const shown = members.slice(0, 2);
   if (shown.length < 2)
     return shown[0] ? (
-      <BotAvatar {...shown[0]} size={size} />
+      <TeammateAvatar {...shown[0]} size={size} />
     ) : (
       <View style={{ width: box, height: box }} />
     );
@@ -321,7 +315,7 @@ export function GroupAvatar({
   return (
     <View style={{ width: box, height: box }}>
       <View style={{ position: "absolute", top: 0, left: 0 }}>
-        <BotAvatar {...shown[0]!} size={inner} />
+        <TeammateAvatar {...shown[0]!} size={inner} />
       </View>
       <View
         style={{
@@ -337,7 +331,7 @@ export function GroupAvatar({
           justifyContent: "center",
         }}
       >
-        <BotAvatar {...shown[1]!} size={inner} />
+        <TeammateAvatar {...shown[1]!} size={inner} />
       </View>
     </View>
   );
@@ -385,7 +379,7 @@ export function AvatarStack({
             zIndex: max - index,
           }}
         >
-          <BotAvatar {...member} size="sm" />
+          <TeammateAvatar {...member} size="sm" />
         </View>
       ))}
       {rest > 0 && (

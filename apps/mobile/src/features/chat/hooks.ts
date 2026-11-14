@@ -9,7 +9,7 @@ export const useChats = () =>
 /** Opens a new chat with a teammate. */
 export function useNewDirectChat() {
   return useMutation({
-    mutationFn: (botId: string) => api.chats.newDirect({ teammateId: botId }),
+    mutationFn: (teammateId: string) => api.chats.newDirect({ teammateId: teammateId }),
     onSuccess: ({ chatId }) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.chats });
       void queryClient.invalidateQueries({ queryKey: queryKeys.teammates });

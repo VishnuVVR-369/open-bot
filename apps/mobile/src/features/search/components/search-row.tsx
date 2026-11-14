@@ -10,7 +10,11 @@ import {
   type LucideIcon,
 } from "lucide-react-native";
 import { Pressable, StyleSheet, View } from "react-native";
-import { BotAvatar, botActivity, GroupAvatar } from "@/features/teammates/components/bot-avatar";
+import {
+  TeammateAvatar,
+  teammateActivity,
+  GroupAvatar,
+} from "@/features/teammates/components/teammate-avatar";
 import { Text } from "@/components/text";
 import { useComputerOffline } from "@/features/computer/hooks";
 import type { SearchRow as Row } from "@/features/search/search";
@@ -143,12 +147,12 @@ function Leading({ row, you }: { row: AppSearchRow; you: string }) {
   const teammate = row.kind === "place" ? undefined : row.teammate;
   if (teammate)
     return (
-      <BotAvatar
+      <TeammateAvatar
         name={teammate.name}
         color={teammate.color}
         emoji={teammate.emoji}
         size="md"
-        activity={row.kind === "teammate" ? botActivity(teammate, computerOffline) : "idle"}
+        activity={row.kind === "teammate" ? teammateActivity(teammate, computerOffline) : "idle"}
       />
     );
   if (row.kind === "message")

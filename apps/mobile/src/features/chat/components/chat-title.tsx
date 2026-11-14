@@ -2,7 +2,11 @@ import type { TeammateSummary, ChatSummary } from "@open-bot/api";
 import type { TeammateActivity } from "@open-bot/domain";
 import { router } from "expo-router";
 import { Pressable, StyleSheet, View } from "react-native";
-import { AvatarStack, BotAvatar, StatusLine } from "@/features/teammates/components/bot-avatar";
+import {
+  AvatarStack,
+  TeammateAvatar,
+  StatusLine,
+} from "@/features/teammates/components/teammate-avatar";
 import { Text } from "@/components/text";
 import { namedForTopic } from "@/features/chat/chats";
 import { space, useColors } from "@/theme";
@@ -43,7 +47,7 @@ export function ChatTitle({
         <AvatarStack members={members} ring={colors.background} />
       ) : (
         teammate && (
-          <BotAvatar
+          <TeammateAvatar
             name={teammate.name}
             color={teammate.color}
             emoji={teammate.emoji}

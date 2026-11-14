@@ -10,7 +10,7 @@ export type ScreenState =
   | { kind: "offline" }
   | { kind: "needs-you"; reason: string | null; requestId: string }
   | { kind: "asleep" }
-  | { kind: "using"; botName: string }
+  | { kind: "using"; teammateName: string }
   | { kind: "awake" };
 
 export function screenState(screen: ScreenView): ScreenState {
@@ -20,7 +20,8 @@ export function screenState(screen: ScreenView): ScreenState {
   const request = screen.requests[0];
   if (request) return { kind: "needs-you", reason: request.reason, requestId: request.id };
   if (!screen.running) return { kind: "asleep" };
-  if (screen.lease?.kind === "run") return { kind: "using", botName: screen.lease.teammateName };
+  if (screen.lease?.kind === "run")
+    return { kind: "using", teammateName: screen.lease.teammateName };
   return { kind: "awake" };
 }
 
@@ -43,7 +44,7 @@ export function screenStatus(screen: ScreenView): string {
     case "asleep":
       return "Asleep";
     case "using":
-      return `${state.botName} is using it`;
+      return `${state.teammateName} is using it`;
     case "awake":
       return "Awake";
   }

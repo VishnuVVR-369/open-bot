@@ -67,15 +67,16 @@ export function parsePageMessage(data: string): PageMessage | null {
  */
 export function questionTarget(
   page: Pick<PageSummary, "teammateId" | "chatId">,
-  bots: TeammateSummary[],
+  teammates: TeammateSummary[],
   chats: ChatSummary[],
-): { bot: TeammateSummary; chat: ChatSummary } | null {
-  const bot = bots.find((candidate) => candidate.id === page.teammateId);
-  if (!bot) return null;
+): { teammate: TeammateSummary; chat: ChatSummary } | null {
+  const teammate = teammates.find((candidate) => candidate.id === page.teammateId);
+  if (!teammate) return null;
   const origin = chats.find((chat) => chat.id === page.chatId);
-  if (origin && (origin.kind === "direct" || origin.kind === "group")) return { bot, chat: origin };
-  const direct = chats.find((chat) => chat.id === bot.directChatId);
-  return direct ? { bot, chat: direct } : null;
+  if (origin && (origin.kind === "direct" || origin.kind === "group"))
+    return { teammate, chat: origin };
+  const direct = chats.find((chat) => chat.id === teammate.directChatId);
+  return direct ? { teammate, chat: direct } : null;
 }
 
 /** Pages pinned first, then the most recently changed; the order the server sends, kept here too. */

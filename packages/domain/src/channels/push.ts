@@ -25,7 +25,13 @@ export interface NativePushData {
   tag: string;
   /** Where tapping it goes, as a route in the app. */
   url?: string;
-  botId?: string; // vocabulary: allow (a field phones already parse)
+  /** The teammate it's from: a Reply mentions them, and a takeover request opens their screen. */
+  teammateId?: string;
+  /**
+   * Temporary: the same id under its old name, for phones still on the build that reads `botId`.
+   * Removed in the database-rename PR (V6), which deploys after the new phone build is installed.
+   */
+  botId?: string; // vocabulary: allow (temporary, see above)
   chatId?: string;
   runId?: string;
   /** A page to open, for a teammate's reply that published one. */

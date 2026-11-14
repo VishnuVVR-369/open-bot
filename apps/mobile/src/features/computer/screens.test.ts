@@ -31,7 +31,7 @@ describe("code recovery", () => {
   });
 });
 
-const bot = {
+const teammate = {
   id: "b1",
   name: "Rex",
   slug: "rex",
@@ -47,7 +47,7 @@ const bot = {
 function view(id: string, patch: Partial<ScreenView> = {}): ScreenView {
   return {
     id,
-    teammate: bot,
+    teammate: teammate,
     online: true,
     running: false,
     lease: null,

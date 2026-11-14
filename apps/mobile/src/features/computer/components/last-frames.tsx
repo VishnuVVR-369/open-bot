@@ -4,7 +4,7 @@ import { router } from "expo-router";
 import { MonitorOff } from "lucide-react-native";
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, useColorScheme, View } from "react-native";
-import { BotAvatar } from "@/features/teammates/components/bot-avatar";
+import { TeammateAvatar } from "@/features/teammates/components/teammate-avatar";
 import { Text } from "@/components/text";
 import { APP_URL } from "@/lib/config";
 import { fileHeaders } from "@/features/files/files";
@@ -89,7 +89,7 @@ function Frame({
         ) : null}
       </View>
       <View style={styles.caption}>
-        <BotAvatar
+        <TeammateAvatar
           name={screen.teammate.name}
           color={screen.teammate.color}
           emoji={screen.teammate.emoji}
