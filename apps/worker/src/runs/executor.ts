@@ -15,7 +15,7 @@ import { appendRunEvent } from "./events";
 import { agentsMarkdown, allowedList, redoPrompt } from "../instructions";
 import { errorMessage } from "../logger";
 import type { ApprovalService } from "../features/approvals";
-import type { SessionRegistry } from "../services/registry";
+import type { SessionRegistry } from "./registry";
 import type { ConnectionService } from "../features/connections";
 import { emailSettingsRow } from "../features/email";
 import type { SkillService } from "../features/skills";

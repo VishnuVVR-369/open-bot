@@ -1,4 +1,4 @@
-import type { RunSession } from "../runs/session";
+import type { RunSession } from "./session";
 
 /** The runs executing right now, by run id. */
 export class SessionRegistry {

@@ -21,7 +21,7 @@ import { createNotification } from "../notifications";
 import { enqueueRun } from "../../runs/queue";
 import { appendRunEvent } from "../../runs/events";
 import type { RunSession } from "../../runs/session";
-import type { SessionRegistry } from "../../services/registry";
+import type { SessionRegistry } from "../../runs/registry";
 import { WorkerError } from "../../core/errors";
 
 const ACTION_WAIT_MS = 10 * 60_000;

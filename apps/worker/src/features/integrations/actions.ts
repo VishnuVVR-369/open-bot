@@ -25,7 +25,7 @@ import { appendRunEvent } from "../../runs/events";
 import { errorMessage } from "../../logger";
 import type { RunSession } from "../../runs/session";
 import type { ApprovalService } from "../approvals";
-import type { SessionRegistry } from "../../services/registry";
+import type { SessionRegistry } from "../../runs/registry";
 import {
   AccountToolError,
   ProviderError,

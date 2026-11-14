@@ -23,10 +23,10 @@ import { createHttpServer, type HttpDeps } from "../http";
 import { BotService, TEAMMATE_RULES } from "../features/teammates";
 import { ApprovalService } from "../features/approvals";
 import { APPROVAL_OUTCOMES } from "../approval-outcomes";
-import { SessionRegistry } from "../services/registry";
+import { SessionRegistry } from "../runs/registry";
 import { ScheduleService, TriggerService } from "../features/automations";
 import { SkillService } from "../features/skills";
-import type { ToolServices } from "./define";
+import type { ToolRegistryServices } from "./dependencies";
 import { ToolHandlers } from "./handlers";
 import { MemoryService } from "@open-bot/memory";
 
@@ -62,7 +62,7 @@ describe.skipIf(!url)("bot management with Postgres", () => {
     triggers,
     memory: {},
     teammates: service,
-  } as unknown as ToolServices;
+  } as unknown as ToolRegistryServices;
   const handlers = new ToolHandlers(services);
 
   beforeAll(async () => {

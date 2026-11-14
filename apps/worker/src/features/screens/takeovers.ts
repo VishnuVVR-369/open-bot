@@ -20,7 +20,7 @@ import { enqueueRun } from "../../runs/queue";
 import { appendRunEvent } from "../../runs/events";
 import { errorMessage } from "../../logger";
 import type { RunSession } from "../../runs/session";
-import type { SessionRegistry } from "../../services/registry";
+import type { SessionRegistry } from "../../runs/registry";
 import { ScreenBusy, withScreenLock } from "./screen-lock";
 import { handBackEndedOperations, operationNeedsOwner } from "./screen-operations";
 

@@ -8,12 +8,13 @@ import type { RunSession, SessionTools } from "../runs/session";
 import { WorkerError } from "../core/errors";
 import { BotTools } from "../features/teammates";
 import { toolNamed, toolsFor } from "./definitions";
-import { parseArgs, text, type ToolDeps, type ToolResponse, type ToolServices } from "./define";
+import { parseArgs, text, type ToolResponse } from "../core/tool";
+import type { ToolDeps, ToolRegistryServices } from "./dependencies";
 
 export class ToolHandlers implements SessionTools {
   private readonly deps: ToolDeps;
 
-  constructor(services: ToolServices) {
+  constructor(services: ToolRegistryServices) {
     this.deps = {
       ...services,
       botTools: new BotTools(services.ctx, services.teammates, services.approvals),

@@ -11,7 +11,8 @@ Shared types and pure logic go in `packages/domain`, and schema changes go in `p
 - `apps/worker/src/rpc/router.ts`: the internal API (`workerContract` in `packages/api/src/worker/contract.ts`), each procedure calling a service; `apps/worker/src/rpc/handler.ts` wakes the computer around procedures that need it and maps errors (`apps/worker/src/rpc/errors.ts`).
 - `apps/worker/src/features/<feature>/`: one folder per feature (list the folder to see which have moved): `service.ts`, its agent tools in `tools.ts`, its internal API procedures in `routes.ts`, any background work and web app signals it answers in `feature.ts` (a `Feature`, started from `apps/worker/src/index.ts`; add it to `FEATURES` in `apps/worker/src/shutdown.test.ts`), and `index.ts`, the only file code outside the folder imports (`apps/worker/src/features/boundaries.test.ts` checks it).
 - `apps/worker/src/core/`: what features build on: `WorkerError`, the `Runtime`, the `Feature` manifest (`feature.ts`), row types, `defineTool()` (`tool.ts`) and the oRPC implementer (`rpc.ts`).
-- `apps/worker/src/tools/`: one file per feature not yet moved defines its tools with `defineTool()` (`define.ts`): name, description, zod input, helper policy and handler. `definitions.ts` lists them (`TOOLS`), and `handlers.ts` (`ToolHandlers.handle()`) finds the called tool by name and runs it. `DEVELOPER_INSTRUCTIONS` is in `apps/worker/src/instructions.ts`.
+- `apps/worker/src/tools/`: registry infrastructure only: `definitions.ts` lists feature tools (`TOOLS`), `dependencies.ts` composes their services, and `handlers.ts` (`ToolHandlers.handle()`) finds the called tool by name and runs it. Feature tools use the single `defineTool()` in `apps/worker/src/core/tool.ts`. `DEVELOPER_INSTRUCTIONS` is in `apps/worker/src/instructions.ts`.
+- `apps/worker/src/runs/`: sessions, execution, the live session registry (`registry.ts`), queuing, retries and run requests.
 - `apps/worker/src/computer-lifecycle.ts` and `apps/worker/src/computer.ts`: computer sleep and wake, and `ComputerClient`, which calls botd through `botdContract` (`@open-bot/api/botd`) and validates every answer and event.
 - `apps/worker/build.mjs`: esbuild bundle to `apps/worker/dist/worker.mjs`.
 
@@ -36,14 +37,14 @@ Paths are relative to the repo root; symbols are in parentheses.
 
 ### Add an agent tool (non-account)
 
-1. One `defineTool({ name, description, input, helpers, handle })` in the feature's tools file: `apps/worker/src/features/<feature>/tools.ts` when the feature has a folder, otherwise its file in `apps/worker/src/tools/` (`skills.ts`, `vault.ts`, ...).
+1. One `defineTool({ name, description, input, helpers, handle })` in the feature's tools file: `apps/worker/src/features/<feature>/tools.ts`, using `defineTool()` from `apps/worker/src/core/tool.ts`.
    `input` is a zod object: Codex is offered its JSON schema, and a call is parsed with it before `handle` runs, so the handler gets typed `call.args` (`call.raw` is what Codex sent, for the timeline item).
    `helpers: "forbidden"` keeps swarm helpers from calling it.
    `handle` records a timeline item with `session.putItem(toolItem(...))` and calls `publishApp` if the UI shows the change.
    A new feature's file adds its list to `TOOLS` in `apps/worker/src/tools/definitions.ts`.
 2. `pnpm --filter @open-bot/worker test -u` updates the tool list snapshot (`apps/worker/src/tools/__snapshots__/tools.json`); review its diff.
    Nothing to bump: threads started with other tools or instructions are replaced by fresh ones (`apps/worker/src/runs/tools-revision.ts`).
-3. A new service goes in `ToolServices` (`apps/worker/src/tools/define.ts`), passed by name in `apps/worker/src/index.ts`.
+3. A new tool dependency is composed in `ToolRegistryServices` (`apps/worker/src/tools/dependencies.ts`), passed by name in `apps/worker/src/index.ts`.
    A feature's tools declare only the services they use (`TaskToolDeps` in `apps/worker/src/features/tasks/tools.ts`).
 4. Optional: rules in `DEVELOPER_INSTRUCTIONS` (`apps/worker/src/instructions.ts`), an icon, or `asksApproval` for a tool whose call is itself the approval request, in `TOOL_DISPLAY` (`packages/domain/src/timeline/tool-display.ts`), which web and mobile both read.
    A new icon meaning needs its icon in `apps/web/src/features/chat/components/items.tsx` and `apps/mobile/src/components/chat/tool-icons.ts`.
@@ -53,7 +54,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 
 1. `packages/api/src/worker/contracts/<feature>.ts` (composed in `packages/api/src/worker/contract.ts`): add a procedure to `workerContract` with its `route` (`/internal/...`), input and output schemas.
    Use `computer` instead of `base` if it touches the computer, or it will not wake it; never for a status read.
-2. `apps/worker/src/rpc/router.ts`: implement it by calling a service.
+2. `apps/worker/src/features/<feature>/routes.ts`: implement it by calling the feature service; export the route builder from its `index.ts` and compose it in `apps/worker/src/rpc/router.ts`.
    Put rules in the service, and throw the service's own error class, which extends `WorkerError` (`apps/worker/src/core/errors.ts`) with a status; `apps/worker/src/rpc/errors.ts` turns it into the answer in one place.
    Auth (`x-worker-secret`) is automatic.
 3. Call it from web with the typed client: `worker.<domain>.<procedure>(input)` (`apps/web/src/lib/server/worker.ts`) in a feature's `server/` folder (`apps/web/src/features/<feature>/server/`).
@@ -64,7 +65,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 
 - Unit: `pnpm --filter @open-bot/worker test`.
 - Integration: `pnpm test:integration` from the root (starts Postgres), or `pnpm --filter @open-bot/worker test:integration` with `TEST_DATABASE_URL` set.
-- Integration suites: all nine `*.integration.test.ts` files under `apps/worker/src` (`git ls-files 'apps/worker/**/*.integration.test.ts'`).
+- Integration suites: the `*.integration.test.ts` files under `apps/worker/src` (`git ls-files 'apps/worker/**/*.integration.test.ts'`).
 - Built artifact: `pnpm --filter @open-bot/worker build && node apps/worker/dist/worker.mjs`.
 - Sleep and wake: `pnpm test:computer-sleep`.
 - E2E: `pnpm e2e` (for example `e2e/agent.spec.ts`, `e2e/computer.spec.ts`, `e2e/swarm.spec.ts`).

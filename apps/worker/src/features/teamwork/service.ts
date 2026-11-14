@@ -13,7 +13,7 @@ import { requestRunsCancel } from "../../runs/cancel";
 import { addChat } from "../chat";
 import { errorMessage } from "../../logger";
 import type { RunSession } from "../../runs/session";
-import type { SessionRegistry } from "../../services/registry";
+import type { SessionRegistry } from "../../runs/registry";
 import { WorkerError } from "../../core/errors";
 
 type Swarm = typeof swarms.$inferSelect;

@@ -5,7 +5,7 @@ import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import { bots, chatMembers, chats, messageDispatches, messages, runs } from "@open-bot/db";
 import type { Context } from "../context";
 import { MemoryService } from "@open-bot/memory";
-import { SessionRegistry } from "../services/registry";
+import { SessionRegistry } from "./registry";
 import { RunExecutor } from "./executor";
 import type { RunSession } from "./session";
 
