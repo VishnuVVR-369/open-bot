@@ -13,6 +13,7 @@ import { ComputerClient } from "../../computer/client";
 import type { Context } from "../../context";
 import type { Logger } from "../../logger";
 import { SessionRegistry } from "../../runs/registry";
+import { withScreenLock } from "./screen-lock";
 import { ScreenOperationService } from "./screen-operations";
 import { CODE_HANDED_BACK_NOTE, TakeoverService } from "./takeovers";
 
@@ -102,13 +103,13 @@ async function computerStandIn(screenId: string) {
       [pathOf(botdContract.computer.type)]: typeCode,
     },
   };
+  const health = () => ({
+    ...HEALTH,
+    screens: [{ id: screenId, state: "running", browser: "running", lease: lease(state.holder) }],
+  });
   const server = http.createServer(async (request, response) => {
     for await (const _chunk of request);
     const path = new URL(request.url!, "http://botd").pathname;
-    const health = () => ({
-      ...HEALTH,
-      screens: [{ id: screenId, state: "running", browser: "running", lease: lease(state.holder) }],
-    });
     const handler =
       request.method === "GET" && path === "/health"
         ? health
@@ -126,6 +127,7 @@ async function computerStandIn(screenId: string) {
       connected.push(ws);
       // Current state first, like botd.
       ws.send(JSON.stringify({ type: "lease", screenId, holder: lease(state.holder) }));
+      ws.send(JSON.stringify({ type: "health", health: health() }));
     }),
   );
   server.listen(0, "127.0.0.1");
@@ -233,6 +235,17 @@ describe.skipIf(!url)("takeovers across a worker and a computer on different ver
     };
   }
 
+  /** The takeover's return, once its delivery is marked done: enqueueing a run comes before that. */
+  async function delivered(takeoverId: string) {
+    await vi.waitFor(async () => {
+      const [delivery] = await db
+        .select()
+        .from(takeoverDeliveries)
+        .where(eq(takeoverDeliveries.id, takeoverId));
+      expect(delivery?.deliveredAt).toBeInstanceOf(Date);
+    });
+  }
+
   /**
    * Another run of the teammate asked you for a one-time code, and the screen was free when the
    * worker looked; then `run`, started by a worker of the other version, took it before typing.
@@ -336,12 +349,10 @@ describe.skipIf(!url)("takeovers across a worker and a computer on different ver
       const { screenId, run, botd, computer, service, takeovers, continuations } = await setUp();
       // You took over while both ran the old version; then the worker was deployed.
       botd.state.holder = { kind: "owner" };
-      await db.insert(screenTakeovers).values({
-        screenId,
-        status: "active",
-        startedAt: new Date(),
-        interruptedRunId: run.id,
-      });
+      const [takeover] = await db
+        .insert(screenTakeovers)
+        .values({ screenId, status: "active", startedAt: new Date(), interruptedRunId: run.id })
+        .returning();
       computer.start();
       await vi.waitFor(() => expect(computer.lease(screenId)).toEqual(OWNER));
       await expect(service.handBack(screenId, NOTE)).rejects.toMatchObject({ status: 404 });
@@ -350,14 +361,8 @@ describe.skipIf(!url)("takeovers across a worker and a computer on different ver
       expect(await continuations()).toEqual([]);
       if (ending.auto) botd.expire(ending.auto);
       else botd.restart();
-      await vi.waitFor(async () => expect(await continuations()).toHaveLength(1));
-      const [takeover] = await takeovers();
-      expect(takeover).toMatchObject({ status: "ended", note: NOTE });
-      const [delivery] = await db
-        .select()
-        .from(takeoverDeliveries)
-        .where(eq(takeoverDeliveries.id, takeover!.id));
-      expect(delivery?.deliveredAt).toBeInstanceOf(Date);
+      await delivered(takeover!.id);
+      expect(await takeovers()).toMatchObject([{ status: "ended", note: NOTE }]);
       // Reconciling later delivers nothing again.
       await service.reconcile();
       const continued = await continuations();
@@ -366,4 +371,54 @@ describe.skipIf(!url)("takeovers across a worker and a computer on different ver
       if (ending.auto) expect(continued[0]!.prompt).toContain(ending.says);
     },
   );
+
+  it("keeps the note a refused hand-back saved after a reconcile read the takeovers", async () => {
+    const { screenId, run, botd, computer, ctx, service, takeovers, continuations } = await setUp();
+    // Another teammate's takeover on a screen nobody holds any more. Reconcile visits screens in
+    // id order, so it comes first, while yours waits as reconcile read it.
+    const otherId = `00000000-0000-4000-8000-${randomUUID().slice(-12)}`;
+    await db
+      .insert(teammates)
+      .values({ id: otherId, name: "Ada", slug: `ada-${otherId}`, role: "Test", color: "#123456" });
+    await db
+      .insert(screenTakeovers)
+      .values({ screenId: otherId, status: "active", startedAt: new Date() });
+    // You took over while both ran the old version; then the worker was deployed.
+    botd.state.holder = { kind: "owner" };
+    const [takeover] = await db
+      .insert(screenTakeovers)
+      .values({ screenId, status: "active", startedAt: new Date(), interruptedRunId: run.id })
+      .returning();
+    computer.start();
+    await vi.waitFor(() => expect(computer.online).toBe(true));
+
+    // Reconcile reads the active takeovers, then stops at its first health read, for Ada's screen.
+    let reached!: () => void;
+    const atHealth = new Promise<void>((resolve) => (reached = resolve));
+    let resume!: () => void;
+    const held = new Promise<void>((resolve) => (resume = resolve));
+    const fetchHealth = computer.fetchHealth.bind(computer);
+    vi.spyOn(computer, "fetchHealth").mockImplementationOnce(async () => {
+      reached();
+      await held;
+      return fetchHealth();
+    });
+    const reconciling = service.reconcile();
+    await atHealth;
+    // You hand back through the screen lock, like the worker's route; the old computer refuses.
+    await expect(
+      withScreenLock(ctx, screenId, () => service.handBack(screenId, NOTE)),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(await takeovers()).toMatchObject([{ status: "active", note: NOTE }]);
+    // Then your lease ends on the computer, and reconcile sees that before its event arrives.
+    botd.state.holder = null;
+    resume();
+    await reconciling;
+
+    await delivered(takeover!.id);
+    expect(await takeovers()).toMatchObject([{ status: "ended", note: NOTE }]);
+    const continued = await continuations();
+    expect(continued).toHaveLength(1);
+    expect(continued[0]!.prompt).toContain(NOTE);
+  });
 });
