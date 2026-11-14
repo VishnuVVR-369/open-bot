@@ -34,16 +34,22 @@ describe("screen resource admission", () => {
     });
     vi.spyOn(Screen.prototype, "forget").mockResolvedValue();
     const manager = new ScreenManager(deps(), { maxRunning: 2 });
-    const a = manager.ensure("a"),
-      b = manager.ensure("b");
+    // Taken the way a takeover takes one: claimed from before it starts until it is held.
+    const take = (id: string) =>
+      manager.claim(id, async () => {
+        const screen = await manager.ensure(id);
+        screen.lease.takeByUser();
+        return screen;
+      });
+    const a = take("a"),
+      b = take("b");
     const abort = new AbortController();
     const c = manager.ensure("c", abort.signal);
     const cancelled = expect(c).rejects.toThrow("cancelled");
     expect(manager.list()).toHaveLength(2);
     expect(gates).toHaveLength(2);
     gates.splice(0).forEach((resolve) => resolve());
-    const screens = await Promise.all([a, b]);
-    screens.forEach((screen) => screen.lease.takeByUser());
+    await Promise.all([a, b]);
     expect(manager.list()).toHaveLength(2);
     abort.abort(new Error("cancelled"));
     await cancelled;
@@ -175,6 +181,44 @@ function teardownDeps() {
   };
   return { deps: { ...deps(), supervisor, cookies } as unknown as ScreenDeps, supervisor, flushes };
 }
+
+/** Starts screens and reports whether each has started yet, without awaiting it. */
+function starter(manager: ScreenManager) {
+  return (id: string) => {
+    const started = { done: false, screen: manager.ensure(id) };
+    void started.screen.then(
+      () => (started.done = true),
+      () => {},
+    );
+    return started;
+  };
+}
+
+/** Starts that each wait for the test to settle them, by screen id. */
+function gatedStarts() {
+  const gates = new Map<string, ReturnType<typeof deferred>>();
+  vi.spyOn(Screen.prototype, "start").mockImplementation(async function (this: Screen) {
+    const gate = deferred();
+    gates.set(this.id, gate);
+    await gate.promise;
+    this.state = "running";
+  });
+  return gates;
+}
+
+/** Stops that succeed unless `fail` throws, recorded in order by screen id. */
+function stopsRecorded(fail?: (id: string, count: number) => void) {
+  const stops: string[] = [];
+  vi.spyOn(Screen.prototype, "stop").mockImplementation(async function (this: Screen) {
+    this.state = "stopping";
+    stops.push(this.id);
+    fail?.(this.id, stops.filter((id) => id === this.id).length);
+  });
+  return stops;
+}
+
+/** Runs everything already due, so a start that can go ahead does, and one that can't is queued. */
+const settle = () => vi.advanceTimersByTimeAsync(1);
 
 describe("stopping a screen to make room", () => {
   it("never stops a screen a queued run is waiting to take", async () => {
@@ -320,14 +364,7 @@ describe("stopping a screen to make room", () => {
       stopped.push(this.id);
     });
     const manager = new ScreenManager(deps(), { maxRunning: 1, admissionMs: 60_000 });
-    /** Starts a screen and reports whether it has started yet. */
-    const start = (id: string) => {
-      const started = { done: false, screen: manager.ensure(id) };
-      void started.screen.then(() => (started.done = true));
-      return started;
-    };
-    // Runs everything already due, so a start that can go ahead does, and one that can't is queued.
-    const settle = () => vi.advanceTimersByTimeAsync(1);
+    const start = starter(manager);
 
     const a = await manager.ensure(A);
     a.lease.takeByUser();
@@ -362,6 +399,51 @@ describe("stopping a screen to make room", () => {
     await settle();
     expect(again.done).toBe(true);
     expect(stopped).toEqual([A, B, C]);
+    await manager.stopAll();
+  });
+
+  it("wakes a queued start when another screen finishes starting, which is idle until someone uses it", async () => {
+    vi.useFakeTimers();
+    const gates = gatedStarts();
+    const stops = stopsRecorded();
+    const manager = new ScreenManager(deps(), { maxRunning: 1, admissionMs: 60_000 });
+    const start = starter(manager);
+    const a = start(A);
+    await settle();
+    const b = start(B);
+    await settle();
+    expect(b.done).toBe(false);
+    gates.get(A)!.resolve();
+    await settle();
+    expect(a.done).toBe(true);
+    expect(stops).toEqual([A]);
+    gates.get(B)!.resolve();
+    await settle();
+    expect(b.done).toBe(true);
+    await manager.stopAll();
+  });
+
+  it("wakes a queued start once a failed start whose screen couldn't stop has settled, to retry that stop", async () => {
+    vi.useFakeTimers();
+    const gates = gatedStarts();
+    // The first stop, right after the start fails, fails too, so the screen keeps its slot.
+    const stops = stopsRecorded((id, count) => {
+      if (id === A && count === 1) throw new Error("Process groups did not exit after SIGKILL");
+    });
+    const manager = new ScreenManager(deps(), { maxRunning: 1, admissionMs: 60_000 });
+    const start = starter(manager);
+    const a = start(A);
+    await settle();
+    const b = start(B);
+    await settle();
+    gates.get(A)!.reject(new Error("Xvfb did not start"));
+    await settle();
+    await expect(a.screen).rejects.toThrow();
+    expect(stops).toEqual([A, A]);
+    gates.get(B)!.resolve();
+    await settle();
+    expect(b.done).toBe(true);
+    expect(manager.list().map((screen) => screen.id)).toEqual([B]);
     await manager.stopAll();
   });
 });
