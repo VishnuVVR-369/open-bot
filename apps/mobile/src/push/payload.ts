@@ -127,11 +127,23 @@ export function planNotification(data: PushData): NotificationPlan | null {
   };
 }
 
-/** What a replied-to notification says once the reply was sent, or wasn't. */
-export function replyText(sent: boolean): { title: string; body: string } {
+/**
+ * What a replied-to notification says once the reply was sent, or wasn't. Unsent, it shows all
+ * you typed: it's the only copy, kept nowhere else.
+ */
+export function replyText(sent: boolean, text: string): { title: string; body: string } {
   return sent
-    ? { title: "Reply sent", body: "" }
-    : { title: "Couldn't send your reply", body: "Open to reply." };
+    ? { title: "Reply sent", body: text }
+    : { title: "Your reply wasn't sent", body: text.trim() };
+}
+
+/**
+ * Where an unsent reply's notification opens: the chat the reply was for, where you can send it,
+ * even when the notification was about a page.
+ */
+export function replyChatUrl(url: string | undefined, chatId: string): string {
+  const chat = `/chats/${chatId}`;
+  return url === chat || url?.startsWith(`${chat}?`) ? url : chat;
 }
 
 /** Don't show a notification about the chat you're looking at; it's on screen already. */

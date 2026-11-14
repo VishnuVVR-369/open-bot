@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { isOnScreen, outcomeText, parsePushData, planNotification, replyText } from "./payload";
+import {
+  isOnScreen,
+  outcomeText,
+  parsePushData,
+  planNotification,
+  replyChatUrl,
+  replyText,
+} from "./payload";
 
 const approval = {
   type: "notification",
@@ -161,9 +168,19 @@ describe("phone notifications", () => {
     expect(asking?.actions).toEqual([]);
   });
 
-  it("says whether a reply from a notification was sent", () => {
-    expect(replyText(true).title).toBe("Reply sent");
-    expect(replyText(false)).toEqual({ title: "Couldn't send your reply", body: "Open to reply." });
+  it("says whether a reply from a notification was sent, and shows an unsent one in full", () => {
+    expect(replyText(true, "Book it")).toEqual({ title: "Reply sent", body: "Book it" });
+    const long = "Book the 9am one. ".repeat(20).trim();
+    // Not "Open to reply.": nothing else keeps what you typed, so it isn't lost.
+    expect(replyText(false, ` ${long} `)).toEqual({ title: "Your reply wasn't sent", body: long });
+  });
+
+  it("opens an unsent reply's chat, even from a page's notification", () => {
+    expect(replyChatUrl("/chats/c1?run=r1", "c1")).toBe("/chats/c1?run=r1");
+    expect(replyChatUrl("/chats/c1", "c1")).toBe("/chats/c1");
+    expect(replyChatUrl("/pages/p1", "c1")).toBe("/chats/c1");
+    expect(replyChatUrl("/chats/c10", "c1")).toBe("/chats/c1");
+    expect(replyChatUrl(undefined, "c1")).toBe("/chats/c1");
   });
 
   it("ignores malformed messages", () => {
