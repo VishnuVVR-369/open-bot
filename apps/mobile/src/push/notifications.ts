@@ -10,7 +10,6 @@ import notifee, {
 import { isDefinedError, safe } from "@orpc/client";
 import * as Crypto from "expo-crypto";
 import { AppState } from "react-native";
-import { keepDraft } from "@/features/chat/drafts";
 import { api } from "@/lib/api";
 import { visibleChat } from "@/lib/realtime";
 import { palette } from "@/theme/colors";
@@ -160,9 +159,7 @@ async function sendReply(notification: Notification, text: string): Promise<void
         )
       : { error: new Error("The notification doesn't say who it's from.") };
   const sent = !result.error;
-  // Unsent, it waits in the chat's composer, so opening the chat doesn't mean typing it again.
-  if (!sent) await keepDraft(chatId, text);
-  const outcome = replyText(sent, text);
+  const outcome = replyText(sent);
   await notifee.displayNotification({
     id: notification.id,
     title: outcome.title,
@@ -177,9 +174,7 @@ async function sendReply(notification: Notification, text: string): Promise<void
       color: palette.light.foreground,
       pressAction: { id: "default", launchActivity: "default" },
       onlyAlertOnce: true,
-      ...(sent
-        ? { timeoutAfter: 4_000 }
-        : { style: { type: AndroidStyle.BIGTEXT, text: outcome.body } }),
+      ...(sent ? { timeoutAfter: 4_000 } : {}),
     },
   });
 }
