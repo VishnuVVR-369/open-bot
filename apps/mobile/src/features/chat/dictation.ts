@@ -13,7 +13,10 @@ export function useDictation({
   onText,
   onError,
 }: {
-  /** The whole text: what was there when you started, then what you've said. */
+  /**
+   * The whole text: what was there when you started, then what you've said, then any text added
+   * after it meanwhile (`append`).
+   */
   onText: (text: string) => void;
   onError: (message: string) => void;
 }) {
@@ -22,11 +25,18 @@ export function useDictation({
   const request = useRef(0);
   const base = useRef("");
   const finalSoFar = useRef("");
+  /** Paragraphs added after what you're saying while you speak, like a reply a notification kept. */
+  const after = useRef<string[]>([]);
 
   const join = (spoken: string) => {
     const start = base.current;
-    if (!spoken) return start;
-    return start && !/\s$/.test(start) ? `${start} ${spoken}` : `${start}${spoken}`;
+    const said = !spoken
+      ? start
+      : start && !/\s$/.test(start)
+        ? `${start} ${spoken}`
+        : `${start}${spoken}`;
+    if (after.current.length === 0) return said;
+    return [said.trimEnd(), ...after.current].filter(Boolean).join("\n\n");
   };
 
   useSpeechRecognitionEvent("start", () => {
@@ -82,6 +92,7 @@ export function useDictation({
       }
       base.current = current;
       finalSoFar.current = "";
+      after.current = [];
       let end!: () => void;
       const session = {
         owner: owner.current,
@@ -115,6 +126,15 @@ export function useDictation({
     [onError],
   );
 
+  /**
+   * Text added after what's in the box while you speak (a reply a notification kept): it stays
+   * after what you say from now on, instead of being written over.
+   */
+  const append = useCallback((text: string) => {
+    if (activeSession?.owner === owner.current && activeSession.accepting)
+      after.current = [...after.current, text];
+  }, []);
+
   const stop = useCallback(() => {
     if (activeSession?.owner === owner.current && activeSession.accepting)
       ExpoSpeechRecognitionModule.stop();
@@ -129,5 +149,5 @@ export function useDictation({
   }, []);
   useEffect(() => cancel, [cancel]);
 
-  return { listening, start, stop, cancel };
+  return { listening, start, stop, cancel, append };
 }
