@@ -1,5 +1,5 @@
 import { publishApp, type Context } from "../../context";
-import type { ChatgptAuthSource, CodexStatus } from "../../codex";
+import type { ChatgptAuthSource, CodexStatus } from "../../codex/client";
 import { errorMessage } from "../../logger";
 import { saveSettings } from "../settings";
 

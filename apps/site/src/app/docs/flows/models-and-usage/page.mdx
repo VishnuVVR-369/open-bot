@@ -16,7 +16,7 @@ There are two sources, chosen in Settings and stored in `settings.chatgpt_auth_s
 
 The worker reads the Codex login of the machine it runs on, from `~/.codex/auth.json` (`HOST_CODEX_AUTH_FILE`), and passes only the **access token** and account id to the computer:
 
-```ts title="apps/worker/src/codex.ts"
+```ts title="apps/worker/src/codex/client.ts"
 await client.request("account/login/start", {
   type: "chatgptAuthTokens",
   accessToken: tokens.accessToken,

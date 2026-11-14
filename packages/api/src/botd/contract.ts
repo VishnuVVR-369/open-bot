@@ -27,7 +27,7 @@ import { z } from "zod";
 /**
  * botd's HTTP API, inside the computer. Only the worker calls it, with `BOTD_TOKEN` as a bearer
  * token; botd implements it in `apps/botd/src/router.ts` and the worker calls it through
- * `ComputerClient` (`apps/worker/src/computer.ts`), which validates every answer.
+ * `ComputerClient` (`apps/worker/src/computer/client.ts`), which validates every answer.
  *
  * Each procedure has a fixed path, and its input is the JSON body. The paths and fields are part
  * of the contract: the computer and the worker deploy separately, so either side can be a version

@@ -1,7 +1,7 @@
 # apps/botd
 
 The daemon inside the computer: it starts every process, owns every screen, runs Chromium and VNC, proxies Codex and holds leases.
-It does not decide when the computer sleeps or wakes (that is `apps/worker/src/computer-lifecycle.ts`), and the image and filesystem overlay live in `images/computer`.
+It does not decide when the computer sleeps or wakes (that is `apps/worker/src/computer/lifecycle.ts`), and the image and filesystem overlay live in `images/computer`.
 Tunnel framing and IP policy live in `packages/egress`.
 
 ## Entry points
@@ -39,7 +39,7 @@ Paths are relative to the repo root; symbols are in parentheses.
    Never use `work` for a status read.
 3. `apps/botd/src/router.ts`: implement it.
    Throw `ORPCError` with a status for a refusal; `apps/botd/src/rpc.ts` maps every other error in one place.
-4. `apps/worker/src/computer.ts`: call it with `this.botd.<domain>.<procedure>(input)` behind a `ComputerClient` method.
+4. `apps/worker/src/computer/client.ts`: call it with `this.botd.<domain>.<procedure>(input)` behind a `ComputerClient` method.
    The answer is already validated; failures are `BotdError` with botd's status.
 5. The computer and the worker deploy separately: keep old paths and input fields until no deployed worker sends them.
    Test it in `apps/botd/src/contract.test.ts` and document it in `apps/site/src/app/docs/reference/http-api/page.mdx`.

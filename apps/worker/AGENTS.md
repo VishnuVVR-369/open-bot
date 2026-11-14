@@ -13,7 +13,8 @@ Shared types and pure logic go in `packages/domain`, and schema changes go in `p
 - `apps/worker/src/core/`: what features build on: `WorkerError`, the `Runtime`, the `Feature` manifest (`feature.ts`), row types, `defineTool()` (`tool.ts`) and the oRPC implementer (`rpc.ts`).
 - `apps/worker/src/tools/`: registry infrastructure only: `definitions.ts` lists feature tools (`TOOLS`), `dependencies.ts` composes their services, and `handlers.ts` (`ToolHandlers.handle()`) finds the called tool by name and runs it. Feature tools use the single `defineTool()` in `apps/worker/src/core/tool.ts`. `DEVELOPER_INSTRUCTIONS` is in `apps/worker/src/instructions.ts`.
 - `apps/worker/src/runs/`: sessions (`session/`, `RunSession` and its thread, notification, approval and finalize steps), execution (`executor/`, `RunExecutor` with message dispatch, prompts and workspace sync), the live session registry (`registry.ts`), queuing, retries and run requests.
-- `apps/worker/src/computer-lifecycle.ts` and `apps/worker/src/computer.ts`: computer sleep and wake, and `ComputerClient`, which calls botd through `botdContract` (`@open-bot/api/botd`) and validates every answer and event.
+- `apps/worker/src/computer/`: computer sleep and wake (`lifecycle.ts`), and `ComputerClient` (`client.ts`), which calls botd through `botdContract` (`@open-bot/api/botd`) and validates every answer and event.
+- `apps/worker/src/codex/client.ts`: `CodexManager`, the worker's one connection to the Codex app-server on the computer.
 - `apps/worker/build.mjs`: esbuild bundle to `apps/worker/dist/worker.mjs`.
 
 ## Invariants

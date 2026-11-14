@@ -1,6 +1,6 @@
 import { DrizzleQueryError } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ComputerLifecycle, type LifecycleHooks } from "./computer-lifecycle";
+import { ComputerLifecycle, type LifecycleHooks } from "./lifecycle";
 
 const deferred = () => {
   let resolve!: () => void;

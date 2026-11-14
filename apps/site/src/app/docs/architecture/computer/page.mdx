@@ -105,7 +105,7 @@ Every state change is broadcast to the worker as a health event.
 
 The worker reaches botd on port 7000 with `Authorization: Bearer <BOTD_TOKEN>` (or `?token=` for websockets).
 The HTTP routes are `botdContract` (`packages/api/src/botd/contract.ts`), listed in [Internal APIs](/docs/reference/http-api#botd).
-botd serves it from `apps/botd/src/router.ts` and validates every request; the worker calls it through `ComputerClient` (`apps/worker/src/computer.ts`), which validates every answer and every event and skips an event that doesn't fit, with a warning.
+botd serves it from `apps/botd/src/router.ts` and validates every request; the worker calls it through `ComputerClient` (`apps/worker/src/computer/client.ts`), which validates every answer and every event and skips an event that doesn't fit, with a warning.
 A route marked `wakesComputer` in the contract wakes the computer first and counts as activity in botd while it runs; status reads and the lifecycle's own calls never do.
 There are four websocket endpoints:
 

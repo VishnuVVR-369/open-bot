@@ -38,7 +38,7 @@ Shared domain logic goes in `packages/domain`.
 - `pnpm --filter @open-bot/api typecheck` checks types.
 - `e2e/api.spec.ts` drives the contract through the real stack.
 - `apps/worker/src/rpc/handler.test.ts` and `apps/worker/src/rpc/router.integration.test.ts` drive `workerContract` through the worker's HTTP server.
-- `apps/botd/src/contract.test.ts` drives `botdContract` through botd's server, and `apps/worker/src/computer.test.ts` drives the worker's client against a stand-in botd.
+- `apps/botd/src/contract.test.ts` drives `botdContract` through botd's server, and `apps/worker/src/computer/client.test.ts` drives the worker's client against a stand-in botd.
 
 ## Docs
 

@@ -4,9 +4,9 @@ import type { AddressInfo } from "node:net";
 import type { ComputerHealth } from "@open-bot/domain";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { WebSocketServer, type WebSocket } from "ws";
-import { BotdError, ComputerClient } from "./computer";
-import type { ComputerLifecycle } from "./computer-lifecycle";
-import type { Logger } from "./logger";
+import { BotdError, ComputerClient } from "./client";
+import type { ComputerLifecycle } from "./lifecycle";
+import type { Logger } from "../logger";
 
 // `ComputerClient` against a stand-in botd: what it sends, and what it does with what comes back.
 

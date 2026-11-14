@@ -1,9 +1,9 @@
 import { isWorkerSignal, NOTIFY_CHANNELS } from "@open-bot/domain";
 import { BOTD_SOCKETS, type LifecycleCapabilities } from "@open-bot/api/botd";
 import { createDb, createPool, ownerSettings } from "@open-bot/db";
-import { ComputerLifecycle } from "./computer-lifecycle";
-import { CodexManager } from "./codex";
-import { BotdError, ComputerClient } from "./computer";
+import { ComputerLifecycle } from "./computer/lifecycle";
+import { CodexManager } from "./codex/client";
+import { BotdError, ComputerClient } from "./computer/client";
 import { publishApp, type Context } from "./context";
 import {
   createNotification,

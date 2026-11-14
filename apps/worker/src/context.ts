@@ -8,9 +8,9 @@ import {
   type WorkerSignal,
 } from "@open-bot/domain";
 import type pg from "pg";
-import type { ComputerLifecycle } from "./computer-lifecycle";
-import type { CodexManager } from "./codex";
-import type { ComputerClient } from "./computer";
+import type { ComputerLifecycle } from "./computer/lifecycle";
+import type { CodexManager } from "./codex/client";
+import type { ComputerClient } from "./computer/client";
 import type { Env } from "./env";
 import type { Logger } from "./logger";
 

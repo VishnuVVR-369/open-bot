@@ -216,7 +216,7 @@ A path or input field is removed only once no deployed web app calls it.
 Base URL `BOTD_URL` (port 7000, private).
 Every route except `/healthz` requires `Authorization: Bearer <BOTD_TOKEN>`, or `?token=` on websockets.
 The routes are `botdContract` in `packages/api/src/botd/contract.ts`, an oRPC contract with the request and answer schema of each.
-botd (`apps/botd/src/router.ts`) checks every request against it and answers `400` for one that doesn't fit; the worker (`ComputerClient` in `apps/worker/src/computer.ts`) checks every answer and every event.
+botd (`apps/botd/src/router.ts`) checks every request against it and answers `400` for one that doesn't fit; the worker (`ComputerClient` in `apps/worker/src/computer/client.ts`) checks every answer and every event.
 Errors are `{ error, code }` with the status: `400` bad input, `401` no token, `409` refused for now, `500` failed.
 Routes marked ☀ work on the computer: the worker wakes the computer for them, and botd counts them as activity until they finish, so it can't quiesce under them.
 

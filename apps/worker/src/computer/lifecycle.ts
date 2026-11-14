@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import type { ComputerLifecycleStatus, ComputerPhase } from "@open-bot/domain";
-import { errorMessage } from "./logger";
+import { errorMessage } from "../logger";
 
 export interface LifecycleHooks {
   /** Only retryable lifecycle calls belong here. Never retry user actions. */
