@@ -31,7 +31,9 @@ export const MEMORY_TOOLS: ToolDefinition<z.ZodObject, MemoryToolDeps>[] = [
     name: "remember_about_user",
     description:
       "Add a durable fact about the user to their profile, which every teammate reads: where they live, family, dietary needs, sizes, preferred airlines, and other preferences that apply everywhere. Not for secrets or passwords, and not for notes only your job needs (use remember_memory in your own scope for those). The user can see and edit the profile.",
-    input: z.object({
+    // Loose: like remember_memory, a kind, key or expires_at sent along is saved, once memory has
+    // checked it.
+    input: z.looseObject({
       fact: z
         .string()
         .min(3)
@@ -39,7 +41,6 @@ export const MEMORY_TOOLS: ToolDefinition<z.ZodObject, MemoryToolDeps>[] = [
         .describe("One short line, e.g. 'Vegetarian; allergic to peanuts.'"),
     }),
     helpers: "allowed",
-    // Like remember_memory, a kind, key or expires_at sent along is saved, once memory has checked it.
     handle: ({ session, callId, args, raw }, deps) =>
       memoryTool(deps, session, callId, "remember_memory", {
         ...(raw as MemoryArgs),
