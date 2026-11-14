@@ -34,7 +34,7 @@ export interface LeaseOptions {
 export type AcquireResult = "ok" | "user_has_control" | "desktop_busy";
 
 /**
- * One screen's lease. At any moment it is free, held by one bot run, or held by you.
+ * One screen's lease. At any moment it is free, held by one teammate's run, or held by you.
  * You always win: taking over preempts any run immediately.
  */
 export class ScreenLease extends EventEmitter<{
@@ -126,8 +126,8 @@ export class ScreenLease extends EventEmitter<{
     if (previous?.kind === "run") {
       this.emit("preempted", {
         runId: previous.runId,
-        botId: previous.botId,
-        botName: previous.botName,
+        teammateId: previous.teammateId,
+        teammateName: previous.teammateName,
       });
     }
     const since = this.iso();

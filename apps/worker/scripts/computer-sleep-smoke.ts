@@ -138,7 +138,7 @@ try {
   assert.equal(teammate.workspaceSynced, false);
   assert.equal((await status()).computer.lifecycle.phase, "idle");
   const teammateId = teammate.teammateId;
-  const run = { runId: randomUUID(), botId: teammateId, botName: "Sleep fixture" };
+  const run = { runId: randomUUID(), teammateId, teammateName: "Sleep fixture" };
   const action = (url: string) =>
     call("/computer/action", { run, action: { action: "open_url", url } }, true);
   await call("/internal/egress/mode", { mode: "off" });

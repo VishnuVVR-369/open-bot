@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ScreenLease, type LeaseChange } from "./lease";
 
-const nova = { runId: "run-1", botId: "bot-1", botName: "Nova" };
-const atlas = { runId: "run-2", botId: "bot-2", botName: "Atlas" };
+const nova = { runId: "run-1", teammateId: "teammate-1", teammateName: "Nova" };
+const atlas = { runId: "run-2", teammateId: "teammate-2", teammateName: "Atlas" };
 
 describe("ScreenLease", () => {
   beforeEach(() => vi.useFakeTimers({ now: new Date("2026-10-13T10:00:00Z") }));

@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures";
-import { botIdOf, createTeammate, sendMessage, uniqueName, waitForLastRun } from "./helpers";
+import { teammateIdOf, createTeammate, sendMessage, uniqueName, waitForLastRun } from "./helpers";
 
 test.describe("@agent teammates working together", () => {
   test.setTimeout(8 * 60_000);
@@ -39,7 +39,7 @@ test.describe("@agent teammates working together", () => {
     );
   });
 
-  test("a bot pauses one of its own schedules", async ({ page }) => {
+  test("a teammate pauses one of its own schedules", async ({ page }) => {
     const name = uniqueName("Sol");
     await createTeammate(page, name, "assistant");
     await sendMessage(
@@ -47,7 +47,7 @@ test.describe("@agent teammates working together", () => {
       "Schedule a task titled 'Stretch break' every weekday at 15:00 that reminds me to stretch. Then pause it right away.",
     );
     await waitForLastRun(page, ["completed"]);
-    await page.goto(`/teammates/${await botIdOf(page, name)}?tab=automations`);
+    await page.goto(`/teammates/${await teammateIdOf(page, name)}?tab=automations`);
     const schedule = page.getByTestId("schedule").filter({ hasText: "Stretch break" });
     await expect(schedule).toContainText("paused");
     await expect(schedule.getByRole("switch")).toHaveAttribute("aria-checked", "false");

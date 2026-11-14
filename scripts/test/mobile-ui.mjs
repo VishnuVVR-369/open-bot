@@ -22,7 +22,7 @@ const email = process.env.E2E_EMAIL ?? process.env.OWNER_EMAIL;
 const password = process.env.E2E_PASSWORD;
 if (!email || !password) throw new Error("Set E2E_EMAIL and E2E_PASSWORD for the local owner.");
 const db = new pg.Pool({ connectionString: databaseUrl, max: 2 });
-const botId = randomUUID();
+const teammateId = randomUUID();
 const chatId = randomUUID();
 const runId = randomUUID();
 const approvals = Object.fromEntries(
@@ -68,21 +68,21 @@ try {
     `insert into bots(id,name,slug,role,instructions,color)
      values($1,$2,$3,'phone test assistant',$4,'#42a5f5')`,
     [
-      botId,
+      teammateId,
       `Phone${randomUUID().slice(0, 4)}`,
-      `mobile-e2e-${botId}`,
+      `mobile-e2e-${teammateId}`,
       "Follow the test prompt exactly. Do not use tools unless explicitly asked.",
     ],
   );
   await db.query("insert into chats(id,kind,title,bot_id) values($1,'direct',$2,$3)", [
     chatId,
     "E2E phone chat",
-    botId,
+    teammateId,
   ]);
   await db.query(
     `insert into runs(id,chat_id,bot_id,trigger,prompt,status,completed_at)
      values($1,$2,$3,'user','Mobile UI fixtures','completed',now())`,
-    [runId, chatId, botId],
+    [runId, chatId, teammateId],
   );
   for (const [key, id] of Object.entries(approvals)) {
     await db.query(
@@ -91,7 +91,7 @@ try {
       [
         id,
         runId,
-        botId,
+        teammateId,
         chatId,
         key === "purchase" ? "purchase" : "command",
         {
@@ -177,7 +177,7 @@ try {
       body: "Local Android notification test",
       approvalId: approvals[key],
       approvalNeedsBiometric: String(biometric),
-      botId,
+      botId: teammateId,
       chatId,
       url: `/approvals/${approvals[key]}`,
     });
@@ -201,7 +201,7 @@ try {
       tag: `mobile-e2e-reply-${chatId}`,
       title: "E2E teammate reply",
       body: "Reply here without opening the chat",
-      botId,
+      botId: teammateId,
       chatId,
       url: `/chats/${chatId}`,
     }),
@@ -248,13 +248,13 @@ try {
   // Cancel and let the worker finish before deleting fixtures it may still be using.
   await db.query(
     "update runs set cancel_requested_at=now() where bot_id=$1 and status in ('queued','starting','running','waiting')",
-    [botId],
+    [teammateId],
   );
   const activeRuns = async () =>
     (
       await db.query(
         "select id from runs where bot_id=$1 and status in ('queued','starting','running','waiting')",
-        [botId],
+        [teammateId],
       )
     ).rowCount;
   const workerUrl = process.env.WORKER_URL ?? "http://127.0.0.1:4001";
@@ -271,8 +271,8 @@ try {
   }
   for (let attempt = 0; attempt < 25 && (await activeRuns()); attempt++) await delay(200);
   if (await activeRuns()) {
-    await db.query("update bots set archived_at=now() where id=$1", [botId]);
-    console.warn(`Test teammate ${botId} was archived while its cancelled run finishes.`);
+    await db.query("update bots set archived_at=now() where id=$1", [teammateId]);
+    console.warn(`Test teammate ${teammateId} was archived while its cancelled run finishes.`);
   } else {
     const botdUrl = process.env.BOTD_URL ?? "http://127.0.0.1:7070";
     if (local(botdUrl))
@@ -282,15 +282,15 @@ try {
           authorization: `Bearer ${process.env.BOTD_TOKEN ?? "dev-botd-token-change-me"}`,
           "content-type": "application/json",
         },
-        body: JSON.stringify({ screenId: botId }),
+        body: JSON.stringify({ screenId: teammateId }),
         signal: AbortSignal.timeout(5000),
       }).catch(() => {});
-    await db.query("delete from bots where id=$1", [botId]);
+    await db.query("delete from bots where id=$1", [teammateId]);
     if (local(workerUrl))
       await fetch(`${workerUrl}/internal/files/remove`, {
         method: "POST",
         headers,
-        body: JSON.stringify({ path: `/home/bot/bots/mobile-e2e-${botId}` }),
+        body: JSON.stringify({ path: `/home/bot/bots/mobile-e2e-${teammateId}` }),
         signal: AbortSignal.timeout(5000),
       }).catch(() => {});
   }

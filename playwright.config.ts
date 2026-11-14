@@ -4,7 +4,7 @@ import { e2eStack } from "./e2e/stack";
 /**
  * End-to-end tests against a running stack, named in full (see `e2e/stack.ts`); `E2E_STACK=dev`
  * means the local development stack (`pnpm infra:up` and `pnpm dev`).
- * Tests tagged @agent drive real bots on the computer, so they take minutes and use your ChatGPT plan.
+ * Tests tagged @agent drive real teammates on the computer, so they take minutes and use your ChatGPT plan.
  * Run the fast ones with: pnpm e2e --grep-invert @agent
  */
 export default defineConfig({

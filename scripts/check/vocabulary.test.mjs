@@ -59,14 +59,23 @@ describe("findTerms", () => {
     assert.deepEqual(tokens, ["bot2", "BOT2_ID", "reopenBot"]);
   });
 
-  it("ignores the product name, the Linux user and Telegram's BotFather", () => {
+  it("ignores the product name, the Linux user and group, and Telegram's BotFather", () => {
     const text = [
       'import { x } from "@open-bot/domain";',
       "process.env.OPEN_BOT_PLAN_BASE_URL; window.openBotDesktop;",
       'const home = "/home/bot/.codex"; // runs as the bot user, chown bot:bot',
+      "const botGroup = { uid: botUser.uid }; await botProcesses(); // the `bots` group",
+      "sharedGid: env.BOTS_GID,",
       "Talk to BotFather.",
     ].join("\n");
     assert.deepEqual(findTerms(text), []);
+  });
+
+  it("still flags a teammate named like the Linux user's names", () => {
+    const tokens = findTerms("botUsers botGrouping botProcess bots_gid the bots folder").map(
+      (found) => found.token,
+    );
+    assert.deepEqual(tokens, ["botUsers", "botGrouping", "botProcess", "bots_gid", "bots"]);
   });
 
   it("skips lines marked vocabulary: allow", () => {

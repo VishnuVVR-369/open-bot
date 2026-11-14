@@ -1,15 +1,15 @@
 import { expect, test, type Page } from "./fixtures";
-import { apiFor, botIdOf, createTeammate, uniqueName, waitForLastRun } from "./helpers";
+import { apiFor, teammateIdOf, createTeammate, uniqueName, waitForLastRun } from "./helpers";
 
-async function notificationsFor(page: Page, botId: string) {
+async function notificationsFor(page: Page, teammateId: string) {
   const all = await apiFor(page).notifications.list();
-  return all.filter((entry) => entry.teammateId === botId && entry.kind === "run_finished");
+  return all.filter((entry) => entry.teammateId === teammateId && entry.kind === "run_finished");
 }
 
 test("turn a teammate's daily check-in on and off", async ({ page }) => {
   const name = uniqueName("Sol");
   await createTeammate(page, name);
-  await page.goto(`/teammates/${await botIdOf(page, name)}?tab=automations`);
+  await page.goto(`/teammates/${await teammateIdOf(page, name)}?tab=automations`);
   const toggle = page.getByTestId("check-in").getByRole("switch", { name: "Daily check-in" });
   await expect(toggle).toHaveAttribute("aria-checked", "false");
 
@@ -40,10 +40,10 @@ test("@agent a quiet routine stays quiet until there's news", async ({ page }) =
   test.setTimeout(6 * 60_000);
   const name = uniqueName("Sol");
   await createTeammate(page, name);
-  const botId = await botIdOf(page, name);
+  const teammateId = await teammateIdOf(page, name);
   const title = `E2E sweep ${Math.random().toString(36).slice(2, 6)}`;
 
-  await page.goto(`/teammates/${botId}?tab=automations`);
+  await page.goto(`/teammates/${teammateId}?tab=automations`);
   await page.getByRole("button", { name: "New automation" }).click();
   await page.getByRole("menuitem", { name: "Schedule" }).click();
   const dialog = page.getByRole("dialog");
@@ -60,7 +60,7 @@ test("@agent a quiet routine stays quiet until there's news", async ({ page }) =
   // was in the list, and no notification.
   const api = apiFor(page);
   const mainChat = async () =>
-    (await api.chats.list()).find((chat) => chat.main && chat.teammateId === botId)!;
+    (await api.chats.list()).find((chat) => chat.main && chat.teammateId === teammateId)!;
   const before = await mainChat();
   await row.getByRole("button", { name: "Run now" }).click();
   await expect(row).toContainText(/Last run|Running|Finished/, { timeout: 30_000 });
@@ -69,13 +69,13 @@ test("@agent a quiet routine stays quiet until there's news", async ({ page }) =
   const quiet = page.getByTestId("run").last();
   await expect(quiet).toHaveAttribute("data-quiet");
   await expect(quiet).toContainText("Nothing to report");
-  expect(await notificationsFor(page, botId)).toHaveLength(0);
+  expect(await notificationsFor(page, teammateId)).toHaveLength(0);
   const after = await mainChat();
   expect(after.lastActivityAt).toBe(before.lastActivityAt);
   expect(after.preview).toEqual(before.preview);
 
   // News: a full reply, and a notification.
-  await page.goto(`/teammates/${botId}?tab=automations`);
+  await page.goto(`/teammates/${teammateId}?tab=automations`);
   await row.getByRole("button", { name: /^More actions/ }).click();
   await page.getByRole("menuitem", { name: "Edit" }).click();
   await dialog
@@ -89,5 +89,5 @@ test("@agent a quiet routine stays quiet until there's news", async ({ page }) =
   const news = page.getByTestId("run").last();
   await expect(news).not.toHaveAttribute("data-quiet");
   await expect(news).toContainText("MANGO");
-  await expect.poll(async () => (await notificationsFor(page, botId)).length).toBe(1);
+  await expect.poll(async () => (await notificationsFor(page, teammateId)).length).toBe(1);
 });

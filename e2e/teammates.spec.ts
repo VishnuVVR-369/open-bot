@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures";
-import { botIdOf, createTeammate, testLabel, testSlug, uniqueName, worker } from "./helpers";
+import { teammateIdOf, createTeammate, testLabel, testSlug, uniqueName, worker } from "./helpers";
 
 test("create, edit and archive a teammate", async ({ page }) => {
   const name = uniqueName("Tess");
@@ -52,7 +52,7 @@ test("create a group chat", async ({ page }) => {
 test("duplicate a teammate with their skills and memory", async ({ page }) => {
   const name = uniqueName("Tess");
   await createTeammate(page, name, "qa assistant");
-  const id = await botIdOf(page, name);
+  const id = await teammateIdOf(page, name);
   const skill = testSlug(Math.random().toString(36).slice(2, 7));
   await worker.skills.save({
     name: skill,
@@ -73,7 +73,7 @@ test("duplicate a teammate with their skills and memory", async ({ page }) => {
   await page.waitForURL(/\/chats\//);
   await expect(page.getByText(`Give ${name} 2 something to do`)).toBeVisible();
 
-  const copyId = await botIdOf(page, `${name} 2`);
+  const copyId = await teammateIdOf(page, `${name} 2`);
   await page.goto(`/teammates/${copyId}`);
   await expect(page.getByLabel("Job")).toHaveValue("qa assistant");
   await page.getByRole("tab", { name: "Memory" }).click();
@@ -101,7 +101,7 @@ test("start from a template with starter automations", async ({ page }) => {
   await page.waitForURL(/\/chats\//);
   await expect(page.getByText(`${name} starts with 3 automations`)).toBeVisible();
 
-  await page.goto(`/teammates/${await botIdOf(page, name)}?tab=automations`);
+  await page.goto(`/teammates/${await teammateIdOf(page, name)}?tab=automations`);
   const schedules = page.getByTestId("schedule");
   await expect(schedules).toHaveCount(3);
   await expect(schedules.filter({ hasText: "Plan my week" })).toHaveCount(1);
@@ -129,7 +129,7 @@ test("start from a template with starter automations", async ({ page }) => {
 test("old teammate addresses keep working", async ({ page }) => {
   const name = uniqueName("Ida");
   await createTeammate(page, name);
-  const teammateId = await botIdOf(page, name);
+  const teammateId = await teammateIdOf(page, name);
   // As bookmarks and notifications from before the rename have them.
   const oldPages = "/bots"; // vocabulary: allow (an old URL)
   const oldApi = "/api/bots"; // vocabulary: allow (an old URL)
@@ -171,14 +171,14 @@ test("export a teammate to a file and import it as a new one", async ({ page }) 
   await page.getByLabel("Name").fill(original);
   await page.getByRole("button", { name: "Create teammate" }).click();
   await page.waitForURL(/\/chats\//);
-  const botId = await botIdOf(page, original);
+  const teammateId = await teammateIdOf(page, original);
 
-  await page.goto(`/teammates/${botId}`);
+  await page.goto(`/teammates/${teammateId}`);
   await expect(page.getByTestId("export-teammate")).toHaveAttribute(
     "href",
-    `/api/teammates/${botId}/export`,
+    `/api/teammates/${teammateId}/export`,
   );
-  const response = await page.request.get(`/api/teammates/${botId}/export`);
+  const response = await page.request.get(`/api/teammates/${teammateId}/export`);
   expect(response.headers()["content-disposition"]).toMatch(/\.openbot\.json"$/);
   const bundle = (await response.json()) as {
     format: string;
@@ -206,7 +206,7 @@ test("export a teammate to a file and import it as a new one", async ({ page }) 
   await expect(page.getByText(`${copy} joined the team`)).toBeVisible();
   await expect(page.getByText("Their 4 automations are off.", { exact: false })).toBeVisible();
 
-  await page.goto(`/teammates/${await botIdOf(page, copy)}?tab=automations`);
+  await page.goto(`/teammates/${await teammateIdOf(page, copy)}?tab=automations`);
   const schedules = page.getByTestId("schedule");
   await expect(schedules).toHaveCount(4);
   await expect(schedules.first().getByTestId("automation-state")).toHaveText("Off");

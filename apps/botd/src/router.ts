@@ -67,7 +67,7 @@ export function createRouter(deps: RouterDeps) {
   ): Promise<Screen | ComputerActionError> {
     // Every teammate works on its own screen, and a swarm helper on one of its own. Claimed until
     // the run holds its lease, so it isn't stopped to make room while the run waits for it.
-    const screenId = run.screenId ?? run.botId;
+    const screenId = run.screenId ?? run.teammateId;
     return screens.claim(screenId, () => takeForRun(screenId, run, signal));
   }
 

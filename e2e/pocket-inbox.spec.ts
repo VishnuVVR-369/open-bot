@@ -23,15 +23,15 @@ async function record(name: string, data: unknown) {
   await writeFile(path.join(evidence, name), JSON.stringify(data, null, 2));
 }
 async function seedChat(count: number) {
-  const botId = randomUUID(),
+  const teammateId = randomUUID(),
     chatId = randomUUID();
   await db.query(
     "insert into bots(id,name,slug,role,color) values($1,'Pocket Reviewer',$2,'assistant','#7C5CFF')",
-    [botId, `pocket-${botId}`],
+    [teammateId, `pocket-${teammateId}`],
   );
   await db.query(
     "insert into chats(id,kind,title,bot_id,read_at) values($1,'direct','Pocket inbox verification',$2,now()-interval '2 days')",
-    [chatId, botId],
+    [chatId, teammateId],
   );
   const runs: string[] = [];
   for (let index = 1; index <= count; index++) {
@@ -40,7 +40,7 @@ async function seedChat(count: number) {
     const text = `Pocket report ${index}: your inbox update is ready.`;
     await db.query(
       "insert into runs(id,chat_id,bot_id,trigger,prompt,status,final_text,created_at,started_at,completed_at) values($1,$2,$3,'user','Summarize my inbox','completed',$4,$5,$5,$5)",
-      [id, chatId, botId, text, at],
+      [id, chatId, teammateId, text, at],
     );
     await db.query("insert into run_events(run_id,chat_id,payload) values($1,$2,$3)", [
       id,
@@ -60,7 +60,7 @@ async function seedChat(count: number) {
     ]);
     runs.push(id);
   }
-  return { botId, chatId, runs };
+  return { teammateId, chatId, runs };
 }
 
 test.describe("isolated pocket inbox regression", () => {
@@ -96,12 +96,12 @@ test.describe("isolated pocket inbox regression", () => {
       .map((entry) => `${entry.name}=${entry.value}`)
       .join("; ");
     const api = createApiClient({ appUrl: baseURL!, headers: () => ({ cookie }) });
-    const { botId, chatId, runs } = await seedChat(75);
+    const { teammateId, chatId, runs } = await seedChat(75);
     const target = runs[0]!;
     const notification = (
       await db.query(
         "insert into notifications(kind,title,body,bot_id,chat_id,run_id) values('run_finished','Pocket older reply','Your first report is ready',$1,$2,$3) returning id",
-        [botId, chatId, target],
+        [teammateId, chatId, target],
       )
     ).rows[0];
     const results = await api.search.messages({ query: "Pocket report 1:" });
@@ -184,7 +184,7 @@ test.describe("isolated pocket inbox regression", () => {
     context,
     baseURL,
   }) => {
-    const { botId, chatId } = await seedChat(30);
+    const { teammateId, chatId } = await seedChat(30);
     await page.evaluate(() => localStorage.setItem("open-bot:computer-panel", "closed"));
     await page.goto(`/chats/${chatId}`);
     await expect(page.getByTestId("run")).toHaveCount(30);
@@ -206,7 +206,7 @@ test.describe("isolated pocket inbox regression", () => {
     const text = "New pocket inbox reply arrived: your latest report is ready.";
     await db.query(
       "insert into runs(id,chat_id,bot_id,trigger,prompt,status,final_text,created_at,started_at,completed_at) values($1,$2,$3,'user','Latest inbox update','completed',$4,$5,$5,$5)",
-      [runId, chatId, botId, text, at],
+      [runId, chatId, teammateId, text, at],
     );
     await db.query("insert into run_events(run_id,chat_id,payload) values($1,$2,$3)", [
       runId,

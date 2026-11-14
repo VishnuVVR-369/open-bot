@@ -54,8 +54,8 @@ const targets = [
   ["files", "/files"],
   ["computer", "/computer"],
   ["settings", "/settings"],
-  ["bot-new", "/teammates/new"],
-  ...state.teammates.map((bot) => [`bot-${bot.slug}`, `/teammates/${bot.id}`]),
+  ["teammate-new", "/teammates/new"],
+  ...state.teammates.map((teammate) => [`teammate-${teammate.slug}`, `/teammates/${teammate.id}`]),
   ["chat-launch-plan", chatByTitle("launch plan")],
   ["chat-flights-approval", chatByTitle("Book the Lisbon")],
   ["chat-lisbon-research", chatByTitle("Lisbon trip research")],
@@ -80,7 +80,7 @@ const targets = [
   .filter(([name, route]) => route && (!only || only.includes(name)));
 
 function bySlug2(chat) {
-  return state.teammates.find((bot) => bot.id === chat.teammateId)?.slug ?? "bot";
+  return state.teammates.find((teammate) => teammate.id === chat.teammateId)?.slug ?? "teammate";
 }
 
 let problems = 0;
