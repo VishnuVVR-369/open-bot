@@ -84,6 +84,7 @@ export class CodexManager extends EventEmitter<{ status: [CodexStatus]; disconne
 
   start(): void {
     this.stopped = false;
+    // A failure is already in `status.error` and schedules the next attempt.
     void this.ready().catch(() => {});
   }
 
@@ -195,6 +196,8 @@ export class CodexManager extends EventEmitter<{ status: [CodexStatus]; disconne
     if (this.stopped || this.idleIntent || this.retryTimer) return;
     this.retryTimer = setTimeout(() => {
       this.retryTimer = null;
+      // A failure is already in `status.error` and schedules the next attempt; logging it here
+      // would repeat it every 3 s while the computer is unreachable.
       if (!this.client?.isOpen) void this.ready().catch(() => {});
     }, 3_000);
   }
@@ -366,7 +369,10 @@ export class CodexManager extends EventEmitter<{ status: [CodexStatus]; disconne
           this.releaseLoginDemand?.();
           this.releaseLoginDemand = undefined;
         }
-        if (this.client) void this.refreshAccount(this.client).catch(() => {});
+        if (this.client)
+          void this.refreshAccount(this.client).catch((error: unknown) =>
+            this.log.warn("couldn't read the ChatGPT account", { error: errorMessage(error) }),
+          );
         if (notification.method === "account/login/completed" && !notification.params.success) {
           this.update({ login: null, error: notification.params.error ?? "Sign-in failed" });
         }

@@ -161,7 +161,12 @@ export class RunExecutor {
         this.sessions.remove(run.id);
         this.approvals.releaseRun(run.id);
         this.takeovers.releaseRun(run.id);
-        await this.approvals.expireForRun(run.id).catch(() => {});
+        await this.approvals.expireForRun(run.id).catch((error: unknown) =>
+          this.ctx.log.warn("couldn't expire the run's approvals", {
+            runId: run.id,
+            error: errorMessage(error),
+          }),
+        );
         this.pump();
       }
     })();

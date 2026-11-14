@@ -63,7 +63,12 @@ export class SwarmService {
   ) {
     ctx.events.on("runStarted", (run) => {
       if (run.trigger !== "swarm") return;
-      void this.taskStarted(run.id).catch(() => {});
+      void this.taskStarted(run.id).catch((error: unknown) =>
+        ctx.log.warn("couldn't mark a swarm task started", {
+          runId: run.id,
+          error: errorMessage(error),
+        }),
+      );
     });
     ctx.events.on("runFinished", (run, status, text, error) => {
       if (run.trigger !== "swarm") return;

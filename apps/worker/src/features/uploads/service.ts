@@ -112,6 +112,7 @@ export class UploadService {
       throw new UploadError(400, "The file didn't arrive in one piece. Try again.");
     const running = this.inFlight.get(input.id);
     if (running) {
+      // The first sender gets that write's error; this one only waits for it, then tries again.
       await running.catch(() => {});
       return this.put(input);
     }

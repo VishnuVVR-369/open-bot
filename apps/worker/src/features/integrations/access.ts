@@ -164,7 +164,12 @@ export class AccountAccess {
     const last = this.touched.get(accountId) ?? 0;
     if (Date.now() - last < TOUCH_EVERY_MS) return;
     this.touched.set(accountId, Date.now());
-    void this.store.touch(accountId).catch(() => {});
+    void this.store.touch(accountId).catch((error: unknown) =>
+      this.ctx.log.warn("couldn't record an account's last use", {
+        accountId,
+        error: errorMessage(error),
+      }),
+    );
   }
 
   /** Tell you, once, that an account needs signing in again. */

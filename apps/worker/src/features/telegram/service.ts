@@ -109,7 +109,11 @@ export class TelegramService {
       );
     });
     ctx.events.on("approvalDecided", (approvalId) => {
-      void this.approvalDecided(approvalId).catch(() => {});
+      void this.approvalDecided(approvalId).catch((error: unknown) =>
+        ctx.log.warn("couldn't update an approval's buttons in Telegram", {
+          error: errorMessage(error),
+        }),
+      );
     });
   }
 
@@ -625,12 +629,15 @@ export class TelegramService {
       chat_id: telegramChatId,
       message_id: message.message_id,
       reaction: [{ type: "emoji", emoji: "👀" }],
-    }).catch(() => {});
+    }).catch((error: unknown) =>
+      this.ctx.log.warn("couldn't react to a Telegram message", { error: errorMessage(error) }),
+    );
     await this.executor.dispatchMessage(row.id);
   }
 
   private async onButton(query: NonNullable<TgUpdate["callback_query"]>) {
     const chatId = await this.linkedChat();
+    // Telegram refuses answers to old button presses; the toast is only a courtesy.
     const answer = (text: string) =>
       this.call("answerCallbackQuery", { callback_query_id: query.id, text }).catch(() => {});
     if (!chatId || String(query.from.id) !== chatId) {
@@ -661,6 +668,8 @@ export class TelegramService {
       chat_id: chatId,
       message_id: messageId,
       reply_markup: { inline_keyboard: [[{ text: label, callback_data: "noop" }]] },
+      // Both the button press and the decision event mark the message, so Telegram refuses the
+      // second edit as "not modified"; a deleted message refuses it too.
     }).catch(() => {});
   }
 

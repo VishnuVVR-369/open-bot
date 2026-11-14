@@ -263,7 +263,11 @@ const lifecycle = new ComputerLifecycle(
       await codex.resume(signal);
       signal.throwIfAborted();
       if (codex.status.account) {
-        await codex.rateLimits(true).catch(() => {});
+        await codex.rateLimits(true).catch((error: unknown) =>
+          log.warn("couldn't read the ChatGPT rate limits after waking", {
+            error: errorMessage(error),
+          }),
+        );
         await skills.syncAll();
       }
       signal.throwIfAborted();
