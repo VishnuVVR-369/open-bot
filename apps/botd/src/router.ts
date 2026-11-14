@@ -65,7 +65,7 @@ export function createRouter(deps: RouterDeps) {
     signal?: AbortSignal,
   ): Promise<Screen | ComputerActionError> {
     // Every teammate works on its own screen, and a swarm helper on one of its own.
-    const screenId = run.screenId ?? run.botId;
+    const screenId = run.screenId ?? run.teammateId;
     let screen: Screen;
     try {
       // Before the screen starts, so its first connections can wait for a phone.

@@ -43,7 +43,7 @@ export interface ScreenDeps {
   log: (message: string) => void;
 }
 
-/** The most of a page `readPage` returns, so one page can't flood a bot's context. */
+/** The most of a page `readPage` returns, so one page can't flood a teammate's context. */
 const MAX_PAGE_TEXT = 120_000;
 const MAX_PAGE_LINKS = 300;
 
@@ -86,9 +86,9 @@ async function exists(path: string): Promise<boolean> {
 }
 
 /**
- * One bot's screen: an X display with its own XFCE desktop, two VNC servers (watch and control),
- * and its own Chromium. The bot's desktop tools act here, and you can watch or take over just this
- * screen while the other bots keep working on theirs.
+ * One teammate's screen: an X display with its own XFCE desktop, two VNC servers (watch and control),
+ * and its own Chromium. The teammate's desktop tools act here, and you can watch or take over just this
+ * screen while the other teammates keep working on theirs.
  */
 export class Screen {
   readonly lease = new ScreenLease();
@@ -103,7 +103,7 @@ export class Screen {
   get busy(): boolean {
     return this.downloads.size > 0;
   }
-  /** Portals where the apply guard stopped a submission since a bot last asked. */
+  /** Portals where the apply guard stopped a submission since a teammate last asked. */
   private blocked: string[] = [];
   private readonly xauthority: string;
   private readonly dir: string;
@@ -187,7 +187,7 @@ export class Screen {
     for (const lock of ["SingletonLock", "SingletonSocket", "SingletonCookie"])
       await rm(`${this.profile}/${lock}`, { force: true });
 
-    // A fresh X cookie each start. Only the desktop user can read it, so the bot's shell can't reach the display.
+    // A fresh X cookie each start. Only the desktop user can read it, so the bot user's shell can't reach the display.
     await writeFile(this.xauthority, "");
     await chown(this.xauthority, owner.uid, owner.gid);
     await chmod(this.xauthority, 0o600);
@@ -307,7 +307,7 @@ export class Screen {
       args: [...this.chromiumArgs, "--remote-debugging-pipe", ...(url ? [url] : [])],
       user: desktopUser,
       env: this.env,
-      // You can close the browser. It opens again the next time a bot opens a page.
+      // You can close the browser. It opens again the next time a teammate opens a page.
       restart: "never",
       // Chromium logs a stream of harmless D-Bus errors in a container.
       quiet: true,
@@ -367,7 +367,7 @@ export class Screen {
   }
 
   /**
-   * The apply guard: a bot's browser can't submit a job application. Requests whose address mentions
+   * The apply guard: a teammate's browser can't submit a job application. Requests whose address mentions
    * "apply" pause here, browser-wide (every tab and frame), and the ones that would submit to a job
    * portal fail unless you hold the screen.
    */
@@ -706,8 +706,8 @@ export class Screen {
 }
 
 /**
- * The bots' screens on the shared computer, keyed by bot id. A screen starts the first time its bot
- * or you use it, and stops after a while unused; its browser profile stays on disk.
+ * The teammates' screens on the shared computer, keyed by teammate id. A screen starts the first time
+ * its teammate or you use it, and stops after a while unused; its browser profile stays on disk.
  */
 export class ScreenManager extends EventEmitter<{
   lease: [string, LeaseChange];
@@ -778,7 +778,7 @@ export class ScreenManager extends EventEmitter<{
     screen.lastUsedAt = this.now();
   }
 
-  /** The bot's screen, started if it isn't running. */
+  /** The teammate's screen, started if it isn't running. */
   get busy(): boolean {
     return (
       this.starting.size > 0 ||
@@ -858,7 +858,7 @@ export class ScreenManager extends EventEmitter<{
       this.touch(screen);
       this.emit("lease", id, change);
     });
-    // Taking over stops whatever the bot was doing on this screen right away.
+    // Taking over stops whatever the teammate was doing on this screen right away.
     screen.lease.on("preempted", () => screen.desktop.abortAll());
     this.emit("changed");
     this.deps.log(`[screens] starting ${id} on ${screen.display}`);
@@ -891,7 +891,7 @@ export class ScreenManager extends EventEmitter<{
     return pending;
   }
 
-  /** The bot is gone: stop its screen and delete its browser profile. */
+  /** The teammate is gone: stop its screen and delete its browser profile. */
   async forget(id: string): Promise<void> {
     await this.starting.get(id)?.catch(() => {});
     const screen = this.screens.get(id) ?? new Screen(id, -1, this.deps, this.now());

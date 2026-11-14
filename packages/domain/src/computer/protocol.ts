@@ -54,8 +54,8 @@ export const ownerLeaseSchema = z.object({
 export const runLeaseSchema = z.object({
   kind: z.literal("run"),
   runId: z.string(),
-  botId: z.string(),
-  botName: z.string(),
+  teammateId: z.string(),
+  teammateName: z.string(),
   since: z.string(),
   lastActionAt: z.string(),
 });
@@ -80,8 +80,8 @@ export function isScreenId(value: unknown): value is string {
 /** The run asking botd for something, so it works on that run's screen and holds its lease. */
 export const runIdentitySchema = z.object({
   runId: z.string().min(1),
-  botId: screenIdSchema,
-  botName: z.string(),
+  teammateId: screenIdSchema,
+  teammateName: z.string(),
   /** The screen it works on, when it isn't the teammate's own: a swarm helper's. */
   screenId: screenIdSchema.optional(),
 });

@@ -96,7 +96,7 @@ It is a row in `triggers` with `kind = 'watch'`, the URL, the interval, optional
       { id: "worker", label: "Worker", sub: "TriggerService" },
       { id: "site", label: "The website" },
       { id: "pg", label: "Postgres" },
-      { id: "bot", label: "Teammate", sub: "a new run" },
+      { id: "teammate", label: "Teammate", sub: "a new run" },
     ]}
     steps={[
       { self: "worker", label: "tick: watches due for a check" },
@@ -105,7 +105,11 @@ It is a row in `triggers` with `kind = 'watch'`, the URL, the interval, optional
       { self: "worker", label: "page text, one block per line" },
       { from: "worker", to: "pg", label: "compare with the last text, save the new one" },
       { section: "Only if it changed" },
-      { from: "worker", to: "bot", label: "queue a watch run with the added and removed lines" },
+      {
+        from: "worker",
+        to: "teammate",
+        label: "queue a watch run with the added and removed lines",
+      },
     ]}
   />
 </Figure>

@@ -22,7 +22,10 @@ import {
   type SeedContext,
 } from "./lib";
 
-export const BOT_DEFS: (Omit<InferInsertModel<typeof teammates>, "id" | "slug" | "createdAt"> & {
+export const TEAMMATE_DEFS: (Omit<
+  InferInsertModel<typeof teammates>,
+  "id" | "slug" | "createdAt"
+> & {
   key: string;
   created: Parameters<typeof ago>[0];
 })[] = [
@@ -146,8 +149,8 @@ Your job is to keep Alex's week moving: plan, delegate, follow up, and make sure
 
 export async function seedTeam(ctx: SeedContext) {
   const { db } = ctx;
-  ctx.bots = {};
-  for (const def of BOT_DEFS) {
+  ctx.teammates = {};
+  for (const def of TEAMMATE_DEFS) {
     const id = randomUUID();
     const created = ago(def.created);
     await db.insert(teammates, {
@@ -166,15 +169,15 @@ export async function seedTeam(ctx: SeedContext) {
       createdAt: created,
       updatedAt: ago({ d: 3 }),
     });
-    ctx.bots[def.key] = { id, name: def.name };
+    ctx.teammates[def.key] = { id, name: def.name };
   }
 }
 
 /* ------------------------------------------------------------------ Conversations */
 
 export async function seedConversations(ctx: SeedContext) {
-  const { s, bots, dates, pageIds, R } = ctx;
-  const { iris, scout, kit, mira, juno } = bots;
+  const { s, teammates, dates, pageIds, R } = ctx;
+  const { iris, scout, kit, mira, juno } = teammates;
   const { launch, freeze, confStart, outbound: outboundDate, back: backDate } = dates;
   const launchDay = fmtDay(launch);
   const freezeDay = fmtDay(freeze);
@@ -182,7 +185,7 @@ export async function seedConversations(ctx: SeedContext) {
   /* ---------------------------------------------------------- Iris: launch plan */
   const irisPlan = await s.chat({
     title: "Kestrel 2.0 launch plan",
-    bot: iris,
+    teammate: iris,
     createdAt: ago({ d: 9 }),
   });
   ctx.chats.irisPlan = irisPlan;
@@ -192,7 +195,7 @@ export async function seedConversations(ctx: SeedContext) {
     text: `Kestrel 2.0 goes out on ${launchDay}. Can you pull together where we stand: what's done, what's at risk, and what you need from me? Make it something I can forward to Dana.`,
     replies: [
       {
-        bot: iris,
+        teammate: iris,
         rating: "up",
         items: [
           think(
@@ -251,7 +254,7 @@ I put the full checklist on a page so you can forward it: [Kestrel 2.0 launch ch
     text: "Move the blog post review to Thursday. And ask Juno to add a short 'Upgrading from v1' FAQ before then, people will ask.",
     replies: [
       {
-        bot: iris,
+        teammate: iris,
         items: [
           tool("update_task", "Moved 'Review launch blog post' to Thursday", {
             result: "Due Thursday",
@@ -318,7 +321,7 @@ I put the full checklist on a page so you can forward it: [Kestrel 2.0 launch ch
     text: "Where are we on the launch? Anything blocking?",
     replies: [
       {
-        bot: iris,
+        teammate: iris,
         items: [
           tool("list_tasks", "Read the task board", { result: "5 doing, 5 to do" }),
           tool("ask_teammate", "Asked Kit for the rollback numbers", {
@@ -341,7 +344,7 @@ I put the full checklist on a page so you can forward it: [Kestrel 2.0 launch ch
   /* ---------------------------------------------------------- Iris: flights (approval pending) */
   const irisFlights = await s.chat({
     title: "Book the Lisbon flights",
-    bot: iris,
+    teammate: iris,
     createdAt: ago({ h: 1 }),
     unread: false,
   });
@@ -357,7 +360,7 @@ I put the full checklist on a page so you can forward it: [Kestrel 2.0 launch ch
     text: "Book the TAP nonstop that Scout found for Lisbon. Use the travel Amex.",
     replies: [
       {
-        bot: iris,
+        teammate: iris,
         status: "waiting",
         waitingFor: "approval",
         items: [
@@ -379,7 +382,7 @@ I put the full checklist on a page so you can forward it: [Kestrel 2.0 launch ch
   /* ---------------------------------------------------------- Scout: Lisbon flights, hotels, schedule */
   const scoutFlights = await s.chat({
     title: "Lisbon trip research",
-    bot: scout,
+    teammate: scout,
     createdAt: ago({ d: 4, h: 3 }),
   });
   ctx.chats.scoutFlights = scoutFlights;
@@ -389,7 +392,7 @@ I put the full checklist on a page so you can forward it: [Kestrel 2.0 launch ch
     text: `I'm going to the Atlantic Product Summit in Lisbon (it starts ${fmtDay(confStart)}). Find me flights from SFO, nonstop if it's reasonable, landing the day before. Budget is around $900.`,
     replies: [
       {
-        bot: scout,
+        teammate: scout,
         rating: "up",
         items: [
           plan([
@@ -441,7 +444,7 @@ Say the word and Iris can book it.`),
           kind: "helper",
           title: `Hotels: ${area}`,
           titled: true,
-          bot: scout,
+          teammate: scout,
           createdAt: ago({ d: 3, h: 20 }),
         })
       ).id,
@@ -459,7 +462,7 @@ Say the word and Iris can book it.`),
     text: "Now hotels. Walkable to the venue, under $220 a night, and quiet. I take calls early.",
     replies: [
       {
-        bot: scout,
+        teammate: scout,
         id: hotelsRunId,
         rating: "up",
         items: [
@@ -550,7 +553,7 @@ I put the plan together on a page: [Lisbon trip itinerary](/pages/${pageIds.itin
     text: "Check the Summit schedule and tell me which talks overlap with my two investor 1:1s. Thursday 1:30 and Friday 10:00.",
     replies: [
       {
-        bot: scout,
+        teammate: scout,
         status: "running",
         items: [
           note("Opening the Summit's schedule and lining it up against both slots."),
@@ -565,7 +568,7 @@ I put the plan together on a page: [Lisbon trip itinerary](/pages/${pageIds.itin
 
   const scoutPricing = await s.chat({
     title: "Competitor pricing for the launch page",
-    bot: scout,
+    teammate: scout,
     createdAt: ago({ d: 6, h: 2 }),
   });
   ctx.chats.scoutPricing = scoutPricing;
@@ -574,7 +577,7 @@ I put the plan together on a page: [Lisbon trip itinerary](/pages/${pageIds.itin
     text: "Quick landscape: what do Tallyfox, Pinwheel Analytics and Quillmetrics charge for their mid-tier plan? I want to position 2.0 against them.",
     replies: [
       {
-        bot: scout,
+        teammate: scout,
         rating: "up",
         items: [
           screen({ action: "open_url", url: "https://tallyfox.example.com/pricing" }, "pricing"),
@@ -605,7 +608,7 @@ The full comparison is here: [Analytics pricing landscape](/pages/${pageIds.pric
   /* ---------------------------------------------------------- Kit: DST bug, push approval, migration */
   const kitBug = await s.chat({
     title: "Fix: reminders fire an hour late after DST",
-    bot: kit,
+    teammate: kit,
     createdAt: ago({ d: 1, h: 5 }),
   });
   ctx.chats.kitBug = kitBug;
@@ -630,7 +633,7 @@ The full comparison is here: [Analytics pricing landscape](/pages/${pageIds.pric
     text: "tidepool: recurring reminders that were set before the clocks changed fire an hour late afterwards. Reproduce it in the tests if you can, then fix it.",
     replies: [
       {
-        bot: kit,
+        teammate: kit,
         rating: "up",
         items: [
           think(
@@ -719,7 +722,7 @@ One thing to know: reminders that land in the hour that doesn't exist (2:30 on s
     text: "Looks good. Push the branch and open a PR.",
     replies: [
       {
-        bot: kit,
+        teammate: kit,
         items: [
           cmd(
             "git log --oneline -1 && git diff --stat main...HEAD",
@@ -746,7 +749,7 @@ The description has the cause, the fix and the regression test, plus a note abou
 
   const kitMigration = await s.chat({
     title: "Kestrel 2.0 migration dry run",
-    bot: kit,
+    teammate: kit,
     createdAt: ago({ d: 3, h: 4 }),
   });
   ctx.chats.kitMigration = kitMigration;
@@ -768,7 +771,7 @@ The description has the cause, the fix and the regression test, plus a note abou
     text: "Run the v1 to v2 migration against the staging copy for 40 workspaces and tell me what breaks. Don't touch production.",
     replies: [
       {
-        bot: kit,
+        teammate: kit,
         authMode: "api_key",
         rating: "up",
         items: [
@@ -824,7 +827,7 @@ I did not touch production. I asked to clear the downloads folder to make room; 
   /* ---------------------------------------------------------- Mira: triage and the pending reply */
   const miraTriage = await s.chat({
     title: "Inbox triage",
-    bot: mira,
+    teammate: mira,
     createdAt: ago({ d: 12 }),
     unread: true,
   });
@@ -834,7 +837,7 @@ I did not touch production. I asked to clear the downloads folder to make room; 
     text: "Triage my inbox since yesterday evening. Only tell me what needs me.",
     replies: [
       {
-        bot: mira,
+        teammate: mira,
         readOutsideData: true,
         items: [
           tool("gmail.search", "Searched Gmail for new mail since yesterday 6 PM", {
@@ -891,7 +894,7 @@ Alex`,
     text: "Reply to Priya at the Summit: confirm I'll take both 1:1 slots, Thursday 1:30 and Friday 10:00, and ask if there's a quiet room I can use for a call.",
     replies: [
       {
-        bot: mira,
+        teammate: mira,
         status: "waiting",
         waitingFor: "approval",
         readOutsideData: true,
@@ -913,7 +916,7 @@ Alex`,
   /* ---------------------------------------------------------- Juno: the post, and the CMS takeover */
   const junoPost = await s.chat({
     title: "Kestrel 2.0 announcement post",
-    bot: juno,
+    teammate: juno,
     createdAt: ago({ d: 3, h: 6 }),
   });
   ctx.chats.junoPost = junoPost;
@@ -937,7 +940,7 @@ End with one clear next step, not three.
 Send it to me by Thursday, so Dana can read it before the freeze.`,
     replies: [
       {
-        bot: juno,
+        teammate: juno,
         rating: "down",
         items: [
           cmd(
@@ -1001,7 +1004,7 @@ I led with the news and kept the four features as a list so they scan. The voice
     },
     replies: [
       {
-        bot: juno,
+        teammate: juno,
         rating: "up",
         items: [
           files([
@@ -1033,7 +1036,7 @@ I also saved a note for myself: your intros should stay under three sentences.`)
 
   const junoCms = await s.chat({
     title: "Publish the post to the CMS",
-    bot: juno,
+    teammate: juno,
     createdAt: ago({ m: 22 }),
     unread: false,
   });
@@ -1046,7 +1049,7 @@ I also saved a note for myself: your intros should stay under three sentences.`)
     text: "Publish the latest version to the blog CMS as a draft, scheduled for launch morning at 9:00.",
     replies: [
       {
-        bot: juno,
+        teammate: juno,
         status: "waiting",
         waitingFor: "takeover",
         items: [
@@ -1084,7 +1087,7 @@ I also saved a note for myself: your intros should stay under three sentences.`)
     mentions: [iris, juno, kit, mira],
     replies: [
       {
-        bot: iris,
+        teammate: iris,
         items: [
           msg(
             `Plan is current and on a page. One decision needed from you: hold ${launchDay} even if the rollback lands after the freeze. I'd hold it.`,
@@ -1092,7 +1095,7 @@ I also saved a note for myself: your intros should stay under three sentences.`)
         ],
       },
       {
-        bot: juno,
+        teammate: juno,
         items: [
           msg(
             `Announcement is on draft 2 and release notes wait on Kit's changelog. I need nothing from you until Thursday's review.`,
@@ -1100,7 +1103,7 @@ I also saved a note for myself: your intros should stay under three sentences.`)
         ],
       },
       {
-        bot: kit,
+        teammate: kit,
         items: [
           tool("list_tasks", "Read the task board", { result: "5 doing" }),
           msg(
@@ -1109,7 +1112,7 @@ I also saved a note for myself: your intros should stay under three sentences.`)
         ],
       },
       {
-        bot: mira,
+        teammate: mira,
         readOutsideData: true,
         items: [
           tool("gmail.search", "Counted replies in the press thread", { result: "11 of 18 sent" }),
@@ -1128,7 +1131,7 @@ I also saved a note for myself: your intros should stay under three sentences.`)
     mentions: [kit, juno],
     replies: [
       {
-        bot: kit,
+        teammate: kit,
         items: [
           cmd(
             "gh pr list --state merged --search 'merged:>2026-09-01' --limit 60 --json title,number | jq length",
@@ -1197,7 +1200,7 @@ I also saved a note for myself: your intros should stay under three sentences.`)
     mentions: [scout, mira],
     replies: [
       {
-        bot: scout,
+        teammate: scout,
         items: [
           tool("watch_page", "Set up a daily check on the TAP fare", {
             result: "Checks every day at 9 AM",
@@ -1208,7 +1211,7 @@ I also saved a note for myself: your intros should stay under three sentences.`)
         ],
       },
       {
-        bot: mira,
+        teammate: mira,
         readOutsideData: true,
         items: [
           tool("gmail.search", "Searched Gmail for the Summit organizer", {

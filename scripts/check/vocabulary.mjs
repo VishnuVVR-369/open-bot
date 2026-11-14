@@ -43,6 +43,8 @@ const NOT_VOCABULARY = [
   /\/home\/bot\b/g, // The computer's Linux user.
   /\bbot user\b/gi,
   /\bbot:bot\b/g,
+  /\bbot(User|Group|Processes)\b/g, // botd's names for that user, its group and its processes.
+  /`bots` group|\bBOTS_GID\b/g, // The Linux group both computer users share.
   /\bBotFather\b/g, // Telegram's own name.
 ];
 

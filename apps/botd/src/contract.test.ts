@@ -174,7 +174,7 @@ describe("botd contract", () => {
 
   it("answers a teammate's mistakes as results, and a malformed call as 400", async () => {
     const { botd } = await start();
-    const run = { runId: randomUUID(), botId: randomUUID(), botName: "Ada" };
+    const run = { runId: randomUUID(), teammateId: randomUUID(), teammateName: "Ada" };
     expect(await botd.computer.fill({ run, secret: "", site: null })).toEqual({
       ok: false,
       code: "invalid_action",
@@ -182,7 +182,7 @@ describe("botd contract", () => {
     });
     const error = await rejection(
       botd.computer.action({
-        run: { ...run, botId: "not-a-screen" },
+        run: { ...run, teammateId: "not-a-screen" },
         action: { action: "screenshot" },
       }),
     );

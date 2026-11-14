@@ -1,17 +1,21 @@
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { expect, test, type Page } from "./fixtures";
-import { e2eStack, botIdOf as botId, createTeammate, uniqueName } from "./helpers";
+import { e2eStack, teammateIdOf, createTeammate, uniqueName } from "./helpers";
 
 const botd = e2eStack().botdUrl;
 const botdToken = process.env.BOTD_TOKEN ?? "dev-botd-token-change-me";
 
-/** Ask botd to act on a bot's screen, as that bot's run would. */
-async function act(botId: string, action: Record<string, unknown>, runId = `e2e-${botId}`) {
+/** Ask botd to act on a teammate's screen, as that teammate's run would. */
+async function act(
+  teammateId: string,
+  action: Record<string, unknown>,
+  runId = `e2e-${teammateId}`,
+) {
   const response = await fetch(`${botd}/computer/action`, {
     method: "POST",
     headers: { authorization: `Bearer ${botdToken}`, "content-type": "application/json" },
-    body: JSON.stringify({ run: { runId, botId, botName: "E2E" }, action }),
+    body: JSON.stringify({ run: { runId, teammateId, teammateName: "E2E" }, action }),
   });
   return (await response.json()) as { ok: boolean; code?: string };
 }
@@ -105,14 +109,14 @@ test("handing back right after taking over keeps your note while the screen conn
   expect(errors).toEqual([]);
 });
 
-test("a bot can't use its screen while you have control, and the others keep working", async ({
+test("a teammate can't use its screen while you have control, and the others keep working", async ({
   page,
 }) => {
   const mine = uniqueName("Held");
   const other = uniqueName("Free");
   await createTeammate(page, mine);
   await createTeammate(page, other);
-  const [mineId, otherId] = [await botId(page, mine), await botId(page, other)];
+  const [mineId, otherId] = [await teammateIdOf(page, mine), await teammateIdOf(page, other)];
 
   await openScreen(page, mine);
   await page.getByTestId("take-over").click();
@@ -154,7 +158,7 @@ test("a sign-in on one screen reaches every teammate's browser", async ({ page }
     const b = uniqueName("Bob");
     await createTeammate(page, a);
     await createTeammate(page, b);
-    const [aId, bId] = [await botId(page, a), await botId(page, b)];
+    const [aId, bId] = [await teammateIdOf(page, a), await teammateIdOf(page, b)];
     const value = Math.random().toString(36).slice(2);
 
     // Both screens start and work at the same time.

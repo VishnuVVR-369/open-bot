@@ -222,7 +222,7 @@ Run with `pnpm e2e` against a running stack (`playwright.config.ts`, `e2e/`).
 The specs write to the stack's database and computer directly, so they need the whole stack named, with no defaults (`e2e/stack.ts`): either `E2E_STACK=dev` alone, or all of `E2E_BASE_URL`, `DATABASE_URL`, `WORKER_URL` and `BOTD_URL`.
 They also read `WORKER_SECRET` and `BOTD_TOKEN`, with the development defaults.
 Point them at a development or throwaway stack only.
-Tests tagged `@agent` run real bots on the computer and use your ChatGPT plan.
+Tests tagged `@agent` run real teammates on the computer and use your ChatGPT plan.
 
 | Variable                                   | Read by                                        | Purpose                                                                                                                                                      |
 | ------------------------------------------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |

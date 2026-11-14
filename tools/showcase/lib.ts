@@ -169,7 +169,7 @@ export type SeedContext = {
   pageIds: Record<string, { id: string; versions: string[] }>;
   dates: Record<"launch" | "freeze" | "confStart" | "confEnd" | "outbound" | "back", Date>;
   // The story's cast and the rows later steps refer back to, filled in as seeding goes.
-  bots?: Record<string, Ref>;
+  teammates?: Record<string, Ref>;
   chats: Record<string, Ref>;
   // Runs, approval items and lists one chat's story hands to another; shapes vary by entry.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -246,10 +246,10 @@ export const plan = (steps) => ({
   dur: 600,
 });
 export const screen = (action, shot, dur = 2600) => ({ kind: "computer", action, shot, dur });
-export const handoff = (toBot, message) => ({
+export const handoff = (toTeammate, message) => ({
   kind: "handoff",
-  toBotId: toBot.id,
-  toBotName: toBot.name,
+  toBotId: toTeammate.id,
+  toBotName: toTeammate.name,
   message,
   dur: 900,
 });
@@ -319,7 +319,7 @@ export class Seeder {
     kind = "direct",
     title,
     titled = true,
-    bot,
+    teammate,
     members = [],
     createdAt,
     unread = false,
@@ -327,13 +327,13 @@ export class Seeder {
     kind?: InferInsertModel<typeof chats>["kind"];
     title: string;
     titled?: boolean;
-    bot?: { id: string };
+    teammate?: { id: string };
     members?: { id: string }[];
     createdAt: Date;
     unread?: boolean;
   }) {
     const id = randomUUID();
-    const teammateId = bot?.id; // vocabulary: allow
+    const teammateId = teammate?.id;
     const main =
       kind === "direct" && teammateId !== undefined && !this.withMainChat.has(teammateId);
     if (main) this.withMainChat.add(teammateId);
@@ -378,7 +378,7 @@ export class Seeder {
       role: "user",
       text,
       attachments: attachments,
-      mentions: mentions.map((bot) => bot.id),
+      mentions: mentions.map((teammate) => teammate.id),
       via,
       dispatchStatus: "dispatched",
       createdAt: at,
@@ -392,7 +392,7 @@ export class Seeder {
    * One run: its row, its timeline events, the approvals and screenshots it holds, and its usage.
    * Items run one after another from `at`; the last "final" message is the reply.
    */
-  async run(chat, bot, spec) {
+  async run(chat, teammate, spec) {
     const {
       id = randomUUID(),
       screenId = null,
@@ -476,7 +476,7 @@ export class Seeder {
     await this.db.insert(runs, {
       id,
       chatId: chat.id,
-      teammateId: bot.id,
+      teammateId: teammate.id,
       trigger,
       prompt,
       messageId: message?.id ?? null,
@@ -520,7 +520,7 @@ export class Seeder {
       await this.db.insert(approvals, {
         id: item.approvalId,
         runId: id,
-        teammateId: bot.id,
+        teammateId: teammate.id,
         chatId: chat.id,
         kind: item.approvalKind,
         title: item.title,
@@ -539,7 +539,7 @@ export class Seeder {
     if (authMode === "api_key" || status !== "queued") {
       await this.db.insert(usageEntries, {
         runId: id,
-        teammateId: bot.id,
+        teammateId: teammate.id,
         authMode,
         inputTokens: input,
         cachedInputTokens: Math.round(input * 0.62),
@@ -565,9 +565,9 @@ export class Seeder {
     const runs = [];
     let offset = 2500;
     for (const reply of replies) {
-      const { bot, ...rest } = reply;
+      const { teammate, ...rest } = reply;
       runs.push(
-        await this.run(chat, bot, {
+        await this.run(chat, teammate, {
           ...rest,
           at: plus(at, reply.delay ?? offset),
           prompt: text,

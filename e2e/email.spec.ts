@@ -7,7 +7,7 @@ import {
   e2eStack,
   apiFor,
   approve,
-  botIdOf,
+  teammateIdOf,
   createTeammate,
   suiteLock,
   uniqueName,
@@ -159,7 +159,7 @@ test("@agent a teammate answers an email from its own address, after you approve
   try {
     const name = uniqueName("Ann");
     await createTeammate(page, name, "executive assistant");
-    const botId = await botIdOf(page, name);
+    const teammateId = await teammateIdOf(page, name);
     const section = await setUpEmail(page, "mail.e2e.test");
     await pool.query("update email_settings set api_base_url = $1 where id = 1", [postmarkUrl]);
     const path = new URL((await section.getByTestId("inbound-url").textContent())!).pathname;
@@ -176,7 +176,9 @@ test("@agent a teammate answers an email from its own address, after you approve
 
     // It arrives in the teammate's Email chat, and the reply waits for your approval.
     const state = await apiFor(page).app.state();
-    const inbox = state.chats.find((chat) => chat.kind === "inbox" && chat.teammateId === botId)!;
+    const inbox = state.chats.find(
+      (chat) => chat.kind === "inbox" && chat.teammateId === teammateId,
+    )!;
     await page.goto(`/chats/${inbox.id}`);
     await expect(page.getByRole("heading", { name: `${name} · Email` })).toBeVisible();
     await expect(page.getByTestId("run").first().getByTestId("run-trigger")).toHaveText("An email");
@@ -221,7 +223,7 @@ test("an email's attachments reach the teammate as files open-bot keeps track of
   try {
     const name = uniqueName("Ann");
     await createTeammate(page, name);
-    const botId = await botIdOf(page, name);
+    const teammateId = await teammateIdOf(page, name);
     const section = await setUpEmail(page, "mail.e2e.test");
     const path = new URL((await section.getByTestId("inbound-url").textContent())!).pathname;
     const notes = Buffer.from("Gate B12, boarding at 09:10\n");
@@ -247,7 +249,7 @@ test("an email's attachments reach the teammate as files open-bot keeps track of
     // The run carries them as attachments, so the teammate sees the picture, not just a path.
     const { rows: runs } = await pool.query<{ prompt: string; attachments: { path: string }[] }>(
       "select prompt, attachments from runs where bot_id = $1 and trigger = 'email'",
-      [botId],
+      [teammateId],
     );
     expect(runs).toHaveLength(1);
     const uploaded = (file: string) =>

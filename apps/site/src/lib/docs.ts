@@ -112,7 +112,7 @@ export const docs: DocSection[] = [
         href: "/docs/flows/screens-and-takeover",
         title: "Screens and takeover",
         description:
-          "Desktop actions, watching a screen live, taking over, handing back, and bot requests for help.",
+          "Desktop actions, watching a screen live, taking over, handing back, and teammate requests for help.",
       },
       {
         href: "/docs/flows/approvals",

@@ -133,11 +133,11 @@ test("unknown webhooks and oversized requests are refused", async ({ page }) => 
   expect(big.status()).toBe(413);
 });
 
-// These start real bots: slow, and they use your ChatGPT plan.
+// These start real teammates: slow, and they use your ChatGPT plan.
 test.describe("@agent automations at work", () => {
   test.setTimeout(6 * 60_000);
 
-  test("a webhook wakes a bot with what it received", async ({ page }) => {
+  test("a webhook wakes a teammate with what it received", async ({ page }) => {
     const name = uniqueName("Ben");
     await createTeammate(page, name, "order clerk");
     const title = `E2E orders ${Math.random().toString(36).slice(2, 6)}`;
@@ -163,7 +163,7 @@ test.describe("@agent automations at work", () => {
     await expect(run).toContainText("E2E-4521");
   });
 
-  test("a page watch wakes a bot when the text appears", async ({ page }) => {
+  test("a page watch wakes a teammate when the text appears", async ({ page }) => {
     const shop = await servePage("<p>Sold out</p>");
     try {
       const name = uniqueName("Ben");
@@ -193,7 +193,7 @@ test.describe("@agent automations at work", () => {
     }
   });
 
-  test("asked in chat, a bot sets up a page watch for itself", async ({ page }) => {
+  test("asked in chat, a teammate sets up a page watch for itself", async ({ page }) => {
     const shop = await servePage("<p>Sold out</p>");
     try {
       const name = uniqueName("Ben");
