@@ -8,7 +8,6 @@
   "apps/worker/src/features/teammates/service.ts": 666,
   "apps/worker/src/features/telegram/service.ts": 753,
   "apps/worker/src/runs/session.ts": 662,
-  "apps/worker/src/tools/bots.integration.test.ts": 702,
   "packages/integrations/src/providers/google/calendar/adapter.ts": 898,
   "packages/integrations/src/providers/google/gmail/adapter.ts": 718,
   "packages/integrations/src/providers/notion/adapter.ts": 674,
