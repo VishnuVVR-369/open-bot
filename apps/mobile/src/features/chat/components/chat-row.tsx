@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from "react";
 import { View } from "react-native";
-import { RowContext } from "@/components/chat/foldable-text";
+import { RowContext } from "@/features/chat/components/foldable-text";
 
 /** A row of the chat list, which tells its messages where they are and the list that it's there. */
 export function Row({

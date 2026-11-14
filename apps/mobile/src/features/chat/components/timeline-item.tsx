@@ -10,7 +10,7 @@ import {
   reasoningSummary,
   toolSummary,
   webSearchSummary,
-} from "@/lib/step-text";
+} from "@/features/chat/step-text";
 import { space } from "@/theme";
 import { ApprovalCard } from "./approval-card";
 import { PlanCard, SentIntoTurn, TakeoverCard, TurnError } from "./item-cards";

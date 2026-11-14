@@ -1,6 +1,6 @@
 import { router, usePathname } from "expo-router";
 import { useEffect, useRef, useSyncExternalStore } from "react";
-import ShareIntent from "../../modules/share-intent";
+import ShareIntent from "../../../modules/share-intent";
 import type { SharedText } from "./share";
 
 /** A share from another app, with an id of its own so sharing the same thing twice is two shares. */

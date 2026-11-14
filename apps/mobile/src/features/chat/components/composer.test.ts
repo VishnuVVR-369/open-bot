@@ -43,10 +43,10 @@ vi.mock("@/components/bot-avatar", () => ({ BotAvatar: "BotAvatar" }));
 vi.mock("@/components/sheet", () => ({ Sheet: "Sheet", SheetItem: "SheetItem" }));
 vi.mock("@/components/text", () => ({ Text: "Text" }));
 vi.mock("@/lib/api", () => ({ api: { chats: { send: state.send } } }));
-vi.mock("@/lib/dictation", () => ({
+vi.mock("@/features/chat/dictation", () => ({
   useDictation: () => ({ listening: false, cancel: state.cancel }),
 }));
-vi.mock("@/lib/drafts", () => ({ readDraft: async () => "", writeDraft: () => {} }));
+vi.mock("@/features/chat/drafts", () => ({ readDraft: async () => "", writeDraft: () => {} }));
 vi.mock("@/lib/errors", () => ({ errorMessage: () => "Couldn't send. Try again." }));
 vi.mock("@/lib/haptics", () => ({
   haptics: {
@@ -58,8 +58,8 @@ vi.mock("@/lib/haptics", () => ({
   },
 }));
 // The real attachments hook, which the app imports through the `@/` alias the tests don't have.
-vi.mock("@/lib/use-attachments", () => import("../../lib/use-attachments"));
-vi.mock("../../lib/uploads", () => ({ uploadAttachment: state.upload }));
+vi.mock("@/features/chat/use-attachments", () => import("../use-attachments"));
+vi.mock("../uploads", () => ({ uploadAttachment: state.upload }));
 vi.mock("@/theme", () => ({
   fonts: { sans: "sans" },
   radius: { xl: 10, lg: 8 },

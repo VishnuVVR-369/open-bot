@@ -8,10 +8,10 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api } from "./api";
+import { api } from "../../lib/api";
 import { applyHistoryEvent, mergeSnapshot, type ChatHistory } from "./chat-history";
-import { queryKeys } from "./query";
-import { useRealtime } from "./realtime";
+import { queryKeys } from "../../lib/query";
+import { useRealtime } from "../../lib/realtime";
 import { useChatVisibility } from "./use-chat-visibility";
 
 const BUFFER = 2_000;

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { KeepTop } from "@/components/chat/foldable-text";
+import type { KeepTop } from "@/features/chat/components/foldable-text";
 
 /**
  * An opened message would grow from its bottom edge in the chat's inverted list. Pinning older rows

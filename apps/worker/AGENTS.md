@@ -47,7 +47,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 3. A new tool dependency is composed in `ToolRegistryServices` (`apps/worker/src/tools/dependencies.ts`), passed by name in `apps/worker/src/index.ts`.
    A feature's tools declare only the services they use (`TaskToolDeps` in `apps/worker/src/features/tasks/tools.ts`).
 4. Optional: rules in `DEVELOPER_INSTRUCTIONS` (`apps/worker/src/instructions.ts`), an icon, or `asksApproval` for a tool whose call is itself the approval request, in `TOOL_DISPLAY` (`packages/domain/src/timeline/tool-display.ts`), which web and mobile both read.
-   A new icon meaning needs its icon in `apps/web/src/features/chat/components/items.tsx` and `apps/mobile/src/components/chat/tool-icons.ts`.
+   A new icon meaning needs its icon in `apps/web/src/features/chat/components/items.tsx` and `apps/mobile/src/features/chat/components/tool-icons.ts`.
 5. Document it in `apps/site/src/app/docs/reference/tools/page.mdx`.
 
 ### Add a worker internal route (called by web)

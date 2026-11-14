@@ -21,7 +21,7 @@ import { useTrackPresence } from "@/lib/presence";
 import { queryClient, setUnauthorizedHandler } from "@/lib/query";
 import { RealtimeProvider } from "@/lib/realtime";
 import { signOut } from "@/lib/session";
-import { useIncomingShares } from "@/lib/share-inbox";
+import { useIncomingShares } from "@/features/chat/share-inbox";
 import { usePushNotifications } from "@/push/register";
 import { fonts, useColors } from "@/theme";
 

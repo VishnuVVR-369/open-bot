@@ -1,6 +1,6 @@
 import type { BotSummary, ChatSummary, PageSummary, SearchResult } from "@open-bot/api";
 import { preferWordStarts, rankMatches } from "@open-bot/chat-core";
-import { chatSubtitle, chatTitle } from "./chats";
+import { chatSubtitle, chatTitle } from "../features/chat/chats";
 
 type Teammate = BotSummary;
 

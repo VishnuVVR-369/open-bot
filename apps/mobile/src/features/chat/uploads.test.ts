@@ -10,9 +10,9 @@ vi.mock("expo-file-system", () => ({
   },
   UploadType: { BINARY_CONTENT: 0 },
 }));
-vi.mock("./api", () => ({ api: { uploads: { status: vi.fn() } } }));
-vi.mock("./auth", () => ({ sessionCookie: native.cookie }));
-vi.mock("./config", () => ({ APP_URL: "http://localhost:3000" }));
+vi.mock("../../lib/api", () => ({ api: { uploads: { status: vi.fn() } } }));
+vi.mock("../../lib/auth", () => ({ sessionCookie: native.cookie }));
+vi.mock("../../lib/config", () => ({ APP_URL: "http://localhost:3000" }));
 
 import { uploadAttachment } from "./uploads";
 

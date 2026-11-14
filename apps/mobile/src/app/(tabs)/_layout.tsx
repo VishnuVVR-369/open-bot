@@ -4,7 +4,8 @@ import { StyleSheet, View } from "react-native";
 import { AppMark } from "@/components/app-mark";
 import { HeaderActions } from "@/components/header-actions";
 import { haptics } from "@/lib/haptics";
-import { useApprovals, useChats } from "@/lib/queries";
+import { useApprovals } from "@/lib/queries";
+import { useChats } from "@/features/chat/hooks";
 import { fonts, space, useColors } from "@/theme";
 
 export default function TabsLayout() {
