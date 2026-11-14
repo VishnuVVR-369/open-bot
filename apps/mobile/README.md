@@ -179,7 +179,7 @@ adb shell am broadcast -f 0x20 -a dev.openbot.egress.DEBUG_WAKE -p dev.openbot.m
 - `src/app`: Expo Router screens. The tabs in `src/app/(tabs)` are Home, Chats, Approvals, Computer and Pages; the stack adds a chat, a page, a screen, a teammate, an approval, search, notifications, file previews, approval rules, new chat, share and Settings.
 - `src/app/(tabs)/computer.tsx` and `src/app/screens/[screenId].tsx`: the screens list, live view, touch takeover, keyboard and hand-back.
 - `src/computer/viewer.ts`: the browser client; `pnpm build:viewer` bundles noVNC into the generated `src/computer/viewer-html.ts`, and `pnpm check:viewer` checks it is current.
-- `src/components`: shared UI; `src/features/chat/components` renders the timeline and composer, `src/components/computer` the WebView lifecycle, token handling, the code sheet and operation recovery.
+- `src/components`: shared UI; `src/features/chat/components` renders the timeline and composer, `src/features/computer/components` the WebView lifecycle, token handling, the code sheet and operation recovery.
 - `src/lib`: platform-free logic with co-located tests. `api.ts` is the typed API client (the session cookie lives in SecureStore, `auth.ts`), `queries.ts` and `query.ts` hold the react-query hooks and keys, `realtime.tsx` and `live-stream.ts` the live stream (resuming the open chat from its last event after a reconnect), and `lock.ts` the fingerprint lock on open and after five minutes away.
 - `src/push`: notification channels, rendering pushes (also while the app is closed, in `background.ts`), Approve and Deny, purchase Review and inline Reply.
 - `src/theme`: the palette, light and dark, and color mixing.

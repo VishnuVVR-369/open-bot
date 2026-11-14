@@ -15,7 +15,11 @@ import {
 } from "lucide-react-native";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Pressable, RefreshControl, SectionList, StyleSheet, View } from "react-native";
-import { ApprovalStatusChip, AvatarBadge, ON_ATTENTION } from "@/components/approval-parts";
+import {
+  ApprovalStatusChip,
+  AvatarBadge,
+  ON_ATTENTION,
+} from "@/features/approvals/components/approval-parts";
 import { BotAvatar } from "@/components/bot-avatar";
 import { FilterChips } from "@/components/filter-chips";
 import { Separator } from "@/components/list-row";
@@ -33,7 +37,8 @@ import {
   stillNeedsYou,
   type NotificationState,
 } from "@/lib/notification-groups";
-import { useApprovals, useHome, useNotifications, useTeammates } from "@/lib/queries";
+import { useApprovals } from "@/features/approvals/hooks";
+import { useHome, useNotifications, useTeammates } from "@/lib/queries";
 import { queryKeys } from "@/lib/query";
 import { ago } from "@/lib/time";
 import { useSafeBottom } from "@/lib/use-safe-bottom";

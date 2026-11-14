@@ -4,7 +4,7 @@ import { StyleSheet, View } from "react-native";
 import { BotAvatar, botActivity } from "@/components/bot-avatar";
 import { Button } from "@/components/button";
 import { Text } from "@/components/text";
-import { screenState, screenStatus } from "@/lib/screens";
+import { screenState, screenStatus } from "@/features/computer/screens";
 import { radius, space, useColors } from "@/theme";
 import { mix } from "@/theme/mix";
 

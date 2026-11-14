@@ -3,10 +3,10 @@ import type { ApprovalRisk } from "@open-bot/domain";
 import { Check, CircleDashed, Clock, OctagonAlert, TriangleAlert, X } from "lucide-react-native";
 import type { ReactNode } from "react";
 import { StyleSheet, View, type TextProps } from "react-native";
-import { ApprovalIcon } from "@/components/approval-icon";
+import { ApprovalIcon } from "@/features/approvals/components/approval-icon";
 import { BotAvatar, type AvatarSize, type BotActivity } from "@/components/bot-avatar";
 import { Text, type TextVariant } from "@/components/text";
-import { detailRows, titleParts } from "@/lib/approval-text";
+import { detailRows, titleParts } from "@/features/approvals/approval-text";
 import { fonts, radius, space, useColors } from "@/theme";
 import { mix } from "@/theme/mix";
 

@@ -5,7 +5,7 @@ import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import { viewerHtml } from "@/computer/viewer-html";
 import { api } from "@/lib/api";
 import { sessionCookie } from "@/lib/auth";
-import { ComputerAccess } from "@/lib/computer-access";
+import { ComputerAccess } from "@/features/computer/computer-access";
 import { APP_URL } from "@/lib/config";
 import { queryClient, queryKeys } from "@/lib/query";
 import { radius } from "@/theme";

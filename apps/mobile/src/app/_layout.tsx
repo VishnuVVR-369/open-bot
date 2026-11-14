@@ -13,7 +13,7 @@ import { useColorScheme } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { LockScreen } from "@/components/lock-screen";
-import { ComputerAccess } from "@/lib/computer-access";
+import { ComputerAccess } from "@/features/computer/computer-access";
 import { authClient } from "@/lib/auth";
 import { useAppLock } from "@/lib/lock";
 import { loadPreferences } from "@/lib/preferences";

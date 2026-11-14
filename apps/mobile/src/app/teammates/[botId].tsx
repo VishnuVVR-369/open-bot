@@ -15,7 +15,7 @@ import {
 } from "lucide-react-native";
 import type { ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, useColorScheme, View } from "react-native";
-import { ApprovalTitle } from "@/components/approval-parts";
+import { ApprovalTitle } from "@/features/approvals/components/approval-parts";
 import {
   activityText,
   BotAvatar,
@@ -31,15 +31,11 @@ import { LoadError, Loading, NotFound } from "@/components/states";
 import { Text } from "@/components/text";
 import { chatSubtitle, chatTitle, conversationWith } from "@/features/chat/chats";
 import { haptics } from "@/lib/haptics";
-import {
-  useApprovalRules,
-  useApprovals,
-  useComputerOffline,
-  useHome,
-  useTeammates,
-} from "@/lib/queries";
+import { useApprovalRules, useApprovals } from "@/features/approvals/hooks";
+import { useComputerOffline } from "@/features/computer/hooks";
+import { useHome, useTeammates } from "@/lib/queries";
 import { useChats, useNewDirectChat } from "@/features/chat/hooks";
-import { screenHref } from "@/lib/screens";
+import { screenHref } from "@/features/computer/screens";
 import { ago, lastActive } from "@/lib/time";
 import { useSafeBottom } from "@/lib/use-safe-bottom";
 import { radius, space, useColors } from "@/theme";
