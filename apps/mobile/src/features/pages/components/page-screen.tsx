@@ -116,7 +116,7 @@ export default function PageScreen() {
           ),
           headerRight: () => (
             <PageActions
-              askName={target ? target.bot.name : null}
+              askName={target ? target.teammate.name : null}
               onAsk={() => ask({ quote: null, section: null })}
               onMenu={() => setMenuOpen(true)}
             />
@@ -172,7 +172,7 @@ export default function PageScreen() {
           onClose={() => setAsking(false)}
           page={data}
           version={shown.number}
-          teammate={target.bot}
+          teammate={target.teammate}
           chat={target.chat}
           question={question}
         />

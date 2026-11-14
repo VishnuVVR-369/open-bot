@@ -39,7 +39,9 @@ vi.mock("lucide-react-native", () =>
     ].map((name) => [name, name]),
   ),
 );
-vi.mock("@/features/teammates/components/bot-avatar", () => ({ BotAvatar: "BotAvatar" }));
+vi.mock("@/features/teammates/components/teammate-avatar", () => ({
+  TeammateAvatar: "TeammateAvatar",
+}));
 vi.mock("@/components/sheet", () => ({ Sheet: "Sheet", SheetItem: "SheetItem" }));
 vi.mock("@/components/text", () => ({ Text: "Text" }));
 vi.mock("@/lib/api", () => ({ api: { chats: { send: state.send } } }));

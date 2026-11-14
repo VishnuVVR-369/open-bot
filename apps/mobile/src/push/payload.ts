@@ -22,7 +22,7 @@ export interface PushData {
   title?: string;
   body?: string;
   url?: string;
-  botId?: string;
+  teammateId?: string;
   chatId?: string;
   runId?: string;
   approvalId?: string;
@@ -47,7 +47,7 @@ export function parsePushData(raw: Record<string, unknown> | undefined): PushDat
     title: text("title"),
     body: text("body"),
     url: text("url"),
-    botId: text("botId"),
+    teammateId: text("teammateId"),
     chatId: text("chatId"),
     runId: text("runId"),
     approvalId: text("approvalId"),
@@ -77,7 +77,7 @@ export interface NotificationPlan {
   actions: { id: ActionId; title: string; opensApp: boolean; input?: { placeholder: string } }[];
   approvalId?: string;
   /** Where a Reply goes, and who it's for (they're mentioned, so in a group they get it). */
-  reply?: { chatId: string; botId: string | null };
+  reply?: { chatId: string; teammateId: string };
 }
 
 /**
@@ -92,9 +92,10 @@ export function planNotification(data: PushData): NotificationPlan | null {
     : data.kind === "takeover_request"
       ? "asking"
       : "messages";
+  // Only with the teammate it's from: a reply that mentions nobody goes to a group's lead.
   const reply =
-    !isApproval && data.chatId && data.kind && REPLYABLE_KINDS.has(data.kind)
-      ? { chatId: data.chatId, botId: data.botId ?? null }
+    !isApproval && data.chatId && data.teammateId && data.kind && REPLYABLE_KINDS.has(data.kind)
+      ? { chatId: data.chatId, teammateId: data.teammateId }
       : null;
   return {
     id: data.tag,
@@ -102,11 +103,11 @@ export function planNotification(data: PushData): NotificationPlan | null {
     title: data.title,
     body: data.body ?? "",
     url:
-      data.kind === "takeover_request" && data.botId
-        ? `/screens/${encodeURIComponent(data.botId)}${data.takeoverId ? `?takeover=${encodeURIComponent(data.takeoverId)}` : ""}`
+      data.kind === "takeover_request" && data.teammateId
+        ? `/screens/${encodeURIComponent(data.teammateId)}${data.takeoverId ? `?takeover=${encodeURIComponent(data.takeoverId)}` : ""}`
         : (data.url ?? "/"),
     actions:
-      data.kind === "takeover_request" && data.botId && data.takeoverId
+      data.kind === "takeover_request" && data.teammateId && data.takeoverId
         ? [
             { id: "take-over", title: "Take over", opensApp: true },
             { id: "type-code", title: "Type the code", opensApp: true },

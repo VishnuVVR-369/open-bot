@@ -73,7 +73,11 @@ export function nativeNotification(event: NotificationEvent): NativePush {
     body: body.length > MAX_BODY ? `${body.slice(0, MAX_BODY - 1)}…` : body,
     tag: event.approvalId ?? event.takeoverId ?? event.runId ?? event.id,
     url: nativeUrl(event),
-    ...(event.teammateId ? { botId: event.teammateId } : {}),
+    ...(event.teammateId ? { teammateId: event.teammateId } : {}),
+    // Temporary: phones still on the old build read `botId`, and a Reply from a group chat's
+    // notification mentions that teammate (without it, the group's lead would answer). Removed in
+    // the database-rename PR (V6), which deploys after the new phone build is installed.
+    ...(event.teammateId ? { botId: event.teammateId } : {}), // vocabulary: allow
     ...(event.chatId ? { chatId: event.chatId } : {}),
     ...(event.runId ? { runId: event.runId } : {}),
     ...(event.approvalId

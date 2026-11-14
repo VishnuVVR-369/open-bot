@@ -7,12 +7,12 @@ import {
 } from "./notification-groups";
 
 describe("repeated notifications", () => {
-  const note = (id: string, title: string, botId: string | null = null, body = "") => ({
+  const note = (id: string, title: string, teammateId: string | null = null, body = "") => ({
     id,
     kind: "cap_reached",
     title,
     body,
-    teammateId: botId,
+    teammateId: teammateId,
   });
 
   it("folds back-to-back repeats into one row", () => {

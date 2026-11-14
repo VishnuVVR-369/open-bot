@@ -35,8 +35,8 @@ export function headerStatus({
   computerOnline: boolean;
   chatById: (id: string) => ChatNaming | null | undefined;
 }): ChatStatus {
-  const each = members.map((bot) =>
-    chatStatus({ teammate: bot, chatId, computerOnline, chatById }),
+  const each = members.map((teammate) =>
+    chatStatus({ teammate: teammate, chatId, computerOnline, chatById }),
   );
   if (!group)
     return (

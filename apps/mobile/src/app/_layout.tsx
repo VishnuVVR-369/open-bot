@@ -95,7 +95,7 @@ function App() {
             <Stack.Protected guard={signedIn}>
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
               <Stack.Screen name="chats/[chatId]" options={{ title: "" }} />
-              <Stack.Screen name="teammates/[botId]" options={{ title: "" }} />
+              <Stack.Screen name="teammates/[teammateId]" options={{ title: "" }} />
               <Stack.Screen name="approvals/[approvalId]" options={{ title: "Approval" }} />
               <Stack.Screen name="screens/[screenId]" options={{ title: "Computer" }} />
               <Stack.Screen name="settings" options={{ title: "Settings" }} />

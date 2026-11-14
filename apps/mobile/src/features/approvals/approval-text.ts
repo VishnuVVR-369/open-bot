@@ -25,7 +25,7 @@ export function shortenPaths(text: string, max = 64): string {
       if (!match) return word;
       const [, open, path, close] = match;
       const parts = path!.split("/");
-      // ["", "home", "bot", "shared", "x.txt"]: keep the root's first part and the last two.
+      // /home/bot/shared/x.txt splits into 5 parts: keep the root's first part and the last two.
       if (parts.length <= 4) return word;
       return `${open}${[...parts.slice(0, 2), "…", ...parts.slice(-2)].join("/")}${close}`;
     })

@@ -23,7 +23,7 @@ export default function PagesScreen() {
     Promise.all([pages.refetch(), teammates.refetch()]),
   );
   const sorted = useMemo(() => sortPages(pages.data ?? []), [pages.data]);
-  const bots = teammates.data ?? [];
+  const allTeammates = teammates.data ?? [];
 
   if (pages.isLoading) return <Loading />;
   if (pages.error && !pages.data)
@@ -66,7 +66,7 @@ export default function PagesScreen() {
           >
             <PageRow
               page={page}
-              bot={bots.find((bot) => bot.id === page.teammateId)}
+              teammate={allTeammates.find((teammate) => teammate.id === page.teammateId)}
               first={index === 0}
               onMenu={() => setMenuFor(page)}
             />

@@ -3,7 +3,7 @@ import { safe } from "@orpc/client";
 import { router } from "expo-router";
 import { EllipsisVertical, Pin, PinOff, Trash2 } from "lucide-react-native";
 import { Alert, Pressable, StyleSheet, View } from "react-native";
-import { BotAvatar } from "@/features/teammates/components/bot-avatar";
+import { TeammateAvatar } from "@/features/teammates/components/teammate-avatar";
 import { PageThumb } from "@/features/pages/components/page-thumb";
 import { Sheet, SheetItem } from "@/components/sheet";
 import { Text } from "@/components/text";
@@ -22,12 +22,12 @@ import { space, useColors } from "@/theme";
  */
 export function PageRow({
   page,
-  bot,
+  teammate,
   first,
   onMenu,
 }: {
   page: PageSummary;
-  bot: TeammateSummary | undefined;
+  teammate: TeammateSummary | undefined;
   first: boolean;
   onMenu?: () => void;
 }) {
@@ -71,10 +71,10 @@ export function PageRow({
           </Text>
         ) : null}
         <View style={styles.meta}>
-          {bot && <BotAvatar {...bot} size="xs" />}
+          {teammate && <TeammateAvatar {...teammate} size="xs" />}
           <Text variant="caption" muted numberOfLines={1} style={{ flexShrink: 1 }}>
             {[
-              bot?.name ?? "Former teammate",
+              teammate?.name ?? "Former teammate",
               ago(page.updatedAt),
               page.versionCount > 1 ? `v${page.version}` : null,
             ]

@@ -11,7 +11,7 @@ vi.mock("react-native", () => ({
   AppState: { currentState: "active", addEventListener: () => ({ remove: vi.fn() }) },
 }));
 vi.mock("./auth", () => ({ sessionCookie: vi.fn() }));
-vi.mock("./config", () => ({ APP_URL: "https://bot.test" }));
+vi.mock("./config", () => ({ APP_URL: "https://app.test" }));
 vi.mock("./query", () => ({ keysForAppEvent: () => [], queryKeys: { teammates: ["teammates"] } }));
 vi.mock("./live-stream", () => ({
   createLiveStream: ({ cursors }: { cursors: Map<string, number> }) => {

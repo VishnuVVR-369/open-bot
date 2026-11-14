@@ -1,5 +1,5 @@
 import type { TeammateSummary, ChatSummary } from "@open-bot/api";
-import { plainText } from "@open-bot/domain";
+import { plainText, type TeammateActivity } from "@open-bot/domain";
 import { safe } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { router, useNavigation } from "expo-router";
@@ -15,11 +15,10 @@ import { useLayoutEffect, useMemo, useState } from "react";
 import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, View } from "react-native";
 import {
   activityText,
-  BotAvatar,
+  TeammateAvatar,
   GroupAvatar,
   StatusLine,
-  type BotActivity,
-} from "@/features/teammates/components/bot-avatar";
+} from "@/features/teammates/components/teammate-avatar";
 import {
   ComputerOfflineNotice,
   ConnectionNotice,
@@ -70,11 +69,11 @@ function matches(chat: ChatSummary, filter: Filter): boolean {
 /** What the chat's teammate is doing in this chat, for its avatar; paused while the computer is away. */
 function chatActivity(
   chat: ChatSummary,
-  bot: TeammateSummary | undefined,
+  teammate: TeammateSummary | undefined,
   computerOffline: boolean,
-): BotActivity {
+): TeammateActivity {
   if (!chat.active) return "idle";
-  const run = bot?.activeRun;
+  const run = teammate?.activeRun;
   if (run?.chatId === chat.id) {
     if (run.status === "waiting") return "waiting";
     if (run.status === "queued") return "queued";
@@ -84,25 +83,25 @@ function chatActivity(
 
 function ChatRow({
   chat,
-  bots,
+  teammates,
   computerOffline,
   onLongPress,
 }: {
   chat: ChatSummary;
-  bots: TeammateSummary[];
+  teammates: TeammateSummary[];
   computerOffline: boolean;
   onLongPress: () => void;
 }) {
   const colors = useColors();
-  const bot = bots.find((candidate) => candidate.id === chat.teammateId);
+  const teammate = teammates.find((candidate) => candidate.id === chat.teammateId);
   const KindIcon = chat.kind === "scheduled" ? CalendarClock : chat.kind === "inbox" ? Mail : null;
-  const activity = chatActivity(chat, bot, computerOffline);
-  const live = chat.active ? activityText(activity, bot?.activeRun?.waitingFor) : null;
-  const members = chat.memberIds.flatMap((id) => bots.filter((entry) => entry.id === id));
-  const title = chatTitle(chat, bot);
-  const subtitle = plainText(chatSubtitle(chat, bot, bots));
+  const activity = chatActivity(chat, teammate, computerOffline);
+  const live = chat.active ? activityText(activity, teammate?.activeRun?.waitingFor) : null;
+  const members = chat.memberIds.flatMap((id) => teammates.filter((entry) => entry.id === id));
+  const title = chatTitle(chat, teammate);
+  const subtitle = plainText(chatSubtitle(chat, teammate, teammates));
   // Who it's about leads the second line, as "Kit: …" does in a preview.
-  const speaker = bot && namedForTopic(chat, bot) ? bot.name : null;
+  const speaker = teammate && namedForTopic(chat, teammate) ? teammate.name : null;
   return (
     <Pressable
       onPress={() => router.push(`/chats/${chat.id}`)}
@@ -129,10 +128,10 @@ function ChatRow({
         {chat.kind === "group" ? (
           <GroupAvatar members={members} />
         ) : (
-          <BotAvatar
-            name={bot?.name ?? "?"}
-            color={bot?.color ?? "#888888"}
-            emoji={bot?.emoji}
+          <TeammateAvatar
+            name={teammate?.name ?? "?"}
+            color={teammate?.color ?? "#888888"}
+            emoji={teammate?.emoji}
             size="lg"
             activity={activity}
           />
@@ -203,7 +202,7 @@ export default function Chats() {
   const colors = useColors();
   const queryClient = useQueryClient();
   const chats = useChats();
-  const { data: bots = [] } = useTeammates();
+  const { data: teammates = [] } = useTeammates();
   const [filter, setFilter] = useState<Filter>("all");
   const [menuFor, setMenuFor] = useState<ChatSummary | null>(null);
   const computerOffline = useComputerOffline();
@@ -317,7 +316,7 @@ export default function Chats() {
         renderItem={({ item: chat }) => (
           <ChatRow
             chat={chat}
-            bots={bots}
+            teammates={teammates}
             computerOffline={computerOffline}
             onLongPress={() => setMenuFor(chat)}
           />
@@ -330,7 +329,7 @@ export default function Chats() {
           menuFor
             ? chatTitle(
                 menuFor,
-                bots.find((bot) => bot.id === menuFor.teammateId),
+                teammates.find((teammate) => teammate.id === menuFor.teammateId),
               )
             : undefined
         }

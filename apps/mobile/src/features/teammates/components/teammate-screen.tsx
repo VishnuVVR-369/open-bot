@@ -18,14 +18,14 @@ import { Pressable, ScrollView, StyleSheet, useColorScheme, View } from "react-n
 import { ApprovalTitle } from "@/features/approvals/components/approval-parts";
 import {
   activityText,
-  BotAvatar,
-  botActivity,
+  TeammateAvatar,
+  teammateActivity,
   GroupAvatar,
   LeadBadge,
   needsYouText,
   PAUSED_OFFLINE,
   StatusLine,
-} from "@/features/teammates/components/bot-avatar";
+} from "@/features/teammates/components/teammate-avatar";
 import { Card, Section } from "@/components/section";
 import { LoadError, Loading, NotFound } from "@/components/states";
 import { Text } from "@/components/text";
@@ -180,7 +180,7 @@ function Row({
 export default function TeammateScreen() {
   const bottom = useSafeBottom();
   const colors = useColors();
-  const { botId } = useLocalSearchParams<{ botId: string }>();
+  const { teammateId } = useLocalSearchParams<{ teammateId: string }>();
   const teammates = useTeammates();
   const chats = useChats();
   const { data: rules = [] } = useApprovalRules();
@@ -188,10 +188,10 @@ export default function TeammateScreen() {
   const { data: home } = useHome();
   const newChat = useNewDirectChat();
   const computerOffline = useComputerOffline();
-  const bot = teammates.data?.find((candidate) => candidate.id === botId);
+  const teammate = teammates.data?.find((candidate) => candidate.id === teammateId);
 
   if (teammates.isLoading) return <Loading />;
-  if (!bot && teammates.error)
+  if (!teammate && teammates.error)
     return (
       <LoadError
         title="Couldn't load this teammate"
@@ -200,7 +200,7 @@ export default function TeammateScreen() {
         onBack={goBack}
       />
     );
-  if (!bot)
+  if (!teammate)
     return (
       <NotFound
         icon={Users}
@@ -211,38 +211,41 @@ export default function TeammateScreen() {
       />
     );
 
-  const activity = botActivity(bot, computerOffline);
+  const activity = teammateActivity(teammate, computerOffline);
   // No offline notice on this screen, so "Paused" says why.
   const status =
-    activity === "paused" ? PAUSED_OFFLINE : activityText(activity, bot.activeRun?.waitingFor);
+    activity === "paused" ? PAUSED_OFFLINE : activityText(activity, teammate.activeRun?.waitingFor);
   const all = chats.data ?? [];
   const theirs = all
     .filter(
       (chat) =>
-        chat.teammateId === bot.id || (chat.kind === "group" && chat.memberIds.includes(bot.id)),
+        chat.teammateId === teammate.id ||
+        (chat.kind === "group" && chat.memberIds.includes(teammate.id)),
     )
     .sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt));
-  const conversation = conversationWith(bot, all); // vocabulary: allow
-  const autonomy = AUTONOMY_OPTIONS.find((option) => option.value === bot.autonomy);
-  const ruleCount = rules.filter((rule) => rule.teammateId === bot.id).length;
-  const bots = teammates.data ?? [];
+  const conversation = conversationWith(teammate, all); // vocabulary: allow
+  const autonomy = AUTONOMY_OPTIONS.find((option) => option.value === teammate.autonomy);
+  const ruleCount = rules.filter((rule) => rule.teammateId === teammate.id).length;
+  const allTeammates = teammates.data ?? [];
   const approval = approvals.find(
-    (entry) => entry.status === "pending" && entry.teammateId === bot.id,
+    (entry) => entry.status === "pending" && entry.teammateId === teammate.id,
   );
-  const takeover = home?.takeoverRequests.find((request) => request.teammateId === bot.id);
+  const takeover = home?.takeoverRequests.find((request) => request.teammateId === teammate.id);
   // A conversation to go back to, or a first one to start.
-  const continuing = Boolean(bot.activeRun?.chatId ?? conversation?.id ?? bot.directChatId);
+  const continuing = Boolean(
+    teammate.activeRun?.chatId ?? conversation?.id ?? teammate.directChatId,
+  );
 
   const message = () => {
-    const chatId = bot.activeRun?.chatId ?? conversation?.id ?? bot.directChatId;
+    const chatId = teammate.activeRun?.chatId ?? conversation?.id ?? teammate.directChatId;
     if (chatId) router.push(`/chats/${chatId}`);
-    else newChat.mutate(bot.id);
+    else newChat.mutate(teammate.id);
   };
   const leadingFor = (chat: ChatSummary) => {
     if (chat.kind === "group")
       return (
         <GroupAvatar
-          members={chat.memberIds.flatMap((id) => bots.filter((entry) => entry.id === id))}
+          members={chat.memberIds.flatMap((id) => allTeammates.filter((entry) => entry.id === id))}
           size="md"
           ring={colors.surface}
         />
@@ -266,23 +269,23 @@ export default function TeammateScreen() {
         <View style={styles.hero}>
           {/* Who they are, compact: the face beside the name, so what to do comes right after. */}
           <View style={styles.identity}>
-            <BotAvatar {...bot} size="profile" activity={activity} />
+            <TeammateAvatar {...teammate} size="profile" activity={activity} />
             <View style={{ flex: 1, gap: 2 }}>
               <View style={styles.nameRow}>
                 <Text variant="title" numberOfLines={1} style={styles.name}>
-                  {bot.name}
+                  {teammate.name}
                 </Text>
-                {bot.isLead && <LeadBadge />}
+                {teammate.isLead && <LeadBadge />}
               </View>
               <Text muted numberOfLines={1} style={{ fontSize: 15, lineHeight: 20 }}>
-                {bot.role}
+                {teammate.role}
               </Text>
               {/* Waiting on you is the banner below; this line is their status otherwise. */}
               {activity !== "waiting" && (
                 <View style={{ marginTop: space(1) }}>
                   <StatusLine activity={activity} testID="profile-activity">
-                    {activity === "idle" && bot.lastActiveAt
-                      ? lastActive(bot.lastActiveAt)
+                    {activity === "idle" && teammate.lastActiveAt
+                      ? lastActive(teammate.lastActiveAt)
                       : status}
                   </StatusLine>
                 </View>
@@ -292,7 +295,7 @@ export default function TeammateScreen() {
           {takeover ? (
             <PendingBanner
               kind="takeover"
-              title={takeover.reason ?? `${bot.name} needs you on the screen`}
+              title={takeover.reason ?? `${teammate.name} needs you on the screen`}
               onPress={() => router.push(screenHref(takeover.screenId, takeover.id))}
             />
           ) : approval ? (
@@ -313,12 +316,12 @@ export default function TeammateScreen() {
             <Action
               icon={<SquarePen size={20} color={colors.foreground} />}
               label="New chat"
-              onPress={() => newChat.mutate(bot.id)}
+              onPress={() => newChat.mutate(teammate.id)}
             />
             <Action
               icon={<Monitor size={20} color={colors.foreground} />}
               label="Screen"
-              onPress={() => router.push(screenHref(bot.id))}
+              onPress={() => router.push(screenHref(teammate.id))}
               testID="profile-screen"
             />
           </View>
@@ -327,7 +330,7 @@ export default function TeammateScreen() {
         <Section title="How they work">
           <Card>
             <View style={styles.about}>
-              <Text variant="label">{autonomy?.label ?? bot.autonomy}</Text>
+              <Text variant="label">{autonomy?.label ?? teammate.autonomy}</Text>
               {autonomy && (
                 <Text variant="small" muted>
                   {autonomy.description}
@@ -345,7 +348,7 @@ export default function TeammateScreen() {
               subtitle={
                 ruleCount === 0
                   ? "Nothing yet. Command approvals offer Always allow."
-                  : `${ruleCount} ${ruleCount === 1 ? "rule" : "rules"}: ${bot.name} doesn't ask about these`
+                  : `${ruleCount} ${ruleCount === 1 ? "rule" : "rules"}: ${teammate.name} doesn't ask about these`
               }
               onPress={() => router.push("/approval-rules")}
             />
@@ -360,8 +363,8 @@ export default function TeammateScreen() {
                   key={chat.id}
                   first={index === 0}
                   leading={leadingFor(chat)}
-                  title={chat.kind === "group" ? chat.title : chatTitle(chat, bot)}
-                  subtitle={`${chat.main ? "Main chat · " : ""}${plainText(chatSubtitle(chat, bot, bots))}`}
+                  title={chat.kind === "group" ? chat.title : chatTitle(chat, teammate)}
+                  subtitle={`${chat.main ? "Main chat · " : ""}${plainText(chatSubtitle(chat, teammate, allTeammates))}`}
                   aside={
                     <Text variant="caption" muted>
                       {ago(chat.lastActivityAt)}

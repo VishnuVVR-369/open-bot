@@ -2,7 +2,7 @@ import type { ApprovalView, TeammateSummary, Home } from "@open-bot/api";
 import { router } from "expo-router";
 import { Hand, Monitor, ShieldAlert, Sparkles } from "lucide-react-native";
 import { View, StyleSheet } from "react-native";
-import { BotAvatar, needsYouText } from "@/features/teammates/components/bot-avatar";
+import { TeammateAvatar, needsYouText } from "@/features/teammates/components/teammate-avatar";
 import { ApprovalRow } from "@/features/approvals/components/approval-row";
 import { Separator } from "@/components/list-row";
 import { Section } from "@/components/section";
@@ -33,8 +33,8 @@ export function NeedsYou({
 }) {
   const colors = useColors();
   const proposals = home.proposals.flatMap((proposal) => {
-    const bot = teammates.find((entry) => entry.id === proposal.teammateId);
-    return bot ? [{ ...proposal, bot }] : [];
+    const teammate = teammates.find((entry) => entry.id === proposal.teammateId);
+    return teammate ? [{ ...proposal, teammate }] : [];
   });
   const approvalCount = approvals?.length ?? home.pendingApprovals;
   const needs = approvalCount + home.takeoverRequests.length;
@@ -59,7 +59,7 @@ export function NeedsYou({
                 {index > 0 && <Separator />}
                 <ApprovalRow
                   approval={approval}
-                  bot={teammates.find((teammate) => teammate.id === approval.teammateId)}
+                  teammate={teammates.find((teammate) => teammate.id === approval.teammateId)}
                   meta={ago(approval.createdAt)}
                   behind={pendingFill}
                   short
@@ -92,18 +92,18 @@ export function NeedsYou({
           </Callout>
         ) : null}
         {home.takeoverRequests.map((request) => {
-          const bot = teammates.find((entry) => entry.id === request.teammateId);
+          const teammate = teammates.find((entry) => entry.id === request.teammateId);
           const open = () => router.push(screenHref(request.screenId, request.id));
           // The screen can't be driven while the computer is away: a lighter card, after what
           // you can decide now, that only says when you can.
           return computerOffline ? (
-            <TakeoverLater key={request.id} request={request} bot={bot} onOpen={open} />
+            <TakeoverLater key={request.id} request={request} teammate={teammate} onOpen={open} />
           ) : (
             <Callout
               key={request.id}
               leading={
-                bot ? (
-                  <BotAvatar {...bot} size="md" />
+                teammate ? (
+                  <TeammateAvatar {...teammate} size="md" />
                 ) : (
                   <Hand size={20} color={colors.attentionInk} />
                 )
@@ -131,7 +131,7 @@ export function NeedsYou({
               { backgroundColor: colors.surface, borderColor: colors.border },
             ]}
             accessible
-            accessibilityLabel={`Suggestion: ${proposal.bot.name} suggests new instructions. Review them in open-bot on your computer.`}
+            accessibilityLabel={`Suggestion: ${proposal.teammate.name} suggests new instructions. Review them in open-bot on your computer.`}
             testID="proposal"
           >
             <View style={[styles.suggestionIcon, { backgroundColor: colors.subtle }]}>
@@ -139,7 +139,7 @@ export function NeedsYou({
             </View>
             <View style={{ flex: 1, gap: 1 }}>
               <Text variant="label" numberOfLines={1} style={{ fontSize: 15 }}>
-                {proposal.bot.name} suggests new instructions
+                {proposal.teammate.name} suggests new instructions
               </Text>
               <View style={shared.noteTag}>
                 <Monitor size={12} color={colors.mutedForeground} />
