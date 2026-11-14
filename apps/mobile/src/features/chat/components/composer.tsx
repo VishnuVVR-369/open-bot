@@ -66,7 +66,9 @@ export function Composer({
 }) {
   const colors = useColors();
   const input = useRef<TextInputInstance>(null);
-  const drafting = useDraft(chatId);
+  // A reply a notification kept while you dictate stays after what you go on saying.
+  const appendToDictation = useRef<(text: string) => void>(() => {});
+  const drafting = useDraft(chatId, { onKept: (kept) => appendToDictation.current(kept) });
   const { draft, edit, address } = drafting;
   const text = draft.text;
   const [caret, setCaret] = useState(0);
@@ -89,6 +91,7 @@ export function Composer({
     },
     onError: setError,
   });
+  appendToDictation.current = dictation.append;
 
   const cancelDictation = dictation.cancel;
   // A chat can stay mounted under another screen. Stop listening as soon as it loses focus.

@@ -7,19 +7,33 @@ import {
   readDraft,
   writeDraft,
   type Draft,
+  type Kept,
 } from "@/features/chat/drafts";
 
 /**
  * The composer's draft: what you typed and whom it's for, saved as you type. It shows the chat's
  * saved draft when it opens, takes in a reply a notification kept while it's open (after what you
- * typed), and once a send succeeds clears only the version that was sent.
+ * typed), and once a send goes through keeps only the replies kept while it was on its way.
  */
-export function useDraft(chatId: string) {
+export function useDraft(
+  chatId: string,
+  {
+    onKept,
+  }: {
+    /** A reply was kept while the chat is open, after what's in the box (so dictation can follow). */
+    onKept?: (text: string) => void;
+  } = {},
+) {
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   // Read by the listeners below between renders, so it changes with every update at once.
   const current = useRef(draft);
-  /** The send in flight: the version it submitted, and whom replies kept meanwhile were for. */
-  const flight = useRef<{ submitted: Draft; kept: string[] } | null>(null);
+  /**
+   * The send on its way, as the replies kept since it was submitted: they're all that's left once
+   * it goes through. What's typed meanwhile goes with it, as it always has.
+   */
+  const flight = useRef<Kept[] | null>(null);
+  const kept = useRef(onKept);
+  kept.current = onKept;
 
   const update = useCallback(
     (next: Draft) => {
@@ -38,12 +52,13 @@ export function useDraft(chatId: string) {
       current.current = saved;
       setDraft(saved);
     });
-    const off = onKeptReply(chatId, (kept, after) => {
-      if (flight.current && kept.teammateId) flight.current.kept.push(kept.teammateId);
+    const off = onKeptReply(chatId, (reply, after) => {
+      flight.current?.push(reply);
       // Before the saved draft is shown, the store's draft (with the reply) is the whole of it.
       update(
-        current.current.text ? appendKept(current.current, kept.text, kept.teammateId) : after,
+        current.current.text ? appendKept(current.current, reply.text, reply.teammateId) : after,
       );
+      kept.current?.(reply.text);
     });
     return () => {
       live = false;
@@ -60,15 +75,15 @@ export function useDraft(chatId: string) {
     ),
     /** The version being sent. */
     submit: useCallback(() => {
-      flight.current = { submitted: current.current, kept: [] };
+      flight.current = [];
       return current.current;
     }, []),
-    /** The send is over: once it went through, what it sent is cleared, and nothing more. */
+    /** The send is over: once it went through, only the replies kept meanwhile are left. */
     settle: useCallback(
       (sent: boolean) => {
-        const done = flight.current;
+        const keptSince = flight.current;
         flight.current = null;
-        if (sent && done) update(afterSend(current.current, done.submitted, done.kept));
+        if (sent && keptSince) update(afterSend(keptSince));
       },
       [update],
     ),

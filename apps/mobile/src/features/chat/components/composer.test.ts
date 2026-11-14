@@ -8,7 +8,8 @@ const state = vi.hoisted(() => ({
   upload: vi.fn(),
   send: vi.fn(),
   onSent: vi.fn(),
-  cancel: vi.fn(),
+  /** Speech recognition's listeners, by event. */
+  speech: new Map<string, Set<(event?: unknown) => void>>(),
   /** The phone's AsyncStorage, as the draft store sees it. */
   stored: new Map<string, string>(),
 }));
@@ -47,9 +48,33 @@ vi.mock("@/features/teammates/components/teammate-avatar", () => ({
 vi.mock("@/components/sheet", () => ({ Sheet: "Sheet", SheetItem: "SheetItem" }));
 vi.mock("@/components/text", () => ({ Text: "Text" }));
 vi.mock("@/lib/api", () => ({ api: { chats: { send: state.send } } }));
-vi.mock("@/features/chat/dictation", () => ({
-  useDictation: () => ({ listening: false, cancel: state.cancel }),
-}));
+vi.mock("expo-localization", () => ({ getLocales: () => [{ languageTag: "en-US" }] }));
+// Android's speech recognition, for the real dictation hook.
+vi.mock("expo-speech-recognition", async () => {
+  const { useEffect } = await import("react");
+  const listen = (name: string, callback: (event?: unknown) => void) => {
+    const listeners = state.speech.get(name) ?? new Set();
+    listeners.add(callback);
+    state.speech.set(name, listeners);
+    return () => void listeners.delete(callback);
+  };
+  return {
+    ExpoSpeechRecognitionModule: {
+      requestPermissionsAsync: async () => ({ granted: true }),
+      isRecognitionAvailable: () => true,
+      start: () => {},
+      stop: () => {},
+      abort: () => {},
+      addListener: (name: string, callback: (event?: unknown) => void) => ({
+        remove: listen(name, callback),
+      }),
+    },
+    useSpeechRecognitionEvent: (name: string, callback: (event?: unknown) => void) => {
+      useEffect(() => listen(name, callback), [name, callback]);
+    },
+  };
+});
+vi.mock("@/features/chat/dictation", () => import("../dictation"));
 vi.mock("@react-native-async-storage/async-storage", () => ({
   default: {
     getItem: async (key: string) => state.stored.get(key) ?? null,
@@ -161,6 +186,10 @@ const addressedTo = () =>
       .join(""),
   );
 const sent = () => state.send.mock.calls.at(-1)![0];
+const speech = (name: string, event?: unknown) =>
+  act(async () => {
+    for (const listener of [...(state.speech.get(name) ?? [])]) listener(event);
+  });
 
 describe("a saved draft", () => {
   it("is in the composer when you open its chat, from an older build too", async () => {
@@ -265,18 +294,49 @@ describe("a reply kept while its chat is open", () => {
     expect(await readDraft("k2")).toEqual({ text: "Saved before\n\nBook it", mentions: ["rex"] });
   });
 
-  it("isn't cleared by a send that was already on its way", async () => {
+  it("isn't cleared by a send that was already on its way, whatever was sent", async () => {
     await open("k3", { isGroup: true, members: [rex] });
-    await type("Hello");
+    // Trailing space: the reply kept meanwhile goes after "Hello", without it.
+    await type("Hello ");
     let deliver!: (message: MessageView) => void;
     state.send.mockReturnValueOnce(new Promise((resolve) => (deliver = resolve)));
     await press(button("send"));
     await act(async () => void (await keepReply("k3", "Book it", "rex")));
     await act(async () => deliver({ id: "sent" } as MessageView));
-    expect(sent()).toMatchObject({ text: "Hello", mentions: [] });
+    expect(sent()).toMatchObject({ text: "Hello ", mentions: [] });
     expect(input().props.value).toBe("Book it");
     expect(addressedTo()).toEqual(["To Rex"]);
     expect(await readDraft("k3")).toEqual({ text: "Book it", mentions: ["rex"] });
+  });
+
+  it("clears a sent reply to the same teammate and keeps the one kept meanwhile, for them", async () => {
+    await keepReply("k6", "Book it", "rex");
+    await open("k6", { isGroup: true, members: [rex] });
+    let deliver!: (message: MessageView) => void;
+    state.send.mockReturnValueOnce(new Promise((resolve) => (deliver = resolve)));
+    await press(button("send"));
+    // The same words again, kept while the first is on its way.
+    await act(async () => void (await keepReply("k6", "Book it", "rex")));
+    expect(input().props.value).toBe("Book it\n\nBook it");
+    await act(async () => deliver({ id: "sent" } as MessageView));
+    expect(sent()).toMatchObject({ text: "Book it", mentions: ["rex"] });
+    expect(await readDraft("k6")).toEqual({ text: "Book it", mentions: ["rex"] });
+    expect(addressedTo()).toEqual(["To Rex"]);
+  });
+
+  it("keeps a reply kept while you dictate, and what you go on saying", async () => {
+    await open("k7", { isGroup: true, members: [rex] });
+    await press(button("dictate"));
+    await speech("start");
+    await speech("result", { isFinal: false, results: [{ transcript: "Hello" }] });
+    expect(input().props.value).toBe("Hello");
+    await act(async () => void (await keepReply("k7", "Book it", "rex")));
+    expect(input().props.value).toBe("Hello\n\nBook it");
+    await speech("result", { isFinal: false, results: [{ transcript: "Hello there" }] });
+    await speech("result", { isFinal: true, results: [{ transcript: "Hello there" }] });
+    expect(input().props.value).toBe("Hello there\n\nBook it");
+    expect(await readDraft("k7")).toEqual({ text: "Hello there\n\nBook it", mentions: ["rex"] });
+    await speech("end");
   });
 
   it("doesn't reach a composer showing another chat", async () => {
