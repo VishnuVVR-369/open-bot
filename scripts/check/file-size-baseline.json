@@ -7,6 +7,5 @@
   "apps/worker/src/features/integrations/actions.ts": 671,
   "apps/worker/src/features/teammates/service.ts": 666,
   "apps/worker/src/features/telegram/service.ts": 765,
-  "apps/worker/src/runs/session.ts": 667,
   "packages/memory/src/index.ts": 815
 }
