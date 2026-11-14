@@ -1158,7 +1158,7 @@
     "bot": 7
   },
   "packages/memory/src/memory.integration.test.ts": {
-    "bot": 45
+    "bot": 44
   },
   "packages/memory/src/memory.test.ts": {
     "bot": 3
