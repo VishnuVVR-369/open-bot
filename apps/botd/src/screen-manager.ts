@@ -29,6 +29,8 @@ export class ScreenManager extends EventEmitter<{
   private readonly admissionMs: number;
   private readonly waiters = new Set<() => void>();
   private readonly stopping = new Map<string, Promise<void>>();
+  /** Screens someone is about to use, by teammate id: none of them is idle. */
+  private readonly claims = new Map<string, number>();
 
   constructor(
     private readonly deps: ScreenDeps,
@@ -85,11 +87,12 @@ export class ScreenManager extends EventEmitter<{
     screen.lastUsedAt = this.now();
   }
 
-  /** Whether any screen is starting, stopping, held or downloading. */
+  /** Whether any screen is starting, stopping, claimed, held or downloading. */
   get busy(): boolean {
     return (
       this.starting.size > 0 ||
       this.stopping.size > 0 ||
+      this.claims.size > 0 ||
       [...this.screens.values()].some((s) => s.busy || s.lease.holder !== null)
     );
   }
@@ -125,6 +128,22 @@ export class ScreenManager extends EventEmitter<{
     });
   }
 
+  /**
+   * Keep the teammate's screen from being stopped to make room or as idle while `use` runs, from
+   * before it starts until `use` settles. A run claims its screen until it holds the lease, and a
+   * takeover until you hold it, so a screen someone is waiting to take is never idle.
+   */
+  async claim<T>(id: string, use: () => Promise<T>): Promise<T> {
+    this.claims.set(id, (this.claims.get(id) ?? 0) + 1);
+    try {
+      return await use();
+    } finally {
+      const count = this.claims.get(id)! - 1;
+      if (count) this.claims.set(id, count);
+      else this.claims.delete(id);
+    }
+  }
+
   private freeSlot(): number {
     const used = new Set([...this.screens.values()].map((screen) => screen.slot));
     for (let slot = 0; slot < MAX_SLOTS; slot += 1) if (!used.has(slot)) return slot;
@@ -133,14 +152,27 @@ export class ScreenManager extends EventEmitter<{
 
   private async startScreen(id: string, signal?: AbortSignal): Promise<Screen> {
     const previous = this.screens.get(id);
-    if (previous) await this.stopScreen(previous);
+    if (previous) {
+      await this.stopScreen(previous).catch((error: unknown) => {
+        if (this.get(id) !== previous) throw error;
+      });
+      // Its stop failed before tearing anything down, so it is still whole and running.
+      const running = this.get(id);
+      if (running) {
+        this.touch(running);
+        return running;
+      }
+    }
     // Waiters recheck after each wake; admission and the map reservation have no await between them.
     const deadline = Date.now() + this.admissionMs;
+    // Each screen is stopped to make room at most once per start, so a failing stop can't spin.
+    const tried = new Set<Screen>();
     while (this.screens.size >= this.maxRunning) {
       signal?.throwIfAborted();
-      const idle = this.screenToStop();
+      const idle = this.screenToStop(tried);
       if (idle) {
         // stopScreen() records it as stopping at once, so a start running alongside picks another.
+        tried.add(idle);
         this.deps.log(`[screens] stopping ${idle.id} to make room`);
         await this.stopScreen(idle).catch((error: unknown) =>
           this.deps.log(`[screens] could not stop ${idle.id} to make room: ${String(error)}`),
@@ -192,21 +224,36 @@ export class ScreenManager extends EventEmitter<{
     return screen;
   }
 
+  /** Whether nothing uses the screen: no lease holder, download, or claim, and no stop under way. */
+  private idle(screen: Screen): boolean {
+    return (
+      screen.lease.holder === null &&
+      !screen.busy &&
+      !this.claims.has(screen.id) &&
+      !this.stopping.has(screen.id)
+    );
+  }
+
   /**
-   * The screen to stop when all slots are taken: a running one nobody holds and with no download,
-   * preferring one nobody watches, then the one used least recently. Its profile stays on disk.
+   * The screen to stop when all slots are taken: first one whose stop failed after its processes
+   * began to stop (nobody can use it, so finishing that stop is the way to get its slot back), then
+   * an idle running one, preferring one nobody watches, then the one used least recently. Its
+   * profile stays on disk.
    */
-  private screenToStop(): Screen | undefined {
+  private screenToStop(tried: Set<Screen>): Screen | undefined {
     return [...this.screens.values()]
       .filter(
         (screen) =>
-          screen.state === "running" &&
-          screen.lease.holder === null &&
-          !screen.busy &&
-          !this.stopping.has(screen.id),
+          !tried.has(screen) &&
+          this.idle(screen) &&
+          (screen.state === "running" ||
+            (screen.state === "stopping" && !this.starting.has(screen.id))),
       )
       .sort(
-        (a, b) => Number(a.viewers > 0) - Number(b.viewers > 0) || a.lastUsedAt - b.lastUsedAt,
+        (a, b) =>
+          Number(a.state === "running") - Number(b.state === "running") ||
+          Number(a.viewers > 0) - Number(b.viewers > 0) ||
+          a.lastUsedAt - b.lastUsedAt,
       )[0];
   }
 
@@ -214,14 +261,19 @@ export class ScreenManager extends EventEmitter<{
     let pending = this.stopping.get(screen.id);
     if (pending) return pending;
     if (this.screens.get(screen.id) !== screen) return Promise.resolve();
+    // A stop that fails leaves the screen in the map: whole and running again if it failed before
+    // tearing anything down, or stopping while processes it couldn't stop may hold its slot.
     pending = screen
       .stop()
       .then(() => {
         this.screens.delete(screen.id);
-        this.emit("changed");
-        for (const waiter of this.waiters) waiter();
       })
-      .finally(() => this.stopping.delete(screen.id));
+      .finally(() => {
+        this.stopping.delete(screen.id);
+        this.emit("changed");
+        // Either way a waiting start rechecks: a slot is free, or the screen is idle again.
+        for (const waiter of this.waiters) waiter();
+      });
     this.stopping.set(screen.id, pending);
     return pending;
   }
@@ -248,8 +300,7 @@ export class ScreenManager extends EventEmitter<{
       screen.lease.sweep();
       if (
         screen.state === "running" &&
-        screen.lease.holder === null &&
-        !screen.busy &&
+        this.idle(screen) &&
         !this.deps.workActive?.() &&
         now - screen.lastUsedAt >= this.idleMs
       ) {
