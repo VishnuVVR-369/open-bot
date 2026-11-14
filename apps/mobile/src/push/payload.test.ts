@@ -162,8 +162,12 @@ describe("phone notifications", () => {
   });
 
   it("says whether a reply from a notification was sent", () => {
-    expect(replyText(true).title).toBe("Reply sent");
-    expect(replyText(false)).toEqual({ title: "Couldn't send your reply", body: "Open to reply." });
+    expect(replyText(true, "Book it")).toEqual({ title: "Reply sent", body: "" });
+    // What you typed shows, so it isn't lost.
+    expect(replyText(false, "Book it ")).toEqual({
+      title: "Couldn't send your reply",
+      body: "Saved in the chat: “Book it”. Open to send it.",
+    });
   });
 
   it("ignores malformed messages", () => {
