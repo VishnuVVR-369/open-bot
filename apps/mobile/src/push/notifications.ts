@@ -18,6 +18,7 @@ import {
   isOnScreen,
   outcomeText,
   planNotification,
+  replyChatUrl,
   replyText,
   type ActionId,
   type DecideOutcome,
@@ -112,6 +113,7 @@ export async function handlePushData(data: PushData): Promise<void> {
 
 /**
  * Clear what was said in a chat once you're looking at it. Approvals stay: they still need you.
+ * So does a reply that wasn't sent: its notification is the only copy of what you typed.
  */
 export async function clearChatNotifications(
   chatId: string,
@@ -123,6 +125,7 @@ export async function clearChatNotifications(
     shown
       .filter(({ id, notification }) => id && notification.data?.chatId === chatId)
       .filter(({ notification }) => !notification.data?.approvalId)
+      .filter(({ notification }) => notification.data?.unsentReply !== "true")
       .map(({ id }) => notifee.cancelDisplayedNotification(id!)),
   );
 }
@@ -145,7 +148,7 @@ async function sendReply(notification: Notification, text: string): Promise<void
   // Nothing typed: the notification stays as it was.
   if (!notification.id || typeof chatId !== "string" || !text.trim()) return;
   // Without its teammate the reply would mention nobody, and a group's lead would get it instead:
-  // it isn't sent, and the notification says to open the chat.
+  // it isn't sent.
   const result =
     typeof teammateId === "string" && teammateId
       ? await safe(
@@ -159,13 +162,18 @@ async function sendReply(notification: Notification, text: string): Promise<void
         )
       : { error: new Error("The notification doesn't say who it's from.") };
   const sent = !result.error;
-  const outcome = replyText(sent);
+  const outcome = replyText(sent, text);
+  const url = typeof notification.data?.url === "string" ? notification.data.url : undefined;
   await notifee.displayNotification({
     id: notification.id,
     title: outcome.title,
-    body: sent ? text : outcome.body,
+    body: outcome.body,
     // Without the reply fields: this one is about the reply, so it has no Reply of its own.
-    data: { url: notification.data?.url ?? "/", chatId },
+    // Unsent, it shows what you typed until you dismiss it, even once you open the chat, and opens
+    // that chat (not a page the notification was about).
+    data: sent
+      ? { url: url ?? "/", chatId }
+      : { url: replyChatUrl(url, chatId), chatId, unsentReply: "true" },
     android: {
       channelId: "messages",
       groupId: "messages",
@@ -174,7 +182,9 @@ async function sendReply(notification: Notification, text: string): Promise<void
       color: palette.light.foreground,
       pressAction: { id: "default", launchActivity: "default" },
       onlyAlertOnce: true,
-      ...(sent ? { timeoutAfter: 4_000 } : {}),
+      ...(sent
+        ? { timeoutAfter: 4_000 }
+        : { autoCancel: false, style: { type: AndroidStyle.BIGTEXT, text: outcome.body } }),
     },
   });
 }

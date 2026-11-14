@@ -56,6 +56,7 @@ Requests that spend money, send email or delete things carry a short warning, in
 Past decisions are grouped by day.
 Notification approvals can be decided without opening the app; purchases use Review and require the phone's authentication check before approval.
 Reply on a message notification sends directly to its teammate, including in a group chat.
+A reply that isn't sent stays in the notification in full, says it wasn't sent, and opens its chat; opening the chat doesn't clear it, so you dismiss it once you've sent it again.
 
 Visible notifications, including automation results and replies, use high-priority FCM data messages so Android can start the background handler that displays them while the app is closed.
 Android's notification channels still control sound and alert prominence; delivery priority does not change those settings.

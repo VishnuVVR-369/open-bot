@@ -134,6 +134,15 @@ describe("clearing displayed chat notifications", () => {
     expect(cancel.mock.calls).toEqual([["reply-a"]]);
   });
 
+  it("keeps an unsent reply: its notification is the only copy of what you typed", async () => {
+    displayed.mockResolvedValue([
+      ...shown,
+      { id: "unsent-a", notification: { data: { chatId: "a", unsentReply: "true" } } },
+    ]);
+    await clearChatNotifications("a", () => true);
+    expect(cancel.mock.calls).toEqual([["reply-a"]]);
+  });
+
   it("keeps notifications if focus is lost while fetching displayed notifications", async () => {
     let resolve!: (value: typeof shown) => void;
     displayed.mockReturnValue(new Promise((done) => (resolve = done)));
@@ -182,12 +191,35 @@ describe("replying from a notification", () => {
     );
   });
 
-  it("says so when the reply couldn't be sent, and stays until you open it", async () => {
+  /** The notification an unsent reply leaves: all of it, until you dismiss it. */
+  const unsent = (text: string, url = "/chats/c1?run=run-1") => ({
+    id: "run-1",
+    title: "Your reply wasn't sent",
+    body: text,
+    data: { url, chatId: "c1", unsentReply: "true" },
+    android: expect.objectContaining({
+      autoCancel: false,
+      style: { type: 1, text },
+    }),
+  });
+
+  it("shows all of a reply that couldn't be sent, and keeps it until you dismiss it", async () => {
     send.mockRejectedValue(new Error("offline"));
-    await handleNotificationEvent(reply("Book it"));
+    const long = "Book the 9am one, and the hotel near the venue. ".repeat(8).trim();
+    await handleNotificationEvent(reply(long));
     const shown = display.mock.calls[0]![0];
-    expect(shown).toMatchObject({ title: "Couldn't send your reply", body: "Open to reply." });
+    expect(shown).toMatchObject(unsent(long));
     expect(shown.android.timeoutAfter).toBeUndefined();
+    // Nothing else keeps it, so it doesn't say it's saved.
+    expect(JSON.stringify(shown)).not.toMatch(/saved/i);
+  });
+
+  it("opens the chat, not the page, when a reply to a page's notification isn't sent", async () => {
+    send.mockRejectedValue(new Error("offline"));
+    const event = reply("Book it");
+    event.detail.notification!.data!.url = "/pages/p1";
+    await handleNotificationEvent(event);
+    expect(display.mock.calls[0]![0]).toMatchObject(unsent("Book it", "/chats/c1"));
   });
 
   it("sends nothing when the notification doesn't say who it's from", async () => {
@@ -196,11 +228,7 @@ describe("replying from a notification", () => {
     delete (event.detail.notification!.data as Record<string, unknown>).replyBotId; // vocabulary: allow
     await handleNotificationEvent(event);
     expect(send).not.toHaveBeenCalled();
-    expect(display.mock.calls[0]![0]).toMatchObject({
-      id: "run-1",
-      title: "Couldn't send your reply",
-      body: "Open to reply.",
-    });
+    expect(display.mock.calls[0]![0]).toMatchObject(unsent("Book it"));
   });
 
   it("sends nothing for an empty reply", async () => {
