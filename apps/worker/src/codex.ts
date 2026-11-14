@@ -202,12 +202,14 @@ export class CodexManager extends EventEmitter<{ status: [CodexStatus]; disconne
   /**
    * Connect and sign in with no caller waiting. Only a failure that `status.error` doesn't show is
    * logged: a failed connection (retried every 3 s while the computer is unreachable) and a sign-in
-   * the owner still has to do are already there.
+   * the owner still has to do are already there. An older error left in status hides nothing, since
+   * the failure must be the one status shows.
    */
   private readyInBackground(): void {
     void this.ready().catch((error: unknown) => {
-      if (!this.state.connected || this.state.error) return;
-      this.log.warn("couldn't get Codex ready", { error: errorMessage(error) });
+      const message = errorMessage(error);
+      if (!this.state.connected || message === this.state.error) return;
+      this.log.warn("couldn't get Codex ready", { error: message });
     });
   }
 

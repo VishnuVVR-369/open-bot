@@ -169,6 +169,51 @@ describe("Codex connecting in the background", () => {
     expect(log.warn).not.toHaveBeenCalled();
   });
 
+  it("logs a new failure even while status still shows an older one", async () => {
+    const server = new WebSocketServer({ port: 0 });
+    await once(server, "listening");
+    // Codex is up, with no account signed in.
+    server.on("connection", (socket) =>
+      socket.on("message", (data) => {
+        const message = JSON.parse(data.toString());
+        if (message.id === undefined) return;
+        const result = message.method === "account/read" ? { account: null } : {};
+        socket.send(JSON.stringify({ id: message.id, result }));
+      }),
+    );
+    cleanup.push(() => {
+      for (const socket of server.clients) socket.terminate();
+      server.close();
+    });
+    const computer = {
+      wsUrl: () => `ws://127.0.0.1:${(server.address() as AddressInfo).port}`,
+    } as unknown as ComputerClient;
+    const log = logger();
+    let settingsReadable = true;
+    const codex = new CodexManager(
+      computer,
+      "/unused",
+      "codex",
+      async () => {
+        if (settingsReadable) return "device";
+        throw new Error("settings unreadable");
+      },
+      log as unknown as Logger,
+    );
+    cleanup.push(() => codex.stop());
+    codex.start();
+    await vi.waitFor(() => expect(codex.status.error).toMatch(/not signed in/));
+    // The computer's events socket reconnects and starts Codex again, on the same open socket.
+    settingsReadable = false;
+    codex.start();
+    await vi.waitFor(() =>
+      expect(log.warn).toHaveBeenCalledWith("couldn't get Codex ready", {
+        error: "settings unreadable",
+      }),
+    );
+    expect(log.warn).toHaveBeenCalledTimes(1);
+  });
+
   it("leaves an unreachable computer to the status and its retry", async () => {
     const computer = { wsUrl: () => "ws://127.0.0.1:9" } as unknown as ComputerClient;
     const log = logger();
