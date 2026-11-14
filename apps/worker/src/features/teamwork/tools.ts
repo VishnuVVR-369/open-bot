@@ -20,7 +20,7 @@ interface TeamworkToolDeps {
 }
 
 const askTeammateInput = z.object({
-  bot: z.string().describe("The teammate's name."),
+  teammate: z.string().describe("The teammate's name."),
   question: z
     .string()
     .trim()
@@ -30,7 +30,7 @@ const askTeammateInput = z.object({
 });
 
 const handoffInput = z.object({
-  bot: z.string().describe("The teammate's name."),
+  teammate: z.string().describe("The teammate's name."),
   message: z.string().min(1).max(4000).describe("What they should do, with any context they need."),
 });
 
@@ -44,7 +44,7 @@ export const TEAMWORK_TOOLS: ToolDefinition<z.ZodObject, TeamworkToolDeps>[] = [
     handle: ({ session, callId, args, raw }, deps) => askTeammate(deps, session, callId, args, raw),
   }),
   defineTool({
-    name: "handoff_to_bot",
+    name: "handoff_to_teammate",
     description:
       "In a group chat, hand a request to the teammate whose job covers it. They reply in the same chat. You can't hand a request back to a teammate that already handled it in this chain.",
     input: handoffInput,
@@ -55,25 +55,25 @@ export const TEAMWORK_TOOLS: ToolDefinition<z.ZodObject, TeamworkToolDeps>[] = [
 
 const MAX_HANDOFF_DEPTH = 6;
 
-/** The bots in the chain of handoffs and questions that led to this run, including its own. */
+/** The teammates in the chain of handoffs and questions that led to this run, including its own. */
 async function chainOf(
   deps: TeamworkToolDeps,
   session: RunSession,
-): Promise<{ bots: Set<string>; depth: number }> {
-  const chain = new Set<string>([session.bot.id]);
+): Promise<{ teammates: Set<string>; depth: number }> {
+  const chain = new Set<string>([session.teammate.id]);
   let parentId = session.run.parentRunId;
   let depth = 0;
   while (parentId && depth < MAX_HANDOFF_DEPTH) {
     const [parent] = await deps.ctx.db
-      .select({ botId: runs.teammateId, parentRunId: runs.parentRunId })
+      .select({ teammateId: runs.teammateId, parentRunId: runs.parentRunId })
       .from(runs)
       .where(eq(runs.id, parentId));
     if (!parent) break;
-    chain.add(parent.botId);
+    chain.add(parent.teammateId);
     parentId = parent.parentRunId;
     depth += 1;
   }
-  return { bots: chain, depth };
+  return { teammates: chain, depth };
 }
 
 async function askTeammate(
@@ -83,17 +83,17 @@ async function askTeammate(
   args: z.output<typeof askTeammateInput>,
   raw: Record<string, unknown>,
 ): Promise<ToolResponse> {
-  const name = args.bot.trim().toLowerCase();
+  const name = args.teammate.trim().toLowerCase();
   const { question } = args;
   const team = await activeTeammates(deps.ctx.db);
-  const target = team.find((bot) => bot.name.toLowerCase() === name);
+  const target = team.find((teammate) => teammate.name.toLowerCase() === name);
   if (!target)
     return text(
-      `No teammate named "${args.bot}". Teammates: ${team.map((bot) => bot.name).join(", ")}.`,
+      `No teammate named "${args.teammate}". Teammates: ${team.map((teammate) => teammate.name).join(", ")}.`,
       false,
     );
-  if (target.id === session.bot.id) return text("You can't ask yourself.", false);
-  const { bots: chain, depth } = await chainOf(deps, session);
+  if (target.id === session.teammate.id) return text("You can't ask yourself.", false);
+  const { teammates: chain, depth } = await chainOf(deps, session);
   if (chain.has(target.id))
     return text(
       `${target.name} is already part of this request. Answer it yourself or ask the user.`,
@@ -104,9 +104,9 @@ async function askTeammate(
   // They answer in their main chat, where you can see what they did.
   await enqueueRun(deps.ctx, {
     chatId: await mainChat(deps.ctx, target.id),
-    botId: target.id,
+    teammateId: target.id,
     trigger: "question",
-    prompt: `[${session.bot.name} asks you this, for a task the user gave them. Your reply goes back to ${session.bot.name}, so answer it fully and on its own.]\n${question}`,
+    prompt: `[${session.teammate.name} asks you this, for a task the user gave them. Your reply goes back to ${session.teammate.name}, so answer it fully and on its own.]\n${question}`,
     parentRunId: session.run.id,
   });
   session.putItem({
@@ -127,20 +127,21 @@ async function handoff(
   args: z.output<typeof handoffInput>,
 ): Promise<ToolResponse> {
   if (session.chat.kind !== "group") return text("Handoffs only work in group chats.", false);
-  const name = args.bot.trim().toLowerCase();
+  const name = args.teammate.trim().toLowerCase();
   const message = args.message.trim();
   const members = await activeTeammates(deps.ctx.db, { inChat: session.chat.id });
   const target = members.find((member) => member.name.toLowerCase() === name);
   if (!target) {
     return text(
-      `No teammate named "${args.bot}" in this chat. Teammates: ${members.map((m) => m.name).join(", ")}.`,
+      `No teammate named "${args.teammate}" in this chat. Teammates: ${members.map((m) => m.name).join(", ")}.`,
       false,
     );
   }
-  if (target.id === session.bot.id) return text("You can't hand a request to yourself.", false);
+  if (target.id === session.teammate.id)
+    return text("You can't hand a request to yourself.", false);
 
   // Walk the chain that led here, so a request is never passed back.
-  const { bots: chain, depth } = await chainOf(deps, session);
+  const { teammates: chain, depth } = await chainOf(deps, session);
   if (chain.has(target.id)) {
     return text(
       `${target.name} already handled this request. Finish it yourself or ask the user.`,
@@ -152,9 +153,9 @@ async function handoff(
 
   await enqueueRun(deps.ctx, {
     chatId: session.chat.id,
-    botId: target.id,
+    teammateId: target.id,
     trigger: "handoff",
-    prompt: `[${session.bot.name} handed this to you] ${message}`,
+    prompt: `[${session.teammate.name} handed this to you] ${message}`,
     parentRunId: session.run.id,
   });
   session.putItem({

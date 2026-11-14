@@ -42,7 +42,7 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
     await database.drop();
   });
 
-  async function bot(name: string) {
+  async function addTeammate(name: string) {
     const [row] = await db
       .insert(teammates)
       .values({ name, slug: name.toLowerCase(), role: "assistant", color: "#4f46e5" })
@@ -51,7 +51,7 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
   }
 
   async function directChat() {
-    const teammate = await bot("Rex");
+    const teammate = await addTeammate("Rex");
     const [chat] = await db
       .insert(chats)
       .values({ kind: "direct", title: teammate.name, teammateId: teammate.id })
@@ -76,13 +76,13 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
   }
 
   /** A teammate's running turn that the next message can join. */
-  function runningSession(chatId: string, botId: string, steers: boolean) {
+  function runningSession(chatId: string, teammateId: string, steers: boolean) {
     const runId = crypto.randomUUID();
     const steer = vi.fn(async () => steers);
     sessions.add({
       run: { id: runId },
       chat: { id: chatId },
-      bot: { id: botId },
+      teammate: { id: teammateId },
       steer,
     } as unknown as RunSession);
     return { runId, steer };
@@ -130,7 +130,7 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
   });
 
   it("gives each mentioned teammate in a group one run", async () => {
-    const [ada, bo] = [await bot("Ada"), await bot("Bo")];
+    const [ada, bo] = [await addTeammate("Ada"), await addTeammate("Bo")];
     const [group] = await db.insert(chats).values({ kind: "group", title: "Team" }).returning();
     await db.insert(chatMembers).values([
       { chatId: group!.id, teammateId: ada.id },

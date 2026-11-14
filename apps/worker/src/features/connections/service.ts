@@ -56,9 +56,9 @@ async function claimConnectionName(tx: Tx, base: string): Promise<string> {
 export async function setConnectionTeammates(
   db: Queryable,
   connectionId: string,
-  botIds: string[] | null,
+  teammateIds: string[] | null,
 ): Promise<void> {
-  await db.update(connections).set({ teammateIds: botIds }).where(eq(connections.id, connectionId));
+  await db.update(connections).set({ teammateIds }).where(eq(connections.id, connectionId));
 }
 
 /** "a b 'c d'" as arguments, keeping quoted ones together. */
@@ -351,7 +351,7 @@ export class ConnectionService {
     account: { id: string; display: string },
     kind: AccountConnectionKind,
     capabilities: AccountCapability[],
-    botIds: string[] | null,
+    teammateIds: string[] | null,
   ): Promise<string> {
     const definition = integration(kind);
     const [existing] = await this.ctx.db
@@ -360,12 +360,15 @@ export class ConnectionService {
       .where(and(eq(connections.accountId, account.id), eq(connections.kind, kind)));
     if (existing) {
       // Signing in again changes nothing teammates asked for, unless what's allowed changed.
-      if (sameList(existing.capabilities, capabilities) && sameList(existing.teammateIds, botIds))
+      if (
+        sameList(existing.capabilities, capabilities) &&
+        sameList(existing.teammateIds, teammateIds)
+      )
         return existing.id;
       await this.ctx.db.transaction(async (tx) => {
         await tx
           .update(connections)
-          .set({ capabilities, teammateIds: botIds, revision: sql`${connections.revision} + 1` })
+          .set({ capabilities, teammateIds, revision: sql`${connections.revision} + 1` })
           .where(eq(connections.id, existing.id));
         await cancelConnectionActions(
           tx,
@@ -390,7 +393,7 @@ export class ConnectionService {
           name,
           accountId: account.id,
           capabilities,
-          teammateIds: botIds,
+          teammateIds,
         })
         .returning({ id: connections.id });
       return row!.id;
@@ -430,7 +433,9 @@ export class ConnectionService {
   }
 
   /** The connections a teammate may use, as Codex config, and a key that changes with them. */
-  async forBot(botId: string): Promise<{ key: string; config: CodexConfig; labels: string[] }> {
+  async forTeammate(
+    teammateId: string,
+  ): Promise<{ key: string; config: CodexConfig; labels: string[] }> {
     const rows = await this.ctx.db
       .select()
       .from(connections)
@@ -440,7 +445,7 @@ export class ConnectionService {
           // serves their tools, so their tokens never reach it.
           eq(connections.kind, "mcp"),
           eq(connections.enabled, true),
-          or(isNull(connections.teammateIds), sql`${botId} = any(${connections.teammateIds})`),
+          or(isNull(connections.teammateIds), sql`${teammateId} = any(${connections.teammateIds})`),
         ),
       )
       .orderBy(asc(connections.name));

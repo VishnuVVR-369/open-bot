@@ -40,20 +40,20 @@
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
-        "bot": {
-          "description": "The teammate's name.",
-          "type": "string"
-        },
         "question": {
           "description": "The question, with the context they need to answer it on their own.",
           "maxLength": 4000,
           "minLength": 1,
           "type": "string"
+        },
+        "teammate": {
+          "description": "The teammate's name.",
+          "type": "string"
         }
       },
       "required": [
-        "bot",
-        "question"
+        "question",
+        "teammate"
       ],
       "type": "object"
     },
@@ -440,16 +440,16 @@
     "type": "namespace"
   },
   {
-    "description": "Delete a schedule, reminder, page watch, webhook, or Gmail or Calendar trigger by id, from yourself or the teammate specified by bot_id. The automation must belong to that teammate.",
+    "description": "Delete a schedule, reminder, page watch, webhook, or Gmail or Calendar trigger by id, from yourself or the teammate specified by teammate_id. The automation must belong to that teammate.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
-        "bot_id": {
-          "description": "A teammate's id from list_bots. Where optional, leave it out for yourself. Changing another teammate's setup may ask the user first.",
+        "id": {
           "format": "uuid",
           "type": "string"
         },
-        "id": {
+        "teammate_id": {
+          "description": "A teammate's id from list_teammates. Where optional, leave it out for yourself. Changing another teammate's setup may ask the user first.",
           "format": "uuid",
           "type": "string"
         }
@@ -483,7 +483,7 @@
     "type": "function"
   },
   {
-    "description": "Create a permanent teammate with its own chat. Give a name and role, or a template_id from list_bot_templates (fields you give override it). Include the skills and schedules it should start with, so the user approves the whole teammate at once. The template's skills come along; its starter automations only with starter_ids. Returns its id and chat link, and anything that couldn't be set up: add those with save_skill or schedule_task and its bot_id, never by creating it again.",
+    "description": "Create a permanent teammate with its own chat. Give a name and role, or a template_id from list_teammate_templates (fields you give override it). Include the skills and schedules it should start with, so the user approves the whole teammate at once. The template's skills come along; its starter automations only with starter_ids. Returns its id and chat link, and anything that couldn't be set up: add those with save_skill or schedule_task and its teammate_id, never by creating it again.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -595,23 +595,23 @@
       "required": [],
       "type": "object"
     },
-    "name": "create_bot",
+    "name": "create_teammate",
     "type": "function"
   },
   {
-    "description": "Create a webhook URL for yourself or a specified teammate (bot_id). Calls start a run in that teammate's Scheduled chat with the request it received. Use it to connect services that send webhooks (GitHub, Stripe, Zapier, a form, a script). Returns the URL to give to that service.",
+    "description": "Create a webhook URL for yourself or a specified teammate (teammate_id). Calls start a run in that teammate's Scheduled chat with the request it received. Use it to connect services that send webhooks (GitHub, Stripe, Zapier, a form, a script). Returns the URL to give to that service.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
-        "bot_id": {
-          "description": "A teammate's id from list_bots. Where optional, leave it out for yourself. Changing another teammate's setup may ask the user first.",
-          "format": "uuid",
-          "type": "string"
-        },
         "prompt": {
           "description": "What you should do with each request.",
           "maxLength": 4000,
           "minLength": 1,
+          "type": "string"
+        },
+        "teammate_id": {
+          "description": "A teammate's id from list_teammates. Where optional, leave it out for yourself. Changing another teammate's setup may ask the user first.",
+          "format": "uuid",
           "type": "string"
         },
         "title": {
@@ -921,25 +921,6 @@
     "type": "function"
   },
   {
-    "description": "Read a teammate's whole setup: profile, instructions, skills, schedules, page watches, webhooks, the connections it can use, and its revision for update_bot.",
-    "inputSchema": {
-      "additionalProperties": false,
-      "properties": {
-        "bot_id": {
-          "description": "A teammate's id from list_bots. Where optional, leave it out for yourself. Changing another teammate's setup may ask the user first.",
-          "format": "uuid",
-          "type": "string"
-        }
-      },
-      "required": [
-        "bot_id"
-      ],
-      "type": "object"
-    },
-    "name": "get_bot",
-    "type": "function"
-  },
-  {
     "description": "Read a page's versions and its text. With restore, also put its current version in your workspace to change it (needed when its file is gone or it's another teammate's page).",
     "inputSchema": {
       "additionalProperties": false,
@@ -959,6 +940,25 @@
       "type": "object"
     },
     "name": "get_page",
+    "type": "function"
+  },
+  {
+    "description": "Read a teammate's whole setup: profile, instructions, skills, schedules, page watches, webhooks, the connections it can use, and its revision for update_teammate.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "teammate_id": {
+          "description": "A teammate's id from list_teammates. Where optional, leave it out for yourself. Changing another teammate's setup may ask the user first.",
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "teammate_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_teammate",
     "type": "function"
   },
   {
@@ -1242,24 +1242,24 @@
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
-        "bot": {
-          "description": "The teammate's name.",
-          "type": "string"
-        },
         "message": {
           "description": "What they should do, with any context they need.",
           "maxLength": 4000,
           "minLength": 1,
           "type": "string"
+        },
+        "teammate": {
+          "description": "The teammate's name.",
+          "type": "string"
         }
       },
       "required": [
-        "bot",
-        "message"
+        "message",
+        "teammate"
       ],
       "type": "object"
     },
-    "name": "handoff_to_bot",
+    "name": "handoff_to_teammate",
     "type": "function"
   },
   {
@@ -1267,8 +1267,8 @@
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
-        "bot_id": {
-          "description": "A teammate's id from list_bots. Where optional, leave it out for yourself. Changing another teammate's setup may ask the user first.",
+        "teammate_id": {
+          "description": "A teammate's id from list_teammates. Where optional, leave it out for yourself. Changing another teammate's setup may ask the user first.",
           "format": "uuid",
           "type": "string"
         }
@@ -1277,39 +1277,6 @@
       "type": "object"
     },
     "name": "list_automations",
-    "type": "function"
-  },
-  {
-    "description": "List the user's connected services (MCP servers) by id, label, whether they're on, which teammates may use them (botIds null: every teammate) and revision. Never includes credentials.",
-    "inputSchema": {
-      "additionalProperties": false,
-      "properties": {},
-      "required": [],
-      "type": "object"
-    },
-    "name": "list_bot_connections",
-    "type": "function"
-  },
-  {
-    "description": "Discover teammate templates, including their instructions, skills and optional starter automations and IDs.",
-    "inputSchema": {
-      "additionalProperties": false,
-      "properties": {},
-      "required": [],
-      "type": "object"
-    },
-    "name": "list_bot_templates",
-    "type": "function"
-  },
-  {
-    "description": "List the user's teammates (you included) with their ids, names, jobs, autonomy and chat links. Check it before creating a teammate, so you adjust one that already does the job instead of adding a second.",
-    "inputSchema": {
-      "additionalProperties": false,
-      "properties": {},
-      "required": [],
-      "type": "object"
-    },
-    "name": "list_bots",
     "type": "function"
   },
   {
@@ -1343,6 +1310,39 @@
       "type": "object"
     },
     "name": "list_tasks",
+    "type": "function"
+  },
+  {
+    "description": "List the user's connected services (MCP servers) by id, label, whether they're on, which teammates may use them (teammateIds null: every teammate) and revision. Never includes credentials.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "required": [],
+      "type": "object"
+    },
+    "name": "list_teammate_connections",
+    "type": "function"
+  },
+  {
+    "description": "Discover teammate templates, including their instructions, skills and optional starter automations and IDs.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "required": [],
+      "type": "object"
+    },
+    "name": "list_teammate_templates",
+    "type": "function"
+  },
+  {
+    "description": "List the user's teammates (you included) with their ids, names, jobs, autonomy and chat links. Check it before creating a teammate, so you adjust one that already does the job instead of adding a second.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "required": [],
+      "type": "object"
+    },
+    "name": "list_teammates",
     "type": "function"
   },
   {
@@ -1874,15 +1874,10 @@
     "type": "function"
   },
   {
-    "description": "Save a reusable skill for yourself, a specified teammate (bot_id), or everyone (for_everyone): step-by-step instructions for a task. The user can run it with /name. Save when the user asks, or offer after finishing recurring work. The name of a skill you previously saved in this scope updates it; use skill_id from get_bot to edit another existing skill.",
+    "description": "Save a reusable skill for yourself, a specified teammate (teammate_id), or everyone (for_everyone): step-by-step instructions for a task. The user can run it with /name. Save when the user asks, or offer after finishing recurring work. The name of a skill you previously saved in this scope updates it; use skill_id from get_teammate to edit another existing skill.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
-        "bot_id": {
-          "description": "A teammate's id from list_bots. Where optional, leave it out for yourself. Changing another teammate's setup may ask the user first.",
-          "format": "uuid",
-          "type": "string"
-        },
         "description": {
           "description": "When to use it, in one sentence.",
           "maxLength": 300,
@@ -1891,7 +1886,7 @@
         },
         "for_everyone": {
           "default": false,
-          "description": "True to share it with every teammate; cannot be combined with bot_id. Otherwise save for bot_id or yourself.",
+          "description": "True to share it with every teammate; cannot be combined with teammate_id. Otherwise save for teammate_id or yourself.",
           "type": "boolean"
         },
         "instructions": {
@@ -1907,7 +1902,12 @@
           "type": "string"
         },
         "skill_id": {
-          "description": "Optional existing skill ID from get_bot, to edit it in the same scope. Otherwise create a skill, or update one you previously saved with that name in this scope.",
+          "description": "Optional existing skill ID from get_teammate, to edit it in the same scope. Otherwise create a skill, or update one you previously saved with that name in this scope.",
+          "format": "uuid",
+          "type": "string"
+        },
+        "teammate_id": {
+          "description": "A teammate's id from list_teammates. Where optional, leave it out for yourself. Changing another teammate's setup may ask the user first.",
           "format": "uuid",
           "type": "string"
         }
@@ -1931,11 +1931,6 @@
           "description": "One time: an ISO 8601 date-time, e.g. '2026-10-14T09:00:00'.",
           "type": "string"
         },
-        "bot_id": {
-          "description": "A teammate's id from list_bots. Where optional, leave it out for yourself. Changing another teammate's setup may ask the user first.",
-          "format": "uuid",
-          "type": "string"
-        },
         "cron": {
           "description": "Recurring: a 5-field cron expression, e.g. '0 8 * * 1-5' for weekdays at 8:00.",
           "type": "string"
@@ -1950,6 +1945,11 @@
           "default": false,
           "description": "For checks that often find nothing (a daily look for renewals, a weekly inbox sweep): runs with nothing worth telling end with 'Nothing to report.' and don't notify the user.",
           "type": "boolean"
+        },
+        "teammate_id": {
+          "description": "A teammate's id from list_teammates. Where optional, leave it out for yourself. Changing another teammate's setup may ask the user first.",
+          "format": "uuid",
+          "type": "string"
         },
         "timezone": {
           "description": "IANA timezone, e.g. 'Europe/Berlin'. Defaults to the user's timezone.",
@@ -2033,40 +2033,6 @@
     "type": "function"
   },
   {
-    "description": "Let a teammate use one of the user's connections, or stop it. Always asks the user. Use the revision from list_bot_connections as expected_revision. It can't add connections or turn one on, and a connection shared with every teammate is limited in Settings by the user. Applies from the teammate's next message.",
-    "inputSchema": {
-      "additionalProperties": false,
-      "properties": {
-        "assigned": {
-          "type": "boolean"
-        },
-        "bot_id": {
-          "description": "A teammate's id from list_bots. Where optional, leave it out for yourself. Changing another teammate's setup may ask the user first.",
-          "format": "uuid",
-          "type": "string"
-        },
-        "connection_id": {
-          "format": "uuid",
-          "type": "string"
-        },
-        "expected_revision": {
-          "maxLength": 128,
-          "minLength": 1,
-          "type": "string"
-        }
-      },
-      "required": [
-        "assigned",
-        "bot_id",
-        "connection_id",
-        "expected_revision"
-      ],
-      "type": "object"
-    },
-    "name": "set_bot_connection",
-    "type": "function"
-  },
-  {
     "description": "Name this chat after what it's about, once you know: 2 to 6 words, like 'Fix the login redirect' or 'Lisbon trip ideas'. Only for a direct chat that has no title yet; the user's own title is never replaced. No quotes, emoji or trailing period.",
     "inputSchema": {
       "additionalProperties": false,
@@ -2083,6 +2049,40 @@
       "type": "object"
     },
     "name": "set_chat_title",
+    "type": "function"
+  },
+  {
+    "description": "Let a teammate use one of the user's connections, or stop it. Always asks the user. Use the revision from list_teammate_connections as expected_revision. It can't add connections or turn one on, and a connection shared with every teammate is limited in Settings by the user. Applies from the teammate's next message.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "assigned": {
+          "type": "boolean"
+        },
+        "connection_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "expected_revision": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "teammate_id": {
+          "description": "A teammate's id from list_teammates. Where optional, leave it out for yourself. Changing another teammate's setup may ask the user first.",
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "assigned",
+        "connection_id",
+        "expected_revision",
+        "teammate_id"
+      ],
+      "type": "object"
+    },
+    "name": "set_teammate_connection",
     "type": "function"
   },
   {
@@ -2171,17 +2171,12 @@
     "type": "function"
   },
   {
-    "description": "Change a schedule, reminder, page watch, webhook, or Gmail or Calendar trigger by id (see list_automations), yours or the teammate's given by bot_id: pause or resume it, rename it, or change its instructions, timing, page, the text it waits for, its Gmail search, or which events and how early. Leave out what stays the same.",
+    "description": "Change a schedule, reminder, page watch, webhook, or Gmail or Calendar trigger by id (see list_automations), yours or the teammate's given by teammate_id: pause or resume it, rename it, or change its instructions, timing, page, the text it waits for, its Gmail search, or which events and how early. Leave out what stays the same.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
         "at": {
           "description": "Reminders: a new ISO 8601 date-time.",
-          "type": "string"
-        },
-        "bot_id": {
-          "description": "A teammate's id from list_bots. Where optional, leave it out for yourself. Changing another teammate's setup may ask the user first.",
-          "format": "uuid",
           "type": "string"
         },
         "cron": {
@@ -2235,6 +2230,11 @@
           "description": "Schedules: only tell the user when there's something worth their attention.",
           "type": "boolean"
         },
+        "teammate_id": {
+          "description": "A teammate's id from list_teammates. Where optional, leave it out for yourself. Changing another teammate's setup may ask the user first.",
+          "format": "uuid",
+          "type": "string"
+        },
         "timezone": {
           "description": "Schedules: a new IANA timezone.",
           "type": "string"
@@ -2255,71 +2255,6 @@
       "type": "object"
     },
     "name": "update_automation",
-    "type": "function"
-  },
-  {
-    "description": "Change a teammate's profile or instructions when the user asks. get_bot first, then send only the changed fields and its revision as expected_revision; a stale revision is refused. Changes apply from the teammate's next message, not a reply already under way. For improvements to yourself that the user didn't ask for, use propose_instructions.",
-    "inputSchema": {
-      "additionalProperties": false,
-      "properties": {
-        "bot_id": {
-          "description": "A teammate's id from list_bots. Where optional, leave it out for yourself. Changing another teammate's setup may ask the user first.",
-          "format": "uuid",
-          "type": "string"
-        },
-        "changes": {
-          "additionalProperties": false,
-          "minProperties": 1,
-          "properties": {
-            "autonomy": {
-              "description": "risky (the default) asks before consequential actions; full works without asking; everything asks before every command. Anything but risky asks the user every time.",
-              "enum": [
-                "risky",
-                "full",
-                "everything"
-              ],
-              "type": "string"
-            },
-            "color": {
-              "pattern": "^#[0-9a-fA-F]{6}$",
-              "type": "string"
-            },
-            "emoji": {
-              "maxLength": 8,
-              "type": "string"
-            },
-            "instructions": {
-              "description": "Their brief, in Markdown: the outcome they own, where their material is, what needs the user's approval, how they work, and how to deliver results.",
-              "maxLength": 20000,
-              "type": "string"
-            },
-            "name": {
-              "maxLength": 40,
-              "minLength": 1,
-              "type": "string"
-            },
-            "role": {
-              "maxLength": 80,
-              "minLength": 1,
-              "type": "string"
-            }
-          },
-          "type": "object"
-        },
-        "expected_revision": {
-          "maxLength": 128,
-          "minLength": 1,
-          "type": "string"
-        }
-      },
-      "required": [
-        "bot_id",
-        "changes",
-        "expected_revision"
-      ],
-      "type": "object"
-    },
-    "name": "update_bot",
     "type": "function"
   },
   {
@@ -2394,6 +2329,71 @@
     "type": "function"
   },
   {
+    "description": "Change a teammate's profile or instructions when the user asks. get_teammate first, then send only the changed fields and its revision as expected_revision; a stale revision is refused. Changes apply from the teammate's next message, not a reply already under way. For improvements to yourself that the user didn't ask for, use propose_instructions.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "changes": {
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "autonomy": {
+              "description": "risky (the default) asks before consequential actions; full works without asking; everything asks before every command. Anything but risky asks the user every time.",
+              "enum": [
+                "risky",
+                "full",
+                "everything"
+              ],
+              "type": "string"
+            },
+            "color": {
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "type": "string"
+            },
+            "emoji": {
+              "maxLength": 8,
+              "type": "string"
+            },
+            "instructions": {
+              "description": "Their brief, in Markdown: the outcome they own, where their material is, what needs the user's approval, how they work, and how to deliver results.",
+              "maxLength": 20000,
+              "type": "string"
+            },
+            "name": {
+              "maxLength": 40,
+              "minLength": 1,
+              "type": "string"
+            },
+            "role": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "expected_revision": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "teammate_id": {
+          "description": "A teammate's id from list_teammates. Where optional, leave it out for yourself. Changing another teammate's setup may ask the user first.",
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "changes",
+        "expected_revision",
+        "teammate_id"
+      ],
+      "type": "object"
+    },
+    "name": "update_teammate",
+    "type": "function"
+  },
+  {
     "description": "Type one field of a saved login or card into the field that has keyboard focus on your screen: click the field first. You never see the value. A login only fills on its own site; a card needs an approved purchase (start_purchase). Take a screenshot afterwards to check.",
     "inputSchema": {
       "additionalProperties": false,
@@ -2437,17 +2437,12 @@
     "type": "function"
   },
   {
-    "description": "Wake yourself or a specified teammate (bot_id) a set time before events on the user's Google Calendar (their primary calendar). Each event starts a run in that teammate's Scheduled chat with the event, once per occurrence, and again if it moves. Cancelled, all-day and declined events don't count. The teammate must have Google Calendar. Use it for things like 'brief me 30 minutes before meetings with guests'.",
+    "description": "Wake yourself or a specified teammate (teammate_id) a set time before events on the user's Google Calendar (their primary calendar). Each event starts a run in that teammate's Scheduled chat with the event, once per occurrence, and again if it moves. Cancelled, all-day and declined events don't count. The teammate must have Google Calendar. Use it for things like 'brief me 30 minutes before meetings with guests'.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
         "account": {
           "description": "With several Google Calendar accounts: the address to watch.",
-          "type": "string"
-        },
-        "bot_id": {
-          "description": "A teammate's id from list_bots. Where optional, leave it out for yourself. Changing another teammate's setup may ask the user first.",
-          "format": "uuid",
           "type": "string"
         },
         "events": {
@@ -2472,6 +2467,11 @@
           "minLength": 1,
           "type": "string"
         },
+        "teammate_id": {
+          "description": "A teammate's id from list_teammates. Where optional, leave it out for yourself. Changing another teammate's setup may ask the user first.",
+          "format": "uuid",
+          "type": "string"
+        },
         "title": {
           "maxLength": 80,
           "minLength": 1,
@@ -2488,17 +2488,12 @@
     "type": "function"
   },
   {
-    "description": "Wake yourself or a specified teammate (bot_id) when new mail arrives in the user's Gmail. Mail matching the search starts a run in that teammate's Scheduled chat with the new messages, checked every 2 minutes; mail the user sends doesn't count. The teammate must have Gmail. Use it for things like 'tell me when the school writes' or 'file every receipt'.",
+    "description": "Wake yourself or a specified teammate (teammate_id) when new mail arrives in the user's Gmail. Mail matching the search starts a run in that teammate's Scheduled chat with the new messages, checked every 2 minutes; mail the user sends doesn't count. The teammate must have Gmail. Use it for things like 'tell me when the school writes' or 'file every receipt'.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
         "account": {
           "description": "With several Gmail accounts: the address to watch.",
-          "type": "string"
-        },
-        "bot_id": {
-          "description": "A teammate's id from list_bots. Where optional, leave it out for yourself. Changing another teammate's setup may ask the user first.",
-          "format": "uuid",
           "type": "string"
         },
         "prompt": {
@@ -2510,6 +2505,11 @@
         "query": {
           "description": "A Gmail search the new mail must match, like 'from:school.org' or 'subject:invoice has:attachment'. Leave it out for all new mail.",
           "maxLength": 500,
+          "type": "string"
+        },
+        "teammate_id": {
+          "description": "A teammate's id from list_teammates. Where optional, leave it out for yourself. Changing another teammate's setup may ask the user first.",
+          "format": "uuid",
           "type": "string"
         },
         "title": {
@@ -2528,15 +2528,10 @@
     "type": "function"
   },
   {
-    "description": "Watch a web page for yourself or a specified teammate (bot_id). Changes start a run in that teammate's Scheduled chat, for example for prices, stock, job boards or status pages. Checks run without a browser session and only see what a signed-out visitor sees. The first check just learns the page.",
+    "description": "Watch a web page for yourself or a specified teammate (teammate_id). Changes start a run in that teammate's Scheduled chat, for example for prices, stock, job boards or status pages. Checks run without a browser session and only see what a signed-out visitor sees. The first check just learns the page.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
-        "bot_id": {
-          "description": "A teammate's id from list_bots. Where optional, leave it out for yourself. Changing another teammate's setup may ask the user first.",
-          "format": "uuid",
-          "type": "string"
-        },
         "every_minutes": {
           "default": 60,
           "description": "How often to check.",
@@ -2553,6 +2548,11 @@
           "description": "What you should do when it changes. You'll get this with the lines that changed.",
           "maxLength": 4000,
           "minLength": 1,
+          "type": "string"
+        },
+        "teammate_id": {
+          "description": "A teammate's id from list_teammates. Where optional, leave it out for yourself. Changing another teammate's setup may ask the user first.",
+          "format": "uuid",
           "type": "string"
         },
         "title": {

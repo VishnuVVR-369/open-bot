@@ -154,7 +154,7 @@ export class ScreenOperationService {
           result = await this.ctx.computer.typeOnScreen(screenId, input);
         } catch {
           // botd may hold the screen for you now. Record the takeover so handing back reaches
-          // the bot; if you don't hold it, the reconciler ends it.
+          // the teammate; if you don't hold it, the reconciler ends it.
           await this.takeovers.recordTake(screenId, previous);
           return this.set(
             input.operationId,

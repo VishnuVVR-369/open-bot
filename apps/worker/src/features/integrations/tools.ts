@@ -53,11 +53,11 @@ export class AccountTools {
    * set things up on it, like a Gmail trigger. Throws AccountToolError, said for the teammate.
    */
   async connectionFor(
-    botId: string,
+    teammateId: string,
     kind: AccountConnectionKind,
     account?: string,
   ): Promise<{ connectionId: string; display: string }> {
-    const resolved = await this.access.resolve(botId, kind, account);
+    const resolved = await this.access.resolve(teammateId, kind, account);
     if (resolved.account.status !== "connected")
       throw new AccountToolError(
         `${integration(kind).label} needs reconnecting. Ask the user to reconnect it in Settings → Connections.`,
@@ -141,7 +141,7 @@ export class AccountTools {
           "Helpers can only read the user's accounts. Say in your result what should change.",
         );
       const resolved = await this.access.resolve(
-        session.bot.id,
+        session.teammate.id,
         info.kind,
         typeof args.account === "string" ? args.account : undefined,
       );

@@ -639,7 +639,7 @@ describe("egress relay", () => {
       if (stage === "wake" && !phone) setTimeout(() => (phone = env.phone()), 200);
     });
     await until(() => env.router.state.configured, "the config");
-    env.router.noteDemand("bot-1");
+    env.router.noteDemand("teammate-1");
     await until(() => env.pushes.length === 1, "the wake");
     expect(env.relay.status.path).toBe("waiting");
     expect(env.relay.status.phones[0]!.waking).toMatchObject({ stage: "wake" });
@@ -662,7 +662,7 @@ describe("egress relay", () => {
         raw.socket.close();
       });
     });
-    env.router.noteDemand("bot-1");
+    env.router.noteDemand("teammate-1");
     await until(() => env.relay.status.phones[0]!.unavailable !== null, "the report");
     expect(env.relay.status.phones[0]!.unavailable).toMatchObject({
       reason: "wifi-only",

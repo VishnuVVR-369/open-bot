@@ -10,7 +10,7 @@ import type { Context } from "../context";
 import { createHttpServer, type HttpDeps } from "../http";
 import { ApprovalService } from "../features/approvals";
 import { APPROVAL_OUTCOMES } from "../approval-outcomes";
-import { BotService } from "../features/teammates";
+import { TeammateService } from "../features/teammates";
 import { ChatService } from "../features/chat";
 import { RunRequests } from "../runs/requests";
 import { CodexAccountService } from "../features/codex-account";
@@ -99,7 +99,7 @@ export function rpcHarness() {
   const triggers = new TriggerService(ctx);
   const sync = vi.fn(async () => {});
   const memory = new MemoryService(db);
-  const teammates = new BotService(ctx, schedules, skills, memory, sync);
+  const teammates = new TeammateService(ctx, schedules, skills, memory, sync);
   const executor = {
     dispatchMessage: vi.fn(async (_messageId: string) => {}),
     processCancellations: vi.fn(async () => {}),

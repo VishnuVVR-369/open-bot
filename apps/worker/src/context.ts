@@ -20,7 +20,7 @@ export interface NotificationEvent {
   kind: NotificationKind;
   title: string;
   body: string;
-  botId: string | null;
+  teammateId: string | null;
   chatId: string | null;
   runId: string | null;
   /** For approvals: the approval, so it can be decided from the notification. */

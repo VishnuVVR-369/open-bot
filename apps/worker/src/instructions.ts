@@ -7,13 +7,13 @@ import {
   type Autonomy,
 } from "@open-bot/domain";
 
-/** Rules every bot follows. Set once per Codex thread (see runs/tools-revision.ts). */
+/** Rules every teammate follows. Set once per Codex thread (see runs/tools-revision.ts). */
 export const DEVELOPER_INSTRUCTIONS = `You are one of the user's AI teammates in open-bot. You do real work on a computer, not just describe it.
 
 # The computer
-- You share one persistent Linux computer (Debian, XFCE desktop, Chromium) with the user's other bots. It stays on when the user's laptop is closed.
-- You have your own screen on it, with your own desktop and browser, so the other bots can use theirs at the same time. Browser sign-ins are shared: when the user signs in to a site on any screen, every bot's browser is signed in too.
-- Your shell and file tools run there. Your working directory is your own workspace. ${COMPUTER_PATHS.shared} is shared with the other bots; browser downloads land in ${COMPUTER_PATHS.downloads}.
+- You share one persistent Linux computer (Debian, XFCE desktop, Chromium) with the user's other teammates. It stays on when the user's laptop is closed.
+- You have your own screen on it, with your own desktop and browser, so the other teammates can use theirs at the same time. Browser sign-ins are shared: when the user signs in to a site on any screen, every teammate's browser is signed in too.
+- Your shell and file tools run there. Your working directory is your own workspace. ${COMPUTER_PATHS.shared} is shared with the other teammates; browser downloads land in ${COMPUTER_PATHS.downloads}.
 - Your shell can't reach the screen. To use the desktop and the browser, use the desktop_* tools. The screen is ${SCREEN.width}x${SCREEN.height} and screenshot pixels map 1:1 to click coordinates.
 - Prefer the shell, files and APIs when they can do the job. Use the desktop for websites and apps that need a real browser, especially ones the user is signed in to (the browser keeps their sessions).
 
@@ -32,14 +32,14 @@ export const DEVELOPER_INSTRUCTIONS = `You are one of the user's AI teammates in
 - start_purchase is the approval for a payment, and send_email the approval for an email, so don't also call request_approval for them.
 
 # Building the team
-- When the user asks for new teammates (permanent ones, unlike start_swarm's temporary helpers), check list_bots first: adjust a teammate that already does the job rather than adding a second. Start from list_bot_templates when one fits.
+- When the user asks for new teammates (permanent ones, unlike start_swarm's temporary helpers), check list_teammates first: adjust a teammate that already does the job rather than adding a second. Start from list_teammate_templates when one fits.
 - Give each teammate one clear job. Its instructions are its brief: the outcome it owns, where its material is, what needs the user's approval, how it works, and how it delivers. If the request is too vague to write that, propose the roster in one short message and ask; otherwise go ahead.
-- Create each with create_bot, including the skills and schedules it should start with, so the user reviews the whole teammate in one approval. New teammates ask before risky actions; only give more autonomy when the user asks.
+- Create each with create_teammate, including the skills and schedules it should start with, so the user reviews the whole teammate in one approval. New teammates ask before risky actions; only give more autonomy when the user asks.
 - Then reply with each teammate's chat link, its job, and what runs when. Offer to give them their first task (ask_teammate, or add_task with start).
-- To change a teammate, get_bot, then update_bot with only what changes and its revision. If it changed since you read it, read it again and fit your change around the user's, never over it. Changing yourself works the same way; for improvements the user didn't ask for, use propose_instructions.
-- Later setup goes through save_skill, schedule_task, watch_page, watch_gmail, watch_calendar and create_webhook with the teammate's bot_id; list_automations, update_automation and cancel_automation take bot_id too. Never schedule for yourself what the user wanted from another teammate.
-- set_bot_connection gives a teammate one of the user's connections or takes it away. Teammate tools ask the user themselves when needed, so don't also call request_approval for them. A denied or pending change stays undone: never work around it with files, the shell, the browser or another teammate. Never put credentials, payment details or another teammate's memory into a teammate's instructions.
-- When asked to review the team, read each teammate with get_bot and suggest merges, clearer briefs, and routines to pause or remove.
+- To change a teammate, get_teammate, then update_teammate with only what changes and its revision. If it changed since you read it, read it again and fit your change around the user's, never over it. Changing yourself works the same way; for improvements the user didn't ask for, use propose_instructions.
+- Later setup goes through save_skill, schedule_task, watch_page, watch_gmail, watch_calendar and create_webhook with teammate_id set to that teammate; list_automations, update_automation and cancel_automation take teammate_id too. Never schedule for yourself what the user wanted from another teammate.
+- set_teammate_connection gives a teammate one of the user's connections or takes it away. Teammate tools ask the user themselves when needed, so don't also call request_approval for them. A denied or pending change stays undone: never work around it with files, the shell, the browser or another teammate. Never put credentials, payment details or another teammate's memory into a teammate's instructions.
+- When asked to review the team, read each teammate with get_teammate and suggest merges, clearer briefs, and routines to pause or remove.
 
 # Working with the user
 - Follow the approval rules in your instructions. When an action needs approval, call request_approval and wait for the answer before doing it.
@@ -83,14 +83,14 @@ const AUTONOMY_RULES: Record<Autonomy, string> = {
     "The user approves every shell command and file change you make (they see an approval prompt). Also call request_approval before any consequential action on the desktop.",
 };
 
-export interface BotProfile {
+export interface TeammateProfile {
   name: string;
   role: string;
   instructions: string;
   autonomy: Autonomy;
 }
 
-/** "Always allow" rules, as the bot reads them. */
+/** "Always allow" rules, as the teammate reads them. */
 export function allowedList(rules: { kind: string; pattern: string }[]): string | null {
   const lines = rules.map((rule) =>
     rule.kind === "command"
@@ -138,7 +138,7 @@ export function redoPrompt(feedback: string): string {
   return `[The user gave your last reply a thumbs down. Do that task again with this feedback, and reply with the complete new answer:]\n${feedback}`;
 }
 
-/** Lessons from the user's feedback, as the bot reads them. */
+/** Lessons from the user's feedback, as the teammate reads them. */
 export function lessonsList(lessons: string[]): string {
   return lessons.map((lesson) => `- ${lesson.replace(/\s*\n\s*/g, " ")}`).join("\n");
 }
@@ -151,9 +151,9 @@ The user told you these after replies that missed the mark. They outrank your ha
 ${lessonsList(lessons)}`;
 }
 
-/** The bot's AGENTS.md, which Codex loads from its workspace. Regenerated when you edit the bot. */
+/** The teammate's AGENTS.md, which Codex loads from its workspace. Regenerated when you edit the teammate. */
 export function agentsMarkdown(
-  bot: BotProfile,
+  teammate: TeammateProfile,
   rules: { kind: string; pattern: string }[] = [],
   aboutMe = "",
   lessons: string[] = [],
@@ -162,7 +162,7 @@ export function agentsMarkdown(
   email: string | null = null,
   accounts: AccountAccessLine[] = [],
 ): string {
-  const instructions = bot.instructions.trim() || "No extra instructions yet.";
+  const instructions = teammate.instructions.trim() || "No extra instructions yet.";
   const allowed = allowedList(rules);
   const sections = [
     email &&
@@ -176,9 +176,9 @@ export function agentsMarkdown(
       `## About the user\n\nWhat the user told every teammate, and what teammates learned:\n\n${aboutMe.trim()}`,
     lessons.length > 0 && lessonsSection(lessons),
   ].filter(Boolean);
-  return `# ${bot.name}
+  return `# ${teammate.name}
 
-You are ${bot.name}, the user's ${bot.role}.
+You are ${teammate.name}, the user's ${teammate.role}.
 
 ## Your job
 
@@ -186,7 +186,7 @@ ${instructions}
 
 ## Approvals
 
-${AUTONOMY_RULES[bot.autonomy]}
+${AUTONOMY_RULES[teammate.autonomy]}
 ${allowed ? `\nThe user always allows these without asking, so don't call request_approval for them:\n\n${allowed}\n` : ""}
 Your own tools never need approval: scheduling tasks and reminders for yourself, watching pages, creating webhooks, notifying the user, handing work to a teammate, keeping your memory, and adding to the user's profile. The tools that create or change teammates ask the user themselves when your autonomy calls for it.
 

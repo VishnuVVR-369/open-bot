@@ -6,7 +6,7 @@ const base = {
   kind: "run_finished" as const,
   title: "Iris replied",
   body: "Here's the **summary** with [a link](https://x.y).",
-  botId: "b1",
+  teammateId: "b1",
   chatId: "c1",
   runId: "r1",
 };

@@ -456,188 +456,82 @@
     "bot": 1
   },
   "apps/worker/scripts/computer-sleep-smoke.ts": {
-    "bot": 16
-  },
-  "apps/worker/scripts/computer-sleep-web-smoke.ts": {
     "bot": 3
   },
-  "apps/worker/src/computer/client.ts": {
-    "bot": 6
-  },
-  "apps/worker/src/context.ts": {
+  "apps/worker/src/core/tool.ts": {
     "bot": 1
-  },
-  "apps/worker/src/core/db-types.ts": {
-    "bot": 1
-  },
-  "apps/worker/src/egress/relay.test.ts": {
-    "bot": 2
-  },
-  "apps/worker/src/egress/wake.test.ts": {
-    "bot": 5
   },
   "apps/worker/src/env.ts": {
     "bot": 1
   },
-  "apps/worker/src/features/approvals/native-tools.integration.test.ts": {
-    "bot": 1
-  },
-  "apps/worker/src/features/approvals/service.ts": {
-    "bot": 22
-  },
-  "apps/worker/src/features/approvals/setup-tools.integration.test.ts": {
-    "bot": 11
-  },
   "apps/worker/src/features/automations/account-triggers.integration.test.ts": {
-    "bot": 8
-  },
-  "apps/worker/src/features/automations/account-triggers.ts": {
     "bot": 1
   },
   "apps/worker/src/features/automations/account-watch-tools.ts": {
-    "bot": 12
-  },
-  "apps/worker/src/features/automations/schedules.ts": {
-    "bot": 10
-  },
-  "apps/worker/src/features/automations/tools.ts": {
-    "bot": 45
-  },
-  "apps/worker/src/features/automations/triggers.ts": {
-    "bot": 18
-  },
-  "apps/worker/src/features/chat/service.ts": {
-    "bot": 2
-  },
-  "apps/worker/src/features/chat/tools.integration.test.ts": {
     "bot": 1
   },
+  "apps/worker/src/features/automations/tools.ts": {
+    "bot": 3
+  },
+  "apps/worker/src/features/automations/triggers.ts": {
+    "bot": 2
+  },
   "apps/worker/src/features/chat/tools.ts": {
-    "bot": 4
-  },
-  "apps/worker/src/features/connections/service.ts": {
-    "bot": 9
-  },
-  "apps/worker/src/features/connections/tools.integration.test.ts": {
-    "bot": 8
-  },
-  "apps/worker/src/features/email/service.ts": {
-    "bot": 22
-  },
-  "apps/worker/src/features/email/tools.ts": {
     "bot": 1
   },
   "apps/worker/src/features/files/routes.integration.test.ts": {
     "bot": 1
   },
   "apps/worker/src/features/integrations/access.ts": {
-    "bot": 10
+    "bot": 1
   },
   "apps/worker/src/features/integrations/actions.integration.test.ts": {
-    "bot": 14
-  },
-  "apps/worker/src/features/integrations/actions.ts": {
-    "bot": 7
-  },
-  "apps/worker/src/features/integrations/tools.ts": {
-    "bot": 3
-  },
-  "apps/worker/src/features/memory/service.ts": {
-    "bot": 14
-  },
-  "apps/worker/src/features/memory/tools.ts": {
-    "bot": 7
-  },
-  "apps/worker/src/features/notifications/fcm.integration.test.ts": {
-    "bot": 3
+    "bot": 1
   },
   "apps/worker/src/features/notifications/fcm.ts": {
-    "bot": 3
-  },
-  "apps/worker/src/features/notifications/push.test.ts": {
     "bot": 1
-  },
-  "apps/worker/src/features/notifications/service.ts": {
-    "bot": 4
   },
   "apps/worker/src/features/pages/service.integration.test.ts": {
-    "bot": 9
-  },
-  "apps/worker/src/features/pages/service.ts": {
-    "bot": 6
-  },
-  "apps/worker/src/features/pages/tools.ts": {
-    "bot": 3
-  },
-  "apps/worker/src/features/screens/screen-operations.integration.test.ts": {
-    "bot": 5
-  },
-  "apps/worker/src/features/screens/screen-operations.ts": {
-    "bot": 1,
-    "desktop takeover": 1
-  },
-  "apps/worker/src/features/screens/takeover-tools.ts": {
-    "bot": 1
-  },
-  "apps/worker/src/features/screens/takeovers.ts": {
-    "bot": 25
-  },
-  "apps/worker/src/features/screens/tools.ts": {
-    "bot": 6
-  },
-  "apps/worker/src/features/skills/service.ts": {
-    "bot": 44
-  },
-  "apps/worker/src/features/skills/tools.integration.test.ts": {
-    "bot": 19
-  },
-  "apps/worker/src/features/skills/tools.ts": {
-    "bot": 19
-  },
-  "apps/worker/src/features/tasks/service.ts": {
-    "bot": 14
-  },
-  "apps/worker/src/features/tasks/tools.ts": {
-    "bot": 12
-  },
-  "apps/worker/src/features/teammates/changes.ts": {
-    "bot": 71
-  },
-  "apps/worker/src/features/teammates/http-tools.integration.test.ts": {
-    "bot": 1
-  },
-  "apps/worker/src/features/teammates/index.ts": {
-    "bot": 3
-  },
-  "apps/worker/src/features/teammates/permissions.integration.test.ts": {
-    "bot": 16
-  },
-  "apps/worker/src/features/teammates/routes.ts": {
     "bot": 4
   },
-  "apps/worker/src/features/teammates/service.ts": {
-    "bot": 86
+  "apps/worker/src/features/screens/screen-operations.integration.test.ts": {
+    "bot": 2
   },
-  "apps/worker/src/features/teammates/tools.integration.test.ts": {
-    "bot": 16
+  "apps/worker/src/features/screens/screen-operations.ts": {
+    "desktop takeover": 1
+  },
+  "apps/worker/src/features/screens/tools.ts": {
+    "bot": 1
+  },
+  "apps/worker/src/features/skills/service.ts": {
+    "bot": 4
+  },
+  "apps/worker/src/features/skills/tools.integration.test.ts": {
+    "bot": 1
+  },
+  "apps/worker/src/features/skills/tools.ts": {
+    "bot": 1
+  },
+  "apps/worker/src/features/tasks/tools.ts": {
+    "bot": 1
+  },
+  "apps/worker/src/features/teammates/changes.ts": {
+    "bot": 1
+  },
+  "apps/worker/src/features/teammates/service.ts": {
+    "bot": 4
   },
   "apps/worker/src/features/teammates/tools.ts": {
-    "bot": 62
-  },
-  "apps/worker/src/features/teamwork/service.ts": {
-    "bot": 7
+    "bot": 1
   },
   "apps/worker/src/features/teamwork/tools.ts": {
-    "bot": 28
+    "bot": 2
   },
   "apps/worker/src/features/telegram/api.ts": {
     "bot": 3
   },
   "apps/worker/src/features/telegram/inbound.ts": {
-    "bot": 15
-  },
-  "apps/worker/src/features/telegram/notifications.ts": {
-    "bot": 4
+    "bot": 3
   },
   "apps/worker/src/features/telegram/polling.ts": {
     "bot": 4
@@ -646,85 +540,25 @@
     "bot": 18
   },
   "apps/worker/src/features/uploads/service.integration.test.ts": {
-    "bot": 4
-  },
-  "apps/worker/src/features/vault/service.ts": {
-    "bot": 27
-  },
-  "apps/worker/src/features/vault/tools.ts": {
-    "bot": 1
-  },
-  "apps/worker/src/index.ts": {
-    "bot": 7
-  },
-  "apps/worker/src/instructions.test.ts": {
-    "bot": 4
-  },
-  "apps/worker/src/instructions.ts": {
-    "bot": 26
-  },
-  "apps/worker/src/rpc/handler.test.ts": {
-    "bot": 2
-  },
-  "apps/worker/src/rpc/router.ts": {
-    "bot": 2
-  },
-  "apps/worker/src/runs/answer-back.ts": {
-    "bot": 3
-  },
-  "apps/worker/src/runs/approval-policy.ts": {
     "bot": 2
   },
   "apps/worker/src/runs/dispatch.integration.test.ts": {
-    "bot": 8
-  },
-  "apps/worker/src/runs/executor/dispatch.ts": {
-    "bot": 20
-  },
-  "apps/worker/src/runs/executor/prompt.ts": {
-    "bot": 12
+    "bot": 1
   },
   "apps/worker/src/runs/executor/run-executor.ts": {
-    "bot": 18
-  },
-  "apps/worker/src/runs/executor/workspace-sync.ts": {
-    "bot": 16
-  },
-  "apps/worker/src/runs/queue.ts": {
     "bot": 2
-  },
-  "apps/worker/src/runs/registry.ts": {
-    "bot": 4
-  },
-  "apps/worker/src/runs/retries.ts": {
-    "bot": 2
-  },
-  "apps/worker/src/runs/session/finalize.ts": {
-    "bot": 15
   },
   "apps/worker/src/runs/session/run-session.ts": {
-    "bot": 20
-  },
-  "apps/worker/src/runs/session/threads.ts": {
-    "bot": 10
-  },
-  "apps/worker/src/runs/thread-continuity.test.ts": {
-    "bot": 4
+    "bot": 2
   },
   "apps/worker/src/testing/rpc.ts": {
-    "bot": 3
+    "bot": 1
   },
   "apps/worker/src/testing/tools.ts": {
-    "bot": 8
+    "bot": 1
   },
   "apps/worker/src/tools/catalog.test.ts": {
-    "bot": 4
-  },
-  "apps/worker/src/tools/dependencies.ts": {
-    "bot": 5
-  },
-  "apps/worker/src/tools/handlers.ts": {
-    "bot": 4
+    "bot": 1
   },
   "e2e/accounts.spec.ts": {
     "bot": 5
@@ -848,6 +682,9 @@
   "packages/db/src/schema/vault.ts": {
     "bot": 3
   },
+  "packages/db/src/tool-rename.integration.test.ts": {
+    "bot": 2
+  },
   "packages/domain/src/computer/files.ts": {
     "bot": 1
   },
@@ -868,12 +705,6 @@
   },
   "packages/domain/src/pages/pages.ts": {
     "bot": 2
-  },
-  "packages/domain/src/teammates/management.test.ts": {
-    "bot": 2
-  },
-  "packages/domain/src/teammates/management.ts": {
-    "bot": 1
   },
   "packages/domain/src/teammates/profile.ts": {
     "bot": 1

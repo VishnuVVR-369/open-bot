@@ -4,7 +4,7 @@
 import { teammates, chats, runs } from "@open-bot/db";
 import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import type { Context } from "../../context";
-import type { Bot } from "../../core/db-types";
+import type { Teammate } from "../../core/db-types";
 import type { ApprovalService } from "../../features/approvals";
 import { touchChat } from "../../features/chat";
 import type { ConnectionService } from "../../features/connections";
@@ -22,7 +22,7 @@ import { buildPrompt } from "./prompt";
 import { syncWorkspace } from "./workspace-sync";
 
 /**
- * Claims queued runs and executes them, one at a time per bot per chat.
+ * Claims queued runs and executes them, one at a time per teammate per chat.
  * State its own modules read is not private; callers use only its methods.
  */
 export class RunExecutor {
@@ -119,12 +119,12 @@ export class RunExecutor {
   private async start(runId: string) {
     const [run] = await this.ctx.db.select().from(runs).where(eq(runs.id, runId));
     if (!run) return;
-    const [bot] = await this.ctx.db
+    const [teammate] = await this.ctx.db
       .select()
       .from(teammates)
       .where(eq(teammates.id, run.teammateId));
     const [chat] = await this.ctx.db.select().from(chats).where(eq(chats.id, run.chatId));
-    if (!bot || !chat || bot.archivedAt || run.cancelRequestedAt) {
+    if (!teammate || !chat || teammate.archivedAt || run.cancelRequestedAt) {
       await this.ctx.db
         .update(runs)
         .set({ status: "interrupted", completedAt: new Date() })
@@ -139,14 +139,14 @@ export class RunExecutor {
         requestNativeApproval: (s, input) => this.approvals.requestNative(s, input),
         buildPrompt: (s) => buildPrompt(this, s),
         touchChat: (chatId) => touchChat(this.ctx.db, chatId),
-        skillInputs: (text, botId) => this.skills.inputsFor(text, botId),
-        connections: (botId) => this.connections.forBot(botId),
+        skillInputs: (text, teammateId) => this.skills.inputsFor(text, teammateId),
+        connections: (teammateId) => this.connections.forTeammate(teammateId),
         model: this.model,
         memory: this.memory,
-        prepareWorkspace: () => this.syncWorkspace(bot),
+        prepareWorkspace: () => this.syncWorkspace(teammate),
       },
       run,
-      bot,
+      teammate,
       chat,
     );
     this.sessions.add(session);
@@ -171,13 +171,13 @@ export class RunExecutor {
 
   /** Write the teammate's AGENTS.md, MEMORY.md and skills. */
   syncWorkspace(
-    bot: Pick<Bot, "id" | "slug" | "name" | "role" | "instructions" | "autonomy">,
+    teammate: Pick<Teammate, "id" | "slug" | "name" | "role" | "instructions" | "autonomy">,
   ): Promise<string> {
-    return syncWorkspace(this, bot);
+    return syncWorkspace(this, teammate);
   }
 
   /**
-   * Route a message you sent: join a bot's running turn, or start a run. Safe to call more than
+   * Route a message you sent: join a teammate's running turn, or start a run. Safe to call more than
    * once for the same message: each teammate is claimed in `message_dispatches` before it gets the
    * message, so it gets it once.
    */

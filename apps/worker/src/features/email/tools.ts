@@ -48,7 +48,7 @@ export const EMAIL_TOOLS: ToolDefinition<z.ZodObject, EmailToolDeps>[] = [
     description: "List the emails you got and sent recently, with their email ids.",
     input: z.object({}),
     helpers: "allowed",
-    handle: async ({ session }, deps) => text(await deps.email.describe(session.bot.id)),
+    handle: async ({ session }, deps) => text(await deps.email.describe(session.teammate.id)),
   }),
 ];
 

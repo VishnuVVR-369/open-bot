@@ -26,7 +26,7 @@ import { handBackEndedOperations, operationNeedsOwner } from "./screen-operation
 
 const REQUEST_WAIT_MS = 10 * 60_000;
 
-/** The note a bot gets after "Type the code" submitted the code and the screen was verified safe. */
+/** The note a teammate gets after "Type the code" submitted the code and the screen was verified safe. */
 export const CODE_HANDED_BACK_NOTE = "Entered the code you sent and submitted it.";
 
 /** One continuation per interrupted run within the same return, even with several requests. */
@@ -47,9 +47,9 @@ const AUTO_NOTES: Record<Exclude<TakeoverEndReason, "handed_back">, string> = {
 };
 
 /**
- * You taking control of a bot's screen, handing it back, and bots asking you to take over.
- * Every bot has its own screen, so a takeover stops only that bot; the others keep working.
- * botd owns the leases; this service records takeovers and tells the bots what happened.
+ * You taking control of a teammate's screen, handing it back, and teammates asking you to take over.
+ * Every teammate has its own screen, so a takeover stops only that teammate; the others keep working.
+ * botd owns the leases; this service records takeovers and tells the teammates what happened.
  */
 export class TakeoverService {
   /** Runs waiting for you to hand back, by takeover id. */
@@ -115,19 +115,19 @@ export class TakeoverService {
       await appendRunEvent(this.ctx, row.requestedByRunId, run.chatId, { type: "item", item });
   }
 
-  /** A bot asks you to take over its screen. Waits up to 10 minutes for you to hand back. */
-  async requestFromBot(
+  /** A teammate asks you to take over its screen. Waits up to 10 minutes for you to hand back. */
+  async requestFromTeammate(
     session: RunSession,
     input: { reason: string; itemId: string },
   ): Promise<TakeoverWaitResult> {
-    const screenId = session.bot.id;
+    const screenId = session.teammate.id;
     const [row] = await this.ctx.db
       .insert(screenTakeovers)
       .values({
         screenId,
         status: "requested",
         requestedByRunId: session.run.id,
-        requestedByTeammateId: session.bot.id,
+        requestedByTeammateId: session.teammate.id,
         reason: input.reason,
         itemId: input.itemId,
       })
@@ -144,9 +144,9 @@ export class TakeoverService {
     }
     await createNotification(this.ctx, {
       kind: "takeover_request",
-      title: `${session.bot.name} needs you to take over`,
+      title: `${session.teammate.name} needs you to take over`,
       body: input.reason,
-      botId: session.bot.id,
+      teammateId: session.teammate.id,
       chatId: session.chat.id,
       runId: session.run.id,
       takeoverId: row!.id,
@@ -179,7 +179,7 @@ export class TakeoverService {
       if (waiter.runId === runId) waiter.resolve({ status: "pending" });
   }
 
-  /** You take control of a bot's screen. That bot stops using it until you hand it back. */
+  /** You take control of a teammate's screen. That teammate stops using it until you hand it back. */
   async take(screenId: string): Promise<void> {
     const { previous } = await this.ctx.computer.takeByUser(screenId);
     await this.recordTake(screenId, previous);
@@ -216,7 +216,7 @@ export class TakeoverService {
     await publishApp(this.ctx, { type: "lease" });
   }
 
-  /** You hand a screen back, optionally with a note for its bot. */
+  /** You hand a screen back, optionally with a note for its teammate. */
   async handBack(screenId: string, note: string | null, clearCode = false): Promise<void> {
     this.handingBack.add(screenId);
     try {
@@ -243,7 +243,7 @@ export class TakeoverService {
     }
   }
 
-  /** Dismiss a bot's request without taking over. Waits for no code entry on that screen. */
+  /** Dismiss a teammate's request without taking over. Waits for no code entry on that screen. */
   async dismiss(takeoverId: string): Promise<void> {
     const [request] = await this.ctx.db
       .select({ screenId: screenTakeovers.screenId })
@@ -274,7 +274,7 @@ export class TakeoverService {
     reason: TakeoverEndReason,
   ): Promise<void> {
     await this.ctx.db.transaction(async (tx) => {
-      // Every takeover ended together shares one return, so each bot hears about it once.
+      // Every takeover ended together shares one return, so each teammate hears about it once.
       const continuationRunId = randomUUID();
       const ended = await tx
         .update(screenTakeovers)
@@ -349,15 +349,15 @@ export class TakeoverService {
     for (const id of this.pausedScreens) if (!paused.has(id)) this.pausedScreens.delete(id);
     for (const id of paused) {
       if (this.pausedScreens.has(id)) continue;
-      const [bot] = await this.ctx.db
+      const [teammate] = await this.ctx.db
         .select({ name: teammates.name })
         .from(teammates)
         .where(eq(teammates.id, id));
       await createNotification(this.ctx, {
         kind: "takeover_request",
-        title: `${bot?.name ?? "Your teammate"}'s screen is paused`,
+        title: `${teammate?.name ?? "Your teammate"}'s screen is paused`,
         body: "Your code may still be visible. Open the computer to check.",
-        botId: id,
+        teammateId: id,
         chatId: null,
         runId: null,
       });
@@ -368,7 +368,7 @@ export class TakeoverService {
   private delivering = false;
   private deliverAgain = false;
 
-  /** Tells bots about every ended takeover not yet delivered. Safe to call from anywhere. */
+  /** Tells teammates about every ended takeover not yet delivered. Safe to call from anywhere. */
   private async deliverReturns(): Promise<void> {
     if (this.delivering) {
       this.deliverAgain = true;
@@ -430,7 +430,7 @@ export class TakeoverService {
     const effectiveNote = reason === "handed_back" ? note : AUTO_NOTES[reason];
     const delivered = new Set<string>();
 
-    // 1. Bots that asked you to take over get your note as the answer to their request.
+    // 1. Teammates that asked you to take over get your note as the answer to their request.
     for (const row of ended.filter((r) => r.requestedByRunId)) {
       await this.writeRequestItem(row, this.requestItem(row, "handed_back", effectiveNote));
       const waiter = this.waiters.get(row.id);
@@ -446,7 +446,7 @@ export class TakeoverService {
           await enqueueRun(this.ctx, {
             id: continuationId(continuationRunId, run.id),
             chatId: run.chatId,
-            botId: run.teammateId,
+            teammateId: run.teammateId,
             trigger: "hand_back",
             prompt: `[The user handed your screen back after your request: "${row.reason}".]${effectiveNote ? ` Their note: "${effectiveNote}".` : ""} Take a screenshot and continue the task.`,
             parentRunId: run.id,
@@ -476,7 +476,7 @@ export class TakeoverService {
         await enqueueRun(this.ctx, {
           id: continuationId(continuationRunId, run.id),
           chatId: run.chatId,
-          botId: run.teammateId,
+          teammateId: run.teammateId,
           trigger: "hand_back",
           prompt: `${message} Continue the task you were doing when the user took over.`,
           parentRunId: run.id,

@@ -27,7 +27,7 @@ Shared types and pure logic go in `packages/domain`, and schema changes go in `p
 - The lifecycle does no idle polling of the computer, and reading status must not wake it.
 - A timer, listener or connection started in `apps/worker/src/index.ts` registers its stop with the `Runtime` (`apps/worker/src/core/runtime.ts`), which stops everything in reverse at shutdown.
 - A request the worker refuses throws a `WorkerError` subclass (`apps/worker/src/core/errors.ts`); `apps/worker/src/core/errors.test.ts` fails on a new error class that doesn't extend it.
-- Row types shared across runs, services and tools (`Bot`, `Chat`, `Run`) are in `apps/worker/src/core/db-types.ts`.
+- Row types shared across runs, services and tools (`Teammate`, `Chat`, `Run`) are in `apps/worker/src/core/db-types.ts`.
 - `RunEventWriter` is the only way a session writes run events.
 - Swarm helpers are refused tools defined with `helpers: "forbidden"`; `apps/worker/src/tools/catalog.test.ts` lists them.
 - The worker refuses to start if account adapters and their definitions disagree (`packages/integrations/src/integration-registry.ts`).

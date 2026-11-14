@@ -73,7 +73,7 @@ export function nativeNotification(event: NotificationEvent): NativePush {
     body: body.length > MAX_BODY ? `${body.slice(0, MAX_BODY - 1)}…` : body,
     tag: event.approvalId ?? event.takeoverId ?? event.runId ?? event.id,
     url: nativeUrl(event),
-    ...(event.botId ? { botId: event.botId } : {}),
+    ...(event.teammateId ? { botId: event.teammateId } : {}),
     ...(event.chatId ? { chatId: event.chatId } : {}),
     ...(event.runId ? { runId: event.runId } : {}),
     ...(event.approvalId

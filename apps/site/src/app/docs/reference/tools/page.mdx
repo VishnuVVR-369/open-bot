@@ -52,44 +52,44 @@ They all fail with `user_has_control` while you hold the screen.
 
 ## Automations
 
-Each of these acts on the caller, or on the teammate given by `bot_id`.
+Each of these acts on the caller, or on the teammate given by `teammate_id`.
 Acting on another teammate may ask you first: see [Building the team](/docs/flows/teamwork#what-asks-you).
 
-| Tool                | Arguments                                                                                                                                                               | Does                                                                                                                  | Helpers |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------- |
-| `schedule_task`     | `bot_id?`, `title`, `prompt`, `cron?`, `at?`, `timezone?`, `quiet?`                                                                                                     | Creates a cron routine or a one-time reminder                                                                         | no      |
-| `watch_page`        | `bot_id?`, `title`, `url`, `prompt`, `every_minutes?`, `look_for?`                                                                                                      | Watches a page for changes, or for text to appear                                                                     | no      |
-| `create_webhook`    | `bot_id?`, `title`, `prompt`                                                                                                                                            | Creates a webhook URL. After a read from your accounts, it asks you first                                             | no      |
-| `watch_gmail`       | `bot_id?`, `title`, `prompt`, `query?`, `account?`                                                                                                                      | Wakes the teammate when new mail matching a Gmail search arrives, checked every 2 minutes                             | no      |
-| `watch_calendar`    | `bot_id?`, `title`, `prompt`, `lead_minutes?`, `events?`, `account?`                                                                                                    | Wakes the teammate a set time before each event (30 minutes by default), for `all` events or only those with `guests` | no      |
-| `list_automations`  | `bot_id?`                                                                                                                                                               | Lists schedules, watches, webhooks, and Gmail and Calendar triggers with ids                                          | yes     |
-| `update_automation` | `bot_id?`, `id`, `enabled?`, `title?`, `prompt?`, `cron?`, `at?`, `timezone?`, `url?`, `interval_minutes?`, `look_for?`, `query?`, `lead_minutes?`, `events?`, `quiet?` | Pauses, resumes or changes one                                                                                        | no      |
-| `cancel_automation` | `bot_id?`, `id`                                                                                                                                                         | Deletes one                                                                                                           | no      |
+| Tool                | Arguments                                                                                                                                                                    | Does                                                                                                                  | Helpers |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------- |
+| `schedule_task`     | `teammate_id?`, `title`, `prompt`, `cron?`, `at?`, `timezone?`, `quiet?`                                                                                                     | Creates a cron routine or a one-time reminder                                                                         | no      |
+| `watch_page`        | `teammate_id?`, `title`, `url`, `prompt`, `every_minutes?`, `look_for?`                                                                                                      | Watches a page for changes, or for text to appear                                                                     | no      |
+| `create_webhook`    | `teammate_id?`, `title`, `prompt`                                                                                                                                            | Creates a webhook URL. After a read from your accounts, it asks you first                                             | no      |
+| `watch_gmail`       | `teammate_id?`, `title`, `prompt`, `query?`, `account?`                                                                                                                      | Wakes the teammate when new mail matching a Gmail search arrives, checked every 2 minutes                             | no      |
+| `watch_calendar`    | `teammate_id?`, `title`, `prompt`, `lead_minutes?`, `events?`, `account?`                                                                                                    | Wakes the teammate a set time before each event (30 minutes by default), for `all` events or only those with `guests` | no      |
+| `list_automations`  | `teammate_id?`                                                                                                                                                               | Lists schedules, watches, webhooks, and Gmail and Calendar triggers with ids                                          | yes     |
+| `update_automation` | `teammate_id?`, `id`, `enabled?`, `title?`, `prompt?`, `cron?`, `at?`, `timezone?`, `url?`, `interval_minutes?`, `look_for?`, `query?`, `lead_minutes?`, `events?`, `quiet?` | Pauses, resumes or changes one                                                                                        | no      |
+| `cancel_automation` | `teammate_id?`, `id`                                                                                                                                                         | Deletes one                                                                                                           | no      |
 
 ## Teammates
 
 These create and configure permanent teammates. See [Building the team](/docs/flows/teamwork#building-the-team).
 
-| Tool                   | Arguments                                                                                                                   | Does                                                              | Helpers |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ------- |
-| `list_bots`            |                                                                                                                             | Lists teammates with ids, jobs, autonomy and chat links           | yes     |
-| `get_bot`              | `bot_id`                                                                                                                    | Reads a teammate's whole setup and its revision                   | yes     |
-| `list_bot_templates`   |                                                                                                                             | Lists the templates, with their skills and starter automations    | yes     |
-| `create_bot`           | `name?`, `role?`, `instructions?`, `emoji?`, `color?`, `autonomy?`, `template_id?`, `starter_ids?`, `skills?`, `schedules?` | Creates a teammate with its chat, skills and schedules            | no      |
-| `update_bot`           | `bot_id`, `expected_revision`, `changes`                                                                                    | Changes profile fields, failing on a stale revision               | no      |
-| `list_bot_connections` |                                                                                                                             | Lists connections and who may use them, without credentials       | yes     |
-| `set_bot_connection`   | `bot_id`, `connection_id`, `assigned`, `expected_revision`                                                                  | Gives a teammate a connection or takes it away, always asking you | no      |
+| Tool                        | Arguments                                                                                                                   | Does                                                              | Helpers |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ------- |
+| `list_teammates`            |                                                                                                                             | Lists teammates with ids, jobs, autonomy and chat links           | yes     |
+| `get_teammate`              | `teammate_id`                                                                                                               | Reads a teammate's whole setup and its revision                   | yes     |
+| `list_teammate_templates`   |                                                                                                                             | Lists the templates, with their skills and starter automations    | yes     |
+| `create_teammate`           | `name?`, `role?`, `instructions?`, `emoji?`, `color?`, `autonomy?`, `template_id?`, `starter_ids?`, `skills?`, `schedules?` | Creates a teammate with its chat, skills and schedules            | no      |
+| `update_teammate`           | `teammate_id`, `expected_revision`, `changes`                                                                               | Changes profile fields, failing on a stale revision               | no      |
+| `list_teammate_connections` |                                                                                                                             | Lists connections and who may use them, without credentials       | yes     |
+| `set_teammate_connection`   | `teammate_id`, `connection_id`, `assigned`, `expected_revision`                                                             | Gives a teammate a connection or takes it away, always asking you | no      |
 
 ## Teamwork
 
-| Tool             | Arguments                                              | Does                                                      | Helpers |
-| ---------------- | ------------------------------------------------------ | --------------------------------------------------------- | ------- |
-| `ask_teammate`   | `bot`, `question`                                      | Asks another teammate; the answer comes back as a new run | no      |
-| `handoff_to_bot` | `bot`, `message`                                       | In a group chat, passes a request to another teammate     | no      |
-| `list_tasks`     |                                                        | Reads the task board                                      | yes     |
-| `add_task`       | `title`, `notes?`, `owner?`, `due?`, `start?`          | Adds a task, and optionally starts its owner on it        | no      |
-| `update_task`    | `id`, `status?`, `title?`, `notes?`, `owner?`, `due?`  | Moves, reassigns or edits a task                          | no      |
-| `start_swarm`    | `title`, `tasks` (2 to 6 of `{ title, instructions }`) | Splits a job across parallel helpers                      | no      |
+| Tool                  | Arguments                                              | Does                                                      | Helpers |
+| --------------------- | ------------------------------------------------------ | --------------------------------------------------------- | ------- |
+| `ask_teammate`        | `teammate`, `question`                                 | Asks another teammate; the answer comes back as a new run | no      |
+| `handoff_to_teammate` | `teammate`, `message`                                  | In a group chat, passes a request to another teammate     | no      |
+| `list_tasks`          |                                                        | Reads the task board                                      | yes     |
+| `add_task`            | `title`, `notes?`, `owner?`, `due?`, `start?`          | Adds a task, and optionally starts its owner on it        | no      |
+| `update_task`         | `id`, `status?`, `title?`, `notes?`, `owner?`, `due?`  | Moves, reassigns or edits a task                          | no      |
+| `start_swarm`         | `title`, `tasks` (2 to 6 of `{ title, instructions }`) | Splits a job across parallel helpers                      | no      |
 
 ## Memory and history
 
@@ -104,9 +104,9 @@ These create and configure permanent teammates. See [Building the team](/docs/fl
 
 ## Skills
 
-| Tool         | Arguments                                                                      | Does                                                                                             | Helpers |
-| ------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ | ------- |
-| `save_skill` | `bot_id?`, `skill_id?`, `name`, `description`, `instructions`, `for_everyone?` | Saves a reusable procedure, invoked later with `/name`, for itself, another teammate or everyone | no      |
+| Tool         | Arguments                                                                           | Does                                                                                             | Helpers |
+| ------------ | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------- |
+| `save_skill` | `teammate_id?`, `skill_id?`, `name`, `description`, `instructions`, `for_everyone?` | Saves a reusable procedure, invoked later with `/name`, for itself, another teammate or everyone | no      |
 
 ## Pages
 

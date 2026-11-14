@@ -97,7 +97,7 @@ export class SwarmService {
     const [running] = await this.ctx.db
       .select({ id: swarms.id })
       .from(swarms)
-      .where(and(eq(swarms.teammateId, session.bot.id), eq(swarms.status, "running")))
+      .where(and(eq(swarms.teammateId, session.teammate.id), eq(swarms.status, "running")))
       .limit(1);
     if (running)
       throw new SwarmError(
@@ -108,7 +108,7 @@ export class SwarmService {
       const [swarm] = await tx
         .insert(swarms)
         .values({
-          teammateId: session.bot.id,
+          teammateId: session.teammate.id,
           chatId: session.chat.id,
           runId: session.run.id,
           itemId: input.itemId,
@@ -120,7 +120,7 @@ export class SwarmService {
         const chatId = await addChat(tx, {
           kind: "helper",
           title: part.title,
-          teammateId: session.bot.id,
+          teammateId: session.teammate.id,
         });
         const [task] = await tx
           .insert(swarmTasks)
@@ -133,9 +133,9 @@ export class SwarmService {
     for (const [index, task] of tasks.entries()) {
       const runId = await enqueueRun(this.ctx, {
         chatId: task.chatId!,
-        botId: session.bot.id,
+        teammateId: session.teammate.id,
         trigger: "swarm",
-        prompt: helperPrompt(swarm, task, index, tasks.length, session.bot.name),
+        prompt: helperPrompt(swarm, task, index, tasks.length, session.teammate.name),
         parentRunId: session.run.id,
         // Each helper works on a screen of its own, named after its part.
         screenId: task.id,
@@ -210,7 +210,7 @@ export class SwarmService {
       : [];
     await enqueueRun(this.ctx, {
       chatId: swarm.chatId,
-      botId: swarm.teammateId,
+      teammateId: swarm.teammateId,
       trigger: "swarm_results",
       readOutsideData: Boolean(tainted),
       prompt: `[Swarm results: "${swarm.title}"]\n\nYour ${tasks.length} helpers finished. Merge their results into one answer for the user: compare, dedupe and check them, say what's missing, and finish the job you split up.\n\n${parts}`,

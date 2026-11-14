@@ -12,7 +12,7 @@ import {
 } from "@open-bot/domain";
 import { eq } from "drizzle-orm";
 import type { Context } from "../../context";
-import type { Bot, Chat, Run } from "../../core/db-types";
+import type { Teammate, Chat, Run } from "../../core/db-types";
 import { createNotification } from "../../features/notifications";
 import { errorMessage } from "../../logger";
 import type { MemoryService } from "@open-bot/memory";
@@ -51,10 +51,10 @@ export interface SessionServices {
   /** Marks the chat as active now, when the run has finished. */
   touchChat: (chatId: string) => Promise<void>;
   /** The saved skills a text invokes with `/name`. */
-  skillInputs: (text: string, botId: string) => Promise<v2.UserInput[]>;
-  /** The MCP servers the bot may use, as Codex config, and a key that changes with them. */
+  skillInputs: (text: string, teammateId: string) => Promise<v2.UserInput[]>;
+  /** The MCP servers the teammate may use, as Codex config, and a key that changes with them. */
   connections: (
-    botId: string,
+    teammateId: string,
   ) => Promise<{ key: string; config: NonNullable<v2.ThreadStartParams["config"]> }>;
   model: ModelAccess;
   /**
@@ -62,12 +62,12 @@ export interface SessionServices {
    * package, since importing the feature would close a cycle through its tools.
    */
   memory: { store: MemoryService; ai: { config: { extractionUrl?: string | undefined } } };
-  /** Writes the bot's workspace; returns the AGENTS.md it wrote. */
+  /** Writes the teammate's workspace; returns the AGENTS.md it wrote. */
   prepareWorkspace: () => Promise<string>;
 }
 
 /**
- * Executes one run: a single Codex turn for one bot in one chat.
+ * Executes one run: a single Codex turn for one teammate in one chat.
  * State the session's own modules read is not private; feature code uses only what it documents.
  */
 export class RunSession {
@@ -103,7 +103,7 @@ export class RunSession {
     readonly ctx: Context,
     readonly services: SessionServices,
     readonly run: Run,
-    readonly bot: Bot,
+    readonly teammate: Teammate,
     readonly chat: Chat,
   ) {
     this.writer = new RunEventWriter(ctx.db, ctx.pool, run.id, run.chatId, (error) =>
@@ -114,8 +114,8 @@ export class RunSession {
   get identity() {
     return {
       runId: this.run.id,
-      botId: this.bot.id,
-      botName: this.bot.name,
+      botId: this.teammate.id,
+      botName: this.teammate.name,
       ...(this.run.screenId ? { screenId: this.run.screenId } : {}),
     };
   }
@@ -126,7 +126,7 @@ export class RunSession {
   }
 
   get workspace(): string {
-    return COMPUTER_PATHS.workspace(this.bot.slug);
+    return COMPUTER_PATHS.workspace(this.teammate.slug);
   }
 
   now(): string {
@@ -193,7 +193,7 @@ export class RunSession {
         const prompt = await this.services.buildPrompt(this);
         const input: v2.UserInput[] = [
           { type: "text", text: prompt, text_elements: [] },
-          ...(await this.services.skillInputs(run.prompt, this.bot.id)),
+          ...(await this.services.skillInputs(run.prompt, this.teammate.id)),
         ];
         for (const attachment of run.attachments) {
           if (attachment.mime.startsWith("image/"))
@@ -274,7 +274,7 @@ export class RunSession {
       this.cleanup.push(() => this.unregisterThread?.());
     }
     const completion = new Promise<Outcome>((resolve) => (this.finish = resolve));
-    const currentGeneration = await this.services.memory.store.generation(this.bot.id);
+    const currentGeneration = await this.services.memory.store.generation(this.teammate.id);
     const [latestRun] = await ctx.db
       .select({ cancelRequestedAt: runs.cancelRequestedAt })
       .from(runs)
@@ -293,9 +293,9 @@ export class RunSession {
     const { turn } = await client.request("turn/start", {
       threadId,
       input,
-      approvalPolicy: approvalPolicy(this.bot),
-      model: this.bot.model,
-      effort: this.bot.reasoningEffort as v2.TurnStartParams["effort"],
+      approvalPolicy: approvalPolicy(this.teammate),
+      model: this.teammate.model,
+      effort: this.teammate.reasoningEffort as v2.TurnStartParams["effort"],
       turnTrigger: run.trigger,
     });
     this.turnId = turn.id;
@@ -313,7 +313,7 @@ export class RunSession {
   }
 
   /**
-   * Add a message to the bot's current turn: one you sent while it works, or your hand-back note.
+   * Add a message to the teammate's current turn: one you sent while it works, or your hand-back note.
    * Returns false if the turn already ended.
    */
   async steer(
@@ -328,7 +328,7 @@ export class RunSession {
         expectedTurnId: this.turnId,
         input: [
           { type: "text", text, text_elements: [] },
-          ...(await this.services.skillInputs(text, this.bot.id)),
+          ...(await this.services.skillInputs(text, this.teammate.id)),
         ],
       });
     } catch (error) {

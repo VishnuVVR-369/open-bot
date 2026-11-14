@@ -1,5 +1,5 @@
 // Teammate tools: list, read, create and change teammates, their connections, and proposing new
-// instructions for yourself. Creating and changing go through BotTools (./changes.ts), which asks.
+// instructions for yourself. Creating and changing go through TeammateTools (./changes.ts), which asks.
 import { teammates } from "@open-bot/db";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
@@ -15,17 +15,17 @@ import {
 import { targetTeammate } from "../../core/targets";
 import type { RunSession } from "../../runs/session";
 import { createNotification } from "../notifications";
-import type { BotTools } from "./changes";
-import type { BotService } from "./service";
+import type { TeammateTools } from "./changes";
+import type { TeammateService } from "./service";
 
 /** What the teammate tools use. */
 interface TeammateToolDeps {
   ctx: Pick<Context, "db" | "pool" | "events">;
-  teammates: Pick<BotService, "proposeInstructions">;
-  botTools: BotTools;
+  teammates: Pick<TeammateService, "proposeInstructions">;
+  teammateTools: TeammateTools;
 }
 
-/** A teammate's profile fields, as create_bot and update_bot take them. */
+/** A teammate's profile fields, as create_teammate and update_teammate take them. */
 const profileFields = {
   name: z.string().min(1).max(40).optional(),
   role: z.string().min(1).max(80).optional(),
@@ -50,19 +50,19 @@ const profileFields = {
 };
 
 /**
- * Runs a teammate tool through BotTools and answers with its result as JSON. A change also shows
+ * Runs a teammate tool through TeammateTools and answers with its result as JSON. A change also shows
  * in the chat's timeline under `label`.
  */
 function teammateTool<Input extends z.ZodObject = z.ZodObject>(
   name: string,
   run: (
-    botTools: BotTools,
+    teammateTools: TeammateTools,
     call: ToolCall<z.output<Input>>,
   ) => Promise<{ result: unknown; label?: string | undefined }>,
 ): ToolDefinition<Input, TeammateToolDeps>["handle"] {
   return async (call, deps) => {
     const startedAt = call.session.now();
-    const { result, label } = await run(deps.botTools, call);
+    const { result, label } = await run(deps.teammateTools, call);
     if (label)
       call.session.putItem({
         ...toolItem(call.callId, name, label, call.raw, startedAt),
@@ -73,11 +73,11 @@ function teammateTool<Input extends z.ZodObject = z.ZodObject>(
   };
 }
 
-const getTeammateInput = z.object({ bot_id: targetTeammate });
+const getTeammateInput = z.object({ teammate_id: targetTeammate });
 
 const setConnectionInput = z.object({
-  bot_id: targetTeammate,
-  connection_id: z.string().uuid("Use a connection id from list_bot_connections."), // vocabulary: allow
+  teammate_id: targetTeammate,
+  connection_id: z.string().uuid("Use a connection id from list_teammate_connections."),
   assigned: z.boolean(),
   expected_revision: z.string().min(1).max(128),
 });
@@ -124,88 +124,93 @@ const createTeammateInput = z.object({
 });
 
 const updateTeammateInput = z.object({
-  bot_id: targetTeammate,
+  teammate_id: targetTeammate,
   expected_revision: z.string().min(1).max(128),
   changes: z.object(profileFields).meta({ minProperties: 1 }),
 });
 
 export const TEAMMATE_TOOLS: ToolDefinition<z.ZodObject, TeammateToolDeps>[] = [
   defineTool({
-    name: "list_bots",
+    name: "list_teammates",
     description:
       "List the user's teammates (you included) with their ids, names, jobs, autonomy and chat links. Check it before creating a teammate, so you adjust one that already does the job instead of adding a second.",
     input: z.object({}),
     helpers: "allowed",
-    handle: teammateTool("list_bots", async (botTools) => ({ result: await botTools.bots.list() })),
-  }),
-  defineTool({
-    name: "get_bot",
-    description:
-      "Read a teammate's whole setup: profile, instructions, skills, schedules, page watches, webhooks, the connections it can use, and its revision for update_bot.",
-    input: getTeammateInput,
-    helpers: "allowed",
-    handle: teammateTool<typeof getTeammateInput>("get_bot", async (botTools, { args }) => ({
-      result: await botTools.bots.get(args.bot_id),
+    handle: teammateTool("list_teammates", async (teammateTools) => ({
+      result: await teammateTools.teammates.list(),
     })),
   }),
   defineTool({
-    name: "list_bot_templates",
+    name: "get_teammate",
+    description:
+      "Read a teammate's whole setup: profile, instructions, skills, schedules, page watches, webhooks, the connections it can use, and its revision for update_teammate.",
+    input: getTeammateInput,
+    helpers: "allowed",
+    handle: teammateTool<typeof getTeammateInput>(
+      "get_teammate",
+      async (teammateTools, { args }) => ({
+        result: await teammateTools.teammates.get(args.teammate_id),
+      }),
+    ),
+  }),
+  defineTool({
+    name: "list_teammate_templates",
     description:
       "Discover teammate templates, including their instructions, skills and optional starter automations and IDs.",
     input: z.object({}),
     helpers: "allowed",
-    handle: teammateTool("list_bot_templates", async (botTools) => ({
-      result: botTools.bots.templates(),
+    handle: teammateTool("list_teammate_templates", async (teammateTools) => ({
+      result: teammateTools.teammates.templates(),
     })),
   }),
   defineTool({
-    name: "create_bot",
+    name: "create_teammate",
     description:
-      "Create a permanent teammate with its own chat. Give a name and role, or a template_id from list_bot_templates (fields you give override it). Include the skills and schedules it should start with, so the user approves the whole teammate at once. The template's skills come along; its starter automations only with starter_ids. Returns its id and chat link, and anything that couldn't be set up: add those with save_skill or schedule_task and its bot_id, never by creating it again.",
+      "Create a permanent teammate with its own chat. Give a name and role, or a template_id from list_teammate_templates (fields you give override it). Include the skills and schedules it should start with, so the user approves the whole teammate at once. The template's skills come along; its starter automations only with starter_ids. Returns its id and chat link, and anything that couldn't be set up: add those with save_skill or schedule_task and its teammate_id, never by creating it again.",
     input: createTeammateInput,
     helpers: "forbidden",
     handle: teammateTool<typeof createTeammateInput>(
-      "create_bot",
-      async (botTools, { session, callId, raw }) => {
-        const result = await botTools.create(session, callId, raw);
+      "create_teammate",
+      async (teammateTools, { session, callId, raw }) => {
+        const result = await teammateTools.create(session, callId, raw);
         return { result, label: `Created the teammate ${result.name}` };
       },
     ),
   }),
   defineTool({
-    name: "update_bot",
+    name: "update_teammate",
     description:
-      "Change a teammate's profile or instructions when the user asks. get_bot first, then send only the changed fields and its revision as expected_revision; a stale revision is refused. Changes apply from the teammate's next message, not a reply already under way. For improvements to yourself that the user didn't ask for, use propose_instructions.",
+      "Change a teammate's profile or instructions when the user asks. get_teammate first, then send only the changed fields and its revision as expected_revision; a stale revision is refused. Changes apply from the teammate's next message, not a reply already under way. For improvements to yourself that the user didn't ask for, use propose_instructions.",
     input: updateTeammateInput,
     helpers: "forbidden",
     handle: teammateTool<typeof updateTeammateInput>(
-      "update_bot",
-      async (botTools, { session, callId, raw }) => {
-        const { result, name } = await botTools.update(session, callId, raw);
+      "update_teammate",
+      async (teammateTools, { session, callId, raw }) => {
+        const { result, name } = await teammateTools.update(session, callId, raw);
         return { result, label: `Updated ${name}'s profile` };
       },
     ),
   }),
   defineTool({
-    name: "list_bot_connections",
+    name: "list_teammate_connections",
     description:
-      "List the user's connected services (MCP servers) by id, label, whether they're on, which teammates may use them (botIds null: every teammate) and revision. Never includes credentials.",
+      "List the user's connected services (MCP servers) by id, label, whether they're on, which teammates may use them (teammateIds null: every teammate) and revision. Never includes credentials.",
     input: z.object({}),
     helpers: "allowed",
-    handle: teammateTool("list_bot_connections", async (botTools) => ({
-      result: await botTools.bots.listConnections(),
+    handle: teammateTool("list_teammate_connections", async (teammateTools) => ({
+      result: await teammateTools.teammates.listConnections(),
     })),
   }),
   defineTool({
-    name: "set_bot_connection",
+    name: "set_teammate_connection",
     description:
-      "Let a teammate use one of the user's connections, or stop it. Always asks the user. Use the revision from list_bot_connections as expected_revision. It can't add connections or turn one on, and a connection shared with every teammate is limited in Settings by the user. Applies from the teammate's next message.",
+      "Let a teammate use one of the user's connections, or stop it. Always asks the user. Use the revision from list_teammate_connections as expected_revision. It can't add connections or turn one on, and a connection shared with every teammate is limited in Settings by the user. Applies from the teammate's next message.",
     input: setConnectionInput,
     helpers: "forbidden",
     handle: teammateTool<typeof setConnectionInput>(
-      "set_bot_connection",
-      async (botTools, { session, callId, raw }) => {
-        const result = await botTools.setConnection(session, callId, raw);
+      "set_teammate_connection",
+      async (teammateTools, { session, callId, raw }) => {
+        const result = await teammateTools.setConnection(session, callId, raw);
         return { result, label: "unchanged" in result ? undefined : "Changed a teammate's access" };
       },
     ),
@@ -242,15 +247,15 @@ async function proposeInstructions(
   raw: Record<string, unknown>,
 ): Promise<ToolResponse> {
   const { instructions: proposed, reason } = args;
-  const [bot] = await deps.ctx.db
+  const [teammate] = await deps.ctx.db
     .select({ instructions: teammates.instructions })
     .from(teammates)
-    .where(eq(teammates.id, session.bot.id));
-  const current = bot?.instructions ?? "";
+    .where(eq(teammates.id, session.teammate.id));
+  const current = teammate?.instructions ?? "";
   if (proposed === current.trim()) return text("That's the same as your instructions now.", false);
   // A newer suggestion replaces one the user hasn't looked at yet.
   await deps.teammates.proposeInstructions({
-    teammateId: session.bot.id,
+    teammateId: session.teammate.id,
     current,
     proposed,
     reason,
@@ -258,9 +263,9 @@ async function proposeInstructions(
   });
   await createNotification(deps.ctx, {
     kind: "bot_message",
-    title: `${session.bot.name} suggests new instructions`,
+    title: `${session.teammate.name} suggests new instructions`,
     body: reason,
-    botId: session.bot.id,
+    teammateId: session.teammate.id,
     chatId: session.chat.id,
     runId: session.run.id,
   });

@@ -97,7 +97,7 @@ export async function handle(service: TelegramInbox, update: TgUpdate) {
 }
 
 export async function helpText(service: TelegramClient): Promise<string> {
-  const lead = await leadBot(service);
+  const lead = await leadTeammate(service);
   return [
     "<b>Talking to your teammates</b>",
     `• Just write: it goes to the teammate you last talked to${lead ? `, or ${escapeHtml(lead.name)} to start` : ""}.`,
@@ -117,19 +117,19 @@ export async function teamText(service: TelegramClient): Promise<string> {
     .orderBy(asc(teammates.createdAt));
   if (rows.length === 0) return "You have no teammates yet. Create one in open-bot.";
   const active = await service.ctx.db
-    .select({ botId: runs.teammateId, status: runs.status })
+    .select({ teammateId: runs.teammateId, status: runs.status })
     .from(runs)
     .where(inArray(runs.status, ["queued", "starting", "running", "waiting"]));
   return rows
-    .map((bot) => {
-      const run = active.find((r) => r.botId === bot.id);
+    .map((teammate) => {
+      const run = active.find((r) => r.teammateId === teammate.id);
       const state = !run ? "free" : run.status === "waiting" ? "waiting for you" : "working";
-      return `<b>${escapeHtml(bot.name)}</b>, ${escapeHtml(bot.role)} · ${state}`;
+      return `<b>${escapeHtml(teammate.name)}</b>, ${escapeHtml(teammate.role)} · ${state}`;
     })
     .join("\n");
 }
 
-export async function leadBot(service: TelegramClient) {
+export async function leadTeammate(service: TelegramClient) {
   const [lead] = await service.ctx.db
     .select({ id: teammates.id, name: teammates.name })
     .from(teammates)
@@ -165,11 +165,11 @@ export async function route(
     .from(teammates)
     .where(isNull(teammates.archivedAt));
   // "Rex: …", "Rex, …" or "@Rex …" picks a teammate. Longer names first, so "Al Bot" beats "Al".
-  for (const bot of [...team].sort((a, b) => b.name.length - a.name.length)) {
-    const name = bot.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  for (const teammate of [...team].sort((a, b) => b.name.length - a.name.length)) {
+    const name = teammate.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const match = new RegExp(`^@?${name}(?:[:,]\\s*|\\s+)([\\s\\S]*)$`, "i").exec(text);
     if (match) {
-      return { chatId: await mainChat(service.ctx, bot.id), text: match[1]!.trim() };
+      return { chatId: await mainChat(service.ctx, teammate.id), text: match[1]!.trim() };
     }
   }
   if (lastChatId) {
@@ -179,7 +179,7 @@ export async function route(
       .where(and(eq(chats.id, lastChatId), isNull(chats.archivedAt)));
     if (chat) return { chatId: chat.id, text };
   }
-  const lead = await leadBot(service);
+  const lead = await leadTeammate(service);
   return lead ? { chatId: await mainChat(service.ctx, lead.id), text } : null;
 }
 

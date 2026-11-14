@@ -48,7 +48,7 @@ import { TakeoverService } from "./features/screens";
 import { TelegramService, telegramFeature } from "./features/telegram";
 import { PageService } from "./features/pages";
 import { ToolHandlers } from "./tools/handlers";
-import { BotService } from "./features/teammates";
+import { TeammateService } from "./features/teammates";
 import { Integrations } from "@open-bot/integrations/adapters";
 import {
   AccountAccess,
@@ -116,9 +116,15 @@ const swarms = new SwarmService(ctx, sessions);
 const uploads = new UploadService(db, computerFiles(ctx), log.child("uploads"));
 const email = new EmailService(ctx, approvals, sessions, uploads);
 const emailJobs = emailFeature(email, log);
-const botService = new BotService(ctx, schedules, skills, memory.store, async (bot) => {
-  await executor.syncWorkspace(bot);
-});
+const teammateService = new TeammateService(
+  ctx,
+  schedules,
+  skills,
+  memory.store,
+  async (teammate) => {
+    await executor.syncWorkspace(teammate);
+  },
+);
 const pages = new PageService(ctx);
 const accountAccess = new AccountAccess(ctx);
 const integrations = Integrations.create({ db: ctx.db, endpoints: accountAccess.store.endpoints });
@@ -143,7 +149,7 @@ const tools = new ToolHandlers({
   swarms,
   email,
   memory,
-  teammates: botService,
+  teammates: teammateService,
   pages,
   accounts: accountTools,
 });
@@ -416,7 +422,7 @@ runtime.every(
 const chats = new ChatService(ctx, (messageId) => executor.dispatchMessage(messageId));
 const server = createHttpServer({
   ctx,
-  teammates: botService,
+  teammates: teammateService,
   chats,
   runRequests: new RunRequests(ctx, chats, memory.store, () => executor.processCancellations()),
   executor,

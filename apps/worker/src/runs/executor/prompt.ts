@@ -24,7 +24,7 @@ export interface PromptExecutor {
 }
 
 export async function buildPrompt(executor: PromptExecutor, session: RunSession): Promise<string> {
-  const { run, chat, bot } = session;
+  const { run, chat, teammate } = session;
   const timeZone = await ownerTimeZone(executor.ctx.db);
   const now = new Intl.DateTimeFormat("en-GB", {
     timeZone,
@@ -43,11 +43,11 @@ export async function buildPrompt(executor: PromptExecutor, session: RunSession)
       .from(chatMembers)
       .innerJoin(teammateRows, eq(teammateRows.id, chatMembers.teammateId))
       .where(and(eq(chatMembers.chatId, chat.id), isNull(teammateRows.archivedAt)));
-    const teammates = members.filter((member) => member.id !== bot.id);
+    const teammates = members.filter((member) => member.id !== teammate.id);
     lines.push(
-      `[Group chat "${chat.title}". Teammates here: ${teammates.map((t) => `${t.name} (${t.role})`).join(", ") || "none"}. Use handoff_to_bot when a teammate's job fits a request better.]`,
+      `[Group chat "${chat.title}". Teammates here: ${teammates.map((t) => `${t.name} (${t.role})`).join(", ") || "none"}. Use handoff_to_teammate when a teammate's job fits a request better.]`,
     );
-    const recent = await recentGroupContext(executor, run, bot.id);
+    const recent = await recentGroupContext(executor, run, teammate.id);
     if (recent) lines.push(`[Since you last spoke in this chat:]\n${recent}`);
   }
 
@@ -61,7 +61,7 @@ export async function buildPrompt(executor: PromptExecutor, session: RunSession)
   if (memory) lines.push(memory);
 
   // Rules you add mid-conversation reach a thread that already read its AGENTS.md.
-  const allowed = allowedList(await executor.approvals.rulesFor(bot.id));
+  const allowed = allowedList(await executor.approvals.rulesFor(teammate.id));
   if (allowed)
     lines.push(`[The user always allows these without asking for approval:]\n${allowed}`);
 
@@ -82,20 +82,20 @@ async function titled(executor: PromptExecutor, chatId: string): Promise<boolean
   return row?.titled ?? true;
 }
 
-/** What the user and other bots said in a group chat since this bot's last run. */
+/** What the user and other teammates said in a group chat since this teammate's last run. */
 async function recentGroupContext(
   executor: PromptExecutor,
   run: Run,
-  botId: string,
+  teammateId: string,
 ): Promise<string | null> {
   const [last] = await executor.ctx.db
     .select({ createdAt: runs.createdAt })
     .from(runs)
-    .where(and(eq(runs.chatId, run.chatId), eq(runs.teammateId, botId), ne(runs.id, run.id)))
+    .where(and(eq(runs.chatId, run.chatId), eq(runs.teammateId, teammateId), ne(runs.id, run.id)))
     .orderBy(desc(runs.createdAt))
     .limit(1);
   const since = last?.createdAt ?? new Date(0);
-  const [userMessages, botReplies] = await Promise.all([
+  const [userMessages, teammateReplies] = await Promise.all([
     executor.ctx.db
       .select({ text: messages.text, createdAt: messages.createdAt, id: messages.id })
       .from(messages)
@@ -115,7 +115,7 @@ async function recentGroupContext(
       .where(
         and(
           eq(runs.chatId, run.chatId),
-          ne(runs.teammateId, botId),
+          ne(runs.teammateId, teammateId),
           isNotNull(runs.finalText),
           gt(runs.createdAt, since),
         ),
@@ -127,7 +127,7 @@ async function recentGroupContext(
     ...userMessages
       .filter((message) => message.id !== run.messageId)
       .map((message) => ({ at: message.createdAt, line: `User: ${message.text}` })),
-    ...botReplies.map((reply) => ({
+    ...teammateReplies.map((reply) => ({
       at: reply.createdAt ?? new Date(),
       line: `${reply.name}: ${reply.text}`,
     })),

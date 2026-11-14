@@ -23,7 +23,7 @@ export interface DispatchExecutor {
 }
 
 /**
- * Route a message you sent: join a bot's running turn, or start a run. Safe to call more than
+ * Route a message you sent: join a teammate's running turn, or start a run. Safe to call more than
  * once for the same message: each teammate is claimed in `message_dispatches` before it gets the
  * message, so it gets it once.
  */
@@ -46,7 +46,7 @@ export async function dispatchMessage(
     message.redoOfRunId
   ) {
     const [source] = await executor.ctx.db
-      .select({ botId: runs.teammateId })
+      .select({ teammateId: runs.teammateId })
       .from(runs)
       .where(eq(runs.id, message.redoOfRunId));
     if (!source) throw new Error("The reply this feedback belongs to is gone.");
@@ -54,7 +54,7 @@ export async function dispatchMessage(
     // Keep the message pending until this succeeds so the reconciler can recover a crash.
     await executor.memory.store.save(
       {
-        teammateId: source.botId,
+        teammateId: source.teammateId,
         kind: "lesson",
         content: message.feedbackRequest.text,
         key: null,
@@ -84,15 +84,15 @@ export async function dispatchMessage(
   const prompt = message.redoOfRunId ? redoPrompt(message.text) : message.text;
 
   let delivered = false;
-  for (const botId of targets) {
-    const session = executor.sessions.find(chat.id, botId);
+  for (const teammateId of targets) {
+    const session = executor.sessions.find(chat.id, teammateId);
     if (session && message.attachments.length === 0) {
       // Claim the teammate before steering: a steer can't be undone or repeated safely.
       const [claimed] = await executor.ctx.db
         .insert(messageDispatches)
-        .values({ messageId: message.id, teammateId: botId, kind: "steer", status: "sending" })
+        .values({ messageId: message.id, teammateId, kind: "steer", status: "sending" })
         .onConflictDoNothing()
-        .returning({ botId: messageDispatches.teammateId });
+        .returning({ teammateId: messageDispatches.teammateId });
       if (!claimed) continue;
       if (await session.steer(message.id, prompt)) {
         await markSteered(executor.ctx.db, message.id, session.run.id);
@@ -102,18 +102,18 @@ export async function dispatchMessage(
           .where(
             and(
               eq(messageDispatches.messageId, message.id),
-              eq(messageDispatches.teammateId, botId),
+              eq(messageDispatches.teammateId, teammateId),
             ),
           );
         delivered = true;
         continue;
       }
       // The turn ended or refused the steer: it becomes a run of its own.
-      await queueRun(executor, message, botId, prompt, { claimed: true });
+      await queueRun(executor, message, teammateId, prompt, { claimed: true });
       delivered = true;
       continue;
     }
-    if (await queueRun(executor, message, botId, prompt, { claimed: false })) delivered = true;
+    if (await queueRun(executor, message, teammateId, prompt, { claimed: false })) delivered = true;
   }
   const first = await markDispatched(executor.ctx.db, message.id);
   if (delivered || first) {
@@ -130,7 +130,7 @@ export async function dispatchMessage(
 async function queueRun(
   executor: DispatchExecutor,
   message: typeof messages.$inferSelect,
-  botId: string,
+  teammateId: string,
   prompt: string,
   { claimed }: { claimed: boolean },
 ): Promise<boolean> {
@@ -142,23 +142,23 @@ async function queueRun(
         .where(
           and(
             eq(messageDispatches.messageId, message.id),
-            eq(messageDispatches.teammateId, botId),
+            eq(messageDispatches.teammateId, teammateId),
             eq(messageDispatches.status, "sending"),
           ),
         )
-        .returning({ botId: messageDispatches.teammateId });
+        .returning({ teammateId: messageDispatches.teammateId });
       if (!row) return null;
     } else {
       const [row] = await tx
         .insert(messageDispatches)
-        .values({ messageId: message.id, teammateId: botId, kind: "run", status: "done" })
+        .values({ messageId: message.id, teammateId, kind: "run", status: "done" })
         .onConflictDoNothing()
-        .returning({ botId: messageDispatches.teammateId });
+        .returning({ teammateId: messageDispatches.teammateId });
       if (!row) return null;
     }
     const id = await insertRun(tx, {
       chatId: message.chatId,
-      botId,
+      teammateId,
       trigger: "user",
       prompt,
       attachments: message.attachments,
@@ -168,7 +168,10 @@ async function queueRun(
       .update(messageDispatches)
       .set({ runId: id })
       .where(
-        and(eq(messageDispatches.messageId, message.id), eq(messageDispatches.teammateId, botId)),
+        and(
+          eq(messageDispatches.messageId, message.id),
+          eq(messageDispatches.teammateId, teammateId),
+        ),
       );
     return id;
   });
@@ -184,13 +187,13 @@ async function queueRun(
  */
 export async function recoverSteers(executor: DispatchExecutor): Promise<void> {
   const rows = await executor.ctx.db
-    .select({ message: messages, botId: messageDispatches.teammateId })
+    .select({ message: messages, teammateId: messageDispatches.teammateId })
     .from(messageDispatches)
     .innerJoin(messages, eq(messages.id, messageDispatches.messageId))
     .where(and(eq(messageDispatches.kind, "steer"), eq(messageDispatches.status, "sending")));
-  for (const { message, botId } of rows) {
+  for (const { message, teammateId } of rows) {
     const prompt = message.redoOfRunId ? redoPrompt(message.text) : message.text;
-    await queueRun(executor, message, botId, prompt, { claimed: true });
+    await queueRun(executor, message, teammateId, prompt, { claimed: true });
   }
   if (rows.length)
     executor.ctx.log.warn(`queued ${rows.length} messages whose steer the restart interrupted`);

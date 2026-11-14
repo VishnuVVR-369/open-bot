@@ -214,7 +214,7 @@ describe.skipIf(!url)("uploads with Postgres", () => {
 
   it("keeps a file a run uses, like an email's, and removes one nothing used", async () => {
     const [chat] = await db.insert(chats).values({ kind: "inbox", title: "Email" }).returning();
-    const [bot] = await db
+    const [teammate] = await db
       .insert(teammates)
       .values({ name: "Iris", slug: "iris", role: "assistant", color: "violet" })
       .returning();
@@ -231,7 +231,7 @@ describe.skipIf(!url)("uploads with Postgres", () => {
     });
     await db.insert(runs).values({
       chatId: chat!.id,
-      teammateId: bot!.id,
+      teammateId: teammate!.id,
       trigger: "email",
       prompt: "An email",
       attachments: [emailed],

@@ -53,7 +53,7 @@ export const TASK_TOOLS: ToolDefinition<z.ZodObject, TaskToolDeps>[] = [
       "Read the team's task board: open tasks with their ids, owners and due dates, and what was done recently.",
     input: z.object({}),
     helpers: "allowed",
-    handle: async ({ session }, deps) => text(await deps.tasks.describe(session.bot.id)),
+    handle: async ({ session }, deps) => text(await deps.tasks.describe(session.teammate.id)),
   }),
   defineTool({
     name: "add_task",
@@ -82,14 +82,14 @@ async function ownerFrom(
   if (value === undefined) return undefined;
   const name = value.trim();
   if (!name) return { id: null, name: null };
-  if (name.toLowerCase() === "me") return { id: session.bot.id, name: session.bot.name };
+  if (name.toLowerCase() === "me") return { id: session.teammate.id, name: session.teammate.name };
   const team = await activeTeammates(deps.ctx.db);
-  const bot = team.find((entry) => entry.name.toLowerCase() === name.toLowerCase());
-  if (!bot)
+  const teammate = team.find((entry) => entry.name.toLowerCase() === name.toLowerCase());
+  if (!teammate)
     throw new TaskError(
       `No teammate named "${name}". Teammates: ${team.map((entry) => entry.name).join(", ")}.`,
     );
-  return bot;
+  return teammate;
 }
 
 async function addTask(
@@ -108,12 +108,12 @@ async function addTask(
       ownerTeammateId: owner?.id ?? null,
       dueOn: args.due ?? null,
       createdBy: "bot",
-      createdByBotId: session.bot.id,
+      createdByTeammateId: session.teammate.id,
     });
-    const start = args.start && owner?.id && owner.id !== session.bot.id;
+    const start = args.start && owner?.id && owner.id !== session.teammate.id;
     if (start)
       task = await deps.tasks.start(task.id, {
-        botName: session.bot.name,
+        teammateName: session.teammate.name,
         runId: session.run.id,
       });
     session.putItem({
