@@ -218,10 +218,10 @@ describe("botd contract", () => {
     expect(screens.ensure).not.toHaveBeenCalled();
   });
 
-  it("refuses your lease's old routes with 404 and leaves the screen with its run", async () => {
+  it("refuses the old routes that take a screen for you with 404 and leaves it with its run", async () => {
     // A worker from before the run lease's rename calls these paths. If botd gave it the screen,
     // the worker couldn't read the run it took it from, and that run would never hear it back.
-    const { botd, url, running } = await start();
+    const { botd, url, running, screens } = await start();
     const screenId = randomUUID();
     await botd.screens.start({ screenId });
     const run = { runId: randomUUID(), teammateId: screenId, teammateName: "Ada" };
@@ -230,18 +230,35 @@ describe("botd contract", () => {
     const held = lease.holder;
     const preempted = vi.fn();
     lease.on("preempted", preempted);
-    for (const path of ["/lease/user/take", "/lease/user/touch", "/lease/user/release"]) {
+    const code = {
+      screenId,
+      takeoverId: randomUUID(),
+      operationId: randomUUID(),
+      expectedSite: "github.com",
+      pressEnter: true,
+      text: "582913",
+    };
+    const calls = [
+      ["/lease/user/take", { screenId }],
+      ["/lease/user/touch", { screenId }],
+      ["/lease/user/release", { screenId }],
+      ["/computer/type", code],
+    ] as const;
+    for (const [path, body] of calls) {
       const response = await fetch(`${url}${path}`, {
         method: "POST",
         headers: { authorization: `Bearer ${TOKEN}`, "content-type": "application/json" },
-        body: JSON.stringify({ screenId }),
+        body: JSON.stringify(body),
       });
       expect(response.status, path).toBe(404);
       expect(await response.json(), path).toEqual({ error: "not found", code: "NOT_FOUND" });
     }
     expect(lease.holder).toEqual(held);
     expect(preempted).not.toHaveBeenCalled();
-    // The routes a matching worker calls still hand the run over to you.
+    expect(screens.typeCode).not.toHaveBeenCalled();
+    // The routes a matching worker calls still reach the screen.
+    expect(await botd.computer.type(code)).toEqual({ status: "safe", reason: null });
+    expect(screens.typeCode).toHaveBeenCalledTimes(1);
     expect((await botd.leases.take({ screenId })).previous).toMatchObject({
       kind: "run",
       runId: run.runId,

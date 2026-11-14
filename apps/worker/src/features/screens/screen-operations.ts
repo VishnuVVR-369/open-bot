@@ -6,9 +6,13 @@ import {
   type TypeOnScreen,
 } from "@open-bot/domain";
 import { and, eq, inArray, sql } from "drizzle-orm";
+import { BotdError } from "../../computer/client";
 import { publishApp, type Context } from "../../context";
 import { ScreenBusy, withScreenLock } from "./screen-lock";
 import { CODE_HANDED_BACK_NOTE, type TakeoverService } from "./takeovers";
+
+/** Statuses botd answers before a handler runs: bad input, no token, no such route. */
+const REFUSED_BEFORE_ACTING = [400, 401, 403, 404];
 
 /** An operation's screen couldn't be handed back now: you need to look at it, for this reason. */
 export async function operationNeedsOwner(
@@ -152,7 +156,14 @@ export class ScreenOperationService {
         let result: Awaited<ReturnType<Context["computer"]["typeOnScreen"]>>;
         try {
           result = await this.ctx.computer.typeOnScreen(screenId, input);
-        } catch {
+        } catch (error) {
+          // botd refused the call before acting on it, like a computer on another version (404).
+          if (error instanceof BotdError && REFUSED_BEFORE_ACTING.includes(error.status))
+            return this.set(
+              input.operationId,
+              "failed",
+              "The computer refused it, so nothing was typed. If it is being updated, send it again in a few minutes.",
+            );
           // botd may hold the screen for you now. Record the takeover so handing back reaches
           // the teammate; if you don't hold it, the reconciler ends it.
           await this.takeovers.recordTake(screenId, previous);

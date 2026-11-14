@@ -233,7 +233,7 @@ Routes marked ☀ work on the computer: the worker wakes the computer for them, 
 | `POST /computer/read` ☀         | `{ run, selector? }`: the front page's text and links                                                        |
 | `POST /computer/fill` ☀         | `{ run, secret, site }`: type a vault secret, after checking the site                                        |
 | `POST /computer/code-context` ☀ | `{ screenId }`: the site of the focused field, before a one-time code is typed                               |
-| `POST /computer/type` ☀         | `{ screenId, takeoverId, operationId, expectedSite, pressEnter, text }`: type a one-time code                |
+| `POST /computer/type-code` ☀    | `{ screenId, takeoverId, operationId, expectedSite, pressEnter, text }`: type a one-time code                |
 | `POST /screens/start` ☀         | Start a screen without using it                                                                              |
 | `POST /screens/forget` ☀        | Stop a screen and delete its profile                                                                         |
 | `POST /lease/run/release` ☀     | Release a run's lease when it ends                                                                           |
@@ -242,9 +242,9 @@ Routes marked ☀ work on the computer: the worker wakes the computer for them, 
 | `POST /lease/owner/touch` ☀     | Record your input                                                                                            |
 | `POST /pages/check` ☀           | `{ path }`: check a page in a headless browser; see [The checker](/docs/architecture/pages#the-checker)      |
 
-Errors from `/computer/fill` and `/computer/type` never repeat their input, which carries a secret.
-Your lease's routes were `/lease/user/*` until the run lease renamed `botId` and `botName` to `teammateId` and `teammateName`.
-They moved with that rename, so a worker and a computer on different versions get `404` before a screen changes hands, instead of botd handing you the screen and the worker failing on its answer.
+Errors from `/computer/fill` and `/computer/type-code` never repeat their input, which carries a secret.
+Your lease's routes were `/lease/user/*`, and typing a code was `/computer/type`, until the run lease renamed `botId` and `botName` to `teammateId` and `teammateName`.
+All four take a screen for you and answer with the lease they replaced, so they moved with that rename: a worker and a computer on different versions get `404` before a screen changes hands or a code is typed, instead of botd acting and the worker failing on its answer and losing which run it interrupted.
 
 | Websocket            | Purpose                                                |
 | -------------------- | ------------------------------------------------------ |

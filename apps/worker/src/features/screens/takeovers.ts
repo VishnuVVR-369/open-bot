@@ -47,6 +47,17 @@ const AUTO_NOTES: Record<Exclude<TakeoverEndReason, "handed_back">, string> = {
 };
 
 /**
+ * What the teammate hears about how its screen came back. A note you saved with a hand-back botd
+ * refused (a computer on another version answers 404) stays yours when control then comes back on
+ * its own, so it is delivered with the reason.
+ */
+function returnNote(note: string | null, reason: TakeoverEndReason): string | null {
+  if (reason === "handed_back") return note;
+  if (!note) return AUTO_NOTES[reason];
+  return `${AUTO_NOTES[reason]} Before that, they tried to hand it back with this note: ${note}`;
+}
+
+/**
  * You taking control of a teammate's screen, handing it back, and teammates asking you to take over.
  * Every teammate has its own screen, so a takeover stops only that teammate; the others keep working.
  * botd owns the leases; this service records takeovers and tells the teammates what happened.
@@ -70,7 +81,8 @@ export class TakeoverService {
         const endReason: TakeoverEndReason =
           reason === "user_idle" || reason === "user_disconnected" ? reason : "handed_back";
         // Keep a note a hand-back saved before botd refused it, like while the computer ran
-        // another version: when the computer restarts, the lease ends here instead.
+        // another version: the lease then ends here, when the computer restarts or you go idle
+        // or disconnect, and `returnNote` delivers the note with the reason.
         void this.finishActive(screenId, undefined, endReason).catch((error: unknown) =>
           ctx.log.error("could not finish a takeover", { error: errorMessage(error) }),
         );
@@ -433,9 +445,7 @@ export class TakeoverService {
     continuationRunId: string,
   ): Promise<void> {
     // Rows ended together share the same note and reason.
-    const note = ended[0]!.note;
-    const reason = ended[0]!.endReason ?? "handed_back";
-    const effectiveNote = reason === "handed_back" ? note : AUTO_NOTES[reason];
+    const effectiveNote = returnNote(ended[0]!.note, ended[0]!.endReason ?? "handed_back");
     const delivered = new Set<string>();
 
     // 1. Teammates that asked you to take over get your note as the answer to their request.
