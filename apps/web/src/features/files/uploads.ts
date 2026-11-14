@@ -1,5 +1,6 @@
 import { cantAttach, UPLOAD_HEADERS } from "@open-bot/api";
 import { UNREACHABLE, type Result } from "@/lib/client/mutate";
+import { goToSignIn } from "@/lib/client/sign-in";
 
 /**
  * Put a file into a folder on the computer (`PUT /api/files/upload`), answering with its path.
@@ -23,7 +24,7 @@ export async function uploadToFolder(dir: string, file: File): Promise<Result<st
   }
   const body = (await response.json().catch(() => ({}))) as { path?: string; error?: string };
   if (response.status === 401) {
-    window.location.assign("/login");
+    goToSignIn();
     return { ok: false, error: "Sign in first." };
   }
   if (!response.ok || !body.path)

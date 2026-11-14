@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { usePresence } from "@/lib/client/presence";
 import { isUnauthorized } from "@/lib/client/errors";
+import { goToSignIn } from "@/lib/client/sign-in";
 import { RealtimeProvider } from "@/lib/client/realtime";
 import { orpc } from "@/lib/client/rpc";
 import type { AppState } from "@/lib/types";
@@ -14,9 +15,9 @@ export function Providers({ initial, children }: { initial: AppState; children: 
   const [queryClient] = useState(() => {
     const client = new QueryClient({
       queryCache: new QueryCache({
-        // The session is gone (signed out elsewhere, or expired): sign in again.
+        // The session is gone (signed out elsewhere, or expired): sign in again, then come back.
         onError: (error) => {
-          if (isUnauthorized(error)) window.location.href = "/login";
+          if (isUnauthorized(error)) goToSignIn();
         },
       }),
       defaultOptions: { queries: { staleTime: 5_000, refetchOnWindowFocus: true, retry: 1 } },

@@ -41,6 +41,7 @@ The web app issues them only to a signed-in session, and they say what they're f
 - `OWNER_EMAIL` is the only email that can create an account, and only one account can exist. Both are enforced in a database hook, before the user row is written.
 - Passwords are at least 10 characters. Passkeys are supported.
 - Every page, API procedure and route checks the session on the server. The middleware redirect is only a convenience.
+- The page to return to after signing in (`/login?next=...`) can't send you to another site. `safeNext()` (`apps/web/src/lib/sign-in-return.ts`) accepts only a path on the app's own origin, refuses `//host`, `/\host`, any scheme, control characters (also once percent-decoded), and `/login`, `/setup` and `/api`, and answers `/` for anything else.
 - A write sent from another site's page is refused before it runs: the API and `authed()` routes answer 403 to a foreign `Origin` (`crossSiteRefusal()` in `apps/web/src/lib/server/origin.ts`), and the API runs no procedure for a GET.
 
 ## Secrets at rest
