@@ -127,11 +127,17 @@ export function planNotification(data: PushData): NotificationPlan | null {
   };
 }
 
-/** What a replied-to notification says once the reply was sent, or wasn't. */
-export function replyText(sent: boolean): { title: string; body: string } {
+/**
+ * What a replied-to notification says once the reply was sent, or wasn't. An unsent reply is
+ * kept as the chat's draft, and the notification shows it.
+ */
+export function replyText(sent: boolean, text: string): { title: string; body: string } {
   return sent
     ? { title: "Reply sent", body: "" }
-    : { title: "Couldn't send your reply", body: "Open to reply." };
+    : {
+        title: "Couldn't send your reply",
+        body: `Saved in the chat: “${text.trim()}”. Open to send it.`,
+      };
 }
 
 /** Don't show a notification about the chat you're looking at; it's on screen already. */
