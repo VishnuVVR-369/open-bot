@@ -140,8 +140,19 @@ export class ScreenManager extends EventEmitter<{
     } finally {
       const count = this.claims.get(id)! - 1;
       if (count) this.claims.set(id, count);
-      else this.claims.delete(id);
+      else {
+        this.claims.delete(id);
+        this.wake();
+      }
     }
+  }
+
+  /**
+   * Let every start waiting for a slot recheck: called whenever a slot frees or a screen may have
+   * become idle (a stop settled, a lease changed hands, a claim ended, a download finished).
+   */
+  private wake(): void {
+    for (const waiter of [...this.waiters]) waiter();
   }
 
   private freeSlot(): number {
@@ -206,7 +217,9 @@ export class ScreenManager extends EventEmitter<{
     screen.lease.on("change", (change) => {
       this.touch(screen);
       this.emit("lease", id, change);
+      this.wake();
     });
+    screen.downloads.onDone = () => this.wake();
     // Taking over stops whatever the teammate was doing on this screen right away.
     screen.lease.on("preempted", () => screen.desktop.abortAll());
     this.emit("changed");
@@ -272,7 +285,7 @@ export class ScreenManager extends EventEmitter<{
         this.stopping.delete(screen.id);
         this.emit("changed");
         // Either way a waiting start rechecks: a slot is free, or the screen is idle again.
-        for (const waiter of this.waiters) waiter();
+        this.wake();
       });
     this.stopping.set(screen.id, pending);
     return pending;
