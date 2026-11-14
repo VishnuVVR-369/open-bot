@@ -97,7 +97,7 @@ It prints console errors and 5xx responses for each page.
 | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Teammates     | Iris (chief of staff, lead), Scout (research), Kit (software engineer), Mira (email), Juno (writer). Distinct colors, emoji, long instructions, autonomy levels, budgets for Iris and Kit.                                              |
 | Chats         | 9 direct chats, 2 group chats (Launch war room, Lisbon trip), a Scheduled chat for 4 teammates, Mira's Email inbox chat, and 3 swarm helper chats.                                                                                      |
-| Runs          | Markdown replies with lists, tables, a code block, a quote and links. Commands (with output, one failing), file changes with diffs, web searches, plans, tool calls, handoffs, a swarm, page cards, desktop screenshots, errors.        |
+| Runs          | Markdown replies with lists, tables, a code block, a quote and links. Commands (with output, one failing), file changes with diffs, web searches, plans, tool calls, handoffs, a swarm, page cards, screenshots of the screen, errors.  |
 | Live states   | Scout working, Iris and Mira waiting for approval, Juno waiting for you to take over, Kit idle.                                                                                                                                         |
 | Approvals     | 2 pending (a $842.30 flight purchase, an email to the Summit organizer with preview), approved and denied commands and one approved push.                                                                                               |
 | Tasks         | 5 to do, 5 doing, 7 done, with owners, due dates, notes and links to chats.                                                                                                                                                             |
@@ -118,5 +118,5 @@ These need the worker or the computer container, which the showcase does not sta
 
 - Computer and Files pages show "The worker isn't running", and the `files.list` procedure answers 503.
 - Settings: the Telegram and push sections call the worker and answer 503, so the Next.js dev overlay shows a red issue badge at the bottom left.
-- Live desktop streams in the screen panel. Screenshots in runs are rendered by `assets.mjs` and are mock pages, not real browsing.
+- Live screen streams in the screen panel. Screenshots in runs are rendered by `assets.mjs` and are mock pages, not real browsing.
 - Anything that changes over time without the worker, such as the running Scout run, which stays "Working" and counts up.
