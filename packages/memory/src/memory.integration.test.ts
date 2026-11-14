@@ -2,7 +2,7 @@ import { beforeAll, beforeEach, afterAll, describe, it, expect } from "vitest";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import { randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
-import { MemoryService } from "./index";
+import { fingerprint, MemoryService } from "./index";
 import { MemoryAI, MemoryJobs, type MemoryAIConfig } from "./jobs";
 import { memoryInputSchema } from "@open-bot/domain";
 
@@ -468,16 +468,34 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
     expect(rows[0]).toEqual({ attempts: 0, deferred: true });
     expect(requestCount).toBe(0);
   });
-  it("duplicates all notes beyond the UI page size without copying shared memory", async () => {
-    for (let index = 0; index < 205; index++)
-      await memory.save(input(`Copy note number ${index}`), user);
+  it("duplicates all notes, in batches and beyond the UI page size, without copying shared memory", async () => {
+    // Inserted directly: a thousand saves would make this test about saving. More than two of
+    // copy's batches, and far more than the UI's page.
+    const owner = "bot_id"; // vocabulary: allow (the column keeps its name until it is renamed)
+    const contents = Array.from({ length: 1050 }, (_, index) => `Copy note number ${index}`);
+    await pool.query(
+      `insert into memory_items(${owner},content,fingerprint) select $1,content,fingerprint from unnest($2::text[],$3::text[]) as t(content,fingerprint)`,
+      [teammate, contents, contents.map(fingerprint)],
+    );
     await memory.save(input("A shared fact", null), user);
+    await memory.save(input("Copy note number 7", peer), user);
     await memory.copyBot(teammate, peer);
+    const copied = async () =>
+      (
+        await pool.query<{ notes: number; imported: number; revisions: number; jobs: number }>(
+          `select count(*)::int as notes,
+                  count(*) filter (where i.source->>'type' = 'import')::int as imported,
+                  (select count(*)::int from memory_revisions r join memory_items m on m.id = r.memory_id where m.${owner} = $1) as revisions,
+                  (select count(*)::int from memory_jobs j join memory_items m on m.id = j.memory_id where m.${owner} = $1 and j.kind = 'embed') as jobs
+             from memory_items i where i.${owner} = $1`,
+          [peer],
+        )
+      ).rows[0];
+    // The note the peer already had is skipped; every other one gets a revision and an embedding.
+    expect(await copied()).toEqual({ notes: 1050, imported: 1049, revisions: 1050, jobs: 1050 });
     await memory.copyBot(teammate, peer);
-    const items = await memory.list({ botId: peer, limit: 1000 }, user);
-    expect(items).toHaveLength(205);
-    expect(items.every((item) => item.source.type === "import")).toBe(true);
-  }, 10000);
+    expect(await copied()).toEqual({ notes: 1050, imported: 1049, revisions: 1050, jobs: 1050 });
+  });
   it("does not call an endpoint when disabled and enforces the daily request limit", async () => {
     const disabled = new MemoryAI(db, { ...config(), dailyRequestLimit: 0 });
     expect(await disabled.embed("fact")).toBeUndefined();
