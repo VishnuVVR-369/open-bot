@@ -79,28 +79,18 @@ describe("keeping a reply a notification couldn't send", () => {
 });
 
 describe("after a send", () => {
-  const draft = (text: string, mentions: string[] = []) => ({ text, mentions });
-
-  it("clears what was sent", () => {
-    expect(afterSend(draft("Book it", ["rex"]), draft("Book it", ["rex"]), [])).toEqual(draft(""));
-  });
-
-  it("keeps a reply kept while it was sending, still addressed to its teammate", () => {
-    const current = draft("Hello\n\nBook it", ["rex"]);
-    expect(afterSend(current, draft("Hello"), ["rex"])).toEqual(draft("Book it", ["rex"]));
-    // Even when what was sent was for them too.
-    expect(afterSend(current, draft("Hello", ["rex"]), ["rex"])).toEqual(draft("Book it", ["rex"]));
-  });
-
-  it("keeps what you typed while it was sending, without the recipients of what was sent", () => {
-    expect(afterSend(draft("Hello and more", ["rex"]), draft("Hello", ["rex"]), [])).toEqual(
-      draft("and more"),
-    );
-  });
-
-  it("keeps a draft you changed while it was sending", () => {
-    expect(afterSend(draft("Goodbye", ["rex"]), draft("Hello", ["mia"]), [])).toEqual(
-      draft("Goodbye", ["rex"]),
-    );
+  it("leaves only the replies kept while it was on its way, each for its teammate", () => {
+    expect(afterSend([])).toEqual({ text: "", mentions: [] });
+    expect(afterSend([{ text: "Book the room", teammateId: "rex" }])).toEqual({
+      text: "Book the room",
+      mentions: ["rex"],
+    });
+    expect(
+      afterSend([
+        { text: "Book the room", teammateId: "rex" },
+        { text: "And lunch", teammateId: null },
+        { text: "Thanks", teammateId: "mia" },
+      ]),
+    ).toEqual({ text: "Book the room\n\nAnd lunch\n\nThanks", mentions: ["rex", "mia"] });
   });
 });

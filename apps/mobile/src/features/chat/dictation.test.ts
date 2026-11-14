@@ -113,6 +113,42 @@ describe("dictation", () => {
     ]);
   });
 
+  it("keeps text added while you speak after what you go on saying", async () => {
+    const composer = await mount();
+    await act(async () => {
+      await composer.hook.start("Draft");
+    });
+    await emit("start");
+    await emit("result", result("hello", false));
+    composer.hook.append("Book it");
+    await emit("result", result("hello there", false));
+    await emit("result", result("hello there"));
+    composer.hook.append("And lunch");
+    await emit("result", result("thanks", false));
+    expect(composer.onText.mock.calls.map(([text]) => text)).toEqual([
+      "Draft hello",
+      "Draft hello there\n\nBook it",
+      "Draft hello there\n\nBook it",
+      "Draft hello there thanks\n\nBook it\n\nAnd lunch",
+    ]);
+  });
+
+  it("forgets added text once it starts again, and ignores text added while it isn't listening", async () => {
+    const composer = await mount();
+    composer.hook.append("Ignored");
+    await act(async () => {
+      await composer.hook.start("Draft");
+    });
+    await emit("result", result("hello"));
+    composer.hook.append("Book it");
+    await emit("end");
+    await act(async () => {
+      await composer.hook.start("Next");
+    });
+    await emit("result", result("again"));
+    expect(composer.onText.mock.calls.map(([text]) => text)).toEqual(["Draft hello", "Next again"]);
+  });
+
   it("only updates the composer that started recognition while other chats stay mounted", async () => {
     const hidden = await mount();
     const active = await mount();

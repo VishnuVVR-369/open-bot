@@ -91,30 +91,26 @@ export function appendKept(draft: Draft, text: string, teammateId: string | null
   };
 }
 
+/** A reply a notification couldn't send, kept for the teammate it was to (when known). */
+export interface Kept {
+  text: string;
+  teammateId: string | null;
+}
+
 /**
- * What's left once the version `submitted` was sent: anything added to it since (typed, or a reply
- * kept meanwhile), still for whom it was. `keptSince` are the teammates replies kept meanwhile
- * were for, which stay even when the sent version was for them too.
+ * What's left once a send went through: the replies kept while it was on its way, each for its
+ * teammate, and nothing of what it sent. Built from those replies, not by comparing text, so
+ * whitespace or a repeated phrase can't make the sent text stay.
  */
-export function afterSend(current: Draft, submitted: Draft, keptSince: string[]): Draft {
-  const text =
-    current.text === submitted.text
-      ? ""
-      : current.text.startsWith(submitted.text)
-        ? current.text.slice(submitted.text.length).replace(/^\s+/, "")
-        : current.text;
-  if (!text.trim()) return EMPTY_DRAFT;
-  const mentions = current.mentions.filter(
-    (id) => !submitted.mentions.includes(id) || keptSince.includes(id),
+export function afterSend(keptSince: readonly Kept[]): Draft {
+  return keptSince.reduce(
+    (draft, kept) => appendKept(draft, kept.text, kept.teammateId),
+    EMPTY_DRAFT,
   );
-  return { text, mentions };
 }
 
 /** What a reply kept from a notification added, and the chat's draft with it. */
-export type KeptListener = (
-  kept: { text: string; teammateId: string | null },
-  after: Draft,
-) => void;
+export type KeptListener = (kept: Kept, after: Draft) => void;
 const listeners = new Map<string, Set<KeptListener>>();
 
 /** Hears about replies kept for the chat from elsewhere: a notification's Reply. */
