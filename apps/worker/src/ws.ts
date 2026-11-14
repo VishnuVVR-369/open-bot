@@ -79,7 +79,7 @@ function proxyVnc(client: WebSocket, ctx: Context, screen: string, mode: ScreenV
     const forwardable = code === 1000 || (code >= 3000 && code <= 4999);
     client.close(forwardable ? code : 1011, reason);
   });
-  upstream.on("error", () => client.close(1011, "The computer's desktop is not reachable"));
+  upstream.on("error", () => client.close(1011, "The computer's screen is not reachable"));
   client.on("message", (data) => {
     const chunk = Buffer.isBuffer(data) ? data : Buffer.from(data as ArrayBuffer);
     if (upstream.readyState === WebSocket.OPEN) upstream.send(chunk);

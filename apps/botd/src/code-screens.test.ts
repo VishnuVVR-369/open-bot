@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CodeScreens } from "./code-screens";
-import { DesktopLease } from "./lease";
+import { ScreenLease } from "./lease";
 import type { Screen } from "./screens";
 
 const directories: string[] = [];
@@ -16,7 +16,7 @@ async function fixture() {
   const codes = new CodeScreens(dir);
   await codes.load();
   const state = { safe: false, site: "example.com" as string | null };
-  const lease = new DesktopLease();
+  const lease = new ScreenLease();
   const screen = {
     id: "00000000-0000-4000-8000-000000000001",
     lease,
@@ -122,7 +122,7 @@ describe("code-protected screens", () => {
     await codes.type(screen, input);
     const restarted = new CodeScreens(dir);
     await restarted.load();
-    const fresh = { ...screen, lease: new DesktopLease() } as Screen;
+    const fresh = { ...screen, lease: new ScreenLease() } as Screen;
     restarted.attach(fresh);
     expect(fresh.lease.holder).toMatchObject({ kind: "user-code", pausedForSafety: true });
     expect(await fresh.lease.releaseSafely()).toBe(false);

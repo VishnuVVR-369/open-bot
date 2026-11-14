@@ -257,7 +257,7 @@ export class BotService {
       const { slug, first } = newTeammateSlot(team, profile.name);
       const [bot] = await tx
         .insert(bots)
-        .values({ ...profile, slug, isPrimary: first })
+        .values({ ...profile, slug, isLead: first })
         .returning();
       const chatId = await addChat(tx, {
         kind: "direct",
@@ -420,7 +420,7 @@ export class BotService {
       const { slug, first } = newTeammateSlot(team, profile.name);
       const [teammate] = await tx
         .insert(teammates)
-        .values({ ...profile, slug, isPrimary: first })
+        .values({ ...profile, slug, isLead: first })
         .returning();
       const id = teammate!.id;
       const chatId = await addChat(tx, {
@@ -506,8 +506,8 @@ export class BotService {
       const leads = sql`(${teammates.id} = ${id})`;
       await tx
         .update(teammates)
-        .set({ isPrimary: leads })
-        .where(sql`${teammates.isPrimary} <> ${leads}`);
+        .set({ isLead: leads })
+        .where(sql`${teammates.isLead} <> ${leads}`);
     });
     await publishApp(this.ctx, { type: "bots" });
   }
@@ -525,7 +525,7 @@ export class BotService {
       await requestTeammateRunsCancel(tx, id, now);
       await tx
         .update(teammates)
-        .set({ archivedAt: now, isPrimary: false })
+        .set({ archivedAt: now, isLead: false })
         .where(eq(teammates.id, id));
       await archiveChatsOf(tx, id, now);
       await pauseSchedulesOf(tx, id);

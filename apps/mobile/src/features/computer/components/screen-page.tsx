@@ -8,10 +8,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/button";
 import { CodeSheet } from "@/features/computer/components/code-sheet";
 import {
-  DESKTOP_ASPECT_RATIO,
-  DesktopView,
-  type DesktopHandle,
-} from "@/features/computer/components/desktop-view";
+  SCREEN_ASPECT_RATIO,
+  ScreenView,
+  type ScreenHandle,
+} from "@/features/computer/components/screen-view";
 import { HandBackSheet } from "@/features/computer/components/hand-back-sheet";
 import { RemoteControls, WatchHint } from "@/features/computer/components/remote-controls";
 import {
@@ -53,7 +53,7 @@ export default function ScreenPage() {
   const screens = useQuery({ queryKey: queryKeys.screens, queryFn: () => api.screens.list() });
   const screen = screens.data?.find((item) => item.id === screenId);
   const owner = isOwnerLease(screen?.lease ?? null);
-  const desktop = useRef<DesktopHandle | null>(null);
+  const screenHandle = useRef<ScreenHandle | null>(null);
   const [connected, setConnected] = useState(false);
   const [session, dispatch] = useReducer(
     reduceScreenSession,
@@ -163,14 +163,14 @@ export default function ScreenPage() {
       title="Fit"
       variant="outline"
       icon={<Scan size={16} color={colors.foreground} />}
-      onPress={() => desktop.current?.send({ type: "fit" })}
+      onPress={() => screenHandle.current?.send({ type: "fit" })}
       testID="fit-screen"
     />
   );
 
   const tools = owner ? (
     <RemoteControls
-      desktop={desktop}
+      screenHandle={screenHandle}
       connected={connected}
       session={session}
       dispatch={dispatch}
@@ -180,12 +180,12 @@ export default function ScreenPage() {
     connected && <WatchHint name={name} fit={fit} />
   );
 
-  const desktopView = (style: object) => (
-    <DesktopView
+  const screenView = (style: object) => (
+    <ScreenView
       screenId={screenId}
       enabled={live}
       mode={owner ? "control" : "view"}
-      handleRef={desktop}
+      handleRef={screenHandle}
       onConnectedChange={setConnected}
       placeholder={placeholder}
       style={style}
@@ -238,14 +238,14 @@ export default function ScreenPage() {
     });
 
   if (landscape) {
-    // The header is hidden, so keep clear of the status bar and any cutout, and give the desktop
+    // The header is hidden, so keep clear of the status bar and any cutout, and give the screen
     // the full height beside a controls column at least this wide.
     const top = insets.top + space(2);
     const bottom = Math.max(insets.bottom, keyboard) + space(2);
     const left = Math.max(insets.left, GUTTER);
     const right = Math.max(insets.right, GUTTER);
-    const desktopWidth = Math.min(
-      (height - top - bottom) * DESKTOP_ASPECT_RATIO,
+    const screenWidth = Math.min(
+      (height - top - bottom) * SCREEN_ASPECT_RATIO,
       width - left - right - space(3) - LANDSCAPE_CONTROLS_WIDTH,
     );
     return (
@@ -256,7 +256,7 @@ export default function ScreenPage() {
         ]}
       >
         <Stack.Screen options={{ title: `${name}'s screen`, headerShown: false }} />
-        {desktopView({ width: desktopWidth, height: desktopWidth / DESKTOP_ASPECT_RATIO })}
+        {screenView({ width: screenWidth, height: screenWidth / SCREEN_ASPECT_RATIO })}
         <View style={{ flex: 1, gap: space(3) }}>
           <ScrollView
             style={{ flex: 1 }}
@@ -285,12 +285,12 @@ export default function ScreenPage() {
           headerTitle: () => <ScreenTitle screen={screen} />,
         }}
       />
-      {/* The desktop stays outside the scroll view so its drags and pinches reach the remote screen. */}
+      {/* The screen stays outside the scroll view so its drags and pinches reach the remote screen. */}
       <View
         style={[styles.stack, { paddingTop: space(3), paddingLeft: left, paddingRight: right }]}
       >
         {notice}
-        {desktopView({ aspectRatio: DESKTOP_ASPECT_RATIO })}
+        {screenView({ aspectRatio: SCREEN_ASPECT_RATIO })}
       </View>
       <ScrollView
         style={{ flex: 1 }}

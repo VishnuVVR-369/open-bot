@@ -44,7 +44,7 @@ describe("bot management contracts", () => {
       updateBotSchema.safeParse({
         bot_id: crypto.randomUUID(),
         expected_revision: "revision",
-        changes: { isPrimary: true },
+        changes: { isLead: true },
       }).success,
     ).toBe(false);
   });

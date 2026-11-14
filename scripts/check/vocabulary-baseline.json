@@ -105,8 +105,7 @@
     "bot": 19
   },
   "apps/mobile/src/features/chat/components/share-screen.tsx": {
-    "bot": 24,
-    "primary teammate": 1
+    "bot": 24
   },
   "apps/mobile/src/features/chat/components/swarm-card.tsx": {
     "bot": 4
@@ -142,8 +141,7 @@
     "bot": 1
   },
   "apps/mobile/src/features/computer/screens.test.ts": {
-    "bot": 5,
-    "primary teammate": 1
+    "bot": 5
   },
   "apps/mobile/src/features/computer/screens.ts": {
     "bot": 4
@@ -167,8 +165,7 @@
     "bot": 10
   },
   "apps/mobile/src/features/home/components/teammates.tsx": {
-    "bot": 34,
-    "primary teammate": 2
+    "bot": 34
   },
   "apps/mobile/src/features/home/home.test.ts": {
     "bot": 6
@@ -213,8 +210,7 @@
     "bot": 19
   },
   "apps/mobile/src/features/teammates/components/teammate-screen.tsx": {
-    "bot": 44,
-    "primary teammate": 1
+    "bot": 44
   },
   "apps/mobile/src/lib/links.ts": {
     "bot": 3
@@ -336,9 +332,6 @@
   "apps/web/src/features/chat/components/composer.tsx": {
     "bot": 11
   },
-  "apps/web/src/features/chat/components/desktop-strip.tsx": {
-    "bot": 1
-  },
   "apps/web/src/features/chat/components/empty-state.tsx": {
     "bot": 6
   },
@@ -353,6 +346,9 @@
   },
   "apps/web/src/features/chat/components/run-block.tsx": {
     "bot": 36
+  },
+  "apps/web/src/features/chat/components/screen-strip.tsx": {
+    "bot": 1
   },
   "apps/web/src/features/chat/components/skill-menu.tsx": {
     "bot": 7
@@ -387,9 +383,6 @@
   "apps/web/src/features/computer/components/computer-panel.tsx": {
     "bot": 12
   },
-  "apps/web/src/features/computer/components/desktop-view.tsx": {
-    "bot": 1
-  },
   "apps/web/src/features/computer/components/screen-controls.tsx": {
     "bot": 2
   },
@@ -402,6 +395,9 @@
   "apps/web/src/features/computer/components/screen-status.tsx": {
     "bot": 13
   },
+  "apps/web/src/features/computer/components/screen-view.tsx": {
+    "bot": 1
+  },
   "apps/web/src/features/computer/components/takeover-buttons.tsx": {
     "bot": 5
   },
@@ -409,12 +405,10 @@
     "bot": 23
   },
   "apps/web/src/features/computer/server/queries.ts": {
-    "bot": 14,
-    "desktop takeover": 17
+    "bot": 14
   },
   "apps/web/src/features/computer/server/service.ts": {
-    "bot": 11,
-    "desktop takeover": 3
+    "bot": 11
   },
   "apps/web/src/features/files/components/files-view.tsx": {
     "bot": 27
@@ -444,8 +438,7 @@
     "bot": 3
   },
   "apps/web/src/features/home/components/teammates.tsx": {
-    "bot": 27,
-    "primary teammate": 1
+    "bot": 27
   },
   "apps/web/src/features/home/server/queries.ts": {
     "bot": 4
@@ -520,8 +513,7 @@
     "bot": 4
   },
   "apps/web/src/features/teammates/components/bot-danger-zone.tsx": {
-    "bot": 5,
-    "primary teammate": 5
+    "bot": 5
   },
   "apps/web/src/features/teammates/components/bot-form.tsx": {
     "bot": 29
@@ -536,8 +528,7 @@
     "bot": 8
   },
   "apps/web/src/features/teammates/components/teammate-view.tsx": {
-    "bot": 57,
-    "primary teammate": 2
+    "bot": 57
   },
   "apps/web/src/features/teammates/hooks.ts": {
     "bot": 1
@@ -546,8 +537,7 @@
     "bot": 4
   },
   "apps/web/src/features/teammates/server/queries.ts": {
-    "bot": 29,
-    "primary teammate": 2
+    "bot": 29
   },
   "apps/web/src/features/teammates/server/routes.integration.test.ts": {
     "bot": 1
@@ -709,19 +699,17 @@
     "bot": 4
   },
   "apps/worker/src/features/screens/screen-operations.integration.test.ts": {
-    "bot": 8,
-    "desktop takeover": 15
+    "bot": 8
   },
   "apps/worker/src/features/screens/screen-operations.ts": {
     "bot": 1,
-    "desktop takeover": 8
+    "desktop takeover": 1
   },
   "apps/worker/src/features/screens/takeover-tools.ts": {
     "bot": 1
   },
   "apps/worker/src/features/screens/takeovers.ts": {
-    "bot": 35,
-    "desktop takeover": 33
+    "bot": 35
   },
   "apps/worker/src/features/screens/tools.ts": {
     "bot": 6
@@ -766,12 +754,10 @@
     "bot": 4
   },
   "apps/worker/src/features/teammates/service.ts": {
-    "bot": 174,
-    "primary teammate": 5
+    "bot": 174
   },
   "apps/worker/src/features/teammates/tools.integration.test.ts": {
-    "bot": 28,
-    "primary teammate": 1
+    "bot": 28
   },
   "apps/worker/src/features/teammates/tools.ts": {
     "bot": 66
@@ -786,8 +772,7 @@
     "bot": 3
   },
   "apps/worker/src/features/telegram/inbound.ts": {
-    "bot": 33,
-    "primary teammate": 1
+    "bot": 33
   },
   "apps/worker/src/features/telegram/notifications.ts": {
     "bot": 9
@@ -835,8 +820,7 @@
     "bot": 22
   },
   "apps/worker/src/runs/executor/dispatch.ts": {
-    "bot": 38,
-    "primary teammate": 3
+    "bot": 38
   },
   "apps/worker/src/runs/executor/prompt.ts": {
     "bot": 26
@@ -998,8 +982,7 @@
     "bot": 1
   },
   "packages/api/src/views.ts": {
-    "bot": 20,
-    "primary teammate": 1
+    "bot": 20
   },
   "packages/api/src/worker/contracts/integrations.ts": {
     "bot": 2
@@ -1027,7 +1010,7 @@
   },
   "packages/db/src/schema/computer.ts": {
     "bot": 9,
-    "desktop takeover": 4
+    "desktop takeover": 1
   },
   "packages/db/src/schema/email.ts": {
     "bot": 6
@@ -1058,7 +1041,7 @@
   },
   "packages/db/src/schema/teammates.ts": {
     "bot": 4,
-    "primary teammate": 2
+    "primary teammate": 1
   },
   "packages/db/src/schema/telegram.ts": {
     "bot": 4
@@ -1118,8 +1101,7 @@
     "bot": 6
   },
   "packages/domain/src/teammates/management.test.ts": {
-    "bot": 22,
-    "primary teammate": 1
+    "bot": 22
   },
   "packages/domain/src/teammates/management.ts": {
     "bot": 33
@@ -1173,9 +1155,7 @@
     "bot": 26
   },
   "tools/showcase/content-chats.ts": {
-    "bot": 63,
-    "desktop takeover": 2,
-    "primary teammate": 3
+    "bot": 63
   },
   "tools/showcase/content-rest.ts": {
     "bot": 130

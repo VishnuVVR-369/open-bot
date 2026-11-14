@@ -17,7 +17,7 @@ import { codeProbe } from "./code-probe";
 import type { CodeScreens } from "./code-screens";
 import { devtoolsCookieStore, type CookieSync } from "./cookies";
 import { Desktop } from "./desktop";
-import { DesktopLease, type LeaseChange } from "./lease";
+import { ScreenLease, type LeaseChange } from "./lease";
 import { waitFor, type ProcessSpec, type Supervisor } from "./supervisor";
 import { runAs, type SystemUser } from "./users";
 
@@ -91,7 +91,7 @@ async function exists(path: string): Promise<boolean> {
  * screen while the other bots keep working on theirs.
  */
 export class Screen {
-  readonly lease = new DesktopLease();
+  readonly lease = new ScreenLease();
   readonly desktop: Desktop;
   readonly display: string;
   readonly vncPorts: { view: number; control: number };

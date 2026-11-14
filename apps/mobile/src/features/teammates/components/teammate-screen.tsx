@@ -269,7 +269,7 @@ export default function TeammateScreen() {
                 <Text variant="title" numberOfLines={1} style={styles.name}>
                   {bot.name}
                 </Text>
-                {bot.isPrimary && <LeadBadge />}
+                {bot.isLead && <LeadBadge />}
               </View>
               <Text muted numberOfLines={1} style={{ fontSize: 15, lineHeight: 20 }}>
                 {bot.role}

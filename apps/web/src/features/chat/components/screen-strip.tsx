@@ -144,7 +144,7 @@ function Shot({ item, large = false }: { item: ComputerItem; large?: boolean }) 
 const FRAME_MS = 1400;
 
 /** Consecutive desktop actions, as a filmstrip of screenshots you can replay. */
-export function DesktopStrip({ items, live }: { items: ComputerItem[]; live: boolean }) {
+export function ScreenStrip({ items, live }: { items: ComputerItem[]; live: boolean }) {
   const [open, setOpen] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
@@ -186,7 +186,7 @@ export function DesktopStrip({ items, live }: { items: ComputerItem[]; live: boo
       <div className="flex h-6 items-center gap-2 text-[13px] text-muted-foreground">
         <Monitor className="size-3.5" />
         <span>
-          Used the desktop
+          Used the screen
           <span className="text-muted-foreground/70">
             {" "}
             · {items.length} {items.length === 1 ? "action" : "actions"}

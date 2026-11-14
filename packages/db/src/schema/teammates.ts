@@ -16,7 +16,7 @@ export const bots = pgTable(
     autonomy: text("autonomy").$type<Autonomy>().notNull().default("risky"),
     model: text("model").notNull().default("gpt-6.1-sol"),
     reasoningEffort: text("reasoning_effort").notNull().default("medium"),
-    isPrimary: boolean("is_primary").notNull().default(false),
+    isLead: boolean("is_primary").notNull().default(false),
     /** What it may spend from the vault's cards each month, in cents. Null: it can't pay. */
     monthlyBudgetCents: integer("monthly_budget_cents"),
     /** Purchases up to this go ahead without asking you; larger ones ask. */

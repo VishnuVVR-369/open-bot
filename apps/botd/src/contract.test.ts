@@ -5,7 +5,7 @@ import { BotdError, createBotdClient, type BotdClient } from "@open-bot/api/botd
 import type { ComputerHealth, PageCheckResult } from "@open-bot/domain";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { EgressRouter } from "@open-bot/egress/router";
-import { DesktopLease } from "./lease";
+import { ScreenLease } from "./lease";
 import { ComputeLifecycle } from "./lifecycle";
 import type { PageChecker } from "./pages";
 import type { Screen, ScreenManager } from "./screens";
@@ -42,7 +42,7 @@ const CHECKED: PageCheckResult = {
 };
 
 function fakeScreen(id: string): Screen {
-  const lease = new DesktopLease();
+  const lease = new ScreenLease();
   return {
     id,
     lease,

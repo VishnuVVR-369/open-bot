@@ -3,7 +3,7 @@ import { EventEmitter } from "node:events";
 import { eq } from "drizzle-orm";
 import { beforeAll, beforeEach, afterAll, describe, expect, it, vi } from "vitest";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
-import { bots, desktopTakeovers, screenOperations, takeoverDeliveries } from "@open-bot/db";
+import { bots, screenTakeovers, screenOperations, takeoverDeliveries } from "@open-bot/db";
 import type { Context } from "../../context";
 import type { TakeoverService } from "./takeovers";
 import { withScreenLock } from "./screen-lock";
@@ -38,7 +38,7 @@ describe.skipIf(!url)("screen operations with Postgres", () => {
       instructions: "Test",
       color: "#123456",
     });
-    await db.insert(desktopTakeovers).values({ id: takeoverId, screenId, status: "requested" });
+    await db.insert(screenTakeovers).values({ id: takeoverId, screenId, status: "requested" });
     computer.fetchHealth.mockResolvedValue({ screens: [{ id: screenId, lease: null }] });
     computer.codeContext.mockResolvedValue({ site: "example.com" });
     computer.typeOnScreen.mockResolvedValue({ status: "needs_owner", reason: "Check the screen." });
@@ -82,19 +82,19 @@ describe.skipIf(!url)("screen operations with Postgres", () => {
 
   it("rejects expired, ended, wrong-site, and owner-held requests without input", async () => {
     await db
-      .update(desktopTakeovers)
+      .update(screenTakeovers)
       .set({ createdAt: new Date(Date.now() - 601_000) })
-      .where(eq(desktopTakeovers.id, takeoverId));
+      .where(eq(screenTakeovers.id, takeoverId));
     expect((await service.type(input())).status).toBe("failed");
     await db
-      .update(desktopTakeovers)
+      .update(screenTakeovers)
       .set({ createdAt: new Date(), status: "ended" })
-      .where(eq(desktopTakeovers.id, takeoverId));
+      .where(eq(screenTakeovers.id, takeoverId));
     expect((await service.type(input())).status).toBe("failed");
     await db
-      .update(desktopTakeovers)
+      .update(screenTakeovers)
       .set({ status: "requested" })
-      .where(eq(desktopTakeovers.id, takeoverId));
+      .where(eq(screenTakeovers.id, takeoverId));
     expect((await service.type({ ...input(), expectedSite: "other.example" })).status).toBe(
       "failed",
     );
@@ -114,8 +114,8 @@ describe.skipIf(!url)("screen operations with Postgres", () => {
     expect(takeovers.recordTake).not.toHaveBeenCalled();
     const [request] = await db
       .select()
-      .from(desktopTakeovers)
-      .where(eq(desktopTakeovers.id, takeoverId));
+      .from(screenTakeovers)
+      .where(eq(screenTakeovers.id, takeoverId));
     expect(request?.status).toBe("requested");
   });
 
@@ -186,16 +186,16 @@ describe.skipIf(!url)("screen operations with Postgres", () => {
       new SessionRegistry(),
     );
     await db
-      .update(desktopTakeovers)
+      .update(screenTakeovers)
       .set({ status: "active", note: "Entered the code you sent and submitted it." })
-      .where(eq(desktopTakeovers.id, takeoverId));
+      .where(eq(screenTakeovers.id, takeoverId));
     const operationId = randomUUID();
     await db
       .insert(screenOperations)
       .values({ id: operationId, takeoverId, screenId, status: "safe" });
     await real.reconcile();
     expect(
-      (await db.select().from(desktopTakeovers).where(eq(desktopTakeovers.id, takeoverId)))[0],
+      (await db.select().from(screenTakeovers).where(eq(screenTakeovers.id, takeoverId)))[0],
     ).toMatchObject({ status: "ended" });
     expect((await service.get(operationId))?.status).toBe("handed_back");
     const [delivery] = await db
@@ -255,7 +255,7 @@ describe.skipIf(!url)("takeover returns with Postgres", () => {
     const service = new RealTakeoverService(ctx, new SessionRegistry());
     const ids = [randomUUID(), randomUUID()];
     for (const id of ids)
-      await db.insert(desktopTakeovers).values({ id, screenId, status: "active" });
+      await db.insert(screenTakeovers).values({ id, screenId, status: "active" });
     const ended: string[] = [];
     events.on("takeoverEnded", (id: string) => ended.push(id));
     await service.reconcile();

@@ -34,10 +34,10 @@ export interface LeaseOptions {
 export type AcquireResult = "ok" | "user_has_control" | "desktop_busy";
 
 /**
- * The single desktop lease. At any moment it is free, held by one bot run, or held by you.
+ * One screen's lease. At any moment it is free, held by one bot run, or held by you.
  * You always win: taking over preempts any run immediately.
  */
-export class DesktopLease extends EventEmitter<{
+export class ScreenLease extends EventEmitter<{
   change: [LeaseChange];
   preempted: [RunIdentity];
 }> {

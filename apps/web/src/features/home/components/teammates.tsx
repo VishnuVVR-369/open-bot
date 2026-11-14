@@ -90,7 +90,7 @@ export function Teammates() {
                     <span className="min-w-0 truncate text-[12.5px] text-muted-foreground">
                       {bot.role}
                     </span>
-                    {bot.isPrimary && (
+                    {bot.isLead && (
                       <span className="shrink-0 self-center rounded-full bg-subtle px-1.5 py-px text-[11px] font-medium text-muted-foreground">
                         Lead
                       </span>
