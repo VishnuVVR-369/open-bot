@@ -11,7 +11,7 @@ What every integration shares at run time (access checks, approvals, the durable
   - Adapters: `adapter.ts` defines `IntegrationAdapter`, `ToolContext` and the action runner, `tool-spec.ts` describes tools to Codex, `http.ts` has `ProviderError` and `TokenSource`, and `errors.ts` has `AccountToolError`.
 - `packages/integrations/src/providers/<provider>`: one folder per provider.
   `oauth.ts` is its `ProviderAdapter`; each integration it serves has an `adapter.ts` (Notion's is at the provider's root), with its API client in `api.ts` when it has one.
-  Calendar's adapter is split along its seams: `tools.ts` has the tools' arguments (zod) and specs, `reads.ts` the read tools, `writes.ts` the changes prepared for approval, `runner.ts` the runner that sends approved changes, and `adapter.ts` the `IntegrationAdapter` that dispatches to them.
+  Calendar's and Gmail's adapters are split along their seams: `tools.ts` has the tools' arguments (zod) and specs, `reads.ts` the read tools, `writes.ts` the changes prepared for approval, `runner.ts` the runner that sends approved changes, and `adapter.ts` the `IntegrationAdapter` that dispatches to them.
 - `packages/integrations/src/provider-registry.ts`: `providerAdapters()`, one line per provider.
 - `packages/integrations/src/integration-registry.ts`: `ADAPTERS`, one line per integration, checked against the definitions when the worker starts (`Integrations.create()`).
 
