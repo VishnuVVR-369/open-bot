@@ -244,7 +244,8 @@ Routes marked ☀ work on the computer: the worker wakes the computer for them, 
 
 Errors from `/computer/fill` and `/computer/type-code` never repeat their input, which carries a secret.
 Your lease's routes were `/lease/user/*`, and typing a code was `/computer/type`, until the run lease renamed `botId` and `botName` to `teammateId` and `teammateName`.
-All four take a screen for you and answer with the lease they replaced, so they moved with that rename: a worker and a computer on different versions get `404` before a screen changes hands or a code is typed, instead of botd acting and the worker failing on its answer and losing which run it interrupted.
+Taking your lease and typing a code take a screen from a run and answer with the run's lease, so they moved with that rename, and releasing your lease and recording your input moved with them.
+A worker and a computer on different versions get `404` before a screen changes hands or a code is typed, instead of botd acting and the worker failing on its answer and losing which run it interrupted.
 
 | Websocket            | Purpose                                                |
 | -------------------- | ------------------------------------------------------ |

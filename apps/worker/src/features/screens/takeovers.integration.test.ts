@@ -41,6 +41,12 @@ const HEALTH: ComputerHealth = {
   egress: { mode: "off", agentOnline: false, tunnelConnected: false },
 };
 const NOTE = "Only nonstop flights, window seat";
+/**
+ * How long to wait for what the worker does on its own, such as finishing a takeover when the
+ * computer's lease event arrives. Not Vitest's 1 s default: `pnpm test:integration` runs every
+ * suite at once against one Postgres, and there a lease event once took over 1 s to deliver.
+ */
+const SETTLED = { timeout: 4_000 };
 
 type Run = { runId: string; teammateId: string; teammateName: string };
 type Holder = { kind: "owner" } | { kind: "run"; run: Run } | null;
@@ -255,7 +261,7 @@ describe.skipIf(!url)("takeovers across a worker and a computer on different ver
         .from(takeoverDeliveries)
         .where(eq(takeoverDeliveries.id, takeoverId));
       expect(delivery?.deliveredAt).toBeInstanceOf(Date);
-    });
+    }, SETTLED);
   }
 
   /**
@@ -366,7 +372,7 @@ describe.skipIf(!url)("takeovers across a worker and a computer on different ver
         .values({ screenId, status: "active", startedAt: new Date(), interruptedRunId: run.id })
         .returning();
       computer.start();
-      await vi.waitFor(() => expect(computer.lease(screenId)).toEqual(OWNER));
+      await vi.waitFor(() => expect(computer.lease(screenId)).toEqual(OWNER), SETTLED);
       await expect(service.handBack(screenId, NOTE)).rejects.toMatchObject({ status: 404 });
       expect(botd.state.handled).toEqual([]);
       expect(botd.state.holder).toEqual({ kind: "owner" });
@@ -399,7 +405,7 @@ describe.skipIf(!url)("takeovers across a worker and a computer on different ver
     const requester = await addRun("Sign in to the airline");
     botd.state.holder = { kind: "owner" };
     computer.start();
-    await vi.waitFor(() => expect(computer.lease(screenId)).toEqual(OWNER));
+    await vi.waitFor(() => expect(computer.lease(screenId)).toEqual(OWNER), SETTLED);
     const at = (row: Order["created"]) =>
       new Date(Date.parse(since) + (order.created === row ? 0 : 1000));
     const values = {
@@ -494,7 +500,7 @@ describe.skipIf(!url)("takeovers across a worker and a computer on different ver
         .returning();
       const older = worker();
       older.computer.start();
-      await vi.waitFor(() => expect(older.computer.lease(screenId)).toEqual(OWNER));
+      await vi.waitFor(() => expect(older.computer.lease(screenId)).toEqual(OWNER), SETTLED);
       const newer = worker();
       await expect(newer.service.handBack(screenId, NOTE)).rejects.toMatchObject({ status: 404 });
       expect(botd.state.handled).toEqual([]);
@@ -531,7 +537,7 @@ describe.skipIf(!url)("takeovers across a worker and a computer on different ver
       .values({ screenId, status: "active", startedAt: new Date(), interruptedRunId: run.id })
       .returning();
     computer.start();
-    await vi.waitFor(() => expect(computer.online).toBe(true));
+    await vi.waitFor(() => expect(computer.online).toBe(true), SETTLED);
 
     // Reconcile reads the active takeovers, then stops at its first health read, for Ada's screen.
     let reached!: () => void;
