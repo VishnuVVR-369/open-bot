@@ -782,9 +782,21 @@
   "apps/worker/src/features/teamwork/tools.ts": {
     "bot": 29
   },
-  "apps/worker/src/features/telegram/service.ts": {
-    "bot": 67,
+  "apps/worker/src/features/telegram/api.ts": {
+    "bot": 3
+  },
+  "apps/worker/src/features/telegram/inbound.ts": {
+    "bot": 33,
     "primary teammate": 1
+  },
+  "apps/worker/src/features/telegram/notifications.ts": {
+    "bot": 9
+  },
+  "apps/worker/src/features/telegram/polling.ts": {
+    "bot": 4
+  },
+  "apps/worker/src/features/telegram/service.ts": {
+    "bot": 18
   },
   "apps/worker/src/features/uploads/service.integration.test.ts": {
     "bot": 7

@@ -2,4 +2,5 @@
 // buttons. Code outside this folder imports only from here.
 export { telegramFeature } from "./feature";
 export { telegramRoutes } from "./routes";
-export { TelegramError, TelegramService } from "./service";
+export { TelegramError } from "./api";
+export { TelegramService } from "./service";
