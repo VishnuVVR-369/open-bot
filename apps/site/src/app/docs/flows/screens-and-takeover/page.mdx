@@ -121,6 +121,10 @@ The worker releases the lease, ends the takeover, and delivers the note:
 - If that run has ended, a new run with trigger `hand_back` is queued in the same chat: "The user handed your screen back. Their note: ... Take a screenshot to see what changed, then continue the task you were doing."
 
 If control comes back on its own (10 minutes idle, or your connection gone for 90 seconds), the same delivery happens, with a note that says why.
+If botd refused your hand-back, the worker has already saved your note, so when the lease ends some other way (the computer restarting, the idle or connection timeout, or the worker's 30-second check finding the screen free) the teammate still gets it, after the reason control came back.
+Whatever ends a takeover keeps the note and reason stored on it at that moment, so a hand-back that saved its note a moment earlier is never undone.
+A note belongs to every takeover that comes back with it.
+A request that joined after you saved the note has none of its own, so it can't hide yours: every teammate in the return gets the note any of them saved, and if they ever differ, the newest one.
 
 ## When a teammate asks for you
 

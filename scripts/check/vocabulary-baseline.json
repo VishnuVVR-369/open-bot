@@ -720,8 +720,7 @@
     "bot": 1
   },
   "apps/worker/src/features/screens/takeovers.ts": {
-    "bot": 35,
-    "desktop takeover": 33
+    "bot": 35
   },
   "apps/worker/src/features/screens/tools.ts": {
     "bot": 6
