@@ -23,6 +23,7 @@ import {
   type ActionId,
   type DecideOutcome,
   type PushData,
+  type ReplyOutcome,
 } from "./payload";
 
 const IMPORTANCE = {
@@ -113,6 +114,7 @@ export async function handlePushData(data: PushData): Promise<void> {
 
 /**
  * Clear what was said in a chat once you're looking at it. Approvals stay: they still need you.
+ * So does a reply the phone couldn't send or store: the notification is its only copy.
  */
 export async function clearChatNotifications(
   chatId: string,
@@ -124,6 +126,7 @@ export async function clearChatNotifications(
     shown
       .filter(({ id, notification }) => id && notification.data?.chatId === chatId)
       .filter(({ notification }) => !notification.data?.approvalId)
+      .filter(({ notification }) => notification.data?.unsavedReply !== "true")
       .map(({ id }) => notifee.cancelDisplayedNotification(id!)),
   );
 }
@@ -159,16 +162,26 @@ async function sendReply(notification: Notification, text: string): Promise<void
           }),
         )
       : { error: new Error("The notification doesn't say who it's from.") };
-  const sent = !result.error;
-  // Unsent, it waits in the chat's composer, so opening the chat doesn't mean typing it again.
-  if (!sent) await keepDraft(chatId, text);
-  const outcome = replyText(sent, text);
+  const forTeammate = typeof teammateId === "string" && Boolean(teammateId);
+  // Unsent, it waits in the chat's composer, for its teammate, so opening the chat doesn't mean
+  // typing it again. If the phone can't store it, this notification keeps it.
+  const outcome: ReplyOutcome = !result.error
+    ? { kind: "sent" }
+    : (await keepDraft(chatId, text, forTeammate ? teammateId : null))
+      ? { kind: "kept", forTeammate }
+      : { kind: "lost" };
+  const sent = outcome.kind === "sent";
+  const shown = replyText(outcome, text);
   await notifee.displayNotification({
     id: notification.id,
-    title: outcome.title,
-    body: sent ? text : outcome.body,
+    title: shown.title,
+    body: shown.body,
     // Without the reply fields: this one is about the reply, so it has no Reply of its own.
-    data: { url: notification.data?.url ?? "/", chatId },
+    data: {
+      url: notification.data?.url ?? "/",
+      chatId,
+      ...(outcome.kind === "lost" ? { unsavedReply: "true" } : {}),
+    },
     android: {
       channelId: "messages",
       groupId: "messages",
@@ -179,7 +192,9 @@ async function sendReply(notification: Notification, text: string): Promise<void
       onlyAlertOnce: true,
       ...(sent
         ? { timeoutAfter: 4_000 }
-        : { style: { type: AndroidStyle.BIGTEXT, text: outcome.body } }),
+        : { style: { type: AndroidStyle.BIGTEXT, text: shown.body } }),
+      // Its only copy stays until you dismiss it, even when you open it.
+      ...(outcome.kind === "lost" ? { autoCancel: false } : {}),
     },
   });
 }

@@ -1,17 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { displayed, cancel, display, send, getApproval, decideApproval, stored } = vi.hoisted(
-  () => ({
+const { displayed, cancel, display, send, getApproval, decideApproval, stored, storage } =
+  vi.hoisted(() => ({
     /** The phone's AsyncStorage, as the draft store sees it. */
     stored: new Map<string, string>(),
+    storage: { failing: false },
     displayed: vi.fn(),
     cancel: vi.fn(),
     display: vi.fn(),
     send: vi.fn(),
     getApproval: vi.fn(),
     decideApproval: vi.fn(),
-  }),
-);
+  }));
 
 vi.mock("@notifee/react-native", () => ({
   default: {
@@ -34,7 +34,10 @@ vi.mock("@/lib/realtime", () => ({ visibleChat: { get: () => null } }));
 vi.mock("@react-native-async-storage/async-storage", () => ({
   default: {
     getItem: async (key: string) => stored.get(key) ?? null,
-    setItem: async (key: string, value: string) => void stored.set(key, value),
+    setItem: async (key: string, value: string) => {
+      if (storage.failing) throw new Error("disk full");
+      stored.set(key, value);
+    },
   },
 }));
 // The real draft store, which the app imports through the `@/` alias the tests don't have.
@@ -57,6 +60,7 @@ beforeEach(() => {
   // No draft for the chat; keeping one cancels the store's pending debounced write.
   writeDraft("c1", "");
   stored.clear();
+  storage.failing = false;
   displayed.mockResolvedValue(shown);
   cancel.mockResolvedValue(undefined);
   display.mockResolvedValue(undefined);
@@ -150,6 +154,15 @@ describe("clearing displayed chat notifications", () => {
     expect(cancel.mock.calls).toEqual([["reply-a"]]);
   });
 
+  it("keeps a reply the phone couldn't send or store: the notification is its only copy", async () => {
+    displayed.mockResolvedValue([
+      ...shown,
+      { id: "unsaved-a", notification: { data: { chatId: "a", unsavedReply: "true" } } },
+    ]);
+    await clearChatNotifications("a", () => true);
+    expect(cancel.mock.calls).toEqual([["reply-a"]]);
+  });
+
   it("keeps notifications if focus is lost while fetching displayed notifications", async () => {
     let resolve!: (value: typeof shown) => void;
     displayed.mockReturnValue(new Promise((done) => (resolve = done)));
@@ -198,16 +211,20 @@ describe("replying from a notification", () => {
     );
   });
 
-  const drafts = () => JSON.parse(stored.get("openbot:drafts") ?? "{}") as Record<string, string>;
+  const drafts = () =>
+    JSON.parse(stored.get("openbot:drafts") ?? "{}") as Record<
+      string,
+      string | { text: string; mentions: string[] }
+    >;
 
   it("leaves the chat's draft alone once the reply is sent", async () => {
     send.mockResolvedValue({ id: "m1" });
     await handleNotificationEvent(reply("Book the 9am one"));
-    expect(await readDraft("c1")).toBe("");
+    expect(await readDraft("c1")).toEqual({ text: "", mentions: [] });
     expect(drafts()).not.toHaveProperty("c1");
   });
 
-  it("says so when the reply couldn't be sent, keeps what you typed, and stays until you open it", async () => {
+  it("says so when the reply couldn't be sent, and keeps it in the chat for the teammate it was to", async () => {
     send.mockRejectedValue(new Error("offline"));
     await handleNotificationEvent(reply("Book it"));
     const shown = display.mock.calls[0]![0];
@@ -217,12 +234,13 @@ describe("replying from a notification", () => {
       data: { url: "/chats/c1?run=run-1", chatId: "c1" },
     });
     expect(shown.android.timeoutAfter).toBeUndefined();
-    // Stored before the handler returns: the background task can stop right after.
-    expect(drafts()).toEqual({ c1: "Book it" });
-    expect(await readDraft("c1")).toBe("Book it");
+    // Stored before the handler returns: the background task can stop right after. With its
+    // teammate, so sending it from a group chat goes to them, not the lead.
+    expect(drafts()).toEqual({ c1: { text: "Book it", mentions: ["b1"] } });
+    expect(await readDraft("c1")).toEqual({ text: "Book it", mentions: ["b1"] });
   });
 
-  it("sends nothing when the notification doesn't say who it's from, and keeps what you typed", async () => {
+  it("sends nothing when the notification doesn't say who it's from, and keeps it addressed to no one", async () => {
     // Without a mention a group's lead would answer instead of the teammate who wrote.
     const event = reply("Book it");
     delete (event.detail.notification!.data as Record<string, unknown>).replyBotId; // vocabulary: allow
@@ -231,18 +249,36 @@ describe("replying from a notification", () => {
     expect(display.mock.calls[0]![0]).toMatchObject({
       id: "run-1",
       title: "Couldn't send your reply",
-      body: "Saved in the chat: “Book it”. Open to send it.",
+      body: "Saved in the chat, not addressed to anyone: “Book it”. Open to send it.",
     });
     // Opening the chat finds it in the composer, which reads this draft.
     expect(drafts()).toEqual({ c1: "Book it" });
-    expect(await readDraft("c1")).toBe("Book it");
+    expect(await readDraft("c1")).toEqual({ text: "Book it", mentions: [] });
   });
 
   it("keeps a draft you'd already started, before the reply that couldn't be sent", async () => {
     writeDraft("c1", "Also, the hotel");
     send.mockRejectedValue(new Error("offline"));
     await handleNotificationEvent(reply("Book it"));
-    expect(drafts().c1).toBe("Also, the hotel\n\nBook it");
+    expect(drafts().c1).toEqual({ text: "Also, the hotel\n\nBook it", mentions: ["b1"] });
+  });
+
+  it("keeps the whole reply in the notification, until you dismiss it, when the phone can't store it", async () => {
+    storage.failing = true;
+    send.mockRejectedValue(new Error("offline"));
+    await handleNotificationEvent(reply("Book it"));
+    const shown = display.mock.calls[0]![0];
+    expect(shown).toMatchObject({
+      title: "Couldn't send or save your reply",
+      body: "You wrote: “Book it”. Open the chat to send it again.",
+      // Marked, so opening the chat doesn't clear it.
+      data: { url: "/chats/c1?run=run-1", chatId: "c1", unsavedReply: "true" },
+      android: expect.objectContaining({
+        autoCancel: false,
+        style: { type: 1, text: "You wrote: “Book it”. Open the chat to send it again." },
+      }),
+    });
+    expect(shown.body).not.toContain("Saved");
   });
 
   it("sends nothing for an empty reply", async () => {
