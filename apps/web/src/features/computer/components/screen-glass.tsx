@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { AppState } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { DesktopView, type DesktopConnection, type DesktopHandle } from "./desktop-view";
+import { ScreenView, type ScreenConnection, type ScreenHandle } from "./screen-view";
 import { useComputer } from "../hooks";
 import { ScreenBadge, EgressChip, rimColor, WakeButton } from "./screen-status";
 
@@ -29,13 +29,13 @@ export function ScreenGlass({
   screenId: string;
   initial?: AppState;
   className?: string;
-  handleRef?: React.RefObject<DesktopHandle | null>;
+  handleRef?: React.RefObject<ScreenHandle | null>;
 }) {
   const { screen, workerOnline, online, lifecycle } = useComputer(initial);
   const info = screen(screenId);
   const youHaveControl = info?.activity === "you";
   const running = info?.status?.state === "running";
-  const [connection, setConnection] = useState<DesktopConnection>("connecting");
+  const [connection, setConnection] = useState<ScreenConnection>("connecting");
   // The "your input controls the screen" hint shows briefly, then gets out of the way.
   const [hintVisible, setHintVisible] = useState(false);
   useEffect(() => {
@@ -119,7 +119,7 @@ export function ScreenGlass({
         {!starting && (
           <>
             <span className="max-w-72 text-[12.5px] leading-relaxed">
-              It wakes up when {info.bot.name} uses the desktop, or when you take over.
+              It wakes up when {info.bot.name} uses the screen, or when you take over.
             </span>
             <div className="mt-2.5">
               <WakeButton screenId={screenId} />
@@ -140,7 +140,7 @@ export function ScreenGlass({
       data-testid="computer-screen"
     >
       {placeholder === null ? (
-        <DesktopView
+        <ScreenView
           key={screenId}
           screenId={screenId}
           mode={youHaveControl ? "control" : "view"}
@@ -184,7 +184,7 @@ export function ScreenFrame({
 }: {
   screenId: string;
   initial?: AppState;
-  handleRef?: React.RefObject<DesktopHandle | null>;
+  handleRef?: React.RefObject<ScreenHandle | null>;
   className?: string;
   /** Offer a way to the full computer page. */
   expand?: boolean;

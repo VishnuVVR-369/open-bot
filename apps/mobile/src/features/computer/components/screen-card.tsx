@@ -7,7 +7,7 @@ import { Text } from "@/components/text";
 import { screenState, screenStatus, type ScreenState } from "@/features/computer/screens";
 import { radius, space, useColors } from "@/theme";
 import { mix } from "@/theme/mix";
-import { DESKTOP_ASPECT_RATIO } from "./desktop-view";
+import { SCREEN_ASPECT_RATIO } from "./screen-view";
 import { ScreenPanel, useScreenSurface } from "./screen-surface";
 
 /** The one thing to do from the list, if any: an offline computer has nothing to offer. */
@@ -80,7 +80,7 @@ export function ScreenCard({
       <ScreenPanel
         // An offline computer has nothing to show, so its stand-in stays short and the list
         // doesn't turn into a wall of dark panels.
-        aspectRatio={state.kind === "offline" ? OFFLINE_ASPECT_RATIO : DESKTOP_ASPECT_RATIO}
+        aspectRatio={state.kind === "offline" ? OFFLINE_ASPECT_RATIO : SCREEN_ASPECT_RATIO}
         tint={needsYou ? colors.attention : undefined}
       >
         <PanelGlyph state={state} />

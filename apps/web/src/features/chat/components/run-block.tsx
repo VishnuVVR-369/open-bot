@@ -9,7 +9,7 @@ import type { BotSummary, RunView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { PageCard } from "@/features/pages";
 import { SwarmCard } from "./swarm-card";
-import { DesktopStrip } from "./desktop-strip";
+import { ScreenStrip } from "./screen-strip";
 import {
   ApprovalCard,
   CommandStep,
@@ -199,7 +199,7 @@ export function RunBlock({
             if (part.kind === "computer") {
               return showSteps ? (
                 <div key={part.id} className="my-1">
-                  <DesktopStrip items={part.items} live={active} />
+                  <ScreenStrip items={part.items} live={active} />
                 </div>
               ) : null;
             }

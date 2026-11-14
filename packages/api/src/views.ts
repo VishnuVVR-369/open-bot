@@ -32,7 +32,7 @@ export const botSummarySchema = z.object({
   color: z.string(),
   emoji: z.string(),
   autonomy: autonomySchema,
-  isPrimary: z.boolean(),
+  isLead: z.boolean(),
   /** The teammate's main chat, where work that isn't started from a chat arrives. */
   directChatId: z.string().nullable(),
   /** When they last worked: their latest run's finish, or its start while it's still going. Null if they never have. */

@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
   bots,
-  desktopTakeovers,
+  screenTakeovers,
   runs,
   screenOperations,
   takeoverDeliveries,
@@ -43,8 +43,7 @@ export type TakeoverWaitResult =
 
 const AUTO_NOTES: Record<Exclude<TakeoverEndReason, "handed_back">, string> = {
   user_idle: "Control came back automatically after 10 minutes without input from the user.",
-  user_disconnected:
-    "Control came back automatically because the user's desktop view disconnected.",
+  user_disconnected: "Control came back automatically because the user's screen view disconnected.",
 };
 
 /**
@@ -79,7 +78,7 @@ export class TakeoverService {
   }
 
   private requestItem(
-    row: typeof desktopTakeovers.$inferSelect,
+    row: typeof screenTakeovers.$inferSelect,
     resolution: TakeoverRequestItem["resolution"],
     note?: string | null,
   ): TakeoverRequestItem {
@@ -99,7 +98,7 @@ export class TakeoverService {
   }
 
   private async writeRequestItem(
-    row: typeof desktopTakeovers.$inferSelect,
+    row: typeof screenTakeovers.$inferSelect,
     item: TakeoverRequestItem,
   ) {
     if (!row.requestedByRunId || !row.itemId) return;
@@ -123,7 +122,7 @@ export class TakeoverService {
   ): Promise<TakeoverWaitResult> {
     const screenId = session.bot.id;
     const [row] = await this.ctx.db
-      .insert(desktopTakeovers)
+      .insert(screenTakeovers)
       .values({
         screenId,
         status: "requested",
@@ -136,9 +135,9 @@ export class TakeoverService {
     // If you already have control of this screen, the request joins your current takeover.
     if (isOwnerLease(this.ctx.computer.lease(screenId))) {
       await this.ctx.db
-        .update(desktopTakeovers)
+        .update(screenTakeovers)
         .set({ status: "active", startedAt: new Date() })
-        .where(eq(desktopTakeovers.id, row!.id));
+        .where(eq(screenTakeovers.id, row!.id));
       session.putItem(this.requestItem(row!, "taken"));
     } else {
       session.putItem(this.requestItem(row!, "pending"));
@@ -189,28 +188,28 @@ export class TakeoverService {
   /** Records that you hold the screen: its requests become active and an interrupted run is noted. */
   async recordTake(screenId: string, previous: LeaseHolder): Promise<void> {
     const now = new Date();
-    const onScreen = eq(desktopTakeovers.screenId, screenId);
+    const onScreen = eq(screenTakeovers.screenId, screenId);
     const pending = await this.ctx.db
-      .update(desktopTakeovers)
+      .update(screenTakeovers)
       .set({ status: "active", startedAt: now })
-      .where(and(eq(desktopTakeovers.status, "requested"), onScreen))
+      .where(and(eq(screenTakeovers.status, "requested"), onScreen))
       .returning();
     const [active] = await this.ctx.db
       .select()
-      .from(desktopTakeovers)
-      .where(and(eq(desktopTakeovers.status, "active"), onScreen))
-      .orderBy(desc(desktopTakeovers.createdAt))
+      .from(screenTakeovers)
+      .where(and(eq(screenTakeovers.status, "active"), onScreen))
+      .orderBy(desc(screenTakeovers.createdAt))
       .limit(1);
     const interruptedRunId = previous?.kind === "run" ? previous.runId : null;
     if (!active) {
       await this.ctx.db
-        .insert(desktopTakeovers)
+        .insert(screenTakeovers)
         .values({ screenId, status: "active", startedAt: now, interruptedRunId });
     } else if (interruptedRunId && !active.interruptedRunId) {
       await this.ctx.db
-        .update(desktopTakeovers)
+        .update(screenTakeovers)
         .set({ interruptedRunId })
-        .where(eq(desktopTakeovers.id, active.id));
+        .where(eq(screenTakeovers.id, active.id));
     }
     for (const row of pending) await this.writeRequestItem(row, this.requestItem(row, "taken"));
     await publishApp(this.ctx, { type: "takeovers" });
@@ -222,9 +221,9 @@ export class TakeoverService {
     this.handingBack.add(screenId);
     try {
       await this.ctx.db
-        .update(desktopTakeovers)
+        .update(screenTakeovers)
         .set({ note: note?.trim() || null, endReason: "handed_back" })
-        .where(and(eq(desktopTakeovers.status, "active"), eq(desktopTakeovers.screenId, screenId)));
+        .where(and(eq(screenTakeovers.status, "active"), eq(screenTakeovers.screenId, screenId)));
       const { released } = await this.ctx.computer.releaseByUser(
         screenId,
         "handed_back",
@@ -247,9 +246,9 @@ export class TakeoverService {
   /** Dismiss a bot's request without taking over. Waits for no code entry on that screen. */
   async dismiss(takeoverId: string): Promise<void> {
     const [request] = await this.ctx.db
-      .select({ screenId: desktopTakeovers.screenId })
-      .from(desktopTakeovers)
-      .where(eq(desktopTakeovers.id, takeoverId));
+      .select({ screenId: screenTakeovers.screenId })
+      .from(screenTakeovers)
+      .where(eq(screenTakeovers.id, takeoverId));
     if (!request) return;
     if (request.screenId)
       await withScreenLock(this.ctx, request.screenId, () => this.dismissNow(takeoverId));
@@ -258,9 +257,9 @@ export class TakeoverService {
 
   private async dismissNow(takeoverId: string): Promise<void> {
     const [row] = await this.ctx.db
-      .update(desktopTakeovers)
+      .update(screenTakeovers)
       .set({ status: "dismissed", endedAt: new Date() })
-      .where(and(eq(desktopTakeovers.id, takeoverId), eq(desktopTakeovers.status, "requested")))
+      .where(and(eq(screenTakeovers.id, takeoverId), eq(screenTakeovers.status, "requested")))
       .returning();
     if (!row) return;
     this.ctx.events.emit("takeoverEnded", row.id);
@@ -278,9 +277,9 @@ export class TakeoverService {
       // Every takeover ended together shares one return, so each bot hears about it once.
       const continuationRunId = randomUUID();
       const ended = await tx
-        .update(desktopTakeovers)
+        .update(screenTakeovers)
         .set({ status: "ended", endedAt: new Date(), note, endReason: reason })
-        .where(and(eq(desktopTakeovers.status, "active"), eq(desktopTakeovers.screenId, screenId)))
+        .where(and(eq(screenTakeovers.status, "active"), eq(screenTakeovers.screenId, screenId)))
         .returning();
       for (const row of ended)
         await tx
@@ -300,8 +299,8 @@ export class TakeoverService {
     if (this.ctx.computer.online) {
       const active = await this.ctx.db
         .select()
-        .from(desktopTakeovers)
-        .where(eq(desktopTakeovers.status, "active"));
+        .from(screenTakeovers)
+        .where(eq(screenTakeovers.status, "active"));
       for (const row of active) {
         const screenId = row.screenId;
         if (!screenId) continue;
@@ -394,9 +393,9 @@ export class TakeoverService {
         await withScreenLock(this.ctx, `return:${continuationRunId}`, async () => {
           const ended = (
             await this.ctx.db
-              .select({ takeover: desktopTakeovers })
+              .select({ takeover: screenTakeovers })
               .from(takeoverDeliveries)
-              .innerJoin(desktopTakeovers, eq(desktopTakeovers.id, takeoverDeliveries.id))
+              .innerJoin(screenTakeovers, eq(screenTakeovers.id, takeoverDeliveries.id))
               .where(
                 and(
                   eq(takeoverDeliveries.continuationRunId, continuationRunId),
@@ -419,7 +418,7 @@ export class TakeoverService {
   }
 
   private async deliverReturn(
-    ended: (typeof desktopTakeovers.$inferSelect)[],
+    ended: (typeof screenTakeovers.$inferSelect)[],
     continuationRunId: string,
   ): Promise<void> {
     // Rows ended together share the same note and reason.

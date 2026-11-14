@@ -87,7 +87,7 @@ A few things are plain HTTP on the web app, because they carry bytes or streams,
 | `GET /api/files/download`                | Files on the computer, shown or saved                                                                    | `src/features/files/files.ts`                                 |
 | `GET /api/artifacts/<id>`                | The last screenshot of a screen while the computer is offline                                            | `src/features/computer/components/last-frames.tsx`            |
 | `GET /api/pages/versions/<id>/thumbnail` | Page card pictures, in light or dark                                                                     | `src/features/pages/pages.ts`                                 |
-| `GET /api/desktop/token`                 | A short-lived token for the screen viewer                                                                | `src/features/computer/components/desktop-view.tsx`           |
+| `GET /api/desktop/token`                 | A short-lived token for the screen viewer                                                                | `src/features/computer/components/screen-view.tsx`            |
 
 ## Live updates
 
@@ -126,7 +126,7 @@ Do not edit it by hand.
 Run `pnpm --filter @open-bot/mobile build:viewer` after changing the viewer, and `check:viewer` to confirm it is current.
 
 The WebView never gets your session.
-`desktop-view.tsx` fetches `/api/desktop/token` with the cookie in the app's own JavaScript, and posts the returned worker URL and 60-second VNC token into the WebView.
+`screen-view.tsx` fetches `/api/desktop/token` with the cookie in the app's own JavaScript, and posts the returned worker URL and 60-second VNC token into the WebView.
 It refuses a non-`wss://` URL outside development builds.
 The WebView has shared and third-party cookies off, blocks navigation away from `about:blank`, and ignores new windows.
 Messages carry a version and a generation, and a message from an older connection is dropped.

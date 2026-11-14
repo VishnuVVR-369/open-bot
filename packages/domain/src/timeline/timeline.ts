@@ -110,7 +110,7 @@ export interface UserMessageItem extends BaseItem {
   kind: "user_message";
   text: string;
   messageId: string;
-  /** `hand_back` marks the note you left when you handed the desktop back. */
+  /** `hand_back` marks the note you left when you handed the screen back. */
   variant?: "message" | "hand_back";
 }
 

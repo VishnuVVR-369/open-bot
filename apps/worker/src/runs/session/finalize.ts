@@ -77,7 +77,7 @@ export async function complete(session: FinalizeSession, outcome: Outcome) {
       } as TimelineItem);
     }
   }
-  // Free the desktop and store the final state first, so the event below reaches clients
+  // Free the screen and store the final state first, so the event below reaches clients
   // that then read a consistent run row and lease.
   await ctx.computer.releaseRun(run.id).catch((error: unknown) =>
     ctx.log.warn("couldn't release the run's screens", {

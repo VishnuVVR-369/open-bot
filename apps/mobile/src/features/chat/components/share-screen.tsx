@@ -133,7 +133,7 @@ export default function ShareScreen() {
     );
   const chosen: BotSummary =
     teammates.find((bot) => bot.id === botId) ??
-    teammates.find((bot) => bot.isPrimary) ??
+    teammates.find((bot) => bot.isLead) ??
     teammates[0]!;
 
   const send = async () => {

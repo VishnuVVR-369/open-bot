@@ -1,7 +1,7 @@
 // Teammates and their conversations: direct chats, group chats, runs, approvals, swarm, takeover.
 import { randomUUID } from "node:crypto";
 import type { InferInsertModel } from "drizzle-orm";
-import { bots, desktopTakeovers, swarmTasks, swarms } from "@open-bot/db";
+import { bots, screenTakeovers, swarmTasks, swarms } from "@open-bot/db";
 import {
   ago,
   approval,
@@ -32,7 +32,7 @@ export const BOT_DEFS: (Omit<InferInsertModel<typeof bots>, "id" | "slug" | "cre
     role: "Chief of staff",
     color: "#7C5CFF",
     emoji: "🧭",
-    isPrimary: true,
+    isLead: true,
     autonomy: "risky",
     reasoningEffort: "medium",
     created: { d: 34 },
@@ -160,7 +160,7 @@ export async function seedTeam(ctx: SeedContext) {
       emoji: def.emoji,
       autonomy: def.autonomy,
       reasoningEffort: def.reasoningEffort,
-      isPrimary: def.isPrimary ?? false,
+      isLead: def.isLead ?? false,
       monthlyBudgetCents: def.monthlyBudgetCents ?? null,
       autoApproveCents: def.autoApproveCents ?? 0,
       createdAt: created,
@@ -1059,7 +1059,7 @@ I also saved a note for myself: your intros should stay under three sentences.`)
     ],
   });
   R.junoCms = cmsExchange.runs[0];
-  await ctx.db.insert(desktopTakeovers, {
+  await ctx.db.insert(screenTakeovers, {
     screenId: juno.id,
     status: "requested",
     requestedByRunId: R.junoCms.id,

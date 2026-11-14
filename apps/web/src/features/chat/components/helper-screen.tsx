@@ -2,7 +2,7 @@
 
 import { Network } from "lucide-react";
 import Link from "next/link";
-import { DesktopView, useComputer } from "@/features/computer";
+import { ScreenView, useComputer } from "@/features/computer";
 import type { ChatData } from "@/lib/types";
 
 /** A swarm helper's own screen, which you can watch while it works on its part. */
@@ -15,7 +15,7 @@ export function HelperScreen({ helper }: { helper: NonNullable<ChatData["helper"
       <div className="rounded-[22px] bg-bezel p-2.5">
         <div className="relative aspect-[16/10] w-full overflow-hidden rounded-[12px] bg-black">
           {helper.state === "running" && up ? (
-            <DesktopView screenId={helper.screenId} mode="view" className="absolute inset-0" />
+            <ScreenView screenId={helper.screenId} mode="view" className="absolute inset-0" />
           ) : (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-6 text-center text-bezel-foreground/70">
               <span className="text-[14px] font-medium text-bezel-foreground">

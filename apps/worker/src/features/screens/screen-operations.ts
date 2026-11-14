@@ -1,4 +1,4 @@
-import { desktopTakeovers, screenOperations, type Queryable } from "@open-bot/db";
+import { screenTakeovers, screenOperations, type Queryable } from "@open-bot/db";
 import {
   isOwnerLease,
   type ScreenOperation,
@@ -84,8 +84,8 @@ export class ScreenOperationService {
   async context(takeoverId: string): Promise<{ screenId: string; site: string | null }> {
     const [request] = await this.ctx.db
       .select()
-      .from(desktopTakeovers)
-      .where(eq(desktopTakeovers.id, takeoverId));
+      .from(screenTakeovers)
+      .where(eq(screenTakeovers.id, takeoverId));
     if (
       !request?.screenId ||
       request.status !== "requested" ||
@@ -109,8 +109,8 @@ export class ScreenOperationService {
     try {
       const [request] = await this.ctx.db
         .select()
-        .from(desktopTakeovers)
-        .where(eq(desktopTakeovers.id, input.takeoverId));
+        .from(screenTakeovers)
+        .where(eq(screenTakeovers.id, input.takeoverId));
       if (!request?.screenId)
         return this.set(input.operationId, "failed", "That takeover request is gone.");
       const screenId = request.screenId;
@@ -121,8 +121,8 @@ export class ScreenOperationService {
       return await withScreenLock(this.ctx, screenId, async () => {
         const [current] = await this.ctx.db
           .select()
-          .from(desktopTakeovers)
-          .where(eq(desktopTakeovers.id, request.id));
+          .from(screenTakeovers)
+          .where(eq(screenTakeovers.id, request.id));
         if (
           !current ||
           current.status !== "requested" ||

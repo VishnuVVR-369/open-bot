@@ -49,7 +49,7 @@ function TeammateRow({
       accessibilityHint={`Hold to see ${bot.name}'s profile`}
       accessibilityLabel={[
         bot.name,
-        bot.isPrimary ? "lead" : null,
+        bot.isLead ? "lead" : null,
         state,
         bot.role,
         unread ? "unread" : null,
@@ -73,7 +73,7 @@ function TeammateRow({
           >
             {bot.name}
           </Text>
-          {bot.isPrimary && <LeadBadge />}
+          {bot.isLead && <LeadBadge />}
           <Text variant="small" muted numberOfLines={1} style={{ flexShrink: 1 }}>
             {bot.role}
           </Text>

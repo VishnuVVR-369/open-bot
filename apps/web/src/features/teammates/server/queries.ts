@@ -53,7 +53,7 @@ export async function listTeammates(): Promise<BotSummary[]> {
       color: bot.color,
       emoji: bot.emoji,
       autonomy: bot.autonomy,
-      isPrimary: bot.isPrimary,
+      isLead: bot.isLead,
       directChatId: mainChats.find((chat) => chat.teammateId === bot.id)?.id ?? null,
       lastActiveAt: latest.find((entry) => entry.botId === bot.id)?.at.toISOString() ?? null,
       activeRun: run

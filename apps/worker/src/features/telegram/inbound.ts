@@ -134,7 +134,7 @@ export async function leadBot(service: TelegramClient) {
     .select({ id: bots.id, name: bots.name })
     .from(bots)
     .where(isNull(bots.archivedAt))
-    .orderBy(desc(bots.isPrimary), asc(bots.createdAt))
+    .orderBy(desc(bots.isLead), asc(bots.createdAt))
     .limit(1);
   return lead ?? null;
 }

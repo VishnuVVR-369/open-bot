@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Keeps legacy vocabulary from spreading (see the glossary in the root AGENTS.md). Code still uses
-// names like `botId` and `isPrimary` that are renamed later; this check counts each banned term per
+// names like `botId` and `is_primary` that are renamed later; this check counts each banned term per
 // file and fails when a file uses one more often than `vocabulary-baseline.json` allows, or when the
 // baseline is higher than the code (run `pnpm check:vocabulary --update` after removing uses).
 // `--update` refuses to raise a term's total across the repository, so moving a file works but a new

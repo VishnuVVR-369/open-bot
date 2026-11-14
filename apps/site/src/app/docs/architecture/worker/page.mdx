@@ -89,7 +89,7 @@ When a session ends, it calls `pump()` again.
 `dispatchMessage(messageId)` decides who answers a message you sent:
 
 - In a direct chat, the chat's teammate.
-- In a group chat, the teammates you @-mentioned, or else the primary teammate, or else the first member.
+- In a group chat, the teammates you @-mentioned, or else the lead teammate, or else the first member.
 
 For each target, if that teammate already has a session running in this chat and the message has no attachments, the message is **steered** into the running turn with Codex's `turn/steer`.
 Otherwise a new run is queued with trigger `user`.
