@@ -10,7 +10,7 @@ import { TimeAgo } from "@/components/time-ago";
 import { isOffline } from "@/lib/client/errors";
 import { attempt } from "@/lib/client/mutate";
 import { api, orpc } from "@/lib/client/rpc";
-import { useComputerOnline } from "@/lib/client/queries";
+import { useComputerOnline } from "@/features/app-shell";
 import { OFFLINE_RETRY, OfflineNote, SectionError } from "./section-state";
 
 const noop = () => () => {};

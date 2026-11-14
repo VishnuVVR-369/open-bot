@@ -1,8 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import type { AppState } from "../types";
-import { orpc } from "./rpc";
+import type { AppState } from "@/lib/types";
+import { orpc } from "@/lib/client/rpc";
 
 /**
  * Reads the browser makes, one hook per procedure of the API (`@open-bot/api`). Each is cached
@@ -19,10 +19,6 @@ export function useAppState(initial?: AppState) {
       refetchInterval: 15_000,
     }),
   );
-}
-
-export function useNotifications(enabled = true) {
-  return useQuery(orpc.notifications.list.queryOptions({ enabled }));
 }
 
 /** False while the computer (the worker) is offline, so views skip requests that would fail. */

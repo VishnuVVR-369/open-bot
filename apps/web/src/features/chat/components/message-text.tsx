@@ -2,7 +2,7 @@
 
 import { Sparkles } from "lucide-react";
 import { Fragment } from "react";
-import { useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/features/app-shell";
 import { cn } from "@/lib/utils";
 
 /** Your message, with the skills it runs (`/name`) shown as chips. */

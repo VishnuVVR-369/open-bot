@@ -4,7 +4,7 @@ import { UserRound, X } from "lucide-react";
 import Link from "next/link";
 import { useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
-import { useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/features/app-shell";
 import { useProfile } from "@/features/settings";
 
 const NUDGE_KEY = "open-bot:profile-nudge-dismissed";

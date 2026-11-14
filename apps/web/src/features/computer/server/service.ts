@@ -4,7 +4,7 @@ import { artifacts, desktopTakeovers, runs } from "@open-bot/db";
 import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/server/db";
 import { listTeammates } from "@/features/teammates/server";
-import { workerStatus } from "@/lib/server/queries";
+import { workerStatus } from "@/lib/server/worker-status";
 import { worker } from "@/lib/server/worker";
 
 /**

@@ -6,7 +6,7 @@ import { Laptop } from "lucide-react";
 import { useTransition } from "react";
 import { toast } from "sonner";
 import { attempt } from "@/lib/client/mutate";
-import { useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/features/app-shell";
 import { api, orpc } from "@/lib/client/rpc";
 import { cn } from "@/lib/utils";
 import { Choice } from "./choice";

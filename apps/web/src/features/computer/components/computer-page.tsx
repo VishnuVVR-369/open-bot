@@ -9,7 +9,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { BotAvatar } from "@/components/bot-avatar";
 import { orpc } from "@/lib/client/rpc";
-import { useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/features/app-shell";
 import { STATUS, teammateStatus, type TeammateStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
 import { type ScreenInfo, useComputer, useFollowedScreen } from "../hooks";

@@ -1,6 +1,6 @@
 import { Providers } from "@/components/app/providers";
 import { Shell } from "@/components/app/shell";
-import { getAppState } from "@/lib/server/queries";
+import { getAppState } from "@/features/app-shell/server";
 import { requireUser } from "@/lib/server/session";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {

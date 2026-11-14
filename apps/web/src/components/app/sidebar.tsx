@@ -37,13 +37,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { authClient } from "@/lib/auth-client";
-import { useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/features/app-shell";
 import { COMPUTER_OFFLINE_LINE, isComputerOnline, teammateStatus } from "@/lib/status";
 import type { AppState } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useCommandMenu } from "./command-menu";
 import { NewGroupDialog } from "./new-group-dialog";
-import { NotificationsButton } from "./notifications";
+import { NotificationsButton } from "@/features/notifications";
 
 function NavItem({
   href,

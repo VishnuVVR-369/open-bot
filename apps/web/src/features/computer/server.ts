@@ -2,3 +2,4 @@
 // from here; client code imports from `index.ts`.
 import "server-only";
 export { computerRoutes } from "./server/routes";
+export { listTakeoverRequests, listActiveTakeovers } from "./server/queries";

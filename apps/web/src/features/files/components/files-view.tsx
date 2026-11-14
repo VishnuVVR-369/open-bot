@@ -32,7 +32,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Skeleton } from "@/components/ui/skeleton";
 import type { FileListing } from "@open-bot/api/worker";
 import { isOffline } from "@/lib/client/errors";
-import { useAppState, useComputerOnline } from "@/lib/client/queries";
+import { useAppState, useComputerOnline } from "@/features/app-shell";
 import { attempt } from "@/lib/client/mutate";
 import { api, orpc } from "@/lib/client/rpc";
 import { uploadToFolder } from "../uploads";

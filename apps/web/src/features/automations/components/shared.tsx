@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/features/app-shell";
 import { isComputerOnline } from "@/lib/status";
 import type { ScheduleRunView } from "@/lib/types";
 import { chatHref } from "@/lib/utils";

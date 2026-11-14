@@ -2,7 +2,7 @@
 
 import { isOwnerLease, type LeaseHolder, type ScreenStatus } from "@open-bot/domain";
 import { useState } from "react";
-import { useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/features/app-shell";
 import { isComputerOnline } from "@/lib/status";
 import type { AppState, BotSummary, TakeoverRequestSummary } from "@/lib/types";
 

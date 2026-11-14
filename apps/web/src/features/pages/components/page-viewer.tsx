@@ -38,7 +38,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { attempt } from "@/lib/client/mutate";
-import { useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/features/app-shell";
 import { usePage, usePageLink } from "../hooks";
 import { api } from "@/lib/client/rpc";
 import type { BotSummary, ChatSummary, PageDetail } from "@/lib/types";

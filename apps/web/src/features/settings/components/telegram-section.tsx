@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { isOffline } from "@/lib/client/errors";
-import { useComputerOnline } from "@/lib/client/queries";
+import { useComputerOnline } from "@/features/app-shell";
 import { attempt } from "@/lib/client/mutate";
 import { api, orpc } from "@/lib/client/rpc";
 import { cn } from "@/lib/utils";

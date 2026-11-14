@@ -1,5 +1,6 @@
 import "server-only";
-import { getAppState, listNotifications } from "../queries";
+import { appRoutes } from "@/features/app-shell/server";
+import { notificationRoutes } from "@/features/notifications/server";
 import { approvalRoutes } from "@/features/approvals/server";
 import { automationRoutes } from "@/features/automations/server";
 import { chatRoutes } from "@/features/chat/server";
@@ -15,15 +16,10 @@ import { taskRoutes } from "@/features/tasks/server";
 import { teammateRoutes } from "@/features/teammates/server";
 import { vaultRoutes } from "@/features/vault/server";
 import { os } from "./rpc";
-import * as api from "./services";
 
 /** The API (`contract` in `@open-bot/api`), for the browser and the phone. */
 export const router = os.router({
-  app: {
-    state: os.app.state.handler(({ context }) =>
-      getAppState({ name: context.user.name, email: context.user.email }),
-    ),
-  },
+  app: appRoutes(),
   ...computerRoutes(),
   home: homeRoutes(),
   ...teammateRoutes(),
@@ -36,10 +32,7 @@ export const router = os.router({
   vault: vaultRoutes(),
   memory: memoryRoutes(),
   files: fileRoutes(),
-  notifications: {
-    list: os.notifications.list.handler(() => listNotifications()),
-    markRead: os.notifications.markRead.handler(({ input }) => api.markNotificationsRead(input)),
-  },
+  notifications: notificationRoutes(),
   pages: pageRoutes(),
   approvals: approvalRoutes(),
 });

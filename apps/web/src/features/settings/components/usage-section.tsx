@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/features/app-shell";
 import { orpc } from "@/lib/client/rpc";
 import { compactNumber } from "@/lib/utils";
 import { SectionState } from "./section-state";

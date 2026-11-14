@@ -20,7 +20,10 @@ Shared types and the mobile contract belong in `packages/domain` and `packages/a
 - `apps/web/src/features/<feature>/` is one folder per feature: its views in `components/`, its hooks in `hooks.ts`, and its server side (reads in `server/queries.ts`, or a `server/service.ts` when it also changes things, and API procedures in `server/routes.ts`).
   Code outside the folder imports only its `index.ts` (client side) or `server.ts` (server side); `apps/web/src/features/boundaries.test.ts` checks it.
   Nothing `index.ts` reaches may import server code (`server-only`, `@open-bot/db`, a package's `/server` entry), since a client component that imports it puts it in the browser; the same test checks that too.
-- `apps/web/src/lib/server/api/` has the API's services: what a procedure does beyond calling the worker, such as notification changes.
+- Feature ownership follows the UI: `app-shell` owns app state, attention and shared shell hooks; `notifications` owns the notification popover, reads and mark-read; `settings` owns profile and browsing/egress (including paired-device authentication).
+  `teammates` and `chat` own their lists, `chat` owns attachment uploads, and `files` owns folder uploads.
+- `apps/web/src/lib/server/` keeps cross-cutting infrastructure: auth, session, DB, env, realtime, publishing, the worker client and worker-status compatibility.
+  `apps/web/src/lib/server/api/` contains only the RPC builder, error type and router composition; feature services live beside their routes.
 - `apps/web/src/app/api/stream/route.ts` is the SSE stream, fed by `apps/web/src/lib/server/realtime.ts`.
 - `apps/web/src/app/api/rpc/[[...rest]]` serves the oRPC router in `apps/web/src/lib/server/api/router.ts` for the browser and mobile; features build their procedures with `os` from `apps/web/src/lib/server/api/rpc.ts`, which checks the session and maps errors.
 - `apps/web/src/lib/client/rpc.ts` is the browser's typed client (`api`) and its TanStack Query helpers (`orpc`); `apps/web/src/lib/client/errors.ts` tells offline, signed-out and not-found failures apart.
@@ -32,11 +35,11 @@ Shared types and the mobile contract belong in `packages/domain` and `packages/a
 
 - Every non-test file in `apps/web/src/lib/server/`, and in a feature's `server.ts` and `server/`, imports `server-only`.
 - Files with `"use client"` must not import from `lib/server` or a feature's server side.
-- Browser reads go through the API with TanStack Query: a hook in the feature's `hooks.ts` (or `apps/web/src/lib/client/queries.ts` for areas not moved yet) built from `orpc` (`apps/web/src/lib/client/rpc.ts`).
+- Browser reads go through the API with TanStack Query: a hook in the feature's `hooks.ts` built from `orpc` (`apps/web/src/lib/client/rpc.ts`).
 - Query keys are procedure paths (`orpc.tasks.key()`); never write a key by hand.
   App events refresh queries by `APP_EVENT_REFRESHES` in `packages/api/src/events.ts`.
 - Routes in `apps/web/src/app/api/*/route.ts` are only for streams, bytes (downloads, uploads, thumbnails), tokens and outside callers (webhooks, OAuth); a JSON read is a procedure.
-- Server components read through functions in `apps/web/src/lib/server` or a feature's `server.ts`, never `db` directly.
+- Server components read through a feature's `server.ts`, never `db` directly; shared infrastructure stays in `apps/web/src/lib/server`.
 - Browser writes go through the API too: `attempt(api.chats.archive({ chatId }))` (`apps/web/src/lib/client/mutate.ts`) returns `{ ok, data }` or `{ ok, error }`.
   A new write is a procedure in `packages/api/src/contract.ts` with its handler in the feature's `server/routes.ts`, never a server action: those run one at a time per client and the phone can't call them.
   `apps/web/src/no-server-actions.test.ts` fails on any `"use server"`.
@@ -57,7 +60,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 
 1. `apps/web/src/app/(app)/<route>/page.tsx` (thin, wraps `<Page>`), importing its view from the feature's `index.ts`.
    A feature is a folder in `apps/web/src/features/<feature>/` (`apps/web/src/features/tasks` is the example): `"use client"` views in `components/`, hooks in `hooks.ts`, and the server side in `server/`, reached through `server.ts`.
-   What no feature owns yet (app state, chat lists, notifications, the profile, egress, uploads) is in `apps/web/src/lib/server/queries.ts`, `apps/web/src/lib/server/api/` and `apps/web/src/lib/client/queries.ts`.
+   Put reads and services with the UI that owns them; reuse a feature through its public entries instead of creating a shared query or service bucket.
 2. A procedure in `packages/api/src/contracts/<feature>.ts` (composed in `packages/api/src/contract.ts`) with its view schema; its read in the feature's `server/queries.ts` and its handlers in `server/routes.ts` (built with `os` from `apps/web/src/lib/server/api/rpc.ts`), mounted in `apps/web/src/lib/server/api/router.ts`; and a hook in the feature's `hooks.ts` (`orpc.<path>.queryOptions()`).
    Say which app events refresh it in `APP_EVENT_REFRESHES` (`packages/api/src/events.ts`).
 3. Nav: `apps/web/src/components/app/sidebar.tsx` and `apps/web/src/components/app/command-menu.tsx`.

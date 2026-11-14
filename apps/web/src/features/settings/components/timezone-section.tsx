@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { attempt } from "@/lib/client/mutate";
-import { useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/features/app-shell";
 import { api, orpc } from "@/lib/client/rpc";
 
 /** For a value that never changes while the page is open. */

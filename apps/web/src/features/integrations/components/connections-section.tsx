@@ -33,7 +33,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { attempt } from "@/lib/client/mutate";
-import { useAppState } from "@/lib/client/queries";
+import { useAppState } from "@/features/app-shell";
 import { useConnections } from "../hooks";
 import { refreshForAppEvent } from "@/lib/client/refresh";
 import { api } from "@/lib/client/rpc";
