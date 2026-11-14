@@ -728,6 +728,12 @@
     "bot": 67,
     "primary teammate": 1
   },
+  "apps/worker/src/features/vault/service.ts": {
+    "bot": 40
+  },
+  "apps/worker/src/features/vault/tools.ts": {
+    "bot": 1
+  },
   "apps/worker/src/index.ts": {
     "bot": 7
   },
@@ -786,9 +792,6 @@
   "apps/worker/src/services/swarms.ts": {
     "bot": 10
   },
-  "apps/worker/src/services/vault.ts": {
-    "bot": 40
-  },
   "apps/worker/src/tools/bots.integration.test.ts": {
     "bot": 129,
     "primary teammate": 1
@@ -804,9 +807,6 @@
   },
   "apps/worker/src/tools/teamwork.ts": {
     "bot": 29
-  },
-  "apps/worker/src/tools/vault.ts": {
-    "bot": 1
   },
   "apps/worker/src/uploads.integration.test.ts": {
     "bot": 7

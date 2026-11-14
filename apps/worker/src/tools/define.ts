@@ -14,7 +14,7 @@ import type { ScheduleService, TriggerService } from "../features/automations";
 import type { SkillService } from "../features/skills";
 import type { SwarmService } from "../services/swarms";
 import type { TakeoverService } from "../features/screens";
-import type { VaultService } from "../services/vault";
+import type { VaultService } from "../features/vault";
 
 export {
   inputJsonSchema,

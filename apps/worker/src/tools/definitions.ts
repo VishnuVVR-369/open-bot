@@ -16,7 +16,7 @@ import { SKILL_TOOLS } from "../features/skills";
 import { SWARM_TOOLS } from "./swarms";
 import { TEAMMATE_TOOLS } from "../features/teammates";
 import { TEAMWORK_TOOLS } from "./teamwork";
-import { VAULT_TOOLS } from "./vault";
+import { VAULT_TOOLS } from "../features/vault";
 
 export const TOOLS: readonly AnyTool[] = [
   ...DESKTOP_TOOLS,

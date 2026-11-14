@@ -1,16 +1,19 @@
 // Vault tools: fill logins and cards on the screen, and purchases.
 import { formatMoney } from "@open-bot/domain";
 import { z } from "zod";
-import type { RunSession } from "../runs/session";
-import { VaultError } from "../services/vault";
+import type { RunSession } from "../../runs/session";
+import { VaultError, type VaultService } from "./service";
 import {
   defineTool,
   text,
-  type AnyTool,
-  type ToolDeps,
+  type ToolDefinition,
   toolItem,
   type ToolResponse,
-} from "./define";
+} from "../../core/tool";
+
+interface VaultToolDeps {
+  vault: VaultService;
+}
 
 const vaultFillInput = z.object({
   item_id: z.string().describe("The id from vault_list."),
@@ -36,7 +39,7 @@ const finishPurchaseInput = z.object({
   note: z.string().max(500).describe("The order number, or why it didn't go through.").optional(),
 });
 
-export const VAULT_TOOLS: AnyTool[] = [
+export const VAULT_TOOLS: ToolDefinition<z.ZodObject, VaultToolDeps>[] = [
   defineTool({
     name: "vault_list",
     description:
@@ -74,7 +77,7 @@ export const VAULT_TOOLS: AnyTool[] = [
 ];
 
 async function vaultFill(
-  deps: ToolDeps,
+  deps: VaultToolDeps,
   session: RunSession,
   callId: string,
   args: z.output<typeof vaultFillInput>,
@@ -109,7 +112,7 @@ async function vaultFill(
 }
 
 async function startPurchase(
-  deps: ToolDeps,
+  deps: VaultToolDeps,
   session: RunSession,
   callId: string,
   args: z.output<typeof startPurchaseInput>,
@@ -153,7 +156,7 @@ async function startPurchase(
 }
 
 async function finishPurchase(
-  deps: ToolDeps,
+  deps: VaultToolDeps,
   session: RunSession,
   callId: string,
   args: z.output<typeof finishPurchaseInput>,
