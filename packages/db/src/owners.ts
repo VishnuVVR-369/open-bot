@@ -123,7 +123,7 @@ export const TABLE_OWNERS = {
   oauth_clients: { owner: "packages/integrations/src/core/clients.ts" },
   oauth_states: { owner: `${WEB}features/integrations/server/accounts.ts` },
   account_actions: { owner: `${WORKER}features/integrations/actions.ts` },
-  account_resources: { owner: "packages/integrations/src/providers/notion/adapter.ts" },
+  account_resources: { owner: "packages/integrations/src/providers/notion/runner.ts" },
 
   // Memory.
   memory_items: { owner: MEMORY },
