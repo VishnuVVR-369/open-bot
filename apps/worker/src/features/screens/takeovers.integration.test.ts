@@ -210,16 +210,20 @@ describe.skipIf(!url)("takeovers across a worker and a computer on different ver
       kind: "run",
       run: { runId: run.id, teammateId: screenId, teammateName: "Rex" },
     };
-    const computer = new ComputerClient(botd.url, "secret", logger());
-    cleanup.push(() => computer.stop());
-    const ctx = {
-      db,
-      pool,
-      computer,
-      events: new EventEmitter(),
-      log: logger(),
-    } as unknown as Context;
-    const service = new TakeoverService(ctx, new SessionRegistry());
+    /** One worker process: its own connection to the computer, and the shared database. */
+    const worker = () => {
+      const computer = new ComputerClient(botd.url, "secret", logger());
+      cleanup.push(() => computer.stop());
+      const ctx = {
+        db,
+        pool,
+        computer,
+        events: new EventEmitter(),
+        log: logger(),
+      } as unknown as Context;
+      return { computer, ctx, service: new TakeoverService(ctx, new SessionRegistry()) };
+    };
+    const { computer, ctx, service } = worker();
     const takeovers = () =>
       db.select().from(screenTakeovers).where(eq(screenTakeovers.screenId, screenId));
     const continuationsOf = (runId: string) =>
@@ -233,6 +237,7 @@ describe.skipIf(!url)("takeovers across a worker and a computer on different ver
       run,
       addRun,
       botd,
+      worker,
       computer,
       ctx,
       service,
@@ -474,6 +479,39 @@ describe.skipIf(!url)("takeovers across a worker and a computer on different ver
       expect(continued[0]!.prompt, runId).not.toContain(CODE_HANDED_BACK_NOTE);
     }
   });
+
+  it.each(endings)(
+    "delivers once the note the new worker saved before the old computer refused its hand-back, when the old worker sees $ending",
+    async (ending) => {
+      const { screenId, run, botd, worker, takeovers, continuations } = await setUp();
+      // You took over while everything ran the old version. Then the new worker started next to
+      // the old one, and only the old one is connected to the computer, so it sees your lease end.
+      // It runs this takeover code: #171 brings the same code to the old worker before this ships.
+      botd.state.holder = { kind: "owner" };
+      const [takeover] = await db
+        .insert(screenTakeovers)
+        .values({ screenId, status: "active", startedAt: new Date(), interruptedRunId: run.id })
+        .returning();
+      const older = worker();
+      older.computer.start();
+      await vi.waitFor(() => expect(older.computer.lease(screenId)).toEqual(OWNER));
+      const newer = worker();
+      await expect(newer.service.handBack(screenId, NOTE)).rejects.toMatchObject({ status: 404 });
+      expect(botd.state.handled).toEqual([]);
+      expect(await takeovers()).toMatchObject([{ status: "active", note: NOTE }]);
+      if (ending.auto) botd.expire(ending.auto);
+      else botd.restart();
+      await delivered(takeover!.id);
+      expect(await takeovers()).toMatchObject([{ status: "ended", note: NOTE }]);
+      // Reconciling afterwards, in either worker, delivers nothing again.
+      await older.service.reconcile();
+      await newer.service.reconcile();
+      const continued = await continuations();
+      expect(continued).toHaveLength(1);
+      expect(continued[0]!.prompt).toContain(NOTE);
+      if (ending.auto) expect(continued[0]!.prompt).toContain(ending.says);
+    },
+  );
 
   it("keeps the note a refused hand-back saved after a reconcile read the takeovers", async () => {
     const { screenId, run, botd, computer, ctx, service, takeovers, continuations } = await setUp();
