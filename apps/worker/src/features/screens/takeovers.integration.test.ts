@@ -3,7 +3,14 @@ import { EventEmitter, once } from "node:events";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { botdContract } from "@open-bot/api/botd";
-import { chats, runs, screenTakeovers, takeoverDeliveries, teammates } from "@open-bot/db";
+import {
+  chats,
+  runs,
+  screenOperations,
+  screenTakeovers,
+  takeoverDeliveries,
+  teammates,
+} from "@open-bot/db";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import type { ComputerHealth, LeaseReleaseReason } from "@open-bot/domain";
 import { and, eq } from "drizzle-orm";
@@ -371,6 +378,102 @@ describe.skipIf(!url)("takeovers across a worker and a computer on different ver
       if (ending.auto) expect(continued[0]!.prompt).toContain(ending.says);
     },
   );
+
+  type Order = { created: "takeover" | "request"; read: "takeover" | "request" };
+
+  /**
+   * You hold the screen for `run`; a hand-back the old computer refused saved `NOTE` on your
+   * takeover (as the tests above show), and a request from another run then joined it with no note
+   * of its own. `created` is the row with the older creation time, and `read` the one a query
+   * without an order returns first: Postgres returns rows where it stored them, which a fresh
+   * table follows from insertion and a used one from wherever it found free space.
+   */
+  async function setUpJoinedRequest(order: Order) {
+    const setup = await setUp();
+    const { screenId, run, addRun, botd, computer } = setup;
+    const requester = await addRun("Sign in to the airline");
+    botd.state.holder = { kind: "owner" };
+    computer.start();
+    await vi.waitFor(() => expect(computer.lease(screenId)).toEqual(OWNER));
+    const at = (row: Order["created"]) =>
+      new Date(Date.parse(since) + (order.created === row ? 0 : 1000));
+    const values = {
+      takeover: {
+        screenId,
+        status: "active" as const,
+        startedAt: new Date(),
+        interruptedRunId: run.id,
+        note: NOTE,
+        endReason: "handed_back" as const,
+        createdAt: at("takeover"),
+      },
+      request: {
+        screenId,
+        status: "active" as const,
+        startedAt: new Date(),
+        requestedByRunId: requester.id,
+        requestedByTeammateId: screenId,
+        reason: "Enter the code the airline sent",
+        itemId: randomUUID(),
+        createdAt: at("request"),
+      },
+    };
+    const second = order.read === "takeover" ? "request" : "takeover";
+    const [first] = await db.insert(screenTakeovers).values(values[order.read]).returning();
+    const [then] = await db.insert(screenTakeovers).values(values[second]).returning();
+    const ids = { [order.read]: first!.id, [second]: then!.id } as Record<Order["read"], string>;
+    const unordered = await db
+      .select({ id: screenTakeovers.id, note: screenTakeovers.note })
+      .from(screenTakeovers)
+      .where(and(eq(screenTakeovers.status, "active"), eq(screenTakeovers.screenId, screenId)));
+    expect(unordered).toEqual([
+      { id: ids[order.read], note: order.read === "takeover" ? NOTE : null },
+      { id: ids[second], note: second === "takeover" ? NOTE : null },
+    ]);
+    return { ...setup, requester, takeoverId: ids.takeover, requestId: ids.request };
+  }
+
+  const orders: Order[] = [
+    // The reviewer's case: the request joined later, and its row is the one read first.
+    { created: "takeover", read: "request" },
+    { created: "request", read: "request" },
+    { created: "takeover", read: "takeover" },
+    { created: "request", read: "takeover" },
+  ];
+  it.each(orders)(
+    "tells every run in the return your saved note (older: $created, read first: $read)",
+    async (order) => {
+      const { run, requester, botd, takeoverId, requestId, continuationsOf } =
+        await setUpJoinedRequest(order);
+      botd.expire("user_idle");
+      await delivered(takeoverId);
+      await delivered(requestId);
+      for (const runId of [run.id, requester.id]) {
+        const continued = await continuationsOf(runId);
+        expect(continued, runId).toHaveLength(1);
+        expect(continued[0]!.prompt, runId).toContain(NOTE);
+        expect(continued[0]!.prompt, runId).toContain("10 minutes without input");
+      }
+    },
+  );
+
+  it("keeps your saved note when reconcile hands back a code typed for a request that joined later", async () => {
+    const { screenId, run, requester, botd, service, requestId, continuationsOf } =
+      await setUpJoinedRequest({ created: "takeover", read: "request" });
+    // The code was typed and the screen checked safe, then the worker stopped before handing back.
+    botd.state.version = "current";
+    await db
+      .insert(screenOperations)
+      .values({ id: randomUUID(), takeoverId: requestId, screenId, status: "safe" });
+    await service.reconcile();
+    await delivered(requestId);
+    for (const runId of [run.id, requester.id]) {
+      const continued = await continuationsOf(runId);
+      expect(continued, runId).toHaveLength(1);
+      expect(continued[0]!.prompt, runId).toContain(NOTE);
+      expect(continued[0]!.prompt, runId).not.toContain(CODE_HANDED_BACK_NOTE);
+    }
+  });
 
   it("keeps the note a refused hand-back saved after a reconcile read the takeovers", async () => {
     const { screenId, run, botd, computer, ctx, service, takeovers, continuations } = await setUp();
