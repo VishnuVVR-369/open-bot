@@ -105,7 +105,8 @@ The worker and botd test their trickiest parts directly: the lease, the cookie j
 Each suite creates its own fresh database on the server named by `TEST_DATABASE_URL`, applies every migration, and drops it afterwards (`@open-bot/db/testing`), so suites run in parallel.
 It then runs `scripts/test/e2e-shared-state.test.mjs`, which checks in a schema of its own that the e2e specs changing your settings take turns and leave them as they were.
 Without `TEST_DATABASE_URL`, the command starts a throwaway pgvector container (`scripts/test/pg.sh`) and removes it when it finishes.
-CI runs them against a Postgres service; there a missing `TEST_DATABASE_URL` fails the run instead of skipping.
+CI starts its Postgres the same way; there a missing `TEST_DATABASE_URL` fails the run instead of skipping.
+A server you name yourself needs `max_locks_per_transaction` of at least 256 (`pg.sh` sets it): every suite migrates its own database in one transaction, all at once, and Postgres's default of 64 runs out of lock slots ("out of shared memory").
 
 ### The memory suite
 

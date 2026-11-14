@@ -13,9 +13,14 @@ container="openbot-test-pg-$$"
 database="${TEST_PG_DATABASE:-postgres}"
 cleanup() { docker rm -fv "$container" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
-# The same image as docker-compose.yml and CI, so pgvector migrations behave identically.
+# The same image as docker-compose.yml, so pgvector migrations behave identically. CI starts its
+# Postgres with this script too.
+# Every integration suite migrates its own database in one transaction, which locks each table and
+# index it creates, and `pnpm test:integration` runs dozens of suites at once: with Postgres's
+# default of 64 locks per transaction, 20 suites migrating together already ran out of lock slots
+# ("out of shared memory"). 256 lets 60 migrate together.
 docker run --detach --name "$container" -e POSTGRES_PASSWORD=test-only -e POSTGRES_DB="$database" \
-  --publish 127.0.0.1::5432 pgvector/pgvector:pg17 >/dev/null
+  --publish 127.0.0.1::5432 pgvector/pgvector:pg17 -c max_locks_per_transaction=256 >/dev/null
 ready=""
 for ((i = 0; i < 60; i++)); do
   if docker exec "$container" pg_isready -h 127.0.0.1 -U postgres -d "$database" >/dev/null 2>&1; then

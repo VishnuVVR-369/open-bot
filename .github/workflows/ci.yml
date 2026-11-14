@@ -56,22 +56,6 @@ jobs:
     name: Integration tests (Postgres)
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    services:
-      # The same image as docker-compose.yml and scripts/test/pg.sh.
-      postgres:
-        image: pgvector/pgvector:pg17
-        env:
-          POSTGRES_PASSWORD: test-only
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 2s
-          --health-timeout 3s
-          --health-retries 30
-    env:
-      # Each suite creates and drops its own database on this server.
-      TEST_DATABASE_URL: postgres://postgres:test-only@127.0.0.1:5432/postgres
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -80,12 +64,14 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm test:integration
       # The showcase seed renders its screenshots with Chromium, then must insert every row.
       - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm --filter @open-bot/showcase seed
-        env:
-          SHOWCASE_DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+      # One throwaway Postgres from scripts/test/pg.sh, which holds the server settings the suites
+      # need (a service container can't set them). Each suite creates and drops its own database
+      # on it, then the showcase seed inserts into it.
+      - run: >-
+          bash scripts/test/pg.sh bash -c
+          'pnpm test:integration && SHOWCASE_DATABASE_URL="$TEST_DATABASE_URL" pnpm --filter @open-bot/showcase seed'
 
   egress-core:
     name: Phone egress core (Kotlin)
