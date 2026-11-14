@@ -7,8 +7,8 @@ import type { UploadService } from "../uploads";
 import type { RunExecutor } from "../runs/executor";
 import { approvalRoutes, type ApprovalService } from "../features/approvals";
 import { teammateRoutes, type BotService } from "../features/teammates";
-import type { CodexAccountService } from "../services/codex-account";
-import type { SettingsService } from "../services/settings";
+import { codexAccountRoutes, type CodexAccountService } from "../features/codex-account";
+import { settingsRoutes, type SettingsService } from "../features/settings";
 import { connectionsRoutes, type ConnectionService } from "../features/connections";
 import { emailRoutes, type EmailService } from "../features/email";
 import type { FileService } from "../services/files";
@@ -149,44 +149,12 @@ export function createWorkerRouter(services: WorkerServices) {
     tasks: taskRoutes(s.tasks),
     email: emailRoutes(s.email),
     vault: vaultRoutes(s.vault),
-    settings: {
-      setTimezone: os.settings.setTimezone.handler(async ({ input }) => {
-        await s.settings.setTimezone(input.timezone);
-        return ok;
-      }),
-      setMonthlyCap: os.settings.setMonthlyCap.handler(async ({ input }) => {
-        await s.settings.setMonthlyCap(input.dollars);
-        return ok;
-      }),
-      saveApiKey: os.settings.saveApiKey.handler(async ({ input }) => {
-        await s.settings.saveApiKey(input.apiKey);
-        return ok;
-      }),
-      removeApiKey: os.settings.removeApiKey.handler(async () => {
-        await s.settings.removeApiKey();
-        return ok;
-      }),
-    },
+    settings: settingsRoutes(s.settings),
     connections: connectionsRoutes(s.connections),
     swarms: swarmRoutes(s.swarms),
     telegram: telegramRoutes(s.telegram),
     skills: skillRoutes(s.skills),
-    codex: {
-      deviceLogin: os.codex.deviceLogin.handler(() => ctx.codex.startDeviceLogin()),
-      setAuthSource: os.codex.setAuthSource.handler(({ input }) =>
-        s.codexAccount.setAuthSource(input.source),
-      ),
-      logout: os.codex.logout.handler(async () => {
-        await s.codexAccount.logout();
-        return ok;
-      }),
-      rateLimits: os.codex.rateLimits.handler(async () => {
-        const limits = await ctx.codex.rateLimits();
-        if (!limits) return { rateLimits: null };
-        const { primary, secondary } = limits.rateLimits;
-        return { rateLimits: { rateLimits: { primary, secondary } } };
-      }),
-    },
+    codex: codexAccountRoutes(ctx, s.codexAccount),
     egress: {
       setMode: os.egress.setMode.handler(async ({ input }) => {
         await s.egress.setMode(input.mode);

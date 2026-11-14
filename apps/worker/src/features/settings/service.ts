@@ -1,8 +1,8 @@
 import { SETTINGS_ID, settings, type Queryable } from "@open-bot/db";
 import { isValidTimeZone } from "@open-bot/domain";
-import { publishApp, type Context } from "../context";
-import { removeCredential, saveCredential } from "./credentials";
-import { WorkerError } from "../core/errors";
+import { publishApp, type Context } from "../../context";
+import { removeCredential, saveCredential } from "../credentials";
+import { WorkerError } from "../../core/errors";
 
 /**
  * The owner's settings row. Only this module writes it, except the profile memory keeps

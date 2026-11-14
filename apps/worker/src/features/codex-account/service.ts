@@ -1,6 +1,6 @@
-import { publishApp, type Context } from "../context";
-import type { ChatgptAuthSource, CodexStatus } from "../codex";
-import { saveSettings } from "./settings";
+import { publishApp, type Context } from "../../context";
+import type { ChatgptAuthSource, CodexStatus } from "../../codex";
+import { saveSettings } from "../settings";
 
 /**
  * The ChatGPT account Codex runs as, from the owner's settings: signed in with a device code, or

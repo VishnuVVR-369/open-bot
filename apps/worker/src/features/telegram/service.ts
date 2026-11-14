@@ -22,7 +22,7 @@ import type { RunExecutor } from "../../runs/executor";
 import type { UploadService } from "../../uploads";
 import type { ApprovalService } from "../approvals";
 import { mainChat, saveUserMessage } from "../chat";
-import { removeCredential, saveCredential } from "../../services/credentials";
+import { removeCredential, saveCredential } from "../credentials";
 import { WorkerError } from "../../core/errors";
 
 const POLL_SECONDS = 25;

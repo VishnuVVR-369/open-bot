@@ -2,9 +2,9 @@ import { credentials, ownerSettings, usageEntries } from "@open-bot/db";
 import { type AuthDecision, type AuthMode, decideAuthMode, formatDollars } from "@open-bot/domain";
 import { decryptSecret } from "@open-bot/domain/server";
 import { and, eq, gte, sql } from "drizzle-orm";
-import { publishApp, type Context } from "../context";
-import { errorMessage } from "../logger";
-import { saveSettings } from "./settings";
+import { publishApp, type Context } from "../../context";
+import { errorMessage } from "../../logger";
+import { saveSettings } from "../settings";
 
 /** The provider id Codex uses for API key access, configured per thread. */
 export const API_PROVIDER_ID = "openai-api";

@@ -87,7 +87,7 @@ The plan is used unless it is currently limited.
 The API key is never installed as the computer's login, which would replace the ChatGPT login.
 It is passed as a model provider in the thread's config:
 
-```ts title="providerFor() in apps/worker/src/services/model-access.ts"
+```ts title="providerFor() in apps/worker/src/features/model-access/service.ts"
 {
   modelProvider: "openai-api",
   config: {

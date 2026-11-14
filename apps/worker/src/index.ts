@@ -18,7 +18,7 @@ import { EgressRelay } from "./egress/relay";
 import { WakeController } from "./egress/wake";
 import { env } from "./env";
 import { createHttpServer } from "./http";
-import { CodexAccountService } from "./services/codex-account";
+import { CodexAccountService } from "./features/codex-account";
 import { FileService } from "./services/files";
 import { RetryService } from "./services/retries";
 import { ChatService } from "./features/chat";
@@ -33,7 +33,7 @@ import { createLogger, errorMessage } from "./logger";
 import { RunExecutor } from "./runs/executor";
 import { ApprovalService } from "./features/approvals";
 import { APPROVAL_OUTCOMES } from "./approval-outcomes";
-import { ModelAccess } from "./services/model-access";
+import { ModelAccess } from "./features/model-access";
 import { SessionRegistry } from "./services/registry";
 import {
   AccountTriggers,
@@ -57,7 +57,7 @@ import {
   integrationsFeature,
 } from "./features/integrations";
 import { EventEmitter } from "node:events";
-import { addSettingsRow, SettingsService } from "./services/settings";
+import { addSettingsRow, SettingsService } from "./features/settings";
 import { signalHandlers } from "./core/feature";
 import { Runtime } from "./core/runtime";
 

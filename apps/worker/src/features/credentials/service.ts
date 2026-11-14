@@ -1,7 +1,7 @@
 import { credentials, type Queryable } from "@open-bot/db";
 import { encryptSecret, secretHint } from "@open-bot/domain/server";
 import { eq } from "drizzle-orm";
-import type { Context } from "../context";
+import type { Context } from "../../context";
 
 /** The secrets open-bot keeps, encrypted, one per kind. Only this module writes them. */
 

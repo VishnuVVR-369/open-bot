@@ -164,9 +164,9 @@ Services talk to each other through constructor injection and the typed `ctx.eve
 | Email            | `features/email/`                          | Inbound mail from Postmark, the outbox, sending, the email tools                                          |
 | Telegram         | `features/telegram/`                       | Long polling, linking, routing messages, approval buttons                                                 |
 | Notifications    | `features/notifications/`                  | Saving notifications, VAPID keys and Web Push, FCM to your phones, the devices that get them              |
-| Model access     | `services/model-access.ts`                 | Plan or API key, the cap, plan limits                                                                     |
-| Settings         | `services/settings.ts`                     | Your settings row: time zone, the API key and its monthly cap, when the plan ran out                      |
-| Credentials      | `services/credentials.ts`                  | Secrets, encrypted, one per kind; the only writer of `credentials`                                        |
+| Model access     | `features/model-access/service.ts`         | Plan or API key, the cap, plan limits                                                                     |
+| Settings         | `features/settings/service.ts`             | Your settings row: time zone, the API key and its monthly cap, when the plan ran out                      |
+| Credentials      | `features/credentials/service.ts`          | Secrets, encrypted, one per kind; the only writer of `credentials`                                        |
 
 ## Accounts
 

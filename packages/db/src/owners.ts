@@ -103,13 +103,13 @@ export const TABLE_OWNERS = {
 
   // Settings, secrets and notifications to the owner's devices.
   settings: {
-    owner: `${WORKER}services/settings.ts`,
+    owner: `${WORKER}features/settings/service.ts`,
     shared: MEMORY_KEEPS(
       ["id", "about_me", "about_me_updated_at"],
       "the profile is rebuilt from shared memory in the memory write's transaction (`id` because it makes the one row when there is none yet)",
     ),
   },
-  credentials: { owner: `${WORKER}services/credentials.ts` },
+  credentials: { owner: `${WORKER}features/credentials/service.ts` },
   telegram: { owner: `${WORKER}features/telegram/service.ts` },
   telegram_messages: { owner: `${WORKER}features/telegram/service.ts` },
   push_subscriptions: { owner: `${WORKER}features/notifications/push.ts` },
