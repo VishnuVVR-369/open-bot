@@ -107,7 +107,7 @@ describe("screenActions", () => {
   it("otherwise offers to take over", () => {
     for (const state of [
       { kind: "awake" },
-      { kind: "using", teammateName: "Ana" }, // vocabulary: allow (ScreenState field)
+      { kind: "using", teammateName: "Ana" },
       { kind: "needs-you", reason: null, requestId: "t1" },
     ] as const)
       expect(titles(screenActions(false, state))).toEqual(["Take over*"]);

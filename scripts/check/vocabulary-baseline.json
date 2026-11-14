@@ -11,9 +11,6 @@
   "apps/mobile/src/features/notifications/components/notifications-screen.tsx": {
     "bot": 1
   },
-  "apps/mobile/src/push/payload.test.ts": {
-    "bot": 1
-  },
   "apps/mobile/src/push/payload.ts": {
     "bot": 1
   },
