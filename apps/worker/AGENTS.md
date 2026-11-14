@@ -65,6 +65,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 
 - Unit: `pnpm --filter @open-bot/worker test`.
 - Integration: `pnpm test:integration` from the root (starts Postgres), or `pnpm --filter @open-bot/worker test:integration` with `TEST_DATABASE_URL` set.
+- Shared HTTP test setup: `apps/worker/src/testing/rpc.ts`; feature-local suites each get their own throwaway database and server.
 - Integration suites: the `*.integration.test.ts` files under `apps/worker/src` (`git ls-files 'apps/worker/**/*.integration.test.ts'`).
 - Built artifact: `pnpm --filter @open-bot/worker build && node apps/worker/dist/worker.mjs`.
 - Sleep and wake: `pnpm test:computer-sleep`.

@@ -606,6 +606,9 @@
   "apps/worker/src/env.ts": {
     "bot": 1
   },
+  "apps/worker/src/features/approvals/routes.integration.test.ts": {
+    "bot": 1
+  },
   "apps/worker/src/features/approvals/service.ts": {
     "bot": 31
   },
@@ -617,6 +620,9 @@
   },
   "apps/worker/src/features/automations/account-watch-tools.ts": {
     "bot": 13
+  },
+  "apps/worker/src/features/automations/routes.integration.test.ts": {
+    "bot": 2
   },
   "apps/worker/src/features/automations/schedules.ts": {
     "bot": 26
@@ -640,6 +646,9 @@
     "bot": 41
   },
   "apps/worker/src/features/email/tools.ts": {
+    "bot": 1
+  },
+  "apps/worker/src/features/files/routes.integration.test.ts": {
     "bot": 1
   },
   "apps/worker/src/features/files/service.ts": {
@@ -675,6 +684,9 @@
   "apps/worker/src/features/notifications/service.ts": {
     "bot": 5
   },
+  "apps/worker/src/features/pages/routes.integration.test.ts": {
+    "bot": 1
+  },
   "apps/worker/src/features/pages/service.integration.test.ts": {
     "bot": 11
   },
@@ -702,6 +714,9 @@
   "apps/worker/src/features/screens/tools.ts": {
     "bot": 6
   },
+  "apps/worker/src/features/skills/routes.integration.test.ts": {
+    "bot": 2
+  },
   "apps/worker/src/features/skills/service.ts": {
     "bot": 70
   },
@@ -719,6 +734,9 @@
   },
   "apps/worker/src/features/teammates/index.ts": {
     "bot": 3
+  },
+  "apps/worker/src/features/teammates/routes.integration.test.ts": {
+    "bot": 1
   },
   "apps/worker/src/features/teammates/routes.ts": {
     "bot": 4
@@ -762,10 +780,13 @@
     "bot": 4
   },
   "apps/worker/src/rpc/router.integration.test.ts": {
-    "bot": 17
+    "bot": 2
   },
   "apps/worker/src/rpc/router.ts": {
     "bot": 2
+  },
+  "apps/worker/src/rpc/services.integration.test.ts": {
+    "bot": 1
   },
   "apps/worker/src/runs/answer-back.ts": {
     "bot": 9
@@ -797,6 +818,9 @@
   },
   "apps/worker/src/runs/thread-continuity.test.ts": {
     "bot": 4
+  },
+  "apps/worker/src/testing/rpc.ts": {
+    "bot": 6
   },
   "apps/worker/src/tools/bots.integration.test.ts": {
     "bot": 129,
