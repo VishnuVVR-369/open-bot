@@ -39,6 +39,12 @@ const HEALTH: ComputerHealth = {
   egress: { mode: "off", agentOnline: false, tunnelConnected: false },
 };
 const NOTE = "Only nonstop flights, window seat";
+/**
+ * How long to wait for what the worker does on its own, such as finishing a takeover when the
+ * computer's lease event arrives. Not Vitest's 1 s default: `pnpm test:integration` runs every
+ * suite at once against one Postgres, and there a lease event once took over 1 s to deliver.
+ */
+const SETTLED = { timeout: 4_000 };
 
 const cleanup: (() => Promise<void> | void)[] = [];
 afterEach(async () => {
@@ -189,7 +195,7 @@ describe.skipIf(!url)("a computer that refuses a call before acting on it", () =
         .from(takeoverDeliveries)
         .where(eq(takeoverDeliveries.id, takeoverId));
       expect(delivery?.deliveredAt).toBeInstanceOf(Date);
-    });
+    }, SETTLED);
   }
 
   /**
@@ -207,7 +213,7 @@ describe.skipIf(!url)("a computer that refuses a call before acting on it", () =
       .returning();
     const older = worker();
     older.computer.start();
-    await vi.waitFor(() => expect(older.computer.lease(screenId)).toEqual(OWNER));
+    await vi.waitFor(() => expect(older.computer.lease(screenId)).toEqual(OWNER), SETTLED);
     return { ...setup, takeover: takeover!, older, newer: worker() };
   }
 
@@ -242,7 +248,7 @@ describe.skipIf(!url)("a computer that refuses a call before acting on it", () =
 
     // The reconciler finds nothing to end: no takeover was recorded for a screen you don't hold.
     computer.start();
-    await vi.waitFor(() => expect(computer.online).toBe(true));
+    await vi.waitFor(() => expect(computer.online).toBe(true), SETTLED);
     await takeovers.reconcile();
     expect(await rows()).toMatchObject([{ id: request!.id, status: "requested" }]);
     const [stored] = await db
@@ -390,7 +396,7 @@ describe.skipIf(!url)("a computer that refuses a call before acting on it", () =
     expect(unordered).toEqual([{ id: request!.id }, { id: takeover!.id }]);
     const older = worker();
     older.computer.start();
-    await vi.waitFor(() => expect(older.computer.lease(screenId)).toEqual(OWNER));
+    await vi.waitFor(() => expect(older.computer.lease(screenId)).toEqual(OWNER), SETTLED);
     botd.expire("user_idle");
     await delivered(takeover!.id);
     await delivered(request!.id);
