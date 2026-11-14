@@ -203,7 +203,7 @@
   "apps/mobile/src/lib/queries.ts": {
     "bot": 2
   },
-  "apps/mobile/src/lib/query.ts": {
+  "apps/mobile/src/lib/query-refresh.test.ts": {
     "bot": 1
   },
   "apps/mobile/src/lib/realtime.test.ts": {

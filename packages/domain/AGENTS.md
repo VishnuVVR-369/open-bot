@@ -64,10 +64,9 @@ The field crosses every layer, from the database to web and mobile.
 
 1. Add the type to `APP_EVENT_TYPES` in `packages/domain/src/events/app-events.ts`.
 2. Say which procedures it refreshes in `APP_EVENT_REFRESHES` (`packages/api/src/events.ts`); it won't compile until you do.
-   The web app applies it as is.
+   Web and mobile apply it as is.
 3. Publish with `publishApp(ctx, { type })` in the worker or `publish({ type })` (`apps/web/src/lib/server/publish.ts`) in web.
-4. Mobile still has its own keys: add the type to `keysForAppEvent` in `apps/mobile/src/lib/query.ts`.
-5. Run timeline events are a different path: `RunEventWriter` or `appendRunEvent()`, reduced by `applyRunEvent` in `packages/domain/src/timeline/timeline.ts`.
+4. Run timeline events are a different path: `RunEventWriter` or `appendRunEvent()`, reduced by `applyRunEvent` in `packages/domain/src/timeline/timeline.ts`.
 
 ## Tests
 
