@@ -87,6 +87,52 @@ test("a null argument is refused like any other wrong type", () => {
   expect(parseArgs(tool, { id })).toEqual({ id });
 });
 
+// An argument a tool doesn't take is refused, not dropped: a call that names its target with a
+// key this worker doesn't know would otherwise act on the caller instead of that teammate. The
+// rename to `teammate_id` rewrites stored approvals before this worker stops, so it must refuse it.
+test("an argument the tool doesn't take is refused, not dropped", () => {
+  const id = "00000000-0000-4000-8000-000000000001";
+  const targeted = TOOLS.filter((tool) => "bot_id" in tool.input.shape); // vocabulary: allow
+  expect(targeted.length).toBeGreaterThan(5);
+  const cancel = toolNamed("cancel_automation")!;
+  expect(() => parseArgs(cancel, { id, teammate_id: id })).toThrow(/teammate_id/);
+  expect(parseArgs(cancel, { id, bot_id: id })).toEqual({ id, bot_id: id }); // vocabulary: allow
+  for (const tool of targeted)
+    expect(() => parseArgs(tool, { teammate_id: id }), tool.name).toThrow();
+  // A tool whose handler takes more than it lists still gets those arguments.
+  const remember = toolNamed("remember_about_user")!;
+  expect(parseArgs(remember, { fact: "Vegetarian.", kind: "preference" })).toEqual({
+    fact: "Vegetarian.",
+    kind: "preference",
+  });
+});
+
+// The mixed-version case the rename must survive: a newer worker's migration rewrites an approved
+// schedule for another teammate to `teammate_id` while this worker still runs follow-ups. The call
+// must fail before the handler runs, not schedule the work for the caller.
+test("a schedule naming its target with an unknown key never reaches the handler", async () => {
+  const touched: string[] = [];
+  const services = new Proxy({ ctx: { log: { error: vi.fn() } } } as Record<string, unknown>, {
+    get: (target, key: string) => (key === "ctx" ? target.ctx : void touched.push(key)),
+  });
+  const handlers = new ToolHandlers(services as unknown as ToolRegistryServices);
+  touched.length = 0; // Only what the call touches counts, not wiring the handlers up.
+  const session = { isHelper: false, now: () => "now" } as unknown as RunSession;
+  const response = await handlers.handle(session, {
+    tool: "schedule_task",
+    callId: "call-1",
+    arguments: {
+      teammate_id: "00000000-0000-4000-8000-000000000002",
+      title: "Build check",
+      prompt: "Check the build",
+      at: "2026-12-01T09:00:00Z",
+    },
+  } as never);
+  expect(response.success).toBe(false);
+  expect(response.contentItems[0]).toMatchObject({ text: expect.stringMatching(/teammate_id/) });
+  expect(touched).toEqual([]);
+});
+
 test("calls are parsed with the tool's input before the handler runs", async () => {
   const requested = vi.fn(async () => ({ status: "dismissed" as const }));
   const handlers = new ToolHandlers({
