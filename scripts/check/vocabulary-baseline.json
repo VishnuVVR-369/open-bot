@@ -642,6 +642,9 @@
   "apps/worker/src/features/email/tools.ts": {
     "bot": 1
   },
+  "apps/worker/src/features/files/service.ts": {
+    "bot": 5
+  },
   "apps/worker/src/features/integrations/access.ts": {
     "bot": 12
   },
@@ -737,6 +740,9 @@
     "bot": 67,
     "primary teammate": 1
   },
+  "apps/worker/src/features/uploads/service.integration.test.ts": {
+    "bot": 7
+  },
   "apps/worker/src/features/vault/service.ts": {
     "bot": 40
   },
@@ -786,9 +792,6 @@
   "apps/worker/src/runs/thread-continuity.test.ts": {
     "bot": 4
   },
-  "apps/worker/src/services/files.ts": {
-    "bot": 5
-  },
   "apps/worker/src/services/registry.ts": {
     "bot": 4
   },
@@ -807,9 +810,6 @@
   },
   "apps/worker/src/tools/handlers.ts": {
     "bot": 4
-  },
-  "apps/worker/src/uploads.integration.test.ts": {
-    "bot": 7
   },
   "e2e/accounts.spec.ts": {
     "bot": 5

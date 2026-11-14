@@ -3,7 +3,7 @@ import { os } from "../core/rpc";
 import { taskRoutes, type TaskService } from "../features/tasks";
 import type { EgressRelay } from "../egress/relay";
 import type { WakeController } from "../egress/wake";
-import type { UploadService } from "../uploads";
+import { uploadsRoutes, type UploadService } from "../features/uploads";
 import type { RunExecutor } from "../runs/executor";
 import { approvalRoutes, type ApprovalService } from "../features/approvals";
 import { teammateRoutes, type BotService } from "../features/teammates";
@@ -11,7 +11,7 @@ import { codexAccountRoutes, type CodexAccountService } from "../features/codex-
 import { settingsRoutes, type SettingsService } from "../features/settings";
 import { connectionsRoutes, type ConnectionService } from "../features/connections";
 import { emailRoutes, type EmailService } from "../features/email";
-import type { FileService } from "../services/files";
+import { filesRoutes, type FileService } from "../features/files";
 import { pageRoutes, type PageService } from "../features/pages";
 import { notificationRoutes, type FcmService, type PushService } from "../features/notifications";
 import type { RetryService } from "../services/retries";
@@ -31,7 +31,6 @@ import {
   type ScheduleService,
   type TriggerService,
 } from "../features/automations";
-import { rpcError } from "./errors";
 import type { EgressDevices } from "../egress/devices";
 import { vaultRoutes, type VaultService } from "../features/vault";
 
@@ -122,29 +121,9 @@ export function createWorkerRouter(services: WorkerServices) {
     },
     approvals: approvalRoutes(s.approvals),
     ...screenRoutes(ctx, s.teammates, s.takeovers, s.screenOperations),
-    files: {
-      list: os.files.list.handler(({ input }) => s.files.list(input.path)),
-      read: os.files.read.handler(({ input }) => s.files.read(input.path)),
-      write: os.files.write.handler(async ({ input }) => {
-        await s.files.write(input.path, input.dataBase64);
-        return ok;
-      }),
-      put: os.files.put.handler(async ({ input }) => ({
-        path: await s.files.put(input.dir, input.name, input.dataBase64),
-      })),
-      remove: os.files.remove.handler(async ({ input }) => {
-        await s.files.remove(input.path);
-        return ok;
-      }),
-    },
+    files: filesRoutes(s.files),
     pages: pageRoutes(s.pages),
-    uploads: {
-      status: os.uploads.status.handler(async ({ input }) => {
-        const upload = await s.uploads.status(input.uploadId);
-        if (!upload) throw rpcError(404, "That upload isn't here.");
-        return upload;
-      }),
-    },
+    uploads: uploadsRoutes(s.uploads),
     ...notificationRoutes(ctx, s.push, s.fcm),
     tasks: taskRoutes(s.tasks),
     email: emailRoutes(s.email),

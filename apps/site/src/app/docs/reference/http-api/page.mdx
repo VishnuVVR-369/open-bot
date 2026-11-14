@@ -172,7 +172,7 @@ A path or input field is removed only once no deployed web app calls it.
 | `PUT /internal/uploads/:id` ☀                        | A message attachment, as raw bytes; a retry with the same id stores it once       |
 | `GET /internal/uploads/:id`                          | How an upload went                                                                |
 
-`PUT /internal/uploads/:id` is the one route outside the contract, so a large file streams through instead of being parsed; it is in `apps/worker/src/http.ts`, and uploads themselves in `apps/worker/src/uploads.ts`.
+`PUT /internal/uploads/:id` is the one route outside the contract, so a large file streams through instead of being parsed; it is in `apps/worker/src/http.ts`, and uploads themselves in `apps/worker/src/features/uploads/service.ts`.
 
 ### Pages
 

@@ -9,10 +9,10 @@ import {
   UploadError,
   UploadService,
   type UploadFiles,
-} from "./uploads";
+} from "./service";
 
-import type { Context } from "./context";
-import { ChatService } from "./features/chat";
+import type { Context } from "../../context";
+import { ChatService } from "../chat";
 
 function deferred() {
   let resolve!: () => void;

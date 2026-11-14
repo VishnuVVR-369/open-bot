@@ -50,7 +50,7 @@ import { PageService } from "../features/pages";
 import { VaultService } from "../features/vault";
 import { EmailService } from "../features/email";
 import { SettingsService } from "../features/settings";
-import { FileService } from "../services/files";
+import { FileService } from "../features/files";
 import { PushService } from "../features/notifications";
 import { SessionRegistry } from "../services/registry";
 import { RetryService } from "../services/retries";

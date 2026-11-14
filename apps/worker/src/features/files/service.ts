@@ -1,9 +1,9 @@
 import { bots } from "@open-bot/db";
 import { COMPUTER_PATHS, undeletablePath } from "@open-bot/domain";
 import { isNull } from "drizzle-orm";
-import type { Context } from "../context";
+import type { Context } from "../../context";
 import { sanitizeFileName } from "../uploads";
-import { WorkerError } from "../core/errors";
+import { WorkerError } from "../../core/errors";
 
 export class FileError extends WorkerError {}
 
