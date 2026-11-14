@@ -170,11 +170,26 @@ describe("phone notifications", () => {
     expect(asking?.actions).toEqual([]);
   });
 
-  it("says whether a reply from a notification was sent, and shows an unsent one in full", () => {
-    expect(replyText(true, "Book it")).toEqual({ title: "Reply sent", body: "Book it" });
+  it("says what became of a reply from a notification, showing an unsent one in full", () => {
+    expect(replyText({ kind: "sent" }, "Book it")).toEqual({
+      title: "Reply sent",
+      body: "Book it",
+    });
+    expect(replyText({ kind: "kept", forTeammate: true }, " Book it ")).toEqual({
+      title: "Your reply wasn't sent",
+      body: "It's in the chat, ready to send: “Book it”",
+    });
+    // Without the teammate it was for: sent from the chat as it is, a group's lead would get it.
+    expect(replyText({ kind: "kept", forTeammate: false }, "Book it")).toEqual({
+      title: "Your reply wasn't sent",
+      body: "It's in the chat, not addressed to anyone yet: “Book it”",
+    });
     const long = "Book the 9am one. ".repeat(20).trim();
-    // Not "Open to reply.": nothing else keeps what you typed, so it isn't lost.
-    expect(replyText(false, ` ${long} `)).toEqual({ title: "Your reply wasn't sent", body: long });
+    // The phone couldn't store it: no claim it's anywhere, and all of it shows.
+    expect(replyText({ kind: "lost" }, ` ${long} `)).toEqual({
+      title: "Your reply wasn't sent",
+      body: long,
+    });
   });
 
   it("gives an unsent reply a notification id of its own, the same for the same reply", () => {

@@ -1,7 +1,6 @@
 import type { TeammateSummary, MessageView } from "@open-bot/api";
 import {
   insertMention,
-  mentionedIds,
   mentionOptions,
   mentionQuery,
   sendAttempt,
@@ -11,7 +10,7 @@ import { safe } from "@orpc/client";
 import * as Crypto from "expo-crypto";
 import { useFocusEffect } from "expo-router";
 import { ArrowUp, Mic, Plus, Square } from "lucide-react-native";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -25,7 +24,8 @@ import {
 import { Text } from "@/components/text";
 import { api } from "@/lib/api";
 import { useDictation } from "@/features/chat/dictation";
-import { readDraft, writeDraft } from "@/features/chat/drafts";
+import { recipients, sendMentions } from "@/features/chat/recipients";
+import { useDraft } from "@/features/chat/use-draft";
 import { errorMessage } from "@/lib/errors";
 import { haptics } from "@/lib/haptics";
 import { useAttachments } from "@/features/chat/use-attachments";
@@ -34,6 +34,7 @@ import { mix } from "@/theme/mix";
 import { AttachSheet } from "./attach-sheet";
 import { AttachmentChip } from "./attachment-chip";
 import { MentionMenu } from "./mention-menu";
+import { RecipientChip } from "./recipient-chip";
 
 /**
  * Where you write to a teammate: text (Markdown), dictation, files and photos, and @mentions in
@@ -65,7 +66,9 @@ export function Composer({
 }) {
   const colors = useColors();
   const input = useRef<TextInputInstance>(null);
-  const [text, setText] = useState("");
+  const drafting = useDraft(chatId);
+  const { draft, edit, address } = drafting;
+  const text = draft.text;
   const [caret, setCaret] = useState(0);
   const [sending, setSending] = useState(false);
   const [stopping, setStopping] = useState(false);
@@ -73,23 +76,11 @@ export function Composer({
   const [error, setError] = useState<string | null>(null);
   const failedSend = useRef<SendAttempt | null>(null);
 
-  // What you'd typed here before, unless you've started typing already.
-  useEffect(() => {
-    let current = true;
-    void readDraft(chatId).then((draft) => {
-      if (current && draft) setText((typed) => typed || draft);
-    });
-    return () => {
-      current = false;
-    };
-  }, [chatId]);
-  const edit = useCallback(
-    (next: string) => {
-      setText(next);
-      writeDraft(chatId, next);
-    },
-    [chatId],
-  );
+  // Whom the draft is for, and the one being replaced by a pick from the chat's members.
+  const addressed = recipients(draft.mentions, members);
+  const missing = addressed.some((recipient) => !recipient.member);
+  const [picking, setPicking] = useState<string | null>(null);
+  const pickable = members.filter((member) => !draft.mentions.includes(member.id));
 
   const dictation = useDictation({
     onText: (spoken) => {
@@ -106,23 +97,28 @@ export function Composer({
   const attaching = useAttachments(chatId, setError);
   const { files, uploading, failed, ready } = attaching;
   const hasContent = text.trim().length > 0 || ready.length > 0;
-  const canSend = hasContent && !uploading && !failed && !sending;
+  // Not to a teammate who isn't in the chat: the group's lead would get it instead.
+  const canSend = hasContent && !uploading && !failed && !sending && !missing;
 
   async function send() {
     if (!canSend) return;
     if (dictation.listening) dictation.stop();
     const attachments = ready.map((pending) => pending.attachment!);
-    const mentions = isGroup ? mentionedIds(text, members) : [];
+    const submitted = drafting.submit();
+    const mentions = sendMentions(submitted.text, submitted.mentions, members, isGroup);
     const thisSend = sendAttempt(
       failedSend.current,
-      [chatId, text.trim(), attachments, mentions],
+      [chatId, submitted.text.trim(), attachments, mentions],
       Crypto.randomUUID,
     );
     const { clientId } = thisSend;
     setSending(true);
     setError(null);
-    const result = await safe(api.chats.send({ clientId, chatId, text, attachments, mentions }));
+    const result = await safe(
+      api.chats.send({ clientId, chatId, text: submitted.text, attachments, mentions }),
+    );
     setSending(false);
+    drafting.settle(!result.error);
     if (result.error) {
       failedSend.current = thisSend;
       setError(errorMessage(result.error, "Couldn't send. Try again."));
@@ -130,7 +126,6 @@ export function Composer({
     }
     failedSend.current = null;
     haptics.press();
-    edit("");
     setCaret(0);
     attaching.clearSent(ready);
     onSent(result.data);
@@ -169,7 +164,16 @@ export function Composer({
           {error}
         </Text>
       )}
-      {options.length > 0 && (
+      {picking !== null && pickable.length > 0 && (
+        <MentionMenu
+          options={pickable}
+          onPick={(member) => {
+            address(draft.mentions.map((id) => (id === picking ? member.id : id)));
+            setPicking(null);
+          }}
+        />
+      )}
+      {options.length > 0 && picking === null && (
         <MentionMenu
           options={options}
           onPick={(member) => {
@@ -179,6 +183,26 @@ export function Composer({
             input.current?.setSelection(next.caret, next.caret);
           }}
         />
+      )}
+      {addressed.length > 0 && (isGroup || missing) && (
+        <View style={styles.recipients}>
+          {addressed.map((recipient) => (
+            <RecipientChip
+              key={recipient.id}
+              member={recipient.member}
+              onPick={() => setPicking((open) => (open === recipient.id ? null : recipient.id))}
+              onRemove={() => {
+                if (picking === recipient.id) setPicking(null);
+                address(draft.mentions.filter((id) => id !== recipient.id));
+              }}
+            />
+          ))}
+          {missing && (
+            <Text variant="caption" muted testID="recipient-hint">
+              Pick who it's for, or remove them, to send it.
+            </Text>
+          )}
+        </View>
       )}
       {files.length > 0 && (
         <ScrollView
@@ -317,4 +341,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   chips: { gap: space(2), paddingHorizontal: space(0.5) },
+  recipients: { gap: space(1.5), paddingHorizontal: space(0.5) },
 });

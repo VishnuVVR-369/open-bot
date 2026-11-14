@@ -128,13 +128,32 @@ export function planNotification(data: PushData): NotificationPlan | null {
 }
 
 /**
- * What a replied-to notification says once the reply was sent, or wasn't. Unsent, it shows all
- * you typed: it's the only copy, kept nowhere else.
+ * How a Reply from a notification went: sent; or kept as the chat's draft, addressed to the
+ * teammate it was for when the notification named them; or neither, when the phone couldn't
+ * store it.
  */
-export function replyText(sent: boolean, text: string): { title: string; body: string } {
-  return sent
-    ? { title: "Reply sent", body: text }
-    : { title: "Your reply wasn't sent", body: text.trim() };
+export type ReplyOutcome =
+  { kind: "sent" } | { kind: "kept"; forTeammate: boolean } | { kind: "lost" };
+
+/**
+ * What a replied-to notification says afterwards. Unsent, it shows all you typed; when the phone
+ * couldn't keep it, the notification is its only copy.
+ */
+export function replyText(outcome: ReplyOutcome, text: string): { title: string; body: string } {
+  const typed = text.trim();
+  switch (outcome.kind) {
+    case "sent":
+      return { title: "Reply sent", body: text };
+    case "kept":
+      return {
+        title: "Your reply wasn't sent",
+        body: outcome.forTeammate
+          ? `It's in the chat, ready to send: “${typed}”`
+          : `It's in the chat, not addressed to anyone yet: “${typed}”`,
+      };
+    case "lost":
+      return { title: "Your reply wasn't sent", body: typed };
+  }
 }
 
 /**
