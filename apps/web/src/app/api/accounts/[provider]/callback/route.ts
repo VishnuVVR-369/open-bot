@@ -1,6 +1,6 @@
 import { isAccountProvider } from "@open-bot/domain";
 import { NextResponse } from "next/server";
-import { completeAuthorization } from "@/lib/server/accounts";
+import { completeAuthorization } from "@/features/integrations/server";
 import { BASE_URL } from "@/lib/server/auth-config";
 import { sessionOrNull } from "@/lib/server/session";
 

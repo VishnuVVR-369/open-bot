@@ -10,12 +10,7 @@ import {
 } from "@open-bot/domain";
 import { asc, eq, isNull, sql } from "drizzle-orm";
 import { syncWorkspace } from "@/features/teammates/server";
-import {
-  accountRedirectUri,
-  accountStore,
-  saveOwnerClient,
-  startAuthorization,
-} from "@/lib/server/accounts";
+import { accountRedirectUri, accountStore, saveOwnerClient, startAuthorization } from "./accounts";
 import { db } from "@/lib/server/db";
 import { worker } from "@/lib/server/worker";
 import type { AccountsSetupView, AccountView, ConnectionView, EmailStatusView } from "@/lib/types";

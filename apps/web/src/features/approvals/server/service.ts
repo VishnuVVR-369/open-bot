@@ -4,7 +4,7 @@ import { approvalRules, approvals, bots } from "@open-bot/db";
 import type { ApprovalStatus } from "@open-bot/domain";
 import { asc, desc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/lib/server/db";
-import { toApprovalView } from "@/lib/server/views";
+import { toApprovalView } from "./views";
 import { worker } from "@/lib/server/worker";
 import { ApiError } from "@/lib/server/api/errors";
 

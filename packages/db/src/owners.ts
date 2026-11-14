@@ -121,7 +121,7 @@ export const TABLE_OWNERS = {
   connections: { owner: `${WORKER}services/connections.ts` },
   accounts: { owner: "packages/integrations/src/core/store.ts" },
   oauth_clients: { owner: "packages/integrations/src/core/clients.ts" },
-  oauth_states: { owner: `${WEB}lib/server/accounts.ts` },
+  oauth_states: { owner: `${WEB}features/integrations/server/accounts.ts` },
   account_actions: { owner: `${WORKER}features/integrations/actions.ts` },
   account_resources: { owner: "packages/integrations/src/providers/notion/adapter.ts" },
 

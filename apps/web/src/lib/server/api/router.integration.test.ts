@@ -213,7 +213,7 @@ describe.skipIf(!url)("API reads, end to end", () => {
     });
     await db.update(s.pages).set({ currentVersionId: ids.version, versionCount: 1 });
     // A memory a teammate saved during the run, so its list names the teammate and the chat.
-    const { memory } = await import("../memory");
+    const { memory } = await import("@/features/memory/server");
     const saved = await memory.save(
       {
         ...owned(ids.teammate),
@@ -934,7 +934,7 @@ describe.skipIf(!url)("API reads, end to end", () => {
   });
 
   it("confirms a teammate's suggested memory", async () => {
-    const { memory } = await import("../memory");
+    const { memory } = await import("@/features/memory/server");
     const suggested = await memory.save(
       {
         ...owned(ids.teammate),

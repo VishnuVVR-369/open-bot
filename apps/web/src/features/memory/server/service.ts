@@ -4,7 +4,7 @@ import { eq, inArray } from "drizzle-orm";
 import { memoryContexts, memoryItems, runs } from "@open-bot/db";
 import type { MemoryInput, MemoryItem, MemoryRevision } from "@open-bot/domain";
 import { db } from "@/lib/server/db";
-import { memory } from "@/lib/server/memory";
+import { memory } from "./store";
 
 /** Memory as you see it in the app: what's saved, how it changed, and what a reply was given. */
 

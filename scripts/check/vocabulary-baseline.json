@@ -297,6 +297,9 @@
   "apps/web/src/features/approvals/server/service.ts": {
     "bot": 7
   },
+  "apps/web/src/features/approvals/server/views.ts": {
+    "bot": 2
+  },
   "apps/web/src/features/automations/components/automations-view.tsx": {
     "bot": 53
   },
@@ -443,6 +446,9 @@
   "apps/web/src/features/integrations/components/email-section.tsx": {
     "bot": 1
   },
+  "apps/web/src/features/integrations/server/accounts.ts": {
+    "bot": 4
+  },
   "apps/web/src/features/integrations/server/service.ts": {
     "bot": 4
   },
@@ -542,18 +548,12 @@
   "apps/web/src/lib/files.test.ts": {
     "bot": 2
   },
-  "apps/web/src/lib/server/accounts.ts": {
-    "bot": 4
-  },
   "apps/web/src/lib/server/api/router.integration.test.ts": {
     "bot": 17
   },
   "apps/web/src/lib/server/queries.ts": {
     "bot": 25,
     "desktop takeover": 17
-  },
-  "apps/web/src/lib/server/views.ts": {
-    "bot": 2
   },
   "apps/web/src/lib/status.test.ts": {
     "bot": 22
