@@ -161,6 +161,44 @@ describe("ComputerClient", () => {
     expect(run).toHaveBeenCalledTimes(1);
   });
 
+  it("never reads a run's lease from a computer on the old names as free or as another holder", async () => {
+    // Computers before the rename named the run's teammate with the old keys. While the
+    // worker and the computer run different versions, such a lease must not change who the worker
+    // thinks holds the screen, and an answer carrying one must fail rather than half-apply.
+    const since = "2026-11-08T00:00:00.000Z";
+    const named = { botId: SCREEN, botName: "Ada" }; // vocabulary: allow (the old keys)
+    const old = { kind: "run", runId: "run-1", ...named, since, lastActionAt: since };
+    const owner = { kind: "user", since, lastInputAt: since };
+    const botd = await standIn({
+      "POST /lease/user/take": { body: { previous: old, holder: owner } },
+    });
+    const log = logger();
+    const computer = new ComputerClient(botd.url, "secret", log);
+    cleanup.push(() => computer.stop());
+    computer.start();
+    await vi.waitFor(() => expect(botd.connected).toHaveLength(1));
+    const socket = botd.connected[0]!;
+    const leased = once(computer, "lease");
+    socket.send(
+      JSON.stringify({ type: "lease", screenId: SCREEN, holder: owner, reason: "acquired" }),
+    );
+    await leased;
+    const changes: unknown[] = [];
+    computer.on("lease", (...change) => changes.push(change));
+    socket.send(
+      JSON.stringify({ type: "lease", screenId: SCREEN, holder: old, reason: "acquired" }),
+    );
+    const screen = { id: SCREEN, state: "running", browser: "running", lease: old };
+    socket.send(JSON.stringify({ type: "health", health: { ...HEALTH, screens: [screen] } }));
+    await vi.waitFor(() => expect(log.warn).toHaveBeenCalledTimes(2));
+    expect(changes).toEqual([]);
+    expect(computer.lease(SCREEN)).toEqual(owner);
+    expect(computer.health).toBeNull();
+    const taking = await rejection(computer.takeByUser(SCREEN));
+    expect(taking.status).toBe(502);
+    expect(computer.lease(SCREEN)).toEqual(owner);
+  });
+
   it("skips an event that doesn't fit the contract and keeps applying the ones that do", async () => {
     const botd = await standIn({});
     const log = logger();
