@@ -42,12 +42,14 @@ test.describe("sign-in", () => {
     expect(new URL(page.url()).search).toBe("?from=e2e");
   });
 
-  test("goes home instead of to another site", async ({ page }) => {
-    await page.goto("/login?next=//example.com/");
-    await signIn(page);
-    await page.waitForURL((url) => url.pathname === "/");
-    expect(new URL(page.url()).origin).toBe(new URL(test.info().project.use.baseURL!).origin);
-  });
+  // `/.//example.com/` normalizes to `//example.com/`, another host, after passing a naive check.
+  for (const next of ["//example.com/", "/.//example.com/"])
+    test(`goes home instead of to another site (${next})`, async ({ page }) => {
+      await page.goto(`/login?${new URLSearchParams({ next })}`);
+      await signIn(page);
+      await page.waitForURL((url) => url.pathname === "/");
+      expect(new URL(page.url()).origin).toBe(new URL(test.info().project.use.baseURL!).origin);
+    });
 
   test("rejects a wrong password", async ({ page }) => {
     await page.goto("/login");

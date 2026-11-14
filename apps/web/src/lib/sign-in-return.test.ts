@@ -29,6 +29,13 @@ describe("safeNext", () => {
     "javascript:alert(1)",
     "JavaScript:alert(1)",
     "data:text/html,<script>alert(1)</script>",
+    // Paths that normalizing (resolving dot segments) turns into another host's.
+    "/.//evil.com/",
+    "/a/..//evil.com/",
+    "/%2e//evil.com",
+    "/a/%2E%2E//evil.com",
+    "/./%2F/evil.com",
+    "/chats/../..//evil.com",
     // Encoded so a later decode turns it into one.
     "%2F%2Fevil.com",
     "/%2F/evil.com",
