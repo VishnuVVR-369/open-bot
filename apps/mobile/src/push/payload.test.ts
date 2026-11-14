@@ -161,12 +161,25 @@ describe("phone notifications", () => {
     expect(asking?.actions).toEqual([]);
   });
 
-  it("says whether a reply from a notification was sent", () => {
-    expect(replyText(true, "Book it")).toEqual({ title: "Reply sent", body: "" });
-    // What you typed shows, so it isn't lost.
-    expect(replyText(false, "Book it ")).toEqual({
+  it("says what became of a reply from a notification", () => {
+    expect(replyText({ kind: "sent" }, "Book it")).toEqual({
+      title: "Reply sent",
+      body: "Book it",
+    });
+    // Unsent, what you typed shows, so it isn't lost.
+    expect(replyText({ kind: "kept", forTeammate: true }, "Book it ")).toEqual({
       title: "Couldn't send your reply",
       body: "Saved in the chat: “Book it”. Open to send it.",
+    });
+    // Kept without the teammate it was for: sending it from the chat goes to whoever answers there.
+    expect(replyText({ kind: "kept", forTeammate: false }, "Book it")).toEqual({
+      title: "Couldn't send your reply",
+      body: "Saved in the chat, not addressed to anyone: “Book it”. Open to send it.",
+    });
+    // The phone couldn't store it: no claim that it's saved, and the text stays here.
+    expect(replyText({ kind: "lost" }, "Book it")).toEqual({
+      title: "Couldn't send or save your reply",
+      body: "You wrote: “Book it”. Open the chat to send it again.",
     });
   });
 
