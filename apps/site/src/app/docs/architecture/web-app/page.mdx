@@ -14,16 +14,22 @@ It serves the browser UI and the Android app's API: it reads Postgres directly, 
 ## What talks to what
 
 - **Pages** (`src/app/(app)/*`) are server components. They check the session and render the first view from Postgres, so a page is useful before any client code runs.
-- **The API and uploads** (`/api/rpc/*`, `PUT /api/uploads/:id`, `PUT /api/files/upload`) serve the browser and the Android app through the services in `src/lib/server/api/`.
+- **The API and uploads** (`/api/rpc/*`, `PUT /api/uploads/:id`, `PUT /api/files/upload`) serve the browser and the Android app through feature-local services and routes.
+  `src/lib/server/api/router.ts` only composes those routes; `rpc.ts` supplies session middleware and error mapping.
   Every browser write goes there, with `attempt()` (`src/lib/client/mutate.ts`): there are no server actions, and `src/no-server-actions.test.ts` fails if one is added.
   See [Internal APIs](/docs/reference/http-api#the-api) for their entry points and authoritative contract.
 - **Reads** go through the API (`@open-bot/api`), the same procedures the Android app calls.
   Client components query them with TanStack Query through `orpc` (`src/lib/client/rpc.ts`), whose cache keys are procedure paths.
   Next.js runs server actions one at a time per client, so reads and writes done as actions queued behind each other and made pages slow; that is one reason the app has none.
-  Server components read through functions in `src/lib/server` or a feature's `server.ts`, never the database directly.
-- **Features** that have moved into their own folder (`src/features/<feature>/`, so far the task board, the vault, skills, files, memory, pages, approvals, home, the computer, automations, teammates, settings, integrations and chat) keep their views, hooks, reads and API procedures together.
+  Server components read through a feature's `server.ts`, never the database directly.
+- **Features** (`src/features/<feature>/`) keep their views in `components/`, browser hooks in `hooks.ts`, and reads, services and API procedures in `server/`.
   Other code reaches a feature only through its `index.ts`, or `server.ts` for its server side, which `src/features/boundaries.test.ts` checks.
   The test also refuses server code (the database, `server-only`) anywhere `index.ts` reaches, since that entry ends up in the browser.
+  Ownership follows the UI: `app-shell` assembles app state and attention and supplies the shared shell hooks; `notifications` owns the popover, its list and mark-read.
+  `settings` owns the profile and browsing/egress, including paired-device authentication; `teammates` and `chat` own their lists.
+  Chat attachment uploads live in `chat`, while folder uploads live in `files`.
+  Shared auth, session, DB, env, realtime, publishing, RPC and worker-client/status infrastructure stays in `src/lib/`.
+  Feature-local integration suites exercise the real router with a disposable database and a worker stand-in per suite, using `src/test/api/harness.ts` and `src/test/api/seed.ts`; the shell suite retains cross-feature composition checks.
 - **The event stream** (`GET /api/stream`) is one server-sent events connection per tab. It tells the tab when anything changes, and streams the run events of the chat on screen.
 
 The browser never talks to Codex or botd.

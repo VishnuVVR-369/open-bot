@@ -69,7 +69,10 @@ Paths are relative to the repo root; symbols are in parentheses.
 
 - Unit: `pnpm --filter @open-bot/web test` (vitest, skips integration suites), including the cross-site checks in `apps/web/src/app/api/routes.test.ts` and `apps/web/src/app/api/rpc/[[...rest]]/route.test.ts`.
 - Types: `pnpm --filter @open-bot/web typecheck`.
-- Integration: `pnpm test:integration` runs `apps/web/src/features/settings/server/egress-device.integration.test.ts` and `apps/web/src/lib/server/api/router.integration.test.ts` (every API read) against a throwaway Postgres.
+- Integration: `pnpm test:integration` discovers feature-local `server/*.integration.test.ts` suites against throwaway Postgres.
+  API suites use `apps/web/src/test/api/harness.ts` and `apps/web/src/test/api/seed.ts`: real router, middleware, queries and output validation, a seeded database and a worker stand-in per suite.
+  Keep cross-feature composition assertions in `apps/web/src/features/app-shell/server/routes.integration.test.ts`; keep a feature's own cases next to its routes.
+  `apps/web/src/features/settings/server/egress-device.integration.test.ts` covers paired-device credentials.
 - End to end: `pnpm e2e` runs the Playwright specs in `e2e/` against a local stack, for example `e2e/pocket-inbox.spec.ts` and `e2e/api.spec.ts`.
 - Built artifact: `pnpm --filter @open-bot/web build` when you touch bundling, `next.config.ts` or dependencies.
 - UI changes also follow the openbot-ui-review skill.

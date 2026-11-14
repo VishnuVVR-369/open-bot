@@ -34,7 +34,7 @@ Shared domain logic goes in `packages/domain`.
 ## Tests
 
 - `pnpm --filter @open-bot/api test` runs `packages/api/src/live.test.ts`, `packages/api/src/uploads.test.ts` and any other unit tests.
-- `apps/web/src/lib/server/api/router.integration.test.ts` calls every read through the web router on a throwaway database, so a view that disagrees with its query fails there.
+- Feature-local `apps/web/src/features/*/server/routes.integration.test.ts` suites call every read through the web router on a throwaway database, so a view that disagrees with its query fails there.
 - `pnpm --filter @open-bot/api typecheck` checks types.
 - `e2e/api.spec.ts` drives the contract through the real stack.
 - `apps/worker/src/rpc/handler.test.ts` and `apps/worker/src/rpc/router.integration.test.ts` drive `workerContract` through the worker's HTTP server.
