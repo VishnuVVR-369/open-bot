@@ -4,8 +4,10 @@ import {
   outcomeText,
   parsePushData,
   planNotification,
+  isUnsentReplyId,
   replyChatUrl,
   replyText,
+  unsentReplyId,
 } from "./payload";
 
 const approval = {
@@ -173,6 +175,16 @@ describe("phone notifications", () => {
     const long = "Book the 9am one. ".repeat(20).trim();
     // Not "Open to reply.": nothing else keeps what you typed, so it isn't lost.
     expect(replyText(false, ` ${long} `)).toEqual({ title: "Your reply wasn't sent", body: long });
+  });
+
+  it("gives an unsent reply a notification id of its own, the same for the same reply", () => {
+    const id = unsentReplyId("run-1", "Book it");
+    expect(id).not.toBe("run-1");
+    expect(isUnsentReplyId(id)).toBe(true);
+    expect(isUnsentReplyId("run-1")).toBe(false);
+    expect(unsentReplyId("run-1", " Book it\n")).toBe(id);
+    expect(unsentReplyId("run-1", "Book it!")).not.toBe(id);
+    expect(unsentReplyId("run-2", "Book it")).not.toBe(id);
   });
 
   it("opens an unsent reply's chat, even from a page's notification", () => {

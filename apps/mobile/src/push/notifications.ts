@@ -18,8 +18,10 @@ import {
   isOnScreen,
   outcomeText,
   planNotification,
+  isUnsentReplyId,
   replyChatUrl,
   replyText,
+  unsentReplyId,
   type ActionId,
   type DecideOutcome,
   type PushData,
@@ -45,6 +47,8 @@ export async function ensureChannels(): Promise<void> {
 
 /** Show (or remove) what a data message from the worker describes. */
 export async function handlePushData(data: PushData): Promise<void> {
+  // Unsent replies' notifications are the phone's own: no push replaces or removes one.
+  if (isUnsentReplyId(data.tag)) return;
   if (data.type === "dismiss") {
     await notifee.cancelNotification(data.tag);
     return;
@@ -165,7 +169,9 @@ async function sendReply(notification: Notification, text: string): Promise<void
   const outcome = replyText(sent, text);
   const url = typeof notification.data?.url === "string" ? notification.data.url : undefined;
   await notifee.displayNotification({
-    id: notification.id,
+    // Sent, it replaces the notification replied to. Unsent, it's a notification of its own (and
+    // the one replied to goes): a later push about the same run reuses that one's id.
+    id: sent ? notification.id : unsentReplyId(notification.id, text),
     title: outcome.title,
     body: outcome.body,
     // Without the reply fields: this one is about the reply, so it has no Reply of its own.
@@ -187,6 +193,7 @@ async function sendReply(notification: Notification, text: string): Promise<void
         : { autoCancel: false, style: { type: AndroidStyle.BIGTEXT, text: outcome.body } }),
     },
   });
+  if (!sent) await notifee.cancelNotification(notification.id);
 }
 
 /**
