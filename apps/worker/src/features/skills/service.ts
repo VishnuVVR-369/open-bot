@@ -15,8 +15,8 @@ import {
   type SkillInput,
 } from "@open-bot/domain";
 import { and, eq, isNull, or } from "drizzle-orm";
-import { publishApp, type Context } from "../context";
-import { WorkerError } from "../core/errors";
+import { publishApp, type Context } from "../../context";
+import { WorkerError } from "../../core/errors";
 
 /** Skills every teammate can use. Codex reads this folder for every thread. */
 const SHARED_ROOT = "/home/bot/.agents/skills";

@@ -1,16 +1,21 @@
 // The skill tool: save a skill for a teammate or for everyone.
 import { z } from "zod";
-import type { RunSession } from "../runs/session";
-import { SkillError } from "../services/skills";
-import { optionalTarget } from "../core/targets";
+import { optionalTarget, type TeammateTargets } from "../../core/targets";
 import {
   defineTool,
   text,
-  type AnyTool,
-  type ToolDeps,
-  type ToolResponse,
   toolItem,
-} from "./define";
+  type ToolDefinition,
+  type ToolResponse,
+} from "../../core/tool";
+import type { RunSession } from "../../runs/session";
+import { SkillError, type SkillService } from "./service";
+
+/** What the skill tool uses. */
+interface SkillToolDeps {
+  skills: SkillService;
+  botTools: Pick<TeammateTargets, "setupTarget" | "authorize">;
+}
 
 const saveSkillInput = z.object({
   bot_id: optionalTarget,
@@ -42,7 +47,7 @@ const saveSkillInput = z.object({
     .default(false),
 });
 
-export const SKILL_TOOLS: AnyTool[] = [
+export const SKILL_TOOLS: ToolDefinition<z.ZodObject, SkillToolDeps>[] = [
   defineTool({
     name: "save_skill",
     description:
@@ -54,7 +59,7 @@ export const SKILL_TOOLS: AnyTool[] = [
 ];
 
 async function saveSkill(
-  deps: ToolDeps,
+  deps: SkillToolDeps,
   session: RunSession,
   callId: string,
   args: z.output<typeof saveSkillInput>,

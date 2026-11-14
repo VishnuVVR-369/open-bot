@@ -43,7 +43,7 @@ import {
 } from "./features/automations";
 import { ScreenOperationService } from "./features/screens";
 import { MemoryCoordinator, memoryFeature } from "./features/memory";
-import { SkillService } from "./services/skills";
+import { SkillService } from "./features/skills";
 import { TakeoverService } from "./features/screens";
 import { TelegramService, telegramFeature } from "./features/telegram";
 import { PageService } from "./features/pages";

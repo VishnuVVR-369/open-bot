@@ -20,7 +20,7 @@ import {
   type ScreenOperationService,
   type TakeoverService,
 } from "../features/screens";
-import type { SkillService } from "../services/skills";
+import { skillRoutes, type SkillService } from "../features/skills";
 import type { SwarmService } from "../services/swarms";
 import { chatRoutes, type ChatService } from "../features/chat";
 import type { RunRequests } from "../runs/requests";
@@ -197,15 +197,7 @@ export function createWorkerRouter(services: WorkerServices) {
       }),
     },
     telegram: telegramRoutes(s.telegram),
-    skills: {
-      save: os.skills.save.handler(async ({ input: { id, ...skill } }) => ({
-        id: (await s.skills.save(skill, { kind: "user" }, id ?? undefined)).id,
-      })),
-      remove: os.skills.remove.handler(async ({ input }) => {
-        await s.skills.remove(input.skillId);
-        return ok;
-      }),
-    },
+    skills: skillRoutes(s.skills),
     codex: {
       deviceLogin: os.codex.deviceLogin.handler(() => ctx.codex.startDeviceLogin()),
       setAuthSource: os.codex.setAuthSource.handler(({ input }) =>

@@ -18,7 +18,7 @@ import type { ApprovalService } from "../features/approvals";
 import type { SessionRegistry } from "../services/registry";
 import type { ConnectionService } from "../services/connections";
 import { emailSettingsRow } from "../features/email";
-import type { SkillService } from "../services/skills";
+import type { SkillService } from "../features/skills";
 import type { MemoryCoordinator } from "../features/memory";
 import type { ModelAccess } from "../services/model-access";
 import type { TakeoverService } from "../features/screens";

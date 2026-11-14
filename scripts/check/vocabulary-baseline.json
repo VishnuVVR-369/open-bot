@@ -696,6 +696,12 @@
   "apps/worker/src/features/screens/tools.ts": {
     "bot": 6
   },
+  "apps/worker/src/features/skills/service.ts": {
+    "bot": 70
+  },
+  "apps/worker/src/features/skills/tools.ts": {
+    "bot": 22
+  },
   "apps/worker/src/features/tasks/service.ts": {
     "bot": 39
   },
@@ -777,9 +783,6 @@
   "apps/worker/src/services/retries.ts": {
     "bot": 9
   },
-  "apps/worker/src/services/skills.ts": {
-    "bot": 70
-  },
   "apps/worker/src/services/swarms.ts": {
     "bot": 10
   },
@@ -796,14 +799,8 @@
   "apps/worker/src/tools/define.ts": {
     "bot": 5
   },
-  "apps/worker/src/tools/definitions.ts": {
-    "bot": 1
-  },
   "apps/worker/src/tools/handlers.ts": {
     "bot": 4
-  },
-  "apps/worker/src/tools/skills.ts": {
-    "bot": 21
   },
   "apps/worker/src/tools/teamwork.ts": {
     "bot": 29

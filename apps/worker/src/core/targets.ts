@@ -39,4 +39,13 @@ export interface TeammateTargets {
     args: TargetArgs & { id?: string | undefined },
     title: SetupTitle,
   ): Promise<Teammate>;
+  /**
+   * Asks the user before a change to a teammate's setup, as the caller's autonomy says. It throws
+   * when the change may not go ahead: denied, still waiting, or the run was stopped meanwhile.
+   */
+  authorize(
+    session: RunSession,
+    callId: string,
+    request: { tool: string; args: Record<string, unknown>; title: string; detail: string },
+  ): Promise<void>;
 }

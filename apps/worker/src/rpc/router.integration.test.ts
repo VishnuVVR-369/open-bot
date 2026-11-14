@@ -55,7 +55,7 @@ import { PushService } from "../features/notifications";
 import { SessionRegistry } from "../services/registry";
 import { RetryService } from "../services/retries";
 import { ScheduleService, TriggerService } from "../features/automations";
-import { SkillService } from "../services/skills";
+import { SkillService } from "../features/skills";
 import { TaskService } from "../features/tasks";
 import { MemoryService } from "@open-bot/memory";
 

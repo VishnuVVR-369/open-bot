@@ -6,16 +6,15 @@ import type { AccountTools } from "../features/integrations";
 import { defineTool as defineFeatureTool, type ToolDefinition } from "../core/tool";
 import type { TaskService } from "../features/tasks";
 import type { ApprovalService } from "../features/approvals";
-import type { BotService } from "../features/teammates";
+import type { BotService, BotTools } from "../features/teammates";
 import type { EmailService } from "../features/email";
 import type { MemoryCoordinator } from "../features/memory";
 import type { PageService } from "../features/pages";
 import type { ScheduleService, TriggerService } from "../features/automations";
-import type { SkillService } from "../services/skills";
+import type { SkillService } from "../features/skills";
 import type { SwarmService } from "../services/swarms";
 import type { TakeoverService } from "../features/screens";
 import type { VaultService } from "../services/vault";
-import type { BotTools } from "../features/teammates";
 
 export {
   inputJsonSchema,
