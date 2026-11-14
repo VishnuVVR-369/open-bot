@@ -24,13 +24,13 @@ function commandOf(approval: ApprovalView): string {
 /** One request in a list: who asked, what for, and when; it opens the request. */
 export function ApprovalRow({
   approval,
-  bot,
+  teammate,
   meta,
   behind,
   short,
 }: {
   approval: ApprovalView;
-  bot: TeammateSummary | undefined;
+  teammate: TeammateSummary | undefined;
   meta: string;
   /** The card's color, which the avatar's badge cuts into. */
   behind: string;
@@ -52,7 +52,7 @@ export function ApprovalRow({
       accessibilityRole="button"
       accessibilityHint={pending ? "Opens the request to approve or deny it" : undefined}
     >
-      <ApprovalAvatar bot={bot} approval={approval} pending={pending} behind={behind} />
+      <ApprovalAvatar teammate={teammate} approval={approval} pending={pending} behind={behind} />
       <View style={styles.text}>
         {short ? (
           <Text variant="label" numberOfLines={2}>
@@ -80,7 +80,7 @@ export function ApprovalRow({
           <ApprovalTitle title={shortenPaths(approval.title)} numberOfLines={2} />
         )}
         <Text variant="small" muted numberOfLines={1}>
-          {bot?.name ?? "Former teammate"} · {meta}
+          {teammate?.name ?? "Former teammate"} · {meta}
         </Text>
       </View>
       {pending ? (

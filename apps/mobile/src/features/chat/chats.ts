@@ -6,22 +6,24 @@ import type { TeammateSummary, ChatSummary } from "@open-bot/api";
  */
 export function chatSubtitle(
   chat: ChatSummary,
-  bot: TeammateSummary | undefined,
-  bots: TeammateSummary[],
+  teammate: TeammateSummary | undefined,
+  teammates: TeammateSummary[],
 ): string {
   const { preview } = chat;
   if (preview) {
     if (!preview.teammateId) return `You: ${preview.text}`;
     if (chat.kind !== "group")
       // A chat titled after its topic says whose reply it is, as its title no longer does.
-      return bot && namedForTopic(chat, bot) ? `${bot.name}: ${preview.text}` : preview.text;
-    const speaker = bots.find((member) => member.id === preview.teammateId)?.name;
+      return teammate && namedForTopic(chat, teammate)
+        ? `${teammate.name}: ${preview.text}`
+        : preview.text;
+    const speaker = teammates.find((member) => member.id === preview.teammateId)?.name;
     return speaker ? `${speaker}: ${preview.text}` : preview.text;
   }
   switch (chat.kind) {
     case "group":
       return chat.memberIds
-        .map((id) => bots.find((member) => member.id === id)?.name)
+        .map((id) => teammates.find((member) => member.id === id)?.name)
         .filter(Boolean)
         .join(", ");
     case "scheduled":
@@ -29,7 +31,7 @@ export function chatSubtitle(
     case "inbox":
       return "Email";
     default:
-      return bot?.role ?? "Former teammate";
+      return teammate?.role ?? "Former teammate";
   }
 }
 
@@ -37,14 +39,14 @@ export function chatSubtitle(
 /** A direct chat titled after what it's about, not named after its teammate. */
 export function namedForTopic(
   chat: Pick<ChatSummary, "kind" | "title">,
-  bot: Pick<TeammateSummary, "name"> | undefined,
+  teammate: Pick<TeammateSummary, "name"> | undefined,
 ): boolean {
-  return chat.kind === "direct" && Boolean(bot) && chat.title !== bot!.name;
+  return chat.kind === "direct" && Boolean(teammate) && chat.title !== teammate!.name;
 }
 
-export function chatTitle(chat: ChatSummary, bot: TeammateSummary | undefined): string {
-  if (chat.kind === "scheduled") return `${bot?.name ?? ""} · Scheduled`;
-  if (chat.kind === "inbox") return `${bot?.name ?? ""} · Email`;
+export function chatTitle(chat: ChatSummary, teammate: TeammateSummary | undefined): string {
+  if (chat.kind === "scheduled") return `${teammate?.name ?? ""} · Scheduled`;
+  if (chat.kind === "inbox") return `${teammate?.name ?? ""} · Email`;
   return chat.title;
 }
 

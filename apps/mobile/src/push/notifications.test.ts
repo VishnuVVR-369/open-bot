@@ -57,11 +57,13 @@ describe("native notification rendering and decisions", () => {
       title: "Rex replied",
       body: "All done",
       chatId: "chat",
-      botId: "rex",
+      teammateId: "rex",
       url: "/chats/chat",
     });
     expect(display).toHaveBeenCalledWith(
       expect.objectContaining({
+        // Kept as it is: notifications shown before an app update carry it and still reply with it.
+        data: expect.objectContaining({ replyChatId: "chat", replyBotId: "rex" }), // vocabulary: allow
         android: expect.objectContaining({
           category: "msg",
           style: expect.objectContaining({
@@ -154,7 +156,7 @@ describe("replying from a notification", () => {
         notification: {
           id: "run-1",
           title: "Rex replied",
-          data: { url: "/chats/c1?run=run-1", chatId: "c1", replyChatId: "c1", replyBotId: "b1" },
+          data: { url: "/chats/c1?run=run-1", chatId: "c1", replyChatId: "c1", replyBotId: "b1" }, // vocabulary: allow
         },
       },
     }) as unknown as Event;
@@ -186,6 +188,19 @@ describe("replying from a notification", () => {
     const shown = display.mock.calls[0]![0];
     expect(shown).toMatchObject({ title: "Couldn't send your reply", body: "Open to reply." });
     expect(shown.android.timeoutAfter).toBeUndefined();
+  });
+
+  it("sends nothing when the notification doesn't say who it's from", async () => {
+    // Without a mention a group's lead would answer instead of the teammate who wrote.
+    const event = reply("Book it");
+    delete (event.detail.notification!.data as Record<string, unknown>).replyBotId; // vocabulary: allow
+    await handleNotificationEvent(event);
+    expect(send).not.toHaveBeenCalled();
+    expect(display.mock.calls[0]![0]).toMatchObject({
+      id: "run-1",
+      title: "Couldn't send your reply",
+      body: "Open to reply.",
+    });
   });
 
   it("sends nothing for an empty reply", async () => {

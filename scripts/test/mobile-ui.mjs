@@ -177,7 +177,7 @@ try {
       body: "Local Android notification test",
       approvalId: approvals[key],
       approvalNeedsBiometric: String(biometric),
-      botId: teammateId,
+      teammateId,
       chatId,
       url: `/approvals/${approvals[key]}`,
     });
@@ -201,7 +201,7 @@ try {
       tag: `mobile-e2e-reply-${chatId}`,
       title: "E2E teammate reply",
       body: "Reply here without opening the chat",
-      botId: teammateId,
+      teammateId,
       chatId,
       url: `/chats/${chatId}`,
     }),

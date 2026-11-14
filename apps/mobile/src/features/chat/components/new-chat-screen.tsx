@@ -6,7 +6,11 @@ import { Check, ChevronRight, Users } from "lucide-react-native";
 import { useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { activityText, BotAvatar, botActivity } from "@/features/teammates/components/bot-avatar";
+import {
+  activityText,
+  TeammateAvatar,
+  teammateActivity,
+} from "@/features/teammates/components/teammate-avatar";
 import { Button } from "@/components/button";
 import { ListRow, Separator } from "@/components/list-row";
 import { Card, Section } from "@/components/section";
@@ -29,7 +33,7 @@ export default function NewChat() {
   const insets = useSafeAreaInsets();
   const keyboard = useKeyboardHeight();
   const queryClient = useQueryClient();
-  const { data: bots, error, isLoading, refetch } = useTeammates();
+  const { data: allTeammates, error, isLoading, refetch } = useTeammates();
   const computerOffline = useComputerOffline();
   const [mode, setMode] = useState<"direct" | "group">("direct");
   const [title, setTitle] = useState("");
@@ -43,10 +47,10 @@ export default function NewChat() {
     router.replace(`/chats/${chatId}`);
   };
 
-  async function direct(bot: TeammateSummary) {
-    setBusy(bot.id);
+  async function direct(teammate: TeammateSummary) {
+    setBusy(teammate.id);
     setProblem(null);
-    const result = await safe(api.chats.newDirect({ teammateId: bot.id }));
+    const result = await safe(api.chats.newDirect({ teammateId: teammate.id }));
     setBusy(null);
     if (result.error) setProblem(errorMessage(result.error));
     else opened(result.data.chatId);
@@ -67,40 +71,40 @@ export default function NewChat() {
     );
 
   if (isLoading) return <Loading />;
-  if (error && !bots) return <LoadError error={error} onRetry={() => void refetch()} />;
+  if (error && !allTeammates) return <LoadError error={error} onRetry={() => void refetch()} />;
   const canCreate = title.trim().length > 0 && picked.length >= 2 && busy === null;
 
-  const teammates = bots ?? [];
-  const pickers = teammates.map((bot, index) => {
-    const selected = picked.includes(bot.id);
+  const teammates = allTeammates ?? [];
+  const pickers = teammates.map((teammate, index) => {
+    const selected = picked.includes(teammate.id);
     return (
-      <View key={bot.id}>
+      <View key={teammate.id}>
         {index > 0 && <Separator />}
         <ListRow
           onPress={() => {
             haptics.tap();
-            if (mode === "group") toggle(bot.id);
-            else void direct(bot);
+            if (mode === "group") toggle(teammate.id);
+            else void direct(teammate);
           }}
           leading={
-            <BotAvatar
-              name={bot.name}
-              color={bot.color}
-              emoji={bot.emoji}
+            <TeammateAvatar
+              name={teammate.name}
+              color={teammate.color}
+              emoji={teammate.emoji}
               size="lg"
-              activity={botActivity(bot, computerOffline)}
+              activity={teammateActivity(teammate, computerOffline)}
             />
           }
-          title={bot.name}
+          title={teammate.name}
           // A picker: who they are, unless they're busy with something right now.
           subtitle={
-            bot.activeRun && !computerOffline
-              ? activityText(botActivity(bot), bot.activeRun.waitingFor)
-              : bot.activeRun?.status === "waiting"
-                ? activityText("waiting", bot.activeRun.waitingFor)
-                : bot.lastActiveAt
-                  ? `${bot.role} · ${lastActive(bot.lastActiveAt)}`
-                  : bot.role
+            teammate.activeRun && !computerOffline
+              ? activityText(teammateActivity(teammate), teammate.activeRun.waitingFor)
+              : teammate.activeRun?.status === "waiting"
+                ? activityText("waiting", teammate.activeRun.waitingFor)
+                : teammate.lastActiveAt
+                  ? `${teammate.role} · ${lastActive(teammate.lastActiveAt)}`
+                  : teammate.role
           }
           testID="pick-teammate"
           aside={
@@ -115,11 +119,11 @@ export default function NewChat() {
                 accessible
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: selected }}
-                accessibilityLabel={bot.name}
+                accessibilityLabel={teammate.name}
               >
                 {selected && <Check size={14} color={colors.primaryForeground} strokeWidth={3} />}
               </View>
-            ) : busy === bot.id ? (
+            ) : busy === teammate.id ? (
               <ActivityIndicator size="small" color={colors.mutedForeground} />
             ) : (
               <ChevronRight size={18} color={colors.mutedForeground} />

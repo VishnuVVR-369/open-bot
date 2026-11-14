@@ -19,7 +19,7 @@ function setup(server: Server, overrides: Partial<LiveStreamOptions> = {}) {
   const seen = { ready: 0, app: [] as unknown[], run: [] as number[], connected: [] as boolean[] };
   const unauthorized = vi.fn();
   const stream = createLiveStream({
-    appUrl: "https://bot.test",
+    appUrl: "https://app.test",
     headers: async () => ({ cookie: "session=1" }),
     fetch: async (url, init) => {
       urls.push(url);
@@ -66,8 +66,8 @@ describe("the live stream", () => {
     current = stream;
     stream.watch({ chatId: "c1", cursor: 5 });
     await vi.waitFor(() => expect(seen.run).toEqual([6, 7, 8]));
-    expect(urls[0]).toBe("https://bot.test/api/stream?chat=c1&after=5");
-    expect(urls[1]).toBe("https://bot.test/api/stream?chat=c1&after=7");
+    expect(urls[0]).toBe("https://app.test/api/stream?chat=c1&after=5");
+    expect(urls[1]).toBe("https://app.test/api/stream?chat=c1&after=7");
     expect(seen.ready).toBe(2);
     expect(seen.app).toEqual([{ type: "chats" }]);
     expect(seen.connected).toEqual([true, false, true]);
@@ -109,7 +109,7 @@ describe("the live stream", () => {
     await vi.waitFor(() => expect(seen.run).toEqual([9]));
     stream.watch({ chatId: "c2", cursor: 2 });
     await vi.waitFor(() => expect(seen.run).toEqual([9, 3]));
-    expect(urls.at(-1)).toBe("https://bot.test/api/stream?chat=c2&after=2");
+    expect(urls.at(-1)).toBe("https://app.test/api/stream?chat=c2&after=2");
     expect(stream.cursorOf("c1")).toBe(9);
   });
 
@@ -130,7 +130,7 @@ describe("the live stream", () => {
     // The screen's last snapshot predates the live events received before backgrounding.
     next.stream.watch({ chatId: "c1", cursor: 5 });
     await vi.waitFor(() => expect(next.seen.run).toEqual([10]));
-    expect(next.urls[0]).toBe("https://bot.test/api/stream?chat=c1&after=9");
+    expect(next.urls[0]).toBe("https://app.test/api/stream?chat=c1&after=9");
   });
 });
 
@@ -148,5 +148,5 @@ it("replays from a retained view's cursor when a subscriber resets its checkpoin
   cursors.set("c1", 60);
   stream.watch({ chatId: "c1", cursor: 60 });
   await vi.waitFor(() => expect(seen.run).toEqual([65]));
-  expect(urls[0]).toBe("https://bot.test/api/stream?chat=c1&after=60");
+  expect(urls[0]).toBe("https://app.test/api/stream?chat=c1&after=60");
 });

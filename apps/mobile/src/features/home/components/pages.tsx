@@ -36,7 +36,7 @@ export function Pages({
           <PageRow
             key={page.id}
             page={page}
-            bot={teammates.find((teammate) => teammate.id === page.teammateId)}
+            teammate={teammates.find((teammate) => teammate.id === page.teammateId)}
             first={index === 0}
             onMenu={() => setMenuFor(page)}
           />

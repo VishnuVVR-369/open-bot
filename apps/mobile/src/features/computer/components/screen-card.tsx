@@ -1,7 +1,7 @@
 import type { ScreenView } from "@open-bot/api";
 import { CloudOff, Hand, Monitor, Moon, MousePointer2 } from "lucide-react-native";
 import { Pressable, StyleSheet, View } from "react-native";
-import { BotAvatar, botActivity } from "@/features/teammates/components/bot-avatar";
+import { TeammateAvatar, teammateActivity } from "@/features/teammates/components/teammate-avatar";
 import { Button } from "@/components/button";
 import { Text } from "@/components/text";
 import { screenState, screenStatus, type ScreenState } from "@/features/computer/screens";
@@ -86,11 +86,11 @@ export function ScreenCard({
         <PanelGlyph state={state} />
       </ScreenPanel>
       <View style={styles.footer}>
-        <BotAvatar
+        <TeammateAvatar
           name={screen.teammate.name}
           color={screen.teammate.color}
           emoji={screen.teammate.emoji}
-          activity={needsYou ? "waiting" : botActivity(screen.teammate)}
+          activity={needsYou ? "waiting" : teammateActivity(screen.teammate)}
         />
         <View style={styles.text}>
           <Text variant="label" numberOfLines={1}>
