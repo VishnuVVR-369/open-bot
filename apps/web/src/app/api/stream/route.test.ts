@@ -1,5 +1,8 @@
 import { EventEmitter } from "node:events";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+// Imported once, up front: loading the route is slow when the machine is busy, and a test's own
+// time should only be the stream. The mocks below are hoisted above this import.
+import { GET } from "./route";
 
 /**
  * A stand-in for the server's realtime hub. Its Postgres connection answers when the test says,
@@ -45,7 +48,6 @@ describe("the event stream while the server stops", () => {
   });
 
   it("ends an open stream, telling the tab to come back soon", async () => {
-    const { GET } = await import("./route");
     current().connected();
     const response = await GET(request());
     current().shutdown();
@@ -54,7 +56,6 @@ describe("the event stream while the server stops", () => {
   });
 
   it("turns away a stream that was still waiting for Postgres when stopping began", async () => {
-    const { GET } = await import("./route");
     const pending = GET(request());
     await current().waiting;
     current().shutdown();
@@ -67,7 +68,6 @@ describe("the event stream while the server stops", () => {
   });
 
   it("turns away new streams once stopping", async () => {
-    const { GET } = await import("./route");
     current().shutdown();
     const response = await GET(request());
     expect(await response.text()).toBe("retry: 1000\n\n");
