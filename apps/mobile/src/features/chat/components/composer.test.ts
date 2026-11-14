@@ -9,6 +9,8 @@ const state = vi.hoisted(() => ({
   send: vi.fn(),
   onSent: vi.fn(),
   cancel: vi.fn(),
+  /** Saved drafts by chat, as the draft store reads them back. */
+  drafts: new Map<string, string>(),
 }));
 vi.mock("expo-crypto", () => ({ randomUUID: () => crypto.randomUUID() }));
 vi.mock("expo-document-picker", () => ({ getDocumentAsync: state.pick }));
@@ -48,7 +50,10 @@ vi.mock("@/lib/api", () => ({ api: { chats: { send: state.send } } }));
 vi.mock("@/features/chat/dictation", () => ({
   useDictation: () => ({ listening: false, cancel: state.cancel }),
 }));
-vi.mock("@/features/chat/drafts", () => ({ readDraft: async () => "", writeDraft: () => {} }));
+vi.mock("@/features/chat/drafts", () => ({
+  readDraft: async (chatId: string) => state.drafts.get(chatId) ?? "",
+  writeDraft: () => {},
+}));
 vi.mock("@/lib/errors", () => ({ errorMessage: () => "Couldn't send. Try again." }));
 vi.mock("@/lib/haptics", () => ({
   haptics: {
@@ -96,6 +101,7 @@ const chips = () =>
 
 beforeEach(async () => {
   vi.clearAllMocks();
+  state.drafts.clear();
   state.upload.mockResolvedValue({ kind: "complete", attachment: attachment("first") });
   await act(async () => {
     root = create(
@@ -112,6 +118,27 @@ beforeEach(async () => {
 });
 afterEach(async () => {
   await act(async () => root.unmount());
+});
+
+describe("a saved draft", () => {
+  it("is in the composer when you open its chat, like a reply a notification couldn't send", async () => {
+    state.drafts.set("c1", "Book it");
+    await act(async () => root.unmount());
+    await act(async () => {
+      root = create(
+        createElement(Composer, {
+          chatId: "c1",
+          placeholder: "Reply",
+          members: [],
+          isGroup: true,
+          activeRun: null,
+          onSent: state.onSent,
+        }),
+      );
+    });
+    const input = root.root.find((node) => String(node.type) === "TextInput");
+    expect(input.props.value).toBe("Book it");
+  });
 });
 
 describe("attachments during a pending send", () => {
