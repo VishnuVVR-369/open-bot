@@ -203,6 +203,9 @@
   "apps/site/src/lib/docs.ts": {
     "bot": 1
   },
+  "apps/web/src/features/app-shell/server/routes.integration.test.ts": {
+    "bot": 1
+  },
   "apps/web/src/features/automations/components/schedules-list.tsx": {
     "bot": 1
   },
