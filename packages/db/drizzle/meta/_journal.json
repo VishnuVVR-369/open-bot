@@ -239,6 +239,13 @@
       "when": 1794512978125,
       "tag": "0033_tools_revision",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1794656670080,
+      "tag": "0034_rename_teammate_tools_in_approvals",
+      "breakpoints": true
     }
   ]
 }
