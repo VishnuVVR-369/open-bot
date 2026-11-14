@@ -100,9 +100,9 @@ describe("phone notifications", () => {
 
   it("offers no Reply when it doesn't say which teammate it's from", () => {
     // A reply that mentions nobody goes to a group's lead, not to the teammate who wrote. The
-    // older key `botId` doesn't count: this build reads only `teammateId`. vocabulary: allow
-    for (const from of [{}, { botId: "b1" }]) {
-      // vocabulary: allow
+    // older key doesn't count: this build reads only `teammateId`.
+    const oldKey = { botId: "b1" }; // vocabulary: allow
+    for (const from of [{}, oldKey]) {
       const plan = planNotification(
         parsePushData({
           type: "notification",

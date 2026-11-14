@@ -223,7 +223,7 @@ export default function TeammateScreen() {
         (chat.kind === "group" && chat.memberIds.includes(teammate.id)),
     )
     .sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt));
-  const conversation = conversationWith(teammate, all); // vocabulary: allow
+  const conversation = conversationWith(teammate, all);
   const autonomy = AUTONOMY_OPTIONS.find((option) => option.value === teammate.autonomy);
   const ruleCount = rules.filter((rule) => rule.teammateId === teammate.id).length;
   const allTeammates = teammates.data ?? [];
