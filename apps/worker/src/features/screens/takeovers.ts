@@ -13,7 +13,7 @@ import {
   type LeaseHolder,
   type TakeoverRequestItem,
 } from "@open-bot/domain";
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, min, sql } from "drizzle-orm";
 import { publishApp, type Context } from "../../context";
 import { createNotification } from "../notifications";
 import { enqueueRun } from "../../runs/queue";
@@ -55,6 +55,31 @@ function returnNote(note: string | null, reason: TakeoverEndReason): string | nu
   if (reason === "handed_back") return note;
   if (!note) return AUTO_NOTES[reason];
   return `${AUTO_NOTES[reason]} Before that, they tried to hand it back with this note: ${note}`;
+}
+
+type TakeoverRow = typeof screenTakeovers.$inferSelect;
+
+/** Oldest first, so the same takeovers are read in the same order every time. */
+function byCreation(a: TakeoverRow, b: TakeoverRow): number {
+  return a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id);
+}
+
+/**
+ * The note of takeovers that share a screen and come back together. A hand-back saves its note on
+ * every active takeover of the screen, so the note belongs to all of them: one without a note is a
+ * request that joined after it was saved, and must not hide it. Each save writes every active row,
+ * so the newest row with a note holds the newest save; that one wins if notes ever differ, since
+ * the owner replaced the older one.
+ */
+function groupNote(rows: TakeoverRow[]): string | null {
+  return rows.toSorted(byCreation).findLast((row) => row.note)?.note ?? null;
+}
+
+/** Why takeovers ended together came back: one update ends them all with the same reason. */
+function groupReason(rows: TakeoverRow[]): TakeoverEndReason {
+  return (
+    rows.find((row) => row.endReason && row.endReason !== "handed_back")?.endReason ?? "handed_back"
+  );
 }
 
 /**
@@ -288,7 +313,6 @@ export class TakeoverService {
     await publishApp(this.ctx, { type: "takeovers" });
   }
 
-  /** Ends the screen's active takeovers. `note` undefined keeps the note each one has saved. */
   /**
    * Ends the screen's active takeovers. `ending` holds only what the caller learned just now: your
    * note from the hand-back you just made, or the reason botd gave. Everything else is the row's
@@ -349,7 +373,8 @@ export class TakeoverService {
               .from(screenTakeovers)
               .where(
                 and(eq(screenTakeovers.status, "active"), eq(screenTakeovers.screenId, screenId)),
-              );
+              )
+              .orderBy(screenTakeovers.createdAt, screenTakeovers.id);
             if (!rows.length) return;
             const [operation] = await this.ctx.db
               .select()
@@ -362,11 +387,13 @@ export class TakeoverService {
                   ),
                   eq(screenOperations.status, "safe"),
                 ),
-              );
+              )
+              .orderBy(screenOperations.createdAt, screenOperations.id)
+              .limit(1);
             if (!operation) return;
-            const row = rows.find((candidate) => candidate.id === operation.takeoverId)!;
             try {
-              await this.handBack(screenId, row.note ?? CODE_HANDED_BACK_NOTE);
+              // A note you saved on any of them stays yours, even on the request the code was for.
+              await this.handBack(screenId, groupNote(rows) ?? CODE_HANDED_BACK_NOTE);
             } catch (error) {
               if (!(error instanceof ScreenBusy)) throw error;
               await operationNeedsOwner(this.ctx.db, operation.id, error.message);
@@ -433,10 +460,13 @@ export class TakeoverService {
   }
 
   private async deliverPendingReturns(): Promise<void> {
+    // Oldest return first.
     const pending = await this.ctx.db
-      .selectDistinct({ continuationRunId: takeoverDeliveries.continuationRunId })
+      .select({ continuationRunId: takeoverDeliveries.continuationRunId })
       .from(takeoverDeliveries)
-      .where(isNull(takeoverDeliveries.deliveredAt));
+      .where(isNull(takeoverDeliveries.deliveredAt))
+      .groupBy(takeoverDeliveries.continuationRunId)
+      .orderBy(min(takeoverDeliveries.createdAt), takeoverDeliveries.continuationRunId);
     for (const { continuationRunId } of pending) {
       try {
         // Another worker process may be delivering the same return.
@@ -452,6 +482,7 @@ export class TakeoverService {
                   isNull(takeoverDeliveries.deliveredAt),
                 ),
               )
+              .orderBy(screenTakeovers.createdAt, screenTakeovers.id)
           ).map((row) => row.takeover);
           if (!ended.length) return;
           await this.deliverReturn(ended, continuationRunId);
@@ -467,12 +498,9 @@ export class TakeoverService {
     }
   }
 
-  private async deliverReturn(
-    ended: (typeof screenTakeovers.$inferSelect)[],
-    continuationRunId: string,
-  ): Promise<void> {
-    // Rows ended together share the same note and reason.
-    const effectiveNote = returnNote(ended[0]!.note, ended[0]!.endReason ?? "handed_back");
+  private async deliverReturn(ended: TakeoverRow[], continuationRunId: string): Promise<void> {
+    // Every takeover in the return gets the group's note, whichever of them saved it.
+    const effectiveNote = returnNote(groupNote(ended), groupReason(ended));
     const delivered = new Set<string>();
 
     // 1. Teammates that asked you to take over get your note as the answer to their request.

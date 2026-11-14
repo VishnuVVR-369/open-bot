@@ -267,6 +267,44 @@ describe("botd contract", () => {
     expect(preempted).toHaveBeenCalledTimes(1);
   });
 
+  it("answers an older worker's code entry with 404 after its site check, and leaves a free screen free", async () => {
+    // The older worker's sequence for "Type the code": read the screen, check the code's site,
+    // then type. Only the last step moved, so it is the one refused, before anything is typed or
+    // the screen changes hands. That worker must treat the 404 as nothing having happened; its
+    // side is tested on main in `apps/worker/src/features/screens/computer-refusal.integration.test.ts`
+    // (the precursor to this change).
+    const { botd, url, running, screens } = await start();
+    const screenId = randomUUID();
+    await botd.screens.start({ screenId });
+    const lease = running.get(screenId)!.lease;
+    const changed = vi.fn();
+    lease.on("change", changed);
+    const post = (path: string, body: unknown) =>
+      fetch(`${url}${path}`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${TOKEN}`, "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    const health = await fetch(`${url}/health`, { headers: { authorization: `Bearer ${TOKEN}` } });
+    expect(health.status).toBe(200);
+    const context = await post("/computer/code-context", { screenId });
+    expect(context.status).toBe(200);
+    expect(await context.json()).toEqual({ site: "github.com" });
+    const typed = await post("/computer/type", {
+      screenId,
+      takeoverId: randomUUID(),
+      operationId: randomUUID(),
+      expectedSite: "github.com",
+      pressEnter: true,
+      text: "582913",
+    });
+    expect(typed.status).toBe(404);
+    expect(await typed.json()).toEqual({ error: "not found", code: "NOT_FOUND" });
+    expect(screens.typeCode).not.toHaveBeenCalled();
+    expect(lease.holder).toBeNull();
+    expect(changed).not.toHaveBeenCalled();
+  });
+
   it("never echoes or logs a one-time code", async () => {
     const { botd, screens, log } = await start();
     const input = {
