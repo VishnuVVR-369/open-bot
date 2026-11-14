@@ -1,75 +1,42 @@
 import type { EgressStatusView } from "@open-bot/api";
-import {
-  AGENT_GONE,
-  encodeFrame,
-  FrameType,
-  parseControlMessage,
-  type AgentRole,
-  type ControlMessage,
-} from "@open-bot/egress";
-import type { EgressMode, PhoneMode, UnavailableReason } from "@open-bot/domain";
+import { AGENT_GONE, encodeFrame, FrameType, type AgentRole } from "@open-bot/egress";
+import type { EgressMode, PhoneMode } from "@open-bot/domain";
 import type { EgressAgentClaim } from "@open-bot/domain/server";
 import WebSocket from "ws";
 import { errorMessage } from "../logger";
+import {
+  CLOSE_REPLACED,
+  CLOSE_REVOKED,
+  type Agent,
+  type PairedPhone,
+  type RelayHooks,
+  type RelayOptions,
+  type RelayTimings,
+  type Route,
+} from "./relay-types";
+import {
+  abandon,
+  connectComputer,
+  dropComputerStreams,
+  fromAgent,
+  heartbeat,
+  phoneControl,
+  sendComputer,
+  sendConfig,
+  sendText,
+} from "./tunnel";
 
-/** What the relay needs from the database. */
-export interface RelayStore {
-  loadModes(): Promise<{ mode: EgressMode; phoneMode: PhoneMode }>;
-  saveMode(mode: EgressMode): Promise<void>;
-  savePhoneMode(mode: PhoneMode): Promise<void>;
-  /** Phones that are paired and not revoked. */
-  pairedPhones(): Promise<PairedPhone[]>;
-}
-
-export interface PairedPhone {
-  id: string;
-  name: string;
-  generation: number;
-  pushToken: string | null;
-  lastUsedAt: string | null;
-}
-
-/** What the wake controller adds to the relay; the relay works without one. */
-export interface RelayHooks {
-  /** Extra `config` fields: whether a phone could be woken, and how long to hold for one. */
-  configExtras?(): { wakeable?: boolean; holdMs?: number };
-  /** The phone-specific parts of the status: being woken, unavailable, unanswered. */
-  phoneStatus?(
-    id: string,
-  ): Pick<EgressStatusView["phones"][number], "waking" | "unavailable" | "unanswered">;
-  /** Whether a phone is being woken right now, so the path is "waiting". */
-  waiting?(): boolean;
-  onDemand?(screenId: string): void;
-  onUnavailable?(phoneId: string, reason: UnavailableReason, seq?: number): void;
-  /** A phone connected and carries traffic again: its reports up to `seq` are over. */
-  onAvailable?(phoneId: string, seq: number): void;
-  /** Agents, roles, modes or paired phones changed. */
-  onChange?(): void;
-}
-
-export interface RelayOptions {
-  store: RelayStore;
-  /** The computer's egress endpoint (botd). */
-  computerUrl: () => string;
-  log: {
-    info(message: string, fields?: Record<string, unknown>): void;
-    warn(message: string, fields?: Record<string, unknown>): void;
-  };
-  /** Tell the web app the status changed. */
-  publish: () => void;
-  timings?: Partial<RelayTimings>;
-}
-
-export interface RelayTimings {
-  /** How often every socket is pinged; two unanswered pings end it. */
-  heartbeatMs: number;
-  /** How long an agent that stopped being active keeps carrying its streams. */
-  drainMs: number;
-  /** How often attached phones are checked against the database. */
-  reconcileMs: number;
-  /** Delay before reconnecting to the computer. */
-  computerRetryMs: number;
-}
+// What other modules import from the relay, wherever it is declared.
+export {
+  CLOSE_REPLACED,
+  CLOSE_REVOKED,
+  type PairedPhone,
+  type RelayHooks,
+  type RelayOptions,
+  type RelayStore,
+  type RelayTimings,
+} from "./relay-types";
+export { MAX_AGENT_BUFFER } from "./tunnel";
 
 const DEFAULT_TIMINGS: RelayTimings = {
   heartbeatMs: 15_000,
@@ -77,44 +44,6 @@ const DEFAULT_TIMINGS: RelayTimings = {
   reconcileMs: 30_000,
   computerRetryMs: 3_000,
 };
-
-/** An agent whose socket holds more than this is too slow or stuck, and is dropped. */
-export const MAX_AGENT_BUFFER = 32 * 1024 * 1024;
-/** Close codes agents act on. */
-export const CLOSE_REVOKED = 4401;
-export const CLOSE_REPLACED = 4000;
-const HEADER_BYTES = 5;
-const MAX_STREAM_ID = 0xffff_ffff;
-
-type Stats = NonNullable<EgressStatusView["stats"]>;
-
-interface Agent {
-  key: string;
-  claim: EgressAgentClaim;
-  socket: WebSocket;
-  connectedAt: number;
-  since: string;
-  stats: Stats | null;
-  /** The last role sent to it. */
-  role: AgentRole | null;
-  detached: boolean;
-  /** Its stream ids, which count up for the life of the connection and are never reused. */
-  streams: Map<number, Route>;
-  nextId: number;
-  missedPongs: number;
-  /** Runs while it isn't the active agent: when it ends, its remaining streams are reset. */
-  drainTimer: NodeJS.Timeout | null;
-}
-
-/** One stream, known by the computer's id and by the id its agent knows it by. */
-interface Route {
-  computerId: number;
-  agent: Agent;
-  agentId: number;
-  opening: boolean;
-  computerEnded: boolean;
-  agentEnded: boolean;
-}
 
 /**
  * Relays the egress tunnel between botd (the computer side) and the devices that carry its
@@ -128,19 +57,22 @@ interface Route {
  *
  * Ordering: whenever availability changes, the computer gets the new `config` first, then the
  * terminal frames for the streams that were lost, so it re-routes them knowing what's left.
+ *
+ * The frames and the computer's socket are in `tunnel.ts`, which works on the members that aren't
+ * `private` here (`TunnelRelay`). Code outside the egress folder uses only the methods and getters.
  */
 export class EgressRelay {
-  private readonly timings: RelayTimings;
-  private computer: WebSocket | null = null;
-  private computerPaused = false;
-  private computerGeneration = 0;
-  private openingComputer: WebSocket | null = null;
-  private computerMissedPongs = 0;
-  private computerTimer: NodeJS.Timeout | null = null;
-  private readonly routes = new Map<number, Route>();
-  private readonly agents = new Map<string, Agent>();
-  private active: Agent | null = null;
-  private mode: EgressMode = "prefer";
+  readonly timings: RelayTimings;
+  computer: WebSocket | null = null;
+  computerPaused = false;
+  computerGeneration = 0;
+  openingComputer: WebSocket | null = null;
+  computerMissedPongs = 0;
+  computerTimer: NodeJS.Timeout | null = null;
+  readonly routes = new Map<number, Route>();
+  readonly agents = new Map<string, Agent>();
+  active: Agent | null = null;
+  mode: EgressMode = "prefer";
   private phoneMode: PhoneMode = "fallback";
   private phones: PairedPhone[] = [];
   private phonesRequested = 0;
@@ -148,11 +80,11 @@ export class EgressRelay {
   /** Per phone: attach and revoke run one at a time, in order. */
   private readonly queues = new Map<string, Promise<void>>();
   private readonly intervals: NodeJS.Timeout[] = [];
-  private hooks: RelayHooks = {};
+  hooks: RelayHooks = {};
   private changeQueued = false;
-  private stopped = false;
+  stopped = false;
 
-  constructor(private readonly options: RelayOptions) {
+  constructor(readonly options: RelayOptions) {
     this.timings = { ...DEFAULT_TIMINGS, ...options.timings };
   }
 
@@ -165,9 +97,9 @@ export class EgressRelay {
     this.mode = modes.mode;
     this.phoneMode = modes.phoneMode;
     await this.loadPhones();
-    if (!this.computerPaused) this.connectComputer();
+    if (!this.computerPaused) connectComputer(this);
     this.intervals.push(
-      setInterval(() => this.heartbeat(), this.timings.heartbeatMs),
+      setInterval(() => heartbeat(this), this.timings.heartbeatMs),
       setInterval(() => void this.reconcile(), this.timings.reconcileMs),
     );
     for (const interval of this.intervals) interval.unref();
@@ -184,7 +116,7 @@ export class EgressRelay {
     this.openingComputer?.terminate();
     this.openingComputer = null;
     computer?.terminate();
-    this.dropComputerStreams();
+    dropComputerStreams(this);
     this.changed();
   }
 
@@ -208,7 +140,7 @@ export class EgressRelay {
     }
     this.computerPaused = false;
     this.refresh(true);
-    if (!this.computer && !this.openingComputer) this.connectComputer();
+    if (!this.computer && !this.openingComputer) connectComputer(this);
   }
 
   stop(): void {
@@ -324,13 +256,13 @@ export class EgressRelay {
     await this.options.store.savePhoneMode(mode);
     this.phoneMode = mode;
     for (const agent of this.agents.values())
-      if (agent.claim.kind === "phone") this.sendText(agent, { type: "policy", phoneMode: mode });
+      if (agent.claim.kind === "phone") sendText(this, agent, { type: "policy", phoneMode: mode });
     this.refresh(true);
   }
 
   /** Send the computer a fresh `config`, for example when the wake controller's state changes. */
   configChanged(): void {
-    this.sendConfig();
+    sendConfig(this);
     this.options.publish();
   }
 
@@ -364,7 +296,7 @@ export class EgressRelay {
       socket.off("message", keep);
       if (socket.readyState !== WebSocket.OPEN) {
         // It left already; why it left still counts.
-        for (const [data, isBinary] of early) if (!isBinary) this.phoneControl(claim.id, data);
+        for (const [data, isBinary] of early) if (!isBinary) phoneControl(this, claim.id, data);
         return;
       }
       this.adopt(socket, { ...claim, name: phone.name }, early);
@@ -427,7 +359,7 @@ export class EgressRelay {
     };
     const previous = this.agents.get(key);
     this.agents.set(key, agent);
-    socket.on("message", (data, isBinary) => this.fromAgent(agent, data, isBinary));
+    socket.on("message", (data, isBinary) => fromAgent(this, agent, data, isBinary));
     socket.on("pong", () => {
       agent.missedPongs = 0;
     });
@@ -437,16 +369,17 @@ export class EgressRelay {
       previous.socket.close(CLOSE_REPLACED, "Replaced by a newer connection");
       this.detach(previous);
     }
-    if (!this.computerConnected) this.sendText(agent, { type: "peer-down" });
-    if (claim.kind === "phone") this.sendText(agent, { type: "policy", phoneMode: this.phoneMode });
+    if (!this.computerConnected) sendText(this, agent, { type: "peer-down" });
+    if (claim.kind === "phone")
+      sendText(this, agent, { type: "policy", phoneMode: this.phoneMode });
     this.options.log.info("egress agent connected", { kind: claim.kind, name: claim.name });
     this.refresh(false);
     this.changed();
-    for (const [data, isBinary] of early) this.fromAgent(agent, data, isBinary);
+    for (const [data, isBinary] of early) fromAgent(this, agent, data, isBinary);
   }
 
   /** The agent is gone: re-pick the active agent, tell the computer, then fail its streams. */
-  private detach(agent: Agent): void {
+  detach(agent: Agent): void {
     if (agent.detached) return;
     agent.detached = true;
     if (this.agents.get(agent.key) === agent) this.agents.delete(agent.key);
@@ -457,7 +390,8 @@ export class EgressRelay {
     for (const route of lost) this.routes.delete(route.computerId);
     this.refresh(false);
     for (const route of lost)
-      this.sendComputer(
+      sendComputer(
+        this,
         route.opening
           ? encodeFrame(FrameType.OpenFail, route.computerId, AGENT_GONE)
           : encodeFrame(FrameType.Reset, route.computerId),
@@ -507,7 +441,7 @@ export class EgressRelay {
       this.releaseIfDrained(agent);
     }
     if (forceConfig || previous !== next) {
-      this.sendConfig();
+      sendConfig(this);
       this.changed();
     }
   }
@@ -517,14 +451,14 @@ export class EgressRelay {
     agent.drainTimer = null;
     if (this.computerPaused || agent.detached || agent === this.active) return;
     if (agent.claim.kind === "phone") this.release(agent);
-    else for (const route of [...agent.streams.values()]) this.abandon(route);
+    else for (const route of [...agent.streams.values()]) abandon(this, route);
   }
 
   /**
    * A standby phone with nothing left to carry is let go at once, except while it stands by for
    * your Mac in `fallback`: then it waits out the grace in case the Mac drops again.
    */
-  private releaseIfDrained(agent: Agent): void {
+  releaseIfDrained(agent: Agent): void {
     if (
       this.computerPaused ||
       agent.claim.kind !== "phone" ||
@@ -546,290 +480,17 @@ export class EgressRelay {
     this.options.log.info("egress phone released", { name: agent.claim.name });
     // The new `config` first, then the streams it can no longer carry.
     if (this.active === agent) this.refresh(false);
-    for (const route of [...agent.streams.values()]) this.abandon(route);
+    for (const route of [...agent.streams.values()]) abandon(this, route);
     this.changed();
-  }
-
-  /** End a stream its agent won't carry: one still opening may be routed again. */
-  private abandon(route: Route): void {
-    this.sendAgent(route.agent, encodeFrame(FrameType.Reset, route.agentId));
-    this.sendComputer(
-      route.opening
-        ? encodeFrame(FrameType.OpenFail, route.computerId, AGENT_GONE)
-        : encodeFrame(FrameType.Reset, route.computerId),
-    );
-    this.forget(route);
   }
 
   private setRole(agent: Agent, role: AgentRole): void {
     if (agent.role === role) return;
     agent.role = role;
-    this.sendText(agent, { type: "role", role });
+    sendText(this, agent, { type: "role", role });
   }
 
-  private fromAgent(agent: Agent, data: WebSocket.RawData, isBinary: boolean): void {
-    if (agent.detached) return;
-    if (!isBinary) {
-      const message = parseControlMessage(rawToBuffer(data).toString("utf8"));
-      if (message?.type === "stats") {
-        agent.stats = {
-          openStreams: message.openStreams,
-          bytesIn: message.bytesIn,
-          bytesOut: message.bytesOut,
-        };
-      } else if (agent.claim.kind === "phone") {
-        this.phoneControl(agent.claim.id, data);
-      }
-      return;
-    }
-    const frame = rawToBuffer(data);
-    if (frame.length < HEADER_BYTES) return;
-    const type = frame[0];
-    const agentId = frame.readUInt32BE(1);
-    const route = agent.streams.get(agentId);
-    if (!route) {
-      // Like TCP, data for a stream that's gone is refused, so the sender stops waiting.
-      if (type === FrameType.Data) this.sendAgent(agent, encodeFrame(FrameType.Reset, agentId));
-      return;
-    }
-    switch (type) {
-      case FrameType.OpenOk:
-        if (!route.opening) return;
-        route.opening = false;
-        this.toComputer(route, frame);
-        return;
-      case FrameType.OpenFail:
-        if (!route.opening) return;
-        this.toComputer(route, frame);
-        this.forget(route);
-        return;
-      case FrameType.Data:
-      case FrameType.Window:
-        if (route.opening) return;
-        this.toComputer(route, frame);
-        return;
-      case FrameType.End:
-        if (route.opening || route.agentEnded) return;
-        route.agentEnded = true;
-        this.toComputer(route, frame);
-        if (route.computerEnded) this.forget(route);
-        return;
-      case FrameType.Reset:
-        this.toComputer(route, frame);
-        this.forget(route);
-        return;
-      default:
-        // Agents never open streams.
-        return;
-    }
-  }
-
-  /** A phone's own control messages: that it is back, or why it's about to leave. */
-  private phoneControl(phoneId: string, data: WebSocket.RawData): void {
-    const message = parseControlMessage(rawToBuffer(data).toString("utf8"));
-    if (message?.type === "unavailable")
-      this.hooks.onUnavailable?.(phoneId, message.reason, message.seq);
-    else if (message?.type === "available") this.hooks.onAvailable?.(phoneId, message.seq);
-  }
-
-  private toComputer(route: Route, frame: Buffer): void {
-    frame.writeUInt32BE(route.computerId, 1);
-    this.sendComputer(frame);
-  }
-
-  private toAgent(route: Route, frame: Buffer): void {
-    frame.writeUInt32BE(route.agentId, 1);
-    this.sendAgent(route.agent, frame);
-  }
-
-  /** Stop tracking a finished stream; a standby phone with nothing left may then go. */
-  private forget(route: Route): void {
-    if (this.routes.get(route.computerId) === route) this.routes.delete(route.computerId);
-    route.agent.streams.delete(route.agentId);
-    if (route.agent.role === "standby") this.releaseIfDrained(route.agent);
-  }
-
-  private sendAgent(agent: Agent, data: Buffer): void {
-    const socket = agent.socket;
-    if (agent.detached || socket.readyState !== WebSocket.OPEN) return;
-    socket.send(data, { binary: true });
-    if (socket.bufferedAmount > MAX_AGENT_BUFFER) {
-      this.options.log.warn("egress agent too slow, dropping it", { name: agent.claim.name });
-      socket.terminate();
-      this.detach(agent);
-    }
-  }
-
-  private sendText(agent: Agent, message: ControlMessage): void {
-    if (!agent.detached && agent.socket.readyState === WebSocket.OPEN)
-      agent.socket.send(JSON.stringify(message));
-  }
-
-  /* -------------------------------------------------------------- computer */
-
-  private connectComputer(): void {
-    if (this.stopped || this.computerPaused || this.openingComputer || this.computer) return;
-    const generation = this.computerGeneration;
-    const socket = new WebSocket(this.options.computerUrl(), {
-      perMessageDeflate: false,
-      handshakeTimeout: 10_000,
-    });
-    this.openingComputer = socket;
-    socket.on("open", () => {
-      if (this.stopped || this.computerPaused || generation !== this.computerGeneration) {
-        socket.terminate();
-        return;
-      }
-      this.openingComputer = null;
-      this.computer = socket;
-      this.computerMissedPongs = 0;
-      // `config` is always the first message on a tunnel connection.
-      this.sendConfig();
-      for (const agent of this.agents.values()) this.sendText(agent, { type: "peer-up" });
-      this.changed();
-    });
-    socket.on("message", (data, isBinary) => {
-      if (this.computer !== socket) return;
-      if (isBinary) {
-        this.fromComputer(rawToBuffer(data));
-        return;
-      }
-      const message = parseControlMessage(rawToBuffer(data).toString("utf8"));
-      if (message?.type === "demand") this.hooks.onDemand?.(message.screenId);
-    });
-    socket.on("pong", () => {
-      if (this.computer === socket) this.computerMissedPongs = 0;
-    });
-    socket.on("close", () => {
-      if (this.openingComputer === socket) this.openingComputer = null;
-      if (generation !== this.computerGeneration) return;
-      if (this.computer === socket) {
-        this.computer = null;
-        this.dropComputerStreams();
-        this.changed();
-      }
-      if (!this.stopped && !this.computerPaused)
-        this.computerTimer = setTimeout(() => {
-          this.computerTimer = null;
-          if (generation === this.computerGeneration) this.connectComputer();
-        }, this.timings.computerRetryMs);
-    });
-    socket.on("error", () => {});
-  }
-
-  /** The computer side went away: every stream is gone, and agents drop theirs. */
-  private dropComputerStreams(): void {
-    for (const route of this.routes.values()) route.agent.streams.delete(route.agentId);
-    this.routes.clear();
-    for (const agent of [...this.agents.values()]) {
-      this.sendText(agent, { type: "peer-down" });
-      if (agent.role === "standby") this.releaseIfDrained(agent);
-    }
-  }
-
-  private fromComputer(frame: Buffer): void {
-    if (frame.length < HEADER_BYTES) return;
-    const type = frame[0];
-    const computerId = frame.readUInt32BE(1);
-    if (type === FrameType.Open) {
-      this.open(computerId, frame);
-      return;
-    }
-    const route = this.routes.get(computerId);
-    if (!route) {
-      if (type === FrameType.Data) this.sendComputer(encodeFrame(FrameType.Reset, computerId));
-      return;
-    }
-    switch (type) {
-      case FrameType.Data:
-      case FrameType.Window:
-        this.toAgent(route, frame);
-        return;
-      case FrameType.End:
-        if (route.computerEnded) return;
-        route.computerEnded = true;
-        this.toAgent(route, frame);
-        if (route.agentEnded) this.forget(route);
-        return;
-      case FrameType.Reset:
-        this.toAgent(route, frame);
-        this.forget(route);
-        return;
-      default:
-        return;
-    }
-  }
-
-  private open(computerId: number, frame: Buffer): void {
-    if (this.routes.has(computerId)) {
-      this.sendComputer(encodeFrame(FrameType.OpenFail, computerId, "Stream id already in use"));
-      return;
-    }
-    let agent = this.active;
-    if (agent && agent.nextId > MAX_STREAM_ID) {
-      // Billions of streams on one connection: start the agent over rather than reuse an id.
-      agent.socket.close(CLOSE_REPLACED, "Out of stream ids");
-      this.detach(agent);
-      agent = this.active;
-    }
-    if (!agent) {
-      this.sendComputer(encodeFrame(FrameType.OpenFail, computerId, AGENT_GONE));
-      return;
-    }
-    const route: Route = {
-      computerId,
-      agent,
-      agentId: agent.nextId,
-      opening: true,
-      computerEnded: false,
-      agentEnded: false,
-    };
-    agent.nextId += 2;
-    this.routes.set(computerId, route);
-    agent.streams.set(route.agentId, route);
-    this.toAgent(route, frame);
-  }
-
-  private sendComputer(data: Buffer | string): void {
-    const socket = this.computer;
-    if (socket?.readyState === WebSocket.OPEN)
-      socket.send(data, { binary: typeof data !== "string" });
-  }
-
-  private sendConfig(): void {
-    const message: ControlMessage = {
-      type: "config",
-      mode: this.mode,
-      agentOnline: this.active !== null,
-      ...this.hooks.configExtras?.(),
-    };
-    this.sendComputer(JSON.stringify(message));
-  }
-
-  /* ----------------------------------------------------------- upkeep */
-
-  private heartbeat(): void {
-    for (const agent of [...this.agents.values()]) {
-      if (agent.missedPongs >= 2) {
-        this.options.log.warn("egress agent stopped answering", { name: agent.claim.name });
-        agent.socket.terminate();
-        this.detach(agent);
-        continue;
-      }
-      agent.missedPongs += 1;
-      if (agent.socket.readyState === WebSocket.OPEN) agent.socket.ping();
-    }
-    const computer = this.computer;
-    if (computer?.readyState === WebSocket.OPEN) {
-      if (this.computerMissedPongs >= 2) {
-        this.options.log.warn("the computer's egress tunnel stopped answering");
-        computer.terminate();
-        return;
-      }
-      this.computerMissedPongs += 1;
-      computer.ping();
-    }
-  }
+  /* ---------------------------------------------------------------- upkeep */
 
   /** Disconnect phones whose pairing was revoked or replaced, in case a notice was lost. */
   private async reconcile(): Promise<void> {
@@ -877,7 +538,7 @@ export class EgressRelay {
     return next;
   }
 
-  private changed(): void {
+  changed(): void {
     // The hook runs once the relay's own update is complete, never in the middle of one.
     if (!this.changeQueued) {
       this.changeQueued = true;
@@ -888,10 +549,4 @@ export class EgressRelay {
     }
     this.options.publish();
   }
-}
-
-function rawToBuffer(data: WebSocket.RawData): Buffer {
-  if (Buffer.isBuffer(data)) return data;
-  if (Array.isArray(data)) return Buffer.concat(data);
-  return Buffer.from(data);
 }
