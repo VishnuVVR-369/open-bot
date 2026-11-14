@@ -128,31 +128,16 @@ export function planNotification(data: PushData): NotificationPlan | null {
 }
 
 /**
- * How a Reply from a notification went: sent, or kept as the chat's draft (for the teammate it
- * was to, when the notification named one), or neither, when the phone couldn't store it.
+ * What a replied-to notification says once the reply was sent, or wasn't. An unsent reply is
+ * kept as the chat's draft, and the notification shows it.
  */
-export type ReplyOutcome =
-  { kind: "sent" } | { kind: "kept"; forTeammate: boolean } | { kind: "lost" };
-
-/** What a replied-to notification says afterwards. Unsent, it shows what you typed. */
-export function replyText(outcome: ReplyOutcome, text: string): { title: string; body: string } {
-  const quoted = `“${text.trim()}”`;
-  switch (outcome.kind) {
-    case "sent":
-      return { title: "Reply sent", body: text };
-    case "kept":
-      return {
+export function replyText(sent: boolean, text: string): { title: string; body: string } {
+  return sent
+    ? { title: "Reply sent", body: "" }
+    : {
         title: "Couldn't send your reply",
-        body: outcome.forTeammate
-          ? `Saved in the chat: ${quoted}. Open to send it.`
-          : `Saved in the chat, not addressed to anyone: ${quoted}. Open to send it.`,
+        body: `Saved in the chat: “${text.trim()}”. Open to send it.`,
       };
-    case "lost":
-      return {
-        title: "Couldn't send or save your reply",
-        body: `You wrote: ${quoted}. Open the chat to send it again.`,
-      };
-  }
 }
 
 /** Don't show a notification about the chat you're looking at; it's on screen already. */

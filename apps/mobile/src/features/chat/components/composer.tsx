@@ -25,7 +25,7 @@ import {
 import { Text } from "@/components/text";
 import { api } from "@/lib/api";
 import { useDictation } from "@/features/chat/dictation";
-import { nameMentions, onKeptDraft, readDraft, writeDraft } from "@/features/chat/drafts";
+import { readDraft, writeDraft } from "@/features/chat/drafts";
 import { errorMessage } from "@/lib/errors";
 import { haptics } from "@/lib/haptics";
 import { useAttachments } from "@/features/chat/use-attachments";
@@ -73,58 +73,23 @@ export function Composer({
   const [error, setError] = useState<string | null>(null);
   const failedSend = useRef<SendAttempt | null>(null);
 
-  // Teammates the draft is for that it doesn't name yet (a reply kept from a notification knows
-  // only their id), until this chat's members are known and their names are written in.
-  const pending = useRef<string[]>([]);
-  const typed = useRef(text);
-  typed.current = text;
-  const chat = useRef({ isGroup, members });
-  chat.current = { isGroup, members };
-  const edit = useCallback(
-    (next: string) => {
-      // At once, not on the next render: a kept reply can arrive before it.
-      typed.current = next;
-      setText(next);
-      writeDraft(chatId, next, pending.current);
-    },
-    [chatId],
-  );
-  /** Shows a draft, with the teammates it's for written in as `@Name`. */
-  const show = useCallback(
-    (text: string, mentions: string[]) => {
-      const named = nameMentions({ text, mentions }, chat.current);
-      pending.current = named.pending;
-      edit(named.text);
-    },
-    [edit],
-  );
-
   // What you'd typed here before, unless you've started typing already.
   useEffect(() => {
     let current = true;
-    pending.current = [];
     void readDraft(chatId).then((draft) => {
-      if (current && draft.text && !typed.current) show(draft.text, draft.mentions);
+      if (current && draft) setText((typed) => typed || draft);
     });
     return () => {
       current = false;
     };
-  }, [chatId, show]);
-  // A reply a notification couldn't send, kept while this chat was open: the stored draft is what
-  // you'd typed plus that reply; if what's here differs, keep both.
-  useEffect(
-    () =>
-      onKeptDraft(chatId, (draft, added) => {
-        const here = typed.current.trimEnd();
-        const text = !here || draft.text.startsWith(here) ? draft.text : `${here}\n\n${added}`;
-        show(text, [...new Set([...pending.current, ...draft.mentions])]);
-      }),
-    [chatId, show],
+  }, [chatId]);
+  const edit = useCallback(
+    (next: string) => {
+      setText(next);
+      writeDraft(chatId, next);
+    },
+    [chatId],
   );
-  // The chat's members arrived after its draft: name the teammates it's for now.
-  useEffect(() => {
-    if (pending.current.length) show(typed.current, pending.current);
-  }, [members, show]);
 
   const dictation = useDictation({
     onText: (spoken) => {
@@ -165,7 +130,6 @@ export function Composer({
     }
     failedSend.current = null;
     haptics.press();
-    pending.current = [];
     edit("");
     setCaret(0);
     attaching.clearSent(ready);
