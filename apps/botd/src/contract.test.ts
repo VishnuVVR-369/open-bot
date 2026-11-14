@@ -190,6 +190,34 @@ describe("botd contract", () => {
     expect(error.detail).toBe("Unknown screen");
   });
 
+  it("refuses a run named the way an older worker names it, before any screen starts", async () => {
+    // Workers before the rename named the teammate with the old keys. A worker and a computer on
+    // different versions must fail the call, never act on another screen or hold a lease without
+    // a teammate.
+    const { url, screens } = await start();
+    const old = { runId: randomUUID(), botId: randomUUID(), botName: "Ada" }; // vocabulary: allow
+    const calls = [
+      ["/computer/action", { run: old, action: { action: "screenshot" } }],
+      ["/computer/read", { run: old }],
+      ["/computer/fill", { run: old, secret: "hunter2", site: null }],
+      // A swarm helper names its own screen, so the missing teammate isn't needed to find one.
+      [
+        "/computer/action",
+        { run: { ...old, screenId: randomUUID() }, action: { action: "wait", seconds: 1 } },
+      ],
+    ] as const;
+    for (const [path, body] of calls) {
+      const response = await fetch(`${url}${path}`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${TOKEN}`, "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      expect(response.status, path).toBe(400);
+      expect(await response.json(), path).toMatchObject({ code: "BAD_REQUEST" });
+    }
+    expect(screens.ensure).not.toHaveBeenCalled();
+  });
+
   it("never echoes or logs a one-time code", async () => {
     const { botd, screens, log } = await start();
     const input = {
