@@ -35,7 +35,7 @@ import { isOffline } from "@/lib/client/errors";
 import { useAppState, useComputerOnline } from "@/lib/client/queries";
 import { attempt } from "@/lib/client/mutate";
 import { api, orpc } from "@/lib/client/rpc";
-import { uploadToFolder } from "@/lib/client/uploads";
+import { uploadToFolder } from "../uploads";
 import { BotAvatar } from "@/components/bot-avatar";
 import { useFolder } from "../hooks";
 import { FileIcon } from "./file-chip";

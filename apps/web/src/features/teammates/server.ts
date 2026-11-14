@@ -4,3 +4,4 @@
 import "server-only";
 export { teammateRoutes } from "./server/routes";
 export { getTeammatePage, nextColor, syncWorkspace, teammateName } from "./server/service";
+export { listTeammates } from "./server/queries";

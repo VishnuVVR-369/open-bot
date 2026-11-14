@@ -1,8 +1,8 @@
 import "server-only";
 import { uploadHeaders, type UploadFile, type UploadView } from "@open-bot/api";
 import { MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from "@open-bot/domain";
-import { serverEnv } from "../env";
-import { worker, WorkerError } from "../worker";
+import { serverEnv } from "@/lib/server/env";
+import { worker, WorkerError } from "@/lib/server/worker";
 
 export interface UploadMeta extends UploadFile {
   sha256: string;

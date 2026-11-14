@@ -2,3 +2,5 @@
 // client code imports from `index.ts`.
 import "server-only";
 export { chatRoutes } from "./server/routes";
+export { listChats } from "./server/lists";
+export { putUpload } from "./server/uploads";

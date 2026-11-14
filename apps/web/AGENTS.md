@@ -24,7 +24,7 @@ Shared types and the mobile contract belong in `packages/domain` and `packages/a
 - `apps/web/src/app/api/stream/route.ts` is the SSE stream, fed by `apps/web/src/lib/server/realtime.ts`.
 - `apps/web/src/app/api/rpc/[[...rest]]` serves the oRPC router in `apps/web/src/lib/server/api/router.ts` for the browser and mobile; features build their procedures with `os` from `apps/web/src/lib/server/api/rpc.ts`, which checks the session and maps errors.
 - `apps/web/src/lib/client/rpc.ts` is the browser's typed client (`api`) and its TanStack Query helpers (`orpc`); `apps/web/src/lib/client/errors.ts` tells offline, signed-out and not-found failures apart.
-- `apps/web/src/lib/client/mutate.ts` has `attempt()` for writes, and `apps/web/src/lib/client/uploads.ts` uploads attachments and files.
+- `apps/web/src/lib/client/mutate.ts` has `attempt()` for writes, and uploads live in `apps/web/src/features/chat/uploads.ts` (attachments) and `apps/web/src/features/files/uploads.ts` (folders).
 - `apps/web/src/proxy.ts` and `apps/web/src/instrumentation.ts` run at the edge of requests and at boot.
 - `apps/web/next.config.ts` lists `transpilePackages`.
 

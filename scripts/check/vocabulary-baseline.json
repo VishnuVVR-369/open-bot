@@ -354,8 +354,11 @@
   "apps/web/src/features/chat/server/chats.ts": {
     "bot": 4
   },
+  "apps/web/src/features/chat/server/lists.ts": {
+    "bot": 13
+  },
   "apps/web/src/features/chat/server/queries.ts": {
-    "bot": 16
+    "bot": 14
   },
   "apps/web/src/features/chat/skill-options.test.ts": {
     "bot": 2
@@ -391,7 +394,7 @@
     "bot": 23
   },
   "apps/web/src/features/computer/server/service.ts": {
-    "bot": 13,
+    "bot": 11,
     "desktop takeover": 3
   },
   "apps/web/src/features/files/components/files-view.tsx": {
@@ -517,8 +520,12 @@
   "apps/web/src/features/teammates/index.ts": {
     "bot": 4
   },
+  "apps/web/src/features/teammates/server/queries.ts": {
+    "bot": 29,
+    "primary teammate": 2
+  },
   "apps/web/src/features/teammates/server/routes.ts": {
-    "bot": 4
+    "bot": 2
   },
   "apps/web/src/features/teammates/server/service.ts": {
     "bot": 35
@@ -542,9 +549,8 @@
     "bot": 17
   },
   "apps/web/src/lib/server/queries.ts": {
-    "bot": 68,
-    "desktop takeover": 17,
-    "primary teammate": 2
+    "bot": 25,
+    "desktop takeover": 17
   },
   "apps/web/src/lib/server/views.ts": {
     "bot": 2

@@ -1,7 +1,7 @@
 import { UPLOAD_HEADERS } from "@open-bot/api";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { putUpload } from "@/lib/server/api/uploads";
+import { putUpload } from "@/features/chat/server";
 import { authed } from "@/lib/server/route";
 
 export const dynamic = "force-dynamic";

@@ -3,7 +3,7 @@
 import { cantAttach } from "@open-bot/api";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
-import { describeFile, uploadAttachment } from "@/lib/client/uploads";
+import { describeFile, uploadAttachment } from "./uploads";
 import type { MessageView } from "@/lib/types";
 
 type Attachment = MessageView["attachments"][number];
