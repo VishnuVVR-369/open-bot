@@ -35,6 +35,7 @@ import {
   type Queryable,
   type Tx,
 } from "@open-bot/db";
+import { recordRevision, recordRevisions } from "./revisions";
 import {
   type AppEvent,
   memoryEditSchema,
@@ -119,6 +120,9 @@ function validate<T>(schema: z.ZodType<T>, input: unknown): T {
 /** A lesson a teammate file carried: any length the file allows, up to a memory's longest. */
 const IMPORTED_LESSON = z.string().trim().min(1).max(8000);
 
+/** Notes copied per statement: well under Postgres's limit of 65,535 parameters per query. */
+const COPY_BATCH = 500;
+
 const scopeOf = (teammateId: string | null) =>
   teammateId ? (`bot:${teammateId}` as const) : ("shared" as const);
 
@@ -172,27 +176,6 @@ export class MemoryService {
         .where(and(eq(teammates.id, teammateId), isNull(teammates.archivedAt)));
       if (!teammate) throw new MemoryError(404, "That teammate no longer exists.");
     }
-  }
-
-  private async revision(tx: Tx, row: Row) {
-    const { pinned, key, kind, expiresAt, state } = row;
-    await tx.insert(memoryRevisions).values({
-      memoryId: row.id,
-      revision: row.revision,
-      content: row.content,
-      snapshot: { pinned, key, kind, expiresAt: expiresAt?.toISOString() ?? null, state },
-      source: row.source,
-    });
-    if (row.state === "active")
-      await tx
-        .insert(memoryJobs)
-        .values({
-          kind: "embed",
-          memoryId: row.id,
-          revision: row.revision,
-          dedupeKey: `embed:${row.id}:${row.revision}`,
-        })
-        .onConflictDoNothing({ target: memoryJobs.dedupeKey });
   }
 
   /** Legacy tables are compatibility views maintained transactionally, never independent writers. */
@@ -351,7 +334,7 @@ export class MemoryService {
               })
               .where(eq(memoryItems.id, known.id))
               .returning();
-            await this.revision(tx, row!);
+            await recordRevision(tx, row!);
             await this.changed(tx, known.botId, actor, true);
             return { ...itemView(row!), saveOutcome: "confirmed" };
           }
@@ -394,7 +377,7 @@ export class MemoryService {
             source: options.source ?? sourceOf(actor),
           })
           .returning();
-        await this.revision(tx, row!);
+        await recordRevision(tx, row!);
         await this.changed(tx, data.botId, actor, state === "active");
         return { ...itemView(row!), saveOutcome: "created" };
       });
@@ -468,7 +451,7 @@ export class MemoryService {
           .where(eq(memoryItems.id, old.id))
           .returning();
         await tx.delete(memoryEmbeddings).where(eq(memoryEmbeddings.memoryId, old.id));
-        await this.revision(tx, row!);
+        await recordRevision(tx, row!);
         await this.changed(tx, old.botId, actor, old.state === "active");
         return itemView(row!);
       });
@@ -509,7 +492,7 @@ export class MemoryService {
           .set({ state: "active", revision: sql`${memoryItems.revision} + 1`, updatedAt: now() })
           .where(eq(memoryItems.id, old.id))
           .returning();
-        await this.revision(tx, row!);
+        await recordRevision(tx, row!);
         await this.changed(tx, old.botId, { kind: "user" }, true);
         return itemView(row!);
       });
@@ -583,25 +566,35 @@ export class MemoryService {
             ),
           )
           .orderBy(asc(memoryItems.createdAt), asc(memoryItems.id));
-        let changed = false;
-        for (const copied of source) {
-          if (await this.has(tx, toBotId, copied.fingerprint)) continue;
-          const [row] = await tx
+        // One statement per step, not per note, so a large copy holds both scopes' locks briefly.
+        const held = new Set(
+          (
+            await tx
+              .select({ fingerprint: memoryItems.fingerprint })
+              .from(memoryItems)
+              .where(and(inScope(toBotId), ne(memoryItems.state, "deleted")))
+          ).map((row) => row.fingerprint),
+        );
+        const missing = source.filter((copied) => !held.has(copied.fingerprint));
+        for (let start = 0; start < missing.length; start += COPY_BATCH) {
+          const rows = await tx
             .insert(memoryItems)
-            .values({
-              botId: toBotId,
-              kind: copied.kind,
-              content: copied.content,
-              key: copied.key,
-              fingerprint: copied.fingerprint,
-              pinned: copied.pinned,
-              expiresAt: copied.expiresAt,
-              source: { type: "import" },
-            })
+            .values(
+              missing.slice(start, start + COPY_BATCH).map((copied) => ({
+                botId: toBotId,
+                kind: copied.kind,
+                content: copied.content,
+                key: copied.key,
+                fingerprint: copied.fingerprint,
+                pinned: copied.pinned,
+                expiresAt: copied.expiresAt,
+                source: { type: "import" as const },
+              })),
+            )
             .returning();
-          await this.revision(tx, row!);
-          changed = true;
+          await recordRevisions(tx, rows);
         }
+        const changed = missing.length > 0;
         if (changed) await this.changed(tx, toBotId, { kind: "user" }, true);
       });
     });
@@ -654,7 +647,7 @@ export class MemoryService {
               source: { type: "import" },
             })
             .returning();
-          await this.revision(tx, row!);
+          await recordRevision(tx, row!);
           changed = true;
         }
         if (changed) await this.changed(tx, teammateId, { kind: "user" }, true);
