@@ -2,8 +2,8 @@
 
 import { Sparkles } from "lucide-react";
 import Link from "next/link";
-import { BotAvatar } from "@/components/bot-avatar";
-import type { BotSummary } from "@/lib/types";
+import { TeammateAvatar } from "@/components/teammate-avatar";
+import type { TeammateSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import type { SkillOption } from "../skill-options";
 
@@ -16,7 +16,7 @@ export function SkillMenu({
   onPick,
 }: {
   options: SkillOption[];
-  members: BotSummary[];
+  members: TeammateSummary[];
   /** The option the arrow keys are on. */
   selected: number;
   onHover: (index: number) => void;
@@ -69,7 +69,7 @@ export function SkillMenu({
                     </span>
                   )}
                   {owner && (
-                    <BotAvatar
+                    <TeammateAvatar
                       name={owner.name}
                       color={owner.color}
                       emoji={owner.emoji}

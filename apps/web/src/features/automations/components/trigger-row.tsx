@@ -22,12 +22,12 @@ import {
 } from "lucide-react";
 import { useState, useSyncExternalStore, useTransition } from "react";
 import { toast } from "sonner";
-import { BotAvatar } from "@/components/bot-avatar";
+import { TeammateAvatar } from "@/components/teammate-avatar";
 import { Switch } from "@/components/ui/switch";
 import { attempt } from "@/lib/client/mutate";
 import { useTriggerRuns } from "../hooks";
 import { api } from "@/lib/client/rpc";
-import type { BotSummary, TriggerView } from "@/lib/types";
+import type { TeammateSummary, TriggerView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
   DetailLabel,
@@ -87,7 +87,7 @@ const CHECK_FAILED: Record<TriggerKind, string> = {
 const subscribeNever = () => () => {};
 
 /** The webhook's URL, with copy and a fresh-URL button. */
-function WebhookAddress({ trigger, botName }: { trigger: TriggerView; botName: string }) {
+function WebhookAddress({ trigger, teammateName }: { trigger: TriggerView; teammateName: string }) {
   // The URL uses the address you opened the app at, which only the browser knows.
   const url = useSyncExternalStore(
     subscribeNever,
@@ -125,8 +125,8 @@ function WebhookAddress({ trigger, botName }: { trigger: TriggerView; botName: s
         </RowAction>
       </div>
       <p className="text-[12.5px] leading-relaxed text-muted-foreground">
-        Anything that knows this URL can start {botName}, so keep it private. It takes GET and POST
-        with up to 256 KB of JSON or text, and starts up to 30 runs an hour.
+        Anything that knows this URL can start {teammateName}, so keep it private. It takes GET and
+        POST with up to 256 KB of JSON or text, and starts up to 30 runs an hour.
       </p>
       <pre className="overflow-x-auto rounded-lg border bg-subtle px-2.5 py-2 font-mono text-[12px] leading-relaxed whitespace-pre-wrap break-all text-muted-foreground">
         {`curl -X POST ${url} \\\n  -H 'content-type: application/json' -d '{"hello": "world"}'`}
@@ -141,7 +141,7 @@ function WebhookAddress({ trigger, botName }: { trigger: TriggerView; botName: s
   );
 }
 
-function TriggerDetails({ trigger, botName }: { trigger: TriggerView; botName: string }) {
+function TriggerDetails({ trigger, teammateName }: { trigger: TriggerView; teammateName: string }) {
   const { data: history, isLoading } = useTriggerRuns(trigger.id, true);
   return (
     <div className="flex flex-col gap-4 border-t px-4 py-4 sm:pl-[68px]">
@@ -166,7 +166,7 @@ function TriggerDetails({ trigger, botName }: { trigger: TriggerView; botName: s
         </div>
       )}
       {trigger.kind === "webhook" && trigger.hookPath && (
-        <WebhookAddress trigger={trigger} botName={botName} />
+        <WebhookAddress trigger={trigger} teammateName={teammateName} />
       )}
       {isAccountTrigger(trigger.kind) && (
         <div className="flex flex-col gap-1">
@@ -174,8 +174,8 @@ function TriggerDetails({ trigger, botName }: { trigger: TriggerView; botName: s
           <span className="text-[13.5px]">{trigger.account ?? "An account that was removed"}</span>
           <span className="text-[12.5px] text-muted-foreground">
             {trigger.kind === "gmail"
-              ? `Wakes ${botName} for ${describeGmailQuery(trigger.query)}, checked every 2 minutes`
-              : `Wakes ${botName} ${accountWatch(trigger)}, skipping all-day events and ones you declined`}
+              ? `Wakes ${teammateName} for ${describeGmailQuery(trigger.query)}, checked every 2 minutes`
+              : `Wakes ${teammateName} ${accountWatch(trigger)}, skipping all-day events and ones you declined`}
           </span>
         </div>
       )}
@@ -252,11 +252,11 @@ function CheckLine({ trigger }: { trigger: TriggerView }) {
 
 export function TriggerRow({
   trigger,
-  bot,
+  teammate,
   refresh,
 }: {
   trigger: TriggerView;
-  bot: BotSummary | undefined;
+  teammate: TeammateSummary | undefined;
   refresh: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -268,9 +268,14 @@ export function TriggerRow({
   return (
     <li data-testid={trigger.kind}>
       <div className="flex flex-wrap items-start gap-4 px-4 py-3.5 sm:items-center">
-        {bot && (
+        {teammate && (
           <span className="relative shrink-0">
-            <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="md" />
+            <TeammateAvatar
+              name={teammate.name}
+              color={teammate.color}
+              emoji={teammate.emoji}
+              size="md"
+            />
             <span className="absolute -right-1.5 -bottom-1.5 flex size-5 items-center justify-center rounded-full bg-card text-foreground/70 shadow-[0_0_0_1px_var(--border)]">
               <KindIcon className="size-3" />
             </span>
@@ -290,7 +295,7 @@ export function TriggerRow({
             {!trigger.enabled && <StateBadge>Off</StateBadge>}
             {trigger.createdBy === "bot" && (
               <span className="shrink-0 text-[12px] text-muted-foreground">
-                Set by {bot?.name ?? "a teammate"}
+                Set by {teammate?.name ?? "a teammate"}
               </span>
             )}
           </span>
@@ -313,7 +318,7 @@ export function TriggerRow({
                     toast.error(failed, { description: result.data.summary });
                   else if (result.data.changed)
                     toast(trigger.kind === "watch" ? `“${trigger.title}” changed` : trigger.title, {
-                      description: `${result.data.summary}. ${bot?.name ?? "Your teammate"} is on it.`,
+                      description: `${result.data.summary}. ${teammate?.name ?? "Your teammate"} is on it.`,
                     });
                   else toast(result.data.summary);
                   refresh();
@@ -335,7 +340,7 @@ export function TriggerRow({
                     toast.error("Couldn't call the webhook", { description: result.error });
                   else
                     toast("Sent a test request", {
-                      description: `${bot?.name ?? "Your teammate"} is on it.`,
+                      description: `${teammate?.name ?? "Your teammate"} is on it.`,
                     });
                   refresh();
                 })
@@ -374,7 +379,9 @@ export function TriggerRow({
           />
         </div>
       </div>
-      {expanded && <TriggerDetails trigger={trigger} botName={bot?.name ?? "your teammate"} />}
+      {expanded && (
+        <TriggerDetails trigger={trigger} teammateName={teammate?.name ?? "your teammate"} />
+      )}
     </li>
   );
 }

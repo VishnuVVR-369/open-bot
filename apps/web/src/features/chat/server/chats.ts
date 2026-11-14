@@ -21,14 +21,12 @@ export async function reusedId<T>(call: Promise<T>): Promise<T> {
   }
 }
 
-export function newDirectChat({
-  teammateId: botId,
-}: Inputs["newDirect"]): Promise<{ chatId: string }> {
-  return worker.chats.newDirect({ teammateId: botId });
+export function newDirectChat({ teammateId }: Inputs["newDirect"]): Promise<{ chatId: string }> {
+  return worker.chats.newDirect({ teammateId });
 }
 
-export function createGroupChat({ title, teammateIds: botIds }: Inputs["createGroup"]) {
-  return worker.chats.createGroup({ title, teammateIds: botIds });
+export function createGroupChat({ title, teammateIds }: Inputs["createGroup"]) {
+  return worker.chats.createGroup({ title, teammateIds });
 }
 
 export function renameChat({ chatId, title }: Inputs["rename"]) {

@@ -6,7 +6,7 @@ import { useSyncExternalStore } from "react";
 import { ComputerOffline, ComputerPanel, useComputer } from "@/features/computer";
 import { Briefing } from "./briefing";
 import { useAppState } from "@/features/app-shell";
-import { botActivity, isComputerOnline } from "@/lib/status";
+import { teammateActivity, isComputerOnline } from "@/lib/status";
 import type { AppState } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { NeedsYou } from "./needs-you";
@@ -42,13 +42,15 @@ export function teamSummary(
   const things = state.takeoverRequests.length + state.pendingApprovals;
   const needs = things > 0 ? `${plural(things, "thing needs", "things need")} you` : null;
   if (!online) {
-    const busy = state.teammates.some((bot) => bot.activeRun);
+    const busy = state.teammates.some((teammate) => teammate.activeRun);
     const paused = busy
       ? "Work is paused until the computer is back."
       : "Your teammates pick up again when the computer is back.";
     return needs ? `${needs}. ${paused}` : paused;
   }
-  const working = state.teammates.filter((bot) => botActivity(bot) === "working").length;
+  const working = state.teammates.filter(
+    (teammate) => teammateActivity(teammate) === "working",
+  ).length;
   if (needs && working)
     return `${needs}, and ${plural(working, "teammate is", "teammates are")} working.`;
   if (needs) return `${needs}.`;
@@ -63,8 +65,8 @@ export function HomeView() {
   const offline = Boolean(state) && !online;
   const minute = useMinute();
   const now = minute === null ? null : new Date(minute * 60_000);
-  const botIds = state?.teammates.map((bot) => bot.id) ?? [];
-  const botNames = state?.teammates.map((bot) => bot.name) ?? [];
+  const teammateIds = state?.teammates.map((teammate) => teammate.id) ?? [];
+  const teammateNames = state?.teammates.map((teammate) => teammate.name) ?? [];
   return (
     <div className="h-full overflow-y-auto">
       <div
@@ -93,8 +95,8 @@ export function HomeView() {
             </p>
           </div>
           {/* Where the side column falls below, the offline notice stays up top. */}
-          {offline && botIds.length > 0 && (
-            <ComputerOffline botNames={botNames} className="-mt-2 xl:hidden" />
+          {offline && teammateIds.length > 0 && (
+            <ComputerOffline teammateNames={teammateNames} className="-mt-2 xl:hidden" />
           )}
           {/* The suggestion sits right under what needs you, apart from it. */}
           <div className="flex flex-col gap-2 empty:hidden">
@@ -109,7 +111,7 @@ export function HomeView() {
         <div className="flex min-w-0 flex-col gap-8 xl:self-start">
           {/* Takeover requests are already in "Needs you", so the panel leaves them out. */}
           <ComputerPanel
-            botIds={botIds}
+            teammateIds={teammateIds}
             showRequests={false}
             className={offline ? "max-xl:hidden" : undefined}
           />

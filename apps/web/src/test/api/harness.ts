@@ -23,7 +23,7 @@ const WORKER: Record<string, unknown> = {
   },
   "/internal/telegram": {
     connected: false,
-    botUsername: null, // vocabulary: allow
+    teammateUsername: null, // vocabulary: allow
     tokenHint: null,
     linked: false,
     linkedName: null,

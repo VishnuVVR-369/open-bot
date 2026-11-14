@@ -175,7 +175,7 @@ function MemoryRow({
   );
 }
 
-export function MemoryManager({ botId, name }: { botId: string | null; name: string }) {
+export function MemoryManager({ teammateId, name }: { teammateId: string | null; name: string }) {
   const queryClient = useQueryClient();
   const [query, setQuery] = useState("");
   const [draft, setDraft] = useState<{
@@ -190,14 +190,14 @@ export function MemoryManager({ botId, name }: { botId: string | null; name: str
   const [forget, setForget] = useState<MemoryItem | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const downloadUrl = `/api/memory${botId ? `?botId=${encodeURIComponent(botId)}` : ""}`;
-  const { data: items, error, refetch } = useMemories(botId, query);
+  const downloadUrl = `/api/memory${teammateId ? `?teammateId=${encodeURIComponent(teammateId)}` : ""}`;
+  const { data: items, error, refetch } = useMemories(teammateId, query);
   // Saving a memory refreshes everything under `memory`, its history too.
   const revisions = useMemoryHistory(history?.id ?? null);
   const refresh = () => queryClient.invalidateQueries({ queryKey: orpc.memory.key() });
   const { data: state } = useAppState();
   const savedBy = (item: MemoryItem) =>
-    state?.teammates.find((bot) => bot.id === item.source.botId)?.name ?? null;
+    state?.teammates.find((teammate) => teammate.id === item.source.botId)?.name ?? null;
   function edit(item: MemoryItem | null) {
     setProblem(null);
     setDraft({
@@ -223,7 +223,7 @@ export function MemoryManager({ botId, name }: { botId: string | null; name: str
   }
   return (
     <section className="flex flex-col gap-4" data-testid="memory-manager">
-      {botId && (
+      {teammateId && (
         <p className="max-w-xl text-[13.5px] text-muted-foreground">
           {name}&apos;s saved facts and lessons. Shared facts are managed in Settings. Suggestions
           become memory when you confirm them.
@@ -306,7 +306,7 @@ export function MemoryManager({ botId, name }: { botId: string | null; name: str
           <DialogHeader>
             <DialogTitle>{draft?.item ? "Edit memory" : "Add memory"}</DialogTitle>
             <DialogDescription>
-              {botId
+              {teammateId
                 ? `Only ${name} receives this memory automatically.`
                 : "Every teammate can use this memory."}
             </DialogDescription>
@@ -318,7 +318,7 @@ export function MemoryManager({ botId, name }: { botId: string | null; name: str
                 event.preventDefault();
                 startTransition(async () => {
                   const input = {
-                    teammateId: botId,
+                    teammateId,
                     content: draft.content,
                     kind: draft.kind,
                     key: draft.key.trim() || null,
@@ -441,7 +441,7 @@ export function MemoryManager({ botId, name }: { botId: string | null; name: str
                       type="button"
                       variant="link"
                       onClick={async () => {
-                        const fresh = await api.memory.list({ teammateId: botId, query: "" });
+                        const fresh = await api.memory.list({ teammateId, query: "" });
                         const item = fresh.find((i) => i.id === draft.item?.id);
                         if (item) edit(item);
                         else setProblem("This memory was forgotten. Close this editor.");

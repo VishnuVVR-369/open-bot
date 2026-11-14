@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { BotAvatar } from "@/components/bot-avatar";
+import { TeammateAvatar } from "@/components/teammate-avatar";
 import { Button } from "@/components/ui/button";
 import { attempt } from "@/lib/client/mutate";
 import { api } from "@/lib/client/rpc";
@@ -19,7 +19,7 @@ import type { BriefingItem } from "@/lib/types";
 import { chatHref, cn, plainText } from "@/lib/utils";
 
 /** The most replies shown for each teammate; the rest are a link away. */
-const PER_BOT = 3;
+const PER_TEAMMATE = 3;
 
 const TRIGGER_ICONS = { schedule: CalendarClock, watch: Eye, webhook: Webhook } as const;
 
@@ -102,11 +102,11 @@ function RetryButton({ item }: { item: BriefingItem }) {
  */
 function Failure({
   item,
-  botName,
+  teammateName,
   computerOnline,
 }: {
   item: BriefingItem;
-  botName: string;
+  teammateName: string;
   computerOnline: boolean;
 }) {
   return (
@@ -118,7 +118,7 @@ function Failure({
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="flex min-w-0 items-baseline gap-2 text-[13.5px]">
           <span className="min-w-0 flex-1 truncate font-medium">
-            {botName} couldn&apos;t finish
+            {teammateName} couldn&apos;t finish
           </span>
           <span className="shrink-0 text-[12px] text-muted-foreground tabular-nums">
             {clock(new Date(item.completedAt))}
@@ -169,11 +169,11 @@ export function Briefing() {
   const failures = items.filter((item) => item.status === "failed").sort(newestFirst);
   const finished = items.filter((item) => item.status !== "failed").sort(newestFirst);
   // Teammates in the order of their latest work, since the items are newest first.
-  const byBot = new Map<string, BriefingItem[]>();
+  const byTeammate = new Map<string, BriefingItem[]>();
   for (const item of finished)
-    byBot.set(item.teammateId, [...(byBot.get(item.teammateId) ?? []), item]);
-  const botName = (botId: string) =>
-    state.teammates.find((entry) => entry.id === botId)?.name ?? "A former teammate";
+    byTeammate.set(item.teammateId, [...(byTeammate.get(item.teammateId) ?? []), item]);
+  const teammateName = (teammateId: string) =>
+    state.teammates.find((entry) => entry.id === teammateId)?.name ?? "A former teammate";
   const sinceDate = new Date(since);
   const summary = [
     finished.length > 0 && `${plural(finished.length, "task")} done`,
@@ -216,39 +216,44 @@ export function Briefing() {
             <Failure
               key={item.runId}
               item={item}
-              botName={botName(item.teammateId)}
+              teammateName={teammateName(item.teammateId)}
               computerOnline={computerOnline}
             />
           ))}
         </ul>
       )}
-      {byBot.size > 0 && (
+      {byTeammate.size > 0 && (
         <ul className="flex flex-col gap-3">
-          {[...byBot.entries()].map(([botId, botItems]) => {
-            const bot = state.teammates.find((entry) => entry.id === botId);
-            const extra = botItems.length - PER_BOT;
+          {[...byTeammate.entries()].map(([teammateId, teammateItems]) => {
+            const teammate = state.teammates.find((entry) => entry.id === teammateId);
+            const extra = teammateItems.length - PER_TEAMMATE;
             return (
-              <li key={botId} className="flex gap-3" data-testid="briefing-bot">
-                {bot ? (
-                  <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="sm" />
+              <li key={teammateId} className="flex gap-3" data-testid="briefing-teammate">
+                {teammate ? (
+                  <TeammateAvatar
+                    name={teammate.name}
+                    color={teammate.color}
+                    emoji={teammate.emoji}
+                    size="sm"
+                  />
                 ) : (
                   <span className="size-7 shrink-0 rounded-[8px] bg-subtle" />
                 )}
                 <div className="flex min-w-0 flex-1 flex-col">
                   <span className="flex h-7 items-center gap-1.5 text-[13.5px]">
-                    <span className="font-medium">{bot?.name ?? "Former teammate"}</span>
+                    <span className="font-medium">{teammate?.name ?? "Former teammate"}</span>
                     <span className="text-muted-foreground">
-                      · {plural(botItems.length, "task")}
+                      · {plural(teammateItems.length, "task")}
                     </span>
                   </span>
                   <ul className="flex flex-col">
-                    {botItems.slice(0, PER_BOT).map((item) => (
+                    {teammateItems.slice(0, PER_TEAMMATE).map((item) => (
                       <Item key={item.runId} item={item} />
                     ))}
                   </ul>
-                  {extra > 0 && bot && (
+                  {extra > 0 && teammate && (
                     <Link
-                      href={`/bots/${bot.id}?tab=chats`}
+                      href={`/teammates/${teammate.id}?tab=chats`}
                       className="self-start py-1 text-[12.5px] text-muted-foreground hover:text-foreground hover:underline"
                     >
                       and {extra} more

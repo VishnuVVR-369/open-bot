@@ -5,8 +5,8 @@ import { worker, WorkerError } from "@/lib/server/worker";
 
 /** The teammate as a file you can keep or import elsewhere. */
 export const GET = authed(
-  async (_request: Request, { params }: RouteContext<"/api/bots/[botId]/export">) => {
-    const { botId: teammateId } = await params;
+  async (_request: Request, { params }: RouteContext<"/api/teammates/[teammateId]/export">) => {
+    const { teammateId } = await params;
     if (!/^[0-9a-f-]{36}$/i.test(teammateId))
       return NextResponse.json({ error: "No such teammate." }, { status: 404 });
     try {

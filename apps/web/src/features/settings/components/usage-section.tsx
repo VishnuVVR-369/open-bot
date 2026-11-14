@@ -27,10 +27,10 @@ export function UsageSection() {
         </thead>
         <tbody className="divide-y">
           {usage.data.map((row) => {
-            const bot = state?.teammates.find((b) => b.id === row.teammateId);
+            const teammate = state?.teammates.find((b) => b.id === row.teammateId);
             return (
               <tr key={row.teammateId ?? "none"}>
-                <td className="px-4 py-2">{bot?.name ?? "Archived teammate"}</td>
+                <td className="px-4 py-2">{teammate?.name ?? "Archived teammate"}</td>
                 <td className="px-4 py-2 text-right tabular-nums">{row.runs}</td>
                 <td className="px-4 py-2 text-right tabular-nums">
                   {compactNumber(row.inputTokens)}

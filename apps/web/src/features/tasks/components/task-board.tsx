@@ -6,7 +6,7 @@ import { differenceInCalendarDays, format, parseISO } from "date-fns";
 import { CalendarDays, ChevronDown, CircleCheck, Plus } from "lucide-react";
 import { useState, type DragEvent } from "react";
 import { toast } from "sonner";
-import { BotAvatar } from "@/components/bot-avatar";
+import { TeammateAvatar } from "@/components/teammate-avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,7 +15,7 @@ import { useApprovals } from "@/features/approvals";
 import { useAppState } from "@/features/app-shell";
 import { attempt } from "@/lib/client/mutate";
 import { api, orpc } from "@/lib/client/rpc";
-import type { BotSummary, TaskView } from "@/lib/types";
+import type { TeammateSummary, TaskView } from "@/lib/types";
 import { isComputerOnline, STATUS } from "@/lib/status";
 import { cn } from "@/lib/utils";
 import { useTasks } from "../hooks";
@@ -85,7 +85,7 @@ function Card({
   onDropBefore,
 }: {
   task: TaskView;
-  owner: BotSummary | undefined;
+  owner: TeammateSummary | undefined;
   /** The owner's name, when the task is theirs: tasks without a teammate belong to them. */
   you: string | null;
   blocker: Blocker | null;
@@ -154,7 +154,7 @@ function Card({
         <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
           {owner ? (
             <span className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
-              <BotAvatar name={owner.name} color={owner.color} emoji={owner.emoji} size="xs" />
+              <TeammateAvatar name={owner.name} color={owner.color} emoji={owner.emoji} size="xs" />
               {owner.name}
             </span>
           ) : you !== null ? (
@@ -255,7 +255,7 @@ export function TaskBoard() {
   const [showAllDone, setShowAllDone] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
   const { data: approvals } = useApprovals();
-  const bots = state?.teammates ?? [];
+  const teammates = state?.teammates ?? [];
   /** A task whose chat waits on you says so on its card. */
   const online = !state || isComputerOnline(state);
   const blockerOf = (task: TaskView): Blocker | null => {
@@ -380,7 +380,7 @@ export function TaskBoard() {
                   <Card
                     key={task.id}
                     task={task}
-                    owner={bots.find((bot) => bot.id === task.ownerTeammateId)}
+                    owner={teammates.find((teammate) => teammate.id === task.ownerTeammateId)}
                     you={task.ownerTeammateId ? null : (state?.user.name ?? "You")}
                     blocker={blockerOf(task)}
                     onOpen={() => setEditing({ task, open: true })}
@@ -448,7 +448,7 @@ export function TaskBoard() {
         <TaskDialog
           key={editing.task.id}
           task={editing.task}
-          bots={bots}
+          teammates={teammates}
           open={editing.open}
           onOpenChange={(open) => setEditing((current) => ({ ...current, open }))}
           onSaved={refresh}
@@ -478,7 +478,7 @@ export function NewTaskButton() {
       <TaskDialog
         key={key}
         task={null}
-        bots={state?.teammates ?? []}
+        teammates={state?.teammates ?? []}
         open={open}
         onOpenChange={setOpen}
         onSaved={() => void queryClient.invalidateQueries({ queryKey: orpc.tasks.key() })}

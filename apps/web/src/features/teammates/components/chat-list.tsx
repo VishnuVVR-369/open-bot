@@ -12,12 +12,12 @@ import { api } from "@/lib/client/rpc";
 
 export function ChatList({
   chats,
-  botId,
-  botName,
+  teammateId,
+  teammateName,
 }: {
   chats: { id: string; kind: string; title: string; main: boolean; lastActivityAt: string }[];
-  botId: string;
-  botName: string;
+  teammateId: string;
+  teammateName: string;
 }) {
   const router = useRouter();
   return (
@@ -26,13 +26,13 @@ export function ChatList({
         <Button
           variant="outline"
           onClick={async () => {
-            const result = await attempt(api.chats.newDirect({ teammateId: botId }));
+            const result = await attempt(api.chats.newDirect({ teammateId }));
             if (result.ok) router.push(`/chats/${result.data.chatId}`);
             else toast.error(result.error);
           }}
         >
           <Plus />
-          New chat with {botName}
+          New chat with {teammateName}
         </Button>
       </div>
       <div className="divide-y divide-border/70 rounded-xl border bg-card">

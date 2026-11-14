@@ -34,7 +34,7 @@ export function ScreenControls({
   if (!info) return null;
   const youHaveControl = info.activity === "you";
   const request = showRequests ? info.requests[0] : undefined;
-  const name = info.bot.name;
+  const name = info.teammate.name;
   if (!request && !youHaveControl && !online && !expand) return null;
 
   return (
@@ -124,7 +124,7 @@ export function ScreenControls({
           </Tooltip>
         )}
         {youHaveControl ? (
-          <HandBackButton screenId={screenId} botName={name} />
+          <HandBackButton screenId={screenId} teammateName={name} />
         ) : (
           online && <TakeOverButton screenId={screenId} />
         )}

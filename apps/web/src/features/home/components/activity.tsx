@@ -4,7 +4,7 @@ import { isRunActive } from "@open-bot/domain";
 import { AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
-import { BotAvatar } from "@/components/bot-avatar";
+import { TeammateAvatar } from "@/components/teammate-avatar";
 import { TimeAgo } from "@/components/time-ago";
 import { useBriefingItems } from "./briefing";
 import { useBriefingSince } from "@/lib/client/presence";
@@ -81,7 +81,7 @@ export function Activity() {
       ) : (
         <ol className="divide-y divide-border/70 overflow-hidden rounded-xl bg-card shadow-raised">
           {data.map((item) => {
-            const bot = state.teammates.find((b) => b.id === item.teammateId);
+            const teammate = state.teammates.find((b) => b.id === item.teammateId);
             const outcome = activityOutcome(
               item,
               online,
@@ -97,12 +97,19 @@ export function Activity() {
                   className="flex h-12 items-center gap-3 px-3.5 text-[13.5px] transition-colors hover:bg-subtle/70"
                   data-testid="activity-row"
                 >
-                  {bot ? (
-                    <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="sm" />
+                  {teammate ? (
+                    <TeammateAvatar
+                      name={teammate.name}
+                      color={teammate.color}
+                      emoji={teammate.emoji}
+                      size="sm"
+                    />
                   ) : (
                     <span className="size-7 shrink-0 rounded-[8px] bg-subtle" />
                   )}
-                  <span className="shrink-0 font-medium">{bot?.name ?? "Former teammate"}</span>
+                  <span className="shrink-0 font-medium">
+                    {teammate?.name ?? "Former teammate"}
+                  </span>
                   <span
                     className={cn(
                       "flex min-w-0 flex-1 items-center gap-1.5 text-muted-foreground",

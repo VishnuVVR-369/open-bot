@@ -20,7 +20,7 @@ export function Suggestions() {
       {proposals.map((proposal) => (
         <Link
           key={proposal.id}
-          href={`/bots/${proposal.teammate.id}`}
+          href={`/teammates/${proposal.teammate.id}`}
           className="group flex items-center gap-3 rounded-xl px-4 py-2.5 text-[13.5px] transition-colors hover:bg-subtle"
           data-testid="proposal-link"
         >

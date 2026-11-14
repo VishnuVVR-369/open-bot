@@ -114,7 +114,7 @@ test("a bot reads the page in front as text and links", async ({ page }) => {
 });
 
 test("the Job scout template comes with its portal skills", async ({ page }) => {
-  await page.goto("/bots/new");
+  await page.goto("/teammates/new");
   await page.getByRole("button", { name: "Job scout" }).click();
   await expect(page.getByLabel("Job", { exact: true })).toHaveValue("job scout");
   const starters = page.getByTestId("starter-automations");
@@ -166,7 +166,7 @@ test("@agent the Job Scout collects new postings into the tracker without applyi
   const tracker = await trackerService([POSTINGS[0]!.id]);
   try {
     await connectTracker(page, tracker.url);
-    await page.goto("/bots/new");
+    await page.goto("/teammates/new");
     await page.getByRole("button", { name: "Job scout" }).click();
     await page.getByLabel("Name").fill(uniqueName("Ivy"));
     await page.getByRole("button", { name: "Create teammate" }).click();
@@ -194,7 +194,7 @@ test("@agent the Job Scout asks you to sign in instead of signing in itself", as
   const tracker = await trackerService([]);
   try {
     await connectTracker(page, tracker.url);
-    await page.goto("/bots/new");
+    await page.goto("/teammates/new");
     await page.getByRole("button", { name: "Job scout" }).click();
     await page.getByLabel("Name").fill(uniqueName("Ivy"));
     await page.getByRole("button", { name: "Create teammate" }).click();
@@ -250,7 +250,7 @@ test("@agent the Job Scout fills a real Application tracker's inbox", async ({ p
     // Codex's MCP client lists the tracker's tools.
     await expect(row.getByTestId("connection-test")).toContainText("4 tools");
 
-    await page.goto("/bots/new");
+    await page.goto("/teammates/new");
     await page.getByRole("button", { name: "Job scout" }).click();
     await page.getByLabel("Name").fill(uniqueName("Ivy"));
     await page.getByRole("button", { name: "Create teammate" }).click();

@@ -213,13 +213,13 @@ export function ApprovalDetail({
 export function ApprovalDecision({
   approvalId,
   approval,
-  botName,
+  teammateName,
   onReview,
   className,
 }: {
   approvalId: string;
   approval: ApprovalSubject;
-  botName: string;
+  teammateName: string;
   onReview?: () => void;
   className?: string;
 }) {
@@ -240,7 +240,7 @@ export function ApprovalDecision({
       if (!result.ok) toast.error(result.error);
       else if (alwaysAllow !== undefined)
         toast("Approved, and allowed from now on", {
-          description: `${botName} won't ask about this again.`,
+          description: `${teammateName} won't ask about this again.`,
         });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: orpc.approvals.key() }),
@@ -281,7 +281,7 @@ export function ApprovalDecision({
         <AlwaysAllowButton
           kind={approval.kind}
           subject={approval.subject ?? approval.title}
-          botName={botName}
+          teammateName={teammateName}
           disabled={pending}
           onConfirm={async (pattern) => decide("approved", pattern)}
         />
@@ -307,11 +307,11 @@ export function ApprovalDecision({
 export function ApprovalReview({
   approvalId,
   approval,
-  botName,
+  teammateName,
 }: {
   approvalId: string;
   approval: ApprovalSubject;
-  botName: string;
+  teammateName: string;
 }) {
   const [emailOpen, setEmailOpen] = useState(false);
   const unread = emailIsClamped(approval.preview) && !emailOpen;
@@ -321,7 +321,7 @@ export function ApprovalReview({
       <ApprovalDecision
         approvalId={approvalId}
         approval={approval}
-        botName={botName}
+        teammateName={teammateName}
         onReview={unread ? () => setEmailOpen(true) : undefined}
       />
     </>

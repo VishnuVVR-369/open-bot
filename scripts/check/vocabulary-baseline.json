@@ -203,257 +203,41 @@
   "apps/site/src/lib/docs.ts": {
     "bot": 1
   },
-  "apps/web/src/app/(app)/bots/[botId]/page.tsx": {
-    "bot": 10
-  },
-  "apps/web/src/app/(app)/bots/new/page.tsx": {
-    "bot": 3
-  },
-  "apps/web/src/app/(auth)/layout.tsx": {
-    "bot": 3
-  },
-  "apps/web/src/app/api/bots/[botId]/export/route.ts": {
-    "bot": 3
-  },
-  "apps/web/src/app/api/memory/route.ts": {
-    "bot": 7
-  },
-  "apps/web/src/app/api/stream/route.ts": {
-    "bot": 1
-  },
-  "apps/web/src/components/access-picker.tsx": {
-    "bot": 14
-  },
-  "apps/web/src/components/app/command-menu.tsx": {
-    "bot": 44
-  },
-  "apps/web/src/components/app/new-group-dialog.tsx": {
-    "bot": 17
-  },
-  "apps/web/src/components/app/shell.tsx": {
-    "bot": 2
-  },
-  "apps/web/src/components/app/sidebar.tsx": {
-    "bot": 27
-  },
-  "apps/web/src/components/bot-avatar.tsx": {
-    "bot": 3
-  },
-  "apps/web/src/features/app-shell/server/routes.integration.test.ts": {
-    "bot": 3
-  },
-  "apps/web/src/features/approvals/components/always-allow.tsx": {
-    "bot": 17
-  },
-  "apps/web/src/features/approvals/components/approval-parts.tsx": {
-    "bot": 9
-  },
-  "apps/web/src/features/approvals/components/approvals-view.tsx": {
-    "bot": 30
-  },
-  "apps/web/src/features/automations/components/automations-view.tsx": {
-    "bot": 44
-  },
-  "apps/web/src/features/automations/components/schedule-dialog.tsx": {
-    "bot": 29
-  },
   "apps/web/src/features/automations/components/schedules-list.tsx": {
-    "bot": 15
-  },
-  "apps/web/src/features/automations/components/trigger-dialog.tsx": {
-    "bot": 32
+    "bot": 1
   },
   "apps/web/src/features/automations/components/trigger-row.tsx": {
-    "bot": 26
-  },
-  "apps/web/src/features/chat/components/chat-header.tsx": {
-    "bot": 12
-  },
-  "apps/web/src/features/chat/components/chat-view.tsx": {
-    "bot": 25
-  },
-  "apps/web/src/features/chat/components/composer.tsx": {
-    "bot": 11
-  },
-  "apps/web/src/features/chat/components/empty-state.tsx": {
-    "bot": 6
+    "bot": 1
   },
   "apps/web/src/features/chat/components/items.tsx": {
-    "bot": 14
-  },
-  "apps/web/src/features/chat/components/mention-menu.tsx": {
-    "bot": 6
-  },
-  "apps/web/src/features/chat/components/reply-feedback.tsx": {
-    "bot": 5
-  },
-  "apps/web/src/features/chat/components/run-block.tsx": {
-    "bot": 35
-  },
-  "apps/web/src/features/chat/components/screen-strip.tsx": {
     "bot": 1
-  },
-  "apps/web/src/features/chat/components/skill-menu.tsx": {
-    "bot": 5
-  },
-  "apps/web/src/features/chat/components/swarm-card.tsx": {
-    "bot": 4
-  },
-  "apps/web/src/features/chat/components/trigger-label.tsx": {
-    "bot": 5
-  },
-  "apps/web/src/features/chat/server/chats.ts": {
-    "bot": 4
-  },
-  "apps/web/src/features/chat/server/lists.ts": {
-    "bot": 2
-  },
-  "apps/web/src/features/chat/server/queries.ts": {
-    "bot": 2
-  },
-  "apps/web/src/features/computer/components/computer-page.tsx": {
-    "bot": 28
-  },
-  "apps/web/src/features/computer/components/computer-panel.tsx": {
-    "bot": 11
-  },
-  "apps/web/src/features/computer/components/screen-controls.tsx": {
-    "bot": 2
-  },
-  "apps/web/src/features/computer/components/screen-glass.tsx": {
-    "bot": 5
-  },
-  "apps/web/src/features/computer/components/screen-picker.tsx": {
-    "bot": 25
-  },
-  "apps/web/src/features/computer/components/screen-status.tsx": {
-    "bot": 13
-  },
-  "apps/web/src/features/computer/components/screen-view.tsx": {
-    "bot": 1
-  },
-  "apps/web/src/features/computer/components/takeover-buttons.tsx": {
-    "bot": 5
-  },
-  "apps/web/src/features/computer/hooks.ts": {
-    "bot": 21
-  },
-  "apps/web/src/features/computer/server/queries.ts": {
-    "bot": 1
-  },
-  "apps/web/src/features/computer/server/service.ts": {
-    "bot": 8
   },
   "apps/web/src/features/files/components/files-view.tsx": {
-    "bot": 25
-  },
-  "apps/web/src/features/home/components/activity.tsx": {
-    "bot": 9
-  },
-  "apps/web/src/features/home/components/briefing.tsx": {
-    "bot": 36
-  },
-  "apps/web/src/features/home/components/coming-up.tsx": {
-    "bot": 9
-  },
-  "apps/web/src/features/home/components/home-view.tsx": {
-    "bot": 17
-  },
-  "apps/web/src/features/home/components/suggestions.tsx": {
-    "bot": 1
-  },
-  "apps/web/src/features/home/components/teammates.tsx": {
-    "bot": 24
-  },
-  "apps/web/src/features/integrations/components/accounts/account-row.tsx": {
-    "bot": 2
-  },
-  "apps/web/src/features/integrations/components/connections-section.tsx": {
-    "bot": 2
-  },
-  "apps/web/src/features/integrations/server/accounts.ts": {
-    "bot": 4
-  },
-  "apps/web/src/features/integrations/server/service.ts": {
-    "bot": 1
-  },
-  "apps/web/src/features/memory/components/memory-manager.tsx": {
-    "bot": 13
-  },
-  "apps/web/src/features/memory/hooks.ts": {
     "bot": 3
   },
+  "apps/web/src/features/integrations/server/accounts.ts": {
+    "bot": 2
+  },
+  "apps/web/src/features/memory/components/memory-manager.tsx": {
+    "bot": 1
+  },
   "apps/web/src/features/memory/server/service.ts": {
-    "bot": 4
-  },
-  "apps/web/src/features/pages/components/page-viewer.tsx": {
-    "bot": 28
-  },
-  "apps/web/src/features/pages/components/pages-view.tsx": {
-    "bot": 23
-  },
-  "apps/web/src/features/settings/components/profile-editor.tsx": {
     "bot": 1
   },
   "apps/web/src/features/settings/components/telegram-section.tsx": {
     "bot": 8
   },
-  "apps/web/src/features/settings/components/usage-section.tsx": {
-    "bot": 2
-  },
-  "apps/web/src/features/skills/components/skill-dialog.tsx": {
-    "bot": 16
-  },
   "apps/web/src/features/skills/components/skills-list.tsx": {
-    "bot": 19
-  },
-  "apps/web/src/features/tasks/components/task-board.tsx": {
-    "bot": 12
+    "bot": 1
   },
   "apps/web/src/features/tasks/components/task-dialog.tsx": {
-    "bot": 29
-  },
-  "apps/web/src/features/teammates/components/bot-danger-zone.tsx": {
-    "bot": 5
-  },
-  "apps/web/src/features/teammates/components/bot-form.tsx": {
-    "bot": 27
-  },
-  "apps/web/src/features/teammates/components/chat-list.tsx": {
-    "bot": 6
-  },
-  "apps/web/src/features/teammates/components/duplicate-bot.tsx": {
-    "bot": 12
-  },
-  "apps/web/src/features/teammates/components/spending.tsx": {
-    "bot": 6
-  },
-  "apps/web/src/features/teammates/components/teammate-view.tsx": {
-    "bot": 57
-  },
-  "apps/web/src/features/teammates/index.ts": {
-    "bot": 4
+    "bot": 1
   },
   "apps/web/src/features/teammates/server/queries.ts": {
-    "bot": 21
-  },
-  "apps/web/src/features/teammates/server/service.ts": {
-    "bot": 13
-  },
-  "apps/web/src/features/vault/components/vault-view.tsx": {
-    "bot": 23
+    "bot": 1
   },
   "apps/web/src/lib/files.test.ts": {
     "bot": 2
-  },
-  "apps/web/src/lib/status.test.ts": {
-    "bot": 22
-  },
-  "apps/web/src/lib/status.ts": {
-    "bot": 12
-  },
-  "apps/web/src/lib/types.ts": {
-    "bot": 1
   },
   "apps/worker/scripts/computer-sleep-smoke.ts": {
     "bot": 3
@@ -564,22 +348,16 @@
     "bot": 5
   },
   "e2e/agent.spec.ts": {
-    "bot": 9
+    "bot": 8
   },
   "e2e/api.spec.ts": {
     "bot": 17
   },
-  "e2e/auth.setup.ts": {
-    "bot": 2
-  },
   "e2e/automations.spec.ts": {
     "bot": 4
   },
-  "e2e/briefing.spec.ts": {
-    "bot": 1
-  },
   "e2e/check-ins.spec.ts": {
-    "bot": 14
+    "bot": 11
   },
   "e2e/computer.spec.ts": {
     "bot": 13
@@ -588,19 +366,19 @@
     "bot": 8
   },
   "e2e/feedback.spec.ts": {
-    "bot": 13
+    "bot": 11
   },
   "e2e/global-teardown.ts": {
     "bot": 5
   },
   "e2e/helpers.ts": {
-    "bot": 4
+    "bot": 3
   },
   "e2e/job-scout.spec.ts": {
-    "bot": 15
+    "bot": 11
   },
   "e2e/memory.spec.ts": {
-    "bot": 31
+    "bot": 24
   },
   "e2e/pages.spec.ts": {
     "bot": 33
@@ -618,16 +396,16 @@
     "bot": 10
   },
   "e2e/teammates.spec.ts": {
-    "bot": 24
+    "bot": 11
   },
   "e2e/teamwork.spec.ts": {
-    "bot": 5
+    "bot": 3
   },
   "e2e/telegram.spec.ts": {
     "bot": 5
   },
   "e2e/vault.spec.ts": {
-    "bot": 16
+    "bot": 13
   },
   "packages/api/src/worker/contracts/integrations.ts": {
     "bot": 1
@@ -740,6 +518,6 @@
     "bot": 17
   },
   "tools/showcase/shoot.mjs": {
-    "bot": 10
+    "bot": 8
   }
 }

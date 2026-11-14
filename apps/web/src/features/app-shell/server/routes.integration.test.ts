@@ -17,7 +17,7 @@ describe.skipIf(!apiTestUrl)("API reads, end to end", () => {
     const state = await api.app.state();
     expect(state.user).toEqual({ name: OWNER.name, email: OWNER.email });
     expect(state.timezone).toBe("Europe/Berlin");
-    expect(state.teammates.map((bot) => bot.name)).toEqual(["Scout"]);
+    expect(state.teammates.map((teammate) => teammate.name)).toEqual(["Scout"]);
     expect(state.computer.workerOnline).toBe(true);
     expect(state.skills[0]).not.toHaveProperty("instructions");
     expect(state.unreadNotifications).toBe(1);
@@ -50,7 +50,7 @@ describe.skipIf(!apiTestUrl)("API reads, end to end", () => {
     expect(await api.search.messages({ query: "news" })).toEqual([]);
     const memories = await api.memory.list({ teammateId: ids.teammate, query: "window" });
     expect(memories.map((m) => m.content)).toEqual(["Prefers window seats"]);
-    expect(memories[0]!.source).toMatchObject({ botId: ids.teammate, chatId: ids.chat });
+    expect(memories[0]!.source).toMatchObject({ teammateId: ids.teammate, chatId: ids.chat });
     expect(await api.memory.list({ teammateId: null, query: "nothing like it" })).toEqual([]);
     const history = await api.memory.history({ memoryId: ids.memory });
     expect(history.map((r) => r.source.chatId)).toEqual([ids.chat]);

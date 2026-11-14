@@ -157,7 +157,7 @@ export async function getTeammatePage(teammateId: string) {
       .orderBy(asc(approvalRules.createdAt)),
   ]);
   return {
-    bot: teammate,
+    teammate,
     // What the form sends back with a save, so a save over a newer change is refused.
     revision: configurationRevision(teammate),
     chats: teammateChats.map((chat) => ({
@@ -179,12 +179,15 @@ export async function teammateName(teammateId: string): Promise<string | null> {
   return row?.name ?? null;
 }
 
-async function pendingProposal(botId: string): Promise<ProposalView | null> {
+async function pendingProposal(teammateId: string): Promise<ProposalView | null> {
   const [row] = await db
     .select()
     .from(instructionProposals)
     .where(
-      and(eq(instructionProposals.teammateId, botId), eq(instructionProposals.status, "pending")),
+      and(
+        eq(instructionProposals.teammateId, teammateId),
+        eq(instructionProposals.status, "pending"),
+      ),
     )
     .orderBy(desc(instructionProposals.createdAt))
     .limit(1);
@@ -199,12 +202,12 @@ async function pendingProposal(botId: string): Promise<ProposalView | null> {
     : null;
 }
 
-export async function listLessons(botId: string): Promise<LessonView[]> {
+export async function listLessons(teammateId: string): Promise<LessonView[]> {
   const rows = await db
     .select({ lesson: lessons, chatId: runs.chatId })
     .from(lessons)
     .leftJoin(runs, eq(runs.id, lessons.runId))
-    .where(eq(lessons.teammateId, botId))
+    .where(eq(lessons.teammateId, teammateId))
     .orderBy(desc(lessons.createdAt));
   return rows.map(({ lesson, chatId }) => ({
     id: lesson.id,
@@ -215,12 +218,12 @@ export async function listLessons(botId: string): Promise<LessonView[]> {
   }));
 }
 
-export async function getSpending(botId: string): Promise<SpendingView | null> {
-  const [bot] = await db
+export async function getSpending(teammateId: string): Promise<SpendingView | null> {
+  const [teammate] = await db
     .select({ budget: teammates.monthlyBudgetCents, autoApprove: teammates.autoApproveCents })
     .from(teammates)
-    .where(eq(teammates.id, botId));
-  if (!bot) return null;
+    .where(eq(teammates.id, teammateId));
+  if (!teammate) return null;
   const [rows, [spent]] = await Promise.all([
     db
       .select({
@@ -230,7 +233,7 @@ export async function getSpending(botId: string): Promise<SpendingView | null> {
       })
       .from(purchases)
       .leftJoin(vaultItems, eq(vaultItems.id, purchases.cardId))
-      .where(eq(purchases.teammateId, botId))
+      .where(eq(purchases.teammateId, teammateId))
       .orderBy(desc(purchases.createdAt))
       .limit(50),
     db
@@ -238,15 +241,15 @@ export async function getSpending(botId: string): Promise<SpendingView | null> {
       .from(purchases)
       .where(
         and(
-          eq(purchases.teammateId, botId),
+          eq(purchases.teammateId, teammateId),
           inArray(purchases.status, [...SPENDING_PURCHASE_STATUSES]),
           gte(purchases.createdAt, monthStart()),
         ),
       ),
   ]);
   return {
-    budgetCents: bot.budget,
-    autoApproveCents: bot.autoApprove,
+    budgetCents: teammate.budget,
+    autoApproveCents: teammate.autoApprove,
     spentCents: spent?.total ?? 0,
     purchases: rows.map(({ purchase, cardName, cardHint }): PurchaseView => ({
       id: purchase.id,

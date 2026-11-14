@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { BotAvatar } from "@/components/bot-avatar";
+import { TeammateAvatar } from "@/components/teammate-avatar";
 import { TimeAgo } from "@/components/time-ago";
 import {
   AlertDialog,
@@ -68,34 +68,34 @@ function CardFace({ hint }: { hint: string }) {
   );
 }
 
-function Access({ botIds }: { botIds: string[] | null }) {
+function Access({ teammateIds }: { teammateIds: string[] | null }) {
   const { data: state } = useAppState();
-  if (botIds === null)
+  if (teammateIds === null)
     return (
       <span className="flex items-center gap-1.5">
         <Users className="size-3.5" />
         Every teammate
       </span>
     );
-  const bots = botIds
-    .map((id) => state?.teammates.find((bot) => bot.id === id))
-    .filter((bot) => bot !== undefined);
-  if (bots.length === 0) return <span>No current teammate</span>;
+  const teammates = teammateIds
+    .map((id) => state?.teammates.find((teammate) => teammate.id === id))
+    .filter((teammate) => teammate !== undefined);
+  if (teammates.length === 0) return <span>No current teammate</span>;
   return (
     <span className="flex items-center gap-1.5">
       <span className="flex -space-x-1">
-        {bots.slice(0, 4).map((bot) => (
-          <BotAvatar
-            key={bot.id}
-            name={bot.name}
-            color={bot.color}
-            emoji={bot.emoji}
+        {teammates.slice(0, 4).map((teammate) => (
+          <TeammateAvatar
+            key={teammate.id}
+            name={teammate.name}
+            color={teammate.color}
+            emoji={teammate.emoji}
             size="xs"
             className="ring-2 ring-card"
           />
         ))}
       </span>
-      {bots.length === 1 ? `Only ${bots[0]!.name}` : `${bots.length} teammates`}
+      {teammates.length === 1 ? `Only ${teammates[0]!.name}` : `${teammates.length} teammates`}
     </span>
   );
 }
@@ -168,7 +168,7 @@ function ItemRow({ item }: { item: VaultItemView }) {
           ) : (
             <span className="font-mono tabular-nums">{item.hint}</span>
           )}
-          <Access botIds={item.teammateIds} />
+          <Access teammateIds={item.teammateIds} />
           <span>
             {item.lastUsedAt ? (
               <>

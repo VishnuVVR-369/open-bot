@@ -108,7 +108,7 @@ function Tile({ task, index }: { task: SwarmItem["tasks"][number]; index: number
 }
 
 /** A job split across helpers working at the same time, each on its own screen. */
-export function SwarmCard({ item, botName }: { item: SwarmItem; botName: string }) {
+export function SwarmCard({ item, teammateName }: { item: SwarmItem; teammateName: string }) {
   const [pending, startTransition] = useTransition();
   const done = item.tasks.filter((task) => !["queued", "running"].includes(task.state)).length;
   const total = item.tasks.length;
@@ -132,7 +132,7 @@ export function SwarmCard({ item, botName }: { item: SwarmItem; botName: string 
               ? `${total} helpers working at once, each on its own screen · ${done} of ${total} done`
               : item.state === "stopped"
                 ? `You stopped it · ${done} of ${total} finished`
-                : `${total} helpers finished · ${botName} merged their results`}
+                : `${total} helpers finished · ${teammateName} merged their results`}
           </span>
         </div>
         {running && (
@@ -147,7 +147,7 @@ export function SwarmCard({ item, botName }: { item: SwarmItem; botName: string 
               <AlertDialogHeader>
                 <AlertDialogTitle>Stop the swarm?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Every helper stops now, and {botName} won&apos;t get their results. What they
+                  Every helper stops now, and {teammateName} won&apos;t get their results. What they
                   finished stays in their chats.
                 </AlertDialogDescription>
               </AlertDialogHeader>

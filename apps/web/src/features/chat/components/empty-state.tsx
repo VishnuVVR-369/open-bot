@@ -1,7 +1,7 @@
 "use client";
 
-import { BotAvatar } from "@/components/bot-avatar";
-import type { BotSummary } from "@/lib/types";
+import { TeammateAvatar } from "@/components/teammate-avatar";
+import type { TeammateSummary } from "@/lib/types";
 
 const STARTERS = [
   "Open news.ycombinator.com and give me the 5 most interesting stories, with links.",
@@ -14,7 +14,7 @@ export function EmptyState({
   onPick,
   isGroup,
 }: {
-  members: BotSummary[];
+  members: TeammateSummary[];
   onPick: (text: string) => void;
   isGroup: boolean;
 }) {
@@ -24,7 +24,7 @@ export function EmptyState({
       {isGroup ? (
         <div className="flex -space-x-2">
           {members.map((member) => (
-            <BotAvatar
+            <TeammateAvatar
               key={member.id}
               name={member.name}
               color={member.color}
@@ -36,7 +36,12 @@ export function EmptyState({
         </div>
       ) : (
         teammate && (
-          <BotAvatar name={teammate.name} color={teammate.color} emoji={teammate.emoji} size="xl" />
+          <TeammateAvatar
+            name={teammate.name}
+            color={teammate.color}
+            emoji={teammate.emoji}
+            size="xl"
+          />
         )
       )}
       <div className="flex flex-col gap-1.5">

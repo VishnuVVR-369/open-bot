@@ -346,7 +346,7 @@ export function HandoffStep({ item }: { item: HandoffItem }) {
   );
 }
 
-export function ApprovalCard({ item, botName }: { item: ApprovalItem; botName: string }) {
+export function ApprovalCard({ item, teammateName }: { item: ApprovalItem; teammateName: string }) {
   const approval: ApprovalSubject = { ...item, kind: item.approvalKind ?? "action" };
   if (item.decision !== "pending") {
     return (
@@ -386,22 +386,26 @@ export function ApprovalCard({ item, botName }: { item: ApprovalItem; botName: s
         </span>
         {risk && <RiskChip risk={risk} />}
       </div>
-      <ApprovalReview approvalId={item.approvalId} approval={approval} botName={botName} />
+      <ApprovalReview
+        approvalId={item.approvalId}
+        approval={approval}
+        teammateName={teammateName}
+      />
     </div>
   );
 }
 
 export function TakeoverRequestCard({
   item,
-  botId,
-  botName,
+  teammateId,
+  teammateName,
 }: {
   item: TakeoverRequestItem;
-  botId: string;
-  botName: string;
+  teammateId: string;
+  teammateName: string;
 }) {
   const { screen, online } = useComputer();
-  const youHaveControl = screen(botId)?.activity === "you";
+  const youHaveControl = screen(teammateId)?.activity === "you";
   const queryClient = useQueryClient();
   if (item.resolution === "handed_back" || item.resolution === "dismissed") {
     return (
@@ -409,7 +413,7 @@ export function TakeoverRequestCard({
         <Undo2 className="size-3.5" />
         <span className="truncate">
           {item.resolution === "dismissed"
-            ? `You dismissed ${botName}'s request: ${item.reason}`
+            ? `You dismissed ${teammateName}'s request: ${item.reason}`
             : item.note
               ? `You handed the screen back: “${item.note}”`
               : "You handed the screen back"}
@@ -425,19 +429,19 @@ export function TakeoverRequestCard({
       <div className="flex items-start gap-2.5">
         <Hand className="mt-0.5 size-4 shrink-0 text-attention-ink" />
         <div className="flex flex-col gap-1">
-          <span className="text-[14px] font-medium">{botName} needs you to take over</span>
+          <span className="text-[14px] font-medium">{teammateName} needs you to take over</span>
           <span className="text-[13px] text-muted-foreground">{item.reason}</span>
         </div>
       </div>
       <div className="flex items-center gap-2 pl-6.5">
         {youHaveControl || item.resolution === "taken" ? (
           <span className="text-[13px] text-attention-ink">
-            You have control of {botName}&apos;s screen. Hand it back when you&apos;re done.
+            You have control of {teammateName}&apos;s screen. Hand it back when you&apos;re done.
           </span>
         ) : (
           <>
             {online ? (
-              <TakeOverButton screenId={botId} size="sm" />
+              <TakeOverButton screenId={teammateId} size="sm" />
             ) : (
               <span className="mr-1 text-[13px] text-muted-foreground">
                 You can take over once the computer is back.

@@ -48,13 +48,14 @@ They stay plain HTTP because they stream or return bytes:
 | ---------------------------------------------------- | --------------------------------------------------------------------------- |
 | `GET /api/stream?chat=&after=`                       | Server-sent events (see [Web app](/docs/architecture/web-app#live-updates)) |
 | `GET /api/artifacts/:id`                             | A screenshot or upload                                                      |
-| `GET /api/bots/:id/export`                           | A teammate as an export file                                                |
-| `GET /api/memory?botId=`                             | Memory as a Markdown file                                                   |
+| `GET /api/teammates/:id/export`                      | A teammate as an export file                                                |
+| `GET /api/memory?teammateId=`                        | Memory as a Markdown file                                                   |
 | `GET /api/pages/versions/:id/thumbnail`, `/download` | A version's thumbnail, and its HTML as a download                           |
 | `GET /api/files/download`                            | A file from the computer under `/home/bot`                                  |
 | `GET /api/desktop/token`                             | A 60-second VNC token and the worker's websocket URL                        |
 | `GET /api/desktop/egress-token`                      | A 120-second egress token and URL, for the desktop app                      |
 
+The old `/api/bots/:id/export` redirects to its new path, and `/api/memory` still reads the old `?botId=` (`apps/web/src/lib/renamed-routes.ts`).
 The JSON reads these procedures replaced, such as `GET /api/state`, answer 401 until 2026-12-01 (`apps/web/src/lib/retired-routes.ts`).
 A tab still running code from before sends itself to sign in on a 401, which takes a signed-in owner home on current code.
 

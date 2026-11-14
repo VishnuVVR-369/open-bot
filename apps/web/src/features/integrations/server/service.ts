@@ -94,7 +94,7 @@ export async function startAccountConnect(
     kind: input.kind,
     // Each kind keeps only its own (`normalizeCapabilities`), so unknown names drop out there.
     capabilities: input.capabilities as AccountCapability[],
-    botIds: input.teammateIds,
+    teammateIds: input.teammateIds,
     accountId: input.accountId,
   });
   return { url };

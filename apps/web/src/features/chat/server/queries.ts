@@ -34,8 +34,8 @@ export async function getChatData(chatId: string, before?: string): Promise<Chat
   const chat = chatList.find((entry) => entry.id === chatId);
   if (!chat) return null;
   const helper = chat.kind === "helper" ? await helperOf(chatId) : null;
-  const allBots = await listTeammates();
-  const members = allBots.filter((teammate) => chat.memberIds.includes(teammate.id));
+  const allTeammates = await listTeammates();
+  const members = allTeammates.filter((teammate) => chat.memberIds.includes(teammate.id));
   const beforeDate = before ? new Date(before) : null;
 
   const [allMessageRows, allRunRows] = await Promise.all([

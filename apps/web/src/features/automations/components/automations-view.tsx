@@ -85,41 +85,41 @@ const SECTIONS: Record<
 function NewDialogs({
   open,
   setOpen,
-  botId,
+  teammateId,
 }: {
   open: Kind | null;
   setOpen: (kind: Kind | null) => void;
-  botId?: string;
+  teammateId?: string;
 }) {
   const onOpenChange = (kind: Kind) => (value: boolean) => setOpen(value ? kind : null);
   return (
     <>
       <ScheduleDialog
-        botId={botId}
+        teammateId={teammateId}
         open={open === "schedule"}
         onOpenChange={onOpenChange("schedule")}
       />
       <TriggerDialog
         kind="watch"
-        botId={botId}
+        teammateId={teammateId}
         open={open === "watch"}
         onOpenChange={onOpenChange("watch")}
       />
       <TriggerDialog
         kind="webhook"
-        botId={botId}
+        teammateId={teammateId}
         open={open === "webhook"}
         onOpenChange={onOpenChange("webhook")}
       />
       <TriggerDialog
         kind="gmail"
-        botId={botId}
+        teammateId={teammateId}
         open={open === "gmail"}
         onOpenChange={onOpenChange("gmail")}
       />
       <TriggerDialog
         kind="calendar"
-        botId={botId}
+        teammateId={teammateId}
         open={open === "calendar"}
         onOpenChange={onOpenChange("calendar")}
       />
@@ -128,7 +128,7 @@ function NewDialogs({
 }
 
 /** The "New automation" menu, for a page header. */
-export function NewAutomationMenu({ botId }: { botId?: string }) {
+export function NewAutomationMenu({ teammateId }: { teammateId?: string }) {
   const { data: state } = useAppState();
   const [open, setOpen] = useState<Kind | null>(null);
   return (
@@ -153,7 +153,7 @@ export function NewAutomationMenu({ botId }: { botId?: string }) {
           })}
         </DropdownMenuContent>
       </DropdownMenu>
-      <NewDialogs open={open} setOpen={setOpen} botId={botId} />
+      <NewDialogs open={open} setOpen={setOpen} teammateId={teammateId} />
     </>
   );
 }
@@ -208,13 +208,16 @@ function Section({
 }
 
 /** A teammate's daily check-in, which only speaks up when something needs you. */
-function CheckIn({ botId, name }: { botId: string; name: string }) {
+function CheckIn({ teammateId, name }: { teammateId: string; name: string }) {
   const { data: schedules } = useSchedules();
   const queryClient = useQueryClient();
   const [pending, startTransition] = useTransition();
   const on = (schedules ?? []).some(
     (row) =>
-      row.teammateId === botId && row.title === DAILY_CHECK_IN.title && row.quiet && row.enabled,
+      row.teammateId === teammateId &&
+      row.title === DAILY_CHECK_IN.title &&
+      row.quiet &&
+      row.enabled,
   );
   return (
     <label
@@ -239,9 +242,7 @@ function CheckIn({ botId, name }: { botId: string; name: string }) {
           aria-label="Daily check-in"
           onCheckedChange={(checked) =>
             startTransition(async () => {
-              const result = await attempt(
-                api.schedules.setCheckIn({ teammateId: botId, on: checked }),
-              );
+              const result = await attempt(api.schedules.setCheckIn({ teammateId, on: checked }));
               if (!result.ok) toast.error(result.error);
               else
                 toast(checked ? "Daily check-in on" : "Daily check-in off", {
@@ -259,16 +260,16 @@ function CheckIn({ botId, name }: { botId: string; name: string }) {
 }
 
 /** Schedules, page watches, webhooks, and mail and calendar triggers, for everyone or one teammate. */
-export function AutomationsView({ botId }: { botId?: string }) {
+export function AutomationsView({ teammateId }: { teammateId?: string }) {
   const { data: schedules, isLoading: loadingSchedules } = useSchedules();
   const { data: triggers, isLoading: loadingTriggers } = useTriggers();
   const { data: state } = useAppState();
   const queryClient = useQueryClient();
   const canRun = useCanRun();
   const [open, setOpen] = useState<Kind | null>(null);
-  const botOf = (id: string) => state?.teammates.find((bot) => bot.id === id);
+  const teammateOf = (id: string) => state?.teammates.find((teammate) => teammate.id === id);
   const mine = <T extends { teammateId: string }>(rows: T[] | undefined) =>
-    (rows ?? []).filter((row) => !botId || row.teammateId === botId);
+    (rows ?? []).filter((row) => !teammateId || row.teammateId === teammateId);
   const scheduleRows = mine(schedules);
   const watches = mine(triggers).filter((row) => row.kind === "watch");
   const webhooks = mine(triggers).filter((row) => row.kind === "webhook");
@@ -291,12 +292,12 @@ export function AutomationsView({ botId }: { botId?: string }) {
   return (
     <div className="flex flex-col gap-9">
       {!canRun && <OfflineBanner />}
-      {botId && (
+      {teammateId && (
         <div className="-mb-3 flex flex-col gap-4">
           <div className="flex justify-end">
-            <NewAutomationMenu botId={botId} />
+            <NewAutomationMenu teammateId={teammateId} />
           </div>
-          <CheckIn botId={botId} name={botOf(botId)?.name ?? "This teammate"} />
+          <CheckIn teammateId={teammateId} name={teammateOf(teammateId)?.name ?? "This teammate"} />
         </div>
       )}
       <Section section="schedule" count={scheduleRows.length} onNew={setOpen}>
@@ -304,7 +305,7 @@ export function AutomationsView({ botId }: { botId?: string }) {
           <ScheduleRow
             key={schedule.id}
             schedule={schedule}
-            bot={botOf(schedule.teammateId)}
+            teammate={teammateOf(schedule.teammateId)}
             refresh={refreshSchedules}
           />
         ))}
@@ -314,7 +315,7 @@ export function AutomationsView({ botId }: { botId?: string }) {
           <TriggerRow
             key={trigger.id}
             trigger={trigger}
-            bot={botOf(trigger.teammateId)}
+            teammate={teammateOf(trigger.teammateId)}
             refresh={refreshTriggers}
           />
         ))}
@@ -324,7 +325,7 @@ export function AutomationsView({ botId }: { botId?: string }) {
           <TriggerRow
             key={trigger.id}
             trigger={trigger}
-            bot={botOf(trigger.teammateId)}
+            teammate={teammateOf(trigger.teammateId)}
             refresh={refreshTriggers}
           />
         ))}
@@ -334,12 +335,12 @@ export function AutomationsView({ botId }: { botId?: string }) {
           <TriggerRow
             key={trigger.id}
             trigger={trigger}
-            bot={botOf(trigger.teammateId)}
+            teammate={teammateOf(trigger.teammateId)}
             refresh={refreshTriggers}
           />
         ))}
       </Section>
-      <NewDialogs open={open} setOpen={setOpen} botId={botId} />
+      <NewDialogs open={open} setOpen={setOpen} teammateId={teammateId} />
     </div>
   );
 }

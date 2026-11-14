@@ -1,9 +1,6 @@
 import type { TeammateActivity } from "@open-bot/domain";
 import { cn } from "@/lib/utils";
 
-/** `paused`: they have work, but it waits for the computer to come back. */
-export type BotActivity = TeammateActivity;
-
 const SIZES = {
   xs: "size-5 rounded-[6px] text-[10px]",
   sm: "size-7 rounded-[8px] text-[12px]",
@@ -35,7 +32,7 @@ function initials(name: string) {
  * The light follows the status signals in globals.css: blue while working, amber when they need you,
  * gray while queued or paused for an offline computer, and nothing at all while idle.
  */
-export function BotAvatar({
+export function TeammateAvatar({
   name,
   color,
   emoji,
@@ -47,7 +44,8 @@ export function BotAvatar({
   color: string;
   emoji?: string;
   size?: keyof typeof SIZES;
-  activity?: BotActivity;
+  /** `paused`: they have work, but it waits for the computer to come back. */
+  activity?: TeammateActivity;
   className?: string;
 }) {
   return (

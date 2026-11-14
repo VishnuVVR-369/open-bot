@@ -15,7 +15,7 @@ test("a teammate's Memory tab explains lessons before there are any", async ({ p
   const name = uniqueName("Tess");
   await createTeammate(page, name);
   const botId = await botIdOf(page, name);
-  await page.goto(`/bots/${botId}?tab=memory`);
+  await page.goto(`/teammates/${botId}?tab=memory`);
   await expect(page.getByRole("tab", { name: "Memory" })).toHaveAttribute("data-state", "active");
   await expect(page.getByTestId("memory-manager")).toContainText(
     `${name}'s saved facts and lessons.`,
@@ -88,7 +88,7 @@ test("@agent rate a reply, teach a lesson, and see it used in a new chat", async
   await expect(page.getByTestId("run").last()).toContainText("PINEAPPLE");
 
   // Forgetting it takes it off the list.
-  await page.goto(`/bots/${botId}?tab=memory`);
+  await page.goto(`/teammates/${botId}?tab=memory`);
   await page
     .getByTestId("memory-item")
     .filter({ hasText: LESSON })
