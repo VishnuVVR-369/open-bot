@@ -105,7 +105,7 @@ export function TimelineItemView({
     case "plan":
       return <PlanCard item={item} />;
     case "approval":
-      return <ApprovalCard item={item} chatId={chatId} botName={teammateName} />;
+      return <ApprovalCard item={item} chatId={chatId} teammateName={teammateName} />;
     case "takeover_request":
       return <TakeoverCard item={item} screenId={teammateId} name={teammateName} />;
     case "handoff":
@@ -115,7 +115,7 @@ export function TimelineItemView({
     case "user_message":
       return <SentIntoTurn item={item} />;
     case "swarm":
-      return <SwarmCard item={item} botName={teammateName} />;
+      return <SwarmCard item={item} teammateName={teammateName} />;
     case "page":
       return <PageCard item={item} />;
     case "error":

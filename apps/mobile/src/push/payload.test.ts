@@ -22,7 +22,7 @@ describe("phone notifications", () => {
       body: "Published “How Kafka works”",
       tag: "r1",
       url: "/pages/p1",
-      botId: "b1",
+      teammateId: "b1",
       chatId: "c1",
       runId: "r1",
       pageId: "p1",
@@ -30,7 +30,7 @@ describe("phone notifications", () => {
     expect(data.pageId).toBe("p1");
     expect(planNotification(data)).toMatchObject({
       url: "/pages/p1",
-      reply: { chatId: "c1", botId: "b1" },
+      reply: { chatId: "c1", teammateId: "b1" },
     });
   });
 
@@ -41,7 +41,7 @@ describe("phone notifications", () => {
         kind: "takeover_request",
         title: "Rex needs you",
         tag: "t1",
-        botId: "b1",
+        teammateId: "b1",
         takeoverId: "t1",
       })!,
     );
@@ -98,6 +98,28 @@ describe("phone notifications", () => {
     expect(reply?.actions).toEqual([]);
   });
 
+  it("offers no Reply when it doesn't say which teammate it's from", () => {
+    // A reply that mentions nobody goes to a group's lead, not to the teammate who wrote. The
+    // older key `botId` doesn't count: this build reads only `teammateId`. vocabulary: allow
+    for (const from of [{}, { botId: "b1" }]) {
+      // vocabulary: allow
+      const plan = planNotification(
+        parsePushData({
+          type: "notification",
+          kind: "run_finished",
+          title: "Rex replied",
+          tag: "r1",
+          chatId: "c1",
+          url: "/chats/c1?run=r1",
+          ...from,
+        })!,
+      );
+      expect(plan?.reply).toBeUndefined();
+      expect(plan?.actions).toEqual([]);
+      expect(plan?.url).toBe("/chats/c1?run=r1");
+    }
+  });
+
   it("lets you reply to a teammate's reply, right from the notification", () => {
     const plan = planNotification(
       parsePushData({
@@ -106,14 +128,14 @@ describe("phone notifications", () => {
         title: "Rex replied",
         tag: "r1",
         chatId: "c1",
-        botId: "b1",
+        teammateId: "b1",
         url: "/chats/c1?run=r1",
       })!,
     );
     expect(plan?.actions).toEqual([
       { id: "reply", title: "Reply", opensApp: false, input: { placeholder: "Reply" } },
     ]);
-    expect(plan?.reply).toEqual({ chatId: "c1", botId: "b1" });
+    expect(plan?.reply).toEqual({ chatId: "c1", teammateId: "b1" });
     const failed = planNotification(
       parsePushData({
         type: "notification",
@@ -121,9 +143,10 @@ describe("phone notifications", () => {
         title: "x",
         tag: "f",
         chatId: "c1",
+        teammateId: "b1",
       })!,
     );
-    expect(failed?.reply).toEqual({ chatId: "c1", botId: null });
+    expect(failed?.reply).toEqual({ chatId: "c1", teammateId: "b1" });
     // Approvals and takeovers are decided, not replied to.
     expect(planNotification(parsePushData(approval)!)?.reply).toBeUndefined();
     const asking = planNotification(

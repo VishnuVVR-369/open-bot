@@ -124,7 +124,7 @@ export function RetryRun({ runId, chatId }: { runId: string; chatId: string }) {
 export function RunActions({
   run,
   chatId,
-  botName,
+  teammateName,
   reply,
   showRow,
   menuOpen,
@@ -132,7 +132,7 @@ export function RunActions({
 }: {
   run: RunView;
   chatId: string;
-  botName: string;
+  teammateName: string;
   reply: string;
   showRow: boolean;
   menuOpen: boolean;
@@ -261,7 +261,7 @@ export function RunActions({
         <Sheet
           open={menuOpen}
           onClose={() => onMenuChange(false)}
-          title={`${botName}'s reply`}
+          title={`${teammateName}'s reply`}
           description={[phoneDayClock(run.createdAt), usage].filter(Boolean).join(" · ")}
           testID="reply-menu"
         >
@@ -321,11 +321,11 @@ export function RunActions({
           open={feedbackOpen}
           onClose={() => setFeedbackOpen(false)}
           runId={run.id}
-          botName={botName}
+          teammateName={teammateName}
           onSent={(remembered) => {
             void refresh();
             if (remembered) {
-              setNote(`${botName} will remember that before every task.`);
+              setNote(`${teammateName} will remember that before every task.`);
               setTimeout(() => setNote(null), 5000);
             }
           }}
@@ -343,13 +343,13 @@ function FeedbackSheet({
   open,
   onClose,
   runId,
-  botName,
+  teammateName,
   onSent,
 }: {
   open: boolean;
   onClose: () => void;
   runId: string;
-  botName: string;
+  teammateName: string;
   onSent: (remembered: boolean) => void;
 }) {
   const colors = useColors();
@@ -390,7 +390,7 @@ function FeedbackSheet({
     <Sheet
       open={open}
       onClose={onClose}
-      title={`What should ${botName} do differently?`}
+      title={`What should ${teammateName} do differently?`}
       focusOnShow={field}
       testID="feedback-sheet"
     >

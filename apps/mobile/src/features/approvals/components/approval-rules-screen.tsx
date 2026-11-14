@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ShieldCheck, X } from "lucide-react-native";
 import { useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
-import { BotAvatar } from "@/features/teammates/components/bot-avatar";
+import { TeammateAvatar } from "@/features/teammates/components/teammate-avatar";
 import { Separator } from "@/components/list-row";
 import { Card } from "@/components/section";
 import { Empty, LoadError, Loading } from "@/components/states";
@@ -31,35 +31,39 @@ export default function ApprovalRules() {
   const colors = useColors();
   const queryClient = useQueryClient();
   const rules = useApprovalRules();
-  const { data: bots = [] } = useTeammates();
+  const { data: teammates = [] } = useTeammates();
   const [removing, setRemoving] = useState<string | null>(null);
 
   const sections = useMemo(() => {
-    const byBot = new Map<string, ApprovalRule[]>();
+    const byTeammate = new Map<string, ApprovalRule[]>();
     for (const rule of rules.data ?? [])
-      byBot.set(rule.teammateId, [...(byBot.get(rule.teammateId) ?? []), rule]);
-    return [...byBot].map(([botId, data]) => ({
-      botId,
-      bot: bots.find((candidate) => candidate.id === botId),
+      byTeammate.set(rule.teammateId, [...(byTeammate.get(rule.teammateId) ?? []), rule]);
+    return [...byTeammate].map(([teammateId, data]) => ({
+      teammateId,
+      teammate: teammates.find((candidate) => candidate.id === teammateId),
       data,
     }));
-  }, [rules.data, bots]);
+  }, [rules.data, teammates]);
 
-  const remove = (rule: ApprovalRule, botName: string) =>
-    Alert.alert("Ask about this again?", `${botName} will ask you before doing it next time.`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Remove",
-        style: "destructive",
-        onPress: async () => {
-          setRemoving(rule.id);
-          const result = await safe(api.approvals.removeRule({ ruleId: rule.id }));
-          setRemoving(null);
-          if (result.error) Alert.alert("Couldn't remove it", errorMessage(result.error));
-          void queryClient.invalidateQueries({ queryKey: queryKeys.approvalRules });
+  const remove = (rule: ApprovalRule, teammateName: string) =>
+    Alert.alert(
+      "Ask about this again?",
+      `${teammateName} will ask you before doing it next time.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: async () => {
+            setRemoving(rule.id);
+            const result = await safe(api.approvals.removeRule({ ruleId: rule.id }));
+            setRemoving(null);
+            if (result.error) Alert.alert("Couldn't remove it", errorMessage(result.error));
+            void queryClient.invalidateQueries({ queryKey: queryKeys.approvalRules });
+          },
         },
-      },
-    ]);
+      ],
+    );
 
   if (rules.isLoading) return <Loading />;
   if (rules.error && !rules.data)
@@ -79,17 +83,17 @@ export default function ApprovalRules() {
           Teammates do these without asking. Remove one to be asked again.
         </Text>
         {sections.map((section) => {
-          const botName = section.bot?.name ?? "Former teammate";
+          const teammateName = section.teammate?.name ?? "Former teammate";
           return (
-            <View key={section.botId} style={{ gap: space(2.5) }}>
+            <View key={section.teammateId} style={{ gap: space(2.5) }}>
               <View style={styles.head}>
-                <BotAvatar
-                  name={section.bot?.name ?? "?"}
-                  color={section.bot?.color ?? colors.mutedForeground}
-                  emoji={section.bot?.emoji}
+                <TeammateAvatar
+                  name={section.teammate?.name ?? "?"}
+                  color={section.teammate?.color ?? colors.mutedForeground}
+                  emoji={section.teammate?.emoji}
                   size="sm"
                 />
-                <Text variant="label">{botName}</Text>
+                <Text variant="label">{teammateName}</Text>
               </View>
               <Card>
                 {section.data.map((rule, index) => (
@@ -114,7 +118,7 @@ export default function ApprovalRules() {
                         </View>
                       ) : (
                         <Pressable
-                          onPress={() => remove(rule, section.bot?.name ?? "This teammate")}
+                          onPress={() => remove(rule, section.teammate?.name ?? "This teammate")}
                           android_ripple={{ color: colors.muted, borderless: true, radius: 22 }}
                           style={styles.remove}
                           accessibilityRole="button"

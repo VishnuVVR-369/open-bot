@@ -3,11 +3,11 @@ import { router } from "expo-router";
 import { Pressable, StyleSheet, View } from "react-native";
 import {
   activityText,
-  BotAvatar,
-  botActivity,
+  TeammateAvatar,
+  teammateActivity,
   LeadBadge,
   StatusLine,
-} from "@/features/teammates/components/bot-avatar";
+} from "@/features/teammates/components/teammate-avatar";
 import { Card, Section } from "@/components/section";
 import { Text } from "@/components/text";
 import { conversationWith } from "@/features/chat/chats";
@@ -22,36 +22,36 @@ import { rankTeammates } from "@/features/home/home";
  * the web and the Computer tab). When you last talked is on the right.
  */
 function TeammateRow({
-  bot,
+  teammate,
   chat,
   first,
   computerOffline,
   onPress,
 }: {
-  bot: TeammateSummary;
+  teammate: TeammateSummary;
   chat: ChatSummary | undefined;
   first: boolean;
   computerOffline: boolean;
   onPress: () => void;
 }) {
   const colors = useColors();
-  const activity = botActivity(bot, computerOffline);
+  const activity = teammateActivity(teammate, computerOffline);
   const unread = Boolean(chat?.unread);
-  const state = activityText(activity, bot.activeRun?.waitingFor);
+  const state = activityText(activity, teammate.activeRun?.waitingFor);
   return (
     <Pressable
       onPress={onPress}
       onLongPress={() => {
         haptics.press();
-        router.push(`/teammates/${bot.id}`);
+        router.push(`/teammates/${teammate.id}`);
       }}
       accessibilityRole="button"
-      accessibilityHint={`Hold to see ${bot.name}'s profile`}
+      accessibilityHint={`Hold to see ${teammate.name}'s profile`}
       accessibilityLabel={[
-        bot.name,
-        bot.isLead ? "lead" : null,
+        teammate.name,
+        teammate.isLead ? "lead" : null,
         state,
-        bot.role,
+        teammate.role,
         unread ? "unread" : null,
       ]
         .filter(Boolean)
@@ -63,7 +63,7 @@ function TeammateRow({
       ]}
       testID="teammate"
     >
-      <BotAvatar {...bot} size="lg" activity={activity} />
+      <TeammateAvatar {...teammate} size="lg" activity={activity} />
       <View style={{ flex: 1, gap: 2 }}>
         <View style={styles.nameRow}>
           <Text
@@ -71,11 +71,11 @@ function TeammateRow({
             numberOfLines={1}
             style={[{ flexShrink: 1, fontSize: 16 }, unread && { fontWeight: "700" }]}
           >
-            {bot.name}
+            {teammate.name}
           </Text>
-          {bot.isLead && <LeadBadge />}
+          {teammate.isLead && <LeadBadge />}
           <Text variant="small" muted numberOfLines={1} style={{ flexShrink: 1 }}>
-            {bot.role}
+            {teammate.role}
           </Text>
           {chat && (
             <Text
@@ -89,7 +89,7 @@ function TeammateRow({
         </View>
         <View style={styles.previewRow}>
           <View style={{ flex: 1 }}>
-            <StatusLine activity={activity} waitingFor={bot.activeRun?.waitingFor} />
+            <StatusLine activity={activity} waitingFor={teammate.activeRun?.waitingFor} />
           </View>
           {unread && <View style={[styles.unread, { backgroundColor: colors.foreground }]} />}
         </View>
@@ -108,24 +108,25 @@ export function Teammates({
   computerOffline: boolean;
 }) {
   const newChat = useNewDirectChat();
-  const open = (bot: TeammateSummary) => {
+  const open = (teammate: TeammateSummary) => {
     haptics.tap();
-    const chatId = bot.activeRun?.chatId ?? conversationWith(bot, chats)?.id ?? bot.directChatId;
+    const chatId =
+      teammate.activeRun?.chatId ?? conversationWith(teammate, chats)?.id ?? teammate.directChatId;
     if (chatId) router.push(`/chats/${chatId}`);
-    else newChat.mutate(bot.id);
+    else newChat.mutate(teammate.id);
   };
   const sorted = rankTeammates(teammates, chats);
   return (
     <Section title="Teammates">
       <Card>
-        {sorted.map((bot, index) => (
+        {sorted.map((teammate, index) => (
           <TeammateRow
-            key={bot.id}
-            bot={bot}
-            chat={conversationWith(bot, chats)}
+            key={teammate.id}
+            teammate={teammate}
+            chat={conversationWith(teammate, chats)}
             first={index === 0}
             computerOffline={computerOffline}
-            onPress={() => open(bot)}
+            onPress={() => open(teammate)}
           />
         ))}
       </Card>

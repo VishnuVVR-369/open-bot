@@ -34,7 +34,7 @@ function StateIcon({ state }: { state: SwarmTaskState }) {
 }
 
 /** A job split across helpers working at once: how far along it is, and a way to stop it. */
-export function SwarmCard({ item, botName }: { item: SwarmItem; botName: string }) {
+export function SwarmCard({ item, teammateName }: { item: SwarmItem; teammateName: string }) {
   const colors = useColors();
   const [stopping, setStopping] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -47,7 +47,7 @@ export function SwarmCard({ item, botName }: { item: SwarmItem; botName: string 
   const stop = () =>
     Alert.alert(
       "Stop the swarm?",
-      `Every helper stops now, and ${botName} won't get their results. What they finished stays in their chats.`,
+      `Every helper stops now, and ${teammateName} won't get their results. What they finished stays in their chats.`,
       [
         { text: "Keep going", style: "cancel" },
         {
@@ -80,7 +80,7 @@ export function SwarmCard({ item, botName }: { item: SwarmItem; botName: string 
               ? `${total} helpers at once · ${done} of ${total} done`
               : item.state === "stopped"
                 ? `You stopped it · ${done} of ${total} finished`
-                : `${total} helpers finished · ${botName} merged their results`}
+                : `${total} helpers finished · ${teammateName} merged their results`}
           </Text>
         </View>
         {running &&

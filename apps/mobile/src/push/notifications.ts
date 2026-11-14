@@ -64,11 +64,13 @@ export async function handlePushData(data: PushData): Promise<void> {
     data: {
       url: plan.url,
       ...(data.takeoverId ? { takeoverId: data.takeoverId } : {}),
-      ...(data.botId ? { screenId: data.botId } : {}),
+      ...(data.teammateId ? { screenId: data.teammateId } : {}),
       ...(data.chatId ? { chatId: data.chatId } : {}),
       ...(plan.approvalId ? { approvalId: plan.approvalId } : {}),
       ...(plan.reply ? { replyChatId: plan.reply.chatId } : {}),
-      ...(plan.reply?.botId ? { replyBotId: plan.reply.botId } : {}),
+      // A key the phone keeps with each shown notification, so ones shown before an update
+      // still reply to their teammate.
+      ...(plan.reply ? { replyBotId: plan.reply.teammateId } : {}), // vocabulary: allow
     },
     android: {
       channelId: plan.channel,
@@ -87,7 +89,7 @@ export async function handlePushData(data: PushData): Promise<void> {
               {
                 text: plan.body,
                 timestamp: Date.now(),
-                person: { name: plan.title, id: data.botId, bot: true },
+                person: { name: plan.title, id: data.teammateId, bot: true }, // vocabulary: allow (Notifee's)
               },
             ],
           }
@@ -139,18 +141,23 @@ async function decide(approvalId: string, decision: ApprovalDecision): Promise<D
 /** Send what was typed into a notification's Reply, to the teammate the notification is from. */
 async function sendReply(notification: Notification, text: string): Promise<void> {
   const chatId = notification.data?.replyChatId;
-  const botId = notification.data?.replyBotId;
+  const teammateId = notification.data?.replyBotId; // vocabulary: allow (a stored key)
   // Nothing typed: the notification stays as it was.
   if (!notification.id || typeof chatId !== "string" || !text.trim()) return;
-  const result = await safe(
-    api.chats.send({
-      clientId: Crypto.randomUUID(),
-      chatId,
-      text,
-      attachments: [],
-      mentions: typeof botId === "string" ? [botId] : [],
-    }),
-  );
+  // Without its teammate the reply would mention nobody, and a group's lead would get it instead:
+  // it isn't sent, and the notification says to open the chat.
+  const result =
+    typeof teammateId === "string" && teammateId
+      ? await safe(
+          api.chats.send({
+            clientId: Crypto.randomUUID(),
+            chatId,
+            text,
+            attachments: [],
+            mentions: [teammateId],
+          }),
+        )
+      : { error: new Error("The notification doesn't say who it's from.") };
   const sent = !result.error;
   const outcome = replyText(sent);
   await notifee.displayNotification({

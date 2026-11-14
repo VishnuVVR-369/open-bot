@@ -143,7 +143,8 @@ describe.skipIf(!url)("FCM fan-out", () => {
       body: "Buy the flight for $420",
       tag: "a1",
       url: "/approvals/a1",
-      botId: "b1", // The push payload key, renamed with the phone. vocabulary: allow
+      teammateId: "b1",
+      botId: "b1", // Temporary, for phones on the old build. vocabulary: allow
       chatId: "c1",
       runId: "r1",
       approvalId: "a1",

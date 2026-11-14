@@ -37,11 +37,11 @@ import { mix } from "@/theme/mix";
 export function ApprovalCard({
   item,
   chatId,
-  botName,
+  teammateName,
 }: {
   item: ApprovalItem;
   chatId: string;
-  botName: string;
+  teammateName: string;
 }) {
   const colors = useColors();
   const { decide, deciding } = useDecideApproval();
@@ -142,7 +142,7 @@ export function ApprovalCard({
           {/* Who's asking, with what's worth a second look beside it, as on the web. */}
           <View style={styles.ask}>
             <Text variant="small" style={{ color: colors.attentionInk, fontWeight: "600" }}>
-              {botName} needs your approval
+              {teammateName} needs your approval
             </Text>
             {risk && <RiskChip risk={risk} />}
           </View>
@@ -231,7 +231,7 @@ export function ApprovalCard({
           onClose={() => setAllowing(false)}
           kind={rule.kind}
           subject={item.subject ?? ""}
-          botName={botName}
+          teammateName={teammateName}
           onConfirm={(pattern) => onDecide("approved", pattern)}
         />
       )}
