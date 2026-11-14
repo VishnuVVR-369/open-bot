@@ -237,12 +237,14 @@ Routes marked ☀ work on the computer: the worker wakes the computer for them, 
 | `POST /screens/start` ☀         | Start a screen without using it                                                                              |
 | `POST /screens/forget` ☀        | Stop a screen and delete its profile                                                                         |
 | `POST /lease/run/release` ☀     | Release a run's lease when it ends                                                                           |
-| `POST /lease/user/take` ☀       | Give you a screen's lease, preempting a run; `409` while a code is being typed                               |
-| `POST /lease/user/release` ☀    | Release your lease (`handed_back`, `user_idle`, `user_disconnected`)                                         |
-| `POST /lease/user/touch` ☀      | Record your input                                                                                            |
+| `POST /lease/owner/take` ☀      | Give you a screen's lease, preempting a run; `409` while a code is being typed                               |
+| `POST /lease/owner/release` ☀   | Release your lease (`handed_back`, `user_idle`, `user_disconnected`)                                         |
+| `POST /lease/owner/touch` ☀     | Record your input                                                                                            |
 | `POST /pages/check` ☀           | `{ path }`: check a page in a headless browser; see [The checker](/docs/architecture/pages#the-checker)      |
 
 Errors from `/computer/fill` and `/computer/type` never repeat their input, which carries a secret.
+Your lease's routes were `/lease/user/*` until the run lease renamed `botId` and `botName` to `teammateId` and `teammateName`.
+They moved with that rename, so a worker and a computer on different versions get `404` before a screen changes hands, instead of botd handing you the screen and the worker failing on its answer.
 
 | Websocket            | Purpose                                                |
 | -------------------- | ------------------------------------------------------ |

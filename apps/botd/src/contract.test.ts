@@ -218,6 +218,38 @@ describe("botd contract", () => {
     expect(screens.ensure).not.toHaveBeenCalled();
   });
 
+  it("refuses your lease's old routes with 404 and leaves the screen with its run", async () => {
+    // A worker from before the run lease's rename calls these paths. If botd gave it the screen,
+    // the worker couldn't read the run it took it from, and that run would never hear it back.
+    const { botd, url, running } = await start();
+    const screenId = randomUUID();
+    await botd.screens.start({ screenId });
+    const run = { runId: randomUUID(), teammateId: screenId, teammateName: "Ada" };
+    const lease = running.get(screenId)!.lease;
+    expect(await lease.acquireForRun(run)).toBe("ok");
+    const held = lease.holder;
+    const preempted = vi.fn();
+    lease.on("preempted", preempted);
+    for (const path of ["/lease/user/take", "/lease/user/touch", "/lease/user/release"]) {
+      const response = await fetch(`${url}${path}`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${TOKEN}`, "content-type": "application/json" },
+        body: JSON.stringify({ screenId }),
+      });
+      expect(response.status, path).toBe(404);
+      expect(await response.json(), path).toEqual({ error: "not found", code: "NOT_FOUND" });
+    }
+    expect(lease.holder).toEqual(held);
+    expect(preempted).not.toHaveBeenCalled();
+    // The routes a matching worker calls still hand the run over to you.
+    expect((await botd.leases.take({ screenId })).previous).toMatchObject({
+      kind: "run",
+      runId: run.runId,
+      teammateId: screenId,
+    });
+    expect(preempted).toHaveBeenCalledTimes(1);
+  });
+
   it("never echoes or logs a one-time code", async () => {
     const { botd, screens, log } = await start();
     const input = {
@@ -265,11 +297,11 @@ describe("botd contract", () => {
         body: JSON.stringify(body),
       });
     const screenId = randomUUID();
-    expect(await (await post("/lease/user/take", { screenId })).json()).toMatchObject({
+    expect(await (await post("/lease/owner/take", { screenId })).json()).toMatchObject({
       previous: null,
     });
     // `reason` and `clearCode` were optional, and still are.
-    expect(await (await post("/lease/user/release", { screenId })).json()).toEqual({
+    expect(await (await post("/lease/owner/release", { screenId })).json()).toEqual({
       released: true,
     });
     const refused = await post("/lifecycle/ensure", { owner: "worker" });

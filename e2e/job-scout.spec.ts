@@ -66,14 +66,14 @@ test("the browser blocks job applications unless you have the screen", async ({ 
 
     // While you have the screen, it's yours to apply from.
     await botdPost("/lease/run/release", { runId: run.runId });
-    await botdPost("/lease/user/take", { screenId: run.teammateId });
+    await botdPost("/lease/owner/take", { screenId: run.teammateId });
     await expect
       .poll(() => portal.seen.applications.length, { timeout: 15_000 })
       .toBeGreaterThan(0);
-    await botdPost("/lease/user/release", { screenId: run.teammateId });
+    await botdPost("/lease/owner/release", { screenId: run.teammateId });
   } finally {
     await botdPost("/lease/run/release", { runId: run.runId });
-    await botdPost("/lease/user/release", { screenId: run.teammateId });
+    await botdPost("/lease/owner/release", { screenId: run.teammateId });
     await portal.stop();
   }
 });

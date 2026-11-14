@@ -77,13 +77,13 @@ async function rejection(promise: Promise<unknown>): Promise<BotdError> {
 describe("ComputerClient", () => {
   it("sends the token and the contract's body, and returns the validated answer", async () => {
     const botd = await standIn({
-      "POST /lease/user/release": { body: { released: true, extra: "dropped" } },
+      "POST /lease/owner/release": { body: { released: true, extra: "dropped" } },
     });
     const computer = new ComputerClient(botd.url, "secret", logger());
     expect(await computer.releaseByUser(SCREEN, "user_idle")).toEqual({ released: true });
     expect(botd.requests).toEqual([
       {
-        route: "POST /lease/user/release",
+        route: "POST /lease/owner/release",
         body: { screenId: SCREEN, reason: "user_idle", clearCode: false },
         authorization: "Bearer secret",
       },
@@ -93,7 +93,7 @@ describe("ComputerClient", () => {
   it("keeps botd's status and message, including `{ error }` from a botd older than the contract", async () => {
     const botd = await standIn({
       "POST /lifecycle/quiesce": { status: 409, body: { error: 'Computer busy: {"demand":1}' } },
-      "POST /lease/user/take": {
+      "POST /lease/owner/take": {
         status: 409,
         body: { error: "Code entry is in progress.", code: "CONFLICT" },
       },
@@ -125,7 +125,7 @@ describe("ComputerClient", () => {
 
   it("wakes the computer for work on it, but never for a status read or a lifecycle call", async () => {
     const botd = await standIn({
-      "POST /lease/user/touch": { body: { holder: null } },
+      "POST /lease/owner/touch": { body: { holder: null } },
       "GET /health": { body: HEALTH },
       "GET /healthz": { body: { ok: true } },
       "POST /lifecycle/lease": { body: { version: 1, enabled: true, phase: "awake" } },
@@ -150,7 +150,7 @@ describe("ComputerClient", () => {
     } as unknown as ComputerLifecycle;
     await computer.touchUser(SCREEN);
     expect(run).toHaveBeenCalledTimes(1);
-    expect(run.mock.calls[0]![0]).toBe("/lease/user/touch");
+    expect(run.mock.calls[0]![0]).toBe("/lease/owner/touch");
     await computer.botd.healthz();
     await computer.botd.lifecycle.lease({ owner: "worker", demand: 1 });
     await computer.botd.health();
@@ -170,7 +170,7 @@ describe("ComputerClient", () => {
     const old = { kind: "run", runId: "run-1", ...named, since, lastActionAt: since };
     const owner = { kind: "user", since, lastInputAt: since };
     const botd = await standIn({
-      "POST /lease/user/take": { body: { previous: old, holder: owner } },
+      "POST /lease/owner/take": { body: { previous: old, holder: owner } },
     });
     const log = logger();
     const computer = new ComputerClient(botd.url, "secret", log);

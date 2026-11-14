@@ -69,7 +69,9 @@ export class TakeoverService {
       if (isOwnerLease(previous) && !isOwnerLease(holder) && !this.handingBack.has(screenId)) {
         const endReason: TakeoverEndReason =
           reason === "user_idle" || reason === "user_disconnected" ? reason : "handed_back";
-        void this.finishActive(screenId, null, endReason).catch((error: unknown) =>
+        // Keep a note a hand-back saved before botd refused it, like while the computer ran
+        // another version: when the computer restarts, the lease ends here instead.
+        void this.finishActive(screenId, undefined, endReason).catch((error: unknown) =>
           ctx.log.error("could not finish a takeover", { error: errorMessage(error) }),
         );
       }
@@ -268,9 +270,10 @@ export class TakeoverService {
     await publishApp(this.ctx, { type: "takeovers" });
   }
 
+  /** Ends the screen's active takeovers. `note` undefined keeps the note each one has saved. */
   private async finishActive(
     screenId: string,
-    note: string | null,
+    note: string | null | undefined,
     reason: TakeoverEndReason,
   ): Promise<void> {
     await this.ctx.db.transaction(async (tx) => {
@@ -278,7 +281,12 @@ export class TakeoverService {
       const continuationRunId = randomUUID();
       const ended = await tx
         .update(screenTakeovers)
-        .set({ status: "ended", endedAt: new Date(), note, endReason: reason })
+        .set({
+          status: "ended",
+          endedAt: new Date(),
+          ...(note !== undefined && { note }),
+          endReason: reason,
+        })
         .where(and(eq(screenTakeovers.status, "active"), eq(screenTakeovers.screenId, screenId)))
         .returning();
       for (const row of ended)

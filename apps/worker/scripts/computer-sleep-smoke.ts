@@ -196,8 +196,8 @@ try {
       call(`/internal/screens/${teammateId}/wake`, {}),
       call(`/internal/screens/${second.teammateId}/wake`, {}),
     ]);
-    await call("/lease/user/take", { screenId: teammateId }, true);
-    await call("/lease/user/take", { screenId: second.teammateId }, true);
+    await call("/lease/owner/take", { screenId: teammateId }, true);
+    await call("/lease/owner/take", { screenId: second.teammateId }, true);
     memory("two leased screens");
     const queued = new AbortController();
     const thirdStart = fetch(`${worker}/internal/screens/${third.teammateId}/wake`, {
@@ -230,8 +230,8 @@ try {
     await delay(1_000);
     memory("two screens plus page checker");
     for (const checked of await checks) assert.equal(checked.ok, true);
-    await call("/lease/user/release", { screenId: teammateId }, true);
-    await call("/lease/user/release", { screenId: second.teammateId }, true);
+    await call("/lease/owner/release", { screenId: teammateId }, true);
+    await call("/lease/owner/release", { screenId: second.teammateId }, true);
     await idle();
     (result.assertions as string[]).push(
       "two leased screens plus one page checker",
