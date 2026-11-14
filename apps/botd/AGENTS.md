@@ -10,7 +10,8 @@ Tunnel framing and IP policy live in `packages/egress`.
 - `apps/botd/src/env.ts`: `readEnv()`, the only place botd reads the environment.
 - `apps/botd/src/server.ts`: the HTTP server (token check) and the WebSockets: `/events`, the Codex bridge, `/egress` and `/vnc`.
 - `apps/botd/src/router.ts`: the HTTP API, implementing `botdContract` (`packages/api/src/botd/contract.ts`); `apps/botd/src/rpc.ts` counts activity and turns errors into statuses.
-- `apps/botd/src/screens.ts`, `apps/botd/src/lease.ts`, `apps/botd/src/desktop.ts`, `apps/botd/src/cdp.ts`: screens, input leases, display and browser control.
+- `apps/botd/src/screens.ts`, `apps/botd/src/lease.ts`, `apps/botd/src/desktop.ts`, `apps/botd/src/cdp.ts`: one screen, input leases, display and browser control.
+- `apps/botd/src/screen-manager.ts`: `ScreenManager`, which starts screens within `MAX_SCREENS` (stopping idle ones to make room) and stops unused ones.
 - `apps/botd/src/lifecycle.ts`: `ComputeLifecycle`, the sleep and quiesce state machine.
 - `apps/botd/src/supervisor.ts`, `apps/botd/src/pages.ts`, `apps/botd/src/cookies.ts`: process restarts, page preview and checks, shared cookie jar.
 - Phone and desktop egress: botd runs `EgressRouter` from `packages/egress/src/router.ts` (`@open-bot/egress/router`).

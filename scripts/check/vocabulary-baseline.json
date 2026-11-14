@@ -24,7 +24,7 @@
     "bot": 1
   },
   "apps/botd/src/screens.ts": {
-    "bot": 14
+    "bot": 8
   },
   "apps/botd/src/server-lifecycle.test.ts": {
     "bot": 2
