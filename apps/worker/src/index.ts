@@ -27,7 +27,7 @@ import { computerFiles, UploadService } from "./uploads";
 import { TaskService } from "./features/tasks";
 import { ConnectionService } from "./services/connections";
 import { emailFeature, EmailService } from "./features/email";
-import { SwarmService } from "./services/swarms";
+import { SwarmService } from "./features/teamwork";
 import { VaultService } from "./features/vault";
 import { createLogger, errorMessage } from "./logger";
 import { RunExecutor } from "./runs/executor";

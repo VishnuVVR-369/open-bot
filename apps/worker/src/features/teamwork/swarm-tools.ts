@@ -2,9 +2,13 @@
 import { MAX_SWARM_TASKS } from "@open-bot/domain";
 
 import { z } from "zod";
-import type { RunSession } from "../runs/session";
-import { SwarmError } from "../services/swarms";
-import { defineTool, text, type AnyTool, type ToolDeps, type ToolResponse } from "./define";
+import type { RunSession } from "../../runs/session";
+import { SwarmError, type SwarmService } from "./service";
+import { defineTool, text, type ToolDefinition, type ToolResponse } from "../../core/tool";
+
+interface SwarmToolDeps {
+  swarms: SwarmService;
+}
 
 const startSwarmInput = z.object({
   title: z
@@ -29,7 +33,7 @@ const startSwarmInput = z.object({
     .max(MAX_SWARM_TASKS, `A swarm can have up to ${MAX_SWARM_TASKS} parts.`),
 });
 
-export const SWARM_TOOLS: AnyTool[] = [
+export const SWARM_TOOLS: ToolDefinition<z.ZodObject, SwarmToolDeps>[] = [
   defineTool({
     name: "start_swarm",
     description: `Split a big job into parts that helpers work on at the same time, each with its own screen and browser: comparing many options, researching several vendors, checking a list of sites. Each helper is you, working on one part. Use it when the parts are independent and each takes real work; not for quick lookups. Up to ${MAX_SWARM_TASKS} parts. End your turn after starting it: you get every helper's result in one message, then merge them.`,
@@ -40,7 +44,7 @@ export const SWARM_TOOLS: AnyTool[] = [
 ];
 
 async function startSwarm(
-  deps: ToolDeps,
+  deps: SwarmToolDeps,
   session: RunSession,
   callId: string,
   args: z.output<typeof startSwarmInput>,

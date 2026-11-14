@@ -724,6 +724,12 @@
   "apps/worker/src/features/teammates/tools.ts": {
     "bot": 66
   },
+  "apps/worker/src/features/teamwork/service.ts": {
+    "bot": 10
+  },
+  "apps/worker/src/features/teamwork/tools.ts": {
+    "bot": 29
+  },
   "apps/worker/src/features/telegram/service.ts": {
     "bot": 67,
     "primary teammate": 1
@@ -789,9 +795,6 @@
   "apps/worker/src/services/retries.ts": {
     "bot": 9
   },
-  "apps/worker/src/services/swarms.ts": {
-    "bot": 10
-  },
   "apps/worker/src/tools/bots.integration.test.ts": {
     "bot": 129,
     "primary teammate": 1
@@ -804,9 +807,6 @@
   },
   "apps/worker/src/tools/handlers.ts": {
     "bot": 4
-  },
-  "apps/worker/src/tools/teamwork.ts": {
-    "bot": 29
   },
   "apps/worker/src/uploads.integration.test.ts": {
     "bot": 7

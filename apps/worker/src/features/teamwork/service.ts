@@ -6,15 +6,15 @@ import {
   type SwarmTaskState,
 } from "@open-bot/domain";
 import { and, asc, eq, inArray } from "drizzle-orm";
-import { publishApp, signalWorker, type Context } from "../context";
-import { enqueueRun } from "../runs/queue";
-import { appendRunEvent } from "../runs/events";
-import { requestRunsCancel } from "../runs/cancel";
-import { addChat } from "../features/chat";
-import { errorMessage } from "../logger";
-import type { RunSession } from "../runs/session";
-import type { SessionRegistry } from "./registry";
-import { WorkerError } from "../core/errors";
+import { publishApp, signalWorker, type Context } from "../../context";
+import { enqueueRun } from "../../runs/queue";
+import { appendRunEvent } from "../../runs/events";
+import { requestRunsCancel } from "../../runs/cancel";
+import { addChat } from "../chat";
+import { errorMessage } from "../../logger";
+import type { RunSession } from "../../runs/session";
+import type { SessionRegistry } from "../../services/registry";
+import { WorkerError } from "../../core/errors";
 
 type Swarm = typeof swarms.$inferSelect;
 type Task = typeof swarmTasks.$inferSelect;

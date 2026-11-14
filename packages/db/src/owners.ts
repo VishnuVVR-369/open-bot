@@ -81,8 +81,8 @@ export const TABLE_OWNERS = {
   message_dispatches: { owner: `${WORKER}runs/` },
   usage_entries: { owner: `${WORKER}runs/` },
   artifacts: { owner: `${WORKER}features/screens/tools.ts` },
-  swarms: { owner: `${WORKER}services/swarms.ts` },
-  swarm_tasks: { owner: `${WORKER}services/swarms.ts` },
+  swarms: { owner: `${WORKER}features/teamwork/service.ts` },
+  swarm_tasks: { owner: `${WORKER}features/teamwork/service.ts` },
   notifications: { owner: `${WORKER}features/notifications/service.ts` },
 
   // Pages.

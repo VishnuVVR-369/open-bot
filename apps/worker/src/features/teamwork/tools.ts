@@ -2,18 +2,22 @@
 import { runs } from "@open-bot/db";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { enqueueRun } from "../runs/queue";
-import type { RunSession } from "../runs/session";
-import { activeTeammates } from "../features/teammates";
-import { mainChat } from "../features/chat";
+import type { Context } from "../../context";
+import { enqueueRun } from "../../runs/queue";
+import type { RunSession } from "../../runs/session";
+import { activeTeammates } from "../teammates";
+import { mainChat } from "../chat";
 import {
   defineTool,
   text,
-  type AnyTool,
-  type ToolDeps,
+  type ToolDefinition,
   type ToolResponse,
   toolItem,
-} from "./define";
+} from "../../core/tool";
+
+interface TeamworkToolDeps {
+  ctx: Context;
+}
 
 const askTeammateInput = z.object({
   bot: z.string().describe("The teammate's name."),
@@ -30,7 +34,7 @@ const handoffInput = z.object({
   message: z.string().min(1).max(4000).describe("What they should do, with any context they need."),
 });
 
-export const TEAMWORK_TOOLS: AnyTool[] = [
+export const TEAMWORK_TOOLS: ToolDefinition<z.ZodObject, TeamworkToolDeps>[] = [
   defineTool({
     name: "ask_teammate",
     description:
@@ -53,7 +57,7 @@ const MAX_HANDOFF_DEPTH = 6;
 
 /** The bots in the chain of handoffs and questions that led to this run, including its own. */
 async function chainOf(
-  deps: ToolDeps,
+  deps: TeamworkToolDeps,
   session: RunSession,
 ): Promise<{ bots: Set<string>; depth: number }> {
   const chain = new Set<string>([session.bot.id]);
@@ -73,7 +77,7 @@ async function chainOf(
 }
 
 async function askTeammate(
-  deps: ToolDeps,
+  deps: TeamworkToolDeps,
   session: RunSession,
   callId: string,
   args: z.output<typeof askTeammateInput>,
@@ -117,7 +121,7 @@ async function askTeammate(
 }
 
 async function handoff(
-  deps: ToolDeps,
+  deps: TeamworkToolDeps,
   session: RunSession,
   callId: string,
   args: z.output<typeof handoffInput>,

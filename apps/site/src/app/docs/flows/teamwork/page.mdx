@@ -100,7 +100,7 @@ Some jobs are many independent pieces: checking a price at six shops, researchin
 ### Starting
 
 The lead calls `start_swarm` with a title and 2 to 6 parts, each with a title and self-contained instructions.
-`SwarmService` (`apps/worker/src/services/swarms.ts`):
+`SwarmService` (`apps/worker/src/features/teamwork/`):
 
 1. refuses if a helper tries to start a swarm, or the teammate already has one running;
 2. inserts a `swarms` row and a `swarm_tasks` row per part;
