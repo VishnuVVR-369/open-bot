@@ -46,13 +46,20 @@ open-bot belongs to one person, and the web app enforces it.
 
 Every protected surface checks the session itself:
 
-| Surface                                            | Check                                                                                                  |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Middleware (`src/proxy.ts`)                        | Redirects to `/login` when there is no session cookie. It's an optimistic check only.                  |
-| Pages                                              | `requireUser()` verifies the session and redirects to `/login`, or to `/setup` if no owner exists yet. |
-| Read and upload routes                             | `authed()` returns `401` without a session, and maps worker errors to their status.                    |
-| RPC handler                                        | Its middleware verifies the session before invoking a procedure.                                       |
-| `/api/hooks/[token]`, `/api/inbound/email/[token]` | Public on purpose. The secret token in the URL is the credential.                                      |
+| Surface                                            | Check                                                                                                                           |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Middleware (`src/proxy.ts`)                        | Redirects to `/login?next=<the page>` when there is no session cookie. It's an optimistic check only.                           |
+| Pages                                              | `requireUser()` verifies the session and redirects to `/login`, or to `/setup` if no owner exists yet, with the page in `next`. |
+| Read and upload routes                             | `authed()` returns `401` without a session, and maps worker errors to their status.                                             |
+| RPC handler                                        | Its middleware verifies the session before invoking a procedure.                                                                |
+| `/api/hooks/[token]`, `/api/inbound/email/[token]` | Public on purpose. The secret token in the URL is the credential.                                                               |
+
+Signing in returns you to the page you asked for, with its query.
+The middleware puts the page in `next`, and also sets it on the request as `x-open-bot-requested-page`, since `requireUser()` runs in a layout, which isn't given the URL.
+A tab that finds itself signed out (a read or write answering 401, or an upload) goes to sign in the same way, keeping the page's hash too.
+After a password, passkey or first-time setup sign-in, the form goes to `next`.
+A passkey sign-in from "Forgot password?" goes to setting a new password instead, since that is what it's for and the passkey allows it for only 10 minutes.
+`safeNext()` in `src/lib/sign-in-return.ts` checks every `next`, and answers `/` for anything that isn't a page of this app (see [Security](/docs/security#authentication)).
 
 ## Calling the worker
 
