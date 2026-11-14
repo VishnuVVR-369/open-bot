@@ -112,6 +112,8 @@ export class ScreenManager extends EventEmitter<{
       pending = this.startScreen(id, abort.signal).finally(() => {
         this.starting.delete(id);
         this.startingWaiters.delete(id);
+        // Started, or failed and left a screen to stop: either way it may be the one to stop now.
+        this.wake();
       });
       this.starting.set(id, pending);
     }
@@ -149,7 +151,7 @@ export class ScreenManager extends EventEmitter<{
 
   /**
    * Let every start waiting for a slot recheck: called whenever a slot frees or a screen may have
-   * become idle (a stop settled, a lease changed hands, a claim ended, a download finished).
+   * become idle (a start or stop settled, a lease changed hands, a claim ended, a download finished).
    */
   private wake(): void {
     for (const waiter of [...this.waiters]) waiter();
