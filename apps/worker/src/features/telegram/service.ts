@@ -40,6 +40,9 @@ export class TelegramError extends WorkerError {
   }
 }
 
+/** Telegram's answers to an edit that has nothing to do: already made, or the message is gone. */
+const EXPECTED_EDIT_REFUSAL = /message is not modified|message to edit not found/i;
+
 interface TgUser {
   id: number;
   first_name: string;
@@ -109,7 +112,11 @@ export class TelegramService {
       );
     });
     ctx.events.on("approvalDecided", (approvalId) => {
-      void this.approvalDecided(approvalId).catch(() => {});
+      void this.approvalDecided(approvalId).catch((error: unknown) =>
+        ctx.log.warn("couldn't update an approval's buttons in Telegram", {
+          error: errorMessage(error),
+        }),
+      );
     });
   }
 
@@ -625,12 +632,15 @@ export class TelegramService {
       chat_id: telegramChatId,
       message_id: message.message_id,
       reaction: [{ type: "emoji", emoji: "👀" }],
-    }).catch(() => {});
+    }).catch((error: unknown) =>
+      this.ctx.log.warn("couldn't react to a Telegram message", { error: errorMessage(error) }),
+    );
     await this.executor.dispatchMessage(row.id);
   }
 
   private async onButton(query: NonNullable<TgUpdate["callback_query"]>) {
     const chatId = await this.linkedChat();
+    // Telegram refuses answers to old button presses; the toast is only a courtesy.
     const answer = (text: string) =>
       this.call("answerCallbackQuery", { callback_query_id: query.id, text }).catch(() => {});
     if (!chatId || String(query.from.id) !== chatId) {
@@ -661,7 +671,14 @@ export class TelegramService {
       chat_id: chatId,
       message_id: messageId,
       reply_markup: { inline_keyboard: [[{ text: label, callback_data: "noop" }]] },
-    }).catch(() => {});
+    }).catch((error: unknown) => {
+      // Both the button press and the decision event mark the message, so Telegram refuses the
+      // second edit as "not modified"; a deleted message is refused as "not found".
+      if (error instanceof TelegramError && EXPECTED_EDIT_REFUSAL.test(error.message)) return;
+      this.ctx.log.warn("couldn't mark a Telegram approval decided", {
+        error: errorMessage(error),
+      });
+    });
   }
 
   /* -------------------------------------------------------------- Sending */

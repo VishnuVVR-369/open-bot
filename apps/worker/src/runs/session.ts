@@ -659,7 +659,12 @@ export class RunSession {
     }
     // Free the desktop and store the final state first, so the event below reaches clients
     // that then read a consistent run row and lease.
-    await ctx.computer.releaseRun(run.id).catch(() => {});
+    await ctx.computer.releaseRun(run.id).catch((error: unknown) =>
+      ctx.log.warn("couldn't release the run's screens", {
+        runId: run.id,
+        error: errorMessage(error),
+      }),
+    );
     await ctx.db
       .update(runs)
       .set({

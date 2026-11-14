@@ -84,7 +84,7 @@ export class CodexManager extends EventEmitter<{ status: [CodexStatus]; disconne
 
   start(): void {
     this.stopped = false;
-    void this.ready().catch(() => {});
+    this.readyInBackground();
   }
 
   async resume(signal?: AbortSignal): Promise<void> {
@@ -195,8 +195,22 @@ export class CodexManager extends EventEmitter<{ status: [CodexStatus]; disconne
     if (this.stopped || this.idleIntent || this.retryTimer) return;
     this.retryTimer = setTimeout(() => {
       this.retryTimer = null;
-      if (!this.client?.isOpen) void this.ready().catch(() => {});
+      if (!this.client?.isOpen) this.readyInBackground();
     }, 3_000);
+  }
+
+  /**
+   * Connect and sign in with no caller waiting. Only a failure that `status.error` doesn't show is
+   * logged: a failed connection (retried every 3 s while the computer is unreachable) and a sign-in
+   * the owner still has to do are already there. An older error left in status hides nothing, since
+   * the failure must be the one status shows.
+   */
+  private readyInBackground(): void {
+    void this.ready().catch((error: unknown) => {
+      const message = errorMessage(error);
+      if (!this.state.connected || message === this.state.error) return;
+      this.log.warn("couldn't get Codex ready", { error: message });
+    });
   }
 
   private async readHostFile(): Promise<HostTokens & { expiry: number | null }> {
@@ -366,7 +380,10 @@ export class CodexManager extends EventEmitter<{ status: [CodexStatus]; disconne
           this.releaseLoginDemand?.();
           this.releaseLoginDemand = undefined;
         }
-        if (this.client) void this.refreshAccount(this.client).catch(() => {});
+        if (this.client)
+          void this.refreshAccount(this.client).catch((error: unknown) =>
+            this.log.warn("couldn't read the ChatGPT account", { error: errorMessage(error) }),
+          );
         if (notification.method === "account/login/completed" && !notification.params.success) {
           this.update({ login: null, error: notification.params.error ?? "Sign-in failed" });
         }

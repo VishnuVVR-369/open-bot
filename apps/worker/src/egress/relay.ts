@@ -868,6 +868,7 @@ export class EgressRelay {
   private serial(phoneId: string, task: () => Promise<void>): Promise<void> {
     const previous = this.queues.get(phoneId) ?? Promise.resolve();
     const next = previous.then(task, task);
+    // The caller gets `next` and its error; `settled` only keeps this phone's queue moving.
     const settled = next.catch(() => {});
     this.queues.set(phoneId, settled);
     void settled.then(() => {

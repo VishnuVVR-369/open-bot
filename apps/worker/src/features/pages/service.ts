@@ -58,8 +58,11 @@ export function computerPageFiles(ctx: Pick<Context, "codex">): PageFiles {
       try {
         const { dataBase64 } = await client.request("fs/readFile", { path });
         return Buffer.from(dataBase64, "base64");
-      } catch {
-        return null;
+      } catch (error) {
+        // Only a missing file is "nothing there": restoring over a file it couldn't read (a
+        // timeout, say) would overwrite changes that aren't published.
+        if (/no such file|not found/i.test(String(error))) return null;
+        throw error;
       }
     },
     async write(path, data) {
