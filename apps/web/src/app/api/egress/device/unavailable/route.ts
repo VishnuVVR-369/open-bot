@@ -1,7 +1,7 @@
 import { unavailableReasonSchema } from "@open-bot/domain";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { deviceRoute } from "@/lib/server/egress-device";
+import { deviceRoute } from "@/features/settings/server";
 import { worker } from "@/lib/server/worker";
 
 /** The phone was woken but can't carry traffic right now (mobile data, battery, its cap...). */

@@ -20,7 +20,7 @@ Shared types and the mobile contract belong in `packages/domain` and `packages/a
 - `apps/web/src/features/<feature>/` is one folder per feature: its views in `components/`, its hooks in `hooks.ts`, and its server side (reads in `server/queries.ts`, or a `server/service.ts` when it also changes things, and API procedures in `server/routes.ts`).
   Code outside the folder imports only its `index.ts` (client side) or `server.ts` (server side); `apps/web/src/features/boundaries.test.ts` checks it.
   Nothing `index.ts` reaches may import server code (`server-only`, `@open-bot/db`, a package's `/server` entry), since a client component that imports it puts it in the browser; the same test checks that too.
-- `apps/web/src/lib/server/api/` has the API's services: what a procedure does beyond calling the worker, such as `egress.ts` and `uploads.ts`.
+- `apps/web/src/lib/server/api/` has the API's services: what a procedure does beyond calling the worker, such as notification changes.
 - `apps/web/src/app/api/stream/route.ts` is the SSE stream, fed by `apps/web/src/lib/server/realtime.ts`.
 - `apps/web/src/app/api/rpc/[[...rest]]` serves the oRPC router in `apps/web/src/lib/server/api/router.ts` for the browser and mobile; features build their procedures with `os` from `apps/web/src/lib/server/api/rpc.ts`, which checks the session and maps errors.
 - `apps/web/src/lib/client/rpc.ts` is the browser's typed client (`api`) and its TanStack Query helpers (`orpc`); `apps/web/src/lib/client/errors.ts` tells offline, signed-out and not-found failures apart.
@@ -66,7 +66,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 
 - Unit: `pnpm --filter @open-bot/web test` (vitest, skips integration suites), including the cross-site checks in `apps/web/src/app/api/routes.test.ts` and `apps/web/src/app/api/rpc/[[...rest]]/route.test.ts`.
 - Types: `pnpm --filter @open-bot/web typecheck`.
-- Integration: `pnpm test:integration` runs `apps/web/src/lib/server/egress-device.integration.test.ts` and `apps/web/src/lib/server/api/router.integration.test.ts` (every API read) against a throwaway Postgres.
+- Integration: `pnpm test:integration` runs `apps/web/src/features/settings/server/egress-device.integration.test.ts` and `apps/web/src/lib/server/api/router.integration.test.ts` (every API read) against a throwaway Postgres.
 - End to end: `pnpm e2e` runs the Playwright specs in `e2e/` against a local stack, for example `e2e/pocket-inbox.spec.ts` and `e2e/api.spec.ts`.
 - Built artifact: `pnpm --filter @open-bot/web build` when you touch bundling, `next.config.ts` or dependencies.
 - UI changes also follow the openbot-ui-review skill.

@@ -1,5 +1,5 @@
 import "server-only";
-import { getAppState, getProfile, listNotifications } from "../queries";
+import { getAppState, listNotifications } from "../queries";
 import { approvalRoutes } from "@/features/approvals/server";
 import { automationRoutes } from "@/features/automations/server";
 import { chatRoutes } from "@/features/chat/server";
@@ -34,9 +34,6 @@ export const router = os.router({
   skills: skillRoutes(),
   tasks: taskRoutes(),
   vault: vaultRoutes(),
-  profile: {
-    get: os.profile.get.handler(() => getProfile()),
-  },
   memory: memoryRoutes(),
   files: fileRoutes(),
   notifications: {
@@ -45,14 +42,4 @@ export const router = os.router({
   },
   pages: pageRoutes(),
   approvals: approvalRoutes(),
-  egress: {
-    status: os.egress.status.handler(() => api.getEgressStatus()),
-    setMode: os.egress.setMode.handler(({ input }) => api.setEgressMode(input)),
-    setPhoneMode: os.egress.setPhoneMode.handler(({ input }) => api.setPhoneEgressMode(input)),
-    devices: os.egress.devices.handler(() => api.listEgressDevices()),
-    registerDevice: os.egress.registerDevice.handler(({ input }) =>
-      api.registerEgressDevice(input),
-    ),
-    revokeDevice: os.egress.revokeDevice.handler(({ input }) => api.revokeEgressDevice(input)),
-  },
 });

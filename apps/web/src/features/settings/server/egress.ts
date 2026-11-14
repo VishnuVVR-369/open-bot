@@ -7,9 +7,9 @@ import {
 } from "@open-bot/api";
 import { egressDevices } from "@open-bot/db";
 import { asc, isNull } from "drizzle-orm";
-import { db } from "../db";
-import { workerStatus } from "../queries";
-import { worker } from "../worker";
+import { db } from "@/lib/server/db";
+import { workerStatus } from "@/lib/server/queries";
+import { worker } from "@/lib/server/worker";
 
 type Inputs = ApiInputs["egress"];
 

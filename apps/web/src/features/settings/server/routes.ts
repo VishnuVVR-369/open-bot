@@ -1,4 +1,13 @@
 import "server-only";
+import { getProfile } from "./profile";
+import {
+  getEgressStatus,
+  setEgressMode,
+  setPhoneEgressMode,
+  listEgressDevices,
+  registerEgressDevice,
+  revokeEgressDevice,
+} from "./egress";
 import { os } from "@/lib/server/api/rpc";
 import { worker } from "@/lib/server/worker";
 import { registerPushDevice, sendTestPush, unregisterPushDevice } from "./push";
@@ -17,6 +26,17 @@ import {
  */
 export function settingsRoutes() {
   return {
+    profile: {
+      get: os.profile.get.handler(() => getProfile()),
+    },
+    egress: {
+      status: os.egress.status.handler(() => getEgressStatus()),
+      setMode: os.egress.setMode.handler(({ input }) => setEgressMode(input)),
+      setPhoneMode: os.egress.setPhoneMode.handler(({ input }) => setPhoneEgressMode(input)),
+      devices: os.egress.devices.handler(() => listEgressDevices()),
+      registerDevice: os.egress.registerDevice.handler(({ input }) => registerEgressDevice(input)),
+      revokeDevice: os.egress.revokeDevice.handler(({ input }) => revokeEgressDevice(input)),
+    },
     telegram: {
       status: os.telegram.status.handler(() => worker.telegram.status()),
       connect: os.telegram.connect.handler(({ input }) => worker.telegram.connect(input)),

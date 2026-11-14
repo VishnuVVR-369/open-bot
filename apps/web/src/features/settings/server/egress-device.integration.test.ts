@@ -34,11 +34,11 @@ describe.skipIf(!url)("egress device credential", () => {
   });
 
   let modules: {
-    egress: typeof import("./api/egress");
+    egress: typeof import("./egress");
     token: typeof import("@/app/api/egress/device/token/route");
     unavailable: typeof import("@/app/api/egress/device/unavailable/route");
     pushToken: typeof import("@/app/api/egress/device/push-token/route");
-    db: typeof import("./db");
+    db: typeof import("@/lib/server/db");
     schema: typeof import("@open-bot/db");
   };
 
@@ -50,11 +50,11 @@ describe.skipIf(!url)("egress device credential", () => {
     process.env.WORKER_SECRET = WORKER_SECRET;
     process.env.NEXT_PUBLIC_WORKER_WS_URL = "ws://worker.test";
     const [egress, token, unavailable, pushToken, db, schema] = await Promise.all([
-      import("./api/egress"),
+      import("./egress"),
       import("@/app/api/egress/device/token/route"),
       import("@/app/api/egress/device/unavailable/route"),
       import("@/app/api/egress/device/push-token/route"),
-      import("./db"),
+      import("@/lib/server/db"),
       import("@open-bot/db"),
     ]);
     modules = { egress, token, unavailable, pushToken, db, schema };
