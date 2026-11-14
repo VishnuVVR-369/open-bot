@@ -71,6 +71,7 @@ async function start(
       return screen;
     }),
     forget: vi.fn(async (id: string) => void running.delete(id)),
+    claim: <T>(_id: string, use: () => Promise<T>) => use(),
     touch: () => {},
     releaseRun: vi.fn(() => false),
     codeAvailable: () => options.codeAvailable ?? true,

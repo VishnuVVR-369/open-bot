@@ -22,7 +22,10 @@ async function fixture(codexUrl: string) {
   });
   lifecycle.lease("worker", 0);
   await lifecycle.ensure("worker");
-  const screens = Object.assign(new EventEmitter(), { list: () => [] }) as unknown as ScreenManager;
+  const screens = Object.assign(new EventEmitter(), {
+    list: () => [],
+    claim: <T>(_id: string, use: () => Promise<T>) => use(),
+  }) as unknown as ScreenManager;
   const { server } = createServer({
     token: "test-token",
     screens,

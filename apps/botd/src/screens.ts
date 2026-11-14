@@ -17,6 +17,7 @@ import type { CodeScreens } from "./code-screens";
 import { devtoolsCookieStore, type CookieSync } from "./cookies";
 import { Desktop } from "./desktop";
 import { DesktopLease } from "./lease";
+import { readPageScript } from "./read-page-script";
 import { waitFor, type ProcessSpec, type Supervisor } from "./supervisor";
 import { runAs, type SystemUser } from "./users";
 
@@ -664,12 +665,27 @@ export class Screen {
     await rm(this.dir, { recursive: true, force: true });
   }
 
+  /**
+   * Save the screen's cookies, then stop its processes. If saving fails or a download starts, nothing
+   * is torn down yet: a running screen stays running and this throws. Once teardown begins it runs
+   * to the end, and throws only if a process outlived SIGKILL, leaving the screen stopping.
+   */
   async stop(): Promise<void> {
     if (this.busy) throw new Error("Screen has an active download");
+    const previous = this.state;
     this.state = "stopping";
     const { supervisor, cookies } = this.deps;
-    await cookies.flush();
-    if (this.busy) throw new Error("Screen has an active download");
+    try {
+      await cookies.flush();
+      if (this.busy) throw new Error("Screen has an active download");
+    } catch (error) {
+      if (previous === "running") {
+        this.state = previous;
+        throw error;
+      }
+      // A screen that never finished starting has nothing to keep running for.
+      this.deps.log(`[screens] ${this.id.slice(0, 8)}: stopping without saving: ${String(error)}`);
+    }
     this.desktop.abortAll();
     // Browser.close flushes session storage and tabs before the process group is terminated.
     if (this.cdp?.isOpen) {
@@ -680,6 +696,8 @@ export class Screen {
         async () => !supervisor.isRunning(this.names.browser),
         10_000,
         "Chromium to flush its profile and exit",
+      ).catch((error: unknown) =>
+        this.deps.log(`[screens] ${this.id.slice(0, 8)}: ${String(error)}, stopping it`),
       );
     }
     cookies.detach(this.id);
@@ -694,28 +712,4 @@ export class Screen {
       await supervisor.stop(name);
     await rm(this.xauthority, { force: true });
   }
-}
-
-/** Runs in the page: what a person sees on it, as text, and its links. */
-function readPageScript(selector?: string): string {
-  return `(() => {
-    if (document.visibilityState !== "visible") return { visible: false };
-    let root;
-    try {
-      root = ${selector ? `document.querySelector(${JSON.stringify(selector)})` : "document.body"};
-    } catch {
-      root = null;
-    }
-    if (!root) return { visible: true, missing: true };
-    const seen = new Set();
-    const links = [];
-    for (const a of root.querySelectorAll("a[href]")) {
-      const href = a.href;
-      if (!/^https?:/.test(href) || seen.has(href)) continue;
-      seen.add(href);
-      links.push({ text: (a.innerText || a.getAttribute("aria-label") || "").replace(/\\s+/g, " ").trim().slice(0, 200), href });
-    }
-    const text = (root.innerText || "").replace(/[ \\t]+\\n/g, "\\n").replace(/\\n{3,}/g, "\\n\\n").trim();
-    return { visible: true, url: location.href, title: document.title, text, links };
-  })()`;
 }
