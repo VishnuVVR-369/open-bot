@@ -25,7 +25,7 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
         teammateIds: [ada.id, bea.id, ada.id],
       });
       const members = await db
-        .select({ teammateId: chatMembers.botId }) // vocabulary: allow
+        .select({ teammateId: chatMembers.teammateId })
         .from(chatMembers)
         .where(eq(chatMembers.chatId, group.chatId));
       expect(members.map((m) => m.teammateId).sort()).toEqual([ada.id, bea.id].sort());
@@ -56,7 +56,7 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
 
     it("keeps one main chat per teammate, and hands it on when it's archived", async () => {
       const ada = await newTeammate("Ada", "researcher");
-      const chatTeammate = chats.botId; // vocabulary: allow
+      const chatTeammate = chats.teammateId;
       const main = async () =>
         (
           await db

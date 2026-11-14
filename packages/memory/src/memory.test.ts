@@ -13,7 +13,7 @@ import { extractionSchema, memoryAIConfig } from "./jobs";
 
 const item = (content: string, id = "00000000-0000-4000-8000-000000000001"): MemoryItem => ({
   id,
-  botId: null,
+  teammateId: null,
   kind: "fact",
   content,
   key: null,
@@ -45,8 +45,10 @@ describe("memory contracts", () => {
     expect(memoryMarkdown([])).toContain("file edits are not imported");
   });
   it("validates content and scope", () => {
-    expect(memoryInputSchema.safeParse({ content: "x", botId: "anotherbot" }).success).toBe(false);
-    expect(memoryInputSchema.parse({ content: "some fact" }).botId).toBeNull();
+    expect(memoryInputSchema.safeParse({ content: "x", teammateId: "anotherbot" }).success).toBe(
+      false,
+    );
+    expect(memoryInputSchema.parse({ content: "some fact" }).teammateId).toBeNull();
   });
   it("requires models for configured optional endpoints", () => {
     expect(() =>

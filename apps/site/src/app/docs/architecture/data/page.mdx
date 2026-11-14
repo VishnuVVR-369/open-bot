@@ -299,7 +299,7 @@ It is pure and shared: the web app uses it on the server to build a chat's first
 | `openbot_chat`   | a chat id                                               | the worker, after storing run events | the web app's SSE streams |
 | `openbot_app`    | a JSON `AppEvent`, like `{"type":"approvals"}`          | the web app and the worker           | the web app's SSE streams |
 
-`AppEvent` has about twenty types, one per area of the UI: `bots`, `chats`, `approvals`, `takeovers`, `lease`, `computer`, `notification`, `schedules`, `triggers`, `tasks`, `memory`, `vault`, `purchases`, `connections`, `email`, `telegram`, `skills`, `pages`, `profile`, `lessons` and `auth`.
+`AppEvent` has about twenty types, one per area of the UI: `teammates`, `chats`, `approvals`, `takeovers`, `lease`, `computer`, `notification`, `schedules`, `triggers`, `tasks`, `memory`, `vault`, `purchases`, `connections`, `email`, `telegram`, `skills`, `pages`, `profile`, `lessons` and `auth`.
 Each one tells open tabs which cached queries to refetch.
 
 Notifications are hints, not data.

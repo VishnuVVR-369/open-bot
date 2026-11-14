@@ -14,7 +14,7 @@ describe("deleting on the computer", () => {
   it("allows files, and the workspaces of teammates who are gone", () => {
     const active = ["iris"];
     expect(undeletablePath("/home/bot/bots/iris/notes.md", active)).toBeNull();
-    expect(undeletablePath("/home/bot/bots/old-bot", active)).toBeNull();
+    expect(undeletablePath("/home/bot/bots/old-teammate", active)).toBeNull();
     expect(undeletablePath("/home/bot/shared/report.pdf", active)).toBeNull();
   });
 });

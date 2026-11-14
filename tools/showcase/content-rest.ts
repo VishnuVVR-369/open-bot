@@ -4,7 +4,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { eq, inArray, sql, type InferInsertModel } from "drizzle-orm";
 import {
   accounts,
-  bots as botsTable,
+  teammates as botsTable,
   connections,
   credentials,
   emailSettings,
@@ -154,7 +154,7 @@ export async function seedConnections(ctx: SeedContext) {
     kind: "gmail",
     accountId: googleAccount,
     capabilities: ["read", "compose"],
-    botIds: [mira.id, iris.id],
+    teammateIds: [mira.id, iris.id],
   });
   ctx.conn.calendar = await accountConnection({
     label: "Google Calendar",
@@ -162,7 +162,7 @@ export async function seedConnections(ctx: SeedContext) {
     kind: "google_calendar",
     accountId: googleAccount,
     capabilities: ["read", "write"],
-    botIds: null,
+    teammateIds: null,
   });
   await accountConnection({
     label: "Notion",
@@ -170,7 +170,7 @@ export async function seedConnections(ctx: SeedContext) {
     kind: "notion",
     accountId: notionAccount,
     capabilities: ["read", "write"],
-    botIds: null,
+    teammateIds: null,
     askBeforeActing: false,
     settings: {
       area: {
@@ -202,7 +202,7 @@ export async function seedConnections(ctx: SeedContext) {
       encryptionKey,
     ),
     secretNames: ["Authorization"],
-    botIds: [kit.id, iris.id],
+    teammateIds: [kit.id, iris.id],
   });
   await mcp({
     label: "Linear",
@@ -214,7 +214,7 @@ export async function seedConnections(ctx: SeedContext) {
       encryptionKey,
     ),
     secretNames: ["Authorization"],
-    botIds: null,
+    teammateIds: null,
   });
   await mcp({
     label: "Kestrel analytics (read-only)",
@@ -230,7 +230,7 @@ export async function seedConnections(ctx: SeedContext) {
       encryptionKey,
     ),
     secretNames: ["DATABASE_URL"],
-    botIds: [scout.id, kit.id],
+    teammateIds: [scout.id, kit.id],
   });
 }
 
@@ -319,7 +319,7 @@ export async function seedAutomations(ctx: SeedContext) {
     row: RowWithDefaults<
       typeof schedules,
       | "id"
-      | "botId"
+      | "teammateId"
       | "kind"
       | "timezone"
       | "enabled"
@@ -336,7 +336,7 @@ export async function seedAutomations(ctx: SeedContext) {
     const occurrences = spec ? lastOccurrences(spec, 3) : [];
     await db.insert(schedules, {
       id,
-      botId: bot.id,
+      teammateId: bot.id,
       kind: "cron",
       timezone: TIMEZONE,
       enabled: true,
@@ -521,7 +521,7 @@ Neither ships to production. I can open a PR bumping both if you want it.`,
   const tallyfox = randomUUID();
   await db.insert(triggers, {
     id: tallyfox,
-    botId: scout.id,
+    teammateId: scout.id,
     kind: "watch",
     title: "Tallyfox pricing page",
     prompt:
@@ -554,7 +554,7 @@ That widens the gap with Kestrel 2.0 at $25 for 200k pageviews. I would not chan
   const releaseToken = randomBytes(18).toString("base64url");
   await db.insert(triggers, {
     id: release,
-    botId: kit.id,
+    teammateId: kit.id,
     kind: "webhook",
     title: "Update the changelog for a new release",
     prompt:
@@ -589,7 +589,7 @@ That widens the gap with Kestrel 2.0 at $25 for 200k pageviews. I would not chan
   const investorMail = randomUUID();
   await db.insert(triggers, {
     id: investorMail,
-    botId: mira.id,
+    teammateId: mira.id,
     kind: "gmail",
     title: "Investor mail",
     prompt:
@@ -620,7 +620,7 @@ Needs a reply today. Both mornings are free on your calendar after 11.`),
   const prep = randomUUID();
   await db.insert(triggers, {
     id: prep,
-    botId: iris.id,
+    teammateId: iris.id,
     kind: "calendar",
     title: "Prep before external meetings",
     prompt:
@@ -653,7 +653,7 @@ Needs a reply today. Both mornings are free on your calendar after 11.`),
 
   await db.insert(triggers, {
     id: randomUUID(),
-    botId: juno.id,
+    teammateId: juno.id,
     kind: "watch",
     title: "Style guide updates",
     prompt: "Tell me if the AP-style updates page adds a new entry that affects our posts.",
@@ -682,7 +682,7 @@ Needs a reply today. Both mornings are free on your calendar after 11.`),
     const id = randomUUID();
     await db.insert(emails, {
       id,
-      botId: mira.id,
+      teammateId: mira.id,
       direction,
       status: status ?? (direction === "in" ? "received" : "sent"),
       chatId: miraInbox.id,
@@ -792,39 +792,39 @@ export async function seedTasksAndSkills(ctx: SeedContext) {
     notes: "Mira drafts the update around them. Monthly numbers from Stripe are enough.",
     status: "todo",
     dueOn: day(2),
-    createdByBotId: mira.id,
+    createdByTeammateId: mira.id,
     createdBy: "bot",
   });
   await task({
     title: "Confirm the on-call rota for launch week",
     notes: "Dana covers launch night but not the morning after. Need a second name for 6 to 12.",
     status: "todo",
-    ownerBotId: kit.id,
+    ownerTeammateId: kit.id,
     dueOn: isoDay(new Date(freeze.getTime() - 86_400_000)),
     createdBy: "bot",
-    createdByBotId: iris.id,
+    createdByTeammateId: iris.id,
   });
   await task({
     title: "Write a two-minute demo script for the investor 1:1s",
     notes: "Funnels first, then EU hosting. Keep it under two minutes with no slides.",
     status: "todo",
-    ownerBotId: juno.id,
+    ownerTeammateId: juno.id,
     dueOn: isoDay(new Date(launch.getTime() + 6 * 86_400_000)),
   });
   await task({
     title: "Reply to the 3 press requests that asked for an embargo time",
     status: "todo",
-    ownerBotId: mira.id,
+    ownerTeammateId: mira.id,
     dueOn: day(3),
     createdBy: "bot",
-    createdByBotId: iris.id,
+    createdByTeammateId: iris.id,
   });
   await task({
     title: "File the Northhost invoice with expenses",
     status: "todo",
-    ownerBotId: mira.id,
+    ownerTeammateId: mira.id,
     createdBy: "bot",
-    createdByBotId: mira.id,
+    createdByTeammateId: mira.id,
   });
   // Doing
   await task({
@@ -837,38 +837,38 @@ export async function seedTasksAndSkills(ctx: SeedContext) {
   await task({
     title: "Fix recurring reminders firing an hour late after DST",
     status: "doing",
-    ownerBotId: kit.id,
+    ownerTeammateId: kit.id,
     chatId: chats.kitBug.id,
   });
   await task({
     title: "Book the Lisbon flights and hotel",
     notes: "TAP nonstop at $842, then The Quiet Fig for four nights.",
     status: "doing",
-    ownerBotId: iris.id,
+    ownerTeammateId: iris.id,
     dueOn: day(3),
     chatId: chats.irisFlights.id,
   });
   await task({
     title: "Compile the changelog from merged PRs",
     status: "doing",
-    ownerBotId: kit.id,
+    ownerTeammateId: kit.id,
     dueOn: day(1),
     chatId: chats.war.id,
   });
   await task({
     title: "Line up the Summit schedule against the two investor 1:1s",
     status: "doing",
-    ownerBotId: scout.id,
+    ownerTeammateId: scout.id,
     chatId: chats.scoutFlights.id,
     createdBy: "bot",
-    createdByBotId: iris.id,
+    createdByTeammateId: iris.id,
   });
   // Done
   const done = (title, owner, daysAgo, extra: Partial<InferInsertModel<typeof tasks>> = {}) =>
     task({
       title,
       status: "done",
-      ownerBotId: owner?.id ?? null,
+      ownerTeammateId: owner?.id ?? null,
       completedAt: ago({ d: daysAgo }),
       createdAt: ago({ d: daysAgo + 5 }),
       updatedAt: ago({ d: daysAgo }),
@@ -884,12 +884,15 @@ export async function seedTasksAndSkills(ctx: SeedContext) {
 
   /* ------------------------------ skills */
   const skill = (
-    row: RowWithDefaults<typeof skills, "id" | "createdBy" | "botId" | "createdAt" | "updatedAt">,
+    row: RowWithDefaults<
+      typeof skills,
+      "id" | "createdBy" | "teammateId" | "createdAt" | "updatedAt"
+    >,
   ) =>
     db.insert(skills, {
       id: randomUUID(),
       createdBy: "user",
-      botId: null,
+      teammateId: null,
       createdAt: ago({ d: 18 }),
       updatedAt: ago({ d: 6 }),
       ...row,
@@ -921,29 +924,29 @@ Add each follow-up to the task board with the right owner.`,
     description: "Collect receipts and invoices into a monthly expense summary.",
     instructions: `Search the inbox and shared/invoices for this month's receipts. Make a table of date, vendor, amount and category, total it, and flag anything over $200 or without a receipt.`,
     createdBy: "bot",
-    createdByBotId: mira.id,
+    createdByTeammateId: mira.id,
   });
   await skill({
     name: "pr-description",
     description: "Write a clear pull request description from a branch's diff.",
     instructions: `Read the diff against main. Write: what was wrong, what changed, how it was tested, and anything a reviewer should look at twice. Link the issue if there is one.`,
-    botId: kit.id,
+    teammateId: kit.id,
   });
   await skill({
     name: "release-notes-voice",
     description: "Rewrite engineering changelog entries for customers.",
     instructions: `Rewrite each change as the benefit to a customer, in one sentence. Group as New, Faster, Fixed. Drop internal terms and PR numbers unless asked.`,
-    botId: juno.id,
+    teammateId: juno.id,
     createdBy: "bot",
-    createdByBotId: juno.id,
+    createdByTeammateId: juno.id,
   });
   await skill({
     name: "compare-options",
     description: "Compare three or more options in a table with one recommendation.",
     instructions: `Put the options in a table with the criteria that matter to Alex (price, time, risk). Bold the recommendation, give the single strongest reason, then list what you could not verify.`,
-    botId: scout.id,
+    teammateId: scout.id,
     createdBy: "bot",
-    createdByBotId: scout.id,
+    createdByTeammateId: scout.id,
   });
 }
 
@@ -953,7 +956,7 @@ export async function seedVault(ctx: SeedContext) {
   const item = async (
     row: RowWithDefaults<
       typeof vaultItems,
-      "id" | "domain" | "botIds" | "lastUsedAt" | "createdAt" | "updatedAt" | "encrypted"
+      "id" | "domain" | "teammateIds" | "lastUsedAt" | "createdAt" | "updatedAt" | "encrypted"
     >,
     secret,
   ) => {
@@ -961,7 +964,7 @@ export async function seedVault(ctx: SeedContext) {
     await db.insert(vaultItems, {
       id,
       domain: null,
-      botIds: null,
+      teammateIds: null,
       lastUsedAt: null,
       createdAt: ago({ d: 20 }),
       updatedAt: ago({ d: 7 }),
@@ -972,7 +975,7 @@ export async function seedVault(ctx: SeedContext) {
   };
   const login = (name, domain, username, botIds, last) =>
     item(
-      { kind: "login", name, domain, hint: username, botIds, lastUsedAt: last },
+      { kind: "login", name, domain, hint: username, teammateIds: botIds, lastUsedAt: last },
       { username, password: "showcase-not-a-real-password" },
     );
   await login("GitHub", "github.com", "alex@kestrel.team", [kit.id, iris.id], ago({ h: 4 }));
@@ -1006,7 +1009,7 @@ export async function seedVault(ctx: SeedContext) {
   );
   const card = (name, hint, number, botIds, last) =>
     item(
-      { kind: "card", name, hint, botIds, lastUsedAt: last },
+      { kind: "card", name, hint, teammateIds: botIds, lastUsedAt: last },
       { number, expiry: "09/29", cvc: "000", name: "Alex Rivera", zip: "94110" },
     );
   const amex = await card(
@@ -1032,7 +1035,7 @@ export async function seedVault(ctx: SeedContext) {
       ...row,
     });
   await purchase({
-    botId: iris.id,
+    teammateId: iris.id,
     cardId: amex,
     chatId: chats.irisFlights.id,
     runId: R.flights.id,
@@ -1045,7 +1048,7 @@ export async function seedVault(ctx: SeedContext) {
     updatedAt: ago({ m: 47 }),
   });
   await purchase({
-    botId: iris.id,
+    teammateId: iris.id,
     cardId: amex,
     amountCents: 49_500,
     merchant: "Atlantic Product Summit",
@@ -1056,7 +1059,7 @@ export async function seedVault(ctx: SeedContext) {
     updatedAt: ago({ d: 9 }),
   });
   await purchase({
-    botId: iris.id,
+    teammateId: iris.id,
     cardId: visa,
     amountCents: 1_498,
     merchant: "Registrar.io",
@@ -1066,7 +1069,7 @@ export async function seedVault(ctx: SeedContext) {
     updatedAt: ago({ d: 8 }),
   });
   await purchase({
-    botId: iris.id,
+    teammateId: iris.id,
     cardId: visa,
     amountCents: 12_900,
     merchant: "Growth Masterclass",
@@ -1077,7 +1080,7 @@ export async function seedVault(ctx: SeedContext) {
     updatedAt: ago({ d: 5 }),
   });
   await purchase({
-    botId: kit.id,
+    teammateId: kit.id,
     cardId: visa,
     amountCents: 2_000,
     merchant: "Vercel",
@@ -1101,7 +1104,7 @@ export async function seedMemory(ctx: SeedContext) {
     const created = row.createdAt ?? ago({ d: 10 });
     await db.insert(memoryItems, {
       id,
-      botId: row.botId ?? null,
+      teammateId: row.teammateId ?? null,
       kind: row.kind ?? "fact",
       content: row.content,
       key: row.key ?? null,
@@ -1194,7 +1197,7 @@ export async function seedMemory(ctx: SeedContext) {
     content: "Alex prefers to approve anything that sends email to a journalist, even replies.",
     source: bySource(R.miraTriage),
     createdAt: ago({ h: 9 }),
-    botId: null,
+    teammateId: null,
   });
   await memory({
     state: "candidate",
@@ -1205,7 +1208,7 @@ export async function seedMemory(ctx: SeedContext) {
   });
   // Per teammate
   await memory({
-    botId: kit.id,
+    teammateId: kit.id,
     content:
       "tidepool lives in ~/code/tidepool on the computer. pnpm, vitest, strict TypeScript. The main branch is protected, so work on fix/ or feat/ branches.",
     key: "repo.tidepool",
@@ -1213,7 +1216,7 @@ export async function seedMemory(ctx: SeedContext) {
     source: { type: "user" },
   });
   await memory({
-    botId: kit.id,
+    teammateId: kit.id,
     content:
       "Kestrel staging database is kestrel_staging. Never run migrations against production without Alex saying so.",
     key: "repo.kestrel-staging",
@@ -1221,13 +1224,13 @@ export async function seedMemory(ctx: SeedContext) {
     createdAt: ago({ d: 17 }),
   });
   await memory({
-    botId: mira.id,
+    teammateId: mira.id,
     content: "Archive newsletters and receipts without asking. Starred senders are never archived.",
     key: "inbox.rules",
     createdAt: ago({ d: 18 }),
   });
   await memory({
-    botId: juno.id,
+    teammateId: juno.id,
     content:
       "Brand voice: plain, specific, confident. The product is 'Kestrel', never 'the Kestrel'. No exclamation marks.",
     key: "brand.voice",
@@ -1235,13 +1238,13 @@ export async function seedMemory(ctx: SeedContext) {
     createdAt: ago({ d: 13 }),
   });
   await memory({
-    botId: scout.id,
+    teammateId: scout.id,
     content: "Alex prefers primary sources and a comparison table for three or more options.",
     key: "research.style",
     createdAt: ago({ d: 21 }),
   });
   await memory({
-    botId: iris.id,
+    teammateId: iris.id,
     content: "When Alex says 'this week' he means Monday to Friday, Pacific time.",
     key: "planning.week",
     createdAt: ago({ d: 23 }),
@@ -1265,10 +1268,10 @@ export async function seedMemory(ctx: SeedContext) {
     const id = randomUUID();
     const createdAt = ago(daysAgo);
     const source = run ? { type: "feedback" as const, runId: run.id } : { type: "import" as const };
-    await db.insert(lessons, { id, botId: bot.id, runId: run?.id ?? null, text, createdAt });
+    await db.insert(lessons, { id, teammateId: bot.id, runId: run?.id ?? null, text, createdAt });
     await db.insert(memoryItems, {
       id,
-      botId: bot.id,
+      teammateId: bot.id,
       kind: "lesson",
       content: text,
       fingerprint: memoryFingerprint(text),
@@ -1337,7 +1340,7 @@ export async function seedMemory(ctx: SeedContext) {
     .where(eq(botsTable.id, mira.id));
   await db.insert(instructionProposals, {
     id: randomUUID(),
-    botId: mira.id,
+    teammateId: mira.id,
     current: miraDef,
     proposed: miraDef.replace(
       "- Flag investors and the press first, even if the mail looks like an FYI.",
@@ -1433,7 +1436,7 @@ export async function seedPages(ctx: SeedContext) {
     const updated = ago(spec.created[latest]);
     await db.insert(pages, {
       id: ids.id,
-      botId: spec.bot.id,
+      teammateId: spec.bot.id,
       chatId: spec.chat.id,
       title: spec.title,
       summary: spec.summaries[latest],
@@ -1455,7 +1458,7 @@ export async function seedPages(ctx: SeedContext) {
         id: versionId,
         pageId: ids.id,
         number: index + 1,
-        botId: spec.bot.id,
+        teammateId: spec.bot.id,
         runId: spec.runs[index]?.id ?? null,
         title: spec.title,
         summary: spec.summaries[index],
@@ -1492,7 +1495,7 @@ export async function seedNotifications(ctx: SeedContext) {
     kind: "approval",
     title: "Mira needs your approval",
     body: "Send an email to Priya Nair about your Summit 1:1 slots.",
-    botId: mira.id,
+    teammateId: mira.id,
     chatId: chats.miraTriage.id,
     runId: R.miraReply.id,
     createdAt: ago({ m: 70 }),
@@ -1501,7 +1504,7 @@ export async function seedNotifications(ctx: SeedContext) {
     kind: "approval",
     title: "Iris wants to pay $842.30",
     body: "TAP Air Portugal, round trip SFO to LIS, on the Travel Amex.",
-    botId: iris.id,
+    teammateId: iris.id,
     chatId: chats.irisFlights.id,
     runId: R.flights.id,
     createdAt: ago({ m: 47 }),
@@ -1510,7 +1513,7 @@ export async function seedNotifications(ctx: SeedContext) {
     kind: "run_finished",
     title: "Kit opened a pull request",
     body: "tidepool #58: Keep wall-clock time across DST in recurrences.",
-    botId: kit.id,
+    teammateId: kit.id,
     chatId: chats.kitBug.id,
     runId: R.kitPush.id,
     createdAt: ago({ m: 22 }),
@@ -1519,7 +1522,7 @@ export async function seedNotifications(ctx: SeedContext) {
     kind: "takeover_request",
     title: "Juno needs you to take over",
     body: "The CMS is asking for a 6-digit code from your authenticator app.",
-    botId: juno.id,
+    teammateId: juno.id,
     chatId: chats.junoCms.id,
     runId: R.junoCms.id,
     createdAt: ago({ m: 16 }),
@@ -1528,7 +1531,7 @@ export async function seedNotifications(ctx: SeedContext) {
     kind: "bot_message",
     title: "Mira: 3 emails need your reply",
     body: "Marcus (Brightpath), Priya (Summit) and Sam (The Weekly Stack).",
-    botId: mira.id,
+    teammateId: mira.id,
     chatId: chats.miraTriage.id,
     runId: R.miraTriage.id,
     createdAt: ago({ h: 9 }),
@@ -1537,7 +1540,7 @@ export async function seedNotifications(ctx: SeedContext) {
     kind: "run_failed",
     title: "Kit couldn't finish: Update the changelog for a new release",
     body: "Interrupted when the computer restarted.",
-    botId: kit.id,
+    teammateId: kit.id,
     chatId: ctx.chats.kitSched?.id ?? chats.kitBug.id,
     createdAt: ago({ h: 6 }),
   });
@@ -1545,7 +1548,7 @@ export async function seedNotifications(ctx: SeedContext) {
     kind: "run_finished",
     title: "Iris finished: launch status",
     body: "One real blocker, and it is shrinking.",
-    botId: iris.id,
+    teammateId: iris.id,
     chatId: chats.irisPlan.id,
     runId: R.irisStatus.id,
     readAt: ago({ h: 3 }),
@@ -1555,7 +1558,7 @@ export async function seedNotifications(ctx: SeedContext) {
     kind: "run_finished",
     title: "Juno published a page",
     body: "Kestrel 2.0 announcement (draft), version 3.",
-    botId: juno.id,
+    teammateId: juno.id,
     chatId: chats.irisPlan.id,
     pageId: pageIds.announcement.id,
     readAt: ago({ d: 1 }),
@@ -1565,7 +1568,7 @@ export async function seedNotifications(ctx: SeedContext) {
     kind: "run_finished",
     title: "Scout finished: Lisbon hotels",
     body: "Stay at The Quiet Fig in Chiado.",
-    botId: scout.id,
+    teammateId: scout.id,
     chatId: chats.scoutFlights.id,
     runId: R.scoutHotels.id,
     readAt: ago({ d: 3 }),
@@ -1575,7 +1578,7 @@ export async function seedNotifications(ctx: SeedContext) {
     kind: "run_finished",
     title: "Kit finished: migration dry run",
     body: "39 of 40 workspaces migrated cleanly, and the one failure is fixed.",
-    botId: kit.id,
+    teammateId: kit.id,
     runId: R.kitMigration.id,
     chatId: ctx.chats.kitMigration?.id ?? chats.kitBug.id,
     readAt: ago({ d: 3 }),
@@ -1598,7 +1601,7 @@ export async function seedUsageAndSettings(ctx: SeedContext) {
     const output = 2_000 + ((i * 3_100) % 28_000);
     await db.insert(usageEntries, {
       id: randomUUID(),
-      botId: bot.id,
+      teammateId: bot.id,
       authMode: apiKey ? "api_key" : "plan",
       inputTokens: input,
       cachedInputTokens: Math.round(input * 0.58),

@@ -58,7 +58,7 @@ export async function getModelAccess(): Promise<ModelAccessView> {
 export async function getMonthlyUsage(): Promise<UsageView[]> {
   const rows = await db
     .select({
-      botId: usageEntries.botId,
+      teammateId: usageEntries.teammateId,
       runs: sql<number>`count(*)::int`,
       inputTokens: sql<number>`coalesce(sum(${usageEntries.inputTokens}), 0)::bigint`,
       cachedInputTokens: sql<number>`coalesce(sum(${usageEntries.cachedInputTokens}), 0)::bigint`,
@@ -66,7 +66,7 @@ export async function getMonthlyUsage(): Promise<UsageView[]> {
     })
     .from(usageEntries)
     .where(gte(usageEntries.createdAt, monthStart()))
-    .groupBy(usageEntries.botId);
+    .groupBy(usageEntries.teammateId);
   return rows.map((row) => ({
     ...row,
     inputTokens: Number(row.inputTokens),

@@ -34,7 +34,7 @@ export async function insertRun(db: Queryable, input: RunInput): Promise<string>
     .values({
       ...(input.id ? { id: input.id } : {}),
       chatId: input.chatId,
-      botId: input.botId,
+      teammateId: input.botId,
       trigger: input.trigger,
       prompt: input.prompt,
       attachments: input.attachments ?? [],

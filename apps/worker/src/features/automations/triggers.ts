@@ -1,7 +1,15 @@
 import { randomBytes } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import type { TriggerCheck, TriggerInput as TriggerFormInput } from "@open-bot/api/worker";
-import { accounts, bots, connections, runs, triggers, type Queryable, type Tx } from "@open-bot/db";
+import {
+  accounts,
+  teammates,
+  connections,
+  runs,
+  triggers,
+  type Queryable,
+  type Tx,
+} from "@open-bot/db";
 import {
   describeGmailQuery,
   describeInterval,
@@ -183,18 +191,18 @@ export class TriggerService {
       .select({
         kind: connections.kind,
         enabled: connections.enabled,
-        botIds: connections.botIds,
+        teammateIds: connections.teammateIds,
       })
       .from(connections)
       .where(eq(connections.id, input.connectionId));
     if (!row || row.kind !== kind)
       throw new TriggerError(`That ${label} account isn't connected any more.`);
     if (!row.enabled) throw new TriggerError(`${label} is turned off in Settings → Connections.`);
-    if (row.botIds && !row.botIds.includes(input.botId)) {
+    if (row.teammateIds && !row.teammateIds.includes(input.teammateId)) {
       const [bot] = await this.ctx.db
-        .select({ name: bots.name })
-        .from(bots)
-        .where(eq(bots.id, input.botId));
+        .select({ name: teammates.name })
+        .from(teammates)
+        .where(eq(teammates.id, input.teammateId));
       throw new TriggerError(
         `${bot?.name ?? "This teammate"} can't use ${label}. Give them access in Settings → Connections.`,
       );
@@ -210,7 +218,7 @@ export class TriggerService {
     const [row] = await this.ctx.db
       .insert(triggers)
       .values({
-        botId: input.botId,
+        teammateId: input.teammateId,
         kind: input.kind,
         ...fields,
         token: input.kind === "webhook" ? newToken() : null,
@@ -246,7 +254,7 @@ export class TriggerService {
     const [row] = await this.ctx.db
       .update(triggers)
       .set({
-        botId: input.botId,
+        teammateId: input.teammateId,
         ...fields,
         ...(restart ? { snapshot: null, lastError: null, nextCheckAt: new Date() } : {}),
         ...(recheck ? { lastError: null, nextCheckAt: new Date() } : {}),
@@ -322,7 +330,7 @@ export class TriggerService {
   }
 
   async forBot(botId: string): Promise<Trigger[]> {
-    return this.ctx.db.select().from(triggers).where(eq(triggers.botId, botId));
+    return this.ctx.db.select().from(triggers).where(eq(triggers.teammateId, botId));
   }
 
   /** The bot's own watches, webhooks and Gmail and Calendar triggers, as it reads them. */
@@ -332,7 +340,7 @@ export class TriggerService {
       .from(triggers)
       .leftJoin(connections, eq(connections.id, triggers.connectionId))
       .leftJoin(accounts, eq(accounts.id, connections.accountId))
-      .where(eq(triggers.botId, botId));
+      .where(eq(triggers.teammateId, botId));
     if (rows.length === 0) return null;
     return rows
       .map(({ trigger: row, account }) => {
@@ -360,7 +368,10 @@ export class TriggerService {
     const [row] = await this.ctx.db.select().from(triggers).where(eq(triggers.token, token));
     if (!row || row.kind !== "webhook") return { error: "Unknown webhook", status: 404 };
     if (!row.enabled) return { error: "This webhook is paused", status: 409 };
-    const [bot] = await this.ctx.db.select().from(bots).where(eq(bots.id, row.botId));
+    const [bot] = await this.ctx.db
+      .select()
+      .from(teammates)
+      .where(eq(teammates.id, row.teammateId));
     if (!bot || bot.archivedAt)
       return { error: "This webhook's teammate is archived", status: 409 };
     const [recent] = await this.ctx.db
@@ -575,18 +586,18 @@ export class TriggerService {
     options: { readOutsideData?: boolean } = {},
   ): Promise<string | null> {
     const [bot] = await this.ctx.db
-      .select({ archivedAt: bots.archivedAt })
-      .from(bots)
-      .where(eq(bots.id, row.botId));
+      .select({ archivedAt: teammates.archivedAt })
+      .from(teammates)
+      .where(eq(teammates.id, row.teammateId));
     if (!bot || bot.archivedAt) return null;
-    const chatId = await teammateChat(this.ctx, row.botId, "scheduled");
+    const chatId = await teammateChat(this.ctx, row.teammateId, "scheduled");
     await this.ctx.db
       .update(triggers)
       .set({ lastFiredAt: new Date() })
       .where(eq(triggers.id, row.id));
     return enqueueRun(this.ctx, {
       chatId,
-      botId: row.botId,
+      botId: row.teammateId,
       trigger: row.kind,
       triggerId: row.id,
       prompt,
@@ -610,7 +621,7 @@ export async function addPausedWatches(
   if (watches.length === 0) return;
   await tx.insert(triggers).values(
     watches.map((watch) => ({
-      botId: teammateId, // vocabulary: allow
+      teammateId,
       kind: "watch" as const,
       ...watch,
       enabled: false,
@@ -644,5 +655,5 @@ export async function recordTriggerCheck(
 
 /** Pauses every automation trigger a teammate has, in the caller's transaction (archiving it). */
 export async function pauseTriggersOf(tx: Tx, teammateId: string): Promise<void> {
-  await tx.update(triggers).set({ enabled: false }).where(eq(triggers.botId, teammateId));
+  await tx.update(triggers).set({ enabled: false }).where(eq(triggers.teammateId, teammateId));
 }

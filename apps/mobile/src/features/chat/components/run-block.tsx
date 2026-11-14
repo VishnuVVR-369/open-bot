@@ -1,4 +1,4 @@
-import type { BotSummary, RunView } from "@open-bot/api";
+import type { TeammateSummary, RunView } from "@open-bot/api";
 import {
   isPinned,
   pendingRequest,
@@ -76,8 +76,8 @@ export const RunBlock = memo(function RunBlock({
 }: {
   run: RunView;
   chatId: string;
-  bot: BotSummary | undefined;
-  bots: BotSummary[];
+  bot: TeammateSummary | undefined;
+  bots: TeammateSummary[];
   /** The same teammate ran again after this, so there's nothing to retry. */
   superseded?: boolean;
   isGroup?: boolean;
@@ -211,7 +211,7 @@ export const RunBlock = memo(function RunBlock({
           return (
             <View key={part.id} style={spaced && styles.spaced}>
               <TimelineItemView
-                teammateId={run.botId}
+                teammateId={run.teammateId}
                 item={part.item}
                 chatId={chatId}
                 teammateName={name}

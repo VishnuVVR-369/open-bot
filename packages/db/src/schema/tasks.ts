@@ -18,7 +18,7 @@ import {
 import { chats } from "./chats";
 import { createdAt, updatedAt } from "./columns";
 import { runs } from "./runs";
-import { bots } from "./teammates";
+import { teammates } from "./teammates";
 
 /** The team's task board: work you or a teammate wrote down, who owns it, and how far it got. */
 export const tasks = pgTable(
@@ -29,13 +29,15 @@ export const tasks = pgTable(
     notes: text("notes").notNull().default(""),
     status: text("status").$type<TaskStatus>().notNull().default("todo"),
     /** The teammate doing it; null when nobody has it yet, or it's yours. */
-    ownerBotId: uuid("owner_bot_id").references(() => bots.id, { onDelete: "set null" }),
+    ownerTeammateId: uuid("owner_bot_id").references(() => teammates.id, { onDelete: "set null" }),
     /** The day it's due, like 2026-10-20. */
     dueOn: date("due_on", { mode: "string" }),
     /** Order within its column. */
     position: doublePrecision("position").notNull().default(0),
     createdBy: text("created_by").$type<Creator>().notNull(),
-    createdByBotId: uuid("created_by_bot_id").references(() => bots.id, { onDelete: "set null" }),
+    createdByTeammateId: uuid("created_by_bot_id").references(() => teammates.id, {
+      onDelete: "set null",
+    }),
     /** The chat where the owner was last asked to work on it. */
     chatId: uuid("chat_id").references(() => chats.id, { onDelete: "set null" }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
@@ -44,7 +46,7 @@ export const tasks = pgTable(
   },
   (table) => [
     index("tasks_status_idx").on(table.status, table.position),
-    index("tasks_owner_idx").on(table.ownerBotId),
+    index("tasks_owner_idx").on(table.ownerTeammateId),
   ],
 );
 
@@ -56,9 +58,9 @@ export const swarms = pgTable(
   "swarms",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    botId: uuid("bot_id")
+    teammateId: uuid("bot_id")
       .notNull()
-      .references(() => bots.id, { onDelete: "cascade" }),
+      .references(() => teammates.id, { onDelete: "cascade" }),
     /** Where the teammate started it, and gets the results. */
     chatId: uuid("chat_id")
       .notNull()
@@ -73,7 +75,7 @@ export const swarms = pgTable(
     createdAt: createdAt(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
   },
-  (table) => [index("swarms_bot_idx").on(table.botId, table.createdAt)],
+  (table) => [index("swarms_bot_idx").on(table.teammateId, table.createdAt)],
 );
 
 /** One helper's part of a swarm. Its id is also the id of the screen it works on. */

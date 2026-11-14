@@ -8,7 +8,7 @@ import {
 import { index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { createdAt, updatedAt } from "./columns";
 import { runs } from "./runs";
-import { bots } from "./teammates";
+import { teammates } from "./teammates";
 
 export const computers = pgTable("computers", {
   id: text("id").primaryKey().default("default"),
@@ -30,14 +30,14 @@ export const screenTakeovers = pgTable(
   "desktop_takeovers",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    /** The screen you take over: every bot has its own, so this is the bot's id. */
-    screenId: uuid("screen_id").references(() => bots.id, { onDelete: "cascade" }),
+    /** The screen you take over: every teammate has its own, so this is the teammate's id. */
+    screenId: uuid("screen_id").references(() => teammates.id, { onDelete: "cascade" }),
     status: text("status").$type<TakeoverStatus>().notNull(),
-    /** A bot asked for this takeover with `request_takeover`. */
+    /** A teammate asked for this takeover with `request_takeover`. */
     requestedByRunId: uuid("requested_by_run_id").references(() => runs.id, {
       onDelete: "set null",
     }),
-    requestedByBotId: uuid("requested_by_bot_id").references(() => bots.id, {
+    requestedByTeammateId: uuid("requested_by_bot_id").references(() => teammates.id, {
       onDelete: "set null",
     }),
     reason: text("reason"),
@@ -62,7 +62,7 @@ export const screenOperations = pgTable(
   {
     id: uuid("id").primaryKey(),
     takeoverId: uuid("takeover_id").references(() => screenTakeovers.id, { onDelete: "set null" }),
-    screenId: uuid("screen_id").references(() => bots.id, { onDelete: "set null" }),
+    screenId: uuid("screen_id").references(() => teammates.id, { onDelete: "set null" }),
     status: text("status").$type<ScreenOperationStatus>().notNull(),
     reason: text("reason"),
     createdAt: createdAt(),

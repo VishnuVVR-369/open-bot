@@ -106,7 +106,7 @@ try {
       ],
     );
   }
-  await db.query("select pg_notify('openbot_app', $1)", [JSON.stringify({ type: "bots" })]);
+  await db.query("select pg_notify('openbot_app', $1)", [JSON.stringify({ type: "teammates" })]);
 
   server = createServer(async (request, response) => {
     response.setHeader("content-type", "application/json");
@@ -294,6 +294,6 @@ try {
         signal: AbortSignal.timeout(5000),
       }).catch(() => {});
   }
-  await db.query("select pg_notify('openbot_app', $1)", [JSON.stringify({ type: "bots" })]);
+  await db.query("select pg_notify('openbot_app', $1)", [JSON.stringify({ type: "teammates" })]);
   await db.end();
 }

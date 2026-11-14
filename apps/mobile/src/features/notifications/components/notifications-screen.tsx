@@ -1,4 +1,4 @@
-import type { BotSummary, NotificationView } from "@open-bot/api";
+import type { TeammateSummary, NotificationView } from "@open-bot/api";
 import { plainText } from "@open-bot/domain";
 import { useQueryClient } from "@tanstack/react-query";
 import { router, Stack, useFocusEffect } from "expo-router";
@@ -73,7 +73,7 @@ const FILTERS = [
  * Who it's from: the teammate's face, or a tile for the app itself. The badge says what kind of
  * event it was. It never shows what the teammate is doing now: the row is about then, not now.
  */
-function Leading({ notification, bot }: { notification: NotificationView; bot?: BotSummary }) {
+function Leading({ notification, bot }: { notification: NotificationView; bot?: TeammateSummary }) {
   const colors = useColors();
   const Icon = ICONS[notification.kind] ?? Bell;
   const signal = NEEDS_YOU.has(notification.kind)
@@ -251,7 +251,7 @@ export default function Notifications() {
             section.title === "Yesterday"
               ? phoneClock(notification.createdAt)
               : ago(notification.createdAt);
-          const bot = bots.find((candidate) => candidate.id === notification.botId);
+          const bot = bots.find((candidate) => candidate.id === notification.teammateId);
           const unreadIds = row.items.filter((item) => !item.readAt).map((item) => item.id);
           const isUnread = unreadIds.length > 0;
           const { title, body: rawBody } = notificationText(notification);

@@ -29,7 +29,7 @@ describe.skipIf(!url)("pages, as the apps read them", () => {
   beforeEach(async () => {
     await pool.query("truncate pages, bots restart identity cascade"); // vocabulary: allow
     teammateId = randomUUID();
-    const teammates = schema.bots; // vocabulary: allow
+    const teammates = schema.teammates;
     await db.insert(teammates).values({
       id: teammateId,
       name: "Iris",
@@ -55,7 +55,7 @@ describe.skipIf(!url)("pages, as the apps read them", () => {
     const sourcePath = `/home/bot/bots/iris/pages/${title.toLowerCase()}/index.html`; // vocabulary: allow
     const [row] = await db
       .insert(schema.pages)
-      .values({ title, summary: "", sourcePath, botId: teammateId, pinned }) // vocabulary: allow
+      .values({ title, summary: "", sourcePath, teammateId, pinned })
       .returning();
     const inserted = await db
       .insert(schema.pageVersions)
@@ -63,7 +63,7 @@ describe.skipIf(!url)("pages, as the apps read them", () => {
         versions.map((version, index) => ({
           pageId: row!.id,
           number: index + 1,
-          botId: teammateId, // vocabulary: allow
+          teammateId,
           title,
           html: version.html,
           text: version.text,
@@ -102,7 +102,7 @@ describe.skipIf(!url)("pages, as the apps read them", () => {
     // A listed page says which version is current and how many there are.
     expect(listed[0]).toMatchObject({ version: 2, versionCount: 2 });
     expect(listed[1]).toMatchObject({ version: 1, versionCount: 1 });
-    expect(listed.every((page) => page.botId === teammateId)).toBe(true); // vocabulary: allow
+    expect(listed.every((page) => page.teammateId === teammateId)).toBe(true);
   });
 
   it("opens a page with its versions, newest first, and links to one of them", async () => {

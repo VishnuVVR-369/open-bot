@@ -8,6 +8,12 @@ describe("where a notification goes", () => {
     ).toBe("/pages/p1");
   });
 
+  it("opens the screen a teammate asks you to take over", () => {
+    expect(
+      notificationHref({ kind: "takeover_request", teammateId: "t1", chatId: "c1", runId: "r1" }),
+    ).toBe("/screens/t1");
+  });
+
   it("otherwise opens the reply in its chat", () => {
     expect(
       notificationHref({ kind: "run_finished", chatId: "c1", runId: "r1", pageId: null }),

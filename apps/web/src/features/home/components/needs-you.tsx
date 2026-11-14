@@ -37,7 +37,7 @@ function ApprovalRows({ state }: { state: AppState }) {
   return (
     <>
       {pending.slice(0, APPROVALS_SHOWN).map((approval) => {
-        const teammate = state.bots.find((entry) => entry.id === approval.botId);
+        const teammate = state.teammates.find((entry) => entry.id === approval.teammateId);
         const title = approvalShortTitle({
           ...approval,
           previewType: approval.preview?.type ?? null,
@@ -83,7 +83,7 @@ function TakeoverRow({ request, online }: { request: TakeoverRequestSummary; onl
       <Link href={href} className={NEEDS_ROW} data-testid="home-takeover-request">
         <Hand className="mt-0.5 size-4 shrink-0 text-attention-ink" />
         <span className="line-clamp-2 min-w-0 flex-1 text-[14px] break-words text-pretty">
-          <span className="font-medium">{request.botName} needs you to take over:</span>{" "}
+          <span className="font-medium">{request.teammateName} needs you to take over:</span>{" "}
           <span className="text-muted-foreground">{request.reason}</span>
         </span>
         <ArrowRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
@@ -96,7 +96,9 @@ function TakeoverRow({ request, online }: { request: TakeoverRequestSummary; onl
     >
       <Hand className="mt-0.5 size-4 shrink-0 text-attention-ink" />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="text-[14px] font-medium">{request.botName} needs you to take over</span>
+        <span className="text-[14px] font-medium">
+          {request.teammateName} needs you to take over
+        </span>
         <span className="line-clamp-2 text-[13px] break-words text-pretty text-muted-foreground">
           {request.reason}
         </span>

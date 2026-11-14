@@ -1,4 +1,4 @@
-import type { BotSummary, ChatSummary } from "@open-bot/api";
+import type { TeammateSummary, ChatSummary } from "@open-bot/api";
 import { router } from "expo-router";
 import { Pressable, StyleSheet, View } from "react-native";
 import {
@@ -28,7 +28,7 @@ function TeammateRow({
   computerOffline,
   onPress,
 }: {
-  bot: BotSummary;
+  bot: TeammateSummary;
   chat: ChatSummary | undefined;
   first: boolean;
   computerOffline: boolean;
@@ -103,12 +103,12 @@ export function Teammates({
   chats,
   computerOffline,
 }: {
-  teammates: BotSummary[];
+  teammates: TeammateSummary[];
   chats: ChatSummary[];
   computerOffline: boolean;
 }) {
   const newChat = useNewDirectChat();
-  const open = (bot: BotSummary) => {
+  const open = (bot: TeammateSummary) => {
     haptics.tap();
     const chatId = bot.activeRun?.chatId ?? conversationWith(bot, chats)?.id ?? bot.directChatId;
     if (chatId) router.push(`/chats/${chatId}`);

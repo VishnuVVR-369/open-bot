@@ -27,7 +27,7 @@ export async function createNotification(
       kind: input.kind,
       title: input.title,
       body: input.body ?? "",
-      botId: input.botId ?? null,
+      teammateId: input.botId ?? null,
       chatId: input.chatId ?? null,
       runId: input.runId ?? null,
       pageId: input.pageId ?? null,

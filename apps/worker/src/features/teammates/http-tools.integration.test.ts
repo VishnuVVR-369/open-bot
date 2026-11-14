@@ -11,7 +11,7 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
     try {
       const address = server.address();
       if (!address || typeof address === "string") throw new Error("No server port");
-      const endpoint = `http://127.0.0.1:${address.port}/internal/bots`;
+      const endpoint = `http://127.0.0.1:${address.port}/internal/teammates`;
       expect((await fetch(endpoint, { method: "POST" })).status).toBe(401);
       const headers = {
         "x-worker-secret": "test-worker-secret",
@@ -32,16 +32,18 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
         body: JSON.stringify({ name: "UI bot", role: "assistant" }),
       });
       expect(response.status).toBe(200);
-      const created = (await response.json()) as { botId: string; revision: string };
+      const created = (await response.json()) as { teammateId: string; revision: string };
       const body = JSON.stringify({
         changes: { name: "Edited" },
         expected_revision: created.revision,
       });
       expect(
-        (await fetch(`${endpoint}/${created.botId}`, { method: "POST", headers, body })).status,
+        (await fetch(`${endpoint}/${created.teammateId}`, { method: "POST", headers, body }))
+          .status,
       ).toBe(200);
       expect(
-        (await fetch(`${endpoint}/${created.botId}`, { method: "POST", headers, body })).status,
+        (await fetch(`${endpoint}/${created.teammateId}`, { method: "POST", headers, body }))
+          .status,
       ).toBe(409);
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));

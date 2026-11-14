@@ -91,7 +91,7 @@ export default function ChatScreen() {
 
   const data = useMemo(() => timelineRows(entries, runs), [entries, runs]);
   const activeRun = useMemo(() => latestActiveRun(runs), [runs]);
-  const activeName = activeRun && team.find((entry) => entry.id === activeRun.botId)?.name;
+  const activeName = activeRun && team.find((entry) => entry.id === activeRun.teammateId)?.name;
   // Waiting on you or paused for the computer, nothing is being done right now to add to or stop.
   const runHeld =
     Boolean(activeRun) && (activeRun?.timeline.status === "waiting" || computerOffline);
@@ -125,7 +125,7 @@ export default function ChatScreen() {
             <RunBlock
               run={runs[entry.run.id] ?? entry.run}
               chatId={chatId}
-              bot={team.find((candidate) => candidate.id === entry.run.botId)}
+              bot={team.find((candidate) => candidate.id === entry.run.teammateId)}
               bots={team}
               superseded={superseded.has(entry.run.id)}
               isGroup={isGroup}

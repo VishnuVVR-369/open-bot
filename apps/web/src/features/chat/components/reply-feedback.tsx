@@ -124,7 +124,7 @@ export function ReplyFeedback({
           description: "It's a lesson they read before every task.",
           action: {
             label: "See lessons",
-            onClick: () => router.push(`/bots/${run.botId}?tab=memory`),
+            onClick: () => router.push(`/bots/${run.teammateId}?tab=memory`),
           },
         });
     });

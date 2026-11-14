@@ -1,4 +1,4 @@
-import { bots, tasks } from "@open-bot/db";
+import { teammates, tasks } from "@open-bot/db";
 import type { Creator, TaskStatus } from "@open-bot/domain";
 import { and, asc, desc, eq, isNull, max, ne } from "drizzle-orm";
 import { publishApp, type Context } from "../../context";
@@ -18,7 +18,7 @@ export interface TaskPatch {
   title?: string;
   notes?: string;
   status?: TaskStatus;
-  ownerBotId?: string | null;
+  ownerTeammateId?: string | null;
   dueOn?: string | null;
   /** Where it goes in its column; the end when the status changes and this is left out. */
   position?: number;
@@ -60,9 +60,9 @@ export class TaskService {
   private async checkOwner(ownerBotId: string | null): Promise<string | null> {
     if (!ownerBotId) return null;
     const [bot] = await this.ctx.db
-      .select({ id: bots.id })
-      .from(bots)
-      .where(and(eq(bots.id, ownerBotId), isNull(bots.archivedAt)));
+      .select({ id: teammates.id })
+      .from(teammates)
+      .where(and(eq(teammates.id, ownerBotId), isNull(teammates.archivedAt)));
     if (!bot) throw new TaskError("That teammate isn't on the team anymore.");
     return bot.id;
   }
@@ -70,7 +70,7 @@ export class TaskService {
   async create(input: {
     title: string;
     notes?: string;
-    ownerBotId?: string | null;
+    ownerTeammateId?: string | null;
     dueOn?: string | null;
     createdBy: Creator;
     createdByBotId?: string | null;
@@ -80,11 +80,11 @@ export class TaskService {
       .values({
         title: checkTitle(input.title),
         notes: checkNotes(input.notes ?? ""),
-        ownerBotId: await this.checkOwner(input.ownerBotId ?? null),
+        ownerTeammateId: await this.checkOwner(input.ownerTeammateId ?? null),
         dueOn: checkDue(input.dueOn ?? null),
         position: await this.endOf("todo"),
         createdBy: input.createdBy,
-        createdByBotId: input.createdByBotId ?? null,
+        createdByTeammateId: input.createdByBotId ?? null,
       })
       .returning();
     await publishApp(this.ctx, { type: "tasks" });
@@ -107,8 +107,8 @@ export class TaskService {
       .set({
         ...(patch.title !== undefined ? { title: checkTitle(patch.title) } : {}),
         ...(patch.notes !== undefined ? { notes: checkNotes(patch.notes) } : {}),
-        ...(patch.ownerBotId !== undefined
-          ? { ownerBotId: await this.checkOwner(patch.ownerBotId) }
+        ...(patch.ownerTeammateId !== undefined
+          ? { ownerTeammateId: await this.checkOwner(patch.ownerTeammateId) }
           : {}),
         ...(patch.dueOn !== undefined ? { dueOn: checkDue(patch.dueOn) } : {}),
         status,
@@ -133,13 +133,13 @@ export class TaskService {
   async start(id: string, by: { botName: string; runId: string } | null): Promise<Task> {
     const task = await this.get(id);
     if (!task) throw new TaskError("That task no longer exists.");
-    if (!task.ownerBotId) throw new TaskError("Give the task to a teammate first.");
+    if (!task.ownerTeammateId) throw new TaskError("Give the task to a teammate first.");
     if (task.status === "done") throw new TaskError("That task is already done.");
-    const chatId = await mainChat(this.ctx, task.ownerBotId);
+    const chatId = await mainChat(this.ctx, task.ownerTeammateId);
     const from = by ? `${by.botName} asked you` : "The user asked you";
     await enqueueRun(this.ctx, {
       chatId,
-      botId: task.ownerBotId,
+      botId: task.ownerTeammateId,
       trigger: "task",
       prompt: [
         `[${from} to work on a task from the team's board (task id ${task.id}). When it's finished, mark it done with update_task, and say what you did.]`,
@@ -167,21 +167,21 @@ export class TaskService {
   /** The open tasks and the recently finished ones, as a bot reads them. */
   async describe(forBotId: string): Promise<string> {
     const rows = await this.ctx.db
-      .select({ task: tasks, owner: bots.name })
+      .select({ task: tasks, owner: teammates.name })
       .from(tasks)
-      .leftJoin(bots, eq(bots.id, tasks.ownerBotId))
+      .leftJoin(teammates, eq(teammates.id, tasks.ownerTeammateId))
       .where(ne(tasks.status, "done"))
       .orderBy(asc(tasks.status), asc(tasks.position));
     const done = await this.ctx.db
-      .select({ task: tasks, owner: bots.name })
+      .select({ task: tasks, owner: teammates.name })
       .from(tasks)
-      .leftJoin(bots, eq(bots.id, tasks.ownerBotId))
+      .leftJoin(teammates, eq(teammates.id, tasks.ownerTeammateId))
       .where(eq(tasks.status, "done"))
       .orderBy(desc(tasks.completedAt))
       .limit(10);
     const line = ({ task, owner }: { task: Task; owner: string | null }) =>
       `- [${task.status}] ${task.title} (id ${task.id}; ${
-        task.ownerBotId === forBotId ? "yours" : owner ? `owner ${owner}` : "no owner"
+        task.ownerTeammateId === forBotId ? "yours" : owner ? `owner ${owner}` : "no owner"
       }${task.dueOn ? `; due ${task.dueOn}` : ""})${task.notes ? `\n  ${task.notes.replace(/\n/g, "\n  ")}` : ""}`;
     if (rows.length === 0 && done.length === 0) return "The board is empty.";
     return [

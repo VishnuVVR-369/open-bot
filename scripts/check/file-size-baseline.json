@@ -3,7 +3,7 @@
   "apps/mobile/src/features/chat/use-chat.test.ts": 617,
   "apps/site/src/components/docs/diagrams.tsx": 1753,
   "apps/worker/src/egress/relay.test.ts": 622,
-  "apps/worker/src/features/integrations/actions.ts": 671,
-  "apps/worker/src/features/teammates/service.ts": 666,
-  "packages/memory/src/index.ts": 815
+  "apps/worker/src/features/integrations/actions.ts": 674,
+  "apps/worker/src/features/teammates/service.ts": 680,
+  "packages/memory/src/index.ts": 822
 }

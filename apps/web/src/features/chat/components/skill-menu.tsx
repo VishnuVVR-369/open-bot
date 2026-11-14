@@ -43,7 +43,7 @@ export function SkillMenu({
         <p className="px-2 pb-2 text-[13px] text-muted-foreground">No skill matches that name.</p>
       ) : (
         options.map((skill, index) => {
-          const owner = skill.botId ? members.find((m) => m.id === skill.botId) : null;
+          const owner = skill.teammateId ? members.find((m) => m.id === skill.teammateId) : null;
           return (
             <button
               key={skill.id}

@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { autonomySchema, BOT_COLORS } from "./profile";
+import { autonomySchema, TEAMMATE_COLORS } from "./profile";
 import { skillInputSchema } from "../skills/skills";
 import { pickStarters, TEAMMATE_TEMPLATES, templateSkills } from "./templates";
 
 /** A teammate's profile: the same validation for the web app and the teammates' tools. */
-export const botProfileSchema = z.object({
+export const teammateProfileSchema = z.object({
   name: z
     .string()
     .trim()
@@ -17,19 +17,19 @@ export const botProfileSchema = z.object({
   autonomy: autonomySchema,
 });
 
-export type BotProfile = z.infer<typeof botProfileSchema>;
+export type TeammateProfile = z.infer<typeof teammateProfileSchema>;
 
 /** Only what changes; nothing is filled in with a default. */
-export const botProfileChangesSchema = botProfileSchema
+export const teammateProfileChangesSchema = teammateProfileSchema
   .partial()
   .strict()
   .refine((changes) => Object.keys(changes).length > 0, "Give at least one field to change.");
 
 /** A skill a new teammate starts with. */
-export const newBotSkillSchema = skillInputSchema.omit({ botId: true }).strict();
+export const newTeammateSkillSchema = skillInputSchema.omit({ teammateId: true }).strict();
 
 /** A routine or reminder a new teammate starts with, like schedule_task's. */
-export const newBotScheduleSchema = z
+export const newTeammateScheduleSchema = z
   .object({
     title: z.string().trim().min(1).max(80),
     prompt: z.string().trim().min(1).max(4000),
@@ -42,19 +42,19 @@ export const newBotScheduleSchema = z
     message: "Give each schedule exactly one of cron (recurring) or at (one time).",
   });
 
-export const MAX_NEW_BOT_SETUP = 10;
+export const MAX_NEW_TEAMMATE_SETUP = 10;
 
 /**
  * A new teammate: a template and/or profile fields (fields override the template), plus the
  * template starters to keep and any skills and schedules of its own.
  */
-export const createBotSchema = botProfileSchema
+export const createTeammateSchema = teammateProfileSchema
   .partial()
   .extend({
     template_id: z.string().min(1).optional(),
     starter_ids: z.array(z.string()).max(20).default([]),
-    skills: z.array(newBotSkillSchema).max(MAX_NEW_BOT_SETUP).default([]),
-    schedules: z.array(newBotScheduleSchema).max(MAX_NEW_BOT_SETUP).default([]),
+    skills: z.array(newTeammateSkillSchema).max(MAX_NEW_TEAMMATE_SETUP).default([]),
+    schedules: z.array(newTeammateScheduleSchema).max(MAX_NEW_TEAMMATE_SETUP).default([]),
   })
   .strict()
   .superRefine((input, ctx) => {
@@ -76,13 +76,13 @@ export const createBotSchema = botProfileSchema
       ctx.addIssue({ code: "custom", path: ["skills"], message: "Give each skill its own name." });
   });
 
-export type CreateBotInput = z.input<typeof createBotSchema>;
+export type CreateTeammateInput = z.input<typeof createTeammateSchema>;
 
-export const updateBotSchema = z
+export const updateTeammateSchema = z
   .object({
     bot_id: z.string().uuid(),
     expected_revision: z.string().min(1).max(128),
-    changes: botProfileChangesSchema,
+    changes: teammateProfileChangesSchema,
   })
   .strict();
 
@@ -92,7 +92,7 @@ export const teammateSetupKindSchema = z.enum(["skill", "schedule"]);
 export type TeammateSetupKind = z.infer<typeof teammateSetupKindSchema>;
 
 export const createdTeammateSchema = z.object({
-  botId: z.string(),
+  teammateId: z.string(),
   name: z.string(),
   chatId: z.string(),
   chatPath: z.string(),
@@ -104,21 +104,21 @@ export const createdTeammateSchema = z.object({
   /** False when the computer was away; its workspace is written before its first run instead. */
   workspaceSynced: z.boolean(),
 });
-export type CreatedBot = z.infer<typeof createdTeammateSchema>;
+export type CreatedTeammate = z.infer<typeof createdTeammateSchema>;
 
 /** A teammate after an edit, with the revision to send with the next one. */
 export const updatedTeammateSchema = z.object({
-  botId: z.string(),
+  teammateId: z.string(),
   revision: z.string(),
   workspaceSynced: z.boolean(),
 });
 export type UpdatedTeammate = z.infer<typeof updatedTeammateSchema>;
 
 /** Everything a new teammate starts with, resolved from its template and the request. */
-export interface BotCreationPlan {
-  profile: BotProfile;
+export interface TeammateCreationPlan {
+  profile: TeammateProfile;
   templateId: string | null;
-  skills: z.infer<typeof newBotSkillSchema>[];
+  skills: z.infer<typeof newTeammateSkillSchema>[];
   schedules: {
     title: string;
     prompt: string;
@@ -129,12 +129,15 @@ export interface BotCreationPlan {
 }
 
 /** `color` is used when neither the request nor its template picks one. */
-export function botCreation(input: CreateBotInput, color: string = BOT_COLORS[0]): BotCreationPlan {
-  const parsed = createBotSchema.parse(input);
+export function teammateCreation(
+  input: CreateTeammateInput,
+  color: string = TEAMMATE_COLORS[0],
+): TeammateCreationPlan {
+  const parsed = createTeammateSchema.parse(input);
   const { template_id, starter_ids, skills, schedules, ...overrides } = parsed;
   const template = TEAMMATE_TEMPLATES.find((entry) => entry.id === template_id);
   // A template never grants more autonomy than "ask before risky actions" on its own.
-  const profile = botProfileSchema.parse({
+  const profile = teammateProfileSchema.parse({
     name: template?.name,
     role: template?.role,
     instructions: template?.instructions ?? "",

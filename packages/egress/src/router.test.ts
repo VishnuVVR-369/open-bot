@@ -169,14 +169,14 @@ describe("botd egress router", () => {
   });
 
   it("tells the relay about every screen that wants browsing when the tunnel connects", async () => {
-    const env = await setup({ leased: ["bot-leased"] });
-    env.router.noteDemand("bot-starting");
+    const env = await setup({ leased: ["teammate-leased"] });
+    env.router.noteDemand("teammate-starting");
     const relay = await env.relay();
     await until(() => relay.texts.length === 2, "the demand messages");
     expect(relay.texts).toEqual(
       expect.arrayContaining([
-        { type: "demand", screenId: "bot-starting" },
-        { type: "demand", screenId: "bot-leased" },
+        { type: "demand", screenId: "teammate-starting" },
+        { type: "demand", screenId: "teammate-leased" },
       ]),
     );
     // Again on a new tunnel, as after a worker restart.
@@ -190,7 +190,7 @@ describe("botd egress router", () => {
     const relay = await env.relay();
     relay.config({ mode: "require", agentOnline: false, wakeable: true });
     await until(() => env.router.state.configured, "the config");
-    env.router.noteDemand("bot-1");
+    env.router.noteDemand("teammate-1");
     const pending = env.connect(await destination());
     await until(() => env.router.state.held === 1, "the hold");
     relay.config({ mode: "require", agentOnline: true, wakeable: true });
@@ -227,7 +227,7 @@ describe("botd egress router", () => {
     const relay = await env.relay();
     relay.config({ mode: "require", agentOnline: false, wakeable: true });
     await until(() => env.router.state.configured, "the config");
-    env.router.noteDemand("bot-1");
+    env.router.noteDemand("teammate-1");
     const pending = env.connect(await destination());
     await until(() => env.router.state.held === 1, "the hold");
     await new Promise((resolve) => setTimeout(resolve, 400));
@@ -256,7 +256,7 @@ describe("botd egress router", () => {
     const relay = await env.relay();
     relay.config({ mode: "require", agentOnline: false, wakeable: true });
     await until(() => env.router.state.configured, "the config");
-    env.router.noteDemand("bot-1");
+    env.router.noteDemand("teammate-1");
     const port = await destination();
     const first = env.connect(port);
     await until(() => env.router.state.held === 1, "the first hold");

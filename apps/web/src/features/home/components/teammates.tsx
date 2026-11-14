@@ -1,6 +1,6 @@
 "use client";
 
-import { BOT_COLORS, TEAMMATE_TEMPLATES } from "@open-bot/domain";
+import { TEAMMATE_COLORS, TEAMMATE_TEMPLATES } from "@open-bot/domain";
 import { ArrowRight, Plus } from "lucide-react";
 import Link from "next/link";
 import { BotAvatar } from "@/components/bot-avatar";
@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
  */
 export function Teammates() {
   const { data: state } = useAppState();
-  const bots = state?.bots ?? [];
+  const bots = state?.teammates ?? [];
   const online = isComputerOnline(state);
   return (
     <section
@@ -46,7 +46,7 @@ export function Teammates() {
                 key={template.id}
                 name={template.name}
                 emoji={template.emoji}
-                color={BOT_COLORS[index * 2]!}
+                color={TEAMMATE_COLORS[index * 2]!}
                 size="md"
                 className="rounded-[10px] ring-4 ring-card"
               />

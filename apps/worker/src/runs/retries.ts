@@ -1,4 +1,4 @@
-import { bots, runs } from "@open-bot/db";
+import { teammates, runs } from "@open-bot/db";
 import { isRunActive } from "@open-bot/domain";
 import { and, asc, eq, gt, sql } from "drizzle-orm";
 import { publishApp, type Context } from "../context";
@@ -20,7 +20,10 @@ export class RetryService {
     const [run] = await ctx.db.select().from(runs).where(eq(runs.id, runId));
     if (!run) throw new RetryError(404, "Run not found");
     if (isRunActive(run.status)) throw new RetryError(409, "That run is still going.");
-    const [teammate] = await ctx.db.select().from(bots).where(eq(bots.id, run.botId));
+    const [teammate] = await ctx.db
+      .select()
+      .from(teammates)
+      .where(eq(teammates.id, run.teammateId));
     if (!teammate || teammate.archivedAt) throw new RetryError(409, "That teammate is archived.");
     // One retry at a time per run, so a repeated tap or request finds the first one's run.
     const previous = this.retrying.get(run.id) ?? Promise.resolve();
@@ -33,7 +36,7 @@ export class RetryService {
         .where(
           and(
             eq(runs.chatId, run.chatId),
-            eq(runs.botId, run.botId),
+            eq(runs.teammateId, run.teammateId),
             gt(runs.createdAt, sql`(select created_at from runs where id = ${run.id})`),
           ),
         )
@@ -43,7 +46,7 @@ export class RetryService {
       // The same request again, in the same chat; the bot's thread still has what happened.
       const newRunId = await enqueueRun(ctx, {
         chatId: run.chatId,
-        botId: run.botId,
+        botId: run.teammateId,
         trigger: run.trigger,
         prompt: run.prompt,
         attachments: run.attachments,

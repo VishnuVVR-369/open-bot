@@ -10,7 +10,7 @@ assert(
   new URL(appUrl).hostname === "127.0.0.1" && new URL(workerUrl).hostname === "127.0.0.1",
   "Only isolated localhost fixtures are allowed",
 );
-const response = await fetch(workerUrl + "/internal/bots", {
+const response = await fetch(workerUrl + "/internal/teammates", {
   method: "POST",
   headers: {
     "x-worker-secret": "sleep-test-worker-secret-20261107",
@@ -19,7 +19,7 @@ const response = await fetch(workerUrl + "/internal/bots", {
   body: JSON.stringify({ name: "Web sleep fixture", role: "Lifecycle web verification" }),
 });
 assert(response.ok);
-const { botId } = (await response.json()) as { botId: string };
+const { teammateId: botId } = (await response.json()) as { teammateId: string };
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
 const page = await context.newPage();

@@ -12,7 +12,7 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
       .insert(approvals)
       .values({
         runId: run.id,
-        botId: created.id,
+        teammateId: created.id,
         chatId: created.chatId,
         kind: "command",
         title: "Run ls",

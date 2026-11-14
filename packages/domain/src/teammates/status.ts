@@ -62,10 +62,10 @@ function labelFor(activity: TeammateActivity, waitingFor: ActiveRunFacts["waitin
  * chat or on the approvals page. Everyone else is paused while the computer is offline.
  */
 export function teammateStatus(
-  bot: { activeRun: ActiveRunFacts | null },
+  teammate: { activeRun: ActiveRunFacts | null },
   computerOnline = true,
 ): TeammateStatus {
-  const run = bot.activeRun;
+  const run = teammate.activeRun;
   const activity: TeammateActivity =
     run?.status === "waiting"
       ? "waiting"
@@ -129,17 +129,17 @@ export interface ChatStatus extends TeammateStatus {
  * from `chatById`.
  */
 export function chatStatus({
-  bot,
+  teammate,
   chatId,
   computerOnline,
   chatById,
 }: {
-  bot: { activeRun: ActiveRunFacts | null };
+  teammate: { activeRun: ActiveRunFacts | null };
   chatId: string;
   computerOnline: boolean;
   chatById: (id: string) => ChatNaming | null | undefined;
 }): ChatStatus {
-  const run = bot.activeRun;
+  const run = teammate.activeRun;
   const here = run && run.chatId === chatId && isRunActive(run.status) ? run : null;
   const status = teammateStatus({ activeRun: here }, computerOnline);
   // Offline with nothing running here is idle: there is nothing in this chat to pause.

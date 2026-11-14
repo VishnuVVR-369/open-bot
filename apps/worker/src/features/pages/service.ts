@@ -1,4 +1,4 @@
-import { bots, pages, pageVersions } from "@open-bot/db";
+import { teammates, pages, pageVersions } from "@open-bot/db";
 import {
   COMPUTER_PATHS,
   MAX_PAGE_SUMMARY,
@@ -28,7 +28,7 @@ type Page = typeof pages.$inferSelect;
 type PageVersion = typeof pageVersions.$inferSelect;
 
 export interface PublishInput {
-  botId: string;
+  teammateId: string;
   /** The chat it was made in, if any: asking about the page goes there. */
   chatId: string | null;
   /** The run that published it, if a teammate did. */
@@ -153,7 +153,7 @@ export class PageService {
         [page] = await tx
           .select()
           .from(pages)
-          .where(and(eq(pages.botId, input.botId), eq(pages.sourcePath, input.path)))
+          .where(and(eq(pages.teammateId, input.teammateId), eq(pages.sourcePath, input.path)))
           .orderBy(desc(pages.updatedAt))
           .limit(1)
           .for("update");
@@ -172,7 +172,7 @@ export class PageService {
         [page] = await tx
           .insert(pages)
           .values({
-            botId: input.botId,
+            teammateId: input.teammateId,
             chatId: input.chatId,
             title,
             summary,
@@ -186,7 +186,7 @@ export class PageService {
         .values({
           pageId: page!.id,
           number,
-          botId: input.botId,
+          teammateId: input.teammateId,
           runId: input.runId,
           title,
           summary,
@@ -229,10 +229,10 @@ export class PageService {
         versionCount: pages.versionCount,
         updatedAt: pages.updatedAt,
         sourcePath: pages.sourcePath,
-        botName: bots.name,
+        botName: teammates.name,
       })
       .from(pages)
-      .leftJoin(bots, eq(bots.id, pages.botId))
+      .leftJoin(teammates, eq(teammates.id, pages.teammateId))
       .orderBy(desc(pages.updatedAt))
       .limit(100);
     if (rows.length === 0) return "There are no pages yet.";
@@ -252,10 +252,10 @@ export class PageService {
         number: pageVersions.number,
         note: pageVersions.note,
         createdAt: pageVersions.createdAt,
-        botName: bots.name,
+        botName: teammates.name,
       })
       .from(pageVersions)
-      .leftJoin(bots, eq(bots.id, pageVersions.botId))
+      .leftJoin(teammates, eq(teammates.id, pageVersions.teammateId))
       .where(eq(pageVersions.pageId, pageId))
       .orderBy(desc(pageVersions.number))
       .limit(30);

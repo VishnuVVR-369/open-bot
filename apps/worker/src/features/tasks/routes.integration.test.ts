@@ -1,4 +1,4 @@
-import { tasks } from "@open-bot/db";
+import { tasks, teammates } from "@open-bot/db";
 import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 import { rpcEnabled, rpcHarness, failure } from "../../testing/rpc";
@@ -14,6 +14,21 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
     expect(task).toMatchObject({ status: "doing", notes: "Draft first" });
     await worker.tasks.remove({ taskId: id });
     expect(await db.select().from(tasks).where(eq(tasks.id, id))).toEqual([]);
+  });
+
+  it("tasks: gives one to a teammate and takes it back", async () => {
+    const [owner] = await db
+      .insert(teammates)
+      .values({ name: "Ivy", slug: "ivy-tasks", role: "Travel", color: "#123456" })
+      .returning();
+    const { id } = await worker.tasks.create({ title: "Book flights", ownerTeammateId: owner!.id });
+    const ownerOf = async () =>
+      (await db.select().from(tasks).where(eq(tasks.id, id)))[0]!.ownerTeammateId;
+    expect(await ownerOf()).toBe(owner!.id);
+    await worker.tasks.update({ taskId: id, ownerTeammateId: null });
+    expect(await ownerOf()).toBeNull();
+    await worker.tasks.update({ taskId: id, ownerTeammateId: owner!.id });
+    expect(await ownerOf()).toBe(owner!.id);
   });
 
   it("answers a failed query with the database's error, never its SQL or parameters", async () => {

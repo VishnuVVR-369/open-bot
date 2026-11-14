@@ -14,7 +14,7 @@ describe("skills", () => {
   });
 
   it("rejects names that aren't kebab-case", () => {
-    const base = { description: "d", instructions: "i", botId: null };
+    const base = { description: "d", instructions: "i", teammateId: null };
     expect(skillInputSchema.safeParse({ ...base, name: "ok-name" }).success).toBe(true);
     expect(skillInputSchema.safeParse({ ...base, name: "Bad Name" }).success).toBe(false);
     expect(skillInputSchema.safeParse({ ...base, name: "trailing-" }).success).toBe(false);

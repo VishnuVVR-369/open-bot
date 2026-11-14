@@ -1,5 +1,5 @@
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
-import { approvals, bots as teammates, chats, runs } from "@open-bot/db"; // vocabulary: allow (the schema's name until the rename)
+import { approvals, teammates, chats, runs } from "@open-bot/db";
 import type { ApprovalStatus } from "@open-bot/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -22,7 +22,7 @@ describe.skipIf(!url)("the approvals list", () => {
   });
 
   it("puts waiting approvals first, then the rest, each newest first, 100 at most", async () => {
-    const owned = (teammateId: string) => ({ botId: teammateId }); // vocabulary: allow (the schema's column until the rename)
+    const owned = (teammateId: string) => ({ teammateId });
     const [teammate] = await database.db
       .insert(teammates)
       .values({ name: "Scout", slug: "scout", role: "Researcher", color: "#3b82f6" })

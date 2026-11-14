@@ -197,7 +197,7 @@ export function MemoryManager({ botId, name }: { botId: string | null; name: str
   const refresh = () => queryClient.invalidateQueries({ queryKey: orpc.memory.key() });
   const { data: state } = useAppState();
   const savedBy = (item: MemoryItem) =>
-    state?.bots.find((bot) => bot.id === item.source.botId)?.name ?? null;
+    state?.teammates.find((bot) => bot.id === item.source.botId)?.name ?? null;
   function edit(item: MemoryItem | null) {
     setProblem(null);
     setDraft({
@@ -318,7 +318,7 @@ export function MemoryManager({ botId, name }: { botId: string | null; name: str
                 event.preventDefault();
                 startTransition(async () => {
                   const input = {
-                    botId,
+                    teammateId: botId,
                     content: draft.content,
                     kind: draft.kind,
                     key: draft.key.trim() || null,
@@ -441,7 +441,7 @@ export function MemoryManager({ botId, name }: { botId: string | null; name: str
                       type="button"
                       variant="link"
                       onClick={async () => {
-                        const fresh = await api.memory.list({ botId, query: "" });
+                        const fresh = await api.memory.list({ teammateId: botId, query: "" });
                         const item = fresh.find((i) => i.id === draft.item?.id);
                         if (item) edit(item);
                         else setProblem("This memory was forgotten. Close this editor.");

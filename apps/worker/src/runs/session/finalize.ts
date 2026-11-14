@@ -112,7 +112,7 @@ export async function complete(session: FinalizeSession, outcome: Outcome) {
       .insert(usageEntries)
       .values({
         runId: run.id,
-        botId: bot.id,
+        teammateId: bot.id,
         authMode: mode,
         ...usage,
         // The plan is a flat subscription; only the API key costs money per token.

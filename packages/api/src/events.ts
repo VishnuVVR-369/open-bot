@@ -21,7 +21,7 @@ export const APP_EVENT_REFRESHES: Record<AppEventType, readonly ProcedurePath[]>
   notification: [["notifications"]],
   approvals: [["approvals"]],
   takeovers: [["screens", "list"]],
-  bots: [
+  teammates: [
     ["teammates", "list"],
     ["chats", "list"],
   ],

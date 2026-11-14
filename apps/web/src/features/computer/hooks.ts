@@ -26,7 +26,7 @@ export function useComputer(initial?: AppState) {
   const requests = state?.takeoverRequests ?? [];
 
   function screen(botId: string): ScreenInfo | null {
-    const bot = state?.bots.find((b) => b.id === botId);
+    const bot = state?.teammates.find((b) => b.id === botId);
     if (!bot) return null;
     const status = screens.find((s) => s.id === botId) ?? null;
     const lease = status?.lease ?? null;
@@ -51,7 +51,7 @@ export function useComputer(initial?: AppState) {
   const controlled = screens
     .filter((s) => isOwnerLease(s.lease))
     .map((s) => s.id)
-    .filter((id) => state?.bots.some((bot) => bot.id === id));
+    .filter((id) => state?.teammates.some((bot) => bot.id === id));
 
   return {
     state,

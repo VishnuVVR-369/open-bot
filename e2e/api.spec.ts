@@ -56,7 +56,7 @@ test.describe("the phone's API", () => {
     const chats = await api.chats.list();
     expect(chats.some((chat) => chat.id === teammate.directChatId)).toBe(true);
 
-    const { chatId } = await api.chats.newDirect({ botId: teammate.id });
+    const { chatId } = await api.chats.newDirect({ teammateId: teammate.id });
     const input = {
       clientId: crypto.randomUUID(),
       chatId,
@@ -323,9 +323,9 @@ test.describe("the phone's API", () => {
       .filter((bot) => names.includes(bot.name))
       .map((bot) => bot.id);
     const title = testLabel("group");
-    const tooFew = await safe(api.chats.createGroup({ title, botIds: [ids[0]!] }));
+    const tooFew = await safe(api.chats.createGroup({ title, teammateIds: [ids[0]!] }));
     expect(tooFew.error).toMatchObject({ code: "BAD_REQUEST" });
-    const { chatId } = await api.chats.createGroup({ title, botIds: ids });
+    const { chatId } = await api.chats.createGroup({ title, teammateIds: ids });
     const group = (await api.chats.list()).find((chat) => chat.id === chatId);
     expect(group).toMatchObject({ kind: "group", title, unread: false });
     expect(group?.memberIds.sort()).toEqual([...ids].sort());
@@ -379,7 +379,9 @@ test.describe("the phone's API", () => {
     const word = `zebra${crypto.randomUUID().slice(0, 6)}`;
     const { teammate, runId } = await teammateWithReply(page, `The ${word} report is ready.`);
     const results = await api.search.messages({ query: word });
-    expect(results).toEqual([expect.objectContaining({ from: "bot", runId, botId: teammate.id })]);
+    expect(results).toEqual([
+      expect.objectContaining({ from: "teammate", runId, teammateId: teammate.id }),
+    ]);
     expect(results[0]!.excerpt).toContain(word);
     expect(await api.search.messages({ query: "z" })).toEqual([]);
 
@@ -409,10 +411,12 @@ test.describe("the phone's API", () => {
       decision: "approved",
       alwaysAllow: { pattern: "pnpm test" },
     });
-    const rule = (await api.approvals.rules()).find((entry) => entry.botId === teammate.id);
+    const rule = (await api.approvals.rules()).find((entry) => entry.teammateId === teammate.id);
     expect(rule).toMatchObject({ kind: "command", pattern: "pnpm test" });
     await api.approvals.removeRule({ ruleId: rule!.id });
-    expect((await api.approvals.rules()).some((entry) => entry.botId === teammate.id)).toBe(false);
+    expect((await api.approvals.rules()).some((entry) => entry.teammateId === teammate.id)).toBe(
+      false,
+    );
   });
 
   test("registers a phone for notifications", async () => {

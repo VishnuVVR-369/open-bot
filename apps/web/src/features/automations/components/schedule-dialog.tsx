@@ -65,7 +65,7 @@ export function ScheduleDialog({
   onOpenChange?: (open: boolean) => void;
 }) {
   const { data: state } = useAppState();
-  const bots = state?.bots ?? [];
+  const bots = state?.teammates ?? [];
   const defaultTimezone = state?.timezone ?? "UTC";
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const open = controlledOpen ?? uncontrolledOpen;
@@ -88,7 +88,7 @@ export function ScheduleDialog({
   // Start from the schedule (or a blank one) each time the dialog opens.
   useEffect(() => {
     if (!open) return;
-    setSelectedBot(schedule?.botId ?? botId ?? "");
+    setSelectedBot(schedule?.teammateId ?? botId ?? "");
     setTitle(schedule?.title ?? "");
     setPrompt(schedule?.prompt ?? "");
     setKind(schedule?.kind ?? "cron");
@@ -114,7 +114,7 @@ export function ScheduleDialog({
   function submit() {
     startTransition(async () => {
       const input = {
-        botId: botValue,
+        teammateId: botValue,
         title: title.trim(),
         prompt: prompt.trim(),
         cron: kind === "cron" ? cron : null,

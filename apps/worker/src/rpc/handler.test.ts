@@ -68,7 +68,7 @@ describe("worker internal API transport", () => {
     email: {
       inbound: vi.fn(async (token: string) => {
         if (token !== "known-token") throw new EmailError("Not found.", 404);
-        return { botId: ID };
+        return { teammateId: ID };
       }),
     },
     screenOperations: {
@@ -296,7 +296,7 @@ describe("worker internal API transport", () => {
       method: "POST",
       body: JSON.stringify({ token: "not the path's", Subject: "Hi" }),
     });
-    expect(await mail.json()).toEqual({ ok: true, botId: ID });
+    expect(await mail.json()).toEqual({ ok: true, teammateId: ID });
     expect(services.email.inbound).toHaveBeenLastCalledWith("known-token", {
       token: "not the path's",
       Subject: "Hi",

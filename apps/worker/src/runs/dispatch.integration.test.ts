@@ -2,7 +2,7 @@ import { EventEmitter } from "node:events";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
-import { bots, chatMembers, chats, messageDispatches, messages, runs } from "@open-bot/db";
+import { teammates, chatMembers, chats, messageDispatches, messages, runs } from "@open-bot/db";
 import type { Context } from "../context";
 import { MemoryService } from "@open-bot/memory";
 import { SessionRegistry } from "./registry";
@@ -44,7 +44,7 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
 
   async function bot(name: string) {
     const [row] = await db
-      .insert(bots)
+      .insert(teammates)
       .values({ name, slug: name.toLowerCase(), role: "assistant", color: "#4f46e5" })
       .returning();
     return row!;
@@ -54,7 +54,7 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
     const teammate = await bot("Rex");
     const [chat] = await db
       .insert(chats)
-      .values({ kind: "direct", title: teammate.name, botId: teammate.id })
+      .values({ kind: "direct", title: teammate.name, teammateId: teammate.id })
       .returning();
     return { teammate, chat: chat! };
   }
@@ -100,11 +100,11 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
 
     const queued = await runsFor(sent.id);
     expect(queued).toHaveLength(1);
-    expect(queued[0]).toMatchObject({ botId: teammate.id, trigger: "user", status: "queued" });
+    expect(queued[0]).toMatchObject({ teammateId: teammate.id, trigger: "user", status: "queued" });
     const rows = await dispatchRows(sent.id);
     expect(rows).toEqual([
       expect.objectContaining({
-        botId: teammate.id,
+        teammateId: teammate.id,
         kind: "run",
         status: "done",
         runId: queued[0]!.id,
@@ -133,14 +133,14 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
     const [ada, bo] = [await bot("Ada"), await bot("Bo")];
     const [group] = await db.insert(chats).values({ kind: "group", title: "Team" }).returning();
     await db.insert(chatMembers).values([
-      { chatId: group!.id, botId: ada.id },
-      { chatId: group!.id, botId: bo.id },
+      { chatId: group!.id, teammateId: ada.id },
+      { chatId: group!.id, teammateId: bo.id },
     ]);
     const sent = await message(group!.id, { mentions: [ada.id, bo.id] });
     await Promise.all([executor.dispatchMessage(sent.id), executor.dispatchMessage(sent.id)]);
 
     const queued = await runsFor(sent.id);
-    expect(queued.map((run) => run.botId).sort()).toEqual([ada.id, bo.id].sort());
+    expect(queued.map((run) => run.teammateId).sort()).toEqual([ada.id, bo.id].sort());
   });
 
   it("joins a running turn once, without starting a run", async () => {
@@ -176,7 +176,7 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
     const sent = await message(chat.id, { dispatchStatus: "dispatched" });
     await db
       .insert(messageDispatches)
-      .values({ messageId: sent.id, botId: teammate.id, kind: "steer", status: "sending" });
+      .values({ messageId: sent.id, teammateId: teammate.id, kind: "steer", status: "sending" });
 
     await executor.recoverSteers();
     await executor.recoverSteers();
@@ -186,7 +186,10 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
       .select()
       .from(messageDispatches)
       .where(
-        and(eq(messageDispatches.messageId, sent.id), eq(messageDispatches.botId, teammate.id)),
+        and(
+          eq(messageDispatches.messageId, sent.id),
+          eq(messageDispatches.teammateId, teammate.id),
+        ),
       );
     expect(row).toMatchObject({ kind: "run", status: "done" });
   });
@@ -196,7 +199,7 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
     const sent = await message(chat.id);
     const values = {
       chatId: chat.id,
-      botId: teammate.id,
+      teammateId: teammate.id,
       trigger: "user" as const,
       prompt: sent.text,
       messageId: sent.id,
@@ -211,7 +214,7 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
       .insert(runs)
       .values({
         chatId: chat.id,
-        botId: teammate.id,
+        teammateId: teammate.id,
         trigger: "user",
         prompt: "Original request",
         status: "completed",
@@ -235,7 +238,7 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
     await executor.reconcileDispatches(0);
     await Promise.all([executor.dispatchMessage(sent.id), executor.dispatchMessage(sent.id)]);
     expect(await runsFor(sent.id)).toHaveLength(1);
-    const lessons = await memory.list({ botId: teammate.id }, { kind: "user" });
+    const lessons = await memory.list({ teammateId: teammate.id }, { kind: "user" });
     expect(lessons).toHaveLength(1);
     expect(lessons[0]).toMatchObject({ kind: "lesson", content: "Include sources", revision: 1 });
 
@@ -244,6 +247,6 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
       { kind: "user" },
     );
     await executor.dispatchMessage(sent.id);
-    expect(await memory.list({ botId: teammate.id }, { kind: "user" })).toHaveLength(0);
+    expect(await memory.list({ teammateId: teammate.id }, { kind: "user" })).toHaveLength(0);
   });
 });

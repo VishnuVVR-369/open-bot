@@ -266,7 +266,7 @@ export function PageViewer({ pageId, versionId }: { pageId: string; versionId: s
   const [question, setQuestion] = useState<Question | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const bot = state?.bots.find((candidate) => candidate.id === page?.botId);
+  const bot = state?.teammates.find((candidate) => candidate.id === page?.teammateId);
   const chat = page ? questionTarget(page, bot, state?.chats ?? []) : null;
   const canAsk = Boolean(bot && chat);
 

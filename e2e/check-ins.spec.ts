@@ -3,7 +3,7 @@ import { apiFor, botIdOf, createTeammate, uniqueName, waitForLastRun } from "./h
 
 async function notificationsFor(page: Page, botId: string) {
   const all = await apiFor(page).notifications.list();
-  return all.filter((entry) => entry.botId === botId && entry.kind === "run_finished");
+  return all.filter((entry) => entry.teammateId === botId && entry.kind === "run_finished");
 }
 
 test("turn a teammate's daily check-in on and off", async ({ page }) => {
@@ -60,7 +60,9 @@ test("@agent a quiet routine stays quiet until there's news", async ({ page }) =
   await row.getByRole("button", { name: "Run now" }).click();
   await expect(row).toContainText(/Last run|Running|Finished/, { timeout: 30_000 });
   const state = await apiFor(page).app.state();
-  const scheduled = state.chats.find((chat) => chat.kind === "scheduled" && chat.botId === botId)!;
+  const scheduled = state.chats.find(
+    (chat) => chat.kind === "scheduled" && chat.teammateId === botId,
+  )!;
   await page.goto(`/chats/${scheduled.id}`);
   await waitForLastRun(page, ["completed"]);
   const quiet = page.getByTestId("run").last();

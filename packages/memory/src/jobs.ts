@@ -390,7 +390,7 @@ export class MemoryJobs {
     const [run] = await this.memory.db
       .select({
         id: runs.id,
-        botId: runs.botId,
+        teammateId: runs.teammateId,
         messageId: messages.id,
         text: messages.text,
       })
@@ -415,14 +415,14 @@ export class MemoryJobs {
     for (const candidate of candidates)
       await this.memory.save(
         {
-          botId: run.botId,
+          teammateId: run.teammateId,
           kind: candidate.kind,
           content: candidate.content,
           key: null,
           pinned: false,
           expiresAt: null,
         },
-        { kind: "bot", botId: run.botId, runId: run.id, messageId: run.messageId },
+        { kind: "teammate", teammateId: run.teammateId, runId: run.id, messageId: run.messageId },
         { source: { type: "extraction", runId: run.id, messageId: run.messageId } },
       );
   }

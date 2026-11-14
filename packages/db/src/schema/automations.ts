@@ -13,15 +13,15 @@ import {
 } from "drizzle-orm/pg-core";
 import { createdAt, updatedAt } from "./columns";
 import { connections } from "./integrations";
-import { bots } from "./teammates";
+import { teammates } from "./teammates";
 
 export const schedules = pgTable(
   "schedules",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    botId: uuid("bot_id")
+    teammateId: uuid("bot_id")
       .notNull()
-      .references(() => bots.id, { onDelete: "cascade" }),
+      .references(() => teammates.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
     prompt: text("prompt").notNull(),
     kind: text("kind").$type<ScheduleKind>().notNull(),
@@ -43,18 +43,18 @@ export const schedules = pgTable(
 
 /**
  * What wakes a teammate besides the clock: a web page that changed (a watch), or a request to its
- * webhook URL. Each firing runs in the bot's Scheduled chat with the trigger's prompt.
+ * webhook URL. Each firing runs in the teammate's Scheduled chat with the trigger's prompt.
  */
 export const triggers = pgTable(
   "triggers",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    botId: uuid("bot_id")
+    teammateId: uuid("bot_id")
       .notNull()
-      .references(() => bots.id, { onDelete: "cascade" }),
+      .references(() => teammates.id, { onDelete: "cascade" }),
     kind: text("kind").$type<TriggerKind>().notNull(),
     title: text("title").notNull(),
-    /** What the bot is asked to do when it fires. */
+    /** What the teammate is asked to do when it fires. */
     prompt: text("prompt").notNull(),
     enabled: boolean("enabled").notNull().default(true),
     /** Watches: the page, how often to check it, and optional text to wait for. */

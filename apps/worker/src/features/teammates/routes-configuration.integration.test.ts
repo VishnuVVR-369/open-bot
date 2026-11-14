@@ -1,5 +1,5 @@
 import {
-  bots as teammateRows, // vocabulary: allow
+  teammates as teammateRows,
   instructionProposals,
   schedules as scheduleRows,
 } from "@open-bot/db";
@@ -30,9 +30,9 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
         .where(
           and(
             eq(instructionProposals.status, "pending"),
-            eq(instructionProposals.botId, teammateId),
+            eq(instructionProposals.teammateId, teammateId),
           ),
-        ); // vocabulary: allow
+        );
       await worker.proposals.accept({ proposalId: waiting!.id });
       const instructions = async () =>
         (await db.select().from(teammateRows).where(eq(teammateRows.id, teammateId)))[0]!
@@ -59,9 +59,9 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
         .where(
           and(
             eq(instructionProposals.status, "pending"),
-            eq(instructionProposals.botId, teammateId),
+            eq(instructionProposals.teammateId, teammateId),
           ),
-        ); // vocabulary: allow
+        );
       await teammates.proposeInstructions({
         teammateId,
         current: "",
@@ -85,7 +85,7 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
       const [routine] = await db
         .select()
         .from(scheduleRows)
-        .where(eq(scheduleRows.botId, teammateId)); // vocabulary: allow
+        .where(eq(scheduleRows.teammateId, teammateId));
       await worker.schedules.remove({ scheduleId: routine!.id });
       await worker.schedules.remove({ scheduleId: routine!.id });
       expect(await db.select().from(scheduleRows).where(eq(scheduleRows.id, routine!.id))).toEqual(
@@ -97,8 +97,8 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
     it("lets only one of two teammates imported at once into an empty team lead", async () => {
       await db
         .update(teammateRows)
-        .set({ archivedAt: new Date(), isLead: false }) // vocabulary: allow
-        .where(isNull(teammateRows.archivedAt)); // vocabulary: allow
+        .set({ archivedAt: new Date(), isLead: false })
+        .where(isNull(teammateRows.archivedAt));
       expect(await leads()).toEqual([]);
       await Promise.all(["Ada", "Bea"].map((name) => imported(name)));
       expect(await leads()).toHaveLength(1);

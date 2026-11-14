@@ -50,7 +50,7 @@ describe.skipIf(!apiTestUrl)("API reads, end to end", () => {
         pinned: false,
         expiresAt: null,
       },
-      { kind: "bot", botId: ids.teammate, runId: ids.run, verified: false }, // vocabulary: allow
+      { kind: "teammate", teammateId: ids.teammate, runId: ids.run, verified: false },
     );
     expect(suggested.state).toBe("candidate");
     const confirmed = await api.memory.confirm({

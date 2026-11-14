@@ -59,7 +59,7 @@ describe("template skills", () => {
   it("are valid skills, and only the template's own", () => {
     for (const template of TEAMMATE_TEMPLATES) {
       for (const skill of template.skills ?? []) {
-        expect(skillInputSchema.safeParse({ ...skill, botId: null }).success, skill.name).toBe(
+        expect(skillInputSchema.safeParse({ ...skill, teammateId: null }).success, skill.name).toBe(
           true,
         );
       }

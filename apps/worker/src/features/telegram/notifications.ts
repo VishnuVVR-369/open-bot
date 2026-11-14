@@ -2,7 +2,7 @@
 // remembered so a reply there continues the right chat.
 import {
   approvals,
-  bots,
+  teammates,
   messages,
   pages,
   pageVersions,
@@ -38,9 +38,9 @@ export async function onNotification(service: TelegramNotifier, event: Notificat
     // Runs you started in the app stay in the app.
     if (!origin && !automation && event.kind === "run_finished") return;
     const [bot] = await service.ctx.db
-      .select({ name: bots.name })
-      .from(bots)
-      .where(eq(bots.id, run.botId));
+      .select({ name: teammates.name })
+      .from(teammates)
+      .where(eq(teammates.id, run.teammateId));
     const name = escapeHtml(bot?.name ?? "Your teammate");
     const pageLinks = await publishedPageLinks(service, run.id);
     const body =

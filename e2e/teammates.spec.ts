@@ -58,7 +58,7 @@ test("duplicate a teammate with their skills and memory", async ({ page }) => {
     name: skill,
     description: "Only for the original",
     instructions: "Reply with ok.",
-    botId: id,
+    teammateId: id,
   });
   await page.goto(`/bots/${id}`);
   await page.getByRole("tab", { name: "Memory" }).click();

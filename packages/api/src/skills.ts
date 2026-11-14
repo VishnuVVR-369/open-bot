@@ -8,9 +8,9 @@ export const skillViewSchema = z.object({
   description: z.string(),
   instructions: z.string(),
   /** The teammate who can use it, or null for every teammate. */
-  botId: z.string().nullable(),
+  teammateId: z.string().nullable(),
   createdBy: creatorSchema,
-  createdByBotId: z.string().nullable(),
+  createdByTeammateId: z.string().nullable(),
   updatedAt: z.string(),
 });
 export type SkillView = z.infer<typeof skillViewSchema>;

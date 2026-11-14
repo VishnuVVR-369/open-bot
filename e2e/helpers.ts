@@ -79,7 +79,7 @@ export async function waitForLastRun(page: Page, states: string[], timeout = 240
 /** A teammate's id, by name. */
 export async function botIdOf(page: Page, name: string): Promise<string> {
   const state = await apiFor(page).app.state();
-  return state.bots.find((bot) => bot.name === name)!.id;
+  return state.teammates.find((bot) => bot.name === name)!.id;
 }
 
 /**

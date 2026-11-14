@@ -1,4 +1,4 @@
-import type { BotSummary, PageSummary } from "@open-bot/api";
+import type { TeammateSummary, PageSummary } from "@open-bot/api";
 import { safe } from "@orpc/client";
 import { router } from "expo-router";
 import { EllipsisVertical, Pin, PinOff, Trash2 } from "lucide-react-native";
@@ -27,7 +27,7 @@ export function PageRow({
   onMenu,
 }: {
   page: PageSummary;
-  bot: BotSummary | undefined;
+  bot: TeammateSummary | undefined;
   first: boolean;
   onMenu?: () => void;
 }) {

@@ -8,7 +8,7 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
   it("schedules: saves a routine and says why a reminder can't be saved", async () => {
     const created = await newTeammate("Mary", "planner");
     const schedule = {
-      botId: created.id,
+      teammateId: created.id,
       title: "Morning brief",
       prompt: "Brief me",
       cron: "0 9 * * *",
@@ -27,7 +27,7 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
   it("triggers and hooks: a webhook gets a URL, and an unknown one is a 404", async () => {
     const created = await newTeammate("Ida", "watcher");
     const hook = await worker.triggers.create({
-      botId: created.id,
+      teammateId: created.id,
       kind: "webhook",
       title: "Deploys",
       prompt: "Tell me about deploys",

@@ -108,7 +108,7 @@ test.describe("versioned memory in an isolated database", () => {
     const memory = new MemoryService(createDb(pool));
     const saved = await memory.save(
       {
-        botId,
+        teammateId: botId,
         content: "An existing memory must survive a duplicate save.",
         kind: "fact",
         key: null,
@@ -223,7 +223,7 @@ test.describe("versioned memory in an isolated database", () => {
     const memory = new MemoryService(createDb(pool));
     const item = await memory.save(
       {
-        botId,
+        teammateId: botId,
         content: "E2E inspector: prefers remote roles",
         kind: "preference",
         key: null,

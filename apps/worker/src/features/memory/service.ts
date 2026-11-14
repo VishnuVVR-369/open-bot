@@ -90,7 +90,7 @@ export class MemoryCoordinator {
     session: MemorySession,
     content: string,
     shared = false,
-  ): Promise<Extract<MemoryActor, { kind: "bot" }>> {
+  ): Promise<Extract<MemoryActor, { kind: "teammate" }>> {
     const messageId = session.run.messageId;
     const text = await this.requestText(session);
     const explicit = hasMemorySaveIntent(text);
@@ -99,8 +99,8 @@ export class MemoryCoordinator {
       normalizeMemory(text).includes(normalizeMemory(content)) &&
       (!shared || /\b(all|every|shared|profile|teammates)\b/i.test(text));
     return {
-      kind: "bot",
-      botId: session.bot.id,
+      kind: "teammate",
+      teammateId: session.bot.id,
       runId: session.run.id,
       ...(messageId ? { messageId } : {}),
       verified,
@@ -148,7 +148,7 @@ export class MemoryCoordinator {
         .insert(memoryContexts)
         .values({
           runId: session.run.id,
-          botId: session.bot.id,
+          teammateId: session.bot.id,
           generation: after,
           refs: packet.refs,
         })

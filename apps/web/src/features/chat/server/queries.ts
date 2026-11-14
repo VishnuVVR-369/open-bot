@@ -94,7 +94,7 @@ export async function getChatData(chatId: string, before?: string): Promise<Chat
     .filter((id): id is string => Boolean(id));
   const parents = parentIds.length
     ? await db
-        .select({ id: runs.id, botId: runs.botId })
+        .select({ id: runs.id, teammateId: runs.teammateId })
         .from(runs)
         .where(inArray(runs.id, parentIds))
     : [];
@@ -107,14 +107,14 @@ export async function getChatData(chatId: string, before?: string): Promise<Chat
     timeline = { ...timeline, status: run.status, error: run.error ?? timeline.error };
     return {
       id: run.id,
-      botId: run.botId,
+      teammateId: run.teammateId,
       trigger: run.trigger,
       messageId: run.messageId,
       parentRunId: run.parentRunId,
       authMode: run.authMode ?? null,
-      fromBotId:
+      fromTeammateId:
         run.trigger === "handoff" || run.trigger === "question" || run.trigger === "answer"
-          ? (parents.find((p) => p.id === run.parentRunId)?.botId ?? null)
+          ? (parents.find((p) => p.id === run.parentRunId)?.teammateId ?? null)
           : null,
       scheduleTitle,
       triggerTitle,
@@ -233,7 +233,7 @@ export async function searchMessages(query: string, limit = 12): Promise<SearchR
       .select({
         id: runs.id,
         chatId: runs.chatId,
-        botId: runs.botId,
+        teammateId: runs.teammateId,
         text: runs.finalText,
         createdAt: runs.createdAt,
       })
@@ -251,16 +251,16 @@ export async function searchMessages(query: string, limit = 12): Promise<SearchR
       from: "you" as const,
       chatId: row.chatId,
       runId: null,
-      botId: null,
+      teammateId: null,
       excerpt: excerptAround(row.text, q),
       createdAt: row.createdAt.toISOString(),
     })),
     ...replies.map((row) => ({
       id: row.id,
-      from: "bot" as const,
+      from: "teammate" as const,
       chatId: row.chatId,
       runId: row.id,
-      botId: row.botId,
+      teammateId: row.teammateId,
       excerpt: excerptAround(plainText(row.text ?? ""), q),
       createdAt: row.createdAt.toISOString(),
     })),

@@ -1,6 +1,6 @@
 // Messages from Telegram: linking with a code, commands, and routing everything else to the
 // teammate's chat, with photos and files.
-import { bots, chats, runs, telegram, telegramMessages, type Attachment } from "@open-bot/db";
+import { teammates, chats, runs, telegram, telegramMessages, type Attachment } from "@open-bot/db";
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import { publishApp } from "../../context";
 import { errorMessage } from "../../logger";
@@ -111,13 +111,13 @@ export async function helpText(service: TelegramClient): Promise<string> {
 
 export async function teamText(service: TelegramClient): Promise<string> {
   const rows = await service.ctx.db
-    .select({ id: bots.id, name: bots.name, role: bots.role })
-    .from(bots)
-    .where(isNull(bots.archivedAt))
-    .orderBy(asc(bots.createdAt));
+    .select({ id: teammates.id, name: teammates.name, role: teammates.role })
+    .from(teammates)
+    .where(isNull(teammates.archivedAt))
+    .orderBy(asc(teammates.createdAt));
   if (rows.length === 0) return "You have no teammates yet. Create one in open-bot.";
   const active = await service.ctx.db
-    .select({ botId: runs.botId, status: runs.status })
+    .select({ botId: runs.teammateId, status: runs.status })
     .from(runs)
     .where(inArray(runs.status, ["queued", "starting", "running", "waiting"]));
   return rows
@@ -131,10 +131,10 @@ export async function teamText(service: TelegramClient): Promise<string> {
 
 export async function leadBot(service: TelegramClient) {
   const [lead] = await service.ctx.db
-    .select({ id: bots.id, name: bots.name })
-    .from(bots)
-    .where(isNull(bots.archivedAt))
-    .orderBy(desc(bots.isLead), asc(bots.createdAt))
+    .select({ id: teammates.id, name: teammates.name })
+    .from(teammates)
+    .where(isNull(teammates.archivedAt))
+    .orderBy(desc(teammates.isLead), asc(teammates.createdAt))
     .limit(1);
   return lead ?? null;
 }
@@ -161,9 +161,9 @@ export async function route(
     if (mapped?.chatId) return { chatId: mapped.chatId, text };
   }
   const team = await service.ctx.db
-    .select({ id: bots.id, name: bots.name })
-    .from(bots)
-    .where(isNull(bots.archivedAt));
+    .select({ id: teammates.id, name: teammates.name })
+    .from(teammates)
+    .where(isNull(teammates.archivedAt));
   // "Rex: …", "Rex, …" or "@Rex …" picks a teammate. Longer names first, so "Al Bot" beats "Al".
   for (const bot of [...team].sort((a, b) => b.name.length - a.name.length)) {
     const name = bot.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

@@ -1,5 +1,5 @@
 import type { v2 } from "@open-bot/agent";
-import { bots, skills, type Queryable } from "@open-bot/db";
+import { teammates, skills, type Queryable } from "@open-bot/db";
 import {
   PAGE_SKILL_DESCRIPTION,
   PAGE_SKILL_MARKDOWN,
@@ -63,15 +63,15 @@ export class SkillService {
     return this.ctx.db
       .select()
       .from(skills)
-      .where(or(isNull(skills.botId), eq(skills.botId, botId)));
+      .where(or(isNull(skills.teammateId), eq(skills.teammateId, botId)));
   }
 
   private async pathOf(skill: Skill): Promise<string> {
-    if (!skill.botId) return `${SHARED_ROOT}/${skill.name}/SKILL.md`;
+    if (!skill.teammateId) return `${SHARED_ROOT}/${skill.name}/SKILL.md`;
     const [bot] = await this.ctx.db
-      .select({ slug: bots.slug })
-      .from(bots)
-      .where(eq(bots.id, skill.botId));
+      .select({ slug: teammates.slug })
+      .from(teammates)
+      .where(eq(teammates.id, skill.teammateId));
     return `${botRoot(bot!.slug)}/${skill.name}/SKILL.md`;
   }
 
@@ -107,14 +107,20 @@ export class SkillService {
     // You can move a skill between teammates; a teammate edits one only where it is.
     if (id && by.kind === "bot") {
       const [existing] = await this.ctx.db.select().from(skills).where(eq(skills.id, id));
-      if (!existing || existing.botId !== data.botId)
+      if (!existing || existing.teammateId !== data.teammateId)
         throw new SkillError(
           "That skill isn't in the selected scope. Get the teammate's skills first.",
         );
     }
-    const visible = data.botId ? or(isNull(skills.botId), eq(skills.botId, data.botId)) : undefined;
+    const visible = data.teammateId
+      ? or(isNull(skills.teammateId), eq(skills.teammateId, data.teammateId))
+      : undefined;
     const clashes = await this.ctx.db
-      .select({ id: skills.id, botId: skills.botId, createdByBotId: skills.createdByBotId })
+      .select({
+        id: skills.id,
+        botId: skills.teammateId,
+        createdByBotId: skills.createdByTeammateId,
+      })
       .from(skills)
       .where(and(eq(skills.name, data.name), visible));
     for (const clash of clashes) {
@@ -125,13 +131,13 @@ export class SkillService {
         !id &&
         by.kind === "bot" &&
         clash.createdByBotId === by.botId &&
-        clash.botId === data.botId
+        clash.botId === data.teammateId
       ) {
         id = clash.id;
         continue;
       }
       throw new SkillError(
-        clash.botId && clash.botId !== data.botId
+        clash.botId && clash.botId !== data.teammateId
           ? `Another teammate has its own /${data.name} skill. Pick another name, or make this one just for one teammate.`
           : `A skill named /${data.name} already exists. Pick another name.`,
       );
@@ -146,7 +152,7 @@ export class SkillService {
         .values({
           ...data,
           createdBy: by.kind,
-          createdByBotId: by.kind === "bot" ? by.botId : null,
+          createdByTeammateId: by.kind === "bot" ? by.botId : null,
         })
         .returning();
     }
@@ -166,12 +172,12 @@ export class SkillService {
     if (this.ctx.lifecycle?.resting && !this.ctx.lifecycle.inScope) return;
     const all = await this.ctx.db.select().from(skills);
     const botRows = await this.ctx.db
-      .select({ id: bots.id, slug: bots.slug })
-      .from(bots)
-      .where(isNull(bots.archivedAt));
+      .select({ id: teammates.id, slug: teammates.slug })
+      .from(teammates)
+      .where(isNull(teammates.archivedAt));
     await this.syncRoot(
       SHARED_ROOT,
-      all.filter((s) => !s.botId && !isBuiltInSkill(s.name)),
+      all.filter((s) => !s.teammateId && !isBuiltInSkill(s.name)),
       BUILT_IN_SKILLS,
     );
     for (const bot of botRows) await this.syncBot(bot, all);
@@ -183,7 +189,7 @@ export class SkillService {
     const rows = all ?? (await this.ctx.db.select().from(skills));
     await this.syncRoot(
       botRoot(bot.slug),
-      rows.filter((s) => s.botId === bot.id),
+      rows.filter((s) => s.teammateId === bot.id),
     );
   }
 
@@ -246,5 +252,5 @@ export async function addTeammateSkills(
   if (list.length === 0) return;
   await tx
     .insert(skills)
-    .values(list.map((skill) => ({ ...skill, botId: teammateId, createdBy: "user" as const })));
+    .values(list.map((skill) => ({ ...skill, teammateId, createdBy: "user" as const })));
 }

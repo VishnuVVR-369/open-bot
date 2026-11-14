@@ -34,6 +34,6 @@ setup("sign in as the owner", async ({ page }) => {
     await page.waitForLoadState("networkidle").catch(() => {});
   }
   const state = await apiFor(page).app.state();
-  if (state.bots[0]) await page.goto(`/bots/${state.bots[0].id}`);
+  if (state.teammates[0]) await page.goto(`/bots/${state.teammates[0].id}`);
   if (state.chats[0]) await page.goto(`/chats/${state.chats[0].id}`);
 });

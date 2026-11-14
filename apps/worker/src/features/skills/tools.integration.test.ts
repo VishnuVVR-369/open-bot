@@ -13,7 +13,7 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
   it("targets skills, schedules, watches and webhooks at the selected teammate", async () => {
     const { session } = await fixture();
     const target = await service.create({ name: "Researcher", role: "researcher" });
-    const bot_id = target.botId;
+    const bot_id = target.teammateId;
     expect(
       (
         await call(session, "save_skill", {
@@ -60,7 +60,10 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
     expect(configuration.json().triggers).toHaveLength(2);
     expect(configuration.text).not.toContain('"token"');
     expect((await service.get(session.bot.id)).schedules).toHaveLength(0);
-    const [schedule] = await db.select().from(scheduleRows).where(eq(scheduleRows.botId, bot_id));
+    const [schedule] = await db
+      .select()
+      .from(scheduleRows)
+      .where(eq(scheduleRows.teammateId, bot_id));
     expect(
       (await call(session, "update_automation", { bot_id, id: schedule!.id, enabled: false }))
         .response.success,
@@ -72,7 +75,7 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
     expect(
       (await call(session, "cancel_automation", { bot_id, id: schedule!.id })).response.success,
     ).toBe(true);
-    const [watch] = await db.select().from(triggerRows).where(eq(triggerRows.botId, bot_id));
+    const [watch] = await db.select().from(triggerRows).where(eq(triggerRows.teammateId, bot_id));
     expect(
       (
         await call(session, "update_automation", {
@@ -92,13 +95,13 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
     const { session } = await fixture();
     const target = await service.create({ name: "Researcher", role: "researcher" });
     const original = await skills.save(
-      { name: "brief", description: "Brief", instructions: "Old", botId: target.botId },
+      { name: "brief", description: "Brief", instructions: "Old", teammateId: target.teammateId },
       { kind: "user" },
     );
     expect(
       (
         await call(session, "save_skill", {
-          bot_id: target.botId,
+          bot_id: target.teammateId,
           skill_id: original.id,
           name: "brief",
           description: "Brief",
@@ -112,15 +115,15 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
         name: "shared-brief",
         description: "Shared",
         instructions: "All",
-        botId: null,
+        teammateId: null,
         createdBy: "bot",
-        createdByBotId: session.bot.id,
+        createdByTeammateId: session.bot.id,
       })
       .returning();
     expect(
       (
         await call(session, "save_skill", {
-          bot_id: target.botId,
+          bot_id: target.teammateId,
           name: shared!.name,
           description: "Private",
           instructions: "Changed",
@@ -128,7 +131,7 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
       ).response.success,
     ).toBe(false);
     expect(
-      (await db.select().from(skillRows).where(eq(skillRows.id, shared!.id)))[0]!.botId,
+      (await db.select().from(skillRows).where(eq(skillRows.id, shared!.id)))[0]!.teammateId,
     ).toBeNull();
   });
 });

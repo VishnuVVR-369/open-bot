@@ -13,15 +13,15 @@ import { worker } from "@/lib/server/worker";
  */
 export async function lastScreenFrames(): Promise<Record<string, ScreenFrame>> {
   const rows = await db
-    .selectDistinctOn([runs.botId], {
-      screenId: runs.botId,
+    .selectDistinctOn([runs.teammateId], {
+      screenId: runs.teammateId,
       artifactId: artifacts.id,
       at: artifacts.createdAt,
     })
     .from(artifacts)
     .innerJoin(runs, eq(runs.id, artifacts.runId))
     .where(eq(artifacts.kind, "screenshot"))
-    .orderBy(runs.botId, desc(artifacts.createdAt));
+    .orderBy(runs.teammateId, desc(artifacts.createdAt));
   return Object.fromEntries(
     rows.map((row) => [row.screenId, { artifactId: row.artifactId, at: row.at.toISOString() }]),
   );
@@ -41,7 +41,7 @@ export async function listScreens(): Promise<ScreenView[]> {
     const screen = status?.computer.health?.screens.find((s) => s.id === bot.id);
     return {
       id: bot.id,
-      bot,
+      teammate: bot,
       online: Boolean(status?.computer.online || status?.computer.lifecycle?.enabled),
       lifecycle: status?.computer.lifecycle ?? null,
       running: screen?.state === "running",

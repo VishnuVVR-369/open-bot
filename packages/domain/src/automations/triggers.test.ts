@@ -57,7 +57,7 @@ describe("diffing pages", () => {
     expect(watchChange("Sold out", "Sold out soon", "in stock")).toBeNull();
   });
 
-  it("describes a change for the bot and the app", () => {
+  it("describes a change for the teammate and the app", () => {
     const change = { added: ["Price: 8"], removed: ["Price: 10"] };
     expect(describeWatchChange(change)).toBe(
       "New on the page:\n  Price: 8\n\nNo longer on the page:\n  Price: 10",

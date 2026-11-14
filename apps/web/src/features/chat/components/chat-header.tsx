@@ -82,7 +82,7 @@ export function ChatHeader({
   const elsewhere = status?.elsewhere ?? null;
 
   async function startNewChat(botId: string) {
-    const result = await attempt(api.chats.newDirect({ botId }));
+    const result = await attempt(api.chats.newDirect({ teammateId: botId }));
     if (result.ok) router.push(`/chats/${result.data.chatId}`);
     else toast.error(result.error);
   }

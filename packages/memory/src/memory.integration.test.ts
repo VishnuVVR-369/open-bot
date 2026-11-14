@@ -16,8 +16,8 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
   let requestCount = 0;
   let hold: (() => void) | undefined;
   const user = { kind: "user" as const };
-  const input = (content: string, botId: string | null = teammate) =>
-    memoryInputSchema.parse({ content, botId });
+  const input = (content: string, teammateId: string | null = teammate) =>
+    memoryInputSchema.parse({ content, teammateId });
   const config = (): MemoryAIConfig => ({
     embeddingUrl: url,
     embeddingModel: "test",
@@ -98,7 +98,7 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
     expect(new Set(items.map((i) => i.id)).size).toBe(1);
     expect(items.filter((i) => i.saveOutcome === "created")).toHaveLength(1);
     expect(items.filter((i) => i.saveOutcome === "unchanged")).toHaveLength(4);
-    expect(await memory.list({ botId: teammate }, user)).toHaveLength(1);
+    expect(await memory.list({ teammateId: teammate }, user)).toHaveLength(1);
   });
   it("rejects one of two competing edits and preserves the winning revision", async () => {
     const saved = await memory.save(input("Prefers remote roles"), user);
@@ -126,19 +126,19 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
       [own.id, shared.id].sort(),
     );
     await expect(
-      memory.history(privateItem.id, { kind: "bot", botId: teammate, runId: run }),
+      memory.history(privateItem.id, { kind: "teammate", teammateId: teammate, runId: run }),
     ).rejects.toMatchObject({ status: 404 });
     await expect(
       memory.forget(
         { id: privateItem.id, expectedRevision: 1 },
-        { kind: "bot", botId: teammate, runId: run },
+        { kind: "teammate", teammateId: teammate, runId: run },
       ),
     ).rejects.toMatchObject({ status: 404 });
   });
   it("keeps inferred facts out of recall until confirmed", async () => {
     const saved = await memory.save(input("Prefers remote roles"), {
-      kind: "bot",
-      botId: teammate,
+      kind: "teammate",
+      teammateId: teammate,
       runId: run,
       messageId: message,
     });
@@ -149,20 +149,24 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
   });
   it("prevents unverified writes to shared memory and confirmed facts", async () => {
     await expect(
-      memory.save(input("Shared preference", null), { kind: "bot", botId: teammate, runId: run }),
+      memory.save(input("Shared preference", null), {
+        kind: "teammate",
+        teammateId: teammate,
+        runId: run,
+      }),
     ).rejects.toMatchObject({ status: 403 });
     const saved = await memory.save(input("Prefers remote roles"), user);
     await expect(
       memory.update(
         { ...saved, content: "Actually likes offices", expectedRevision: 1 },
-        { kind: "bot", botId: teammate, runId: run },
+        { kind: "teammate", teammateId: teammate, runId: run },
       ),
     ).rejects.toMatchObject({ status: 403 });
   });
   it("confirms a suggestion when the user explicitly saves the same fact", async () => {
     const candidate = await memory.save(input("Prefers remote roles"), {
-      kind: "bot",
-      botId: teammate,
+      kind: "teammate",
+      teammateId: teammate,
       runId: run,
       messageId: message,
     });
@@ -175,7 +179,7 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
   it("uses the explicit save metadata when confirming an expired suggestion", async () => {
     const candidate = await memory.save(
       { ...input("Prefers remote roles"), key: "old.topic" },
-      { kind: "bot", botId: teammate, runId: run },
+      { kind: "teammate", teammateId: teammate, runId: run },
     );
     await pool.query("update memory_items set expires_at=now()-interval '1 second' where id=$1", [
       candidate.id,
@@ -203,8 +207,8 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
   it("checks the submitted topic key before confirming a duplicate suggestion", async () => {
     await memory.save({ ...input("Prefers local roles"), key: "career.location" }, user);
     const candidate = await memory.save(input("Prefers remote roles"), {
-      kind: "bot",
-      botId: teammate,
+      kind: "teammate",
+      teammateId: teammate,
       runId: run,
     });
     await expect(
@@ -212,12 +216,12 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
     ).rejects.toMatchObject({ status: 409 });
     expect((await memory.get(candidate.id, user)).state).toBe("candidate");
   });
-  it("requires verified user intent even for forgetting the bot's own memory", async () => {
+  it("requires verified user intent even for forgetting the teammate's own memory", async () => {
     const saved = await memory.save(input("Prefers remote roles"), user);
     await expect(
       memory.forget(
         { id: saved.id, expectedRevision: 1 },
-        { kind: "bot", botId: teammate, runId: run },
+        { kind: "teammate", teammateId: teammate, runId: run },
       ),
     ).rejects.toMatchObject({ status: 403 });
   });
@@ -273,8 +277,8 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
   it("does lexical search with exact names and literal wildcard characters", async () => {
     await memory.save(input("Works with Project Falcon"), user);
     await memory.save(input("Target is 100% remote"), user);
-    expect(await memory.list({ botId: teammate, query: "Falcon" }, user)).toHaveLength(1);
-    expect(await memory.list({ botId: teammate, query: "100%" }, user)).toHaveLength(1);
+    expect(await memory.list({ teammateId: teammate, query: "Falcon" }, user)).toHaveLength(1);
+    expect(await memory.list({ teammateId: teammate, query: "100%" }, user)).toHaveLength(1);
   });
   it("rejects expired inputs and invalidates context when a fact expires", async () => {
     await expect(
@@ -287,7 +291,7 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
     ]);
     expect(await memory.recall(teammate, "Temporary")).toHaveLength(0);
     expect(await memory.generation(teammate)).not.toBe(generation);
-    expect(await memory.list({ botId: teammate, includeExpired: true }, user)).toHaveLength(1);
+    expect(await memory.list({ teammateId: teammate, includeExpired: true }, user)).toHaveLength(1);
   });
   it("adds lessons as pinned lesson memories that survive the next memory change", async () => {
     // A short lesson is kept, as a teammate file allows; a blank one or a repeat is not.
@@ -302,7 +306,7 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
         .map((row) => row.text)
         .sort();
     expect(await lessons()).toEqual(["Ask before booking flights", "ok"]);
-    const [item] = await memory.list({ botId: teammate }, user);
+    const [item] = await memory.list({ teammateId: teammate }, user);
     expect(item).toMatchObject({ kind: "lesson", pinned: true });
     // Lessons are rebuilt from memory on every change, so an added lesson must still be there.
     await memory.save(input("Prefers remote roles"), user);
@@ -331,7 +335,11 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
     ).toEqual({ content: "", state: "deleted" });
     await expect(memory.history(saved.id, user)).rejects.toMatchObject({ status: 404 });
     await expect(
-      memory.save(input("Prefers remote roles"), { kind: "bot", botId: teammate, runId: run }),
+      memory.save(input("Prefers remote roles"), {
+        kind: "teammate",
+        teammateId: teammate,
+        runId: run,
+      }),
     ).rejects.toMatchObject({ status: 409 });
   });
   it("does not relearn a forgotten source under a paraphrase", async () => {
@@ -341,8 +349,8 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
     await memory.forget({ id: saved.id, expectedRevision: 1 }, user);
     await expect(
       memory.save(input("Would like to work from home"), {
-        kind: "bot",
-        botId: teammate,
+        kind: "teammate",
+        teammateId: teammate,
         runId: run,
         messageId: message,
       }),
@@ -351,7 +359,7 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
   it("keeps shared memory scalable while bounding the compatibility profile", async () => {
     await memory.save(input("x".repeat(7999), null), user);
     await memory.save(input("another shared fact", null), user);
-    expect(await memory.list({ botId: null }, user)).toHaveLength(2);
+    expect(await memory.list({ teammateId: null }, user)).toHaveLength(2);
     expect(
       (await pool.query("select about_me from settings where id=1")).rows[0].about_me.length,
     ).toBeLessThanOrEqual(8000);
@@ -369,7 +377,7 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
       await expect(memory.save(input("A transaction that must roll back"), user)).rejects.toThrow(
         /^The database refused the query \(SQLSTATE P0001\)\.$/,
       );
-      expect(await memory.list({ botId: teammate }, user)).toHaveLength(0);
+      expect(await memory.list({ teammateId: teammate }, user)).toHaveLength(0);
       expect((await pool.query("select * from memory_revisions")).rowCount).toBe(0);
     } finally {
       await pool.query("drop trigger memory_test_job_failure on memory_jobs");
@@ -379,10 +387,10 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
   it("fails a copy whose key the other teammate already uses with the database's message", async () => {
     await memory.save({ ...input("Prefers remote roles"), key: "career.location" }, user);
     await memory.save({ ...input("Prefers local roles", peer), key: "career.location" }, user);
-    await expect(memory.copyBot(teammate, peer)).rejects.toThrow(
+    await expect(memory.copyTeammate(teammate, peer)).rejects.toThrow(
       /^duplicate key value violates unique constraint "memory_items_live_topic"$/,
     );
-    expect(await memory.list({ botId: peer }, user)).toHaveLength(1);
+    expect(await memory.list({ teammateId: peer }, user)).toHaveLength(1);
   });
   it("combines semantic and lexical recall while ignoring stale vectors", async () => {
     const semantic = await memory.save(input("Enjoys working from home"), user);
@@ -426,7 +434,7 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
     await tick;
     expect((await pool.query("select * from memory_embeddings")).rowCount).toBe(0);
   });
-  it("extracts only supported quotes as bot-scoped suggestions", async () => {
+  it("extracts only supported quotes as teammate-scoped suggestions", async () => {
     response = {
       choices: [
         {
@@ -453,7 +461,7 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
     const cfg = config();
     delete cfg.embeddingUrl;
     await new MemoryJobs(memory, new MemoryAI(db, cfg)).tick();
-    const items = await memory.list({ botId: teammate, candidates: true }, user);
+    const items = await memory.list({ teammateId: teammate, candidates: true }, user);
     expect(items).toHaveLength(1);
     expect(items[0]!.state).toBe("candidate");
     expect(items[0]!.source.messageId).toBe(message);
@@ -472,9 +480,9 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
     for (let index = 0; index < 205; index++)
       await memory.save(input(`Copy note number ${index}`), user);
     await memory.save(input("A shared fact", null), user);
-    await memory.copyBot(teammate, peer);
-    await memory.copyBot(teammate, peer);
-    const items = await memory.list({ botId: peer, limit: 1000 }, user);
+    await memory.copyTeammate(teammate, peer);
+    await memory.copyTeammate(teammate, peer);
+    const items = await memory.list({ teammateId: peer, limit: 1000 }, user);
     expect(items).toHaveLength(205);
     expect(items.every((item) => item.source.type === "import")).toBe(true);
   }, 10000);

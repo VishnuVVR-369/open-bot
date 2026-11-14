@@ -1,6 +1,13 @@
 // Builds the prompt of a run: the time, group chat context, memory, Always allow rules, the
 // request and its attachments.
-import { bots, chatMembers, chats, messages, ownerTimeZone, runs } from "@open-bot/db";
+import {
+  teammates as teammateRows,
+  chatMembers,
+  chats,
+  messages,
+  ownerTimeZone,
+  runs,
+} from "@open-bot/db";
 import { and, asc, desc, eq, gt, isNotNull, isNull, ne } from "drizzle-orm";
 import type { Context } from "../../context";
 import type { Run } from "../../core/db-types";
@@ -32,10 +39,10 @@ export async function buildPrompt(executor: PromptExecutor, session: RunSession)
 
   if (chat.kind === "group") {
     const members = await executor.ctx.db
-      .select({ id: bots.id, name: bots.name, role: bots.role })
+      .select({ id: teammateRows.id, name: teammateRows.name, role: teammateRows.role })
       .from(chatMembers)
-      .innerJoin(bots, eq(bots.id, chatMembers.botId))
-      .where(and(eq(chatMembers.chatId, chat.id), isNull(bots.archivedAt)));
+      .innerJoin(teammateRows, eq(teammateRows.id, chatMembers.teammateId))
+      .where(and(eq(chatMembers.chatId, chat.id), isNull(teammateRows.archivedAt)));
     const teammates = members.filter((member) => member.id !== bot.id);
     lines.push(
       `[Group chat "${chat.title}". Teammates here: ${teammates.map((t) => `${t.name} (${t.role})`).join(", ") || "none"}. Use handoff_to_bot when a teammate's job fits a request better.]`,
@@ -84,7 +91,7 @@ async function recentGroupContext(
   const [last] = await executor.ctx.db
     .select({ createdAt: runs.createdAt })
     .from(runs)
-    .where(and(eq(runs.chatId, run.chatId), eq(runs.botId, botId), ne(runs.id, run.id)))
+    .where(and(eq(runs.chatId, run.chatId), eq(runs.teammateId, botId), ne(runs.id, run.id)))
     .orderBy(desc(runs.createdAt))
     .limit(1);
   const since = last?.createdAt ?? new Date(0);
@@ -102,13 +109,13 @@ async function recentGroupContext(
       .orderBy(asc(messages.createdAt))
       .limit(10),
     executor.ctx.db
-      .select({ text: runs.finalText, createdAt: runs.completedAt, name: bots.name })
+      .select({ text: runs.finalText, createdAt: runs.completedAt, name: teammateRows.name })
       .from(runs)
-      .innerJoin(bots, eq(bots.id, runs.botId))
+      .innerJoin(teammateRows, eq(teammateRows.id, runs.teammateId))
       .where(
         and(
           eq(runs.chatId, run.chatId),
-          ne(runs.botId, botId),
+          ne(runs.teammateId, botId),
           isNotNull(runs.finalText),
           gt(runs.createdAt, since),
         ),

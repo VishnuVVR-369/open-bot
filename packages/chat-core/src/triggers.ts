@@ -19,7 +19,7 @@ const AUTOMATIONS: ReadonlySet<TriggerKind> = new Set([
   "calendar",
 ]);
 
-type LabeledRun = Pick<RunView, "trigger" | "scheduleTitle" | "triggerTitle" | "fromBotId">;
+type LabeledRun = Pick<RunView, "trigger" | "scheduleTitle" | "triggerTitle" | "fromTeammateId">;
 
 function text(run: LabeledRun, from: string | undefined): string | null {
   switch (run.trigger) {
@@ -65,7 +65,7 @@ export function triggerLabel(
   run: LabeledRun,
   teammates: readonly { id: string; name: string }[],
 ): TriggerLabel | null {
-  const from = teammates.find((teammate) => teammate.id === run.fromBotId)?.name;
+  const from = teammates.find((teammate) => teammate.id === run.fromTeammateId)?.name;
   const label = text(run, from);
   if (label === null) return null;
   const kind = run.trigger as TriggerKind;

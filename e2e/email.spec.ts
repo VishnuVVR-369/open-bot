@@ -176,7 +176,7 @@ test("@agent a teammate answers an email from its own address, after you approve
 
     // It arrives in the teammate's Email chat, and the reply waits for your approval.
     const state = await apiFor(page).app.state();
-    const inbox = state.chats.find((chat) => chat.kind === "inbox" && chat.botId === botId)!;
+    const inbox = state.chats.find((chat) => chat.kind === "inbox" && chat.teammateId === botId)!;
     await page.goto(`/chats/${inbox.id}`);
     await expect(page.getByRole("heading", { name: `${name} · Email` })).toBeVisible();
     await expect(page.getByTestId("run").first().getByTestId("run-trigger")).toHaveText("An email");

@@ -17,7 +17,7 @@ describe.skipIf(!apiTestUrl)("API reads, end to end", () => {
     const state = await api.app.state();
     expect(state.user).toEqual({ name: OWNER.name, email: OWNER.email });
     expect(state.timezone).toBe("Europe/Berlin");
-    expect(state.bots.map((bot) => bot.name)).toEqual(["Scout"]);
+    expect(state.teammates.map((bot) => bot.name)).toEqual(["Scout"]);
     expect(state.computer.workerOnline).toBe(true);
     expect(state.skills[0]).not.toHaveProperty("instructions");
     expect(state.unreadNotifications).toBe(1);
@@ -32,10 +32,10 @@ describe.skipIf(!apiTestUrl)("API reads, end to end", () => {
     expect((await api.tasks.list()).map((t) => t.title)).toEqual(["Book flights"]);
     expect(await api.vault.list()).toEqual([]);
     expect(await api.profile.get()).toMatchObject({ aboutMe: "" });
-    expect((await api.teammates.lessons({ botId: ids.teammate })).map((l) => l.text)).toEqual([
+    expect((await api.teammates.lessons({ teammateId: ids.teammate })).map((l) => l.text)).toEqual([
       "Keep it short.",
     ]);
-    expect(await api.teammates.spending({ botId: ids.teammate })).toMatchObject({
+    expect(await api.teammates.spending({ teammateId: ids.teammate })).toMatchObject({
       spentCents: 1200,
     });
     expect((await api.connections.list()).map((c) => c.label)).toEqual(["Docs"]);
@@ -48,10 +48,10 @@ describe.skipIf(!apiTestUrl)("API reads, end to end", () => {
     expect((await api.notifications.list()).map((n) => n.title)).toEqual(["Done"]);
     expect(await api.approvals.list()).toEqual([]);
     expect(await api.search.messages({ query: "news" })).toEqual([]);
-    const memories = await api.memory.list({ botId: ids.teammate, query: "window" });
+    const memories = await api.memory.list({ teammateId: ids.teammate, query: "window" });
     expect(memories.map((m) => m.content)).toEqual(["Prefers window seats"]);
     expect(memories[0]!.source).toMatchObject({ botId: ids.teammate, chatId: ids.chat });
-    expect(await api.memory.list({ botId: null, query: "nothing like it" })).toEqual([]);
+    expect(await api.memory.list({ teammateId: null, query: "nothing like it" })).toEqual([]);
     const history = await api.memory.history({ memoryId: ids.memory });
     expect(history.map((r) => r.source.chatId)).toEqual([ids.chat]);
     expect(await api.memory.forRun({ runId: ids.run })).toEqual([]);
@@ -85,11 +85,11 @@ describe.skipIf(!apiTestUrl)("API reads, end to end", () => {
 
   it("says what's gone, and rejects ids that aren't", async () => {
     const missing = randomUUID();
-    await expect(api.teammates.spending({ botId: missing })).rejects.toMatchObject({
+    await expect(api.teammates.spending({ teammateId: missing })).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
     await expect(api.pages.get({ pageId: missing })).rejects.toMatchObject({ code: "NOT_FOUND" });
-    await expect(api.teammates.lessons({ botId: "not-an-id" })).rejects.toMatchObject({
+    await expect(api.teammates.lessons({ teammateId: "not-an-id" })).rejects.toMatchObject({
       code: "BAD_REQUEST",
     });
   });
