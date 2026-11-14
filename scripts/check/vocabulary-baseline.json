@@ -838,8 +838,14 @@
   "apps/worker/src/runs/retries.ts": {
     "bot": 9
   },
-  "apps/worker/src/runs/session.ts": {
-    "bot": 50
+  "apps/worker/src/runs/session/finalize.ts": {
+    "bot": 16
+  },
+  "apps/worker/src/runs/session/run-session.ts": {
+    "bot": 20
+  },
+  "apps/worker/src/runs/session/threads.ts": {
+    "bot": 20
   },
   "apps/worker/src/runs/thread-continuity.test.ts": {
     "bot": 4

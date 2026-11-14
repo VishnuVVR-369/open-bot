@@ -99,7 +99,9 @@ Stopping a run sets `runs.cancel_requested_at` and sends `NOTIFY openbot_worker,
 
 ## RunSession
 
-A `RunSession` (`src/runs/session.ts`) executes one run.
+A `RunSession` (`src/runs/session/run-session.ts`) executes one run.
+Its folder, `src/runs/session/`, splits it along its steps: the class holds the run's state, the turn and the fallback from the plan to the API key, steering and interrupt.
+`threads.ts` chooses the Codex thread, `notifications.ts` maps Codex notifications, `approvals.ts` answers tool calls and native approvals, and `finalize.ts` finishes the run.
 It is covered step by step in [Life of a message](/docs/flows/chat-turn).
 In short, it:
 

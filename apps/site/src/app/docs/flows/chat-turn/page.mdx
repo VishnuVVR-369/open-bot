@@ -120,7 +120,7 @@ See [Choosing a thread](/docs/architecture/agent-runtime#choosing-a-thread).
 
 ## Starting the turn
 
-```ts title="apps/worker/src/runs/session.ts"
+```ts title="apps/worker/src/runs/session/run-session.ts"
 const { turn } = await client.request("turn/start", {
   threadId,
   input, // the prompt, plus skill and image inputs

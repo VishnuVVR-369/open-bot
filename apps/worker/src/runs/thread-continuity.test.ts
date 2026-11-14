@@ -3,6 +3,7 @@ import type { CodexClient } from "@open-bot/agent";
 import type { Context } from "../context";
 import type { Bot, Chat, Run } from "../core/db-types";
 import { RunSession, type SessionServices, type SessionTools } from "./session";
+import { ensureThread } from "./session/threads";
 import { DEVELOPER_INSTRUCTIONS } from "../instructions";
 import { toolsRevision } from "./tools-revision";
 import { configurationRevision } from "@open-bot/db";
@@ -56,11 +57,8 @@ function fixture(
     { id: "chat" } as Chat,
   );
   session.memoryGeneration = "1:0:0";
-  (session as unknown as { agentsFile: string }).agentsFile = agents.written;
-  const ensure = () =>
-    (session as unknown as { ensureThread(client: CodexClient): Promise<string> }).ensureThread({
-      request,
-    } as unknown as CodexClient);
+  session.agentsFile = agents.written;
+  const ensure = () => ensureThread(session, { request } as unknown as CodexClient);
   return { request, session, ensure };
 }
 /** A run picks up its Codex thread again only while that thread saw the memory and instructions it would now get. */
