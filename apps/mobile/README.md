@@ -176,11 +176,12 @@ adb shell am broadcast -f 0x20 -a dev.openbot.egress.DEBUG_WAKE -p dev.openbot.m
 
 ## How it fits together
 
-- `src/app`: Expo Router screens. The tabs in `src/app/(tabs)` are Home, Chats, Approvals, Computer and Pages; the stack adds a chat, a page, a screen, a teammate, an approval, search, notifications, file previews, approval rules, new chat, share and Settings.
-- `src/app/(tabs)/computer.tsx` and `src/app/screens/[screenId].tsx`: the screens list, live view, touch takeover, keyboard and hand-back.
+- `src/app`: thin Expo Router entries that re-export feature screens, plus the navigation layouts. The tabs in `src/app/(tabs)` are Home, Chats, Approvals, Computer and Pages; the stack adds a chat, a page, a screen, a teammate, an approval, search, notifications, file previews, approval rules, new chat, share and Settings.
+- `src/features/computer/components/computer-screen.tsx` and `src/features/computer/components/screen-page.tsx`: the screens list, live view, touch takeover, keyboard and hand-back.
 - `src/computer/viewer.ts`: the browser client; `pnpm build:viewer` bundles noVNC into the generated `src/computer/viewer-html.ts`, and `pnpm check:viewer` checks it is current.
-- `src/components`: shared UI; `src/features/chat/components` renders the timeline and composer, `src/features/computer/components` the WebView lifecycle, token handling, the code sheet and operation recovery.
-- `src/lib`: platform-free logic with co-located tests. `api.ts` is the typed API client (the session cookie lives in SecureStore, `auth.ts`), `queries.ts` and `query.ts` hold the react-query hooks and keys, `realtime.tsx` and `live-stream.ts` the live stream (resuming the open chat from its last event after a reconnect), and `lock.ts` the fingerprint lock on open and after five minutes away.
+- `src/features/<feature>`: feature screens, query hooks, logic and co-located tests; presentation components live in each feature's `components/` folder. Features can compose other features directly, but never import routes.
+- `src/components`: generic shared UI. It does not import features.
+- `src/lib`: API, auth, query-client, stream, preferences and device infrastructure. `api.ts` is the typed API client (the session cookie lives in SecureStore, `auth.ts`), `query.ts` holds procedure-path query keys and consumes the API's shared event refresh map, `realtime.tsx` and `live-stream.ts` manage the live stream, and `lock.ts` handles the fingerprint lock on open and after five minutes away. Feature hooks live beside their feature rather than in a central query-hook file.
 - `src/push`: notification channels, rendering pushes (also while the app is closed, in `background.ts`), Approve and Deny, purchase Review and inline Reply.
 - `src/theme`: the palette, light and dark, and color mixing.
 - `modules/egress`: the phone connection (see above). `modules/passkey`: Android Credential Manager for passkeys. `modules/share-intent`: receiving shares from other apps. `modules/sms-consent`: Android's SMS User Consent, which passes only an unambiguous code to JavaScript.

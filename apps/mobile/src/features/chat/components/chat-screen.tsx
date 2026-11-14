@@ -16,7 +16,7 @@ import { JumpToLatest } from "@/features/chat/components/jump-to-latest";
 import { RunBlock } from "@/features/chat/components/run-block";
 import { TimeStamp } from "@/features/chat/components/time-stamp";
 import { UserMessage } from "@/features/chat/components/user-message";
-import { ConnectionNotice } from "@/components/connection-notice";
+import { ConnectionNotice } from "@/features/computer/components/connection-notice";
 import { LoadError, Loading, NotFound } from "@/components/states";
 import { Text } from "@/components/text";
 import {
@@ -31,7 +31,7 @@ import { chatTitle } from "@/features/chat/chats";
 import { isNotFound } from "@/lib/errors";
 import { useChats, useNewDirectChat } from "@/features/chat/hooks";
 import { useComputerOffline } from "@/features/computer/hooks";
-import { useTeammates } from "@/lib/queries";
+import { useTeammates } from "@/features/teammates/hooks";
 import { timeStamp } from "@/features/chat/time-stamp";
 import { useChat } from "@/features/chat/use-chat";
 import { useChatListScroll } from "@/features/chat/use-chat-list-scroll";

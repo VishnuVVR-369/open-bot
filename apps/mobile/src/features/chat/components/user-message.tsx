@@ -4,8 +4,8 @@ import { RotateCcw } from "lucide-react-native";
 import { memo } from "react";
 import { StyleSheet, View } from "react-native";
 import { FoldableText } from "@/features/chat/components/foldable-text";
-import { FileChip } from "@/components/file-chip";
-import { ImageThumb } from "@/components/image-thumb";
+import { FileChip } from "@/features/files/components/file-chip";
+import { ImageThumb } from "@/features/files/components/image-thumb";
 import { Text } from "@/components/text";
 import { space, useColors } from "@/theme";
 

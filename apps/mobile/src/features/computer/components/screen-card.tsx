@@ -1,7 +1,7 @@
 import type { ScreenView } from "@open-bot/api";
 import { CloudOff, Hand, Monitor, Moon, MousePointer2 } from "lucide-react-native";
 import { Pressable, StyleSheet, View } from "react-native";
-import { BotAvatar, botActivity } from "@/components/bot-avatar";
+import { BotAvatar, botActivity } from "@/features/teammates/components/bot-avatar";
 import { Button } from "@/components/button";
 import { Text } from "@/components/text";
 import { screenState, screenStatus, type ScreenState } from "@/features/computer/screens";

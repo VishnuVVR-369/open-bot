@@ -14,19 +14,20 @@ It imports the shared contract in `packages/api` and the chat logic it shares wi
 
 ## The parts
 
-| Part                | Code                                                         | Does                                                                                                                            |
-| ------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| Screens             | `apps/mobile/src/app`                                        | Expo Router routes: five tabs in `(tabs)`, and a stack for a chat, teammate, approval, page, screen, search, settings and so on |
-| Root layout         | `apps/mobile/src/app/_layout.tsx`                            | Providers, the signed-in guard, the app lock, push registration and the live stream                                             |
-| Client logic        | `apps/mobile/src/lib`                                        | The API client, session, react-query keys, the live stream, uploads, history merging, the lock. Platform-free parts have tests  |
-| Push                | `apps/mobile/src/push`                                       | Notification channels, rendering data messages, action buttons, inline reply, device registration                               |
-| Computer viewer     | `apps/mobile/src/computer`                                   | The noVNC client and its generated HTML (`viewer-html.ts`)                                                                      |
-| Components          | `apps/mobile/src/components`                                 | Shared UI. `chat` is the timeline and composer, `computer` is the WebView lifecycle, token fetch and code sheet                 |
-| Theme               | `apps/mobile/src/theme`                                      | The light and dark palettes and color mixing                                                                                    |
-| Phone connection    | `apps/mobile/modules/egress`                                 | A Kotlin foreground service, FCM wake handling and the pairing credential. The protocol core is in `modules/egress/core`        |
-| Other native pieces | `apps/mobile/modules/passkey`, `share-intent`, `sms-consent` | Android Credential Manager, receiving shared text, and SMS User Consent                                                         |
-| Config plugins      | `apps/mobile/plugins`                                        | Release signing, the status bar icon and the native theme                                                                       |
-| Config              | `apps/mobile/app.config.ts`                                  | One Expo config for two variants, picked by `APP_VARIANT`                                                                       |
+| Part                | Code                                                         | Does                                                                                                                     |
+| ------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| Screens             | `apps/mobile/src/app`                                        | Thin Expo Router entries re-export feature screens; `(tabs)` and root layouts own navigation                             |
+| Root layout         | `apps/mobile/src/app/_layout.tsx`                            | Providers, the signed-in guard, the app lock, push registration and the live stream                                      |
+| Client logic        | `apps/mobile/src/lib`                                        | Shared API client, auth, query client and procedure-path keys, live stream, preferences and lock                         |
+| Features            | `apps/mobile/src/features`                                   | Feature screens, hooks, logic, tests and presentation components; features can compose other features directly           |
+| Push                | `apps/mobile/src/push`                                       | Notification channels, rendering data messages, action buttons, inline reply, device registration                        |
+| Computer viewer     | `apps/mobile/src/computer`                                   | The noVNC client and its generated HTML (`viewer-html.ts`)                                                               |
+| Components          | `apps/mobile/src/components`                                 | Generic shared UI, independent of feature logic                                                                          |
+| Theme               | `apps/mobile/src/theme`                                      | The light and dark palettes and color mixing                                                                             |
+| Phone connection    | `apps/mobile/modules/egress`                                 | A Kotlin foreground service, FCM wake handling and the pairing credential. The protocol core is in `modules/egress/core` |
+| Other native pieces | `apps/mobile/modules/passkey`, `share-intent`, `sms-consent` | Android Credential Manager, receiving shared text, and SMS User Consent                                                  |
+| Config plugins      | `apps/mobile/plugins`                                        | Release signing, the status bar icon and the native theme                                                                |
+| Config              | `apps/mobile/app.config.ts`                                  | One Expo config for two variants, picked by `APP_VARIANT`                                                                |
 
 `APP_VARIANT=development` builds `open-bot dev` (`dev.openbot.mobile.dev`), which installs next to the real app and gets no Firebase config.
 Any other value builds `dev.openbot.mobile`, which has push when a `google-services.json` exists.
@@ -68,6 +69,8 @@ The contract is `packages/api/src/contract.ts`, and the server side is `apps/web
 Requests time out after five minutes.
 
 `src/lib/query.ts` owns the react-query client and the keys (`queryKeys`).
+Each feature owns its read and mutation hooks in `hooks.ts`, with detail hooks beside the feature logic.
+Shared infrastructure does not import features, and features do not import routes; `src/features/boundaries.test.ts` also keeps route entries thin.
 Queries stay fresh for 10 seconds and retry twice, only for errors `isRetryable` accepts.
 `queryKeys` use procedure paths, so `keysForAppEvent()` applies `APP_EVENT_REFRESHES` and `ALWAYS_REFRESHED` from `packages/api/src/events.ts`.
 Mobile also refreshes reads that embed data from the changed procedures: chat details after approvals or chat-list changes, approval rules after teammate changes, and teammate status after approvals or screen changes.
@@ -81,9 +84,9 @@ A few things are plain HTTP on the web app, because they carry bytes or streams,
 | ---------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
 | `GET /api/stream`                        | The live stream                                                                                          | `src/lib/live-stream.ts`, `src/lib/realtime.tsx`              |
 | `PUT /api/uploads/<id>`                  | Attachments, as raw bytes with name, type, size and SHA-256 headers, so a retry with the same id is safe | `src/features/chat/uploads.ts`, `packages/api/src/uploads.ts` |
-| `GET /api/files/download`                | Files on the computer, shown or saved                                                                    | `src/lib/files.ts`                                            |
+| `GET /api/files/download`                | Files on the computer, shown or saved                                                                    | `src/features/files/files.ts`                                 |
 | `GET /api/artifacts/<id>`                | The last screenshot of a screen while the computer is offline                                            | `src/features/computer/components/last-frames.tsx`            |
-| `GET /api/pages/versions/<id>/thumbnail` | Page card pictures, in light or dark                                                                     | `src/lib/pages.ts`                                            |
+| `GET /api/pages/versions/<id>/thumbnail` | Page card pictures, in light or dark                                                                     | `src/features/pages/pages.ts`                                 |
 | `GET /api/desktop/token`                 | A short-lived token for the screen viewer                                                                | `src/features/computer/components/desktop-view.tsx`           |
 
 ## Live updates

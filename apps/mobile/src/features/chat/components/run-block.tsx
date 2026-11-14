@@ -30,7 +30,7 @@ import {
 } from "lucide-react-native";
 import { memo, useMemo, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
-import { BotAvatar } from "@/components/bot-avatar";
+import { BotAvatar } from "@/features/teammates/components/bot-avatar";
 import { Text } from "@/components/text";
 import { haptics } from "@/lib/haptics";
 import { animateLayout } from "@/lib/motion";

@@ -4,7 +4,10 @@ import { Check, ChevronRight, ShieldCheck, WifiOff } from "lucide-react-native";
 import { useMemo } from "react";
 import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { ApprovalRow } from "@/features/approvals/components/approval-row";
-import { ApproveWhileAwayNote, ConnectionNotice } from "@/components/connection-notice";
+import {
+  ApproveWhileAwayNote,
+  ConnectionNotice,
+} from "@/features/computer/components/connection-notice";
 import { ListRow, Separator } from "@/components/list-row";
 import { Card, Section } from "@/components/section";
 import { LoadError, Loading } from "@/components/states";
@@ -14,7 +17,7 @@ import { useOnline } from "@/lib/network";
 import { hasFirebase } from "@/push/firebase";
 import { phoneClock, phoneDayClock } from "@/lib/phone-clock";
 import { useApprovalRules, useApprovals } from "@/features/approvals/hooks";
-import { useTeammates } from "@/lib/queries";
+import { useTeammates } from "@/features/teammates/hooks";
 import { ago } from "@/lib/time";
 import { radius, space, useColors } from "@/theme";
 import { mix } from "@/theme/mix";

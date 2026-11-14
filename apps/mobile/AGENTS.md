@@ -19,6 +19,8 @@ The native phone-egress code is here, but the tunnel protocol itself belongs in 
 Feature logic, hooks, tests and components live under `apps/mobile/src/features/<feature>/`.
 Expo Router routes in `src/app` re-export the feature screens; navigation layouts stay there.
 `src/lib` and `src/components` hold shared client and UI infrastructure.
+Feature imports may compose other features directly; shared infrastructure does not import features, and features do not import routes.
+`apps/mobile/src/features/boundaries.test.ts` checks these directions and the thin route entries.
 
 ## Invariants
 
@@ -36,9 +38,9 @@ Paths are relative to the repo root; symbols are in parentheses.
 
 ### Add a mobile screen
 
-1. A file in `apps/mobile/src/app/` plus its `Tabs.Screen` in `(tabs)/_layout.tsx` or `Stack.Screen` in `_layout.tsx`.
-2. Data: a view in `packages/api/src/views.ts`, a procedure in `packages/api/src/contracts/<feature>.ts` (composed in `packages/api/src/contract.ts`), its handler in the web feature's `server/routes.ts` (`apps/web/src/features/<feature>/server/routes.ts`, mounted in `apps/web/src/lib/server/api/router.ts`), a hook in `apps/mobile/src/lib/queries.ts` and a procedure-path key in `apps/mobile/src/lib/query.ts`. Event refreshes come from `APP_EVENT_REFRESHES` in `packages/api/src/events.ts`.
-3. Search entry in `apps/mobile/src/app/search.tsx` (`PAGES`); notification links in `apps/mobile/src/lib/links.ts` and the worker's `nativeUrl()` in `apps/worker/src/features/notifications/fcm.ts`.
+1. A feature screen under `apps/mobile/src/features/<feature>/components/`, re-exported by a file in `apps/mobile/src/app/`, plus its `Tabs.Screen` in `(tabs)/_layout.tsx` or `Stack.Screen` in `_layout.tsx`.
+2. Data: a view in `packages/api/src/views.ts`, a procedure in `packages/api/src/contracts/<feature>.ts` (composed in `packages/api/src/contract.ts`), its handler in the web feature's `server/routes.ts` (`apps/web/src/features/<feature>/server/routes.ts`, mounted in `apps/web/src/lib/server/api/router.ts`), a hook in the feature's `hooks.ts` and a procedure-path key in `apps/mobile/src/lib/query.ts`. Event refreshes come from `APP_EVENT_REFRESHES` in `packages/api/src/events.ts`.
+3. Search entry in `apps/mobile/src/features/search/components/search-screen.tsx` (`PAGES`); notification links in `apps/mobile/src/lib/links.ts` and the worker's `nativeUrl()` in `apps/worker/src/features/notifications/fcm.ts`.
 
 ## Tests
 

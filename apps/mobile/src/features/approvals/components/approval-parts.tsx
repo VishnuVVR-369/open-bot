@@ -4,7 +4,11 @@ import { Check, CircleDashed, Clock, OctagonAlert, TriangleAlert, X } from "luci
 import type { ReactNode } from "react";
 import { StyleSheet, View, type TextProps } from "react-native";
 import { ApprovalIcon } from "@/features/approvals/components/approval-icon";
-import { BotAvatar, type AvatarSize, type BotActivity } from "@/components/bot-avatar";
+import {
+  BotAvatar,
+  type AvatarSize,
+  type BotActivity,
+} from "@/features/teammates/components/bot-avatar";
 import { Text, type TextVariant } from "@/components/text";
 import { detailRows, titleParts } from "@/features/approvals/approval-text";
 import { fonts, radius, space, useColors } from "@/theme";

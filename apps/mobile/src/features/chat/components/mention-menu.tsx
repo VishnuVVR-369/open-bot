@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, View } from "react-native";
-import { BotAvatar } from "@/components/bot-avatar";
+import { BotAvatar } from "@/features/teammates/components/bot-avatar";
 import { Text } from "@/components/text";
 import { radius, space, useColors } from "@/theme";
 
