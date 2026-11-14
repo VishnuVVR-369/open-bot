@@ -130,10 +130,14 @@ export const botdContract = {
     /**
      * Type a one-time code on a screen you hold. Never retried: an unknown outcome is settled by
      * the durable operation id.
+     *
+     * It takes the screen for you, preempting any run, and answers with that run's lease, so it
+     * moved from `/computer/type` with the run lease's rename for the same reason as your lease's
+     * routes below: a worker and a computer on different versions get 404 before anything is typed.
      */
     type: work
       .meta({ secretInput: true })
-      .route({ method: "POST", path: "/computer/type" })
+      .route({ method: "POST", path: "/computer/type-code" })
       .input(typeOnScreenSchema.extend(screen.shape))
       .output(codeEntryResultSchema),
   },
