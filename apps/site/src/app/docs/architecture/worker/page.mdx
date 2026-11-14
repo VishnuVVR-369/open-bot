@@ -48,7 +48,9 @@ It catches anything that was queued while no one was listening, so a lost notifi
 
 ## The run executor
 
-`RunExecutor` (`src/runs/executor.ts`) turns queued rows into running sessions.
+`RunExecutor` (`src/runs/executor/run-executor.ts`) turns queued rows into running sessions.
+Its folder, `src/runs/executor/`, splits it along its jobs: the class claims runs, starts their sessions, recovers after a restart and processes cancellations.
+`dispatch.ts` routes your messages, `prompt.ts` builds a run's prompt, and `workspace-sync.ts` writes the teammate's workspace.
 
 ### Claiming work
 

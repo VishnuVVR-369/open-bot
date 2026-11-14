@@ -822,9 +822,18 @@
   "apps/worker/src/runs/dispatch.integration.test.ts": {
     "bot": 22
   },
-  "apps/worker/src/runs/executor.ts": {
-    "bot": 103,
+  "apps/worker/src/runs/executor/dispatch.ts": {
+    "bot": 38,
     "primary teammate": 3
+  },
+  "apps/worker/src/runs/executor/prompt.ts": {
+    "bot": 26
+  },
+  "apps/worker/src/runs/executor/run-executor.ts": {
+    "bot": 22
+  },
+  "apps/worker/src/runs/executor/workspace-sync.ts": {
+    "bot": 25
   },
   "apps/worker/src/runs/queue.ts": {
     "bot": 3
