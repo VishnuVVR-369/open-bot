@@ -37,7 +37,7 @@ export default function ApprovalRules() {
   const sections = useMemo(() => {
     const byBot = new Map<string, ApprovalRule[]>();
     for (const rule of rules.data ?? [])
-      byBot.set(rule.botId, [...(byBot.get(rule.botId) ?? []), rule]);
+      byBot.set(rule.teammateId, [...(byBot.get(rule.teammateId) ?? []), rule]);
     return [...byBot].map(([botId, data]) => ({
       botId,
       bot: bots.find((candidate) => candidate.id === botId),

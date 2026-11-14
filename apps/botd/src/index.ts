@@ -60,7 +60,7 @@ async function prepareFilesystem() {
   // The shared folders are group-writable by both users (the `bots` group), and new files inherit the group.
   const shared = { uid: botUser.uid, gid: env.sharedGid ?? botUser.gid };
   await ensureDir(botUser.home, botGroup, 0o755);
-  await ensureDir(COMPUTER_PATHS.botsRoot, botGroup, 0o755);
+  await ensureDir(COMPUTER_PATHS.teammatesRoot, botGroup, 0o755);
   await ensureDir(COMPUTER_PATHS.shared, shared, 0o2775);
   await ensureDir(COMPUTER_PATHS.downloads, shared, 0o2775);
   await ensureDir(COMPUTER_PATHS.codexHome, botGroup, 0o700);
@@ -213,7 +213,7 @@ async function startCodex() {
     args: ["app-server", "--listen", `ws://127.0.0.1:${PORTS.codex}`],
     user: botUser,
     env: { CODEX_HOME: COMPUTER_PATHS.codexHome, TERM: "xterm-256color" },
-    cwd: COMPUTER_PATHS.botsRoot,
+    cwd: COMPUTER_PATHS.teammatesRoot,
     restart: "always",
     ready: () =>
       waitFor(

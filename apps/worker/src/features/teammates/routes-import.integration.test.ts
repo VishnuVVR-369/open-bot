@@ -41,7 +41,7 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
       const routines = await db
         .select()
         .from(scheduleRows)
-        .where(eq(scheduleRows.botId, atlas.teammateId)); // vocabulary: allow
+        .where(eq(scheduleRows.teammateId, atlas.teammateId));
       // The cron it can't read is left out; the other starts paused in the owner's time zone.
       expect(routines.map((r) => [r.title, r.enabled, r.timezone])).toEqual([
         ["Weekly plan", false, "Asia/Kolkata"],
@@ -49,7 +49,7 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
       const watches = await db
         .select()
         .from(triggerRows)
-        .where(eq(triggerRows.botId, atlas.teammateId)); // vocabulary: allow
+        .where(eq(triggerRows.teammateId, atlas.teammateId));
       expect(watches.map((w) => [w.title, w.enabled])).toEqual([["Pricing", false]]);
       const exported = await worker.teammates.export({ teammateId: atlas.teammateId });
       expect(exported.slug).toBe("atlas");
@@ -63,7 +63,7 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
       const learned = await db
         .select({ text: lessons.text })
         .from(lessons)
-        .where(eq(lessons.botId, atlas.teammateId)); // vocabulary: allow
+        .where(eq(lessons.teammateId, atlas.teammateId));
       expect(learned.map((l) => l.text).sort()).toEqual(["Cite sources.", "Keep answers short."]);
     });
 
@@ -78,7 +78,7 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
       const rules = await db
         .select({ pattern: approvalRules.pattern })
         .from(approvalRules)
-        .where(eq(approvalRules.botId, kit.teammateId)); // vocabulary: allow
+        .where(eq(approvalRules.teammateId, kit.teammateId));
       expect(rules).toEqual([{ pattern }]);
       // A lesson longer than a file allows, which memory holds, still exports.
       const long = `Explain it. ${"x".repeat(600)}`;
@@ -140,7 +140,7 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
       const copied = await db
         .select()
         .from(scheduleRows)
-        .where(eq(scheduleRows.botId, copy.teammateId)); // vocabulary: allow
+        .where(eq(scheduleRows.teammateId, copy.teammateId));
       expect(copied.map((r) => [r.title, r.enabled]).sort()).toEqual([
         ["Call mom", false],
         ["Morning news", false],

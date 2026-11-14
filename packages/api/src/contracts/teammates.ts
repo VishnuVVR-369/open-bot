@@ -1,23 +1,23 @@
 import {
-  botProfileSchema as profileSchema,
+  teammateProfileSchema as profileSchema,
   createdTeammateSchema,
   updatedTeammateSchema,
 } from "@open-bot/domain";
 import { z } from "zod";
 import { base, id, ok } from "../base";
 import { budgetInputSchema, lessonViewSchema, spendingViewSchema } from "../teammates";
-import { botSummarySchema } from "../views";
+import { teammateSummarySchema } from "../views";
 
 /** The biggest teammate file that can be imported, in characters. */
 export const MAX_TEAMMATE_FILE = 2_000_000;
 
 export const teammatesContract = {
   /** Your teammates (not archived), oldest first, with what each is doing now. */
-  list: base.output(z.array(botSummarySchema)),
+  list: base.output(z.array(teammateSummarySchema)),
   /** What a teammate learned from your feedback, newest first. */
-  lessons: base.input(z.object({ botId: id })).output(z.array(lessonViewSchema)),
+  lessons: base.input(z.object({ teammateId: id })).output(z.array(lessonViewSchema)),
   /** A teammate's monthly budget, what it spent, and its latest purchases. */
-  spending: base.input(z.object({ botId: id })).output(spendingViewSchema),
+  spending: base.input(z.object({ teammateId: id })).output(spendingViewSchema),
   /**
    * A new teammate, with its template's skills and the starter automations you kept, made by the
    * same service as when a teammate creates one.

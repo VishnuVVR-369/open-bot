@@ -8,7 +8,7 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
   it("teammates: creates, edits, and refuses an edit made from a stale copy", async () => {
     const created = await worker.teammates.create({ name: "Grace", role: "engineer" });
     expect(created).toMatchObject({ name: "Grace", chatPath: `/chats/${created.chatId}` });
-    const teammateId = created.botId;
+    const teammateId = created.teammateId;
     const updated = await worker.teammates.update({
       teammateId,
       changes: { role: "staff engineer" },

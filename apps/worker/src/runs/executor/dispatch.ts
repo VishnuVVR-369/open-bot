@@ -1,6 +1,6 @@
 // Routes a message you sent: steers it into a teammate's running turn or queues a run, exactly
 // once per teammate, and recovers dispatches and steers a restart interrupted.
-import { bots, chatMembers, chats, messageDispatches, messages, runs } from "@open-bot/db";
+import { teammates, chatMembers, chats, messageDispatches, messages, runs } from "@open-bot/db";
 import { and, asc, eq, isNull, lt } from "drizzle-orm";
 import { publishApp, type Context } from "../../context";
 import { markDispatched, markSteered, touchChat } from "../../features/chat";
@@ -46,7 +46,7 @@ export async function dispatchMessage(
     message.redoOfRunId
   ) {
     const [source] = await executor.ctx.db
-      .select({ botId: runs.botId })
+      .select({ botId: runs.teammateId })
       .from(runs)
       .where(eq(runs.id, message.redoOfRunId));
     if (!source) throw new Error("The reply this feedback belongs to is gone.");
@@ -54,7 +54,7 @@ export async function dispatchMessage(
     // Keep the message pending until this succeeds so the reconciler can recover a crash.
     await executor.memory.store.save(
       {
-        botId: source.botId,
+        teammateId: source.botId,
         kind: "lesson",
         content: message.feedbackRequest.text,
         key: null,
@@ -69,17 +69,17 @@ export async function dispatchMessage(
   let targets: string[];
   if (chat.kind === "group") {
     const members = await executor.ctx.db
-      .select({ id: bots.id, isLead: bots.isLead })
+      .select({ id: teammates.id, isLead: teammates.isLead })
       .from(chatMembers)
-      .innerJoin(bots, eq(bots.id, chatMembers.botId))
-      .where(and(eq(chatMembers.chatId, chat.id), isNull(bots.archivedAt)))
+      .innerJoin(teammates, eq(teammates.id, chatMembers.teammateId))
+      .where(and(eq(chatMembers.chatId, chat.id), isNull(teammates.archivedAt)))
       .orderBy(asc(chatMembers.createdAt));
     const memberIds = new Set(members.map((member) => member.id));
     const mentioned = message.mentions.filter((id) => memberIds.has(id));
     const lead = members.find((member) => member.isLead) ?? members[0];
     targets = mentioned.length ? mentioned : lead ? [lead.id] : [];
   } else {
-    targets = chat.botId ? [chat.botId] : [];
+    targets = chat.teammateId ? [chat.teammateId] : [];
   }
   const prompt = message.redoOfRunId ? redoPrompt(message.text) : message.text;
 
@@ -90,9 +90,9 @@ export async function dispatchMessage(
       // Claim the teammate before steering: a steer can't be undone or repeated safely.
       const [claimed] = await executor.ctx.db
         .insert(messageDispatches)
-        .values({ messageId: message.id, botId, kind: "steer", status: "sending" })
+        .values({ messageId: message.id, teammateId: botId, kind: "steer", status: "sending" })
         .onConflictDoNothing()
-        .returning({ botId: messageDispatches.botId });
+        .returning({ botId: messageDispatches.teammateId });
       if (!claimed) continue;
       if (await session.steer(message.id, prompt)) {
         await markSteered(executor.ctx.db, message.id, session.run.id);
@@ -100,7 +100,10 @@ export async function dispatchMessage(
           .update(messageDispatches)
           .set({ status: "done", runId: session.run.id })
           .where(
-            and(eq(messageDispatches.messageId, message.id), eq(messageDispatches.botId, botId)),
+            and(
+              eq(messageDispatches.messageId, message.id),
+              eq(messageDispatches.teammateId, botId),
+            ),
           );
         delivered = true;
         continue;
@@ -139,18 +142,18 @@ async function queueRun(
         .where(
           and(
             eq(messageDispatches.messageId, message.id),
-            eq(messageDispatches.botId, botId),
+            eq(messageDispatches.teammateId, botId),
             eq(messageDispatches.status, "sending"),
           ),
         )
-        .returning({ botId: messageDispatches.botId });
+        .returning({ botId: messageDispatches.teammateId });
       if (!row) return null;
     } else {
       const [row] = await tx
         .insert(messageDispatches)
-        .values({ messageId: message.id, botId, kind: "run", status: "done" })
+        .values({ messageId: message.id, teammateId: botId, kind: "run", status: "done" })
         .onConflictDoNothing()
-        .returning({ botId: messageDispatches.botId });
+        .returning({ botId: messageDispatches.teammateId });
       if (!row) return null;
     }
     const id = await insertRun(tx, {
@@ -164,7 +167,9 @@ async function queueRun(
     await tx
       .update(messageDispatches)
       .set({ runId: id })
-      .where(and(eq(messageDispatches.messageId, message.id), eq(messageDispatches.botId, botId)));
+      .where(
+        and(eq(messageDispatches.messageId, message.id), eq(messageDispatches.teammateId, botId)),
+      );
     return id;
   });
   if (!runId) return false;
@@ -179,7 +184,7 @@ async function queueRun(
  */
 export async function recoverSteers(executor: DispatchExecutor): Promise<void> {
   const rows = await executor.ctx.db
-    .select({ message: messages, botId: messageDispatches.botId })
+    .select({ message: messages, botId: messageDispatches.teammateId })
     .from(messageDispatches)
     .innerJoin(messages, eq(messages.id, messageDispatches.messageId))
     .where(and(eq(messageDispatches.kind, "steer"), eq(messageDispatches.status, "sending")));

@@ -3,7 +3,7 @@ import { EventEmitter } from "node:events";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
-import { bots, notifications, pages, pageVersions } from "@open-bot/db";
+import { teammates, notifications, pages, pageVersions } from "@open-bot/db";
 import type { PageCheckResult, PageIssue } from "@open-bot/domain";
 import type { Context } from "../../context";
 import { PageError, PageService, type PageFiles } from "./service";
@@ -54,7 +54,7 @@ describe.skipIf(!url)("pages with Postgres", () => {
 
   function source(extra: Partial<Parameters<PageService["checkAndPublish"]>[0]> = {}) {
     return {
-      botId,
+      teammateId: botId,
       chatId: null,
       runId: null,
       path,
@@ -67,7 +67,7 @@ describe.skipIf(!url)("pages with Postgres", () => {
 
   function input(html: string, extra: Partial<Parameters<PageService["publish"]>[0]> = {}) {
     return {
-      botId,
+      teammateId: botId,
       chatId: null,
       runId: null,
       path,
@@ -86,7 +86,7 @@ describe.skipIf(!url)("pages with Postgres", () => {
     vi.clearAllMocks();
     await pool.query("truncate pages, notifications, bots restart identity cascade");
     botId = randomUUID();
-    await db.insert(bots).values({
+    await db.insert(teammates).values({
       id: botId,
       name: "Iris",
       slug: "iris",

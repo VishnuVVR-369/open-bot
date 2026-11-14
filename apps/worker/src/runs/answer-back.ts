@@ -1,4 +1,4 @@
-import { bots, runs } from "@open-bot/db";
+import { teammates, runs } from "@open-bot/db";
 import type { RunStatus } from "@open-bot/domain";
 import { and, eq, isNull } from "drizzle-orm";
 import type { Context } from "../context";
@@ -15,10 +15,10 @@ export async function answerBack(
 ): Promise<void> {
   if (!question.parentRunId) return;
   const [asker] = await ctx.db
-    .select({ chatId: runs.chatId, botId: runs.botId })
+    .select({ chatId: runs.chatId, botId: runs.teammateId })
     .from(runs)
-    .innerJoin(bots, eq(bots.id, runs.botId))
-    .where(and(eq(runs.id, question.parentRunId), isNull(bots.archivedAt)));
+    .innerJoin(teammates, eq(teammates.id, runs.teammateId))
+    .where(and(eq(runs.id, question.parentRunId), isNull(teammates.archivedAt)));
   if (!asker) return;
   const { name } = answerer;
   const answer =

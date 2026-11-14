@@ -21,7 +21,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createdAt, updatedAt } from "./columns";
-import { bots } from "./teammates";
+import { teammates } from "./teammates";
 
 export const chats = pgTable(
   "chats",
@@ -34,8 +34,8 @@ export const chats = pgTable(
      * set_chat_title. A direct chat starts out named after its teammate, untitled.
      */
     titled: boolean("titled").notNull().default(false),
-    /** The bot of a direct or scheduled chat. */
-    botId: uuid("bot_id").references(() => bots.id, { onDelete: "cascade" }),
+    /** The teammate of a direct or scheduled chat. */
+    teammateId: uuid("bot_id").references(() => teammates.id, { onDelete: "cascade" }),
     /**
      * The teammate's main chat: the direct chat where work that isn't started from a chat arrives,
      * such as tasks and questions from teammates. At most one per teammate. Archiving it hands the
@@ -50,10 +50,10 @@ export const chats = pgTable(
     archivedAt: timestamp("archived_at", { withTimezone: true }),
   },
   (table) => [
-    index("chats_bot_idx").on(table.botId),
+    index("chats_bot_idx").on(table.teammateId),
     index("chats_activity_idx").on(table.lastActivityAt),
     uniqueIndex("chats_main_unique")
-      .on(table.botId) // vocabulary: allow
+      .on(table.teammateId)
       .where(sql`${table.main}`),
     check("chats_main_direct", sql`not ${table.main} or ${table.kind} = 'direct'`),
   ],
@@ -65,24 +65,24 @@ export const chatMembers = pgTable(
     chatId: uuid("chat_id")
       .notNull()
       .references(() => chats.id, { onDelete: "cascade" }),
-    botId: uuid("bot_id")
+    teammateId: uuid("bot_id")
       .notNull()
-      .references(() => bots.id, { onDelete: "cascade" }),
+      .references(() => teammates.id, { onDelete: "cascade" }),
     createdAt: createdAt(),
   },
-  (table) => [primaryKey({ columns: [table.chatId, table.botId] })],
+  (table) => [primaryKey({ columns: [table.chatId, table.teammateId] })],
 );
 
-/** One Codex thread per bot per chat. */
-export const botThreads = pgTable(
+/** One Codex thread per teammate per chat. */
+export const teammateThreads = pgTable(
   "bot_threads",
   {
     chatId: uuid("chat_id")
       .notNull()
       .references(() => chats.id, { onDelete: "cascade" }),
-    botId: uuid("bot_id")
+    teammateId: uuid("bot_id")
       .notNull()
-      .references(() => bots.id, { onDelete: "cascade" }),
+      .references(() => teammates.id, { onDelete: "cascade" }),
     codexThreadId: text("codex_thread_id").notNull(),
     memoryGeneration: text("memory_generation").notNull().default(""),
     /**
@@ -105,11 +105,11 @@ export const botThreads = pgTable(
     configurationKey: text("configuration_key").notNull().default(""),
     /** When the thread last saw your profile: in AGENTS.md when it started, or in a message since. */
     profileSeenAt: timestamp("profile_seen_at", { withTimezone: true }).notNull().defaultNow(),
-    /** When the thread last saw the bot's lessons, the same way. */
+    /** When the thread last saw the teammate's lessons, the same way. */
     lessonsSeenAt: timestamp("lessons_seen_at", { withTimezone: true }).notNull().defaultNow(),
     createdAt: createdAt(),
   },
-  (table) => [primaryKey({ columns: [table.chatId, table.botId] })],
+  (table) => [primaryKey({ columns: [table.chatId, table.teammateId] })],
 );
 
 export interface Attachment {
@@ -129,13 +129,13 @@ export const messages = pgTable(
     role: text("role").$type<MessageRole>().notNull(),
     text: text("text").notNull(),
     attachments: jsonb("attachments").$type<Attachment[]>().notNull().default([]),
-    /** Bots this message addressed with @mentions (group chats). */
+    /** Teammates this message addressed with @mentions (group chats). */
     mentions: jsonb("mentions").$type<string[]>().notNull().default([]),
     /** Where you sent it from. Replies to messages sent from Telegram go back there. */
     via: text("via").$type<"app" | "telegram">().notNull().default("app"),
-    /** Set when the message joined a bot's running turn instead of starting a run. */
+    /** Set when the message joined a teammate's running turn instead of starting a run. */
     steeredRunId: uuid("steered_run_id"),
-    /** Set when the message is your feedback on a reply, asking the bot to do it again. */
+    /** Set when the message is your feedback on a reply, asking the teammate to do it again. */
     redoOfRunId: uuid("redo_of_run_id"),
     /** Original feedback request, for exact retry validation and durable lesson saving. */
     feedbackRequest: jsonb("feedback_request").$type<{ text: string; remember: boolean }>(),
@@ -174,9 +174,9 @@ export const messageDispatches = pgTable(
     messageId: uuid("message_id")
       .notNull()
       .references(() => messages.id, { onDelete: "cascade" }),
-    botId: uuid("bot_id")
+    teammateId: uuid("bot_id")
       .notNull()
-      .references(() => bots.id, { onDelete: "cascade" }),
+      .references(() => teammates.id, { onDelete: "cascade" }),
     /** A new run, or joining the teammate's running turn. */
     kind: text("kind").$type<"run" | "steer">().notNull(),
     /** A steer is `sending` while it's being delivered; a run is `done` as soon as it's queued. */
@@ -185,7 +185,7 @@ export const messageDispatches = pgTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (table) => [primaryKey({ columns: [table.messageId, table.botId] })],
+  (table) => [primaryKey({ columns: [table.messageId, table.teammateId] })],
 );
 
 /**

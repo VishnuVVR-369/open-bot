@@ -3,7 +3,7 @@ import { egressStatusSchema } from "./egress";
 import { skillSummarySchema } from "./skills";
 import {
   activityItemSchema,
-  botSummarySchema,
+  teammateSummarySchema,
   briefingItemSchema,
   chatSummarySchema,
   takeoverRequestSchema,
@@ -21,7 +21,7 @@ export const attentionSchema = z.object({
   pendingApprovals: z.number().int().nonnegative(),
   takeoverRequests: z.array(takeoverRequestSchema),
   /** Teammates that suggested new instructions, waiting for you on the web. */
-  proposals: z.array(z.object({ id: z.string(), botId: z.string() })),
+  proposals: z.array(z.object({ id: z.string(), teammateId: z.string() })),
   unreadNotifications: z.number().int().nonnegative(),
 });
 export type Attention = z.infer<typeof attentionSchema>;
@@ -48,7 +48,7 @@ export const appStateSchema = attentionSchema.extend({
   user: z.object({ name: z.string(), email: z.string() }),
   /** Your timezone, for schedules and the teammates' sense of time. */
   timezone: z.string(),
-  bots: z.array(botSummarySchema),
+  teammates: z.array(teammateSummarySchema),
   chats: z.array(chatSummarySchema),
   skills: z.array(skillSummarySchema),
   computer: computerViewSchema,

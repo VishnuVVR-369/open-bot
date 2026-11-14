@@ -103,7 +103,7 @@ export class ApprovalService {
       .insert(approvals)
       .values({
         runId: session.run.id,
-        botId: session.bot.id,
+        teammateId: session.bot.id,
         chatId: session.chat.id,
         kind: input.kind,
         title: input.title,
@@ -220,7 +220,7 @@ export class ApprovalService {
 
   /** The bot's "always allow" rules. */
   rulesFor(botId: string): Promise<Rule[]> {
-    return this.ctx.db.select().from(approvalRules).where(eq(approvalRules.botId, botId));
+    return this.ctx.db.select().from(approvalRules).where(eq(approvalRules.teammateId, botId));
   }
 
   private async allowedByRule(botId: string, kind: RuleKind, text: string) {
@@ -267,7 +267,7 @@ export class ApprovalService {
       .where(
         and(
           inArray(approvals.runId, runIds),
-          eq(approvals.botId, session.bot.id),
+          eq(approvals.teammateId, session.bot.id),
           eq(approvals.kind, "action"),
           eq(approvals.status, "approved"),
         ),
@@ -328,7 +328,7 @@ export class ApprovalService {
       .where(
         and(
           eq(approvals.runId, session.run.parentRunId),
-          eq(approvals.botId, session.bot.id),
+          eq(approvals.teammateId, session.bot.id),
           eq(approvals.chatId, session.chat.id),
           eq(approvals.status, "approved"),
           sql`${approvals.payload}->>'operationKey' = ${operationKey}`,
@@ -413,7 +413,7 @@ export class ApprovalService {
         row.kind === "account_write" && typeof row.payload.subject === "string"
           ? row.payload.subject
           : alwaysAllow.pattern;
-      await this.addRule(row.botId, row.kind, pattern);
+      await this.addRule(row.teammateId, row.kind, pattern);
     }
     // An approved purchase opens its card to the teammate for a while.
     const purchase =
@@ -453,7 +453,7 @@ export class ApprovalService {
           : `[Approval] The user approved: "${row.title}". Go ahead and do it now, then report back.`;
       await enqueueRun(this.ctx, {
         chatId: row.chatId,
-        botId: row.botId,
+        botId: row.teammateId,
         trigger: "approval",
         prompt:
           decision === "approved"
@@ -499,12 +499,12 @@ export class ApprovalService {
 
   async addRule(botId: string, kind: RuleKind, pattern: string): Promise<void> {
     await addApprovalRules(this.ctx.db, botId, [{ kind, pattern }]);
-    await publishApp(this.ctx, { type: "bots" });
+    await publishApp(this.ctx, { type: "teammates" });
   }
 
   async removeRule(ruleId: string): Promise<void> {
     await this.ctx.db.delete(approvalRules).where(eq(approvalRules.id, ruleId));
-    await publishApp(this.ctx, { type: "bots" });
+    await publishApp(this.ctx, { type: "teammates" });
   }
 
   /**
@@ -562,7 +562,7 @@ export async function addApprovalRules(
     const clean = kind === "file_change" ? "" : pattern.trim().replace(/\s+/g, " ");
     // Never shortened: a cut pattern would allow more than the rule did.
     if (clean.length > MAX_RULE_PATTERN || invalidRulePattern(kind, clean)) return [];
-    return [{ botId: teammateId, kind, pattern: clean }];
+    return [{ teammateId, kind, pattern: clean }];
   });
   if (values.length > 0) await db.insert(approvalRules).values(values).onConflictDoNothing();
 }

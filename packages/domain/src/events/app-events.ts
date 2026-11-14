@@ -11,7 +11,7 @@ export const APP_EVENT_TYPES = [
   "computer",
   "approvals",
   "takeovers",
-  "bots",
+  "teammates",
   "chats",
   "schedules",
   "triggers",

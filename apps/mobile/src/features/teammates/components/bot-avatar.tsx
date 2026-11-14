@@ -1,4 +1,4 @@
-import type { BotSummary } from "@open-bot/api";
+import type { TeammateSummary } from "@open-bot/api";
 import { STATUS, teammateStatus, type TeammateActivity } from "@open-bot/domain";
 import { useEffect, useRef, type ReactNode } from "react";
 import { Animated, Easing, Text, View } from "react-native";
@@ -49,7 +49,7 @@ export const PAUSED_OFFLINE = `${STATUS.paused}, computer offline`;
  * `useComputerOffline`) is offline.
  */
 export function botActivity(
-  bot: Pick<BotSummary, "activeRun">,
+  bot: Pick<TeammateSummary, "activeRun">,
   computerOffline = false,
 ): BotActivity {
   return teammateStatus(bot, !computerOffline).activity;
@@ -301,7 +301,7 @@ export function GroupAvatar({
   size = "lg",
   ring,
 }: {
-  members: Pick<BotSummary, "name" | "color" | "emoji">[];
+  members: Pick<TeammateSummary, "name" | "color" | "emoji">[];
   size?: "md" | "lg";
   /** What's behind the avatar, so the front face's cut-out ring matches it. */
   ring?: string;
@@ -352,7 +352,7 @@ export function AvatarStack({
   max = 3,
   ring,
 }: {
-  members: Pick<BotSummary, "id" | "name" | "color" | "emoji">[];
+  members: Pick<TeammateSummary, "id" | "name" | "color" | "emoji">[];
   max?: number;
   /** What's behind the stack, so each face's cut-out ring matches it. */
   ring?: string;

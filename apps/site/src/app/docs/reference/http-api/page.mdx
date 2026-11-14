@@ -123,9 +123,9 @@ A path or input field is removed only once no deployed web app calls it.
 | `POST /internal/chats/:id/rename`, `/archive`, `/read` | Rename, archive, or mark a chat read                                  |
 | `POST /internal/chats/:id/main`                        | Make a direct chat its teammate's main chat (400 for any other chat)  |
 | `POST /internal/chats/:id/messages`                    | Save a message you sent and dispatch it (409 for a reused id)         |
-| `POST /internal/bots`                                  | Create a teammate with its chat, skills and starter automations       |
-| `POST /internal/bots/:id`                              | Change profile fields, with `expected_revision` (409 when stale)      |
-| `POST /internal/bots/:id/sync` ☀                       | Rewrite a teammate's workspace after an edit                          |
+| `POST /internal/teammates`                             | Create a teammate with its chat, skills and starter automations       |
+| `POST /internal/teammates/:id`                         | Change profile fields, with `expected_revision` (409 when stale)      |
+| `POST /internal/teammates/:id/sync` ☀                  | Rewrite a teammate's workspace after an edit                          |
 | `GET /internal/teammates/:id/export`                   | A teammate's bundle and slug, for the export download                 |
 | `POST /internal/teammates/:id/duplicate`               | Copy a teammate, its memory, skills and paused automations            |
 | `POST /internal/teammates/import`                      | Add a teammate from a bundle; its automations start paused            |

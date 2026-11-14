@@ -2,7 +2,7 @@ import {
   accountActions,
   accounts,
   approvals,
-  bots,
+  teammates,
   connections,
   type Queryable,
 } from "@open-bot/db";
@@ -253,7 +253,7 @@ export class AccountActions {
       accountId: resolved.account.id,
       grantRevision: resolved.account.grantRevision,
       connectionRevision: resolved.connection.revision,
-      botId: session.bot.id,
+      teammateId: session.bot.id,
       runId: session.run.id,
       chatId: session.chat.id,
       itemId,
@@ -443,7 +443,10 @@ export class AccountActions {
         return { reason: `The user changed ${label}'s settings since it was asked for.` };
       if (row.account.grantRevision !== action.grantRevision)
         return { reason: `${label}'s sign-in changed since it was asked for.` };
-      if (row.connection.botIds && (!action.botId || !row.connection.botIds.includes(action.botId)))
+      if (
+        row.connection.teammateIds &&
+        (!action.teammateId || !row.connection.teammateIds.includes(action.teammateId))
+      )
         return { reason: `The teammate no longer has ${label}.` };
       const capability = accountTool(action.tool)?.capability;
       if (
@@ -763,15 +766,15 @@ export class AccountActions {
       }
     }
 
-    if (!NEEDS_FOLLOW_UP.has(claimed.status) || !claimed.botId) return;
+    if (!NEEDS_FOLLOW_UP.has(claimed.status) || !claimed.teammateId) return;
     const [bot] = await this.ctx.db
-      .select({ archivedAt: bots.archivedAt })
-      .from(bots)
-      .where(eq(bots.id, claimed.botId));
+      .select({ archivedAt: teammates.archivedAt })
+      .from(teammates)
+      .where(eq(teammates.id, claimed.teammateId));
     if (!bot || bot.archivedAt) return;
     await enqueueRun(this.ctx, {
       chatId: claimed.chatId,
-      botId: claimed.botId,
+      botId: claimed.teammateId,
       trigger: "approval",
       prompt: followUp(claimed),
       parentRunId: claimed.runId,

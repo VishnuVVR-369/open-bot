@@ -29,7 +29,7 @@ export const skillInputSchema = z.object({
   description: z.string().trim().min(1, "Say when to use the skill").max(300),
   instructions: z.string().trim().min(1, "Write the steps").max(20_000),
   /** The teammate who can use it, or null for every teammate. */
-  botId: z.string().uuid().nullable(),
+  teammateId: z.string().uuid().nullable(),
 });
 
 export type SkillInput = z.infer<typeof skillInputSchema>;

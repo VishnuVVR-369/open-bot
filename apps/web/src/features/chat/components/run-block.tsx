@@ -204,7 +204,7 @@ export function RunBlock({
               ) : null;
             }
             if (!showSteps && !isPinned(part.item)) return null;
-            const content = renderItem(part.item, run.botId, bot, approved.has(part.item.id));
+            const content = renderItem(part.item, run.teammateId, bot, approved.has(part.item.id));
             if (!content) return null;
             const spaced =
               part.item.kind === "message" ||

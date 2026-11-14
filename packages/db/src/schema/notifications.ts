@@ -4,7 +4,7 @@ import { chats } from "./chats";
 import { createdAt } from "./columns";
 import { pages } from "./pages";
 import { runs } from "./runs";
-import { bots } from "./teammates";
+import { teammates } from "./teammates";
 
 export type NotificationKind =
   | "run_finished"
@@ -23,7 +23,7 @@ export const notifications = pgTable(
     kind: text("kind").$type<NotificationKind>().notNull(),
     title: text("title").notNull(),
     body: text("body").notNull().default(""),
-    botId: uuid("bot_id").references(() => bots.id, { onDelete: "cascade" }),
+    teammateId: uuid("bot_id").references(() => teammates.id, { onDelete: "cascade" }),
     chatId: uuid("chat_id").references(() => chats.id, { onDelete: "cascade" }),
     runId: uuid("run_id").references(() => runs.id, { onDelete: "cascade" }),
     /** A page the teammate published for this, which the notification opens. */

@@ -6,7 +6,7 @@
     "bot": 3
   },
   "apps/botd/src/index.ts": {
-    "bot": 27
+    "bot": 25
   },
   "apps/botd/src/lease.test.ts": {
     "bot": 6
@@ -15,9 +15,6 @@
     "bot": 5
   },
   "apps/botd/src/pages.test.ts": {
-    "bot": 1
-  },
-  "apps/botd/src/pages.ts": {
     "bot": 1
   },
   "apps/botd/src/router.ts": {
@@ -42,70 +39,64 @@
     "bot": 9
   },
   "apps/mobile/src/features/approvals/components/approval-parts.tsx": {
-    "bot": 12
+    "bot": 10
   },
   "apps/mobile/src/features/approvals/components/approval-row.tsx": {
-    "bot": 7
+    "bot": 5
   },
   "apps/mobile/src/features/approvals/components/approval-rules-screen.tsx": {
-    "bot": 26
+    "bot": 24
   },
   "apps/mobile/src/features/approvals/components/approval-screen.tsx": {
-    "bot": 12
+    "bot": 11
   },
   "apps/mobile/src/features/approvals/components/approvals-screen.tsx": {
-    "bot": 8
-  },
-  "apps/mobile/src/features/chat/chat-screen.test.ts": {
-    "bot": 1
-  },
-  "apps/mobile/src/features/chat/chat-screen.ts": {
-    "bot": 2
+    "bot": 7
   },
   "apps/mobile/src/features/chat/chat-status.ts": {
-    "bot": 3
+    "bot": 2
   },
   "apps/mobile/src/features/chat/chats.test.ts": {
-    "bot": 19
+    "bot": 9
   },
   "apps/mobile/src/features/chat/chats.ts": {
-    "bot": 21
+    "bot": 14
   },
   "apps/mobile/src/features/chat/components/approval-card.tsx": {
     "bot": 5
   },
   "apps/mobile/src/features/chat/components/chat-empty.tsx": {
-    "bot": 5
+    "bot": 3
   },
   "apps/mobile/src/features/chat/components/chat-screen.tsx": {
-    "bot": 5
+    "bot": 3
   },
   "apps/mobile/src/features/chat/components/chat-title.tsx": {
-    "bot": 6
+    "bot": 3
   },
   "apps/mobile/src/features/chat/components/chats-screen.tsx": {
-    "bot": 34
+    "bot": 29
   },
   "apps/mobile/src/features/chat/components/composer.test.ts": {
     "bot": 3
   },
   "apps/mobile/src/features/chat/components/composer.tsx": {
-    "bot": 4
+    "bot": 2
   },
   "apps/mobile/src/features/chat/components/mention-menu.tsx": {
     "bot": 3
   },
   "apps/mobile/src/features/chat/components/new-chat-screen.tsx": {
-    "bot": 37
+    "bot": 33
   },
   "apps/mobile/src/features/chat/components/run-actions.tsx": {
     "bot": 9
   },
   "apps/mobile/src/features/chat/components/run-block.tsx": {
-    "bot": 19
+    "bot": 15
   },
   "apps/mobile/src/features/chat/components/share-screen.tsx": {
-    "bot": 24
+    "bot": 21
   },
   "apps/mobile/src/features/chat/components/swarm-card.tsx": {
     "bot": 4
@@ -119,107 +110,77 @@
   "apps/mobile/src/features/chat/hooks.ts": {
     "bot": 2
   },
-  "apps/mobile/src/features/chat/use-chat-reading.test.ts": {
-    "bot": 3
-  },
-  "apps/mobile/src/features/chat/use-chat.test.ts": {
-    "bot": 3
-  },
   "apps/mobile/src/features/computer/components/computer-screen.tsx": {
-    "bot": 7
+    "bot": 3
   },
   "apps/mobile/src/features/computer/components/last-frames.tsx": {
-    "bot": 8
+    "bot": 3
   },
   "apps/mobile/src/features/computer/components/screen-card.tsx": {
-    "bot": 11
+    "bot": 5
   },
   "apps/mobile/src/features/computer/components/screen-notice.tsx": {
-    "bot": 10
-  },
-  "apps/mobile/src/features/computer/components/screen-page.tsx": {
-    "bot": 1
+    "bot": 5
   },
   "apps/mobile/src/features/computer/screens.test.ts": {
-    "bot": 5
+    "bot": 4
   },
   "apps/mobile/src/features/computer/screens.ts": {
     "bot": 4
   },
   "apps/mobile/src/features/home/components/briefing.tsx": {
-    "bot": 22
+    "bot": 20
   },
   "apps/mobile/src/features/home/components/elsewhere.tsx": {
-    "bot": 18
+    "bot": 14
   },
   "apps/mobile/src/features/home/components/home-screen.tsx": {
     "bot": 8
   },
   "apps/mobile/src/features/home/components/needs-you.tsx": {
-    "bot": 20
+    "bot": 14
   },
   "apps/mobile/src/features/home/components/pages.tsx": {
-    "bot": 4
+    "bot": 1
   },
   "apps/mobile/src/features/home/components/takeover-later.tsx": {
-    "bot": 10
+    "bot": 7
   },
   "apps/mobile/src/features/home/components/teammates.tsx": {
-    "bot": 34
-  },
-  "apps/mobile/src/features/home/home.test.ts": {
-    "bot": 6
-  },
-  "apps/mobile/src/features/home/home.ts": {
-    "bot": 8
+    "bot": 30
   },
   "apps/mobile/src/features/notifications/components/notifications-screen.tsx": {
-    "bot": 18
+    "bot": 15
   },
   "apps/mobile/src/features/notifications/notification-groups.test.ts": {
-    "bot": 5
-  },
-  "apps/mobile/src/features/notifications/notification-groups.ts": {
-    "bot": 8
+    "bot": 2
   },
   "apps/mobile/src/features/pages/components/page-row.tsx": {
-    "bot": 10
+    "bot": 8
   },
   "apps/mobile/src/features/pages/components/page-screen.tsx": {
-    "bot": 3
+    "bot": 2
   },
   "apps/mobile/src/features/pages/components/pages-screen.tsx": {
-    "bot": 6
+    "bot": 5
   },
   "apps/mobile/src/features/pages/pages.test.ts": {
-    "bot": 9
+    "bot": 2
   },
   "apps/mobile/src/features/pages/pages.ts": {
-    "bot": 13
+    "bot": 8
   },
   "apps/mobile/src/features/search/components/search-row.tsx": {
     "bot": 5
   },
-  "apps/mobile/src/features/search/search.test.ts": {
-    "bot": 7
-  },
-  "apps/mobile/src/features/search/search.ts": {
-    "bot": 6
-  },
   "apps/mobile/src/features/teammates/components/bot-avatar.tsx": {
-    "bot": 19
+    "bot": 15
   },
   "apps/mobile/src/features/teammates/components/teammate-screen.tsx": {
-    "bot": 44
-  },
-  "apps/mobile/src/lib/links.ts": {
-    "bot": 3
+    "bot": 40
   },
   "apps/mobile/src/lib/live-stream.test.ts": {
     "bot": 6
-  },
-  "apps/mobile/src/lib/query-refresh.test.ts": {
-    "bot": 1
   },
   "apps/mobile/src/lib/realtime.test.ts": {
     "bot": 1
@@ -249,46 +210,37 @@
     "bot": 3
   },
   "apps/web/src/app/(auth)/layout.tsx": {
-    "bot": 7
+    "bot": 3
   },
   "apps/web/src/app/api/bots/[botId]/export/route.ts": {
     "bot": 3
   },
-  "apps/web/src/app/api/inbound/email/[token]/route.ts": {
-    "bot": 1
-  },
   "apps/web/src/app/api/memory/route.ts": {
-    "bot": 8
+    "bot": 7
   },
   "apps/web/src/app/api/stream/route.ts": {
     "bot": 1
   },
   "apps/web/src/components/access-picker.tsx": {
-    "bot": 15
+    "bot": 14
   },
   "apps/web/src/components/app/command-menu.tsx": {
-    "bot": 48
+    "bot": 44
   },
   "apps/web/src/components/app/new-group-dialog.tsx": {
-    "bot": 18
+    "bot": 17
   },
   "apps/web/src/components/app/shell.tsx": {
     "bot": 2
   },
   "apps/web/src/components/app/sidebar.tsx": {
-    "bot": 34
+    "bot": 27
   },
   "apps/web/src/components/bot-avatar.tsx": {
     "bot": 3
   },
-  "apps/web/src/features/app-shell/server/attention.ts": {
-    "bot": 7
-  },
-  "apps/web/src/features/app-shell/server/queries.ts": {
-    "bot": 1
-  },
   "apps/web/src/features/app-shell/server/routes.integration.test.ts": {
-    "bot": 10
+    "bot": 3
   },
   "apps/web/src/features/approvals/components/always-allow.tsx": {
     "bot": 17
@@ -297,37 +249,28 @@
     "bot": 9
   },
   "apps/web/src/features/approvals/components/approvals-view.tsx": {
-    "bot": 32
-  },
-  "apps/web/src/features/approvals/server/service.ts": {
-    "bot": 7
-  },
-  "apps/web/src/features/approvals/server/views.ts": {
-    "bot": 2
+    "bot": 30
   },
   "apps/web/src/features/automations/components/automations-view.tsx": {
-    "bot": 53
+    "bot": 44
   },
   "apps/web/src/features/automations/components/schedule-dialog.tsx": {
-    "bot": 32
+    "bot": 29
   },
   "apps/web/src/features/automations/components/schedules-list.tsx": {
     "bot": 15
   },
   "apps/web/src/features/automations/components/trigger-dialog.tsx": {
-    "bot": 37
+    "bot": 32
   },
   "apps/web/src/features/automations/components/trigger-row.tsx": {
     "bot": 26
-  },
-  "apps/web/src/features/automations/server/service.ts": {
-    "bot": 6
   },
   "apps/web/src/features/chat/components/chat-header.tsx": {
     "bot": 12
   },
   "apps/web/src/features/chat/components/chat-view.tsx": {
-    "bot": 31
+    "bot": 25
   },
   "apps/web/src/features/chat/components/composer.tsx": {
     "bot": 11
@@ -342,16 +285,16 @@
     "bot": 6
   },
   "apps/web/src/features/chat/components/reply-feedback.tsx": {
-    "bot": 6
+    "bot": 5
   },
   "apps/web/src/features/chat/components/run-block.tsx": {
-    "bot": 36
+    "bot": 35
   },
   "apps/web/src/features/chat/components/screen-strip.tsx": {
     "bot": 1
   },
   "apps/web/src/features/chat/components/skill-menu.tsx": {
-    "bot": 7
+    "bot": 5
   },
   "apps/web/src/features/chat/components/swarm-card.tsx": {
     "bot": 4
@@ -363,25 +306,16 @@
     "bot": 4
   },
   "apps/web/src/features/chat/server/lists.ts": {
-    "bot": 13
+    "bot": 2
   },
   "apps/web/src/features/chat/server/queries.ts": {
-    "bot": 14
-  },
-  "apps/web/src/features/chat/server/routes.integration.test.ts": {
     "bot": 2
-  },
-  "apps/web/src/features/chat/skill-options.test.ts": {
-    "bot": 2
-  },
-  "apps/web/src/features/chat/skill-options.ts": {
-    "bot": 4
   },
   "apps/web/src/features/computer/components/computer-page.tsx": {
-    "bot": 29
+    "bot": 28
   },
   "apps/web/src/features/computer/components/computer-panel.tsx": {
-    "bot": 12
+    "bot": 11
   },
   "apps/web/src/features/computer/components/screen-controls.tsx": {
     "bot": 2
@@ -402,85 +336,61 @@
     "bot": 5
   },
   "apps/web/src/features/computer/hooks.ts": {
-    "bot": 23
+    "bot": 21
   },
   "apps/web/src/features/computer/server/queries.ts": {
-    "bot": 14
-  },
-  "apps/web/src/features/computer/server/service.ts": {
-    "bot": 11
-  },
-  "apps/web/src/features/files/components/files-view.tsx": {
-    "bot": 27
-  },
-  "apps/web/src/features/home/components/activity.tsx": {
-    "bot": 13
-  },
-  "apps/web/src/features/home/components/briefing.tsx": {
-    "bot": 41
-  },
-  "apps/web/src/features/home/components/coming-up.tsx": {
-    "bot": 11
-  },
-  "apps/web/src/features/home/components/home-view.tsx": {
-    "bot": 22
-  },
-  "apps/web/src/features/home/components/needs-you.tsx": {
-    "bot": 4
-  },
-  "apps/web/src/features/home/components/profile-nudge.tsx": {
     "bot": 1
   },
-  "apps/web/src/features/home/components/recent-pages.tsx": {
-    "bot": 2
-  },
-  "apps/web/src/features/home/components/suggestions.tsx": {
-    "bot": 3
-  },
-  "apps/web/src/features/home/components/teammates.tsx": {
-    "bot": 27
-  },
-  "apps/web/src/features/home/server/queries.ts": {
-    "bot": 4
-  },
-  "apps/web/src/features/integrations/components/accounts/account-row.tsx": {
+  "apps/web/src/features/computer/server/service.ts": {
     "bot": 8
   },
-  "apps/web/src/features/integrations/components/accounts/edit-dialog.tsx": {
+  "apps/web/src/features/files/components/files-view.tsx": {
+    "bot": 25
+  },
+  "apps/web/src/features/home/components/activity.tsx": {
+    "bot": 9
+  },
+  "apps/web/src/features/home/components/briefing.tsx": {
+    "bot": 36
+  },
+  "apps/web/src/features/home/components/coming-up.tsx": {
+    "bot": 9
+  },
+  "apps/web/src/features/home/components/home-view.tsx": {
+    "bot": 17
+  },
+  "apps/web/src/features/home/components/suggestions.tsx": {
+    "bot": 1
+  },
+  "apps/web/src/features/home/components/teammates.tsx": {
+    "bot": 24
+  },
+  "apps/web/src/features/integrations/components/accounts/account-row.tsx": {
     "bot": 2
   },
   "apps/web/src/features/integrations/components/connections-section.tsx": {
-    "bot": 8
-  },
-  "apps/web/src/features/integrations/components/email-section.tsx": {
-    "bot": 1
+    "bot": 2
   },
   "apps/web/src/features/integrations/server/accounts.ts": {
     "bot": 4
   },
   "apps/web/src/features/integrations/server/service.ts": {
-    "bot": 4
+    "bot": 1
   },
   "apps/web/src/features/memory/components/memory-manager.tsx": {
-    "bot": 14
+    "bot": 13
   },
   "apps/web/src/features/memory/hooks.ts": {
     "bot": 3
   },
   "apps/web/src/features/memory/server/service.ts": {
-    "bot": 5
-  },
-  "apps/web/src/features/notifications/server/queries.ts": {
-    "bot": 2
+    "bot": 4
   },
   "apps/web/src/features/pages/components/page-viewer.tsx": {
-    "bot": 30
+    "bot": 28
   },
   "apps/web/src/features/pages/components/pages-view.tsx": {
-    "bot": 27
-  },
-  "apps/web/src/features/pages/server/service.ts": {
-    "bot": 8
+    "bot": 23
   },
   "apps/web/src/features/settings/components/profile-editor.tsx": {
     "bot": 1
@@ -489,73 +399,49 @@
     "bot": 8
   },
   "apps/web/src/features/settings/components/usage-section.tsx": {
-    "bot": 5
-  },
-  "apps/web/src/features/settings/server/service.ts": {
-    "bot": 3
+    "bot": 2
   },
   "apps/web/src/features/skills/components/skill-dialog.tsx": {
-    "bot": 19
+    "bot": 16
   },
   "apps/web/src/features/skills/components/skills-list.tsx": {
-    "bot": 24
-  },
-  "apps/web/src/features/skills/server/queries.ts": {
-    "bot": 4
+    "bot": 19
   },
   "apps/web/src/features/tasks/components/task-board.tsx": {
-    "bot": 18
+    "bot": 12
   },
   "apps/web/src/features/tasks/components/task-dialog.tsx": {
-    "bot": 32
-  },
-  "apps/web/src/features/tasks/server/queries.ts": {
-    "bot": 4
+    "bot": 29
   },
   "apps/web/src/features/teammates/components/bot-danger-zone.tsx": {
     "bot": 5
   },
   "apps/web/src/features/teammates/components/bot-form.tsx": {
-    "bot": 29
+    "bot": 27
   },
   "apps/web/src/features/teammates/components/chat-list.tsx": {
     "bot": 6
   },
   "apps/web/src/features/teammates/components/duplicate-bot.tsx": {
-    "bot": 13
+    "bot": 12
   },
   "apps/web/src/features/teammates/components/spending.tsx": {
-    "bot": 8
+    "bot": 6
   },
   "apps/web/src/features/teammates/components/teammate-view.tsx": {
     "bot": 57
-  },
-  "apps/web/src/features/teammates/hooks.ts": {
-    "bot": 1
   },
   "apps/web/src/features/teammates/index.ts": {
     "bot": 4
   },
   "apps/web/src/features/teammates/server/queries.ts": {
-    "bot": 29
-  },
-  "apps/web/src/features/teammates/server/routes.integration.test.ts": {
-    "bot": 1
-  },
-  "apps/web/src/features/teammates/server/routes.ts": {
-    "bot": 2
+    "bot": 21
   },
   "apps/web/src/features/teammates/server/service.ts": {
-    "bot": 35
-  },
-  "apps/web/src/features/vault/components/vault-dialog.tsx": {
-    "bot": 1
+    "bot": 13
   },
   "apps/web/src/features/vault/components/vault-view.tsx": {
-    "bot": 26
-  },
-  "apps/web/src/features/vault/server/queries.ts": {
-    "bot": 2
+    "bot": 23
   },
   "apps/web/src/lib/files.test.ts": {
     "bot": 2
@@ -569,14 +455,11 @@
   "apps/web/src/lib/types.ts": {
     "bot": 1
   },
-  "apps/web/src/test/api/seed.ts": {
-    "bot": 4
-  },
   "apps/worker/scripts/computer-sleep-smoke.ts": {
-    "bot": 25
+    "bot": 16
   },
   "apps/worker/scripts/computer-sleep-web-smoke.ts": {
-    "bot": 5
+    "bot": 3
   },
   "apps/worker/src/computer/client.ts": {
     "bot": 6
@@ -585,7 +468,7 @@
     "bot": 1
   },
   "apps/worker/src/core/db-types.ts": {
-    "bot": 2
+    "bot": 1
   },
   "apps/worker/src/egress/relay.test.ts": {
     "bot": 2
@@ -597,55 +480,49 @@
     "bot": 1
   },
   "apps/worker/src/features/approvals/native-tools.integration.test.ts": {
-    "bot": 2
-  },
-  "apps/worker/src/features/approvals/routes.integration.test.ts": {
     "bot": 1
   },
   "apps/worker/src/features/approvals/service.ts": {
-    "bot": 31
+    "bot": 22
   },
   "apps/worker/src/features/approvals/setup-tools.integration.test.ts": {
-    "bot": 16
+    "bot": 11
   },
   "apps/worker/src/features/automations/account-triggers.integration.test.ts": {
-    "bot": 13
+    "bot": 8
   },
   "apps/worker/src/features/automations/account-triggers.ts": {
-    "bot": 2
+    "bot": 1
   },
   "apps/worker/src/features/automations/account-watch-tools.ts": {
-    "bot": 13
-  },
-  "apps/worker/src/features/automations/routes.integration.test.ts": {
-    "bot": 2
+    "bot": 12
   },
   "apps/worker/src/features/automations/schedules.ts": {
-    "bot": 26
+    "bot": 10
   },
   "apps/worker/src/features/automations/tools.ts": {
-    "bot": 49
+    "bot": 45
   },
   "apps/worker/src/features/automations/triggers.ts": {
-    "bot": 44
+    "bot": 18
   },
   "apps/worker/src/features/chat/service.ts": {
     "bot": 2
   },
   "apps/worker/src/features/chat/tools.integration.test.ts": {
-    "bot": 2
+    "bot": 1
   },
   "apps/worker/src/features/chat/tools.ts": {
     "bot": 4
   },
   "apps/worker/src/features/connections/service.ts": {
-    "bot": 15
+    "bot": 9
   },
   "apps/worker/src/features/connections/tools.integration.test.ts": {
-    "bot": 12
+    "bot": 8
   },
   "apps/worker/src/features/email/service.ts": {
-    "bot": 41
+    "bot": 22
   },
   "apps/worker/src/features/email/tools.ts": {
     "bot": 1
@@ -653,26 +530,23 @@
   "apps/worker/src/features/files/routes.integration.test.ts": {
     "bot": 1
   },
-  "apps/worker/src/features/files/service.ts": {
-    "bot": 5
-  },
   "apps/worker/src/features/integrations/access.ts": {
-    "bot": 12
+    "bot": 10
   },
   "apps/worker/src/features/integrations/actions.integration.test.ts": {
-    "bot": 22
+    "bot": 14
   },
   "apps/worker/src/features/integrations/actions.ts": {
-    "bot": 19
+    "bot": 7
   },
   "apps/worker/src/features/integrations/tools.ts": {
     "bot": 3
   },
   "apps/worker/src/features/memory/service.ts": {
-    "bot": 18
+    "bot": 14
   },
   "apps/worker/src/features/memory/tools.ts": {
-    "bot": 16
+    "bot": 7
   },
   "apps/worker/src/features/notifications/fcm.integration.test.ts": {
     "bot": 3
@@ -684,22 +558,19 @@
     "bot": 1
   },
   "apps/worker/src/features/notifications/service.ts": {
-    "bot": 5
-  },
-  "apps/worker/src/features/pages/routes.integration.test.ts": {
-    "bot": 1
-  },
-  "apps/worker/src/features/pages/service.integration.test.ts": {
-    "bot": 11
-  },
-  "apps/worker/src/features/pages/service.ts": {
-    "bot": 22
-  },
-  "apps/worker/src/features/pages/tools.ts": {
     "bot": 4
   },
+  "apps/worker/src/features/pages/service.integration.test.ts": {
+    "bot": 9
+  },
+  "apps/worker/src/features/pages/service.ts": {
+    "bot": 6
+  },
+  "apps/worker/src/features/pages/tools.ts": {
+    "bot": 3
+  },
   "apps/worker/src/features/screens/screen-operations.integration.test.ts": {
-    "bot": 8
+    "bot": 5
   },
   "apps/worker/src/features/screens/screen-operations.ts": {
     "bot": 1,
@@ -709,73 +580,64 @@
     "bot": 1
   },
   "apps/worker/src/features/screens/takeovers.ts": {
-    "bot": 35
+    "bot": 25
   },
   "apps/worker/src/features/screens/tools.ts": {
     "bot": 6
   },
-  "apps/worker/src/features/skills/routes.integration.test.ts": {
-    "bot": 2
-  },
   "apps/worker/src/features/skills/service.ts": {
-    "bot": 70
+    "bot": 44
   },
   "apps/worker/src/features/skills/tools.integration.test.ts": {
-    "bot": 29
+    "bot": 19
   },
   "apps/worker/src/features/skills/tools.ts": {
-    "bot": 22
+    "bot": 19
   },
   "apps/worker/src/features/tasks/service.ts": {
-    "bot": 39
-  },
-  "apps/worker/src/features/tasks/tools.ts": {
     "bot": 14
   },
+  "apps/worker/src/features/tasks/tools.ts": {
+    "bot": 12
+  },
   "apps/worker/src/features/teammates/changes.ts": {
-    "bot": 83
+    "bot": 71
   },
   "apps/worker/src/features/teammates/http-tools.integration.test.ts": {
-    "bot": 5
+    "bot": 1
   },
   "apps/worker/src/features/teammates/index.ts": {
     "bot": 3
   },
   "apps/worker/src/features/teammates/permissions.integration.test.ts": {
-    "bot": 24
-  },
-  "apps/worker/src/features/teammates/routes-configuration.integration.test.ts": {
-    "bot": 2
-  },
-  "apps/worker/src/features/teammates/routes.integration.test.ts": {
-    "bot": 1
+    "bot": 16
   },
   "apps/worker/src/features/teammates/routes.ts": {
     "bot": 4
   },
   "apps/worker/src/features/teammates/service.ts": {
-    "bot": 174
+    "bot": 86
   },
   "apps/worker/src/features/teammates/tools.integration.test.ts": {
-    "bot": 28
+    "bot": 16
   },
   "apps/worker/src/features/teammates/tools.ts": {
-    "bot": 66
+    "bot": 62
   },
   "apps/worker/src/features/teamwork/service.ts": {
-    "bot": 10
+    "bot": 7
   },
   "apps/worker/src/features/teamwork/tools.ts": {
-    "bot": 29
+    "bot": 28
   },
   "apps/worker/src/features/telegram/api.ts": {
     "bot": 3
   },
   "apps/worker/src/features/telegram/inbound.ts": {
-    "bot": 33
+    "bot": 15
   },
   "apps/worker/src/features/telegram/notifications.ts": {
-    "bot": 9
+    "bot": 4
   },
   "apps/worker/src/features/telegram/polling.ts": {
     "bot": 4
@@ -784,10 +646,10 @@
     "bot": 18
   },
   "apps/worker/src/features/uploads/service.integration.test.ts": {
-    "bot": 7
+    "bot": 4
   },
   "apps/worker/src/features/vault/service.ts": {
-    "bot": 40
+    "bot": 27
   },
   "apps/worker/src/features/vault/tools.ts": {
     "bot": 1
@@ -802,64 +664,58 @@
     "bot": 26
   },
   "apps/worker/src/rpc/handler.test.ts": {
-    "bot": 4
+    "bot": 2
   },
   "apps/worker/src/rpc/router.ts": {
     "bot": 2
   },
-  "apps/worker/src/rpc/services.integration.test.ts": {
-    "bot": 1
-  },
   "apps/worker/src/runs/answer-back.ts": {
-    "bot": 9
+    "bot": 3
   },
   "apps/worker/src/runs/approval-policy.ts": {
     "bot": 2
   },
   "apps/worker/src/runs/dispatch.integration.test.ts": {
-    "bot": 22
+    "bot": 8
   },
   "apps/worker/src/runs/executor/dispatch.ts": {
-    "bot": 38
+    "bot": 20
   },
   "apps/worker/src/runs/executor/prompt.ts": {
-    "bot": 26
+    "bot": 12
   },
   "apps/worker/src/runs/executor/run-executor.ts": {
-    "bot": 22
+    "bot": 18
   },
   "apps/worker/src/runs/executor/workspace-sync.ts": {
-    "bot": 25
+    "bot": 16
   },
   "apps/worker/src/runs/queue.ts": {
-    "bot": 3
+    "bot": 2
   },
   "apps/worker/src/runs/registry.ts": {
     "bot": 4
   },
-  "apps/worker/src/runs/requests.ts": {
-    "bot": 1
-  },
   "apps/worker/src/runs/retries.ts": {
-    "bot": 9
+    "bot": 2
   },
   "apps/worker/src/runs/session/finalize.ts": {
-    "bot": 16
+    "bot": 15
   },
   "apps/worker/src/runs/session/run-session.ts": {
     "bot": 20
   },
   "apps/worker/src/runs/session/threads.ts": {
-    "bot": 20
+    "bot": 10
   },
   "apps/worker/src/runs/thread-continuity.test.ts": {
     "bot": 4
   },
   "apps/worker/src/testing/rpc.ts": {
-    "bot": 6
+    "bot": 3
   },
   "apps/worker/src/testing/tools.ts": {
-    "bot": 10
+    "bot": 8
   },
   "apps/worker/src/tools/catalog.test.ts": {
     "bot": 4
@@ -877,10 +733,10 @@
     "bot": 9
   },
   "e2e/api.spec.ts": {
-    "bot": 24
+    "bot": 17
   },
   "e2e/auth.setup.ts": {
-    "bot": 4
+    "bot": 2
   },
   "e2e/automations.spec.ts": {
     "bot": 4
@@ -889,22 +745,22 @@
     "bot": 1
   },
   "e2e/check-ins.spec.ts": {
-    "bot": 16
+    "bot": 14
   },
   "e2e/computer.spec.ts": {
     "bot": 13
   },
   "e2e/email.spec.ts": {
-    "bot": 9
+    "bot": 8
   },
   "e2e/feedback.spec.ts": {
-    "bot": 14
+    "bot": 13
   },
   "e2e/global-teardown.ts": {
     "bot": 5
   },
   "e2e/helpers.ts": {
-    "bot": 5
+    "bot": 4
   },
   "e2e/job-scout.spec.ts": {
     "bot": 15
@@ -913,7 +769,7 @@
     "bot": 31
   },
   "e2e/pages.spec.ts": {
-    "bot": 41
+    "bot": 33
   },
   "e2e/pocket-inbox.spec.ts": {
     "bot": 15
@@ -928,7 +784,7 @@
     "bot": 10
   },
   "e2e/teammates.spec.ts": {
-    "bot": 25
+    "bot": 24
   },
   "e2e/teamwork.spec.ts": {
     "bot": 5
@@ -939,148 +795,73 @@
   "e2e/vault.spec.ts": {
     "bot": 16
   },
-  "packages/api/src/automations.ts": {
-    "bot": 4
-  },
-  "packages/api/src/contracts/chat.ts": {
-    "bot": 2
-  },
-  "packages/api/src/contracts/memory.ts": {
-    "bot": 1
-  },
-  "packages/api/src/contracts/teammates.ts": {
-    "bot": 5
-  },
-  "packages/api/src/events.ts": {
-    "bot": 1
-  },
-  "packages/api/src/home.ts": {
-    "bot": 4
-  },
-  "packages/api/src/integrations.ts": {
-    "bot": 2
-  },
-  "packages/api/src/live.test.ts": {
-    "bot": 3
-  },
-  "packages/api/src/screens.ts": {
-    "bot": 3
-  },
-  "packages/api/src/settings.ts": {
-    "bot": 2
-  },
-  "packages/api/src/skills.ts": {
-    "bot": 2
-  },
-  "packages/api/src/tasks.ts": {
-    "bot": 4
-  },
-  "packages/api/src/teammates.ts": {
-    "bot": 1
-  },
-  "packages/api/src/vault.ts": {
-    "bot": 1
-  },
-  "packages/api/src/views.ts": {
-    "bot": 20
-  },
   "packages/api/src/worker/contracts/integrations.ts": {
-    "bot": 2
-  },
-  "packages/api/src/worker/contracts/pages.ts": {
     "bot": 1
-  },
-  "packages/api/src/worker/contracts/teammates.ts": {
-    "bot": 8
-  },
-  "packages/chat-core/src/timeline.test.ts": {
-    "bot": 3
-  },
-  "packages/chat-core/src/triggers.ts": {
-    "bot": 2
   },
   "packages/db/src/schema/approvals.ts": {
-    "bot": 9
+    "bot": 2
   },
   "packages/db/src/schema/automations.ts": {
-    "bot": 9
+    "bot": 2
   },
   "packages/db/src/schema/chats.ts": {
-    "bot": 26
+    "bot": 6
   },
   "packages/db/src/schema/computer.ts": {
-    "bot": 9,
+    "bot": 1,
     "desktop takeover": 1
   },
   "packages/db/src/schema/email.ts": {
-    "bot": 6
+    "bot": 2
   },
   "packages/db/src/schema/integrations.ts": {
-    "bot": 7
+    "bot": 3
   },
   "packages/db/src/schema/learning.ts": {
-    "bot": 24
+    "bot": 7
   },
   "packages/db/src/schema/memory.ts": {
-    "bot": 10
+    "bot": 2
   },
   "packages/db/src/schema/notifications.ts": {
-    "bot": 5
+    "bot": 2
   },
   "packages/db/src/schema/pages.ts": {
-    "bot": 8
+    "bot": 2
   },
   "packages/db/src/schema/runs.ts": {
-    "bot": 9
+    "bot": 2
   },
   "packages/db/src/schema/settings.ts": {
-    "bot": 5
+    "bot": 2
   },
   "packages/db/src/schema/tasks.ts": {
-    "bot": 13
+    "bot": 4
   },
   "packages/db/src/schema/teammates.ts": {
-    "bot": 4,
+    "bot": 2,
     "primary teammate": 1
   },
   "packages/db/src/schema/telegram.ts": {
     "bot": 4
   },
   "packages/db/src/schema/vault.ts": {
-    "bot": 8
-  },
-  "packages/domain/src/approvals/apply-guard.test.ts": {
-    "bot": 1
-  },
-  "packages/domain/src/approvals/apply-guard.ts": {
-    "bot": 2
-  },
-  "packages/domain/src/approvals/rules.ts": {
-    "bot": 1
-  },
-  "packages/domain/src/automations/triggers.test.ts": {
-    "bot": 1
-  },
-  "packages/domain/src/automations/triggers.ts": {
-    "bot": 4
+    "bot": 3
   },
   "packages/domain/src/computer/files.ts": {
     "bot": 1
   },
   "packages/domain/src/computer/paths.test.ts": {
-    "bot": 5
+    "bot": 4
   },
   "packages/domain/src/computer/paths.ts": {
-    "bot": 8
+    "bot": 4
   },
   "packages/domain/src/computer/protocol.ts": {
     "bot": 4
   },
-  "packages/domain/src/events/app-events.ts": {
-    "bot": 1
-  },
   "packages/domain/src/memory/memory.ts": {
-    "bot": 6
+    "bot": 2
   },
   "packages/domain/src/pages/pages.test.ts": {
     "bot": 6
@@ -1088,62 +869,26 @@
   "packages/domain/src/pages/pages.ts": {
     "bot": 2
   },
-  "packages/domain/src/skills/skills.test.ts": {
-    "bot": 1
-  },
-  "packages/domain/src/skills/skills.ts": {
-    "bot": 1
-  },
-  "packages/domain/src/teammates/bundle.test.ts": {
+  "packages/domain/src/teammates/management.test.ts": {
     "bot": 2
   },
-  "packages/domain/src/teammates/bundle.ts": {
-    "bot": 6
-  },
-  "packages/domain/src/teammates/management.test.ts": {
-    "bot": 22
-  },
   "packages/domain/src/teammates/management.ts": {
-    "bot": 33
-  },
-  "packages/domain/src/teammates/profile.test.ts": {
-    "bot": 9
+    "bot": 1
   },
   "packages/domain/src/teammates/profile.ts": {
-    "bot": 6
-  },
-  "packages/domain/src/teammates/status.test.ts": {
-    "bot": 18
-  },
-  "packages/domain/src/teammates/status.ts": {
-    "bot": 5
-  },
-  "packages/domain/src/teammates/templates.test.ts": {
     "bot": 1
   },
   "packages/domain/src/text/text.test.ts": {
     "bot": 2
   },
   "packages/domain/src/timeline/timeline.ts": {
-    "bot": 4
-  },
-  "packages/egress/src/ip-policy.ts": {
-    "bot": 1
-  },
-  "packages/egress/src/router.test.ts": {
-    "bot": 7
+    "bot": 2
   },
   "packages/memory/src/index.ts": {
-    "bot": 87
-  },
-  "packages/memory/src/jobs.ts": {
-    "bot": 7
+    "bot": 3
   },
   "packages/memory/src/memory.integration.test.ts": {
-    "bot": 45
-  },
-  "packages/memory/src/memory.test.ts": {
-    "bot": 3
+    "bot": 6
   },
   "playwright.config.ts": {
     "bot": 1
@@ -1152,18 +897,18 @@
     "bot": 1
   },
   "scripts/test/mobile-ui.mjs": {
-    "bot": 26
+    "bot": 24
   },
   "tools/showcase/content-chats.ts": {
-    "bot": 63
+    "bot": 58
   },
   "tools/showcase/content-rest.ts": {
-    "bot": 130
+    "bot": 61
   },
   "tools/showcase/lib.ts": {
-    "bot": 21
+    "bot": 17
   },
   "tools/showcase/shoot.mjs": {
-    "bot": 13
+    "bot": 10
   }
 }

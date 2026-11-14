@@ -14,7 +14,7 @@ const SESSION = {
 async function rememberAboutUser(raw: Record<string, unknown>) {
   const save = vi.fn(async () => ({ id: "m1", revision: 1, state: "active" }));
   const memory = {
-    actor: async () => ({ kind: "bot", botId: "b1", runId: "r1", verified: true }), // vocabulary: allow
+    actor: async () => ({ kind: "teammate", teammateId: "b1", runId: "r1", verified: true }),
     store: { save },
     refreshAfterWrite: async () => {},
   };
@@ -30,7 +30,7 @@ describe("remember_about_user", () => {
     const { call, save } = await rememberAboutUser({ fact: "Vegetarian" });
     await call;
     expect(save).toHaveBeenCalledWith(
-      expect.objectContaining({ botId: null, content: "Vegetarian", expiresAt: null }), // vocabulary: allow
+      expect.objectContaining({ teammateId: null, content: "Vegetarian", expiresAt: null }),
       expect.anything(),
     );
   });

@@ -65,7 +65,7 @@ export function Activity() {
     const shown = new Set(briefed.map((item) => item.runId));
     return all?.filter((item) => !shown.has(item.runId));
   }, [all, briefed]);
-  if (!state || state.bots.length === 0) return null;
+  if (!state || state.teammates.length === 0) return null;
   if (briefed.length > 0 && !isLoading && !data?.length) return null;
   return (
     <section className="flex flex-col gap-3" aria-label="Recent activity">
@@ -81,11 +81,11 @@ export function Activity() {
       ) : (
         <ol className="divide-y divide-border/70 overflow-hidden rounded-xl bg-card shadow-raised">
           {data.map((item) => {
-            const bot = state.bots.find((b) => b.id === item.botId);
+            const bot = state.teammates.find((b) => b.id === item.teammateId);
             const outcome = activityOutcome(
               item,
               online,
-              state.bots.find((entry) => entry.activeRun?.id === item.runId)?.activeRun
+              state.teammates.find((entry) => entry.activeRun?.id === item.runId)?.activeRun
                 ?.waitingFor ?? null,
             );
             const TriggerIcon = ACTIVITY_TRIGGER_ICONS[item.trigger];

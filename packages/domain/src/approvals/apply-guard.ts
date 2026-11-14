@@ -1,7 +1,7 @@
 import { domainMatches } from "../vault/vault";
 
 /**
- * Job portals where a bot's browser must never submit an application. Applying stays yours: while you
+ * Job portals where a teammate's browser must never submit an application. Applying stays yours: while you
  * have taken over a screen, the guard lets everything through.
  */
 export const APPLY_GUARD_SITES: { domain: string; label: string }[] = [
@@ -42,7 +42,7 @@ export function blockedApplication(
   return sites.find((site) => domainMatches(parsed.hostname, site.domain)) ?? null;
 }
 
-/** What the bot is told when the guard stopped it, so it doesn't try again. */
+/** What the teammate is told when the guard stopped it, so it doesn't try again. */
 export function applyBlockedMessage(labels: string[]): string {
   const where = [...new Set(labels)].join(" and ");
   return `open-bot blocked a job application from being submitted on ${where}. Teammates never apply to jobs: the user applies themselves. Don't try again; tell the user about the job instead.`;

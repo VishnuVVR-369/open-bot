@@ -18,9 +18,9 @@ export const modelAccessViewSchema = z.object({
 });
 export type ModelAccessView = z.infer<typeof modelAccessViewSchema>;
 
-/** One teammate's tokens this month; `botId` is null for work no teammate did. */
+/** One teammate's tokens this month; `teammateId` is null for work no teammate did. */
 export const usageViewSchema = z.object({
-  botId: z.string().nullable(),
+  teammateId: z.string().nullable(),
   runs: z.number(),
   inputTokens: z.number(),
   cachedInputTokens: z.number(),

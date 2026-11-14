@@ -1,4 +1,4 @@
-import type { BotSummary, BriefingItem } from "@open-bot/api";
+import type { TeammateSummary, BriefingItem } from "@open-bot/api";
 import { plural } from "@open-bot/chat-core";
 import { plainText } from "@open-bot/domain";
 import { router } from "expo-router";
@@ -24,7 +24,7 @@ export function Briefing({
   since,
 }: {
   items: BriefingItem[];
-  teammates: BotSummary[];
+  teammates: TeammateSummary[];
   since: string;
 }) {
   const colors = useColors();

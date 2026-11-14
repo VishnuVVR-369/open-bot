@@ -5,7 +5,7 @@ import {
   accountActions,
   accounts,
   approvals,
-  bots,
+  teammates,
   chats,
   connections,
   oauthClients,
@@ -108,18 +108,18 @@ describe.skipIf(!url)("account actions with Postgres", () => {
     runner.execute.mockReset().mockResolvedValue(done);
     runner.reconcile.mockReset().mockResolvedValue(null);
     const [bot] = await db
-      .insert(bots)
+      .insert(teammates)
       .values({ name: "Iris", slug: "iris", role: "assistant", color: "#4f46e5" })
       .returning();
     const [chat] = await db
       .insert(chats)
-      .values({ kind: "direct", title: "Iris", botId: bot!.id })
+      .values({ kind: "direct", title: "Iris", teammateId: bot!.id })
       .returning();
     const [run] = await db
       .insert(runs)
       .values({
         chatId: chat!.id,
-        botId: bot!.id,
+        teammateId: bot!.id,
         trigger: "user",
         prompt: "Reply",
         status: "completed",
@@ -183,7 +183,7 @@ describe.skipIf(!url)("account actions with Postgres", () => {
         accountId: fixture.accountId,
         grantRevision: 1,
         connectionRevision: connection!.revision,
-        botId: fixture.botId,
+        teammateId: fixture.botId,
         runId: fixture.runId,
         chatId: fixture.chatId,
         itemId: `item-${randomUUID()}`,
@@ -392,7 +392,7 @@ describe.skipIf(!url)("account actions with Postgres", () => {
     const other = randomUUID();
     await db
       .update(connections)
-      .set({ botIds: [other] })
+      .set({ teammateIds: [other] })
       .where(eq(connections.id, fixture.connectionId));
     const noAccess = await action();
     await sweep(first);
@@ -400,7 +400,7 @@ describe.skipIf(!url)("account actions with Postgres", () => {
 
     await db
       .update(connections)
-      .set({ botIds: null, capabilities: ["read"] })
+      .set({ teammateIds: null, capabilities: ["read"] })
       .where(eq(connections.id, fixture.connectionId));
     const [connection] = await db
       .select()
@@ -417,7 +417,7 @@ describe.skipIf(!url)("account actions with Postgres", () => {
       .insert(approvals)
       .values({
         runId: fixture.runId,
-        botId: fixture.botId,
+        teammateId: fixture.botId,
         chatId: fixture.chatId,
         kind: "account_outward",
         title: "Send “Notes” to Priya",

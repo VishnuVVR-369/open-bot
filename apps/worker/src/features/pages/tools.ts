@@ -180,7 +180,7 @@ async function publishPage(
   let published;
   try {
     published = await deps.pages.checkAndPublish({
-      botId: session.bot.id,
+      teammateId: session.bot.id,
       chatId: session.chat.id,
       runId: session.run.id,
       path,

@@ -133,7 +133,7 @@ export function EmailSection() {
         >
           {data.addresses.map((entry) => (
             <li
-              key={entry.botId}
+              key={entry.teammateId}
               className="flex min-h-11 items-center gap-3 py-1 pr-2 pl-4"
               data-testid="email-address"
             >

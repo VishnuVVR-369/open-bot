@@ -59,11 +59,11 @@ export function AccountRow({
   const fields = integrationSettings(kind);
   const account = connection.account;
   const people =
-    connection.botIds === null
+    connection.teammateIds === null
       ? "Every teammate"
-      : connection.botIds.length === 1
-        ? `Only ${state?.bots.find((bot) => bot.id === connection.botIds![0])?.name ?? "one teammate"}`
-        : `${connection.botIds.length} teammates`;
+      : connection.teammateIds.length === 1
+        ? `Only ${state?.teammates.find((bot) => bot.id === connection.teammateIds![0])?.name ?? "one teammate"}`
+        : `${connection.teammateIds.length} teammates`;
   const broken = account?.status !== "connected";
   const endsSoon =
     account?.expiresAt && new Date(account.expiresAt).getTime() - Date.now() < 14 * 86_400_000;
@@ -72,7 +72,7 @@ export function AccountRow({
       await signIn({
         kind,
         capabilities: connection.capabilities,
-        teammateIds: connection.botIds,
+        teammateIds: connection.teammateIds,
         accountId: account?.id ?? null,
       });
     });

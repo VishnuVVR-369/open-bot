@@ -1,4 +1,4 @@
-import type { ApprovalView, BotSummary } from "@open-bot/api";
+import type { ApprovalView, TeammateSummary } from "@open-bot/api";
 import type { ApprovalRisk } from "@open-bot/domain";
 import { Check, CircleDashed, Clock, OctagonAlert, TriangleAlert, X } from "lucide-react-native";
 import type { ReactNode } from "react";
@@ -48,7 +48,7 @@ export function ApprovalAvatar({
   activity = "idle",
   behind,
 }: {
-  bot: Pick<BotSummary, "name" | "color" | "emoji"> | undefined;
+  bot: Pick<TeammateSummary, "name" | "color" | "emoji"> | undefined;
   approval: Pick<ApprovalView, "kind" | "title" | "preview">;
   pending: boolean;
   size?: AvatarSize;

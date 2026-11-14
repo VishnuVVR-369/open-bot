@@ -1,4 +1,4 @@
-import { bots } from "@open-bot/db";
+import { teammates } from "@open-bot/db";
 import { COMPUTER_PATHS, undeletablePath } from "@open-bot/domain";
 import { isNull } from "drizzle-orm";
 import type { Context } from "../../context";
@@ -32,7 +32,7 @@ export class FileService {
   constructor(private readonly ctx: Pick<Context, "codex" | "db">) {}
 
   /** A folder's visible entries, with when each was last changed. */
-  async list(folder: string = COMPUTER_PATHS.botsRoot) {
+  async list(folder: string = COMPUTER_PATHS.teammatesRoot) {
     const path = safePath(folder);
     const client = await this.ctx.codex.ready();
     const { entries } = await client.request("fs/readDirectory", { path });
@@ -90,9 +90,9 @@ export class FileService {
   async remove(file: string): Promise<void> {
     const path = safePath(file);
     const active = await this.ctx.db
-      .select({ slug: bots.slug })
-      .from(bots)
-      .where(isNull(bots.archivedAt));
+      .select({ slug: teammates.slug })
+      .from(teammates)
+      .where(isNull(teammates.archivedAt));
     const problem = undeletablePath(
       path,
       active.map((teammate) => teammate.slug),

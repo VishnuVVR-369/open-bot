@@ -21,7 +21,7 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
   it("email, connections, swarms, telegram and egress: reach their services", async () => {
     expect(
       await worker.email.inbound({ params: { token: "inbound-token" }, body: { Subject: "Hi" } }),
-    ).toEqual({ ok: true, botId: null });
+    ).toEqual({ ok: true, teammateId: null });
     expect(services.email.inbound).toHaveBeenLastCalledWith("inbound-token", { Subject: "Hi" });
     expect(await worker.connections.test({ connectionId: ID })).toMatchObject({ ok: true });
     await worker.swarms.stop({ swarmId: ID });

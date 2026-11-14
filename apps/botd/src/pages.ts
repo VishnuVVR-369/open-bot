@@ -32,7 +32,7 @@ import { asUser, type SystemUser } from "./users";
 export const PAGE_PREVIEW_PORT = 7080;
 const PREVIEW_ORIGIN = `http://127.0.0.1:${PAGE_PREVIEW_PORT}`;
 /** The only folders pages are read from. */
-const PAGE_ROOTS = [`${COMPUTER_PATHS.botsRoot}/`, `${COMPUTER_PATHS.shared}/`];
+const PAGE_ROOTS = [`${COMPUTER_PATHS.teammatesRoot}/`, `${COMPUTER_PATHS.shared}/`];
 const MAX_ISSUES = 20;
 const CHECK_TIMEOUT_MS = 40_000;
 const MAX_CONCURRENT_CHECKS = 1;

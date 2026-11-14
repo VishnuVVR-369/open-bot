@@ -11,7 +11,7 @@ import {
 const run = (id: string, teammateId: string, fields: Partial<RunView> = {}) =>
   ({
     id,
-    botId: teammateId,
+    teammateId: teammateId,
     createdAt: `2026-11-13T09:0${id.length}:00Z`,
     timeline: { status: "completed", items: [] },
     ...fields,

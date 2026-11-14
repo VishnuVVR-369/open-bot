@@ -53,7 +53,7 @@ export function DuplicateBotDialog({
 
   useEffect(() => {
     if (!open) return;
-    setName(copyName(bot.name, state?.bots.map((b) => b.name) ?? []));
+    setName(copyName(bot.name, state?.teammates.map((b) => b.name) ?? []));
     setCopyMemory(true);
     // Only when the dialog opens, so typing isn't undone by a state refresh.
     // eslint-disable-next-line react-hooks/exhaustive-deps

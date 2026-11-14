@@ -218,15 +218,18 @@ export default function TeammateScreen() {
   const all = chats.data ?? [];
   const theirs = all
     .filter(
-      (chat) => chat.botId === bot.id || (chat.kind === "group" && chat.memberIds.includes(bot.id)),
+      (chat) =>
+        chat.teammateId === bot.id || (chat.kind === "group" && chat.memberIds.includes(bot.id)),
     )
     .sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt));
   const conversation = conversationWith(bot, all); // vocabulary: allow
   const autonomy = AUTONOMY_OPTIONS.find((option) => option.value === bot.autonomy);
-  const ruleCount = rules.filter((rule) => rule.botId === bot.id).length;
+  const ruleCount = rules.filter((rule) => rule.teammateId === bot.id).length;
   const bots = teammates.data ?? [];
-  const approval = approvals.find((entry) => entry.status === "pending" && entry.botId === bot.id);
-  const takeover = home?.takeoverRequests.find((request) => request.botId === bot.id);
+  const approval = approvals.find(
+    (entry) => entry.status === "pending" && entry.teammateId === bot.id,
+  );
+  const takeover = home?.takeoverRequests.find((request) => request.teammateId === bot.id);
   // A conversation to go back to, or a first one to start.
   const continuing = Boolean(bot.activeRun?.chatId ?? conversation?.id ?? bot.directChatId);
 

@@ -1,8 +1,8 @@
-import type { BotSummary, ChatSummary, PageSummary, SearchResult } from "@open-bot/api";
+import type { TeammateSummary, ChatSummary, PageSummary, SearchResult } from "@open-bot/api";
 import { preferWordStarts, rankMatches } from "@open-bot/chat-core";
 import { chatSubtitle, chatTitle } from "../chat/chats";
 
-type Teammate = BotSummary;
+type Teammate = TeammateSummary;
 
 /** What to look through: everything, or one kind of thing. Messages are searched on the server. */
 export const SCOPES = [
@@ -83,7 +83,7 @@ export function searchSections<P extends Place>(input: {
   const recent = [...chats]
     .sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt))
     .map((chat) => {
-      const teammate = teammateOf(chat.botId);
+      const teammate = teammateOf(chat.teammateId);
       return {
         kind: "chat" as const,
         key: `c:${chat.id}`,
@@ -112,7 +112,7 @@ export function searchSections<P extends Place>(input: {
           kind: "page",
           key: `pg:${page.id}`,
           page,
-          teammate: teammateOf(page.botId),
+          teammate: teammateOf(page.teammateId),
         }))
     : [];
   const placeRows: SearchRow<P>[] = rankMatches(
@@ -145,8 +145,8 @@ function messageRow(
   teammates: Teammate[],
 ): Extract<SearchRow, { kind: "message" }> {
   const chat = chats.find((candidate) => candidate.id === result.chatId);
-  const chatTeammate = teammates.find((candidate) => candidate.id === chat?.botId);
-  const teammate = teammates.find((candidate) => candidate.id === result.botId);
+  const chatTeammate = teammates.find((candidate) => candidate.id === chat?.teammateId);
+  const teammate = teammates.find((candidate) => candidate.id === result.teammateId);
   const place = chat ? chatTitle(chat, chatTeammate) : null;
   const direct = chat?.kind === "direct";
   const speaker = result.from === "you" ? "You" : (teammate?.name ?? "A teammate");

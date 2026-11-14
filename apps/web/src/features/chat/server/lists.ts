@@ -34,13 +34,13 @@ export async function listChats({ helpers = false, previews: withPreviews = true
     id: chat.id,
     kind: chat.kind,
     title: chat.title,
-    botId: chat.botId,
+    teammateId: chat.teammateId,
     main: chat.main,
     memberIds:
       chat.kind === "group"
-        ? members.filter((member) => member.chatId === chat.id).map((member) => member.botId)
-        : chat.botId
-          ? [chat.botId]
+        ? members.filter((member) => member.chatId === chat.id).map((member) => member.teammateId)
+        : chat.teammateId
+          ? [chat.teammateId]
           : [],
     lastActivityAt: chat.lastActivityAt.toISOString(),
     active: activeSet.has(chat.id),
@@ -68,7 +68,7 @@ async function chatPreviews(): Promise<Map<string, NonNullable<ChatSummary["prev
     db
       .selectDistinctOn([runs.chatId], {
         chatId: runs.chatId,
-        botId: runs.botId,
+        teammateId: runs.teammateId,
         text: runs.finalText,
         at: runs.createdAt,
         completedAt: runs.completedAt,
@@ -77,22 +77,22 @@ async function chatPreviews(): Promise<Map<string, NonNullable<ChatSummary["prev
       .where(isNotNull(runs.finalText))
       .orderBy(runs.chatId, desc(runs.createdAt)),
   ]);
-  const previews = new Map<string, { text: string; botId: string | null; at: Date }>();
+  const previews = new Map<string, { text: string; teammateId: string | null; at: Date }>();
   for (const message of sent) {
     const text = plainText(message.text) || message.attachments[0]?.name || "";
-    if (text) previews.set(message.chatId, { text, botId: null, at: message.at });
+    if (text) previews.set(message.chatId, { text, teammateId: null, at: message.at });
   }
   for (const reply of replied) {
     const text = plainText(reply.text ?? "");
     const at = reply.completedAt ?? reply.at;
     const mine = previews.get(reply.chatId);
     if (text && (!mine || at >= mine.at))
-      previews.set(reply.chatId, { text, botId: reply.botId, at });
+      previews.set(reply.chatId, { text, teammateId: reply.teammateId, at });
   }
   return new Map(
-    [...previews].map(([chatId, { text, botId }]) => [
+    [...previews].map(([chatId, { text, teammateId: botId }]) => [
       chatId,
-      { text: text.slice(0, PREVIEW_LENGTH), botId },
+      { text: text.slice(0, PREVIEW_LENGTH), teammateId: botId },
     ]),
   );
 }

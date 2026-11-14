@@ -100,7 +100,7 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
       const kept = await db
         .select({ content: memoryItems.content })
         .from(memoryItems)
-        .where(and(eq(memoryItems.botId, created.id), eq(memoryItems.kind, "lesson"))); // vocabulary: allow
+        .where(and(eq(memoryItems.teammateId, created.id), eq(memoryItems.kind, "lesson")));
       expect(kept).toEqual([{ content: "Cite sources." }]);
       // A lesson memory refuses is the owner's to fix, not the worker's failure.
       expect(

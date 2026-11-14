@@ -10,7 +10,7 @@ export type {
   AppState,
   ApprovalView,
   AutomationRunView as ScheduleRunView,
-  BotSummary,
+  TeammateSummary as BotSummary,
   BriefingItem,
   ChatData,
   ChatEntry,

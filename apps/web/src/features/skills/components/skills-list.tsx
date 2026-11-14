@@ -118,9 +118,9 @@ export function SkillsList({ botId }: { botId?: string }) {
   const { data, isLoading } = useSkills();
   const { data: state } = useAppState();
   const skills = (data ?? []).filter(
-    (skill) => !botId || skill.botId === null || skill.botId === botId,
+    (skill) => !botId || skill.teammateId === null || skill.teammateId === botId,
   );
-  const botOf = (id: string | null) => state?.bots.find((bot) => bot.id === id);
+  const botOf = (id: string | null) => state?.teammates.find((bot) => bot.id === id);
 
   if (isLoading) {
     return (
@@ -168,8 +168,8 @@ export function SkillsList({ botId }: { botId?: string }) {
           <BuiltInSkill key={skill.name} skill={skill} />
         ))}
         {skills.map((skill) => {
-          const owner = botOf(skill.botId);
-          const author = skill.createdBy === "bot" ? botOf(skill.createdByBotId) : null;
+          const owner = botOf(skill.teammateId);
+          const author = skill.createdBy === "bot" ? botOf(skill.createdByTeammateId) : null;
           return (
             <li
               key={skill.id}

@@ -64,13 +64,13 @@ describe.skipIf(!apiTestUrl)("API reads, end to end", () => {
     const calls: [string, () => Promise<unknown>, unknown, { status: number; body: unknown }][] = [
       [
         "/internal/chats/direct",
-        () => api.chats.newDirect({ botId: teammateId }),
+        () => api.chats.newDirect({ teammateId }),
         { teammateId },
         created,
       ],
       [
         "/internal/chats/group",
-        () => api.chats.createGroup({ title: "Launch", botIds: [teammateId, runId] }),
+        () => api.chats.createGroup({ title: "Launch", teammateIds: [teammateId, runId] }),
         { title: "Launch", teammateIds: [teammateId, runId] },
         created,
       ],

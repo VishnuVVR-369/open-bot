@@ -3,7 +3,7 @@ import type { SkillSummary } from "@/lib/types";
 
 /** A skill the menu offers: one you saved, or one that comes with the app. */
 export type SkillOption =
-  SkillSummary | { id: string; name: string; description: string; botId: null; builtIn: true };
+  SkillSummary | { id: string; name: string; description: string; teammateId: null; builtIn: true };
 
 /** The name typed after a `/` that ends at the caret (`""` right after the slash), or null. */
 export function skillQueryAt(value: string, caret: number): string | null {
@@ -26,10 +26,10 @@ export function skillOptions(
       id: `built-in:${skill.name}`,
       name: skill.name,
       description: skill.description,
-      botId: null,
+      teammateId: null,
       builtIn: true as const,
     })),
-    ...skills.filter((skill) => skill.botId === null || memberIds.has(skill.botId)),
+    ...skills.filter((skill) => skill.teammateId === null || memberIds.has(skill.teammateId)),
   ];
   const lower = query.toLowerCase();
   return usable

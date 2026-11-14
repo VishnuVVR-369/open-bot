@@ -1,4 +1,4 @@
-import type { BotSummary, MessageView } from "@open-bot/api";
+import type { TeammateSummary, MessageView } from "@open-bot/api";
 import {
   insertMention,
   mentionedIds,
@@ -52,7 +52,7 @@ export function Composer({
 }: {
   chatId: string;
   placeholder: string;
-  members: BotSummary[];
+  members: TeammateSummary[];
   isGroup: boolean;
   /** The reply being written right now, which Stop stops. */
   activeRun: { id: string; botName: string } | null;

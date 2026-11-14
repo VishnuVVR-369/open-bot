@@ -1,5 +1,5 @@
 // Memory tools: remember, recall, update and forget, and searching past chats.
-import { bots, chatMembers, chats, messages, runs } from "@open-bot/db";
+import { teammates, chatMembers, chats, messages, runs } from "@open-bot/db";
 import {
   hasMemoryForgetIntent,
   MEMORY_KINDS,
@@ -163,7 +163,7 @@ async function memoryTool(
   let saved;
   if (name === "remember_memory") {
     const data = memoryInputSchema.parse({
-      botId: args.shared === true ? null : session.bot.id,
+      teammateId: args.shared === true ? null : session.bot.id,
       content,
       kind: args.kind ?? "fact",
       key: args.key ?? null,
@@ -184,7 +184,7 @@ async function memoryTool(
     } else
       saved = await deps.memory.store.update(
         { ...current, ...reference, content },
-        await deps.memory.actor(session, content, current.botId === null),
+        await deps.memory.actor(session, content, current.teammateId === null),
       );
   }
   // This run knows the change it just made. Other active runs were invalidated transactionally.
@@ -227,12 +227,14 @@ async function searchHistory(
     await deps.ctx.db
       .select({ chatId: chatMembers.chatId })
       .from(chatMembers)
-      .where(eq(chatMembers.botId, botId))
+      .where(eq(chatMembers.teammateId, botId))
   ).map((row) => row.chatId);
   const own = await deps.ctx.db
     .select({ id: chats.id })
     .from(chats)
-    .where(or(eq(chats.botId, botId), groupIds.length ? inArray(chats.id, groupIds) : undefined));
+    .where(
+      or(eq(chats.teammateId, botId), groupIds.length ? inArray(chats.id, groupIds) : undefined),
+    );
   const chatIds = own.map((row) => row.id);
   if (chatIds.length === 0) return text("Nothing found.");
   const pattern = `%${query.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
@@ -251,10 +253,10 @@ async function searchHistory(
       .orderBy(desc(messages.createdAt))
       .limit(10),
     deps.ctx.db
-      .select({ text: runs.finalText, at: runs.createdAt, chat: chats.title, name: bots.name })
+      .select({ text: runs.finalText, at: runs.createdAt, chat: chats.title, name: teammates.name })
       .from(runs)
       .innerJoin(chats, eq(chats.id, runs.chatId))
-      .innerJoin(bots, eq(bots.id, runs.botId))
+      .innerJoin(teammates, eq(teammates.id, runs.teammateId))
       .where(and(inArray(runs.chatId, chatIds), ilike(runs.finalText, pattern)))
       .orderBy(desc(runs.createdAt))
       .limit(10),

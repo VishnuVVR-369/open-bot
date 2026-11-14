@@ -1,6 +1,6 @@
 import { ruleKindSchema } from "../approvals/rules";
 import { z } from "zod";
-import { botProfileSchema } from "./management";
+import { teammateProfileSchema } from "./management";
 import { MAX_LESSON_CHARS } from "./profile";
 import { MAX_WATCH_MINUTES, MIN_WATCH_MINUTES } from "../automations/triggers";
 import { SKILL_NAME_PATTERN } from "../skills/skills";
@@ -18,11 +18,11 @@ export const teammateBundleSchema = z.object({
     error: "This teammate file is from a newer open-bot. Update open-bot to import it.",
   }),
   // The profile's own rules, so an imported teammate can always be saved from the form.
-  teammate: botProfileSchema.extend({
-    instructions: botProfileSchema.shape.instructions.default(""),
-    emoji: botProfileSchema.shape.emoji.default(""),
-    color: botProfileSchema.shape.color.optional(),
-    autonomy: botProfileSchema.shape.autonomy.default("risky"),
+  teammate: teammateProfileSchema.extend({
+    instructions: teammateProfileSchema.shape.instructions.default(""),
+    emoji: teammateProfileSchema.shape.emoji.default(""),
+    color: teammateProfileSchema.shape.color.optional(),
+    autonomy: teammateProfileSchema.shape.autonomy.default("risky"),
   }),
   skills: z
     .array(

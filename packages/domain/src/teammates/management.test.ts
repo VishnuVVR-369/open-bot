@@ -1,17 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { botCreation, botProfileSchema, createBotSchema, updateBotSchema } from "./management";
+import {
+  teammateCreation,
+  teammateProfileSchema,
+  createTeammateSchema,
+  updateTeammateSchema,
+} from "./management";
 import { TEAMMATE_TEMPLATES } from "./templates";
 
-describe("bot management contracts", () => {
+describe("teammate management contracts", () => {
   it("requires a job and name for a custom teammate and defaults to cautious autonomy", () => {
-    expect(() => botCreation({ name: "Researcher" })).toThrow();
-    const { profile } = botCreation({ name: "Researcher", role: "research assistant" });
+    expect(() => teammateCreation({ name: "Researcher" })).toThrow();
+    const { profile } = teammateCreation({ name: "Researcher", role: "research assistant" });
     expect(profile.autonomy).toBe("risky");
     expect(profile.instructions).toBe("");
   });
   it("uses a discovered template and applies explicit overrides", () => {
     const template = TEAMMATE_TEMPLATES[0]!;
-    const result = botCreation({
+    const result = teammateCreation({
       template_id: template.id,
       name: "Ada",
       starter_ids: [template.starters[0]!.id],
@@ -21,14 +26,18 @@ describe("bot management contracts", () => {
     expect(result.schedules.map((schedule) => schedule.title)).toEqual([
       template.starters[0]!.title,
     ]);
-    expect(botCreation({ template_id: template.id }).schedules).toEqual([]);
-    expect(() => botCreation({ template_id: "made-up" })).toThrow();
-    expect(() => botCreation({ template_id: template.id, starter_ids: ["made-up"] })).toThrow();
+    expect(teammateCreation({ template_id: template.id }).schedules).toEqual([]);
+    expect(() => teammateCreation({ template_id: "made-up" })).toThrow();
+    expect(() =>
+      teammateCreation({ template_id: template.id, starter_ids: ["made-up"] }),
+    ).toThrow();
   });
   it("never introduces defaults into a partial edit", () => {
-    expect(botProfileSchema.partial().parse({ name: "New name" })).toEqual({ name: "New name" });
+    expect(teammateProfileSchema.partial().parse({ name: "New name" })).toEqual({
+      name: "New name",
+    });
     expect(
-      updateBotSchema.safeParse({
+      updateTeammateSchema.safeParse({
         bot_id: crypto.randomUUID(),
         expected_revision: "revision",
         changes: {},
@@ -37,11 +46,11 @@ describe("bot management contracts", () => {
   });
   it("rejects permission fields that the profile tools do not manage", () => {
     expect(
-      createBotSchema.safeParse({ name: "Ada", role: "researcher", monthlyBudgetCents: 50000 })
+      createTeammateSchema.safeParse({ name: "Ada", role: "researcher", monthlyBudgetCents: 50000 })
         .success,
     ).toBe(false);
     expect(
-      updateBotSchema.safeParse({
+      updateTeammateSchema.safeParse({
         bot_id: crypto.randomUUID(),
         expected_revision: "revision",
         changes: { isLead: true },
@@ -51,7 +60,7 @@ describe("bot management contracts", () => {
   it("adds a teammate's own skills and schedules to its template's, its own winning a name clash", () => {
     const template = TEAMMATE_TEMPLATES.find((entry) => entry.skills?.length)!;
     const clash = template.skills![0]!;
-    const plan = botCreation({
+    const plan = teammateCreation({
       template_id: template.id,
       starter_ids: [template.starters[0]!.id],
       skills: [{ name: clash.name, description: "Mine", instructions: "My steps" }],
@@ -68,18 +77,18 @@ describe("bot management contracts", () => {
   it("needs exactly one timing per schedule and a distinct name per skill", () => {
     const base = { name: "Ada", role: "researcher" };
     const schedule = { title: "Brief", prompt: "Brief me" };
-    expect(createBotSchema.safeParse({ ...base, schedules: [schedule] }).success).toBe(false);
+    expect(createTeammateSchema.safeParse({ ...base, schedules: [schedule] }).success).toBe(false);
     expect(
-      createBotSchema.safeParse({
+      createTeammateSchema.safeParse({
         ...base,
         schedules: [{ ...schedule, cron: "0 9 * * *", at: "2099-01-01 09:00" }],
       }).success,
     ).toBe(false);
     const skill = { name: "brief", description: "Brief", instructions: "Steps" };
-    expect(createBotSchema.safeParse({ ...base, skills: [skill, skill] }).success).toBe(false);
+    expect(createTeammateSchema.safeParse({ ...base, skills: [skill, skill] }).success).toBe(false);
   });
   it("uses the color it is given when neither the request nor the template picks one", () => {
-    expect(botCreation({ name: "Ada", role: "researcher" }, "#14B8A6").profile.color).toBe(
+    expect(teammateCreation({ name: "Ada", role: "researcher" }, "#14B8A6").profile.color).toBe(
       "#14B8A6",
     );
   });

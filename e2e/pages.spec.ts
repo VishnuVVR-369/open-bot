@@ -66,7 +66,7 @@ async function teammate(page: Page) {
   const name = uniqueName("Tess");
   await createTeammate(page, name, "page tester");
   const state = await apiFor(page).app.state();
-  const bot = state.bots.find((candidate) => candidate.name === name)!;
+  const bot = state.teammates.find((candidate) => candidate.name === name)!;
   return { ...bot, folder: `/home/bot/bots/${bot.slug}` };
 }
 
@@ -88,7 +88,7 @@ test("a published page opens in the library, isolated from the app, with its ver
     pageHtml("How caching works", "Caches keep hot data close."),
   );
   const first = await publish({
-    botId: bot.id,
+    teammateId: bot.id,
     path: `${bot.folder}/index.html`,
     title,
     summary: "A short explainer for the test.",
@@ -97,7 +97,7 @@ test("a published page opens in the library, isolated from the app, with its ver
   expect(first.data.version).toBe(1);
 
   // Publishing the same file again without a change is refused.
-  const again = await publish({ botId: bot.id, path: `${bot.folder}/index.html`, title });
+  const again = await publish({ teammateId: bot.id, path: `${bot.folder}/index.html`, title });
   expect(again.status).toBe(400);
   expect(again.data.error).toContain("already exactly this file");
 
@@ -158,7 +158,7 @@ test("a published page opens in the library, isolated from the app, with its ver
     pageHtml("How caching works, revised", "Caches keep hot data close, and evict the rest."),
   );
   const second = await publish({
-    botId: bot.id,
+    teammateId: bot.id,
     path: `${bot.folder}/index.html`,
     title,
     summary: "A short explainer for the test.",
@@ -226,7 +226,7 @@ test("page links are signed and expire", async ({ page }) => {
     pageHtml("Signed links", "Only the app can open me."),
   );
   const published = await publish({
-    botId: bot.id,
+    teammateId: bot.id,
     path: `${bot.folder}/links.html`,
     title: testLabel(`Links ${bot.slug}`),
   });
@@ -281,7 +281,7 @@ test("a page with problems isn't published, and the check says why", async ({ pa
 </body></html>`,
   );
   const result = await publish({
-    botId: bot.id,
+    teammateId: bot.id,
     path: `${bot.folder}/broken.html`,
     title: testLabel(`Broken ${bot.slug}`),
   });
@@ -294,7 +294,7 @@ test("a page with problems isn't published, and the check says why", async ({ pa
 
   // Only HTML files in a workspace or the shared folder can be published.
   const outside = await publish({
-    botId: bot.id,
+    teammateId: bot.id,
     path: "/etc/passwd.html",
     title: testLabel("Outside"),
   });
@@ -305,7 +305,7 @@ test("selecting text in a page offers to ask its teammate about it", async ({ pa
   const bot = await teammate(page);
   await writeFile(`${bot.folder}/ask.html`, pageHtml("Ask me", "Caches keep hot data close."));
   const published = await publish({
-    botId: bot.id,
+    teammateId: bot.id,
     path: `${bot.folder}/ask.html`,
     title: testLabel(`Ask ${bot.slug}`),
   });

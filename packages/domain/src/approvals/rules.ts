@@ -117,7 +117,7 @@ function commandCovered(prefix: string, command: string): boolean {
 }
 
 /**
- * Whether a bot's "always allow" rules cover a request.
+ * Whether a teammate's "always allow" rules cover a request.
  * A command is covered when every command it chains starts with an allowed prefix, on word
  * boundaries. An action is covered by a rule with the same wording. A file change rule covers
  * every file change.

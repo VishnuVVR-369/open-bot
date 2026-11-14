@@ -6,7 +6,7 @@ import { id } from "./base";
 export const taskInputSchema = z.object({
   title: z.string(),
   notes: z.string().optional(),
-  ownerBotId: id.nullable().optional(),
+  ownerTeammateId: id.nullable().optional(),
   dueOn: z.string().nullable().optional(),
 });
 
@@ -15,7 +15,7 @@ export const taskChangesSchema = z.object({
   title: z.string().optional(),
   notes: z.string().optional(),
   status: taskStatusSchema.optional(),
-  ownerBotId: id.nullable().optional(),
+  ownerTeammateId: id.nullable().optional(),
   dueOn: z.string().nullable().optional(),
   position: z.number().finite().optional(),
 });
@@ -26,11 +26,11 @@ export const taskViewSchema = z.object({
   title: z.string(),
   notes: z.string(),
   status: taskStatusSchema,
-  ownerBotId: z.string().nullable(),
+  ownerTeammateId: z.string().nullable(),
   dueOn: z.string().nullable(),
   position: z.number(),
   createdBy: creatorSchema,
-  createdByBotId: z.string().nullable(),
+  createdByTeammateId: z.string().nullable(),
   /** The chat where the owner was last asked to work on it. */
   chatId: z.string().nullable(),
   completedAt: z.string().nullable(),

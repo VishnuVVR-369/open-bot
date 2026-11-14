@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { botProfileSchema } from "./management";
+import { teammateProfileSchema } from "./management";
 import { BUNDLE_FORMAT, BUNDLE_VERSION, teammateBundleSchema } from "./bundle";
 
 const minimal = {
@@ -28,7 +28,7 @@ describe("teammateBundleSchema", () => {
     for (const emoji of ["🦊", "👩🏽‍💻", "x".repeat(8)])
       expect(
         teammateBundleSchema.safeParse({ ...minimal, teammate: { ...profile, emoji } }).success,
-      ).toBe(botProfileSchema.safeParse({ ...profile, emoji }).success);
+      ).toBe(teammateProfileSchema.safeParse({ ...profile, emoji }).success);
     // Longer than the form allows, so it couldn't be edited after an import.
     const long = { ...minimal, teammate: { ...profile, emoji: "x".repeat(9) } };
     expect(teammateBundleSchema.safeParse(long).success).toBe(false);

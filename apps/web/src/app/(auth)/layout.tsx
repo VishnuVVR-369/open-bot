@@ -1,4 +1,4 @@
-import { BOT_COLORS, TEAMMATE_TEMPLATES } from "@open-bot/domain";
+import { TEAMMATE_COLORS, TEAMMATE_TEMPLATES } from "@open-bot/domain";
 import { Check } from "lucide-react";
 import { BotAvatar } from "@/components/bot-avatar";
 import { Logo, Wordmark } from "@/components/logo";
@@ -15,19 +15,19 @@ const SCENE: {
 }[] = [
   {
     template: "travel",
-    color: BOT_COLORS[1],
+    color: TEAMMATE_COLORS[1],
     line: "Comparing three flights to Lisbon",
     state: "working",
   },
   {
     template: "chief-of-staff",
-    color: BOT_COLORS[0],
+    color: TEAMMATE_COLORS[0],
     line: "Needs your approval to book the 9:40 flight",
     state: "waiting",
   },
   {
     template: "developer",
-    color: BOT_COLORS[3],
+    color: TEAMMATE_COLORS[3],
     line: "Fixed the failing checkout test",
     state: "done",
   },

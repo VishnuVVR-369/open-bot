@@ -1,7 +1,6 @@
 import {
   approvalRules,
-  bots,
-  bots as teammates,
+  teammates,
   chatMembers,
   configurationRevision,
   connections,
@@ -18,14 +17,14 @@ import {
   type Tx,
 } from "@open-bot/db";
 import {
-  botCreation,
-  type BotCreationPlan,
-  type BotProfile,
-  botProfileChangesSchema,
+  teammateCreation,
+  type TeammateCreationPlan,
+  type TeammateProfile,
+  teammateProfileChangesSchema,
   BUNDLE_FORMAT,
   BUNDLE_VERSION,
-  type CreateBotInput,
-  type CreatedBot,
+  type CreateTeammateInput,
+  type CreatedTeammate,
   newTeammateSlot,
   nextTeammateColor,
   NOTIFY_CHANNELS,
@@ -57,7 +56,7 @@ import { WorkerError } from "../../core/errors";
 export type TeammateParts = Omit<TeammateBundle, "format" | "version" | "teammate">;
 
 /** The memory a new teammate can start with. */
-export type TeammateMemory = Pick<MemoryService, "copyBot" | "addLessons">;
+export type TeammateMemory = Pick<MemoryService, "copyTeammate" | "addLessons">;
 
 /** A teammate row, under the legacy type name. */
 type Teammate = Bot;
@@ -70,7 +69,7 @@ export interface ConnectionSummary {
   label: string;
   enabled: boolean;
   /** Teammates that may use it, or null for every teammate. */
-  botIds: string[] | null;
+  teammateIds: string[] | null;
   revision: string;
 }
 
@@ -79,19 +78,19 @@ export async function activeTeammates(
   db: Queryable,
   { inChat }: { inChat?: string } = {},
 ): Promise<{ id: string; name: string; slug: string }[]> {
-  const columns = { id: bots.id, name: bots.name, slug: bots.slug };
+  const columns = { id: teammates.id, name: teammates.name, slug: teammates.slug };
   if (!inChat)
     return db
       .select(columns)
-      .from(bots)
-      .where(isNull(bots.archivedAt))
-      .orderBy(asc(bots.createdAt));
+      .from(teammates)
+      .where(isNull(teammates.archivedAt))
+      .orderBy(asc(teammates.createdAt));
   return db
     .select(columns)
     .from(chatMembers)
-    .innerJoin(bots, eq(bots.id, chatMembers.botId))
-    .where(and(eq(chatMembers.chatId, inChat), isNull(bots.archivedAt)))
-    .orderBy(asc(bots.createdAt));
+    .innerJoin(teammates, eq(teammates.id, chatMembers.teammateId))
+    .where(and(eq(chatMembers.chatId, inChat), isNull(teammates.archivedAt)))
+    .orderBy(asc(teammates.createdAt));
 }
 
 export type CreatedBy = { kind: "user" } | { kind: "bot"; botId: string; runId: string };
@@ -122,15 +121,15 @@ export class BotService {
   async requireBot(id: string): Promise<Bot> {
     const [bot] = await this.ctx.db
       .select()
-      .from(bots)
-      .where(and(eq(bots.id, id), isNull(bots.archivedAt)));
+      .from(teammates)
+      .where(and(eq(teammates.id, id), isNull(teammates.archivedAt)));
     if (!bot) throw new BotError(404, "That teammate no longer exists or is archived.");
     return bot;
   }
 
   /** A teammate, archived or not: an archived one's screen and workspace are still cleaned up. */
   async findTeammate(id: string): Promise<Bot> {
-    const [teammate] = await this.ctx.db.select().from(bots).where(eq(bots.id, id));
+    const [teammate] = await this.ctx.db.select().from(teammates).where(eq(teammates.id, id));
     if (!teammate) throw new BotError(404, "No such teammate.");
     return teammate;
   }
@@ -138,15 +137,15 @@ export class BotService {
   async list() {
     const rows = await this.ctx.db
       .select({
-        id: bots.id,
-        name: bots.name,
-        role: bots.role,
-        emoji: bots.emoji,
-        autonomy: bots.autonomy,
+        id: teammates.id,
+        name: teammates.name,
+        role: teammates.role,
+        emoji: teammates.emoji,
+        autonomy: teammates.autonomy,
       })
-      .from(bots)
-      .where(isNull(bots.archivedAt))
-      .orderBy(asc(bots.createdAt));
+      .from(teammates)
+      .where(isNull(teammates.archivedAt))
+      .orderBy(asc(teammates.createdAt));
     const mainChats = await shownMainChats(this.ctx.db);
     return rows.map((row) => {
       const chatId = mainChats.get(row.id);
@@ -173,7 +172,7 @@ export class BotService {
           nextRunAt: schedules.nextRunAt,
         })
         .from(schedules)
-        .where(eq(schedules.botId, id)),
+        .where(eq(schedules.teammateId, id)),
       this.ctx.db
         .select({
           id: triggers.id,
@@ -186,7 +185,7 @@ export class BotService {
           lookFor: triggers.lookFor,
         })
         .from(triggers)
-        .where(eq(triggers.botId, id)),
+        .where(eq(triggers.teammateId, id)),
       this.listConnections(),
       shownMainChats(this.ctx.db, [id]),
     ]);
@@ -201,7 +200,7 @@ export class BotService {
       autonomy: bot.autonomy,
       revision: BotService.revision(bot),
       chatPath: mainChatId ? `/chats/${mainChatId}` : null,
-      skills: skills.map(({ id, name, description, instructions, botId }) => ({
+      skills: skills.map(({ id, name, description, instructions, teammateId: botId }) => ({
         id,
         name,
         description,
@@ -211,7 +210,8 @@ export class BotService {
       schedules: routines,
       triggers: watches,
       connections: services.filter(
-        (service) => service.enabled && (service.botIds === null || service.botIds.includes(id)),
+        (service) =>
+          service.enabled && (service.teammateIds === null || service.teammateIds.includes(id)),
       ),
     };
   }
@@ -219,19 +219,19 @@ export class BotService {
   /** The color the team uses least, so teammates created in a row don't all look the same. */
   private async nextColor(): Promise<string> {
     const used = await this.ctx.db
-      .select({ color: bots.color })
-      .from(bots)
-      .where(isNull(bots.archivedAt));
+      .select({ color: teammates.color })
+      .from(teammates)
+      .where(isNull(teammates.archivedAt));
     return nextTeammateColor(used.map((row) => row.color));
   }
 
   /** Resolves a request into what will be created, so it can be shown before anything is. */
-  async plan(input: CreateBotInput): Promise<BotCreationPlan> {
-    return botCreation(input, await this.nextColor());
+  async plan(input: CreateTeammateInput): Promise<TeammateCreationPlan> {
+    return teammateCreation(input, await this.nextColor());
   }
 
   /** Checks a plan's schedules, so an approval is never asked for one that can't be saved. */
-  async checkPlan(plan: BotCreationPlan): Promise<void> {
+  async checkPlan(plan: TeammateCreationPlan): Promise<void> {
     for (const schedule of plan.schedules) {
       try {
         await this.schedules.check({ ...schedule, timezone: null });
@@ -246,17 +246,19 @@ export class BotService {
    * even when one of those fails; the failures are reported so they can be added afterwards.
    */
   async create(
-    input: CreateBotInput | BotCreationPlan,
+    input: CreateTeammateInput | TeammateCreationPlan,
     by: CreatedBy = { kind: "user" },
-  ): Promise<CreatedBot> {
+  ): Promise<CreatedTeammate> {
     const plan = "profile" in input ? input : await this.plan(input);
     const { profile } = plan;
     const created = await this.ctx.db.transaction(async (tx) => {
       await lockUntilCommit(tx, LOCKS.team);
-      const team = await tx.select({ slug: bots.slug, archivedAt: bots.archivedAt }).from(bots);
+      const team = await tx
+        .select({ slug: teammates.slug, archivedAt: teammates.archivedAt })
+        .from(teammates);
       const { slug, first } = newTeammateSlot(team, profile.name);
       const [bot] = await tx
-        .insert(bots)
+        .insert(teammates)
         .values({ ...profile, slug, isLead: first })
         .returning();
       const chatId = await addChat(tx, {
@@ -268,12 +270,12 @@ export class BotService {
       return { bot: bot!, chatId };
     });
     const botId = created.bot.id;
-    const failed: CreatedBot["failed"] = [];
+    const failed: CreatedTeammate["failed"] = [];
     const timezone = await ownerTimeZone(this.ctx.db);
     for (const schedule of plan.schedules) {
       await this.schedules
         .create({
-          botId,
+          teammateId: botId,
           ...schedule,
           timezone,
           createdBy: by.kind,
@@ -285,16 +287,19 @@ export class BotService {
     }
     for (const skill of plan.skills) {
       await this.skills
-        .save({ ...skill, botId }, by.kind === "bot" ? { kind: "bot", botId: by.botId } : by)
+        .save(
+          { ...skill, teammateId: botId },
+          by.kind === "bot" ? { kind: "bot", botId: by.botId } : by,
+        )
         .catch((error: unknown) =>
           failed.push({ kind: "skill", name: skill.name, error: errorMessage(error) }),
         );
     }
     const workspaceSynced = await this.sync(created.bot);
-    await publishApp(this.ctx, { type: "bots" });
+    await publishApp(this.ctx, { type: "teammates" });
     await publishApp(this.ctx, { type: "chats" });
     return {
-      botId,
+      teammateId: botId,
       name: created.bot.name,
       chatId: created.chatId,
       chatPath: `/chats/${created.chatId}`,
@@ -310,15 +315,15 @@ export class BotService {
    * Changes only the given profile fields. With `expectedRevision`, the edit is refused when the
    * teammate changed since it was read.
    */
-  async update(id: string, changes: Partial<BotProfile>, expectedRevision?: string) {
-    const parsed = botProfileChangesSchema.safeParse(changes);
+  async update(id: string, changes: Partial<TeammateProfile>, expectedRevision?: string) {
+    const parsed = teammateProfileChangesSchema.safeParse(changes);
     if (!parsed.success) throw new BotError(400, parsed.error.issues[0]!.message);
     const patch = parsed.data;
     const updated = await this.ctx.db.transaction(async (tx) => {
       const [current] = await tx
         .select()
-        .from(bots)
-        .where(and(eq(bots.id, id), isNull(bots.archivedAt)))
+        .from(teammates)
+        .where(and(eq(teammates.id, id), isNull(teammates.archivedAt)))
         .for("update");
       if (!current) throw new BotError(404, "That teammate no longer exists or is archived.");
       if (expectedRevision && BotService.revision(current) !== expectedRevision)
@@ -326,14 +331,14 @@ export class BotService {
           409,
           "This teammate was changed since it was loaded. Reload it and try again.",
         );
-      const [bot] = await tx.update(bots).set(patch).where(eq(bots.id, id)).returning();
+      const [bot] = await tx.update(teammates).set(patch).where(eq(teammates.id, id)).returning();
       if (patch.name !== undefined) await renameDirectChats(tx, id, patch.name);
       return bot!;
     });
     const workspaceSynced = await this.sync(updated);
-    await publishApp(this.ctx, { type: "bots" });
+    await publishApp(this.ctx, { type: "teammates" });
     if (patch.name !== undefined) await publishApp(this.ctx, { type: "chats" });
-    return { botId: id, revision: BotService.revision(updated), workspaceSynced };
+    return { teammateId: id, revision: BotService.revision(updated), workspaceSynced };
   }
 
   /** The teammate as a file: its profile and parts, to keep or import elsewhere. */
@@ -355,23 +360,25 @@ export class BotService {
   private async parts(id: string): Promise<TeammateParts> {
     const db = this.ctx.db;
     const [ownSkills, routines, watches, allowed, learned] = await Promise.all([
-      db.select().from(skills).where(eq(skills.botId, id)).orderBy(asc(skills.name)),
+      db.select().from(skills).where(eq(skills.teammateId, id)).orderBy(asc(skills.name)),
       db
         .select()
         .from(schedules)
-        .where(and(eq(schedules.botId, id), eq(schedules.kind, "cron"), isNotNull(schedules.cron)))
+        .where(
+          and(eq(schedules.teammateId, id), eq(schedules.kind, "cron"), isNotNull(schedules.cron)),
+        )
         .orderBy(asc(schedules.createdAt)),
       db
         .select()
         .from(triggers)
-        .where(and(eq(triggers.botId, id), eq(triggers.kind, "watch")))
+        .where(and(eq(triggers.teammateId, id), eq(triggers.kind, "watch")))
         .orderBy(asc(triggers.createdAt)),
       db
         .select()
         .from(approvalRules)
-        .where(eq(approvalRules.botId, id))
+        .where(eq(approvalRules.teammateId, id))
         .orderBy(asc(approvalRules.createdAt)),
-      db.select().from(lessons).where(eq(lessons.botId, id)).orderBy(asc(lessons.createdAt)),
+      db.select().from(lessons).where(eq(lessons.teammateId, id)).orderBy(asc(lessons.createdAt)),
     ]);
     return {
       skills: ownSkills.map(({ name, description, instructions }) => ({
@@ -442,7 +449,14 @@ export class BotService {
   /** After a teammate is added: its workspace, and the pages that list it. */
   private async welcome(teammate: Teammate) {
     await this.sync(teammate);
-    for (const type of ["bots", "chats", "skills", "schedules", "triggers", "lessons"] as const)
+    for (const type of [
+      "teammates",
+      "chats",
+      "skills",
+      "schedules",
+      "triggers",
+      "lessons",
+    ] as const)
       await publishApp(this.ctx, { type });
   }
 
@@ -462,7 +476,7 @@ export class BotService {
     );
     let memoryCopied = !copyMemory;
     if (copyMemory)
-      memoryCopied = await this.memory.copyBot(id, created.teammate.id).then(
+      memoryCopied = await this.memory.copyTeammate(id, created.teammate.id).then(
         () => true,
         (error: unknown) => {
           this.ctx.log.warn("teammate copied, but its memory wasn't", {
@@ -509,7 +523,7 @@ export class BotService {
         .set({ isLead: leads })
         .where(sql`${teammates.isLead} <> ${leads}`);
     });
-    await publishApp(this.ctx, { type: "bots" });
+    await publishApp(this.ctx, { type: "teammates" });
   }
 
   /**
@@ -546,7 +560,7 @@ export class BotService {
         error: errorMessage(error),
       }),
     );
-    for (const type of ["bots", "chats", "schedules", "triggers"] as const)
+    for (const type of ["teammates", "chats", "schedules", "triggers"] as const)
       await publishApp(this.ctx, { type });
   }
 
@@ -584,14 +598,14 @@ export class BotService {
         .set({ status: "dismissed", decidedAt: new Date() })
         .where(and(eq(suggestedFor, input.teammateId), eq(instructionProposals.status, "pending")));
       await tx.insert(instructionProposals).values({
-        botId: input.teammateId, // vocabulary: allow // vocabulary: allow
+        teammateId: input.teammateId,
         current: input.current,
         proposed: input.proposed,
         reason: input.reason,
         runId: input.runId,
       });
     });
-    await publishApp(this.ctx, { type: "bots" });
+    await publishApp(this.ctx, { type: "teammates" });
   }
 
   /** Takes a teammate's suggested instructions; they apply from its next message. */
@@ -607,12 +621,12 @@ export class BotService {
       return teammate ?? null;
     });
     if (updated) await this.sync(updated);
-    await publishApp(this.ctx, { type: "bots" });
+    await publishApp(this.ctx, { type: "teammates" });
   }
 
   async dismissProposal(proposalId: string): Promise<void> {
     await this.ctx.db.transaction((tx) => decideProposal(tx, proposalId, "dismissed"));
-    await publishApp(this.ctx, { type: "bots" });
+    await publishApp(this.ctx, { type: "teammates" });
   }
 
   /** Writes the workspace now; if the computer is away, it is written before the next run. */
@@ -623,7 +637,7 @@ export class BotService {
       return true;
     } catch (error) {
       this.ctx.log.warn("teammate saved; workspace will sync before its next run", {
-        botId: bot.id,
+        teammateId: bot.id,
         error: errorMessage(error),
       });
       return false;
@@ -636,7 +650,7 @@ export class BotService {
         id: connections.id,
         label: connections.label,
         enabled: connections.enabled,
-        botIds: connections.botIds,
+        teammateIds: connections.teammateIds,
         updatedAt: connections.updatedAt,
       })
       .from(connections)
@@ -653,7 +667,7 @@ export class BotService {
     botId: string,
     assigned: boolean,
     expectedRevision: string,
-  ): { botIds: string[] } | "unchanged" {
+  ): { teammateIds: string[] } | "unchanged" {
     if (connection.revision !== expectedRevision)
       throw new BotError(
         409,
@@ -664,19 +678,19 @@ export class BotService {
         400,
         "This connection is turned off. The user can turn it on in Settings.",
       );
-    if (connection.botIds === null) {
+    if (connection.teammateIds === null) {
       if (assigned) return "unchanged";
       throw new BotError(
         400,
         "This connection is shared with every teammate. The user can limit it to some teammates in Settings.",
       );
     }
-    const has = connection.botIds.includes(botId);
+    const has = connection.teammateIds.includes(botId);
     if (has === assigned) return "unchanged";
     return {
-      botIds: assigned
-        ? [...connection.botIds, botId]
-        : connection.botIds.filter((id) => id !== botId),
+      teammateIds: assigned
+        ? [...connection.teammateIds, botId]
+        : connection.teammateIds.filter((id) => id !== botId),
     };
   }
 
@@ -693,7 +707,7 @@ export class BotService {
           id: connections.id,
           label: connections.label,
           enabled: connections.enabled,
-          botIds: connections.botIds,
+          teammateIds: connections.teammateIds,
           updatedAt: connections.updatedAt,
         })
         .from(connections)
@@ -707,7 +721,7 @@ export class BotService {
         expectedRevision,
       );
       if (change === "unchanged") return false;
-      await setConnectionTeammates(tx, connectionId, change.botIds);
+      await setConnectionTeammates(tx, connectionId, change.teammateIds);
       return true;
     });
     if (changed) await publishApp(this.ctx, { type: "connections" });
@@ -719,7 +733,7 @@ function connectionSummary(row: {
   id: string;
   label: string;
   enabled: boolean;
-  botIds: string[] | null;
+  teammateIds: string[] | null;
   updatedAt: Date;
 }): ConnectionSummary {
   const { updatedAt, ...summary } = row;
@@ -727,7 +741,7 @@ function connectionSummary(row: {
 }
 
 /** The teammate a suggestion is for, under the column's legacy name. */
-const suggestedFor = instructionProposals.botId; // vocabulary: allow
+const suggestedFor = instructionProposals.teammateId;
 
 /**
  * Decide a suggestion that's still waiting. Null when it was already decided the same way; one

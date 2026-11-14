@@ -15,7 +15,7 @@ export async function listNotifications(limit = 40): Promise<NotificationView[]>
     kind: row.kind,
     title: row.title,
     body: row.body,
-    botId: row.botId,
+    teammateId: row.teammateId,
     chatId: row.chatId,
     runId: row.runId,
     pageId: row.pageId,

@@ -47,7 +47,7 @@ export function NewGroupDialog({ bots }: { bots: BotSummary[] }) {
 
   function submit() {
     startTransition(async () => {
-      const result = await attempt(api.chats.createGroup({ title, botIds: selected }));
+      const result = await attempt(api.chats.createGroup({ title, teammateIds: selected }));
       if (!result.ok) {
         toast.error(result.error);
         return;

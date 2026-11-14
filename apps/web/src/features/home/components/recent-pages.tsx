@@ -21,7 +21,7 @@ export function RecentPages() {
       <SideHeading title="Recent pages" href="/pages" label="All pages" />
       <div className="grid grid-cols-2 gap-3">
         {latest.map((page) => {
-          const teammate = state.bots.find((entry) => entry.id === page.botId);
+          const teammate = state.teammates.find((entry) => entry.id === page.teammateId);
           return (
             <Link
               key={page.id}

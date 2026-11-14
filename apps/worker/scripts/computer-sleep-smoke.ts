@@ -131,10 +131,10 @@ const site = `http://host.docker.internal:${(fixture.address() as AddressInfo).p
 try {
   await idle();
   memory("idle initial");
-  const bot = await call("/internal/bots", { name: "Sleep fixture", role: "test assistant" });
+  const bot = await call("/internal/teammates", { name: "Sleep fixture", role: "test assistant" });
   assert.equal(bot.workspaceSynced, false);
   assert.equal((await status()).computer.lifecycle.phase, "idle");
-  const botId = bot.botId;
+  const botId = bot.teammateId;
   const run = { runId: randomUUID(), botId, botName: "Sleep fixture" };
   const action = (url: string) =>
     call("/computer/action", { run, action: { action: "open_url", url } }, true);
@@ -181,23 +181,23 @@ try {
     );
   }
   if (process.env.SLEEP_TEST_RESOURCE_CHECKS) {
-    const second = await call("/internal/bots", {
+    const second = await call("/internal/teammates", {
       name: "Second sleep fixture",
       role: "test assistant",
     });
-    const third = await call("/internal/bots", {
+    const third = await call("/internal/teammates", {
       name: "Third sleep fixture",
       role: "test assistant",
     });
     await Promise.all([
       call(`/internal/screens/${botId}/wake`, {}),
-      call(`/internal/screens/${second.botId}/wake`, {}),
+      call(`/internal/screens/${second.teammateId}/wake`, {}),
     ]);
     await call("/lease/user/take", { screenId: botId }, true);
-    await call("/lease/user/take", { screenId: second.botId }, true);
+    await call("/lease/user/take", { screenId: second.teammateId }, true);
     memory("two leased screens");
     const queued = new AbortController();
-    const thirdStart = fetch(`${worker}/internal/screens/${third.botId}/wake`, {
+    const thirdStart = fetch(`${worker}/internal/screens/${third.teammateId}/wake`, {
       method: "POST",
       headers,
       body: "{}",
@@ -212,7 +212,7 @@ try {
       screens: { id: string; state: string }[];
     };
     assert.equal(health.screens.filter((s) => s.state === "running").length, 2);
-    assert(!health.screens.some((s) => s.id === third.botId));
+    assert(!health.screens.some((s) => s.id === third.teammateId));
     const path = "/home/bot/shared/sleep-check.html";
     await call("/internal/files/write", {
       path,
@@ -228,7 +228,7 @@ try {
     memory("two screens plus page checker");
     for (const checked of await checks) assert.equal(checked.ok, true);
     await call("/lease/user/release", { screenId: botId }, true);
-    await call("/lease/user/release", { screenId: second.botId }, true);
+    await call("/lease/user/release", { screenId: second.teammateId }, true);
     await idle();
     (result.assertions as string[]).push(
       "two leased screens plus one page checker",

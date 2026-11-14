@@ -181,7 +181,7 @@ export function ComputerPage({ initialScreen }: { initialScreen: string | null }
   const handleRef = useRef<ScreenHandle | null>(null);
   const { data: state } = useAppState();
   const { screen, egress, online } = useComputer();
-  const botIds = state?.bots.map((bot) => bot.id) ?? [];
+  const botIds = state?.teammates.map((bot) => bot.id) ?? [];
   const followed = useFollowedScreen(botIds);
   const [picked, setPicked] = useState<string | null>(initialScreen);
   const screenId = picked && botIds.includes(picked) ? picked : followed.screenId;

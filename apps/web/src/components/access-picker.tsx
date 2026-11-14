@@ -15,7 +15,7 @@ export function AccessPicker({
   onChange: (value: string[] | null) => void;
 }) {
   const { data: state } = useAppState();
-  const bots = state?.bots ?? [];
+  const bots = state?.teammates ?? [];
   const everyone = value === null;
   return (
     <div className="flex flex-col gap-3">

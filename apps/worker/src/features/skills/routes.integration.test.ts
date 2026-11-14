@@ -10,12 +10,12 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
       name: "weekly-report",
       description: "Write the weekly report",
       instructions: "Summarize the week",
-      botId: null,
+      teammateId: null,
     });
     expect(id).toMatch(/^[0-9a-f-]{36}$/);
     expect(
       await failure(
-        worker.skills.save({ name: "page", description: "x", instructions: "y", botId: null }),
+        worker.skills.save({ name: "page", description: "x", instructions: "y", teammateId: null }),
       ),
     ).toEqual({ status: 400, message: "That name belongs to a built-in skill. Pick another." });
     await worker.skills.remove({ skillId: id });

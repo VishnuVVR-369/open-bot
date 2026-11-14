@@ -1,6 +1,6 @@
 import { toMessageView, type MessageView, type SendMessageInput } from "@open-bot/api";
 import {
-  bots as teammates, // vocabulary: allow
+  teammates,
   chatMembers,
   chats,
   LOCKS,
@@ -32,13 +32,13 @@ type NewChat = Pick<typeof chats.$inferInsert, "kind" | "title" | "titled" | "ma
 };
 
 /** The teammate a chat is with. The column's name predates the glossary. */
-const chatTeammate = chats.botId; // vocabulary: allow
+const chatTeammate = chats.teammateId;
 
 /** Save a chat. Tell the app (`chats`) once the caller's transaction commits. */
 export async function addChat(db: Queryable, { teammateId, ...chat }: NewChat): Promise<string> {
   const [row] = await db
     .insert(chats)
-    .values({ ...chat, botId: teammateId ?? null }) // vocabulary: allow
+    .values({ ...chat, teammateId: teammateId ?? null })
     .returning({ id: chats.id });
   return row!.id;
 }
@@ -285,7 +285,9 @@ export class ChatService {
       throw new ChatError(404, "One of those teammates no longer exists.");
     const chatId = await this.ctx.db.transaction(async (tx) => {
       const id = await addChat(tx, { kind: "group", title, titled: true });
-      await tx.insert(chatMembers).values(unique.map((botId) => ({ chatId: id, botId })));
+      await tx
+        .insert(chatMembers)
+        .values(unique.map((botId) => ({ chatId: id, teammateId: botId })));
       return id;
     });
     await publishApp(this.ctx, { type: "chats" });

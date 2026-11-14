@@ -24,9 +24,9 @@ export function teammateRoutes() {
   return {
     teammates: {
       list: os.teammates.list.handler(() => listTeammates()),
-      lessons: os.teammates.lessons.handler(({ input }) => listLessons(input.botId)),
+      lessons: os.teammates.lessons.handler(({ input }) => listLessons(input.teammateId)),
       spending: os.teammates.spending.handler(async ({ input }) => {
-        const spending = await getSpending(input.botId);
+        const spending = await getSpending(input.teammateId);
         if (!spending) throw new ApiError("NOT_FOUND", "No such teammate.");
         return spending;
       }),

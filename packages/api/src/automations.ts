@@ -17,7 +17,7 @@ const lastRunSchema = z.object({ id: z.string(), status: runStatusSchema, chatId
 
 export const scheduleViewSchema = z.object({
   id: z.string(),
-  botId: z.string(),
+  teammateId: z.string(),
   title: z.string(),
   prompt: z.string(),
   kind: scheduleKindSchema,
@@ -37,7 +37,7 @@ export type ScheduleView = z.infer<typeof scheduleViewSchema>;
 /** A page watch, a webhook, or a Gmail or Calendar trigger that wakes a teammate. */
 export const triggerViewSchema = z.object({
   id: z.string(),
-  botId: z.string(),
+  teammateId: z.string(),
   kind: triggerKindSchema,
   title: z.string(),
   prompt: z.string(),
@@ -77,7 +77,7 @@ export type AutomationRunView = z.infer<typeof automationRunViewSchema>;
 
 /** A routine (cron) or a reminder (at) a teammate runs, as the owner sets it up. */
 export const scheduleInputSchema = z.object({
-  botId: id,
+  teammateId: id,
   title: z.string().min(1).max(80),
   prompt: z.string().min(1).max(4000),
   cron: z.string().nullable(),
@@ -91,7 +91,7 @@ export type ScheduleInput = z.infer<typeof scheduleInputSchema>;
 
 /** A watch, webhook, Gmail or Calendar trigger, as the owner sets it up. */
 export const triggerInputSchema = z.object({
-  botId: id,
+  teammateId: id,
   kind: triggerKindSchema,
   title: z.string().max(200),
   prompt: z.string().max(8000),

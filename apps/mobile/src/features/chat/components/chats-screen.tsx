@@ -1,4 +1,4 @@
-import type { BotSummary, ChatSummary } from "@open-bot/api";
+import type { TeammateSummary, ChatSummary } from "@open-bot/api";
 import { plainText } from "@open-bot/domain";
 import { safe } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -70,7 +70,7 @@ function matches(chat: ChatSummary, filter: Filter): boolean {
 /** What the chat's teammate is doing in this chat, for its avatar; paused while the computer is away. */
 function chatActivity(
   chat: ChatSummary,
-  bot: BotSummary | undefined,
+  bot: TeammateSummary | undefined,
   computerOffline: boolean,
 ): BotActivity {
   if (!chat.active) return "idle";
@@ -89,12 +89,12 @@ function ChatRow({
   onLongPress,
 }: {
   chat: ChatSummary;
-  bots: BotSummary[];
+  bots: TeammateSummary[];
   computerOffline: boolean;
   onLongPress: () => void;
 }) {
   const colors = useColors();
-  const bot = bots.find((candidate) => candidate.id === chat.botId);
+  const bot = bots.find((candidate) => candidate.id === chat.teammateId);
   const KindIcon = chat.kind === "scheduled" ? CalendarClock : chat.kind === "inbox" ? Mail : null;
   const activity = chatActivity(chat, bot, computerOffline);
   const live = chat.active ? activityText(activity, bot?.activeRun?.waitingFor) : null;
@@ -330,7 +330,7 @@ export default function Chats() {
           menuFor
             ? chatTitle(
                 menuFor,
-                bots.find((bot) => bot.id === menuFor.botId),
+                bots.find((bot) => bot.id === menuFor.teammateId),
               )
             : undefined
         }

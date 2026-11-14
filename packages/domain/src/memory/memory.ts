@@ -23,7 +23,7 @@ export type MemorySource = z.infer<typeof memorySourceSchema>;
 
 export const memoryItemSchema = z.object({
   id: z.string(),
-  botId: z.string().nullable(),
+  teammateId: z.string().nullable(),
   kind: memoryKindSchema,
   content: z.string(),
   key: z.string().nullable(),
@@ -66,7 +66,7 @@ export interface MemoryRef {
 }
 
 export const memoryInputSchema = z.object({
-  botId: z.string().uuid().nullable().default(null),
+  teammateId: z.string().uuid().nullable().default(null),
   kind: memoryKindSchema.default("fact"),
   content: z.string().trim().min(3).max(8000),
   key: z.string().trim().min(1).max(120).nullable().default(null),
@@ -108,7 +108,7 @@ export function memoryContext(
   let text = "";
   const refs: MemoryRef[] = [];
   for (const item of items) {
-    const heading = `[memory:${item.id}@${item.revision}; ${item.botId ? "this bot" : "shared"}; ${item.kind}]\n`;
+    const heading = `[memory:${item.id}@${item.revision}; ${item.teammateId ? "this teammate" : "shared"}; ${item.kind}]\n`;
     const available = maxChars - text.length - heading.length - 2;
     if (available < 80) break;
     const content =

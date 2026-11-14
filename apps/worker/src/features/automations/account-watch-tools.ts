@@ -124,7 +124,7 @@ async function watchAccount(
     display = connection.display;
     row = await deps.triggers.create(
       {
-        botId: target.id,
+        teammateId: target.id,
         kind,
         title: args.title,
         prompt: args.prompt,

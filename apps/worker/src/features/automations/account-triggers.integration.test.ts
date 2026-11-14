@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { bots, chats, connections, runs, triggerFirings, triggers } from "@open-bot/db";
+import { teammates, chats, connections, runs, triggerFirings, triggers } from "@open-bot/db";
 import { ACCOUNT_TRIGGER_NOTE, GOOGLE_SCOPES } from "@open-bot/domain";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -188,7 +188,7 @@ describe.skipIf(!url)("Gmail and Calendar triggers with Postgres", () => {
     );
     google.reset();
     const [bot] = await db
-      .insert(bots)
+      .insert(teammates)
       .values({ name: "Otto", slug: "otto", role: "assistant", color: "#4f46e5" })
       .returning();
     const store = new AccountAccess(ctx).store;
@@ -244,7 +244,7 @@ describe.skipIf(!url)("Gmail and Calendar triggers with Postgres", () => {
     const [row] = await db
       .insert(triggers)
       .values({
-        botId: fixture.botId,
+        teammateId: fixture.botId,
         kind: "gmail",
         title: "New mail",
         prompt: "Summarize it for me.",
@@ -356,12 +356,12 @@ describe.skipIf(!url)("Gmail and Calendar triggers with Postgres", () => {
     const row = await trigger({ cursor: String(google.historyId) });
     const [chat] = await db
       .insert(chats)
-      .values({ kind: "scheduled", title: "Scheduled", botId: fixture.botId })
+      .values({ kind: "scheduled", title: "Scheduled", teammateId: fixture.botId })
       .returning();
     await db.insert(runs).values(
       Array.from({ length: ACCOUNT_TRIGGER_RUNS_PER_HOUR }, () => ({
         chatId: chat!.id,
-        botId: fixture.botId,
+        teammateId: fixture.botId,
         trigger: "gmail" as const,
         triggerId: row.id,
         prompt: "Earlier",

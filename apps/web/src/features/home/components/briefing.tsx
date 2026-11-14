@@ -170,9 +170,10 @@ export function Briefing() {
   const finished = items.filter((item) => item.status !== "failed").sort(newestFirst);
   // Teammates in the order of their latest work, since the items are newest first.
   const byBot = new Map<string, BriefingItem[]>();
-  for (const item of finished) byBot.set(item.botId, [...(byBot.get(item.botId) ?? []), item]);
+  for (const item of finished)
+    byBot.set(item.teammateId, [...(byBot.get(item.teammateId) ?? []), item]);
   const botName = (botId: string) =>
-    state.bots.find((entry) => entry.id === botId)?.name ?? "A former teammate";
+    state.teammates.find((entry) => entry.id === botId)?.name ?? "A former teammate";
   const sinceDate = new Date(since);
   const summary = [
     finished.length > 0 && `${plural(finished.length, "task")} done`,
@@ -215,7 +216,7 @@ export function Briefing() {
             <Failure
               key={item.runId}
               item={item}
-              botName={botName(item.botId)}
+              botName={botName(item.teammateId)}
               computerOnline={computerOnline}
             />
           ))}
@@ -224,7 +225,7 @@ export function Briefing() {
       {byBot.size > 0 && (
         <ul className="flex flex-col gap-3">
           {[...byBot.entries()].map(([botId, botItems]) => {
-            const bot = state.bots.find((entry) => entry.id === botId);
+            const bot = state.teammates.find((entry) => entry.id === botId);
             const extra = botItems.length - PER_BOT;
             return (
               <li key={botId} className="flex gap-3" data-testid="briefing-bot">

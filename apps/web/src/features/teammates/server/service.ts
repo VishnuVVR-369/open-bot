@@ -2,7 +2,7 @@ import "server-only";
 import type { ApiInputs, ApiOutputs } from "@open-bot/api";
 import {
   approvalRules,
-  bots,
+  teammates,
   chats,
   configurationRevision,
   instructionProposals,
@@ -119,7 +119,10 @@ export async function dismissProposal({
 
 /** The color a new teammate starts with: the one the team uses least, as the worker picks. */
 export async function nextColor(): Promise<string> {
-  const rows = await db.select({ color: bots.color }).from(bots).where(isNull(bots.archivedAt));
+  const rows = await db
+    .select({ color: teammates.color })
+    .from(teammates)
+    .where(isNull(teammates.archivedAt));
   return nextTeammateColor(rows.map((row) => row.color));
 }
 
@@ -129,8 +132,8 @@ export type TeammatePage = NonNullable<Awaited<ReturnType<typeof getTeammatePage
 export async function getTeammatePage(teammateId: string) {
   const [teammate] = await db
     .select()
-    .from(bots)
-    .where(and(eq(bots.id, teammateId), isNull(bots.archivedAt)));
+    .from(teammates)
+    .where(and(eq(teammates.id, teammateId), isNull(teammates.archivedAt)));
   if (!teammate) return null;
   const [teammateChats, proposal, rules] = await Promise.all([
     db
@@ -142,13 +145,15 @@ export async function getTeammatePage(teammateId: string) {
         lastActivityAt: chats.lastActivityAt,
       })
       .from(chats)
-      .where(and(eq(chats.botId, teammateId), isNull(chats.archivedAt), ne(chats.kind, "helper")))
+      .where(
+        and(eq(chats.teammateId, teammateId), isNull(chats.archivedAt), ne(chats.kind, "helper")),
+      )
       .orderBy(desc(chats.lastActivityAt)),
     pendingProposal(teammateId),
     db
       .select({ id: approvalRules.id, kind: approvalRules.kind, pattern: approvalRules.pattern })
       .from(approvalRules)
-      .where(eq(approvalRules.botId, teammateId))
+      .where(eq(approvalRules.teammateId, teammateId))
       .orderBy(asc(approvalRules.createdAt)),
   ]);
   return {
@@ -167,7 +172,10 @@ export async function getTeammatePage(teammateId: string) {
 /** A teammate's name, for the page title, or null if there's none by that id. */
 export async function teammateName(teammateId: string): Promise<string | null> {
   if (!/^[0-9a-f-]{36}$/i.test(teammateId)) return null;
-  const [row] = await db.select({ name: bots.name }).from(bots).where(eq(bots.id, teammateId));
+  const [row] = await db
+    .select({ name: teammates.name })
+    .from(teammates)
+    .where(eq(teammates.id, teammateId));
   return row?.name ?? null;
 }
 
@@ -175,7 +183,9 @@ async function pendingProposal(botId: string): Promise<ProposalView | null> {
   const [row] = await db
     .select()
     .from(instructionProposals)
-    .where(and(eq(instructionProposals.botId, botId), eq(instructionProposals.status, "pending")))
+    .where(
+      and(eq(instructionProposals.teammateId, botId), eq(instructionProposals.status, "pending")),
+    )
     .orderBy(desc(instructionProposals.createdAt))
     .limit(1);
   return row
@@ -194,7 +204,7 @@ export async function listLessons(botId: string): Promise<LessonView[]> {
     .select({ lesson: lessons, chatId: runs.chatId })
     .from(lessons)
     .leftJoin(runs, eq(runs.id, lessons.runId))
-    .where(eq(lessons.botId, botId))
+    .where(eq(lessons.teammateId, botId))
     .orderBy(desc(lessons.createdAt));
   return rows.map(({ lesson, chatId }) => ({
     id: lesson.id,
@@ -207,9 +217,9 @@ export async function listLessons(botId: string): Promise<LessonView[]> {
 
 export async function getSpending(botId: string): Promise<SpendingView | null> {
   const [bot] = await db
-    .select({ budget: bots.monthlyBudgetCents, autoApprove: bots.autoApproveCents })
-    .from(bots)
-    .where(eq(bots.id, botId));
+    .select({ budget: teammates.monthlyBudgetCents, autoApprove: teammates.autoApproveCents })
+    .from(teammates)
+    .where(eq(teammates.id, botId));
   if (!bot) return null;
   const [rows, [spent]] = await Promise.all([
     db
@@ -220,7 +230,7 @@ export async function getSpending(botId: string): Promise<SpendingView | null> {
       })
       .from(purchases)
       .leftJoin(vaultItems, eq(vaultItems.id, purchases.cardId))
-      .where(eq(purchases.botId, botId))
+      .where(eq(purchases.teammateId, botId))
       .orderBy(desc(purchases.createdAt))
       .limit(50),
     db
@@ -228,7 +238,7 @@ export async function getSpending(botId: string): Promise<SpendingView | null> {
       .from(purchases)
       .where(
         and(
-          eq(purchases.botId, botId),
+          eq(purchases.teammateId, botId),
           inArray(purchases.status, [...SPENDING_PURCHASE_STATUSES]),
           gte(purchases.createdAt, monthStart()),
         ),
@@ -240,7 +250,7 @@ export async function getSpending(botId: string): Promise<SpendingView | null> {
     spentCents: spent?.total ?? 0,
     purchases: rows.map(({ purchase, cardName, cardHint }): PurchaseView => ({
       id: purchase.id,
-      botId: purchase.botId,
+      teammateId: purchase.teammateId,
       card: cardName ? `${cardName} (${cardHint})` : null,
       amountCents: purchase.amountCents,
       merchant: purchase.merchant,

@@ -1,4 +1,10 @@
-import type { BotSummary, ChatSummary, PageDetail, PageLink, PageSummary } from "@open-bot/api";
+import type {
+  TeammateSummary,
+  ChatSummary,
+  PageDetail,
+  PageLink,
+  PageSummary,
+} from "@open-bot/api";
 import { parsePageAskMessage, type PageAskMessage } from "@open-bot/domain";
 import type { Href } from "expo-router";
 import { APP_URL } from "../../lib/config";
@@ -60,11 +66,11 @@ export function parsePageMessage(data: string): PageMessage | null {
  * still see), else its teammate's own chat. Null when its teammate is gone.
  */
 export function questionTarget(
-  page: Pick<PageSummary, "botId" | "chatId">,
-  bots: BotSummary[],
+  page: Pick<PageSummary, "teammateId" | "chatId">,
+  bots: TeammateSummary[],
   chats: ChatSummary[],
-): { bot: BotSummary; chat: ChatSummary } | null {
-  const bot = bots.find((candidate) => candidate.id === page.botId);
+): { bot: TeammateSummary; chat: ChatSummary } | null {
+  const bot = bots.find((candidate) => candidate.id === page.teammateId);
   if (!bot) return null;
   const origin = chats.find((chat) => chat.id === page.chatId);
   if (origin && (origin.kind === "direct" || origin.kind === "group")) return { bot, chat: origin };

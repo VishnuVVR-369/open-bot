@@ -24,7 +24,7 @@ import { z } from "zod";
 
 const isoDate = z.string();
 
-export const botSummarySchema = z.object({
+export const teammateSummarySchema = z.object({
   id: z.string(),
   name: z.string(),
   slug: z.string(),
@@ -46,13 +46,13 @@ export const botSummarySchema = z.object({
     })
     .nullable(),
 });
-export type BotSummary = z.infer<typeof botSummarySchema>;
+export type TeammateSummary = z.infer<typeof teammateSummarySchema>;
 
 export const chatSummarySchema = z.object({
   id: z.string(),
   kind: chatKindSchema,
   title: z.string(),
-  botId: z.string().nullable(),
+  teammateId: z.string().nullable(),
   /** The teammate's main chat, where work that isn't started from a chat arrives. */
   main: z.boolean(),
   memberIds: z.array(z.string()),
@@ -60,8 +60,8 @@ export const chatSummarySchema = z.object({
   active: z.boolean(),
   /** A teammate replied since you last looked at the chat, here or on another device. */
   unread: z.boolean(),
-  /** The latest thing said in the chat, on one line: by a teammate, or by you (`botId` null). */
-  preview: z.object({ text: z.string(), botId: z.string().nullable() }).nullable(),
+  /** The latest thing said in the chat, on one line: by a teammate, or by you (`teammateId` null). */
+  preview: z.object({ text: z.string(), teammateId: z.string().nullable() }).nullable(),
 });
 export type ChatSummary = z.infer<typeof chatSummarySchema>;
 
@@ -116,12 +116,12 @@ const timelineSchema = z.custom<RunTimelineState>(
 
 export const runViewSchema = z.object({
   id: z.string(),
-  botId: z.string(),
+  teammateId: z.string(),
   trigger: runTriggerSchema,
   messageId: z.string().nullable(),
   parentRunId: z.string().nullable(),
   /** For handoffs, questions and answers: the teammate this run came from. */
-  fromBotId: z.string().nullable(),
+  fromTeammateId: z.string().nullable(),
   /** How the run reached the model; null before it started. */
   authMode: authModeSchema.nullable(),
   scheduleTitle: z.string().nullable(),
@@ -148,7 +148,7 @@ export type ChatEntry = z.infer<typeof chatEntrySchema>;
 
 export const chatDataSchema = z.object({
   chat: chatSummarySchema,
-  members: z.array(botSummarySchema),
+  members: z.array(teammateSummarySchema),
   entries: z.array(chatEntrySchema),
   /**
    * This page's chat-wide event checkpoint. Runs retained from other pages may still need replay
@@ -172,7 +172,7 @@ export type ChatData = z.infer<typeof chatDataSchema>;
 export const approvalViewSchema = z.object({
   id: z.string(),
   runId: z.string(),
-  botId: z.string(),
+  teammateId: z.string(),
   chatId: z.string(),
   kind: approvalKindSchema,
   /** What "always allow" matches: the raw command, or a kind of action like "Create teammates". */
@@ -192,7 +192,7 @@ export type ApprovalView = z.infer<typeof approvalViewSchema>;
 /** Something a teammate may do without asking, from "Always allow" on an approval. */
 export const approvalRuleSchema = z.object({
   id: z.string(),
-  botId: z.string(),
+  teammateId: z.string(),
   kind: ruleKindSchema,
   /** The start of a command, or an action in plain words. Empty for file changes. */
   pattern: z.string(),
@@ -205,7 +205,7 @@ export const notificationViewSchema = z.object({
   kind: z.string(),
   title: z.string(),
   body: z.string(),
-  botId: z.string().nullable(),
+  teammateId: z.string().nullable(),
   chatId: z.string().nullable(),
   runId: z.string().nullable(),
   /** The page it's about, when a teammate published one: opening the notification opens it. */
@@ -221,7 +221,7 @@ export const activityItemSchema = z.object({
   chatId: z.string(),
   chatKind: chatKindSchema,
   chatTitle: z.string(),
-  botId: z.string(),
+  teammateId: z.string(),
   trigger: runTriggerSchema,
   status: runStatusSchema,
   /** The reply, or why it failed, in Markdown. */
@@ -242,8 +242,8 @@ export const takeoverRequestSchema = z.object({
   id: z.string(),
   /** The screen to take over: the requesting teammate's. */
   screenId: z.string(),
-  botId: z.string().nullable(),
-  botName: z.string(),
+  teammateId: z.string().nullable(),
+  teammateName: z.string(),
   reason: z.string(),
   chatId: z.string().nullable(),
   createdAt: isoDate,
@@ -253,11 +253,11 @@ export type TakeoverRequest = z.infer<typeof takeoverRequestSchema>;
 /** A message or a teammate's reply that matched a search. */
 export const searchResultSchema = z.object({
   id: z.string(),
-  /** "you" for your messages, "bot" for a teammate's reply. */
-  from: z.enum(["you", "bot"]),
+  /** "you" for your messages, "teammate" for a teammate's reply. */
+  from: z.enum(["you", "teammate"]),
   chatId: z.string(),
   runId: z.string().nullable(),
-  botId: z.string().nullable(),
+  teammateId: z.string().nullable(),
   /** The part of the text around the match. */
   excerpt: z.string(),
   createdAt: isoDate,
@@ -279,7 +279,7 @@ export const pageSummarySchema = z.object({
   title: z.string(),
   summary: z.string(),
   /** Who published it; null once that teammate is deleted. */
-  botId: z.string().nullable(),
+  teammateId: z.string().nullable(),
   /** Where it was made: asking about it goes there. */
   chatId: z.string().nullable(),
   pinned: z.boolean(),
@@ -300,7 +300,7 @@ export const pageVersionViewSchema = z.object({
   summary: z.string(),
   /** What changed, in the teammate's words. */
   note: z.string(),
-  botId: z.string().nullable(),
+  teammateId: z.string().nullable(),
   runId: z.string().nullable(),
   size: z.number().int().nonnegative(),
   /** What the check found that didn't stop it being published. */

@@ -1,7 +1,7 @@
 // The Codex thread a run continues: resume or fork the chat's thread, or start a fresh one when its
 // tools, instructions or memory generation changed.
 import type { CodexClient, v2 } from "@open-bot/agent";
-import { botThreads, configurationRevision } from "@open-bot/db";
+import { teammateThreads, configurationRevision } from "@open-bot/db";
 import { and, eq } from "drizzle-orm";
 import type { Context } from "../../context";
 import type { Bot, Run } from "../../core/db-types";
@@ -61,10 +61,10 @@ export async function ensureThread(session: ThreadSession, client: CodexClient):
   const revision = toolsRevision(DEVELOPER_INSTRUCTIONS, dynamicTools);
   const save = async (threadId: string, fresh: boolean) => {
     await ctx.db
-      .insert(botThreads)
+      .insert(teammateThreads)
       .values({
         chatId: run.chatId,
-        botId: bot.id,
+        teammateId: bot.id,
         codexThreadId: threadId,
         toolsVersion: REVISED_THREAD,
         toolsRevision: revision,
@@ -73,7 +73,7 @@ export async function ensureThread(session: ThreadSession, client: CodexClient):
         configurationKey,
       })
       .onConflictDoUpdate({
-        target: [botThreads.chatId, botThreads.botId],
+        target: [teammateThreads.chatId, teammateThreads.teammateId],
         // Memory generations fence old context; a fork is only allowed within the same generation.
         set: {
           codexThreadId: threadId,
@@ -90,8 +90,8 @@ export async function ensureThread(session: ThreadSession, client: CodexClient):
   };
   const [existing] = await ctx.db
     .select()
-    .from(botThreads)
-    .where(and(eq(botThreads.chatId, run.chatId), eq(botThreads.botId, bot.id)));
+    .from(teammateThreads)
+    .where(and(eq(teammateThreads.chatId, run.chatId), eq(teammateThreads.teammateId, bot.id)));
   if (
     existing &&
     existing.toolsVersion === REVISED_THREAD &&

@@ -12,14 +12,14 @@ import {
 } from "drizzle-orm/pg-core";
 import { createdAt, updatedAt } from "./columns";
 import { runs } from "./runs";
-import { bots } from "./teammates";
+import { teammates } from "./teammates";
 
 export const usageEntries = pgTable(
   "usage_entries",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     runId: uuid("run_id").references(() => runs.id, { onDelete: "set null" }),
-    botId: uuid("bot_id").references(() => bots.id, { onDelete: "set null" }),
+    teammateId: uuid("bot_id").references(() => teammates.id, { onDelete: "set null" }),
     authMode: text("auth_mode").$type<AuthMode>().notNull(),
     inputTokens: bigint("input_tokens", { mode: "number" }).notNull(),
     cachedInputTokens: bigint("cached_input_tokens", { mode: "number" }).notNull(),

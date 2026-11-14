@@ -8,7 +8,7 @@ export function teammateRouteHarness({
   worker,
 }: Pick<ReturnType<typeof rpcHarness>, "db" | "worker">) {
   /** A row's teammate, under the column's legacy name. */
-  const owned = (teammateId: string) => ({ botId: teammateId }); // vocabulary: allow
+  const owned = (teammateId: string) => ({ teammateId });
   /** A teammate file with this name, and these parts. */
   const file = (name: string, parts: Partial<TeammateBundle> = {}): TeammateBundle => ({
     format: BUNDLE_FORMAT,

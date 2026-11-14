@@ -1,4 +1,4 @@
-import type { BotSummary } from "@open-bot/api";
+import type { TeammateSummary } from "@open-bot/api";
 import { safe } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { router, Stack } from "expo-router";
@@ -43,10 +43,10 @@ export default function NewChat() {
     router.replace(`/chats/${chatId}`);
   };
 
-  async function direct(bot: BotSummary) {
+  async function direct(bot: TeammateSummary) {
     setBusy(bot.id);
     setProblem(null);
-    const result = await safe(api.chats.newDirect({ botId: bot.id }));
+    const result = await safe(api.chats.newDirect({ teammateId: bot.id }));
     setBusy(null);
     if (result.error) setProblem(errorMessage(result.error));
     else opened(result.data.chatId);
@@ -55,7 +55,7 @@ export default function NewChat() {
   async function group() {
     setBusy("group");
     setProblem(null);
-    const result = await safe(api.chats.createGroup({ title: title.trim(), botIds: picked }));
+    const result = await safe(api.chats.createGroup({ title: title.trim(), teammateIds: picked }));
     setBusy(null);
     if (result.error) setProblem(errorMessage(result.error));
     else opened(result.data.chatId);

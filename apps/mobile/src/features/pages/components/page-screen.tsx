@@ -51,7 +51,9 @@ export default function PageScreen() {
   const target = page.data
     ? questionTarget(page.data, teammates.data ?? [], chats.data ?? [])
     : null;
-  const teammate = (teammates.data ?? []).find((candidate) => candidate.id === page.data?.botId);
+  const teammate = (teammates.data ?? []).find(
+    (candidate) => candidate.id === page.data?.teammateId,
+  );
 
   const ask = useCallback((next: Question) => {
     haptics.tap();

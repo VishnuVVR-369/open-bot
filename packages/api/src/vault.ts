@@ -12,7 +12,7 @@ export const vaultItemViewSchema = z.object({
   /** The username, or "Visa •••• 4242". */
   hint: z.string(),
   /** The teammates that may use it, or null for every teammate. */
-  botIds: z.array(z.string()).nullable(),
+  teammateIds: z.array(z.string()).nullable(),
   lastUsedAt: z.string().nullable(),
   updatedAt: z.string(),
 });

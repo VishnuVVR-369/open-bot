@@ -1,4 +1,4 @@
-import type { ActivityItem, BotSummary, BriefingItem, ChatSummary, Home } from "@open-bot/api";
+import type { ActivityItem, TeammateSummary, BriefingItem, ChatSummary, Home } from "@open-bot/api";
 import { plural } from "@open-bot/chat-core";
 import { teammateStatus } from "@open-bot/domain";
 import { conversationWith } from "../chat/chats";
@@ -12,7 +12,7 @@ export const RECENT = 4;
  */
 export function statusLine(
   home: Home,
-  teammates: BotSummary[],
+  teammates: TeammateSummary[],
   computerOffline = false,
   approvals = home.pendingApprovals,
 ): string {
@@ -40,16 +40,19 @@ export function briefingGroups(items: BriefingItem[]): {
     (a, b) => Number(b.status === "failed") - Number(a.status === "failed"),
   );
   for (const item of ordered)
-    byTeammate.set(item.botId, [...(byTeammate.get(item.botId) ?? []), item]);
+    byTeammate.set(item.teammateId, [...(byTeammate.get(item.teammateId) ?? []), item]);
   const failed = items.filter((item) => item.status === "failed").length;
   return { groups: [...byTeammate.entries()], done: items.length - failed, failed };
 }
 
 /** Who needs you first, then who's working, then everyone by their latest conversation. */
-export function rankTeammates(teammates: BotSummary[], chats: ChatSummary[]): BotSummary[] {
+export function rankTeammates(
+  teammates: TeammateSummary[],
+  chats: ChatSummary[],
+): TeammateSummary[] {
   const rank = { waiting: 0, working: 1, paused: 1, queued: 2, idle: 3 } as const;
-  const activity = (teammate: BotSummary) => teammateStatus(teammate).activity;
-  const at = (teammate: BotSummary) => conversationWith(teammate, chats)?.lastActivityAt ?? "";
+  const activity = (teammate: TeammateSummary) => teammateStatus(teammate).activity;
+  const at = (teammate: TeammateSummary) => conversationWith(teammate, chats)?.lastActivityAt ?? "";
   return [...teammates].sort(
     (a, b) => rank[activity(a)] - rank[activity(b)] || at(b).localeCompare(at(a)),
   );

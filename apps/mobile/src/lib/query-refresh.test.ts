@@ -7,7 +7,7 @@ import { keysForAppEvent, keysForPush, queryKeys } from "./query";
 // Frozen pre-migration semantics, deliberately independent of the current keys and shared map.
 const home = ["home"];
 const screens = ["screens", "home", "teammates"];
-const teammateEvent = "bots" as const;
+const teammateEvent = "teammates" as const;
 const oldEvents = {
   approvals: ["approvals", "approval", "approval-rules", "chat", "home", "teammates"],
   notification: ["notifications", "home"],

@@ -30,7 +30,7 @@ describe.skipIf(!apiTestUrl)("API reads, end to end", () => {
   it("links a teammate to its main chat, or to its latest direct chat while none is marked", async () => {
     const s = await import("@open-bot/db");
     const db = database.db;
-    const linked = async () => (await api.app.state()).bots[0]!.directChatId; // vocabulary: allow
+    const linked = async () => (await api.app.state()).teammates[0]!.directChatId;
     // As a worker from before main chats leaves it: direct chats, none of them marked.
     expect(await linked()).toBe(ids.chat);
     const [newer] = await db
@@ -140,7 +140,7 @@ describe.skipIf(!apiTestUrl)("API reads, end to end", () => {
 
   it("says a teammate changed since it was loaded as a state conflict, in the worker's words", async () => {
     const message = "Scout changed since you opened this. Reload to see the latest.";
-    answers.set(`/internal/bots/${ids.teammate}`, { status: 409, body: { error: message } });
+    answers.set(`/internal/teammates/${ids.teammate}`, { status: 409, body: { error: message } });
     try {
       await expect(
         api.teammates.update({ teammateId: ids.teammate, profile: PROFILE, revision: "old" }),

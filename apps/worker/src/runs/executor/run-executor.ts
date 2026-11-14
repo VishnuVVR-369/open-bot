@@ -1,7 +1,7 @@
 // RunExecutor: claims queued runs and starts their sessions, one at a time per teammate per chat,
 // recovers runs a restart interrupted, and stops cancelled ones. Message dispatch, prompts and
 // workspace sync live beside it (./dispatch, ./prompt, ./workspace-sync) as functions of it.
-import { bots, chats, runs } from "@open-bot/db";
+import { teammates, chats, runs } from "@open-bot/db";
 import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import type { Context } from "../../context";
 import type { Bot } from "../../core/db-types";
@@ -119,7 +119,10 @@ export class RunExecutor {
   private async start(runId: string) {
     const [run] = await this.ctx.db.select().from(runs).where(eq(runs.id, runId));
     if (!run) return;
-    const [bot] = await this.ctx.db.select().from(bots).where(eq(bots.id, run.botId));
+    const [bot] = await this.ctx.db
+      .select()
+      .from(teammates)
+      .where(eq(teammates.id, run.teammateId));
     const [chat] = await this.ctx.db.select().from(chats).where(eq(chats.id, run.chatId));
     if (!bot || !chat || bot.archivedAt || run.cancelRequestedAt) {
       await this.ctx.db

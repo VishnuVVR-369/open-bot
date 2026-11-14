@@ -201,7 +201,7 @@ async function scheduleTask(
     ({ teammate }) => `Schedule "${args.title}" for ${teammate}`,
   );
   const schedule = await deps.schedules.create({
-    botId: target.id,
+    teammateId: target.id,
     title: args.title,
     prompt: args.prompt,
     cron: args.cron ?? null,
@@ -253,7 +253,7 @@ async function watchPage(
   try {
     watch = await deps.triggers.create(
       {
-        botId: target.id,
+        teammateId: target.id,
         kind: "watch",
         title: args.title,
         prompt: args.prompt,
@@ -315,7 +315,7 @@ async function createWebhook(
   try {
     hook = await deps.triggers.create(
       {
-        botId: target.id,
+        teammateId: target.id,
         kind: "webhook",
         title: args.title,
         prompt: args.prompt,
@@ -400,7 +400,7 @@ async function updateAutomation(
   const [schedule] = await deps.ctx.db
     .select()
     .from(schedules)
-    .where(and(eq(schedules.id, change.id), eq(schedules.botId, botId)));
+    .where(and(eq(schedules.id, change.id), eq(schedules.teammateId, botId)));
   const trigger = schedule
     ? undefined
     : (await deps.triggers.forBot(botId)).find((row) => row.id === change.id);
@@ -423,7 +423,7 @@ async function updateAutomation(
         const cron = newTiming ? (change.cron ?? null) : schedule.cron;
         const at = newTiming ? (change.at ?? null) : (schedule.runAt?.toISOString() ?? null);
         await deps.schedules.update(schedule.id, {
-          botId,
+          teammateId: botId,
           title: change.title ?? schedule.title,
           prompt: change.prompt ?? schedule.prompt,
           cron,
@@ -449,7 +449,7 @@ async function updateAutomation(
       ];
       if (edits.some((value) => value !== undefined)) {
         await deps.triggers.update(row.id, {
-          botId,
+          teammateId: botId,
           kind: row.kind,
           title: change.title ?? row.title,
           prompt: change.prompt ?? row.prompt,

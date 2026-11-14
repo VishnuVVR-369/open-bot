@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
-  bots,
+  teammates,
   screenTakeovers,
   runs,
   screenOperations,
@@ -127,7 +127,7 @@ export class TakeoverService {
         screenId,
         status: "requested",
         requestedByRunId: session.run.id,
-        requestedByBotId: session.bot.id,
+        requestedByTeammateId: session.bot.id,
         reason: input.reason,
         itemId: input.itemId,
       })
@@ -349,7 +349,10 @@ export class TakeoverService {
     for (const id of this.pausedScreens) if (!paused.has(id)) this.pausedScreens.delete(id);
     for (const id of paused) {
       if (this.pausedScreens.has(id)) continue;
-      const [bot] = await this.ctx.db.select({ name: bots.name }).from(bots).where(eq(bots.id, id));
+      const [bot] = await this.ctx.db
+        .select({ name: teammates.name })
+        .from(teammates)
+        .where(eq(teammates.id, id));
       await createNotification(this.ctx, {
         kind: "takeover_request",
         title: `${bot?.name ?? "Your teammate"}'s screen is paused`,
@@ -434,16 +437,16 @@ export class TakeoverService {
       if (waiter) {
         waiter.resolve({ status: "handed_back", note: effectiveNote });
         delivered.add(row.requestedByRunId!);
-      } else if (row.requestedByBotId) {
+      } else if (row.requestedByTeammateId) {
         const [run] = await this.ctx.db
           .select()
           .from(runs)
           .where(eq(runs.id, row.requestedByRunId!));
-        if (run && !this.sessions.find(run.chatId, run.botId)) {
+        if (run && !this.sessions.find(run.chatId, run.teammateId)) {
           await enqueueRun(this.ctx, {
             id: continuationId(continuationRunId, run.id),
             chatId: run.chatId,
-            botId: run.botId,
+            botId: run.teammateId,
             trigger: "hand_back",
             prompt: `[The user handed your screen back after your request: "${row.reason}".]${effectiveNote ? ` Their note: "${effectiveNote}".` : ""} Take a screenshot and continue the task.`,
             parentRunId: run.id,
@@ -469,11 +472,11 @@ export class TakeoverService {
         if (steered) continue;
       }
       const [run] = await this.ctx.db.select().from(runs).where(eq(runs.id, runId));
-      if (run && !isRunActive(run.status) && !this.sessions.find(run.chatId, run.botId)) {
+      if (run && !isRunActive(run.status) && !this.sessions.find(run.chatId, run.teammateId)) {
         await enqueueRun(this.ctx, {
           id: continuationId(continuationRunId, run.id),
           chatId: run.chatId,
-          botId: run.botId,
+          botId: run.teammateId,
           trigger: "hand_back",
           prompt: `${message} Continue the task you were doing when the user took over.`,
           parentRunId: run.id,
