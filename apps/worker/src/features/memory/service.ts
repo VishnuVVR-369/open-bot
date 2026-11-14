@@ -12,11 +12,11 @@ import {
   type MemoryRef,
 } from "@open-bot/domain";
 import type { Context } from "../../context";
-import type { Bot, Chat, Run } from "../../core/db-types";
+import type { Teammate, Chat, Run } from "../../core/db-types";
 
 /** What memory needs of a run's session (a RunSession), without importing what runs it. */
 export interface MemorySession {
-  readonly bot: Pick<Bot, "id">;
+  readonly teammate: Pick<Teammate, "id">;
   readonly chat: Pick<Chat, "id">;
   readonly run: Pick<Run, "id" | "messageId" | "prompt">;
   /** The memory generation this run's recalled context was built from. */
@@ -57,10 +57,10 @@ export class MemoryCoordinator {
   }
 
   /** Write the workspace's MEMORY.md: a pointer to the memory tools, never the memories. */
-  async prepare(bot: { slug: string }): Promise<void> {
+  async prepare(teammate: { slug: string }): Promise<void> {
     const client = await this.ctx.codex.ready();
     await client.request("fs/writeFile", {
-      path: `${COMPUTER_PATHS.workspace(bot.slug)}/MEMORY.md`,
+      path: `${COMPUTER_PATHS.workspace(teammate.slug)}/MEMORY.md`,
       dataBase64: Buffer.from(memoryMarkdown([])).toString("base64"),
     });
   }
@@ -85,7 +85,7 @@ export class MemoryCoordinator {
     return message?.text ?? "";
   }
 
-  /** Evidence must come from this run's actual user message, not an argument invented by a bot. */
+  /** Evidence must come from this run's actual user message, not an argument invented by a teammate. */
   async actor(
     session: MemorySession,
     content: string,
@@ -100,7 +100,7 @@ export class MemoryCoordinator {
       (!shared || /\b(all|every|shared|profile|teammates)\b/i.test(text));
     return {
       kind: "teammate",
-      teammateId: session.bot.id,
+      teammateId: session.teammate.id,
       runId: session.run.id,
       ...(messageId ? { messageId } : {}),
       verified,
@@ -108,14 +108,14 @@ export class MemoryCoordinator {
     };
   }
 
-  async recall(botId: string, query: string): Promise<MemoryItem[]> {
+  async recall(teammateId: string, query: string): Promise<MemoryItem[]> {
     let vector: number[] | undefined;
     try {
       vector = await this.ai.embed(query);
     } catch {
       this.ctx.log.warn("Memory semantic search unavailable; using lexical search.");
     }
-    return this.store.recall(botId, query, {
+    return this.store.recall(teammateId, query, {
       vector,
       model: `${this.ai.config.embeddingModel}:${this.ai.config.embeddingDimensions}`,
       maxDistance: this.ai.config.semanticMaxDistance,
@@ -123,7 +123,7 @@ export class MemoryCoordinator {
   }
 
   async refreshAfterWrite(session: MemorySession): Promise<void> {
-    const generation = await this.store.generation(session.bot.id);
+    const generation = await this.store.generation(session.teammate.id);
     // Read cancellation after generation: never adopt a concurrent user's correction as our own.
     const [run] = await this.ctx.db
       .select({ cancelRequestedAt: runs.cancelRequestedAt })
@@ -138,17 +138,17 @@ export class MemoryCoordinator {
 
   async context(session: MemorySession): Promise<string> {
     for (let attempt = 0; attempt < 3; attempt++) {
-      const before = await this.store.generation(session.bot.id);
-      const items = await this.recall(session.bot.id, session.run.prompt);
+      const before = await this.store.generation(session.teammate.id);
+      const items = await this.recall(session.teammate.id, session.run.prompt);
       const packet = memoryContext(items);
-      const after = await this.store.generation(session.bot.id);
+      const after = await this.store.generation(session.teammate.id);
       if (before !== after) continue;
       session.memoryGeneration = after;
       await this.ctx.db
         .insert(memoryContexts)
         .values({
           runId: session.run.id,
-          teammateId: session.bot.id,
+          teammateId: session.teammate.id,
           generation: after,
           refs: packet.refs,
         })

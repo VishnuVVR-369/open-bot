@@ -4,7 +4,7 @@ import type { CodexClient, v2 } from "@open-bot/agent";
 import { teammateThreads, configurationRevision } from "@open-bot/db";
 import { and, eq } from "drizzle-orm";
 import type { Context } from "../../context";
-import type { Bot, Run } from "../../core/db-types";
+import type { Teammate, Run } from "../../core/db-types";
 import { providerFor } from "../../features/model-access";
 import { DEVELOPER_INSTRUCTIONS } from "../../instructions";
 import { errorMessage } from "../../logger";
@@ -21,7 +21,7 @@ const REVISED_THREAD = 0;
 export interface ThreadSession {
   readonly ctx: Context;
   readonly run: Run;
-  readonly bot: Bot;
+  readonly teammate: Teammate;
   readonly authMode: "plan" | "api_key";
   readonly apiKey: string | null;
   /** The AGENTS.md written for this run. */
@@ -36,12 +36,12 @@ export interface ThreadSession {
   };
 }
 
-/** The thread for this bot and chat, on the access mode this run uses. */
+/** The thread for this teammate and chat, on the access mode this run uses. */
 export async function ensureThread(session: ThreadSession, client: CodexClient): Promise<string> {
-  const { ctx, run, bot } = session;
+  const { ctx, run, teammate } = session;
   const mode = session.authMode;
   // The services it may use through MCP come with the thread's config.
-  const connected = await session.services.connections(bot.id);
+  const connected = await session.services.connections(teammate.id);
   // Codex reads AGENTS.md when a thread starts or forks, and a loaded thread keeps what it read.
   // So a new profile, approval rule or teammate forks the thread, like a change in connections.
   const configurationKey = configurationRevision({
@@ -64,7 +64,7 @@ export async function ensureThread(session: ThreadSession, client: CodexClient):
       .insert(teammateThreads)
       .values({
         chatId: run.chatId,
-        teammateId: bot.id,
+        teammateId: teammate.id,
         codexThreadId: threadId,
         toolsVersion: REVISED_THREAD,
         toolsRevision: revision,
@@ -91,7 +91,9 @@ export async function ensureThread(session: ThreadSession, client: CodexClient):
   const [existing] = await ctx.db
     .select()
     .from(teammateThreads)
-    .where(and(eq(teammateThreads.chatId, run.chatId), eq(teammateThreads.teammateId, bot.id)));
+    .where(
+      and(eq(teammateThreads.chatId, run.chatId), eq(teammateThreads.teammateId, teammate.id)),
+    );
   if (
     existing &&
     existing.toolsVersion === REVISED_THREAD &&
@@ -125,9 +127,9 @@ export async function ensureThread(session: ThreadSession, client: CodexClient):
     }
   }
   const response = await client.request("thread/start", {
-    model: bot.model,
+    model: teammate.model,
     cwd: session.workspace,
-    approvalPolicy: approvalPolicy(bot),
+    approvalPolicy: approvalPolicy(teammate),
     sandbox: "danger-full-access",
     developerInstructions: DEVELOPER_INSTRUCTIONS,
     dynamicTools,

@@ -28,12 +28,12 @@ interface AutomationToolDeps {
   triggers: TriggerService;
   approvals: Pick<ApprovalService, "requestAction">;
   accounts: Pick<AccountTools, "connectionFor">;
-  botTools: TeammateTargets;
+  teammateTools: TeammateTargets;
 }
 
 const scheduleTaskInput = z.object({
   title: z.string().min(1).max(80),
-  bot_id: optionalTarget,
+  teammate_id: optionalTarget,
   prompt: z.string().min(1).max(4000).describe("The instruction you'll receive when it runs."),
   cron: z
     .string()
@@ -56,7 +56,7 @@ const scheduleTaskInput = z.object({
 });
 
 const watchPageInput = z.object({
-  bot_id: optionalTarget,
+  teammate_id: optionalTarget,
   title: z.string().min(1).max(80),
   url: z.string().describe("The page's absolute http or https URL."),
   prompt: z
@@ -75,13 +75,13 @@ const watchPageInput = z.object({
 });
 
 const createWebhookInput = z.object({
-  bot_id: optionalTarget,
+  teammate_id: optionalTarget,
   title: z.string().min(1).max(80),
   prompt: z.string().min(1).max(4000).describe("What you should do with each request."),
 });
 
 const updateAutomationInput = z.object({
-  bot_id: optionalTarget,
+  teammate_id: optionalTarget,
   id: z.string().uuid("No automation with that id."),
   enabled: z.boolean().describe("false pauses it, true resumes it.").optional(),
   title: z.string().min(1).max(80).optional(),
@@ -136,7 +136,7 @@ export const AUTOMATION_TOOLS: ToolDefinition<z.ZodObject, AutomationToolDeps>[]
   defineTool({
     name: "watch_page",
     description:
-      "Watch a web page for yourself or a specified teammate (bot_id). Changes start a run in that teammate's Scheduled chat, for example for prices, stock, job boards or status pages. Checks run without a browser session and only see what a signed-out visitor sees. The first check just learns the page.",
+      "Watch a web page for yourself or a specified teammate (teammate_id). Changes start a run in that teammate's Scheduled chat, for example for prices, stock, job boards or status pages. Checks run without a browser session and only see what a signed-out visitor sees. The first check just learns the page.",
     input: watchPageInput,
     helpers: "forbidden",
     handle: ({ session, callId, args, raw }, deps) => watchPage(deps, session, callId, args, raw),
@@ -145,7 +145,7 @@ export const AUTOMATION_TOOLS: ToolDefinition<z.ZodObject, AutomationToolDeps>[]
   defineTool({
     name: "create_webhook",
     description:
-      "Create a webhook URL for yourself or a specified teammate (bot_id). Calls start a run in that teammate's Scheduled chat with the request it received. Use it to connect services that send webhooks (GitHub, Stripe, Zapier, a form, a script). Returns the URL to give to that service.",
+      "Create a webhook URL for yourself or a specified teammate (teammate_id). Calls start a run in that teammate's Scheduled chat with the request it received. Use it to connect services that send webhooks (GitHub, Stripe, Zapier, a form, a script). Returns the URL to give to that service.",
     input: createWebhookInput,
     helpers: "forbidden",
     handle: ({ session, callId, args, raw }, deps) =>
@@ -156,19 +156,19 @@ export const AUTOMATION_TOOLS: ToolDefinition<z.ZodObject, AutomationToolDeps>[]
     description:
       "List your or a specified teammate's schedules, reminders, page watches, webhooks, and Gmail and Calendar triggers, with their ids.",
     input: z.object({
-      bot_id: optionalTarget,
+      teammate_id: optionalTarget,
     }),
     helpers: "allowed",
     handle: async ({ session, args }, deps) =>
-      text(await listAutomations(deps, (await deps.botTools.target(session, args)).id)),
+      text(await listAutomations(deps, (await deps.teammateTools.target(session, args)).id)),
   }),
   defineTool({
     name: "cancel_automation",
     description:
-      "Delete a schedule, reminder, page watch, webhook, or Gmail or Calendar trigger by id, from yourself or the teammate specified by bot_id. The automation must belong to that teammate.",
+      "Delete a schedule, reminder, page watch, webhook, or Gmail or Calendar trigger by id, from yourself or the teammate specified by teammate_id. The automation must belong to that teammate.",
     input: z.object({
       id: z.string().uuid("No automation with that id."),
-      bot_id: optionalTarget,
+      teammate_id: optionalTarget,
     }),
     helpers: "forbidden",
     handle: ({ session, callId, args, raw }, deps) =>
@@ -177,7 +177,7 @@ export const AUTOMATION_TOOLS: ToolDefinition<z.ZodObject, AutomationToolDeps>[]
   defineTool({
     name: "update_automation",
     description:
-      "Change a schedule, reminder, page watch, webhook, or Gmail or Calendar trigger by id (see list_automations), yours or the teammate's given by bot_id: pause or resume it, rename it, or change its instructions, timing, page, the text it waits for, its Gmail search, or which events and how early. Leave out what stays the same.",
+      "Change a schedule, reminder, page watch, webhook, or Gmail or Calendar trigger by id (see list_automations), yours or the teammate's given by teammate_id: pause or resume it, rename it, or change its instructions, timing, page, the text it waits for, its Gmail search, or which events and how early. Leave out what stays the same.",
     input: updateAutomationInput,
     helpers: "forbidden",
     handle: ({ session, callId, args, raw }, deps) =>
@@ -193,7 +193,7 @@ async function scheduleTask(
   raw: Record<string, unknown>,
 ): Promise<ToolResponse> {
   const startedAt = session.now();
-  const target = await deps.botTools.setupTarget(
+  const target = await deps.teammateTools.setupTarget(
     session,
     callId,
     "schedule_task",
@@ -216,7 +216,7 @@ async function scheduleTask(
     ...toolItem(
       callId,
       "schedule_task",
-      target.id === session.bot.id
+      target.id === session.teammate.id
         ? `Scheduled “${schedule.title}”`
         : `Scheduled “${schedule.title}” for ${target.name}`,
       raw,
@@ -230,7 +230,7 @@ async function scheduleTask(
         : `Runs once at ${when}`,
   });
   return text(
-    `Scheduled "${schedule.title}" (id ${schedule.id})${target.id === session.bot.id ? "" : ` for ${target.name}; it runs in their Scheduled chat`}. Next run: ${when} (${schedule.timezone}).`,
+    `Scheduled "${schedule.title}" (id ${schedule.id})${target.id === session.teammate.id ? "" : ` for ${target.name}; it runs in their Scheduled chat`}. Next run: ${when} (${schedule.timezone}).`,
   );
 }
 
@@ -242,7 +242,7 @@ async function watchPage(
   raw: Record<string, unknown>,
 ): Promise<ToolResponse> {
   const startedAt = session.now();
-  const target = await deps.botTools.setupTarget(
+  const target = await deps.teammateTools.setupTarget(
     session,
     callId,
     "watch_page",
@@ -275,7 +275,7 @@ async function watchPage(
     result: `${watch.url}, ${every}${watch.lookFor ? `, waiting for “${watch.lookFor}”` : ""}`,
   });
   return text(
-    `Watching ${watch.url} ${every} (id ${watch.id})${target.id === session.bot.id ? "" : ` for ${target.name}`}.${watch.lookFor ? ` It fires when "${watch.lookFor}" appears.` : " It fires on any change."} ${target.id === session.bot.id ? "You'll get a run in your Scheduled chat when it fires." : `${target.name} gets a run in their Scheduled chat when it fires.`}`,
+    `Watching ${watch.url} ${every} (id ${watch.id})${target.id === session.teammate.id ? "" : ` for ${target.name}`}.${watch.lookFor ? ` It fires when "${watch.lookFor}" appears.` : " It fires on any change."} ${target.id === session.teammate.id ? "You'll get a run in your Scheduled chat when it fires." : `${target.name} gets a run in their Scheduled chat when it fires.`}`,
   );
 }
 
@@ -287,7 +287,7 @@ async function createWebhook(
   raw: Record<string, unknown>,
 ): Promise<ToolResponse> {
   const startedAt = session.now();
-  const target = await deps.botTools.setupTarget(
+  const target = await deps.teammateTools.setupTarget(
     session,
     callId,
     "create_webhook",
@@ -298,7 +298,7 @@ async function createWebhook(
   if (session.run.readOutsideData) {
     const decision = await deps.approvals.requestAction(session, {
       title: `Create the webhook “${args.title}”`,
-      detail: `${session.bot.name} read mail, events or pages from your accounts in this task, so it asks before creating a webhook.\n\n${args.prompt}`,
+      detail: `${session.teammate.name} read mail, events or pages from your accounts in this task, so it asks before creating a webhook.\n\n${args.prompt}`,
       itemId: `${callId}-approval`,
       askEveryTime: true,
       operation: { tool: "create_webhook", arguments: args },
@@ -334,14 +334,14 @@ async function createWebhook(
     result: url,
   });
   return text(
-    `Created the webhook "${hook.title}" (id ${hook.id})${target.id === session.bot.id ? "" : ` for ${target.name}`}. URL: ${url}\nIt accepts GET and POST. Each call starts a run in ${target.id === session.bot.id ? "your" : `${target.name}'s`} Scheduled chat, up to 30 an hour.`,
+    `Created the webhook "${hook.title}" (id ${hook.id})${target.id === session.teammate.id ? "" : ` for ${target.name}`}. URL: ${url}\nIt accepts GET and POST. Each call starts a run in ${target.id === session.teammate.id ? "your" : `${target.name}'s`} Scheduled chat, up to 30 an hour.`,
   );
 }
 
-async function listAutomations(deps: AutomationToolDeps, botId: string): Promise<string> {
+async function listAutomations(deps: AutomationToolDeps, teammateId: string): Promise<string> {
   const [scheduled, triggered] = await Promise.all([
-    deps.schedules.describeForBot(botId),
-    deps.triggers.describeForBot(botId),
+    deps.schedules.describeForTeammate(teammateId),
+    deps.triggers.describeForTeammate(teammateId),
   ]);
   return triggered
     ? `${scheduled}\n\nWatches, webhooks, and Gmail and Calendar triggers:\n${triggered}`
@@ -352,12 +352,12 @@ async function cancelAutomation(
   deps: AutomationToolDeps,
   session: RunSession,
   callId: string,
-  args: { id: string; bot_id?: string | undefined },
+  args: { id: string; teammate_id?: string | undefined },
   raw: Record<string, unknown>,
 ): Promise<ToolResponse> {
   const { id } = args;
-  const botId = (
-    await deps.botTools.setupTarget(
+  const teammateId = (
+    await deps.teammateTools.setupTarget(
       session,
       callId,
       "cancel_automation",
@@ -365,10 +365,10 @@ async function cancelAutomation(
       ({ teammate, automation }) => `Delete ${automation} for ${teammate}`,
     )
   ).id;
-  const schedule = await deps.schedules.cancelForBot(botId, id);
+  const schedule = await deps.schedules.cancelForTeammate(teammateId, id);
   const trigger = schedule
     ? null
-    : (await deps.triggers.forBot(botId)).find((row) => row.id === id);
+    : (await deps.triggers.forTeammate(teammateId)).find((row) => row.id === id);
   if (trigger) await deps.triggers.remove(trigger.id);
   const title = schedule?.title ?? trigger?.title;
   if (!title) return text(`No automation with id ${id}.`, false);
@@ -387,8 +387,8 @@ async function updateAutomation(
   change: z.output<typeof updateAutomationInput>,
   raw: Record<string, unknown>,
 ): Promise<ToolResponse> {
-  const botId = (
-    await deps.botTools.setupTarget(
+  const teammateId = (
+    await deps.teammateTools.setupTarget(
       session,
       callId,
       "update_automation",
@@ -400,10 +400,10 @@ async function updateAutomation(
   const [schedule] = await deps.ctx.db
     .select()
     .from(schedules)
-    .where(and(eq(schedules.id, change.id), eq(schedules.teammateId, botId)));
+    .where(and(eq(schedules.id, change.id), eq(schedules.teammateId, teammateId)));
   const trigger = schedule
     ? undefined
-    : (await deps.triggers.forBot(botId)).find((row) => row.id === change.id);
+    : (await deps.triggers.forTeammate(teammateId)).find((row) => row.id === change.id);
   if (!schedule && !trigger) return text(`No automation with id ${change.id}.`, false);
 
   let summary: string;
@@ -423,7 +423,7 @@ async function updateAutomation(
         const cron = newTiming ? (change.cron ?? null) : schedule.cron;
         const at = newTiming ? (change.at ?? null) : (schedule.runAt?.toISOString() ?? null);
         await deps.schedules.update(schedule.id, {
-          teammateId: botId,
+          teammateId,
           title: change.title ?? schedule.title,
           prompt: change.prompt ?? schedule.prompt,
           cron,
@@ -449,7 +449,7 @@ async function updateAutomation(
       ];
       if (edits.some((value) => value !== undefined)) {
         await deps.triggers.update(row.id, {
-          teammateId: botId,
+          teammateId,
           kind: row.kind,
           title: change.title ?? row.title,
           prompt: change.prompt ?? row.prompt,
@@ -488,5 +488,5 @@ async function updateAutomation(
     status: "completed",
     completedAt: session.now(),
   });
-  return text(`${summary} ${await listAutomations(deps, botId)}`);
+  return text(`${summary} ${await listAutomations(deps, teammateId)}`);
 }

@@ -108,7 +108,7 @@ describe("wake controller", () => {
 
   it("counts a leased screen as demand", () => {
     pastGrace();
-    leased = ["bot-1"];
+    leased = ["teammate-1"];
     advance(SECOND);
     expect(stages()).toEqual(["a:wake@1"]);
   });
@@ -146,7 +146,7 @@ describe("wake controller", () => {
 
   it("starts a new episode 15 minutes after an unanswered one while demand stays", () => {
     pastGrace();
-    leased = ["bot-1"];
+    leased = ["teammate-1"];
     advance(WAKE_TIMINGS.episodeMs + SECOND);
     expect(stages()).toEqual(["a:wake@1", "a:wake@31", "a:ask@61", "a:wake@901"]);
     // The notice through other channels stays at most hourly.
@@ -190,7 +190,7 @@ describe("wake controller", () => {
   it("asks a suppressed phone again once its 15 minutes are over", () => {
     pastGrace();
     wake.unavailable(A, "wifi-only");
-    leased = ["bot-1"];
+    leased = ["teammate-1"];
     advance(WAKE_TIMINGS.suppressMs - 2 * SECOND);
     expect(pushes).toEqual([]);
     expect(wake.configExtras().wakeable).toBe(false);
@@ -234,7 +234,7 @@ describe("wake controller", () => {
   it("in always, asks once a minute has passed with a screen waiting", () => {
     relay.currentPhoneMode = "always";
     pastGrace();
-    leased = ["bot-1"];
+    leased = ["teammate-1"];
     advance(2 * MINUTE);
     expect(stages()).toEqual(["a:wake@0", "a:wake@30", "a:ask@60"]);
     expect(notices).toHaveLength(1);
@@ -339,7 +339,7 @@ describe("wake controller", () => {
     relay.connectedPhones = [];
     relay.activeKind = null;
     relay.activePhone = null;
-    leased = ["bot-1"];
+    leased = ["teammate-1"];
     advance(SECOND);
     expect(pushes.map((push) => push.stage)).toEqual(["wake"]);
     // A new report counts.

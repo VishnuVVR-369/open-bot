@@ -5,7 +5,7 @@ import type { AccountTools } from "../features/integrations";
 import type { ToolDefinition } from "../core/tool";
 import type { TaskService } from "../features/tasks";
 import type { ApprovalService } from "../features/approvals";
-import type { BotService, BotTools } from "../features/teammates";
+import type { TeammateService, TeammateTools } from "../features/teammates";
 import type { EmailService } from "../features/email";
 import type { MemoryCoordinator } from "../features/memory";
 import type { PageService } from "../features/pages";
@@ -28,14 +28,14 @@ export interface ToolRegistryServices {
   swarms: SwarmService;
   email: EmailService;
   memory: MemoryCoordinator;
-  teammates: BotService;
+  teammates: TeammateService;
   pages: PageService;
   accounts: AccountTools;
 }
 
 /** What a handler gets: the services, plus the teammate tools that resolve and authorize targets. */
 export interface ToolDeps extends ToolRegistryServices {
-  botTools: BotTools;
+  teammateTools: TeammateTools;
 }
 
 /** A tool of any input, as the catalog holds it: given every service. */

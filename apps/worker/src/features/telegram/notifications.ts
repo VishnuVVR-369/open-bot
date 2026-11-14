@@ -37,11 +37,11 @@ export async function onNotification(service: TelegramNotifier, event: Notificat
       run.trigger === "schedule" || run.trigger === "watch" || run.trigger === "webhook";
     // Runs you started in the app stay in the app.
     if (!origin && !automation && event.kind === "run_finished") return;
-    const [bot] = await service.ctx.db
+    const [teammate] = await service.ctx.db
       .select({ name: teammates.name })
       .from(teammates)
       .where(eq(teammates.id, run.teammateId));
-    const name = escapeHtml(bot?.name ?? "Your teammate");
+    const name = escapeHtml(teammate?.name ?? "Your teammate");
     const pageLinks = await publishedPageLinks(service, run.id);
     const body =
       event.kind === "run_failed"
@@ -90,8 +90,8 @@ export async function onNotification(service: TelegramNotifier, event: Notificat
           ? "📱"
           : "💬";
   const link =
-    event.kind === "takeover_request" && event.botId
-      ? appLink(service, `/computer?screen=${event.botId}`)
+    event.kind === "takeover_request" && event.teammateId
+      ? appLink(service, `/computer?screen=${event.teammateId}`)
       : event.chatId
         ? appLink(service, `/chats/${event.chatId}`)
         : null;

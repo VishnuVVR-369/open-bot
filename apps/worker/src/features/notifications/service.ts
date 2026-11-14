@@ -12,7 +12,7 @@ export async function createNotification(
     kind: NotificationKind;
     title: string;
     body?: string;
-    botId?: string | null;
+    teammateId?: string | null;
     chatId?: string | null;
     runId?: string | null;
     approvalId?: string;
@@ -27,7 +27,7 @@ export async function createNotification(
       kind: input.kind,
       title: input.title,
       body: input.body ?? "",
-      teammateId: input.botId ?? null,
+      teammateId: input.teammateId ?? null,
       chatId: input.chatId ?? null,
       runId: input.runId ?? null,
       pageId: input.pageId ?? null,
@@ -39,7 +39,7 @@ export async function createNotification(
     kind: input.kind,
     title: input.title,
     body: input.body ?? "",
-    botId: input.botId ?? null,
+    teammateId: input.teammateId ?? null,
     chatId: input.chatId ?? null,
     runId: input.runId ?? null,
     ...(input.approvalId ? { approvalId: input.approvalId } : {}),

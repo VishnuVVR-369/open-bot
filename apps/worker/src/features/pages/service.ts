@@ -229,7 +229,7 @@ export class PageService {
         versionCount: pages.versionCount,
         updatedAt: pages.updatedAt,
         sourcePath: pages.sourcePath,
-        botName: teammates.name,
+        teammateName: teammates.name,
       })
       .from(pages)
       .leftJoin(teammates, eq(teammates.id, pages.teammateId))
@@ -239,7 +239,7 @@ export class PageService {
     return rows
       .map(
         (row) =>
-          `- “${row.title}” (page_id ${row.id}, ${row.versionCount} version${row.versionCount === 1 ? "" : "s"}, by ${row.botName ?? "a former teammate"}, updated ${day(row.updatedAt)})${row.summary ? `: ${row.summary}` : ""}${row.sourcePath ? `\n  File: ${row.sourcePath}` : ""}`,
+          `- “${row.title}” (page_id ${row.id}, ${row.versionCount} version${row.versionCount === 1 ? "" : "s"}, by ${row.teammateName ?? "a former teammate"}, updated ${day(row.updatedAt)})${row.summary ? `: ${row.summary}` : ""}${row.sourcePath ? `\n  File: ${row.sourcePath}` : ""}`,
       )
       .join("\n");
   }
@@ -252,7 +252,7 @@ export class PageService {
         number: pageVersions.number,
         note: pageVersions.note,
         createdAt: pageVersions.createdAt,
-        botName: teammates.name,
+        teammateName: teammates.name,
       })
       .from(pageVersions)
       .leftJoin(teammates, eq(teammates.id, pageVersions.teammateId))
@@ -271,7 +271,7 @@ export class PageService {
     ];
     const history = versions.map(
       (version) =>
-        `- ${version.number}: ${day(version.createdAt)} by ${version.botName ?? "a former teammate"}${version.note ? `. ${version.note}` : ""}`,
+        `- ${version.number}: ${day(version.createdAt)} by ${version.teammateName ?? "a former teammate"}${version.note ? `. ${version.note}` : ""}`,
     );
     return [
       header.join("\n"),
@@ -289,13 +289,13 @@ export class PageService {
    * Put a page's current version in a teammate's workspace, to change it. Never overwrites a file
    * with unpublished changes: the published version then goes next to it.
    */
-  async restore(pageId: string, bot: { slug: string }): Promise<string> {
+  async restore(pageId: string, teammate: { slug: string }): Promise<string> {
     const page = await this.find(pageId);
     const [version] = await this.ctx.db
       .select({ number: pageVersions.number, html: pageVersions.html, sha256: pageVersions.sha256 })
       .from(pageVersions)
       .where(eq(pageVersions.id, page.currentVersionId!));
-    const workspace = `${COMPUTER_PATHS.workspace(bot.slug)}/`;
+    const workspace = `${COMPUTER_PATHS.workspace(teammate.slug)}/`;
     const target =
       page.sourcePath?.startsWith(workspace) === true
         ? page.sourcePath

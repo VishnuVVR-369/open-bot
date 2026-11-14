@@ -1,14 +1,14 @@
 import { describe, it, expect, vi } from "vitest";
 import type { CodexClient } from "@open-bot/agent";
 import type { Context } from "../context";
-import type { Bot, Chat, Run } from "../core/db-types";
+import type { Teammate, Chat, Run } from "../core/db-types";
 import { RunSession, type SessionServices, type SessionTools } from "./session";
 import { ensureThread } from "./session/threads";
 import { DEVELOPER_INSTRUCTIONS } from "../instructions";
 import { toolsRevision } from "./tools-revision";
 import { configurationRevision } from "@open-bot/db";
 
-const botId = "00000000-0000-4000-8000-000000000001";
+const teammateId = "00000000-0000-4000-8000-000000000001";
 const runId = "00000000-0000-4000-8000-000000000002";
 const spec = { type: "function", name: "a_tool", description: "Does a thing.", inputSchema: {} };
 const tools: SessionTools = { specs: () => [spec] as never, handle: vi.fn() };
@@ -53,7 +53,7 @@ function fixture(
     ctx,
     services,
     { id: runId, chatId: "chat" } as Run,
-    { id: botId, slug: "test", name: "Test", model: "test", autonomy: "risky" } as Bot,
+    { id: teammateId, slug: "test", name: "Test", model: "test", autonomy: "risky" } as Teammate,
     { id: "chat" } as Chat,
   );
   session.memoryGeneration = "1:0:0";

@@ -116,7 +116,7 @@ describe.skipIf(!url)("FCM fan-out", () => {
     kind: "approval",
     title: "Rex needs your approval",
     body: "Buy **the flight** for [$420](https://example.com)",
-    botId: "b1",
+    teammateId: "b1",
     chatId: "c1",
     runId: "r1",
     approvalId: "a1",
@@ -143,7 +143,7 @@ describe.skipIf(!url)("FCM fan-out", () => {
       body: "Buy the flight for $420",
       tag: "a1",
       url: "/approvals/a1",
-      botId: "b1",
+      botId: "b1", // The push payload key, renamed with the phone. vocabulary: allow
       chatId: "c1",
       runId: "r1",
       approvalId: "a1",
@@ -171,7 +171,7 @@ describe.skipIf(!url)("FCM fan-out", () => {
         kind,
         title: "Rex replied",
         body: "word ".repeat(100),
-        botId: "b1",
+        teammateId: "b1",
         chatId: "c1",
         runId: "r1",
       } satisfies NotificationEvent);

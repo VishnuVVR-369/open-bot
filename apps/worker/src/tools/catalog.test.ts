@@ -44,9 +44,9 @@ test("the tools swarm helpers may not call", () => {
     "add_task",
     "ask_teammate",
     "cancel_automation",
-    "create_bot",
+    "create_teammate",
     "create_webhook",
-    "handoff_to_bot",
+    "handoff_to_teammate",
     "notify_user",
     "propose_instructions",
     "publish_page",
@@ -55,12 +55,12 @@ test("the tools swarm helpers may not call", () => {
     "save_skill",
     "schedule_task",
     "send_email",
-    "set_bot_connection",
+    "set_teammate_connection",
     "start_purchase",
     "start_swarm",
     "update_automation",
-    "update_bot",
     "update_task",
+    "update_teammate",
     "watch_calendar",
     "watch_gmail",
     "watch_page",
@@ -83,15 +83,41 @@ test("a tool input's JSON schema closes objects and keeps records open", () => {
 test("a null argument is refused like any other wrong type", () => {
   const tool = toolNamed("cancel_automation")!;
   const id = "00000000-0000-4000-8000-000000000001";
-  expect(() => parseArgs(tool, { id, bot_id: null })).toThrow(); // vocabulary: allow
+  expect(() => parseArgs(tool, { id, teammate_id: null })).toThrow();
   expect(parseArgs(tool, { id })).toEqual({ id });
+});
+
+// An argument a tool doesn't take is refused, not dropped: a call that still names its target with
+// the old `bot_id` (from an old chat, saved instructions or a misspelling) would otherwise act on
+// the caller instead of that teammate.
+test("an argument the tool doesn't take is refused, not dropped", () => {
+  const id = "00000000-0000-4000-8000-000000000001";
+  const targeted = TOOLS.filter((tool) => "teammate_id" in tool.input.shape);
+  expect(targeted.map((tool) => tool.name).sort()).toEqual([
+    "cancel_automation",
+    "create_webhook",
+    "get_teammate",
+    "list_automations",
+    "save_skill",
+    "schedule_task",
+    "set_teammate_connection",
+    "update_automation",
+    "update_teammate",
+    "watch_calendar",
+    "watch_gmail",
+    "watch_page",
+  ]);
+  const cancel = toolNamed("cancel_automation")!;
+  expect(() => parseArgs(cancel, { id, bot_id: id })).toThrow(/bot_id/); // vocabulary: allow
+  expect(parseArgs(cancel, { id, teammate_id: id })).toEqual({ id, teammate_id: id });
+  for (const tool of targeted) expect(() => parseArgs(tool, { bot_id: id }), tool.name).toThrow(); // vocabulary: allow
 });
 
 test("calls are parsed with the tool's input before the handler runs", async () => {
   const requested = vi.fn(async () => ({ status: "dismissed" as const }));
   const handlers = new ToolHandlers({
     ctx: { log: { error: vi.fn() } },
-    takeovers: { requestFromBot: requested }, // vocabulary: allow
+    takeovers: { requestFromTeammate: requested },
   } as unknown as ToolRegistryServices);
   const session = { isHelper: false, now: () => "now" } as unknown as RunSession;
   const call = (args: Record<string, unknown>) =>
@@ -121,14 +147,14 @@ test("a teammate change with a misspelled field is refused", async () => {
   const requireTeammate = vi.fn();
   const handlers = new ToolHandlers({
     ctx: { log: { error: vi.fn() } },
-    teammates: { requireBot: requireTeammate }, // vocabulary: allow
+    teammates: { requireTeammate },
   } as unknown as ToolRegistryServices);
   const session = { isHelper: false, now: () => "now" } as unknown as RunSession;
   const response = await handlers.handle(session, {
-    tool: "update_bot", // vocabulary: allow
+    tool: "update_teammate",
     callId: "call-1",
     arguments: {
-      bot_id: "00000000-0000-4000-8000-000000000001", // vocabulary: allow
+      teammate_id: "00000000-0000-4000-8000-000000000001",
       expected_revision: "r1",
       changes: { name: "Alex", rol: "Researcher" },
     },

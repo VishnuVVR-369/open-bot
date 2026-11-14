@@ -14,16 +14,16 @@ import { SkillError, type SkillService } from "./service";
 /** What the skill tool uses. */
 interface SkillToolDeps {
   skills: SkillService;
-  botTools: Pick<TeammateTargets, "setupTarget" | "authorize">;
+  teammateTools: Pick<TeammateTargets, "setupTarget" | "authorize">;
 }
 
 const saveSkillInput = z.object({
-  bot_id: optionalTarget,
+  teammate_id: optionalTarget,
   skill_id: z
     .string()
-    .uuid("Use a skill id from get_bot.")
+    .uuid("Use a skill id from get_teammate.")
     .describe(
-      "Optional existing skill ID from get_bot, to edit it in the same scope. Otherwise create a skill, or update one you previously saved with that name in this scope.",
+      "Optional existing skill ID from get_teammate, to edit it in the same scope. Otherwise create a skill, or update one you previously saved with that name in this scope.",
     )
     .optional(),
   name: z
@@ -42,7 +42,7 @@ const saveSkillInput = z.object({
   for_everyone: z
     .boolean()
     .describe(
-      "True to share it with every teammate; cannot be combined with bot_id. Otherwise save for bot_id or yourself.",
+      "True to share it with every teammate; cannot be combined with teammate_id. Otherwise save for teammate_id or yourself.",
     )
     .default(false),
 });
@@ -51,7 +51,7 @@ export const SKILL_TOOLS: ToolDefinition<z.ZodObject, SkillToolDeps>[] = [
   defineTool({
     name: "save_skill",
     description:
-      "Save a reusable skill for yourself, a specified teammate (bot_id), or everyone (for_everyone): step-by-step instructions for a task. The user can run it with /name. Save when the user asks, or offer after finishing recurring work. The name of a skill you previously saved in this scope updates it; use skill_id from get_bot to edit another existing skill.",
+      "Save a reusable skill for yourself, a specified teammate (teammate_id), or everyone (for_everyone): step-by-step instructions for a task. The user can run it with /name. Save when the user asks, or offer after finishing recurring work. The name of a skill you previously saved in this scope updates it; use skill_id from get_teammate to edit another existing skill.",
     input: saveSkillInput,
     helpers: "forbidden",
     handle: ({ session, callId, args, raw }, deps) => saveSkill(deps, session, callId, args, raw),
@@ -67,9 +67,9 @@ async function saveSkill(
 ): Promise<ToolResponse> {
   const startedAt = session.now();
   const shared = args.for_everyone;
-  if (shared && args.bot_id !== undefined)
-    return text("Choose bot_id or for_everyone, not both.", false);
-  const target = await deps.botTools.setupTarget(
+  if (shared && args.teammate_id !== undefined)
+    return text("Choose teammate_id or for_everyone, not both.", false);
+  const target = await deps.teammateTools.setupTarget(
     session,
     callId,
     "save_skill",
@@ -78,15 +78,17 @@ async function saveSkill(
   );
   const skillId = args.skill_id;
   if (skillId) {
-    const existing = (await deps.skills.forBot(target.id)).find((skill) => skill.id === skillId);
+    const existing = (await deps.skills.forTeammate(target.id)).find(
+      (skill) => skill.id === skillId,
+    );
     if (!existing || existing.teammateId !== (shared ? null : target.id))
       return text(
         "That skill isn't in the selected scope. Get the teammate's skills first.",
         false,
       );
     // Rewriting a skill you didn't write is a change to the user's setup, so it asks like one.
-    if (target.id === session.bot.id && existing.createdByTeammateId !== session.bot.id)
-      await deps.botTools.authorize(session, callId, {
+    if (target.id === session.teammate.id && existing.createdByTeammateId !== session.teammate.id)
+      await deps.teammateTools.authorize(session, callId, {
         tool: "save_skill",
         args,
         title: `Rewrite the /${existing.name} skill`,
@@ -102,7 +104,7 @@ async function saveSkill(
         instructions: args.instructions,
         teammateId: shared ? null : target.id,
       },
-      { kind: "bot", botId: session.bot.id },
+      { kind: "bot", teammateId: session.teammate.id },
       skillId,
     );
   } catch (error) {
@@ -116,6 +118,6 @@ async function saveSkill(
     result: skill.description,
   });
   return text(
-    `Saved /${skill.name}${shared ? " for every teammate" : target.id === session.bot.id ? "" : ` for ${target.name}`}. The user can run it by typing /${skill.name} in a chat.`,
+    `Saved /${skill.name}${shared ? " for every teammate" : target.id === session.teammate.id ? "" : ` for ${target.name}`}. The user can run it by typing /${skill.name} in a chat.`,
   );
 }

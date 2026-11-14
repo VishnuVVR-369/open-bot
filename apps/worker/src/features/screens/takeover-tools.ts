@@ -34,7 +34,7 @@ async function requestTakeover(
   callId: string,
   reason: string,
 ): Promise<ToolResponse> {
-  const result = await deps.takeovers.requestFromBot(session, { reason, itemId: callId });
+  const result = await deps.takeovers.requestFromTeammate(session, { reason, itemId: callId });
   if (result.status === "handed_back") {
     return text(
       `The user handed your screen back.${result.note ? ` Their note: "${result.note}"` : " They left no note."} Take a screenshot to see the current state, then continue.`,

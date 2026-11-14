@@ -17,30 +17,30 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
         url: "https://example.com/mcp",
         encrypted: "do-not-expose",
         secretNames: ["Authorization"],
-        teammateIds: [session.bot.id],
+        teammateIds: [session.teammate.id],
       })
       .returning();
-    const listed = await call(session, "list_bot_connections");
+    const listed = await call(session, "list_teammate_connections");
     expect(listed.text).not.toContain("do-not-expose");
     expect(listed.text).not.toContain("Authorization");
     const input = {
-      bot_id: target.teammateId,
+      teammate_id: target.teammateId,
       connection_id: row!.id,
       assigned: true,
       expected_revision: listed.json()[0].revision,
     };
     requestAction.mockResolvedValueOnce("denied");
-    expect((await call(session, "set_bot_connection", input)).response.success).toBe(false);
-    expect((await call(session, "set_bot_connection", input)).response.success).toBe(true);
+    expect((await call(session, "set_teammate_connection", input)).response.success).toBe(false);
+    expect((await call(session, "set_teammate_connection", input)).response.success).toBe(true);
     expect(requestAction).toHaveBeenLastCalledWith(
       session,
       expect.objectContaining({ askEveryTime: true }),
     );
     expect((await service.get(target.teammateId)).connections).toHaveLength(1);
-    expect((await call(session, "set_bot_connection", input)).response.success).toBe(false);
+    expect((await call(session, "set_teammate_connection", input)).response.success).toBe(false);
     const latest = (await service.listConnections())[0]!;
     requestAction.mockClear();
-    const again = await call(session, "set_bot_connection", {
+    const again = await call(session, "set_teammate_connection", {
       ...input,
       expected_revision: latest.revision,
     });
@@ -48,7 +48,7 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
     expect(requestAction).not.toHaveBeenCalled();
     expect(
       (
-        await call(session, "set_bot_connection", {
+        await call(session, "set_teammate_connection", {
           ...input,
           assigned: false,
           expected_revision: latest.revision,

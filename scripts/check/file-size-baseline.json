@@ -4,6 +4,6 @@
   "apps/site/src/components/docs/diagrams.tsx": 1753,
   "apps/worker/src/egress/relay.test.ts": 622,
   "apps/worker/src/features/integrations/actions.ts": 674,
-  "apps/worker/src/features/teammates/service.ts": 680,
+  "apps/worker/src/features/teammates/service.ts": 686,
   "packages/memory/src/index.ts": 822
 }

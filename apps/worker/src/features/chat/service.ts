@@ -285,9 +285,7 @@ export class ChatService {
       throw new ChatError(404, "One of those teammates no longer exists.");
     const chatId = await this.ctx.db.transaction(async (tx) => {
       const id = await addChat(tx, { kind: "group", title, titled: true });
-      await tx
-        .insert(chatMembers)
-        .values(unique.map((botId) => ({ chatId: id, teammateId: botId })));
+      await tx.insert(chatMembers).values(unique.map((teammateId) => ({ chatId: id, teammateId })));
       return id;
     });
     await publishApp(this.ctx, { type: "chats" });

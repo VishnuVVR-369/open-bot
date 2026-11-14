@@ -25,7 +25,7 @@ interface SmokeResponse {
   egress: { computerConnected: boolean };
   chatId: string;
   workspaceSynced: boolean;
-  botId: string;
+  teammateId: string;
   dataBase64: string;
   ok: boolean;
   text: string;
@@ -131,11 +131,14 @@ const site = `http://host.docker.internal:${(fixture.address() as AddressInfo).p
 try {
   await idle();
   memory("idle initial");
-  const bot = await call("/internal/teammates", { name: "Sleep fixture", role: "test assistant" });
-  assert.equal(bot.workspaceSynced, false);
+  const teammate = await call("/internal/teammates", {
+    name: "Sleep fixture",
+    role: "test assistant",
+  });
+  assert.equal(teammate.workspaceSynced, false);
   assert.equal((await status()).computer.lifecycle.phase, "idle");
-  const botId = bot.teammateId;
-  const run = { runId: randomUUID(), botId, botName: "Sleep fixture" };
+  const teammateId = teammate.teammateId;
+  const run = { runId: randomUUID(), botId: teammateId, botName: "Sleep fixture" };
   const action = (url: string) =>
     call("/computer/action", { run, action: { action: "open_url", url } }, true);
   await call("/internal/egress/mode", { mode: "off" });
@@ -145,7 +148,7 @@ try {
   await Promise.all([call("/internal/files/list"), call("/internal/files/list")]);
   await call("/internal/files/write", { path: file, dataBase64 });
   memory("zero screens awake");
-  await call(`/internal/screens/${botId}/wake`, {});
+  await call(`/internal/screens/${teammateId}/wake`, {});
   assert.equal((await action(`${site}/seed`)).ok, true);
   await call("/lease/run/release", { runId: run.runId }, true);
   memory("one screen");
@@ -157,7 +160,7 @@ try {
   memory("quiesced");
   for (let cycle = 1; cycle <= Number(process.env.SLEEP_TEST_CYCLES ?? 20); cycle++) {
     const began = performance.now();
-    await call(`/internal/screens/${botId}/wake`, {});
+    await call(`/internal/screens/${teammateId}/wake`, {});
     const browserReadyMs = performance.now() - began;
     assert.equal(
       (await call(`/internal/files/read?path=${encodeURIComponent(file)}`)).dataBase64,
@@ -190,10 +193,10 @@ try {
       role: "test assistant",
     });
     await Promise.all([
-      call(`/internal/screens/${botId}/wake`, {}),
+      call(`/internal/screens/${teammateId}/wake`, {}),
       call(`/internal/screens/${second.teammateId}/wake`, {}),
     ]);
-    await call("/lease/user/take", { screenId: botId }, true);
+    await call("/lease/user/take", { screenId: teammateId }, true);
     await call("/lease/user/take", { screenId: second.teammateId }, true);
     memory("two leased screens");
     const queued = new AbortController();
@@ -227,7 +230,7 @@ try {
     await delay(1_000);
     memory("two screens plus page checker");
     for (const checked of await checks) assert.equal(checked.ok, true);
-    await call("/lease/user/release", { screenId: botId }, true);
+    await call("/lease/user/release", { screenId: teammateId }, true);
     await call("/lease/user/release", { screenId: second.teammateId }, true);
     await idle();
     (result.assertions as string[]).push(
@@ -240,7 +243,7 @@ try {
       const id = randomUUID();
       await pool.query("insert into messages (id,chat_id,role,text) values ($1,$2,'user',$3)", [
         id,
-        bot.chatId,
+        teammate.chatId,
         text,
       ]);
       await call(`/internal/messages/${id}/dispatch`, {});
@@ -277,7 +280,7 @@ try {
       due = new Date(Date.now() + 2_000);
     await pool.query(
       "insert into schedules (id,bot_id,title,prompt,kind,run_at,next_run_at,timezone,created_by) values ($1,$2,'Sleep schedule','Reply once for this test','once',$3,$3,'UTC','user')",
-      [schedule, botId, due],
+      [schedule, teammateId, due],
     );
     await until(
       async () => {
@@ -311,7 +314,7 @@ try {
     "localStorage persistence",
     "cached account retained",
     "computer transports disconnected",
-    "idle status and bot edits do not wake",
+    "idle status and teammate edits do not wake",
   );
   const values = (result.cycles as { browserReadyMs: number }[])
     .map((c) => c.browserReadyMs)

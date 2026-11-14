@@ -167,7 +167,7 @@ describe.skipIf(!url)("Gmail and Calendar triggers with Postgres", () => {
   /** A worker's trigger services. Two of these stand for two workers during a deploy. */
   const worker = () => new AccountTriggers(ctx, new AccountAccess(ctx), new TriggerService(ctx));
 
-  let fixture: { botId: string; gmailId: string; calendarId: string };
+  let fixture: { teammateId: string; gmailId: string; calendarId: string };
 
   beforeAll(async () => {
     await database.create();
@@ -187,7 +187,7 @@ describe.skipIf(!url)("Gmail and Calendar triggers with Postgres", () => {
       "truncate bots, chats, connections, accounts, oauth_clients restart identity cascade",
     );
     google.reset();
-    const [bot] = await db
+    const [teammate] = await db
       .insert(teammates)
       .values({ name: "Otto", slug: "otto", role: "assistant", color: "#4f46e5" })
       .returning();
@@ -232,7 +232,7 @@ describe.skipIf(!url)("Gmail and Calendar triggers with Postgres", () => {
         },
       ])
       .returning();
-    fixture = { botId: bot!.id, gmailId: gmail!.id, calendarId: calendar!.id };
+    fixture = { teammateId: teammate!.id, gmailId: gmail!.id, calendarId: calendar!.id };
   });
 
   afterAll(async () => {
@@ -244,7 +244,7 @@ describe.skipIf(!url)("Gmail and Calendar triggers with Postgres", () => {
     const [row] = await db
       .insert(triggers)
       .values({
-        teammateId: fixture.botId,
+        teammateId: fixture.teammateId,
         kind: "gmail",
         title: "New mail",
         prompt: "Summarize it for me.",
@@ -356,12 +356,12 @@ describe.skipIf(!url)("Gmail and Calendar triggers with Postgres", () => {
     const row = await trigger({ cursor: String(google.historyId) });
     const [chat] = await db
       .insert(chats)
-      .values({ kind: "scheduled", title: "Scheduled", teammateId: fixture.botId })
+      .values({ kind: "scheduled", title: "Scheduled", teammateId: fixture.teammateId })
       .returning();
     await db.insert(runs).values(
       Array.from({ length: ACCOUNT_TRIGGER_RUNS_PER_HOUR }, () => ({
         chatId: chat!.id,
-        teammateId: fixture.botId,
+        teammateId: fixture.teammateId,
         trigger: "gmail" as const,
         triggerId: row.id,
         prompt: "Earlier",

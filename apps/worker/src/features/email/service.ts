@@ -152,9 +152,9 @@ export class EmailService {
       .from(teammates)
       .where(isNull(teammates.archivedAt));
     const handles = email.to.map((address) => recipientHandle(address, settings.domain!));
-    const bot = team.find((entry) => handles.includes(entry.slug));
-    if (!bot) return { teammateId: null };
-    const address = emailAddress(bot.slug, settings.domain);
+    const teammate = team.find((entry) => handles.includes(entry.slug));
+    if (!teammate) return { teammateId: null };
+    const address = emailAddress(teammate.slug, settings.domain);
 
     // Attachments are uploads, like the files you attach, so the teammate gets them the same way.
     const saved: Attachment[] = [];
@@ -182,7 +182,7 @@ export class EmailService {
     const [row] = await this.ctx.db
       .insert(emails)
       .values({
-        teammateId: bot.id,
+        teammateId: teammate.id,
         direction: "in",
         messageId: email.messageId,
         inReplyTo: email.inReplyTo,
@@ -192,10 +192,10 @@ export class EmailService {
         text: email.text.slice(0, MAX_TEXT),
       })
       .returning();
-    const chatId = await teammateChat(this.ctx, bot.id, "inbox");
+    const chatId = await teammateChat(this.ctx, teammate.id, "inbox");
     const runId = await enqueueRun(this.ctx, {
       chatId,
-      botId: bot.id,
+      teammateId: teammate.id,
       trigger: "email",
       prompt: prompt(email, row!.id, address, listed),
       attachments: saved,
@@ -205,11 +205,11 @@ export class EmailService {
       .update(emailSettings)
       .set({ lastReceivedAt: new Date() })
       .where(eq(emailSettings.id, 1));
-    return { teammateId: bot.id };
+    return { teammateId: teammate.id };
   }
 
   /** What sending needs: the teammate's address and Postmark's token. */
-  private async sender(botSlug: string) {
+  private async sender(teammateSlug: string) {
     const settings = await emailSettingsRow(this.ctx);
     const [credential] = await this.ctx.db
       .select()
@@ -221,7 +221,7 @@ export class EmailService {
       );
     return {
       settings,
-      address: emailAddress(botSlug, settings.domain),
+      address: emailAddress(teammateSlug, settings.domain),
       token: decryptSecret(credential.encrypted, this.ctx.env.ENCRYPTION_KEY),
     };
   }
@@ -234,23 +234,23 @@ export class EmailService {
     session: RunSession,
     input: { to: string[]; subject: string; body: string; replyTo: string | null; itemId: string },
   ): Promise<{ id: string; status: "sent" | "pending" }> {
-    const { address } = await this.sender(session.bot.slug);
+    const { address } = await this.sender(session.teammate.slug);
     const original = input.replyTo
       ? (
           await this.ctx.db
             .select()
             .from(emails)
-            .where(and(eq(emails.id, input.replyTo), eq(emails.teammateId, session.bot.id)))
+            .where(and(eq(emails.id, input.replyTo), eq(emails.teammateId, session.teammate.id)))
         )[0]
       : undefined;
     if (input.replyTo && !original) throw new EmailError("No email of yours with that id.");
     const values = {
       id: randomUUID(),
-      teammateId: session.bot.id,
+      teammateId: session.teammate.id,
       direction: "out" as const,
       inReplyTo: original?.messageId ?? null,
       replyToId: original?.id ?? null,
-      from: `${session.bot.name} <${address}>`,
+      from: `${session.teammate.name} <${address}>`,
       to: input.to.join(", "),
       subject: input.subject,
       text: input.body,
@@ -260,7 +260,7 @@ export class EmailService {
     };
     // A run that read your accounts can't email what it read without you: outside text may have
     // asked it to.
-    if (session.bot.autonomy === "full" && !session.run.readOutsideData) {
+    if (session.teammate.autonomy === "full" && !session.run.readOutsideData) {
       // Saved as already claimed, so nothing else sends it too.
       const [draft] = await this.ctx.db
         .insert(emails)
@@ -308,7 +308,7 @@ export class EmailService {
           kind: "run_failed",
           title: "An email couldn't be sent",
           body: `To ${draft.to}: ${sent.error}`,
-          botId: draft.teammateId,
+          teammateId: draft.teammateId,
           chatId: draft.chatId,
           runId: draft.runId,
         });
@@ -318,7 +318,7 @@ export class EmailService {
     if (draft.chatId)
       await enqueueRun(this.ctx, {
         chatId: draft.chatId,
-        botId: draft.teammateId,
+        teammateId: draft.teammateId,
         trigger: "approval",
         prompt: `[Email not sent] The user didn't approve your email to ${draft.to} ("${draft.subject}"), so it wasn't sent. Don't send it. Briefly acknowledge, and ask what they'd like instead if it matters.`,
         parentRunId: draft.runId,
@@ -358,12 +358,12 @@ export class EmailService {
   private async deliver(draft: Email): Promise<Email> {
     let row: Email;
     try {
-      const [bot] = await this.ctx.db
+      const [teammate] = await this.ctx.db
         .select()
         .from(teammates)
         .where(eq(teammates.id, draft.teammateId));
-      if (!bot) throw new EmailError("Its teammate is gone.");
-      const { settings, token } = await this.sender(bot.slug);
+      if (!teammate) throw new EmailError("Its teammate is gone.");
+      const { settings, token } = await this.sender(teammate.slug);
       const headers = draft.inReplyTo
         ? [
             { Name: "In-Reply-To", Value: draft.inReplyTo },
@@ -439,11 +439,11 @@ export class EmailService {
   }
 
   /** The teammate's recent emails, for list_emails. */
-  async describe(botId: string): Promise<string> {
+  async describe(teammateId: string): Promise<string> {
     const rows = await this.ctx.db
       .select()
       .from(emails)
-      .where(eq(emails.teammateId, botId))
+      .where(eq(emails.teammateId, teammateId))
       .orderBy(desc(emails.createdAt))
       .limit(20);
     if (rows.length === 0) return "No emails yet.";

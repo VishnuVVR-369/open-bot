@@ -216,7 +216,7 @@ async function desktop(
   };
 }
 
-/** The apply guard stopped a job application on this bot's screen: it shows in the run, and you're told. */
+/** The apply guard stopped a job application on this teammate's screen: it shows in the run, and you're told. */
 async function reportBlocked(
   deps: DesktopToolDeps,
   session: RunSession,
@@ -234,15 +234,15 @@ async function reportBlocked(
   });
   await createNotification(deps.ctx, {
     kind: "bot_message",
-    title: `${session.bot.name} was stopped from applying to a job`,
+    title: `${session.teammate.name} was stopped from applying to a job`,
     body: `The browser blocked an application on ${[...new Set(portals)].join(" and ")}. Teammates never apply for you.`,
-    botId: session.bot.id,
+    teammateId: session.teammate.id,
     chatId: session.chat.id,
     runId: session.run.id,
   });
 }
 
-/** The page in front of the bot's browser, as text. */
+/** The page in front of the teammate's browser, as text. */
 async function readPage(
   deps: DesktopToolDeps,
   session: RunSession,

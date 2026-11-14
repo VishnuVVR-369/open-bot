@@ -7,7 +7,7 @@ export interface RunInput {
   /** Stable id for durable continuation delivery. */
   id?: string;
   chatId: string;
-  botId: string;
+  teammateId: string;
   trigger: RunTrigger;
   prompt: string;
   attachments?: Attachment[];
@@ -34,7 +34,7 @@ export async function insertRun(db: Queryable, input: RunInput): Promise<string>
     .values({
       ...(input.id ? { id: input.id } : {}),
       chatId: input.chatId,
-      teammateId: input.botId,
+      teammateId: input.teammateId,
       trigger: input.trigger,
       prompt: input.prompt,
       attachments: input.attachments ?? [],

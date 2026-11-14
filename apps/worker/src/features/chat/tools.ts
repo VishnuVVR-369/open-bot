@@ -71,9 +71,9 @@ async function notifyUser(
   const item = toolItem(callId, "notify_user", `Notified you: ${title}`, raw, session.now());
   await createNotification(deps.ctx, {
     kind: "bot_message",
-    title: `${session.bot.name}: ${title}`,
+    title: `${session.teammate.name}: ${title}`,
     body: message,
-    botId: session.bot.id,
+    teammateId: session.teammate.id,
     chatId: session.chat.id,
     runId: session.run.id,
   });

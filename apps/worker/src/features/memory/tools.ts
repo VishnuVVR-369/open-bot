@@ -31,7 +31,9 @@ export const MEMORY_TOOLS: ToolDefinition<z.ZodObject, MemoryToolDeps>[] = [
     name: "remember_about_user",
     description:
       "Add a durable fact about the user to their profile, which every teammate reads: where they live, family, dietary needs, sizes, preferred airlines, and other preferences that apply everywhere. Not for secrets or passwords, and not for notes only your job needs (use remember_memory in your own scope for those). The user can see and edit the profile.",
-    input: z.object({
+    // Loose: like remember_memory, a kind, key or expires_at sent along is saved, once memory has
+    // checked it.
+    input: z.looseObject({
       fact: z
         .string()
         .min(3)
@@ -39,7 +41,6 @@ export const MEMORY_TOOLS: ToolDefinition<z.ZodObject, MemoryToolDeps>[] = [
         .describe("One short line, e.g. 'Vegetarian; allergic to peanuts.'"),
     }),
     helpers: "allowed",
-    // Like remember_memory, a kind, key or expires_at sent along is saved, once memory has checked it.
     handle: ({ session, callId, args, raw }, deps) =>
       memoryTool(deps, session, callId, "remember_memory", {
         ...(raw as MemoryArgs),
@@ -122,7 +123,7 @@ async function recallMemory(
   query: string,
 ): Promise<ToolResponse> {
   const startedAt = session.now();
-  const items = await deps.memory.recall(session.bot.id, query);
+  const items = await deps.memory.recall(session.teammate.id, query);
   session.putItem({
     ...toolItem(callId, "recall_memory", `Recalled ${items.length} memories`, {}, startedAt),
     status: "completed",
@@ -163,7 +164,7 @@ async function memoryTool(
   let saved;
   if (name === "remember_memory") {
     const data = memoryInputSchema.parse({
-      teammateId: args.shared === true ? null : session.bot.id,
+      teammateId: args.shared === true ? null : session.teammate.id,
       content,
       kind: args.kind ?? "fact",
       key: args.key ?? null,
@@ -221,19 +222,22 @@ async function searchHistory(
   raw: Record<string, unknown>,
 ): Promise<ToolResponse> {
   const startedAt = session.now();
-  const botId = session.bot.id;
-  // Chats the bot is part of: its own, and the groups it's a member of.
+  const teammateId = session.teammate.id;
+  // Chats the teammate is part of: its own, and the groups it's a member of.
   const groupIds = (
     await deps.ctx.db
       .select({ chatId: chatMembers.chatId })
       .from(chatMembers)
-      .where(eq(chatMembers.teammateId, botId))
+      .where(eq(chatMembers.teammateId, teammateId))
   ).map((row) => row.chatId);
   const own = await deps.ctx.db
     .select({ id: chats.id })
     .from(chats)
     .where(
-      or(eq(chats.teammateId, botId), groupIds.length ? inArray(chats.id, groupIds) : undefined),
+      or(
+        eq(chats.teammateId, teammateId),
+        groupIds.length ? inArray(chats.id, groupIds) : undefined,
+      ),
     );
   const chatIds = own.map((row) => row.id);
   if (chatIds.length === 0) return text("Nothing found.");

@@ -16,10 +16,10 @@ export class SessionRegistry {
     return this.sessions.get(runId);
   }
 
-  /** The executing run of a bot in a chat, if any. */
-  find(chatId: string, botId: string): RunSession | undefined {
+  /** The executing run of a teammate in a chat, if any. */
+  find(chatId: string, teammateId: string): RunSession | undefined {
     for (const session of this.sessions.values()) {
-      if (session.chat.id === chatId && session.bot.id === botId) return session;
+      if (session.chat.id === chatId && session.teammate.id === teammateId) return session;
     }
     return undefined;
   }

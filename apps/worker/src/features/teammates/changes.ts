@@ -11,22 +11,22 @@ import {
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Context } from "../../context";
-import type { Bot } from "../../core/db-types";
+import type { Teammate } from "../../core/db-types";
 import type { SetupTitle, TeammateTargets } from "../../core/targets";
 import type { RunSession } from "../../runs/session";
 import type { ApprovalService } from "../approvals";
-import { BotError, BotService } from "./service";
+import { TeammateError, TeammateService } from "./service";
 
 const assignmentSchema = z
   .object({
-    bot_id: z.string().uuid("Use a teammate id from list_bots."),
-    connection_id: z.string().uuid("Use a connection id from list_bot_connections."),
+    teammate_id: z.string().uuid("Use a teammate id from list_teammates."),
+    connection_id: z.string().uuid("Use a connection id from list_teammate_connections."),
     assigned: z.boolean(),
     expected_revision: z.string().min(1).max(128),
   })
   .strict();
 
-type TargetArgs = { bot_id?: string | undefined };
+type TargetArgs = { teammate_id?: string | undefined };
 
 /**
  * What an "always allow" rule covers for each kind of teammate change, so allowing one covers the
@@ -86,7 +86,7 @@ const PROFILE_LABELS: Record<keyof TeammateProfile, string> = {
 };
 
 /** The fields an edit changes, old and new. */
-export function changesDetail(current: Bot, changes: Partial<TeammateProfile>): string {
+export function changesDetail(current: Teammate, changes: Partial<TeammateProfile>): string {
   const lines: string[] = [];
   let instructions: string | null = null;
   for (const [key, value] of Object.entries(changes) as [keyof TeammateProfile, string][]) {
@@ -104,7 +104,7 @@ export function changesDetail(current: Bot, changes: Partial<TeammateProfile>): 
 /** A tool call's arguments as readable lines, for approving a change to another teammate. */
 function argumentsDetail(args: Record<string, unknown>): string {
   return Object.entries(args)
-    .filter(([key, value]) => key !== "bot_id" && value !== undefined && value !== null)
+    .filter(([key, value]) => key !== "teammate_id" && value !== undefined && value !== null)
     .map(([key, value]) => {
       const label = key.replaceAll("_", " ");
       const text = typeof value === "string" ? value : JSON.stringify(value);
@@ -114,16 +114,16 @@ function argumentsDetail(args: Record<string, unknown>): string {
 }
 
 /** The tools teammates use to create and configure other teammates. */
-export class BotTools implements TeammateTargets {
+export class TeammateTools implements TeammateTargets {
   constructor(
     private readonly ctx: Context,
-    readonly bots: BotService,
+    readonly teammates: TeammateService,
     private readonly approvals: ApprovalService,
   ) {}
 
-  /** The teammate a tool acts on: `bot_id` when given, otherwise the caller. */
-  async target(session: RunSession, args: TargetArgs): Promise<Bot> {
-    return this.bots.requireBot(args.bot_id ?? session.bot.id);
+  /** The teammate a tool acts on: `teammate_id` when given, otherwise the caller. */
+  async target(session: RunSession, args: TargetArgs): Promise<Teammate> {
+    return this.teammates.requireTeammate(args.teammate_id ?? session.teammate.id);
   }
 
   /**
@@ -143,8 +143,8 @@ export class BotTools implements TeammateTargets {
       askEveryTime?: boolean;
     },
   ): Promise<void> {
-    if (session.isHelper) throw new BotError(403, "Helpers can't configure teammates.");
-    const caller = await this.bots.requireBot(session.bot.id);
+    if (session.isHelper) throw new TeammateError(403, "Helpers can't configure teammates.");
+    const caller = await this.teammates.requireTeammate(session.teammate.id);
     if (request.askEveryTime || caller.autonomy !== "full") {
       const decision = await this.approvals.requestAction(session, {
         title: request.title,
@@ -155,7 +155,7 @@ export class BotTools implements TeammateTargets {
         operation: { tool: request.tool, arguments: request.args },
       });
       if (decision !== "approved")
-        throw new BotError(
+        throw new TeammateError(
           403,
           decision === "pending"
             ? "Waiting for the user's approval. End your turn; the decision arrives as a new message."
@@ -168,8 +168,8 @@ export class BotTools implements TeammateTargets {
       .from(runs)
       .where(eq(runs.id, session.run.id));
     if (!run || run.cancelRequestedAt)
-      throw new BotError(409, "This run was stopped, so nothing was changed.");
-    await this.bots.requireBot(session.bot.id);
+      throw new TeammateError(409, "This run was stopped, so nothing was changed.");
+    await this.teammates.requireTeammate(session.teammate.id);
   }
 
   /**
@@ -182,9 +182,9 @@ export class BotTools implements TeammateTargets {
     tool: string,
     args: TargetArgs & { id?: string | undefined },
     title: SetupTitle,
-  ): Promise<Bot> {
+  ): Promise<Teammate> {
     const target = await this.target(session, args);
-    if (target.id === session.bot.id) return target;
+    if (target.id === session.teammate.id) return target;
     const automation =
       typeof args.id === "string" ? await this.automationName(target.id, args.id) : "an automation";
     await this.authorize(session, callId, {
@@ -195,53 +195,60 @@ export class BotTools implements TeammateTargets {
       subject: TEAMMATE_RULES.setup,
     });
     // It may have been archived while the user decided.
-    return this.bots.requireBot(target.id);
+    return this.teammates.requireTeammate(target.id);
   }
 
-  private async automationName(botId: string, id: string): Promise<string> {
+  private async automationName(teammateId: string, id: string): Promise<string> {
     if (!z.string().uuid().safeParse(id).success) return "an automation";
     const [row] = [
       ...(await this.ctx.db
         .select({ title: schedules.title })
         .from(schedules)
-        .where(and(eq(schedules.id, id), eq(schedules.teammateId, botId)))),
+        .where(and(eq(schedules.id, id), eq(schedules.teammateId, teammateId)))),
       ...(await this.ctx.db
         .select({ title: triggers.title })
         .from(triggers)
-        .where(and(eq(triggers.id, id), eq(triggers.teammateId, botId)))),
+        .where(and(eq(triggers.id, id), eq(triggers.teammateId, teammateId)))),
     ];
     return row ? `"${row.title}"` : "an automation";
   }
 
   async create(session: RunSession, callId: string, args: Record<string, unknown>) {
     const input = createTeammateSchema.parse(args);
-    const plan = await this.bots.plan(input);
-    await this.bots.checkPlan(plan);
+    const plan = await this.teammates.plan(input);
+    await this.teammates.checkPlan(plan);
     // More autonomy than "ask before risky actions" is the user's call, every time.
     const escalates = plan.profile.autonomy !== "risky";
     await this.authorize(session, callId, {
-      tool: "create_bot",
+      tool: "create_teammate",
       args: input,
       title: `Create the teammate ${plan.profile.name}`,
       detail: creationDetail(plan),
       subject: escalates ? undefined : TEAMMATE_RULES.create,
       askEveryTime: escalates,
     });
-    return this.bots.create(plan, { kind: "bot", botId: session.bot.id, runId: session.run.id });
+    return this.teammates.create(plan, {
+      kind: "bot",
+      teammateId: session.teammate.id,
+      runId: session.run.id,
+    });
   }
 
   async update(session: RunSession, callId: string, args: Record<string, unknown>) {
     const input = updateTeammateSchema.parse(args);
-    const current = await this.bots.requireBot(input.bot_id);
-    if (BotService.revision(current) !== input.expected_revision)
-      throw new BotError(409, "This teammate changed since you read it. Get it again, then retry.");
+    const current = await this.teammates.requireTeammate(input.teammate_id);
+    if (TeammateService.revision(current) !== input.expected_revision)
+      throw new TeammateError(
+        409,
+        "This teammate changed since you read it. Get it again, then retry.",
+      );
     const escalates =
       input.changes.autonomy !== undefined && input.changes.autonomy !== current.autonomy;
     await this.authorize(session, callId, {
-      tool: "update_bot",
+      tool: "update_teammate",
       args: input,
       title:
-        current.id === session.bot.id
+        current.id === session.teammate.id
           ? "Change your own profile"
           : `Change ${current.name}'s profile`,
       detail: changesDetail(current, input.changes),
@@ -249,11 +256,15 @@ export class BotTools implements TeammateTargets {
       askEveryTime: escalates,
     });
     try {
-      const result = await this.bots.update(input.bot_id, input.changes, input.expected_revision);
+      const result = await this.teammates.update(
+        input.teammate_id,
+        input.changes,
+        input.expected_revision,
+      );
       return { result, name: input.changes.name ?? current.name };
     } catch (error) {
-      if (error instanceof BotError && error.status === 409)
-        throw new BotError(
+      if (error instanceof TeammateError && error.status === 409)
+        throw new TeammateError(
           409,
           "This teammate changed while waiting for approval. Get it again and tell the user what changed instead of overwriting it.",
         );
@@ -263,40 +274,40 @@ export class BotTools implements TeammateTargets {
 
   async setConnection(session: RunSession, callId: string, args: Record<string, unknown>) {
     const input = assignmentSchema.parse(args);
-    const bot = await this.bots.requireBot(input.bot_id);
-    const connection = (await this.bots.listConnections()).find(
+    const teammate = await this.teammates.requireTeammate(input.teammate_id);
+    const connection = (await this.teammates.listConnections()).find(
       (row) => row.id === input.connection_id,
     );
-    if (!connection) throw new BotError(404, "That connection no longer exists.");
+    if (!connection) throw new TeammateError(404, "That connection no longer exists.");
     // Refuse before asking when it can't happen, and don't ask about a change that changes nothing.
-    const change = BotService.assignment(
+    const change = TeammateService.assignment(
       connection,
-      input.bot_id,
+      input.teammate_id,
       input.assigned,
       input.expected_revision,
     );
     if (change === "unchanged")
       return {
-        botId: bot.id,
+        teammateId: teammate.id,
         connectionId: connection.id,
         assigned: input.assigned,
         unchanged: input.assigned
-          ? `${bot.name} can already use ${connection.label}.`
-          : `${bot.name} already can't use ${connection.label}.`,
+          ? `${teammate.name} can already use ${connection.label}.`
+          : `${teammate.name} already can't use ${connection.label}.`,
       };
     await this.authorize(session, callId, {
-      tool: "set_bot_connection",
+      tool: "set_teammate_connection",
       args: input,
       title: input.assigned
-        ? `Let ${bot.name} use ${connection.label}`
-        : `Stop ${bot.name} using ${connection.label}`,
+        ? `Let ${teammate.name} use ${connection.label}`
+        : `Stop ${teammate.name} using ${connection.label}`,
       detail: input.assigned
-        ? `${bot.name} gets ${connection.label}'s tools from its next run, and can act through them within its autonomy.`
-        : `${bot.name} loses ${connection.label}'s tools from its next run.`,
+        ? `${teammate.name} gets ${connection.label}'s tools from its next run, and can act through them within its autonomy.`
+        : `${teammate.name} loses ${connection.label}'s tools from its next run.`,
       askEveryTime: true,
     });
-    return this.bots.setConnection(
-      input.bot_id,
+    return this.teammates.setConnection(
+      input.teammate_id,
       input.connection_id,
       input.assigned,
       input.expected_revision,

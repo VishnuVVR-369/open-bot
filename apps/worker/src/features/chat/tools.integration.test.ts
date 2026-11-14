@@ -20,7 +20,7 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
 
     // Renaming the teammate renames only their chats still named after them.
     const other = await service.create({ name: "Ada", role: "researcher" });
-    await service.update(session.bot.id, { name: "Leader" });
+    await service.update(session.teammate.id, { name: "Leader" });
     await service.update(other.teammateId, { name: "Ada Lovelace" });
     const [topic] = await db.select().from(chats).where(eq(chats.id, created.chatId));
     const [named] = await db.select().from(chats).where(eq(chats.id, other.chatId));

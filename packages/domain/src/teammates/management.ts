@@ -80,7 +80,7 @@ export type CreateTeammateInput = z.input<typeof createTeammateSchema>;
 
 export const updateTeammateSchema = z
   .object({
-    bot_id: z.string().uuid(),
+    teammate_id: z.string().uuid(),
     expected_revision: z.string().min(1).max(128),
     changes: teammateProfileChangesSchema,
   })

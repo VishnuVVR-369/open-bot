@@ -29,7 +29,7 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
       const response = await fetch(endpoint, {
         method: "POST",
         headers,
-        body: JSON.stringify({ name: "UI bot", role: "assistant" }),
+        body: JSON.stringify({ name: "UI teammate", role: "assistant" }),
       });
       expect(response.status).toBe(200);
       const created = (await response.json()) as { teammateId: string; revision: string };

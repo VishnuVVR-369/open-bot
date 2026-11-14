@@ -43,10 +43,10 @@ export class RetryService {
         .orderBy(asc(runs.createdAt))
         .limit(1);
       if (later) return { runId: later.id };
-      // The same request again, in the same chat; the bot's thread still has what happened.
+      // The same request again, in the same chat; the teammate's thread still has what happened.
       const newRunId = await enqueueRun(ctx, {
         chatId: run.chatId,
-        botId: run.teammateId,
+        teammateId: run.teammateId,
         trigger: run.trigger,
         prompt: run.prompt,
         attachments: run.attachments,

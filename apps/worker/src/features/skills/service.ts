@@ -23,7 +23,7 @@ import { errorMessage } from "../../logger";
 const SHARED_ROOT = "/home/bot/.agents/skills";
 
 /** Skills only one teammate can use, in its workspace. */
-function botRoot(slug: string) {
+function teammateRoot(slug: string) {
   return `${COMPUTER_PATHS.workspace(slug)}/.agents/skills`;
 }
 
@@ -43,7 +43,7 @@ const BUILT_IN_SKILLS: { name: string; files: Record<string, string> }[] = [
 ];
 
 type Skill = typeof skills.$inferSelect;
-type BotRef = { id: string; slug: string };
+type TeammateRef = { id: string; slug: string };
 
 export class SkillError extends WorkerError {
   constructor(message: string) {
@@ -58,28 +58,28 @@ export class SkillError extends WorkerError {
 export class SkillService {
   constructor(private readonly ctx: Context) {}
 
-  /** Skills a bot can use: the shared ones and its own. */
-  async forBot(botId: string): Promise<Skill[]> {
+  /** Skills a teammate can use: the shared ones and its own. */
+  async forTeammate(teammateId: string): Promise<Skill[]> {
     return this.ctx.db
       .select()
       .from(skills)
-      .where(or(isNull(skills.teammateId), eq(skills.teammateId, botId)));
+      .where(or(isNull(skills.teammateId), eq(skills.teammateId, teammateId)));
   }
 
   private async pathOf(skill: Skill): Promise<string> {
     if (!skill.teammateId) return `${SHARED_ROOT}/${skill.name}/SKILL.md`;
-    const [bot] = await this.ctx.db
+    const [teammate] = await this.ctx.db
       .select({ slug: teammates.slug })
       .from(teammates)
       .where(eq(teammates.id, skill.teammateId));
-    return `${botRoot(bot!.slug)}/${skill.name}/SKILL.md`;
+    return `${teammateRoot(teammate!.slug)}/${skill.name}/SKILL.md`;
   }
 
   /** The skills a run's text invokes with `/name`, as Codex skill inputs. */
-  async inputsFor(text: string, botId: string): Promise<v2.UserInput[]> {
+  async inputsFor(text: string, teammateId: string): Promise<v2.UserInput[]> {
     const names = invokedSkillNames(text);
     if (names.length === 0) return [];
-    const available = await this.forBot(botId);
+    const available = await this.forTeammate(teammateId);
     const inputs: v2.UserInput[] = [];
     for (const name of names) {
       if (isBuiltInSkill(name)) {
@@ -98,7 +98,7 @@ export class SkillService {
    */
   async save(
     input: SkillInput,
-    by: { kind: "user" } | { kind: "bot"; botId: string },
+    by: { kind: "user" } | { kind: "bot"; teammateId: string },
     id?: string,
   ): Promise<Skill> {
     const parsed = skillInputSchema.safeParse(input);
@@ -118,26 +118,26 @@ export class SkillService {
     const clashes = await this.ctx.db
       .select({
         id: skills.id,
-        botId: skills.teammateId,
-        createdByBotId: skills.createdByTeammateId,
+        teammateId: skills.teammateId,
+        createdByTeammateId: skills.createdByTeammateId,
       })
       .from(skills)
       .where(and(eq(skills.name, data.name), visible));
     for (const clash of clashes) {
       if (clash.id === id) continue;
-      // A bot saving a skill it wrote before in the same scope updates it; any other clash is an
+      // A teammate saving a skill it wrote before in the same scope updates it; any other clash is an
       // error, so a teammate's skill never replaces a shared one or another teammate's.
       if (
         !id &&
         by.kind === "bot" &&
-        clash.createdByBotId === by.botId &&
-        clash.botId === data.teammateId
+        clash.createdByTeammateId === by.teammateId &&
+        clash.teammateId === data.teammateId
       ) {
         id = clash.id;
         continue;
       }
       throw new SkillError(
-        clash.botId && clash.botId !== data.teammateId
+        clash.teammateId && clash.teammateId !== data.teammateId
           ? `Another teammate has its own /${data.name} skill. Pick another name, or make this one just for one teammate.`
           : `A skill named /${data.name} already exists. Pick another name.`,
       );
@@ -152,7 +152,7 @@ export class SkillService {
         .values({
           ...data,
           createdBy: by.kind,
-          createdByTeammateId: by.kind === "bot" ? by.botId : null,
+          createdByTeammateId: by.kind === "bot" ? by.teammateId : null,
         })
         .returning();
     }
@@ -171,7 +171,7 @@ export class SkillService {
   async syncAll(): Promise<void> {
     if (this.ctx.lifecycle?.resting && !this.ctx.lifecycle.inScope) return;
     const all = await this.ctx.db.select().from(skills);
-    const botRows = await this.ctx.db
+    const teammateRows = await this.ctx.db
       .select({ id: teammates.id, slug: teammates.slug })
       .from(teammates)
       .where(isNull(teammates.archivedAt));
@@ -180,16 +180,16 @@ export class SkillService {
       all.filter((s) => !s.teammateId && !isBuiltInSkill(s.name)),
       BUILT_IN_SKILLS,
     );
-    for (const bot of botRows) await this.syncBot(bot, all);
-    await this.refresh(botRows);
+    for (const teammate of teammateRows) await this.syncTeammate(teammate, all);
+    await this.refresh(teammateRows);
   }
 
-  /** Write one bot's own skills, before it runs. */
-  async syncBot(bot: BotRef, all?: Skill[]): Promise<void> {
+  /** Write one teammate's own skills, before it runs. */
+  async syncTeammate(teammate: TeammateRef, all?: Skill[]): Promise<void> {
     const rows = all ?? (await this.ctx.db.select().from(skills));
     await this.syncRoot(
-      botRoot(bot.slug),
-      rows.filter((s) => s.teammateId === bot.id),
+      teammateRoot(teammate.slug),
+      rows.filter((s) => s.teammateId === teammate.id),
     );
   }
 
@@ -230,11 +230,11 @@ export class SkillService {
   }
 
   /** Have Codex read the skill folders again, so running threads see the change. */
-  private async refresh(botRows: BotRef[]) {
+  private async refresh(teammateRows: TeammateRef[]) {
     const client = await this.ctx.codex.ready();
     await client
       .request("skills/list", {
-        cwds: botRows.map((bot) => COMPUTER_PATHS.workspace(bot.slug)),
+        cwds: teammateRows.map((teammate) => COMPUTER_PATHS.workspace(teammate.slug)),
         forceReload: true,
       })
       .catch((error: unknown) =>

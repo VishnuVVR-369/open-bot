@@ -6,7 +6,7 @@ import type { WakeController } from "../egress/wake";
 import { uploadsRoutes, type UploadService } from "../features/uploads";
 import type { RunExecutor } from "../runs/executor";
 import { approvalRoutes, type ApprovalService } from "../features/approvals";
-import { teammateRoutes, type BotService } from "../features/teammates";
+import { teammateRoutes, type TeammateService } from "../features/teammates";
 import { codexAccountRoutes, type CodexAccountService } from "../features/codex-account";
 import { settingsRoutes, type SettingsService } from "../features/settings";
 import { connectionsRoutes, type ConnectionService } from "../features/connections";
@@ -37,7 +37,7 @@ import { vaultRoutes, type VaultService } from "../features/vault";
 /** The services the worker's internal API calls. */
 export interface WorkerServices {
   ctx: Context;
-  teammates: BotService;
+  teammates: TeammateService;
   chats: ChatService;
   runRequests: RunRequests;
   executor: RunExecutor;

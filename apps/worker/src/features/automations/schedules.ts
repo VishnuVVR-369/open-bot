@@ -160,21 +160,21 @@ export class ScheduleService {
     if (row) await publishApp(this.ctx, { type: "schedules" });
   }
 
-  async cancelForBot(botId: string, id: string): Promise<Schedule | null> {
+  async cancelForTeammate(teammateId: string, id: string): Promise<Schedule | null> {
     if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
     const [row] = await this.ctx.db
       .delete(schedules)
-      .where(and(eq(schedules.id, id), eq(schedules.teammateId, botId)))
+      .where(and(eq(schedules.id, id), eq(schedules.teammateId, teammateId)))
       .returning();
     if (row) await publishApp(this.ctx, { type: "schedules" });
     return row ?? null;
   }
 
-  async describeForBot(botId: string): Promise<string> {
+  async describeForTeammate(teammateId: string): Promise<string> {
     const rows = await this.ctx.db
       .select()
       .from(schedules)
-      .where(eq(schedules.teammateId, botId))
+      .where(eq(schedules.teammateId, teammateId))
       .orderBy(asc(schedules.nextRunAt));
     if (rows.length === 0) return "You have no schedules.";
     return rows
@@ -195,15 +195,15 @@ export class ScheduleService {
   }
 
   private async fire(row: Schedule) {
-    const [bot] = await this.ctx.db
+    const [teammate] = await this.ctx.db
       .select()
       .from(teammates)
       .where(eq(teammates.id, row.teammateId));
-    if (!bot || bot.archivedAt) return;
+    if (!teammate || teammate.archivedAt) return;
     const chatId = await teammateChat(this.ctx, row.teammateId, "scheduled");
     await enqueueRun(this.ctx, {
       chatId,
-      botId: row.teammateId,
+      teammateId: row.teammateId,
       trigger: "schedule",
       scheduleId: row.id,
       prompt: `[Scheduled task: "${row.title}"]\n\n${row.prompt}${row.quiet ? `\n\n${QUIET_NOTE}` : ""}`,

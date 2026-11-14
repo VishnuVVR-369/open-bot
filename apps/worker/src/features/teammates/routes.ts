@@ -1,10 +1,10 @@
-import type { Bot } from "../../core/db-types";
+import type { Teammate } from "../../core/db-types";
 import { os } from "../../core/rpc";
-import type { BotService } from "./service";
+import type { TeammateService } from "./service";
 
 /** Writes a teammate's workspace on the computer: the run executor, which uses teammates itself. */
 interface WorkspaceSync {
-  syncWorkspace(teammate: Bot): Promise<unknown>;
+  syncWorkspace(teammate: Teammate): Promise<unknown>;
 }
 
 const ok = { ok: true } as const;
@@ -13,7 +13,7 @@ const ok = { ok: true } as const;
  * Teammates and their suggested instructions, as the web app changes them
  * (`workerContract.teammates` and `workerContract.proposals`).
  */
-export function teammateRoutes(teammates: BotService, executor: WorkspaceSync) {
+export function teammateRoutes(teammates: TeammateService, executor: WorkspaceSync) {
   return {
     teammates: {
       create: os.teammates.create.handler(({ input }) => teammates.create(input)),
