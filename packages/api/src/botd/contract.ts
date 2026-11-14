@@ -130,10 +130,14 @@ export const botdContract = {
     /**
      * Type a one-time code on a screen you hold. Never retried: an unknown outcome is settled by
      * the durable operation id.
+     *
+     * It takes the screen for you, preempting any run, and answers with that run's lease, so it
+     * moved from `/computer/type` with the run lease's rename for the same reason as your lease's
+     * routes below: a worker and a computer on different versions get 404 before anything is typed.
      */
     type: work
       .meta({ secretInput: true })
-      .route({ method: "POST", path: "/computer/type" })
+      .route({ method: "POST", path: "/computer/type-code" })
       .input(typeOnScreenSchema.extend(screen.shape))
       .output(codeEntryResultSchema),
   },
@@ -162,9 +166,13 @@ export const botdContract = {
       .route({ method: "POST", path: "/lease/run/release" })
       .input(z.object({ runId: z.string().min(1) }))
       .output(z.object({ released: z.boolean() })),
+    // Your lease's routes were `/lease/user/*` until the run lease renamed its teammate keys to
+    // `teammateId` and `teammateName`. They moved with that rename, so a worker and a computer on
+    // different versions miss each other with 404 before a screen changes hands, instead of botd
+    // giving you the screen and the worker failing on the answer and losing which run it interrupted.
     /** You take a screen; 409 while a one-time code is being typed there. */
     take: work
-      .route({ method: "POST", path: "/lease/user/take" })
+      .route({ method: "POST", path: "/lease/owner/take" })
       .input(screen)
       .output(z.object({ previous: leaseHolderSchema, holder: leaseHolderSchema })),
     /**
@@ -172,7 +180,7 @@ export const botdContract = {
      * may still be showing; `clearCode` clears that field first.
      */
     release: work
-      .route({ method: "POST", path: "/lease/user/release" })
+      .route({ method: "POST", path: "/lease/owner/release" })
       .input(
         screen.extend({
           reason: leaseReleaseReasonSchema.optional(),
@@ -182,7 +190,7 @@ export const botdContract = {
       .output(z.object({ released: z.boolean() })),
     /** You're still using a screen you hold, so it isn't handed back for being idle. */
     touch: work
-      .route({ method: "POST", path: "/lease/user/touch" })
+      .route({ method: "POST", path: "/lease/owner/touch" })
       .input(screen)
       .output(z.object({ holder: leaseHolderSchema })),
   },

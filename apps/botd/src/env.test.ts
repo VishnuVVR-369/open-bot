@@ -42,7 +42,7 @@ describe("readEnv", () => {
         BOTD_TOKEN: TOKEN,
         MAX_SCREENS: "6",
         SCREEN_IDLE_MINUTES: "0.5",
-        BOTS_GID: "1100", // vocabulary: allow
+        BOTS_GID: "1100",
         APPLY_GUARD_EXTRA_DOMAINS: " host.docker.internal, ,portal.test ",
       }),
     ).toMatchObject({

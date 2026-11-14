@@ -125,8 +125,8 @@ const { turn } = await client.request("turn/start", {
   threadId,
   input, // the prompt, plus skill and image inputs
   approvalPolicy, // "untrusted" or "never"
-  model: bot.model,
-  effort: bot.reasoningEffort,
+  model: teammate.model,
+  effort: teammate.reasoningEffort,
   turnTrigger: run.trigger,
 });
 ```
@@ -169,7 +169,7 @@ It records a `computer` item as `running`, then calls botd:
 POST /computer/action
 Authorization: Bearer <BOTD_TOKEN>
 
-{ "run": { "runId": "…", "botId": "…", "botName": "Milo" },
+{ "run": { "runId": "…", "teammateId": "…", "teammateName": "Milo" },
   "action": { "action": "open_url", "url": "https://www.google.com/travel/flights" } }
 ```
 

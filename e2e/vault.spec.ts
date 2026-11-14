@@ -4,7 +4,7 @@ import { expect, test, type Page } from "./fixtures";
 import {
   e2eStack,
   apiFor,
-  botIdOf,
+  teammateIdOf,
   createTeammate,
   sendMessage,
   testLabel,
@@ -100,8 +100,8 @@ test("keep logins and cards in the vault without showing them again", async ({ p
 test("give a teammate a monthly budget", async ({ page }) => {
   const name = uniqueName("Ava");
   await createTeammate(page, name);
-  const botId = await botIdOf(page, name);
-  await page.goto(`/teammates/${botId}?tab=spending`);
+  const teammateId = await teammateIdOf(page, name);
+  await page.goto(`/teammates/${teammateId}?tab=spending`);
   const budget = page.getByTestId("budget");
   await budget.getByRole("switch", { name: `${name} can pay for things` }).click();
   await budget.getByLabel("Monthly budget").fill("50");
@@ -132,8 +132,8 @@ test("the computer types a saved password only on its own site", async ({ page }
   const site = `http://host.docker.internal:${(server.address() as AddressInfo).port}`;
   const name = uniqueName("Ben");
   await createTeammate(page, name);
-  const botId = await botIdOf(page, name);
-  const run = { runId: `e2e-${botId}`, botId, botName: "E2E" };
+  const teammateId = await teammateIdOf(page, name);
+  const run = { runId: `e2e-${teammateId}`, teammateId, teammateName: "E2E" };
   try {
     await botdPost("/computer/action", { run, action: { action: "open_url", url: `${site}/` } });
 
@@ -249,8 +249,8 @@ test("@agent a teammate signs in and pays from the vault without seeing either",
     // A budget that covers the tea, which is over what it may spend without asking.
     const name = uniqueName("Ora");
     await createTeammate(page, name, "shopper");
-    const botId = await botIdOf(page, name);
-    await page.goto(`/teammates/${botId}?tab=spending`);
+    const teammateId = await teammateIdOf(page, name);
+    await page.goto(`/teammates/${teammateId}?tab=spending`);
     const budget = page.getByTestId("budget");
     await budget.getByRole("switch", { name: `${name} can pay for things` }).click();
     await budget.getByLabel("Monthly budget").fill("40");
@@ -289,7 +289,7 @@ test("@agent a teammate signs in and pays from the vault without seeing either",
     expect(chat).not.toContain("5555 5555 5555 4444");
 
     // The purchase counts against its budget.
-    await page.goto(`/teammates/${botId}?tab=spending`);
+    await page.goto(`/teammates/${teammateId}?tab=spending`);
     await expect(page.getByTestId("purchase").first()).toContainText("$12");
     await expect(page.getByTestId("purchase").first()).toContainText("Paid");
     await expect(page.getByTestId("spent")).toContainText("$12 of $40");

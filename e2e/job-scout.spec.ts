@@ -2,7 +2,7 @@ import pg from "pg";
 import { expect, test, type Page } from "./fixtures";
 import {
   e2eStack,
-  botIdOf,
+  teammateIdOf,
   createTeammate,
   runTag,
   sendMessage,
@@ -41,8 +41,8 @@ async function botdPost<T>(path: string, body: unknown): Promise<T> {
 async function screenOf(page: Page) {
   const name = uniqueName("Tess");
   await createTeammate(page, name);
-  const botId = await botIdOf(page, name);
-  return { runId: `e2e-${botId}`, botId, botName: "E2E" };
+  const teammateId = await teammateIdOf(page, name);
+  return { runId: `e2e-${teammateId}`, teammateId, teammateName: "E2E" };
 }
 
 test("the browser blocks job applications unless you have the screen", async ({ page }) => {
@@ -55,7 +55,7 @@ test("the browser blocks job applications unless you have the screen", async ({ 
       run,
       action: { action: "open_url", url: `${portal.url}/auto-apply` },
     });
-    // The action during which the page tried says so, so the bot knows to stop.
+    // The action during which the page tried says so, so the teammate knows to stop.
     const result = await botdPost<{ ok: boolean; blocked?: string[] }>("/computer/action", {
       run,
       action: { action: "wait", seconds: 3 },
@@ -66,19 +66,19 @@ test("the browser blocks job applications unless you have the screen", async ({ 
 
     // While you have the screen, it's yours to apply from.
     await botdPost("/lease/run/release", { runId: run.runId });
-    await botdPost("/lease/user/take", { screenId: run.botId });
+    await botdPost("/lease/owner/take", { screenId: run.teammateId });
     await expect
       .poll(() => portal.seen.applications.length, { timeout: 15_000 })
       .toBeGreaterThan(0);
-    await botdPost("/lease/user/release", { screenId: run.botId });
+    await botdPost("/lease/owner/release", { screenId: run.teammateId });
   } finally {
     await botdPost("/lease/run/release", { runId: run.runId });
-    await botdPost("/lease/user/release", { screenId: run.botId });
+    await botdPost("/lease/owner/release", { screenId: run.teammateId });
     await portal.stop();
   }
 });
 
-test("a bot reads the page in front as text and links", async ({ page }) => {
+test("a teammate reads the page in front as text and links", async ({ page }) => {
   test.setTimeout(3 * 60_000);
   const portal = await jobPortal();
   const run = await screenOf(page);

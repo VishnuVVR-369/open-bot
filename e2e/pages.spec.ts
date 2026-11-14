@@ -62,12 +62,12 @@ async function publish(body: Record<string, unknown>) {
   };
 }
 
-async function teammate(page: Page) {
+async function newTeammate(page: Page) {
   const name = uniqueName("Tess");
   await createTeammate(page, name, "page tester");
   const state = await apiFor(page).app.state();
-  const bot = state.teammates.find((candidate) => candidate.name === name)!;
-  return { ...bot, folder: `/home/bot/bots/${bot.slug}` };
+  const teammate = state.teammates.find((candidate) => candidate.name === name)!;
+  return { ...teammate, folder: `/home/bot/bots/${teammate.slug}` };
 }
 
 /** The frame showing the page, once it has loaded. */
@@ -81,15 +81,15 @@ async function pageFrame(page: Page, heading: string) {
 test("a published page opens in the library, isolated from the app, with its versions", async ({
   page,
 }) => {
-  const bot = await teammate(page);
-  const title = testLabel(`Page ${bot.slug}`);
+  const teammate = await newTeammate(page);
+  const title = testLabel(`Page ${teammate.slug}`);
   await writeFile(
-    `${bot.folder}/index.html`,
+    `${teammate.folder}/index.html`,
     pageHtml("How caching works", "Caches keep hot data close."),
   );
   const first = await publish({
-    teammateId: bot.id,
-    path: `${bot.folder}/index.html`,
+    teammateId: teammate.id,
+    path: `${teammate.folder}/index.html`,
     title,
     summary: "A short explainer for the test.",
   });
@@ -97,7 +97,11 @@ test("a published page opens in the library, isolated from the app, with its ver
   expect(first.data.version).toBe(1);
 
   // Publishing the same file again without a change is refused.
-  const again = await publish({ teammateId: bot.id, path: `${bot.folder}/index.html`, title });
+  const again = await publish({
+    teammateId: teammate.id,
+    path: `${teammate.folder}/index.html`,
+    title,
+  });
   expect(again.status).toBe(400);
   expect(again.data.error).toContain("already exactly this file");
 
@@ -105,7 +109,7 @@ test("a published page opens in the library, isolated from the app, with its ver
   await page.goto("/pages");
   const tile = page.getByTestId("page-tile").filter({ hasText: title });
   await expect(tile).toBeVisible();
-  await expect(tile).toContainText(bot.name);
+  await expect(tile).toContainText(teammate.name);
   await expect
     .poll(() => tile.locator("img").evaluate((img: HTMLImageElement) => img.naturalWidth))
     .toBeGreaterThan(0);
@@ -154,12 +158,12 @@ test("a published page opens in the library, isolated from the app, with its ver
 
   // A new version shows up while you look, and you choose when to switch.
   await writeFile(
-    `${bot.folder}/index.html`,
+    `${teammate.folder}/index.html`,
     pageHtml("How caching works, revised", "Caches keep hot data close, and evict the rest."),
   );
   const second = await publish({
-    teammateId: bot.id,
-    path: `${bot.folder}/index.html`,
+    teammateId: teammate.id,
+    path: `${teammate.folder}/index.html`,
     title,
     summary: "A short explainer for the test.",
     note: "Revised the heading.",
@@ -220,15 +224,15 @@ test("a published page opens in the library, isolated from the app, with its ver
 });
 
 test("page links are signed and expire", async ({ page }) => {
-  const bot = await teammate(page);
+  const teammate = await newTeammate(page);
   await writeFile(
-    `${bot.folder}/links.html`,
+    `${teammate.folder}/links.html`,
     pageHtml("Signed links", "Only the app can open me."),
   );
   const published = await publish({
-    teammateId: bot.id,
-    path: `${bot.folder}/links.html`,
-    title: testLabel(`Links ${bot.slug}`),
+    teammateId: teammate.id,
+    path: `${teammate.folder}/links.html`,
+    title: testLabel(`Links ${teammate.slug}`),
   });
   expect(published.status, published.data.error).toBe(200);
   const { url, expiresAt } = await apiFor(page).pages.open({
@@ -270,9 +274,9 @@ test("page links are signed and expire", async ({ page }) => {
 });
 
 test("a page with problems isn't published, and the check says why", async ({ page }) => {
-  const bot = await teammate(page);
+  const teammate = await newTeammate(page);
   await writeFile(
-    `${bot.folder}/broken.html`,
+    `${teammate.folder}/broken.html`,
     `<!doctype html><html><head><title>Broken</title></head><body>
 <h1 style="width:1200px">Too wide for a phone</h1>
 <img src="diagram.png" alt="">
@@ -281,9 +285,9 @@ test("a page with problems isn't published, and the check says why", async ({ pa
 </body></html>`,
   );
   const result = await publish({
-    teammateId: bot.id,
-    path: `${bot.folder}/broken.html`,
-    title: testLabel(`Broken ${bot.slug}`),
+    teammateId: teammate.id,
+    path: `${teammate.folder}/broken.html`,
+    title: testLabel(`Broken ${teammate.slug}`),
   });
   expect(result.status).toBe(400);
   expect(result.data.error).toContain("Not published");
@@ -294,7 +298,7 @@ test("a page with problems isn't published, and the check says why", async ({ pa
 
   // Only HTML files in a workspace or the shared folder can be published.
   const outside = await publish({
-    teammateId: bot.id,
+    teammateId: teammate.id,
     path: "/etc/passwd.html",
     title: testLabel("Outside"),
   });
@@ -302,12 +306,12 @@ test("a page with problems isn't published, and the check says why", async ({ pa
 });
 
 test("selecting text in a page offers to ask its teammate about it", async ({ page }) => {
-  const bot = await teammate(page);
-  await writeFile(`${bot.folder}/ask.html`, pageHtml("Ask me", "Caches keep hot data close."));
+  const teammate = await newTeammate(page);
+  await writeFile(`${teammate.folder}/ask.html`, pageHtml("Ask me", "Caches keep hot data close."));
   const published = await publish({
-    teammateId: bot.id,
-    path: `${bot.folder}/ask.html`,
-    title: testLabel(`Ask ${bot.slug}`),
+    teammateId: teammate.id,
+    path: `${teammate.folder}/ask.html`,
+    title: testLabel(`Ask ${teammate.slug}`),
   });
   expect(published.status, published.data.error).toBe(200);
   await page.goto(`/pages/${published.data.pageId}`);
@@ -326,10 +330,10 @@ test("selecting text in a page offers to ask its teammate about it", async ({ pa
     .getByRole("button", { name: "Ask about this" })
     .click();
   const panel = page.getByTestId("page-ask");
-  await expect(panel).toContainText(`Ask ${bot.name}`);
+  await expect(panel).toContainText(`Ask ${teammate.name}`);
   await expect(panel).toContainText("How it works");
   await expect(panel).toContainText("Requests reach a load balancer");
-  await expect(panel).toContainText(`your chat with ${bot.name}`);
+  await expect(panel).toContainText(`your chat with ${teammate.name}`);
   await expect(panel.getByRole("button", { name: "Send" })).toBeDisabled();
   await panel.getByLabel("Your question").fill("Why stateless?");
   await expect(panel.getByRole("button", { name: "Send" })).toBeEnabled();

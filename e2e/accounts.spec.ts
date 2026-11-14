@@ -8,7 +8,7 @@ import {
   e2eStack,
   apiFor,
   approve,
-  botIdOf,
+  teammateIdOf,
   createTeammate,
   sendMessage,
   suiteLock,
@@ -90,7 +90,7 @@ test.describe("Accounts, against a stand-in for Google and Notion", () => {
   }
 
   /** The newest action a teammate took with a tool. */
-  async function lastAction(botName: string, tool: string) {
+  async function lastAction(teammateName: string, tool: string) {
     const { rows } = await db.query<{
       id: string;
       status: string;
@@ -98,7 +98,7 @@ test.describe("Accounts, against a stand-in for Google and Notion", () => {
       effect: string;
     }>(
       "select id, status, request, effect from account_actions where bot_id = $1 and tool = $2 order by created_at desc limit 1",
-      [await botIdOf(page, botName), tool],
+      [await teammateIdOf(page, teammateName), tool],
     );
     return rows[0];
   }

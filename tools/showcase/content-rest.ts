@@ -4,7 +4,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { eq, inArray, sql, type InferInsertModel } from "drizzle-orm";
 import {
   accounts,
-  teammates as botsTable,
+  teammates as teammatesTable,
   connections,
   credentials,
   emailSettings,
@@ -47,8 +47,8 @@ const WEEKDAYS = [1, 2, 3, 4, 5];
 /* ------------------------------------------------------------------ Accounts and connections */
 
 export async function seedConnections(ctx: SeedContext) {
-  const { db, encryptionKey, bots } = ctx;
-  const { iris, kit, mira, scout } = bots;
+  const { db, encryptionKey, teammates } = ctx;
+  const { iris, kit, mira, scout } = teammates;
   ctx.conn = {};
 
   const googleClient = randomUUID();
@@ -264,7 +264,7 @@ Mira flagged an invoice from Northhost: $212.40, same as last month.`,
 async function scheduledRuns(
   ctx: SeedContext,
   chat,
-  bot,
+  teammate,
   schedule,
   texts,
   occurrences,
@@ -276,7 +276,7 @@ async function scheduledRuns(
     const spec = texts[index % texts.length];
     const result = typeof spec === "function" ? spec(fmtDay(at)) : spec;
     runs.push(
-      await s.run(chat, bot, {
+      await s.run(chat, teammate, {
         at,
         trigger: "schedule",
         scheduleId: schedule.id,
@@ -292,8 +292,8 @@ async function scheduledRuns(
 }
 
 export async function seedAutomations(ctx: SeedContext) {
-  const { db, s, bots } = ctx;
-  const { iris, scout, kit, mira, juno } = bots;
+  const { db, s, teammates } = ctx;
+  const { iris, scout, kit, mira, juno } = teammates;
   const msgItem = (text) => ({ kind: "message", text, phase: "final", dur: 4000 });
   const toolItem = (name, label, result) => ({
     kind: "tool",
@@ -304,8 +304,8 @@ export async function seedAutomations(ctx: SeedContext) {
     dur: 1400,
   });
 
-  const chatFor = (bot, kind, title) =>
-    s.chat({ kind, title, titled: false, bot, createdAt: ago({ d: 16 }) });
+  const chatFor = (teammate, kind, title) =>
+    s.chat({ kind, title, titled: false, teammate, createdAt: ago({ d: 16 }) });
   const irisSched = await chatFor(iris, "scheduled", "Scheduled");
   const miraSched = await chatFor(mira, "scheduled", "Scheduled");
   const scoutSched = await chatFor(scout, "scheduled", "Scheduled");
@@ -315,7 +315,7 @@ export async function seedAutomations(ctx: SeedContext) {
   ctx.chats.miraInbox = miraInbox;
 
   const makeSchedule = async (
-    bot,
+    teammate,
     row: RowWithDefaults<
       typeof schedules,
       | "id"
@@ -336,7 +336,7 @@ export async function seedAutomations(ctx: SeedContext) {
     const occurrences = spec ? lastOccurrences(spec, 3) : [];
     await db.insert(schedules, {
       id,
-      teammateId: bot.id,
+      teammateId: teammate.id,
       kind: "cron",
       timezone: TIMEZONE,
       enabled: true,
@@ -765,8 +765,8 @@ I drafted a reply that apologizes briefly, confirms the refund of **$228**, and 
 /* ------------------------------------------------------------------ Tasks, skills, vault, purchases */
 
 export async function seedTasksAndSkills(ctx: SeedContext) {
-  const { db, bots, chats } = ctx;
-  const { iris, scout, kit, mira, juno } = bots;
+  const { db, teammates, chats } = ctx;
+  const { iris, scout, kit, mira, juno } = teammates;
   const { launch, freeze } = ctx.dates;
   const day = (n) => isoDay(fromNow({ d: n }));
   let position = 0;
@@ -951,8 +951,8 @@ Add each follow-up to the task board with the right owner.`,
 }
 
 export async function seedVault(ctx: SeedContext) {
-  const { db, bots, encryptionKey, chats, R } = ctx;
-  const { iris, scout, kit, mira, juno } = bots;
+  const { db, teammates, encryptionKey, chats, R } = ctx;
+  const { iris, scout, kit, mira, juno } = teammates;
   const item = async (
     row: RowWithDefaults<
       typeof vaultItems,
@@ -973,9 +973,9 @@ export async function seedVault(ctx: SeedContext) {
     });
     return id;
   };
-  const login = (name, domain, username, botIds, last) =>
+  const login = (name, domain, username, teammateIds, last) =>
     item(
-      { kind: "login", name, domain, hint: username, teammateIds: botIds, lastUsedAt: last },
+      { kind: "login", name, domain, hint: username, teammateIds, lastUsedAt: last },
       { username, password: "showcase-not-a-real-password" },
     );
   await login("GitHub", "github.com", "alex@kestrel.team", [kit.id, iris.id], ago({ h: 4 }));
@@ -1007,9 +1007,9 @@ export async function seedVault(ctx: SeedContext) {
     [iris.id, mira.id],
     ago({ d: 9 }),
   );
-  const card = (name, hint, number, botIds, last) =>
+  const card = (name, hint, number, teammateIds, last) =>
     item(
-      { kind: "card", name, hint, teammateIds: botIds, lastUsedAt: last },
+      { kind: "card", name, hint, teammateIds, lastUsedAt: last },
       { number, expiry: "09/29", cvc: "000", name: "Alex Rivera", zip: "94110" },
     );
   const amex = await card(
@@ -1094,8 +1094,8 @@ export async function seedVault(ctx: SeedContext) {
 /* ------------------------------------------------------------------ Memory, profile, lessons */
 
 export async function seedMemory(ctx: SeedContext) {
-  const { db, bots, R } = ctx;
-  const { iris, scout, kit, mira, juno } = bots;
+  const { db, teammates, R } = ctx;
+  const { iris, scout, kit, mira, juno } = teammates;
   const memory = async (
     row: Partial<InferInsertModel<typeof memoryItems>> & { content: string },
   ) => {
@@ -1264,14 +1264,20 @@ export async function seedMemory(ctx: SeedContext) {
     .onConflictDoUpdate({ target: settings.id, set: profile });
 
   // A lesson is a row of its own and also a pinned memory, the way the app keeps them together.
-  const lesson = async (bot, run, text, daysAgo) => {
+  const lesson = async (teammate, run, text, daysAgo) => {
     const id = randomUUID();
     const createdAt = ago(daysAgo);
     const source = run ? { type: "feedback" as const, runId: run.id } : { type: "import" as const };
-    await db.insert(lessons, { id, teammateId: bot.id, runId: run?.id ?? null, text, createdAt });
+    await db.insert(lessons, {
+      id,
+      teammateId: teammate.id,
+      runId: run?.id ?? null,
+      text,
+      createdAt,
+    });
     await db.insert(memoryItems, {
       id,
-      teammateId: bot.id,
+      teammateId: teammate.id,
       kind: "lesson",
       content: text,
       fingerprint: memoryFingerprint(text),
@@ -1329,15 +1335,15 @@ export async function seedMemory(ctx: SeedContext) {
     d: 14,
   });
   await db.orm
-    .update(botsTable)
+    .update(teammatesTable)
     .set({ lessonsChangedAt: sql`now()` })
-    .where(inArray(botsTable.id, [juno.id, kit.id, mira.id, scout.id, iris.id]));
+    .where(inArray(teammatesTable.id, [juno.id, kit.id, mira.id, scout.id, iris.id]));
 
   // A teammate suggesting a rewrite of its own instructions.
   const [{ instructions: miraDef }] = await db.orm
-    .select({ instructions: botsTable.instructions })
-    .from(botsTable)
-    .where(eq(botsTable.id, mira.id));
+    .select({ instructions: teammatesTable.instructions })
+    .from(teammatesTable)
+    .where(eq(teammatesTable.id, mira.id));
   await db.insert(instructionProposals, {
     id: randomUUID(),
     teammateId: mira.id,
@@ -1356,12 +1362,12 @@ export async function seedMemory(ctx: SeedContext) {
 /* ------------------------------------------------------------------ Pages */
 
 export async function seedPages(ctx: SeedContext) {
-  const { db, bots, pageIds, pageHtml, thumbs, chats, R } = ctx;
-  const { iris, scout, juno } = bots;
+  const { db, teammates, pageIds, pageHtml, thumbs, chats, R } = ctx;
+  const { iris, scout, juno } = teammates;
   const specs = [
     {
       key: "checklist",
-      bot: iris,
+      teammate: iris,
       chat: chats.irisPlan,
       sourcePath: "/home/bot/bots/iris/launch-checklist.html",
       pinned: true,
@@ -1379,7 +1385,7 @@ export async function seedPages(ctx: SeedContext) {
     },
     {
       key: "itinerary",
-      bot: scout,
+      teammate: scout,
       chat: chats.scoutFlights,
       sourcePath: "/home/bot/bots/scout/lisbon-itinerary.html",
       pinned: true,
@@ -1393,7 +1399,7 @@ export async function seedPages(ctx: SeedContext) {
     },
     {
       key: "pricing",
-      bot: scout,
+      teammate: scout,
       chat: ctx.chats.scoutPricing,
       sourcePath: "/home/bot/bots/scout/pricing-landscape.html",
       pinned: false,
@@ -1405,7 +1411,7 @@ export async function seedPages(ctx: SeedContext) {
     },
     {
       key: "announcement",
-      bot: juno,
+      teammate: juno,
       chat: chats.junoPost,
       sourcePath: "/home/bot/bots/juno/kestrel-2-announcement.md",
       pinned: false,
@@ -1436,7 +1442,7 @@ export async function seedPages(ctx: SeedContext) {
     const updated = ago(spec.created[latest]);
     await db.insert(pages, {
       id: ids.id,
-      teammateId: spec.bot.id,
+      teammateId: spec.teammate.id,
       chatId: spec.chat.id,
       title: spec.title,
       summary: spec.summaries[latest],
@@ -1458,7 +1464,7 @@ export async function seedPages(ctx: SeedContext) {
         id: versionId,
         pageId: ids.id,
         number: index + 1,
-        teammateId: spec.bot.id,
+        teammateId: spec.teammate.id,
         runId: spec.runs[index]?.id ?? null,
         title: spec.title,
         summary: spec.summaries[index],
@@ -1487,8 +1493,8 @@ export async function seedPages(ctx: SeedContext) {
 /* ------------------------------------------------------------------ Notifications, usage, credentials */
 
 export async function seedNotifications(ctx: SeedContext) {
-  const { db, bots, chats, R, pageIds } = ctx;
-  const { iris, scout, kit, mira, juno } = bots;
+  const { db, teammates, chats, R, pageIds } = ctx;
+  const { iris, scout, kit, mira, juno } = teammates;
   const n = (row: RowWithDefaults<typeof notifications, "id" | "body" | "readAt">) =>
     db.insert(notifications, { id: randomUUID(), body: "", readAt: null, ...row });
   await n({
@@ -1587,21 +1593,21 @@ export async function seedNotifications(ctx: SeedContext) {
 }
 
 export async function seedUsageAndSettings(ctx: SeedContext) {
-  const { db, bots, encryptionKey } = ctx;
-  const all = Object.values(bots) as { id: string }[];
+  const { db, teammates, encryptionKey } = ctx;
+  const all = Object.values(teammates) as { id: string }[];
   // Spread some extra usage across the month so the totals look lived in.
   const monthStart = new Date(
     Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1, 2),
   );
   const span = Math.max(3_600_000, Date.now() - monthStart.getTime() - 3_600_000);
   for (let i = 0; i < 36; i++) {
-    const bot = all[i % all.length];
+    const teammate = all[i % all.length];
     const apiKey = i % 3 === 0;
     const input = 90_000 + ((i * 53_000) % 420_000);
     const output = 2_000 + ((i * 3_100) % 28_000);
     await db.insert(usageEntries, {
       id: randomUUID(),
-      teammateId: bot.id,
+      teammateId: teammate.id,
       authMode: apiKey ? "api_key" : "plan",
       inputTokens: input,
       cachedInputTokens: Math.round(input * 0.58),

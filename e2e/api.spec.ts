@@ -51,7 +51,7 @@ test.describe("the phone's API", () => {
     const name = uniqueName("Tess");
     await createTeammate(page, name);
     const teammates = await api.teammates.list();
-    const teammate = teammates.find((bot) => bot.name === name)!;
+    const teammate = teammates.find((candidate) => candidate.name === name)!;
     expect(teammate.directChatId).toBeTruthy();
     const chats = await api.chats.list();
     expect(chats.some((chat) => chat.id === teammate.directChatId)).toBe(true);
@@ -100,7 +100,7 @@ test.describe("the phone's API", () => {
   test("decides an approval once, and says how one decided elsewhere ended", async ({ page }) => {
     const name = uniqueName("Tess");
     await createTeammate(page, name);
-    const teammate = (await api.teammates.list()).find((bot) => bot.name === name)!;
+    const teammate = (await api.teammates.list()).find((candidate) => candidate.name === name)!;
     const chatId = teammate.directChatId!;
     const {
       rows: [run],
@@ -158,7 +158,7 @@ test.describe("the phone's API", () => {
   async function teammateWithReply(page: import("@playwright/test").Page, text = "All done.") {
     const name = uniqueName("Tess");
     await createTeammate(page, name);
-    const teammate = (await api.teammates.list()).find((bot) => bot.name === name)!;
+    const teammate = (await api.teammates.list()).find((candidate) => candidate.name === name)!;
     const chatId = teammate.directChatId!;
     const {
       rows: [run],
@@ -189,7 +189,7 @@ test.describe("the phone's API", () => {
   test("uploads an attachment once, however often it's sent", async ({ page }) => {
     const name = uniqueName("Tess");
     await createTeammate(page, name);
-    const teammate = (await api.teammates.list()).find((bot) => bot.name === name)!;
+    const teammate = (await api.teammates.list()).find((candidate) => candidate.name === name)!;
     const data = Buffer.from("Flight AB123 leaves at 09:40\n");
     const fileName = testSlug(`${crypto.randomUUID().slice(0, 5)}.txt`);
     const id = crypto.randomUUID();
@@ -320,8 +320,8 @@ test.describe("the phone's API", () => {
     const names = [uniqueName("Tess"), uniqueName("Tess")];
     for (const name of names) await createTeammate(page, name);
     const ids = (await api.teammates.list())
-      .filter((bot) => names.includes(bot.name))
-      .map((bot) => bot.id);
+      .filter((teammate) => names.includes(teammate.name))
+      .map((teammate) => teammate.id);
     const title = testLabel("group");
     const tooFew = await safe(api.chats.createGroup({ title, teammateIds: [ids[0]!] }));
     expect(tooFew.error).toMatchObject({ code: "BAD_REQUEST" });

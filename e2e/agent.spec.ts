@@ -1,6 +1,6 @@
 import { expect, test } from "./fixtures";
 import {
-  botIdOf,
+  teammateIdOf,
   createTeammate,
   sendMessage,
   testSlug,
@@ -8,11 +8,13 @@ import {
   waitForLastRun,
 } from "./helpers";
 
-// These drive a real bot on the computer: slow, and they use your ChatGPT plan.
-test.describe("@agent bots at work", () => {
+// These drive a real teammate on the computer: slow, and they use your ChatGPT plan.
+test.describe("@agent teammates at work", () => {
   test.setTimeout(10 * 60_000);
 
-  test("a bot uses the screen, you take over mid-task, and it carries on", async ({ page }) => {
+  test("a teammate uses the screen, you take over mid-task, and it carries on", async ({
+    page,
+  }) => {
     await createTeammate(page, uniqueName("Ivy"), "research assistant");
     await sendMessage(
       page,
@@ -62,7 +64,7 @@ test.describe("@agent bots at work", () => {
     await waitForLastRun(page, ["completed"]);
   });
 
-  test("always allowing a command stops the bot asking about it", async ({ page }) => {
+  test("always allowing a command stops the teammate asking about it", async ({ page }) => {
     const name = uniqueName("Alw");
     await createTeammate(page, name, "assistant", "Asks before every command");
     await sendMessage(
@@ -84,7 +86,7 @@ test.describe("@agent bots at work", () => {
     await expect(page.getByTestId("approval-card")).toHaveCount(asked);
     await expect(page.getByTestId("run").last()).toContainText(String(new Date().getUTCFullYear()));
 
-    await page.goto(`/teammates/${await botIdOf(page, name)}`);
+    await page.goto(`/teammates/${await teammateIdOf(page, name)}`);
     const rule = page.getByTestId("allowed-rule");
     await expect(rule).toHaveCount(1);
     await expect(rule).toContainText("Commands starting with date");
@@ -92,7 +94,7 @@ test.describe("@agent bots at work", () => {
     await expect(rule).toHaveCount(0);
   });
 
-  test("stop a bot, try again, and copy the reply", async ({ page, context }) => {
+  test("stop a teammate, try again, and copy the reply", async ({ page, context }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     await createTeammate(page, uniqueName("Tess"), "assistant");
     await sendMessage(page, "Count from 1 to 3, one number per line, and nothing else.");
@@ -113,7 +115,7 @@ test.describe("@agent bots at work", () => {
     );
   });
 
-  test("a bot schedules a task that runs and reports back", async ({ page }) => {
+  test("a teammate schedules a task that runs and reports back", async ({ page }) => {
     await createTeammate(page, uniqueName("Sol"), "assistant");
     await sendMessage(
       page,

@@ -233,16 +233,19 @@ Routes marked ☀ work on the computer: the worker wakes the computer for them, 
 | `POST /computer/read` ☀         | `{ run, selector? }`: the front page's text and links                                                        |
 | `POST /computer/fill` ☀         | `{ run, secret, site }`: type a vault secret, after checking the site                                        |
 | `POST /computer/code-context` ☀ | `{ screenId }`: the site of the focused field, before a one-time code is typed                               |
-| `POST /computer/type` ☀         | `{ screenId, takeoverId, operationId, expectedSite, pressEnter, text }`: type a one-time code                |
+| `POST /computer/type-code` ☀    | `{ screenId, takeoverId, operationId, expectedSite, pressEnter, text }`: type a one-time code                |
 | `POST /screens/start` ☀         | Start a screen without using it                                                                              |
 | `POST /screens/forget` ☀        | Stop a screen and delete its profile                                                                         |
 | `POST /lease/run/release` ☀     | Release a run's lease when it ends                                                                           |
-| `POST /lease/user/take` ☀       | Give you a screen's lease, preempting a run; `409` while a code is being typed                               |
-| `POST /lease/user/release` ☀    | Release your lease (`handed_back`, `user_idle`, `user_disconnected`)                                         |
-| `POST /lease/user/touch` ☀      | Record your input                                                                                            |
+| `POST /lease/owner/take` ☀      | Give you a screen's lease, preempting a run; `409` while a code is being typed                               |
+| `POST /lease/owner/release` ☀   | Release your lease (`handed_back`, `user_idle`, `user_disconnected`)                                         |
+| `POST /lease/owner/touch` ☀     | Record your input                                                                                            |
 | `POST /pages/check` ☀           | `{ path }`: check a page in a headless browser; see [The checker](/docs/architecture/pages#the-checker)      |
 
-Errors from `/computer/fill` and `/computer/type` never repeat their input, which carries a secret.
+Errors from `/computer/fill` and `/computer/type-code` never repeat their input, which carries a secret.
+Your lease's routes were `/lease/user/*`, and typing a code was `/computer/type`, until the run lease renamed `botId` and `botName` to `teammateId` and `teammateName`.
+Taking your lease and typing a code take a screen from a run and answer with the run's lease, so they moved with that rename, and releasing your lease and recording your input moved with them.
+A worker and a computer on different versions get `404` before a screen changes hands or a code is typed, instead of botd acting and the worker failing on its answer and losing which run it interrupted.
 
 | Websocket            | Purpose                                                |
 | -------------------- | ------------------------------------------------------ |

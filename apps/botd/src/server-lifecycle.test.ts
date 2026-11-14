@@ -127,7 +127,7 @@ it("never performs a run action cancelled while waiting for screen admission", a
     method: "POST",
     headers: { authorization: "Bearer test-token", "content-type": "application/json" },
     body: JSON.stringify({
-      run: { runId: randomUUID(), botId: randomUUID(), botName: "Test" },
+      run: { runId: randomUUID(), teammateId: randomUUID(), teammateName: "Test" },
       action: { action: "key", keys: "Return" },
     }),
     signal: controller.signal,

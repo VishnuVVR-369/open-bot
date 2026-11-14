@@ -33,13 +33,13 @@ It never sees the value.
 >
   <Sequence
     actors={[
-      { id: "bot", label: "Teammate", sub: "Codex" },
+      { id: "teammate", label: "Teammate", sub: "Codex" },
       { id: "worker", label: "Worker", sub: "VaultService" },
       { id: "botd", label: "botd" },
       { id: "screen", label: "Its screen" },
     ]}
     steps={[
-      { from: "bot", to: "worker", label: "vault_fill(item, password)" },
+      { from: "teammate", to: "worker", label: "vault_fill(item, password)" },
       { self: "worker", label: "may it use the item? card: approved purchase?" },
       { self: "worker", label: "decrypt the field" },
       { from: "worker", to: "botd", label: "POST /computer/fill: secret, site" },
@@ -47,7 +47,7 @@ It never sees the value.
       { self: "botd", label: "every page on the login's site?" },
       { from: "botd", to: "screen", label: "xdotool type --file - (stdin)" },
       { from: "botd", to: "worker", label: "ok", reply: true },
-      { from: "worker", to: "bot", label: "Filled the password", reply: true },
+      { from: "worker", to: "teammate", label: "Filled the password", reply: true },
     ]}
   />
 </Figure>

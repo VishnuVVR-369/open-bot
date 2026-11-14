@@ -114,8 +114,8 @@ export class RunSession {
   get identity() {
     return {
       runId: this.run.id,
-      botId: this.teammate.id,
-      botName: this.teammate.name,
+      teammateId: this.teammate.id,
+      teammateName: this.teammate.name,
       ...(this.run.screenId ? { screenId: this.run.screenId } : {}),
     };
   }

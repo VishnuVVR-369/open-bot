@@ -1,32 +1,8 @@
 {
-  "apps/botd/src/code-screens.test.ts": {
-    "bot": 6
-  },
-  "apps/botd/src/contract.test.ts": {
-    "bot": 3
-  },
   "apps/botd/src/index.ts": {
-    "bot": 25
-  },
-  "apps/botd/src/lease.test.ts": {
-    "bot": 6
-  },
-  "apps/botd/src/lease.ts": {
-    "bot": 5
+    "bot": 1
   },
   "apps/botd/src/pages.test.ts": {
-    "bot": 1
-  },
-  "apps/botd/src/router.ts": {
-    "bot": 1
-  },
-  "apps/botd/src/screens.ts": {
-    "bot": 14
-  },
-  "apps/botd/src/server-lifecycle.test.ts": {
-    "bot": 2
-  },
-  "apps/botd/src/server.ts": {
     "bot": 1
   },
   "apps/mobile/src/app/_layout.tsx": {
@@ -123,10 +99,10 @@
     "bot": 5
   },
   "apps/mobile/src/features/computer/screens.test.ts": {
-    "bot": 4
+    "bot": 2
   },
   "apps/mobile/src/features/computer/screens.ts": {
-    "bot": 4
+    "bot": 3
   },
   "apps/mobile/src/features/home/components/briefing.tsx": {
     "bot": 20
@@ -200,9 +176,6 @@
   "apps/site/src/components/docs/diagrams.tsx": {
     "bot": 6
   },
-  "apps/site/src/lib/docs.ts": {
-    "bot": 1
-  },
   "apps/web/src/features/app-shell/server/routes.integration.test.ts": {
     "bot": 1
   },
@@ -243,7 +216,7 @@
     "bot": 2
   },
   "apps/worker/scripts/computer-sleep-smoke.ts": {
-    "bot": 3
+    "bot": 1
   },
   "apps/worker/src/core/tool.ts": {
     "bot": 1
@@ -335,9 +308,6 @@
   "apps/worker/src/runs/executor/run-executor.ts": {
     "bot": 2
   },
-  "apps/worker/src/runs/session/run-session.ts": {
-    "bot": 2
-  },
   "apps/worker/src/testing/rpc.ts": {
     "bot": 1
   },
@@ -348,46 +318,28 @@
     "bot": 1
   },
   "e2e/accounts.spec.ts": {
-    "bot": 5
-  },
-  "e2e/agent.spec.ts": {
-    "bot": 8
+    "bot": 1
   },
   "e2e/api.spec.ts": {
-    "bot": 17
-  },
-  "e2e/automations.spec.ts": {
-    "bot": 4
-  },
-  "e2e/check-ins.spec.ts": {
-    "bot": 11
-  },
-  "e2e/computer.spec.ts": {
-    "bot": 13
+    "bot": 5
   },
   "e2e/email.spec.ts": {
-    "bot": 8
+    "bot": 1
   },
   "e2e/feedback.spec.ts": {
-    "bot": 11
+    "bot": 1
   },
   "e2e/global-teardown.ts": {
     "bot": 5
   },
-  "e2e/helpers.ts": {
-    "bot": 3
-  },
-  "e2e/job-scout.spec.ts": {
-    "bot": 11
-  },
   "e2e/memory.spec.ts": {
-    "bot": 24
+    "bot": 6
   },
   "e2e/pages.spec.ts": {
-    "bot": 33
+    "bot": 1
   },
   "e2e/pocket-inbox.spec.ts": {
-    "bot": 15
+    "bot": 5
   },
   "e2e/profile.spec.ts": {
     "bot": 1
@@ -398,17 +350,8 @@
   "e2e/stand-ins/telegram.ts": {
     "bot": 10
   },
-  "e2e/teammates.spec.ts": {
-    "bot": 11
-  },
-  "e2e/teamwork.spec.ts": {
-    "bot": 3
-  },
   "e2e/telegram.spec.ts": {
     "bot": 5
-  },
-  "e2e/vault.spec.ts": {
-    "bot": 13
   },
   "packages/api/src/worker/contracts/integrations.ts": {
     "bot": 1
@@ -475,9 +418,6 @@
   "packages/domain/src/computer/paths.ts": {
     "bot": 4
   },
-  "packages/domain/src/computer/protocol.ts": {
-    "bot": 4
-  },
   "packages/domain/src/memory/memory.ts": {
     "bot": 2
   },
@@ -502,25 +442,19 @@
   "packages/memory/src/memory.integration.test.ts": {
     "bot": 6
   },
-  "playwright.config.ts": {
-    "bot": 1
-  },
   "scripts/check/e2e-stack.test.mjs": {
     "bot": 1
   },
   "scripts/test/mobile-ui.mjs": {
-    "bot": 24
+    "bot": 11
   },
   "tools/showcase/content-chats.ts": {
-    "bot": 58
+    "bot": 19
   },
   "tools/showcase/content-rest.ts": {
-    "bot": 61
+    "bot": 18
   },
   "tools/showcase/lib.ts": {
-    "bot": 17
-  },
-  "tools/showcase/shoot.mjs": {
-    "bot": 8
+    "bot": 3
   }
 }
