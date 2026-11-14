@@ -18,6 +18,7 @@ import { devtoolsCookieStore, type CookieSync } from "./cookies";
 import { Desktop } from "./desktop";
 import { DesktopLease } from "./lease";
 import { readPageScript } from "./read-page-script";
+import { ScreenDownloads } from "./screen-downloads";
 import { waitFor, type ProcessSpec, type Supervisor } from "./supervisor";
 import { runAs, type SystemUser } from "./users";
 
@@ -91,9 +92,9 @@ export class Screen {
   viewers = 0;
   lastUsedAt: number;
   private cdp: CdpPipe | null = null;
-  private readonly downloads = new Set<string>();
+  readonly downloads = new ScreenDownloads();
   get busy(): boolean {
-    return this.downloads.size > 0;
+    return this.downloads.busy;
   }
   /** Portals where the apply guard stopped a submission since a bot last asked. */
   private blocked: string[] = [];
@@ -375,16 +376,7 @@ export class Screen {
   }
 
   private async onBrowserEvent(pipe: CdpPipe, event: CdpEvent) {
-    if (event.method === "Browser.downloadWillBegin") {
-      this.downloads.add((event.params as { guid: string }).guid);
-      return;
-    }
-    if (event.method === "Browser.downloadProgress") {
-      const { guid, state } = event.params as { guid: string; state: string };
-      if (state === "completed" || state === "canceled") this.downloads.delete(guid);
-      return;
-    }
-    if (event.method !== "Fetch.requestPaused") return;
+    if (this.downloads.handle(event) || event.method !== "Fetch.requestPaused") return;
     const { requestId, request } = event.params as {
       requestId: string;
       request: { url: string; method: string };

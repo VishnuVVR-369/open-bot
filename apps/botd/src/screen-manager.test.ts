@@ -309,4 +309,59 @@ describe("stopping a screen to make room", () => {
     expect(supervisor.stop).toHaveBeenCalledWith(`${A.slice(0, 8)}/chromium`);
     expect(manager.list().map((screen) => screen.id)).toEqual([B]);
   });
+
+  it("wakes a queued start as soon as a screen can be stopped: a lease handed back, a claim ended, a download done", async () => {
+    // Fake timers: the admission deadline can't fire, so only a wake lets a queued start through.
+    vi.useFakeTimers();
+    startsRunning();
+    const stopped: string[] = [];
+    vi.spyOn(Screen.prototype, "stop").mockImplementation(async function (this: Screen) {
+      this.state = "stopping";
+      stopped.push(this.id);
+    });
+    const manager = new ScreenManager(deps(), { maxRunning: 1, admissionMs: 60_000 });
+    /** Starts a screen and reports whether it has started yet. */
+    const start = (id: string) => {
+      const started = { done: false, screen: manager.ensure(id) };
+      void started.screen.then(() => (started.done = true));
+      return started;
+    };
+    // Runs everything already due, so a start that can go ahead does, and one that can't is queued.
+    const settle = () => vi.advanceTimersByTimeAsync(1);
+
+    const a = await manager.ensure(A);
+    a.lease.takeByUser();
+    const b = start(B);
+    await settle();
+    expect(b.done).toBe(false);
+    a.lease.releaseByUser();
+    await settle();
+    expect(b.done).toBe(true);
+    expect(stopped).toEqual([A]);
+
+    const release = deferred();
+    const claimed = manager.claim(B, () => release.promise);
+    const c = start(C);
+    await settle();
+    expect(c.done).toBe(false);
+    release.resolve();
+    await claimed;
+    await settle();
+    expect(c.done).toBe(true);
+    expect(stopped).toEqual([A, B]);
+
+    const screenC = await c.screen;
+    screenC.downloads.handle({ method: "Browser.downloadWillBegin", params: { guid: "report" } });
+    const again = start(A);
+    await settle();
+    expect(again.done).toBe(false);
+    screenC.downloads.handle({
+      method: "Browser.downloadProgress",
+      params: { guid: "report", state: "completed" },
+    });
+    await settle();
+    expect(again.done).toBe(true);
+    expect(stopped).toEqual([A, B, C]);
+    await manager.stopAll();
+  });
 });
