@@ -735,6 +735,9 @@
   "apps/worker/src/features/teammates/index.ts": {
     "bot": 3
   },
+  "apps/worker/src/features/teammates/routes-configuration.integration.test.ts": {
+    "bot": 2
+  },
   "apps/worker/src/features/teammates/routes.integration.test.ts": {
     "bot": 1
   },
@@ -778,9 +781,6 @@
   },
   "apps/worker/src/rpc/handler.test.ts": {
     "bot": 4
-  },
-  "apps/worker/src/rpc/router.integration.test.ts": {
-    "bot": 2
   },
   "apps/worker/src/rpc/router.ts": {
     "bot": 2
