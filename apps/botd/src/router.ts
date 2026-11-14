@@ -17,7 +17,8 @@ import { ActionAbortedError, Desktop } from "./desktop";
 import type { EgressRouter } from "@open-bot/egress/router";
 import type { ComputeLifecycle } from "./lifecycle";
 import type { PageChecker } from "./pages";
-import type { Screen, ScreenManager } from "./screens";
+import type { ScreenManager } from "./screen-manager";
+import type { Screen } from "./screens";
 
 /**
  * Implements `botdContract`: each procedure calls the screen manager, the lifecycle or the page
@@ -60,12 +61,21 @@ export function createRouter(deps: RouterDeps) {
   }
 
   /** The run's own screen, once it holds it. */
-  async function screenForRun(
+  function screenForRun(
     run: RunIdentity,
     signal?: AbortSignal,
   ): Promise<Screen | ComputerActionError> {
-    // Every teammate works on its own screen, and a swarm helper on one of its own.
+    // Every teammate works on its own screen, and a swarm helper on one of its own. Claimed until
+    // the run holds its lease, so it isn't stopped to make room while the run waits for it.
     const screenId = run.screenId ?? run.botId;
+    return screens.claim(screenId, () => takeForRun(screenId, run, signal));
+  }
+
+  async function takeForRun(
+    screenId: string,
+    run: RunIdentity,
+    signal?: AbortSignal,
+  ): Promise<Screen | ComputerActionError> {
     let screen: Screen;
     try {
       // Before the screen starts, so its first connections can wait for a phone.
@@ -249,12 +259,15 @@ export function createRouter(deps: RouterDeps) {
       releaseRun: os.leases.releaseRun.handler(({ input }) => ({
         released: screens.releaseRun(input.runId),
       })),
-      take: os.leases.take.handler(async ({ input, signal }) => {
+      take: os.leases.take.handler(({ input, signal }) => {
         deps.egress.noteDemand(input.screenId);
-        const screen = await screens.ensure(input.screenId, signal);
-        if (!screens.codeAvailable(screen.id))
-          throw new ORPCError("CONFLICT", { status: 409, message: "Code entry is in progress." });
-        return { previous: screen.lease.takeByUser(), holder: screen.lease.holder };
+        // Claimed until you hold it, so it isn't stopped to make room in between.
+        return screens.claim(input.screenId, async () => {
+          const screen = await screens.ensure(input.screenId, signal);
+          if (!screens.codeAvailable(screen.id))
+            throw new ORPCError("CONFLICT", { status: 409, message: "Code entry is in progress." });
+          return { previous: screen.lease.takeByUser(), holder: screen.lease.holder };
+        });
       }),
       release: os.leases.release.handler(async ({ input }) => {
         const screen = screens.get(input.screenId);

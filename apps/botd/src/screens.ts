@@ -1,5 +1,4 @@
 import { randomBytes } from "node:crypto";
-import { EventEmitter } from "node:events";
 import { access, chmod, chown, mkdir, readFile, readlink, rm, writeFile } from "node:fs/promises";
 import net from "node:net";
 import { hostname } from "node:os";
@@ -17,14 +16,17 @@ import { codeProbe } from "./code-probe";
 import type { CodeScreens } from "./code-screens";
 import { devtoolsCookieStore, type CookieSync } from "./cookies";
 import { Desktop } from "./desktop";
-import { DesktopLease, type LeaseChange } from "./lease";
+import { DesktopLease } from "./lease";
+import { readPageScript } from "./read-page-script";
+import { ScreenDownloads } from "./screen-downloads";
 import { waitFor, type ProcessSpec, type Supervisor } from "./supervisor";
 import { runAs, type SystemUser } from "./users";
 
 /** Display numbers start here, so a screen's display never collides with anything else. */
 const FIRST_DISPLAY = 10;
 const FIRST_VNC_PORT = 5910;
-const MAX_SLOTS = 32;
+/** Screens that can ever run at once: each takes one display and one pair of VNC ports. */
+export const MAX_SLOTS = 32;
 
 export interface ScreenDeps {
   workActive?: () => boolean;
@@ -46,15 +48,6 @@ export interface ScreenDeps {
 /** The most of a page `readPage` returns, so one page can't flood a bot's context. */
 const MAX_PAGE_TEXT = 120_000;
 const MAX_PAGE_LINKS = 300;
-
-export interface ScreenManagerOptions {
-  /** Screens running at once. Starting another stops the one unused the longest. */
-  maxRunning?: number;
-  admissionMs?: number;
-  /** A screen nobody has used or watched for this long stops. */
-  idleMs?: number;
-  now?: () => number;
-}
 
 function portOpen(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -99,9 +92,9 @@ export class Screen {
   viewers = 0;
   lastUsedAt: number;
   private cdp: CdpPipe | null = null;
-  private readonly downloads = new Set<string>();
+  readonly downloads = new ScreenDownloads();
   get busy(): boolean {
-    return this.downloads.size > 0;
+    return this.downloads.busy;
   }
   /** Portals where the apply guard stopped a submission since a bot last asked. */
   private blocked: string[] = [];
@@ -383,16 +376,7 @@ export class Screen {
   }
 
   private async onBrowserEvent(pipe: CdpPipe, event: CdpEvent) {
-    if (event.method === "Browser.downloadWillBegin") {
-      this.downloads.add((event.params as { guid: string }).guid);
-      return;
-    }
-    if (event.method === "Browser.downloadProgress") {
-      const { guid, state } = event.params as { guid: string; state: string };
-      if (state === "completed" || state === "canceled") this.downloads.delete(guid);
-      return;
-    }
-    if (event.method !== "Fetch.requestPaused") return;
+    if (this.downloads.handle(event) || event.method !== "Fetch.requestPaused") return;
     const { requestId, request } = event.params as {
       requestId: string;
       request: { url: string; method: string };
@@ -673,12 +657,27 @@ export class Screen {
     await rm(this.dir, { recursive: true, force: true });
   }
 
+  /**
+   * Save the screen's cookies, then stop its processes. If saving fails or a download starts, nothing
+   * is torn down yet: a running screen stays running and this throws. Once teardown begins it runs
+   * to the end, and throws only if a process outlived SIGKILL, leaving the screen stopping.
+   */
   async stop(): Promise<void> {
     if (this.busy) throw new Error("Screen has an active download");
+    const previous = this.state;
     this.state = "stopping";
     const { supervisor, cookies } = this.deps;
-    await cookies.flush();
-    if (this.busy) throw new Error("Screen has an active download");
+    try {
+      await cookies.flush();
+      if (this.busy) throw new Error("Screen has an active download");
+    } catch (error) {
+      if (previous === "running") {
+        this.state = previous;
+        throw error;
+      }
+      // A screen that never finished starting has nothing to keep running for.
+      this.deps.log(`[screens] ${this.id.slice(0, 8)}: stopping without saving: ${String(error)}`);
+    }
     this.desktop.abortAll();
     // Browser.close flushes session storage and tabs before the process group is terminated.
     if (this.cdp?.isOpen) {
@@ -689,6 +688,8 @@ export class Screen {
         async () => !supervisor.isRunning(this.names.browser),
         10_000,
         "Chromium to flush its profile and exit",
+      ).catch((error: unknown) =>
+        this.deps.log(`[screens] ${this.id.slice(0, 8)}: ${String(error)}, stopping it`),
       );
     }
     cookies.detach(this.id);
@@ -703,257 +704,4 @@ export class Screen {
       await supervisor.stop(name);
     await rm(this.xauthority, { force: true });
   }
-}
-
-/**
- * The bots' screens on the shared computer, keyed by bot id. A screen starts the first time its bot
- * or you use it, and stops after a while unused; its browser profile stays on disk.
- */
-export class ScreenManager extends EventEmitter<{
-  lease: [string, LeaseChange];
-  changed: [];
-}> {
-  private readonly screens = new Map<string, Screen>();
-  private readonly starting = new Map<string, Promise<Screen>>();
-  private readonly startingWaiters = new Map<string, { count: number; abort: AbortController }>();
-  private readonly maxRunning: number;
-  private readonly idleMs: number;
-  private readonly now: () => number;
-  private readonly admissionMs: number;
-  private readonly waiters = new Set<() => void>();
-  private readonly stopping = new Map<string, Promise<void>>();
-
-  constructor(
-    private readonly deps: ScreenDeps,
-    options: ScreenManagerOptions = {},
-  ) {
-    super();
-    this.maxRunning = options.maxRunning ?? 4;
-    if (!Number.isInteger(this.maxRunning) || this.maxRunning < 1 || this.maxRunning > MAX_SLOTS)
-      throw new Error("Invalid MAX_SCREENS");
-    this.admissionMs = options.admissionMs ?? 120_000;
-    this.idleMs = options.idleMs ?? 20 * 60_000;
-    this.now = options.now ?? Date.now;
-  }
-
-  get(id: string): Screen | undefined {
-    const screen = this.screens.get(id);
-    return screen?.state === "running" ? screen : undefined;
-  }
-
-  list(): ScreenStatus[] {
-    const active = [...this.screens.values()].map((screen) => screen.status());
-    for (const id of this.deps.codeScreens?.ids ?? []) {
-      if (!active.some((screen) => screen.id === id))
-        active.push({
-          id,
-          state: "paused",
-          browser: "stopped",
-          lease: {
-            kind: "user-code",
-            since: new Date(this.now()).toISOString(),
-            lastInputAt: new Date(this.now()).toISOString(),
-            pausedForSafety: true,
-          },
-        });
-    }
-    return active;
-  }
-
-  codeAvailable(id: string): boolean {
-    return this.deps.codeScreens?.available(id) ?? true;
-  }
-
-  async typeCode(
-    id: string,
-    input: { operationId: string; expectedSite: string; text: string; pressEnter: boolean },
-  ) {
-    const screen = this.get(id);
-    if (!screen || !this.deps.codeScreens)
-      return { status: "failed" as const, reason: "The screen is offline." };
-    return this.deps.codeScreens.type(screen, input);
-  }
-
-  touch(screen: Screen): void {
-    screen.lastUsedAt = this.now();
-  }
-
-  /** The bot's screen, started if it isn't running. */
-  get busy(): boolean {
-    return (
-      this.starting.size > 0 ||
-      this.stopping.size > 0 ||
-      [...this.screens.values()].some((s) => s.busy || s.lease.holder !== null)
-    );
-  }
-
-  ensure(id: string, signal?: AbortSignal): Promise<Screen> {
-    signal?.throwIfAborted();
-    const running = this.get(id);
-    if (running) {
-      this.touch(running);
-      return Promise.resolve(running);
-    }
-    let pending = this.starting.get(id);
-    if (!pending) {
-      const abort = new AbortController();
-      this.startingWaiters.set(id, { count: 0, abort });
-      pending = this.startScreen(id, abort.signal).finally(() => {
-        this.starting.delete(id);
-        this.startingWaiters.delete(id);
-      });
-      this.starting.set(id, pending);
-    }
-    const waiters = this.startingWaiters.get(id)!;
-    waiters.count++;
-    return new Promise<Screen>((resolve, reject) => {
-      const abort = () => reject(signal!.reason);
-      signal?.addEventListener("abort", abort, { once: true });
-      pending.then(resolve, reject).finally(() => signal?.removeEventListener("abort", abort));
-    }).finally(() => {
-      waiters.count--;
-      if (!waiters.count && this.starting.get(id) === pending)
-        waiters.abort.abort(new Error("Screen request cancelled"));
-    });
-  }
-
-  private freeSlot(): number {
-    const used = new Set([...this.screens.values()].map((screen) => screen.slot));
-    for (let slot = 0; slot < MAX_SLOTS; slot += 1) if (!used.has(slot)) return slot;
-    throw new Error("Too many screens are running");
-  }
-
-  private async startScreen(id: string, signal?: AbortSignal): Promise<Screen> {
-    const previous = this.screens.get(id);
-    if (previous) await this.stopScreen(previous);
-    // Waiters recheck after each wake; admission and the map reservation have no await between them.
-    const deadline = Date.now() + this.admissionMs;
-    while (this.screens.size >= this.maxRunning) {
-      signal?.throwIfAborted();
-      const remaining = deadline - Date.now();
-      if (remaining <= 0)
-        throw new Error("All screen slots are busy. Try again when a screen is free.");
-      await new Promise<void>((resolve, reject) => {
-        const done = () => {
-          clearTimeout(timer);
-          this.waiters.delete(done);
-          signal?.removeEventListener("abort", abort);
-          resolve();
-        };
-        const abort = () => {
-          done();
-          reject(signal!.reason);
-        };
-        const timer = setTimeout(done, remaining);
-        this.waiters.add(done);
-        signal?.addEventListener("abort", abort, { once: true });
-      });
-    }
-    signal?.throwIfAborted();
-
-    const screen = new Screen(id, this.freeSlot(), this.deps, this.now());
-    this.screens.set(id, screen);
-    this.deps.codeScreens?.attach(screen);
-    screen.lease.on("change", (change) => {
-      this.touch(screen);
-      this.emit("lease", id, change);
-    });
-    // Taking over stops whatever the bot was doing on this screen right away.
-    screen.lease.on("preempted", () => screen.desktop.abortAll());
-    this.emit("changed");
-    this.deps.log(`[screens] starting ${id} on ${screen.display}`);
-    try {
-      await screen.start();
-      signal?.throwIfAborted();
-    } catch (error) {
-      this.deps.log(`[screens] ${id} failed to start: ${String(error)}`);
-      await this.stopScreen(screen);
-      throw error;
-    }
-    this.touch(screen);
-    this.emit("changed");
-    return screen;
-  }
-
-  private stopScreen(screen: Screen): Promise<void> {
-    let pending = this.stopping.get(screen.id);
-    if (pending) return pending;
-    if (this.screens.get(screen.id) !== screen) return Promise.resolve();
-    pending = screen
-      .stop()
-      .then(() => {
-        this.screens.delete(screen.id);
-        this.emit("changed");
-        for (const waiter of this.waiters) waiter();
-      })
-      .finally(() => this.stopping.delete(screen.id));
-    this.stopping.set(screen.id, pending);
-    return pending;
-  }
-
-  /** The bot is gone: stop its screen and delete its browser profile. */
-  async forget(id: string): Promise<void> {
-    await this.starting.get(id)?.catch(() => {});
-    const screen = this.screens.get(id) ?? new Screen(id, -1, this.deps, this.now());
-    if (this.screens.get(id) === screen) await this.stopScreen(screen);
-    await screen.forget();
-  }
-
-  releaseRun(runId: string): boolean {
-    let released = false;
-    for (const screen of this.screens.values())
-      released = screen.lease.releaseRun(runId) || released;
-    return released;
-  }
-
-  /** Time out leases, and stop screens nobody has used for a while. Watching alone doesn't count as use. */
-  sweep(): void {
-    const now = this.now();
-    for (const screen of [...this.screens.values()]) {
-      screen.lease.sweep();
-      if (
-        screen.state === "running" &&
-        screen.lease.holder === null &&
-        !screen.busy &&
-        !this.deps.workActive?.() &&
-        now - screen.lastUsedAt >= this.idleMs
-      ) {
-        this.deps.log(
-          `[screens] stopping ${screen.id} after ${Math.round(this.idleMs / 60_000)} idle minutes`,
-        );
-        void this.stopScreen(screen).catch((error: unknown) =>
-          this.deps.log(`[screens] shutdown failed: ${String(error)}`),
-        );
-      }
-    }
-  }
-
-  async stopAll(): Promise<void> {
-    if (this.starting.size) throw new Error("Screens are still starting");
-    for (const screen of this.screens.values()) await this.stopScreen(screen);
-  }
-}
-
-/** Runs in the page: what a person sees on it, as text, and its links. */
-function readPageScript(selector?: string): string {
-  return `(() => {
-    if (document.visibilityState !== "visible") return { visible: false };
-    let root;
-    try {
-      root = ${selector ? `document.querySelector(${JSON.stringify(selector)})` : "document.body"};
-    } catch {
-      root = null;
-    }
-    if (!root) return { visible: true, missing: true };
-    const seen = new Set();
-    const links = [];
-    for (const a of root.querySelectorAll("a[href]")) {
-      const href = a.href;
-      if (!/^https?:/.test(href) || seen.has(href)) continue;
-      seen.add(href);
-      links.push({ text: (a.innerText || a.getAttribute("aria-label") || "").replace(/\\s+/g, " ").trim().slice(0, 200), href });
-    }
-    const text = (root.innerText || "").replace(/[ \\t]+\\n/g, "\\n").replace(/\\n{3,}/g, "\\n\\n").trim();
-    return { visible: true, url: location.href, title: document.title, text, links };
-  })()`;
 }

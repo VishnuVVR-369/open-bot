@@ -5,7 +5,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { WebSocket, WebSocketServer } from "ws";
 import { ComputeLifecycle } from "./lifecycle";
 import { createServer } from "./server";
-import type { Screen, ScreenManager } from "./screens";
+import type { ScreenManager } from "./screen-manager";
+import type { Screen } from "./screens";
 import type { EgressRouter } from "@open-bot/egress/router";
 import type { PageChecker } from "./pages";
 const cleanup: (() => Promise<void>)[] = [];
@@ -21,7 +22,10 @@ async function fixture(codexUrl: string) {
   });
   lifecycle.lease("worker", 0);
   await lifecycle.ensure("worker");
-  const screens = Object.assign(new EventEmitter(), { list: () => [] }) as unknown as ScreenManager;
+  const screens = Object.assign(new EventEmitter(), {
+    list: () => [],
+    claim: <T>(_id: string, use: () => Promise<T>) => use(),
+  }) as unknown as ScreenManager;
   const { server } = createServer({
     token: "test-token",
     screens,

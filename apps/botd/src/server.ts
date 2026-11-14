@@ -14,7 +14,7 @@ import type { EgressRouter } from "@open-bot/egress/router";
 import type { PageChecker } from "./pages";
 import { createRouter } from "./router";
 import { createRpcHandler } from "./rpc";
-import type { ScreenManager } from "./screens";
+import type { ScreenManager } from "./screen-manager";
 
 export interface ServerDeps {
   token: string;

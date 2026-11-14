@@ -8,7 +8,7 @@ import { readEnv, type BotdEnv } from "./env";
 import { EgressRouter } from "@open-bot/egress/router";
 import { PageChecker, PagePreviewServer } from "./pages";
 import { browserSandboxAvailable } from "./sandbox";
-import { ScreenManager } from "./screens";
+import { ScreenManager } from "./screen-manager";
 import { createServer } from "./server";
 import { Supervisor, waitFor } from "./supervisor";
 import { lookupUser, runAs } from "./users";
