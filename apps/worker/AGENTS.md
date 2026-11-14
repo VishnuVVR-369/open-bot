@@ -51,7 +51,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 
 ### Add a worker internal route (called by web)
 
-1. `packages/api/src/worker/contract.ts`: add a procedure to `workerContract` with its `route` (`/internal/...`), input and output schemas.
+1. `packages/api/src/worker/contracts/<feature>.ts` (composed in `packages/api/src/worker/contract.ts`): add a procedure to `workerContract` with its `route` (`/internal/...`), input and output schemas.
    Use `computer` instead of `base` if it touches the computer, or it will not wake it; never for a status read.
 2. `apps/worker/src/rpc/router.ts`: implement it by calling a service.
    Put rules in the service, and throw the service's own error class, which extends `WorkerError` (`apps/worker/src/core/errors.ts`) with a status; `apps/worker/src/rpc/errors.ts` turns it into the answer in one place.
