@@ -1,12 +1,13 @@
+// CodexManager: the worker's one connection to the Codex app-server on the computer.
 import { readFile } from "node:fs/promises";
 import { EventEmitter } from "node:events";
 import { BOTD_SOCKETS } from "@open-bot/api/botd";
 import type { CodexStatus } from "@open-bot/api/worker";
 import { CodexClient, type ServerNotification, type ServerRequest, type v2 } from "@open-bot/agent";
-import type { ComputerLifecycle } from "./computer-lifecycle";
-import type { ComputerClient } from "./computer";
-import { refreshHostLogin } from "./host-login";
-import { errorMessage, type Logger } from "./logger";
+import type { ComputerLifecycle } from "../computer/lifecycle";
+import type { ComputerClient } from "../computer/client";
+import { refreshHostLogin } from "../host-login";
+import { errorMessage, type Logger } from "../logger";
 
 export type { CodexStatus };
 export type ChatgptAuthSource = CodexStatus["authSource"];

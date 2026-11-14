@@ -23,7 +23,7 @@ open-bot adds what Codex doesn't have: a desktop, approvals, schedules, memory, 
 worker ── ws://botd:7000/codex?token=… ──▶ botd ── ws://127.0.0.1:4500 ──▶ codex app-server
 ```
 
-`CodexManager` (`apps/worker/src/codex.ts`) keeps one connection for the whole worker.
+`CodexManager` (`apps/worker/src/codex/client.ts`) keeps one connection for the whole worker.
 botd bridges it byte for byte to the app-server, which only listens on localhost.
 
 `@open-bot/agent` holds the client:

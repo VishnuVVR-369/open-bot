@@ -2,10 +2,10 @@ import { once } from "node:events";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { WebSocketServer } from "ws";
-import { CodexManager } from "./codex";
-import { ComputerLifecycle } from "./computer-lifecycle";
-import type { ComputerClient } from "./computer";
-import type { Logger } from "./logger";
+import { CodexManager } from "./client";
+import { ComputerLifecycle } from "../computer/lifecycle";
+import type { ComputerClient } from "../computer/client";
+import type { Logger } from "../logger";
 const cleanup: (() => void)[] = [];
 afterEach(() => cleanup.splice(0).forEach((close) => close()));
 describe("Codex intentional idle", () => {

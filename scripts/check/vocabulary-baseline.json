@@ -588,7 +588,7 @@
   "apps/worker/scripts/computer-sleep-web-smoke.ts": {
     "bot": 5
   },
-  "apps/worker/src/computer.ts": {
+  "apps/worker/src/computer/client.ts": {
     "bot": 6
   },
   "apps/worker/src/context.ts": {

@@ -20,8 +20,8 @@ import {
   type TypeOnScreen,
 } from "@open-bot/domain";
 import WebSocket from "ws";
-import type { ComputerLifecycle } from "./computer-lifecycle";
-import { errorMessage, type Logger } from "./logger";
+import type { ComputerLifecycle } from "./lifecycle";
+import { errorMessage, type Logger } from "../logger";
 
 export { BotdError };
 
