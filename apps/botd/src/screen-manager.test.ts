@@ -299,15 +299,21 @@ describe("stopping a screen to make room", () => {
     const a = await manager.ensure(A);
     const second = expect(manager.ensure(B)).rejects.toThrow("slots are busy");
     await vi.waitFor(() => expect(flushes).toHaveLength(1));
-    // A run that asks for the screen while it stops gets it back once the stop fails.
-    const again = manager.ensure(A);
+    // Taking it over while it stops gets it back once the stop fails (claimed until held, as
+    // `leases.take` does), so the waiting start has nothing it may stop and gives up.
+    const again = manager.claim(A, async () => {
+      const screen = await manager.ensure(A);
+      screen.lease.takeByUser();
+      return screen;
+    });
     flushes[0]!.reject(new Error("disk full"));
     await second;
     expect(await again).toBe(a);
     expect(manager.get(A)).toBe(a);
     expect(supervisor.stop).not.toHaveBeenCalled();
 
-    // Once the cookie jar saves again, the next start stops it and takes its slot.
+    // Handed back, and once the cookie jar saves again, the next start stops it and takes its slot.
+    a.lease.releaseByUser();
     const third = manager.ensure(C);
     await vi.waitFor(() => expect(flushes).toHaveLength(2));
     flushes[1]!.resolve();
@@ -445,5 +451,40 @@ describe("stopping a screen to make room", () => {
     expect(b.done).toBe(true);
     expect(manager.list().map((screen) => screen.id)).toEqual([B]);
     await manager.stopAll();
+  });
+
+  it("tries a screen again once its download that stopped the first try is done, but not a stop that just failed", async () => {
+    startsRunning();
+    const { deps: screenDeps, flushes } = teardownDeps();
+    const manager = new ScreenManager(screenDeps, { maxRunning: 1, admissionMs: 60_000 });
+    const a = await manager.ensure(A);
+    const b = starter(manager)(B);
+    await vi.waitFor(() => expect(flushes).toHaveLength(1));
+    // A download starts while its cookies save, so the stop gives up and A keeps running.
+    a.downloads.handle({ method: "Browser.downloadWillBegin", params: { guid: "report" } });
+    flushes[0]!.resolve();
+    await vi.waitFor(() => expect(a.state).toBe("running"));
+    expect(b.done).toBe(false);
+    expect(flushes).toHaveLength(1);
+
+    a.downloads.handle({
+      method: "Browser.downloadProgress",
+      params: { guid: "report", state: "completed" },
+    });
+    await vi.waitFor(() => expect(flushes).toHaveLength(2));
+    // A stop that fails again, with nothing else changing, isn't retried by the same start.
+    flushes[1]!.reject(new Error("disk full"));
+    await vi.waitFor(() => expect(a.state).toBe("running"));
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(flushes).toHaveLength(2);
+    expect(b.done).toBe(false);
+
+    // A lease handed back is another chance, and this time the stop goes through.
+    a.lease.takeByUser();
+    a.lease.releaseByUser();
+    await vi.waitFor(() => expect(flushes).toHaveLength(3));
+    flushes[2]!.resolve();
+    await vi.waitFor(() => expect(b.done).toBe(true));
+    expect(manager.list().map((screen) => screen.id)).toEqual([B]);
   });
 });

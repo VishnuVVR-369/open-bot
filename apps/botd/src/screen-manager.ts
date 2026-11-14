@@ -31,6 +31,8 @@ export class ScreenManager extends EventEmitter<{
   private readonly stopping = new Map<string, Promise<void>>();
   /** Screens someone is about to use, by teammate id: none of them is idle. */
   private readonly claims = new Map<string, number>();
+  /** Counts, by teammate id, the times a screen may have become stoppable again (see `wake`). */
+  private readonly freed = new Map<string, number>();
 
   constructor(
     private readonly deps: ScreenDeps,
@@ -113,7 +115,7 @@ export class ScreenManager extends EventEmitter<{
         this.starting.delete(id);
         this.startingWaiters.delete(id);
         // Started, or failed and left a screen to stop: either way it may be the one to stop now.
-        this.wake();
+        this.wake(id);
       });
       this.starting.set(id, pending);
     }
@@ -144,7 +146,7 @@ export class ScreenManager extends EventEmitter<{
       if (count) this.claims.set(id, count);
       else {
         this.claims.delete(id);
-        this.wake();
+        this.wake(id);
       }
     }
   }
@@ -152,9 +154,16 @@ export class ScreenManager extends EventEmitter<{
   /**
    * Let every start waiting for a slot recheck: called whenever a slot frees or a screen may have
    * become idle (a start or stop settled, a lease changed hands, a claim ended, a download finished).
+   * With `id`, that screen may have become stoppable again, so a start that already tried to stop it
+   * may try once more; a failed stop alone never counts, so failing stops can't spin.
    */
-  private wake(): void {
+  private wake(id?: string): void {
+    if (id !== undefined) this.freed.set(id, this.freedCount(id) + 1);
     for (const waiter of [...this.waiters]) waiter();
+  }
+
+  private freedCount(id: string): number {
+    return this.freed.get(id) ?? 0;
   }
 
   private freeSlot(): number {
@@ -178,14 +187,15 @@ export class ScreenManager extends EventEmitter<{
     }
     // Waiters recheck after each wake; admission and the map reservation have no await between them.
     const deadline = Date.now() + this.admissionMs;
-    // Each screen is stopped to make room at most once per start, so a failing stop can't spin.
-    const tried = new Set<Screen>();
+    // Screens this start tried to stop, with their `freed` count then: one is tried again only once
+    // something may have made it stoppable again, so a failing stop can't spin.
+    const tried = new Map<Screen, number>();
     while (this.screens.size >= this.maxRunning) {
       signal?.throwIfAborted();
       const idle = this.screenToStop(tried);
       if (idle) {
         // stopScreen() records it as stopping at once, so a start running alongside picks another.
-        tried.add(idle);
+        tried.set(idle, this.freedCount(idle.id));
         this.deps.log(`[screens] stopping ${idle.id} to make room`);
         await this.stopScreen(idle).catch((error: unknown) =>
           this.deps.log(`[screens] could not stop ${idle.id} to make room: ${String(error)}`),
@@ -219,9 +229,9 @@ export class ScreenManager extends EventEmitter<{
     screen.lease.on("change", (change) => {
       this.touch(screen);
       this.emit("lease", id, change);
-      this.wake();
+      this.wake(id);
     });
-    screen.downloads.onDone = () => this.wake();
+    screen.downloads.onDone = () => this.wake(id);
     // Taking over stops whatever the teammate was doing on this screen right away.
     screen.lease.on("preempted", () => screen.desktop.abortAll());
     this.emit("changed");
@@ -255,11 +265,11 @@ export class ScreenManager extends EventEmitter<{
    * an idle running one, preferring one nobody watches, then the one used least recently. Its
    * profile stays on disk.
    */
-  private screenToStop(tried: Set<Screen>): Screen | undefined {
+  private screenToStop(tried: Map<Screen, number>): Screen | undefined {
     return [...this.screens.values()]
       .filter(
         (screen) =>
-          !tried.has(screen) &&
+          tried.get(screen) !== this.freedCount(screen.id) &&
           this.idle(screen) &&
           (screen.state === "running" ||
             (screen.state === "stopping" && !this.starting.has(screen.id))),
