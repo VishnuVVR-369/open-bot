@@ -146,6 +146,26 @@ export function replyChatUrl(url: string | undefined, chatId: string): string {
   return url === chat || url?.startsWith(`${chat}?`) ? url : chat;
 }
 
+/** The start of an unsent reply's notification id. The phone ignores a push tagged with one. */
+const UNSENT_REPLY = "unsent-reply:";
+
+/**
+ * The id of an unsent reply's notification: its own, so a later push about the same run (which
+ * reuses the run's id) can't replace the only copy of what you typed. The same reply failing again
+ * replaces its notification; another reply gets its own.
+ */
+export function unsentReplyId(notificationId: string, text: string): string {
+  // FNV-1a over the text's code points.
+  let hash = 0x811c9dc5;
+  for (const char of text.trim()) {
+    hash ^= char.codePointAt(0)!;
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return `${UNSENT_REPLY}${notificationId}:${hash.toString(16).padStart(8, "0")}`;
+}
+
+export const isUnsentReplyId = (id: string) => id.startsWith(UNSENT_REPLY);
+
 /** Don't show a notification about the chat you're looking at; it's on screen already. */
 export function isOnScreen(data: PushData, visibleChatId: string | null, appActive: boolean) {
   return appActive && data.kind !== "approval" && !!data.chatId && data.chatId === visibleChatId;
