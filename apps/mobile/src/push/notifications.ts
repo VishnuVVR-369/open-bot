@@ -10,6 +10,7 @@ import notifee, {
 import { isDefinedError, safe } from "@orpc/client";
 import * as Crypto from "expo-crypto";
 import { AppState } from "react-native";
+import { keepReply } from "@/features/chat/drafts";
 import { api } from "@/lib/api";
 import { visibleChat } from "@/lib/realtime";
 import { palette } from "@/theme/colors";
@@ -22,6 +23,7 @@ import {
   replyChatUrl,
   replyText,
   unsentReplyId,
+  type ReplyOutcome,
   type ActionId,
   type DecideOutcome,
   type PushData,
@@ -117,7 +119,7 @@ export async function handlePushData(data: PushData): Promise<void> {
 
 /**
  * Clear what was said in a chat once you're looking at it. Approvals stay: they still need you.
- * So does a reply that wasn't sent: its notification is the only copy of what you typed.
+ * So does a reply the phone couldn't send or store: its notification is the only copy of it.
  */
 export async function clearChatNotifications(
   chatId: string,
@@ -165,8 +167,16 @@ async function sendReply(notification: Notification, text: string): Promise<void
           }),
         )
       : { error: new Error("The notification doesn't say who it's from.") };
-  const sent = !result.error;
-  const outcome = replyText(sent, text);
+  const forTeammate = typeof teammateId === "string" && teammateId !== "";
+  // Unsent, it waits in the chat's composer, for its teammate, so opening the chat doesn't mean
+  // typing it again. When the phone can't store it, this notification keeps it.
+  const kept: ReplyOutcome = !result.error
+    ? { kind: "sent" }
+    : (await keepReply(chatId, text, forTeammate ? teammateId : null))
+      ? { kind: "kept", forTeammate }
+      : { kind: "lost" };
+  const sent = kept.kind === "sent";
+  const outcome = replyText(kept, text);
   const url = typeof notification.data?.url === "string" ? notification.data.url : undefined;
   await notifee.displayNotification({
     // Sent, it replaces the notification replied to. Unsent, it's a notification of its own (and
@@ -175,11 +185,16 @@ async function sendReply(notification: Notification, text: string): Promise<void
     title: outcome.title,
     body: outcome.body,
     // Without the reply fields: this one is about the reply, so it has no Reply of its own.
-    // Unsent, it shows what you typed until you dismiss it, even once you open the chat, and opens
-    // that chat (not a page the notification was about).
+    // Unsent, it opens that chat (not a page the notification was about), where the reply waits.
+    // If the phone couldn't store it, it shows all you typed until you dismiss it, even once you
+    // open the chat.
     data: sent
       ? { url: url ?? "/", chatId }
-      : { url: replyChatUrl(url, chatId), chatId, unsentReply: "true" },
+      : {
+          url: replyChatUrl(url, chatId),
+          chatId,
+          ...(kept.kind === "lost" ? { unsentReply: "true" } : {}),
+        },
     android: {
       channelId: "messages",
       groupId: "messages",
@@ -190,7 +205,10 @@ async function sendReply(notification: Notification, text: string): Promise<void
       onlyAlertOnce: true,
       ...(sent
         ? { timeoutAfter: 4_000 }
-        : { autoCancel: false, style: { type: AndroidStyle.BIGTEXT, text: outcome.body } }),
+        : {
+            style: { type: AndroidStyle.BIGTEXT, text: outcome.body },
+            ...(kept.kind === "lost" ? { autoCancel: false } : {}),
+          }),
     },
   });
   if (!sent) await notifee.cancelNotification(notification.id);
