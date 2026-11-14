@@ -17,7 +17,8 @@ import { ActionAbortedError, Desktop } from "./desktop";
 import type { EgressRouter } from "@open-bot/egress/router";
 import type { ComputeLifecycle } from "./lifecycle";
 import type { PageChecker } from "./pages";
-import type { Screen, ScreenManager } from "./screens";
+import type { ScreenManager } from "./screen-manager";
+import type { Screen } from "./screens";
 
 /**
  * Implements `botdContract`: each procedure calls the screen manager, the lifecycle or the page
