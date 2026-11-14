@@ -633,6 +633,9 @@
   "apps/worker/src/features/chat/tools.ts": {
     "bot": 4
   },
+  "apps/worker/src/features/connections/service.ts": {
+    "bot": 15
+  },
   "apps/worker/src/features/email/service.ts": {
     "bot": 41
   },
@@ -782,9 +785,6 @@
   },
   "apps/worker/src/runs/thread-continuity.test.ts": {
     "bot": 4
-  },
-  "apps/worker/src/services/connections.ts": {
-    "bot": 15
   },
   "apps/worker/src/services/files.ts": {
     "bot": 5

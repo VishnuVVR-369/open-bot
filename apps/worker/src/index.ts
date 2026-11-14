@@ -25,7 +25,7 @@ import { ChatService } from "./features/chat";
 import { RunRequests } from "./runs/requests";
 import { computerFiles, UploadService } from "./uploads";
 import { TaskService } from "./features/tasks";
-import { ConnectionService } from "./services/connections";
+import { ConnectionService } from "./features/connections";
 import { emailFeature, EmailService } from "./features/email";
 import { SwarmService } from "./features/teamwork";
 import { VaultService } from "./features/vault";

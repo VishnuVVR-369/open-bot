@@ -118,7 +118,7 @@ export const TABLE_OWNERS = {
   emails: { owner: `${WORKER}features/email/service.ts` },
 
   // Integrations: connections (MCP servers) and accounts (OAuth).
-  connections: { owner: `${WORKER}services/connections.ts` },
+  connections: { owner: `${WORKER}features/connections/service.ts` },
   accounts: { owner: "packages/integrations/src/core/store.ts" },
   oauth_clients: { owner: "packages/integrations/src/core/clients.ts" },
   oauth_states: { owner: `${WEB}features/integrations/server/accounts.ts` },
