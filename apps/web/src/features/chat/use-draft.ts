@@ -44,6 +44,9 @@ export function useDraft(chatId: string) {
       }),
   );
   const state = useSyncExternalStore(draft.subscribe, draft.snapshot, draft.snapshot);
-  useEffect(() => draft.open(chatId), [draft, chatId]);
+  useEffect(() => {
+    draft.open(chatId);
+    return draft.close;
+  }, [draft, chatId]);
   return { draft, ...state, ready: draft.ready };
 }

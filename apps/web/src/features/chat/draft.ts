@@ -49,6 +49,8 @@ export class Draft {
   private failed: SendAttempt | null = null;
   /** The chat whose text this is; nothing is kept before one is open. */
   private chatId: string | null = null;
+  /** The composer left the page; a send still on its way can no longer put anything back in it. */
+  private closed = false;
   private readonly listeners = new Set<() => void>();
 
   constructor(private readonly deps: DraftDeps) {}
@@ -72,9 +74,18 @@ export class Draft {
    * with never overwrites the text it hasn't read yet.
    */
   open = (chatId: string) => {
+    this.closed = false;
     if (chatId === this.chatId) return;
     this.chatId = chatId;
     this.update({ text: this.deps.saved.get(chatId) });
+  };
+
+  /**
+   * The composer left the page. A send still on its way may fail after this; see `send`. Opening
+   * again (React runs effects twice on mount in development) undoes it.
+   */
+  close = () => {
+    this.closed = true;
   };
 
   setText = (text: string) => {
@@ -140,6 +151,13 @@ export class Draft {
       this.failed = null;
       return result;
     }
+    if (this.closed) {
+      // Nobody sees this composer any more, and another may be showing the chat by now. Keep the
+      // text for when you come back, unless you've written something there since. Its files and
+      // id can't be kept: sending it again later is a new message.
+      if (!this.deps.saved.get(chatId)) this.deps.saved.set(chatId, sent.text);
+      return result;
+    }
     this.failed = thisSend;
     this.restore(sent);
     return result;
@@ -159,7 +177,7 @@ export class Draft {
   private update(change: Partial<DraftState>) {
     const before = this.state.text;
     this.state = { ...this.state, ...change };
-    if (this.chatId && this.state.text !== before)
+    if (this.chatId && !this.closed && this.state.text !== before)
       this.deps.saved.set(this.chatId, this.state.text);
     for (const listener of this.listeners) listener();
   }

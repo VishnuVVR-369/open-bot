@@ -196,4 +196,49 @@ describe("Draft", () => {
     await send({ ok: true, data: { id: "saved" } as unknown as MessageView });
     expect(kept.has(CHAT)).toBe(false);
   });
+
+  it("never lets a send that fails after you left the chat overwrite what you wrote there since", async () => {
+    const left = setup();
+    left.draft.open(CHAT);
+    left.draft.setText("Book the 9am flight");
+    const sending = left.draft.send(CHAT, () => []);
+    left.draft.close();
+
+    // You come back and start another message before the first send's answer arrives.
+    const back = setup(left.kept).draft;
+    back.open(CHAT);
+    back.setText("Actually, the 11am one");
+
+    left.sends[0]!.answer.resolve({ ok: false, error: LOST });
+    await sending;
+    expect(left.kept.get(CHAT)).toBe("Actually, the 11am one");
+    expect(back.snapshot().text).toBe("Actually, the 11am one");
+  });
+
+  it("keeps the text of a send that fails after you left the chat, when you wrote nothing there since", async () => {
+    const { draft, sends, kept } = setup();
+    draft.open(CHAT);
+    draft.setText("Book the 9am flight");
+    const sending = draft.send(CHAT, () => []);
+    draft.close();
+    expect(kept.has(CHAT)).toBe(false);
+
+    sends[0]!.answer.resolve({ ok: false, error: LOST });
+    await sending;
+    expect(kept.get(CHAT)).toBe("Book the 9am flight");
+    const back = setup(kept).draft;
+    back.open(CHAT);
+    expect(back.snapshot().text).toBe("Book the 9am flight");
+  });
+
+  it("opens again after closing, as React does twice on mount in development", async () => {
+    const { draft, send, kept } = setup();
+    draft.open(CHAT);
+    draft.close();
+    draft.open(CHAT);
+    draft.setText("Book it");
+    await send({ ok: false, error: LOST });
+    expect(draft.snapshot().text).toBe("Book it");
+    expect(kept.get(CHAT)).toBe("Book it");
+  });
 });
