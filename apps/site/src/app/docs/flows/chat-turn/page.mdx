@@ -212,7 +212,7 @@ Back in the executor, the session is removed and `pump()` claims the next queued
 
 | What happened                                 | What you see                                                                                            |
 | --------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| The worker isn't running                      | The message is saved and sent; the worker dispatches it when it's back.                                 |
+| The worker isn't running                      | Nothing is saved: the composer keeps your text and files, and you send again.                           |
 | Codex isn't signed in                         | The run fails with "Codex is not signed in to ChatGPT. Sign in on the Settings page."                   |
 | The connection to the computer drops mid-turn | The run fails with "Lost the connection to the computer."                                               |
 | The worker restarts mid-turn                  | On start, the run is marked `interrupted`: "The worker restarted while this was running."               |
