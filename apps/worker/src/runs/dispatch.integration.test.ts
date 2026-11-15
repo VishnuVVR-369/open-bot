@@ -122,7 +122,11 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
   it("delivers a message that was saved but never dispatched, like after a crash", async () => {
     const { chat } = await directChat();
     const sent = await message(chat.id, { createdAt: new Date(Date.now() - 60_000) });
-    const fresh = await message(chat.id, { text: "Just sent" });
+    // Ages are explicit, well clear of each cutoff: the reconciler compares with a strict `<`.
+    const fresh = await message(chat.id, {
+      text: "Just sent",
+      createdAt: new Date(Date.now() - 5_000),
+    });
 
     await executor.reconcileDispatches();
 
@@ -179,7 +183,8 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
   it("saves a refused steer's run on the next dispatch when it couldn't be saved at first", async () => {
     const { chat, teammate } = await directChat();
     const { steer } = runningSession(chat.id, teammate.id, false);
-    const sent = await message(chat.id);
+    // Old enough for the reconciler below, whatever the clocks.
+    const sent = await message(chat.id, { createdAt: new Date(Date.now() - 60_000) });
     await refuseRunsIn(pool);
     try {
       await expect(executor.dispatchMessage(sent.id)).rejects.toThrow(
