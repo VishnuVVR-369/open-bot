@@ -56,10 +56,10 @@ Requests that spend money, send email or delete things carry a short warning, in
 Past decisions are grouped by day.
 Notification approvals can be decided without opening the app; purchases use Review and require the phone's authentication check before approval.
 Reply on a message notification sends directly to its teammate, including in a group chat.
-A reply that isn't sent waits in its chat's composer, addressed to the teammate who wrote (a chip above the box, not their name in the text), and the notification says so and opens that chat, also when it was about a page.
-A composer already showing that chat adds the reply after what you're typing there, or after what you're dictating (it stays after what you go on saying, and dictation that is still starting begins after it).
-A send already on its way from that chat leaves the reply when it goes through, even if you left the chat before it did.
-If the teammate is no longer in the chat, the composer won't send it until you pick who it's for from a sheet of the chat's members, which scrolls in a big group, or remove them; otherwise a group's lead would answer it.
+A reply that isn't sent waits in its chat as a card of its own above the composer ("Not sent - to Rex"), never mixed into what you're typing, and the notification says so and opens that chat, also when it was about a page.
+Each card can be sent to the teammate it was for, edited (its text and whom it's for), or discarded; sending or discarding it also clears its notification.
+If the send fails, the card stays and says why, and trying again can't deliver it twice; another composer showing the chat can't send it at the same time.
+If its teammate is no longer in the chat, that card won't send until you pick who it's for from a sheet of the chat's members, which scrolls in a big group; otherwise a group's lead would answer it.
 If the phone can't store the reply, the notification keeps all of it, says it wasn't sent, and stays until you dismiss it, even when you open the chat.
 
 Visible notifications, including automation results and replies, use high-priority FCM data messages so Android can start the background handler that displays them while the app is closed.

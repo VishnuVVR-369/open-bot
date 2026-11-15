@@ -13,10 +13,7 @@ export function useDictation({
   onText,
   onError,
 }: {
-  /**
-   * The whole text: what was there when you started, then what you've said, then any text added
-   * after it meanwhile (`append`).
-   */
+  /** The whole text: what was there when you started, then what you've said. */
   onText: (text: string) => void;
   onError: (message: string) => void;
 }) {
@@ -25,18 +22,11 @@ export function useDictation({
   const request = useRef(0);
   const base = useRef("");
   const finalSoFar = useRef("");
-  /** Paragraphs added after what you're saying while you speak, like a reply a notification kept. */
-  const after = useRef<string[]>([]);
 
   const join = (spoken: string) => {
     const start = base.current;
-    const said = !spoken
-      ? start
-      : start && !/\s$/.test(start)
-        ? `${start} ${spoken}`
-        : `${start}${spoken}`;
-    if (after.current.length === 0) return said;
-    return [said.trimEnd(), ...after.current].filter(Boolean).join("\n\n");
+    if (!spoken) return start;
+    return start && !/\s$/.test(start) ? `${start} ${spoken}` : `${start}${spoken}`;
   };
 
   useSpeechRecognitionEvent("start", () => {
@@ -70,13 +60,8 @@ export function useDictation({
     );
   });
 
-  /**
-   * Starts listening. `text` is what's in the box, read once listening actually begins, not on the
-   * tap: anything added while the permission prompt is up or an earlier session is still ending
-   * (like a reply a notification kept) is part of what you speak after.
-   */
   const start = useCallback(
-    async (text: () => string) => {
+    async (current: string) => {
       const attempt = ++request.current;
       const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
       // The permission prompt may finish after the composer has lost focus.
@@ -95,10 +80,8 @@ export function useDictation({
         await activeSession.ended;
         if (attempt !== request.current) return;
       }
-      // From here on, `append()` takes text added after it.
-      base.current = text();
+      base.current = current;
       finalSoFar.current = "";
-      after.current = [];
       let end!: () => void;
       const session = {
         owner: owner.current,
@@ -132,15 +115,6 @@ export function useDictation({
     [onError],
   );
 
-  /**
-   * Text added after what's in the box while you speak (a reply a notification kept): it stays
-   * after what you say from now on, instead of being written over.
-   */
-  const append = useCallback((text: string) => {
-    if (activeSession?.owner === owner.current && activeSession.accepting)
-      after.current = [...after.current, text];
-  }, []);
-
   const stop = useCallback(() => {
     if (activeSession?.owner === owner.current && activeSession.accepting)
       ExpoSpeechRecognitionModule.stop();
@@ -155,5 +129,5 @@ export function useDictation({
   }, []);
   useEffect(() => cancel, [cancel]);
 
-  return { listening, start, stop, cancel, append };
+  return { listening, start, stop, cancel };
 }

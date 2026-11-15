@@ -6,6 +6,7 @@ const native = vi.hoisted(() => ({
   state: null as null | ((state: string) => void),
   cleanup: null as null | (() => void),
   remove: vi.fn(),
+  clearUnsent: vi.fn(async () => {}),
 }));
 vi.mock("react", () => ({
   useEffect: (effect: () => () => void) => {
@@ -36,10 +37,11 @@ vi.mock("./notifications", () => ({
   handleNotificationEvent: vi.fn(),
   handlePushData: vi.fn(),
 }));
+vi.mock("@/features/chat/unsent-replies", () => ({ clearUnsentReplies: native.clearUnsent }));
 vi.mock("@/lib/api", () => ({ api: {} }));
 vi.mock("@/lib/query", () => ({ queryClient: {}, queryKeys: {} }));
 
-import { usePushNotifications } from "./register";
+import { unregisterPushNotifications, usePushNotifications } from "./register";
 
 afterEach(() => {
   native.cleanup?.();
@@ -71,5 +73,12 @@ describe("notification navigation", () => {
     native.state!("active");
     await vi.waitFor(() => expect(native.initial).toHaveBeenCalledTimes(3));
     expect(native.push).toHaveBeenCalledOnce();
+  });
+});
+
+describe("signing out", () => {
+  it("forgets replies a notification couldn't send, on a phone without Firebase too", async () => {
+    await unregisterPushNotifications();
+    expect(native.clearUnsent).toHaveBeenCalledOnce();
   });
 });

@@ -14,7 +14,7 @@ const {
 } = vi.hoisted(() => ({
   /** What's shown, by notification id, as Notifee keeps it: showing an id again replaces it. */
   tray: new Map<string, { id: string; title?: string; body?: string }>(),
-  /** The phone's AsyncStorage, as the draft store sees it. */
+  /** The phone's AsyncStorage, as the draft and unsent reply stores see it. */
   stored: new Map<string, string>(),
   storage: { failing: false },
   displayed: vi.fn(),
@@ -54,13 +54,15 @@ vi.mock("@react-native-async-storage/async-storage", () => ({
     },
   },
 }));
-// The real draft store, which the app imports through the `@/` alias the tests don't have.
+// The real stores, which the app imports through the `@/` alias the tests don't have.
 vi.mock("@/features/chat/drafts", () => import("../features/chat/drafts"));
+vi.mock("@/features/chat/unsent-replies", () => import("../features/chat/unsent-replies"));
 vi.mock("@/theme/colors", () => ({ palette: { light: { foreground: "#14161B" } } }));
 
 import type { Event } from "@notifee/react-native";
 import { ORPCError } from "@orpc/client";
 import { readDraft, writeDraft } from "../features/chat/drafts";
+import { clearUnsentReplies, unsentReplies } from "../features/chat/unsent-replies";
 import { clearChatNotifications, handleNotificationEvent, handlePushData } from "./notifications";
 import { unsentReplyId } from "./payload";
 
@@ -70,12 +72,13 @@ const shown = [
   { id: "approval-a", notification: { data: { chatId: "a", approvalId: "approval" } } },
 ];
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
-  // No draft for the chat (and no pending write of one), and storage that works.
-  writeDraft("c1", { text: "", mentions: [] });
-  stored.clear();
+  // No draft or unsent reply for the chat, and storage that works.
   storage.failing = false;
+  writeDraft("c1", "");
+  await clearUnsentReplies();
+  stored.clear();
   displayed.mockResolvedValue(shown);
   cancel.mockResolvedValue(undefined);
   tray.clear();
@@ -232,12 +235,21 @@ describe("replying from a notification", () => {
     );
   });
 
-  const drafts = () => JSON.parse(stored.get("openbot:drafts") ?? "{}") as Record<string, unknown>;
+  /** What the phone stored of the chat's unsent replies. */
+  const storedReplies = () =>
+    JSON.parse(stored.get("openbot:unsent-replies") ?? "[]") as Record<string, unknown>[];
+  const unsent = (text = "Book it", teammateId: string | null = "b1") => ({
+    id: unsentReplyId("run-1", text),
+    chatId: "c1",
+    text,
+    teammateId,
+    notificationId: "run-1",
+  });
 
-  it("leaves the chat's draft alone once the reply is sent", async () => {
+  it("keeps nothing once the reply is sent", async () => {
     send.mockResolvedValue({ id: "m1" });
     await handleNotificationEvent(reply("Book the 9am one"));
-    expect(drafts()).not.toHaveProperty("c1");
+    expect(unsentReplies("c1")).toEqual([]);
   });
 
   /** The notification a reply kept in the chat leaves: it opens the chat, where the reply waits. */
@@ -249,22 +261,26 @@ describe("replying from a notification", () => {
     android: expect.objectContaining({ style: { type: 1, text: body } }),
   });
 
-  it("keeps a reply that couldn't be sent in the chat, for the teammate it was to", async () => {
+  it("keeps a reply that couldn't be sent in its chat, on its own, for the teammate it was to", async () => {
     send.mockRejectedValue(new Error("offline"));
     await handleNotificationEvent(reply("Book it"));
     const shown = display.mock.calls[0]![0];
     expect(shown).toMatchObject(kept("It's in the chat, ready to send: “Book it”"));
     expect(shown.android.timeoutAfter).toBeUndefined();
-    // Stored before the handler returns (the background task can stop right after), addressed by
-    // id: the text stays as typed, with no `@Name` that could match someone else.
-    expect(drafts()).toEqual({ c1: { text: "Book it", mentions: ["b1"] } });
+    // Stored before the handler returns (the background task can stop right after), under the id
+    // of the notification that says so, addressed by id: no `@Name` that could match someone else.
+    expect(storedReplies()).toEqual([{ ...unsent(), clientId: expect.any(String) }]);
+    expect(unsentReplies("c1")).toEqual([
+      expect.objectContaining({ ...unsent(), sending: false, error: null }),
+    ]);
   });
 
-  it("keeps a draft you'd already started, with the reply after it", async () => {
-    writeDraft("c1", { text: "Also, the hotel", mentions: [] });
+  it("never touches the chat's draft", async () => {
+    writeDraft("c1", "Also, the hotel");
     send.mockRejectedValue(new Error("offline"));
     await handleNotificationEvent(reply("Book it"));
-    expect(drafts().c1).toEqual({ text: "Also, the hotel\n\nBook it", mentions: ["b1"] });
+    expect(await readDraft("c1")).toBe("Also, the hotel");
+    expect(unsentReplies("c1")).toEqual([expect.objectContaining({ text: "Book it" })]);
   });
 
   it("keeps a reply to a page's notification in the page's chat, and opens that chat", async () => {
@@ -275,7 +291,7 @@ describe("replying from a notification", () => {
     expect(display.mock.calls[0]![0]).toMatchObject(
       kept("It's in the chat, ready to send: “Book it”", "/chats/c1"),
     );
-    expect(await readDraft("c1")).toEqual({ text: "Book it", mentions: ["b1"] });
+    expect(unsentReplies("c1")).toEqual([expect.objectContaining(unsent())]);
   });
 
   it("sends nothing when the notification doesn't say who it's from, and keeps it addressed to no one", async () => {
@@ -287,7 +303,7 @@ describe("replying from a notification", () => {
     expect(display.mock.calls[0]![0]).toMatchObject(
       kept("It's in the chat, not addressed to anyone yet: “Book it”"),
     );
-    expect(drafts()).toEqual({ c1: "Book it" });
+    expect(unsentReplies("c1")).toEqual([expect.objectContaining(unsent("Book it", null))]);
   });
 
   it("shows all of a reply the phone couldn't store either, until you dismiss it", async () => {
@@ -340,8 +356,11 @@ describe("replying from a notification", () => {
   });
 
   it("shows the same reply failing again once, and each different reply", async () => {
-    storage.failing = true;
     send.mockRejectedValue(new Error("offline"));
+    await handleNotificationEvent(reply("Book it"));
+    await handleNotificationEvent(reply("Book it "));
+    expect(unsentReplies("c1")).toHaveLength(1);
+    storage.failing = true;
     await handleNotificationEvent(reply("Book it"));
     await handleNotificationEvent(reply("Book it "));
     expect(tray.size).toBe(1);

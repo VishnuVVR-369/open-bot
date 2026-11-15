@@ -10,7 +10,7 @@ import notifee, {
 import { isDefinedError, safe } from "@orpc/client";
 import * as Crypto from "expo-crypto";
 import { AppState } from "react-native";
-import { keepReply } from "@/features/chat/drafts";
+import { keepUnsentReply } from "@/features/chat/unsent-replies";
 import { api } from "@/lib/api";
 import { visibleChat } from "@/lib/realtime";
 import { palette } from "@/theme/colors";
@@ -168,11 +168,18 @@ async function sendReply(notification: Notification, text: string): Promise<void
         )
       : { error: new Error("The notification doesn't say who it's from.") };
   const forTeammate = typeof teammateId === "string" && teammateId !== "";
-  // Unsent, it waits in the chat's composer, for its teammate, so opening the chat doesn't mean
-  // typing it again. When the phone can't store it, this notification keeps it.
+  // Unsent, it waits in the chat on its own, for its teammate, ready to send, under the id of the
+  // notification that says so. When the phone can't store it, this notification keeps it.
+  const unsentId = unsentReplyId(notification.id, text);
   const kept: ReplyOutcome = !result.error
     ? { kind: "sent" }
-    : (await keepReply(chatId, text, forTeammate ? teammateId : null))
+    : (await keepUnsentReply({
+          id: unsentId,
+          chatId,
+          text,
+          teammateId: forTeammate ? teammateId : null,
+          notificationId: notification.id,
+        }))
       ? { kind: "kept", forTeammate }
       : { kind: "lost" };
   const sent = kept.kind === "sent";
@@ -181,7 +188,7 @@ async function sendReply(notification: Notification, text: string): Promise<void
   await notifee.displayNotification({
     // Sent, it replaces the notification replied to. Unsent, it's a notification of its own (and
     // the one replied to goes): a later push about the same run reuses that one's id.
-    id: sent ? notification.id : unsentReplyId(notification.id, text),
+    id: sent ? notification.id : unsentId,
     title: outcome.title,
     body: outcome.body,
     // Without the reply fields: this one is about the reply, so it has no Reply of its own.

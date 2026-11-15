@@ -89,7 +89,7 @@ describe("dictation", () => {
     const composer = await mount();
     const cleanup = composer.hook.cancel;
     await act(async () => {
-      await composer.hook.start(() => "Draft");
+      await composer.hook.start("Draft");
     });
     await emit("start");
     expect(composer.hook.listening).toBe(true);
@@ -103,7 +103,7 @@ describe("dictation", () => {
   it("keeps final and interim speech after the existing draft", async () => {
     const composer = await mount();
     await act(async () => {
-      await composer.hook.start(() => "Draft");
+      await composer.hook.start("Draft");
     });
     await emit("result", result("hello"));
     await emit("result", result("world", false));
@@ -113,80 +113,11 @@ describe("dictation", () => {
     ]);
   });
 
-  it("keeps text added while you speak after what you go on saying", async () => {
-    const composer = await mount();
-    await act(async () => {
-      await composer.hook.start(() => "Draft");
-    });
-    await emit("start");
-    await emit("result", result("hello", false));
-    composer.hook.append("Book it");
-    await emit("result", result("hello there", false));
-    await emit("result", result("hello there"));
-    composer.hook.append("And lunch");
-    await emit("result", result("thanks", false));
-    expect(composer.onText.mock.calls.map(([text]) => text)).toEqual([
-      "Draft hello",
-      "Draft hello there\n\nBook it",
-      "Draft hello there\n\nBook it",
-      "Draft hello there thanks\n\nBook it\n\nAnd lunch",
-    ]);
-  });
-
-  it("starts from what's in the box once it listens, not when you tapped, through every wait", async () => {
-    // The permission prompt is up when a reply is kept.
-    let grant!: (value: { granted: boolean }) => void;
-    state.permission.mockReturnValueOnce(new Promise((resolve) => (grant = resolve)));
-    const composer = await mount();
-    let box = "Draft";
-    const pending = composer.hook.start(() => box);
-    box = "Draft\n\nRecovered reply";
-    composer.hook.append("Recovered reply");
-    await act(async () => {
-      grant({ granted: true });
-      await pending;
-    });
-    await emit("result", result("hello"));
-    expect(composer.onText).toHaveBeenLastCalledWith("Draft\n\nRecovered reply hello");
-    expect(state.start).toHaveBeenCalledOnce();
-
-    // Another composer's recognition is still ending when one is kept.
-    const other = await mount();
-    await act(async () => composer.hook.cancel());
-    box = "Next";
-    const waiting = other.hook.start(() => box);
-    await act(async () => {});
-    box = "Next\n\nBook it";
-    await emit("end");
-    await act(async () => {
-      await waiting;
-    });
-    expect(state.start).toHaveBeenCalledTimes(2);
-    await emit("result", result("there"));
-    expect(other.onText).toHaveBeenCalledExactlyOnceWith("Next\n\nBook it there");
-  });
-
-  it("forgets added text once it starts again, and ignores text added while it isn't listening", async () => {
-    const composer = await mount();
-    composer.hook.append("Ignored");
-    await act(async () => {
-      await composer.hook.start(() => "Draft");
-    });
-    await emit("result", result("hello"));
-    composer.hook.append("Book it");
-    await emit("end");
-    await act(async () => {
-      await composer.hook.start(() => "Next");
-    });
-    await emit("result", result("again"));
-    expect(composer.onText.mock.calls.map(([text]) => text)).toEqual(["Draft hello", "Next again"]);
-  });
-
   it("only updates the composer that started recognition while other chats stay mounted", async () => {
     const hidden = await mount();
     const active = await mount();
     await act(async () => {
-      await active.hook.start(() => "Visible draft");
+      await active.hook.start("Visible draft");
     });
     await emit("start");
     await emit("result", result("hello"));
@@ -204,7 +135,7 @@ describe("dictation", () => {
     const hidden = await mount();
     const active = await mount();
     await act(async () => {
-      await active.hook.start(() => "Draft");
+      await active.hook.start("Draft");
     });
     await act(async () => {
       hidden.hook.cancel();
@@ -220,14 +151,14 @@ describe("dictation", () => {
     const first = await mount();
     const second = await mount();
     await act(async () => {
-      await first.hook.start(() => "First");
+      await first.hook.start("First");
       first.hook.cancel();
     });
     await emit("result", result("late"));
     expect(first.onText).not.toHaveBeenCalled();
     await emit("end");
     await act(async () => {
-      await second.hook.start(() => "Second");
+      await second.hook.start("Second");
     });
     await emit("result", result("hello"));
     expect(first.onText).not.toHaveBeenCalled();
@@ -238,10 +169,10 @@ describe("dictation", () => {
     const first = await mount();
     const second = await mount();
     await act(async () => {
-      await first.hook.start(() => "First");
+      await first.hook.start("First");
       first.hook.cancel();
     });
-    const pending = second.hook.start(() => "Second");
+    const pending = second.hook.start("Second");
     await emit("error", { error: "aborted" });
     await emit("result", result("late first result"));
     expect(state.start).toHaveBeenCalledOnce();
@@ -261,13 +192,13 @@ describe("dictation", () => {
       throw new Error("native failed");
     });
     await act(async () => {
-      await composer.hook.start(() => "Draft");
+      await composer.hook.start("Draft");
     });
     expect(composer.onError).toHaveBeenCalledExactlyOnceWith(
       "Dictation couldn't start. Try again.",
     );
     await act(async () => {
-      await composer.hook.start(() => "Retry");
+      await composer.hook.start("Retry");
     });
     await emit("result", result("hello"));
     expect(composer.onText).toHaveBeenCalledExactlyOnceWith("Retry hello");
@@ -281,7 +212,7 @@ describe("dictation", () => {
       }),
     );
     const composer = await mount();
-    const pending = composer.hook.start(() => "Draft");
+    const pending = composer.hook.start("Draft");
     await act(async () => {
       composer.hook.cancel();
       grant({ granted: true });
@@ -295,7 +226,7 @@ describe("dictation", () => {
   it("keeps final results after Stop until the native end event releases recognition", async () => {
     const composer = await mount();
     await act(async () => {
-      await composer.hook.start(() => "Draft");
+      await composer.hook.start("Draft");
       composer.hook.stop();
     });
     await emit("result", result("final words"));

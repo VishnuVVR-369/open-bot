@@ -9,9 +9,9 @@ import { MemberOption, type Member } from "./mention-menu";
 const ROW = 52;
 
 /**
- * Who a draft should be for instead of a teammate who left the chat: any of the chat's members. A
- * group can have many, so the list scrolls inside a sheet that stays within the screen, in
- * landscape and with the keyboard up too.
+ * Who an unsent reply should be for, from the chat's members: instead of a teammate who left the
+ * chat, or someone else. A group can have many, so the list scrolls inside a sheet that stays
+ * within the screen, in landscape and with the keyboard up too.
  */
 export function RecipientSheet<M extends Member>({
   open,
@@ -49,7 +49,7 @@ export function RecipientSheet<M extends Member>({
         </ScrollView>
       ) : (
         <Text variant="small" muted style={styles.empty}>
-          Everyone in this chat is already on it. Remove this one to send it.
+          There's no one else in this chat to send it to.
         </Text>
       )}
     </Sheet>

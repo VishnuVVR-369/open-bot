@@ -3,6 +3,7 @@ import * as Device from "expo-device";
 import { router, type Href } from "expo-router";
 import { useEffect } from "react";
 import { AppState } from "react-native";
+import { clearUnsentReplies } from "@/features/chat/unsent-replies";
 import { api } from "@/lib/api";
 import { keysForPush, queryClient, queryKeys } from "@/lib/query";
 import { hasFirebase } from "./firebase";
@@ -119,8 +120,12 @@ export function usePushNotifications(signedIn: boolean) {
   }, [signedIn]);
 }
 
-/** On sign-out: stop notifications to this phone, on the server and in Firebase. */
+/**
+ * On sign-out: stop notifications to this phone, on the server and in Firebase, and forget the
+ * replies typed into them that couldn't be sent: what you typed for this account stays with it.
+ */
 export async function unregisterPushNotifications(): Promise<void> {
+  await clearUnsentReplies().catch(() => {});
   const fcm = messaging();
   if (!fcm) return;
   const instance = fcm.getMessaging();
