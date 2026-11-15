@@ -56,6 +56,9 @@ export function listen(service: TelegramPoller) {
 export async function loop(service: TelegramPoller, generation: number) {
   let failures = 0;
   let failing: Failing | null = null;
+  // The last update handled (or skipped) here. When saving the offset past it failed, it comes
+  // back, and is only acknowledged: handling it again would send its replies twice.
+  let finished = 0;
   const current = () => service.running && generation === service.generation;
   while (current() && service.token) {
     service.abort = new AbortController();
@@ -79,7 +82,7 @@ export async function loop(service: TelegramPoller, generation: number) {
       for (const update of updates) {
         if (!current()) return;
         try {
-          await handle(service, update);
+          if (update.update_id > finished) await handle(service, update);
         } catch (error) {
           failing = failedAgain(failing, update.update_id);
           const { attempts, ms } = service.retry;
@@ -95,6 +98,7 @@ export async function loop(service: TelegramPoller, generation: number) {
           }
           await skip(service, update, failing, error);
         }
+        finished = Math.max(finished, update.update_id);
         await service.ctx.db
           .update(telegram)
           .set({ updateOffset: update.update_id + 1 })

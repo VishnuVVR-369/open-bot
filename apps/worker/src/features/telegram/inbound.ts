@@ -14,7 +14,7 @@ import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import { publishApp } from "../../context";
 import { errorMessage } from "../../logger";
 import type { RunExecutor } from "../../runs/executor";
-import type { UploadService } from "../uploads";
+import { UploadError, type UploadService } from "../uploads";
 import { mainChat, saveUserMessage } from "../chat";
 import {
   call,
@@ -198,6 +198,23 @@ export async function route(
 }
 
 /**
+ * What to tell you about a file that can't be had however often it's tried: over Telegram's 20 MB, one
+ * Telegram refuses or doesn't share, or one uploads refuse. Null for anything worth retrying.
+ */
+function fileRefused(error: unknown): string | null {
+  if (
+    error instanceof TelegramError &&
+    (error.message === "too large" || /file is too big/i.test(error.message))
+  )
+    return "Telegram only lets bots download files up to 20 MB. Upload bigger ones in open-bot.";
+  if (error instanceof TelegramError && error.code === 400)
+    return `Couldn't get that file: ${escapeHtml(error.message)}`;
+  if (error instanceof UploadError && error.status < 500)
+    return `Couldn't save that file: ${escapeHtml(error.message)}`;
+  return null;
+}
+
+/**
  * The id a Telegram message is saved under, the same every time it's handled: a retried update
  * finds the message it saved before instead of saving it again. Telegram numbers messages per chat
  * and per token owner, so the account id (the token's first part) is part of it.
@@ -260,14 +277,11 @@ export async function receive(
       );
     }
   } catch (error) {
-    await send(
-      service,
-      telegramChatId,
-      error instanceof TelegramError && error.message === "too large"
-        ? "Telegram only lets bots download files up to 20 MB. Upload bigger ones in open-bot."
-        : `Couldn't get that file: ${escapeHtml(errorMessage(error))}`,
-      { replyTo: message.message_id },
-    );
+    // Telegram busy or unreachable, or the computer or the database failing: the update fails, so
+    // it's tried again, and you hear nothing until then.
+    const refused = fileRefused(error);
+    if (!refused) throw error;
+    await send(service, telegramChatId, refused, { replyTo: message.message_id });
     return;
   }
   if (!target.text && attachments.length === 0) {

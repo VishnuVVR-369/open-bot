@@ -73,6 +73,23 @@ class TelegramStandIn {
     });
   }
 
+  /** Answers for the next getFile calls, before it answers normally again. */
+  readonly getFileFailures: { status: number; description: string }[] = [];
+
+  /** The owner sends a photo with a caption. Returns the update's id. */
+  sayPhoto(caption: string): number {
+    const id = this.nextMessage++;
+    return this.push({
+      message: {
+        message_id: id,
+        chat: { id: OWNER.id, type: "private" },
+        from: OWNER,
+        caption,
+        photo: [{ file_id: `photo${id}`, file_size: 4, width: 1 }],
+      },
+    });
+  }
+
   /** The owner presses a button on a message sent to them. Returns the update's id. */
   press(data: string): number {
     return this.push({
@@ -102,7 +119,24 @@ class TelegramStandIn {
       response.writeHead(status, { "content-type": "application/json" });
       response.end(JSON.stringify(body));
     };
+    if (request.url?.startsWith("/file/")) {
+      response.writeHead(200, { "content-type": "application/octet-stream" });
+      return response.end(Buffer.from("jpeg"));
+    }
     const method = /^\/bot[^/]+\/(\w+)$/.exec(request.url ?? "")?.[1]; // vocabulary: allow
+    if (method === "getFile") {
+      const failure = this.getFileFailures.shift();
+      if (failure)
+        return reply(failure.status, {
+          ok: false,
+          error_code: failure.status,
+          description: failure.description,
+        });
+      return reply(200, {
+        ok: true,
+        result: { file_id: params.file_id, file_path: `photos/${String(params.file_id)}.jpg` },
+      });
+    }
     if (method === "getUpdates") {
       const offset = Number(params.offset ?? 0);
       if (offset > 0) {
@@ -155,13 +189,22 @@ describe.skipIf(!url)("Telegram polling with Postgres", () => {
   const decide = vi.fn<ApprovalService["decide"]>();
   const services: TelegramService[] = [];
 
+  const uploads = {
+    save: vi.fn(async (file: { name: string; mime: string; data: Buffer }) => ({
+      name: file.name,
+      path: `/home/bot/shared/uploads/${file.name}`, // vocabulary: allow
+      mime: file.mime,
+      size: file.data.length,
+    })),
+  };
+
   /** A worker's Telegram service, polling. */
   function polling(retry: UpdateRetry): TelegramService {
     const service = new TelegramService(
       ctx,
       executor,
       { decide } as unknown as ApprovalService,
-      { save: vi.fn() },
+      uploads,
       retry,
     );
     services.push(service);
@@ -183,6 +226,8 @@ describe.skipIf(!url)("Telegram polling with Postgres", () => {
       "truncate bots, chats, telegram, telegram_messages, notifications restart identity cascade", // vocabulary: allow
     );
     standIn.reset();
+    standIn.getFileFailures.length = 0;
+    uploads.save.mockClear();
     decide.mockReset().mockResolvedValue(true);
     await db.insert(telegram).values({
       id: 1,
@@ -199,6 +244,7 @@ describe.skipIf(!url)("Telegram polling with Postgres", () => {
     // Put back what a test renamed, if it failed before doing so itself.
     await pool.query("alter table if exists bots_gone rename to bots"); // vocabulary: allow
     await pool.query("alter table if exists dispatches_gone rename to message_dispatches");
+    await pool.query("drop trigger if exists refuse_offsets on telegram");
   });
   afterAll(async () => {
     await standIn.stop();
@@ -263,6 +309,50 @@ describe.skipIf(!url)("Telegram polling with Postgres", () => {
     const found = await saved("Book the table");
     expect(found).toHaveLength(1);
     expect(await db.select().from(runs).where(eq(runs.messageId, found[0]!.id))).toHaveLength(1);
+  });
+
+  it("retries a photo Telegram couldn't hand over, without telling you it failed", async () => {
+    standIn.getFileFailures.push({ status: 503, description: "Service Unavailable" });
+    polling(patient);
+    const update = standIn.sayPhoto("Receipt for lunch");
+    await until(() => standIn.acknowledged >= update, "the photo was acknowledged");
+    expect(standIn.texts()).toEqual([]);
+    const [message] = await saved("Receipt for lunch");
+    expect(message!.attachments).toEqual([expect.objectContaining({ mime: "image/jpeg" })]);
+    expect(await saved("Receipt for lunch")).toHaveLength(1);
+    expect(uploads.save).toHaveBeenCalledTimes(1);
+  });
+
+  it("tells you once about a file Telegram refuses, and drops its message", async () => {
+    standIn.getFileFailures.push({ status: 400, description: "Bad Request: file is too big" });
+    polling(patient);
+    const update = standIn.sayPhoto("A long video");
+    await until(() => standIn.acknowledged >= update, "the photo was acknowledged");
+    expect(standIn.texts()).toEqual([
+      "Telegram only lets bots download files up to 20 MB. Upload bigger ones in open-bot.", // vocabulary: allow
+    ]);
+    expect(await saved("A long video")).toHaveLength(0);
+  });
+
+  it("doesn't answer a command twice when saving that it was handled failed", async () => {
+    // Saving the offset fails, as when the database drops out right after the reply went out.
+    await pool.query(`
+      create or replace function refuse_offsets() returns trigger language plpgsql as $$
+      begin
+        if new.update_offset <> old.update_offset then
+          raise exception using errcode = '08006', message = 'connection lost';
+        end if;
+        return new;
+      end $$;
+      create trigger refuse_offsets before update on telegram
+        for each row execute function refuse_offsets();
+    `);
+    polling(patient);
+    const update = standIn.say("/team");
+    await until(() => (standIn.deliveries.get(update) ?? 0) >= 3, "the update came back");
+    await pool.query("drop trigger refuse_offsets on telegram");
+    await until(() => standIn.acknowledged >= update, "the update was acknowledged");
+    expect(standIn.texts()).toEqual([expect.stringContaining("<b>Otto</b>")]);
   });
 
   it("skips an update that keeps failing, tells you, and goes on to the next", async () => {
