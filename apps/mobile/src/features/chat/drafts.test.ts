@@ -20,7 +20,16 @@ vi.mock("@react-native-async-storage/async-storage", () => ({
   },
 }));
 
-import { afterSend, appendKept, keepReply, onKeptReply, readDraft, writeDraft } from "./drafts";
+import {
+  afterSend,
+  appendKept,
+  beginSend,
+  endSend,
+  keepReply,
+  readDraft,
+  watchDraft,
+  writeDraft,
+} from "./drafts";
 
 const saved = () => JSON.parse(stored.get("openbot:drafts") ?? "{}") as Record<string, unknown>;
 
@@ -64,12 +73,13 @@ describe("keeping a reply a notification couldn't send", () => {
 
   it("tells a composer showing the chat, before it's stored, and says whether it was stored", async () => {
     const heard = vi.fn();
-    const off = onKeptReply("k1", heard);
+    const off = watchDraft("k1", heard);
     expect(await keepReply("k1", "Book it", "rex")).toBe(true);
-    expect(heard).toHaveBeenCalledWith(
-      { text: "Book it", teammateId: "rex" },
-      { text: "Book it", mentions: ["rex"] },
-    );
+    expect(heard).toHaveBeenCalledWith({
+      kind: "kept",
+      kept: { text: "Book it", teammateId: "rex" },
+      draft: { text: "Book it", mentions: ["rex"] },
+    });
     expect(saved().k1).toEqual({ text: "Book it", mentions: ["rex"] });
     off();
     storage.failing = true;
@@ -92,5 +102,43 @@ describe("after a send", () => {
         { text: "Thanks", teammateId: "mia" },
       ]),
     ).toEqual({ text: "Book the room\n\nAnd lunch\n\nThanks", mentions: ["rex", "mia"] });
+  });
+});
+
+describe("a send on its way", () => {
+  it("leaves the replies kept meanwhile once it goes through, with no composer open", async () => {
+    writeDraft("s1", { text: "Original message", mentions: [] });
+    const send = beginSend("s1");
+    // Nobody is showing the chat: you left it before the send went through.
+    await keepReply("s1", "Book the room", "rex");
+    await keepReply("s2", "Another chat's", null);
+    expect(await readDraft("s1")).toEqual({
+      text: "Original message\n\nBook the room",
+      mentions: ["rex"],
+    });
+    endSend(send, true);
+    expect(await readDraft("s1")).toEqual({ text: "Book the room", mentions: ["rex"] });
+    await vi.waitFor(() =>
+      expect(saved().s1).toEqual({ text: "Book the room", mentions: ["rex"] }),
+    );
+    // It's over: a reply kept now stays with what's there, and ending it again does nothing.
+    await keepReply("s1", "And lunch", null);
+    endSend(send, true);
+    expect((await readDraft("s1")).text).toBe("Book the room\n\nAnd lunch");
+  });
+
+  it("leaves the draft as it is when it fails, and tells a composer showing the chat when it went through", async () => {
+    writeDraft("s3", { text: "Hello", mentions: [] });
+    const failed = beginSend("s3");
+    await keepReply("s3", "Book it", "rex");
+    endSend(failed, false);
+    expect(await readDraft("s3")).toEqual({ text: "Hello\n\nBook it", mentions: ["rex"] });
+
+    const heard = vi.fn();
+    const off = watchDraft("s3", heard);
+    endSend(beginSend("s3"), true);
+    expect(heard).toHaveBeenCalledWith({ kind: "sent", draft: { text: "", mentions: [] } });
+    expect(await readDraft("s3")).toEqual({ text: "", mentions: [] });
+    off();
   });
 });

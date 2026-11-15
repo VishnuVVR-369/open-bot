@@ -12,6 +12,10 @@ const state = vi.hoisted(() => ({
   speech: new Map<string, Set<(event?: unknown) => void>>(),
   /** The phone's AsyncStorage, as the draft store sees it. */
   stored: new Map<string, string>(),
+  /** Microphone permission, asked when you tap Dictate. */
+  permission: vi.fn(),
+  /** The window: a phone on its side by default. */
+  window: { width: 915, height: 412 },
 }));
 vi.mock("expo-crypto", () => ({ randomUUID: () => crypto.randomUUID() }));
 vi.mock("expo-document-picker", () => ({ getDocumentAsync: state.pick }));
@@ -24,6 +28,7 @@ vi.mock("react-native", () => ({
   TextInput: "TextInput",
   View: "View",
   StyleSheet: { create: (styles: unknown) => styles },
+  useWindowDimensions: () => state.window,
 }));
 vi.mock("lucide-react-native", () =>
   Object.fromEntries(
@@ -60,7 +65,7 @@ vi.mock("expo-speech-recognition", async () => {
   };
   return {
     ExpoSpeechRecognitionModule: {
-      requestPermissionsAsync: async () => ({ granted: true }),
+      requestPermissionsAsync: state.permission,
       isRecognitionAvailable: () => true,
       start: () => {},
       stop: () => {},
@@ -85,6 +90,7 @@ vi.mock("@react-native-async-storage/async-storage", () => ({
 vi.mock("@/features/chat/drafts", () => import("../drafts"));
 vi.mock("@/features/chat/recipients", () => import("../recipients"));
 vi.mock("@/features/chat/use-draft", () => import("../use-draft"));
+vi.mock("@/lib/use-keyboard", () => ({ useKeyboardHeight: () => 0 }));
 vi.mock("@/lib/errors", () => ({ errorMessage: () => "Couldn't send. Try again." }));
 vi.mock("@/lib/haptics", () => ({
   haptics: {
@@ -134,6 +140,7 @@ const chips = () =>
 
 beforeEach(async () => {
   vi.clearAllMocks();
+  state.permission.mockResolvedValue({ granted: true });
   state.upload.mockResolvedValue({ kind: "complete", attachment: attachment("first") });
   await act(async () => {
     root = create(
@@ -186,6 +193,11 @@ const addressedTo = () =>
       .join(""),
   );
 const sent = () => state.send.mock.calls.at(-1)![0];
+const picker = () => root.root.find((node) => node.props.testID === "recipient-picker");
+const openPicker = () => {
+  const missing = byTestId("recipient-missing")[0]!;
+  return press(missing.findAll((node) => node.props.accessibilityRole === "button")[0]!);
+};
 const speech = (name: string, event?: unknown) =>
   act(async () => {
     for (const listener of [...(state.speech.get(name) ?? [])]) listener(event);
@@ -239,12 +251,14 @@ describe("a reply a notification couldn't send", () => {
     expect(state.send).not.toHaveBeenCalled();
 
     // Pick who it's for instead.
-    const missing = byTestId("recipient-missing")[0]!;
-    await press(missing.findAll((node) => node.props.accessibilityRole === "button")[0]!);
-    const options = byTestId("mention-option");
+    expect(picker().props.open).toBe(false);
+    await openPicker();
+    expect(picker().props.open).toBe(true);
+    const options = byTestId("recipient-option");
     expect(options).toHaveLength(2);
     await press(options[1]!);
     expect(addressedTo()).toEqual(["To Mia"]);
+    expect(picker().props.open).toBe(false);
     state.send.mockResolvedValueOnce({ id: "sent" } as MessageView);
     await press(button("send"));
     expect(sent().mentions).toEqual(["mia"]);
@@ -257,6 +271,24 @@ describe("a reply a notification couldn't send", () => {
     state.send.mockResolvedValueOnce({ id: "sent" } as MessageView);
     await press(button("send"));
     expect(sent()).toMatchObject({ text: "Book it", mentions: [] });
+  });
+
+  it("offers every member of a big group in a list that scrolls within the screen", async () => {
+    const group = Array.from({ length: 20 }, (_, i) => member(`m${i}`, `Member ${i}`));
+    await keepReply("r7", "Book it", "gone");
+    await open("r7", { isGroup: true, members: group });
+    await openPicker();
+    const list = root.root.find((node) => node.props.testID === "recipient-options");
+    expect(String(list.type)).toBe("ScrollView");
+    // 20 rows of 52: far taller than a phone on its side, 412 tall. The list takes at most half.
+    expect(list.props.style.maxHeight).toBeLessThanOrEqual(412 / 2);
+    expect(list.props.style.maxHeight).toBeGreaterThanOrEqual(2 * 52);
+    const options = list.findAll((node) => node.props.testID === "recipient-option");
+    expect(options.filter((node) => typeof node.type === "string")).toHaveLength(20);
+    // Nothing of the chat's members spills out above the box.
+    expect(byTestId("mention-option")).toHaveLength(0);
+    await press(options.filter((node) => typeof node.type === "string")[19]!);
+    expect(addressedTo()).toEqual(["To Member 19"]);
   });
 
   it("blocks a send when the teammate it's for leaves the chat while it's open", async () => {
@@ -336,6 +368,59 @@ describe("a reply kept while its chat is open", () => {
     await speech("result", { isFinal: true, results: [{ transcript: "Hello there" }] });
     expect(input().props.value).toBe("Hello there\n\nBook it");
     expect(await readDraft("k7")).toEqual({ text: "Hello there\n\nBook it", mentions: ["rex"] });
+    await speech("end");
+  });
+
+  it("keeps a reply kept after you left the chat, when the send goes through later", async () => {
+    await open("k8", { isGroup: true, members: [rex] });
+    await type("Original message");
+    let deliver!: (message: MessageView) => void;
+    state.send.mockReturnValueOnce(new Promise((resolve) => (deliver = resolve)));
+    await press(button("send"));
+    // You leave the chat, and a notification's Reply to it can't be sent.
+    await open("elsewhere", { isGroup: false, members: [rex] });
+    await keepReply("k8", "Book the room", "rex");
+    expect(await readDraft("k8")).toEqual({
+      text: "Original message\n\nBook the room",
+      mentions: ["rex"],
+    });
+    await act(async () => deliver({ id: "sent" } as MessageView));
+    expect(sent()).toMatchObject({ text: "Original message" });
+    expect(await readDraft("k8")).toEqual({ text: "Book the room", mentions: ["rex"] });
+    await open("k8", { isGroup: true, members: [rex] });
+    expect(input().props.value).toBe("Book the room");
+    expect(addressedTo()).toEqual(["To Rex"]);
+  });
+
+  it("shows what's left when a send goes through after you came back to the chat", async () => {
+    await open("k9", { isGroup: true, members: [rex] });
+    await type("Original message");
+    let deliver!: (message: MessageView) => void;
+    state.send.mockReturnValueOnce(new Promise((resolve) => (deliver = resolve)));
+    await press(button("send"));
+    await open("elsewhere", { isGroup: false, members: [rex] });
+    await open("k9", { isGroup: true, members: [rex] });
+    expect(input().props.value).toBe("Original message");
+    await act(async () => void (await keepReply("k9", "Book the room", "rex")));
+    expect(input().props.value).toBe("Original message\n\nBook the room");
+    await act(async () => deliver({ id: "sent" } as MessageView));
+    expect(input().props.value).toBe("Book the room");
+    expect(await readDraft("k9")).toEqual({ text: "Book the room", mentions: ["rex"] });
+  });
+
+  it("keeps a reply kept while dictation is still starting", async () => {
+    await open("k10", { isGroup: true, members: [rex] });
+    // You tap Dictate, and the microphone prompt is still up when the reply is kept.
+    let grant!: (value: { granted: boolean }) => void;
+    state.permission.mockReturnValueOnce(new Promise((resolve) => (grant = resolve)));
+    await press(button("dictate"));
+    await act(async () => void (await keepReply("k10", "Recovered reply", "rex")));
+    expect(input().props.value).toBe("Recovered reply");
+    await act(async () => grant({ granted: true }));
+    await speech("start");
+    await speech("result", { isFinal: false, results: [{ transcript: "hello" }] });
+    expect(input().props.value).toBe("Recovered reply hello");
+    expect(await readDraft("k10")).toEqual({ text: "Recovered reply hello", mentions: ["rex"] });
     await speech("end");
   });
 

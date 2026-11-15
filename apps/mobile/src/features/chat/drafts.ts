@@ -109,12 +109,17 @@ export function afterSend(keptSince: readonly Kept[]): Draft {
   );
 }
 
-/** What a reply kept from a notification added, and the chat's draft with it. */
-export type KeptListener = (kept: Kept, after: Draft) => void;
-const listeners = new Map<string, Set<KeptListener>>();
+/**
+ * What changed a chat's draft from outside its composer: a reply a notification kept (`draft` is
+ * the stored draft with it), or a send that went through (`draft` is what's left of it).
+ */
+export type DraftEvent =
+  { kind: "kept"; kept: Kept; draft: Draft } | { kind: "sent"; draft: Draft };
+export type DraftListener = (event: DraftEvent) => void;
+const listeners = new Map<string, Set<DraftListener>>();
 
-/** Hears about replies kept for the chat from elsewhere: a notification's Reply. */
-export function onKeptReply(chatId: string, listener: KeptListener): () => void {
+/** Hears about a chat's draft changing from elsewhere, for a composer showing it. */
+export function watchDraft(chatId: string, listener: DraftListener): () => void {
   const set = listeners.get(chatId) ?? new Set();
   set.add(listener);
   listeners.set(chatId, set);
@@ -124,11 +129,53 @@ export function onKeptReply(chatId: string, listener: KeptListener): () => void 
   };
 }
 
+function notify(chatId: string, event: DraftEvent) {
+  for (const listener of listeners.get(chatId) ?? []) listener(event);
+}
+
+/** Stores the drafts now, not after the pause typing waits for. */
+function flush(): Promise<boolean> {
+  if (timer) clearTimeout(timer);
+  timer = null;
+  return persist();
+}
+
+/** A message on its way from a chat, with the replies kept for that chat since it was submitted. */
+export interface PendingSend {
+  readonly chatId: string;
+  readonly kept: Kept[];
+}
+/**
+ * Sends on their way, here rather than in a composer: you can leave the chat before one goes
+ * through, and a reply kept meanwhile must outlast it.
+ */
+const pending = new Set<PendingSend>();
+
+/** A message from the chat's draft is on its way. */
+export function beginSend(chatId: string): PendingSend {
+  const send: PendingSend = { chatId, kept: [] };
+  pending.add(send);
+  return send;
+}
+
+/**
+ * The send is over. Once it went through, the chat's draft is only the replies kept while it was
+ * on its way, whether or not its composer is still open, and a composer showing the chat hears
+ * about it. A send that failed leaves the draft as it is.
+ */
+export function endSend(send: PendingSend, sent: boolean) {
+  if (!pending.delete(send) || !sent) return;
+  const left = afterSend(send.kept);
+  put(send.chatId, left);
+  void flush();
+  notify(send.chatId, { kind: "sent", draft: left });
+}
+
 /**
  * Keeps a reply you couldn't send as the chat's draft, after anything already there, addressed to
  * the teammate it was for when that's known, and stores it at once: a notification's Reply runs in
- * a background task that can stop right after. A composer showing the chat hears about it first.
- * Says whether it reached the phone's storage.
+ * a background task that can stop right after. A send on its way from the chat keeps it, and a
+ * composer showing the chat hears about it first. Says whether it reached the phone's storage.
  */
 export async function keepReply(
   chatId: string,
@@ -136,10 +183,10 @@ export async function keepReply(
   teammateId: string | null,
 ): Promise<boolean> {
   await loaded;
-  const after = appendKept(toDraft(drafts[chatId]), text, teammateId);
-  put(chatId, after);
-  for (const listener of listeners.get(chatId) ?? []) listener({ text, teammateId }, after);
-  if (timer) clearTimeout(timer);
-  timer = null;
-  return persist();
+  const kept: Kept = { text, teammateId };
+  const draft = appendKept(toDraft(drafts[chatId]), text, teammateId);
+  put(chatId, draft);
+  for (const send of pending) if (send.chatId === chatId) send.kept.push(kept);
+  notify(chatId, { kind: "kept", kept, draft });
+  return flush();
 }

@@ -70,8 +70,13 @@ export function useDictation({
     );
   });
 
+  /**
+   * Starts listening. `text` is what's in the box, read once listening actually begins, not on the
+   * tap: anything added while the permission prompt is up or an earlier session is still ending
+   * (like a reply a notification kept) is part of what you speak after.
+   */
   const start = useCallback(
-    async (current: string) => {
+    async (text: () => string) => {
       const attempt = ++request.current;
       const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
       // The permission prompt may finish after the composer has lost focus.
@@ -90,7 +95,8 @@ export function useDictation({
         await activeSession.ended;
         if (attempt !== request.current) return;
       }
-      base.current = current;
+      // From here on, `append()` takes text added after it.
+      base.current = text();
       finalSoFar.current = "";
       after.current = [];
       let end!: () => void;

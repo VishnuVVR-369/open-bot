@@ -35,6 +35,7 @@ import { AttachSheet } from "./attach-sheet";
 import { AttachmentChip } from "./attachment-chip";
 import { MentionMenu } from "./mention-menu";
 import { RecipientChip } from "./recipient-chip";
+import { RecipientSheet } from "./recipient-sheet";
 
 /**
  * Where you write to a teammate: text (Markdown), dictation, files and photos, and @mentions in
@@ -167,16 +168,7 @@ export function Composer({
           {error}
         </Text>
       )}
-      {picking !== null && pickable.length > 0 && (
-        <MentionMenu
-          options={pickable}
-          onPick={(member) => {
-            address(draft.mentions.map((id) => (id === picking ? member.id : id)));
-            setPicking(null);
-          }}
-        />
-      )}
-      {options.length > 0 && picking === null && (
+      {options.length > 0 && (
         <MentionMenu
           options={options}
           onPick={(member) => {
@@ -193,7 +185,7 @@ export function Composer({
             <RecipientChip
               key={recipient.id}
               member={recipient.member}
-              onPick={() => setPicking((open) => (open === recipient.id ? null : recipient.id))}
+              onPick={() => setPicking(recipient.id)}
               onRemove={() => {
                 if (picking === recipient.id) setPicking(null);
                 address(draft.mentions.filter((id) => id !== recipient.id));
@@ -272,7 +264,11 @@ export function Composer({
           </Pressable>
         ) : (
           <Pressable
-            onPress={() => (dictation.listening ? dictation.stop() : void dictation.start(text))}
+            onPress={() =>
+              dictation.listening
+                ? dictation.stop()
+                : void dictation.start(() => drafting.latest().text)
+            }
             accessibilityRole="button"
             accessibilityLabel={dictation.listening ? "Stop dictating" : "Dictate"}
             accessibilityState={{ selected: dictation.listening }}
@@ -302,6 +298,15 @@ export function Composer({
           </Pressable>
         )}
       </View>
+      <RecipientSheet
+        open={picking !== null}
+        options={pickable}
+        onPick={(member) => {
+          address(draft.mentions.map((id) => (id === picking ? member.id : id)));
+          setPicking(null);
+        }}
+        onClose={() => setPicking(null)}
+      />
       <AttachSheet
         open={attachOpen}
         onClose={() => setAttachOpen(false)}
