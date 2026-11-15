@@ -1,6 +1,15 @@
 // Messages from Telegram: linking with a code, commands, and routing everything else to the
 // teammate's chat, with photos and files.
-import { bots, chats, runs, telegram, telegramMessages, type Attachment } from "@open-bot/db";
+import { createHash } from "node:crypto";
+import {
+  bots,
+  chats,
+  messages,
+  runs,
+  telegram,
+  telegramMessages,
+  type Attachment,
+} from "@open-bot/db";
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import { publishApp } from "../../context";
 import { errorMessage } from "../../logger";
@@ -51,6 +60,11 @@ export async function handle(service: TelegramInbox, update: TgUpdate) {
       row.linkCodeExpiresAt &&
       row.linkCodeExpiresAt.getTime() > Date.now() &&
       start[1].toUpperCase() === row.linkCode;
+    // Linked already, as when this update is retried after linking: say so again.
+    if (!valid && row?.chatId === chatId) {
+      await send(service, chatId, `✅ <b>Linked.</b>\n\n${await helpText(service)}`);
+      return;
+    }
     if (!valid) {
       await send(
         service,
@@ -183,6 +197,22 @@ export async function route(
   return lead ? { chatId: await mainChat(service.ctx, lead.id), text } : null;
 }
 
+/**
+ * The id a Telegram message is saved under, the same every time it's handled: a retried update
+ * finds the message it saved before instead of saving it again. Telegram numbers messages per chat
+ * and per token owner, so the account id (the token's first part) is part of it.
+ */
+export function telegramClientId(token: string, message: TgMessage): string {
+  const account = token.split(":")[0];
+  const hash = createHash("sha256")
+    .update(`telegram:${account}:${message.chat.id}:${message.message_id}`)
+    .digest();
+  hash[6] = (hash[6]! & 0x0f) | 0x50;
+  hash[8] = (hash[8]! & 0x3f) | 0x80;
+  const hex = hash.subarray(0, 16).toString("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 export async function receive(
   service: TelegramInbox,
   lastChatId: string | null,
@@ -190,6 +220,16 @@ export async function receive(
   text: string,
 ) {
   const telegramChatId = String(message.chat.id);
+  const clientId = telegramClientId(service.token ?? "", message);
+  // Handled before, and this is a retry: finish what didn't happen then, without saving it twice.
+  const [saved] = await service.ctx.db
+    .select()
+    .from(messages)
+    .where(eq(messages.clientId, clientId));
+  if (saved) {
+    await delivered(service, message, saved);
+    return;
+  }
   const target = await route(service, lastChatId, message, text);
   if (!target) {
     await send(service, telegramChatId, "You have no teammates yet. Create one in open-bot first.");
@@ -239,23 +279,34 @@ export async function receive(
 
   const { message: row } = await saveUserMessage(service.ctx.db, {
     chatId: target.chatId,
+    clientId,
     text: target.text || "(See the attached files.)",
     attachments,
     via: "telegram",
   });
+  await delivered(service, message, row);
+}
+
+/**
+ * After a Telegram message is saved: remember where it went, so a reply there continues that chat,
+ * react so you know it arrived, and hand it to its teammates. Each step is safe to repeat.
+ */
+async function delivered(
+  service: TelegramInbox,
+  message: TgMessage,
+  row: { id: string; chatId: string },
+) {
+  const telegramChatId = String(message.chat.id);
   await service.ctx.db
     .insert(telegramMessages)
     .values({
       telegramChatId,
       telegramMessageId: message.message_id,
-      chatId: target.chatId,
+      chatId: row.chatId,
       messageId: row.id,
     })
     .onConflictDoNothing();
-  await service.ctx.db
-    .update(telegram)
-    .set({ lastChatId: target.chatId })
-    .where(eq(telegram.id, 1));
+  await service.ctx.db.update(telegram).set({ lastChatId: row.chatId }).where(eq(telegram.id, 1));
   // A reaction says it arrived; the reply comes when the teammate finishes.
   await call(service, "setMessageReaction", {
     chat_id: telegramChatId,

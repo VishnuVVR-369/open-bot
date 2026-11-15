@@ -13,7 +13,7 @@ import { removeCredential, saveCredential } from "../credentials";
 import { call, send, TelegramError, type TgUser } from "./api";
 import { approvalDecided } from "./approvals";
 import { onNotification } from "./notifications";
-import { listen } from "./polling";
+import { listen, UPDATE_RETRY, type UpdateRetry } from "./polling";
 
 const LINK_CODE_MINUTES = 15;
 
@@ -37,6 +37,8 @@ export class TelegramService {
     readonly executor: RunExecutor,
     readonly approvalService: ApprovalService,
     readonly uploads: Pick<UploadService, "save">,
+    /** How long an update that keeps failing is retried before it's skipped. */
+    readonly retry: UpdateRetry = UPDATE_RETRY,
   ) {
     ctx.events.on("notification", (event) => {
       void onNotification(this, event).catch((error: unknown) =>

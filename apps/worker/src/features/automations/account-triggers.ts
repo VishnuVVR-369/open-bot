@@ -259,17 +259,6 @@ export class AccountTriggers {
     await recordTriggerCheck(this.ctx.db, id, result);
   }
 
-  /** Remember these keys as fired; returns the ones that weren't already. */
-  private async claimKeys(triggerId: string, keys: string[]): Promise<Set<string>> {
-    if (keys.length === 0) return new Set();
-    const rows = await this.ctx.db
-      .insert(triggerFirings)
-      .values(keys.map((key) => ({ triggerId, key })))
-      .onConflictDoNothing()
-      .returning({ key: triggerFirings.key });
-    return new Set(rows.map((row) => row.key));
-  }
-
   private async runsLastHour(triggerId: string): Promise<number> {
     const [row] = await this.ctx.db
       .select({ value: count() })
@@ -280,17 +269,49 @@ export class AccountTriggers {
     return row?.value ?? 0;
   }
 
-  /** Start the teammate, within the hourly limit. Returns why it didn't, if it didn't. */
-  private async fire(trigger: Trigger, prompt: string, keys: string[]): Promise<string | null> {
-    if ((await this.runsLastHour(trigger.id)) >= ACCOUNT_TRIGGER_RUNS_PER_HOUR)
-      return `Skipped: it already started ${ACCOUNT_TRIGGER_RUNS_PER_HOUR} runs in the last hour.`;
-    const runId = await this.triggers.fire(trigger, prompt, { readOutsideData: true });
-    if (!runId) return "Skipped: its teammate is archived.";
-    await this.ctx.db
-      .update(triggerFirings)
-      .set({ runId })
-      .where(and(eq(triggerFirings.triggerId, trigger.id), inArray(triggerFirings.key, keys)));
-    return null;
+  /**
+   * Claim `keys` as fired, then start the teammate about what `about` makes of the ones this check
+   * claimed first (another check reports the rest), within the hourly limit. The claim and the run
+   * commit together, so a run that can't start claims nothing, and the next check finds the same
+   * mail or event again. Over the limit, the keys stay claimed without a run: they're skipped, and
+   * the trigger says so. Returns whether a run started, and why not when it was skipped.
+   */
+  private async fire(
+    trigger: Trigger,
+    keys: string[],
+    about: (claimed: Set<string>) => { prompt: string; keys: string[] } | null,
+  ): Promise<{ started: boolean; skipped: string | null }> {
+    if (keys.length === 0) return { started: false, skipped: null };
+    const full = (await this.runsLastHour(trigger.id)) >= ACCOUNT_TRIGGER_RUNS_PER_HOUR;
+    let reached = false;
+    let skipped: string | null = null;
+    const runId = await this.triggers.fire(
+      trigger,
+      async (tx, runId) => {
+        reached = true;
+        const rows = await tx
+          .insert(triggerFirings)
+          .values(keys.map((key) => ({ triggerId: trigger.id, key })))
+          .onConflictDoNothing()
+          .returning({ key: triggerFirings.key });
+        const news = about(new Set(rows.map((row) => row.key)));
+        if (!news) return null;
+        if (full) {
+          skipped = `Skipped: it already started ${ACCOUNT_TRIGGER_RUNS_PER_HOUR} runs in the last hour.`;
+          return null;
+        }
+        await tx
+          .update(triggerFirings)
+          .set({ runId })
+          .where(
+            and(eq(triggerFirings.triggerId, trigger.id), inArray(triggerFirings.key, news.keys)),
+          );
+        return news.prompt;
+      },
+      { readOutsideData: true },
+    );
+    if (!reached) return { started: false, skipped: "Skipped: its teammate is archived." };
+    return { started: runId !== null, skipped };
   }
 
   /* -------------------------------------------------------------- Gmail */
@@ -452,24 +473,27 @@ export class AccountTriggers {
       messages.push(
         await api.get<GmailMessage>(`/messages/${encodeURIComponent(id)}`, { format: "full" }),
       );
-    // Then claim it: whatever another check claimed first is theirs to report.
-    const claimed = await this.claimKeys(
-      trigger.id,
-      messages.map((message) => messageKey(message.id)),
-    );
     // Mail from before the trigger existed isn't news, even when a catch-up finds it.
     const created = trigger.createdAt.getTime();
-    const news = messages
-      .filter((message) => claimed.has(messageKey(message.id)))
-      .filter((message) => Number(message.internalDate ?? Date.now()) >= created - 60_000)
-      .sort((a, b) => Number(a.internalDate ?? 0) - Number(b.internalDate ?? 0));
-    if (news.length === 0) return { fired: false, count: 0, skipped: null };
-    const skipped = await this.fire(
+    let count = 0;
+    const { started, skipped } = await this.fire(
       trigger,
-      this.mailPrompt(trigger, resolved, news),
-      news.map((message) => messageKey(message.id)),
+      messages.map((message) => messageKey(message.id)),
+      (claimed) => {
+        const news = messages
+          .filter((message) => claimed.has(messageKey(message.id)))
+          .filter((message) => Number(message.internalDate ?? Date.now()) >= created - 60_000)
+          .sort((a, b) => Number(a.internalDate ?? 0) - Number(b.internalDate ?? 0));
+        count = news.length;
+        if (news.length === 0) return null;
+        return {
+          prompt: this.mailPrompt(trigger, resolved, news),
+          keys: news.map((message) => messageKey(message.id)),
+        };
+      },
     );
-    return { fired: skipped === null, count: news.length, skipped };
+    if (!started && !skipped) return { fired: false, count: 0, skipped: null };
+    return { fired: started, count, skipped };
   }
 
   private mailPrompt(
@@ -547,14 +571,12 @@ export class AccountTriggers {
         pollMinutes: CALENDAR_POLL_MINUTES,
         filter,
       });
-      const fresh = await this.claimKeys(
-        trigger.id,
-        due.map((entry) => entry.key),
-      );
       const timeZone = await ownerTimeZone(this.ctx.db);
       let fired = 0;
       let skipped: string | null = null;
-      for (const entry of due.filter((entry) => fresh.has(entry.key))) {
+      // One run per occurrence, each claimed with its run: one that can't start is found again
+      // by the next check, while it's still coming up.
+      for (const entry of due) {
         const event = entry.event as CalendarEvent;
         const prompt = [
           `[Calendar: "${trigger.title}"]`,
@@ -568,9 +590,12 @@ export class AccountTriggers {
             eventDetails(event, timeZone),
           ),
         ].join("\n");
-        skipped = await this.fire(trigger, prompt, [entry.key]);
+        const outcome = await this.fire(trigger, [entry.key], (claimed) =>
+          claimed.has(entry.key) ? { prompt, keys: [entry.key] } : null,
+        );
+        skipped = outcome.skipped;
         if (skipped) break;
-        fired += 1;
+        if (outcome.started) fired += 1;
       }
       await this.checked(trigger.id, { fired: fired > 0, error: skipped });
       result =

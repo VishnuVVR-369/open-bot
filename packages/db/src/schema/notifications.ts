@@ -14,7 +14,9 @@ export type NotificationKind =
   | "bot_message"
   | "cap_reached"
   /** Your phone was woken to carry the computer's traffic and didn't answer. */
-  | "egress_unanswered";
+  | "egress_unanswered"
+  /** A message from Telegram kept failing, so it was skipped to let the ones after it through. */
+  | "telegram_skipped";
 
 export const notifications = pgTable(
   "notifications",

@@ -88,7 +88,9 @@ export async function onNotification(service: TelegramNotifier, event: Notificat
         ? "💳"
         : event.kind === "egress_unanswered"
           ? "📱"
-          : "💬";
+          : event.kind === "telegram_skipped"
+            ? "⚠️"
+            : "💬";
   const link =
     event.kind === "takeover_request" && event.botId
       ? appLink(service, `/computer?screen=${event.botId}`)

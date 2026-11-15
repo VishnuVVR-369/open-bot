@@ -79,6 +79,21 @@ Photos and files up to 20 MB (Telegram's limit for bots) come along as attachmen
 The message is saved with `via = 'telegram'`, dispatched like any other, and the teammate's reply comes back as a reply to your message, with its Markdown converted to Telegram's HTML subset.
 `telegram_messages` remembers which Telegram message belongs to which chat or approval, so replies and buttons find their way.
 
+### Nothing is lost when handling fails
+
+Telegram keeps an update (a message or a button press) until a `getUpdates` asks for an offset past it, and `telegram.update_offset` moves past an update only once it was handled.
+When handling fails, for example because the database is down or a deploy's migration is renaming a table the routing reads, the worker stops at that update and fetches it again after a pause (2 seconds, doubling up to a minute), so the ones after it stay in order behind it.
+Settings shows that a message is waiting while it retries.
+
+Handling the same update again is safe:
+
+- A message is saved under an id made from the bot, the chat and the Telegram message id (`messages.client_id`), so a retry finds the message it saved before, and only repeats what didn't happen yet: remembering it in `telegram_messages`, the 👀 reaction and the dispatch, which delivers it once per teammate.
+- An approval button decides the approval once; pressing it again answers "Already decided".
+- A link code that already linked this chat says it's linked, rather than that the code expired.
+
+An update that keeps failing for another reason must not hold up the bot.
+After at least 10 attempts and 30 minutes, well beyond a deploy, the worker skips it, logs it, and sends you a `telegram_skipped` notification (in the app, on your phone, and on Telegram), quoting your message so you can send it again.
+
 ## Email
 
 Each teammate can have an email address on your domain, `<slug>@<your-domain>`, through Postmark.

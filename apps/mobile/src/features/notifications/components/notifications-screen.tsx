@@ -54,13 +54,14 @@ const ICONS: Record<string, LucideIcon> = {
   run_failed: AlertTriangle,
   cap_reached: CircleDollarSign,
   egress_unanswered: Smartphone,
+  telegram_skipped: AlertTriangle,
   bot_message: MessageSquare,
   run_finished: MessageSquare,
 };
 
 /** Kinds that need you, which get an amber mark, and failures, which get a red one. */
 const NEEDS_YOU = new Set(["approval", "takeover_request", "cap_reached", "egress_unanswered"]);
-const FAILED = new Set(["run_failed"]);
+const FAILED = new Set(["run_failed", "telegram_skipped"]);
 
 const AVATAR = 36;
 

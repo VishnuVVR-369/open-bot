@@ -10,6 +10,7 @@ import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import type { Context } from "../../context";
 import { AccountAccess } from "../integrations";
 import { AccountTriggers } from "./account-triggers";
+import { allowRunsIn, refuseRunsIn } from "../../testing/refuse-runs";
 import { ACCOUNT_TRIGGER_RUNS_PER_HOUR, TriggerService } from "./triggers";
 
 const url = testDatabaseServer();
@@ -269,6 +270,10 @@ describe.skipIf(!url)("Gmail and Calendar triggers with Postgres", () => {
 
   const triggerRuns = (id: string) => db.select().from(runs).where(eq(runs.triggerId, id));
 
+  /** Saving a run fails, as while a deploy's migration renames the tables a run refers to. */
+  const refuseRuns = () => refuseRunsIn(pool);
+  const allowRuns = () => allowRunsIn(pool);
+
   it("starts from the mailbox as it is, then wakes once for each new message", async () => {
     google.deliver({ id: "before" });
     const service = worker();
@@ -375,6 +380,30 @@ describe.skipIf(!url)("Gmail and Calendar triggers with Postgres", () => {
     expect((await reload(row.id)).lastError).toMatch(/Skipped: it already started 30 runs/);
   });
 
+  it("wakes the teammate on the next check when the run couldn't start", async () => {
+    const row = await trigger({ cursor: String(google.historyId) });
+    google.deliver({ id: "m1", subject: "Invoice" });
+    const service = worker();
+    await refuseRuns();
+    try {
+      await tick(service);
+    } finally {
+      await allowRuns();
+    }
+    expect(await triggerRuns(row.id)).toHaveLength(0);
+    expect((await reload(row.id)).lastError).toMatch(/relation "bots" does not exist/); // vocabulary: allow
+    expect(
+      await db.select().from(triggerFirings).where(eq(triggerFirings.triggerId, row.id)),
+    ).toHaveLength(0);
+
+    await due(row.id);
+    await tick(service);
+    const found = await triggerRuns(row.id);
+    expect(found).toHaveLength(1);
+    expect(found[0]!.prompt).toContain("Invoice");
+    expect((await reload(row.id)).lastError).toBeNull();
+  });
+
   it("doesn't call Gmail for a connection that's off, and says why", async () => {
     const row = await trigger({ cursor: String(google.historyId) });
     await db.update(connections).set({ enabled: false }).where(eq(connections.id, fixture.gmailId));
@@ -445,11 +474,29 @@ describe.skipIf(!url)("Gmail and Calendar triggers with Postgres", () => {
     await tick(service);
     expect(await triggerRuns(row.id)).toHaveLength(1);
 
+    // A run that can't start leaves the event for the next check, while it's still coming up.
+    google.events[0]!.start.dateTime = at(28);
+    google.events[0]!.end.dateTime = at(40);
+    await due(row.id);
+    await refuseRuns();
+    try {
+      await tick(service);
+    } finally {
+      await allowRuns();
+    }
+    expect(await triggerRuns(row.id)).toHaveLength(1);
+    expect((await reload(row.id)).lastError).toMatch(/relation "bots" does not exist/); // vocabulary: allow
+    await due(row.id);
+    await tick(service);
+    found = await triggerRuns(row.id);
+    expect(found).toHaveLength(2);
+    expect(found.filter((run) => run.prompt.includes("starts in 28 minutes"))).toHaveLength(1);
+
     google.events[0]!.start.dateTime = at(25);
     google.events[0]!.end.dateTime = at(40);
     await due(row.id);
     await tick(service);
     found = await triggerRuns(row.id);
-    expect(found).toHaveLength(2);
+    expect(found).toHaveLength(3);
   });
 });
