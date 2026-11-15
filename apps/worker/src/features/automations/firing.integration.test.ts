@@ -95,6 +95,39 @@ describe.skipIf(!url)("watches and schedules with Postgres", () => {
     expect(await db.select().from(runs).where(eq(runs.triggerId, watch!.id))).toHaveLength(1);
   });
 
+  it("reports a change once when Check now and the timer look at the same time", async () => {
+    const service = new TriggerService(ctx);
+    const [watch] = await db
+      .insert(triggers)
+      .values({
+        botId: teammateId, // vocabulary: allow
+        kind: "watch",
+        title: "Status page",
+        prompt: "Tell me what changed.",
+        url: pageUrl,
+        intervalMinutes: 60,
+        snapshot: "All systems normal",
+        createdBy: "user",
+      })
+      .returning();
+    page = "Degraded performance";
+    const results = await Promise.all([
+      service.checkNow(watch!.id),
+      service.checkNow(watch!.id),
+      service.checkNow(watch!.id),
+    ]);
+    expect(results.filter((result) => result.changed)).toHaveLength(1);
+    expect(results.filter((result) => !result.changed)).toEqual([
+      { ok: true, changed: false, summary: "Another check saw this first" },
+      { ok: true, changed: false, summary: "Another check saw this first" },
+    ]);
+    expect(await db.select().from(runs).where(eq(runs.triggerId, watch!.id))).toHaveLength(1);
+
+    // A check that read the old snapshot and fetched the old page doesn't put it back.
+    const [after] = await db.select().from(triggers).where(eq(triggers.id, watch!.id));
+    expect(after!.snapshot).toBe("Degraded performance");
+  });
+
   it("keeps a schedule due when its run couldn't be saved, and runs it once after", async () => {
     const service = new ScheduleService(ctx);
     const due = new Date(Date.now() - 60_000);
