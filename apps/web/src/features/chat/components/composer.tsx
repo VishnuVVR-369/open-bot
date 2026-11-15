@@ -82,7 +82,7 @@ export function Composer({
   ref?: Ref<ComposerHandle>;
 }) {
   const [text, setText] = useDraft(chat.id);
-  const { uploads, addFiles, ready, remove, clear } = useUploads();
+  const { uploads, addFiles, ready, remove, clear, restore } = useUploads();
   const [mentioning, setMentioning] = useState<string | null>(null);
   const [skillQuery, setSkillQuery] = useState<string | null>(null);
   const [menuIndex, setMenuIndex] = useState(0);
@@ -187,6 +187,7 @@ export function Composer({
     const attachments = uploads.map((upload) => upload.attachment!).filter(Boolean);
     const mentions = isGroup ? mentionedIds(text, members) : [];
     const draft = text;
+    const files = uploads;
     // Sending the same message again after a failure reuses its id, so it's never saved twice.
     const thisSend = sendAttempt(failedSend.current, [chat.id, draft, attachments, mentions], () =>
       crypto.randomUUID(),
@@ -202,7 +203,9 @@ export function Composer({
       if (!result.ok) {
         failedSend.current = thisSend;
         toast.error("Couldn't send", { description: result.error });
+        // Text and files both come back, so sending again is the same message with the same id.
         setText(draft);
+        restore(files);
         return;
       }
       failedSend.current = null;

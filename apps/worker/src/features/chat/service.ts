@@ -7,6 +7,7 @@ import {
   lockUntilCommit,
   messages,
   runs,
+  sameJson,
   uploads,
   type Queryable,
   type Tx,
@@ -199,8 +200,6 @@ export async function markDispatched(db: Queryable, messageId: string): Promise<
   return rows.length > 0;
 }
 
-const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
-
 /** Attachments must be uploads that finished, so a teammate never gets half a file. */
 async function checkAttachments(tx: Tx, attachments: SendMessageInput["attachments"]) {
   if (attachments.length === 0) return;
@@ -369,6 +368,7 @@ export class ChatService {
       attachments: input.attachments,
       mentions: input.mentions,
     };
+    // The row's jsonb comes back with its object keys in Postgres's order, not the sender's.
     const same = (row: Message) =>
       row.chatId === values.chatId &&
       row.role === "user" &&

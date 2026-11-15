@@ -1,8 +1,9 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { memoryItems, messages, runs } from "@open-bot/db"; // vocabulary: allow
 import { and, eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { REUSED_ID } from "../features/chat";
+import { UploadService, type UploadFiles } from "../features/uploads";
 import { rpcEnabled, rpcHarness, failure, ID } from "../testing/rpc";
 
 describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
@@ -89,6 +90,57 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
       expect(await db.select().from(messages).where(eq(messages.clientId, fresh.clientId))).toEqual(
         [],
       );
+    });
+
+    it("saves a message with an attachment once, however often it's sent", async () => {
+      const { chatId } = await newTeammate("Ada", "analyst");
+      const stored = new Map<string, Buffer>();
+      const files: UploadFiles = {
+        write: async (path, data) => void stored.set(path, data),
+        read: async (path) => stored.get(path)!,
+        remove: async (path) => void stored.delete(path),
+      };
+      const data = Buffer.from("Flight AB123\n");
+      const { attachment } = await new UploadService(db, files, ctx.log).put({
+        id: randomUUID(),
+        name: "flight.txt",
+        mime: "text/plain",
+        size: data.length,
+        sha256: createHash("sha256").update(data).digest("hex"),
+        data,
+      });
+      // Keys in the order the API sends them; Postgres keeps them in another.
+      const sentFile = {
+        name: attachment!.name,
+        path: attachment!.path,
+        mime: attachment!.mime,
+        size: attachment!.size,
+      };
+      const send = {
+        clientId: randomUUID(),
+        chatId,
+        text: "Here's my flight",
+        attachments: [sentFile],
+        mentions: [],
+      };
+      const sent = await worker.chats.send(send);
+      expect(sent.attachments).toEqual([sentFile]);
+      const [row] = await db.select().from(messages).where(eq(messages.id, sent.id));
+      expect(Object.keys(row!.attachments[0]!)).not.toEqual(Object.keys(sentFile));
+      // The answer was lost and the same send comes again: the saved message, once.
+      expect((await worker.chats.send(send)).id).toBe(sent.id);
+      expect(await db.select().from(messages).where(eq(messages.chatId, chatId))).toHaveLength(1);
+      // Another message under the same id is still refused.
+      for (const other of [
+        { ...send, text: "Not my flight" },
+        { ...send, attachments: [{ ...sentFile, size: sentFile.size + 1 }] },
+        { ...send, attachments: [sentFile, sentFile] },
+        { ...send, attachments: [] },
+      ])
+        expect(await failure(worker.chats.send(other))).toEqual({
+          status: 409,
+          message: REUSED_ID,
+        });
     });
 
     it("stops and rates a run, and takes feedback once per redo id", async () => {

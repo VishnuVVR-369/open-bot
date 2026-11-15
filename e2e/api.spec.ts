@@ -226,14 +226,19 @@ test.describe("the phone's API", () => {
     expect(anonymous.status).toBe(401);
 
     // A message can carry it, but not a file that never finished uploading.
-    const sent = await api.chats.send({
+    const message = {
       clientId: crypto.randomUUID(),
       chatId: teammate.directChatId!,
       text: "Here's my flight",
       attachments: [view.attachment],
       mentions: [],
-    });
+    };
+    const sent = await api.chats.send(message);
     expect(sent.attachments).toEqual([view.attachment]);
+    // The answer was lost and the phone sends it again: the same message, saved once.
+    expect((await api.chats.send(message)).id).toBe(sent.id);
+    const reused = await safe(api.chats.send({ ...message, text: "Not my flight" }));
+    expect(reused.error).toMatchObject({ code: "CONFLICT" });
     const unfinished = await safe(
       api.chats.send({
         clientId: crypto.randomUUID(),

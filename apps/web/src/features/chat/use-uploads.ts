@@ -52,5 +52,11 @@ export function useUploads() {
     ready: uploads.every((upload) => upload.status === "done"),
     remove: (id: string) => setUploads((current) => current.filter((u) => u.id !== id)),
     clear: () => setUploads([]),
+    /** Put back files a send that failed took, ahead of any added since. */
+    restore: (previous: Upload[]) =>
+      setUploads((current) => [
+        ...previous,
+        ...current.filter((upload) => !previous.some((p) => p.id === upload.id)),
+      ]),
   };
 }

@@ -14,12 +14,22 @@ function canonical(value: unknown): unknown {
   return value;
 }
 
+const canonicalJson = (value: unknown) => JSON.stringify(canonical(value));
+
 /**
  * An opaque revision for saved configuration (a teammate, a connection, a tool call). Key order
  * and omitted fields don't change it, and it never reveals the data it was made from.
  */
 export function configurationRevision(value: unknown): string {
-  return createHash("sha256")
-    .update(JSON.stringify(canonical(value)))
-    .digest("hex");
+  return createHash("sha256").update(canonicalJson(value)).digest("hex");
+}
+
+/**
+ * Whether two values are the same JSON, the way a `jsonb` column sees them. Postgres doesn't keep
+ * object key order (it sorts keys by length, then bytes), so a value read back from `jsonb` never
+ * matches what was written by `JSON.stringify`. Key order and `undefined` fields don't count here;
+ * array order does, and a `Date` is its ISO string, as it was when saved.
+ */
+export function sameJson(a: unknown, b: unknown): boolean {
+  return canonicalJson(a) === canonicalJson(b);
 }
