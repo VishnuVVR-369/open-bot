@@ -96,6 +96,13 @@ For each target, if that teammate already has a session running in this chat and
 Otherwise a new run is queued with trigger `user`.
 Each target is claimed once in `message_dispatches`, so dispatching a message again (a retried Telegram update, a restart) never delivers it twice.
 A steer the turn refuses becomes a run of its own: the claim is marked `failed` before that run is saved, so if saving it fails, the next dispatch of the message or the startup recovery saves the run without steering again.
+`session.steer()` reports a steer Codex never answered (a transport error or a timeout) as refused too, so that message also becomes a run of its own, even though it may have reached the turn.
+
+Some gaps remain, as they did before `failed` was added:
+
+- If marking the claim `failed` itself fails, the claim stays `sending`. The next dispatch of the message can't tell that claim from a steer still being sent, so it leaves it alone and marks the message `dispatched` without a run. Only the next worker start gives it its run.
+- A dispatch that comes while a steer is still out does the same: it marks the message `dispatched` while that steer's outcome isn't known.
+- At start, every `sending` claim becomes a run of its own. With two workers, one starting would replay a steer the other is still sending or already delivered.
 
 ### Cancelling
 
