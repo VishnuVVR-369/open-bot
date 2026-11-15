@@ -338,7 +338,7 @@ export function HandoffStep({ item }: { item: HandoffItem }) {
       wrap
       summary={
         <>
-          Handed to <span className="font-medium text-foreground">{item.toBotName}</span>:{" "}
+          Handed to <span className="font-medium text-foreground">{item.toTeammateName}</span>:{" "}
           {item.message}
         </>
       }

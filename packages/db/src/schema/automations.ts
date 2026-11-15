@@ -19,7 +19,7 @@ export const schedules = pgTable(
   "schedules",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    teammateId: uuid("bot_id")
+    teammateId: uuid("teammate_id")
       .notNull()
       .references(() => teammates.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
@@ -49,7 +49,7 @@ export const triggers = pgTable(
   "triggers",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    teammateId: uuid("bot_id")
+    teammateId: uuid("teammate_id")
       .notNull()
       .references(() => teammates.id, { onDelete: "cascade" }),
     kind: text("kind").$type<TriggerKind>().notNull(),

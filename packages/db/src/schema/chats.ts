@@ -36,7 +36,7 @@ export const chats = pgTable(
      */
     titled: boolean("titled").notNull().default(false),
     /** The teammate of a direct or scheduled chat. */
-    teammateId: uuid("bot_id").references(() => teammates.id, { onDelete: "cascade" }),
+    teammateId: uuid("teammate_id").references(() => teammates.id, { onDelete: "cascade" }),
     /**
      * The teammate's main chat: the direct chat where work that isn't started from a chat arrives,
      * such as tasks and questions from teammates. At most one per teammate. Archiving it hands the
@@ -51,7 +51,7 @@ export const chats = pgTable(
     archivedAt: timestamp("archived_at", { withTimezone: true }),
   },
   (table) => [
-    index("chats_bot_idx").on(table.teammateId),
+    index("chats_teammate_idx").on(table.teammateId),
     index("chats_activity_idx").on(table.lastActivityAt),
     uniqueIndex("chats_main_unique")
       .on(table.teammateId)
@@ -66,7 +66,7 @@ export const chatMembers = pgTable(
     chatId: uuid("chat_id")
       .notNull()
       .references(() => chats.id, { onDelete: "cascade" }),
-    teammateId: uuid("bot_id")
+    teammateId: uuid("teammate_id")
       .notNull()
       .references(() => teammates.id, { onDelete: "cascade" }),
     createdAt: createdAt(),
@@ -76,12 +76,12 @@ export const chatMembers = pgTable(
 
 /** One Codex thread per teammate per chat. */
 export const teammateThreads = pgTable(
-  "bot_threads",
+  "teammate_threads",
   {
     chatId: uuid("chat_id")
       .notNull()
       .references(() => chats.id, { onDelete: "cascade" }),
-    teammateId: uuid("bot_id")
+    teammateId: uuid("teammate_id")
       .notNull()
       .references(() => teammates.id, { onDelete: "cascade" }),
     codexThreadId: text("codex_thread_id").notNull(),
@@ -215,7 +215,7 @@ export const messageDispatches = pgTable(
     messageId: uuid("message_id")
       .notNull()
       .references(() => messages.id, { onDelete: "cascade" }),
-    teammateId: uuid("bot_id")
+    teammateId: uuid("teammate_id")
       .notNull()
       .references(() => teammates.id, { onDelete: "cascade" }),
     /** A new run, or joining the teammate's running turn. */

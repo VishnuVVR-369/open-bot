@@ -6,7 +6,7 @@ export const autonomySchema = z.enum(AUTONOMY_LEVELS);
 export type Autonomy = (typeof AUTONOMY_LEVELS)[number];
 
 /** Who made a schedule, trigger, skill or task: you, or a teammate. */
-export const CREATORS = ["user", "bot"] as const;
+export const CREATORS = ["user", "teammate"] as const;
 export const creatorSchema = z.enum(CREATORS);
 export type Creator = (typeof CREATORS)[number];
 

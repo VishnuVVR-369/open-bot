@@ -65,7 +65,7 @@ try {
     .join("; ");
 
   await db.query(
-    `insert into bots(id,name,slug,role,instructions,color)
+    `insert into teammates(id,name,slug,role,instructions,color)
      values($1,$2,$3,'phone test assistant',$4,'#42a5f5')`,
     [
       teammateId,
@@ -74,19 +74,19 @@ try {
       "Follow the test prompt exactly. Do not use tools unless explicitly asked.",
     ],
   );
-  await db.query("insert into chats(id,kind,title,bot_id) values($1,'direct',$2,$3)", [
+  await db.query("insert into chats(id,kind,title,teammate_id) values($1,'direct',$2,$3)", [
     chatId,
     "E2E phone chat",
     teammateId,
   ]);
   await db.query(
-    `insert into runs(id,chat_id,bot_id,trigger,prompt,status,completed_at)
+    `insert into runs(id,chat_id,teammate_id,trigger,prompt,status,completed_at)
      values($1,$2,$3,'user','Mobile UI fixtures','completed',now())`,
     [runId, chatId, teammateId],
   );
   for (const [key, id] of Object.entries(approvals)) {
     await db.query(
-      `insert into approvals(id,run_id,bot_id,chat_id,kind,title,detail,payload,item_id)
+      `insert into approvals(id,run_id,teammate_id,chat_id,kind,title,detail,payload,item_id)
        values($1,$2,$3,$4,$5,$6,'Local UI test only','{}',$7)`,
       [
         id,
@@ -247,13 +247,13 @@ try {
   if (server) await new Promise((resolve) => server.close(resolve));
   // Cancel and let the worker finish before deleting fixtures it may still be using.
   await db.query(
-    "update runs set cancel_requested_at=now() where bot_id=$1 and status in ('queued','starting','running','waiting')",
+    "update runs set cancel_requested_at=now() where teammate_id=$1 and status in ('queued','starting','running','waiting')",
     [teammateId],
   );
   const activeRuns = async () =>
     (
       await db.query(
-        "select id from runs where bot_id=$1 and status in ('queued','starting','running','waiting')",
+        "select id from runs where teammate_id=$1 and status in ('queued','starting','running','waiting')",
         [teammateId],
       )
     ).rowCount;
@@ -271,7 +271,7 @@ try {
   }
   for (let attempt = 0; attempt < 25 && (await activeRuns()); attempt++) await delay(200);
   if (await activeRuns()) {
-    await db.query("update bots set archived_at=now() where id=$1", [teammateId]);
+    await db.query("update teammates set archived_at=now() where id=$1", [teammateId]);
     console.warn(`Test teammate ${teammateId} was archived while its cancelled run finishes.`);
   } else {
     const botdUrl = process.env.BOTD_URL ?? "http://127.0.0.1:7070";
@@ -285,7 +285,7 @@ try {
         body: JSON.stringify({ screenId: teammateId }),
         signal: AbortSignal.timeout(5000),
       }).catch(() => {});
-    await db.query("delete from bots where id=$1", [teammateId]);
+    await db.query("delete from teammates where id=$1", [teammateId]);
     if (local(workerUrl))
       await fetch(`${workerUrl}/internal/files/remove`, {
         method: "POST",

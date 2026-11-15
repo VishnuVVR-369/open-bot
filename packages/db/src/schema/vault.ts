@@ -22,7 +22,7 @@ export const vaultItems = pgTable("vault_items", {
   /** AES-256-GCM ciphertext of the fields, as JSON. */
   encrypted: text("encrypted").notNull(),
   /** The teammates that may use it, or null for every teammate. */
-  teammateIds: uuid("bot_ids").array(),
+  teammateIds: uuid("teammate_ids").array(),
   lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
@@ -33,7 +33,7 @@ export const purchases = pgTable(
   "purchases",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    teammateId: uuid("bot_id")
+    teammateId: uuid("teammate_id")
       .notNull()
       .references(() => teammates.id, { onDelete: "cascade" }),
     cardId: uuid("card_id").references(() => vaultItems.id, { onDelete: "set null" }),
@@ -51,5 +51,5 @@ export const purchases = pgTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (table) => [index("purchases_bot_idx").on(table.teammateId, table.createdAt)],
+  (table) => [index("purchases_teammate_idx").on(table.teammateId, table.createdAt)],
 );

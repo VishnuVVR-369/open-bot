@@ -247,8 +247,8 @@ export const plan = (steps) => ({
 export const screen = (action, shot, dur = 2600) => ({ kind: "computer", action, shot, dur });
 export const handoff = (toTeammate, message) => ({
   kind: "handoff",
-  toBotId: toTeammate.id,
-  toBotName: toTeammate.name,
+  toTeammateId: toTeammate.id,
+  toTeammateName: toTeammate.name,
   message,
   dur: 900,
 });

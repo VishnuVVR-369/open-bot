@@ -12,12 +12,12 @@ export const memorySaveOutcomeSchema = z.enum(["created", "confirmed", "unchange
 export type MemorySaveOutcome = z.infer<typeof memorySaveOutcomeSchema>;
 
 export const memorySourceSchema = z.object({
-  type: z.enum(["user", "feedback", "bot", "import", "extraction"]),
+  type: z.enum(["user", "feedback", "teammate", "import", "extraction"]),
   messageId: z.string().optional(),
   runId: z.string().optional(),
   chatId: z.string().optional(),
   /** The teammate whose run saved it, filled in when memory is listed for display. */
-  botId: z.string().optional(),
+  teammateId: z.string().optional(),
 });
 export type MemorySource = z.infer<typeof memorySourceSchema>;
 

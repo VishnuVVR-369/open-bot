@@ -40,7 +40,7 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
     await database.create();
   });
   beforeEach(async () => {
-    await pool.query("truncate bots, chats restart identity cascade");
+    await pool.query("truncate teammates, chats restart identity cascade");
     for (const session of sessions.all()) sessions.remove(session.run.id);
   });
   afterAll(async () => {

@@ -24,7 +24,7 @@ export const pages = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     /** The teammate who made it. Pages stay when a teammate is removed. */
-    teammateId: uuid("bot_id").references(() => teammates.id, { onDelete: "set null" }),
+    teammateId: uuid("teammate_id").references(() => teammates.id, { onDelete: "set null" }),
     /** The chat it was made in, where questions about it go. */
     chatId: uuid("chat_id").references(() => chats.id, { onDelete: "set null" }),
     /** The latest version's title and summary. */
@@ -53,7 +53,7 @@ export const pageVersions = pgTable(
       .references(() => pages.id, { onDelete: "cascade" }),
     /** 1 for the first version, then 2, 3… */
     number: integer("number").notNull(),
-    teammateId: uuid("bot_id").references(() => teammates.id, { onDelete: "set null" }),
+    teammateId: uuid("teammate_id").references(() => teammates.id, { onDelete: "set null" }),
     runId: uuid("run_id").references(() => runs.id, { onDelete: "set null" }),
     title: text("title").notNull(),
     summary: text("summary").notNull().default(""),

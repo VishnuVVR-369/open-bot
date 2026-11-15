@@ -43,7 +43,7 @@ export default async function globalTeardown() {
     const label = [TEST_LABEL(tag)];
     const slug = [TEST_SLUG(tag)];
     const teammates = [testTeammateName(tag).source];
-    const theirs = "select id from bots where name ~ $1";
+    const theirs = "select id from teammates where name ~ $1";
     await pool.query("delete from chats where kind = 'group' and title like $1", label);
     await pool.query("delete from skills where name like $1", slug);
     await pool.query("delete from notifications where title like $1", label);
@@ -51,18 +51,18 @@ export default async function globalTeardown() {
     await pool.query("delete from vault_items where name like $1", label);
     await pool.query("delete from connections where label like $1", label);
     // Pages outlive their teammate, so the run's go first.
-    await pool.query(`delete from pages where title like $2 or bot_id in (${theirs})`, [
+    await pool.query(`delete from pages where title like $2 or teammate_id in (${theirs})`, [
       ...teammates,
       ...label,
     ]);
     // Helpers' screens go when their part is done; these are from runs that were cut short.
     const helpers = await pool.query<{ id: string }>(
-      `select t.id from swarm_tasks t join swarms s on s.id = t.swarm_id where s.bot_id in (${theirs})`,
+      `select t.id from swarm_tasks t join swarms s on s.id = t.swarm_id where s.teammate_id in (${theirs})`,
       teammates,
     );
     for (const { id } of helpers.rows) await forgetScreen(id);
     const { rows } = await pool.query<{ id: string; slug: string }>(
-      `delete from bots where id in (${theirs}) returning id, slug`,
+      `delete from teammates where id in (${theirs}) returning id, slug`,
       teammates,
     );
     for (const { id, slug } of rows) {

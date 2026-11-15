@@ -27,7 +27,7 @@ describe.skipIf(!url)("pages, as the apps read them", () => {
     schema = await import("@open-bot/db");
   });
   beforeEach(async () => {
-    await pool.query("truncate pages, bots restart identity cascade"); // vocabulary: allow
+    await pool.query("truncate pages, teammates restart identity cascade");
     teammateId = randomUUID();
     const teammates = schema.teammates;
     await db.insert(teammates).values({

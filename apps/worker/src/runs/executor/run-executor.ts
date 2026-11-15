@@ -104,7 +104,7 @@ export class RunExecutor {
           where r.status = 'queued'
             and not exists (
               select 1 from runs a
-              where a.chat_id = r.chat_id and a.bot_id = r.bot_id and a.lane = r.lane
+              where a.chat_id = r.chat_id and a.teammate_id = r.teammate_id and a.lane = r.lane
                 and a.status in ('starting', 'running', 'waiting')
             )
           order by r.created_at

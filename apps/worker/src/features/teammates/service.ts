@@ -90,7 +90,7 @@ export async function activeTeammates(
     .orderBy(asc(teammates.createdAt));
 }
 
-export type CreatedBy = { kind: "user" } | { kind: "bot"; teammateId: string; runId: string };
+export type CreatedBy = { kind: "user" } | { kind: "teammate"; teammateId: string; runId: string };
 
 /**
  * Creating and editing teammates, for the web app and for teammates' own tools alike. Edits use
@@ -276,7 +276,7 @@ export class TeammateService {
           ...schedule,
           timezone,
           createdBy: by.kind,
-          createdByRunId: by.kind === "bot" ? by.runId : null,
+          createdByRunId: by.kind === "teammate" ? by.runId : null,
         })
         .catch((error: unknown) =>
           failed.push({ kind: "schedule", name: schedule.title, error: errorMessage(error) }),
@@ -286,7 +286,7 @@ export class TeammateService {
       await this.skills
         .save(
           { ...skill, teammateId },
-          by.kind === "bot" ? { kind: "bot", teammateId: by.teammateId } : by,
+          by.kind === "teammate" ? { kind: "teammate", teammateId: by.teammateId } : by,
         )
         .catch((error: unknown) =>
           failed.push({ kind: "skill", name: skill.name, error: errorMessage(error) }),

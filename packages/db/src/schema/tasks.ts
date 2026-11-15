@@ -29,13 +29,15 @@ export const tasks = pgTable(
     notes: text("notes").notNull().default(""),
     status: text("status").$type<TaskStatus>().notNull().default("todo"),
     /** The teammate doing it; null when nobody has it yet, or it's yours. */
-    ownerTeammateId: uuid("owner_bot_id").references(() => teammates.id, { onDelete: "set null" }),
+    ownerTeammateId: uuid("owner_teammate_id").references(() => teammates.id, {
+      onDelete: "set null",
+    }),
     /** The day it's due, like 2026-10-20. */
     dueOn: date("due_on", { mode: "string" }),
     /** Order within its column. */
     position: doublePrecision("position").notNull().default(0),
     createdBy: text("created_by").$type<Creator>().notNull(),
-    createdByTeammateId: uuid("created_by_bot_id").references(() => teammates.id, {
+    createdByTeammateId: uuid("created_by_teammate_id").references(() => teammates.id, {
       onDelete: "set null",
     }),
     /** The chat where the owner was last asked to work on it. */
@@ -58,7 +60,7 @@ export const swarms = pgTable(
   "swarms",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    teammateId: uuid("bot_id")
+    teammateId: uuid("teammate_id")
       .notNull()
       .references(() => teammates.id, { onDelete: "cascade" }),
     /** Where the teammate started it, and gets the results. */
@@ -75,7 +77,7 @@ export const swarms = pgTable(
     createdAt: createdAt(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
   },
-  (table) => [index("swarms_bot_idx").on(table.teammateId, table.createdAt)],
+  (table) => [index("swarms_teammate_idx").on(table.teammateId, table.createdAt)],
 );
 
 /** One helper's part of a swarm. Its id is also the id of the screen it works on. */

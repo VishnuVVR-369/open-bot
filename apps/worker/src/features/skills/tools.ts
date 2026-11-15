@@ -104,7 +104,7 @@ async function saveSkill(
         instructions: args.instructions,
         teammateId: shared ? null : target.id,
       },
-      { kind: "bot", teammateId: session.teammate.id },
+      { kind: "teammate", teammateId: session.teammate.id },
       skillId,
     );
   } catch (error) {

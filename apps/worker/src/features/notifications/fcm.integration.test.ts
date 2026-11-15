@@ -144,7 +144,6 @@ describe.skipIf(!url)("FCM fan-out", () => {
       tag: "a1",
       url: "/approvals/a1",
       teammateId: "b1",
-      botId: "b1", // Temporary, for phones on the old build. vocabulary: allow
       chatId: "c1",
       runId: "r1",
       approvalId: "a1",
@@ -160,7 +159,7 @@ describe.skipIf(!url)("FCM fan-out", () => {
   it.each([
     "run_finished",
     "run_failed",
-    "bot_message", // Existing notification contract. vocabulary: allow
+    "teammate_message",
     "cap_reached",
     "egress_unanswered",
   ] as const)(

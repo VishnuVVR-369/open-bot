@@ -29,7 +29,7 @@ test.describe("versioned memory in an isolated database", () => {
       expect(response.ok()).toBeTruthy();
     }
     await pool.query(
-      "insert into bots(id,name,slug,role,color) values($1,'Memory Tester',$3,'assistant','#7C5CFF'),($2,'Memory Peer',$4,'assistant','#2E9BFF')",
+      "insert into teammates(id,name,slug,role,color) values($1,'Memory Tester',$3,'assistant','#7C5CFF'),($2,'Memory Peer',$4,'assistant','#2E9BFF')",
       [teammateId, peerId, `memory-tester-${teammateId}`, `memory-peer-${peerId}`],
     );
   });
@@ -96,7 +96,7 @@ test.describe("versioned memory in an isolated database", () => {
     await page.getByRole("button", { name: "Forget memory", exact: true }).click();
     await expect(item).toHaveCount(0);
     const revisions = await pool.query(
-      "select r.content from memory_revisions r join memory_items m on m.id=r.memory_id where m.bot_id=$1",
+      "select r.content from memory_revisions r join memory_items m on m.id=r.memory_id where m.teammate_id=$1",
       [teammateId],
     );
     expect(revisions.rowCount).toBe(0);
@@ -187,7 +187,7 @@ test.describe("versioned memory in an isolated database", () => {
   }) => {
     const id = randomUUID();
     await pool.query(
-      "insert into memory_items(id,bot_id,kind,content,fingerprint,state,source) values($1,$2,'preference','Prefers concise replies','e2e-suggestion','candidate',$3)",
+      "insert into memory_items(id,teammate_id,kind,content,fingerprint,state,source) values($1,$2,'preference','Prefers concise replies','e2e-suggestion','candidate',$3)",
       [id, teammateId, { type: "extraction" }],
     );
     await page.goto(`/teammates/${teammateId}?tab=memory`);
@@ -245,7 +245,7 @@ test.describe("versioned memory in an isolated database", () => {
       run = randomUUID(),
       message = randomUUID();
     await pool.query(
-      "insert into chats(id,kind,title,bot_id) values($1,'direct','Memory context check',$2)",
+      "insert into chats(id,kind,title,teammate_id) values($1,'direct','Memory context check',$2)",
       [chat, teammateId],
     );
     await pool.query(
@@ -253,11 +253,11 @@ test.describe("versioned memory in an isolated database", () => {
       [message, chat],
     );
     await pool.query(
-      "insert into runs(id,chat_id,bot_id,trigger,prompt,message_id,status) values($1,$2,$3,'user','Find matching roles',$4,'completed')",
+      "insert into runs(id,chat_id,teammate_id,trigger,prompt,message_id,status) values($1,$2,$3,'user','Find matching roles',$4,'completed')",
       [run, chat, teammateId, message],
     );
     await pool.query(
-      "insert into memory_contexts(run_id,bot_id,generation,refs) values($1,$2,'1:0:0',$3)",
+      "insert into memory_contexts(run_id,teammate_id,generation,refs) values($1,$2,'1:0:0',$3)",
       [
         run,
         teammateId,

@@ -185,7 +185,7 @@ describe.skipIf(!url)("Gmail and Calendar triggers with Postgres", () => {
 
   beforeEach(async () => {
     await pool.query(
-      "truncate bots, chats, connections, accounts, oauth_clients restart identity cascade",
+      "truncate teammates, chats, connections, account_connections, oauth_clients restart identity cascade",
     );
     google.reset();
     const [teammate] = await db

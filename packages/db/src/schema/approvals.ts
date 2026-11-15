@@ -13,7 +13,7 @@ export const approvals = pgTable(
     runId: uuid("run_id")
       .notNull()
       .references(() => runs.id, { onDelete: "cascade" }),
-    teammateId: uuid("bot_id")
+    teammateId: uuid("teammate_id")
       .notNull()
       .references(() => teammates.id, { onDelete: "cascade" }),
     chatId: uuid("chat_id")
@@ -40,7 +40,7 @@ export const approvalRules = pgTable(
   "approval_rules",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    teammateId: uuid("bot_id")
+    teammateId: uuid("teammate_id")
       .notNull()
       .references(() => teammates.id, { onDelete: "cascade" }),
     kind: text("kind").$type<RuleKind>().notNull(),

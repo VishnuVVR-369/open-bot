@@ -48,10 +48,10 @@ const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3600_000);
  */
 async function forgetOurAccounts() {
   await db.query(
-    "delete from connections where account_id in (select id from accounts where external_id = any($1))",
+    "delete from connections where account_id in (select id from account_connections where external_id = any($1))",
     [OURS],
   );
-  await db.query("delete from accounts where external_id = any($1)", [OURS]);
+  await db.query("delete from account_connections where external_id = any($1)", [OURS]);
   await db.query("delete from oauth_clients where issuer = $1", [STAND_IN_URL]);
 }
 
@@ -97,7 +97,7 @@ test.describe("Accounts, against a stand-in for Google and Notion", () => {
       request: Record<string, unknown>;
       effect: string;
     }>(
-      "select id, status, request, effect from account_actions where bot_id = $1 and tool = $2 order by created_at desc limit 1",
+      "select id, status, request, effect from account_actions where teammate_id = $1 and tool = $2 order by created_at desc limit 1",
       [await teammateIdOf(page, teammateName), tool],
     );
     return rows[0];
@@ -107,7 +107,9 @@ test.describe("Accounts, against a stand-in for Google and Notion", () => {
     // Nothing is written before the lock and the check: a second run must not touch the first's.
     releaseLock = await suiteLock(db, "accounts");
     test.skip(!releaseLock, "Another run of this suite is using this app.");
-    const { rows: others } = await db.query<{ display: string }>("select display from accounts");
+    const { rows: others } = await db.query<{ display: string }>(
+      "select display from account_connections",
+    );
     test.skip(
       others.length > 0,
       `This app has accounts connected (${others.map((row) => row.display).join(", ")}); the suite only runs on an app without any. Remove them in Settings → Connections, including any a stopped run left.`,
@@ -521,7 +523,7 @@ test.describe("Accounts, against a stand-in for Google and Notion", () => {
     );
     await expect(calendar).toContainText("Needs reconnecting");
     const { rows } = await db.query<{ status: string }>(
-      "select status from accounts where external_id = $1",
+      "select status from account_connections where external_id = $1",
       [GOOGLE_USER.sub],
     );
     expect(rows[0]?.status).toBe("needs_reconnect");
@@ -556,7 +558,10 @@ test.describe("Accounts, against a stand-in for Google and Notion", () => {
 
     await remove("notion", "Notion");
     await expect.poll(() => standIn.notion.revocations.length).toBe(1);
-    const { rows } = await db.query("select id from accounts where external_id = any($1)", [OURS]);
+    const { rows } = await db.query(
+      "select id from account_connections where external_id = any($1)",
+      [OURS],
+    );
     expect(rows).toHaveLength(0);
   });
 });

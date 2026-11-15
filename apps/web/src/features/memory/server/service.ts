@@ -33,7 +33,7 @@ export async function listMemories(
   return items.map((item) => {
     const run = sources.find((r) => r.id === item.source.runId);
     return run
-      ? { ...item, source: { ...item.source, botId: run.teammateId, chatId: run.chatId } }
+      ? { ...item, source: { ...item.source, teammateId: run.teammateId, chatId: run.chatId } }
       : item;
   });
 }

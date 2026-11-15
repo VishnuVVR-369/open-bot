@@ -27,7 +27,7 @@ export type TakeoverStatus = "requested" | "active" | "ended" | "dismissed";
 export type TakeoverEndReason = LeaseReleaseReason;
 
 export const screenTakeovers = pgTable(
-  "desktop_takeovers",
+  "screen_takeovers",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     /** The screen you take over: every teammate has its own, so this is the teammate's id. */
@@ -37,7 +37,7 @@ export const screenTakeovers = pgTable(
     requestedByRunId: uuid("requested_by_run_id").references(() => runs.id, {
       onDelete: "set null",
     }),
-    requestedByTeammateId: uuid("requested_by_bot_id").references(() => teammates.id, {
+    requestedByTeammateId: uuid("requested_by_teammate_id").references(() => teammates.id, {
       onDelete: "set null",
     }),
     reason: text("reason"),

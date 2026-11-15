@@ -137,7 +137,7 @@ async function watchAccount(
         query: kind === "gmail" ? (args.query ?? null) : (args.events ?? "all"),
         leadMinutes: kind === "calendar" ? (args.lead_minutes ?? 30) : null,
       },
-      { kind: "bot", runId: session.run.id },
+      { kind: "teammate", runId: session.run.id },
     );
   } catch (error) {
     if (error instanceof TriggerError || error instanceof AccountToolError)

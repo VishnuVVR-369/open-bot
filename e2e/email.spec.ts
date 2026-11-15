@@ -246,7 +246,7 @@ test("an email's attachments reach the teammate as files open-bot keeps track of
 
     // The run carries them as attachments, so the teammate sees the picture, not just a path.
     const { rows: runs } = await pool.query<{ prompt: string; attachments: { path: string }[] }>(
-      "select prompt, attachments from runs where bot_id = $1 and trigger = 'email'",
+      "select prompt, attachments from runs where teammate_id = $1 and trigger = 'email'",
       [teammateId],
     );
     expect(runs).toHaveLength(1);

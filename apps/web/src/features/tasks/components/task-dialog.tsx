@@ -126,7 +126,7 @@ export function TaskDialog({
           <DialogHeader>
             <DialogTitle>{task ? "Task" : "New task"}</DialogTitle>
             <DialogDescription>
-              {task?.createdBy === "bot"
+              {task?.createdBy === "teammate"
                 ? `Added by ${teammates.find((teammate) => teammate.id === task.createdByTeammateId)?.name ?? "a teammate"}.`
                 : "Give it to a teammate to have them do it, or keep it for yourself."}
             </DialogDescription>

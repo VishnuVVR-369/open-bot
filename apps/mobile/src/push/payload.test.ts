@@ -156,6 +156,21 @@ describe("phone notifications", () => {
       })!,
     );
     expect(failed?.reply).toEqual({ chatId: "c1", teammateId: "b1" });
+    // A teammate's `notify_user`, under its kind before and after the database rename.
+    const kinds = ["teammate_message", "bot_message"]; // vocabulary: allow (an older server's)
+    for (const kind of kinds) {
+      const message = planNotification(
+        parsePushData({
+          type: "notification",
+          kind,
+          title: "x",
+          tag: "m",
+          chatId: "c1",
+          teammateId: "b1",
+        })!,
+      );
+      expect(message?.reply, kind).toEqual({ chatId: "c1", teammateId: "b1" });
+    }
     // Approvals and takeovers are decided, not replied to.
     expect(planNotification(parsePushData(approval)!)?.reply).toBeUndefined();
     const asking = planNotification(

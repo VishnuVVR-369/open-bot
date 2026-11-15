@@ -82,7 +82,7 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
       try {
         await memoryWrite.query("begin");
         await memoryWrite.query(
-          "update runs set cancel_requested_at = now() where bot_id = $1", // vocabulary: allow
+          "update runs set cancel_requested_at = now() where teammate_id = $1",
           [teammateId],
         );
         const archiving = worker.teammates.archive({ teammateId });
@@ -94,10 +94,9 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
           if (rows[0]!.waiting > 0) break;
           await new Promise((resolve) => setImmediate(resolve));
         }
-        await memoryWrite.query(
-          "update bots set lessons_changed_at = now() where id = $1", // vocabulary: allow
-          [teammateId],
-        );
+        await memoryWrite.query("update teammates set lessons_changed_at = now() where id = $1", [
+          teammateId,
+        ]);
         await memoryWrite.query("commit");
         await archiving;
       } finally {

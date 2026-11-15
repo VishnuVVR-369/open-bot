@@ -31,7 +31,7 @@ export async function listTeammates(): Promise<TeammateSummary[]> {
     .from(runs)
     .where(inArray(runs.status, [...ACTIVE_RUN_STATUSES]))
     .orderBy(desc(runs.createdAt));
-  // Each teammate's newest run, read through runs_bot_idx: when it finished, or when it began.
+  // Each teammate's newest run, read through runs_teammate_idx: when it finished, or when it began.
   const latest = await db
     .selectDistinctOn([runs.teammateId], {
       teammateId: runs.teammateId,

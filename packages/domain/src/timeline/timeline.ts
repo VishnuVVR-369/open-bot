@@ -100,8 +100,8 @@ export interface TakeoverRequestItem extends BaseItem {
 
 export interface HandoffItem extends BaseItem {
   kind: "handoff";
-  toBotId: string;
-  toBotName: string;
+  toTeammateId: string;
+  toTeammateName: string;
   message: string;
 }
 

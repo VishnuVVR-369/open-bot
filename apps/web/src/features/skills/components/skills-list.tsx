@@ -169,7 +169,8 @@ export function SkillsList({ teammateId }: { teammateId?: string }) {
         ))}
         {skills.map((skill) => {
           const owner = teammateOf(skill.teammateId);
-          const author = skill.createdBy === "bot" ? teammateOf(skill.createdByTeammateId) : null;
+          const author =
+            skill.createdBy === "teammate" ? teammateOf(skill.createdByTeammateId) : null;
           return (
             <li
               key={skill.id}

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { dirname } from "node:path/posix";
 import type { v2 } from "@open-bot/agent";
-import { accounts, connections } from "@open-bot/db";
+import { accountConnections, connections } from "@open-bot/db";
 import {
   ACCOUNT_TOOLS,
   accountTool,
@@ -69,9 +69,9 @@ export class AccountTools {
   /** Settings' Test for an account connection: one real call, and the tools teammates get. */
   async test(connectionId: string): Promise<ConnectionTest> {
     const [row] = await this.ctx.db
-      .select({ connection: connections, account: accounts })
+      .select({ connection: connections, account: accountConnections })
       .from(connections)
-      .innerJoin(accounts, eq(accounts.id, connections.accountId))
+      .innerJoin(accountConnections, eq(accountConnections.id, connections.accountId))
       .where(eq(connections.id, connectionId));
     if (!row || !isAccountConnectionKind(row.connection.kind))
       return { ok: false, status: null, tools: [], error: "That connection is gone." };

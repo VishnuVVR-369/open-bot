@@ -95,7 +95,7 @@ export function fingerprint(content: string): string {
 function sourceOf(actor: MemoryActor): MemorySource {
   return actor.kind === "teammate"
     ? {
-        type: "bot",
+        type: "teammate",
         runId: actor.runId,
         ...(actor.messageId ? { messageId: actor.messageId } : {}),
       }
@@ -124,7 +124,7 @@ const IMPORTED_LESSON = z.string().trim().min(1).max(8000);
 const COPY_BATCH = 500;
 
 const scopeOf = (teammateId: string | null) =>
-  teammateId ? (`bot:${teammateId}` as const) : ("shared" as const);
+  teammateId ? (`teammate:${teammateId}` as const) : ("shared" as const);
 
 const now = () => sql<Date>`now()`;
 /** One scope's memories: a teammate's, or the shared ones (`null`). */
@@ -207,7 +207,7 @@ export class MemoryService {
         tx
           .select({
             id: memoryItems.id,
-            teammateId: sql<string>`${memoryItems.teammateId}`.as("bot_id"),
+            teammateId: sql<string>`${memoryItems.teammateId}`.as("teammate_id"),
             runId: sql<
               string | null
             >`(select ${runs.id} from ${runs} where ${runs.id}::text = ${memoryItems.source}->>'runId')`.as(

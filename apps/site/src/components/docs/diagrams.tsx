@@ -329,7 +329,7 @@ export function ConceptsDiagram() {
             w={170}
             h={64}
             title="Teammate"
-            sub={["bots: a job, instructions,", "autonomy and model"]}
+            sub={["teammates: a job, instructions,", "autonomy and model"]}
             tone="ink"
           />
           <Box
@@ -842,7 +842,7 @@ export function ThreadDecisionDiagram() {
             w={260}
             h={56}
             title="A thread saved for this pair?"
-            sub="bot_threads (chat, teammate)"
+            sub="teammate_threads (chat, teammate)"
           />
           <Box
             x={0}

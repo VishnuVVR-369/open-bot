@@ -59,8 +59,12 @@ export function parsePushData(raw: Record<string, unknown> | undefined): PushDat
 
 export type ActionId = "approve" | "deny" | "review" | "reply" | "take-over" | "type-code";
 
-/** Replies and results you can answer from the notification, with Reply. */
-const REPLYABLE_KINDS = new Set(["run_finished", "run_failed", "bot_message"]);
+/**
+ * Replies and results you can answer from the notification, with Reply. `bot_message` is what a
+ * server from before the database rename (migration 0035) calls `teammate_message`: this build is
+ * installed before that deploy. A later build can drop it.
+ */
+const REPLYABLE_KINDS = new Set(["run_finished", "run_failed", "teammate_message", "bot_message"]); // vocabulary: allow (an older server's kind)
 
 export interface NotificationPlan {
   /** Replaces any notification with the same id. */

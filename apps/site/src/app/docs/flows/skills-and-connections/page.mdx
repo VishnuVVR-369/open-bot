@@ -18,7 +18,7 @@ A skill (`skills`) has:
 - a **name**, lowercase with dashes, like `weekly-report`. It is what you type after `/`.
 - a **description**: when to use it, up to 300 characters;
 - **instructions**: the steps, checks and output format, in Markdown, up to 20,000 characters;
-- an owner: one teammate, or every teammate (`bot_id` is null).
+- an owner: one teammate, or every teammate (`teammate_id` is null).
 
 A name is unique among the skills one teammate can see.
 A shared skill takes its name for everyone, and two teammates can each have their own `/standup`.
@@ -75,7 +75,7 @@ This section is about the MCP servers you add yourself, listed in Settings under
 | `stdio`   | A command and arguments, run on the computer | Environment variables                                   |
 
 Secrets (headers and environment) are encrypted with `ENCRYPTION_KEY`.
-Each connection can be turned off, and limited to some teammates (`bot_ids`), or left open to all.
+Each connection can be turned off, and limited to some teammates (`teammate_ids`), or left open to all.
 
 ### How a teammate gets them
 
@@ -99,7 +99,7 @@ tool_timeout_sec = 120
 It is passed in the thread's config when the thread starts, so the secrets are never written to a file on the computer.
 It also returns:
 
-- a **connections key**, a hash of the connections' ids and update times, which goes into the thread's `bot_threads.configuration_key` with its `AGENTS.md`;
+- a **connections key**, a hash of the connections' ids and update times, which goes into the thread's `teammate_threads.configuration_key` with its `AGENTS.md`;
 - **labels**, listed in the teammate's `AGENTS.md` under "Connected services", with a note to prefer them over websites.
 
 A thread keeps the MCP servers it started with.

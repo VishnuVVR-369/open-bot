@@ -38,7 +38,7 @@ What every integration shares at run time (access checks, approvals, the durable
 - An adapter only reads and prepares changes; it never runs a change itself outside its runner, which the worker's executor calls.
 - The package never reads `process.env` (lint enforces it).
   Each app builds `IntegrationEndpoints` from its env module and passes it to `AccountStore` and the adapters, so tests and e2e runs point every call at a stand-in, never at the real providers.
-- The `accounts` table is unrelated to Better Auth's `account` table.
+- The `account_connections` table is unrelated to Better Auth's `account` table.
 
 ## Recipes
 

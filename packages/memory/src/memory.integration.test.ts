@@ -47,7 +47,7 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
   }, 30000);
   beforeEach(async () => {
     await pool.query(
-      "truncate memory_items,memory_generations,memory_imports,memory_usage,bots cascade",
+      "truncate memory_items,memory_generations,memory_imports,memory_usage,teammates cascade",
     );
     teammate = randomUUID();
     peer = randomUUID();
@@ -57,11 +57,11 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
     await pool.query("insert into settings(id) values(1) on conflict do nothing");
     await pool.query("update settings set about_me='' where id=1");
     await pool.query(
-      "insert into bots(id,name,slug,role,color) values($1,'Tess','tess','assistant','#123456'),($2,'Peer','peer','assistant','#123456')",
+      "insert into teammates(id,name,slug,role,color) values($1,'Tess','tess','assistant','#123456'),($2,'Peer','peer','assistant','#123456')",
       [teammate, peer],
     );
     await pool.query(
-      "insert into chats(id,kind,title,bot_id) values($1,'direct','Memory tests',$2)",
+      "insert into chats(id,kind,title,teammate_id) values($1,'direct','Memory tests',$2)",
       [chat, teammate],
     );
     await pool.query(
@@ -69,7 +69,7 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
       [message, chat],
     );
     await pool.query(
-      "insert into runs(id,chat_id,bot_id,trigger,prompt,message_id,status) values($1,$2,$3,'user','Please remember I prefer remote jobs.',$4,'completed')",
+      "insert into runs(id,chat_id,teammate_id,trigger,prompt,message_id,status) values($1,$2,$3,'user','Please remember I prefer remote jobs.',$4,'completed')",
       [run, chat, teammate, message],
     );
     response = { data: [{ embedding: [1, 0, 0] }] };
@@ -302,7 +302,7 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
       "Ask before booking flights",
     ]);
     const lessons = async () =>
-      (await pool.query("select text from lessons where bot_id=$1", [teammate])).rows
+      (await pool.query("select text from lessons where teammate_id=$1", [teammate])).rows
         .map((row) => row.text)
         .sort();
     expect(await lessons()).toEqual(["Ask before booking flights", "ok"]);
@@ -344,7 +344,7 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
   });
   it("does not relearn a forgotten source under a paraphrase", async () => {
     const saved = await memory.save(input("Prefers remote roles"), user, {
-      source: { type: "bot", messageId: message, runId: run },
+      source: { type: "teammate", messageId: message, runId: run },
     });
     await memory.forget({ id: saved.id, expectedRevision: 1 }, user);
     await expect(

@@ -1,4 +1,4 @@
-import type { accountActions, accounts, connections, Db } from "@open-bot/db";
+import type { accountActions, accountConnections, connections, Db } from "@open-bot/db";
 import type { AccountActionPreview, AccountConnectionKind, ActionEffect } from "@open-bot/domain";
 import type { IntegrationEndpoints } from "./endpoints";
 import type { ProviderError, TokenSource } from "./http";
@@ -6,7 +6,7 @@ import type { NamespaceSpec } from "./tool-spec";
 
 export type ActionRow = typeof accountActions.$inferSelect;
 export type ConnectionRow = typeof connections.$inferSelect;
-export type AccountRow = typeof accounts.$inferSelect;
+export type AccountRow = typeof accountConnections.$inferSelect;
 
 /** One of your accounts, through the connection a teammate uses it with. */
 export interface ResolvedConnection {

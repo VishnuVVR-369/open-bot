@@ -17,6 +17,7 @@ import { PlanCard, SentIntoTurn, TakeoverCard, TurnError } from "./item-cards";
 import { PageCard } from "./page-card";
 import { CodeBlock, Step } from "./step";
 import { SwarmCard } from "./swarm-card";
+import { handoffName } from "../handoff";
 import { toolIcon } from "./tool-icons";
 
 /** One thing a teammate did or said in a turn: a step, a card, or their words. */
@@ -110,7 +111,7 @@ export function TimelineItemView({
       return <TakeoverCard item={item} screenId={teammateId} name={teammateName} />;
     case "handoff":
       return (
-        <Step icon={ArrowRightLeft} summary={`Handed to ${item.toBotName}: ${item.message}`} />
+        <Step icon={ArrowRightLeft} summary={`Handed to ${handoffName(item)}: ${item.message}`} />
       );
     case "user_message":
       return <SentIntoTurn item={item} />;

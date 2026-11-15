@@ -302,6 +302,13 @@
       "when": 1795196551486,
       "tag": "0042_rename_teammate_tools_in_approvals",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1795198035966,
+      "tag": "0043_rename_vocabulary",
+      "breakpoints": true
     }
   ]
 }

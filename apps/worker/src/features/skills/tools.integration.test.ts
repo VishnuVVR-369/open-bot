@@ -120,7 +120,7 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
         description: "Shared",
         instructions: "All",
         teammateId: null,
-        createdBy: "bot",
+        createdBy: "teammate",
         createdByTeammateId: session.teammate.id,
       })
       .returning();

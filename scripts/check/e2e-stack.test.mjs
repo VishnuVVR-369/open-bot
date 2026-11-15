@@ -156,7 +156,7 @@ test("cleanup only deletes what carries the run's tag", () => {
   for (const line of deletes)
     assert.match(
       line,
-      /(like \$\d.*(label|slug)\b|bot_id in \(\$\{theirs\}\)|id in \(\$\{theirs\}\))/,
+      /(like \$\d.*(label|slug)\b|teammate_id in \(\$\{theirs\}\)|id in \(\$\{theirs\}\))/,
     );
   // No spec cleans up by the old shared prefixes, which match every run's rows and yours.
   const dir = path.join(root, "e2e");

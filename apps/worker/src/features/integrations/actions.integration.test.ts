@@ -3,7 +3,7 @@ import { EventEmitter } from "node:events";
 import { AccountStore } from "@open-bot/integrations/server";
 import {
   accountActions,
-  accounts,
+  accountConnections,
   approvals,
   teammates,
   chats,
@@ -103,7 +103,7 @@ describe.skipIf(!url)("account actions with Postgres", () => {
 
   beforeEach(async () => {
     await pool.query(
-      "truncate bots, chats, connections, accounts, oauth_clients restart identity cascade",
+      "truncate teammates, chats, connections, account_connections, oauth_clients restart identity cascade",
     );
     runner.execute.mockReset().mockResolvedValue(done);
     runner.reconcile.mockReset().mockResolvedValue(null);
@@ -294,7 +294,10 @@ describe.skipIf(!url)("account actions with Postgres", () => {
 
   it("cancels an action when the account's grant changed since it was asked for", async () => {
     const row = await action();
-    await db.update(accounts).set({ grantRevision: 2 }).where(eq(accounts.id, fixture.accountId));
+    await db
+      .update(accountConnections)
+      .set({ grantRevision: 2 })
+      .where(eq(accountConnections.id, fixture.accountId));
     await sweep(first);
     expect(runner.execute).not.toHaveBeenCalled();
     const after = await reload(row.id);

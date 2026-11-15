@@ -233,7 +233,7 @@ async function reportBlocked(
     message: `Blocked a job application on ${[...new Set(portals)].join(" and ")}. Teammates never apply for you.`,
   });
   await createNotification(deps.ctx, {
-    kind: "bot_message",
+    kind: "teammate_message",
     title: `${session.teammate.name} was stopped from applying to a job`,
     body: `The browser blocked an application on ${[...new Set(portals)].join(" and ")}. Teammates never apply for you.`,
     teammateId: session.teammate.id,

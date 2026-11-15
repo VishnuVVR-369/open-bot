@@ -77,7 +77,7 @@ export const telegramContract = {
     .route({ method: "POST", path: "/internal/telegram/connect" })
     .input(z.object({ token: z.string().max(200) }))
     .output(telegramStatusSchema),
-  /** A code to send the bot from the Telegram account to link. */
+  /** A code to send your Telegram bot from the Telegram account to link. */
   linkCode: base
     .route({ method: "POST", path: "/internal/telegram/link-code" })
     .output(z.object({ code: z.string(), url: z.string(), expiresAt: z.string() })),

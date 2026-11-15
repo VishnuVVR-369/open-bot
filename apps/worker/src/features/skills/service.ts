@@ -98,14 +98,14 @@ export class SkillService {
    */
   async save(
     input: SkillInput,
-    by: { kind: "user" } | { kind: "bot"; teammateId: string },
+    by: { kind: "user" } | { kind: "teammate"; teammateId: string },
     id?: string,
   ): Promise<Skill> {
     const parsed = skillInputSchema.safeParse(input);
     if (!parsed.success) throw new SkillError(parsed.error.issues[0]!.message);
     const data = parsed.data;
     // You can move a skill between teammates; a teammate edits one only where it is.
-    if (id && by.kind === "bot") {
+    if (id && by.kind === "teammate") {
       const [existing] = await this.ctx.db.select().from(skills).where(eq(skills.id, id));
       if (!existing || existing.teammateId !== data.teammateId)
         throw new SkillError(
@@ -129,7 +129,7 @@ export class SkillService {
       // error, so a teammate's skill never replaces a shared one or another teammate's.
       if (
         !id &&
-        by.kind === "bot" &&
+        by.kind === "teammate" &&
         clash.createdByTeammateId === by.teammateId &&
         clash.teammateId === data.teammateId
       ) {
@@ -152,7 +152,7 @@ export class SkillService {
         .values({
           ...data,
           createdBy: by.kind,
-          createdByTeammateId: by.kind === "bot" ? by.teammateId : null,
+          createdByTeammateId: by.kind === "teammate" ? by.teammateId : null,
         })
         .returning();
     }

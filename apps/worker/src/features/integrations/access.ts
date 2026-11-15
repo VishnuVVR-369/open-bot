@@ -8,7 +8,7 @@ import {
   AccountUnavailableError,
   integrationEndpoints,
 } from "@open-bot/integrations/server";
-import { accounts, connections } from "@open-bot/db";
+import { accountConnections, connections } from "@open-bot/db";
 import {
   ACCOUNT_PROVIDERS,
   authProvider,
@@ -63,9 +63,9 @@ export class AccountAccess {
     kind?: AccountConnectionKind,
   ): Promise<ResolvedConnection[]> {
     const rows = await this.ctx.db
-      .select({ connection: connections, account: accounts })
+      .select({ connection: connections, account: accountConnections })
       .from(connections)
-      .innerJoin(accounts, eq(accounts.id, connections.accountId))
+      .innerJoin(accountConnections, eq(accountConnections.id, connections.accountId))
       .where(
         and(
           kind ? eq(connections.kind, kind) : ne(connections.kind, "mcp"),
@@ -181,7 +181,7 @@ export class AccountAccess {
     await publishApp(this.ctx, { type: "connections" });
     if (!marked) return;
     await createNotification(this.ctx, {
-      kind: "bot_message",
+      kind: "teammate_message",
       title: `Your ${authProvider(resolved.account.provider).accountLabel} needs reconnecting`,
       body: `${reason} Teammates can't use it until you reconnect it in Settings → Connections.`,
     });
@@ -198,13 +198,16 @@ export class AccountAccess {
       if (!days) continue;
       const cutoff = new Date(Date.now() - days * KEEP_ALIVE_AT * DAY_MS);
       const idle = await this.ctx.db
-        .select({ id: accounts.id })
-        .from(accounts)
+        .select({ id: accountConnections.id })
+        .from(accountConnections)
         .where(
           and(
-            eq(accounts.provider, provider),
-            eq(accounts.status, "connected"),
-            lt(sql`coalesce(${accounts.lastRefreshedAt}, ${accounts.grantedAt})`, cutoff),
+            eq(accountConnections.provider, provider),
+            eq(accountConnections.status, "connected"),
+            lt(
+              sql`coalesce(${accountConnections.lastRefreshedAt}, ${accountConnections.grantedAt})`,
+              cutoff,
+            ),
           ),
         );
       for (const { id } of idle) await this.refreshIdle(id, provider);

@@ -106,7 +106,7 @@ When you take over, the worker's `TakeoverService`:
 
 1. calls botd, which moves the lease to you and, if a run held it, emits `preempted` and kills that screen's in-flight `xdotool` commands;
 2. updates its own copy of the lease right away, so your control connection is accepted without waiting for botd's event;
-3. records a `desktop_takeovers` row with the run it interrupted, or marks a pending request from the teammate as `active`;
+3. records a `screen_takeovers` row with the run it interrupted, or marks a pending request from the teammate as `active`;
 4. publishes `takeovers` and `lease` app events, so every tab updates.
 
 While you have control, the panel turns amber, and your input is reported with `POST /internal/screens/:id/touch`, which keeps the 10-minute idle timer from expiring.
