@@ -220,7 +220,10 @@ export const messageDispatches = pgTable(
       .references(() => bots.id, { onDelete: "cascade" }),
     /** A new run, or joining the teammate's running turn. */
     kind: text("kind").$type<"run" | "steer">().notNull(),
-    /** A steer is `sending` while it's being delivered; a run is `done` as soon as it's queued. */
+    /**
+     * A steer is `sending` while it's being delivered, and `failed` when the turn refused it, until
+     * its own run is saved; a run is `done` as soon as it's queued.
+     */
     status: text("status").$type<"sending" | "done" | "failed">().notNull(),
     runId: uuid("run_id"),
     createdAt: createdAt(),
