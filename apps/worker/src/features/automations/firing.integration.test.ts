@@ -30,6 +30,8 @@ describe.skipIf(!url)("watches and schedules with Postgres", () => {
     log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   } as unknown as Context;
   let page = "";
+  /** While set, page requests wait until this many have arrived, then all are answered. */
+  let barrier: { size: number; waiting: (() => void)[] } | undefined;
   let server: Server;
   let pageUrl: string;
   let teammateId: string;
@@ -37,8 +39,16 @@ describe.skipIf(!url)("watches and schedules with Postgres", () => {
   beforeAll(async () => {
     await database.create();
     server = createServer((_request, response) => {
-      response.writeHead(200, { "content-type": "text/plain" });
-      response.end(page);
+      const answer = () => {
+        response.writeHead(200, { "content-type": "text/plain" });
+        response.end(page);
+      };
+      if (!barrier) return answer();
+      barrier.waiting.push(answer);
+      if (barrier.waiting.length < barrier.size) return;
+      const release = barrier.waiting;
+      barrier = undefined;
+      for (const waiting of release) waiting();
     });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     pageUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/status`;
@@ -51,7 +61,10 @@ describe.skipIf(!url)("watches and schedules with Postgres", () => {
       .returning();
     teammateId = teammate!.id;
   });
-  afterEach(() => allowRunsIn(pool));
+  afterEach(async () => {
+    barrier = undefined;
+    await allowRunsIn(pool);
+  });
   afterAll(async () => {
     await new Promise((resolve) => server?.close(resolve));
     await database.drop();
@@ -111,6 +124,9 @@ describe.skipIf(!url)("watches and schedules with Postgres", () => {
       })
       .returning();
     page = "Degraded performance";
+    // A check reads the watch's snapshot before it fetches the page, so holding the page until all
+    // three asked for it means all three compare against the old snapshot.
+    barrier = { size: 3, waiting: [] };
     const results = await Promise.all([
       service.checkNow(watch!.id),
       service.checkNow(watch!.id),
