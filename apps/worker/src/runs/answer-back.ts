@@ -15,7 +15,7 @@ export async function answerBack(
 ): Promise<void> {
   if (!question.parentRunId) return;
   const [asker] = await ctx.db
-    .select({ chatId: runs.chatId, botId: runs.botId })
+    .select({ chatId: runs.chatId, botId: runs.botId, lane: runs.lane })
     .from(runs)
     .innerJoin(bots, eq(bots.id, runs.botId))
     .where(and(eq(runs.id, question.parentRunId), isNull(bots.archivedAt)));
@@ -31,6 +31,7 @@ export async function answerBack(
     chatId: asker.chatId,
     botId: asker.botId,
     trigger: "answer",
+    lane: asker.lane,
     prompt: answer,
     parentRunId: question.id,
   });

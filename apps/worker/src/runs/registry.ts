@@ -17,9 +17,14 @@ export class SessionRegistry {
   }
 
   /** The executing run of a bot in a chat, if any. */
-  find(chatId: string, botId: string): RunSession | undefined {
+  find(chatId: string, botId: string, lane = "chat"): RunSession | undefined {
     for (const session of this.sessions.values()) {
-      if (session.chat.id === chatId && session.bot.id === botId) return session;
+      if (
+        session.chat.id === chatId &&
+        session.bot.id === botId &&
+        (session.run.lane ?? "chat") === lane
+      )
+        return session;
     }
     return undefined;
   }

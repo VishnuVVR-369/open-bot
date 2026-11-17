@@ -85,7 +85,7 @@ export async function dispatchMessage(
 
   let delivered = false;
   for (const botId of targets) {
-    const session = executor.sessions.find(chat.id, botId);
+    const session = executor.sessions.find(chat.id, botId, "chat");
     if (session && message.attachments.length === 0) {
       // Claim the teammate before steering: a steer can't be undone or repeated safely.
       const [claimed] = await executor.ctx.db

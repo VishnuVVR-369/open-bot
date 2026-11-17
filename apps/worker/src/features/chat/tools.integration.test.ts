@@ -6,6 +6,15 @@ import { toolsEnabled, toolHarness, toolSuiteName } from "../../testing/tools";
 describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
   const { db, service, fixture, call } = toolHarness();
 
+  it("does not let automation work rename the conversation", async () => {
+    const { session, created } = await fixture();
+    session.run.lane = "inbox";
+    const result = await call(session, "set_chat_title", { title: "Invoice processing" });
+    expect(result.response.success).toBe(false);
+    const [chat] = await db.select().from(chats).where(eq(chats.id, created.chatId));
+    expect(chat!.titled).toBe(false);
+  });
+
   it("titles a direct chat once, and never over a title the user gave", async () => {
     const { session, created } = await fixture();
     const titled = await call(session, "set_chat_title", { title: '"Plan the launch week."' });

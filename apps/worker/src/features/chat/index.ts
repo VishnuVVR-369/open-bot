@@ -12,7 +12,6 @@ export {
   REUSED_ID,
   saveUserMessage,
   shownMainChats,
-  teammateChat,
   touchChat,
 } from "./service";
 export { CHAT_TOOLS } from "./tools";

@@ -440,7 +440,7 @@ export class TakeoverService {
           .select()
           .from(runs)
           .where(eq(runs.id, row.requestedByRunId!));
-        if (run && !this.sessions.find(run.chatId, run.botId)) {
+        if (run && !this.sessions.find(run.chatId, run.botId, run.lane)) {
           await enqueueRun(this.ctx, {
             id: continuationId(continuationRunId, run.id),
             chatId: run.chatId,
@@ -470,7 +470,7 @@ export class TakeoverService {
         if (steered) continue;
       }
       const [run] = await this.ctx.db.select().from(runs).where(eq(runs.id, runId));
-      if (run && !isRunActive(run.status) && !this.sessions.find(run.chatId, run.botId)) {
+      if (run && !isRunActive(run.status) && !this.sessions.find(run.chatId, run.botId, run.lane)) {
         await enqueueRun(this.ctx, {
           id: continuationId(continuationRunId, run.id),
           chatId: run.chatId,

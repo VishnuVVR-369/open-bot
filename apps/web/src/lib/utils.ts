@@ -1,4 +1,5 @@
 import { clsx, type ClassValue } from "clsx";
+import { differenceInCalendarDays, format, isSameYear } from "date-fns";
 import { twMerge } from "tailwind-merge";
 
 export { compactNumber, formatDuration, plainText } from "@open-bot/domain";
@@ -37,3 +38,16 @@ export function notificationHref(notification: {
  */
 export const REVEAL_ON_RUN_HOVER =
   "opacity-0 transition-opacity group-hover/run:opacity-100 group-focus-within/run:opacity-100 group-has-[[data-pinned]]/run:opacity-100 group-data-[latest]/run:opacity-100 pointer-coarse:opacity-100";
+
+/**
+ * When a run started, with its day unless that is today. A main chat collects days of routines,
+ * and a bare "7:30 AM" there doesn't say which morning.
+ */
+export function runClock(at: Date, now: Date = new Date()): string {
+  const time = format(at, "h:mm a");
+  const days = differenceInCalendarDays(now, at);
+  if (days === 0) return time;
+  if (days === 1) return `Yesterday ${time}`;
+  if (days > 1 && days < 7) return `${format(at, "EEE")} ${time}`;
+  return `${format(at, isSameYear(at, now) ? "MMM d" : "MMM d, yyyy")}, ${time}`;
+}

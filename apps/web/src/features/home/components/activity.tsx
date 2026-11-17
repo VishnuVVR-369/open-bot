@@ -27,7 +27,8 @@ function activityOutcome(
 ): { text: string; tone: "attention" | "failed" | "plain"; dot: string | null; where?: string } {
   // While it's going, the status alone doesn't say what it's about: the chat's name does.
   const where =
-    item.chatKind === "direct" || item.chatKind === "group" ? item.chatTitle : undefined;
+    item.automationTitle ??
+    (item.chatKind === "direct" || item.chatKind === "group" ? item.chatTitle : undefined);
   if (isRunActive(item.status)) {
     if (item.status === "waiting") {
       return {
@@ -49,7 +50,8 @@ function activityOutcome(
       dot: null,
     };
   const text = plainText(item.preview ?? (item.status === "interrupted" ? "Stopped" : "Done"));
-  const group = item.chatKind === "group" ? `${item.chatTitle}: ` : "";
+  const place = item.automationTitle ?? (item.chatKind === "group" ? item.chatTitle : null);
+  const group = place ? `${place}: ` : "";
   return { text: `${group}${text}`, tone: "plain", dot: null };
 }
 

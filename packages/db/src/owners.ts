@@ -78,6 +78,7 @@ export const TABLE_OWNERS = {
   },
   run_events: { owner: `${WORKER}runs/` },
   bot_threads: { owner: `${WORKER}runs/` },
+  chat_lane_threads: { owner: `${WORKER}runs/` },
   message_dispatches: { owner: `${WORKER}runs/` },
   usage_entries: { owner: `${WORKER}runs/` },
   artifacts: { owner: `${WORKER}features/screens/tools.ts` },

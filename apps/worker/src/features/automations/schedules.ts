@@ -12,7 +12,7 @@ import { and, asc, eq, lte } from "drizzle-orm";
 import { publishApp, type Context } from "../../context";
 import { enqueueRun } from "../../runs/queue";
 import { errorMessage } from "../../logger";
-import { teammateChat } from "../chat";
+import { mainChat } from "../chat";
 import { WorkerError } from "../../core/errors";
 
 export type Schedule = typeof schedules.$inferSelect;
@@ -197,9 +197,10 @@ export class ScheduleService {
   private async fire(row: Schedule) {
     const [bot] = await this.ctx.db.select().from(bots).where(eq(bots.id, row.botId));
     if (!bot || bot.archivedAt) return;
-    const chatId = await teammateChat(this.ctx, row.botId, "scheduled");
+    const chatId = await mainChat(this.ctx, row.botId);
     await enqueueRun(this.ctx, {
       chatId,
+      lane: `schedule:${row.id}`,
       botId: row.botId,
       trigger: "schedule",
       scheduleId: row.id,

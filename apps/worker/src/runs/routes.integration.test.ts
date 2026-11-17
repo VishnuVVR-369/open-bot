@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { memoryItems, messages, runs } from "@open-bot/db";
+import { memoryItems, messages, runs } from "@open-bot/db"; // vocabulary: allow
 import { and, eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { REUSED_ID } from "../features/chat";
@@ -25,6 +25,22 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
     });
     await worker.runs.processCancellations();
     expect(services.executor.processCancellations).toHaveBeenCalled();
+  });
+  it("retries in the same lane even when another lane has replied more recently", async () => {
+    const { created, run } = await teammateWithRun();
+    const lane = `trigger:${randomUUID()}` as const;
+    await db.update(runs).set({ lane, readOutsideData: true }).where(eq(runs.id, run.id));
+    await db.insert(runs).values({
+      chatId: created.chatId,
+      botId: created.id, // vocabulary: allow
+      trigger: "user",
+      prompt: "Hi", // vocabulary: allow
+      lane: "chat",
+      status: "completed",
+    });
+    const retried = await worker.runs.retry({ runId: run.id });
+    const [after] = await db.select().from(runs).where(eq(runs.id, retried.runId));
+    expect(after).toMatchObject({ lane, readOutsideData: true, prompt: run.prompt });
   });
   describe("chat and run writes", () => {
     it("saves a sent message once, delivers it, and refuses a reused id or a file not uploaded", async () => {
@@ -61,7 +77,7 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
         message: "That chat no longer exists.",
       });
       const attachment = {
-        path: "/home/bot/uploads/never/notes.txt",
+        path: "/home/bot/uploads/never/notes.txt", // vocabulary: allow
         name: "notes.txt",
         mime: "text/plain",
         size: 3,

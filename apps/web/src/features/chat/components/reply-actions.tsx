@@ -17,7 +17,7 @@ import { attempt } from "@/lib/client/mutate";
 import { api } from "@/lib/client/rpc";
 import { readAloud, readingNow, stopReading, useReadAloud } from "@/lib/client/read-aloud";
 import type { RunView } from "@/lib/types";
-import { cn, compactNumber, formatDuration, REVEAL_ON_RUN_HOVER } from "@/lib/utils";
+import { cn, runClock, compactNumber, formatDuration, REVEAL_ON_RUN_HOVER } from "@/lib/utils";
 import { RunMemory } from "@/features/memory";
 
 /** A reply action: a 32px target with a 16px glyph, quiet until you point at the reply. */
@@ -155,7 +155,7 @@ export function RunTime({ run, showDuration = true }: { run: RunView; showDurati
       dateTime={run.createdAt}
       data-testid="run-time"
     >
-      {format(new Date(run.createdAt), "h:mm a")}
+      {runClock(new Date(run.createdAt))}
       {showDuration && took !== null && ` · ${formatDuration(took)}`}
     </time>
   );

@@ -270,7 +270,7 @@ export default function ChatScreen() {
           <Composer
             chatId={chat.id}
             placeholder={composerPlaceholder({
-              activeName: activeRun ? activeName : null,
+              activeName: activeRun && (activeRun.lane ?? "chat") === "chat" ? activeName : null,
               held: runHeld,
               isGroup,
               name: teammate?.name,

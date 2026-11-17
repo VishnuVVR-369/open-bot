@@ -1,7 +1,8 @@
+import { reportedRun } from "@/lib/server/run-columns";
 import "server-only";
 import { chatMembers, chats, messages, runs } from "@open-bot/db";
 import { ACTIVE_RUN_STATUSES } from "@open-bot/domain";
-import { and, desc, eq, inArray, isNotNull, isNull, max, ne } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, max, ne, sql } from "drizzle-orm";
 import { db } from "@/lib/server/db";
 import type { ChatSummary } from "@/lib/types";
 import { plainText } from "@/lib/utils";
@@ -26,7 +27,7 @@ export async function listChats({ helpers = false, previews: withPreviews = true
   const replies = await db
     .select({ chatId: runs.chatId, at: max(runs.completedAt) })
     .from(runs)
-    .where(inArray(runs.status, ["completed", "failed"]))
+    .where(and(inArray(runs.status, ["completed", "failed"]), reportedRun))
     .groupBy(runs.chatId);
   const lastReply = new Map(replies.map((row) => [row.chatId, row.at]));
   const previews = withPreviews ? await chatPreviews() : new Map();
@@ -74,8 +75,8 @@ async function chatPreviews(): Promise<Map<string, NonNullable<ChatSummary["prev
         completedAt: runs.completedAt,
       })
       .from(runs)
-      .where(isNotNull(runs.finalText))
-      .orderBy(runs.chatId, desc(runs.createdAt)),
+      .where(and(isNotNull(runs.finalText), reportedRun))
+      .orderBy(runs.chatId, desc(sql`coalesce(${runs.completedAt}, ${runs.createdAt})`)),
   ]);
   const previews = new Map<string, { text: string; botId: string | null; at: Date }>();
   for (const message of sent) {

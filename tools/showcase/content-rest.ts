@@ -280,6 +280,11 @@ async function scheduledRuns(
         at,
         trigger: "schedule",
         scheduleId: schedule.id,
+        lane: `schedule:${schedule.id}`,
+        quiet:
+          schedule.quiet &&
+          typeof result === "string" &&
+          /^nothing to report[.!]?$/i.test(result.trim()),
         prompt: `[Scheduled task: "${schedule.title}"]\n\n${schedule.prompt}`,
         ...(typeof result === "object"
           ? result
@@ -304,14 +309,12 @@ export async function seedAutomations(ctx: SeedContext) {
     dur: 1400,
   });
 
-  const chatFor = (bot, kind, title) =>
-    s.chat({ kind, title, titled: false, bot, createdAt: ago({ d: 16 }) });
-  const irisSched = await chatFor(iris, "scheduled", "Scheduled");
-  const miraSched = await chatFor(mira, "scheduled", "Scheduled");
-  const scoutSched = await chatFor(scout, "scheduled", "Scheduled");
-  const kitSched = await chatFor(kit, "scheduled", "Scheduled");
+  const irisSched = ctx.chats.irisPlan;
+  const miraSched = ctx.chats.miraTriage;
+  const scoutSched = ctx.chats.scoutFlights;
+  const kitSched = ctx.chats.kitBug;
   ctx.chats.kitSched = kitSched;
-  const miraInbox = await chatFor(mira, "inbox", "Email");
+  const miraInbox = miraSched;
   ctx.chats.miraInbox = miraInbox;
 
   const makeSchedule = async (

@@ -59,6 +59,7 @@ export interface ComposerHandle {
 
 /** The run going on in the chat, if any, and what it is waiting for. */
 export interface ComposerRun {
+  lane?: string;
   id: string;
   botName: string;
   status: RunStatus;
@@ -212,13 +213,14 @@ export function Composer({
   // What the run is doing now: waiting on you, paused for the computer, or working.
   const waiting = activeRun?.status === "waiting";
   const paused = Boolean(activeRun) && !waiting && !computerOnline;
-  const placeholder = activeRun
-    ? waiting || paused
-      ? `Add a note for ${activeRun.botName}…`
-      : `Add to what ${activeRun.botName} is doing…`
-    : isGroup
-      ? "Message the group, or @ a teammate…"
-      : `Message ${members[0]?.name ?? "your teammate"}…`;
+  const placeholder =
+    activeRun && (activeRun.lane ?? "chat") === "chat"
+      ? waiting || paused
+        ? `Add a note for ${activeRun.botName}…`
+        : `Add to what ${activeRun.botName} is doing…`
+      : isGroup
+        ? "Message the group, or @ a teammate…"
+        : `Message ${members[0]?.name ?? "your teammate"}…`;
 
   return (
     <div className="relative">

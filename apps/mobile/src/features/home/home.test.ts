@@ -90,6 +90,15 @@ describe("rankTeammates", () => {
 });
 
 describe("elsewhere", () => {
+  it("keeps automations and email in a teammate's main chat", () => {
+    expect(
+      elsewhere([
+        item("conversation"),
+        item("automation", { automationTitle: "Briefing", trigger: "schedule" }),
+        item("email", { trigger: "email" }),
+      ]).map((entry) => entry.runId),
+    ).toEqual(["automation", "email"]);
+  });
   it("leaves out direct chats and keeps the four newest", () => {
     const activity: ActivityItem[] = [
       item("direct"),
@@ -102,6 +111,10 @@ describe("elsewhere", () => {
 describe("activityPlace", () => {
   it("names the group, or the automation that started the turn", () => {
     expect(activityPlace(item("1", { chatKind: "group", chatTitle: "Launch" }))).toBe("Launch");
+    expect(
+      activityPlace(item("1", { automationTitle: "Morning briefing", trigger: "schedule" })),
+    ).toBe("Morning briefing");
+    expect(activityPlace(item("1", { trigger: "email" }))).toBe("Email");
     expect(activityPlace(item("1", { trigger: "watch" }))).toBe("Page changed");
     expect(activityPlace(item("1", { trigger: "gmail" }))).toBe("New mail");
     expect(activityPlace(item("1"))).toBeNull();

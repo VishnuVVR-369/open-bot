@@ -1,3 +1,4 @@
+import { runColumns } from "@/lib/server/run-columns";
 import "server-only";
 import {
   chats,
@@ -51,7 +52,7 @@ export async function getChatData(chatId: string, before?: string): Promise<Chat
       .orderBy(desc(messages.createdAt))
       .limit(PAGE),
     db
-      .select({ run: runs, scheduleTitle: schedules.title, triggerTitle: triggers.title })
+      .select({ run: runColumns, scheduleTitle: schedules.title, triggerTitle: triggers.title })
       .from(runs)
       .leftJoin(schedules, eq(schedules.id, runs.scheduleId))
       .leftJoin(triggers, eq(triggers.id, runs.triggerId))
@@ -107,6 +108,7 @@ export async function getChatData(chatId: string, before?: string): Promise<Chat
     timeline = { ...timeline, status: run.status, error: run.error ?? timeline.error };
     return {
       id: run.id,
+      lane: run.lane,
       botId: run.botId,
       trigger: run.trigger,
       messageId: run.messageId,

@@ -8,6 +8,7 @@ import {
   messageRoleSchema,
   ruleKindSchema,
   runRatingSchema,
+  runLaneSchema,
   runStatusSchema,
   type RunTimelineState,
   runTriggerSchema,
@@ -115,6 +116,8 @@ const timelineSchema = z.custom<RunTimelineState>(
 );
 
 export const runViewSchema = z.object({
+  /** Older web deployments omit this; clients treat an absent lane as the conversation. */
+  lane: runLaneSchema.optional(),
   id: z.string(),
   botId: z.string(),
   trigger: runTriggerSchema,
@@ -227,14 +230,14 @@ export const activityItemSchema = z.object({
   /** The reply, or why it failed, in Markdown. */
   preview: z.string().nullable(),
   createdAt: isoDate,
+  /** The automation that started this work, if any. */
+  automationTitle: z.string().nullable().default(null),
 });
 export type ActivityItem = z.infer<typeof activityItemSchema>;
 
 /** Something a teammate finished while you were away. */
 export const briefingItemSchema = activityItemSchema.extend({
   completedAt: isoDate,
-  /** The schedule, watch or webhook that started it. */
-  automationTitle: z.string().nullable(),
 });
 export type BriefingItem = z.infer<typeof briefingItemSchema>;
 

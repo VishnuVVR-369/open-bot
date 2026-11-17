@@ -239,6 +239,13 @@
       "when": 1794512978125,
       "tag": "0033_tools_revision",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1794923537180,
+      "tag": "0034_automation_main_chat",
+      "breakpoints": true
     }
   ]
 }

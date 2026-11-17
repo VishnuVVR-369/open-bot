@@ -299,6 +299,7 @@ describe.skipIf(!url)("Gmail and Calendar triggers with Postgres", () => {
       .from(triggerFirings)
       .where(eq(triggerFirings.triggerId, row.id));
     expect(firing).toMatchObject({ key: "mail:m1", runId: run!.id });
+    expect(run!.lane).toBe(`trigger:${row.id}`);
 
     // The same history again, as after a worker stopped before saving its cursor.
     await db.update(triggers).set({ cursor: start }).where(eq(triggers.id, row.id));

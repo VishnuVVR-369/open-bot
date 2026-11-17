@@ -31,7 +31,7 @@ export const ACCOUNT_WATCH_TOOLS: ToolDefinition<z.ZodObject, AccountWatchToolDe
   defineTool({
     name: "watch_gmail",
     description:
-      "Wake yourself or a specified teammate (bot_id) when new mail arrives in the user's Gmail. Mail matching the search starts a run in that teammate's Scheduled chat with the new messages, checked every 2 minutes; mail the user sends doesn't count. The teammate must have Gmail. Use it for things like 'tell me when the school writes' or 'file every receipt'.",
+      "Wake yourself or a specified teammate (bot_id) when new mail arrives in the user's Gmail. Mail matching the search starts a run in that teammate's main chat with the new messages, checked every 2 minutes; mail the user sends doesn't count. The teammate must have Gmail. Use it for things like 'tell me when the school writes' or 'file every receipt'.",
     input: z.object({
       bot_id: optionalTarget,
       title: z.string().min(1).max(80),
@@ -56,7 +56,7 @@ export const ACCOUNT_WATCH_TOOLS: ToolDefinition<z.ZodObject, AccountWatchToolDe
   defineTool({
     name: "watch_calendar",
     description:
-      "Wake yourself or a specified teammate (bot_id) a set time before events on the user's Google Calendar (their primary calendar). Each event starts a run in that teammate's Scheduled chat with the event, once per occurrence, and again if it moves. Cancelled, all-day and declined events don't count. The teammate must have Google Calendar. Use it for things like 'brief me 30 minutes before meetings with guests'.",
+      "Wake yourself or a specified teammate (bot_id) a set time before events on the user's Google Calendar (their primary calendar). Each event starts a run in that teammate's main chat with the event, once per occurrence, and again if it moves. Cancelled, all-day and declined events don't count. The teammate must have Google Calendar. Use it for things like 'brief me 30 minutes before meetings with guests'.",
     input: z.object({
       bot_id: optionalTarget,
       title: z.string().min(1).max(80),
@@ -162,6 +162,6 @@ async function watchAccount(
   });
   const who = target.id === session.bot.id ? "You'll get" : `${target.name} gets`;
   return text(
-    `Set up "${row.title}" (id ${row.id})${target.id === session.bot.id ? "" : ` for ${target.name}`}: ${what}. ${who} a run in ${target.id === session.bot.id ? "your" : "their"} Scheduled chat ${kind === "gmail" ? "when such mail arrives, checked every 2 minutes, starting now" : "for each event, once"}. Those runs ask the user before sending anything.`,
+    `Set up "${row.title}" (id ${row.id})${target.id === session.bot.id ? "" : ` for ${target.name}`}: ${what}. ${who} a run in ${target.id === session.bot.id ? "your" : "their"} main chat ${kind === "gmail" ? "when such mail arrives, checked every 2 minutes, starting now" : "for each event, once"}. Those runs ask the user before sending anything.`,
   );
 }

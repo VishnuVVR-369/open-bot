@@ -33,6 +33,14 @@ describe("timelineRows", () => {
 });
 
 describe("supersededRuns", () => {
+  it("keeps retries available when a different lane ran later", () => {
+    expect([
+      ...supersededRuns([
+        runEntry(run("conversation", "ana", { lane: "chat" })),
+        runEntry(run("email", "ana", { lane: "inbox" })),
+      ]),
+    ]).toEqual([]);
+  });
   it("marks every run but each teammate's latest", () => {
     const entries = [run("a1", "ana"), run("b1", "ben"), run("a2", "ana")].map(runEntry);
     expect([...supersededRuns(entries)]).toEqual(["a1"]);
