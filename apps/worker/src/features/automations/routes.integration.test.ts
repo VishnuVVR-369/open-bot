@@ -1,3 +1,5 @@
+import { runs } from "@open-bot/db";
+import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { rpcEnabled, rpcHarness, failure } from "../../testing/rpc";
 
@@ -16,6 +18,9 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
       timezone: null,
     };
     const { id } = await worker.schedules.create(schedule);
+    await worker.schedules.runNow({ scheduleId: id });
+    const [queued] = await h.db.select().from(runs).where(eq(runs.scheduleId, id));
+    expect(queued).toMatchObject({ chatId: created.chatId, lane: `schedule:${id}` });
     await worker.schedules.setEnabled({ scheduleId: id, enabled: false });
     expect(
       await failure(
@@ -35,6 +40,15 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
     expect(hook.hookPath).toMatch(/^\/api\/hooks\/[\w-]+$/);
     const { token } = await worker.triggers.rotateToken({ triggerId: hook.id });
     expect(hook.hookPath).not.toContain(token);
+    const fired = await worker.hooks.fire({
+      token,
+      method: "POST",
+      contentType: "",
+      body: "",
+      query: "",
+    });
+    const [queued] = await h.db.select().from(runs).where(eq(runs.id, fired.runId));
+    expect(queued).toMatchObject({ chatId: created.chatId, lane: `trigger:${hook.id}` });
     await worker.triggers.setEnabled({ triggerId: hook.id, enabled: false });
     expect(
       await failure(

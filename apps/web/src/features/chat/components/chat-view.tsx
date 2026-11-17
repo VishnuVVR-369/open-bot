@@ -39,14 +39,15 @@ export function ChatView({ chatId }: { chatId: string }) {
     setPanelOpen(localStorage.getItem(PANEL_KEY) !== "closed");
   }, []);
 
-  // A run is superseded once the same bot has run again after it in this chat.
+  // A run is superseded only by another run in the same teammate and lane.
   const supersededRuns = useMemo(() => {
     const superseded = new Map<string, boolean>();
     const seen = new Set<string>();
     for (const entry of [...entries].reverse()) {
       if (entry.type !== "run") continue;
-      superseded.set(entry.run.id, seen.has(entry.run.botId));
-      seen.add(entry.run.botId);
+      const key = `${entry.run.botId}:${entry.run.lane ?? "chat"}`;
+      superseded.set(entry.run.id, seen.has(key));
+      seen.add(key);
     }
     return superseded;
   }, [entries]);
@@ -69,6 +70,7 @@ export function ChatView({ chatId }: { chatId: string }) {
     if (!active) return null;
     return {
       id: active.id,
+      lane: active.lane,
       botName: allBots.find((bot) => bot.id === active.botId)?.name ?? "Your teammate",
       status: active.timeline.status,
       waitingFor: active.timeline.waitingFor ?? null,

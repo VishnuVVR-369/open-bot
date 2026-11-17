@@ -3,6 +3,7 @@ import {
   type AuthMode,
   type RunEventPayload,
   type RunRating,
+  type RunLane,
   type RunStatus,
   type RunTrigger,
   type RunWait,
@@ -34,6 +35,11 @@ export const runs = pgTable(
       .notNull()
       .references(() => bots.id, { onDelete: "cascade" }),
     trigger: text("trigger").$type<RunTrigger>().notNull(),
+    lane: text("lane").$type<RunLane>().notNull().default("chat"),
+    /** A quiet routine finished with nothing to report. */
+    quiet: boolean("quiet").notNull().default(false),
+    /** When the conversation received this other lane's result. */
+    passedOnAt: timestamp("passed_on_at", { withTimezone: true }),
     /** The text sent to the bot to start this run. */
     prompt: text("prompt").notNull(),
     attachments: jsonb("attachments").$type<Attachment[]>().notNull().default([]),

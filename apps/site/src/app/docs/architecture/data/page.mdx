@@ -43,7 +43,11 @@ Here they are grouped by what they're for:
         { name: "run_events", note: "The ordered log of everything a run did, as jsonb payloads" },
         {
           name: "bot_threads",
-          note: "The Codex thread for each teammate and chat, with what it was made with",
+          note: "The conversation thread for each teammate and chat, with what it was made with",
+        },
+        {
+          name: "chat_lane_threads",
+          note: "Independent threads for each automation and email lane",
         },
         { name: "artifacts", note: "Screenshots and uploads, as bytes" },
         {
@@ -247,7 +251,7 @@ Anything that wants a teammate to work calls `enqueueRun()` (`apps/worker/src/ru
 2. appends a first `status: queued` event, so the chat shows it right away;
 3. sends `NOTIFY openbot_worker, 'runs'`.
 
-The worker claims runs with `UPDATE ... FOR UPDATE SKIP LOCKED`, at most one per teammate per chat, oldest first.
+The worker claims runs with `UPDATE ... FOR UPDATE SKIP LOCKED`, at most one per teammate per lane of a chat, oldest first.
 The query is on the [Worker](/docs/architecture/worker#claiming-work) page.
 
 ### Run states
@@ -258,6 +262,9 @@ The query is on the [Worker](/docs/architecture/worker#claiming-work) page.
 
 `runs.waiting_for` says what a waiting run waits for: `approval` or `takeover`.
 `runs.cancel_requested_at` marks a run you stopped, until the worker processes it.
+`runs.lane` is the lane of the chat it works in (see [Threads](/docs/architecture/agent-runtime#threads)).
+`runs.quiet` marks a quiet routine's run that had nothing to report; it doesn't count as activity in the chat.
+`runs.passed_on_at` is when a run outside the `chat` lane was passed on to its chat's conversation.
 
 ## The event log
 

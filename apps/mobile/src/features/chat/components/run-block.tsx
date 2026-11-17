@@ -104,7 +104,11 @@ export const RunBlock = memo(function RunBlock({
   const duration = workDuration(run);
   const TriggerIcon = trigger && TRIGGER_ICONS[trigger.kind];
 
-  if (!active && run.trigger === "schedule" && isNothingToReport(reply)) {
+  if (
+    run.timeline.status === "completed" &&
+    run.trigger === "schedule" &&
+    isNothingToReport(reply)
+  ) {
     return (
       <View style={styles.quiet} testID="run">
         <BotAvatar name={name} color={bot?.color ?? "#888888"} emoji={bot?.emoji} size="xs" />

@@ -1,3 +1,4 @@
+import { runColumns } from "@/lib/server/run-columns";
 import "server-only";
 import type { ApiInputs, ApiOutputs } from "@open-bot/api";
 import { accounts, connections, ownerTimeZone, runs, schedules, triggers } from "@open-bot/db";
@@ -174,7 +175,7 @@ export async function listAutomationRuns(
   limit = 20,
 ): Promise<ScheduleRunView[]> {
   const rows = await db
-    .select()
+    .select(runColumns)
     .from(runs)
     .where(
       "scheduleId" in by ? eq(runs.scheduleId, by.scheduleId) : eq(runs.triggerId, by.triggerId),

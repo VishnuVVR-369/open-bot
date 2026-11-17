@@ -7,6 +7,7 @@ import type { Run } from "../../core/db-types";
 import type { ApprovalService } from "../../features/approvals";
 import type { MemoryCoordinator } from "../../features/memory";
 import { allowedList } from "../../instructions";
+import { heardOutsideData, laneNews } from "../lane-news";
 import type { RunSession } from "../session";
 
 /** What building a prompt reads from the executor. */
@@ -19,7 +20,7 @@ export interface PromptExecutor {
 export async function buildPrompt(executor: PromptExecutor, session: RunSession): Promise<string> {
   const { run, chat, bot } = session;
   const timeZone = await ownerTimeZone(executor.ctx.db);
-  const now = new Intl.DateTimeFormat("en-GB", {
+  const time = new Intl.DateTimeFormat("en-GB", {
     timeZone,
     weekday: "short",
     day: "numeric",
@@ -27,8 +28,8 @@ export async function buildPrompt(executor: PromptExecutor, session: RunSession)
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(new Date());
-  const lines = [`[Now: ${now} (${timeZone})]`];
+  });
+  const lines = [`[Now: ${time.format(new Date())} (${timeZone})]`];
 
   if (chat.kind === "group") {
     const members = await executor.ctx.db
@@ -45,7 +46,12 @@ export async function buildPrompt(executor: PromptExecutor, session: RunSession)
   }
 
   // Read now, not from the run's start: an earlier turn may have titled it since.
-  if (chat.kind === "direct" && !session.isHelper && !(await titled(executor, chat.id)))
+  if (
+    chat.kind === "direct" &&
+    run.lane === "chat" &&
+    !session.isHelper &&
+    !(await titled(executor, chat.id))
+  )
     lines.push(
       "[This chat has no title yet. Once its topic is clear, call set_chat_title with a short title, then carry on. Wait while it's only a greeting.]",
     );
@@ -58,6 +64,13 @@ export async function buildPrompt(executor: PromptExecutor, session: RunSession)
   if (allowed)
     lines.push(`[The user always allows these without asking for approval:]\n${allowed}`);
 
+  const news = await laneNews(executor.ctx.db, run, (at) => time.format(at));
+  if (news?.readOutsideData || (await heardOutsideData(executor.ctx.db, run)))
+    await session.markReadOutsideData();
+  if (news) {
+    session.passOn(news.runIds);
+    lines.push(news.text);
+  }
   lines.push(run.prompt);
   if (run.attachments.length) {
     lines.push(

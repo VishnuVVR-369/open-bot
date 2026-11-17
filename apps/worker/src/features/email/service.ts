@@ -19,7 +19,7 @@ import { errorMessage } from "../../logger";
 import type { RunSession } from "../../runs/session";
 import type { UploadService } from "../uploads";
 import type { ApprovalService } from "../approvals";
-import { teammateChat } from "../chat";
+import { mainChat } from "../chat";
 import { removeCredential, saveCredential } from "../credentials";
 import type { SessionRegistry } from "../../runs/registry";
 import { activeTeammates } from "../teammates";
@@ -71,7 +71,7 @@ Handle it as your job says. To answer, use send_email with reply_to set to this 
 
 /**
  * Email for teammates: each has an address on your domain. Postmark posts what arrives to a secret
- * webhook, which starts a run in the teammate's Email chat; teammates write back with send_email.
+ * webhook, which starts a run in the teammate's main chat; teammates write back with send_email.
  */
 export class EmailService {
   constructor(
@@ -185,9 +185,10 @@ export class EmailService {
         text: email.text.slice(0, MAX_TEXT),
       })
       .returning();
-    const chatId = await teammateChat(this.ctx, bot.id, "inbox");
+    const chatId = await mainChat(this.ctx, bot.id);
     const runId = await enqueueRun(this.ctx, {
       chatId,
+      lane: "inbox",
       botId: bot.id,
       trigger: "email",
       prompt: prompt(email, row!.id, address, listed),

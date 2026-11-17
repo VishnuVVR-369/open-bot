@@ -85,6 +85,7 @@ export async function complete(session: FinalizeSession, outcome: Outcome) {
       error: errorMessage(error),
     }),
   );
+  const quiet = status === "completed" && (await quietWithNothingToReport(ctx, run, text));
   await ctx.db
     .update(runs)
     .set({
@@ -92,10 +93,11 @@ export async function complete(session: FinalizeSession, outcome: Outcome) {
       error: error ?? null,
       waitingFor: null,
       finalText: text,
+      quiet,
       completedAt: new Date(),
     })
     .where(eq(runs.id, run.id));
-  await session.services.touchChat(chat.id);
+  if (!quiet) await session.services.touchChat(chat.id);
   const total = {
     inputTokens: session.usage.plan.inputTokens + session.usage.api_key.inputTokens,
     cachedInputTokens:
@@ -139,7 +141,7 @@ export async function complete(session: FinalizeSession, outcome: Outcome) {
     run.trigger !== "question" &&
     // A helper's part comes back to its teammate, not to you.
     run.trigger !== "swarm" &&
-    !(await quietWithNothingToReport(ctx, run, text))
+    !quiet
   ) {
     // An answer to a teammate isn't news for you; their reply to you is.
     await createNotification(ctx, {

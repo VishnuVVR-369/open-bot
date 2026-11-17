@@ -60,7 +60,7 @@
     "bot": 1
   },
   "apps/mobile/src/features/chat/chat-screen.ts": {
-    "bot": 2
+    "bot": 1
   },
   "apps/mobile/src/features/chat/chat-status.ts": {
     "bot": 3
@@ -331,7 +331,7 @@
     "bot": 12
   },
   "apps/web/src/features/chat/components/chat-view.tsx": {
-    "bot": 31
+    "bot": 29
   },
   "apps/web/src/features/chat/components/composer.tsx": {
     "bot": 11
@@ -866,7 +866,7 @@
     "bot": 20
   },
   "apps/worker/src/runs/session/threads.ts": {
-    "bot": 20
+    "bot": 15
   },
   "apps/worker/src/runs/thread-continuity.test.ts": {
     "bot": 4
@@ -1178,7 +1178,7 @@
     "primary teammate": 3
   },
   "tools/showcase/content-rest.ts": {
-    "bot": 130
+    "bot": 128
   },
   "tools/showcase/lib.ts": {
     "bot": 21

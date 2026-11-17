@@ -8,8 +8,12 @@ import { MemoryService } from "@open-bot/memory";
 import { SessionRegistry } from "./registry";
 import { RunExecutor } from "./executor";
 import type { RunSession } from "./session";
+import type { RunLane } from "@open-bot/domain";
+import { insertRun } from "./queue";
+import { answerBack } from "./answer-back";
 
 const url = testDatabaseServer();
+const dailyId = crypto.randomUUID();
 
 /** Delivering messages exactly once, however often (and however concurrently) it's attempted. */
 describe.skipIf(!url)("message dispatch with Postgres", () => {
@@ -76,11 +80,11 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
   }
 
   /** A teammate's running turn that the next message can join. */
-  function runningSession(chatId: string, botId: string, steers: boolean) {
+  function runningSession(chatId: string, botId: string, steers: boolean, lane: RunLane = "chat") {
     const runId = crypto.randomUUID();
     const steer = vi.fn(async () => steers);
     sessions.add({
-      run: { id: runId },
+      run: { id: runId, lane },
       chat: { id: chatId },
       bot: { id: botId },
       steer,
@@ -245,5 +249,125 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
     );
     await executor.dispatchMessage(sent.id);
     expect(await memory.list({ botId: teammate.id }, { kind: "user" })).toHaveLength(0);
+  });
+  it("never steers a message into a run working in another lane of the chat", async () => {
+    const { chat, teammate } = await directChat();
+    const automation = runningSession(chat.id, teammate.id, true, `schedule:${dailyId}`);
+    const sent = await message(chat.id);
+    await executor.dispatchMessage(sent.id);
+
+    expect(automation.steer).not.toHaveBeenCalled();
+    const queued = await runsFor(sent.id);
+    expect(queued).toEqual([expect.objectContaining({ lane: "chat", status: "queued" })]);
+  });
+
+  it("starts one run at a time in each lane of a chat, and the lanes side by side", async () => {
+    const { chat, teammate } = await directChat();
+    const queue = (lane: RunLane, status: "queued" | "running" = "queued") =>
+      db
+        .insert(runs)
+        .values({
+          chatId: chat.id,
+          botId: teammate.id, // vocabulary: allow
+          trigger: "user",
+          prompt: "Go",
+          lane,
+          status,
+        })
+        .returning({ id: runs.id })
+        .then(([row]) => row!.id);
+    await queue("chat", "running");
+    const waiting = await queue("chat");
+    const automation = await queue(`schedule:${dailyId}`);
+    const started: string[] = [];
+    // Look only at which runs get claimed: none really executes here.
+    vi.spyOn(
+      executor as unknown as { start: (id: string) => Promise<void> },
+      "start",
+    ).mockImplementation(async (id) => void started.push(id));
+    (ctx.env as { MAX_CONCURRENT_RUNS: number }).MAX_CONCURRENT_RUNS = 5;
+    try {
+      await (executor as unknown as { fill: () => Promise<void> }).fill();
+    } finally {
+      (ctx.env as { MAX_CONCURRENT_RUNS: number }).MAX_CONCURRENT_RUNS = 0;
+      vi.restoreAllMocks();
+    }
+    expect(started).toEqual([automation]);
+    const [still] = await db.select().from(runs).where(eq(runs.id, waiting));
+    expect(still!.status).toBe("queued");
+  });
+
+  it("queues a continuation in its parent's lane, but only for the same teammate and chat", async () => {
+    const { chat, teammate } = await directChat();
+    const other = await bot("Ada"); // vocabulary: allow
+    const teammateId = teammate.id;
+    const base = { chatId: chat.id, botId: teammateId, trigger: "user" as const, prompt: "Go" }; // vocabulary: allow
+    const parent = await insertRun(db, { ...base, lane: `schedule:${dailyId}` });
+    const laneOf = async (id: string) =>
+      (await db.select({ lane: runs.lane }).from(runs).where(eq(runs.id, id)))[0]!.lane;
+
+    expect(await laneOf(parent)).toBe(`schedule:${dailyId}`);
+    expect(await laneOf(await insertRun(db, { ...base, parentRunId: parent }))).toBe(
+      `schedule:${dailyId}`,
+    );
+    // Another teammate answering in the same chat works in the conversation.
+    expect(
+      await laneOf(await insertRun(db, { ...base, botId: other.id, parentRunId: parent })), // vocabulary: allow
+    ).toBe("chat");
+    expect(await laneOf(await insertRun(db, { ...base, parentRunId: parent, lane: "chat" }))).toBe(
+      "chat",
+    );
+    expect(await laneOf(await insertRun(db, base))).toBe("chat");
+  });
+
+  it("sends an answer back to the lane the question was asked from", async () => {
+    const { teammate, chat } = await directChat();
+    const other = await bot("Bea"); // vocabulary: allow
+    const [otherChat] = await db
+      .insert(chats)
+      .values({ kind: "direct", title: other.name, botId: other.id }) // vocabulary: allow
+      .returning();
+    // Rex's routine asks Bea; Bea's run is in her own chat, so its lane says nothing about Rex's.
+    const teammateId = teammate.id;
+    const asked = await insertRun(db, {
+      chatId: chat.id,
+      botId: teammateId, // vocabulary: allow
+      trigger: "user",
+      prompt: "Brief me",
+      lane: `schedule:${dailyId}`,
+    });
+    const question = await insertRun(db, {
+      chatId: otherChat!.id,
+      botId: other.id, // vocabulary: allow
+      trigger: "question",
+      prompt: "When is the launch?",
+      parentRunId: asked,
+    });
+    await answerBack(
+      ctx,
+      { id: question, parentRunId: asked },
+      { name: "Bea" },
+      "completed",
+      "Tuesday",
+    );
+    const [answer] = await db.select().from(runs).where(eq(runs.parentRunId, question));
+    expect(answer).toMatchObject({
+      chatId: chat.id,
+      trigger: "answer",
+      lane: `schedule:${dailyId}`,
+      prompt: "[Bea answered your question:]\nTuesday",
+    });
+  });
+  it("cancels queued work in one lane without stopping another lane", async () => {
+    const { chat, teammate } = await directChat();
+    const base = { chatId: chat.id, botId: teammate.id, trigger: "user" as const, prompt: "Go" }; // vocabulary: allow
+    const cancelledId = await insertRun(db, { ...base, lane: `schedule:${dailyId}` });
+    const conversationId = await insertRun(db, { ...base, lane: "chat" });
+    await db.update(runs).set({ cancelRequestedAt: new Date() }).where(eq(runs.id, cancelledId));
+    await executor.processCancellations();
+    const [cancelled] = await db.select().from(runs).where(eq(runs.id, cancelledId));
+    const [conversation] = await db.select().from(runs).where(eq(runs.id, conversationId));
+    expect(cancelled).toMatchObject({ status: "interrupted", completedAt: expect.any(Date) });
+    expect(conversation!.status).toBe("queued");
   });
 });

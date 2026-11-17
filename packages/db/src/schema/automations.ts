@@ -43,7 +43,7 @@ export const schedules = pgTable(
 
 /**
  * What wakes a teammate besides the clock: a web page that changed (a watch), or a request to its
- * webhook URL. Each firing runs in the bot's Scheduled chat with the trigger's prompt.
+ * webhook URL. Each firing runs in the bot's main chat with the trigger's prompt.
  */
 export const triggers = pgTable(
   "triggers",

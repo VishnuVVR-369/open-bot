@@ -129,7 +129,11 @@ export function RunBlock({
   );
 
   // A routine that looked and found nothing needs no more than a line.
-  if (!active && run.trigger === "schedule" && isNothingToReport(reply)) {
+  if (
+    run.timeline.status === "completed" &&
+    run.trigger === "schedule" &&
+    isNothingToReport(reply)
+  ) {
     return (
       <article
         id={`run-${run.id}`}

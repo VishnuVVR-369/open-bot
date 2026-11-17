@@ -55,13 +55,19 @@ export function rankTeammates(teammates: BotSummary[], chats: ChatSummary[]): Bo
   );
 }
 
-/** Direct chats already show on the roster; this is what happened elsewhere, newest first. */
+/** Conversations already show on the roster; include automation and email work here. */
 export function elsewhere(activity: ActivityItem[]): ActivityItem[] {
-  return activity.filter((item) => item.chatKind !== "direct").slice(0, RECENT);
+  return activity
+    .filter(
+      (item) =>
+        item.chatKind !== "direct" || item.automationTitle !== null || item.trigger === "email",
+    )
+    .slice(0, RECENT);
 }
 
 /** Where a turn happened: the group's name, or what kind of automation started it. */
 export function activityPlace(item: ActivityItem): string | null {
+  if (item.automationTitle) return item.automationTitle;
   if (item.chatKind === "group") return item.chatTitle;
   switch (item.trigger) {
     case "schedule":
@@ -70,6 +76,8 @@ export function activityPlace(item: ActivityItem): string | null {
       return "Page changed";
     case "webhook":
       return "Webhook";
+    case "email":
+      return "Email";
     case "gmail":
       return "New mail";
     case "calendar":

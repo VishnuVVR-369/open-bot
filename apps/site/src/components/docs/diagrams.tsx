@@ -338,7 +338,7 @@ export function ConceptsDiagram() {
             w={170}
             h={64}
             title="Chat"
-            sub={["direct, group, or a", "Scheduled or Email chat"]}
+            sub={["direct or group,", "or a hidden helper chat"]}
           />
           <Box
             x={574}

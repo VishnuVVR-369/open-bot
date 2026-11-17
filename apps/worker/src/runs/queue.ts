@@ -1,4 +1,4 @@
-import { NOTIFY_CHANNELS, type RunTrigger } from "@open-bot/domain";
+import { NOTIFY_CHANNELS, type RunTrigger, type RunLane } from "@open-bot/domain";
 import { notify, runEvents, runs, type Attachment, type Queryable } from "@open-bot/db";
 import { sql } from "drizzle-orm";
 import { signalWorker, type Context } from "../context";
@@ -9,6 +9,8 @@ export interface RunInput {
   chatId: string;
   botId: string;
   trigger: RunTrigger;
+  /** Explicit lane, or inherit a continuation of the same teammate in the same chat. */
+  lane?: RunLane;
   prompt: string;
   attachments?: Attachment[];
   messageId?: string | null;
@@ -24,6 +26,15 @@ export interface RunInput {
   readOutsideData?: boolean;
 }
 
+/** The lane a new run works in, including durable continuations. */
+function laneOf(input: RunInput) {
+  if (input.lane) return input.lane;
+  if (!input.parentRunId) return "chat";
+  const teammate = runs.botId; // vocabulary: allow
+  const teammateId = input.botId; // vocabulary: allow
+  return sql<RunLane>`coalesce((select ${runs.lane} from ${runs} where ${runs.id} = ${input.parentRunId} and ${runs.chatId} = ${input.chatId} and ${teammate} = ${teammateId}), 'chat')`;
+}
+
 /**
  * Save a queued run and its first event, without telling anyone yet. Takes a transaction, so the
  * run can be saved together with what caused it; call `announceRun` once it's committed.
@@ -36,6 +47,7 @@ export async function insertRun(db: Queryable, input: RunInput): Promise<string>
       chatId: input.chatId,
       botId: input.botId,
       trigger: input.trigger,
+      lane: laneOf(input),
       prompt: input.prompt,
       attachments: input.attachments ?? [],
       messageId: input.messageId ?? null,

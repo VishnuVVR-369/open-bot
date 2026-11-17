@@ -3,6 +3,7 @@ import {
   type AuthMode,
   type ChatKind,
   type MessageRole,
+  type RunLane,
   type UploadStatus,
 } from "@open-bot/domain";
 import {
@@ -110,6 +111,46 @@ export const botThreads = pgTable(
     createdAt: createdAt(),
   },
   (table) => [primaryKey({ columns: [table.chatId, table.botId] })],
+);
+
+/** Independent automation threads; the existing conversation table stays intact for rolling deploys. */
+export const chatLaneThreads = pgTable(
+  "chat_lane_threads",
+  {
+    chatId: uuid("chat_id")
+      .notNull()
+      .references(() => chats.id, { onDelete: "cascade" }),
+    teammateId: uuid("teammate_id")
+      .notNull()
+      .references(() => bots.id, { onDelete: "cascade" }), // vocabulary: allow
+    lane: text("lane").$type<Exclude<RunLane, "chat">>().notNull(),
+    codexThreadId: text("codex_thread_id").notNull(),
+    memoryGeneration: text("memory_generation").notNull().default(""),
+    /**
+     * 0 once a worker that records tools_revision saved the thread. Workers from before it write
+     * their TOOLS_VERSION here and leave tools_revision alone, so a nonzero value means the
+     * revision can't be trusted. Drop it once no such worker runs.
+     */
+    toolsVersion: integer("tools_version").notNull().default(0),
+    /**
+     * A hash of the tools and developer instructions the thread started with. Codex keeps both for
+     * a thread's life, so a change starts a new thread.
+     */
+    toolsRevision: text("tools_revision"),
+    /** Whether the thread talks to the model through the ChatGPT plan or the API key. */
+    authMode: text("auth_mode").$type<AuthMode>().notNull().default("plan"),
+    /**
+     * The connections and AGENTS.md the thread was given. Codex keeps both for a thread's life, so
+     * a change forks the conversation into a thread that has the new ones.
+     */
+    configurationKey: text("configuration_key").notNull().default(""),
+    /** When the thread last saw your profile: in AGENTS.md when it started, or in a message since. */
+    profileSeenAt: timestamp("profile_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    /** When the thread last saw the teammate's lessons, the same way. */
+    lessonsSeenAt: timestamp("lessons_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: createdAt(),
+  },
+  (table) => [primaryKey({ columns: [table.chatId, table.teammateId, table.lane] })],
 );
 
 export interface Attachment {

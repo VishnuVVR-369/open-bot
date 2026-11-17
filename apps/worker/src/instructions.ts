@@ -166,7 +166,7 @@ export function agentsMarkdown(
   const allowed = allowedList(rules);
   const sections = [
     email &&
-      `## Your email\n\nYour address is ${email}. Emails to it start a run in your Email chat; write with send_email.`,
+      `## Your email\n\nYour address is ${email}. Emails to it start a run in your main chat; write with send_email.`,
     accounts.length > 0 && accountsSection(accounts),
     services.length > 0 &&
       `## Connected services\n\nThe user connected these, and their tools are among yours. Use them instead of the service's website when they can do the job:\n\n${services.map((service) => `- ${service}`).join("\n")}`,

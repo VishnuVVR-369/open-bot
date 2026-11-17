@@ -1,7 +1,7 @@
 // The Codex thread a run continues: resume or fork the chat's thread, or start a fresh one when its
 // tools, instructions or memory generation changed.
 import type { CodexClient, v2 } from "@open-bot/agent";
-import { botThreads, configurationRevision } from "@open-bot/db";
+import { botThreads, chatLaneThreads, configurationRevision } from "@open-bot/db";
 import { and, eq } from "drizzle-orm";
 import type { Context } from "../../context";
 import type { Bot, Run } from "../../core/db-types";
@@ -38,10 +38,10 @@ export interface ThreadSession {
 
 /** The thread for this bot and chat, on the access mode this run uses. */
 export async function ensureThread(session: ThreadSession, client: CodexClient): Promise<string> {
-  const { ctx, run, bot } = session;
+  const { ctx, run, bot: teammate } = session;
   const mode = session.authMode;
   // The services it may use through MCP come with the thread's config.
-  const connected = await session.services.connections(bot.id);
+  const connected = await session.services.connections(teammate.id);
   // Codex reads AGENTS.md when a thread starts or forks, and a loaded thread keeps what it read.
   // So a new profile, approval rule or teammate forks the thread, like a change in connections.
   const configurationKey = configurationRevision({
@@ -59,39 +59,66 @@ export async function ensureThread(session: ThreadSession, client: CodexClient):
   // Threads keep the tools and instructions they started with; a change starts a fresh one.
   const dynamicTools = session.services.tools.specs();
   const revision = toolsRevision(DEVELOPER_INSTRUCTIONS, dynamicTools);
+  const automationLane = run.lane && run.lane !== "chat" ? run.lane : null;
   const save = async (threadId: string, fresh: boolean) => {
-    await ctx.db
-      .insert(botThreads)
-      .values({
-        chatId: run.chatId,
-        botId: bot.id,
-        codexThreadId: threadId,
-        toolsVersion: REVISED_THREAD,
-        toolsRevision: revision,
-        memoryGeneration: session.memoryGeneration,
-        authMode: mode,
-        configurationKey,
-      })
-      .onConflictDoUpdate({
-        target: [botThreads.chatId, botThreads.botId],
-        // Memory generations fence old context; a fork is only allowed within the same generation.
-        set: {
-          codexThreadId: threadId,
-          toolsVersion: REVISED_THREAD,
-          toolsRevision: revision,
-          memoryGeneration: session.memoryGeneration,
-          authMode: mode,
-          configurationKey,
-          ...(fresh ? { profileSeenAt: new Date(), lessonsSeenAt: new Date() } : {}),
-        },
-      });
+    const values = {
+      codexThreadId: threadId,
+      toolsVersion: REVISED_THREAD,
+      toolsRevision: revision,
+      memoryGeneration: session.memoryGeneration,
+      authMode: mode,
+      configurationKey,
+    };
+    const updated = {
+      ...values,
+      ...(fresh ? { profileSeenAt: new Date(), lessonsSeenAt: new Date() } : {}),
+    };
+    if (automationLane) {
+      await ctx.db
+        .insert(chatLaneThreads)
+        .values({
+          ...values,
+          chatId: run.chatId,
+          teammateId: teammate.id,
+          lane: automationLane,
+        })
+        .onConflictDoUpdate({
+          target: [chatLaneThreads.chatId, chatLaneThreads.teammateId, chatLaneThreads.lane],
+          set: updated,
+        });
+    } else {
+      // Keep the existing conversation key so an old worker can run during deployment.
+      await ctx.db
+        .insert(botThreads)
+        .values({
+          ...values,
+          chatId: run.chatId,
+          botId: teammate.id,
+        })
+        .onConflictDoUpdate({
+          target: [botThreads.chatId, botThreads.botId],
+          set: updated,
+        });
+    }
     ctx.codex.markLoaded(threadId);
     return threadId;
   };
-  const [existing] = await ctx.db
-    .select()
-    .from(botThreads)
-    .where(and(eq(botThreads.chatId, run.chatId), eq(botThreads.botId, bot.id)));
+  const [existing] = automationLane
+    ? await ctx.db
+        .select()
+        .from(chatLaneThreads)
+        .where(
+          and(
+            eq(chatLaneThreads.chatId, run.chatId),
+            eq(chatLaneThreads.teammateId, teammate.id),
+            eq(chatLaneThreads.lane, automationLane),
+          ),
+        )
+    : await ctx.db
+        .select()
+        .from(botThreads)
+        .where(and(eq(botThreads.chatId, run.chatId), eq(botThreads.botId, teammate.id)));
+
   if (
     existing &&
     existing.toolsVersion === REVISED_THREAD &&
@@ -125,9 +152,9 @@ export async function ensureThread(session: ThreadSession, client: CodexClient):
     }
   }
   const response = await client.request("thread/start", {
-    model: bot.model,
+    model: teammate.model,
     cwd: session.workspace,
-    approvalPolicy: approvalPolicy(bot),
+    approvalPolicy: approvalPolicy(teammate),
     sandbox: "danger-full-access",
     developerInstructions: DEVELOPER_INSTRUCTIONS,
     dynamicTools,

@@ -18,6 +18,7 @@ import { errorMessage } from "../../logger";
 import type { MemoryService } from "@open-bot/memory";
 import { ModelAccess } from "../../features/model-access";
 import { approvalPolicy } from "../approval-policy";
+import { markPassedOn } from "../lane-news";
 import { RunEventWriter } from "../events";
 import { onServerRequest } from "./approvals";
 import { complete, type Outcome } from "./finalize";
@@ -98,6 +99,12 @@ export class RunSession {
   apiKey: string | null = null;
   /** The AGENTS.md written for this run. */
   agentsFile = "";
+  private passingOn: string[] = [];
+
+  /** Results carried in this turn, acknowledged only after Codex accepts it. */
+  passOn(runIds: string[]): void {
+    this.passingOn = runIds;
+  }
 
   constructor(
     readonly ctx: Context,
@@ -299,6 +306,7 @@ export class RunSession {
       turnTrigger: run.trigger,
     });
     this.turnId = turn.id;
+    await markPassedOn(ctx.db, this.passingOn);
     await ctx.db
       .update(runs)
       .set({ codexThreadId: threadId, codexTurnId: turn.id, authMode: this.authMode })

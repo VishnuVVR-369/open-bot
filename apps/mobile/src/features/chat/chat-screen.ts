@@ -19,14 +19,15 @@ export function timelineRows(entries: ChatEntry[], runs: Record<string, RunView>
     .reverse();
 }
 
-/** A run is superseded once the same teammate has run again after it, so it has no Try again. */
+/** A run is superseded once the same teammate and lane has run again after it, so it has no Try again. */
 export function supersededRuns(entries: ChatEntry[]): Set<string> {
   const result = new Set<string>();
   const seen = new Set<string>();
   for (const entry of [...entries].reverse()) {
     if (entry.type !== "run") continue;
-    if (seen.has(entry.run.botId)) result.add(entry.run.id);
-    seen.add(entry.run.botId);
+    const key = `${entry.run.botId}:${entry.run.lane ?? "chat"}`;
+    if (seen.has(key)) result.add(entry.run.id);
+    seen.add(key);
   }
   return result;
 }

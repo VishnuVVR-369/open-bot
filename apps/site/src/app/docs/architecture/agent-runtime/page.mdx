@@ -57,7 +57,14 @@ File access for the UI goes through Codex's `fs/*` methods, which run as the `bo
 
 ## Threads
 
-open-bot keeps one Codex thread per teammate per chat, recorded in `bot_threads`:
+open-bot keeps one Codex thread per teammate per lane of a chat.
+The conversation (`chat`) stays in `bot_threads`, with its existing unique pair.
+Automation and email threads live in `chat_lane_threads`, uniquely keyed by `chat_id`, `teammate_id` and `lane`.
+Keeping the old conversation key lets an older worker keep running during deployment.
+
+Lanes are `chat`, `schedule:<id>`, `trigger:<id>`, and `inbox`.
+Only runs in the same lane wait for one another. Your messages steer only the conversation lane.
+Each table records the same thread metadata:
 
 | Column              | Meaning                                                        |
 | ------------------- | -------------------------------------------------------------- |
@@ -135,8 +142,9 @@ Each run's text input is assembled by `RunExecutor.buildPrompt()`, in this order
 2. In a group chat: who else is in the chat with their jobs, and what you and the other teammates said since this teammate last spoke (up to 10 of each, 1,500 characters per line).
 3. The memory packet: pinned and relevant memories, with their ids and revisions (see [Memory](/docs/flows/memory#what-a-run-sees)).
 4. Your Always allow rules, so rules you add mid-conversation reach a thread that already read its `AGENTS.md`.
-5. The request itself: your message, or the text the trigger produced.
-6. A list of attached files with their paths, types and sizes.
+5. For the conversation lane, a bounded note of other lanes' completed or failed, non-quiet results that it has not heard. Results are marked delivered only after Codex accepts the turn; later turns retain the approval requirement for account data already passed on.
+6. The request itself: your message, or the text the trigger produced.
+7. A list of attached files with their paths, types and sizes.
 
 Image attachments are also passed as `localImage` inputs, so the model sees them.
 A `/name` in the request adds a `skill` input with the path of that skill's `SKILL.md`, so Codex loads it explicitly.

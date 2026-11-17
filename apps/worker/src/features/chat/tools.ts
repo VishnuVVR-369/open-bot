@@ -53,6 +53,8 @@ async function setChatTitle(
 ): Promise<ToolResponse> {
   if (session.chat.kind !== "direct")
     return text("Only a direct chat can be titled this way; this one keeps its name.", false);
+  if (session.run.lane && session.run.lane !== "chat")
+    return text("Only your conversation can name this chat.", false);
   const title = chatTitleText(rawTitle);
   if (!title) return text("title is required", false);
   if (!(await titleChat(deps.ctx.db, session.chat.id, title)))

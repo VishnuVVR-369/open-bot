@@ -1,3 +1,4 @@
+import { runColumns, reportedRun } from "@/lib/server/run-columns";
 import "server-only";
 import type { ApiInputs, Home } from "@open-bot/api";
 import { chats, runs, schedules, triggers } from "@open-bot/db";
@@ -23,13 +24,20 @@ export async function getHome(
 /** The latest runs in chats you can see, newest first. */
 export async function listActivity(limit = 12): Promise<ActivityView[]> {
   const rows = await db
-    .select({ run: runs, chat: chats, prompt: runs.prompt })
+    .select({
+      run: runColumns,
+      chat: chats,
+      scheduleTitle: schedules.title,
+      triggerTitle: triggers.title,
+    })
     .from(runs)
     .innerJoin(chats, eq(chats.id, runs.chatId))
-    .where(and(isNull(chats.archivedAt), ne(chats.kind, "helper")))
+    .leftJoin(schedules, eq(schedules.id, runs.scheduleId))
+    .leftJoin(triggers, eq(triggers.id, runs.triggerId))
+    .where(and(isNull(chats.archivedAt), ne(chats.kind, "helper"), reportedRun))
     .orderBy(desc(runs.createdAt))
     .limit(limit);
-  return rows.map(({ run, chat }) => ({
+  return rows.map(({ run, chat, scheduleTitle, triggerTitle }) => ({
     runId: run.id,
     chatId: chat.id,
     chatKind: chat.kind,
@@ -39,6 +47,7 @@ export async function listActivity(limit = 12): Promise<ActivityView[]> {
     status: run.status,
     preview: run.finalText ?? run.error ?? null,
     createdAt: run.createdAt.toISOString(),
+    automationTitle: scheduleTitle ?? triggerTitle ?? null,
   }));
 }
 
@@ -46,7 +55,7 @@ export async function listActivity(limit = 12): Promise<ActivityView[]> {
 export async function listFinishedSince(since: Date, limit = 60): Promise<BriefingItem[]> {
   const rows = await db
     .select({
-      run: runs,
+      run: runColumns,
       chat: chats,
       scheduleTitle: schedules.title,
       scheduleQuiet: schedules.quiet,
@@ -62,13 +71,15 @@ export async function listFinishedSince(since: Date, limit = 60): Promise<Briefi
         ne(chats.kind, "helper"),
         inArray(runs.status, ["completed", "failed"]),
         gte(runs.completedAt, since),
+        reportedRun,
       ),
     )
     .orderBy(desc(runs.completedAt))
     .limit(limit);
   // A quiet routine that found nothing isn't news.
   const news = rows.filter(
-    ({ run, scheduleQuiet }) => !(scheduleQuiet && isNothingToReport(run.finalText)),
+    ({ run, scheduleQuiet }) =>
+      !(run.status === "completed" && scheduleQuiet && isNothingToReport(run.finalText)),
   );
   return news.map(({ run, chat, scheduleTitle, triggerTitle }) => ({
     runId: run.id,

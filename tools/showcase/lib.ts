@@ -408,8 +408,16 @@ export class Seeder {
       authMode = "plan",
       scheduleId = null,
       triggerId = null,
+      lane = scheduleId
+        ? `schedule:${scheduleId}`
+        : triggerId
+          ? `trigger:${triggerId}`
+          : trigger === "email"
+            ? "inbox"
+            : "chat",
       parentRunId = null,
       readOutsideData = false,
+      quiet = false,
       tokens = null,
     } = spec;
     const startedAt = plus(at, 1800);
@@ -482,6 +490,8 @@ export class Seeder {
       messageId: message?.id ?? null,
       scheduleId,
       triggerId,
+      lane,
+      quiet: status === "completed" && quiet,
       parentRunId,
       screenId,
       status,

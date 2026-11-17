@@ -56,17 +56,23 @@ test("@agent a quiet routine stays quiet until there's news", async ({ page }) =
   const row = page.getByTestId("schedule").filter({ hasText: title });
   await expect(row).toContainText("tells you only if something changed");
 
-  // Nothing to report: one quiet line in the Scheduled chat, and no notification.
+  // Nothing to report: one quiet line in the teammate's main chat, which stays read and where it
+  // was in the list, and no notification.
+  const api = apiFor(page);
+  const mainChat = async () =>
+    (await api.chats.list()).find((chat) => chat.main && chat.botId === botId)!;
+  const before = await mainChat();
   await row.getByRole("button", { name: "Run now" }).click();
   await expect(row).toContainText(/Last run|Running|Finished/, { timeout: 30_000 });
-  const state = await apiFor(page).app.state();
-  const scheduled = state.chats.find((chat) => chat.kind === "scheduled" && chat.botId === botId)!;
-  await page.goto(`/chats/${scheduled.id}`);
+  await page.goto(`/chats/${before.id}`);
   await waitForLastRun(page, ["completed"]);
   const quiet = page.getByTestId("run").last();
   await expect(quiet).toHaveAttribute("data-quiet");
   await expect(quiet).toContainText("Nothing to report");
   expect(await notificationsFor(page, botId)).toHaveLength(0);
+  const after = await mainChat();
+  expect(after.lastActivityAt).toBe(before.lastActivityAt);
+  expect(after.preview).toEqual(before.preview);
 
   // News: a full reply, and a notification.
   await page.goto(`/bots/${botId}?tab=automations`);
@@ -77,7 +83,7 @@ test("@agent a quiet routine stays quiet until there's news", async ({ page }) =
     .fill("This is a test check. Today the user needs to know one thing: the word MANGO.");
   await dialog.getByRole("button", { name: "Save changes" }).click();
   await row.getByRole("button", { name: "Run now" }).click();
-  await page.goto(`/chats/${scheduled.id}`);
+  await page.goto(`/chats/${before.id}`);
   await expect(page.getByTestId("run")).toHaveCount(2, { timeout: 30_000 });
   await waitForLastRun(page, ["completed"]);
   const news = page.getByTestId("run").last();
