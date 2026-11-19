@@ -23,7 +23,7 @@ It runs every teammate turn, serves every tool call, and owns every timer and lo
 6. **Recover**: mark every run still in `starting`, `running` or `waiting` as `interrupted`, with the error "The worker restarted while this was running". A Codex turn can't be resumed after its driver went away, so this is honest rather than optimistic.
 7. Connect to botd's `/events` socket. When it opens, connect to Codex and start claiming runs. When Codex first reports a connection, write every saved skill to the computer.
 8. Start the egress relay, push, phone notifications and Telegram, the account action executor, the scheduler, page watches, Gmail and Calendar triggers, and the email outbox sweep.
-9. `LISTEN openbot_worker` on a dedicated connection, and start the HTTP server on `WORKER_PORT` (4001).
+9. `LISTEN openbot_worker` on a dedicated connection (`src/signal-listener.ts`, which listens again on a new one if the database ends it), and start the HTTP server on `WORKER_PORT` (4001).
 
 Whatever starts a timer, a listener, a socket or a background loop registers how to stop it with the `Runtime` (`src/core/runtime.ts`).
 A feature folder with background work exports a `Feature` (`src/core/feature.ts`): its `start(runtime)` registers each part, and its `signals` answer the web app's signals that belong to it (`automationsFeature` in `src/features/automations/feature.ts`).

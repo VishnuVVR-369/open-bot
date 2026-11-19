@@ -1,8 +1,10 @@
 import { EventEmitter } from "node:events";
 import type { AddressInfo } from "node:net";
+import { RpcError } from "@open-bot/agent";
 import { OFFLINE_EGRESS_STATUS } from "@open-bot/api";
 import { createWorkerClient } from "@open-bot/api/worker";
 import { runs, settings } from "@open-bot/db";
+import { COMPUTER_PATHS } from "@open-bot/domain";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import { ORPCError } from "@orpc/client";
 import { afterAll, beforeAll, expect, vi } from "vitest";
@@ -50,14 +52,29 @@ export function rpcHarness() {
   const database = testDatabase(url);
   const { pool, db } = database;
   const files = new Map<string, string>([["/home/bot/shared/notes.md", "aGk="]]);
+  // The folders botd makes when the computer starts, and any the worker creates.
+  const folders = new Set<string>([
+    "/home/bot",
+    COMPUTER_PATHS.botsRoot, // vocabulary: allow
+    COMPUTER_PATHS.shared,
+    COMPUTER_PATHS.downloads,
+  ]);
   const codexRequest = vi.fn(
     async (method: string, params: { path: string; dataBase64?: string }) => {
-      if (method === "fs/readDirectory")
+      if (method === "fs/createDirectory") folders.add(params.path);
+      // As Codex 0.162.1 answers: a folder is there when it was made or a file is inside it.
+      if (method === "fs/readDirectory") {
+        if (files.has(params.path)) throw new RpcError(-32603, "Not a directory (os error 20)");
+        const inside = [...files.keys()].filter((path) => path.startsWith(`${params.path}/`));
+        if (!folders.has(params.path) && inside.length === 0)
+          throw new RpcError(-32603, "No such file or directory (os error 2)");
         return {
-          entries: [...files.keys()]
-            .filter((path) => path.startsWith(`${params.path}/`))
-            .map((path) => ({ fileName: path.slice(params.path.length + 1), isDirectory: false })),
+          entries: inside.map((path) => ({
+            fileName: path.slice(params.path.length + 1),
+            isDirectory: false,
+          })),
         };
+      }
       if (method === "fs/getMetadata") return { modifiedAtMs: Date.UTC(2026, 10, 8) };
       if (method === "fs/readFile") return { dataBase64: files.get(params.path) };
       if (method === "fs/writeFile") files.set(params.path, params.dataBase64!);

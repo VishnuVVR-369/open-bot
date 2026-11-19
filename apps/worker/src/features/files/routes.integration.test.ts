@@ -42,4 +42,16 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
       await failure(worker.files.remove({ path: `/home/bot/bots/${row!.slug}` })),
     ).toMatchObject({ status: 403 });
   });
+
+  it("files: a folder that isn't there yet lists as empty, and other failures still fail", async () => {
+    // A new computer: nothing has been saved in shared/uploads, so the folder doesn't exist.
+    expect(await worker.files.list({ path: "/home/bot/shared/uploads" })).toEqual({
+      path: "/home/bot/shared/uploads",
+      entries: [],
+    });
+    expect(await failure(worker.files.list({ path: "/home/bot/shared/notes.md" }))).toEqual({
+      status: 500,
+      message: "Not a directory (os error 20)",
+    });
+  });
 });

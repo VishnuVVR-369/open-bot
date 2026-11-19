@@ -1,5 +1,5 @@
 import http from "node:http";
-import { createDb, createPool, pageVersions } from "@open-bot/db";
+import { createDb, createPool, errorMessage, pageVersions } from "@open-bot/db";
 import { eq } from "drizzle-orm";
 import { readEnv, type PagesEnv } from "./env";
 import { createPagesHandler } from "./server";
@@ -17,7 +17,9 @@ try {
 }
 const { port, secret, origin, appOrigins, libDir } = env;
 
-const pool = createPool(env.databaseUrl);
+const pool = createPool(env.databaseUrl, {
+  onIdleError: (error) => log(`database connection failed: ${errorMessage(error)}`),
+});
 const db = createDb(pool);
 
 const handler = createPagesHandler({

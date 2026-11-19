@@ -48,9 +48,16 @@ export async function refreshHostLogin(
     env: { ...process.env, CODEX_HOME: path.dirname(authFile) },
     stdio: "ignore",
   });
-  const exited = new Promise<never>((_, reject) =>
-    child.once("exit", (code) => reject(new Error(`The Codex CLI on this Mac exited (${code})`))),
-  );
+  // A CLI that can't start (HOST_CODEX_BIN isn't there) emits 'error' instead of 'exit', which
+  // with no listener would end the worker.
+  const exited = new Promise<never>((_, reject) => {
+    child.once("error", (error) =>
+      reject(new Error(`The Codex CLI on this Mac didn't start: ${errorMessage(error)}`)),
+    );
+    child.once("exit", (code) => reject(new Error(`The Codex CLI on this Mac exited (${code})`)));
+  });
+  // It also settles when the CLI is stopped below, after nothing waits for it any more.
+  exited.catch(() => {});
   try {
     await Promise.race([waitForReady(`http://127.0.0.1:${port}/readyz`, 20_000), exited]);
     const client = await CodexClient.connect(`ws://127.0.0.1:${port}`, async () => {

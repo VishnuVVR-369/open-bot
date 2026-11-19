@@ -58,7 +58,12 @@ export function testDatabase(server = process.env.TEST_DATABASE_URL): TestDataba
   const target = new URL(admin);
   target.pathname = `/${name}`;
   const url = target.toString();
-  const pool = createPool(url);
+  // A connection that fails in a test is a bug in the test or the code: throwing fails the run.
+  const pool = createPool(url, {
+    onIdleError: (error) => {
+      throw error;
+    },
+  });
   const db = createDb(pool);
 
   async function asAdmin(work: (client: pg.Client) => Promise<unknown>) {

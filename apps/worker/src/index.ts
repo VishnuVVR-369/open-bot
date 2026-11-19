@@ -1,6 +1,6 @@
-import { isWorkerSignal, NOTIFY_CHANNELS } from "@open-bot/domain";
+import { isWorkerSignal, NOTIFY_CHANNELS, WORKER_SIGNALS } from "@open-bot/domain";
 import { BOTD_SOCKETS, type LifecycleCapabilities } from "@open-bot/api/botd";
-import { createDb, createPool, ownerSettings } from "@open-bot/db";
+import { createDb, createPool, errorFields, ownerSettings } from "@open-bot/db";
 import { ComputerLifecycle } from "./computer/lifecycle";
 import { CodexManager } from "./codex/client";
 import { BotdError, ComputerClient } from "./computer/client";
@@ -70,6 +70,7 @@ import { EventEmitter } from "node:events";
 import { addSettingsRow, SettingsService } from "./features/settings";
 import { signalHandlers } from "./core/feature";
 import { Runtime } from "./core/runtime";
+import { SignalListener } from "./signal-listener";
 
 /** botd's lifecycle calls (lease, quiesce) give up after this. */
 const CONTROL_CALL = { context: { timeoutMs: 10_000 } };
@@ -82,7 +83,9 @@ process.on("unhandledRejection", (reason) =>
 );
 // What runs until shutdown, which stops it all in reverse: the database goes last.
 const runtime = new Runtime(log);
-const pool = createPool(env.DATABASE_URL);
+const pool = createPool(env.DATABASE_URL, {
+  onIdleError: (error) => log.warn("database connection failed", errorFields(error)),
+});
 runtime.add("database", () => pool.end());
 const db = createDb(pool);
 
@@ -407,10 +410,6 @@ runtime.every("egress wake", 1_000, () => wake.evaluate());
 await automations.start(runtime);
 await emailJobs.start(runtime);
 
-// Wake up on signals from the web server.
-const listener = await pool.connect();
-runtime.add("signal listener", () => listener.release());
-await listener.query(`listen ${NOTIFY_CHANNELS.worker}`);
 // One handler per signal, here or in the feature that answers it: a new `WorkerSignal` doesn't
 // compile until it has one, and the worker doesn't start with two.
 const onSignal = signalHandlers([automations, integrationJobs], {
@@ -420,9 +419,23 @@ const onSignal = signalHandlers([automations, integrationJobs], {
       .processCancellations()
       .catch((error: unknown) => log.error("cancel failed", { error: errorMessage(error) })),
 });
-listener.on("notification", (message) => {
-  if (message.payload && isWorkerSignal(message.payload)) onSignal[message.payload]();
-});
+// Wake up on signals from the web server.
+await runtime.start(
+  "signal listener",
+  new SignalListener({
+    pool,
+    channel: NOTIFY_CHANNELS.worker,
+    onNotification: (payload) => {
+      if (isWorkerSignal(payload)) onSignal[payload]();
+    },
+    // Signals sent while the connection was down were missed. Each one only asks to look again,
+    // so all of them are answered now instead of waiting for the sweeps.
+    onReconnect: () => {
+      for (const signal of WORKER_SIGNALS) onSignal[signal]();
+    },
+    log: log.child("signals"),
+  }),
+);
 // Catch anything queued while no one was listening.
 runtime.every("safety sweep", 15_000, () => {
   executor.pump();

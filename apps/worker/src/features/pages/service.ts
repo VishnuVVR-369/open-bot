@@ -10,6 +10,7 @@ import { createHash } from "node:crypto";
 import { dirname } from "node:path";
 import { publishApp, type Context } from "../../context";
 import { WorkerError } from "../../core/errors";
+import { isMissingPath } from "../../codex/files";
 
 export class PageError extends WorkerError {
   constructor(message: string) {
@@ -61,7 +62,7 @@ export function computerPageFiles(ctx: Pick<Context, "codex">): PageFiles {
       } catch (error) {
         // Only a missing file is "nothing there": restoring over a file it couldn't read (a
         // timeout, say) would overwrite changes that aren't published.
-        if (/no such file|not found/i.test(String(error))) return null;
+        if (isMissingPath(error)) return null;
         throw error;
       }
     },

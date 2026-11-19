@@ -15,10 +15,10 @@
   "dependencies": {
     "@mdx-js/loader": "^3.1.1",
     "@mdx-js/react": "^3.1.1",
-    "@next/mdx": "16.4.3",
+    "@next/mdx": "16.4.6",
     "hls-video-element": "^1.5.12",
     "media-chrome": "^4.19.4",
-    "next": "16.4.3",
+    "next": "16.4.6",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "rehype-pretty-code": "^0.14.5",

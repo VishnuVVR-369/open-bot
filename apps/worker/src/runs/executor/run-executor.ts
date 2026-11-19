@@ -136,6 +136,7 @@ export class RunExecutor {
       {
         tools: this.tools,
         requestNativeApproval: (s, input) => this.approvals.requestNative(s, input),
+        requestActionApproval: (s, input) => this.approvals.requestAction(s, input),
         buildPrompt: (s) => buildPrompt(this, s),
         touchChat: (chatId) => touchChat(this.ctx.db, chatId),
         settleModelLogs: this.settleModelLogs,
