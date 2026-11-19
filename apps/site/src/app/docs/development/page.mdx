@@ -163,7 +163,7 @@ E2E_ACCOUNTS=1 E2E_STACK=dev E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e
 ```
 
 ```sh title="Plan fallback"
-OPEN_BOT_PLAN_BASE_URL=http://host.docker.internal:4799/plan OPENAI_API_BASE_URL=http://127.0.0.1:4799/api pnpm --filter @open-bot/worker dev
+OPEN_BOT_PLAN_BASE_URL=http://127.0.0.1:4799/plan OPENAI_API_BASE_URL=http://127.0.0.1:4799/api pnpm --filter @open-bot/worker dev
 E2E_PLAN_REHEARSAL=1 E2E_STACK=dev E2E_EMAIL=you@example.com E2E_PASSWORD=… pnpm e2e --grep rehearsal
 ```
 

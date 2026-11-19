@@ -42,6 +42,13 @@ export class SessionRegistry {
     return null;
   }
 
+  /** The teammate whose live run one of these Codex threads belongs to, on either access mode. */
+  teammateFor(threadIds: readonly string[]): string | null {
+    for (const session of this.sessions.values())
+      if (session.threadId && threadIds.includes(session.threadId)) return session.bot.id; // vocabulary: allow
+    return null;
+  }
+
   all(): RunSession[] {
     return [...this.sessions.values()];
   }

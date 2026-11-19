@@ -12,7 +12,7 @@ import { handleUpgrades } from "./ws";
 
 export type HttpDeps = WorkerServices & {
   /** Codex's model requests from the computer, which carry the proxy's token instead of the secret. */
-  modelProxy: Pick<ModelProxy, "handles" | "handle">;
+  modelProxy: Pick<ModelProxy, "handles" | "handle" | "upgrade">;
 };
 
 function send(response: ServerResponse, status: number, body: unknown) {
@@ -120,6 +120,6 @@ export function createHttpServer(deps: HttpDeps): http.Server {
     if (!matched) send(response, 404, { error: "not found", code: "NOT_FOUND" });
   });
 
-  handleUpgrades(server, ctx, deps.egress);
+  handleUpgrades(server, ctx, deps.egress, deps.modelProxy);
   return server;
 }

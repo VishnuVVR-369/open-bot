@@ -1,0 +1,1 @@
+ALTER TABLE "model_requests" ADD COLUMN "sent_input_from" integer;

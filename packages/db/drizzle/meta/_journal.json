@@ -253,6 +253,13 @@
       "when": 1795071648186,
       "tag": "0035_model_logs",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1795071830389,
+      "tag": "0036_model_requests_sent_input",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,8 @@
 // Rebuilding a Responses API answer from what streamed by: the output items, text, reasoning
-// summary, usage and how it ended. Events come from an SSE body (`SseDecoder`) or, later, from
-// WebSocket messages; both feed `ResponseRebuilder.event()`. Ported from llm-logs' extract.rs.
+// summary, usage and how it ended. Events come from an SSE body (`SseDecoder`) or from
+// WebSocket messages (`ResponseRebuilder.message()`); both feed `ResponseRebuilder.event()`. Ported from llm-logs' extract.rs.
+
+import { redactedJson } from "./redact";
 
 /** One server-sent event: its `event:` name and its `data:` lines joined. */
 export interface SseEvent {
@@ -150,11 +152,29 @@ export function outputTexts(output: unknown[]): { text: string; reasoningSummary
   return { text: text.join("\n\n"), reasoningSummary: summary.join("\n\n") };
 }
 
-function errorOf(value: Record<string, unknown>): { type: string; message: string } {
+/** What stands in for an error's message when it has none, and its envelope can't be kept. */
+export const ERROR_TOO_DEEP =
+  "the error had no message, and its envelope was nested too deeply to keep";
+
+/**
+ * An error's type and message. With no message of its own, the whole envelope stands in, without
+ * the credentials its headers carry (`redactedJson`); `tooDeep` says it couldn't be kept.
+ */
+function errorOf(value: Record<string, unknown>): {
+  error: { type: string; message: string };
+  tooDeep: boolean;
+} {
   const error = isRecord(value.error) ? value.error : value;
   const type = str(error.type) ?? str(error.code) ?? "error";
-  const message = str(error.message) ?? JSON.stringify(value);
-  return { type: type === "error" ? (str(error.code) ?? type) : type, message };
+  const message = str(error.message);
+  const envelope = message === null ? redactedJson(value) : null;
+  return {
+    error: {
+      type: type === "error" ? (str(error.code) ?? type) : type,
+      message: message ?? envelope?.text ?? ERROR_TOO_DEEP,
+    },
+    tooDeep: message === null && envelope === null,
+  };
 }
 
 /** How many events that weren't JSON get a warning of their own, and how much of their name. */
@@ -225,6 +245,27 @@ export class ResponseRebuilder {
     this.event(type, data);
   }
 
+  /**
+   * One WebSocket text message, which holds one event. Returns the event, so the caller can read
+   * what else it carries (headers, rate limits), or null when it wasn't a JSON object.
+   */
+  message(text: string): Record<string, unknown> | null {
+    this.result.stream = true;
+    this.result.parsed = true;
+    let data: unknown;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      this.warn("a message was not JSON");
+      return null;
+    }
+    if (!isRecord(data)) return null;
+    const type = str(data.type) ?? "";
+    if (KEPT_EVENTS.has(type)) this.kept += text.length;
+    this.event(type, data);
+    return data;
+  }
+
   /** One event, by its type: from an SSE stream, or a WebSocket message. */
   event(type: string, data: Record<string, unknown>): void {
     switch (type) {
@@ -244,7 +285,7 @@ export class ResponseRebuilder {
         if (isRecord(data.response)) this.fromResponse(data.response, true);
         break;
       case "error":
-        this.result.error = errorOf(data);
+        this.error(data);
         break;
     }
   }
@@ -268,8 +309,14 @@ export class ResponseRebuilder {
     } else if (isRecord(value) && value.error !== undefined && value.error !== null) {
       this.result.parsed = true;
       this.result.complete = true;
-      this.result.error = errorOf(value);
+      this.error(value);
     } else this.warn("the response was JSON, but not a Responses API response");
+  }
+
+  private error(envelope: Record<string, unknown>) {
+    const { error, tooDeep } = errorOf(envelope);
+    this.result.error = error;
+    if (tooDeep) this.warn(ERROR_TOO_DEEP);
   }
 
   warn(warning: string): void {
@@ -304,7 +351,7 @@ export class ResponseRebuilder {
     if (!this.items.length && Array.isArray(response.output)) {
       response.output.forEach((item, index) => this.items.push({ index, item }));
     }
-    if (isRecord(response.error)) this.result.error = errorOf(response);
+    if (isRecord(response.error)) this.error(response);
   }
 }
 
@@ -317,6 +364,11 @@ export function rebuildResponse(body: string, contentType: string | null): Rebui
 
 /** What a reader gives up with when what it holds passes its limit. */
 export const RESPONSE_TOO_LARGE = "the response was too large to read";
+
+/** What a reader gives up with when reading failed: the response is still forwarded whole. */
+export function unreadable(error: unknown): string {
+  return `the response could not be read: ${error instanceof Error ? error.message : String(error)}`;
+}
 
 /**
  * Reads a response body as its bytes arrive, without keeping the stream: an event stream is
@@ -352,7 +404,11 @@ export class ResponseReader {
 
   push(chunk: Uint8Array): void {
     if (this.abandonedFor !== null) return;
-    this.read(this.text.decode(chunk, { stream: true }));
+    try {
+      this.read(this.text.decode(chunk, { stream: true }));
+    } catch (error) {
+      return this.abandon(unreadable(error));
+    }
     if (this.held > this.limit) this.abandon(RESPONSE_TOO_LARGE);
   }
 
@@ -366,14 +422,18 @@ export class ResponseReader {
   }
 
   end(): RebuiltResponse {
-    if (this.abandonedFor !== null) {
-      this.rebuilder.warn(this.abandonedFor);
-      return { ...this.rebuilder.finish(), stream: this.mode === "sse" };
+    if (this.abandonedFor === null) {
+      try {
+        this.read(this.text.decode());
+        if (this.mode === "sse") for (const event of this.sse.end()) this.rebuilder.sse(event);
+        else this.rebuilder.json(this.json);
+        return this.rebuilder.finish();
+      } catch (error) {
+        this.abandon(unreadable(error));
+      }
     }
-    this.read(this.text.decode());
-    if (this.mode === "sse") for (const event of this.sse.end()) this.rebuilder.sse(event);
-    else this.rebuilder.json(this.json);
-    return this.rebuilder.finish();
+    this.rebuilder.warn(this.abandonedFor!);
+    return { ...this.rebuilder.finish(), stream: this.mode === "sse" };
   }
 
   private read(text: string) {

@@ -1,8 +1,9 @@
 // The model proxy: Codex on the computer sends its model requests here, at
-// `/model-proxy/<token>/<route>/...`, and the worker forwards them to the route's fixed upstream.
-// Bytes pass through unchanged as they arrive, in both directions; a copy is read on the side and
-// handed to the writer when the exchange ends. Forwarding never waits on logging or the database.
-import { randomUUID, timingSafeEqual } from "node:crypto";
+// `/model-proxy/<token>/<route>/...`, and the worker forwards them to the route's fixed upstream,
+// over HTTP or a WebSocket. Bytes pass through unchanged as they arrive, in both directions; a
+// copy is read on the side and handed to the writer when the exchange ends. Forwarding never
+// waits on logging or the database.
+import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import http, {
   type IncomingHttpHeaders,
@@ -10,88 +11,85 @@ import http, {
   type ServerResponse,
 } from "node:http";
 import https from "node:https";
-import { type ModelRoute, headerValue, turnMetadata } from "@open-bot/domain";
+import type { Duplex } from "node:stream";
+import { type ModelRoute, isAccountHeader, isSecretHeader, unreadable } from "@open-bot/domain";
 import { errorMessage, type Logger } from "../../logger";
 import { type Exchange, type ModelRequestRecord, recordExchange } from "./capture";
-import { CAPTURE_LIMIT, ResponseTap } from "./response-tap";
+import { REQUEST_BODY_LIMIT, forwardable, sameToken, sendJson, threadIdsOf } from "./forwarding";
 import { MODEL_PROXY_PATH, modelProxyToken } from "./routing";
+import { CAPTURE_LIMIT, ResponseTap } from "./response-tap";
+import { checkUpgrade, rejectUpgrade } from "./upgrade";
+import { WebSocketProxy } from "./websocket";
 
-/** Request bodies past this are forwarded but not logged. Codex's largest are a few MB. */
-const REQUEST_BODY_LIMIT = 32 * 1024 * 1024;
 /** How long shutdown waits for requests still being forwarded or logged. */
 const DRAIN_MS = 10_000;
+/** ChatGPT's Codex backend: the plan route's upstream. */
+export const CHATGPT_CODEX_URL = "https://chatgpt.com/backend-api/codex";
+/** The path Codex puts before every plan endpoint, so its base URL ends like ChatGPT's. */
+export const PLAN_PREFIX = "/backend-api/codex";
+/** The token a rehearsal's stand-in gets instead of anything Codex sent. */
+export const REHEARSAL_TOKEN = "plan-rehearsal";
 
-/** Headers that belong to one connection, never forwarded (RFC 9110, section 7.6.1). */
-const HOP_BY_HOP = new Set([
-  "connection",
-  "keep-alive",
-  "proxy-authenticate",
-  "proxy-authorization",
-  "proxy-connection",
-  "te",
-  "trailer",
-  "transfer-encoding",
-  "upgrade",
-]);
-
-/** The live runs the proxy asks before spending the API key. */
+/** The live runs the proxy asks about a request's threads. */
 export interface ProxyRuns {
   /** The live run on the API key that one of these Codex threads belongs to, if any. */
   apiKeyRun(threadIds: readonly string[]): { apiKey: string; teammateId: string } | null;
+  /** The teammate whose live run one of these Codex threads belongs to, on either access mode. */
+  teammateFor(threadIds: readonly string[]): string | null;
 }
 
-/** What a route lets through: headers to set upstream, and whose request it is. */
-type Access = { set: Record<string, string>; teammateId: string | null } | { refused: string };
+/** What a route lets through: headers to set and drop upstream, and whose request it is. */
+export type Access =
+  | { set: Record<string, string>; drop?: (name: string) => boolean; teammateId: string | null }
+  | { refused: string };
 
 /** A route: one fixed upstream, and how a request on it gets its credential. */
 interface ProxyRoute {
-  upstream(): string;
+  upstream: string;
+  /** What every path on the route starts with and the upstream's URL already ends with. */
+  prefix: string;
   authorize(headers: IncomingHttpHeaders): Access;
 }
 
+/** A request on a known route with the right token. */
+interface Target {
+  route: ModelRoute;
+  spec: ProxyRoute;
+  /** The path under the route's upstream, with its query. */
+  endpoint: string;
+}
+
 export interface ModelProxyDeps {
-  env: { ENCRYPTION_KEY: string; OPENAI_API_BASE_URL: string };
+  env: { ENCRYPTION_KEY: string; OPENAI_API_BASE_URL: string; OPEN_BOT_PLAN_BASE_URL?: string };
   runs: ProxyRuns;
   writer: { add(record: ModelRequestRecord): void; lost(startedAt: Date[], reason: string): void };
   log: Pick<Logger, "warn" | "error">;
   /** Overrides `CAPTURE_LIMIT`, for tests. */
   captureLimit?: number;
+  /** Stands in for ChatGPT on the plan route, for tests; unlike a rehearsal, credentials pass. */
+  chatgptUrl?: string;
 }
 
-/** The Codex threads a request names: its own, and the parent of a sub-agent's. */
-function threadIdsOf(headers: IncomingHttpHeaders): string[] {
-  const ids = [
-    headerValue(headers, "thread-id"),
-    headerValue(headers, "x-codex-parent-thread-id"),
-    turnMetadata(headers, null).threadId,
-  ];
-  return [...new Set(ids.filter((id): id is string => Boolean(id)))];
-}
-
-/** Forwardable headers from Node's raw list: hop-by-hop ones and those `drop` names left out. */
-function forwardable(raw: string[], drop: ReadonlySet<string> = new Set()): string[] {
-  const listed = new Set<string>();
-  for (let at = 0; at < raw.length; at += 2)
-    if (raw[at]!.toLowerCase() === "connection")
-      for (const name of raw[at + 1]!.split(",")) listed.add(name.trim().toLowerCase());
-  const out: string[] = [];
-  for (let at = 0; at < raw.length; at += 2) {
-    const name = raw[at]!.toLowerCase();
-    if (HOP_BY_HOP.has(name) || listed.has(name) || drop.has(name)) continue;
-    out.push(raw[at]!, raw[at + 1]!);
-  }
-  return out;
-}
-
-function sameToken(given: string, expected: string): boolean {
-  const left = Buffer.from(given);
-  const right = Buffer.from(expected);
-  return left.length === right.length && timingSafeEqual(left, right);
-}
-
-function sendJson(response: ServerResponse, status: number, type: string, message: string) {
-  response.writeHead(status, { "content-type": "application/json" });
-  response.end(JSON.stringify({ error: { type, message } }));
+/** A new exchange's record, before anything about its answer is known. */
+export function newExchange(
+  fields: Pick<Exchange, "route" | "transport" | "method" | "endpoint" | "requestHeaders">,
+): Exchange {
+  return {
+    ...fields,
+    teammateId: null,
+    requestBody: null,
+    requestBytes: 0,
+    status: null,
+    responseHeaders: null,
+    response: null,
+    rawResponse: null,
+    responseBytes: 0,
+    startedAt: new Date(),
+    firstByteAt: null,
+    endedAt: new Date(),
+    failure: null,
+    warnings: [],
+  };
 }
 
 /** What the proxy reports; tests wait on these instead of on time. */
@@ -102,17 +100,21 @@ export type ModelProxyEvents = {
 
 export class ModelProxy extends EventEmitter<ModelProxyEvents> {
   private readonly token: string;
-  private readonly routes: Record<ModelRoute, ProxyRoute | null>;
+  private readonly routes: Record<ModelRoute, ProxyRoute>;
   /** Exchanges from the request's arrival until their log is queued. */
   private readonly active = new Set<Exchange>();
   private readonly idle: (() => void)[] = [];
+  private readonly sockets: WebSocketProxy;
+  private draining = false;
 
   constructor(private readonly deps: ModelProxyDeps) {
     super();
     this.token = modelProxyToken(deps.env.ENCRYPTION_KEY);
+    const rehearsal = Boolean(deps.env.OPEN_BOT_PLAN_BASE_URL);
     this.routes = {
       api: {
-        upstream: () => deps.env.OPENAI_API_BASE_URL,
+        upstream: deps.env.OPENAI_API_BASE_URL,
+        prefix: "",
         // The key goes only to a thread with a live run on the API key, which passed the cap check.
         authorize: (headers) => {
           const run = deps.runs.apiKeyRun(threadIdsOf(headers));
@@ -120,25 +122,51 @@ export class ModelProxy extends EventEmitter<ModelProxyEvents> {
           return { set: { authorization: `Bearer ${run.apiKey}` }, teammateId: run.teammateId };
         },
       },
-      // The ChatGPT plan's route, with WebSockets, comes next.
-      plan: null,
+      plan: {
+        upstream: deps.env.OPEN_BOT_PLAN_BASE_URL ?? deps.chatgptUrl ?? CHATGPT_CODEX_URL,
+        prefix: PLAN_PREFIX,
+        // Codex sends its own ChatGPT login, which passes through to ChatGPT unchanged. A
+        // rehearsal's stand-in gets none of it: every credential and the account are replaced.
+        authorize: (headers): Access => {
+          const teammateId = deps.runs.teammateFor(threadIdsOf(headers));
+          if (!rehearsal) return { set: {}, teammateId };
+          return {
+            set: { authorization: `Bearer ${REHEARSAL_TOKEN}` },
+            drop: (name) => isSecretHeader(name) || isAccountHeader(name),
+            teammateId,
+          };
+        },
+      },
     };
+    this.sockets = new WebSocketProxy({
+      track: (exchange) => this.active.add(exchange),
+      complete: (exchange) => this.complete(exchange),
+      teammateFor: (threadIds) => deps.runs.teammateFor(threadIds),
+      draining: () => this.draining,
+      captureLimit: deps.captureLimit ?? CAPTURE_LIMIT,
+      log: deps.log,
+    });
   }
 
   /**
    * Waits, up to `timeoutMs`, for requests still being forwarded or logged, so their logs reach
-   * the writer before it stops. Those still running after it are recorded as lost.
+   * the writer before it stops, and for WebSockets to close: each closes as soon as no response
+   * is streaming on it, once what is queued for Codex has been delivered. Whatever is still
+   * running after it is dropped, and its requests recorded as lost.
    */
   async drain(timeoutMs = DRAIN_MS): Promise<void> {
-    if (this.active.size) {
-      await new Promise<void>((resolve) => {
-        const timer = setTimeout(resolve, timeoutMs);
-        this.idle.push(() => {
-          clearTimeout(timer);
-          resolve();
-        });
-      });
-    }
+    this.draining = true;
+    this.sockets.closeIdle();
+    const logged = this.active.size
+      ? new Promise<void>((resolve) => this.idle.push(resolve))
+      : Promise.resolve();
+    let timer: NodeJS.Timeout | undefined;
+    await Promise.race([
+      Promise.all([logged, this.sockets.closed()]),
+      new Promise<void>((resolve) => (timer = setTimeout(resolve, timeoutMs))),
+    ]);
+    clearTimeout(timer);
+    this.sockets.terminate();
     if (!this.active.size) return;
     const starts = [...this.active].map((exchange) => exchange.startedAt);
     this.active.clear();
@@ -151,54 +179,144 @@ export class ModelProxy extends EventEmitter<ModelProxyEvents> {
     this.emit("settled");
   }
 
+  /**
+   * Logs a finished exchange off the request path, once `read` has finished reading its
+   * response, then stops counting it as active. A response that can't be read is logged without
+   * it, and a record that can't be put together without its bodies (`recordExchange`), each with
+   * a warning; only one the writer can't take is counted as lost.
+   */
+  private complete(exchange: Exchange, read?: () => Promise<void>) {
+    void (async () => {
+      try {
+        await read?.();
+      } catch (error) {
+        this.deps.log.error("a model proxy response could not be read", {
+          error: errorMessage(error),
+        });
+        exchange.warnings.push(unreadable(error));
+      }
+      const record = await recordExchange(exchange, randomUUID());
+      // Shutdown stopped waiting for it, and already counted it as lost.
+      if (this.active.has(exchange)) this.deps.writer.add(record);
+    })()
+      .catch((error: unknown) => {
+        this.deps.log.error("a model request could not be logged", { error: errorMessage(error) });
+        if (this.active.has(exchange))
+          this.deps.writer.lost([exchange.startedAt], "it could not be logged");
+      })
+      .finally(() => this.settle(exchange));
+  }
+
   /** Whether a request is for the proxy. */
   handles(pathname: string): boolean {
     return pathname.startsWith(MODEL_PROXY_PATH);
   }
 
+  /** The route and endpoint a URL names, or null when its token or route is wrong. */
+  private target(url: string | undefined): Target | null {
+    const [token = "", route = "", ...rest] = (url ?? "/")
+      .slice(MODEL_PROXY_PATH.length)
+      .split("/");
+    if (!sameToken(token, this.token) || !Object.hasOwn(this.routes, route)) return null;
+    const spec = this.routes[route as ModelRoute];
+    const path = rest.length ? `/${rest.join("/")}` : "";
+    if (!path.startsWith(spec.prefix)) return null;
+    const endpoint = path.slice(spec.prefix.length);
+    if (endpoint && !/^[/?]/.test(endpoint)) return null;
+    return { route: route as ModelRoute, spec, endpoint };
+  }
+
+  /** The upstream URL and headers for a request the route let through. */
+  private upstreamRequest(
+    target: Target,
+    request: IncomingMessage,
+    access: Extract<Access, { set: unknown }>,
+    skip: ReadonlySet<string> = new Set(),
+  ) {
+    const url = new URL(target.spec.upstream.replace(/\/+$/, "") + target.endpoint);
+    const replaced = new Set([...Object.keys(access.set), "host", ...skip]);
+    const headers = forwardable(
+      request.rawHeaders,
+      (name) => replaced.has(name) || Boolean(access.drop?.(name)),
+    );
+    for (const [name, value] of Object.entries(access.set)) headers.push(name, value);
+    return { url, headers };
+  }
+
   handle(request: IncomingMessage, response: ServerResponse): void {
-    const raw = request.url ?? "/";
-    const [token = "", route = "", ...rest] = raw.slice(MODEL_PROXY_PATH.length).split("/");
-    const spec = Object.hasOwn(this.routes, route) ? this.routes[route as ModelRoute] : null;
-    if (!sameToken(token, this.token) || !spec) {
+    const target = this.target(request.url);
+    if (!target) {
       request.resume();
       sendJson(response, 404, "not_found", "Not found");
       return;
     }
-    const endpoint = rest.length ? `/${rest.join("/")}` : "";
-    this.forward(request, response, route as ModelRoute, spec, endpoint);
+    this.forward(request, response, target);
   }
 
-  private forward(
-    request: IncomingMessage,
-    response: ServerResponse,
-    route: ModelRoute,
-    spec: ProxyRoute,
-    endpoint: string,
-  ) {
+  /**
+   * A WebSocket upgrade for the proxy: the Responses API over a WebSocket. Nothing it does can
+   * throw out of the worker's upgrade handler: a failure answers this upgrade alone.
+   */
+  upgrade(request: IncomingMessage, socket: Duplex, head: Buffer): void {
+    try {
+      this.openUpgrade(request, socket, head);
+    } catch (error) {
+      this.deps.log.error("a model proxy WebSocket upgrade failed", { error: errorMessage(error) });
+      if (!socket.destroyed)
+        rejectUpgrade(socket, 500, "proxy_error", "The model proxy could not take the upgrade.");
+    }
+  }
+
+  private openUpgrade(request: IncomingMessage, socket: Duplex, head: Buffer): void {
+    const target = this.target(request.url);
+    if (!target) return rejectUpgrade(socket, 404, "not_found", "Not found");
+    if (this.draining) return rejectUpgrade(socket, 503, "restarting", "The worker is restarting.");
+    // Checked before anything is opened upstream, as `ws` would check it after.
+    const handshake = checkUpgrade(request);
+    if ("problem" in handshake) return rejectUpgrade(socket, 400, "bad_request", handshake.problem);
+    const exchange = newExchange({
+      route: target.route,
+      transport: "websocket",
+      method: "GET",
+      endpoint: target.endpoint.split("?")[0] || "/",
+      requestHeaders: request.headers,
+    });
+    const access = target.spec.authorize(request.headers);
+    if ("refused" in access) {
+      this.active.add(exchange);
+      exchange.status = 403;
+      exchange.failure = { type: "refused", message: access.refused };
+      rejectUpgrade(socket, 403, "refused", access.refused);
+      this.complete(exchange);
+      return;
+    }
+    const upstream = this.upstreamRequest(target, request, access, WebSocketProxy.HANDSHAKE);
+    upstream.url.protocol = upstream.url.protocol === "https:" ? "wss:" : "ws:";
+    this.sockets.open({
+      request,
+      socket,
+      head,
+      route: target.route,
+      endpoint: exchange.endpoint,
+      url: upstream.url,
+      headers: upstream.headers,
+      protocols: handshake.protocols,
+      handshake: exchange,
+      teammateId: access.teammateId,
+    });
+  }
+
+  private forward(request: IncomingMessage, response: ServerResponse, target: Target) {
     const method = request.method ?? "GET";
     // Model requests are POSTs and are logged in full; anything else (the `models` list) only as metadata.
     const logBodies = method === "POST";
-    const exchange: Exchange = {
-      route,
+    const exchange = newExchange({
+      route: target.route,
       transport: "http",
       method,
-      endpoint: endpoint.split("?")[0] || "/",
-      teammateId: null,
+      endpoint: target.endpoint.split("?")[0] || "/",
       requestHeaders: request.headers,
-      requestBody: null,
-      requestBytes: 0,
-      status: null,
-      responseHeaders: null,
-      response: null,
-      rawResponse: null,
-      responseBytes: 0,
-      startedAt: new Date(),
-      firstByteAt: null,
-      endedAt: new Date(),
-      failure: null,
-      warnings: [],
-    };
+    });
     this.active.add(exchange);
     let finished = false;
     let tap: ResponseTap | null = null;
@@ -207,28 +325,16 @@ export class ModelProxy extends EventEmitter<ModelProxyEvents> {
       if (finished) return;
       finished = true;
       exchange.endedAt = new Date();
-      void (async () => {
-        if (tap) {
-          const read = await tap.end();
-          exchange.response = read.response;
-          exchange.rawResponse = read.raw;
-          exchange.warnings.push(...read.warnings);
-        }
-        const record = await recordExchange(exchange, randomUUID());
-        // Shutdown stopped waiting for it, and already counted it as lost.
-        if (this.active.has(exchange)) this.deps.writer.add(record);
-      })()
-        .catch((error: unknown) => {
-          this.deps.log.error("a model request could not be logged", {
-            error: errorMessage(error),
-          });
-          if (this.active.has(exchange))
-            this.deps.writer.lost([exchange.startedAt], "it could not be logged");
-        })
-        .finally(() => this.settle(exchange));
+      this.complete(exchange, async () => {
+        if (!tap) return;
+        const read = await tap.end();
+        exchange.response = read.response;
+        exchange.rawResponse = read.raw;
+        exchange.warnings.push(...read.warnings);
+      });
     };
 
-    const access = spec.authorize(request.headers);
+    const access = target.spec.authorize(request.headers);
     if ("refused" in access) {
       request.resume();
       exchange.status = 403;
@@ -239,12 +345,10 @@ export class ModelProxy extends EventEmitter<ModelProxyEvents> {
     }
     exchange.teammateId = access.teammateId;
 
-    const target = new URL(spec.upstream().replace(/\/+$/, "") + endpoint);
-    const headers = forwardable(request.rawHeaders, new Set([...Object.keys(access.set), "host"]));
+    const { url: upstreamUrl, headers } = this.upstreamRequest(target, request, access);
     // Given as a raw list, headers get no Host from Node: it is the upstream's.
-    headers.push("host", target.host);
-    for (const [name, value] of Object.entries(access.set)) headers.push(name, value);
-    const upstream = (target.protocol === "https:" ? https : http).request(target, {
+    headers.push("host", upstreamUrl.host);
+    const upstream = (upstreamUrl.protocol === "https:" ? https : http).request(upstreamUrl, {
       method,
       headers,
     });
@@ -283,11 +387,29 @@ export class ModelProxy extends EventEmitter<ModelProxyEvents> {
       response.flushHeaders();
       // Piped first, so each chunk is on its way to Codex before the copy is read.
       answer.pipe(response);
-      if (logBodies) tap = new ResponseTap(answer.headers, this.deps.captureLimit ?? CAPTURE_LIMIT);
+      // Reading the copy never throws into the response's events: a failure costs only the log's
+      // copy, and the request is still logged, with a warning.
+      const unread = (error: unknown) => {
+        tap = null;
+        this.deps.log.error("a model proxy response could not be read", {
+          error: errorMessage(error),
+        });
+        exchange.warnings.push(unreadable(error));
+      };
+      if (logBodies)
+        try {
+          tap = new ResponseTap(answer.headers, this.deps.captureLimit ?? CAPTURE_LIMIT);
+        } catch (error) {
+          unread(error);
+        }
       answer.on("data", (chunk: Buffer) => {
         exchange.firstByteAt ??= new Date();
         exchange.responseBytes += chunk.length;
-        tap?.write(chunk);
+        try {
+          tap?.write(chunk);
+        } catch (error) {
+          unread(error);
+        }
       });
       answer.on("end", finish);
       // The upstream broke off mid-stream: break the client's stream too, so Codex sees the same.
@@ -307,7 +429,7 @@ export class ModelProxy extends EventEmitter<ModelProxyEvents> {
       if (finished) return;
       exchange.failure ??= {
         type: "upstream_unreachable",
-        message: `The model proxy could not reach ${target.host}: ${error.message}`,
+        message: `The model proxy could not reach ${upstreamUrl.host}: ${error.message}`,
       };
       if (!response.headersSent) {
         exchange.status = 502;

@@ -16,9 +16,9 @@ import {
  * with only the model endpoints replaced. The "plan" endpoint answers like ChatGPT does when
  * the usage limit is reached, and the "API" endpoint answers normally.
  *
- * The API key's requests go through the worker's model proxy, which logs them, so the worker,
- * not the computer, calls the "API" endpoint. Start the worker with:
- *   OPEN_BOT_PLAN_BASE_URL=http://host.docker.internal:4799/plan
+ * Both legs go through the worker's model proxy, which logs them, so the worker, not the
+ * computer, calls both endpoints. Start the worker with:
+ *   OPEN_BOT_PLAN_BASE_URL=http://127.0.0.1:4799/plan
  *   OPENAI_API_BASE_URL=http://127.0.0.1:4799/api
  * then run: E2E_PLAN_REHEARSAL=1 pnpm e2e --grep rehearsal
  */
@@ -31,6 +31,8 @@ const pool = new pg.Pool({
   connectionString: e2eStack().databaseUrl,
 });
 const requests: string[] = [];
+/** The `Authorization` each plan request reached the stand-in with. */
+const planAuthorization: (string | undefined)[] = [];
 let server: http.Server | undefined;
 let restore: (() => Promise<void>) | null = null;
 
@@ -42,6 +44,7 @@ test.beforeAll(async () => {
     req.on("end", () => {
       requests.push(req.url ?? "");
       if (req.url?.startsWith("/plan")) {
+        planAuthorization.push(req.headers.authorization);
         res.writeHead(429, { "content-type": "application/json" });
         res.end(
           JSON.stringify({
@@ -135,6 +138,18 @@ test("rehearsal: the plan hits its limit mid-run and the run finishes on the API
     response_text: "pong from the API key",
   });
   expect(requestRows.map((row) => row.headers).join()).not.toContain(key.key);
+
+  // The plan's requests went through the proxy too, which gave the stand-in a token of its own,
+  // never the computer's ChatGPT login. They were on the plan's thread, which the run left for one
+  // on the key, so they are found by the run's teammate.
+  const planRows = await pool.query<{ status: number; error_type: string }>(
+    `select m.status, m.error_type from model_requests m join runs r on r.bot_id = m.teammate_id -- vocabulary: allow
+     where m.route = 'plan' and r.id = (select id from runs order by created_at desc limit 1)
+     order by m.started_at`,
+  );
+  expect(planRows.rows.length).toBeGreaterThan(0);
+  expect(planRows.rows[0]).toMatchObject({ status: 429, error_type: "usage_limit_reached" });
+  expect(new Set(planAuthorization)).toEqual(new Set(["Bearer plan-rehearsal"]));
 
   // The worker remembered the limit, metered the spend, and the next run goes straight to the key.
   const before = requests.length;

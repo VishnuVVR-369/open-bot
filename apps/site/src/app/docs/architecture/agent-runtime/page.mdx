@@ -98,7 +98,8 @@ So the session checks each of those before using an existing thread:
 - **A different provider, MCP set or `AGENTS.md`** forks the thread with `thread/fork`. The fork keeps the whole conversation and gets the new provider, servers or instructions. This is how a chat moves between your ChatGPT plan and your API key mid-conversation, and how an edited profile, a new Always allow rule or a new teammate reaches chats already going.
 - **A different model route** forks the thread the same way.
   A loaded thread keeps its provider's address, so turning the [model proxy](#the-model-proxy) on or off, or moving it, would otherwise leave chats talking to the old address.
-  The route is left out of the hash while a thread uses Codex's default, so only threads whose route changed fork, once each.
+  The route is left out of the hash while a thread uses Codex's default, so turning the proxy off gives back the hash from before it.
+  Each chat forks once when its route changes, on the plan and on the API key alike, and the only cost is one cold prompt cache.
 - **Otherwise**, a thread that is loaded is reused, and one that isn't is resumed from Codex's state on the volume with `thread/resume`.
 
 ## The model proxy
@@ -106,13 +107,19 @@ So the session checks each of those before using an existing thread:
 Codex on the computer sends its model requests to the worker, which forwards them to the model and logs each one.
 The worker serves them at `/model-proxy/<token>/<route>/...` on its own port, next to the internal API (`apps/worker/src/features/model-logs/`).
 
-| Route  | Upstream                                         | Credential                   |
-| ------ | ------------------------------------------------ | ---------------------------- |
-| `api`  | `OPENAI_API_BASE_URL`                            | The worker adds your API key |
-| `plan` | Not yet: the plan still goes to ChatGPT directly | -                            |
+| Route  | Path under the route | Upstream                                                             | Credential                                               |
+| ------ | -------------------- | -------------------------------------------------------------------- | -------------------------------------------------------- |
+| `api`  | Any                  | `OPENAI_API_BASE_URL`                                                | The worker adds your API key                             |
+| `plan` | `/backend-api/codex` | `https://chatgpt.com/backend-api/codex`, or `OPEN_BOT_PLAN_BASE_URL` | Codex's own ChatGPT login, passed through and never kept |
 
-- **Addresses.** API key threads get a provider whose `base_url` is the `api` route as the computer reaches the worker: Railway's private address (`http://worker.railway.internal:4001`, from `RAILWAY_PRIVATE_DOMAIN` and `WORKER_PORT`), or `http://host.docker.internal:<WORKER_PORT>` for a local computer container.
+- **Addresses.** Both routes are reached as the computer reaches the worker: Railway's private address (`http://worker.railway.internal:4001`, from `RAILWAY_PRIVATE_DOMAIN` and `WORKER_PORT`), or `http://host.docker.internal:<WORKER_PORT>` for a local computer container.
   `MODEL_PROXY_URL` overrides it.
+  API key threads get a provider whose `base_url` is the `api` route.
+- **The plan keeps Codex's built-in provider.** Plan threads keep the `openai` provider and get `openai_base_url` set to the `plan` route, which ends in `/backend-api/codex` like ChatGPT's own.
+  Codex ties its Codex backend behavior to that provider and that ending (`supports_codex_backend_routes()`): WebSockets, workspace routing, its model headers and context management.
+  A custom provider would lose them.
+  The proxy adds no credential on this route: Codex sends the computer's ChatGPT `Authorization` and account headers, which go to ChatGPT unchanged.
+  Account and rate-limit calls go to `chatgpt_base_url`, which isn't model traffic and stays direct.
 - **Pass-through.** The proxy forwards any path under the route to that route's fixed upstream, never to an address from the request.
   Request and response bytes go through unchanged as they arrive, compressed or not, and a copy is read on the side.
   Model requests (POSTs) are logged in full; the `models` list only as metadata.
@@ -129,6 +136,7 @@ The worker serves them at `/model-proxy/<token>/<route>/...` on its own port, ne
   The count is of text: parsed items take more memory than the text they came from, and the first 1 MiB of the raw response is kept besides.
   Past the budget the response is still forwarded whole, and its log keeps only the metadata, the raw start and a warning that it was too large to read.
   Only the first 10 events that aren't JSON get a warning of their own.
+  Reading never throws into forwarding: a response whose copy can't be read (JSON nested too deeply to walk, say) is still forwarded whole, over HTTP or a WebSocket, and logged with a warning, and a WebSocket connection goes on to the next response.
   While the database can't be reached, a batch is retried with backoff for 5 minutes, and the queue holds at most 64 MB.
   Past either, the requests are dropped and a `model_log_gaps` row records them once the database answers again.
   When the database answers but refuses a batch, the writer saves its requests one at a time and drops only the ones it refuses, so one bad request never holds up the rest.
@@ -136,8 +144,36 @@ The worker serves them at `/model-proxy/<token>/<route>/...` on its own port, ne
 - **Shutdown.** The HTTP server stops taking requests first, then the proxy waits up to 10 seconds for the requests still running to be logged, and only then does the writer save what is queued.
   Requests still running after that are recorded as a gap.
 - **Upstream failures.** When the upstream can't be reached the proxy answers 502, and when it breaks off mid-stream the proxy breaks Codex's stream too, so Codex retries as it would on a direct connection.
-- **Kill switch.** `MODEL_PROXY=off` sends API key threads straight to `OPENAI_API_BASE_URL` with the key as the provider's bearer token, as before.
+- **Kill switch.** `MODEL_PROXY=off` sends plan threads straight to ChatGPT, and API key threads straight to `OPENAI_API_BASE_URL` with the key as the provider's bearer token, as before.
   The route revision forks each such thread once to change course, with no computer redeploy.
+
+### WebSockets
+
+On the plan, Codex speaks the Responses API over a WebSocket to `/responses`, and falls back to HTTP streaming only after a WebSocket fails; that fallback lasts for the rest of the session.
+The proxy takes both, and Codex's upgrade arrives on the worker's HTTP server next to its other WebSockets (`apps/worker/src/ws.ts`).
+
+- **The handshake.** The proxy first checks Codex's upgrade as `ws` would (the method, key, version and subprotocols), and answers 400 to one it can't complete, without opening anything upstream.
+  It then opens the upstream connection, with Codex's headers minus those that belong to one hop, and answers Codex's upgrade with the upstream's headers (`x-reasoning-included`, `openai-model`, `x-codex-turn-state`).
+  When the upstream refuses the upgrade (a 401, a 426 that sends Codex to HTTP, a 429 at the usage limit), Codex gets the same status and headers as soon as they arrive, so its fallback never waits on the body, and then the whole body as it streams; the log keeps its first 1 MiB.
+  Codex's side of the relay is uncompressed, since it is the private network; the upstream side is compressed when Codex asked for it.
+- **The relay.** Every message, ping and pong goes on as it came, text or binary, and a close goes on with its code and reason.
+  When one side drops without a close, the proxy drops the other.
+  A side that can't keep up pauses the other past 8 MiB waiting to go out, and resumes it under 1 MiB.
+- **One request per message.** Each `response.create` is logged as one request, with `transport` `websocket` and `method` `response.create`, from the message to the end of its response (`response.completed`, `response.incomplete`, `response.failed`, or an `error` that ends it as Codex reads it).
+  The thread and turn come from the message's `client_metadata`, since a connection outlives the turn it was opened in.
+  Codex sends one request at a time on a connection; should a request overlap one still streaming, the model's events are read in order, oldest request first, both requests carry a parse warning, and neither is continued from.
+  `codex.rate_limits` events are stored as the same rate-limit headers the plan sends over HTTP, and headers carried by events (`codex.response.metadata`, errors) join the handshake's.
+- **Rebuilt input.** When a request extends the one before it on the same connection, Codex sends only the new items with a `previous_response_id`.
+  The proxy keeps, per connection, the last request's full input and the items its response added once it completed, exactly as Codex does (`get_incremental_items` in Codex's `core/src/client.rs`), and stores each request with its full input rebuilt: the last full input, then the items the last response added, then the new items.
+  `sent_input_from` says where the items the message sent begin, so the message itself rebuilds too.
+  Blobs are stored by hash, so the shared history costs nothing.
+  A `previous_response_id` that isn't the last completed response on the connection is stored as sent, with a parse warning, and the chain starts again at the next full request.
+  The chain holds at most 64 MiB of text per connection.
+- **The budget.** A response's messages are read under the same 16 MiB budget as an HTTP body (`WebSocketResponseReader` in `@open-bot/domain`): the events it keeps, the strings it notes and the headers events carry, checked after every message.
+  Past it the response is still relayed whole, its log keeps the raw start and a warning, and the next request on the connection is stored as sent.
+- **Shutdown.** Connections with no response streaming close at once with 1001, so Codex reconnects to the next worker; one with a response streaming closes with 1001 when the response ends and is logged.
+  The close goes out after whatever is still queued for Codex, and shutdown waits for both sides to close, so a slow reader still gets its last response.
+  Connections still open when the 10 seconds run out are dropped, and their responses recorded as a gap.
 
 A request is linked to its run through Codex's own ids: the `x-codex-turn-metadata` header (or the same JSON in the body's `client_metadata`) carries the thread, the turn and the request's kind (`turn`, `prewarm`, `compaction` or `memory`).
 They are stored as sent, and joined to runs when the logs are read, never resolved when they are written.

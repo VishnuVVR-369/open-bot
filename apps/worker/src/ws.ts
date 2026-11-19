@@ -4,14 +4,21 @@ import { isOwnerLease, isScreenId, type ScreenViewMode } from "@open-bot/domain"
 import { LEGACY_DESKTOP_AGENT, readToken, verifyToken } from "@open-bot/domain/server";
 import WebSocket, { WebSocketServer } from "ws";
 import type { Context } from "./context";
+import type { ModelProxy } from "./features/model-logs";
 import { egressAgentClaimSchema } from "./egress/claims";
 import type { EgressRelay } from "./egress/relay";
 
 /**
- * The worker's WebSockets, which the web app's signed tokens open: `/vnc` proxies a browser's
- * noVNC connection to a screen, and `/egress/agent` is the desktop app's or a phone's tunnel.
+ * The worker's WebSockets. The web app's signed tokens open two: `/vnc` proxies a browser's noVNC
+ * connection to a screen, and `/egress/agent` is the desktop app's or a phone's tunnel. The model
+ * proxy's, which carry its token in the path, are Codex's Responses API connections.
  */
-export function handleUpgrades(server: http.Server, ctx: Context, egress: EgressRelay): void {
+export function handleUpgrades(
+  server: http.Server,
+  ctx: Context,
+  egress: EgressRelay,
+  modelProxy: Pick<ModelProxy, "handles" | "upgrade">,
+): void {
   const wss = new WebSocketServer({
     noServer: true,
     perMessageDeflate: false,
@@ -20,6 +27,10 @@ export function handleUpgrades(server: http.Server, ctx: Context, egress: Egress
 
   server.on("upgrade", (request, socket, head) => {
     const url = new URL(request.url ?? "/", "http://worker");
+    if (modelProxy.handles(url.pathname)) {
+      modelProxy.upgrade(request, socket, head);
+      return;
+    }
     const token = url.searchParams.get("token") ?? "";
     if (url.pathname === "/vnc") {
       const mode = url.searchParams.get("mode") === "control" ? "control" : "view";

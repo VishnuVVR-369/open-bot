@@ -3,7 +3,7 @@ import { type AuthDecision, type AuthMode, decideAuthMode, formatDollars } from 
 import { decryptSecret } from "@open-bot/domain/server";
 import { and, eq, gte, sql } from "drizzle-orm";
 import { publishApp, type Context } from "../../context";
-import { type ModelProxyEnv, modelProxyUrl } from "../model-logs";
+import { type ModelProxyEnv, PLAN_PREFIX, REHEARSAL_TOKEN, modelProxyUrl } from "../model-logs";
 import { errorMessage } from "../../logger";
 import { saveSettings } from "../settings";
 
@@ -51,21 +51,36 @@ export function providerFor(
       },
     };
   }
+  const proxy = modelProxyUrl(env, "plan");
+  // The plan's route ends like ChatGPT's own base URL, so Codex keeps the built-in provider's
+  // Codex backend behavior (WebSockets, workspace routing, its headers) through the proxy.
+  const planRoute = proxy && `${proxy}${PLAN_PREFIX}`;
   if (env.OPEN_BOT_PLAN_BASE_URL) {
+    // A rehearsal: a stand-in answers for the plan, through the proxy when it is on, which also
+    // replaces every credential on the way so the stand-in never sees a real one.
     return {
       modelProvider: "openai-plan-rehearsal",
       config: {
         "model_providers.openai-plan-rehearsal": {
           name: "Plan rehearsal",
-          base_url: env.OPEN_BOT_PLAN_BASE_URL,
+          base_url: planRoute ?? env.OPEN_BOT_PLAN_BASE_URL,
           wire_api: "responses",
-          experimental_bearer_token: "plan-rehearsal",
+          experimental_bearer_token: REHEARSAL_TOKEN,
           request_max_retries: 0,
           stream_max_retries: 0,
         },
       },
+      ...(planRoute ? { route: planRoute } : {}),
     };
   }
+  // Codex's built-in provider, pointed at the proxy. Codex sends its own ChatGPT login, which the
+  // proxy passes through and never stores.
+  if (planRoute)
+    return {
+      modelProvider: PLAN_PROVIDER_ID,
+      config: { openai_base_url: planRoute },
+      route: planRoute,
+    };
   return { modelProvider: PLAN_PROVIDER_ID };
 }
 

@@ -380,10 +380,11 @@ See [Models and usage](/docs/flows/models-and-usage#the-monthly-cap).
 
 Every model request that goes through the [model proxy](/docs/architecture/agent-runtime#the-model-proxy) is saved by one buffered writer (`apps/worker/src/features/model-logs/writer.ts`), which owns the four tables.
 
-- `model_requests` has one row per request: the route (`api` for now), the endpoint, the HTTP status, when it started, sent its first byte and ended, the token counts and `cost_micros` from the response's usage, how it ended (`stop_reason`, `error_type`, `error_message`), its headers without credentials, the rate-limit headers, and the response's text and reasoning summary.
-  `params` holds the request body without its input, instructions and tools.
+- `model_requests` has one row per request: the route (`plan` or `api`), the transport (`http` or `websocket`), the method (over a WebSocket, the message type `response.create`), the endpoint, the HTTP status (over a WebSocket, 200 once the response streams, or an error's own status), when it started, sent its first byte and ended, the token counts and `cost_micros` from the response's usage, how it ended (`stop_reason`, `error_type`, `error_message`), its headers without credentials, the rate-limit headers, and the response's text and reasoning summary.
+  `params` holds the request body without its input, instructions and tools; it is left out, with a warning, when it nests more than 256 levels deep.
   `raw_response` holds the first 1 MiB of a response only when it could not be rebuilt: a stream cut short, or JSON that isn't a Responses API response (search results, images).
   `parse_warnings` says why, and when the response was cut to fit.
+  When the proxy can't read a response, or can't put a request's record together (an item nested too deeply to serialize), the request is still logged, without what failed and with a warning that says why.
 - `codex_thread_id`, `codex_turn_id` and `request_kind` come from the request's own turn metadata.
   Requests are linked to runs through them when they are read, never with a run id resolved when they are written, because a request can arrive before the worker has saved the turn's id.
   `teammate_id` is the teammate whose live run the proxy let the request through for.
@@ -393,9 +394,21 @@ Every model request that goes through the [model proxy](/docs/architecture/agent
   `content` is compressed with lz4 where the server supports it (the `pgvector/pgvector:pg17` image does).
 - `model_request_items` lists a request's items in order, on the `input` and `output` sides.
   A request is rebuilt exactly as Codex sent it from `params`, the instructions and tools blobs, and its input items.
+- Over a WebSocket, Codex sends only the items a request adds to the one before it, with a `previous_response_id`; the stored input is the full one the model saw, rebuilt by the proxy.
+  `sent_input_from` is where the items the message itself sent begin, so the message rebuilds as sent from `params` and the input from that position on.
+  It is empty when the stored input is what was sent.
 - `model_log_gaps` records requests that were lost: dropped after 5 minutes without reaching the database, past the 64 MB queue, or refused by the database itself.
   Its row is written once the database answers again.
   A request naming a teammate deleted since it was made is kept, with `teammate_id` empty.
 
 Bodies and item contents are stored as sent, encrypted reasoning included, so a request can be sent again exactly.
-Headers that carry credentials (authorization, cookies, API keys, tokens, secrets) are never stored.
+Headers that carry credentials (authorization, cookies, API keys, tokens, secrets) are never stored, and neither is `chatgpt-account-id`, which names the ChatGPT account.
+The same goes for header objects inside what the model sent back, in `raw_response` and `error_message`.
+A header object is the value of a `headers` key, in any case, at any depth, like the `headers` of a WebSocket event or an error envelope.
+An object there loses the same headers, and anything else under that key (a list, a string) is left out whole.
+`raw_response` is read message by message over a WebSocket, event by event in an event stream (an event's `data:` lines as one), and whole for any other body.
+A message, an event's data or a body that can't be read whole as JSON (cut by the 1 MiB limit, not JSON, or nested more than 256 levels deep) loses everything from its first `headers` key to its own end, the lines after that key included, and `parse_warnings` says the raw response was cut.
+A line of an event stream outside an event's data, such as a comment, is cut at its first `headers` key too.
+An error with no message of its own stores its envelope in `error_message`, redacted the same way, or a note that it was nested too deeply to keep.
+Credentials anywhere else in a body, such as inside a string or under another key, are stored as sent.
+A WebSocket's rows leave out the handshake's own headers (`sec-websocket-*`, `connection`, `upgrade`) and its turn metadata, since each message names its own turn.

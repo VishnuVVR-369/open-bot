@@ -55,6 +55,7 @@ export const modelRequests = pgTable(
     /** The proxy route it took; null for a request that didn't go through the proxy. */
     route: text("route").$type<ModelRoute>(),
     transport: text("transport").$type<ModelTransport>().notNull(),
+    /** The HTTP method; over a WebSocket, the message type (`response.create`). */
     method: text("method").notNull(),
     /** The path under the route, like `/responses`. */
     endpoint: text("endpoint").notNull(),
@@ -88,6 +89,12 @@ export const modelRequests = pgTable(
     rateLimitHeaders: jsonb("rate_limit_headers").$type<Record<string, string>>(),
     /** The request body without its input, instructions and tools. */
     params: jsonb("params").$type<Record<string, unknown>>(),
+    /**
+     * Over a WebSocket, how many items at the start of the stored input the message did not send:
+     * they continue the previous response (`previous_response_id`) and were rebuilt from the
+     * connection. Null when the stored input is what was sent.
+     */
+    sentInputFrom: integer("sent_input_from"),
     instructionsHash: text("instructions_hash").references(() => modelBlobs.hash),
     toolsHash: text("tools_hash").references(() => modelBlobs.hash),
     responseText: text("response_text"),

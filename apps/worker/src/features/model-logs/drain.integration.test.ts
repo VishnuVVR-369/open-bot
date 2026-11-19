@@ -10,7 +10,16 @@ import { Runtime } from "../../core/runtime";
 import { createHttpServer, type HttpDeps } from "../../http";
 import { ModelProxy } from "./proxy";
 import { modelProxyToken } from "./routing";
-import { codexBody, turnEvents, user } from "./testing";
+import WebSocket from "ws";
+import {
+  ResponsesStandIn,
+  codexBody,
+  responseEvents,
+  assistantItem,
+  turnEvents,
+  user,
+  wsCreate,
+} from "./testing";
 import { ModelLogWriter } from "./writer";
 
 const url = testDatabaseServer();
@@ -32,15 +41,29 @@ describe.skipIf(!url)("model proxy at shutdown", () => {
     });
   });
 
+  /** ChatGPT over WebSockets: each response stops after its first events until released. */
+  const standIn = new ResponsesStandIn();
+  let chatgptUrl = "";
+  let releaseSocket: () => void = () => {};
+  standIn.respond = ({ socket }) => {
+    const events = responseEvents("resp-1", [assistantItem("pong at shutdown")]);
+    for (const event of events.slice(0, 3)) socket.send(JSON.stringify(event));
+    releaseSocket = () => {
+      for (const event of events.slice(3)) socket.send(JSON.stringify(event));
+    };
+  };
+
   beforeAll(async () => {
     await database.create();
     upstream.listen(0, "127.0.0.1");
     await once(upstream, "listening");
+    chatgptUrl = await standIn.listen();
   });
 
   afterAll(async () => {
     upstream.closeAllConnections();
     upstream.close();
+    standIn.close();
     await database.drop();
   });
 
@@ -57,7 +80,11 @@ describe.skipIf(!url)("model proxy at shutdown", () => {
         ENCRYPTION_KEY,
         OPENAI_API_BASE_URL: `http://127.0.0.1:${(upstream.address() as AddressInfo).port}/v1`,
       },
-      runs: { apiKeyRun: () => ({ apiKey: "sk-drain", teammateId: null as unknown as string }) },
+      runs: {
+        apiKeyRun: () => ({ apiKey: "sk-drain", teammateId: null as unknown as string }),
+        teammateFor: () => null,
+      },
+      chatgptUrl,
       writer: {
         add: (record) => {
           calls.push("add");
@@ -80,7 +107,9 @@ describe.skipIf(!url)("model proxy at shutdown", () => {
     await once(server, "listening");
     runtime.add("http server", () => server.close());
     const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/model-proxy/${modelProxyToken(ENCRYPTION_KEY)}/api`;
-    return { runtime, base, proxy, calls };
+    const port = (server.address() as AddressInfo).port;
+    const plan = `ws://127.0.0.1:${port}/model-proxy/${modelProxyToken(ENCRYPTION_KEY)}/plan/backend-api/codex/responses`;
+    return { runtime, base, plan, proxy, calls };
   }
 
   /** Starts a streamed turn and resolves once its first event has reached the client. */
@@ -129,5 +158,98 @@ describe.skipIf(!url)("model proxy at shutdown", () => {
     await turn.ended;
     await settled;
     expect(calls).toEqual(lost);
+  });
+
+  /** Opens a Codex WebSocket and resolves once the upstream has it too. */
+  async function connect(plan: string) {
+    const upstream = once(standIn, "connection") as Promise<[WebSocket]>;
+    const client = new WebSocket(plan, { headers: { "thread-id": "thread-socket" } });
+    const [, [socket]] = await Promise.all([once(client, "open"), upstream]);
+    const closed = once(client, "close") as Promise<[number, Buffer]>;
+    return { client, closed, socket };
+  }
+
+  it("lets a WebSocket response finish and logs it, closing each connection once it is idle", async () => {
+    const { runtime, plan, calls } = await worker(10_000);
+    const idle = await connect(plan);
+    const busy = await connect(plan);
+    const messages: string[] = [];
+    const firstEvents = new Promise<void>((resolve) =>
+      busy.client.on("message", (data) => {
+        messages.push(String(data));
+        if (messages.length === 3) resolve();
+      }),
+    );
+    busy.client.send(JSON.stringify(wsCreate("thread-socket", "turn-1", [user("hi")])));
+    await firstEvents;
+
+    const stopping = runtime.stop();
+    // The idle connection closes at once, as a server going away.
+    expect((await idle.closed)[0]).toBe(1001);
+    // The one with a response streaming stays open until the response ends, then closes.
+    releaseSocket();
+    const [code] = await busy.closed;
+    expect(code).toBe(1001);
+    expect(JSON.parse(messages.at(-1)!)).toMatchObject({ type: "response.completed" });
+    await stopping;
+    const rows = await db
+      .select({ transport: modelRequests.transport, text: modelRequests.responseText })
+      .from(modelRequests)
+      .where(eq(modelRequests.codexThreadId, "thread-socket"));
+    expect(rows).toEqual([{ transport: "websocket", text: "pong at shutdown" }]);
+    expect(calls).toEqual(["add"]);
+  });
+
+  it("delivers what is queued for a slow client before closing it at shutdown", async () => {
+    const final = JSON.stringify({
+      type: "response.completed",
+      response: { id: "resp-big", status: "completed", metadata: { pad: "x".repeat(12 << 20) } },
+    });
+    const respond = standIn.respond;
+    standIn.respond = ({ socket }) => {
+      socket.send(JSON.stringify({ type: "response.created", response: { id: "resp-big" } }));
+      socket.send(final);
+    };
+    try {
+      const { runtime, plan, proxy, calls } = await worker(10_000);
+      const { client, closed, socket } = await connect(plan);
+      const messages: string[] = [];
+      // Codex stops reading after the first event, with the large last one still to come.
+      const first = new Promise<void>((resolve) =>
+        client.on("message", (data) => {
+          messages.push(String(data));
+          if (messages.length > 1) return;
+          client.pause();
+          resolve();
+        }),
+      );
+      const logged = once(proxy, "settled");
+      client.send(JSON.stringify(wsCreate("thread-slow", "turn-1", [user("hi")])));
+      await Promise.all([first, logged]);
+      const upstreamClosed = once(socket, "close");
+      const stopping = runtime.stop();
+      // Shutdown has let the upstream go, the response logged; only now does Codex read on.
+      await upstreamClosed;
+      client.resume();
+      const [code] = await closed;
+      await stopping;
+      expect(code).toBe(1001);
+      expect(messages).toHaveLength(2);
+      expect(messages[1] === final).toBe(true);
+      expect(calls).toEqual(["add"]);
+    } finally {
+      standIn.respond = respond;
+    }
+  });
+
+  it("drops a WebSocket that outlasts the drain, and records its response as lost", async () => {
+    const { runtime, plan, calls } = await worker(20);
+    const busy = await connect(plan);
+    const firstEvent = once(busy.client, "message");
+    busy.client.send(JSON.stringify(wsCreate("thread-socket-late", "turn-1", [user("hi")])));
+    await firstEvent;
+    await runtime.stop();
+    expect((await busy.closed)[0]).toBe(1006);
+    expect(calls).toEqual(["lost 1", "dropped 1: the worker shut down before they finished"]);
   });
 });
