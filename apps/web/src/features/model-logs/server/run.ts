@@ -11,7 +11,7 @@ import {
 import { sql } from "drizzle-orm";
 import { db } from "@/lib/server/db";
 import { ApiError } from "@/lib/server/api/errors";
-import { requestFailedSql, requestOfTurn } from "./runs";
+import { requestFailedSql, requestOfTurn } from "./attribution";
 import { toolsOf } from "./tools";
 
 const iso = (value: Date | string | null) =>
@@ -67,6 +67,7 @@ type RequestRow = {
   rate_limit_headers: Record<string, string> | null;
   parse_warnings: string[];
   sent_input_from: number | null;
+  bodies_expired_at: Date | null;
   input_items: number;
   output_items: number;
 };
@@ -78,6 +79,7 @@ type TotalsRow = {
   output_tokens: number;
   cost_micros: number;
   errors: number;
+  bodies_expired_at: Date | null;
 };
 
 /**
@@ -115,7 +117,7 @@ export async function getRunModelLogs(runId: string): Promise<RunModelLogs> {
         m.route, m.transport, m.method, m.endpoint, m.status, m.started_at, m.first_byte_at,
         m.ended_at, m.input_tokens, m.cached_input_tokens, m.output_tokens, m.reasoning_tokens,
         m.cost_micros, m.stop_reason, m.error_type, m.error_message, m.rate_limit_headers,
-        m.parse_warnings, m.sent_input_from,
+        m.parse_warnings, m.sent_input_from, m.bodies_expired_at,
         (select count(*) from model_request_items i
           where i.request_id = m.id and i.side = 'input')::int as input_items,
         (select count(*) from model_request_items i
@@ -128,7 +130,8 @@ export async function getRunModelLogs(runId: string): Promise<RunModelLogs> {
         coalesce(sum(m.cached_input_tokens), 0)::float8 as cached_input_tokens,
         coalesce(sum(m.output_tokens), 0)::float8 as output_tokens,
         coalesce(sum(m.cost_micros), 0)::float8 as cost_micros,
-        (count(*) filter (where ${requestFailedSql("m")}))::int as errors
+        (count(*) filter (where ${requestFailedSql("m")}))::int as errors,
+        min(m.bodies_expired_at) as bodies_expired_at
       from run_turns rt
       join runs r on r.id = rt.run_id
       join model_requests m on ${requestOfTurn("rt", "r", "m")}
@@ -201,6 +204,7 @@ export async function getRunModelLogs(runId: string): Promise<RunModelLogs> {
       inputItems: row.input_items,
       outputItems: row.output_items,
       sentInputFrom: row.sent_input_from,
+      bodiesExpiredAt: iso(row.bodies_expired_at),
       turnMatch: match,
       retryOf: retries.get(row.id) ?? null,
       toolCalls: tools.calls.get(row.id) ?? [],
@@ -240,6 +244,7 @@ export async function getRunModelLogs(runId: string): Promise<RunModelLogs> {
     })),
     unlinkedTools: tools.unlinked,
     events: eventCount.rows[0]?.count ?? 0,
+    bodiesExpiredAt: iso(totals.bodies_expired_at),
   };
 }
 

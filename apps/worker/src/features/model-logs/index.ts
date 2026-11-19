@@ -13,4 +13,5 @@ export {
   modelProxyUrl,
   workerUrlFromComputer,
 } from "./routing";
+export { ModelLogRetention, type RetentionOptions, type SweepResult } from "./retention";
 export { ModelLogWriter } from "./writer";

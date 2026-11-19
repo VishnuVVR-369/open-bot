@@ -20,6 +20,7 @@ import {
   type ModelRoute,
   type ModelTransport,
 } from "@open-bot/domain";
+import { sql } from "drizzle-orm";
 import {
   bigint,
   check,
@@ -51,7 +52,15 @@ export const modelBlobs = pgTable(
     bytes: integer("bytes").notNull(),
     createdAt: createdAt(),
   },
-  (table) => [check("model_blobs_kind_check", oneOf(table.kind, MODEL_BLOB_KINDS))],
+  (table) => [
+    check("model_blobs_kind_check", oneOf(table.kind, MODEL_BLOB_KINDS)),
+    // Text search over what was sent and what came back: each blob's JSON string values, decoded,
+    // the first 100,000 characters of them. `model_blob_search_text` is created by migration 0039.
+    index("model_blobs_search_idx").using(
+      "gin",
+      sql`to_tsvector('simple', model_blob_search_text(${table.content}))`,
+    ),
+  ],
 );
 
 /** One model request: who made it, how it went, and the parts of it that aren't blobs. */
@@ -112,12 +121,31 @@ export const modelRequests = pgTable(
     requestBytes: bigint("request_bytes", { mode: "number" }).notNull().default(0),
     responseBytes: bigint("response_bytes", { mode: "number" }).notNull().default(0),
     parseWarnings: jsonb("parse_warnings").$type<string[]>().notNull().default([]),
+    /**
+     * When the retention sweep removed the request's bodies: its items, instructions, tools,
+     * response text, reasoning summary, raw response and tool call arguments. Null while kept.
+     */
+    bodiesExpiredAt: timestamp("bodies_expired_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (table) => [
     index("model_requests_turn_idx").on(table.codexThreadId, table.codexTurnId),
     index("model_requests_started_idx").on(table.startedAt),
     index("model_requests_teammate_idx").on(table.teammateId, table.startedAt),
+    // Filtering runs and usage by model.
+    index("model_requests_model_idx").on(table.model, table.startedAt),
+    // Deleting a blob checks nothing still names it; without these that is a scan per blob.
+    index("model_requests_instructions_idx").on(table.instructionsHash),
+    index("model_requests_tools_idx").on(table.toolsHash),
+    // The retention sweep's next batch: the oldest requests that still have bodies.
+    index("model_requests_unexpired_idx")
+      .on(table.startedAt)
+      .where(sql`${table.bodiesExpiredAt} is null`),
+    // Text search over responses (see `MODEL_LOG_SEARCH_CHARS` in @open-bot/domain).
+    index("model_requests_response_search_idx").using(
+      "gin",
+      sql`to_tsvector('simple', left(coalesce(${table.responseText}, ''), 100000))`,
+    ),
     check("model_requests_source_check", oneOf(table.source, MODEL_REQUEST_SOURCES)),
     check("model_requests_route_check", oneOf(table.route, MODEL_ROUTES)),
     check("model_requests_transport_check", oneOf(table.transport, MODEL_TRANSPORTS)),
@@ -211,10 +239,23 @@ export const codexEvents = pgTable(
      */
     deltaCounts: jsonb("delta_counts").$type<Record<string, Record<string, number>>>(),
     at: timestamp("at", { withTimezone: true }).notNull(),
+    /**
+     * When the retention sweep cut `payload` down to what isn't a body: an item's type, id,
+     * status, exit code, duration, tool names and a short error, or a turn's id and status.
+     */
+    bodiesExpiredAt: timestamp("bodies_expired_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (table) => [
     index("codex_events_run_idx").on(table.runId, table.sequence),
+    // The Tools tab: tool items completed in a date range.
+    index("codex_events_completed_idx")
+      .on(table.at)
+      .where(sql`${table.method} = 'item/completed'`),
+    // The retention sweep's next batch: the oldest messages that still have their payload.
+    index("codex_events_unexpired_idx")
+      .on(table.at)
+      .where(sql`${table.bodiesExpiredAt} is null`),
     // Tool calls to their outcomes: model_tool_calls.call_id to the item in the request's thread.
     index("codex_events_item_idx").on(table.codexThreadId, table.itemId),
     index("codex_events_turn_idx").on(table.codexThreadId, table.codexTurnId),

@@ -2,7 +2,8 @@
 // something real to show: Kit's DST fix in code mode (nested tool calls, a failed request and its
 // retry, a large test log, a message too large to keep), Kit's migration that ran out of plan
 // and went on with the API key (two turns, direct shell calls), and lighter runs for the list.
-// Juno's first draft has no logs, for the empty state.
+// Juno's first draft has no logs, for the empty state. Six weeks of older work fill the Usage and
+// Tools tabs (`model-logs-history.ts`).
 import { randomUUID } from "node:crypto";
 import { plus, type SeedContext } from "./lib";
 import {
@@ -20,6 +21,7 @@ import {
   TOOLS,
 } from "./model-logs-lib";
 import { kitBug } from "./model-logs-dst";
+import { seedModelLogHistory } from "./model-logs-history";
 
 const API_TOOLS = [
   {
@@ -281,4 +283,5 @@ export async function seedModelLogs(ctx: SeedContext) {
     "Two good options, both nonstop on TAP.",
     16_300,
   );
+  await seedModelLogHistory(ctx, log);
 }

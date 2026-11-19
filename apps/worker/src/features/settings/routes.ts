@@ -18,6 +18,10 @@ export function settingsRoutes(settings: SettingsService) {
       await settings.saveApiKey(input.apiKey);
       return ok;
     }),
+    setModelLogRetention: os.settings.setModelLogRetention.handler(async ({ input }) => {
+      await settings.setModelLogRetention(input.days);
+      return ok;
+    }),
     removeApiKey: os.settings.removeApiKey.handler(async () => {
       await settings.removeApiKey();
       return ok;

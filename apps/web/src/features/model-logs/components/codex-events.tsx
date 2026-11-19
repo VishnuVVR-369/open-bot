@@ -63,7 +63,11 @@ function EventRow({ event }: { event: CodexEventSummary }) {
             event.omitted ? "text-destructive" : "text-muted-foreground",
           )}
         >
-          {event.omitted ? "Not stored" : formatSize(event.size)}
+          {event.omitted
+            ? "Not stored"
+            : event.bodiesExpiredAt
+              ? "Expired"
+              : formatSize(event.size)}
         </span>
       </button>
       {open && (
@@ -73,7 +77,15 @@ function EventRow({ event }: { event: CodexEventSummary }) {
               Only a note was kept for this message: {event.omitted}, {formatSize(event.size)}.
             </p>
           ) : (
-            <Payload eventId={event.id} />
+            <>
+              {event.bodiesExpiredAt && (
+                <p className="text-[12.5px] text-muted-foreground">
+                  Its body expired on {format(new Date(event.bodiesExpiredAt), "MMM d, yyyy")}. What
+                  is left says what the message was about and how it ended.
+                </p>
+              )}
+              <Payload eventId={event.id} />
+            </>
           )}
           {event.itemId && (
             <p className="font-mono text-[11.5px] text-muted-foreground [overflow-wrap:anywhere]">

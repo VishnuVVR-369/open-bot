@@ -73,6 +73,8 @@ export const runs = pgTable(
   (table) => [
     index("runs_chat_idx").on(table.chatId, table.createdAt),
     index("runs_status_idx").on(table.status),
+    // Newest first, a page at a time, keyed by (created_at, id) (model logs' runs list).
+    index("runs_created_idx").on(table.createdAt, table.id),
     index("runs_bot_idx").on(table.botId, table.createdAt),
     index("runs_trigger_idx").on(table.triggerId, table.createdAt),
     // Upload cleanup asks which runs carry a file.

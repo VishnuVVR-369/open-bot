@@ -34,6 +34,7 @@ const FEATURES: Record<string, Pick<Feature, "start">> = {
       off: () => undefined as never,
     },
     async () => {},
+    { start() {}, stop: async () => {} },
   ),
   notifications: notificationsFeature({ push: loop, fcm: loop }),
   telegramPolling: telegramFeature({ start: async () => {}, stop() {} }, { error() {} }),
@@ -156,6 +157,11 @@ describe("shutdown order", async () => {
     expect(at("codex event tap")).toBeLessThan(at("model log writer"));
   });
 
+  it("stops the retention sweep before the writer and the database", () => {
+    expect(at("model log retention")).toBeLessThan(at("model log writer"));
+    expect(at("model log retention")).toBeLessThan(at("database"));
+  });
+
   it("drains the model proxy after its HTTP server, before its writer, before the database", () => {
     expect(at("http server")).toBeLessThan(at("model proxy"));
     expect(at("model proxy")).toBeLessThan(at("model log writer"));
@@ -205,12 +211,14 @@ describe("stopping services", () => {
     const runtime = new Runtime(log);
     // Registered first, so it closes last, as in index.ts.
     runtime.add("database", () => announced.push("database closed"));
-    await modelLogsFeature(writer, announce).start(runtime);
+    // The retention sweep, started last, stops before the writer drains.
+    const retention = { start() {}, stop: async () => void announced.push("sweep stopped") };
+    await modelLogsFeature(writer, announce, retention).start(runtime);
     const stopped = runtime.stop();
     await vi.advanceTimersByTimeAsync(100);
     await stopped;
     expect(announce).toHaveBeenCalledTimes(1);
-    expect(announced).toEqual(["model logs", "database closed"]);
+    expect(announced).toEqual(["sweep stopped", "model logs", "database closed"]);
     expect(writer.listenerCount("written")).toBe(0);
     expect(vi.getTimerCount()).toBe(0);
   });

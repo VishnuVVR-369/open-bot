@@ -4,9 +4,11 @@ import {
   type CodexEventDirection,
   type CodexEventKind,
   describeItem,
+  expiredParams,
   instructionsText,
   offeredTools,
   rebuildInput,
+  rebuildRequestBody,
 } from "@open-bot/domain";
 import { sql } from "drizzle-orm";
 import { db } from "@/lib/server/db";
@@ -14,6 +16,10 @@ import { ApiError } from "@/lib/server/api/errors";
 
 type RequestRow = {
   id: string;
+  source: string;
+  request_kind: string | null;
+  endpoint: string;
+  bodies_expired_at: Date | null;
   params: Record<string, unknown> | null;
   request_headers: Record<string, string>;
   response_headers: Record<string, string> | null;
@@ -29,12 +35,14 @@ type ItemRow = { side: "input" | "output"; position: number; content: string | n
 
 /**
  * One request's bodies, read when it is opened: the input rebuilt in order from its stored items,
- * the instructions, the tools, and the response.
+ * the instructions, the tools, the response, and the whole body in the shape it was sent. Once
+ * its bodies expired, only the parameters that say how it was asked are left (`expiredParams`).
  */
 export async function getModelRequestBodies(requestId: string): Promise<ModelRequestBodies> {
   const [request, items] = await Promise.all([
     db.execute<RequestRow>(sql`
-      select m.id, m.params, m.request_headers, m.response_headers, m.sent_input_from,
+      select m.id, m.source, m.request_kind, m.endpoint, m.bodies_expired_at, m.params,
+        m.request_headers, m.response_headers, m.sent_input_from,
         m.response_text, m.reasoning_summary, m.raw_response,
         ib.content as instructions, tb.content as tools
       from model_requests m
@@ -65,6 +73,19 @@ export async function getModelRequestBodies(requestId: string): Promise<ModelReq
       }
       return { position: item.position, ...describeItem(parsed), json: item.content };
     });
+  const expired = row.bodies_expired_at !== null;
+  const params = expired ? expiredParams(row.params) : row.params;
+  const body = expired
+    ? null
+    : rebuildRequestBody({
+        source: row.source,
+        requestKind: row.request_kind,
+        endpoint: row.endpoint,
+        params: row.params,
+        instructions: row.instructions,
+        tools: row.tools,
+        input: items.rows.filter((item) => item.side === "input").map((item) => item.content),
+      });
   return {
     id: row.id,
     input: input.items,
@@ -75,7 +96,8 @@ export async function getModelRequestBodies(requestId: string): Promise<ModelReq
     responseText: row.response_text || null,
     reasoningSummary: row.reasoning_summary || null,
     rawResponse: row.raw_response,
-    params: row.params ? JSON.stringify(row.params, null, 2) : null,
+    params: params ? JSON.stringify(params, null, 2) : null,
+    body: body ? JSON.stringify(body, null, 2) : null,
     requestHeaders: row.request_headers ?? {},
     responseHeaders: row.response_headers,
   };
@@ -91,13 +113,14 @@ type EventRow = {
   codex_turn_id: string | null;
   size: number | null;
   omitted: string | null;
+  bodies_expired_at: Date | null;
   delta_counts: Record<string, Record<string, number>> | null;
 };
 
 /** A run's Codex messages in wire order, without their payloads. */
 export async function listRunEvents(runId: string): Promise<CodexEventSummary[]> {
   const { rows } = await db.execute<EventRow>(sql`
-    select id, at, direction, kind, method, item_id, codex_turn_id, delta_counts,
+    select id, at, direction, kind, method, item_id, codex_turn_id, delta_counts, bodies_expired_at,
       payload->>'omitted' as omitted,
       (case when payload->>'size' ~ '^[0-9]+$' and payload ? 'omitted'
         then (payload->>'size')::float8
@@ -114,6 +137,7 @@ export async function listRunEvents(runId: string): Promise<CodexEventSummary[]>
     turnId: row.codex_turn_id,
     size: Number(row.size ?? 0),
     omitted: row.omitted,
+    bodiesExpiredAt: row.bodies_expired_at ? new Date(row.bodies_expired_at).toISOString() : null,
     deltaCounts: row.delta_counts,
   }));
 }

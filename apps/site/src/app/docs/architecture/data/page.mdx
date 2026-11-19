@@ -484,7 +484,8 @@ The inspector shows the run's turns and each request in them, with its kind, mod
 A request that failed shows its error, and the next request of the same kind in the same turn is marked as its retry.
 A prewarm has no turn id, so it is placed by time, and says so.
 Out of every turn of its thread, from any run, it goes to the latest one that had started when it was sent, if that turn's run was still going; else to the next one, if that started within 10 seconds after it, since Codex can send a prewarm before `turn/start` returns and the turn is saved.
-So each prewarm counts toward one run only, in the list's totals and in the inspector alike (`unturnedTurnSql` in `apps/web/src/features/model-logs/server/runs.ts`).
+So each prewarm counts toward one run only, in the list's totals and in the inspector alike (`unturnedTurnSql` in `apps/web/src/features/model-logs/server/attribution.ts`).
+The list's search and filters, the Usage tab and the export attribute requests by the same rule (`requestOfTurn` in the same file).
 The lookup walks the thread's turns in start order through the `run_turns_thread_started_idx` index, and runs only for requests between the turn's start, less the slack, and its run's end.
 A run with more than 500 requests lists its first 500, says so, and counts all of them in its totals.
 What the last listed calls did after the cut still shows: an item that started before the cut keeps its completion, a listed call's own item shows whenever it was reported, and a code-mode cell keeps the items that started while it was known to run.
@@ -503,3 +504,78 @@ The run's Codex messages are listed last, collapsed, and each payload loads when
 Bodies are shown as text, never as HTML.
 The procedures are `modelLogs.runs`, `modelLogs.run`, `modelLogs.request`, `modelLogs.events` and `modelLogs.event` (`packages/api/src/contracts/model-logs.ts`), which read the tables directly from the web app (`apps/web/src/features/model-logs/server/`) and need the owner's session.
 How a run's requests, tool calls and outcomes are put together is pure logic in `@open-bot/domain` (`packages/domain/src/model-logs/run-view.ts` and `items.ts`).
+
+### Browsing and search
+
+The Runs tab filters the list by teammate, chat, model, status (done, failed, stopped, working, or any run with a failed request), access mode (plan or API key) and dates.
+The filters live in the page's address, so a filtered view reloads and goes back as it was.
+Dates are whole days in the browser's time zone.
+The search box finds runs by what was sent and what came back: the stored items, the instructions and the tool definitions in `model_blobs`, and each response's text.
+A blob that matches is followed to every request that names it, as an item, as its instructions or as its tools.
+It is Postgres full-text search with the `simple` configuration, read with `websearch_to_tsquery`, so quotes find a phrase, `-` leaves a word out, and nothing typed can break the query.
+Two GIN expression indexes serve it, `model_blobs_search_idx` and `model_requests_response_search_idx`, over the first 100,000 characters of each text (`MODEL_LOG_SEARCH_CHARS`), which keeps every document under Postgres's 1 MB `tsvector` limit.
+A blob is stored as JSON, so it is searched by its string values decoded, never by its JSON text: a word after a newline is its own word, and `\"` or `\u00e9` read as the characters they stand for.
+The function `model_blob_search_text` (created by migration `0039`) gives that text, without object keys, the values of structural fields (`type`, `role`, `status`, `id`, `call_id`) or encrypted reasoning; the index, the search and the snippet all call it the same way.
+A blob that jsonb can't read (a NUL kept as `\u0000`, or text that isn't JSON), or one over a million characters, is read as its text with the escapes undone instead, so indexing never fails a write.
+Queries that parse blobs for other reasons use `model_blob_jsonb`, which gives null for such a blob rather than failing the query.
+A match shows a snippet from `ts_headline` with the words that matched marked, on one line, with at most four words before the first match so it stays in view.
+The snippet is cut from 4,000 characters around the first place a searched word appears, so it costs the same wherever in the first 100,000 characters the match is.
+That window is used only when the whole search matches it; otherwise (the word was found inside another one, or a phrase or another word is further on) the whole searchable text is read.
+Requests whose bodies have expired are not searched.
+Pages are read by keyset, never by offset: each page's cursor is the last run's creation time to the microsecond and its id (`runs_created_idx`), validated as above.
+
+### Tools
+
+The Tools tab (`/settings/model-logs/tools`) counts each tool's calls over a range, across teammates: how many failed, how many outcomes were too large to keep, and the median and slowest 5% of durations.
+It reads the `item/completed` rows of `codex_events` (`codex_events_completed_idx`), so it counts every call Codex made, nested ones included.
+Below the table, its failures are listed newest first, each with its input and output, and a link to its run.
+Each failure says how sure the link to the model's call is, in the words of the inspector: called exactly, likely made by the only code cell running then, or one of several cells.
+An expired failure keeps its tool, status and a short error, without its input or output.
+
+### Usage
+
+The Usage tab (`/settings/model-logs/usage`) reads only `model_requests`, and changes nothing else: Settings' own usage view, the reply footer, the monthly cap and `usage_entries` work as before.
+It shows tokens (input, cached input, output and reasoning), the cached share, the cost on the API key and failed requests, by day in the owner's time zone, or by week (Monday first) over ranges longer than 92 days.
+The same numbers are listed per teammate and per model, and per day as a table.
+A request belongs to its run's teammate, or to the teammate the proxy let it through for when its run is gone.
+The plan's usage windows are drawn from the rate-limit headers stored on each plan response: the highest reading each hour over ranges up to 3 days, and each day's peak over longer ones.
+This calendar month's API key spend, from the model logs, is shown against the monthly cap.
+The month is a UTC calendar month, as the cap counts it, and is labeled that way ("November (UTC)").
+A range can span at most 400 days.
+
+### Retention
+
+The owner chooses how long model logs keep their bodies, in the Retention tab (`/settings/model-logs/retention`): forever, which is the default, or from 7 days to a year.
+The choice is `settings.model_log_retention_days`, empty for forever, and is saved through the worker (`POST /internal/settings/model-log-retention`).
+A sweep in the worker (`apps/worker/src/features/model-logs/retention.ts`) runs 2 minutes after start, then once a day, and again right after the choice changes.
+It removes the bodies of everything logged before the window, oldest first:
+
+- for a request, its items, instructions and tools, its response text, reasoning summary and raw response, its tool calls' arguments, and every parameter but those that say how it was asked, then sets `bodies_expired_at`;
+- for a Codex message, its payload down to what the item was, how it ended and the tool it named (`EXPIRED_ITEM_FIELDS`), with an error cut to 300 characters, then sets `bodies_expired_at`;
+- then the blobs nothing names any more.
+
+Numbers, statuses, error messages, tool names and links stay, so the Runs, Tools and Usage tabs keep their numbers.
+A request's parameters can carry text too: a Responses `input` that isn't a list stays in `params`, and other endpoints send prompts and metadata there.
+So an expired request keeps only the parameters a list names (`expiredParams` in `packages/domain/src/model-logs/retention.ts`): the model, effort, limits, flags and the like, with plain values.
+A field the list doesn't name is removed, so a new one is never kept by accident.
+Each batch is its own short transaction, locked with `FOR UPDATE SKIP LOCKED`, and the partial indexes `model_requests_unexpired_idx` and `codex_events_unexpired_idx` find what is left.
+A blob is deleted only once no request names it; the writer takes a `FOR KEY SHARE` lock on the blobs it reuses, and a delete that meets a blob the writer named meanwhile is tried again without it.
+One sweep runs at a time, across workers too (an advisory lock), and shutdown stops it between batches, before the writer drains; the next sweep goes on from there.
+The inspector says when a run's bodies expired, and marks each expired request.
+
+### Export
+
+The inspector and the runs list link to a JSONL export (`GET /api/model-logs/export`): every request of one run (`?runId=`), or of a range of dates (`?from=&to=`), oldest first, one JSON object per line.
+Each line holds the request rebuilt in full, as it was sent, with its response and everything else known about it (`exportLine` in `packages/domain/src/model-logs/export.ts`).
+The body takes the shape of the API it called (`rebuildRequestBody`), told apart by the stored endpoint and, for memory, what the call did:
+
+- a Responses request gets its items back under `input`, unless its `input` wasn't a list, which then stays as it was in the parameters;
+- a chat completion (memory extraction) gets them back under `messages`;
+- an embedding gets its one string back under `input`, or its list.
+
+Storage can't tell an embedding of a one-string list from one of that string, and both ask the embeddings API the same thing; memory only sends a string.
+An empty input list is left out of the rebuilt body.
+The inspector's "Copy body" uses the same function.
+A range takes every request in its dates, whatever the list's other filters, including requests that belong to no run.
+The export streams: it reads 25 requests at a time, each request's bodies on their own, and only as fast as the download takes them, so no run or range is held in memory whole and nothing is capped.
+An expired request is exported without its bodies (`request` and `response` are null), with only the parameters retention keeps, and says when they expired, as the inspector does.

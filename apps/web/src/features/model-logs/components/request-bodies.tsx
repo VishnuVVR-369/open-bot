@@ -146,29 +146,6 @@ function Headers({ title, headers }: { title: string; headers: Record<string, st
   );
 }
 
-/** The body as it was sent, rebuilt from its parts, for copying out. */
-function rebuiltBody(bodies: ModelRequestBodies): string {
-  const parse = (text: string | null) => {
-    if (text === null) return null;
-    try {
-      return JSON.parse(text) as unknown;
-    } catch {
-      return text;
-    }
-  };
-  const params = (parse(bodies.params) ?? {}) as Record<string, unknown>;
-  return JSON.stringify(
-    {
-      ...params,
-      ...(bodies.instructions !== null ? { instructions: bodies.instructions } : {}),
-      ...(bodies.tools.length ? { tools: bodies.tools.map((tool) => parse(tool.json)) } : {}),
-      input: bodies.input.map((item) => parse(item.json)),
-    },
-    null,
-    2,
-  );
-}
-
 function Bodies({ bodies }: { bodies: ModelRequestBodies }) {
   return (
     <Tabs defaultValue="input" className="min-w-0 gap-3">
@@ -237,7 +214,7 @@ function Bodies({ bodies }: { bodies: ModelRequestBodies }) {
           <p className="text-[12.5px] text-muted-foreground">
             The body rebuilt from its stored parts, to send again or compare.
           </p>
-          <CopyButton text={rebuiltBody(bodies)} label="Copy body" />
+          {bodies.body && <CopyButton text={bodies.body} label="Copy body" />}
         </div>
         {bodies.params && <JsonBlock json={bodies.params} label="Parameters" />}
         <Headers title="Request headers" headers={bodies.requestHeaders} />

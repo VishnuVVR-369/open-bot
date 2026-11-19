@@ -1,6 +1,7 @@
 import { base, computer, ok } from "../base";
 import { chatgptAuthSourceSchema } from "@open-bot/domain";
 import { z } from "zod";
+import { modelLogRetentionInputSchema } from "../../model-logs";
 import { apiKeyInputSchema, monthlyCapInputSchema } from "../../settings";
 import { codexRateLimitsSchema, codexStatusSchema } from "../views";
 
@@ -22,6 +23,11 @@ export const settingsContract = {
     .output(ok),
   removeApiKey: base
     .route({ method: "POST", path: "/internal/settings/api-key/delete" })
+    .output(ok),
+  /** How many days model logs keep their bodies, or forever (null); starts a sweep. */
+  setModelLogRetention: base
+    .route({ method: "POST", path: "/internal/settings/model-log-retention" })
+    .input(modelLogRetentionInputSchema)
     .output(ok),
 };
 

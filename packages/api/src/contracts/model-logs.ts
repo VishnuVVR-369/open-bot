@@ -1,58 +1,45 @@
 import { z } from "zod";
-import { base, id } from "../base";
+import { base, ok, id } from "../base";
 import {
   codexEventSummarySchema,
+  keysetCursorSchema,
+  modelLogFilterOptionsSchema,
+  modelLogRetentionInputSchema,
+  modelLogRetentionViewSchema,
+  modelLogRunFiltersSchema,
   modelLogRunsSchema,
+  modelLogToolsInputSchema,
+  modelLogUsageInputSchema,
+  modelLogUsageSchema,
   modelRequestBodiesSchema,
   runModelLogsSchema,
+  toolFailuresInputSchema,
+  toolFailuresSchema,
+  toolStatSchema,
 } from "../model-logs";
 
 /** How many runs a page of the list holds. */
 export const MODEL_LOG_RUNS_PAGE = 50;
+/** How many tool failures a page holds. */
+export const TOOL_FAILURES_PAGE = 20;
 
 /** How many of a run's requests the inspector lists, the first ones; its totals count them all. */
 export const MODEL_LOG_RUN_REQUESTS = 500;
 
-const CURSOR =
-  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})\.\d{6}Z_[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
-
-/** Whether the cursor's time is a real one: a month that exists, a day it has, a time of day. */
-function realInstant(cursor: string): boolean {
-  const match = CURSOR.exec(cursor);
-  if (!match) return false;
-  const [year, month, day, hour, minute, second] = match.slice(1).map(Number) as [
-    number,
-    number,
-    number,
-    number,
-    number,
-    number,
-  ];
-  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
-  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1];
-  return (
-    year >= 1 &&
-    days !== undefined &&
-    day >= 1 &&
-    day <= days &&
-    hour < 24 &&
-    minute < 60 &&
-    second < 60
-  );
-}
-
 /**
  * Where a page of runs starts: the creation time, to the microsecond, and the id of the run before
- * it, as `nextBefore` gave them. Opaque to clients; one that isn't a real time is refused.
+ * it, as `nextBefore` gave them. Opaque to clients; one that isn't a real time is refused. The
+ * tool failures page the same way.
  */
-export const runsCursorSchema = z
-  .string()
-  .regex(CURSOR, "Not a page of runs")
-  .refine(realInstant, "Not a page of runs");
+export const runsCursorSchema = keysetCursorSchema;
 
 export const modelLogsContract = {
-  /** Runs that have model logs, newest first. */
-  runs: base.input(z.object({ before: runsCursorSchema.optional() })).output(modelLogRunsSchema),
+  /** Runs that have model logs, newest first, filtered and searched, a page at a time. */
+  runs: base
+    .input(modelLogRunFiltersSchema.extend({ before: runsCursorSchema.optional() }))
+    .output(modelLogRunsSchema),
+  /** The teammates, chats and models the runs list can be filtered by. */
+  filters: base.output(modelLogFilterOptionsSchema),
   /** One run's turns, model requests and tool calls, without request bodies. */
   run: base.input(z.object({ runId: id })).output(runModelLogsSchema),
   /** One request's input, instructions, tools and response. */
@@ -61,4 +48,14 @@ export const modelLogsContract = {
   events: base.input(z.object({ runId: id })).output(z.array(codexEventSummarySchema)),
   /** One Codex message's payload, as JSON text. */
   event: base.input(z.object({ eventId: id })).output(z.object({ payload: z.string() })),
+  /** Each tool's calls, failures and duration across teammates over a range. */
+  tools: base.input(modelLogToolsInputSchema).output(z.array(toolStatSchema)),
+  /** Every failed tool call over a range, newest first, with its input and output. */
+  toolFailures: base.input(toolFailuresInputSchema).output(toolFailuresSchema),
+  /** Tokens, cost, errors and plan windows over a range, and this month's API key spend. */
+  usage: base.input(modelLogUsageInputSchema).output(modelLogUsageSchema),
+  /** How long bodies are kept. */
+  retention: base.output(modelLogRetentionViewSchema),
+  /** Keep bodies this many days, or forever (null). The worker saves it and sweeps. */
+  setRetention: base.input(modelLogRetentionInputSchema).output(ok),
 };
