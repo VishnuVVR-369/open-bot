@@ -9,6 +9,7 @@ import { fileRoutes } from "@/features/files/server";
 import { homeRoutes } from "@/features/home/server";
 import { integrationRoutes } from "@/features/integrations/server";
 import { memoryRoutes } from "@/features/memory/server";
+import { modelLogRoutes } from "@/features/model-logs/server";
 import { pageRoutes } from "@/features/pages/server";
 import { settingsRoutes } from "@/features/settings/server";
 import { skillRoutes } from "@/features/skills/server";
@@ -35,4 +36,5 @@ export const router = os.router({
   notifications: notificationRoutes(),
   pages: pageRoutes(),
   approvals: approvalRoutes(),
+  modelLogs: modelLogRoutes(),
 });

@@ -13,6 +13,7 @@ import {
   type ReactNode,
 } from "react";
 import { toast } from "sonner";
+import { SNAPSHOT_FREE_EVENTS } from "@open-bot/api";
 import { parseAppEvent } from "@open-bot/domain";
 import { isOutdated } from "../deployment";
 import type { NotificationView, StreamRunEvent } from "../types";
@@ -127,9 +128,9 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       }
     });
     source.addEventListener("app", (message) => {
-      invalidateState();
       // An event this version doesn't know (from a newer server) only refreshes the snapshots.
       const event = parseAppEvent(JSON.parse((message as MessageEvent<string>).data));
+      if (!event || !SNAPSHOT_FREE_EVENTS.has(event.type)) invalidateState();
       if (!event) return;
       void refreshForAppEvent(queryClient, event);
       if (event.type === "notification" && event.id) void onNotification(event.id);

@@ -242,6 +242,13 @@ export const runTurns = pgTable(
   (table) => [
     primaryKey({ columns: [table.codexThreadId, table.codexTurnId] }),
     index("run_turns_run_idx").on(table.runId, table.startedAt),
+    // A request that names no turn is placed by its thread's turns in the order they started,
+    // the latest before it or the next after it (the web app's `unturnedTurnSql`).
+    index("run_turns_thread_started_idx").on(
+      table.codexThreadId,
+      table.startedAt,
+      table.codexTurnId,
+    ),
     check("run_turns_access_mode_check", oneOf(table.accessMode, AUTH_MODES)),
   ],
 );

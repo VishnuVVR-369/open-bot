@@ -11,6 +11,7 @@ import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import { asc, eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { ModelRequestRecord } from "./capture";
+import { ModelLogAnnouncer } from "./announcer";
 import { ModelLogWriter } from "./writer";
 
 const url = testDatabaseServer();
@@ -151,5 +152,45 @@ describe.skipIf(!url)("model log writer", () => {
       { endpoint: "/live-teammate", teammateId: present!.id },
       { endpoint: "/no-teammate", teammateId: null },
     ]);
+  });
+
+  it("announces saved model logs only once their batch was committed", async () => {
+    // What a tab refreshing on the announcement would read, when it is made.
+    const seen = new Promise<string[]>((resolve) => {
+      const announcer = new ModelLogAnnouncer(
+        writer,
+        async () => {
+          announcer.stop();
+          const rows = await db
+            .select({ endpoint: modelRequests.endpoint })
+            .from(modelRequests)
+            .orderBy(asc(modelRequests.endpoint));
+          resolve(rows.map((row) => row.endpoint).filter((e) => e.startsWith("/announced")));
+        },
+        0,
+      );
+      announcer.start();
+    });
+    // Hold the batch's transaction open: its requests are inserted, its items wait.
+    const holder = await database.pool.connect();
+    await holder.query("begin");
+    await holder.query("lock table model_request_items in access exclusive mode");
+    writer.add(record("/announced-1"));
+    writer.add(record("/announced-2"));
+    writer.add(record("/announced-3"));
+    await expect
+      .poll(
+        async () =>
+          (
+            await database.pool.query<{ waiting: number }>(
+              `select count(*)::int as waiting from pg_locks
+               where not granted and relation = 'model_request_items'::regclass`,
+            )
+          ).rows[0]!.waiting,
+      )
+      .toBe(1);
+    await holder.query("commit");
+    holder.release();
+    expect(await seen).toEqual(["/announced-1", "/announced-2", "/announced-3"]);
   });
 });

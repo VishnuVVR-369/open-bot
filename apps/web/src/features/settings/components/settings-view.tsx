@@ -1,6 +1,5 @@
 "use client";
 
-import { Bell, Brain, Plug, ShieldCheck, SunMoon, UserRound } from "lucide-react";
 import { useEffect, useSyncExternalStore } from "react";
 import { cn } from "@/lib/utils";
 import { ConnectionsSection, EmailSection } from "@/features/integrations";
@@ -18,28 +17,7 @@ import { FallbackSection } from "./fallback-section";
 import { UsageSection } from "./usage-section";
 import { ProfileBlock } from "./profile-block";
 import { AppearanceSection } from "./appearance-section";
-
-type GroupId = "account" | "memory" | "appearance" | "notifications" | "connections" | "security";
-
-/** Settings in groups, one group at a time. Old links to a section (#email) open its group. */
-const GROUPS: { id: GroupId; label: string; icon: typeof UserRound; sections: string[] }[] = [
-  {
-    id: "account",
-    label: "Account",
-    icon: UserRound,
-    sections: ["chatgpt", "plan", "usage", "timezone"],
-  },
-  { id: "memory", label: "Memory", icon: Brain, sections: ["about"] },
-  { id: "appearance", label: "Appearance", icon: SunMoon, sections: [] },
-  { id: "notifications", label: "Notifications", icon: Bell, sections: ["telegram"] },
-  { id: "connections", label: "Connections", icon: Plug, sections: ["email", "browsing"] },
-  {
-    id: "security",
-    label: "Security",
-    icon: ShieldCheck,
-    sections: ["password", "set-password", "passkeys"],
-  },
-];
+import { GROUPS, type GroupId, SettingsNav } from "./settings-nav";
 
 function subscribeHash(onChange: () => void) {
   window.addEventListener("hashchange", onChange);
@@ -57,38 +35,6 @@ function useHash() {
 function groupFor(hash: string): GroupId {
   return (
     GROUPS.find((group) => group.id === hash || group.sections.includes(hash))?.id ?? "account"
-  );
-}
-
-function SettingsNav({ current }: { current: GroupId }) {
-  return (
-    <nav aria-label="Settings" className="md:sticky md:top-0 md:self-start">
-      <ul className="-mx-5 flex gap-1 overflow-x-auto px-5 [scrollbar-width:none] md:mx-0 md:flex-col md:gap-0.5 md:px-0">
-        {GROUPS.map((group) => {
-          const Icon = group.icon;
-          const active = group.id === current;
-          return (
-            <li key={group.id} className="shrink-0">
-              <a
-                href={`#${group.id}`}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "flex h-9 items-center gap-2.5 rounded-lg px-3 text-[14px] whitespace-nowrap transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/12",
-                  // A quiet gray fill marks where you are; on the white page a raised white
-                  // surface didn't show.
-                  active
-                    ? "bg-muted font-medium text-foreground"
-                    : "text-muted-foreground hover:bg-subtle hover:text-foreground",
-                )}
-              >
-                <Icon className="size-4 shrink-0" />
-                {group.label}
-              </a>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
   );
 }
 

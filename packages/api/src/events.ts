@@ -25,9 +25,16 @@ export const APP_EVENT_REFRESHES: Record<AppEventType, readonly ProcedurePath[]>
     ["teammates", "list"],
     ["chats", "list"],
   ],
-  // Runs starting and finishing show up in automations' history and in chat lists. An open chat
-  // follows its own stream, so `chats.get` isn't refreshed for every chat's news.
-  chats: [["chats", "list"], ["schedules"], ["triggers"], ["teammates", "list"]],
+  // Runs starting and finishing show up in automations' history, in chat lists and in the model
+  // logs' run list. An open chat follows its own stream, so `chats.get` isn't refreshed for every
+  // chat's news, and neither is an open run inspector, whose read is heavier.
+  chats: [
+    ["chats", "list"],
+    ["schedules"],
+    ["triggers"],
+    ["teammates", "list"],
+    ["modelLogs", "runs"],
+  ],
   schedules: [["schedules"]],
   triggers: [["triggers"]],
   profile: [["profile"]],
@@ -50,7 +57,16 @@ export const APP_EVENT_REFRESHES: Record<AppEventType, readonly ProcedurePath[]>
   auth: [["settings", "modelAccess"]],
   // The owner's settings, like the time zone, which only the shell's state carries.
   settings: [],
+  // Model logs were saved: a run's first turn puts it in the list, its requests change its totals.
+  // Sent at most every couple of seconds while runs work, so it leaves the inspector alone.
+  modelLogs: [["modelLogs", "runs"]],
 };
+
+/**
+ * Events that can't change the snapshots (`ALWAYS_REFRESHED`), so they don't refresh them. Model
+ * logs are announced every couple of seconds while a run works.
+ */
+export const SNAPSHOT_FREE_EVENTS: ReadonlySet<AppEventType> = new Set(["modelLogs"]);
 
 /** The snapshots every event refreshes, on top of what `APP_EVENT_REFRESHES` lists. */
 export const ALWAYS_REFRESHED: readonly ProcedurePath[] = [

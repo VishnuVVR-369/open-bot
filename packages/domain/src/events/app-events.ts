@@ -27,6 +27,7 @@ export const APP_EVENT_TYPES = [
   "pages",
   "auth",
   "settings",
+  "modelLogs",
 ] as const;
 
 /** An app event that carries nothing but its type. */

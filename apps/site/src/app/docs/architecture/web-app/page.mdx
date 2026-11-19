@@ -95,6 +95,7 @@ A comment line every 20 seconds keeps proxies from closing the connection.
 `RealtimeProvider` (`src/lib/client/realtime.tsx`) owns the tab's single `EventSource`:
 
 - An `app` event is parsed with `appEventSchema` (`@open-bot/domain`) and refreshes the procedures `APP_EVENT_REFRESHES` (`@open-bot/api`) names for it, plus the shell's state and Home, debounced by 120 ms.
+  Events in `SNAPSHOT_FREE_EVENTS` (model logs, announced every couple of seconds while a run works) leave the state and Home alone.
   An event type the tab doesn't know only refreshes those two.
 - A server that is stopping (SIGTERM, as on a deploy) ends every stream and turns new ones away with a closed connection, so tabs reconnect to the new deploy instead of staying on the old server until it is killed.
 - A `ready` event names the deploy serving it.

@@ -2,7 +2,17 @@
 
 import { formatDollars } from "@open-bot/domain";
 import { format } from "date-fns";
-import { Brain, Check, Copy, MoreHorizontal, RotateCcw, Square, Volume2 } from "lucide-react";
+import {
+  Brain,
+  Check,
+  Copy,
+  MoreHorizontal,
+  RotateCcw,
+  ScrollText,
+  Square,
+  Volume2,
+} from "lucide-react";
+import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -19,6 +29,7 @@ import { readAloud, readingNow, stopReading, useReadAloud } from "@/lib/client/r
 import type { RunView } from "@/lib/types";
 import { cn, runClock, compactNumber, formatDuration, REVEAL_ON_RUN_HOVER } from "@/lib/utils";
 import { RunMemory } from "@/features/memory";
+import { runInspectorHref } from "@/features/model-logs";
 
 /** A reply action: a 32px target with a 16px glyph, quiet until you point at the reply. */
 const ACTION = "size-8 text-muted-foreground [&_svg:not([class*='size-'])]:size-4";
@@ -49,7 +60,8 @@ export function CopyReply({ text }: { text: string }) {
 }
 
 /**
- * The reply's less common actions, by name: which memories it was given, and reading it aloud.
+ * The reply's less common actions, by name: which memories it was given, reading it aloud, and
+ * its model requests in the run inspector.
  * While it's being read, a stop button stays in the row.
  */
 export function MoreActions({ runId, text }: { runId: string; text: string }) {
@@ -128,6 +140,12 @@ export function MoreActions({ runId, text }: { runId: string; text: string }) {
                   {reading ? "Stop reading" : "Read aloud"}
                 </DropdownMenuItem>
               )}
+              <DropdownMenuItem asChild>
+                <Link href={runInspectorHref(runId)} data-testid="inspect-run">
+                  <ScrollText />
+                  Inspect model requests
+                </Link>
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </span>

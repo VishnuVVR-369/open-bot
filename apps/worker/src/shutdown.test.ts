@@ -10,6 +10,7 @@ import { emailFeature } from "./features/email";
 import { AccountActions, integrationsFeature } from "./features/integrations";
 import { memoryFeature } from "./features/memory";
 import { modelLogsFeature } from "./features/model-logs";
+import { Runtime } from "./core/runtime";
 import { telegramFeature } from "./features/telegram";
 import { FcmService, notificationsFeature, PushService } from "./features/notifications";
 
@@ -25,7 +26,15 @@ const FEATURES: Record<string, Pick<Feature, "start">> = {
     { warn() {} },
   ),
   memoryJobs: memoryFeature(loop),
-  modelLogs: modelLogsFeature({ start() {}, stop: async () => {} }),
+  modelLogs: modelLogsFeature(
+    {
+      start() {},
+      stop: async () => {},
+      on: () => undefined as never,
+      off: () => undefined as never,
+    },
+    async () => {},
+  ),
   notifications: notificationsFeature({ push: loop, fcm: loop }),
   telegramPolling: telegramFeature({ start: async () => {}, stop() {} }, { error() {} }),
 };
@@ -153,6 +162,11 @@ describe("shutdown order", async () => {
     expect(at("model log writer")).toBeLessThan(at("database"));
   });
 
+  it("announces the model logs the writer drains, before the database closes", () => {
+    expect(at("model log writer")).toBeLessThan(at("model log announcer"));
+    expect(at("model log announcer")).toBeLessThan(at("database"));
+  });
+
   it("pauses the computer before stopping the connections it pauses, and closes the database last", () => {
     for (const part of ["egress relay", "codex", "computer"])
       expect(at("computer lifecycle"), part).toBeLessThan(at(part));
@@ -172,6 +186,33 @@ describe("stopping services", () => {
     vi.clearAllMocks();
     vi.useRealTimers();
     events.removeAllListeners();
+  });
+
+  it("announces the model logs the writer saves as it drains at shutdown", async () => {
+    // The writer's last batch commits while it stops; announcing it takes a moment.
+    const writer = Object.assign(new EventEmitter<{ written: [records: number] }>(), {
+      start() {},
+      stop: async () => {
+        await Promise.resolve();
+        writer.emit("written", 2);
+      },
+    });
+    const announced: string[] = [];
+    const announce = vi.fn(async () => {
+      await new Promise<void>((resolve) => setTimeout(resolve, 50));
+      announced.push("model logs");
+    });
+    const runtime = new Runtime(log);
+    // Registered first, so it closes last, as in index.ts.
+    runtime.add("database", () => announced.push("database closed"));
+    await modelLogsFeature(writer, announce).start(runtime);
+    const stopped = runtime.stop();
+    await vi.advanceTimersByTimeAsync(100);
+    await stopped;
+    expect(announce).toHaveBeenCalledTimes(1);
+    expect(announced).toEqual(["model logs", "database closed"]);
+    expect(writer.listenerCount("written")).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("stops web push", () => {
