@@ -13,6 +13,7 @@ import {
   type AuthMode,
   type CodexEventDirection,
   type CodexEventKind,
+  EXPIRED_ITEM_FIELDS,
   type ModelBlobKind,
   outputTexts,
   requestCostMicros,
@@ -86,6 +87,9 @@ export interface RequestSpec {
   tokens?: { input: number; cached: number; output: number; reasoning?: number };
   error?: { type: string; message: string };
   rateLimits?: Record<string, string>;
+  model?: string;
+  /** Bodies removed by the retention sweep on this date: numbers kept, text gone. */
+  expiredAt?: Date;
 }
 
 /** Plan usage, as the rate-limit headers on each plan response say it. */
@@ -127,6 +131,8 @@ export class LogSeeder {
     const endedAt = spec.endMs === undefined ? null : plus(spec.startedAt, spec.endMs);
     const { text, reasoningSummary } = outputTexts(spec.output);
     const tokens = spec.tokens;
+    const model = spec.model ?? "gpt-5.5";
+    const expired = spec.expiredAt !== undefined;
     await this.db.insert(modelRequests, {
       id,
       source: "codex",
@@ -138,7 +144,7 @@ export class LogSeeder {
       codexTurnId: spec.turnId,
       requestKind: spec.kind,
       teammateId: spec.teammateId,
-      model: "gpt-5.5",
+      model,
       responseId: spec.status === 200 ? `resp_${randomUUID().replaceAll("-", "")}` : null,
       status: spec.status,
       startedAt: spec.startedAt,
@@ -170,7 +176,7 @@ export class LogSeeder {
       responseHeaders: websocket ? null : { "content-type": "text/event-stream" },
       rateLimitHeaders: spec.rateLimits ?? null,
       params: {
-        model: "gpt-5.5",
+        model,
         stream: true,
         store: false,
         parallel_tool_calls: true,
@@ -180,18 +186,18 @@ export class LogSeeder {
         ...(spec.kind === "prewarm" ? { generate: false } : {}),
       },
       sentInputFrom: websocket ? (spec.sentInputFrom ?? null) : null,
-      instructionsHash: spec.instructions
-        ? await this.blob(spec.instructions, "instructions")
-        : null,
-      toolsHash: spec.tools?.length ? await this.blob(spec.tools, "tools") : null,
-      responseText: text || null,
-      reasoningSummary: reasoningSummary || null,
+      instructionsHash:
+        spec.instructions && !expired ? await this.blob(spec.instructions, "instructions") : null,
+      toolsHash: spec.tools?.length && !expired ? await this.blob(spec.tools, "tools") : null,
+      responseText: expired ? null : text || null,
+      reasoningSummary: expired ? null : reasoningSummary || null,
+      bodiesExpiredAt: spec.expiredAt ?? null,
       requestBytes: JSON.stringify(spec.input).length,
       responseBytes: JSON.stringify(spec.output).length,
     });
     for (const [side, items] of [
-      ["input", spec.input],
-      ["output", spec.output],
+      ["input", expired ? [] : spec.input],
+      ["output", expired ? [] : spec.output],
     ] as const)
       for (const [position, item] of items.entries())
         await this.db.insert(modelRequestItems, {
@@ -201,7 +207,11 @@ export class LogSeeder {
           blobHash: await this.blob(item, "item"),
         });
     for (const call of toolCallsOf(spec.output))
-      await this.db.insert(modelToolCalls, { requestId: id, ...call });
+      await this.db.insert(modelToolCalls, {
+        requestId: id,
+        ...call,
+        ...(expired ? { arguments: null } : {}),
+      });
     return { id, endedAt, firstByteAt };
   }
 
@@ -228,6 +238,7 @@ export class LogSeeder {
     rpcId?: string | null;
     payload: unknown;
     deltaCounts?: Record<string, Record<string, number>>;
+    expiredAt?: Date;
   }) {
     this.sequence += 1;
     await this.db.insert(codexEvents, {
@@ -243,17 +254,49 @@ export class LogSeeder {
       payload: spec.payload,
       deltaCounts: spec.deltaCounts ?? null,
       at: spec.at,
+      bodiesExpiredAt: spec.expiredAt ?? null,
     });
   }
 
-  /** A tool item's started and completed messages; a completed `null` is a stub too large to keep. */
+  /**
+   * A tool item's started and completed messages; a completed `null` is a stub too large to keep.
+   * `expiredAt` stores both as the retention sweep leaves them: what the item was and how it
+   * ended (`EXPIRED_ITEM_FIELDS`), without what it was given or gave back.
+   */
   async item(
     base: { runId: string; threadId: string; turnId: string },
     item: Record<string, unknown> & { id: string },
     from: Date,
     durationMs: number,
     completed: Record<string, unknown> | null,
+    expiredAt?: Date,
   ) {
+    if (expiredAt) {
+      const skeleton = (fields: Record<string, unknown>) => ({
+        expired: true,
+        threadId: base.threadId,
+        turnId: base.turnId,
+        item: Object.fromEntries(
+          EXPIRED_ITEM_FIELDS.filter((key) => fields[key] !== undefined).map((key) => [
+            key,
+            fields[key],
+          ]),
+        ),
+      });
+      for (const [method, at, fields] of [
+        ["item/started", from, { ...item, status: "inProgress" }],
+        ["item/completed", plus(from, durationMs), { ...item, ...completed, durationMs }],
+      ] as const)
+        await this.event({
+          ...base,
+          at,
+          method,
+          itemId: item.id,
+          payload: skeleton(fields),
+          expiredAt,
+        });
+      return;
+    }
     await this.event({
       ...base,
       at: from,

@@ -26,6 +26,14 @@ export function between(from: string | null, to: string | null): string | null {
   return ms < 1000 ? `${ms} ms` : formatDuration(ms);
 }
 
+/** A duration in milliseconds, short; a dash when unknown. */
+export function formatMs(ms: number | null): string {
+  if (ms === null) return "-";
+  if (ms < 1000) return `${Math.round(ms)} ms`;
+  // Tools mostly take seconds, where a tenth tells two apart.
+  return ms < 10_000 ? `${(ms / 1000).toFixed(1)}s` : formatDuration(ms);
+}
+
 /** A size in characters or bytes, short. */
 export function formatSize(count: number): string {
   if (count < 1024) return `${count} B`;

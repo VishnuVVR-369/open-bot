@@ -32,6 +32,8 @@ export const LOCKS = {
   memory: (scope: `bot:${string}` | "shared") => scope, // vocabulary: allow
   /** One screen's input, held across botd calls (a session lock, see `withTryLock`). */
   screen: (screenId: string) => `screen:${screenId}`,
+  /** One model log retention sweep at a time, across workers (a session lock). */
+  modelLogRetention: "model_log_retention",
   /** Which of a teammate's chats is its main chat: choosing, handing on or making one. */
   mainChat: (teammateId: string) => `main_chat:${teammateId}`,
 } as const;

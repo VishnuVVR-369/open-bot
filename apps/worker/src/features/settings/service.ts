@@ -19,7 +19,11 @@ export class SettingsError extends WorkerError {
 type Changes = Partial<
   Pick<
     typeof settings.$inferInsert,
-    "timezone" | "monthlyCapMicros" | "chatgptAuthSource" | "planLimitedUntil"
+    | "timezone"
+    | "monthlyCapMicros"
+    | "chatgptAuthSource"
+    | "planLimitedUntil"
+    | "modelLogRetentionDays"
   >
 >;
 
@@ -36,9 +40,18 @@ export async function saveSettings(db: Queryable, changes: Changes): Promise<voi
     .onConflictDoUpdate({ target: settings.id, set: changes });
 }
 
+/** What other features do when a setting they act on changes. */
+export interface SettingsHooks {
+  /** Model logs' retention window changed: sweep now rather than at the next daily sweep. */
+  modelLogRetentionChanged?: () => void;
+}
+
 /** The settings you change in Settings. */
 export class SettingsService {
-  constructor(private readonly ctx: Context) {}
+  constructor(
+    private readonly ctx: Context,
+    private readonly hooks: SettingsHooks = {},
+  ) {}
 
   async setTimezone(timezone: string): Promise<void> {
     if (!isValidTimeZone(timezone)) throw new SettingsError("Unknown timezone.");
@@ -50,6 +63,13 @@ export class SettingsService {
   async setMonthlyCap(dollars: number): Promise<void> {
     await saveSettings(this.ctx.db, { monthlyCapMicros: Math.round(dollars * 1_000_000) });
     await publishApp(this.ctx, { type: "auth" });
+  }
+
+  /** How many days model logs keep their bodies; null keeps them forever. */
+  async setModelLogRetention(days: number | null): Promise<void> {
+    await saveSettings(this.ctx.db, { modelLogRetentionDays: days });
+    await publishApp(this.ctx, { type: "settings" });
+    this.hooks.modelLogRetentionChanged?.();
   }
 
   /** The OpenAI API key teammates continue on when the plan's limit is reached. */

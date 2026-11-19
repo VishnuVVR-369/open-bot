@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   between,
   formatCost,
+  formatMs,
   formatSize,
   requestKindLabel,
   runInspectorHref,
@@ -34,5 +35,12 @@ describe("model log formatting", () => {
 
   it("links a run to its inspector under Settings", () => {
     expect(runInspectorHref("r1")).toBe("/settings/model-logs/runs/r1");
+  });
+
+  it("times a tool in milliseconds, then tenths of a second, then whole seconds", () => {
+    expect(formatMs(null)).toBe("-");
+    expect(formatMs(212.4)).toBe("212 ms");
+    expect(formatMs(1450)).toBe("1.4s");
+    expect(formatMs(75_000)).toBe("1m 15s");
   });
 });

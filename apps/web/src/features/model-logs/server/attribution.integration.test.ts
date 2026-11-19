@@ -283,7 +283,7 @@ describe.skipIf(!apiTestUrl)("model logs across runs and at scale", () => {
   });
 
   it("finds the turn a prewarm belongs to through the thread's turns in order, by index", async () => {
-    const { unturnedTurnSql } = await import("./runs");
+    const { unturnedTurnSql } = await import("./attribution");
     const plan = await database.db.transaction(async (tx) => {
       // The tables are tiny here; this asks which plan Postgres would use once they aren't.
       await tx.execute(sql`set local enable_seqscan = off`);

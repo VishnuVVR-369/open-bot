@@ -15,6 +15,9 @@
  *   done      (green)   healthy or finished, and never beside a zero
  * Use `attention` for fills, dots and tints, and `attention-ink` for amber text and icons.
  * `tally` is the red light in the logo, a brand mark, not a status.
+ * Charts are the one other place with color: `chart-1` (blue), `chart-2` (aqua) and `chart-3`
+ * (orange) tell a chart's series apart, in that order, and mean nothing outside a chart. They
+ * were checked as a set for color-blind readers on the card, in both themes.
  */
 
 @theme inline {
@@ -59,6 +62,9 @@
   --color-done: var(--done);
   --color-tally: var(--tally);
   --color-faint: var(--faint);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
   --shadow-canvas: var(--elev-canvas);
   --shadow-raised: var(--elev-raised);
   --shadow-float: var(--elev-float);
@@ -117,6 +123,10 @@
   --idle: #a3a7b0;
   --done: #23935b;
   --tally: #e5484d;
+  /* Chart series (see the top of this file). */
+  --chart-1: #2a78d6;
+  --chart-2: #1baf7a;
+  --chart-3: #eb6834;
   /* Depth: a hairline and a soft fall-off, never a heavy drop shadow. */
   --elev-canvas:
     0 0 0 1px rgb(16 17 22 / 0.055), 0 1px 2px rgb(16 17 22 / 0.04),
@@ -175,6 +185,9 @@
   --idle: #6b6f79;
   --done: #3cb878;
   --tally: #f0585d;
+  --chart-1: #3987e5;
+  --chart-2: #199e70;
+  --chart-3: #d95926;
   --elev-canvas: 0 0 0 1px rgb(255 255 255 / 0.055), 0 12px 32px -16px rgb(0 0 0 / 0.6);
   --elev-raised:
     0 0 0 1px rgb(255 255 255 / 0.075), inset 0 1px 0 rgb(255 255 255 / 0.03),

@@ -83,7 +83,8 @@ export function firstToolOutputsSql(requestIds: string[]): SQL {
       order by m.codex_thread_id, i.blob_hash, m.started_at, i.request_id
     ),
     parsed as materialized (
-      select b.hash, b.content::jsonb as j
+      -- Null for a blob jsonb refuses, which then counts as no output (migration 0039).
+      select b.hash, model_blob_jsonb(b.content) as j
       from model_blobs b
       where b.hash in (select blob_hash from firsts)
         and b.kind = 'item'

@@ -188,6 +188,7 @@ Some configuration lives in the database, changed in Settings rather than in the
 | OpenAI API key                                                    | `credentials`, encrypted                                  |
 | Monthly API cap                                                   | `settings.monthly_cap_micros`                             |
 | Your time zone                                                    | `settings.timezone`, set from your browser on first visit |
+| How long model logs keep their bodies (empty is forever)          | `settings.model_log_retention_days`                       |
 | Egress mode                                                       | `computers.egress_mode`                                   |
 | Telegram bot token and linked chat                                | `credentials` and `telegram`                              |
 | Email domain and Postmark token                                   | `email_settings`, and the token in `credentials`          |

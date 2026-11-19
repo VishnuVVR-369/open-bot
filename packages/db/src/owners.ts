@@ -126,13 +126,14 @@ export const TABLE_OWNERS = {
   account_actions: { owner: `${WORKER}features/integrations/actions.ts` },
   account_resources: { owner: "packages/integrations/src/providers/notion/runner.ts" },
 
-  // Model logs: the proxy's buffered writer is the only thing that saves them.
-  model_requests: { owner: `${WORKER}features/model-logs/writer.ts` },
-  model_blobs: { owner: `${WORKER}features/model-logs/writer.ts` },
-  model_request_items: { owner: `${WORKER}features/model-logs/writer.ts` },
+  // Model logs: the proxy's buffered writer saves them, and the retention sweep
+  // (`retention.ts`) expires their bodies.
+  model_requests: { owner: `${WORKER}features/model-logs/` },
+  model_blobs: { owner: `${WORKER}features/model-logs/` },
+  model_request_items: { owner: `${WORKER}features/model-logs/` },
   model_log_gaps: { owner: `${WORKER}features/model-logs/writer.ts` },
-  model_tool_calls: { owner: `${WORKER}features/model-logs/writer.ts` },
-  codex_events: { owner: `${WORKER}features/model-logs/writer.ts` },
+  model_tool_calls: { owner: `${WORKER}features/model-logs/` },
+  codex_events: { owner: `${WORKER}features/model-logs/` },
   run_turns: { owner: `${WORKER}features/model-logs/writer.ts` },
 
   // Memory.

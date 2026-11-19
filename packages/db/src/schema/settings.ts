@@ -59,5 +59,10 @@ export const settings = pgTable("settings", {
   aboutMeUpdatedAt: timestamp("about_me_updated_at", { withTimezone: true }),
   /** Set when Codex reported the ChatGPT plan's usage limit; runs use the API key until then. */
   planLimitedUntil: timestamp("plan_limited_until", { withTimezone: true }),
+  /**
+   * How many days model logs keep their bodies (inputs, responses, tool arguments, Codex message
+   * payloads); null keeps them forever. Numbers, statuses, tool names and links never expire.
+   */
+  modelLogRetentionDays: integer("model_log_retention_days"),
   updatedAt: updatedAt(),
 });

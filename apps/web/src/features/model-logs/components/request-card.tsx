@@ -3,7 +3,7 @@
 import type { ModelRequestSummary } from "@open-bot/api";
 import { compactNumber } from "@open-bot/domain";
 import { format } from "date-fns";
-import { AlertTriangle, ChevronDown, RotateCcw } from "lucide-react";
+import { AlertTriangle, ChevronDown, Hourglass, RotateCcw } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { between, formatCost, requestKindLabel } from "../format";
@@ -126,6 +126,12 @@ export function RequestCard({ request, index }: { request: ModelRequestSummary; 
               Retry
             </span>
           )}
+          {request.bodiesExpiredAt && (
+            <span className="flex shrink-0 items-center gap-1 rounded-full bg-subtle px-2 py-px text-[11.5px] text-muted-foreground">
+              <Hourglass className="size-3" />
+              Expired
+            </span>
+          )}
           {request.failed && (
             <span className="shrink-0 rounded-full bg-destructive/10 px-2 py-px text-[11.5px] font-medium text-destructive">
               Failed{request.status ? ` · ${request.status}` : ""}
@@ -186,7 +192,15 @@ export function RequestCard({ request, index }: { request: ModelRequestSummary; 
         >
           <Facts request={request} />
           {request.rateLimits && <RateLimits limits={request.rateLimits} />}
-          <RequestBodies requestId={request.id} />
+          {request.bodiesExpiredAt ? (
+            <p className="text-[13px] text-muted-foreground" data-testid="request-expired">
+              What it sent and what came back expired on{" "}
+              {format(new Date(request.bodiesExpiredAt), "MMM d, yyyy")}, under your retention
+              setting. The numbers above stay.
+            </p>
+          ) : (
+            <RequestBodies requestId={request.id} />
+          )}
         </div>
       )}
     </li>

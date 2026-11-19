@@ -55,11 +55,18 @@ export const APP_EVENT_REFRESHES: Record<AppEventType, readonly ProcedurePath[]>
   ],
   // The ChatGPT sign-in, and the API key that takes over when the plan runs out.
   auth: [["settings", "modelAccess"]],
-  // The owner's settings, like the time zone, which only the shell's state carries.
-  settings: [],
-  // Model logs were saved: a run's first turn puts it in the list, its requests change its totals.
-  // Sent at most every couple of seconds while runs work, so it leaves the inspector alone.
-  modelLogs: [["modelLogs", "runs"]],
+  // The owner's settings: the time zone, which only the shell's state carries, and how long model
+  // logs keep their bodies.
+  settings: [["modelLogs", "retention"]],
+  // Model logs were saved: a run's first turn puts it in the list, its requests change its totals
+  // and the Tools and Usage tabs' numbers. Sent at most every couple of seconds while runs work, so
+  // it leaves the inspector alone.
+  modelLogs: [
+    ["modelLogs", "runs"],
+    ["modelLogs", "tools"],
+    ["modelLogs", "toolFailures"],
+    ["modelLogs", "usage"],
+  ],
 };
 
 /**

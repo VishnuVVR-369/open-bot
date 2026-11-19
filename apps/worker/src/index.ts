@@ -37,6 +37,7 @@ import { ModelAccess } from "./features/model-access";
 import {
   CodexEventTap,
   memoryRequestObserver,
+  ModelLogRetention,
   ModelLogWriter,
   modelLogsFeature,
   ModelProxy,
@@ -94,8 +95,11 @@ await addComputerRow(db);
 // the tap redacts and queues the messages it was still holding, and then the writer saves what
 // is queued before the database closes.
 const modelLogWriter = new ModelLogWriter(db, log.child("model-logs"));
-const modelLogs = modelLogsFeature(modelLogWriter, () =>
-  publishApp({ pool }, { type: "modelLogs" }),
+const modelLogRetention = new ModelLogRetention(pool, log.child("model-log-retention"));
+const modelLogs = modelLogsFeature(
+  modelLogWriter,
+  () => publishApp({ pool }, { type: "modelLogs" }),
+  modelLogRetention,
 );
 await modelLogs.start(runtime);
 const sessions = new SessionRegistry();
@@ -472,7 +476,9 @@ const server = createHttpServer({
   pages,
   codexAccount: new CodexAccountService(ctx),
   egressDevices: new EgressDevices(ctx, egress),
-  settings: new SettingsService(ctx),
+  settings: new SettingsService(ctx, {
+    modelLogRetentionChanged: () => modelLogRetention.kick(),
+  }),
   vault,
   modelProxy,
 });

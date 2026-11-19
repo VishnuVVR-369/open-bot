@@ -35,7 +35,11 @@ export {
   feedbackInputSchema,
 } from "./contracts/chat";
 export { decideApprovalInputSchema } from "./contracts/approvals";
-export { MODEL_LOG_RUN_REQUESTS, MODEL_LOG_RUNS_PAGE } from "./contracts/model-logs";
+export {
+  MODEL_LOG_RUN_REQUESTS,
+  MODEL_LOG_RUNS_PAGE,
+  TOOL_FAILURES_PAGE,
+} from "./contracts/model-logs";
 
 /**
  * The open-bot API, shared by the web app (which implements it at `/api/rpc`, and reads through

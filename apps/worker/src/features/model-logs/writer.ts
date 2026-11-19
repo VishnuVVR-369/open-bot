@@ -381,13 +381,16 @@ export class ModelLogWriter extends EventEmitter<ModelLogWriterEvents> {
       const blobs = new Map(
         records.flatMap((record) => record.blobs.map((blob) => [blob.hash, blob])),
       );
-      // Most of a request's items were sent before: only new ones go over the wire.
+      // Most of a request's items were sent before: only new ones go over the wire. The ones
+      // reused are locked until commit, so the retention sweep can't delete one this batch is
+      // about to name; one it deleted first reads as new and is written again.
       const known = new Set<string>();
       for (const hashes of slices([...blobs.keys()])) {
         const rows = await tx
           .select({ hash: modelBlobs.hash })
           .from(modelBlobs)
-          .where(inArray(modelBlobs.hash, hashes));
+          .where(inArray(modelBlobs.hash, hashes))
+          .for("key share");
         for (const row of rows) known.add(row.hash);
       }
       const fresh = [...blobs.values()]

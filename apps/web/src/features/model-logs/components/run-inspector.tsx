@@ -3,15 +3,17 @@
 import type { ModelLogTurn, RunModelLogs } from "@open-bot/api";
 import { compactNumber } from "@open-bot/domain";
 import { format } from "date-fns";
-import { ChevronLeft, KeyRound, ScrollText } from "lucide-react";
+import { ChevronLeft, Download, Hourglass, KeyRound, ScrollText } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { BotAvatar as TeammateAvatar } from "@/components/bot-avatar"; // vocabulary: allow
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isNotFound } from "@/lib/client/errors";
 import { chatHref } from "@/lib/utils";
 import { useAppState } from "@/features/app-shell";
 import { formatCost, runStatusLabel } from "../format";
+import { exportRunHref } from "../ranges";
 import { useRunModelLogs } from "../hooks";
 import { CodexEvents } from "./codex-events";
 import { RequestCard } from "./request-card";
@@ -180,6 +182,29 @@ function Logs({ logs }: { logs: RunModelLogs }) {
         <NoLogs chatId={logs.run.chatId} runId={logs.run.id} />
       ) : (
         <>
+          {logs.bodiesExpiredAt && (
+            <div
+              className="flex items-start gap-3 rounded-xl border bg-card px-4 py-3"
+              data-testid="bodies-expired"
+            >
+              <Hourglass className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+              <div className="flex flex-col gap-0.5 text-[13px]">
+                <span className="font-medium">
+                  Bodies expired on {format(new Date(logs.bodiesExpiredAt), "MMM d, yyyy")}
+                </span>
+                <span className="text-muted-foreground">
+                  What this run sent the model and what came back were removed under your{" "}
+                  <Link
+                    href="/settings/model-logs/retention"
+                    className="font-medium text-foreground underline-offset-4 hover:underline"
+                  >
+                    retention setting
+                  </Link>
+                  . Its numbers, statuses and tool names stay.
+                </span>
+              </div>
+            </div>
+          )}
           {logs.turns.length === 0 && (
             <p className="rounded-xl border border-dashed px-4 py-3 text-[13px] text-muted-foreground">
               Codex never started a turn for this run, so it made no model requests.
@@ -232,13 +257,28 @@ export function RunInspector({ runId }: { runId: string }) {
   return (
     <div className="h-full overflow-y-auto [scrollbar-gutter:stable]">
       <div className="mx-auto flex w-full max-w-[1040px] flex-col gap-6 px-4 py-8 sm:px-10 sm:py-12">
-        <Link
-          href="/settings/model-logs"
-          className="-ml-1 flex items-center gap-1 self-start text-[13px] text-muted-foreground hover:text-foreground"
-        >
-          <ChevronLeft className="size-4" />
-          Model logs
-        </Link>
+        <div className="flex items-center justify-between gap-3">
+          <Link
+            href="/settings/model-logs"
+            className="-ml-1 flex items-center gap-1 text-[13px] text-muted-foreground hover:text-foreground"
+          >
+            <ChevronLeft className="size-4" />
+            Model logs
+          </Link>
+          {logs.data && logs.data.totals.requests > 0 && (
+            <Button variant="outline" size="sm" asChild>
+              <a
+                href={exportRunHref(runId)}
+                download
+                title="Every model request of this run, rebuilt in full, one JSON object per line"
+                data-testid="export-run"
+              >
+                <Download />
+                Export JSONL
+              </a>
+            </Button>
+          )}
+        </div>
         {logs.data ? (
           <Logs logs={logs.data} />
         ) : logs.error ? (
