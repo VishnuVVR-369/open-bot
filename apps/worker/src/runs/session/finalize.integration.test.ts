@@ -27,7 +27,7 @@ describe.skipIf(!url)("finishing a run", () => {
     await database.drop();
   });
 
-  it("writes no usage_entries, and waits for the run's model logs before it says it's done", async () => {
+  it("waits for the run's model logs before it says it's done", async () => {
     const [teammate] = await db
       .insert(bots) // vocabulary: allow
       .values({ name: "Kit", slug: "kit", role: "Engineer", color: "#0ea5e9" })
@@ -77,8 +77,6 @@ describe.skipIf(!url)("finishing a run", () => {
 
     await complete(session, { status: "completed" });
 
-    const { rows } = await pool.query("select count(*)::int as count from usage_entries");
-    expect(rows[0].count).toBe(0);
     // Open chats read the footer when the status arrives, so the logs are saved first.
     expect(order).toEqual(["settle:thread-plan,thread-key", "usage", "status"]);
   });

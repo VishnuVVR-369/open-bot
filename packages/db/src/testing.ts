@@ -42,8 +42,8 @@ export type TestDatabase = {
    * rows as they were and then `migrate()` the rest. Call in `beforeAll`.
    */
   create(options?: { through?: string }): Promise<void>;
-  /** Applies the migrations not applied yet. */
-  migrate(): Promise<void>;
+  /** Applies the migrations not applied yet, or only those up to and including `through`. */
+  migrate(options?: { through?: string }): Promise<void>;
   /** Closes the pool and drops the database. Call in `afterAll`. */
   drop(): Promise<void>;
 };
@@ -98,6 +98,16 @@ export function testDatabase(server = process.env.TEST_DATABASE_URL): TestDataba
     }
   }
 
+  async function migrateThrough(through: string | undefined) {
+    if (!through) return migrate(db, { migrationsFolder: MIGRATIONS });
+    const folder = await migrationsThrough(through);
+    try {
+      await migrate(db, { migrationsFolder: folder });
+    } finally {
+      await rm(folder, { recursive: true, force: true });
+    }
+  }
+
   return {
     url,
     pool,
@@ -106,16 +116,10 @@ export function testDatabase(server = process.env.TEST_DATABASE_URL): TestDataba
       if (!server) throw new Error("TEST_DATABASE_URL is not set.");
       // The name is generated above from hex digits, never from input.
       await asAdmin((client) => client.query(`create database ${name}`));
-      if (!options.through) return migrate(db, { migrationsFolder: MIGRATIONS });
-      const folder = await migrationsThrough(options.through);
-      try {
-        await migrate(db, { migrationsFolder: folder });
-      } finally {
-        await rm(folder, { recursive: true, force: true });
-      }
+      await migrateThrough(options.through);
     },
-    async migrate() {
-      await migrate(db, { migrationsFolder: MIGRATIONS });
+    async migrate(options = {}) {
+      await migrateThrough(options.through);
     },
     async drop() {
       await pool.end();

@@ -51,10 +51,6 @@ Here they are grouped by what they're for:
         },
         { name: "artifacts", note: "Screenshots and uploads, as bytes" },
         {
-          name: "usage_entries",
-          note: "The old ledger of tokens and cost per run and auth mode, no longer written; copied into the legacy totals",
-        },
-        {
           name: "legacy_deleted_run_usage",
           note: "The legacy usage of deleted runs, so it keeps counting toward its month",
         },
@@ -392,7 +388,7 @@ Plan usage costs nothing per token, so its `cost_micros` is 0.
 API key usage is priced at the model's list prices, in millionths of a dollar.
 
 The legacy totals are what the old ledger, `usage_entries`, held for each run.
-Migration 0040 copies them onto the run, per access mode, through `copy_legacy_usage()`, and a trigger on `usage_entries` copies each entry written after it, so the totals hold every entry; only migrations and their triggers write these columns of `runs`:
+Migration 0040 copied them onto the run, per access mode, through `copy_legacy_usage()`, and a trigger on `usage_entries` copied each entry written after it, so the totals hold every entry; only migrations and their triggers write these columns of `runs`:
 
 - `legacy_plan_input_tokens`, `legacy_plan_cached_input_tokens`, `legacy_plan_output_tokens` and `legacy_plan_cost_micros`, for the ChatGPT plan.
 - `legacy_api_key_input_tokens`, `legacy_api_key_cached_input_tokens`, `legacy_api_key_output_tokens` and `legacy_api_key_cost_micros`, for the API key.
@@ -402,7 +398,7 @@ Migration 0040 copies them onto the run, per access mode, through `copy_legacy_u
 A mode the run never used stays null.
 Ledger entries whose run was already deleted go to `legacy_deleted_run_usage`, one row per entry, keyed by the entry's own key (`run:<id>:<mode>`), with its teammate and time, so they still count toward their month.
 The `runs_keep_legacy_usage` trigger moves a run's legacy totals there too, under the same keys, whenever a run with them is deleted.
-Both copies skip a key they already hold, so the migration that drops `usage_entries` can run the copy again first.
+Both copies skip a key they already hold, so migration 0041 ran the copy once more, under a lock, before it dropped `usage_entries`.
 
 `apiKeySpendMicros()` in `packages/db/src/usage.ts` adds up the API key's spend for the cap and Settings: counted API key requests, the cost `model_log_gaps.api_cost_micros` keeps of lost ones, and the legacy totals.
 `model_requests_api_started_idx`, partial on counted API key requests, keeps its sum of the month's requests small.
