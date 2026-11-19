@@ -17,6 +17,8 @@ Run orchestration, tools and instructions go in `apps/worker`, and the process i
 - Only the app-server methods listed in `Methods` are typed; add a method there before calling it.
 - Consumers import types only from `./protocol`; there is no runtime code in the generated folder.
 - The package depends on `ws`; the worker bundler must resolve it (`apps/worker/build.mjs`).
+- `connect()` takes an optional `WireObserver`, called with every message both ways (the worker's event log); it must not block, and the client ignores anything it throws.
+  The observer sees payloads unredacted, so it redacts before keeping anything (`redactCodexPayload` in `@open-bot/domain`).
 
 ## Tests
 

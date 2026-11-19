@@ -260,6 +260,13 @@
       "when": 1795071830389,
       "tag": "0036_model_requests_sent_input",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1795071922061,
+      "tag": "0037_model_log_codex_events",
+      "breakpoints": true
     }
   ]
 }

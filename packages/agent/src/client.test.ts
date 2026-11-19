@@ -99,6 +99,98 @@ describe("CodexClient", () => {
     client.close();
   });
 
+  it("shows the observer every message both ways, in wire order, with each response's method", async () => {
+    const { server, url } = fakeServer((socket, message) => {
+      if (message.method === "turn/start") {
+        socket.send(
+          JSON.stringify({
+            method: "turn/started",
+            params: { threadId: "t1", turn: { id: "u1" } },
+          }),
+        );
+        socket.send(
+          JSON.stringify({
+            id: 7,
+            method: "item/tool/call",
+            params: { threadId: "t1", turnId: "u1", callId: "call_1", tool: "x", arguments: {} },
+          }),
+        );
+        socket.send(JSON.stringify({ id: message.id, result: { turn: { id: "u1" } } }));
+      } else if (message.method === "turn/interrupt") {
+        socket.send(JSON.stringify({ id: message.id, error: { code: -1, message: "no turn" } }));
+      }
+    });
+    servers.push(server);
+    const seen: { direction: string; kind: string; method: string; id: unknown }[] = [];
+    const payloads: unknown[] = [];
+    const sizes: number[] = [];
+    // The tool call is answered only once the test lets it, so the order is fixed.
+    let answer!: () => void;
+    const answered = new Promise<void>((resolve) => (answer = resolve));
+    const client = await CodexClient.connect(
+      await url,
+      async () => {
+        await answered;
+        return { success: true, contentItems: [] };
+      },
+      undefined,
+      undefined,
+      ({ direction, kind, method, id, payload, size }) => {
+        seen.push({ direction, kind, method, id });
+        payloads.push(payload);
+        sizes.push(size);
+      },
+    );
+    await client.request("turn/start", { threadId: "t1", input: [] });
+    await expect(
+      client.request("turn/interrupt", { threadId: "t1", turnId: "u1" }),
+    ).rejects.toThrow("no turn");
+    answer();
+    await expect.poll(() => seen.some((m) => m.kind === "response" && m.id === 7)).toBe(true);
+    expect(seen).toEqual([
+      { direction: "to_codex", kind: "request", method: "initialize", id: 1 },
+      { direction: "from_codex", kind: "response", method: "initialize", id: 1 },
+      { direction: "to_codex", kind: "notification", method: "initialized", id: null },
+      { direction: "to_codex", kind: "request", method: "turn/start", id: 2 },
+      { direction: "from_codex", kind: "notification", method: "turn/started", id: null },
+      { direction: "from_codex", kind: "request", method: "item/tool/call", id: 7 },
+      { direction: "from_codex", kind: "response", method: "turn/start", id: 2 },
+      { direction: "to_codex", kind: "request", method: "turn/interrupt", id: 3 },
+      { direction: "from_codex", kind: "response", method: "turn/interrupt", id: 3 },
+      // The answer to the server request, after the handler resolved.
+      { direction: "to_codex", kind: "response", method: "item/tool/call", id: 7 },
+    ]);
+    expect(payloads[6]).toEqual({ result: { turn: { id: "u1" } } });
+    expect(payloads[8]).toEqual({ error: { code: -1, message: "no turn" } });
+    expect(payloads[9]).toEqual({ result: { success: true, contentItems: [] } });
+    // Each message's size is its JSON text's, both ways.
+    expect(sizes[6]).toBe(JSON.stringify({ id: 2, result: { turn: { id: "u1" } } }).length);
+    expect(sizes[9]).toBe(
+      JSON.stringify({ id: 7, result: { success: true, contentItems: [] } }).length,
+    );
+    client.close();
+  });
+
+  it("keeps working when the observer throws", async () => {
+    const { server, url } = fakeServer((socket, message) => {
+      if (message.method === "thread/start")
+        socket.send(JSON.stringify({ id: message.id, result: { thread: { id: "t1" } } }));
+    });
+    servers.push(server);
+    const client = await CodexClient.connect(
+      await url,
+      async () => ({}),
+      undefined,
+      undefined,
+      () => {
+        throw new Error("observer failed");
+      },
+    );
+    const started = await client.request("thread/start", {} as never);
+    expect(started.thread.id).toBe("t1");
+    client.close();
+  });
+
   it("fails pending requests when the connection drops", async () => {
     const { server, url } = fakeServer((socket, message) => {
       if (message.method === "turn/start") socket.terminate();

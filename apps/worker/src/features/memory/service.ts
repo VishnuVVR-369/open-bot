@@ -1,7 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import { memoryContexts, messages, runs, type Queryable } from "@open-bot/db";
 import { MemoryService, MemoryError, type MemoryActor } from "@open-bot/memory";
-import { MemoryAI, MemoryJobs, memoryAIConfig } from "@open-bot/memory/jobs";
+import { MemoryAI, type MemoryAIObserver, MemoryJobs, memoryAIConfig } from "@open-bot/memory/jobs";
 import {
   COMPUTER_PATHS,
   memoryMarkdown,
@@ -44,9 +44,13 @@ export class MemoryCoordinator {
   readonly store: MemoryService;
   readonly ai: MemoryAI;
   readonly jobs: MemoryJobs;
-  constructor(private readonly ctx: Context) {
+  /** `observer` is told about each memory AI call, for the model logs. */
+  constructor(
+    private readonly ctx: Context,
+    observer?: MemoryAIObserver,
+  ) {
     this.store = new MemoryService(ctx.db);
-    this.ai = new MemoryAI(ctx.db, memoryAIConfig(ctx.env));
+    this.ai = new MemoryAI(ctx.db, memoryAIConfig(ctx.env), observer);
     this.jobs = new MemoryJobs(this.store, this.ai, (message) => ctx.log.warn(message));
   }
   start() {

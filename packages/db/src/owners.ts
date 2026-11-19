@@ -131,6 +131,9 @@ export const TABLE_OWNERS = {
   model_blobs: { owner: `${WORKER}features/model-logs/writer.ts` },
   model_request_items: { owner: `${WORKER}features/model-logs/writer.ts` },
   model_log_gaps: { owner: `${WORKER}features/model-logs/writer.ts` },
+  model_tool_calls: { owner: `${WORKER}features/model-logs/writer.ts` },
+  codex_events: { owner: `${WORKER}features/model-logs/writer.ts` },
+  run_turns: { owner: `${WORKER}features/model-logs/writer.ts` },
 
   // Memory.
   memory_items: { owner: MEMORY },

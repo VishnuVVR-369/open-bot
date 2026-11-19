@@ -87,14 +87,46 @@ export const extractionSchema = z.object({
 
 export class MemoryBudgetError extends Error {}
 
+/** The most a memory AI response may hold. */
+const MAX_RESPONSE_BYTES = 1_000_000;
+
+/** One embedding or extraction call, as the app's observer sees it. It never holds the API key. */
+export interface MemoryAIRequest {
+  kind: "embedding" | "extraction";
+  url: string;
+  /** The JSON body sent. */
+  body: unknown;
+  /** The HTTP status, or null when no response came. */
+  status: number | null;
+  startedAt: Date;
+  /** When the response's headers arrived. */
+  firstByteAt: Date | null;
+  endedAt: Date;
+  /** The response body as read (up to the size limit), or null when none was read. */
+  response: string | null;
+  /** Why the call failed, or null when it didn't. */
+  error: string | null;
+}
+
+/**
+ * Told about each memory AI call once it ends, so the app can log it. Called synchronously; what
+ * it throws is ignored, so it never changes how the call goes.
+ */
+export type MemoryAIObserver = (request: MemoryAIRequest) => void;
+
 /** Optional compatible HTTP endpoints. Requests are bounded and never reuse plan credentials. */
 export class MemoryAI {
   constructor(
     private readonly db: Db,
     readonly config: MemoryAIConfig,
+    private readonly observer?: MemoryAIObserver,
   ) {}
 
-  private async request(url: string, body: unknown): Promise<unknown> {
+  private async request(
+    kind: MemoryAIRequest["kind"],
+    url: string,
+    body: unknown,
+  ): Promise<unknown> {
     if (this.config.dailyRequestLimit === 0) throw new Error("Memory AI is disabled.");
     const budget = await this.db
       .insert(memoryUsage)
@@ -107,40 +139,53 @@ export class MemoryAI {
       .returning({ requests: memoryUsage.requests });
     if (this.config.dailyRequestLimit === 0 || !budget.length)
       throw new MemoryBudgetError("Memory AI daily request limit reached.");
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        ...(this.config.apiKey ? { authorization: `Bearer ${this.config.apiKey}` } : {}),
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(15000),
-      redirect: "error",
-    });
-    if (!response.ok) throw new Error(`Memory AI request failed (${response.status}).`);
-    if (Number(response.headers.get("content-length") ?? 0) > 1_000_000)
-      throw new Error("Memory AI response is too large.");
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error("Memory AI returned no response.");
-    const chunks: Uint8Array[] = [];
-    let bytes = 0;
+    const report: MemoryAIRequest = {
+      kind,
+      url,
+      body,
+      status: null,
+      startedAt: new Date(),
+      firstByteAt: null,
+      endedAt: new Date(),
+      response: null,
+      error: null,
+    };
     try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        bytes += value.length;
-        if (bytes > 1_000_000) throw new Error("Memory AI response is too large.");
-        chunks.push(value);
-      }
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...(this.config.apiKey ? { authorization: `Bearer ${this.config.apiKey}` } : {}),
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15000),
+        redirect: "error",
+      });
+      report.status = response.status;
+      report.firstByteAt = new Date();
+      if (Number(response.headers.get("content-length") ?? 0) > MAX_RESPONSE_BYTES)
+        throw new Error("Memory AI response is too large.");
+      const text = await readBounded(response);
+      report.response = text;
+      if (!response.ok) throw new Error(`Memory AI request failed (${response.status}).`);
+      if (text === null) throw new Error("Memory AI returned no response.");
+      return JSON.parse(text) as unknown;
+    } catch (error) {
+      report.error = error instanceof Error ? error.message : String(error);
+      throw error;
     } finally {
-      await reader.cancel();
+      report.endedAt = new Date();
+      try {
+        this.observer?.(report);
+      } catch {
+        // Observing is best effort.
+      }
     }
-    return JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
   }
 
   async embed(text: string): Promise<number[] | undefined> {
     if (!this.config.embeddingUrl || this.config.dailyRequestLimit === 0) return undefined;
-    const raw = await this.request(this.config.embeddingUrl, {
+    const raw = await this.request("embedding", this.config.embeddingUrl, {
       model: this.config.embeddingModel,
       input: text.slice(0, 8000),
     });
@@ -156,7 +201,7 @@ export class MemoryAI {
     message: string,
   ): Promise<{ content: string; kind: MemoryKind; evidence: string }[]> {
     if (!this.config.extractionUrl || this.config.dailyRequestLimit === 0) return [];
-    const raw = await this.request(this.config.extractionUrl, {
+    const raw = await this.request("extraction", this.config.extractionUrl, {
       model: this.config.extractionModel,
       temperature: 0,
       max_tokens: 1200,
@@ -182,6 +227,26 @@ export class MemoryAI {
       normalizeMemory(message).includes(normalizeMemory(m.evidence)),
     );
   }
+}
+
+/** A response's body as text, refusing more than `MAX_RESPONSE_BYTES`; null when it has none. */
+async function readBounded(response: Response): Promise<string | null> {
+  const reader = response.body?.getReader();
+  if (!reader) return null;
+  const chunks: Uint8Array[] = [];
+  let bytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.length;
+      if (bytes > MAX_RESPONSE_BYTES) throw new Error("Memory AI response is too large.");
+      chunks.push(value);
+    }
+  } finally {
+    await reader.cancel();
+  }
+  return Buffer.concat(chunks).toString("utf8");
 }
 
 type Job = typeof memoryJobs.$inferSelect;

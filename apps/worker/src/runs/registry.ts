@@ -1,3 +1,4 @@
+import type { AuthMode } from "@open-bot/domain";
 import type { RunSession } from "./session";
 
 /** The runs executing right now, by run id. */
@@ -47,6 +48,19 @@ export class SessionRegistry {
     for (const session of this.sessions.values())
       if (session.threadId && threadIds.includes(session.threadId)) return session.bot.id; // vocabulary: allow
     return null;
+  }
+
+  /** The live run whose current thread this is. */
+  runForThread(threadId: string): { runId: string; accessMode: AuthMode } | null {
+    for (const session of this.sessions.values())
+      if (session.threadId === threadId)
+        return { runId: session.run.id, accessMode: session.authMode };
+    return null;
+  }
+
+  /** How a live run reaches the model right now, or null when it isn't live. */
+  accessMode(runId: string): AuthMode | null {
+    return this.sessions.get(runId)?.authMode ?? null;
   }
 
   all(): RunSession[] {

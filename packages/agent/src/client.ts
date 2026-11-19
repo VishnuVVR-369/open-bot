@@ -70,13 +70,55 @@ export class RpcError extends Error {
 
 export type ServerRequestHandler = (request: ServerRequest) => Promise<unknown>;
 
+/** One JSON-RPC message on the connection, as a `WireObserver` sees it. */
+export interface WireMessage {
+  /** `to_codex` for what the client sent, `from_codex` for what the app-server sent. */
+  direction: "to_codex" | "from_codex";
+  /** A request (the client's, or a server request), the response to one, or a notification. */
+  kind: "request" | "response" | "notification";
+  /** The method; a response has its request's, or `unknown` when it answers no known request. */
+  method: string;
+  /** The JSON-RPC id, or null for a notification. */
+  id: number | string | null;
+  /** A request's or notification's params, or a response's `{ result }` or `{ error }`. */
+  payload: unknown;
+  /**
+   * The message's length as sent or received, in characters of JSON text: known before anything
+   * reads the payload, so an observer can skip what is too large to look at.
+   */
+  size: number;
+}
+
+/**
+ * Sees every message on the connection, in wire order, as it is sent or received. It is called
+ * synchronously and must return at once; whatever it throws is ignored, so it can never delay or
+ * break the connection.
+ */
+export type WireObserver = (message: WireMessage) => void;
+
 interface Pending {
+  method: string;
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
   timer: NodeJS.Timeout;
 }
 
 const REQUEST_TIMEOUT_MS = 120_000;
+
+interface OutgoingMessage {
+  id?: number | string;
+  method?: string;
+  params?: unknown;
+  result?: unknown;
+  error?: unknown;
+}
+
+/** A response's payload as observed: its result, or its error. */
+function responsePayload(message: { result?: unknown; error?: unknown }): unknown {
+  return message.error !== undefined
+    ? { error: message.error }
+    : { result: message.result ?? null };
+}
 
 /**
  * A JSON-RPC client for `codex app-server` over a websocket.
@@ -93,6 +135,7 @@ export class CodexClient extends EventEmitter<{
   private constructor(
     private readonly socket: WebSocket,
     private readonly handleServerRequest: ServerRequestHandler,
+    private readonly observer?: WireObserver,
   ) {
     super();
     socket.on("message", (data) => this.onMessage(data.toString()));
@@ -107,6 +150,7 @@ export class CodexClient extends EventEmitter<{
     handleServerRequest: ServerRequestHandler,
     clientInfo = { name: "open-bot", title: "open-bot", version: "0.1.0" },
     signal?: AbortSignal,
+    observer?: WireObserver,
   ): Promise<CodexClient> {
     signal?.throwIfAborted();
     const socket = new WebSocket(url, {
@@ -121,7 +165,7 @@ export class CodexClient extends EventEmitter<{
         socket.once("open", () => resolve());
         socket.once("error", reject);
       });
-      const client = new CodexClient(socket, handleServerRequest);
+      const client = new CodexClient(socket, handleServerRequest, observer);
       await client.rawRequest("initialize", {
         clientInfo,
         capabilities: { experimentalApi: true, requestAttestation: false },
@@ -152,13 +196,44 @@ export class CodexClient extends EventEmitter<{
         this.pending.delete(id);
         reject(new Error(`Codex request ${method} timed out`));
       }, REQUEST_TIMEOUT_MS);
-      this.pending.set(id, { resolve, reject, timer });
+      this.pending.set(id, { method, resolve, reject, timer });
       this.send({ id, method, params });
     });
   }
 
-  private send(message: unknown) {
-    if (this.socket.readyState === WebSocket.OPEN) this.socket.send(JSON.stringify(message));
+  /** Sends a message; `method` names the server request a response answers. */
+  private send(message: OutgoingMessage, method?: string) {
+    if (this.socket.readyState !== WebSocket.OPEN) return;
+    const text = JSON.stringify(message);
+    this.socket.send(text);
+    if (message.method !== undefined)
+      this.observe({
+        direction: "to_codex",
+        kind: message.id === undefined ? "notification" : "request",
+        method: message.method,
+        id: message.id ?? null,
+        payload: message.params ?? null,
+        size: text.length,
+      });
+    else
+      this.observe({
+        direction: "to_codex",
+        kind: "response",
+        method: method ?? "unknown",
+        id: message.id ?? null,
+        payload: responsePayload(message),
+        size: text.length,
+      });
+  }
+
+  /** Tells the observer, which never holds up or breaks the connection. */
+  private observe(message: WireMessage) {
+    if (!this.observer) return;
+    try {
+      this.observer(message);
+    } catch {
+      // Observing is best effort.
+    }
   }
 
   private onMessage(text: string) {
@@ -176,6 +251,14 @@ export class CodexClient extends EventEmitter<{
     }
     if (message.method === undefined && message.id !== undefined) {
       const pending = this.pending.get(Number(message.id));
+      this.observe({
+        direction: "from_codex",
+        kind: "response",
+        method: pending?.method ?? "unknown",
+        id: message.id,
+        payload: responsePayload(message),
+        size: text.length,
+      });
       if (!pending) return;
       this.pending.delete(Number(message.id));
       clearTimeout(pending.timer);
@@ -185,21 +268,40 @@ export class CodexClient extends EventEmitter<{
       return;
     }
     if (message.method !== undefined && message.id !== undefined) {
-      const id = message.id;
+      const { id, method } = message;
+      this.observe({
+        direction: "from_codex",
+        kind: "request",
+        method,
+        id,
+        payload: message.params ?? null,
+        size: text.length,
+      });
       this.handleServerRequest(message as unknown as ServerRequest).then(
-        (result) => this.send({ id, result }),
+        (result) => this.send({ id, result }, method),
         (error: unknown) =>
-          this.send({
-            id,
-            error: {
-              code: -32000,
-              message: error instanceof Error ? error.message : String(error),
+          this.send(
+            {
+              id,
+              error: {
+                code: -32000,
+                message: error instanceof Error ? error.message : String(error),
+              },
             },
-          }),
+            method,
+          ),
       );
       return;
     }
     if (message.method !== undefined) {
+      this.observe({
+        direction: "from_codex",
+        kind: "notification",
+        method: message.method,
+        id: null,
+        payload: message.params ?? null,
+        size: text.length,
+      });
       this.emit("notification", message as unknown as ServerNotification);
     }
   }

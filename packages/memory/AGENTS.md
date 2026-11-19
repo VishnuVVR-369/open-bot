@@ -6,7 +6,7 @@ Tool wiring and routes go in `apps/worker`, memory tables in `packages/db`, shar
 ## Entry points
 
 - `packages/memory/src/index.ts` (`.`): `MemoryService`, `MemoryError`, `MemoryActor`.
-- `packages/memory/src/jobs.ts` (`./jobs`): the background jobs and `MemoryAIConfig` (embedding and extraction providers).
+- `packages/memory/src/jobs.ts` (`./jobs`): the background jobs, `MemoryAIConfig` (embedding and extraction providers) and `MemoryAIObserver`, which the worker passes to `MemoryAI` to log each request without the key.
 
 ## Invariants
 

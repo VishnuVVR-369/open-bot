@@ -147,6 +147,13 @@ Setting it to 0 turns memory AI off.
 Configuring an endpoint means memory text (for embeddings) or your messages (for extraction) are sent there.
 The key, `MEMORY_AI_API_KEY`, is separate from your ChatGPT login and your fallback API key.
 
+Every memory AI request is logged in `model_requests` with `source` `memory`, like the model requests teammates make (see [Data](/docs/architecture/data#model-logs)).
+`MemoryAI` (`packages/memory/src/jobs.ts`) takes an optional observer, which the worker passes in, and reports each request to it when it ends: its kind, endpoint, body, status, timings, response and error.
+The observer never gets the key, and anything it throws is ignored, so logging never fails a job.
+The row keeps the endpoint without credentials, query or fragment, the messages or embedded text, the answer or vector, the model, the token counts and only the `content-type` header.
+A failed request keeps the error envelope's code and message (`insufficient_quota`, for one).
+An answer that is neither choices, embeddings nor an error with a message keeps its first 1 MiB as the raw response, so an `error` object in another shape (`{"error": {"detail": ...}}`) keeps its body.
+
 ## Testing
 
 ```sh title="Terminal"

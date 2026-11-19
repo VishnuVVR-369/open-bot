@@ -178,6 +178,33 @@ The proxy takes both, and Codex's upgrade arrives on the worker's HTTP server ne
 A request is linked to its run through Codex's own ids: the `x-codex-turn-metadata` header (or the same JSON in the body's `client_metadata`) carries the thread, the turn and the request's kind (`turn`, `prewarm`, `compaction` or `memory`).
 They are stored as sent, and joined to runs when the logs are read, never resolved when they are written.
 
+## The Codex event log
+
+Every JSON-RPC message between the worker and Codex is logged, both ways, in `codex_events` (see [Data](/docs/architecture/data#codex-events-turns-and-tool-calls)).
+`CodexClient` takes an observer per connection, called for each message before it is handled or after it is sent; `CodexManager` passes one from `CodexEventTap` (`apps/worker/src/features/model-logs/codex-events.ts`).
+Logging never holds up a turn: the client ignores anything the observer throws, and the tap itself catches its own failures and counts them as lost.
+
+- **What is logged.** The worker's requests and Codex's responses to them, Codex's server requests and the worker's responses, and notifications.
+  Each row has its direction (`to_codex` or `from_codex`), its JSON-RPC kind, its method, its id, and the thread, turn and item it names.
+  A response keeps the method of the request it answers and inherits its thread, turn and item.
+- **Deltas are counted, not stored.** Streaming deltas (`item/agentMessage/delta`, `item/commandExecution/outputDelta`, any method ending in `delta`) are counted per item.
+  The completed item carries all of their content, so its `item/completed` row gets the counts in `delta_counts`; counts for items that never completed go on the `turn/completed` row.
+- **The run.** The worker's own requests take the run whose work sent them: `RunSession.execute()` runs inside an `AsyncLocalStorage` scope (`apps/worker/src/core/run-scope.ts`), and the connection and sign-in run outside it.
+  Messages from Codex take the run that started their turn, else the live run on their thread in the session registry, else the live run that last asked about their thread, since Codex's first messages on a new thread arrive before the session knows its id.
+  Messages that belong to no run (sign-in, the Files page, skills checks) keep an empty `run_id`.
+- **Order.** `sequence` starts at the worker's start time in microseconds and goes up by one per logged message, so it orders messages across restarts.
+- **Turns.** When `turn/start` returns, the tap adds a `run_turns` row with the run, the thread, the turn, how the run reaches the model at that moment (`plan` or `api_key`) and when the request was sent.
+  A run that falls back from the plan to the API key mid-run has two.
+- **Redaction.** Every payload is redacted before it is queued; see [Security](/docs/security#model-logs).
+- **Never blocking.** While the connection handles a message, the tap does only constant work: the method, the ids, the run, the delta counts and the order.
+  The client gives it each message's size as JSON text, measured where the frame is read or written, so nothing has to be measured again.
+  The redaction runs after the connection has handled the message (`setImmediate`), and is bounded: a message past `MAX_EVENT_SIZE` (2 MiB) is never read, and a payload nested deeper than `MAX_JSON_DEPTH` (256) or holding more than `MAX_EVENT_NODES` (50,000) values is refused.
+  A message waiting for its redaction holds room in the writer's queue for its size (`reserveEvent`), so waiting payloads count toward the queue's 64 MB limit like queued ones; when there is no room, its payload is never held, and it is stored as a stub, or counted as lost when even that doesn't fit.
+  At shutdown, after Codex disconnects and before the writer stops, the tap redacts and queues every message still waiting (`drain()`), so a message seen just before shutdown is saved rather than arriving at a stopped writer.
+  A message that isn't stored whole keeps a stub row: its method, ids, run and order, with `payload` holding only why (`omitted`) and its `size`.
+  Every stub, and every message the tap failed to read, is counted in `model_log_gaps` as a lost Codex event.
+  Rows go through the same writer as the model requests, with its queue limit, retries and gap rows.
+
 ## Instructions
 
 A teammate's instructions come from three places, from most general to most specific:
@@ -231,7 +258,7 @@ A `/name` in the request adds a `skill` input with the path of that skill's `SKI
 
 ## Turns
 
-A run is one turn.
+A run is one turn, or two when it falls back from the plan to the API key mid-run, the second on a new thread.
 The session calls `turn/start` with the input, the teammate's model and reasoning effort, the approval policy and the trigger.
 
 ### From Codex events to the timeline

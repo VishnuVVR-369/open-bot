@@ -3,14 +3,26 @@ import { readFile } from "node:fs/promises";
 import { EventEmitter } from "node:events";
 import { BOTD_SOCKETS } from "@open-bot/api/botd";
 import type { CodexStatus } from "@open-bot/api/worker";
-import { CodexClient, type ServerNotification, type ServerRequest, type v2 } from "@open-bot/agent";
+import {
+  CodexClient,
+  type ServerNotification,
+  type ServerRequest,
+  type v2,
+  type WireObserver,
+} from "@open-bot/agent";
 import type { ComputerLifecycle } from "../computer/lifecycle";
 import type { ComputerClient } from "../computer/client";
+import { outsideRunScope } from "../core/run-scope";
 import { refreshHostLogin } from "../host-login";
 import { errorMessage, type Logger } from "../logger";
 
 export type { CodexStatus };
 export type ChatgptAuthSource = CodexStatus["authSource"];
+
+/** Watches each Codex connection's messages: one observer per connection, made as it opens. */
+export interface CodexWireTap {
+  connection(): WireObserver;
+}
 
 export interface ThreadHandler {
   onNotification(notification: ServerNotification): void;
@@ -62,6 +74,8 @@ export class CodexManager extends EventEmitter<{ status: [CodexStatus]; disconne
   private lastHostRefresh = 0;
   private cachedRateLimits: v2.GetAccountRateLimitsResponse | null = null;
   private releaseLoginDemand: (() => void) | undefined;
+  /** Sees every message on each new connection (the model logs' Codex event tap). */
+  wireTap?: CodexWireTap;
 
   constructor(
     private readonly computer: ComputerClient,
@@ -120,7 +134,8 @@ export class CodexManager extends EventEmitter<{ status: [CodexStatus]; disconne
       await this.lifecycle.run("codex:ready", async () => {});
     if (this.client?.isOpen && this.state.account) return this.client;
     if (this.client?.isOpen && !this.state.account) {
-      await this.signIn(this.client);
+      const client = this.client;
+      await outsideRunScope(() => this.signIn(client));
       if (this.state.account) return this.client;
       throw new Error(
         this.state.error ?? "Codex is not signed in to ChatGPT. Sign in on the Settings page.",
@@ -137,7 +152,9 @@ export class CodexManager extends EventEmitter<{ status: [CodexStatus]; disconne
   }
 
   private newConnection(signal?: AbortSignal): Promise<CodexClient> {
-    const pending = this.connect(signal).finally(() => {
+    // The connection outlives the run that may have asked for it: its sign-in and everything it
+    // does later belong to no run.
+    const pending = outsideRunScope(() => this.connect(signal)).finally(() => {
       if (this.connecting === pending) this.connecting = null;
     });
     return pending;
@@ -150,6 +167,7 @@ export class CodexManager extends EventEmitter<{ status: [CodexStatus]; disconne
       (request) => this.onServerRequest(request),
       undefined,
       signal,
+      this.wireTap?.connection(),
     ).catch((error: unknown) => {
       if (generation === this.generation) {
         this.update({

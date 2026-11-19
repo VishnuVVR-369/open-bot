@@ -35,6 +35,7 @@ function record(
     },
     blobs: [item],
     items: [{ side: "input", position: 0, blobHash: item.hash }],
+    toolCalls: [],
     bytes: 1_000,
   };
 }
