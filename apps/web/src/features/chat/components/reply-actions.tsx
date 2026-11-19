@@ -166,6 +166,8 @@ export function RunTime({ run, showDuration = true }: { run: RunView; showDurati
     run.usage &&
       run.usage.costMicros > 0 &&
       `${formatDollars(run.usage.costMicros)} on your API key`,
+    // Some API key request ended without its usage: counted from an estimate that errs high.
+    run.usage?.estimated && "includes an estimate",
   ].filter(Boolean);
   const time = (
     <time
@@ -181,7 +183,7 @@ export function RunTime({ run, showDuration = true }: { run: RunView; showDurati
   return (
     <Tooltip>
       <TooltipTrigger asChild>{time}</TooltipTrigger>
-      <TooltipContent data-testid="run-stats">
+      <TooltipContent data-testid="run-stats" collisionPadding={8}>
         {format(new Date(run.createdAt), "EEE, MMM d, h:mm a")} · {details.join(" · ")}
       </TooltipContent>
     </Tooltip>

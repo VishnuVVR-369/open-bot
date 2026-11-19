@@ -144,7 +144,8 @@ The worker serves them at `/model-proxy/<token>/<route>/...` on its own port, ne
 - **Shutdown.** The HTTP server stops taking requests first, then the proxy waits up to 10 seconds for the requests still running to be logged, and only then does the writer save what is queued.
   Requests still running after that are recorded as a gap.
 - **Upstream failures.** When the upstream can't be reached the proxy answers 502, and when it breaks off mid-stream the proxy breaks Codex's stream too, so Codex retries as it would on a direct connection.
-- **Kill switch.** `MODEL_PROXY=off` sends plan threads straight to ChatGPT, and API key threads straight to `OPENAI_API_BASE_URL` with the key as the provider's bearer token, as before.
+- **Kill switch.** `MODEL_PROXY=off` sends plan threads straight to ChatGPT, and turns the API key fallback off, because the monthly cap counts the key's spend from the logs (see [Models and usage](/docs/flows/models-and-usage#the-kill-switch)).
+  No API key thread is made then, so the key never leaves the worker.
   The route revision forks each such thread once to change course, with no computer redeploy.
 
 ### WebSockets

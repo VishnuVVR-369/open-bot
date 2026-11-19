@@ -64,7 +64,8 @@ export const envSchema = z.object({
   OPEN_BOT_PLAN_BASE_URL: z.string().url().optional(),
   /**
    * Model requests go through the worker's model proxy, which logs them and adds the API key.
-   * `off` sends threads straight to the model again (they fork once to change course).
+   * `off` sends plan threads straight to ChatGPT again (they fork once to change course), and turns
+   * the API key fallback off: the cap counts the key's spend from the logs, so it can't go unlogged.
    */
   MODEL_PROXY: z
     .enum(["on", "off"])

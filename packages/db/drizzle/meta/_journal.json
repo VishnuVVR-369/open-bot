@@ -281,6 +281,13 @@
       "when": 1795072162789,
       "tag": "0039_model_log_retention_search",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1795072337097,
+      "tag": "0040_usage_on_model_logs",
+      "breakpoints": true
     }
   ]
 }

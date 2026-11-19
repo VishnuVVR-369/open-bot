@@ -6,6 +6,7 @@ import type { WakeController } from "../egress/wake";
 import { uploadsRoutes, type UploadService } from "../features/uploads";
 import type { RunExecutor } from "../runs/executor";
 import { approvalRoutes, type ApprovalService } from "../features/approvals";
+import type { ModelAccess } from "../features/model-access";
 import { teammateRoutes, type BotService } from "../features/teammates";
 import { codexAccountRoutes, type CodexAccountService } from "../features/codex-account";
 import { settingsRoutes, type SettingsService } from "../features/settings";
@@ -41,6 +42,7 @@ export interface WorkerServices {
   chats: ChatService;
   runRequests: RunRequests;
   executor: RunExecutor;
+  model: ModelAccess;
   retries: RetryService;
   approvals: ApprovalService;
   takeovers: TakeoverService;
@@ -81,7 +83,7 @@ export function createWorkerRouter(services: WorkerServices) {
 
   return os.router({
     status: {
-      get: os.status.get.handler(() => ({
+      get: os.status.get.handler(async () => ({
         computer: {
           online: ctx.computer.online,
           health: ctx.computer.health,
@@ -89,6 +91,7 @@ export function createWorkerRouter(services: WorkerServices) {
         },
         codex: ctx.codex.status,
         egress: s.egress.status,
+        apiFallbackOff: await s.model.fallbackOff(),
       })),
     },
     ...teammateRoutes(s.teammates, s.executor),

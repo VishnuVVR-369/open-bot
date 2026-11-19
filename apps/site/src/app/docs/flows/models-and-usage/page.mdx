@@ -104,7 +104,8 @@ API key threads get a model provider of their own in the thread's config, which 
 **The key stays in the worker.**
 The provider has no bearer token, so Codex sends no `Authorization` header, and the proxy adds `Bearer <key>` to each request before forwarding it to `OPENAI_API_BASE_URL`.
 It does that only for a request whose thread belongs to a live run on the API key, so the key can't be spent outside a run that passed the cap check.
-With `MODEL_PROXY=off`, the provider points at `OPENAI_API_BASE_URL` directly and carries the key as `experimental_bearer_token`, as before the proxy.
+The key never goes around the proxy: the cap counts its spend from the model logs, so spend the proxy didn't see couldn't be capped.
+With `MODEL_PROXY=off`, `providerFor()` refuses to make an API key thread, and the API key fallback is off (see [The kill switch](#the-kill-switch)).
 
 ### The plan goes through the proxy too
 
@@ -135,9 +136,66 @@ A key Codex reports as unauthorized fails the run with "Your OpenAI API key was 
 ## The monthly cap
 
 You set a monthly cap in dollars, stored in millionths of a dollar (`settings.monthly_cap_micros`).
-This month's spend is the sum of `usage_entries.cost_micros` for API key usage since the first of the month (UTC).
+This month's spend is what the API key spent since the first of the month (UTC), read by `apiKeySpendMicros()` in `packages/db/src/usage.ts`, the same function Settings shows it with.
 
-Usage is counted from Codex's `thread/tokenUsage/updated` notifications, per run and per access mode, and written once when the run ends.
+### Where spend comes from
+
+Usage has two producers, and each request counts through exactly one of them:
+
+- A worker that writes `usage_entries` (the previous worker, or one rolled back to) counts each finished run there.
+  Those entries become the run's **legacy totals** (see [Legacy totals](#legacy-totals)).
+  It logs its requests too, and they stay in the logs to browse, but it leaves their `model_requests.counts_usage` false, so they never count again.
+- The current worker writes no `usage_entries`.
+  Every request the [model proxy](/docs/architecture/agent-runtime#the-model-proxy) forwards is saved in `model_requests` with its tokens and its `cost_micros`, priced when it is logged, and with `counts_usage` set.
+
+No clock decides which side a request is on.
+So clock skew between the worker and the database, a deploy, a rollback to a worker that writes `usage_entries`, and deploying forward again each count every request exactly once.
+
+This month's spend adds up four things:
+
+1. `model_requests.cost_micros` of counted requests (`counts_usage`) on the API key route (`route = 'api'`) that started this month.
+2. `model_log_gaps.api_cost_micros` of counted API key requests whose logs were lost, in gaps whose requests started this month (see [When logs are lost](#when-logs-are-lost)).
+   Only the current worker sets it: older workers leave it 0, since their `usage_entries` hold that spend.
+3. The legacy totals of runs: `runs.legacy_api_key_cost_micros` where `runs.legacy_usage_at` is this month.
+4. The legacy totals of runs deleted since: `legacy_deleted_run_usage` rows on the API key from this month.
+
+The memory AI's requests are left out, as they always were: they use their own key (`MEMORY_AI_API_KEY`), not yours.
+Each reply's footer and Settings' usage per teammate count the same way (`runUsageByRun()` and `monthlyUsage()` in `apps/web/src/features/model-logs/server/run-usage.ts`), so the footers, Settings and the cap agree on every run:
+
+- A run's footer is its legacy totals plus its counted model requests.
+  A run the previous worker finished shows its legacy totals, even when it has model logs, and even when it fell back from the plan before `run_turns` existed, so only its last turn's requests are found through it.
+- Settings counts each run once, by its id.
+  A request whose run was deleted after it was logged can't name its run any more, and counts as a run of its own turn.
+
+**Runs in flight at a deploy.**
+Runs never move between workers: a starting worker marks every run that was starting, running or waiting as interrupted, and a run that resumes is a new run.
+A run the previous worker was running when it stopped counts what the old ledger counted for it, which is nothing: it wrote `usage_entries` only as a run finished, and its requests are unmarked.
+That is no worse than before, and deploying with no run in flight avoids it.
+A run the current worker is running when it stops is drained for 10 seconds, and what is still running then is counted from an estimate (see [When logs are lost](#when-logs-are-lost)).
+
+Each request is priced on its own, with the same `costMicros()` the old per-run total used.
+Only cached input costs a fraction of a millionth of a dollar per token, so a run's logged total can differ from the old per-run price by at most half a millionth of a dollar per request.
+The logs also price the requests Codex makes besides turns (compaction, search), which the old per-run total, built from Codex's token usage notifications, didn't always include.
+A run that spans the first of the month counts each request in the month it started, where the old total counted the whole run in the month it finished.
+
+### Legacy totals
+
+A worker that writes `usage_entries` writes one row per access mode as each run finishes.
+Migration 0040 copies them onto their runs as legacy totals: tokens (input, cached, output) and cost, per access mode, in the `legacy_*` columns of `runs`, timed by `legacy_usage_at`.
+It copies through `copy_legacy_usage()`, a database function that sums each run's totals again from all of its entries, so copying again adds nothing.
+Entries whose run had been deleted go to `legacy_deleted_run_usage`, keyed by the entry's own key (`run:<run id>:<mode>`), so they keep counting toward their month's cap as they did.
+
+- The previous worker keeps writing `usage_entries` while the deploy runs, and a worker rolled back to writes them again.
+  A trigger on `usage_entries` copies each new entry as it is written, so the legacy totals always hold every entry, and the migration locks the table while it copies, so none is missed.
+- The migration takes every lock it needs (`usage_entries`, `model_requests`, `runs` and `model_log_gaps`) together before anything else, and never waits while holding one: a try that can't have them all gives back what it got and tries again 50 ms later.
+  The app takes those tables in different orders (writing an entry, then reading its run; deleting a run, then its entries), so a migration that waited while holding one could deadlock with them and fail the deploy.
+  After two minutes without them all, it fails, and the deploy stays on the previous commit.
+- A run with legacy totals that is deleted later moves them to `legacy_deleted_run_usage` under its entries' keys, through the `runs_keep_legacy_usage` trigger, whether or not it has model logs.
+  Its requests stay in the logs, unmarked, so it counts once either way.
+
+Only migrations and their triggers write the legacy columns and `legacy_deleted_run_usage`.
+`usage_entries` itself is dropped by a later migration, which first copies it once more under a lock.
+
 Plan usage costs 0, because the plan is a flat subscription.
 API key usage is priced at the model's list prices:
 
@@ -154,7 +212,60 @@ return Math.round((usage.inputTokens - cached) * 2 + cached * 0.1 + usage.output
 ```
 
 The cap is checked before each run, not during one, so a single long run can go slightly over it.
-Every reply shows its time, tokens and cost, and Settings shows usage per teammate.
+Every reply shows its time, tokens and cost, and Settings shows usage per teammate, both counted as the cap counts.
+A finishing run waits, up to 3 seconds, for its last requests to be saved before it reports that it's done, so its reply's footer has them.
+
+### The kill switch
+
+`MODEL_PROXY=off` routes threads around the proxy, so nothing is logged, and the cap couldn't see the key's spend.
+So while it is off, the API key fallback is off too: `decideAuthMode()` never picks the key, even with one saved and room under the cap.
+A run that reaches the plan's limit then stops as if no key were saved, with this error:
+
+> Your ChatGPT plan's usage limit is reached. The API key fallback is off while model logging is off, because its spend couldn't be counted toward your monthly cap. Teammates continue once the plan resets.
+
+Settings says the same where it shows the fallback, from the worker's status (`apiFallbackOff`).
+Every path that could pick the key goes through the decision (`ModelAccess.decide()`): the start of a run, and its one retry on the key after the plan's limit.
+`providerFor()` also refuses an API key thread without the proxy, so not even a rehearsal sends the key around it.
+
+### Requests without reported usage
+
+The API reports a request's usage in its last event, so a request that ends before it never says what it cost: a stream cut off, a request Codex cancelled or interrupted, a successful answer whose body can't be read, or one still running when the worker stops.
+Codex cancels and interrupts requests all the time, so such a request neither counts as free nor turns the fallback off.
+An API key request that reached the API and was answered with success, or not answered at all, is priced from an estimate that errs high instead (`estimateUsage()` in `packages/domain/src/model-logs/cost.ts`):
+
+- **Input:** the request body at 2 bytes a token, and 10,000 tokens per image, none of it cached.
+  Text and code average about 4 bytes a token, and Chinese or Japanese text about 2.5.
+  An input whose size can't be known (compressed and not kept, or continued from a response the proxy didn't see) counts 1,000,000 tokens.
+- **Output:** what streamed back at 2 bytes a token, counting the pieces streamed before any item was done, or 250 tokens a second from the request's start until it ended (at most 128,000), whichever is more.
+
+The row keeps the estimate as its tokens and cost, with `usage_estimated` set, and a gap counts such requests in `api_requests_estimated`.
+The run inspector and the reply's footer say when a cost is an estimate.
+A request the API refused (an error answer with nothing written) costs nothing, as does one that never reached it.
+
+### When logs are lost
+
+The proxy saves its logs off the request path: a model log writer queues them in memory and saves them in batches about once a second, so the proxy never holds up or fails a request.
+The cap therefore counts what the writer holds too, and pauses the key while it can't be saved:
+
+- **Waiting to be saved.**
+  The cap adds the cost of API key requests still in the writer's queue, and of lost ones in a gap not saved yet (`ModelLogWriter.pendingApiCostMicros()`), each in the month it started.
+  It reads the writer before the database, so a request saved in between counts twice rather than not at all.
+- **Dropped.**
+  A request the database refuses, or that the writer gives up on after five minutes of retries, is dropped, and its gap keeps how many of the lost requests were on the API key and what they cost (`api_requests`, `api_cost_micros`).
+  A gap holds the requests of one calendar month (UTC), so their cost counts in the month they started, wherever the gap was saved.
+- **Still running at shutdown.**
+  A request still running after the proxy's 10-second drain is counted into a gap from an estimate up to that moment.
+- **Not saved.**
+  While the writer can't save its logs and holds API key requests of this month, the fallback is paused (`logs_unsaved`).
+  A run that reaches the plan's limit fails with "Your ChatGPT plan's usage limit is reached. The API key fallback is paused while model logs can't be saved, because its spend couldn't be counted toward your monthly cap. Teammates continue once the logs are saved or the plan resets."
+
+The proxy never blocks a request: the key is only refused when a run decides how to reach the model (`ModelAccess.decide()`).
+Settings says why the fallback is off, from the worker's status (`apiFallbackOff`).
+
+**What the cap can still miss.**
+A worker that crashes, or that stops while the database is down, loses what its writer holds in memory without a gap: about a second of requests, and those still running.
+That spend is missing from the cap.
+The old ledger was written as each run finished, so a crash lost the whole of every run in flight; the window now is the last second of requests.
 
 ## Rehearsing the fallback
 
@@ -170,7 +281,7 @@ OPENAI_API_BASE_URL=http://127.0.0.1:4799/api \
 E2E_PLAN_REHEARSAL=1 pnpm e2e --grep rehearsal
 ```
 
-The test's stand-in answers like an exhausted ChatGPT plan, and everything else is real: the worker, Codex on the computer, the thread fork, the model proxy and the ledger.
+The test's stand-in answers like an exhausted ChatGPT plan, and everything else is real: the worker, Codex on the computer, the thread fork, the model proxy and the logs the cap reads.
 The plan's requests are logged in `model_requests` with `route = 'plan'`, and the key's with `route = 'api'`.
 A rehearsal's plan uses a provider of its own, `openai-plan-rehearsal`, which speaks HTTP only and sends a token of its own, and the proxy replaces every credential and the account header before the stand-in, so the stand-in never sees your ChatGPT login.
-With `MODEL_PROXY=off`, Codex calls both URLs itself, so name the Docker host (`host.docker.internal`) there instead.
+With `MODEL_PROXY=off` there is no fallback to rehearse, since the key is never used then.

@@ -2,6 +2,13 @@
 // run turns are queued in memory and their producer moves on. The database being slow or down never
 // holds up or fails a model request or a JSON-RPC message; what can't be saved in time is dropped
 // and recorded as a gap once the database answers again.
+//
+// The monthly cap counts the API key's spend from these logs, so the writer also says what API
+// key spend it holds that the database doesn't have yet (`pendingApiCostMicros`), and when it
+// can't save it (`apiTrouble`). Every request it saves is marked as counted toward usage
+// (`counts_usage`). A gap keeps the cost of the API key requests it lost, so their spend still
+// counts once it is saved, and each gap holds the records of one calendar month (UTC), so that
+// spend counts in the month its requests started.
 import { EventEmitter } from "node:events";
 import {
   bots, // vocabulary: allow
@@ -17,9 +24,21 @@ import {
   runs,
   runTurns,
 } from "@open-bot/db";
+import type { FallbackOffReason } from "@open-bot/domain";
 import { inArray } from "drizzle-orm";
 import type { Logger } from "../../logger";
-import type { ModelRequestRecord } from "./capture";
+import type { LostRequest, ModelRequestRecord } from "./capture";
+import {
+  type LostRecord,
+  type PendingGap,
+  NONE_LOST,
+  addCounts,
+  gapRow,
+  lostRequest,
+  lostTotal,
+  mergeGaps,
+  monthOf,
+} from "./gaps";
 
 export interface ModelLogWriterOptions {
   /** How long a request may wait in the queue before a batch is written. */
@@ -55,19 +74,11 @@ type QueuedRecord =
   | { kind: "event"; row: CodexEventRow; at: number; bytes: number }
   | { kind: "turn"; row: RunTurnRow; at: number; bytes: number };
 
-/** How many of each kind of record were lost. */
-interface LostCounts {
-  requests: number;
-  codexEvents: number;
-  runTurns: number;
-}
+/** Why the API key's spend held here can't be counted toward the cap right now. */
+export type ApiSpendTrouble = Extract<FallbackOffReason, "logs_unsaved">;
 
-/** Records that were lost, waiting to be recorded as one `model_log_gaps` row. */
-interface PendingGap extends LostCounts {
-  firstAt: Date;
-  lastAt: Date;
-  reason: string;
-}
+/** What the cap reads from the writer: API key spend it holds that isn't saved yet. */
+export type UnsavedApiSpend = Pick<ModelLogWriter, "pendingApiCostMicros" | "apiTrouble">;
 
 /** What a run turn costs in the queue, beyond its strings. */
 const TURN_BYTES = 256;
@@ -83,27 +94,6 @@ export type ModelLogWriterEvents = {
   /** A gap row was saved for this many lost records. */
   gap: [records: number];
 };
-
-function lostTotal(gap: LostCounts): number {
-  return gap.requests + gap.codexEvents + gap.runTurns;
-}
-
-/** Two sets of lost requests as one. */
-function mergeGaps(gap: PendingGap | null, more: PendingGap | null): PendingGap | null {
-  if (!gap || !more) return gap ?? more;
-  return {
-    firstAt: gap.firstAt < more.firstAt ? gap.firstAt : more.firstAt,
-    lastAt: gap.lastAt > more.lastAt ? gap.lastAt : more.lastAt,
-    requests: gap.requests + more.requests,
-    codexEvents: gap.codexEvents + more.codexEvents,
-    runTurns: gap.runTurns + more.runTurns,
-    // Each distinct reason once, so a long outage doesn't grow it without end.
-    reason:
-      gap.reason.includes(more.reason) || gap.reason.length > 2_000
-        ? gap.reason
-        : `${gap.reason}; ${more.reason}`,
-  };
-}
 
 /** Postgres takes at most 65,535 parameters in one statement; rows go in slices well under it. */
 const ROWS_PER_INSERT = 1_000;
@@ -160,7 +150,12 @@ export class ModelLogWriter extends EventEmitter<ModelLogWriterEvents> {
   private queuedBytes = 0;
   /** Room held for Codex messages still being redacted (`reserveEvent`). */
   private reservedBytes = 0;
-  private gap: PendingGap | null = null;
+  /** Lost records still to be saved, one gap per month. */
+  private gaps = new Map<number, PendingGap>();
+  /** The gaps being saved right now, taken out of `gaps`. */
+  private savingGaps: PendingGap[] = [];
+  /** Queued API key requests, and what they cost, by the month they started. */
+  private queuedApi = new Map<number, { requests: number; costMicros: number }>();
   private timer: NodeJS.Timeout | null = null;
   private timerAt = Infinity;
   private writing: Promise<void> | null = null;
@@ -238,15 +233,18 @@ export class ModelLogWriter extends EventEmitter<ModelLogWriterEvents> {
     }
     this.queue.push(record);
     this.queuedBytes += record.bytes;
+    this.countQueuedApi(record, 1);
     this.schedule(this.queue.length >= this.options.batchRows ? 0 : this.options.flushMs);
     return true;
   }
 
   /** Records requests that never reached the queue, such as ones still running at shutdown. */
-  lost(startedAt: Date[], reason: string): void {
+  lost(requests: LostRequest[], reason: string): void {
     this.lose(
-      startedAt.map((at) => at.getTime()),
-      { requests: startedAt.length, codexEvents: 0, runTurns: 0 },
+      requests.map((request) => ({
+        at: request.startedAt.getTime(),
+        counts: lostRequest(request.route, request.costMicros, request.estimated),
+      })),
       reason,
     );
   }
@@ -256,12 +254,69 @@ export class ModelLogWriter extends EventEmitter<ModelLogWriterEvents> {
    * redaction failed); its row, if any, holds only a stub.
    */
   lostEvent(at: Date, reason: string): void {
-    this.lose([at.getTime()], { requests: 0, codexEvents: 1, runTurns: 0 }, reason);
+    this.lose([{ at: at.getTime(), counts: { ...NONE_LOST, codexEvents: 1 } }], reason);
+  }
+
+  /**
+   * Saves what is queued now without waiting for the next batch, and resolves once all of it is
+   * saved or dropped, or after `timeoutMs`. While the database is failing it waits for the retry
+   * already scheduled instead. Never throws.
+   */
+  settle(timeoutMs: number): Promise<void> {
+    const waiting = new Set(this.queue);
+    if (!waiting.size || this.stopped) return Promise.resolve();
+    return new Promise<void>((resolve) => {
+      const check = () => {
+        if (!this.queue.some((record) => waiting.has(record))) done();
+      };
+      const done = () => {
+        clearTimeout(timer);
+        this.off("written", check);
+        this.off("dropped", check);
+        resolve();
+      };
+      const timer = setTimeout(done, timeoutMs);
+      timer.unref();
+      this.on("written", check);
+      this.on("dropped", check);
+      if (this.failingSince === null) this.schedule(0);
+    });
   }
 
   /** Records waiting to be written. */
   get pending(): number {
     return this.queue.length;
+  }
+
+  /**
+   * API key spend held here and not yet in the database, of requests that started at or after
+   * `since` (the start of a month): queued requests, and requests lost into gaps that aren't saved
+   * yet. Read it before the database's spend: a record saved between the two reads then counts
+   * twice, never not at all.
+   */
+  pendingApiCostMicros(since: Date): number {
+    const from = since.getTime();
+    let total = 0;
+    for (const [month, queued] of this.queuedApi) if (month >= from) total += queued.costMicros;
+    for (const gap of [...this.gaps.values(), ...this.savingGaps])
+      if (gap.month >= from) total += gap.apiCostMicros;
+    return total;
+  }
+
+  /**
+   * Why the API key spend held here since `since` (the start of a month) can't be counted toward
+   * the cap, or null when it can: the database is failing to save it (`logs_unsaved`), so it would
+   * be lost if the worker stopped. Spend of an earlier month never holds up this month's key.
+   */
+  apiTrouble(since: Date): ApiSpendTrouble | null {
+    if (this.failingSince === null) return null;
+    const from = since.getTime();
+    const holdsApi =
+      [...this.queuedApi].some(([month, queued]) => month >= from && queued.requests > 0) ||
+      [...this.gaps.values(), ...this.savingGaps].some(
+        (gap) => gap.month >= from && gap.apiRequests > 0,
+      );
+    return holdsApi ? "logs_unsaved" : null;
   }
 
   start(): void {}
@@ -271,9 +326,9 @@ export class ModelLogWriter extends EventEmitter<ModelLogWriterEvents> {
     this.stopped = true;
     this.clearTimer();
     await this.writing;
-    if (!this.queue.length && !this.gap) return;
+    if (!this.queue.length && !this.gaps.size) return;
     try {
-      while (this.queue.length || this.gap) await this.saveBatch();
+      while (this.queue.length || this.gaps.size) await this.saveBatch();
     } catch (error) {
       this.log.warn("model logs were lost at shutdown", {
         ...errorFields(error),
@@ -304,15 +359,15 @@ export class ModelLogWriter extends EventEmitter<ModelLogWriterEvents> {
 
   /** One batch, then the next step: more batches, a retry, or nothing until the next request. */
   private async flush(): Promise<void> {
-    if (!this.queue.length && !this.gap) return;
+    if (!this.queue.length && !this.gaps.size) return;
     try {
       await this.saveBatch();
       this.failingSince = null;
       this.backoff = this.options.backoffMs;
       // A gap left by requests the database refused is written at once, with what is waiting.
-      if (this.queue.length || this.gap)
+      if (this.queue.length || this.gaps.size)
         this.schedule(
-          this.gap || this.queue.length >= this.options.batchRows ? 0 : this.options.flushMs,
+          this.gaps.size || this.queue.length >= this.options.batchRows ? 0 : this.options.flushMs,
         );
     } catch (error) {
       // The database can't be reached: the same rows are tried again, for a while.
@@ -346,14 +401,16 @@ export class ModelLogWriter extends EventEmitter<ModelLogWriterEvents> {
    */
   private async saveBatch(): Promise<void> {
     const batch = this.queue.slice(0, this.options.batchRows);
-    // The gap being written is taken out, so requests lost meanwhile start a new one.
-    const gap = this.gap;
-    this.gap = null;
+    // The gaps being written are taken out, so requests lost meanwhile start new ones.
+    const gaps = [...this.gaps.values()];
+    this.gaps = new Map();
+    this.savingGaps = gaps;
     try {
-      await this.save(batch, gap);
+      await this.save(batch, gaps);
       return;
     } catch (error) {
-      this.gap = mergeGaps(gap, this.gap);
+      for (const gap of gaps) this.gaps.set(gap.month, mergeGaps(this.gaps.get(gap.month), gap));
+      this.savingGaps = [];
       if (!refusedRows(error) || !batch.length) throw error;
       this.log.warn("the database refused a batch of model logs, saving them one at a time", {
         ...errorFields(error),
@@ -362,7 +419,7 @@ export class ModelLogWriter extends EventEmitter<ModelLogWriterEvents> {
     }
     for (const record of batch) {
       try {
-        await this.save([record], null);
+        await this.save([record], []);
       } catch (error) {
         if (!refusedRows(error)) throw error;
         this.dequeue([record]);
@@ -371,9 +428,9 @@ export class ModelLogWriter extends EventEmitter<ModelLogWriterEvents> {
     }
   }
 
-  /** Writes records and a gap in one transaction, then takes the records off the queue. */
-  private async save(queued: QueuedRecord[], gap: PendingGap | null): Promise<void> {
-    if (!queued.length && !gap) return;
+  /** Writes records and gaps in one transaction, then takes the records off the queue. */
+  private async save(queued: QueuedRecord[], gaps: PendingGap[]): Promise<void> {
+    if (!queued.length && !gaps.length) return;
     const records = queued.flatMap((entry) => (entry.kind === "request" ? [entry.record] : []));
     const events = queued.flatMap((entry) => (entry.kind === "event" ? [entry.row] : []));
     const turns = queued.flatMap((entry) => (entry.kind === "turn" ? [entry.row] : []));
@@ -403,11 +460,14 @@ export class ModelLogWriter extends EventEmitter<ModelLogWriterEvents> {
         tx,
         records.flatMap((record) => record.row.teammateId ?? []),
       );
-      const requests = records.map((record) =>
-        record.row.teammateId && !teammates.has(record.row.teammateId)
-          ? { ...record.row, teammateId: null }
-          : record.row,
-      );
+      // Every request counts toward usage: this worker writes no `usage_entries`.
+      const requests = records.map((record) => ({
+        ...record.row,
+        countsUsage: true,
+        ...(record.row.teammateId && !teammates.has(record.row.teammateId)
+          ? { teammateId: null }
+          : {}),
+      }));
       for (const rows of slices(requests)) await tx.insert(modelRequests).values(rows);
       const items = records.flatMap((record) =>
         record.items.map((item) => ({ requestId: record.row.id, ...item })),
@@ -427,50 +487,86 @@ export class ModelLogWriter extends EventEmitter<ModelLogWriterEvents> {
       const keptTurns = turns.filter((row) => live.has(row.runId));
       for (const rows of slices(keptTurns))
         await tx.insert(runTurns).values(rows).onConflictDoNothing();
-      if (gap) await tx.insert(modelLogGaps).values(gap);
+      if (gaps.length) await tx.insert(modelLogGaps).values(gaps.map(gapRow));
     });
     this.dequeue(queued);
-    if (gap) this.emit("gap", lostTotal(gap));
+    if (gaps.length) {
+      this.savingGaps = [];
+      this.emit(
+        "gap",
+        gaps.reduce((total, gap) => total + lostTotal(gap), 0),
+      );
+    }
     if (queued.length) this.emit("written", queued.length);
   }
 
   private dequeue(records: QueuedRecord[]) {
     const done = new Set(records);
     this.queue = this.queue.filter((record) => !done.has(record));
-    for (const record of records) this.queuedBytes -= record.bytes;
+    for (const record of records) {
+      this.queuedBytes -= record.bytes;
+      this.countQueuedApi(record, -1);
+    }
   }
 
-  /** Drops records, to be recorded as a gap once the database answers. */
+  /** Adds a queued API key request's cost to its month's (`sign` 1), or takes it off (-1). */
+  private countQueuedApi(record: QueuedRecord, sign: 1 | -1) {
+    if (record.kind !== "request" || record.record.row.route !== "api") return;
+    const month = monthOf(record.at);
+    const queued = this.queuedApi.get(month) ?? { requests: 0, costMicros: 0 };
+    const next = {
+      requests: queued.requests + sign,
+      costMicros: queued.costMicros + sign * (record.record.row.costMicros ?? 0),
+    };
+    if (next.requests > 0) this.queuedApi.set(month, next);
+    else this.queuedApi.delete(month);
+  }
+
+  /** Drops records, to be recorded as gaps once the database answers. */
   private drop(records: QueuedRecord[], reason: string) {
-    const counts: LostCounts = { requests: 0, codexEvents: 0, runTurns: 0 };
-    for (const record of records)
-      if (record.kind === "request") counts.requests += 1;
-      else if (record.kind === "event") counts.codexEvents += 1;
-      else counts.runTurns += 1;
     this.lose(
-      records.map((record) => record.at),
-      counts,
+      records.map((record) => ({
+        at: record.at,
+        counts:
+          record.kind === "request"
+            ? lostRequest(
+                record.record.row.route ?? null,
+                record.record.row.costMicros ?? 0,
+                record.record.row.usageEstimated ?? false,
+              )
+            : record.kind === "event"
+              ? { ...NONE_LOST, codexEvents: 1 }
+              : { ...NONE_LOST, runTurns: 1 },
+      })),
       reason,
     );
   }
 
-  /** Counts lost records, by when each was captured, into the gap still to be written. */
-  private lose(times: number[], counts: LostCounts, reason: string) {
-    if (!times.length) return;
-    this.log.warn("model logs were dropped", { ...counts, reason });
-    let first = times[0]!;
-    let last = first;
-    for (const at of times) {
-      if (at < first) first = at;
-      if (at > last) last = at;
-    }
-    this.gap = mergeGaps(this.gap, {
-      firstAt: new Date(first),
-      lastAt: new Date(last),
-      ...counts,
+  /**
+   * Counts lost records into the gaps still to be written: each into its own month's, by when it
+   * was captured, so a gap never moves API key spend into another month.
+   */
+  private lose(records: LostRecord[], reason: string) {
+    if (!records.length) return;
+    this.log.warn("model logs were dropped", {
+      ...records.reduce((counts, record) => addCounts(counts, record.counts), NONE_LOST),
       reason,
     });
-    this.emit("dropped", times.length, reason);
+    for (const record of records) {
+      const month = monthOf(record.at);
+      const at = new Date(record.at);
+      this.gaps.set(
+        month,
+        mergeGaps(this.gaps.get(month), {
+          month,
+          firstAt: at,
+          lastAt: at,
+          ...record.counts,
+          reason,
+        }),
+      );
+    }
+    this.emit("dropped", records.length, reason);
     this.schedule(this.queue.length ? this.options.flushMs : this.backoff);
   }
 }

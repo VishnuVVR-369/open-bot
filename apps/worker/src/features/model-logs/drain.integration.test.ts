@@ -2,6 +2,7 @@ import { once } from "node:events";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { modelLogGaps, modelRequests } from "@open-bot/db";
+import { costMicros } from "@open-bot/domain";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -90,9 +91,9 @@ describe.skipIf(!url)("model proxy at shutdown", () => {
           calls.push("add");
           writer.add(record);
         },
-        lost: (startedAt, reason) => {
-          calls.push(`lost ${startedAt.length}`);
-          writer.lost(startedAt, reason);
+        lost: (requests, reason) => {
+          calls.push(`lost ${requests.length}`);
+          writer.lost(requests, reason);
         },
       },
       log: quiet,
@@ -146,9 +147,24 @@ describe.skipIf(!url)("model proxy at shutdown", () => {
     const turn = await startTurn(base, "thread-outlasting");
     await runtime.stop();
     const gaps = await db.select().from(modelLogGaps);
+    // On the API key, and still running: its cost is estimated, never a known zero.
     expect(gaps).toMatchObject([
-      { requests: 1, reason: "the worker shut down before they finished" },
+      {
+        requests: 1,
+        apiRequests: 1,
+        apiRequestsEstimated: 1,
+        reason: "the worker shut down before they finished",
+      },
     ]);
+    // At least its whole input, uncached, at 2 bytes a token.
+    const body = JSON.stringify(codexBody("thread-outlasting", "turn-1", [user("hi")]));
+    expect(gaps[0]!.apiCostMicros).toBeGreaterThanOrEqual(
+      costMicros({
+        inputTokens: Math.ceil(Buffer.byteLength(body) / 2),
+        cachedInputTokens: 0,
+        outputTokens: 0,
+      }),
+    );
     const lost = ["lost 1", "dropped 1: the worker shut down before they finished"];
     expect(calls).toEqual(lost);
 

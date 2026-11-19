@@ -105,6 +105,8 @@ export interface ExportedRequestRow {
   outputTokens: number | null;
   reasoningTokens: number | null;
   costMicros: number;
+  /** The usage and cost are an estimate (`estimateUsage`): the API reported none. */
+  usageEstimated: boolean;
   stopReason: string | null;
   errorType: string | null;
   errorMessage: string | null;
@@ -161,6 +163,7 @@ export function exportLine(
       reasoning_tokens: row.reasoningTokens,
     },
     cost_micros: row.costMicros,
+    usage_estimated: row.usageEstimated,
     stop_reason: row.stopReason,
     error:
       row.errorType !== null || row.errorMessage !== null

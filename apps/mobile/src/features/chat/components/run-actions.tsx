@@ -43,6 +43,8 @@ export function usageLine(run: RunView): string | null {
     took !== null && `Took ${formatDuration(took)}`,
     run.usage && run.usage.tokens > 0 && `${compactNumber(run.usage.tokens)} tokens`,
     run.usage && run.usage.costMicros > 0 && formatDollars(run.usage.costMicros),
+    // Some API key request ended without its usage: counted from an estimate that errs high.
+    run.usage?.estimated && "includes an estimate",
   ].filter(Boolean);
   return parts.length ? parts.join(" · ") : null;
 }

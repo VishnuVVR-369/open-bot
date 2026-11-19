@@ -498,9 +498,6 @@
   "apps/web/src/features/settings/components/usage-section.tsx": {
     "bot": 5
   },
-  "apps/web/src/features/settings/server/service.ts": {
-    "bot": 3
-  },
   "apps/web/src/features/skills/components/skill-dialog.tsx": {
     "bot": 19
   },
@@ -860,7 +857,7 @@
     "bot": 9
   },
   "apps/worker/src/runs/session/finalize.ts": {
-    "bot": 16
+    "bot": 14
   },
   "apps/worker/src/runs/session/run-session.ts": {
     "bot": 20
@@ -1178,10 +1175,10 @@
     "primary teammate": 3
   },
   "tools/showcase/content-rest.ts": {
-    "bot": 128
+    "bot": 127
   },
   "tools/showcase/lib.ts": {
-    "bot": 21
+    "bot": 19
   },
   "tools/showcase/shoot.mjs": {
     "bot": 13

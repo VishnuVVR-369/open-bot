@@ -3,11 +3,7 @@
     "apps/botd/src/code-screens.ts -> apps/botd/src/screens.ts",
     "apps/botd/src/screens.ts -> apps/botd/src/code-screens.ts",
     "apps/worker/src/features/screens/screen-operations.ts -> apps/worker/src/features/screens/takeovers.ts",
-    "apps/worker/src/features/screens/takeovers.ts -> apps/worker/src/features/screens/screen-operations.ts",
-    "packages/db/src/index.ts -> packages/db/src/locks.ts",
-    "packages/db/src/index.ts -> packages/db/src/settings.ts",
-    "packages/db/src/locks.ts -> packages/db/src/index.ts",
-    "packages/db/src/settings.ts -> packages/db/src/index.ts"
+    "apps/worker/src/features/screens/takeovers.ts -> apps/worker/src/features/screens/screen-operations.ts"
   ],
   "appImports": []
 }

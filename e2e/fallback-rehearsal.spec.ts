@@ -1,6 +1,7 @@
 import http from "node:http";
 import { expect, test } from "./fixtures";
 import pg from "pg";
+import { apiKeySpendMicros, createDb } from "@open-bot/db";
 import {
   e2eStack,
   createTeammate,
@@ -157,17 +158,27 @@ test("rehearsal: the plan hits its limit mid-run and the run finishes on the API
   await waitForLastRun(page, ["completed"], 120_000);
   expect(requests.slice(before).every((url) => url.startsWith("/api"))).toBe(true);
 
+  // The reply's footer reads the run's model logs: one API key request, priced as it was logged.
+  // Two runs of (10k uncached x $2 + 2k cached x $0.10 + 300 output x $10) per million = $0.0232 each.
+  const lastRun = page.getByTestId("run").last();
+  await lastRun.getByTestId("run-time").hover();
+  await expect(page.getByTestId("run-stats")).toContainText("12.3K tokens");
+  await expect(page.getByTestId("run-stats")).toContainText("$0.02 on your API key");
+
   await page.goto("/settings");
   await expect(page.getByTestId("fallback-status")).toContainText("Running on your API key");
-  // Two runs of (10k uncached x $2 + 2k cached x $0.10 + 300 output x $10) per million = $0.0232 each.
   const { rows } = await pool.query(
-    "select coalesce(sum(cost_micros), 0)::int as spend from usage_entries where auth_mode = 'api_key' and created_at > now() - interval '10 minutes'",
+    "select coalesce(sum(cost_micros), 0)::int as spend from model_requests where route = 'api' and started_at > now() - interval '10 minutes'",
   );
   expect(rows[0].spend).toBeGreaterThanOrEqual(46_400);
-  // The month's total also counts earlier API key runs.
-  const month = await pool.query(
-    "select coalesce(sum(cost_micros), 0)::int as spend from usage_entries where auth_mode = 'api_key' and created_at >= date_trunc('month', now())",
+  // Usage lives in the model logs now: nothing writes usage_entries.
+  const ledger = await pool.query(
+    "select count(*)::int as entries from usage_entries where created_at > now() - interval '10 minutes'",
   );
-  const spent = `$${(month.rows[0].spend / 1_000_000).toFixed(2)}`;
+  expect(ledger.rows[0].entries).toBe(0);
+  // The month's total, as the cap counts it, also counts earlier API key spend.
+  const now = new Date();
+  const month = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const spent = `$${((await apiKeySpendMicros(createDb(pool), month)) / 1_000_000).toFixed(2)}`;
   await expect(page.getByText(`${spent} of $5.00`)).toBeVisible();
 });

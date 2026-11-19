@@ -13,6 +13,7 @@ import {
   lessons,
   memoryItems,
   memoryRevisions,
+  modelRequests,
   nativePushDevices,
   notifications,
   oauthClients,
@@ -24,7 +25,6 @@ import {
   skills,
   tasks,
   triggers,
-  usageEntries,
   vaultItems,
 } from "@open-bot/db";
 import {
@@ -1599,16 +1599,32 @@ export async function seedUsageAndSettings(ctx: SeedContext) {
     const apiKey = i % 3 === 0;
     const input = 90_000 + ((i * 53_000) % 420_000);
     const output = 2_000 + ((i * 3_100) % 28_000);
-    await db.insert(usageEntries, {
+    const at = new Date(monthStart.getTime() + Math.round((span * (i + 1)) / 37));
+    // Logged requests of runs since deleted: they count for their teammate, priced as logged.
+    await db.insert(modelRequests, {
       id: randomUUID(),
-      botId: bot.id,
-      authMode: apiKey ? "api_key" : "plan",
+      source: "codex",
+      route: apiKey ? "api" : "plan",
+      transport: apiKey ? "http" : "websocket",
+      method: apiKey ? "POST" : "response.create",
+      endpoint: "/responses",
+      codexThreadId: `showcase-filler-${i}`,
+      codexTurnId: `showcase-filler-turn-${i}`,
+      requestKind: "turn",
+      teammateId: bot.id,
+      model: "gpt-6.1-sol",
+      status: 200,
+      startedAt: at,
+      firstByteAt: new Date(at.getTime() + 900),
+      endedAt: new Date(at.getTime() + 14_000),
       inputTokens: input,
       cachedInputTokens: Math.round(input * 0.58),
       outputTokens: output,
+      reasoningTokens: Math.round(output * 0.3),
       costMicros: apiKey ? Math.round(input * 1.4 + output * 9) : 0,
-      idempotencyKey: `showcase:filler:${i}`,
-      createdAt: new Date(monthStart.getTime() + Math.round((span * (i + 1)) / 37)),
+      stopReason: "completed",
+      requestHeaders: { "content-type": "application/json" },
+      bodiesExpiredAt: at,
     });
   }
   await db.insert(credentials, {

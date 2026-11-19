@@ -21,6 +21,7 @@ import { VaultService } from "../features/vault";
 import { EmailService } from "../features/email";
 import { SettingsService } from "../features/settings";
 import { FileService } from "../features/files";
+import { ModelAccess } from "../features/model-access";
 import { PushService } from "../features/notifications";
 import { SessionRegistry } from "../runs/registry";
 import { RetryService } from "../runs/retries";
@@ -79,6 +80,7 @@ export function rpcHarness() {
       APP_URL: "https://openbot.test",
       WORKER_SECRET: SECRET,
       ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
+      MODEL_PROXY: true,
     },
     log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
     computer: {
@@ -145,6 +147,7 @@ export function rpcHarness() {
     chats: chatService,
     runRequests: new RunRequests(ctx, chatService, memory, () => executor.processCancellations()),
     executor,
+    model: new ModelAccess(ctx),
     retries: new RetryService(ctx),
     approvals: approvalService,
     takeovers: { dismiss: vi.fn(async () => {}) },

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { modelProxyToken } from "../model-logs";
-import { API_PROVIDER_ID, PLAN_PROVIDER_ID, providerFor } from "./service";
+import { API_PROVIDER_ID, PLAN_PROVIDER_ID, providerFor, UnloggedApiKeyError } from "./service";
 
 const direct = {
   OPENAI_API_BASE_URL: "https://api.openai.com/v1",
@@ -14,7 +14,7 @@ const token = modelProxyToken(direct.ENCRYPTION_KEY);
 describe("providerFor", () => {
   it("keeps Codex's own provider for the plan, pointed at the proxy's plan route", () => {
     const url = `http://worker.railway.internal:4001/model-proxy/${token}/plan/backend-api/codex`;
-    expect(providerFor("plan", null, proxied)).toEqual({
+    expect(providerFor("plan", proxied)).toEqual({
       modelProvider: PLAN_PROVIDER_ID,
       config: { openai_base_url: url },
       route: url,
@@ -22,11 +22,11 @@ describe("providerFor", () => {
   });
 
   it("sends the plan straight to ChatGPT when the proxy is off", () => {
-    expect(providerFor("plan", null, direct)).toEqual({ modelProvider: PLAN_PROVIDER_ID });
+    expect(providerFor("plan", direct)).toEqual({ modelProvider: PLAN_PROVIDER_ID });
   });
 
   it("points API key threads at the proxy, which adds the key, so Codex never gets it", () => {
-    const provider = providerFor("api_key", "sk-test", proxied);
+    const provider = providerFor("api_key", proxied);
     const url = `http://worker.railway.internal:4001/model-proxy/${token}/api`;
     expect(provider).toEqual({
       modelProvider: API_PROVIDER_ID,
@@ -39,24 +39,19 @@ describe("providerFor", () => {
       },
       route: url,
     });
-    expect(JSON.stringify(provider)).not.toContain("sk-test");
+    expect(JSON.stringify(provider)).not.toContain("experimental_bearer_token");
   });
 
-  it("gives API key threads the key as the bearer token when the proxy is off", () => {
-    const provider = providerFor("api_key", "sk-test", direct);
-    expect(provider.modelProvider).toBe(API_PROVIDER_ID);
-    expect(provider.route).toBeUndefined();
-    expect(provider.config).toEqual({
-      [`model_providers.${API_PROVIDER_ID}`]: expect.objectContaining({
-        base_url: "https://api.openai.com/v1",
-        wire_api: "responses",
-        experimental_bearer_token: "sk-test",
-      }),
-    });
+  it("never gives an API key thread a route around the proxy, so no key spend goes unlogged", () => {
+    expect(() => providerFor("api_key", direct)).toThrow(UnloggedApiKeyError);
+    // Nor in a rehearsal, whose plan leg may go straight to its stand-in.
+    expect(() =>
+      providerFor("api_key", { ...direct, OPEN_BOT_PLAN_BASE_URL: "http://stand-in/plan" }),
+    ).toThrow(UnloggedApiKeyError);
   });
 
   it("routes a rehearsal's plan through the proxy to its stand-in, with a token of its own", () => {
-    const provider = providerFor("plan", null, {
+    const provider = providerFor("plan", {
       ...proxied,
       OPEN_BOT_PLAN_BASE_URL: "http://stand-in/plan",
     });
@@ -76,7 +71,7 @@ describe("providerFor", () => {
   });
 
   it("routes a rehearsal's plan straight to its stand-in when the proxy is off", () => {
-    const provider = providerFor("plan", null, {
+    const provider = providerFor("plan", {
       ...direct,
       OPEN_BOT_PLAN_BASE_URL: "http://stand-in/plan",
     });

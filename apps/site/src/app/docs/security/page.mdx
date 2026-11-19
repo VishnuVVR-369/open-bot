@@ -57,7 +57,7 @@ The web app encrypts when you save, and the worker decrypts only at the moment o
 Losing `ENCRYPTION_KEY` makes these unreadable, so back it up with the database.
 
 The OpenAI API key never reaches the computer.
-Codex's API key provider points at the worker's [model proxy](/docs/architecture/agent-runtime#the-model-proxy), and the worker adds the key to each request itself (unless `MODEL_PROXY=off`, which gives Codex the key as before).
+Codex's API key provider points at the worker's [model proxy](/docs/architecture/agent-runtime#the-model-proxy), and the worker adds the key to each request itself, so the key never reaches the computer; with `MODEL_PROXY=off` the key isn't used at all.
 
 The ChatGPT login is not in Postgres.
 In development, only a short-lived access token is passed to the computer, and the refresh token stays on your machine.

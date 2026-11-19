@@ -14,7 +14,13 @@ import https from "node:https";
 import type { Duplex } from "node:stream";
 import { type ModelRoute, isAccountHeader, isSecretHeader, unreadable } from "@open-bot/domain";
 import { errorMessage, type Logger } from "../../logger";
-import { type Exchange, type ModelRequestRecord, recordExchange } from "./capture";
+import {
+  type Exchange,
+  type LostRequest,
+  type ModelRequestRecord,
+  lostRequestOf,
+  recordExchange,
+} from "./capture";
 import { REQUEST_BODY_LIMIT, forwardable, sameToken, sendJson, threadIdsOf } from "./forwarding";
 import { MODEL_PROXY_PATH, modelProxyToken } from "./routing";
 import { CAPTURE_LIMIT, ResponseTap } from "./response-tap";
@@ -62,7 +68,10 @@ interface Target {
 export interface ModelProxyDeps {
   env: { ENCRYPTION_KEY: string; OPENAI_API_BASE_URL: string; OPEN_BOT_PLAN_BASE_URL?: string };
   runs: ProxyRuns;
-  writer: { add(record: ModelRequestRecord): void; lost(startedAt: Date[], reason: string): void };
+  writer: {
+    add(record: ModelRequestRecord): void;
+    lost(requests: LostRequest[], reason: string): void;
+  };
   log: Pick<Logger, "warn" | "error">;
   /** Overrides `CAPTURE_LIMIT`, for tests. */
   captureLimit?: number;
@@ -79,6 +88,7 @@ export function newExchange(
     teammateId: null,
     requestBody: null,
     requestBytes: 0,
+    sent: false,
     status: null,
     responseHeaders: null,
     response: null,
@@ -168,9 +178,39 @@ export class ModelProxy extends EventEmitter<ModelProxyEvents> {
     clearTimeout(timer);
     this.sockets.terminate();
     if (!this.active.size) return;
-    const starts = [...this.active].map((exchange) => exchange.startedAt);
+    // Still running: an API key request's cost is estimated until now.
+    const now = new Date();
+    const lost = [...this.active].map((exchange) => lostRequestOf(exchange, now));
     this.active.clear();
-    this.deps.writer.lost(starts, "the worker shut down before they finished");
+    this.deps.writer.lost(lost, "the worker shut down before they finished");
+  }
+
+  /**
+   * Waits, up to `timeoutMs`, until no request of these Codex threads is still being forwarded
+   * or logged: once a turn has ended, that is its last responses being read and queued.
+   */
+  settled(threadIds: readonly string[], timeoutMs: number): Promise<void> {
+    const ids = new Set(threadIds);
+    const busy = () =>
+      [...this.active].some((exchange) =>
+        threadIdsOf(exchange.requestHeaders, exchange.requestJson ?? null).some((id) =>
+          ids.has(id),
+        ),
+      );
+    if (!busy()) return Promise.resolve();
+    return new Promise<void>((resolve) => {
+      const check = () => {
+        if (!busy()) done();
+      };
+      const done = () => {
+        clearTimeout(timer);
+        this.off("settled", check);
+        resolve();
+      };
+      const timer = setTimeout(done, timeoutMs);
+      timer.unref();
+      this.on("settled", check);
+    });
   }
 
   private settle(exchange: Exchange) {
@@ -202,7 +242,10 @@ export class ModelProxy extends EventEmitter<ModelProxyEvents> {
       .catch((error: unknown) => {
         this.deps.log.error("a model request could not be logged", { error: errorMessage(error) });
         if (this.active.has(exchange))
-          this.deps.writer.lost([exchange.startedAt], "it could not be logged");
+          this.deps.writer.lost(
+            [lostRequestOf(exchange, exchange.endedAt)],
+            "it could not be logged",
+          );
       })
       .finally(() => this.settle(exchange));
   }
@@ -351,6 +394,13 @@ export class ModelProxy extends EventEmitter<ModelProxyEvents> {
     const upstream = (upstreamUrl.protocol === "https:" ? https : http).request(upstreamUrl, {
       method,
       headers,
+    });
+    // A model request may cost money from the moment its connection is open: what it sent from
+    // then on reached the upstream.
+    upstream.on("socket", (socket) => {
+      const opened = () => (exchange.sent = logBodies);
+      if (socket.connecting) socket.once("connect", opened);
+      else opened();
     });
 
     // The request: forwarded as it arrives, and kept for the log up to a limit.

@@ -73,6 +73,7 @@ export function exchange(
         client_metadata: { thread_id: thread, turn_id: turn },
       },
       requestBytes: 0,
+      sent: true,
       status: 200,
       responseHeaders: {},
       response: rebuildResponse(

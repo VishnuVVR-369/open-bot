@@ -23,6 +23,7 @@ import {
 import { sql } from "drizzle-orm";
 import {
   bigint,
+  boolean,
   check,
   index,
   integer,
@@ -96,6 +97,18 @@ export const modelRequests = pgTable(
     reasoningTokens: bigint("reasoning_tokens", { mode: "number" }),
     /** Millionths of a dollar: list prices on the API key, zero on the plan. */
     costMicros: bigint("cost_micros", { mode: "number" }).notNull().default(0),
+    /**
+     * The tokens and cost are an estimate (`estimateUsage` in @open-bot/domain): an API key request
+     * that may have cost money ended without reporting its usage (cut off, cancelled, unreadable).
+     */
+    usageEstimated: boolean("usage_estimated").notNull().default(false),
+    /**
+     * Counted toward usage (the monthly cap, Settings and each reply's footer). Set on every row a
+     * worker writes once it no longer writes `usage_entries`; a worker from before that leaves it
+     * false, and its usage counts from `usage_entries` instead (the runs' legacy totals). So each
+     * request counts through exactly one producer, whatever the clocks or the order of deploys.
+     */
+    countsUsage: boolean("counts_usage").notNull().default(false),
     /** `completed`, `failed`, or `incomplete:<reason>`. */
     stopReason: text("stop_reason"),
     errorType: text("error_type"),
@@ -132,6 +145,10 @@ export const modelRequests = pgTable(
     index("model_requests_turn_idx").on(table.codexThreadId, table.codexTurnId),
     index("model_requests_started_idx").on(table.startedAt),
     index("model_requests_teammate_idx").on(table.teammateId, table.startedAt),
+    // This month's API key spend, for the monthly cap.
+    index("model_requests_api_started_idx")
+      .on(table.startedAt)
+      .where(sql`${table.route} = 'api' and ${table.countsUsage}`),
     // Filtering runs and usage by model.
     index("model_requests_model_idx").on(table.model, table.startedAt),
     // Deleting a blob checks nothing still names it; without these that is a scan per blob.
@@ -297,7 +314,11 @@ export const runTurns = pgTable(
 /** What the writer could not save: when, how many of each, and why. */
 export const modelLogGaps = pgTable("model_log_gaps", {
   id: uuid("id").primaryKey().defaultRandom(),
-  /** When the first and the last lost record was captured. */
+  /**
+   * When the first and the last lost record was captured. A worker that writes the API key fields
+   * below keeps each gap within one calendar month (UTC), so its API key spend counts in the month
+   * its requests started.
+   */
   firstAt: timestamp("first_at", { withTimezone: true }).notNull(),
   lastAt: timestamp("last_at", { withTimezone: true }).notNull(),
   /** Model requests lost. */
@@ -306,6 +327,15 @@ export const modelLogGaps = pgTable("model_log_gaps", {
   codexEvents: integer("codex_events").notNull().default(0),
   /** Run turns lost. */
   runTurns: integer("run_turns").notNull().default(0),
+  /**
+   * Of the requests lost, those on the API key. Written only by workers that count usage from the
+   * model logs (see `model_requests.counts_usage`); older ones leave these at 0.
+   */
+  apiRequests: integer("api_requests").notNull().default(0),
+  /** What they cost, in millionths of a dollar, estimated for some; the cap counts it. */
+  apiCostMicros: bigint("api_cost_micros", { mode: "number" }).notNull().default(0),
+  /** Of those, the ones whose cost is an estimate (`model_requests.usage_estimated`). */
+  apiRequestsEstimated: integer("api_requests_estimated").notNull().default(0),
   reason: text("reason").notNull(),
   createdAt: createdAt(),
 });

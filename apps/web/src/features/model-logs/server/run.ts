@@ -61,6 +61,7 @@ type RequestRow = {
   output_tokens: string | null;
   reasoning_tokens: string | null;
   cost_micros: string;
+  usage_estimated: boolean;
   stop_reason: string | null;
   error_type: string | null;
   error_message: string | null;
@@ -79,6 +80,7 @@ type TotalsRow = {
   output_tokens: number;
   cost_micros: number;
   errors: number;
+  estimated: boolean;
   bodies_expired_at: Date | null;
 };
 
@@ -116,7 +118,8 @@ export async function getRunModelLogs(runId: string): Promise<RunModelLogs> {
       select m.id, m.codex_thread_id, m.codex_turn_id, m.placed_turn_id, m.request_kind, m.model,
         m.route, m.transport, m.method, m.endpoint, m.status, m.started_at, m.first_byte_at,
         m.ended_at, m.input_tokens, m.cached_input_tokens, m.output_tokens, m.reasoning_tokens,
-        m.cost_micros, m.stop_reason, m.error_type, m.error_message, m.rate_limit_headers,
+        m.cost_micros, m.usage_estimated, m.stop_reason, m.error_type, m.error_message,
+        m.rate_limit_headers,
         m.parse_warnings, m.sent_input_from, m.bodies_expired_at,
         (select count(*) from model_request_items i
           where i.request_id = m.id and i.side = 'input')::int as input_items,
@@ -131,6 +134,7 @@ export async function getRunModelLogs(runId: string): Promise<RunModelLogs> {
         coalesce(sum(m.output_tokens), 0)::float8 as output_tokens,
         coalesce(sum(m.cost_micros), 0)::float8 as cost_micros,
         (count(*) filter (where ${requestFailedSql("m")}))::int as errors,
+        coalesce(bool_or(m.usage_estimated), false) as estimated,
         min(m.bodies_expired_at) as bodies_expired_at
       from run_turns rt
       join runs r on r.id = rt.run_id
@@ -193,6 +197,7 @@ export async function getRunModelLogs(runId: string): Promise<RunModelLogs> {
       outputTokens: num(row.output_tokens),
       reasoningTokens: num(row.reasoning_tokens),
       costMicros: Number(row.cost_micros),
+      usageEstimated: row.usage_estimated,
       stopReason: row.stop_reason,
       errorType: row.error_type,
       errorMessage: row.error_message,
@@ -233,6 +238,7 @@ export async function getRunModelLogs(runId: string): Promise<RunModelLogs> {
       outputTokens: Number(totals.output_tokens),
       costMicros: Number(totals.cost_micros),
       errors: Number(totals.errors),
+      estimated: totals.estimated,
     },
     shownRequests: summaries.length,
     turns: turnRows.rows.map((row, index) => ({

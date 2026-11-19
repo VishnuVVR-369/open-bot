@@ -68,6 +68,7 @@ describe("rebuildResponse", () => {
       output: [reasoning, call, message],
       text: "Here are the files.",
       reasoningSummary: "Planning the listing.",
+      deltaBytes: "Planning".length + "Here are".length,
       usage: {
         inputTokens: 12_000,
         cachedInputTokens: 2_000,
@@ -166,6 +167,19 @@ describe("rebuildResponse", () => {
       "an event (response.output_item.done) was not JSON",
       "the stream ended before the response did",
     ]);
+  });
+
+  it("measures what a stream cut short sent piece by piece before any item was done", () => {
+    const cut = sse([
+      { type: "response.created", response: { id: "r" } },
+      { type: "response.reasoning_text.delta", delta: "Thinking about it" },
+      { type: "response.function_call_arguments.delta", delta: '{"cmd":' },
+      { type: "response.output_text.delta", delta: "ありがとう" },
+    ]);
+    const rebuilt = rebuildResponse(cut, "text/event-stream");
+    expect(rebuilt).toMatchObject({ complete: false, output: [], text: "" });
+    // UTF-8 bytes: the Japanese text is 15.
+    expect(rebuilt.deltaBytes).toBe(17 + 7 + 15);
   });
 
   it("reads an error answered as JSON, like a plan's usage limit", () => {

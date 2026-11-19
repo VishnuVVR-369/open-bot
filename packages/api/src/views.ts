@@ -134,8 +134,13 @@ export const runViewSchema = z.object({
   automationPrompt: z.string().nullable(),
   /** Your thumbs up or down on the reply. */
   rating: runRatingSchema.nullable(),
-  /** Tokens and cost of the run, once the model reported them. */
-  usage: z.object({ tokens: z.number(), costMicros: z.number() }).nullable(),
+  /**
+   * Tokens and cost of the run, once the model reported them. `estimated` when some of it is an
+   * estimate: an API key request ended without reporting its usage.
+   */
+  usage: z
+    .object({ tokens: z.number(), costMicros: z.number(), estimated: z.boolean() })
+    .nullable(),
   createdAt: isoDate,
   startedAt: isoDate.nullable(),
   completedAt: isoDate.nullable(),

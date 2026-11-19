@@ -9,7 +9,6 @@ import {
   swarms,
   swarmTasks,
   triggers,
-  usageEntries,
 } from "@open-bot/db";
 import {
   ACCOUNT_TRIGGER_NOTE,
@@ -20,12 +19,13 @@ import {
   type RunStatus,
   WEBHOOK_PAYLOAD_NOTE,
 } from "@open-bot/domain";
-import { and, asc, desc, eq, ilike, inArray, isNull, lt, max, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, isNull, lt, max, ne } from "drizzle-orm";
 import { toMessageView } from "@open-bot/api";
 import type { ChatData, ChatEntry, RunView, SearchResultView } from "@/lib/types";
 import { db } from "@/lib/server/db";
 import { listTeammates } from "@/features/teammates/server";
 import { listChats } from "./lists";
+import { runUsageByRun } from "@/features/model-logs/server";
 import { plainText } from "@/lib/utils";
 
 const PAGE = 30;
@@ -84,7 +84,7 @@ export async function getChatData(chatId: string, before?: string): Promise<Chat
         .where(inArray(runEvents.runId, runIds))
         .orderBy(asc(runEvents.id))
     : [];
-  const usage = await usageByRun(runIds);
+  const usage = await runUsageByRun(runIds);
   const [cursorRow] = await db
     .select({ value: max(runEvents.id) })
     .from(runEvents)
@@ -164,28 +164,6 @@ async function helperOf(chatId: string): Promise<ChatData["helper"]> {
     swarmChatId: row.swarm.chatId,
     swarmRunId: row.swarm.runId,
   };
-}
-
-/** Tokens and cost per run, from the usage ledger. */
-async function usageByRun(
-  runIds: string[],
-): Promise<Map<string, { tokens: number; costMicros: number }>> {
-  if (runIds.length === 0) return new Map();
-  const rows = await db
-    .select({
-      runId: usageEntries.runId,
-      tokens: sql<string>`sum(${usageEntries.inputTokens} + ${usageEntries.outputTokens})`,
-      costMicros: sql<string>`sum(${usageEntries.costMicros})`,
-    })
-    .from(usageEntries)
-    .where(inArray(usageEntries.runId, runIds))
-    .groupBy(usageEntries.runId);
-  return new Map(
-    rows.map((row) => [
-      row.runId!,
-      { tokens: Number(row.tokens), costMicros: Number(row.costMicros) },
-    ]),
-  );
 }
 
 /** What an automation gave the teammate, without the header line naming the automation. */

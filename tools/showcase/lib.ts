@@ -8,7 +8,6 @@ import {
   messages,
   runEvents,
   runs,
-  usageEntries,
   type schema,
 } from "@open-bot/db";
 import { eq, getTableName, type InferInsertModel } from "drizzle-orm";
@@ -481,7 +480,33 @@ export class Seeder {
         .map((item) => item.text)
         .join("\n\n") || null;
 
+    const input = tokens?.input ?? 9000 + timeline.length * 3200;
+    const output = tokens?.output ?? 600 + (finalText?.length ?? 200) * 1.4;
+    // What it used, as a run the previous worker finished has it: its legacy totals (only
+    // migrations and their triggers write these in the app). A run given model logs
+    // (content-model-logs.ts) loses them again in `seedUsageProducers`, as the current worker's
+    // runs have none.
+    const cached = Math.round(input * 0.62);
+    const legacy =
+      authMode === "api_key"
+        ? {
+            legacyApiKeyInputTokens: input,
+            legacyApiKeyCachedInputTokens: cached,
+            legacyApiKeyOutputTokens: Math.round(output),
+            legacyApiKeyCostMicros: Math.round(input * 2.5 + output * 10),
+            legacyUsageAt: lastTime,
+          }
+        : status !== "queued"
+          ? {
+              legacyPlanInputTokens: input,
+              legacyPlanCachedInputTokens: cached,
+              legacyPlanOutputTokens: Math.round(output),
+              legacyPlanCostMicros: 0,
+              legacyUsageAt: lastTime,
+            }
+          : {};
     await this.db.insert(runs, {
+      ...legacy,
       id,
       chatId: chat.id,
       botId: bot.id,
@@ -507,8 +532,6 @@ export class Seeder {
       completedAt,
     });
 
-    const input = tokens?.input ?? 9000 + timeline.length * 3200;
-    const output = tokens?.output ?? 600 + (finalText?.length ?? 200) * 1.4;
     events.push({
       at: lastTime,
       payload: {
@@ -546,20 +569,6 @@ export class Seeder {
         decidedAt: item.decision === "pending" ? null : plus(end, 4 * 60_000),
       });
     }
-    if (authMode === "api_key" || status !== "queued") {
-      await this.db.insert(usageEntries, {
-        runId: id,
-        botId: bot.id,
-        authMode,
-        inputTokens: input,
-        cachedInputTokens: Math.round(input * 0.62),
-        outputTokens: Math.round(output),
-        costMicros: authMode === "api_key" ? Math.round(input * 2.5 + output * 10) : 0,
-        idempotencyKey: `showcase:run:${id}`,
-        createdAt: lastTime,
-      });
-    }
-
     this.touch(chat.id, lastTime);
     if (completedAt) {
       const current = this.completions.get(chat.id);

@@ -78,6 +78,7 @@ describe("the export", () => {
     outputTokens: 2,
     reasoningTokens: 0,
     costMicros: 0,
+    usageEstimated: false,
     stopReason: "completed",
     errorType: null,
     errorMessage: null,

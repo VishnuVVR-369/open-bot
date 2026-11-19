@@ -1263,7 +1263,7 @@ export function ModelAccessDiagram() {
             w={260}
             h={56}
             title="Has the month hit the cap?"
-            sub="sum of usage_entries.cost_micros"
+            sub="sum of API key model_requests.cost_micros"
           />
 
           <Box

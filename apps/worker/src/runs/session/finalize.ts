@@ -1,7 +1,7 @@
-// Finishing a run: closes its timeline, frees its screens, stores its status and token usage, then
-// answers back and notifies you.
-import { runs, usageEntries } from "@open-bot/db";
-import { costMicros, type RunStatus, type TimelineItem } from "@open-bot/domain";
+// Finishing a run: closes its timeline, frees its screens, stores its status, waits for its model
+// logs (where its usage is read from) to be saved, then answers back and notifies you.
+import { runs } from "@open-bot/db";
+import { type RunStatus, type TimelineItem } from "@open-bot/domain";
 import { eq } from "drizzle-orm";
 import { publishApp, type Context } from "../../context";
 import type { Bot, Chat, Run } from "../../core/db-types";
@@ -38,7 +38,16 @@ export interface FinalizeSession {
   readonly cancelled: boolean;
   readonly writer: RunEventWriter;
   readonly usage: Record<"plan" | "api_key", TokenUsage>;
-  readonly services: { touchChat: (chatId: string) => Promise<void> };
+  /** Every Codex thread the run's turns ran in: a fallback to the API key adds a second. */
+  readonly threadIds: ReadonlySet<string>;
+  readonly services: {
+    touchChat: (chatId: string) => Promise<void>;
+    /**
+     * Waits, briefly and never failing, until the model logs of these threads are saved: the
+     * reply's footer, Settings and the cap read the run's usage from them.
+     */
+    settleModelLogs: (threadIds: readonly string[]) => Promise<void>;
+  };
   now(): string;
   putItem(item: TimelineItem): void;
   publishedPageId(): string | null;
@@ -98,6 +107,8 @@ export async function complete(session: FinalizeSession, outcome: Outcome) {
     })
     .where(eq(runs.id, run.id));
   if (!quiet) await session.services.touchChat(chat.id);
+  // Its last requests are still being saved; the status below makes open chats read the footer.
+  if (session.threadIds.size) await session.services.settleModelLogs([...session.threadIds]);
   const total = {
     inputTokens: session.usage.plan.inputTokens + session.usage.api_key.inputTokens,
     cachedInputTokens:
@@ -107,22 +118,6 @@ export async function complete(session: FinalizeSession, outcome: Outcome) {
   session.writer.write({ type: "usage", ...total });
   session.writer.write({ type: "status", status, ...(error ? { error } : {}) });
   await session.writer.drain();
-  for (const mode of ["plan", "api_key"] as const) {
-    const usage = session.usage[mode];
-    if (usage.inputTokens + usage.outputTokens === 0) continue;
-    await ctx.db
-      .insert(usageEntries)
-      .values({
-        runId: run.id,
-        botId: bot.id,
-        authMode: mode,
-        ...usage,
-        // The plan is a flat subscription; only the API key costs money per token.
-        costMicros: mode === "api_key" ? costMicros(usage) : 0,
-        idempotencyKey: `run:${run.id}:${mode}`,
-      })
-      .onConflictDoNothing();
-  }
 
   if (run.trigger === "question") await answerBack(ctx, run, bot, status, text, error);
   ctx.events.emit("runFinished", run, status, text, error);

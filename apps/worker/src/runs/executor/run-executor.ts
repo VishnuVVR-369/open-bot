@@ -40,6 +40,8 @@ export class RunExecutor {
     readonly connections: ConnectionService,
     readonly memory: MemoryCoordinator,
     readonly accounts: AccountAccess,
+    /** Waits, briefly, for a finishing run's model logs to be saved (`modelLogSettler`). */
+    private readonly settleModelLogs: (threadIds: readonly string[]) => Promise<void>,
   ) {}
 
   /** Runs that were executing when the worker stopped can't resume their turn. */
@@ -136,6 +138,7 @@ export class RunExecutor {
         requestNativeApproval: (s, input) => this.approvals.requestNative(s, input),
         buildPrompt: (s) => buildPrompt(this, s),
         touchChat: (chatId) => touchChat(this.ctx.db, chatId),
+        settleModelLogs: this.settleModelLogs,
         skillInputs: (text, botId) => this.skills.inputsFor(text, botId),
         connections: (botId) => this.connections.forBot(botId),
         model: this.model,

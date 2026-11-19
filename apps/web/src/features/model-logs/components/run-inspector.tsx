@@ -97,7 +97,22 @@ function Header({ logs, empty }: { logs: RunModelLogs; empty: boolean }) {
               </>
             }
           />
-          <Stat label="Cost on your API key" value={formatCost(totals.costMicros)} />
+          <Stat
+            label="Cost on your API key"
+            value={
+              <>
+                {formatCost(totals.costMicros)}
+                {totals.estimated && (
+                  <span
+                    className="ml-1.5 text-[12px] font-normal text-muted-foreground"
+                    data-testid="run-cost-estimated"
+                  >
+                    includes an estimate
+                  </span>
+                )}
+              </>
+            }
+          />
           <Stat
             label="Errors"
             value={totals.errors}

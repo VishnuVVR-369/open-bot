@@ -1,3 +1,4 @@
+import { FALLBACK_OFF_REASONS } from "@open-bot/domain";
 import { z } from "zod";
 
 /** What Settings shows that isn't a feature of its own. */
@@ -15,6 +16,12 @@ export const modelAccessViewSchema = z.object({
   capMicros: z.number(),
   spendMicros: z.number(),
   planLimitedUntil: z.string().nullable(),
+  /**
+   * Why the API key fallback is off although a key may be saved, or null when it isn't
+   * (`FallbackOffReason`): the cap counts the key's spend from the model logs, and some of it
+   * can't be counted. Teammates stop when the plan's limit is reached.
+   */
+  fallbackOff: z.enum(FALLBACK_OFF_REASONS).nullable(),
 });
 export type ModelAccessView = z.infer<typeof modelAccessViewSchema>;
 

@@ -2,6 +2,7 @@ import {
   chatgptAuthSourceSchema,
   type ComputerHealth,
   computerLifecycleSchema,
+  FALLBACK_OFF_REASONS,
 } from "@open-bot/domain";
 import { z } from "zod";
 import { egressStatusSchema } from "../egress";
@@ -62,6 +63,11 @@ export const workerStatusSchema = z.object({
   }),
   codex: codexStatusSchema,
   egress: egressStatusSchema,
+  /**
+   * Why the API key fallback is off although a key may be saved (`FallbackOffReason`), or null
+   * when it isn't. Missing from a worker deployed before it said.
+   */
+  apiFallbackOff: z.enum(FALLBACK_OFF_REASONS).nullable().optional(),
 });
 export type WorkerStatus = z.infer<typeof workerStatusSchema>;
 

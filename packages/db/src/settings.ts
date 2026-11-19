@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import type { Queryable } from "./index";
+import type { Queryable } from "./queryable";
 import { settings } from "./schema";
 
 /**

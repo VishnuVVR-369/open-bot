@@ -99,6 +99,12 @@ export interface RebuiltResponse {
   output: unknown[];
   text: string;
   reasoningSummary: string;
+  /**
+   * Bytes of the text the model streamed piece by piece (every `*.delta` event's string): its
+   * answer, reasoning and tool call arguments. Counts output a stream cut off before its items
+   * were done; finished items say the same again.
+   */
+  deltaBytes: number;
   usage: ResponseUsage | null;
   /** `completed`, `failed`, or `incomplete:<reason>`. */
   stopReason: string | null;
@@ -177,6 +183,8 @@ function errorOf(value: Record<string, unknown>): {
   };
 }
 
+const encoder = new TextEncoder();
+
 /** How many events that weren't JSON get a warning of their own, and how much of their name. */
 const WARNED_BAD_EVENTS = 10;
 const WARNED_NAME_LENGTH = 100;
@@ -200,6 +208,7 @@ export class ResponseRebuilder {
     output: [],
     text: "",
     reasoningSummary: "",
+    deltaBytes: 0,
     usage: null,
     stopReason: null,
     error: null,
@@ -268,6 +277,8 @@ export class ResponseRebuilder {
 
   /** One event, by its type: from an SSE stream, or a WebSocket message. */
   event(type: string, data: Record<string, unknown>): void {
+    if (type.endsWith(".delta") && typeof data.delta === "string")
+      this.result.deltaBytes += encoder.encode(data.delta).length;
     switch (type) {
       case "response.created":
       case "response.in_progress":

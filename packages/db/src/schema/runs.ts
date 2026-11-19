@@ -1,5 +1,6 @@
 // Runs: queued teammate work, its timeline events and the files it made.
 import {
+  AUTH_MODES,
   type AuthMode,
   type RunEventPayload,
   type RunRating,
@@ -9,8 +10,10 @@ import {
   type RunWait,
 } from "@open-bot/domain";
 import {
+  bigint,
   bigserial,
   boolean,
+  check,
   index,
   jsonb,
   pgTable,
@@ -21,7 +24,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { type Attachment, chats, messages } from "./chats";
-import { bytea, createdAt } from "./columns";
+import { bytea, createdAt, oneOf } from "./columns";
 import { bots } from "./teammates";
 
 export const runs = pgTable(
@@ -69,9 +72,33 @@ export const runs = pgTable(
     createdAt: createdAt(),
     startedAt: timestamp("started_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
+    // Legacy usage: what `usage_entries` held for the run, per access mode, copied by migration
+    // 0040, by its trigger on each entry written since, and again by the one that drops
+    // `usage_entries`. Code never writes these. They are the usage a worker that still wrote
+    // `usage_entries` counted for the run; the model requests it logged leave `counts_usage`
+    // false, so they never count again. Null for a mode the run had no entry for.
+    legacyPlanInputTokens: bigint("legacy_plan_input_tokens", { mode: "number" }),
+    legacyPlanCachedInputTokens: bigint("legacy_plan_cached_input_tokens", { mode: "number" }),
+    legacyPlanOutputTokens: bigint("legacy_plan_output_tokens", { mode: "number" }),
+    legacyPlanCostMicros: bigint("legacy_plan_cost_micros", { mode: "number" }),
+    legacyApiKeyInputTokens: bigint("legacy_api_key_input_tokens", { mode: "number" }),
+    legacyApiKeyCachedInputTokens: bigint("legacy_api_key_cached_input_tokens", {
+      mode: "number",
+    }),
+    legacyApiKeyOutputTokens: bigint("legacy_api_key_output_tokens", { mode: "number" }),
+    legacyApiKeyCostMicros: bigint("legacy_api_key_cost_micros", { mode: "number" }),
+    /**
+     * When the legacy totals were counted: the API key entry's time, else the plan entry's (both
+     * were written as the run finished). It puts them in a month for the cap and Settings.
+     */
+    legacyUsageAt: timestamp("legacy_usage_at", { withTimezone: true }),
   },
   (table) => [
     index("runs_chat_idx").on(table.chatId, table.createdAt),
+    // This month's legacy totals, for the cap and Settings' usage.
+    index("runs_legacy_usage_idx")
+      .on(table.legacyUsageAt)
+      .where(sql`${table.legacyUsageAt} is not null`),
     index("runs_status_idx").on(table.status),
     // Newest first, a page at a time, keyed by (created_at, id) (model logs' runs list).
     index("runs_created_idx").on(table.createdAt, table.id),
@@ -117,4 +144,33 @@ export const artifacts = pgTable(
   },
   // A run's screenshots, newest first: each screen's last frame, and deleting a run.
   (table) => [index("artifacts_run_idx").on(table.runId, table.createdAt)],
+);
+
+/**
+ * Legacy usage of runs that were deleted: `usage_entries` rows whose run was already gone when
+ * migration 0040 copied them, and the legacy totals of a run deleted since, which the
+ * `runs_keep_legacy_usage` trigger moves here. This month's rows keep counting toward the cap and
+ * Settings' usage, as the entries did. Only migrations and their triggers write it.
+ */
+export const legacyDeletedRunUsage = pgTable(
+  "legacy_deleted_run_usage",
+  {
+    /** The entry's idempotency key, `run:<run id>:<mode>`, so copying again adds nothing. */
+    sourceKey: text("source_key").primaryKey(),
+    /** The deleted run's id, when known; nothing references it. */
+    runId: uuid("run_id"),
+    /** The run's teammate, as it was; it may be deleted too, so nothing references it. */
+    teammateId: uuid("teammate_id"),
+    accessMode: text("access_mode").$type<AuthMode>().notNull(),
+    inputTokens: bigint("input_tokens", { mode: "number" }).notNull(),
+    cachedInputTokens: bigint("cached_input_tokens", { mode: "number" }).notNull(),
+    outputTokens: bigint("output_tokens", { mode: "number" }).notNull(),
+    costMicros: bigint("cost_micros", { mode: "number" }).notNull(),
+    /** When the entry was written, as the run finished. */
+    at: timestamp("at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("legacy_deleted_run_usage_at_idx").on(table.at),
+    check("legacy_deleted_run_usage_access_mode_check", oneOf(table.accessMode, AUTH_MODES)),
+  ],
 );
