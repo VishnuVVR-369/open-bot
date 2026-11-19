@@ -44,7 +44,7 @@ docker exec "$database" psql -U postgres -d openbot_sleep_test -c "insert into s
 docker exec "$computer" sh -c 'printf %s "{\"OPENAI_API_KEY\":\"sk-lifecycle-test-only-not-a-real-key\"}" > /home/bot/.codex/auth.json && chown bot:bot /home/bot/.codex/auth.json && chmod 600 /home/bot/.codex/auth.json'
 export WORKER_PORT="${SLEEP_TEST_WORKER_PORT:-14092}"
 export SLEEP_TEST_FIXTURE_PORT="${SLEEP_TEST_FIXTURE_PORT:-14799}"
-COMPUTER_LIFECYCLE_ENABLED=true COMPUTER_IDLE_MINUTES=0.03 OPEN_BOT_PLAN_BASE_URL="http://host.docker.internal:$SLEEP_TEST_FIXTURE_PORT/model" \
+COMPUTER_LIFECYCLE_ENABLED=true COMPUTER_IDLE_MINUTES=0.03 OPEN_BOT_PLAN_BASE_URL="http://127.0.0.1:$SLEEP_TEST_FIXTURE_PORT/model" \
   BOTD_TOKEN=sleep-test-only-token-20261107 WORKER_SECRET=sleep-test-worker-secret-20261107 \
   HOST_CODEX_AUTH_FILE=/tmp/openbot-sleep-no-host-auth \
   node apps/worker/dist/worker.mjs >"${SLEEP_TEST_LOG:-/tmp/openbot-sleep-worker.log}" 2>&1 &

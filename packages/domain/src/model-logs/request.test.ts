@@ -83,7 +83,7 @@ describe("turnMetadata", () => {
 });
 
 describe("sanitizeHeaders", () => {
-  it("drops every credential and keeps rate limits", () => {
+  it("drops every credential and the account, and keeps rate limits", () => {
     const headers = {
       Authorization: "Bearer sk-secret",
       cookie: "a=b",
@@ -99,9 +99,8 @@ describe("sanitizeHeaders", () => {
       "set-cookie": ["a=1", "b=2"],
     };
     const kept = sanitizeHeaders(headers);
-    expect(JSON.stringify(kept)).not.toMatch(/sk-secret|a=b|"k"|att|"t"/);
+    expect(JSON.stringify(kept)).not.toMatch(/sk-secret|a=b|"k"|att|"t"|acct/);
     expect(kept).toEqual({
-      "chatgpt-account-id": "acct",
       "content-type": "text/event-stream",
       "openai-organization": "org",
       "retry-after": "3",

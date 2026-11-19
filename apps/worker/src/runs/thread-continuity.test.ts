@@ -166,8 +166,34 @@ describe("model proxy routing and Codex thread continuity", () => {
     });
   });
 
-  it("leaves plan threads alone: the plan doesn't go through the proxy yet", async () => {
+  const planRoute = `${modelProxyUrl(env, "plan")!}/backend-api/codex`;
+  const forkParams = (f: ReturnType<typeof fixture>) =>
+    (f.request.mock.calls[0] as unknown as [string, Record<string, unknown>])[1];
+
+  it("forks a plan thread from before the proxy onto its plan route, on Codex's own provider", async () => {
     const f = fixture("1:0:0", undefined, current, 0, { mode: "plan", env });
+    expect(await f.ensure()).toBe("forked");
+    expect(f.request.mock.calls[0]![0]).toBe("thread/fork");
+    expect(forkParams(f)).toMatchObject({
+      threadId: "old",
+      modelProvider: "openai",
+      config: expect.objectContaining({ openai_base_url: planRoute }),
+    });
+  });
+
+  it("keeps a proxied plan thread while its route stays the same", async () => {
+    const f = fixture("1:0:0", undefined, current, 0, { mode: "plan", savedRoute: planRoute, env });
     expect(await f.ensure()).toBe("old");
+    expect(f.request).not.toHaveBeenCalled();
+  });
+
+  it("forks a plan thread back to ChatGPT when the proxy is turned off", async () => {
+    const f = fixture("1:0:0", undefined, current, 0, {
+      mode: "plan",
+      savedRoute: planRoute,
+      env: { ...env, MODEL_PROXY: false },
+    });
+    expect(await f.ensure()).toBe("forked");
+    expect(forkParams(f).config).not.toHaveProperty("openai_base_url");
   });
 });

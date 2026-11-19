@@ -12,8 +12,17 @@ const proxied = { ...direct, MODEL_PROXY: true, RAILWAY_PRIVATE_DOMAIN: "worker.
 const token = modelProxyToken(direct.ENCRYPTION_KEY);
 
 describe("providerFor", () => {
-  it("uses Codex's own provider for the plan", () => {
-    expect(providerFor("plan", null, proxied)).toEqual({ modelProvider: PLAN_PROVIDER_ID });
+  it("keeps Codex's own provider for the plan, pointed at the proxy's plan route", () => {
+    const url = `http://worker.railway.internal:4001/model-proxy/${token}/plan/backend-api/codex`;
+    expect(providerFor("plan", null, proxied)).toEqual({
+      modelProvider: PLAN_PROVIDER_ID,
+      config: { openai_base_url: url },
+      route: url,
+    });
+  });
+
+  it("sends the plan straight to ChatGPT when the proxy is off", () => {
+    expect(providerFor("plan", null, direct)).toEqual({ modelProvider: PLAN_PROVIDER_ID });
   });
 
   it("points API key threads at the proxy, which adds the key, so Codex never gets it", () => {
@@ -46,12 +55,32 @@ describe("providerFor", () => {
     });
   });
 
-  it("routes plan traffic to a rehearsal endpoint only when one is configured", () => {
+  it("routes a rehearsal's plan through the proxy to its stand-in, with a token of its own", () => {
     const provider = providerFor("plan", null, {
       ...proxied,
       OPEN_BOT_PLAN_BASE_URL: "http://stand-in/plan",
     });
-    expect(provider.modelProvider).toBe("openai-plan-rehearsal");
+    const url = `http://worker.railway.internal:4001/model-proxy/${token}/plan/backend-api/codex`;
+    expect(provider).toEqual({
+      modelProvider: "openai-plan-rehearsal",
+      config: {
+        "model_providers.openai-plan-rehearsal": expect.objectContaining({
+          base_url: url,
+          experimental_bearer_token: "plan-rehearsal",
+        }),
+      },
+      route: url,
+    });
+    // The stand-in is the proxy's upstream, which only the worker calls.
+    expect(JSON.stringify(provider)).not.toContain("http://stand-in/plan");
+  });
+
+  it("routes a rehearsal's plan straight to its stand-in when the proxy is off", () => {
+    const provider = providerFor("plan", null, {
+      ...direct,
+      OPEN_BOT_PLAN_BASE_URL: "http://stand-in/plan",
+    });
+    expect(provider.route).toBeUndefined();
     expect(JSON.stringify(provider.config)).toContain("http://stand-in/plan");
   });
 });

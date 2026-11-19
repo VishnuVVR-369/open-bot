@@ -4,10 +4,10 @@ import type { IncomingHttpHeaders } from "node:http";
 import type { Transform } from "node:stream";
 import { finished as streamFinished } from "node:stream/promises";
 import zlib from "node:zlib";
-import { RESPONSE_TOO_LARGE, ResponseReader, headerValue } from "@open-bot/domain";
+import { RESPONSE_TOO_LARGE, ResponseReader, headerValue, unreadable } from "@open-bot/domain";
 
 /** How much of a response is kept as it came, for one that can't be rebuilt. */
-const RAW_RESPONSE_LIMIT = 1024 * 1024;
+export const RAW_RESPONSE_LIMIT = 1024 * 1024;
 /**
  * What reading one response may hold, counted in bytes of compressed input not yet decompressed
  * and characters of text: an unfinished event, the items rebuilt so far, and what was noted along
@@ -64,12 +64,17 @@ export class ResponseTap {
     return (this.decoder?.writableLength ?? 0) + this.reader.held;
   }
 
+  /** Reads a chunk the response forwarded. It never throws: a failure costs only the copy. */
   write(chunk: Buffer): void {
     if (!this.readable || this.reader.abandoned) return;
     if (!this.decoder) return this.read(chunk);
     // Compressed input waiting for the decompressor counts too: it can fall behind the network.
     if (this.held + chunk.length > this.limit) return this.abandon();
-    this.decoder.write(chunk);
+    try {
+      this.decoder.write(chunk);
+    } catch (error) {
+      this.abandon(unreadable(error));
+    }
   }
 
   async end(): Promise<{
@@ -89,10 +94,15 @@ export class ResponseTap {
     return { response, raw, warnings: this.warnings };
   }
 
+  /** Reads a chunk, from the response or the decompressor; it never throws out of their events. */
   private read(chunk: Buffer) {
     if (this.reader.abandoned) return;
-    this.keepRaw(chunk);
-    this.reader.push(chunk);
+    try {
+      this.keepRaw(chunk);
+      this.reader.push(chunk);
+    } catch (error) {
+      return this.abandon(unreadable(error));
+    }
     // Decompressed output grows what the reader holds while compressed input may still wait.
     if (this.reader.abandoned || this.held > this.limit) this.abandon();
   }
@@ -109,8 +119,8 @@ export class ResponseTap {
   }
 
   /** Gives up on the copy; the response itself is still forwarded whole. */
-  private abandon() {
-    this.reader.abandon(RESPONSE_TOO_LARGE);
+  private abandon(reason = RESPONSE_TOO_LARGE) {
+    this.reader.abandon(reason);
     // Nothing more is kept as it came either.
     this.rawCut = this.rawBytes > 0;
     if (this.decoder) {

@@ -1,6 +1,5 @@
 import { once } from "node:events";
 import http from "node:http";
-import net from "node:net";
 import type { AddressInfo } from "node:net";
 import zlib from "node:zlib";
 import {
@@ -18,7 +17,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Context } from "../../context";
 import { createHttpServer, type HttpDeps } from "../../http";
 import { ModelProxy } from "./proxy";
-import { codexBody, sseEvent, turnEvents, user } from "./testing";
+import { DatabaseRelay, codexBody, sseEvent, turnEvents, user } from "./testing";
 import { modelProxyToken } from "./routing";
 import { ModelLogWriter } from "./writer";
 
@@ -34,32 +33,6 @@ const SYSTEM = {
   role: "developer",
   content: [{ type: "input_text", text: "Rules" }],
 };
-
-/** Forwards TCP to Postgres, and can cut it off: the database going away and coming back. */
-class Relay {
-  private readonly sockets = new Set<net.Socket>();
-  private open = true;
-  readonly server: net.Server;
-  constructor(target: { host: string; port: number }) {
-    this.server = net.createServer((client) => {
-      if (!this.open) return void client.destroy();
-      const upstream = net.connect(target);
-      for (const socket of [client, upstream]) {
-        this.sockets.add(socket);
-        socket.on("close", () => this.sockets.delete(socket));
-        socket.on("error", () => {});
-      }
-      client.pipe(upstream).pipe(client);
-    });
-  }
-  down() {
-    this.open = false;
-    for (const socket of this.sockets) socket.destroy();
-  }
-  up() {
-    this.open = true;
-  }
-}
 
 describe.skipIf(!url)("model proxy", () => {
   const database = testDatabase(url);
@@ -89,7 +62,7 @@ describe.skipIf(!url)("model proxy", () => {
     });
   });
 
-  let relay: Relay;
+  let relay: DatabaseRelay;
   let writerPool: ReturnType<typeof createPool>;
   let writer: ModelLogWriter;
   let worker: http.Server;
@@ -105,7 +78,7 @@ describe.skipIf(!url)("model proxy", () => {
     upstream.listen(0, "127.0.0.1");
     await once(upstream, "listening");
     const relayUrl = new URL(database.url);
-    relay = new Relay({ host: relayUrl.hostname, port: Number(relayUrl.port) });
+    relay = new DatabaseRelay({ host: relayUrl.hostname, port: Number(relayUrl.port) });
     relay.server.listen(0, "127.0.0.1");
     await once(relay.server, "listening");
     relayUrl.host = `127.0.0.1:${(relay.server.address() as AddressInfo).port}`;
@@ -126,6 +99,7 @@ describe.skipIf(!url)("model proxy", () => {
           const thread = threads.find((id) => live.has(id));
           return thread ? { apiKey: live.get(thread)!, teammateId } : null;
         },
+        teammateFor: (threads) => (threads.some((id) => live.has(id)) ? teammateId : null),
       },
       writer,
       log: { warn() {}, error() {} },
@@ -464,6 +438,51 @@ describe.skipIf(!url)("model proxy", () => {
       .where(eq(modelRequests.endpoint, "/alpha/search"));
     expect(row).toMatchObject({ status: 200, rawResponse: sent });
     expect(row!.parseWarnings).toContain("the response was JSON, but not a Responses API response");
+  });
+
+  it("stores an error's events and envelope without the credentials their headers carry", async () => {
+    live.set("thread-leaky", API_KEY);
+    const error = {
+      type: "error",
+      status: 429,
+      error: { type: "usage_limit_reached", headers: { "x-session-token": "nested-secret" } },
+      headers: { "set-cookie": "session=cookie-secret", "chatgpt-account-id": "account-secret" },
+    };
+    // A stream that ends on an error, so its events are kept as they came.
+    const sent =
+      sseEvent({ type: "response.created", response: { id: "resp-leaky" } }) + sseEvent(error);
+    respond = (response) => {
+      response.writeHead(200, { "content-type": "text/event-stream" });
+      response.end(sent);
+    };
+    const headers = { "thread-id": "thread-leaky" };
+    let saved = written();
+    const streamed = await post(
+      "/responses",
+      codexBody("thread-leaky", "turn-1", [user("hi")]),
+      headers,
+    );
+    expect(streamed.body.toString("utf8")).toBe(sent);
+    await saved;
+    // An error answer with no message of its own, so its envelope stands in for one.
+    respond = (response) => {
+      response.writeHead(429, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: error.error, headers: error.headers }));
+    };
+    saved = written();
+    await post("/responses", codexBody("thread-leaky", "turn-2", [user("again")]), headers);
+    await saved;
+    const found = await db
+      .select()
+      .from(modelRequests)
+      .where(eq(modelRequests.codexThreadId, "thread-leaky"))
+      .orderBy(asc(modelRequests.startedAt));
+    expect(found.map((row) => row.errorType)).toEqual([
+      "usage_limit_reached",
+      "usage_limit_reached",
+    ]);
+    expect(found[0]!.rawResponse).toContain("resp-leaky");
+    expect(JSON.stringify(found)).not.toMatch(/nested-secret|cookie-secret|account-secret/);
   });
 
   it("finishes requests while the database is down, and records the lost ones as a gap", async () => {

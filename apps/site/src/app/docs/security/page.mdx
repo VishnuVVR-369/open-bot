@@ -62,6 +62,7 @@ Codex's API key provider points at the worker's [model proxy](/docs/architecture
 The ChatGPT login is not in Postgres.
 In development, only a short-lived access token is passed to the computer, and the refresh token stays on your machine.
 In the cloud, Codex keeps its login in `/home/bot/.codex` on the computer's volume, readable only by the `bot` user.
+Plan requests go through the model proxy with that login in their headers: the worker passes it on to ChatGPT unchanged and never keeps it.
 
 ## Inside the computer
 
@@ -82,9 +83,13 @@ The worker logs every model request that goes through the model proxy, in the `m
 - **What they hold.** Requests and responses are stored as sent: your messages, what teammates read and wrote, tool calls and their output, and the model's encrypted reasoning.
   Treat them like the rest of the database.
 - **What they never hold.** Headers that carry a credential (authorization, cookies, API keys, tokens, secrets) are dropped before anything is saved, so neither your API key nor the computer's ChatGPT token is in the logs.
+  The same headers are dropped from the header objects the model sends back in its events and errors; exactly what that covers, and what it doesn't, is under [Data](/docs/architecture/data#model-logs).
+  The `chatgpt-account-id` header, which names your ChatGPT account, is dropped the same way.
 - **Who reaches the proxy.** Its URL carries a token derived from `ENCRYPTION_KEY`, which keeps the rest of the private network (web, pages) out.
   Teammates run as `bot`, the user Codex runs as, so they can read the URL from Codex's thread config; that grants nothing more.
   The proxy only forwards to fixed upstreams, chosen by route, and adds the API key only for a thread with a live run on the key, which already passed the monthly cap check.
+  On the plan route it adds nothing: a request carries the computer's own ChatGPT login, as it would going straight to ChatGPT.
+  When `OPEN_BOT_PLAN_BASE_URL` points the plan route at a rehearsal's stand-in, the proxy replaces every credential and the account header, so a stand-in never sees a real login.
 - **Who reads them.** Nothing reads them yet; teammates have no access to them.
 
 ## Outside the computer
