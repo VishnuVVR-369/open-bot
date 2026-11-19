@@ -1,7 +1,8 @@
 import type { NotifyChannel } from "@open-bot/domain";
-import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
+import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import { SafeClient } from "./errors";
+import type { Db } from "./queryable";
 import * as schema from "./schema";
 
 export * from "./schema";
@@ -13,15 +14,12 @@ export {
   SETTINGS_ID,
   type OwnerSettings,
 } from "./settings";
+export { apiKeySpendMicros } from "./usage";
 export { configurationRevision } from "./configuration";
 export { databaseError, errorFields, errorMessage, withoutValues } from "./errors";
 export { schema };
 
-export type Db = NodePgDatabase<typeof schema>;
-/** A transaction, as `db.transaction` passes it. */
-export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
-/** Something that runs queries: the database, or a transaction in it. */
-export type Queryable = Db | Tx;
+export type { Db, Queryable, Tx } from "./queryable";
 
 /**
  * A pool for `url`, which each app reads from its own env module. Its failed queries never carry a

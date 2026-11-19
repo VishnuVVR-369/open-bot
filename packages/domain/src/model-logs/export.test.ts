@@ -123,6 +123,7 @@ describe("exportLine", () => {
     outputTokens: 2,
     reasoningTokens: 0,
     costMicros: 5,
+    usageEstimated: false,
     stopReason: null,
     errorType: null,
     errorMessage: null,

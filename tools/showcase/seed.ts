@@ -21,7 +21,7 @@ import {
   renderThumbnails,
 } from "./assets";
 import { seedConversations, seedTeam } from "./content-chats";
-import { seedModelLogs } from "./content-model-logs";
+import { seedModelLogs, seedUsageProducers } from "./content-model-logs";
 import {
   seedAutomations,
   seedConnections,
@@ -224,6 +224,7 @@ try {
   await seedNotifications(ctx);
   await seedUsageAndSettings(ctx);
   await seedModelLogs(ctx);
+  await seedUsageProducers(ctx);
   await s.finish();
 
   await client.query("commit");

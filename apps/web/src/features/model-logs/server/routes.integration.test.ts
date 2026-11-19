@@ -187,6 +187,8 @@ describe.skipIf(!apiTestUrl)("model logs, through the API", () => {
         inputTokens: 900,
         outputTokens: 30,
         costMicros: 2550,
+        // Cut off before the API reported its usage.
+        usageEstimated: true,
       },
       // Another chat's request on another thread: never part of these runs.
       {
@@ -328,7 +330,11 @@ describe.skipIf(!apiTestUrl)("model logs, through the API", () => {
 
   it("says plainly when a run has no logs, and that a missing run is gone", async () => {
     const logs = await api.modelLogs.run({ runId: unlogged });
-    expect(logs).toMatchObject({ turns: [], events: 0, totals: { requests: 0 } });
+    expect(logs).toMatchObject({
+      turns: [],
+      events: 0,
+      totals: { requests: 0, estimated: false },
+    });
     await expect(api.modelLogs.run({ runId: randomUUID() })).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
@@ -392,8 +398,17 @@ describe.skipIf(!apiTestUrl)("model logs, through the API", () => {
       ["api_key", 1],
     ]);
     expect(logs.turns[0]!.requests[0]).toMatchObject({ failed: true, status: 429 });
-    expect(logs.turns[1]!.requests[0]).toMatchObject({ id: apiRequest, costMicros: 2550 });
-    expect(logs.totals).toMatchObject({ requests: 2, errors: 1, costMicros: 2550 });
+    expect(logs.turns[1]!.requests[0]).toMatchObject({
+      id: apiRequest,
+      costMicros: 2550,
+      usageEstimated: true,
+    });
+    expect(logs.totals).toMatchObject({
+      requests: 2,
+      errors: 1,
+      costMicros: 2550,
+      estimated: true,
+    });
   });
 
   it("rebuilds a request's input in order from its blobs, labeled, with its instructions and tools", async () => {

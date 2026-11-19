@@ -109,6 +109,13 @@ export class LogSeed {
     expiredAt?: Date;
     firstByteMs?: number;
     endpoint?: string;
+    /**
+     * Counted toward usage, as a worker that writes no `usage_entries` saves every request; false
+     * for one the previous worker logged (its `usage_entries` counted it). True by default.
+     */
+    countsUsage?: boolean;
+    /** Its usage is an estimate, as the API reported none. */
+    usageEstimated?: boolean;
     /** The request's parameters as stored, when not the plain model and stream. */
     params?: Record<string, unknown>;
   }) {
@@ -151,6 +158,8 @@ export class LogSeed {
       outputTokens: spec.tokens?.output ?? null,
       reasoningTokens: spec.tokens?.reasoning ?? null,
       costMicros: spec.costMicros ?? 0,
+      countsUsage: spec.countsUsage ?? true,
+      usageEstimated: spec.usageEstimated ?? false,
       requestHeaders: { "content-type": "application/json" },
       rateLimitHeaders: spec.rateLimits ?? null,
       params: spec.params ?? { model: spec.model ?? "gpt-5.5", stream: true },

@@ -87,6 +87,7 @@ describe("worker internal API transport", () => {
         throw new Error("connection reset");
       }),
     },
+    model: { fallbackOff: vi.fn(async () => null) },
     modelProxy: { handles: () => false, handle() {} },
   } as unknown as HttpDeps;
 

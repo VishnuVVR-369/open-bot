@@ -7,6 +7,7 @@ import { ensureThread } from "./session/threads";
 import { DEVELOPER_INSTRUCTIONS } from "../instructions";
 import { toolsRevision } from "./tools-revision";
 import { configurationRevision } from "@open-bot/db";
+import { UnloggedApiKeyError } from "../features/model-access";
 import { modelProxyUrl } from "../features/model-logs";
 
 const botId = "00000000-0000-4000-8000-000000000001";
@@ -153,17 +154,15 @@ describe("model proxy routing and Codex thread continuity", () => {
     expect(f.request).not.toHaveBeenCalled();
   });
 
-  it("forks it back to a direct connection when the proxy is turned off", async () => {
+  it("never sends it around the proxy when the proxy is turned off", async () => {
     const f = fixture("1:0:0", undefined, current, 0, {
       mode: "api_key",
       savedRoute: proxy,
       env: { ...env, MODEL_PROXY: false },
     });
-    expect(await f.ensure()).toBe("forked");
-    expect(forkConfig(f)).toMatchObject({
-      base_url: "https://api.openai.com/v1",
-      experimental_bearer_token: "sk-test",
-    });
+    // The key's spend is counted from the model logs, so it has no direct route.
+    await expect(f.ensure()).rejects.toBeInstanceOf(UnloggedApiKeyError);
+    expect(f.request).not.toHaveBeenCalled();
   });
 
   const planRoute = `${modelProxyUrl(env, "plan")!}/backend-api/codex`;

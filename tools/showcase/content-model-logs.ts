@@ -5,6 +5,8 @@
 // Juno's first draft has no logs, for the empty state. Six weeks of older work fill the Usage and
 // Tools tabs (`model-logs-history.ts`).
 import { randomUUID } from "node:crypto";
+import { modelRequests, runs } from "@open-bot/db";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { plus, type SeedContext } from "./lib";
 import {
   functionCall,
@@ -284,4 +286,59 @@ export async function seedModelLogs(ctx: SeedContext) {
     16_300,
   );
   await seedModelLogHistory(ctx, log);
+}
+
+/**
+ * Who counted each run's usage. Runs with model logs are the current worker's: their requests
+ * count toward usage (`counts_usage`), and they keep no legacy totals (the app would count both).
+ * The others stand for runs the previous worker finished, counted by their legacy totals. The
+ * latest API key request was cut off before the API reported its usage, so its tokens and cost
+ * are an estimate.
+ */
+export async function seedUsageProducers(ctx: SeedContext) {
+  const { orm } = ctx.db;
+  await orm
+    .update(modelRequests)
+    .set({ countsUsage: true })
+    .where(eq(modelRequests.source, "codex"));
+  const [cut] = await orm
+    .select({ id: modelRequests.id, warnings: modelRequests.parseWarnings })
+    .from(modelRequests)
+    .where(and(eq(modelRequests.route, "api"), sql`${modelRequests.inputTokens} > 0`))
+    .orderBy(desc(modelRequests.startedAt))
+    .limit(1);
+  if (cut)
+    await orm
+      .update(modelRequests)
+      .set({
+        usageEstimated: true,
+        reasoningTokens: null,
+        stopReason: null,
+        parseWarnings: [
+          ...(cut.warnings ?? []),
+          "the stream ended before the response did",
+          "the API reported no usage, so its tokens and cost are an estimate that errs high",
+        ],
+      })
+      .where(eq(modelRequests.id, cut.id));
+  await orm
+    .update(runs)
+    .set({
+      legacyPlanInputTokens: null,
+      legacyPlanCachedInputTokens: null,
+      legacyPlanOutputTokens: null,
+      legacyPlanCostMicros: null,
+      legacyApiKeyInputTokens: null,
+      legacyApiKeyCachedInputTokens: null,
+      legacyApiKeyOutputTokens: null,
+      legacyApiKeyCostMicros: null,
+      legacyUsageAt: null,
+    })
+    .where(
+      sql`exists (select 1 from run_turns t join model_requests m
+          on m.codex_thread_id = t.codex_thread_id and m.codex_turn_id = t.codex_turn_id
+        where t.run_id = ${runs.id})
+      or exists (select 1 from model_requests m
+        where m.codex_thread_id = ${runs.codexThreadId} and m.codex_turn_id = ${runs.codexTurnId})`,
+    );
 }

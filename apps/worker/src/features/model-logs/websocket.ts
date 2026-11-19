@@ -395,6 +395,8 @@ class SocketRelay {
       requestHeaders: this.requestHeaders,
       requestBody: null,
       requestBytes: data.length,
+      // Already relayed upstream: it may cost money from here on.
+      sent: true,
       status: null,
       responseHeaders: null,
       response: null,

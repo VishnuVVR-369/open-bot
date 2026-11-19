@@ -315,6 +315,7 @@ describe.skipIf(!url)("Codex event tap", () => {
           client_metadata: { thread_id: "thr-join", turn_id: "turn-join" },
         },
         requestBytes: 0,
+        sent: true,
         status: 200,
         responseHeaders: { "content-type": "application/json" },
         response: rebuildResponse(

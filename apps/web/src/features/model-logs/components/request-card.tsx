@@ -48,9 +48,15 @@ function Facts({ request }: { request: ModelRequestSummary }) {
         {compactNumber(request.cachedInputTokens ?? 0)} cached,{" "}
         {compactNumber(request.outputTokens ?? 0)} out
         {request.reasoningTokens ? `, ${compactNumber(request.reasoningTokens)} reasoning` : ""}
+        {request.usageEstimated ? " · estimated" : ""}
       </Fact>
       <Fact label="Cost">
         {request.route === "plan" ? "On your plan" : formatCost(request.costMicros)}
+        {request.usageEstimated && (
+          <span className="text-muted-foreground" data-testid="usage-estimated">
+            {" · estimated, as the API reported no usage"}
+          </span>
+        )}
       </Fact>
       <Fact label="Items">
         {request.inputItems} in, {request.outputItems} out
@@ -92,7 +98,9 @@ export function RequestCard({ request, index }: { request: ModelRequestSummary; 
     time(request.startedAt),
     took,
     tokens,
-    request.costMicros > 0 ? formatCost(request.costMicros) : null,
+    request.costMicros > 0
+      ? `${formatCost(request.costMicros)}${request.usageEstimated ? " estimated" : ""}`
+      : null,
     calls > 0 ? (calls === 1 ? "1 tool call" : `${calls} tool calls`) : null,
   ].filter((fact): fact is string => fact !== null);
   return (

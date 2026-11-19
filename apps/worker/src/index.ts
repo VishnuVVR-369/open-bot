@@ -40,6 +40,7 @@ import {
   ModelLogRetention,
   ModelLogWriter,
   modelLogsFeature,
+  modelLogSettler,
   ModelProxy,
 } from "./features/model-logs";
 import { currentRunId } from "./core/run-scope";
@@ -105,6 +106,14 @@ await modelLogs.start(runtime);
 const sessions = new SessionRegistry();
 const codexEventTap = new CodexEventTap({ writer: modelLogWriter, runs: sessions, currentRunId });
 runtime.add("codex event tap", () => codexEventTap.drain());
+const modelProxy = new ModelProxy({
+  env,
+  runs: sessions,
+  writer: modelLogWriter,
+  log: log.child("model-proxy"),
+});
+// A finishing run waits, briefly, for its last requests to be saved: its usage is read from them.
+const settleModelLogs = modelLogSettler(modelProxy, modelLogWriter, log.child("model-logs"));
 
 const computer = new ComputerClient(env.BOTD_URL, env.BOTD_TOKEN, log.child("computer"));
 runtime.add("computer", () => computer.stop());
@@ -173,7 +182,7 @@ const tools = new ToolHandlers({
   pages,
   accounts: accountTools,
 });
-const model = new ModelAccess(ctx);
+const model = new ModelAccess(ctx, modelLogWriter);
 const connections = new ConnectionService(ctx, accountTools, accountAccess.store, accountActions);
 const executor = new RunExecutor(
   ctx,
@@ -186,6 +195,7 @@ const executor = new RunExecutor(
   connections,
   memory,
   accountAccess,
+  settleModelLogs,
 );
 const egress = new EgressRelay({
   store: databaseStore(db),
@@ -439,12 +449,8 @@ runtime.every(
       ),
 );
 
-const modelProxy = new ModelProxy({
-  env,
-  runs: sessions,
-  writer: modelLogWriter,
-  log: log.child("model-proxy"),
-});
+// Added here, not where it is made, so it drains as the HTTP server stops, before Codex and the
+// writer do.
 runtime.add("model proxy", () => modelProxy.drain());
 
 const chats = new ChatService(ctx, (messageId) => executor.dispatchMessage(messageId));
@@ -454,6 +460,7 @@ const server = createHttpServer({
   chats,
   runRequests: new RunRequests(ctx, chats, memory.store, () => executor.processCancellations()),
   executor,
+  model,
   retries: new RetryService(ctx),
   approvals,
   takeovers,

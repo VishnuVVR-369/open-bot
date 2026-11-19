@@ -193,4 +193,18 @@ describe.skipIf(!url)("model log writer", () => {
     holder.release();
     expect(await seen).toEqual(["/announced-1", "/announced-2", "/announced-3"]);
   });
+
+  it("settles: saves what is queued now, without waiting for the next batch", async () => {
+    // One request, with a minute until its batch: a finishing run doesn't wait for that.
+    writer.add(record("/last-of-a-run"));
+    await writer.settle(10_000);
+    const rows = await db
+      .select({ endpoint: modelRequests.endpoint })
+      .from(modelRequests)
+      .where(eq(modelRequests.endpoint, "/last-of-a-run"));
+    expect(rows).toHaveLength(1);
+    expect(writer.pending).toBe(0);
+    // Nothing queued: nothing to wait for.
+    await writer.settle(10_000);
+  });
 });

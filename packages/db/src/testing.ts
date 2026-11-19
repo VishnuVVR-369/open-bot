@@ -2,6 +2,9 @@
 // server named by TEST_DATABASE_URL, so suites run in parallel and never see each other's rows.
 // Only databases this module created (named `openbot_test_*`) are ever written to or dropped.
 import { randomBytes } from "node:crypto";
+import { copyFile, mkdtemp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import pg from "pg";
@@ -33,8 +36,14 @@ export type TestDatabase = {
   readonly url: string;
   readonly pool: pg.Pool;
   readonly db: Db;
-  /** Creates the database and applies every migration. Call in `beforeAll`. */
-  create(): Promise<void>;
+  /**
+   * Creates the database and applies every migration, or only those up to and including
+   * `through` (a migration's tag, like `0039_model_log_retention_search`), so a test can write
+   * rows as they were and then `migrate()` the rest. Call in `beforeAll`.
+   */
+  create(options?: { through?: string }): Promise<void>;
+  /** Applies the migrations not applied yet. */
+  migrate(): Promise<void>;
   /** Closes the pool and drops the database. Call in `afterAll`. */
   drop(): Promise<void>;
 };
@@ -93,10 +102,19 @@ export function testDatabase(server = process.env.TEST_DATABASE_URL): TestDataba
     url,
     pool,
     db,
-    async create() {
+    async create(options = {}) {
       if (!server) throw new Error("TEST_DATABASE_URL is not set.");
       // The name is generated above from hex digits, never from input.
       await asAdmin((client) => client.query(`create database ${name}`));
+      if (!options.through) return migrate(db, { migrationsFolder: MIGRATIONS });
+      const folder = await migrationsThrough(options.through);
+      try {
+        await migrate(db, { migrationsFolder: folder });
+      } finally {
+        await rm(folder, { recursive: true, force: true });
+      }
+    },
+    async migrate() {
       await migrate(db, { migrationsFolder: MIGRATIONS });
     },
     async drop() {
@@ -109,4 +127,27 @@ export function testDatabase(server = process.env.TEST_DATABASE_URL): TestDataba
       });
     },
   };
+}
+
+/** A copy of the migrations folder whose journal ends at the migration tagged `through`. */
+async function migrationsThrough(through: string): Promise<string> {
+  type Journal = { entries: { tag: string }[] };
+  const journal = JSON.parse(
+    await readFile(join(MIGRATIONS, "meta", "_journal.json"), "utf8"),
+  ) as Journal;
+  const end = journal.entries.findIndex((entry) => entry.tag === through);
+  if (end < 0) throw new Error(`No migration is tagged ${through}.`);
+  const folder = await mkdtemp(join(tmpdir(), "openbot-migrations-"));
+  await mkdir(join(folder, "meta"));
+  const kept = journal.entries.slice(0, end + 1);
+  await writeFile(
+    join(folder, "meta", "_journal.json"),
+    JSON.stringify({ ...journal, entries: kept }),
+  );
+  const files = new Set((await readdir(MIGRATIONS)).filter((file) => file.endsWith(".sql")));
+  for (const { tag } of kept) {
+    if (!files.has(`${tag}.sql`)) throw new Error(`${tag}.sql is missing.`);
+    await copyFile(join(MIGRATIONS, `${tag}.sql`), join(folder, `${tag}.sql`));
+  }
+  return folder;
 }

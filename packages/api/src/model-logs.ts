@@ -285,6 +285,11 @@ export const modelRequestSummarySchema = z.object({
   outputTokens: z.number().nullable(),
   reasoningTokens: z.number().nullable(),
   costMicros: z.number(),
+  /**
+   * The tokens and cost are an estimate: the API reported no usage for a request that may have
+   * cost money.
+   */
+  usageEstimated: z.boolean(),
   stopReason: z.string().nullable(),
   errorType: z.string().nullable(),
   errorMessage: z.string().nullable(),
@@ -329,8 +334,11 @@ export const runModelLogsSchema = z.object({
     startedAt: z.string().nullable(),
     completedAt: z.string().nullable(),
   }),
-  /** Every request of the run, whether listed or not. */
-  totals: usageTotalsSchema,
+  /**
+   * Every request of the run, whether listed or not; `estimated` when the cost of some is an
+   * estimate (the API reported no usage).
+   */
+  totals: usageTotalsSchema.extend({ estimated: z.boolean() }),
   /** How many requests `turns` lists: all of them, or the first `MODEL_LOG_RUN_REQUESTS`. */
   shownRequests: z.number(),
   turns: z.array(modelLogTurnSchema),

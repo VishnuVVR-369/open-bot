@@ -52,6 +52,8 @@ export interface SessionServices {
   buildPrompt: (session: RunSession) => Promise<string>;
   /** Marks the chat as active now, when the run has finished. */
   touchChat: (chatId: string) => Promise<void>;
+  /** Waits, briefly, for the model logs of the run's threads to be saved (see `complete`). */
+  settleModelLogs: (threadIds: readonly string[]) => Promise<void>;
   /** The saved skills a text invokes with `/name`. */
   skillInputs: (text: string, botId: string) => Promise<v2.UserInput[]>;
   /** The MCP servers the bot may use, as Codex config, and a key that changes with them. */
@@ -84,6 +86,8 @@ export class RunSession {
   }
   memoryGeneration = "";
   threadId: string | null = null;
+  /** Every thread a turn of this run ran in, whose model logs hold its usage. */
+  readonly threadIds = new Set<string>();
   turnId: string | null = null;
   private client: CodexClient | null = null;
   readonly usage = {
@@ -280,6 +284,7 @@ export class RunSession {
     this.authMode = decision.mode;
     this.apiKey = decision.mode === "api_key" ? access.apiKey : null;
     const threadId = await ensureThread(this, client);
+    this.threadIds.add(threadId);
     if (this.threadId !== threadId) {
       this.unregisterThread?.();
       this.threadId = threadId;

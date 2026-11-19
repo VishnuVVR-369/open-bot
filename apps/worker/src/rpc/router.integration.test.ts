@@ -10,11 +10,12 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
   const h = rpcHarness();
   const { db, codexStatus, server, worker } = h;
 
-  it("status: reports the computer, Codex and egress without waking anything", async () => {
+  it("status: reports the computer, Codex, egress and the key's fallback without waking anything", async () => {
     expect(await worker.status.get()).toEqual({
       computer: { online: true, health: null, lifecycle: null },
       codex: codexStatus,
       egress: OFFLINE_EGRESS_STATUS,
+      apiFallbackOff: null,
     });
   });
 

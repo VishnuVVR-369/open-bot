@@ -38,7 +38,7 @@ Here they are grouped by what they're for:
       tables: [
         {
           name: "runs",
-          note: "One turn: trigger, prompt, status, thread and turn ids, final reply, rating, whether it read your accounts",
+          note: "One turn: trigger, prompt, status, thread and turn ids, final reply, rating, whether it read your accounts, and the legacy usage totals of a run finished before model logging",
         },
         { name: "run_events", note: "The ordered log of everything a run did, as jsonb payloads" },
         {
@@ -52,7 +52,11 @@ Here they are grouped by what they're for:
         { name: "artifacts", note: "Screenshots and uploads, as bytes" },
         {
           name: "usage_entries",
-          note: "An append-only ledger of tokens and cost, per run and auth mode",
+          note: "The old ledger of tokens and cost per run and auth mode, no longer written; copied into the legacy totals",
+        },
+        {
+          name: "legacy_deleted_run_usage",
+          note: "The legacy usage of deleted runs, so it keeps counting toward its month",
         },
       ],
     },
@@ -378,11 +382,30 @@ Executing holds a 5-minute lease, and a stopped action whose lease ran out is re
 
 `account_resources` records Notion pages and databases teammates created, so later changes to them follow the teammate's autonomy instead of always asking.
 
-## Usage ledger
+## Usage
 
-`usage_entries` records tokens per run and auth mode, with an idempotency key of `run:<id>:<mode>` so a retry can't count twice.
+Usage has two producers, and each request counts through one of them.
+A worker that writes the old ledger, `usage_entries`, counts its runs there, and they become the legacy totals below.
+The current worker writes no ledger: each request it logs in `model_requests` carries its tokens and its `cost_micros`, and `counts_usage` set; the requests an older worker logged leave it false.
+No clock decides which side a request is on, so clock skew, a rollback and a redeploy count each request once, and every reader (the reply footer, Settings and the monthly cap) counts usage the same way.
 Plan usage costs nothing per token, so its `cost_micros` is 0.
 API key usage is priced at the model's list prices, in millionths of a dollar.
+
+The legacy totals are what the old ledger, `usage_entries`, held for each run.
+Migration 0040 copies them onto the run, per access mode, through `copy_legacy_usage()`, and a trigger on `usage_entries` copies each entry written after it, so the totals hold every entry; only migrations and their triggers write these columns of `runs`:
+
+- `legacy_plan_input_tokens`, `legacy_plan_cached_input_tokens`, `legacy_plan_output_tokens` and `legacy_plan_cost_micros`, for the ChatGPT plan.
+- `legacy_api_key_input_tokens`, `legacy_api_key_cached_input_tokens`, `legacy_api_key_output_tokens` and `legacy_api_key_cost_micros`, for the API key.
+- `legacy_usage_at`, when the run's usage was counted: when its API key entry was written, else its plan entry.
+  `runs_legacy_usage_idx` finds a month's runs by it.
+
+A mode the run never used stays null.
+Ledger entries whose run was already deleted go to `legacy_deleted_run_usage`, one row per entry, keyed by the entry's own key (`run:<id>:<mode>`), with its teammate and time, so they still count toward their month.
+The `runs_keep_legacy_usage` trigger moves a run's legacy totals there too, under the same keys, whenever a run with them is deleted.
+Both copies skip a key they already hold, so the migration that drops `usage_entries` can run the copy again first.
+
+`apiKeySpendMicros()` in `packages/db/src/usage.ts` adds up the API key's spend for the cap and Settings: counted API key requests, the cost `model_log_gaps.api_cost_micros` keeps of lost ones, and the legacy totals.
+`model_requests_api_started_idx`, partial on counted API key requests, keeps its sum of the month's requests small.
 See [Models and usage](/docs/flows/models-and-usage#the-monthly-cap).
 
 ## Model logs
@@ -390,7 +413,7 @@ See [Models and usage](/docs/flows/models-and-usage#the-monthly-cap).
 Every model request that goes through the [model proxy](/docs/architecture/agent-runtime#the-model-proxy) is saved by one buffered writer (`apps/worker/src/features/model-logs/writer.ts`), which owns the seven tables.
 So are the requests of the [memory AI](/docs/flows/memory#optional-ai), with `source` `memory`.
 
-- `model_requests` has one row per request: the route (`plan` or `api`), the transport (`http` or `websocket`), the method (over a WebSocket, the message type `response.create`), the endpoint, the HTTP status (over a WebSocket, 200 once the response streams, or an error's own status), when it started, sent its first byte and ended, the token counts and `cost_micros` from the response's usage, how it ended (`stop_reason`, `error_type`, `error_message`), its headers without credentials, the rate-limit headers, and the response's text and reasoning summary.
+- `model_requests` has one row per request: the route (`plan` or `api`), the transport (`http` or `websocket`), the method (over a WebSocket, the message type `response.create`), the endpoint, the HTTP status (over a WebSocket, 200 once the response streams, or an error's own status), when it started, sent its first byte and ended, the token counts and `cost_micros` from the response's usage (or, for an API key request that ended without reporting it, an estimate that errs high, with `usage_estimated` set), how it ended (`stop_reason`, `error_type`, `error_message`), its headers without credentials, the rate-limit headers, and the response's text and reasoning summary.
   `params` holds the request body without its input, instructions and tools; it is left out, with a warning, when it nests more than 256 levels deep.
   `raw_response` holds the first 1 MiB of a response only when it could not be rebuilt: a stream cut short, or JSON that isn't a Responses API response (search results, images).
   `parse_warnings` says why, and when the response was cut to fit.
@@ -409,6 +432,7 @@ So are the requests of the [memory AI](/docs/flows/memory#optional-ai), with `so
   It is empty when the stored input is what was sent.
 - `model_log_gaps` records requests that were lost: dropped after 5 minutes without reaching the database, past the 64 MB queue, or refused by the database itself.
   Its row is written once the database answers again, with how many requests, Codex events (`codex_events`) and turns (`run_turns`) were lost.
+  Each gap holds the records of one calendar month (UTC), counts the lost API key requests and what they cost (`api_requests`, `api_cost_micros`), which the cap adds to the month they started in, and how many of those costs are estimates (`api_requests_estimated`).
   A request naming a teammate deleted since it was made is kept, with `teammate_id` empty.
 
 Bodies and item contents are stored as sent, encrypted reasoning included, so a request can be sent again exactly.
@@ -534,7 +558,7 @@ An expired failure keeps its tool, status and a short error, without its input o
 
 ### Usage
 
-The Usage tab (`/settings/model-logs/usage`) reads only `model_requests`, and changes nothing else: Settings' own usage view, the reply footer, the monthly cap and `usage_entries` work as before.
+The Usage tab (`/settings/model-logs/usage`) reads only `model_requests`, so it starts when model logging did; runs finished before then count only in Settings' own usage view, from their [legacy totals](#usage).
 It shows tokens (input, cached input, output and reasoning), the cached share, the cost on the API key and failed requests, by day in the owner's time zone, or by week (Monday first) over ranges longer than 92 days.
 The same numbers are listed per teammate and per model, and per day as a table.
 A request belongs to its run's teammate, or to the teammate the proxy let it through for when its run is gone.

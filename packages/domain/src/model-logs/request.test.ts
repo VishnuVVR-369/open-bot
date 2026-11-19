@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { rateLimitHeaders, sanitizeHeaders } from "./headers";
+import { costMicros } from "../models";
 import { requestCostMicros } from "./cost";
 import { joinRequestBody, splitRequestBody, turnMetadata } from "./request";
 
@@ -126,6 +127,32 @@ describe("requestCostMicros", () => {
   it("prices API key requests at list prices", () => {
     // 10,000 uncached at $2, 2,000 cached at $0.10, 300 output at $10, per million.
     expect(requestCostMicros("api", usage)).toBe(20_000 + 200 + 3_000);
+  });
+
+  it("agrees with the per-run price usage_entries had, up to rounding each request", () => {
+    // A run's requests as Codex reported each one's usage, which the run used to add up and
+    // price once (costMicros of the sum). Only cached tokens cost a fraction of a micro.
+    const requests = [
+      { inputTokens: 12_000, cachedInputTokens: 2_005, outputTokens: 300, reasoningTokens: 0 },
+      { inputTokens: 15_000, cachedInputTokens: 12_003, outputTokens: 40, reasoningTokens: 10 },
+      { inputTokens: 900, cachedInputTokens: 0, outputTokens: 1_200, reasoningTokens: 0 },
+    ];
+    const perRequest = requests.reduce((sum, usage) => sum + requestCostMicros("api", usage), 0);
+    const perRun = costMicros({
+      inputTokens: requests.reduce((sum, usage) => sum + usage.inputTokens, 0),
+      cachedInputTokens: requests.reduce((sum, usage) => sum + usage.cachedInputTokens, 0),
+      outputTokens: requests.reduce((sum, usage) => sum + usage.outputTokens, 0),
+    });
+    expect(Math.abs(perRequest - perRun)).toBeLessThanOrEqual(requests.length / 2);
+    // Whole tens of cached tokens price the same either way.
+    const even = requests.map((usage) => ({ ...usage, cachedInputTokens: 500 }));
+    expect(even.reduce((sum, usage) => sum + requestCostMicros("api", usage), 0)).toBe(
+      costMicros({
+        inputTokens: 27_900,
+        cachedInputTokens: 1_500,
+        outputTokens: 1_540,
+      }),
+    );
   });
 
   it("costs nothing on the plan or without usage", () => {

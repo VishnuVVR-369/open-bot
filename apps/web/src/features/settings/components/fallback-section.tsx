@@ -1,6 +1,6 @@
 "use client";
 
-import { formatDollars } from "@open-bot/domain";
+import { type FallbackOffReason, formatDollars } from "@open-bot/domain";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNowStrict } from "date-fns";
 import { useState, useTransition } from "react";
@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { attempt } from "@/lib/client/mutate";
 import { useAppState } from "@/features/app-shell";
+import type { ModelAccessView } from "@/lib/types";
 import { api, orpc } from "@/lib/client/rpc";
 import { isComputerOnline } from "@/lib/status";
 import { cn } from "@/lib/utils";
@@ -43,6 +44,7 @@ export function FallbackSection() {
   const capDollars = data.capMicros / 1_000_000;
   const capChanged = cap !== null && cap !== "" && Number(cap) !== capDollars;
   const used = data.capMicros > 0 ? Math.min(100, (data.spendMicros / data.capMicros) * 100) : 100;
+  const status = fallbackStatus(data, offline);
 
   return (
     <>
@@ -62,28 +64,8 @@ export function FallbackSection() {
           )}
         />
         <div className="flex flex-col gap-0.5">
-          <span className="text-[14px] font-medium">
-            {offline
-              ? data.planLimitedUntil && data.keyHint
-                ? "Set to use your API key"
-                : "Set to use your ChatGPT plan"
-              : data.planLimitedUntil
-                ? data.keyHint
-                  ? "Running on your API key"
-                  : "Stopped: your plan's limit is reached"
-                : "Running on your ChatGPT plan"}
-          </span>
-          <span className="text-[13px] text-muted-foreground">
-            {offline
-              ? data.keyHint
-                ? "Nothing runs while the computer is offline. Once it's back, teammates use your plan, then your API key if the plan's limit is reached."
-                : "Nothing runs while the computer is offline. Once it's back, teammates use your plan."
-              : data.planLimitedUntil
-                ? `Your plan's limit resets ${formatDistanceToNowStrict(new Date(data.planLimitedUntil), { addSuffix: true })}. Then teammates switch back to it on their own.`
-                : data.keyHint
-                  ? "If the plan's limit is reached, teammates continue on your API key until it resets."
-                  : "Add an API key so teammates keep working when the plan's limit is reached."}
-          </span>
+          <span className="text-[14px] font-medium">{status.title}</span>
+          <span className="text-[13px] text-muted-foreground">{status.detail}</span>
         </div>
       </div>
 
@@ -229,4 +211,64 @@ export function FallbackSection() {
       </div>
     </>
   );
+}
+
+/** Why the fallback is off, said wherever it would otherwise be offered. */
+const FALLBACK_OFF: Record<FallbackOffReason, string> = {
+  logging_off: "The API key fallback is off while model logging is off.",
+  logs_unsaved: "The API key fallback is paused while model logs can't be saved.",
+};
+
+/** When teammates continue, once the plan's limit is reached and the fallback is off. */
+const CONTINUE: Record<FallbackOffReason, string> = {
+  logging_off: "Teammates continue once the plan resets.",
+  logs_unsaved: "Teammates continue once the logs are saved or the plan resets.",
+};
+
+/** What teammates run on, and what happens when the plan's limit is reached. */
+function fallbackStatus(
+  data: ModelAccessView,
+  offline: boolean,
+): { title: string; detail: string } {
+  const resets =
+    data.planLimitedUntil &&
+    `Your plan's limit resets ${formatDistanceToNowStrict(new Date(data.planLimitedUntil), { addSuffix: true })}.`;
+  if (data.fallbackOff) {
+    const off = FALLBACK_OFF[data.fallbackOff];
+    if (offline)
+      return {
+        title: "Set to use your ChatGPT plan",
+        detail: `Nothing runs while the computer is offline. Once it's back, teammates use your plan. ${off}`,
+      };
+    if (resets)
+      return {
+        title: "Stopped: your plan's limit is reached",
+        detail: `${resets} ${off} ${CONTINUE[data.fallbackOff]}`,
+      };
+    return {
+      title: "Running on your ChatGPT plan",
+      detail: `${off} If the plan's limit is reached, teammates stop until it resets.`,
+    };
+  }
+  if (offline)
+    return {
+      title:
+        data.planLimitedUntil && data.keyHint
+          ? "Set to use your API key"
+          : "Set to use your ChatGPT plan",
+      detail: data.keyHint
+        ? "Nothing runs while the computer is offline. Once it's back, teammates use your plan, then your API key if the plan's limit is reached."
+        : "Nothing runs while the computer is offline. Once it's back, teammates use your plan.",
+    };
+  if (resets)
+    return {
+      title: data.keyHint ? "Running on your API key" : "Stopped: your plan's limit is reached",
+      detail: `${resets} Then teammates switch back to it on their own.`,
+    };
+  return {
+    title: "Running on your ChatGPT plan",
+    detail: data.keyHint
+      ? "If the plan's limit is reached, teammates continue on your API key until it resets."
+      : "Add an API key so teammates keep working when the plan's limit is reached.",
+  };
 }

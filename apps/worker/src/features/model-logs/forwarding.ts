@@ -2,7 +2,7 @@
 // Codex threads a request names.
 import { timingSafeEqual } from "node:crypto";
 import type { IncomingHttpHeaders, ServerResponse } from "node:http";
-import { headerValue, turnMetadata } from "@open-bot/domain";
+import { type HeaderBag, headerValue, turnMetadata } from "@open-bot/domain";
 
 /** Request bodies past this are forwarded but not logged. Codex's largest are a few MB. */
 export const REQUEST_BODY_LIMIT = 32 * 1024 * 1024;
@@ -21,7 +21,10 @@ const HOP_BY_HOP = new Set([
 ]);
 
 /** The Codex threads a request names: its own, and the parent of a sub-agent's. */
-export function threadIdsOf(headers: IncomingHttpHeaders, body: unknown = null): string[] {
+export function threadIdsOf(
+  headers: IncomingHttpHeaders | HeaderBag,
+  body: unknown = null,
+): string[] {
   const ids = [
     headerValue(headers, "thread-id"),
     headerValue(headers, "x-codex-parent-thread-id"),

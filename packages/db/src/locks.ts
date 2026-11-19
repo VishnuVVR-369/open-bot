@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import type pg from "pg";
-import type { Tx } from "./index";
+import type { Tx } from "./queryable";
 
 /**
  * Every Postgres advisory lock the apps take, by what it protects. Postgres has one key space for

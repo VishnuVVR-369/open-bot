@@ -57,6 +57,7 @@ describe.skipIf(!rpcEnabled)("quiet completion with Postgres", () => {
         plan: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 },
         api_key: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 },
       },
+      threadIds: new Set<string>(),
       services: { touchChat },
       now: () => new Date().toISOString(),
       putItem: vi.fn(),

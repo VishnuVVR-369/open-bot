@@ -1,9 +1,24 @@
-import { credentials, ownerSettings, usageEntries } from "@open-bot/db";
-import { type AuthDecision, type AuthMode, decideAuthMode, formatDollars } from "@open-bot/domain";
+import { apiKeySpendMicros, credentials, ownerSettings } from "@open-bot/db";
+import {
+  type AuthDecision,
+  type AuthMode,
+  type BlockedReason,
+  type FallbackOffReason,
+  decideAuthMode,
+  formatDollars,
+  monthStart,
+} from "@open-bot/domain";
 import { decryptSecret } from "@open-bot/domain/server";
-import { and, eq, gte, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { publishApp, type Context } from "../../context";
-import { type ModelProxyEnv, PLAN_PREFIX, REHEARSAL_TOKEN, modelProxyUrl } from "../model-logs";
+import { WorkerError } from "../../core/errors";
+import {
+  type ModelProxyEnv,
+  PLAN_PREFIX,
+  REHEARSAL_TOKEN,
+  type UnsavedApiSpend,
+  modelProxyUrl,
+} from "../model-logs";
 import { errorMessage } from "../../logger";
 import { saveSettings } from "../settings";
 
@@ -14,41 +29,43 @@ export const PLAN_PROVIDER_ID = "openai";
 
 const FALLBACK_LIMIT_MS = 60 * 60_000;
 
+/** Thrown for a thread on the API key while the model proxy is off, which `decide` never allows. */
+export class UnloggedApiKeyError extends WorkerError {
+  constructor() {
+    super(
+      503,
+      "The API key is only used through the model proxy, so its spend is logged and capped.",
+    );
+  }
+}
+
 /**
  * Codex provider settings for a thread on the given access mode. `route` names where the thread's
  * requests go when that differs from Codex's default, so a change in it forks the thread: a loaded
  * thread keeps the provider it was started with.
+ *
+ * The API key goes only through the model proxy: the cap counts its spend from the model logs, so
+ * spend that skips the proxy couldn't be capped. With the proxy off this throws; `decide` never
+ * picks the key then.
  */
 export function providerFor(
   mode: AuthMode,
-  apiKey: string | null,
   env: ModelProxyEnv & { OPENAI_API_BASE_URL: string; OPEN_BOT_PLAN_BASE_URL?: string },
 ): { modelProvider: string; config?: Record<string, unknown>; route?: string } {
   if (mode === "api_key") {
     const proxy = modelProxyUrl(env, "api");
-    // Through the proxy the key stays in the worker, which adds it to each request; Codex sends none.
-    if (proxy)
-      return {
-        modelProvider: API_PROVIDER_ID,
-        config: {
-          [`model_providers.${API_PROVIDER_ID}`]: {
-            name: "OpenAI API",
-            base_url: proxy,
-            wire_api: "responses",
-          },
-        },
-        route: proxy,
-      };
+    if (!proxy) throw new UnloggedApiKeyError();
+    // The key stays in the worker, which adds it to each request; Codex sends none.
     return {
       modelProvider: API_PROVIDER_ID,
       config: {
         [`model_providers.${API_PROVIDER_ID}`]: {
           name: "OpenAI API",
-          base_url: env.OPENAI_API_BASE_URL,
+          base_url: proxy,
           wire_api: "responses",
-          experimental_bearer_token: apiKey ?? "",
         },
       },
+      route: proxy,
     };
   }
   const proxy = modelProxyUrl(env, "plan");
@@ -84,16 +101,22 @@ export function providerFor(
   return { modelProvider: PLAN_PROVIDER_ID };
 }
 
-function monthStart(now = new Date()): Date {
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-}
+/** No model log writer: nothing held in memory (tests, and a worker without the proxy). */
+const NOTHING_UNSAVED: UnsavedApiSpend = { pendingApiCostMicros: () => 0, apiTrouble: () => null };
 
 /**
  * Decides whether runs use the ChatGPT plan or the API key, and enforces the monthly cap.
  * The plan is the default; the API key only takes over while Codex reports the plan's limit.
+ *
+ * The cap counts the key's spend from the model logs, and from what the model log writer holds
+ * that isn't saved yet (`unsaved`). While some of that spend can't be counted, the key isn't
+ * used at all (`fallbackOff`). Nothing here ever holds up a model request already let through.
  */
 export class ModelAccess {
-  constructor(private readonly ctx: Context) {}
+  constructor(
+    private readonly ctx: Context,
+    private readonly unsaved: UnsavedApiSpend = NOTHING_UNSAVED,
+  ) {}
 
   async apiKey(): Promise<string | null> {
     const [row] = await this.ctx.db
@@ -109,23 +132,43 @@ export class ModelAccess {
     }
   }
 
-  async monthSpendMicros(): Promise<number> {
-    const [row] = await this.ctx.db
-      .select({ total: sql<string>`coalesce(sum(${usageEntries.costMicros}), 0)` })
-      .from(usageEntries)
-      .where(and(eq(usageEntries.authMode, "api_key"), gte(usageEntries.createdAt, monthStart())));
-    return Number(row?.total ?? 0);
+  /**
+   * What the API key spent this calendar month (UTC): what the database holds
+   * (`apiKeySpendMicros`) plus what the model log writer holds that isn't saved yet, both of
+   * requests that started this month. The writer is read first, so a record saved in between
+   * counts twice rather than not at all.
+   */
+  async monthSpendMicros(now = new Date()): Promise<number> {
+    const since = monthStart(now);
+    const unsaved = this.unsaved.pendingApiCostMicros(since);
+    return unsaved + (await apiKeySpendMicros(this.ctx.db, since));
+  }
+
+  /**
+   * Why the API key fallback is off right now, or null when the key's spend can be counted: model
+   * logging is off, or the writer can't save API key logs.
+   */
+  async fallbackOff(now = new Date()): Promise<FallbackOffReason | null> {
+    // With the proxy off nothing is logged, so the cap couldn't see the key's spend.
+    if (!this.ctx.env.MODEL_PROXY) return "logging_off";
+    return this.unsaved.apiTrouble(monthStart(now));
   }
 
   async decide(): Promise<{ decision: AuthDecision; apiKey: string | null; capMicros: number }> {
+    const now = new Date();
     const row = await ownerSettings(this.ctx.db);
     const apiKey = await this.apiKey();
     const capMicros = row?.monthlyCapMicros ?? 0;
+    const planLimitedUntil = row?.planLimitedUntil ?? null;
+    // The key's spend matters only while the plan is limited, and only while it can be counted.
+    const limited = planLimitedUntil !== null && planLimitedUntil > now;
+    const fallbackOff = limited ? await this.fallbackOff(now) : null;
     const decision = decideAuthMode({
-      now: new Date(),
-      planLimitedUntil: row?.planLimitedUntil ?? null,
+      now,
+      planLimitedUntil,
       hasApiKey: apiKey !== null,
-      spendMicros: await this.monthSpendMicros(),
+      fallbackOff,
+      spendMicros: limited && !fallbackOff ? await this.monthSpendMicros(now) : 0,
       capMicros,
     });
     return { decision, apiKey, capMicros };
@@ -152,9 +195,16 @@ export class ModelAccess {
     return until;
   }
 
-  static blockedMessage(reason: "no_key" | "cap_reached", capMicros: number): string {
-    return reason === "no_key"
-      ? "Your ChatGPT plan's usage limit is reached. Add an OpenAI API key in Settings to keep going until it resets."
-      : `This month's API spending reached your ${formatDollars(capMicros)} cap. Raise it in Settings, or wait for your ChatGPT plan's limit to reset.`;
+  static blockedMessage(reason: BlockedReason, capMicros: number): string {
+    switch (reason) {
+      case "no_key":
+        return "Your ChatGPT plan's usage limit is reached. Add an OpenAI API key in Settings to keep going until it resets.";
+      case "cap_reached":
+        return `This month's API spending reached your ${formatDollars(capMicros)} cap. Raise it in Settings, or wait for your ChatGPT plan's limit to reset.`;
+      case "logging_off":
+        return "Your ChatGPT plan's usage limit is reached. The API key fallback is off while model logging is off, because its spend couldn't be counted toward your monthly cap. Teammates continue once the plan resets.";
+      case "logs_unsaved":
+        return "Your ChatGPT plan's usage limit is reached. The API key fallback is paused while model logs can't be saved, because its spend couldn't be counted toward your monthly cap. Teammates continue once the logs are saved or the plan resets.";
+    }
   }
 }

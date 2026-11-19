@@ -40,6 +40,7 @@ type Row = {
   output_tokens: string | null;
   reasoning_tokens: string | null;
   cost_micros: string;
+  usage_estimated: boolean;
   stop_reason: string | null;
   error_type: string | null;
   error_message: string | null;
@@ -97,7 +98,7 @@ export async function* exportRequests(
         m.response_id, m.status, m.started_at,
         to_char(m.started_at at time zone 'UTC', ${EXACT_TIME_FORMAT}) as started_exact,
         m.first_byte_at, m.ended_at, m.input_tokens, m.cached_input_tokens, m.output_tokens,
-        m.reasoning_tokens, m.cost_micros, m.stop_reason, m.error_type, m.error_message,
+        m.reasoning_tokens, m.cost_micros, m.usage_estimated, m.stop_reason, m.error_type, m.error_message,
         m.request_headers, m.response_headers, m.rate_limit_headers, m.params,
         m.sent_input_from, m.response_text, m.reasoning_summary, m.raw_response,
         m.parse_warnings, m.bodies_expired_at
@@ -167,6 +168,7 @@ async function lineOf(row: Row): Promise<string> {
     outputTokens: num(row.output_tokens),
     reasoningTokens: num(row.reasoning_tokens),
     costMicros: Number(row.cost_micros),
+    usageEstimated: row.usage_estimated,
     stopReason: row.stop_reason,
     errorType: row.error_type,
     errorMessage: row.error_message,

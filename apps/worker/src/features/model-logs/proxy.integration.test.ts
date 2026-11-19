@@ -17,6 +17,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Context } from "../../context";
 import { createHttpServer, type HttpDeps } from "../../http";
 import { ModelProxy } from "./proxy";
+import { modelLogSettler } from "./settle";
 import { DatabaseRelay, codexBody, sseEvent, turnEvents, user } from "./testing";
 import { modelProxyToken } from "./routing";
 import { ModelLogWriter } from "./writer";
@@ -65,6 +66,7 @@ describe.skipIf(!url)("model proxy", () => {
   let relay: DatabaseRelay;
   let writerPool: ReturnType<typeof createPool>;
   let writer: ModelLogWriter;
+  let proxy: ModelProxy;
   let worker: http.Server;
   let base = "";
 
@@ -89,7 +91,7 @@ describe.skipIf(!url)("model proxy", () => {
       { warn() {}, error() {} },
       { flushMs: 5, retryForMs: 50, backoffMs: 5, maxBackoffMs: 20 },
     );
-    const proxy = new ModelProxy({
+    proxy = new ModelProxy({
       env: {
         ENCRYPTION_KEY,
         OPENAI_API_BASE_URL: `http://127.0.0.1:${(upstream.address() as AddressInfo).port}/v1`,
@@ -246,6 +248,33 @@ describe.skipIf(!url)("model proxy", () => {
     );
     expect(logged).not.toContain(API_KEY);
     expect(logged).not.toContain("from-the-computer");
+  });
+
+  it("settles a finished run's thread: waits until its last request is logged and saved", async () => {
+    live.set("thread-settle", API_KEY);
+    const turn = streamTurn("the last answer of a run");
+    let settled = false;
+    const answer = post(
+      "/responses",
+      codexBody("thread-settle", "turn-1", [SYSTEM, user("Wrap up.")]),
+      { "thread-id": "thread-settle" },
+      () => {
+        // The response is still streaming: the run's thread isn't settled, another thread is.
+        void proxy.settled(["thread-settle"], 10_000).then(() => (settled = true));
+        void proxy.settled(["another-thread"], 10_000).then(() => {
+          expect(settled).toBe(false);
+          turn.release();
+        });
+      },
+    );
+    expect((await answer).status).toBe(200);
+    await modelLogSettler(proxy, writer, { warn() {} })(["thread-settle"]);
+    expect(settled).toBe(true);
+    const rows = await db
+      .select({ responseText: modelRequests.responseText })
+      .from(modelRequests)
+      .where(eq(modelRequests.codexThreadId, "thread-settle"));
+    expect(rows).toEqual([{ responseText: "the last answer of a run" }]);
   });
 
   it("stores each item once, and rebuilds every request from its parts", async () => {

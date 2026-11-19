@@ -2,7 +2,7 @@
 
 The Drizzle schema, migrations, pool helpers, Postgres NOTIFY channels and app events.
 Queries and business rules do not belong here; they live in the web server code, the worker services and `packages/memory`.
-The one exception is the settings accessor, so the single settings row reads the same everywhere.
+The exceptions are the settings accessor, so the single settings row reads the same everywhere, and `packages/db/src/usage.ts` (`apiKeySpendMicros()`), which says how usage is counted (legacy totals plus model requests with `counts_usage`), so the monthly cap, Settings and the reply footer count it the same way.
 Better Auth's `account` table is sign-in and is unrelated to the integrations `accounts` table.
 
 ## Entry points
@@ -21,6 +21,7 @@ Better Auth's `account` table is sign-in and is unrelated to the integrations `a
   `packages/db/src/schema/columns.ts` holds the column helpers they share and is not exported.
   A schema file imports only the files of tables its foreign keys name, so the files never form a cycle.
 - `@open-bot/db/testing` is `packages/db/src/testing.ts`: a fresh migrated database per integration suite.
+  `create({ through: "<migration tag>" })` stops after that migration and `migrate()` applies the rest, to test a migration on data written before it (`packages/db/src/usage.integration.test.ts`).
 - `packages/db/src/migrate.ts` applies `packages/db/drizzle/*.sql`; `packages/db/drizzle.config.ts` configures drizzle-kit.
 
 ## Invariants

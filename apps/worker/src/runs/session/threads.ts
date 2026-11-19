@@ -44,7 +44,7 @@ export async function ensureThread(session: ThreadSession, client: CodexClient):
   const connected = await session.services.connections(teammate.id);
   // Codex reads AGENTS.md when a thread starts or forks, and a loaded thread keeps what it read.
   // So a new profile, approval rule or teammate forks the thread, like a change in connections.
-  const access = providerFor(mode, session.apiKey, ctx.env);
+  const access = providerFor(mode, ctx.env);
   // A loaded thread also keeps its provider's address, so a change in where its requests go (the
   // model proxy turned on or off, or moved) forks it too. Left out when it is Codex's default, so
   // threads that never went through the proxy keep their key.
