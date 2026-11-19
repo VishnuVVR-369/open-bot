@@ -21,6 +21,7 @@ const NOT_IN_ENV_EXAMPLE = {
   NODE_ENV: "set by Node.js tooling and by Railway",
   PORT: "set by Railway for each service; next dev would take it too",
   RAILWAY_PUBLIC_DOMAIN: "set by Railway",
+  RAILWAY_PRIVATE_DOMAIN: "set by Railway",
   GOOGLE_BASE_URL: "tests only: a stand-in for Google",
   NOTION_MCP_URL: "tests only: a stand-in for Notion",
   TELEGRAM_API_BASE_URL: "tests only: a stand-in for Telegram",

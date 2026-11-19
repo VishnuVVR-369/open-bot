@@ -3,6 +3,7 @@ import { type AuthDecision, type AuthMode, decideAuthMode, formatDollars } from 
 import { decryptSecret } from "@open-bot/domain/server";
 import { and, eq, gte, sql } from "drizzle-orm";
 import { publishApp, type Context } from "../../context";
+import { type ModelProxyEnv, modelProxyUrl } from "../model-logs";
 import { errorMessage } from "../../logger";
 import { saveSettings } from "../settings";
 
@@ -13,13 +14,31 @@ export const PLAN_PROVIDER_ID = "openai";
 
 const FALLBACK_LIMIT_MS = 60 * 60_000;
 
-/** Codex provider settings for a thread on the given access mode. */
+/**
+ * Codex provider settings for a thread on the given access mode. `route` names where the thread's
+ * requests go when that differs from Codex's default, so a change in it forks the thread: a loaded
+ * thread keeps the provider it was started with.
+ */
 export function providerFor(
   mode: AuthMode,
   apiKey: string | null,
-  env: { OPENAI_API_BASE_URL: string; OPEN_BOT_PLAN_BASE_URL?: string },
-): { modelProvider: string; config?: Record<string, unknown> } {
+  env: ModelProxyEnv & { OPENAI_API_BASE_URL: string; OPEN_BOT_PLAN_BASE_URL?: string },
+): { modelProvider: string; config?: Record<string, unknown>; route?: string } {
   if (mode === "api_key") {
+    const proxy = modelProxyUrl(env, "api");
+    // Through the proxy the key stays in the worker, which adds it to each request; Codex sends none.
+    if (proxy)
+      return {
+        modelProvider: API_PROVIDER_ID,
+        config: {
+          [`model_providers.${API_PROVIDER_ID}`]: {
+            name: "OpenAI API",
+            base_url: proxy,
+            wire_api: "responses",
+          },
+        },
+        route: proxy,
+      };
     return {
       modelProvider: API_PROVIDER_ID,
       config: {

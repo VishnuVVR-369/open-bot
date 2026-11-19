@@ -6,7 +6,11 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
   const { ctx, service } = toolHarness();
 
   it("uses the same service for authenticated UI create/update routes and rejects stale UI edits", async () => {
-    const server = createHttpServer({ ctx, teammates: service } as unknown as HttpDeps);
+    const server = createHttpServer({
+      ctx,
+      teammates: service,
+      modelProxy: { handles: () => false, handle() {} },
+    } as unknown as HttpDeps);
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     try {
       const address = server.address();

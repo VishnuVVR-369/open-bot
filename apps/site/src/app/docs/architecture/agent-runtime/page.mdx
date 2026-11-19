@@ -66,14 +66,14 @@ Lanes are `chat`, `schedule:<id>`, `trigger:<id>`, and `inbox`.
 Only runs in the same lane wait for one another. Your messages steer only the conversation lane.
 Each table records the same thread metadata:
 
-| Column              | Meaning                                                        |
-| ------------------- | -------------------------------------------------------------- |
-| `chat_id`, `bot_id` | The pair the thread belongs to (unique)                        |
-| `codex_thread_id`   | Codex's id for the thread                                      |
-| `tools_revision`    | A hash of the tools and developer instructions it started with |
-| `memory_generation` | The teammate's memory generation when the thread was made      |
-| `auth_mode`         | `plan` or `api_key`: the model provider it was created with    |
-| `configuration_key` | A hash of the MCP servers and the `AGENTS.md` it was given     |
+| Column              | Meaning                                                                     |
+| ------------------- | --------------------------------------------------------------------------- |
+| `chat_id`, `bot_id` | The pair the thread belongs to (unique)                                     |
+| `codex_thread_id`   | Codex's id for the thread                                                   |
+| `tools_revision`    | A hash of the tools and developer instructions it started with              |
+| `memory_generation` | The teammate's memory generation when the thread was made                   |
+| `auth_mode`         | `plan` or `api_key`: the model provider it was created with                 |
+| `configuration_key` | A hash of the MCP servers, the `AGENTS.md` and the model route it was given |
 
 A thread is started with:
 
@@ -96,7 +96,51 @@ So the session checks each of those before using an existing thread:
 - **A new tool set or new developer instructions** (a different `tools_revision`) start fresh threads, because a thread can't be given new tools.
 - **A new memory generation** starts a fresh thread too. A thread's history may contain facts you have since corrected or deleted, and forking it would carry them over. See [Memory](/docs/flows/memory#generations-and-stale-threads).
 - **A different provider, MCP set or `AGENTS.md`** forks the thread with `thread/fork`. The fork keeps the whole conversation and gets the new provider, servers or instructions. This is how a chat moves between your ChatGPT plan and your API key mid-conversation, and how an edited profile, a new Always allow rule or a new teammate reaches chats already going.
+- **A different model route** forks the thread the same way.
+  A loaded thread keeps its provider's address, so turning the [model proxy](#the-model-proxy) on or off, or moving it, would otherwise leave chats talking to the old address.
+  The route is left out of the hash while a thread uses Codex's default, so only threads whose route changed fork, once each.
 - **Otherwise**, a thread that is loaded is reused, and one that isn't is resumed from Codex's state on the volume with `thread/resume`.
+
+## The model proxy
+
+Codex on the computer sends its model requests to the worker, which forwards them to the model and logs each one.
+The worker serves them at `/model-proxy/<token>/<route>/...` on its own port, next to the internal API (`apps/worker/src/features/model-logs/`).
+
+| Route  | Upstream                                         | Credential                   |
+| ------ | ------------------------------------------------ | ---------------------------- |
+| `api`  | `OPENAI_API_BASE_URL`                            | The worker adds your API key |
+| `plan` | Not yet: the plan still goes to ChatGPT directly | -                            |
+
+- **Addresses.** API key threads get a provider whose `base_url` is the `api` route as the computer reaches the worker: Railway's private address (`http://worker.railway.internal:4001`, from `RAILWAY_PRIVATE_DOMAIN` and `WORKER_PORT`), or `http://host.docker.internal:<WORKER_PORT>` for a local computer container.
+  `MODEL_PROXY_URL` overrides it.
+- **Pass-through.** The proxy forwards any path under the route to that route's fixed upstream, never to an address from the request.
+  Request and response bytes go through unchanged as they arrive, compressed or not, and a copy is read on the side.
+  Model requests (POSTs) are logged in full; the `models` list only as metadata.
+- **The token.** The URL carries `HMAC(ENCRYPTION_KEY, "model-proxy")`, compared in constant time.
+  A wrong token or route gets a 404.
+  It keeps the rest of the private network out; it is not what lets a request spend the key.
+- **The key.** The worker adds `Authorization: Bearer <key>` only to a request whose `thread-id` (or parent thread) belongs to a live run on the API key in the session registry, a run that passed the cap check.
+  Anything else gets a 403 and never reaches the upstream.
+  Codex is given no key at all.
+- **Never blocking.** Forwarding never waits on logging: each chunk is sent on to Codex before its copy is read.
+  A finished request is rebuilt (`ResponseReader` in `@open-bot/domain`) and queued in memory; the writer saves batches every second or every 100 requests.
+  Reading one response has a 16 MiB budget, counted in bytes of compressed input waiting for the decompressor and characters of text: an unfinished event (each data line costs 8 more, so empty lines count), the items rebuilt so far, and the ids, errors and warnings noted along the way.
+  It is checked after every chunk going into or coming out of the decompressor, so the count passes the budget by one chunk at most.
+  The count is of text: parsed items take more memory than the text they came from, and the first 1 MiB of the raw response is kept besides.
+  Past the budget the response is still forwarded whole, and its log keeps only the metadata, the raw start and a warning that it was too large to read.
+  Only the first 10 events that aren't JSON get a warning of their own.
+  While the database can't be reached, a batch is retried with backoff for 5 minutes, and the queue holds at most 64 MB.
+  Past either, the requests are dropped and a `model_log_gaps` row records them once the database answers again.
+  When the database answers but refuses a batch, the writer saves its requests one at a time and drops only the ones it refuses, so one bad request never holds up the rest.
+  See [Data](/docs/architecture/data#model-logs) for the tables.
+- **Shutdown.** The HTTP server stops taking requests first, then the proxy waits up to 10 seconds for the requests still running to be logged, and only then does the writer save what is queued.
+  Requests still running after that are recorded as a gap.
+- **Upstream failures.** When the upstream can't be reached the proxy answers 502, and when it breaks off mid-stream the proxy breaks Codex's stream too, so Codex retries as it would on a direct connection.
+- **Kill switch.** `MODEL_PROXY=off` sends API key threads straight to `OPENAI_API_BASE_URL` with the key as the provider's bearer token, as before.
+  The route revision forks each such thread once to change course, with no computer redeploy.
+
+A request is linked to its run through Codex's own ids: the `x-codex-turn-metadata` header (or the same JSON in the body's `client_metadata`) carries the thread, the turn and the request's kind (`turn`, `prewarm`, `compaction` or `memory`).
+They are stored as sent, and joined to runs when the logs are read, never resolved when they are written.
 
 ## Instructions
 

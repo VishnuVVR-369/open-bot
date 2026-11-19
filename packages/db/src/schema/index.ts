@@ -17,3 +17,4 @@ export * from "./vault";
 export * from "./egress";
 export * from "./email";
 export * from "./memory";
+export * from "./model-logs";

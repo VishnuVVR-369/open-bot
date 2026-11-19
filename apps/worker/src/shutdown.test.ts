@@ -9,6 +9,7 @@ import { automationsFeature } from "./features/automations";
 import { emailFeature } from "./features/email";
 import { AccountActions, integrationsFeature } from "./features/integrations";
 import { memoryFeature } from "./features/memory";
+import { modelLogsFeature } from "./features/model-logs";
 import { telegramFeature } from "./features/telegram";
 import { FcmService, notificationsFeature, PushService } from "./features/notifications";
 
@@ -24,6 +25,7 @@ const FEATURES: Record<string, Pick<Feature, "start">> = {
     { warn() {} },
   ),
   memoryJobs: memoryFeature(loop),
+  modelLogs: modelLogsFeature({ start() {}, stop: async () => {} }),
   notifications: notificationsFeature({ push: loop, fcm: loop }),
   telegramPolling: telegramFeature({ start: async () => {}, stop() {} }, { error() {} }),
 };
@@ -138,6 +140,12 @@ describe("shutdown order", async () => {
       "database",
     ])
       expect(at(consumer), consumer).toBeGreaterThan(at("account actions"));
+  });
+
+  it("drains the model proxy after its HTTP server, before its writer, before the database", () => {
+    expect(at("http server")).toBeLessThan(at("model proxy"));
+    expect(at("model proxy")).toBeLessThan(at("model log writer"));
+    expect(at("model log writer")).toBeLessThan(at("database"));
   });
 
   it("pauses the computer before stopping the connections it pauses, and closes the database last", () => {

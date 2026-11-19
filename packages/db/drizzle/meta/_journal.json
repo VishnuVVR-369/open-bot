@@ -246,6 +246,13 @@
       "when": 1794923537180,
       "tag": "0034_automation_main_chat",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1795071648186,
+      "tag": "0035_model_logs",
+      "breakpoints": true
     }
   ]
 }
