@@ -14,24 +14,24 @@ It controls two things: Codex's own approval policy, and the approval rules writ
 
 | Level        | Label in the app          | Codex policy | The teammate is told to                                                                                                                                                                                      |
 | ------------ | ------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `full`       | Works on its own          | `never`      | Work without asking, except before deleting important data.                                                                                                                                                  |
-| `risky`      | Asks before risky actions | `never`      | Call `request_approval` before sending messages, posting or publishing, deleting data, and changing settings, permissions or anything in production. Reading, research, drafting and preparing need nothing. |
-| `everything` | Asks before every command | `untrusted`  | Expect an approval prompt before every shell command and file change, and call `request_approval` before consequential desktop actions.                                                                      |
+| `full`       | Works on its own          | `on-request` | Work without asking, except before deleting important data.                                                                                                                                                  |
+| `risky`      | Asks before risky actions | `on-request` | Call `request_approval` before sending messages, posting or publishing, deleting data, and changing settings, permissions or anything in production. Reading, research, drafting and preparing need nothing. |
+| `everything` | Asks before every command | `untrusted`  | Expect an approval prompt before every shell command, file change and connection tool call, and call `request_approval` before consequential desktop actions.                                                |
 
 Payments, emails and changes to your accounts don't depend on these instructions.
 `start_purchase`, `send_email` and the Gmail, Calendar and Notion tools ask you themselves (an email from a `full` teammate sends right away, unless its task read your accounts).
 
 ## Kinds of approval
 
-| Kind              | Created by                                                                              | How long the tool waits   | Can be Always allowed                                        |
-| ----------------- | --------------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------ |
-| `command`         | Codex, before a shell command (`everything` only)                                       | As long as the turn lives | Yes, by command prefix                                       |
-| `file_change`     | Codex, before a file edit (`everything` only)                                           | As long as the turn lives | Yes, all file changes                                        |
-| `action`          | `request_approval`, and the tools that create or configure teammates                    | Up to 10 minutes          | Yes, by exact wording, except autonomy and connection access |
-| `purchase`        | `start_purchase`, above the auto-approve amount                                         | Up to 10 minutes          | No                                                           |
-| `email`           | `send_email`, unless the teammate is `full` and its run read nothing from your accounts | Doesn't wait              | No                                                           |
-| `account_write`   | A Gmail, Calendar or Notion change only you see or that is yours, by autonomy           | Up to 10 minutes          | Yes, by tool, like "Change Notion pages"                     |
-| `account_outward` | A Gmail, Calendar or Notion change others see                                           | Up to 10 minutes          | No                                                           |
+| Kind              | Created by                                                                                                                      | How long the tool waits   | Can be Always allowed                                        |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------ |
+| `command`         | Codex, before a shell command (`everything` only)                                                                               | As long as the turn lives | Yes, by command prefix                                       |
+| `file_change`     | Codex, before a file edit (`everything` only)                                                                                   | As long as the turn lives | Yes, all file changes                                        |
+| `action`          | `request_approval`, the tools that create or configure teammates, and Codex before a connection's tool call (`everything` only) | Up to 10 minutes          | Yes, by exact wording, except autonomy and connection access |
+| `purchase`        | `start_purchase`, above the auto-approve amount                                                                                 | Up to 10 minutes          | No                                                           |
+| `email`           | `send_email`, unless the teammate is `full` and its run read nothing from your accounts                                         | Doesn't wait              | No                                                           |
+| `account_write`   | A Gmail, Calendar or Notion change only you see or that is yours, by autonomy                                                   | Up to 10 minutes          | Yes, by tool, like "Change Notion pages"                     |
+| `account_outward` | A Gmail, Calendar or Notion change others see                                                                                   | Up to 10 minutes          | No                                                           |
 
 ## The flow
 
@@ -97,6 +97,22 @@ A denial says "Don't do it. Briefly acknowledge, and continue with anything else
 
 A teammate tool's approval (see [Building the team](/docs/flows/teamwork#what-asks-you)) is tied to its exact tool call, saved in the payload as the call and a canonical hash of it.
 The new run is told to make that call again, and the call goes through once without asking, only in that run.
+
+## Connection tool calls
+
+Codex asks before it calls a tool of one of your [connections](/docs/flows/skills-and-connections) (an MCP server), with an `mcpServer/elicitation/request`.
+It is a form with no fields whose `_meta.codex_approval_kind` is `mcp_tool_call`, with the tool's arguments in `_meta.tool_params`.
+The worker answers it in `apps/worker/src/runs/session/mcp-approval.ts`, by the teammate's autonomy:
+
+- `full` and `risky`: the call runs (`accept`). These teammates decide themselves when to call `request_approval` first, as their instructions say, the same as for shell commands.
+- `everything`: an `action` approval titled like "Use create_issue from the linear connection", without the arguments, so one Always allow rule covers every call of that tool. The card shows the tool's description and its arguments.
+
+The approval belongs to that exact call, like a teammate tool's.
+Approve and the call runs; deny and Codex tells the teammate "user rejected MCP tool call".
+If you don't answer within 10 minutes, the worker answers `cancel` ("user cancelled MCP tool call"), and the teammate is told to end its turn.
+A later approval starts a follow-up run, which may make the same call once without asking again.
+
+Any other elicitation, a form or a link an MCP server wants you to fill in or open, is declined: the app can't show those yet.
 
 ## Account actions
 

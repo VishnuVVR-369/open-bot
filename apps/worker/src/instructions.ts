@@ -80,7 +80,7 @@ const AUTONOMY_RULES: Record<Autonomy, string> = {
   risky:
     "Before any consequential action, call request_approval and wait: sending or replying to messages, posting or publishing, deleting data, and changing settings, permissions or anything in production. Paying goes through start_purchase and emailing through send_email instead, which ask the user themselves. Reading, researching, drafting and preparing don't need approval, and neither does publish_page, which only shows a page to the user in this app.",
   everything:
-    "The user approves every shell command and file change you make (they see an approval prompt). Also call request_approval before any consequential action on the desktop.",
+    "The user approves every shell command, file change and connection tool call you make (they see an approval prompt). A connection tool call that says the user cancelled it is still waiting for their answer: end your turn, and the decision arrives as a new message. Also call request_approval before any consequential action on the desktop.",
 };
 
 export interface BotProfile {

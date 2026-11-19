@@ -1,10 +1,25 @@
 // Answers the requests Codex sends during a turn: agent tool calls, and native approvals for
-// commands and file changes.
+// commands, file changes and connection tool calls.
+import { randomUUID } from "node:crypto";
 import type { ServerRequest, v2 } from "@open-bot/agent";
-import { type NativeApprovalKind, shellScript, type TimelineItem } from "@open-bot/domain";
+import {
+  type ApprovalDecision,
+  type Autonomy,
+  type NativeApprovalKind,
+  shellScript,
+  type TimelineItem,
+} from "@open-bot/domain";
+import {
+  asksBeforeToolCalls,
+  mcpToolApproval,
+  toolCallAnswer,
+  toolCallApprovalRequest,
+} from "./mcp-approval";
 
 /** What answering a server request reads from the session `S`, which the services are handed. */
 export interface RequestSession<S> {
+  /** The session's teammate, under the legacy name `RunSession` still uses. */
+  readonly bot: { readonly autonomy: Autonomy }; // vocabulary: allow
   readonly items: Map<string, TimelineItem>;
   readonly services: {
     tools: {
@@ -20,6 +35,17 @@ export interface RequestSession<S> {
         subject?: string;
       },
     ) => Promise<boolean>;
+    /** An approval for an action, tied to one exact call (`requestAction` of the approval service). */
+    requestActionApproval: (
+      session: S,
+      input: {
+        title: string;
+        detail: string;
+        itemId: string;
+        subject: string;
+        operation: { tool: string; arguments: Record<string, unknown> };
+      },
+    ) => Promise<ApprovalDecision | "pending">;
   };
 }
 
@@ -66,8 +92,18 @@ export async function onServerRequest<S extends RequestSession<S>>(
     }
     case "item/tool/requestUserInput":
       return { answers: {} };
-    case "mcpServer/elicitation/request":
-      return { action: "decline", content: null, _meta: null };
+    case "mcpServer/elicitation/request": {
+      const approval = mcpToolApproval(request.params, session.items);
+      // A form an MCP server wants filled in: there is no way to show it to you yet.
+      if (!approval) return { action: "decline", content: null, _meta: null };
+      const teammate = session.bot; // vocabulary: allow
+      if (!asksBeforeToolCalls(teammate.autonomy)) return toolCallAnswer("approved");
+      const decision = await session.services.requestActionApproval(session, {
+        ...toolCallApprovalRequest(approval),
+        itemId: `approval-${approval.callId ?? randomUUID()}`,
+      });
+      return toolCallAnswer(decision);
+    }
     default:
       throw new Error(`open-bot doesn't handle ${request.method}`);
   }

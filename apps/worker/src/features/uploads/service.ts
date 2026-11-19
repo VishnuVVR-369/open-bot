@@ -19,6 +19,7 @@ import { and, eq, inArray, lt, notExists, or, sql } from "drizzle-orm";
 import type { Context } from "../../context";
 import { errorMessage } from "../../logger";
 import { WorkerError } from "../../core/errors";
+import { isMissingPath } from "../../codex/files";
 
 /** Where files you attach to messages, and files that arrive by email or Telegram, go on the computer. */
 export const UPLOAD_DIR = `${COMPUTER_PATHS.shared}/uploads`;
@@ -251,7 +252,7 @@ export class UploadService {
         try {
           await this.files.remove(upload.path);
         } catch (error) {
-          if (!/no such file|not found/i.test(errorMessage(error))) {
+          if (!isMissingPath(error)) {
             this.log.warn("couldn't remove an old upload", {
               uploadId: upload.id,
               error: errorMessage(error),

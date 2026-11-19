@@ -76,6 +76,8 @@ export class CodexManager extends EventEmitter<{ status: [CodexStatus]; disconne
   private releaseLoginDemand: (() => void) | undefined;
   /** Sees every message on each new connection (the model logs' Codex event tap). */
   wireTap?: CodexWireTap;
+  /** The sign-in running on a connection, which every caller that needs it waits for. */
+  private signingIn: { client: CodexClient; done: Promise<void> } | null = null;
 
   constructor(
     private readonly computer: ComputerClient,
@@ -134,8 +136,7 @@ export class CodexManager extends EventEmitter<{ status: [CodexStatus]; disconne
       await this.lifecycle.run("codex:ready", async () => {});
     if (this.client?.isOpen && this.state.account) return this.client;
     if (this.client?.isOpen && !this.state.account) {
-      const client = this.client;
-      await outsideRunScope(() => this.signIn(client));
+      await this.signInOnce(this.client);
       if (this.state.account) return this.client;
       throw new Error(
         this.state.error ?? "Codex is not signed in to ChatGPT. Sign in on the Settings page.",
@@ -206,7 +207,7 @@ export class CodexManager extends EventEmitter<{ status: [CodexStatus]; disconne
     });
     this.update({ connected: true, stale: false, error: null });
     this.log.info("connected to Codex");
-    await this.signIn(client);
+    await this.signInOnce(client);
     return client;
   }
 
@@ -284,6 +285,21 @@ export class CodexManager extends EventEmitter<{ status: [CodexStatus]; disconne
     return { accessToken: tokens.accessToken, accountId: tokens.accountId };
   }
 
+  /**
+   * Sign in on `client`, or wait for the sign-in already running there. The connection is open
+   * (and status says so) before it is signed in, so whatever that wakes, like writing the skills,
+   * calls `ready()` while the first sign-in is still running: it must not send a second login.
+   */
+  private signInOnce(client: CodexClient): Promise<void> {
+    if (this.signingIn?.client === client) return this.signingIn.done;
+    // Not part of the run that happened to need it, whose model logs would otherwise show it.
+    const done = outsideRunScope(() => this.signIn(client)).finally(() => {
+      if (this.signingIn?.done === done) this.signingIn = null;
+    });
+    this.signingIn = { client, done };
+    return done;
+  }
+
   private async signIn(client: CodexClient): Promise<void> {
     const authSource = await this.getAuthSource();
     if (this.client !== client) return;
@@ -326,7 +342,9 @@ export class CodexManager extends EventEmitter<{ status: [CodexStatus]; disconne
   /** Re-run sign-in, for example after switching the auth source. */
   async reauthenticate(): Promise<CodexStatus> {
     const client = this.client?.isOpen ? this.client : await this.connectOnly();
-    await this.signIn(client);
+    // A sign-in already running may have read the old auth source: this one starts after it.
+    if (this.signingIn?.client === client) await this.signingIn.done;
+    await this.signInOnce(client);
     return this.state;
   }
 

@@ -143,7 +143,11 @@ describe.skipIf(!url)("model access", () => {
     // take writes: it keeps the batch and tries again.
     const target = new URL(database.url);
     target.searchParams.set("options", "-c lock_timeout=100");
-    const busyPool = createPool(target.toString());
+    const busyPool = createPool(target.toString(), {
+      onIdleError: (error) => {
+        throw error;
+      },
+    });
     const busy = writer(createDb(busyPool), { flushMs: 5, backoffMs: 20, maxBackoffMs: 50 });
     const holder = await pool.connect();
     try {

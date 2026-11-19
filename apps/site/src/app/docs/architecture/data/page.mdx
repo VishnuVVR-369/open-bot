@@ -269,6 +269,14 @@ Drizzle's `DrizzleQueryError` is patched (`patches/drizzle-orm@0.45.4.patch`) so
 Every pool from `createPool` uses a client that rebuilds Postgres's own error without `detail`, `where`, `hint` or `internalQuery`.
 Its message stays when its SQLSTATE class only names things (a constraint violation, a deadlock, a missing column), and otherwise becomes `The database refused the query (SQLSTATE 22021).`, since a data error's message can quote the value it refused.
 
+### Lost connections
+
+When the database restarts or ends a connection, every idle connection a pool holds fails at once.
+`createPool(url, { onIdleError })` takes a handler for that, so each app logs it (without values) instead of crashing on the pool's unhandled `error` event; the pool has already dropped the connection and opens a new one when it next needs it.
+A connection taken out of the pool, by a transaction say, fails its next query instead, so whoever holds it hears about it; `createPool` gives every connection an `error` listener, since the pool listens only while it holds one.
+One kept to `LISTEN` adds its own listener to replace it.
+The worker's `SignalListener` (`apps/worker/src/signal-listener.ts`) drops a failed one, listens again on a new one (waiting from 1 s up to 30 s between tries), and then answers every signal once, since any sent in between were missed.
+
 ## The run queue
 
 A queued run is a row in `runs` with `status = 'queued'`.

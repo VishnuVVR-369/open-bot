@@ -84,8 +84,8 @@ describe.skipIf(!url)("model proxy", () => {
     relay.server.listen(0, "127.0.0.1");
     await once(relay.server, "listening");
     relayUrl.host = `127.0.0.1:${(relay.server.address() as AddressInfo).port}`;
-    writerPool = createPool(relayUrl.toString());
-    writerPool.on("error", () => {});
+    // The relay cuts the writer's connections on purpose, as an outage does.
+    writerPool = createPool(relayUrl.toString(), { onIdleError: () => {} });
     writer = new ModelLogWriter(
       createDb(writerPool),
       { warn() {}, error() {} },

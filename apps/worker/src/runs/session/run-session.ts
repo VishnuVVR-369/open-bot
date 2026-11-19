@@ -4,6 +4,7 @@
 import type { CodexClient, v2 } from "@open-bot/agent";
 import { runs } from "@open-bot/db";
 import {
+  type ApprovalDecision,
   COMPUTER_PATHS,
   type NativeApprovalKind,
   type RunStatus,
@@ -49,6 +50,17 @@ export interface SessionServices {
       subject?: string;
     },
   ) => Promise<boolean>;
+  /** Codex's question before a connection's tool call, as an action approval for that call. */
+  requestActionApproval: (
+    session: RunSession,
+    input: {
+      title: string;
+      detail: string;
+      itemId: string;
+      subject: string;
+      operation: { tool: string; arguments: Record<string, unknown> };
+    },
+  ) => Promise<ApprovalDecision | "pending">;
   buildPrompt: (session: RunSession) => Promise<string>;
   /** Marks the chat as active now, when the run has finished. */
   touchChat: (chatId: string) => Promise<void>;

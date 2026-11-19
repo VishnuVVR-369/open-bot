@@ -81,7 +81,7 @@ A thread is started with:
 - `developerInstructions` set to the rules every teammate follows (`DEVELOPER_INSTRUCTIONS` in `apps/worker/src/instructions.ts`);
 - `dynamicTools` set to every open-bot tool;
 - `sandbox: "danger-full-access"` (the container is the boundary);
-- `approvalPolicy` of `untrusted` for teammates that ask before everything, or `never` otherwise;
+- `approvalPolicy` of `untrusted` for teammates that ask before everything, or `on-request` otherwise (`apps/worker/src/runs/approval-policy.ts`);
 - the model provider and MCP servers as config (see below).
 
 ### Choosing a thread
@@ -287,14 +287,14 @@ The reply you see is the last `final` message of the turn, or the last message i
 
 ### Server requests during a turn
 
-| Request                                 | Answered by                                                                    |
-| --------------------------------------- | ------------------------------------------------------------------------------ |
-| `item/tool/call`                        | `ToolHandlers`: the result of an open-bot tool                                 |
-| `item/commandExecution/requestApproval` | The approval service, after Always allow rules. Returns `accept` or `decline`. |
-| `item/fileChange/requestApproval`       | The same, for file changes                                                     |
-| `item/tool/requestUserInput`            | Empty answers: teammates ask through their own tools instead                   |
-| `mcpServer/elicitation/request`         | Declined                                                                       |
-| `account/chatgptAuthTokens/refresh`     | `CodexManager`, with a fresh token from the host's login                       |
+| Request                                 | Answered by                                                                                                                                                                                                    |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `item/tool/call`                        | `ToolHandlers`: the result of an open-bot tool                                                                                                                                                                 |
+| `item/commandExecution/requestApproval` | The approval service, after Always allow rules. Returns `accept` or `decline`.                                                                                                                                 |
+| `item/fileChange/requestApproval`       | The same, for file changes                                                                                                                                                                                     |
+| `item/tool/requestUserInput`            | Empty answers: teammates ask through their own tools instead                                                                                                                                                   |
+| `mcpServer/elicitation/request`         | A connection's tool call (`_meta.codex_approval_kind` is `mcp_tool_call`): an `action` approval for that call when the teammate asks before everything, otherwise `accept`. Any other elicitation is declined. |
+| `account/chatgptAuthTokens/refresh`     | `CodexManager`, with a fresh token from the host's login                                                                                                                                                       |
 
 ### Steering and interrupting
 

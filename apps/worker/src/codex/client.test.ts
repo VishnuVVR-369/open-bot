@@ -1,5 +1,8 @@
 import { once } from "node:events";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { WebSocketServer } from "ws";
 import { CodexManager } from "./client";
@@ -249,4 +252,101 @@ it("returns failed awake reconnects to lifecycle admission instead of polling a 
   await expect(codex.ready()).rejects.toThrow();
   expect(lost).toHaveBeenCalledTimes(1);
   codex.stop();
+});
+
+describe("signing in to Codex with this Mac's login", () => {
+  /** An app-server stand-in that signs in on `account/login/start` and counts the requests. */
+  async function standInCodex() {
+    const requests: string[] = [];
+    const server = new WebSocketServer({ port: 0 });
+    await once(server, "listening");
+    server.on("connection", (socket) => {
+      let signedIn = false;
+      socket.on("message", (data) => {
+        const message = JSON.parse(data.toString());
+        if (message.id === undefined) return;
+        requests.push(message.method);
+        if (message.method === "account/login/start") signedIn = true;
+        const result =
+          message.method === "account/read"
+            ? {
+                account: signedIn
+                  ? { type: "chatgpt", email: "owner@example.test", planType: "plus" }
+                  : null,
+              }
+            : {};
+        socket.send(JSON.stringify({ id: message.id, result }));
+      });
+    });
+    cleanup.push(() => {
+      for (const socket of server.clients) socket.terminate();
+      server.close();
+    });
+    const computer = {
+      wsUrl: () => `ws://127.0.0.1:${(server.address() as AddressInfo).port}`,
+    } as unknown as ComputerClient;
+    return { computer, requests };
+  }
+
+  /** A ChatGPT login file, with an access token that is good for another month. */
+  async function hostLogin() {
+    const dir = await mkdtemp(path.join(tmpdir(), "openbot-codex-login-"));
+    cleanup.push(() => void rm(dir, { recursive: true, force: true }));
+    const claims = Buffer.from(
+      JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 30 * 86_400 }),
+    ).toString("base64url");
+    const file = path.join(dir, "auth.json");
+    await writeFile(
+      file,
+      JSON.stringify({ tokens: { access_token: `e30.${claims}.sig`, account_id: "acct-1" } }),
+    );
+    return file;
+  }
+
+  const quiet = () =>
+    ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn() }) as unknown as Logger;
+
+  it("logs in once per connection, though connecting wakes another caller mid sign-in", async () => {
+    const { computer, requests } = await standInCodex();
+    const codex = new CodexManager(
+      computer,
+      await hostLogin(),
+      "codex",
+      async () => "host",
+      quiet(),
+    );
+    cleanup.push(() => codex.stop());
+    // As the worker writes the skills (through ready()) as soon as status says it's connected.
+    const woken: Promise<unknown>[] = [];
+    codex.on("status", (status) => {
+      if (status.connected && woken.length === 0) woken.push(codex.ready());
+    });
+
+    const client = await codex.ready();
+
+    await expect(woken[0]).resolves.toBe(client);
+    expect(requests.filter((method) => method === "account/login/start")).toHaveLength(1);
+    expect(codex.status.account).toEqual({
+      type: "chatgpt",
+      email: "owner@example.test",
+      planType: "plus",
+    });
+  });
+
+  it("logs in again when you ask, as after switching where the login comes from", async () => {
+    const { computer, requests } = await standInCodex();
+    const codex = new CodexManager(
+      computer,
+      await hostLogin(),
+      "codex",
+      async () => "host",
+      quiet(),
+    );
+    cleanup.push(() => codex.stop());
+    await codex.ready();
+
+    await codex.reauthenticate();
+
+    expect(requests.filter((method) => method === "account/login/start")).toHaveLength(2);
+  });
 });

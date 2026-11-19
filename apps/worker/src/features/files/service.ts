@@ -4,6 +4,7 @@ import { isNull } from "drizzle-orm";
 import type { Context } from "../../context";
 import { sanitizeFileName } from "../uploads";
 import { WorkerError } from "../../core/errors";
+import { isMissingPath } from "../../codex/files";
 
 export class FileError extends WorkerError {}
 
@@ -31,11 +32,20 @@ export function freeFileName(name: string, taken: ReadonlySet<string>): string {
 export class FileService {
   constructor(private readonly ctx: Pick<Context, "codex" | "db">) {}
 
-  /** A folder's visible entries, with when each was last changed. */
+  /**
+   * A folder's visible entries, with when each was last changed. A folder that isn't there yet
+   * (nothing has been saved in it on a new computer, or it was just removed) is empty.
+   */
   async list(folder: string = COMPUTER_PATHS.botsRoot) {
     const path = safePath(folder);
     const client = await this.ctx.codex.ready();
-    const { entries } = await client.request("fs/readDirectory", { path });
+    const entries = await client.request("fs/readDirectory", { path }).then(
+      (listing) => listing.entries,
+      (error: unknown) => {
+        if (isMissingPath(error)) return [];
+        throw error;
+      },
+    );
     const detailed = await Promise.all(
       entries
         .filter((entry) => !entry.fileName.startsWith("."))
@@ -63,8 +73,7 @@ export class FileService {
       const { dataBase64 } = await client.request("fs/readFile", { path });
       return { path, dataBase64 };
     } catch (error) {
-      if (/no such file|not found/i.test(String(error)))
-        throw new FileError(404, "That file isn't there anymore.");
+      if (isMissingPath(error)) throw new FileError(404, "That file isn't there anymore.");
       throw error;
     }
   }
