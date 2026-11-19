@@ -267,6 +267,13 @@
       "when": 1795071922061,
       "tag": "0037_model_log_codex_events",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1795072021085,
+      "tag": "0038_run_turns_thread_started",
+      "breakpoints": true
     }
   ]
 }

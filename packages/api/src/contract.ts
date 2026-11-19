@@ -22,6 +22,7 @@ import { pagesContract } from "./contracts/pages";
 import { egressContract } from "./contracts/egress";
 import { pushContract } from "./contracts/push";
 import { approvalsContract } from "./contracts/approvals";
+import { modelLogsContract } from "./contracts/model-logs";
 
 export { API_ERRORS } from "./base";
 export { MAX_TEAMMATE_FILE } from "./contracts/teammates";
@@ -34,6 +35,7 @@ export {
   feedbackInputSchema,
 } from "./contracts/chat";
 export { decideApprovalInputSchema } from "./contracts/approvals";
+export { MODEL_LOG_RUN_REQUESTS, MODEL_LOG_RUNS_PAGE } from "./contracts/model-logs";
 
 /**
  * The open-bot API, shared by the web app (which implements it at `/api/rpc`, and reads through
@@ -76,6 +78,7 @@ export const contract = {
   approvals: approvalsContract,
   egress: egressContract,
   push: pushContract,
+  modelLogs: modelLogsContract,
 };
 
 export type Contract = typeof contract;

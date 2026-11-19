@@ -73,6 +73,7 @@ Each feature owns its read and mutation hooks in `hooks.ts`, with detail hooks b
 Shared infrastructure does not import features, and features do not import routes; `src/features/boundaries.test.ts` also keeps route entries thin.
 Queries stay fresh for 10 seconds and retry twice, only for errors `isRetryable` accepts.
 `queryKeys` use procedure paths, so `keysForAppEvent()` applies `APP_EVENT_REFRESHES` and `ALWAYS_REFRESHED` from `packages/api/src/events.ts`.
+It skips `ALWAYS_REFRESHED` for the events in `SNAPSHOT_FREE_EVENTS`.
 Mobile also refreshes reads that embed data from the changed procedures: chat details after approvals or chat-list changes, approval rules after teammate changes, and teammate status after approvals or screen changes.
 These dependencies expand once, without recursively refreshing other reads.
 `keysForPush()` keeps the push-specific list, badge and addressed-detail refreshes.

@@ -9,6 +9,7 @@ export * from "./vault";
 export * from "./settings";
 export * from "./integrations";
 export * from "./memory";
+export * from "./model-logs";
 export * from "./events";
 export { createApiClient, type ApiClient, type ApiClientOptions } from "./client";
 export * from "./live";

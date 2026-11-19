@@ -897,6 +897,9 @@ importers:
       '@open-bot/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@open-bot/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       drizzle-orm:
         specifier: ^0.45.4
         version: 0.45.4(patch_hash=b3c994b2794dee7c346d7a1bbd7c5a7eaa0fa444ea2c9d6da21a34b1c59929c2)(@types/pg@8.23.1)(kysely@0.29.6)(pg@8.23.1)

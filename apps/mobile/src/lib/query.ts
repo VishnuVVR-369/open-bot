@@ -1,4 +1,9 @@
-import { ALWAYS_REFRESHED, APP_EVENT_REFRESHES, type ProcedurePath } from "@open-bot/api";
+import {
+  ALWAYS_REFRESHED,
+  APP_EVENT_REFRESHES,
+  type ProcedurePath,
+  SNAPSHOT_FREE_EVENTS,
+} from "@open-bot/api";
 import type { AppEventType } from "@open-bot/domain";
 import { QueryCache, QueryClient } from "@tanstack/react-query";
 import { isRetryable, isUnauthorized } from "./errors";
@@ -68,7 +73,7 @@ export function keysForAppEvent(type: string): (readonly unknown[])[] {
   // Retain the old screen-event alias for callers on an older stream.
   const event = type === "screens" ? "computer" : type;
   const paths = [
-    ...ALWAYS_REFRESHED,
+    ...(SNAPSHOT_FREE_EVENTS.has(event as AppEventType) ? [] : ALWAYS_REFRESHED),
     ...(Object.hasOwn(APP_EVENT_REFRESHES, event)
       ? APP_EVENT_REFRESHES[event as AppEventType]
       : []),

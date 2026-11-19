@@ -94,7 +94,9 @@ await addComputerRow(db);
 // the tap redacts and queues the messages it was still holding, and then the writer saves what
 // is queued before the database closes.
 const modelLogWriter = new ModelLogWriter(db, log.child("model-logs"));
-const modelLogs = modelLogsFeature(modelLogWriter);
+const modelLogs = modelLogsFeature(modelLogWriter, () =>
+  publishApp({ pool }, { type: "modelLogs" }),
+);
 await modelLogs.start(runtime);
 const sessions = new SessionRegistry();
 const codexEventTap = new CodexEventTap({ writer: modelLogWriter, runs: sessions, currentRunId });

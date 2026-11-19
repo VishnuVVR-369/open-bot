@@ -1,4 +1,4 @@
-import { ALWAYS_REFRESHED, APP_EVENT_REFRESHES } from "@open-bot/api";
+import { ALWAYS_REFRESHED, APP_EVENT_REFRESHES, SNAPSHOT_FREE_EVENTS } from "@open-bot/api";
 import { appEventSchema, type AppEventType } from "@open-bot/domain";
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
@@ -31,6 +31,8 @@ const oldEvents = {
   purchases: home,
   auth: home,
   settings: home,
+  // Newer than the migration, and refreshes nothing mobile reads.
+  modelLogs: [],
 } satisfies Record<AppEventType, string[]>;
 
 // Every mobile query family, with multiple inputs where a prefix must reach every detail.
@@ -106,8 +108,14 @@ describe("shared event refresh migration", () => {
 
   it.each(eventTypes)("honors every shared procedure and snapshot path for %s", (type) => {
     // Includes procedures mobile doesn't query yet: adding a read needs no second event map.
-    for (const path of [...ALWAYS_REFRESHED, ...APP_EVENT_REFRESHES[type]])
+    const snapshots = SNAPSHOT_FREE_EVENTS.has(type) ? [] : ALWAYS_REFRESHED;
+    for (const path of [...snapshots, ...APP_EVENT_REFRESHES[type]])
       expect(keysForAppEvent(type)).toContainEqual(path);
+  });
+
+  it("leaves the snapshots alone for model logs, which are announced every few seconds", () => {
+    for (const path of ALWAYS_REFRESHED)
+      expect(keysForAppEvent("modelLogs")).not.toContainEqual(path);
   });
 
   it("retains the old screens alias and unknown-event snapshot fallback", async () => {

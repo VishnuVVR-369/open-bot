@@ -83,6 +83,7 @@ It also logs every message between itself and Codex, in `codex_events`, and the 
 
 - **What they hold.** Requests and responses are stored as sent: your messages, what teammates read and wrote, tool calls and their output, and the model's encrypted reasoning.
   Treat them like the rest of the database.
+  Only the owner can read them, in Settings, Model logs (see [Data](/docs/architecture/data#where-they-are-shown)); every procedure that serves them needs the owner's session.
 - **What they never hold.** Headers that carry a credential (authorization, cookies, API keys, tokens, secrets) are dropped before anything is saved, so neither your API key nor the computer's ChatGPT token reaches the logs on their way to the model.
   They can still be in a request's content if a teammate read them and showed them to the model (see below).
   The same headers are dropped from the header objects the model sends back in its events and errors; exactly what that covers, and what it doesn't, is under [Data](/docs/architecture/data#model-logs).

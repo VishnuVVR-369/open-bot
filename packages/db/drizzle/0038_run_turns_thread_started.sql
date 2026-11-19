@@ -1,0 +1,1 @@
+CREATE INDEX "run_turns_thread_started_idx" ON "run_turns" USING btree ("codex_thread_id","started_at","codex_turn_id");

@@ -29,6 +29,11 @@ const keys = {
   page: orpc.pages.get.queryKey({ input: { pageId: PAGE } }),
   pageLink: orpc.pages.open.queryKey({ input: { versionId: PAGE, theme: "dark", ask: false } }),
   chat: orpc.chats.get.queryKey({ input: { chatId: PAGE } }),
+  modelLogRuns: orpc.modelLogs.runs.infiniteKey({
+    input: (before: string | undefined) => ({ before }),
+    initialPageParam: undefined,
+  }),
+  modelLogRun: orpc.modelLogs.run.queryKey({ input: { runId: PAGE } }),
 };
 
 describe("refreshing the cache for app events", () => {
@@ -36,6 +41,12 @@ describe("refreshing the cache for app events", () => {
     const { client, stale } = cacheWith(keys);
     await refreshForAppEvent(client, { type: "schedules" });
     expect(stale()).toEqual(["scheduleList", "scheduleRuns"]);
+  });
+
+  it("refreshes the runs list when model logs are saved, not an open inspector", async () => {
+    const { client, stale } = cacheWith(keys);
+    await refreshForAppEvent(client, { type: "modelLogs" });
+    expect(stale()).toEqual(["modelLogRuns"]);
   });
 
   it("keeps an open page's short-lived link when pages change", async () => {
@@ -55,6 +66,7 @@ describe("refreshing the cache for app events", () => {
     await refreshAfterOutage(client);
     expect(stale()).toEqual([
       "home",
+      "modelLogRuns",
       "page",
       "pageList",
       "scheduleList",

@@ -333,7 +333,7 @@ It is pure and shared: the web app uses it on the server to build a chat's first
 | `openbot_chat`   | a chat id                                               | the worker, after storing run events | the web app's SSE streams |
 | `openbot_app`    | a JSON `AppEvent`, like `{"type":"approvals"}`          | the web app and the worker           | the web app's SSE streams |
 
-`AppEvent` has about twenty types, one per area of the UI: `bots`, `chats`, `approvals`, `takeovers`, `lease`, `computer`, `notification`, `schedules`, `triggers`, `tasks`, `memory`, `vault`, `purchases`, `connections`, `email`, `telegram`, `skills`, `pages`, `profile`, `lessons` and `auth`.
+`AppEvent` has about twenty types, one per area of the UI: `bots`, `chats`, `approvals`, `takeovers`, `lease`, `computer`, `notification`, `schedules`, `triggers`, `tasks`, `memory`, `vault`, `purchases`, `connections`, `email`, `telegram`, `skills`, `pages`, `profile`, `lessons`, `auth`, `settings` and `modelLogs`.
 Each one tells open tabs which cached queries to refetch.
 
 Notifications are hints, not data.
@@ -474,3 +474,32 @@ So a nested item is linked to the cells that could have been running when it sta
   Several `exec` calls in one response, or a yielded cell running beside a new one, make their items `ambiguous`.
 
 Each nested item has its outcome in its own `item/completed` row, as above.
+
+### Where they are shown
+
+The owner reads the logs in the web app, under Settings, Model logs (`/settings/model-logs`).
+It lists the runs that have logs, newest first, with their teammate, chat, start time, model requests, tokens, cost and errors.
+Each run opens its inspector (`/settings/model-logs/runs/<run id>`), which a teammate's reply also links to from its menu, as Inspect model requests.
+The inspector shows the run's turns and each request in them, with its kind, model, access mode, status, timing, tokens, cost, rate limits and parse warnings.
+A request that failed shows its error, and the next request of the same kind in the same turn is marked as its retry.
+A prewarm has no turn id, so it is placed by time, and says so.
+Out of every turn of its thread, from any run, it goes to the latest one that had started when it was sent, if that turn's run was still going; else to the next one, if that started within 10 seconds after it, since Codex can send a prewarm before `turn/start` returns and the turn is saved.
+So each prewarm counts toward one run only, in the list's totals and in the inspector alike (`unturnedTurnSql` in `apps/web/src/features/model-logs/server/runs.ts`).
+The lookup walks the thread's turns in start order through the `run_turns_thread_started_idx` index, and runs only for requests between the turn's start, less the slack, and its run's end.
+A run with more than 500 requests lists its first 500, says so, and counts all of them in its totals.
+What the last listed calls did after the cut still shows: an item that started before the cut keeps its completion, a listed call's own item shows whenever it was reported, and a code-mode cell keeps the items that started while it was known to run.
+What they got back comes from the first request left out in each thread, whose input carries it.
+Items that started after the cut and that no listed call explains belong to requests that aren't listed, and are left out.
+What each tool call got back is worked out from the requests' input history, which repeats every earlier item in each request.
+The history is first cut down to where each item of a thread first appeared; only then is each distinct output item parsed and its preview cut, once, so that work grows with the number of calls, not with how often later requests repeated them.
+The list pages by creation time and run id together, at full precision, so runs created in the same instant are never skipped.
+A page cursor whose time doesn't exist, like a 13th month or a 30th of February, is refused as a bad request.
+The worker announces a `modelLogs` app event once a batch of logs is saved, at most every 2 seconds (`apps/worker/src/features/model-logs/announcer.ts`), which refreshes the list; it leaves the shell's state and Home alone.
+At shutdown the writer drains first, while the announcer still listens, and the announcer sends what that saved before it stops.
+Expanding a request loads its bodies: the input items labeled by role and type, with those carried over from the WebSocket's earlier messages set apart, then the instructions, the tools, the response with its reasoning summary, and the request's parameters and headers.
+Each tool call shows its outcome joined as above.
+A code-mode cell lists the nested items linked to it, each marked as likely when it was the only candidate, or uncertain when several cells could have run it.
+The run's Codex messages are listed last, collapsed, and each payload loads when it is opened; a stub says it was not stored, and why.
+Bodies are shown as text, never as HTML.
+The procedures are `modelLogs.runs`, `modelLogs.run`, `modelLogs.request`, `modelLogs.events` and `modelLogs.event` (`packages/api/src/contracts/model-logs.ts`), which read the tables directly from the web app (`apps/web/src/features/model-logs/server/`) and need the owner's session.
+How a run's requests, tool calls and outcomes are put together is pure logic in `@open-bot/domain` (`packages/domain/src/model-logs/run-view.ts` and `items.ts`).
