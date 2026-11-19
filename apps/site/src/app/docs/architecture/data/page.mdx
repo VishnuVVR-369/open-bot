@@ -10,7 +10,7 @@ This page covers the schema, how runs are queued, how events are stored and stre
 ## The schema
 
 The schema is written with Drizzle ORM, one file per area in `packages/db/src/schema/`, all re-exported by `packages/db/src/schema/index.ts`.
-It has about 60 tables.
+It has about 65 tables.
 Here they are grouped by what they're for:
 
 <SchemaMap
@@ -54,6 +54,24 @@ Here they are grouped by what they're for:
           name: "usage_entries",
           note: "An append-only ledger of tokens and cost, per run and auth mode",
         },
+      ],
+    },
+    {
+      title: "Model logs",
+      tables: [
+        {
+          name: "model_requests",
+          note: "One model request through the model proxy: Codex thread and turn, status, timings, tokens, cost, headers without credentials",
+        },
+        {
+          name: "model_blobs",
+          note: "Each distinct item, instructions or tool list, once by SHA-256",
+        },
+        {
+          name: "model_request_items",
+          note: "A request's input and output items, in order, as blob hashes",
+        },
+        { name: "model_log_gaps", note: "Requests the writer could not save, and why" },
       ],
     },
     {
@@ -357,3 +375,27 @@ Executing holds a 5-minute lease, and a stopped action whose lease ran out is re
 Plan usage costs nothing per token, so its `cost_micros` is 0.
 API key usage is priced at the model's list prices, in millionths of a dollar.
 See [Models and usage](/docs/flows/models-and-usage#the-monthly-cap).
+
+## Model logs
+
+Every model request that goes through the [model proxy](/docs/architecture/agent-runtime#the-model-proxy) is saved by one buffered writer (`apps/worker/src/features/model-logs/writer.ts`), which owns the four tables.
+
+- `model_requests` has one row per request: the route (`api` for now), the endpoint, the HTTP status, when it started, sent its first byte and ended, the token counts and `cost_micros` from the response's usage, how it ended (`stop_reason`, `error_type`, `error_message`), its headers without credentials, the rate-limit headers, and the response's text and reasoning summary.
+  `params` holds the request body without its input, instructions and tools.
+  `raw_response` holds the first 1 MiB of a response only when it could not be rebuilt: a stream cut short, or JSON that isn't a Responses API response (search results, images).
+  `parse_warnings` says why, and when the response was cut to fit.
+- `codex_thread_id`, `codex_turn_id` and `request_kind` come from the request's own turn metadata.
+  Requests are linked to runs through them when they are read, never with a run id resolved when they are written, because a request can arrive before the worker has saved the turn's id.
+  `teammate_id` is the teammate whose live run the proxy let the request through for.
+- `model_blobs` stores each distinct input or output item, the instructions and the tool list once, as JSON under its SHA-256.
+  Every request sends the conversation so far again, so a request adds only its new items.
+  The writer looks up which hashes exist and sends only the new blobs.
+  `content` is compressed with lz4 where the server supports it (the `pgvector/pgvector:pg17` image does).
+- `model_request_items` lists a request's items in order, on the `input` and `output` sides.
+  A request is rebuilt exactly as Codex sent it from `params`, the instructions and tools blobs, and its input items.
+- `model_log_gaps` records requests that were lost: dropped after 5 minutes without reaching the database, past the 64 MB queue, or refused by the database itself.
+  Its row is written once the database answers again.
+  A request naming a teammate deleted since it was made is kept, with `teammate_id` empty.
+
+Bodies and item contents are stored as sent, encrypted reasoning included, so a request can be sent again exactly.
+Headers that carry credentials (authorization, cookies, API keys, tokens, secrets) are never stored.

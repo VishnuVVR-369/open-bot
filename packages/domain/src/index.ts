@@ -12,6 +12,7 @@ export * from "./egress";
 export * from "./events";
 export * from "./integrations";
 export * from "./memory";
+export * from "./model-logs";
 export * from "./models";
 export * from "./pages";
 export * from "./skills";

@@ -29,6 +29,19 @@ export class SessionRegistry {
     return undefined;
   }
 
+  /**
+   * The live run on the API key that one of these Codex threads belongs to: the model proxy adds
+   * the key only for it, so the key is never spent outside a run that passed the cap check.
+   */
+  apiKeyRun(threadIds: readonly string[]): { apiKey: string; teammateId: string } | null {
+    for (const session of this.sessions.values()) {
+      if (session.authMode !== "api_key" || !session.apiKey || !session.threadId) continue;
+      if (threadIds.includes(session.threadId))
+        return { apiKey: session.apiKey, teammateId: session.bot.id }; // vocabulary: allow
+    }
+    return null;
+  }
+
   all(): RunSession[] {
     return [...this.sessions.values()];
   }

@@ -126,6 +126,12 @@ export const TABLE_OWNERS = {
   account_actions: { owner: `${WORKER}features/integrations/actions.ts` },
   account_resources: { owner: "packages/integrations/src/providers/notion/runner.ts" },
 
+  // Model logs: the proxy's buffered writer is the only thing that saves them.
+  model_requests: { owner: `${WORKER}features/model-logs/writer.ts` },
+  model_blobs: { owner: `${WORKER}features/model-logs/writer.ts` },
+  model_request_items: { owner: `${WORKER}features/model-logs/writer.ts` },
+  model_log_gaps: { owner: `${WORKER}features/model-logs/writer.ts` },
+
   // Memory.
   memory_items: { owner: MEMORY },
   memory_revisions: { owner: MEMORY },

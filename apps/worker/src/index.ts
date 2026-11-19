@@ -34,6 +34,7 @@ import { RunExecutor } from "./runs/executor";
 import { ApprovalService } from "./features/approvals";
 import { APPROVAL_OUTCOMES } from "./approval-outcomes";
 import { ModelAccess } from "./features/model-access";
+import { ModelLogWriter, modelLogsFeature, ModelProxy } from "./features/model-logs";
 import { SessionRegistry } from "./runs/registry";
 import {
   AccountTriggers,
@@ -413,6 +414,20 @@ runtime.every(
       ),
 );
 
+// Model requests are logged off the request path. At shutdown the HTTP server stops taking
+// requests, the proxy waits for the ones still running to be logged, and then the writer saves
+// what is queued before the database closes.
+const modelLogWriter = new ModelLogWriter(db, log.child("model-logs"));
+const modelLogs = modelLogsFeature(modelLogWriter);
+await modelLogs.start(runtime);
+const modelProxy = new ModelProxy({
+  env,
+  runs: sessions,
+  writer: modelLogWriter,
+  log: log.child("model-proxy"),
+});
+runtime.add("model proxy", () => modelProxy.drain());
+
 const chats = new ChatService(ctx, (messageId) => executor.dispatchMessage(messageId));
 const server = createHttpServer({
   ctx,
@@ -444,6 +459,7 @@ const server = createHttpServer({
   egressDevices: new EgressDevices(ctx, egress),
   settings: new SettingsService(ctx),
   vault,
+  modelProxy,
 });
 server.listen(env.WORKER_PORT, () => log.info(`worker listening on :${env.WORKER_PORT}`));
 runtime.add("http server", () => server.close());

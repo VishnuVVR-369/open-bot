@@ -87,6 +87,7 @@ describe("worker internal API transport", () => {
         throw new Error("connection reset");
       }),
     },
+    modelProxy: { handles: () => false, handle() {} },
   } as unknown as HttpDeps;
 
   let server: http.Server;

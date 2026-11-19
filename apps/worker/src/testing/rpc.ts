@@ -181,6 +181,7 @@ export function rpcHarness() {
     egress: { status: OFFLINE_EGRESS_STATUS, setMode: vi.fn(async () => {}) },
     egressDevices: new EgressDevices(ctx, relay),
     wake: {},
+    modelProxy: { handles: () => false, handle() {} },
   } as unknown as HttpDeps;
 
   const server = createHttpServer(services);

@@ -85,7 +85,7 @@ The plan is used unless it is currently limited.
 ### The key is a per-thread provider
 
 The API key is never installed as the computer's login, which would replace the ChatGPT login.
-It is passed as a model provider in the thread's config:
+API key threads get a model provider of their own in the thread's config, which points at the worker's [model proxy](/docs/architecture/agent-runtime#the-model-proxy):
 
 ```ts title="providerFor() in apps/worker/src/features/model-access/service.ts"
 {
@@ -93,16 +93,21 @@ It is passed as a model provider in the thread's config:
   config: {
     "model_providers.openai-api": {
       name: "OpenAI API",
-      base_url: env.OPENAI_API_BASE_URL,   // https://api.openai.com/v1
+      base_url: modelProxyUrl(env, "api"), // http://worker.railway.internal:4001/model-proxy/<token>/api
       wire_api: "responses",
-      experimental_bearer_token: apiKey,
     },
   },
+  route: modelProxyUrl(env, "api"),
 }
 ```
 
-A Codex thread keeps the provider it was created or resumed with.
-So a chat moving between the plan and the key **forks** its thread with the other provider, and the whole conversation carries over (see [Choosing a thread](/docs/architecture/agent-runtime#choosing-a-thread)).
+**The key stays in the worker.**
+The provider has no bearer token, so Codex sends no `Authorization` header, and the proxy adds `Bearer <key>` to each request before forwarding it to `OPENAI_API_BASE_URL`.
+It does that only for a request whose thread belongs to a live run on the API key, so the key can't be spent outside a run that passed the cap check.
+With `MODEL_PROXY=off`, the provider points at `OPENAI_API_BASE_URL` directly and carries the key as `experimental_bearer_token`, as before the proxy.
+
+A Codex thread keeps the provider it was created or resumed with, its address included.
+So a chat moving between the plan and the key **forks** its thread with the other provider, and so does a thread whose route changed (the proxy turned on or off), and the whole conversation carries over (see [Choosing a thread](/docs/architecture/agent-runtime#choosing-a-thread)).
 
 The key is stored encrypted in `credentials` (AES-256-GCM with `ENCRYPTION_KEY`), and decrypted in the worker only when a run needs it.
 A key Codex reports as unauthorized fails the run with "Your OpenAI API key was rejected. Check it in Settings."
@@ -134,14 +139,17 @@ Every reply shows its time, tokens and cost, and Settings shows usage per teamma
 ## Rehearsing the fallback
 
 You can test the whole fallback without exhausting your plan.
-`OPEN_BOT_PLAN_BASE_URL` sends plan traffic to a Responses-compatible URL instead of ChatGPT, and `OPENAI_API_BASE_URL` does the same for the key:
+`OPEN_BOT_PLAN_BASE_URL` sends plan traffic to a Responses-compatible URL instead of ChatGPT, and `OPENAI_API_BASE_URL` does the same for the key.
+Codex on the computer calls the plan's URL, so it names the Docker host; the worker's model proxy calls the key's, so it names this machine:
 
 ```sh title="Terminal"
 OPEN_BOT_PLAN_BASE_URL=http://host.docker.internal:4799/plan \
-OPENAI_API_BASE_URL=http://host.docker.internal:4799/api \
+OPENAI_API_BASE_URL=http://127.0.0.1:4799/api \
   pnpm --filter @open-bot/worker dev
 
 E2E_PLAN_REHEARSAL=1 pnpm e2e --grep rehearsal
 ```
 
-The test's mock answers like an exhausted ChatGPT plan, and everything else is real: the worker, Codex on the computer, the thread fork and the ledger.
+The test's stand-in answers like an exhausted ChatGPT plan, and everything else is real: the worker, Codex on the computer, the thread fork, the model proxy and the ledger.
+The key's requests are logged in `model_requests` with `route = 'api'`.
+With `MODEL_PROXY=off`, Codex calls the key's URL itself, so name the Docker host there too.

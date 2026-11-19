@@ -20,18 +20,19 @@ The known risks were reproduced in the `computer` image, not inferred from readi
   <TrustDiagram />
 </Figure>
 
-| Connection                               | Credential                                                     | Lifetime                                 |
-| ---------------------------------------- | -------------------------------------------------------------- | ---------------------------------------- |
-| Browser to web app                       | Better Auth session cookie, owner only                         | 30 days, refreshed daily                 |
-| Browser to worker `/vnc`                 | HMAC-SHA256 token, purpose `vnc`, signed with `WORKER_SECRET`  | 60 seconds                               |
-| Desktop app to worker `/egress/agent`    | HMAC token, purpose `egress`                                   | 120 seconds                              |
-| Web app to worker `/internal/*`          | `x-worker-secret` header, compared in constant time            | Static secret                            |
-| Worker to botd                           | `Bearer BOTD_TOKEN` (header or query)                          | Static secret                            |
-| Anyone to a webhook                      | The random token in the URL                                    | Until you rotate it                      |
-| Postmark to inbound email                | The random secret in the URL                                   | Until you change it                      |
-| Browser to the pages service             | HMAC-SHA256 key for one version, signed with `PAGES_SECRET`    | 10 minutes                               |
-| Worker to Google and Notion              | Your OAuth access token, refreshed by the worker               | About an hour (Google), 8 hours (Notion) |
-| Google or Notion to the sign-in callback | A one-time `state`, bound to your session, and a PKCE verifier | 10 minutes                               |
+| Connection                               | Credential                                                                  | Lifetime                                 |
+| ---------------------------------------- | --------------------------------------------------------------------------- | ---------------------------------------- |
+| Browser to web app                       | Better Auth session cookie, owner only                                      | 30 days, refreshed daily                 |
+| Browser to worker `/vnc`                 | HMAC-SHA256 token, purpose `vnc`, signed with `WORKER_SECRET`               | 60 seconds                               |
+| Desktop app to worker `/egress/agent`    | HMAC token, purpose `egress`                                                | 120 seconds                              |
+| Web app to worker `/internal/*`          | `x-worker-secret` header, compared in constant time                         | Static secret                            |
+| Computer to worker `/model-proxy/*`      | `HMAC(ENCRYPTION_KEY, "model-proxy")` in the URL, compared in constant time | Static, changes with `ENCRYPTION_KEY`    |
+| Worker to botd                           | `Bearer BOTD_TOKEN` (header or query)                                       | Static secret                            |
+| Anyone to a webhook                      | The random token in the URL                                                 | Until you rotate it                      |
+| Postmark to inbound email                | The random secret in the URL                                                | Until you change it                      |
+| Browser to the pages service             | HMAC-SHA256 key for one version, signed with `PAGES_SECRET`                 | 10 minutes                               |
+| Worker to Google and Notion              | Your OAuth access token, refreshed by the worker                            | About an hour (Google), 8 hours (Notion) |
+| Google or Notion to the sign-in callback | A one-time `state`, bound to your session, and a PKCE verifier              | 10 minutes                               |
 
 Tokens for websockets exist because a websocket from the browser can't carry the session cookie to the worker's different origin.
 The web app issues them only to a signed-in session, and they say what they're for, so a VNC token can't open the egress tunnel.
@@ -55,6 +56,9 @@ The web app issues them only to a signed-in session, and they say what they're f
 The web app encrypts when you save, and the worker decrypts only at the moment of use.
 Losing `ENCRYPTION_KEY` makes these unreadable, so back it up with the database.
 
+The OpenAI API key never reaches the computer.
+Codex's API key provider points at the worker's [model proxy](/docs/architecture/agent-runtime#the-model-proxy), and the worker adds the key to each request itself (unless `MODEL_PROXY=off`, which gives Codex the key as before).
+
 The ChatGPT login is not in Postgres.
 In development, only a short-lived access token is passed to the computer, and the refresh token stays on your machine.
 In the cloud, Codex keeps its login in `/home/bot/.codex` on the computer's volume, readable only by the `bot` user.
@@ -70,6 +74,18 @@ In the cloud, Codex keeps its login in `/home/bot/.codex` on the computer's volu
 | Vault secrets don't leak through processes | botd types them through `xdotool`'s stdin, and a login only fills on its own site.                                                              |
 | No job applications                        | The apply guard fails submissions to job portals unless you hold the screen.                                                                    |
 | The computer isn't on the internet         | botd listens on port 7000 on the private network only. VNC and Codex listen on localhost.                                                       |
+
+## Model logs
+
+The worker logs every model request that goes through the model proxy, in the `model_*` tables (see [Data](/docs/architecture/data#model-logs)).
+
+- **What they hold.** Requests and responses are stored as sent: your messages, what teammates read and wrote, tool calls and their output, and the model's encrypted reasoning.
+  Treat them like the rest of the database.
+- **What they never hold.** Headers that carry a credential (authorization, cookies, API keys, tokens, secrets) are dropped before anything is saved, so neither your API key nor the computer's ChatGPT token is in the logs.
+- **Who reaches the proxy.** Its URL carries a token derived from `ENCRYPTION_KEY`, which keeps the rest of the private network (web, pages) out.
+  Teammates run as `bot`, the user Codex runs as, so they can read the URL from Codex's thread config; that grants nothing more.
+  The proxy only forwards to fixed upstreams, chosen by route, and adds the API key only for a thread with a live run on the key, which already passed the monthly cap check.
+- **Who reads them.** Nothing reads them yet; teammates have no access to them.
 
 ## Outside the computer
 

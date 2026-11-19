@@ -63,6 +63,21 @@ export const envSchema = z.object({
    */
   OPEN_BOT_PLAN_BASE_URL: z.string().url().optional(),
   /**
+   * Model requests go through the worker's model proxy, which logs them and adds the API key.
+   * `off` sends threads straight to the model again (they fork once to change course).
+   */
+  MODEL_PROXY: z
+    .enum(["on", "off"])
+    .default("on")
+    .transform((value) => value === "on"),
+  /**
+   * The worker as the computer reaches it, for the model proxy. Left out, it is Railway's private
+   * address (`RAILWAY_PRIVATE_DOMAIN` and `WORKER_PORT`), or the Docker host locally.
+   */
+  MODEL_PROXY_URL: optionalUrl,
+  /** Set by Railway: this service's name on the private network. */
+  RAILWAY_PRIVATE_DOMAIN: z.string().optional(),
+  /**
    * Optional memory AI: embeddings for semantic recall and extraction of facts from your messages.
    * Validated by `memoryAIConfig` (`@open-bot/memory/jobs`), which knows their rules.
    */

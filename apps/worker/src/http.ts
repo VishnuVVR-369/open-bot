@@ -3,13 +3,17 @@ import http, { type IncomingMessage, type ServerResponse } from "node:http";
 import { WORKER_SECRET_HEADER } from "@open-bot/api/worker";
 import { MAX_UPLOAD_BYTES } from "@open-bot/domain";
 import { z } from "zod";
+import type { ModelProxy } from "./features/model-logs";
 import { errorMessage } from "./logger";
 import { createRpcHandler } from "./rpc/handler";
 import { createWorkerRouter, type WorkerServices } from "./rpc/router";
 import { rpcError, toRpcError } from "./rpc/errors";
 import { handleUpgrades } from "./ws";
 
-export type HttpDeps = WorkerServices;
+export type HttpDeps = WorkerServices & {
+  /** Codex's model requests from the computer, which carry the proxy's token instead of the secret. */
+  modelProxy: Pick<ModelProxy, "handles" | "handle">;
+};
 
 function send(response: ServerResponse, status: number, body: unknown) {
   response.writeHead(status, { "content-type": "application/json" });
@@ -46,8 +50,9 @@ const uploadMeta = z.object({
 
 /**
  * The worker's HTTP server: `/healthz`, the internal API (`workerContract`) for the web app, the
- * raw upload route, and the WebSockets in `ws.ts`. Everything but `/healthz` and the WebSockets
- * (which check their own signed tokens) needs `x-worker-secret`.
+ * raw upload route, the model proxy, and the WebSockets in `ws.ts`. Everything but `/healthz`, the
+ * model proxy (whose URL carries its own token) and the WebSockets (which check their own signed
+ * tokens) needs `x-worker-secret`.
  */
 export function createHttpServer(deps: HttpDeps): http.Server {
   const { ctx } = deps;
@@ -96,6 +101,10 @@ export function createHttpServer(deps: HttpDeps): http.Server {
     const url = new URL(request.url ?? "/", "http://worker");
     if (url.pathname === "/healthz") {
       send(response, 200, { ok: true });
+      return;
+    }
+    if (deps.modelProxy.handles(url.pathname)) {
+      deps.modelProxy.handle(request, response);
       return;
     }
     if (!sameSecret(request.headers[WORKER_SECRET_HEADER], ctx.env.WORKER_SECRET)) {

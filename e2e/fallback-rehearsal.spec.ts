@@ -16,9 +16,10 @@ import {
  * with only the model endpoints replaced. The "plan" endpoint answers like ChatGPT does when
  * the usage limit is reached, and the "API" endpoint answers normally.
  *
- * Start the worker with:
+ * The API key's requests go through the worker's model proxy, which logs them, so the worker,
+ * not the computer, calls the "API" endpoint. Start the worker with:
  *   OPEN_BOT_PLAN_BASE_URL=http://host.docker.internal:4799/plan
- *   OPENAI_API_BASE_URL=http://host.docker.internal:4799/api
+ *   OPENAI_API_BASE_URL=http://127.0.0.1:4799/api
  * then run: E2E_PLAN_REHEARSAL=1 pnpm e2e --grep rehearsal
  */
 test.skip(
@@ -110,9 +111,30 @@ test("rehearsal: the plan hits its limit mid-run and the run finishes on the API
   const run = page.getByTestId("run").last();
   await expect(run).toContainText("pong from the API key");
   await expect(run).toContainText("API key");
+  // A finished run folds its steps, the fallback note among them, into "Worked for 4s · 1 step".
+  const steps = run.getByTestId("run-steps");
+  await expect(steps).toBeVisible();
+  if ((await steps.getAttribute("aria-expanded")) === "false") await steps.click();
   await expect(run).toContainText("Your ChatGPT plan hit its limit");
   expect(requests.filter((url) => url.startsWith("/plan")).length).toBeGreaterThan(0);
   expect(requests.filter((url) => url.startsWith("/api")).length).toBeGreaterThan(0);
+
+  // The key's requests went through the model proxy: logged against the run's thread, priced,
+  // and stored without the key. The proxy saves its logs in batches, so they land shortly after.
+  const logged = () =>
+    pool.query<{ status: number; cost_micros: string; response_text: string; headers: string }>(
+      `select m.status, m.cost_micros, m.response_text, m.request_headers::text as headers
+       from model_requests m join runs r on r.codex_thread_id = m.codex_thread_id
+       where m.route = 'api' and r.id = (select id from runs order by created_at desc limit 1)`,
+    );
+  await expect.poll(async () => (await logged()).rows.length).toBeGreaterThan(0);
+  const { rows: requestRows } = await logged();
+  expect(requestRows[0]).toMatchObject({
+    status: 200,
+    cost_micros: "23200",
+    response_text: "pong from the API key",
+  });
+  expect(requestRows.map((row) => row.headers).join()).not.toContain(key.key);
 
   // The worker remembered the limit, metered the spend, and the next run goes straight to the key.
   const before = requests.length;

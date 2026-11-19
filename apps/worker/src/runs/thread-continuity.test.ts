@@ -7,6 +7,7 @@ import { ensureThread } from "./session/threads";
 import { DEVELOPER_INSTRUCTIONS } from "../instructions";
 import { toolsRevision } from "./tools-revision";
 import { configurationRevision } from "@open-bot/db";
+import { modelProxyUrl } from "../features/model-logs";
 
 const botId = "00000000-0000-4000-8000-000000000001";
 const runId = "00000000-0000-4000-8000-000000000002";
@@ -20,6 +21,7 @@ function fixture(
   agents = { seen: "# Test", written: "# Test" },
   revision: string | null = current,
   version = 0,
+  access: { mode: "plan" | "api_key"; savedRoute?: string; env?: object } = { mode: "plan" },
 ) {
   const request = vi.fn(async (method: string) => ({
     thread: { id: method === "thread/fork" ? "forked" : "fresh" },
@@ -32,8 +34,12 @@ function fixture(
           toolsVersion: version,
           toolsRevision: revision,
           memoryGeneration: generation,
-          authMode: "plan",
-          configurationKey: configurationRevision({ connections: "", agents: agents.seen }),
+          authMode: access.mode,
+          configurationKey: configurationRevision({
+            connections: "",
+            agents: agents.seen,
+            route: access.savedRoute,
+          }),
         },
       ],
     }),
@@ -41,7 +47,7 @@ function fixture(
   const upsert = vi.fn(async () => {});
   const ctx = {
     db: { select, insert: () => ({ values: () => ({ onConflictDoUpdate: upsert }) }) },
-    env: {},
+    env: access.env ?? {},
     codex: { isLoaded: () => true, markLoaded: vi.fn(), ready: vi.fn() },
     log: { warn: vi.fn(), error: vi.fn() },
   } as unknown as Context;
@@ -58,6 +64,8 @@ function fixture(
   );
   session.memoryGeneration = "1:0:0";
   session.agentsFile = agents.written;
+  session.authMode = access.mode;
+  session.apiKey = access.mode === "api_key" ? "sk-test" : null;
   const ensure = () => ensureThread(session, { request } as unknown as CodexClient);
   return { request, session, ensure };
 }
@@ -114,5 +122,52 @@ describe("memory and Codex thread continuity", () => {
       "thread/fork",
       expect.objectContaining({ config: expect.objectContaining({ mcp_servers: {} }) }),
     );
+  });
+});
+
+/** A loaded Codex thread keeps its provider's address, so a change in routing forks it once. */
+describe("model proxy routing and Codex thread continuity", () => {
+  const env = {
+    OPENAI_API_BASE_URL: "https://api.openai.com/v1",
+    MODEL_PROXY: true,
+    WORKER_PORT: 4001,
+    ENCRYPTION_KEY: "test-encryption-key",
+    RAILWAY_PRIVATE_DOMAIN: "worker.railway.internal",
+  };
+  const proxy = modelProxyUrl(env, "api")!;
+  const forkConfig = (f: ReturnType<typeof fixture>) =>
+    (f.request.mock.calls[0] as unknown as [string, { config: Record<string, unknown> }])[1].config[
+      "model_providers.openai-api"
+    ];
+
+  it("forks an API key thread from before the proxy onto it, without the key", async () => {
+    const f = fixture("1:0:0", undefined, current, 0, { mode: "api_key", env });
+    expect(await f.ensure()).toBe("forked");
+    expect(forkConfig(f)).toEqual({ name: "OpenAI API", base_url: proxy, wire_api: "responses" });
+    expect(JSON.stringify(f.request.mock.calls)).not.toContain("sk-test");
+  });
+
+  it("keeps a proxied API key thread while its route stays the same", async () => {
+    const f = fixture("1:0:0", undefined, current, 0, { mode: "api_key", savedRoute: proxy, env });
+    expect(await f.ensure()).toBe("old");
+    expect(f.request).not.toHaveBeenCalled();
+  });
+
+  it("forks it back to a direct connection when the proxy is turned off", async () => {
+    const f = fixture("1:0:0", undefined, current, 0, {
+      mode: "api_key",
+      savedRoute: proxy,
+      env: { ...env, MODEL_PROXY: false },
+    });
+    expect(await f.ensure()).toBe("forked");
+    expect(forkConfig(f)).toMatchObject({
+      base_url: "https://api.openai.com/v1",
+      experimental_bearer_token: "sk-test",
+    });
+  });
+
+  it("leaves plan threads alone: the plan doesn't go through the proxy yet", async () => {
+    const f = fixture("1:0:0", undefined, current, 0, { mode: "plan", env });
+    expect(await f.ensure()).toBe("old");
   });
 });
