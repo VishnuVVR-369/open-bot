@@ -1,7 +1,14 @@
-// Model logs: every model request the model proxy forwards, its parts stored once by hash, and
-// the batches the writer had to drop. Requests link to runs through Codex's thread and turn ids,
-// joined when read, never resolved when written.
+// Model logs: every model request the model proxy forwards (and the worker's memory AI makes), its
+// parts stored once by hash, the tool calls the model made, the Codex app-server stream, each
+// run's turns, and the batches the writer had to drop. Requests link to runs through Codex's
+// thread and turn ids and `run_turns`, joined when read, never resolved when written.
 import {
+  AUTH_MODES,
+  type AuthMode,
+  CODEX_EVENT_DIRECTIONS,
+  CODEX_EVENT_KINDS,
+  type CodexEventDirection,
+  type CodexEventKind,
   MODEL_BLOB_KINDS,
   MODEL_ITEM_SIDES,
   MODEL_REQUEST_SOURCES,
@@ -26,6 +33,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { createdAt, oneOf } from "./columns";
+import { runs } from "./runs";
 import { bots } from "./teammates"; // vocabulary: allow
 
 /**
@@ -137,13 +145,119 @@ export const modelRequestItems = pgTable(
   ],
 );
 
-/** Requests the writer could not save: when, how many, and why. */
+/**
+ * A tool call the model made, read from a response's output items when the request was captured.
+ * Its outcome is in `codex_events`: the app-server item with the same id in the same thread (see
+ * the join rules in the data docs).
+ */
+export const modelToolCalls = pgTable(
+  "model_tool_calls",
+  {
+    requestId: uuid("request_id")
+      .notNull()
+      .references(() => modelRequests.id, { onDelete: "cascade" }),
+    /** The call's place among the response's output items. */
+    position: integer("position").notNull(),
+    /** The wire `call_id`, or for a web search or image generation the output item's `id`. */
+    callId: text("call_id"),
+    /** The output item's type: `function_call`, `custom_tool_call`, `web_search_call`, ... */
+    type: text("type").notNull(),
+    name: text("name").notNull(),
+    namespace: text("namespace"),
+    /** What the model passed, as text: JSON arguments, a custom tool's input, or an action. */
+    arguments: text("arguments"),
+  },
+  (table) => [
+    primaryKey({ columns: [table.requestId, table.position] }),
+    index("model_tool_calls_call_idx").on(table.callId),
+    index("model_tool_calls_name_idx").on(table.name),
+  ],
+);
+
+/**
+ * One JSON-RPC message between the worker and the Codex app-server, either way, without streaming
+ * deltas (counted in `delta_counts` instead) and with every credential redacted.
+ */
+export const codexEvents = pgTable(
+  "codex_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** The run the message belongs to, known when it was captured; null for one that has none. */
+    runId: uuid("run_id").references(() => runs.id, { onDelete: "cascade" }),
+    codexThreadId: text("codex_thread_id"),
+    codexTurnId: text("codex_turn_id"),
+    /**
+     * The app-server item it is about: an item's id, an approval's `itemId`, or a dynamic tool
+     * call's `callId`. For tool calls this is the model's `call_id`.
+     */
+    itemId: text("item_id"),
+    /**
+     * Wire order across the worker's life: it starts at the worker's start time in microseconds
+     * and counts up by one per message, so it keeps increasing across restarts.
+     */
+    sequence: bigint("sequence", { mode: "number" }).notNull(),
+    direction: text("direction").$type<CodexEventDirection>().notNull(),
+    kind: text("kind").$type<CodexEventKind>().notNull(),
+    /** The JSON-RPC method; a response has its request's. */
+    method: text("method").notNull(),
+    /** The JSON-RPC id, pairing a request with its response; null for a notification. */
+    rpcId: text("rpc_id"),
+    /** A request's or notification's params, or a response's `{ result }` or `{ error }`. */
+    payload: jsonb("payload"),
+    /**
+     * Streaming deltas not stored, by item and method (`{ "<item>": { "item/agentMessage/delta":
+     * 12 } }`): on an item's `item/completed`, its own; on `turn/completed`, those of items that
+     * never completed.
+     */
+    deltaCounts: jsonb("delta_counts").$type<Record<string, Record<string, number>>>(),
+    at: timestamp("at", { withTimezone: true }).notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    index("codex_events_run_idx").on(table.runId, table.sequence),
+    // Tool calls to their outcomes: model_tool_calls.call_id to the item in the request's thread.
+    index("codex_events_item_idx").on(table.codexThreadId, table.itemId),
+    index("codex_events_turn_idx").on(table.codexThreadId, table.codexTurnId),
+    check("codex_events_direction_check", oneOf(table.direction, CODEX_EVENT_DIRECTIONS)),
+    check("codex_events_kind_check", oneOf(table.kind, CODEX_EVENT_KINDS)),
+  ],
+);
+
+/**
+ * A turn of a run, saved when `turn/start` returns. A run has more than one when the plan ran out
+ * and it went on with the API key in a forked thread; model requests are joined to runs through
+ * this table by their thread and turn.
+ */
+export const runTurns = pgTable(
+  "run_turns",
+  {
+    codexThreadId: text("codex_thread_id").notNull(),
+    codexTurnId: text("codex_turn_id").notNull(),
+    runId: uuid("run_id")
+      .notNull()
+      .references(() => runs.id, { onDelete: "cascade" }),
+    accessMode: text("access_mode").$type<AuthMode>().notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.codexThreadId, table.codexTurnId] }),
+    index("run_turns_run_idx").on(table.runId, table.startedAt),
+    check("run_turns_access_mode_check", oneOf(table.accessMode, AUTH_MODES)),
+  ],
+);
+
+/** What the writer could not save: when, how many of each, and why. */
 export const modelLogGaps = pgTable("model_log_gaps", {
   id: uuid("id").primaryKey().defaultRandom(),
-  /** When the first and the last lost request started. */
+  /** When the first and the last lost record was captured. */
   firstAt: timestamp("first_at", { withTimezone: true }).notNull(),
   lastAt: timestamp("last_at", { withTimezone: true }).notNull(),
+  /** Model requests lost. */
   requests: integer("requests").notNull(),
+  /** Codex app-server messages lost. */
+  codexEvents: integer("codex_events").notNull().default(0),
+  /** Run turns lost. */
+  runTurns: integer("run_turns").notNull().default(0),
   reason: text("reason").notNull(),
   createdAt: createdAt(),
 });

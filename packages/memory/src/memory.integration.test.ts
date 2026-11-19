@@ -3,7 +3,7 @@ import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import { randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import { MemoryService } from "./index";
-import { MemoryAI, MemoryJobs, type MemoryAIConfig } from "./jobs";
+import { MemoryAI, MemoryJobs, type MemoryAIConfig, type MemoryAIRequest } from "./jobs";
 import { memoryInputSchema } from "@open-bot/domain";
 
 const databaseServer = testDatabaseServer();
@@ -478,6 +478,43 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
     expect(items).toHaveLength(205);
     expect(items.every((item) => item.source.type === "import")).toBe(true);
   }, 10000);
+  it("tells the observer about each call, without the API key", async () => {
+    const seen: MemoryAIRequest[] = [];
+    const ai = new MemoryAI(db, { ...config(), apiKey: "sk-memory-observer-secret" }, (request) =>
+      seen.push(request),
+    );
+    await ai.embed("Prefers remote roles");
+    // An endpoint that refuses the connection: the call fails before any response.
+    const unreachable = new MemoryAI(
+      db,
+      {
+        ...config(),
+        embeddingUrl: "http://127.0.0.1:1/v1/embeddings",
+        apiKey: "sk-memory-observer-secret",
+      },
+      (request) => seen.push(request),
+    );
+    await expect(unreachable.embed("again")).rejects.toThrow();
+    expect(seen).toHaveLength(2);
+    expect(seen[0]).toMatchObject({
+      kind: "embedding",
+      url,
+      body: { model: "test", input: "Prefers remote roles" },
+      status: 200,
+      response: JSON.stringify({ data: [{ embedding: [1, 0, 0] }] }),
+      error: null,
+    });
+    expect(seen[0]!.firstByteAt).toBeInstanceOf(Date);
+    expect(seen[1]).toMatchObject({ status: null, firstByteAt: null, response: null });
+    expect(seen[1]!.error).toBeTruthy();
+    expect(JSON.stringify(seen)).not.toContain("sk-memory-observer-secret");
+  });
+  it("keeps working when the observer throws", async () => {
+    const ai = new MemoryAI(db, config(), () => {
+      throw new Error("observer failed");
+    });
+    expect(await ai.embed("fact")).toEqual([1, 0, 0]);
+  });
   it("does not call an endpoint when disabled and enforces the daily request limit", async () => {
     const disabled = new MemoryAI(db, { ...config(), dailyRequestLimit: 0 });
     expect(await disabled.embed("fact")).toBeUndefined();

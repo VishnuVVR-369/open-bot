@@ -71,7 +71,16 @@ Here they are grouped by what they're for:
           name: "model_request_items",
           note: "A request's input and output items, in order, as blob hashes",
         },
-        { name: "model_log_gaps", note: "Requests the writer could not save, and why" },
+        {
+          name: "model_tool_calls",
+          note: "The tool calls in a response's output: call id, type, name and arguments",
+        },
+        {
+          name: "codex_events",
+          note: "Every JSON-RPC message between the worker and Codex, redacted, with its run",
+        },
+        { name: "run_turns", note: "Each Codex turn a run started, and how it reached the model" },
+        { name: "model_log_gaps", note: "Records the writer could not save, and why" },
       ],
     },
     {
@@ -378,7 +387,8 @@ See [Models and usage](/docs/flows/models-and-usage#the-monthly-cap).
 
 ## Model logs
 
-Every model request that goes through the [model proxy](/docs/architecture/agent-runtime#the-model-proxy) is saved by one buffered writer (`apps/worker/src/features/model-logs/writer.ts`), which owns the four tables.
+Every model request that goes through the [model proxy](/docs/architecture/agent-runtime#the-model-proxy) is saved by one buffered writer (`apps/worker/src/features/model-logs/writer.ts`), which owns the seven tables.
+So are the requests of the [memory AI](/docs/flows/memory#optional-ai), with `source` `memory`.
 
 - `model_requests` has one row per request: the route (`plan` or `api`), the transport (`http` or `websocket`), the method (over a WebSocket, the message type `response.create`), the endpoint, the HTTP status (over a WebSocket, 200 once the response streams, or an error's own status), when it started, sent its first byte and ended, the token counts and `cost_micros` from the response's usage, how it ended (`stop_reason`, `error_type`, `error_message`), its headers without credentials, the rate-limit headers, and the response's text and reasoning summary.
   `params` holds the request body without its input, instructions and tools; it is left out, with a warning, when it nests more than 256 levels deep.
@@ -398,7 +408,7 @@ Every model request that goes through the [model proxy](/docs/architecture/agent
   `sent_input_from` is where the items the message itself sent begin, so the message rebuilds as sent from `params` and the input from that position on.
   It is empty when the stored input is what was sent.
 - `model_log_gaps` records requests that were lost: dropped after 5 minutes without reaching the database, past the 64 MB queue, or refused by the database itself.
-  Its row is written once the database answers again.
+  Its row is written once the database answers again, with how many requests, Codex events (`codex_events`) and turns (`run_turns`) were lost.
   A request naming a teammate deleted since it was made is kept, with `teammate_id` empty.
 
 Bodies and item contents are stored as sent, encrypted reasoning included, so a request can be sent again exactly.
@@ -412,3 +422,55 @@ A line of an event stream outside an event's data, such as a comment, is cut at 
 An error with no message of its own stores its envelope in `error_message`, redacted the same way, or a note that it was nested too deeply to keep.
 Credentials anywhere else in a body, such as inside a string or under another key, are stored as sent.
 A WebSocket's rows leave out the handshake's own headers (`sec-websocket-*`, `connection`, `upgrade`) and its turn metadata, since each message names its own turn.
+
+A memory AI request (`source` `memory`) has no route, thread or turn: its `endpoint` is the configured URL without credentials, query or fragment, `request_kind` is `extraction` or `embedding`, its messages or embedded text are its input items, and its answer or vector is its output.
+Its stored headers are only `content-type`; the memory AI key is never stored.
+
+### Codex events, turns and tool calls
+
+The same writer saves what the worker sees of Codex itself (see [Agent runtime](/docs/architecture/agent-runtime#the-codex-event-log)).
+
+- `codex_events` has one row per JSON-RPC message between the worker and Codex, except streaming deltas.
+  It holds the `direction` (`to_codex` or `from_codex`), the `kind` (`request`, `response` or `notification`), the `method` (a response's is its request's), the `rpc_id`, the `sequence`, the time (`at`), and the thread, turn and item the message names.
+  `payload` is the redacted params of a request or notification, or the `result` or `error` of a response, compressed with lz4 where the server supports it.
+  A message too large, too deep or too complex to store keeps a stub: `{ "omitted": why, "size": characters }`, and is counted in `model_log_gaps`.
+  `run_id` is the run the message belongs to, and is empty for messages outside any run.
+  `delta_counts` on an `item/completed` row counts the deltas that streamed the item, by method; on `turn/completed` it holds the counts of items that never completed.
+- `run_turns` has one row per Codex turn a run started, written when `turn/start` returns: the run, the thread and turn, `access_mode` (`plan` or `api_key`) and `started_at`.
+  It is how a run's model requests are found: `model_requests` joins it on `codex_thread_id` and `codex_turn_id`.
+  A run that falls back from the plan to the API key mid-run has two turns, on two threads.
+- `model_tool_calls` lists the tool calls in each response's output, by `position`.
+  Each has its `call_id`, the output item's `type` (`function_call`, `custom_tool_call`, `local_shell_call`, `web_search_call`, `mcp_call`, ...), its `name`, its `namespace` (an MCP tool's server) and its `arguments` as the model sent them.
+  A web search has no call id, so its `call_id` is the output item's own id.
+
+Messages and turns of a run deleted before they are saved are dropped, and those saved before go with the run.
+
+#### Joining a tool call to its outcome
+
+Codex names the app-server item for a direct tool call by the call's `call_id`.
+So a call joins its outcome in `codex_events` on the request's `codex_thread_id` and the call's `call_id`, matched to the event's `codex_thread_id` and `item_id` (the `codex_events_item_idx` index):
+
+- a shell command is a `commandExecution` item, whose `item/completed` row has its `exitCode`, `status` and `durationMs`;
+- a file edit is a `fileChange` item, with its `status`;
+- an MCP tool is an `mcpToolCall` item, with its `error` when it failed;
+- an open-bot tool is a dynamic tool call: Codex's `item/tool/call` request names it by `callId`, and the worker's result is the `to_codex` response with that request's `rpc_id`, which carries the same `item_id`;
+- a web search is a `webSearch` item, named by the output item's id.
+
+Code mode wraps calls.
+There the model makes one `custom_tool_call` named `exec`, whose `arguments` are JavaScript that calls the tools.
+Codex gives each nested call an item id of its own (`exec-<uuid>`) that nothing else names: no model request, and no app-server message, ties it to its cell (checked against Codex 0.162.1).
+So a nested item is linked to the cells that could have been running when it started, and never claimed as exact.
+`linkToolItems` in `@open-bot/domain` (`packages/domain/src/model-logs/tool-links.ts`) does this from a thread's model requests, their tool calls, the tool outputs in their input, and the thread's tool items:
+
+- A cell can start once its response starts streaming: Codex starts it as soon as the call's output item is done, before the response ends, so its window opens at the request's `first_byte_at`.
+- The model sees a cell's result as its `exec` output, whose first line is its status (`format_script_status` in Codex's `core/src/tools/code_mode/mod.rs`).
+  `Script completed`, `Script failed` or `Script terminated`, as the whole first line, mean it ended, so its window closes when the first request carrying that output started, plus 2 seconds for an item's message to arrive over the app-server connection after the request arrived over the model proxy.
+  An output with no status line is an error that says nothing about the cell (a `wait` whose arguments didn't parse, or a failure after the cell started), so it leaves the window open.
+- `Script running with cell ID <id>` means it yielded and runs on across later requests.
+  Its window stays open until a `wait` call on that cell id returns one of the ending statuses, and stays open to the end of the logs when none does.
+- An item is matched by when it started (`item/started`, else its `item/completed`).
+  It is `exact` when its id is a call's `call_id`, `only_candidate` when one cell's window holds it, `ambiguous` when several do (all listed), and `none` when no call explains it.
+  `only_candidate` is an inference from timing, not a fact the logs record.
+  Several `exec` calls in one response, or a yielded cell running beside a new one, make their items `ambiguous`.
+
+Each nested item has its outcome in its own `item/completed` row, as above.

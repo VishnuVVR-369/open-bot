@@ -13,6 +13,7 @@ import {
 import { eq } from "drizzle-orm";
 import type { Context } from "../../context";
 import type { Bot, Chat, Run } from "../../core/db-types";
+import { inRunScope } from "../../core/run-scope";
 import { createNotification } from "../../features/notifications";
 import { errorMessage } from "../../logger";
 import type { MemoryService } from "@open-bot/memory";
@@ -179,7 +180,15 @@ export class RunSession {
     }
   }
 
-  async execute(): Promise<void> {
+  /**
+   * Runs the session in its run's scope, so its own requests to Codex are logged as the run's
+   * (`../../core/run-scope.ts`).
+   */
+  execute(): Promise<void> {
+    return inRunScope(this.run.id, () => this.executeInScope());
+  }
+
+  private async executeInScope(): Promise<void> {
     const { ctx, run } = this;
     const log = ctx.log.child("run");
     let outcome: Outcome;

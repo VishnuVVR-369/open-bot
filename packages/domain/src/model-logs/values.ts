@@ -23,6 +23,19 @@ export const MODEL_ITEM_SIDES = ["input", "output"] as const;
 export const modelItemSideSchema = z.enum(MODEL_ITEM_SIDES);
 export type ModelItemSide = (typeof MODEL_ITEM_SIDES)[number];
 
+/** Which way a Codex app-server message went, seen from the worker. */
+export const CODEX_EVENT_DIRECTIONS = ["to_codex", "from_codex"] as const;
+export const codexEventDirectionSchema = z.enum(CODEX_EVENT_DIRECTIONS);
+export type CodexEventDirection = (typeof CODEX_EVENT_DIRECTIONS)[number];
+
+/**
+ * What a Codex app-server message is in JSON-RPC: a request (from the worker, or a server request
+ * from Codex), the response to one, or a notification.
+ */
+export const CODEX_EVENT_KINDS = ["request", "response", "notification"] as const;
+export const codexEventKindSchema = z.enum(CODEX_EVENT_KINDS);
+export type CodexEventKind = (typeof CODEX_EVENT_KINDS)[number];
+
 /** What a stored blob holds: one input or output item, the instructions, or the tool list. */
 export const MODEL_BLOB_KINDS = ["item", "instructions", "tools"] as const;
 export const modelBlobKindSchema = z.enum(MODEL_BLOB_KINDS);

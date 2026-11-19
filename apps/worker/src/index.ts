@@ -34,7 +34,14 @@ import { RunExecutor } from "./runs/executor";
 import { ApprovalService } from "./features/approvals";
 import { APPROVAL_OUTCOMES } from "./approval-outcomes";
 import { ModelAccess } from "./features/model-access";
-import { ModelLogWriter, modelLogsFeature, ModelProxy } from "./features/model-logs";
+import {
+  CodexEventTap,
+  memoryRequestObserver,
+  ModelLogWriter,
+  modelLogsFeature,
+  ModelProxy,
+} from "./features/model-logs";
+import { currentRunId } from "./core/run-scope";
 import { SessionRegistry } from "./runs/registry";
 import {
   AccountTriggers,
@@ -81,6 +88,18 @@ const db = createDb(pool);
 await addSettingsRow(db);
 await addComputerRow(db);
 
+// Model requests, the Codex app-server stream and run turns are logged off their paths. The
+// writer starts before Codex and memory so it stops after them: at shutdown the HTTP server stops
+// taking requests, the proxy waits for the ones still running to be logged, Codex disconnects,
+// the tap redacts and queues the messages it was still holding, and then the writer saves what
+// is queued before the database closes.
+const modelLogWriter = new ModelLogWriter(db, log.child("model-logs"));
+const modelLogs = modelLogsFeature(modelLogWriter);
+await modelLogs.start(runtime);
+const sessions = new SessionRegistry();
+const codexEventTap = new CodexEventTap({ writer: modelLogWriter, runs: sessions, currentRunId });
+runtime.add("codex event tap", () => codexEventTap.drain());
+
 const computer = new ComputerClient(env.BOTD_URL, env.BOTD_TOKEN, log.child("computer"));
 runtime.add("computer", () => computer.stop());
 const codex = new CodexManager(
@@ -94,10 +113,10 @@ const codex = new CodexManager(
   log.child("codex"),
 );
 runtime.add("codex", () => codex.stop());
+codex.wireTap = codexEventTap;
 const ctx: Context = { env, db, pool, computer, codex, log, events: new EventEmitter() };
 
-const sessions = new SessionRegistry();
-const memory = new MemoryCoordinator(ctx);
+const memory = new MemoryCoordinator(ctx, memoryRequestObserver(modelLogWriter));
 const memoryJobs = memoryFeature(memory);
 await memoryJobs.start(runtime);
 const approvals = new ApprovalService(ctx, sessions, APPROVAL_OUTCOMES);
@@ -414,12 +433,6 @@ runtime.every(
       ),
 );
 
-// Model requests are logged off the request path. At shutdown the HTTP server stops taking
-// requests, the proxy waits for the ones still running to be logged, and then the writer saves
-// what is queued before the database closes.
-const modelLogWriter = new ModelLogWriter(db, log.child("model-logs"));
-const modelLogs = modelLogsFeature(modelLogWriter);
-await modelLogs.start(runtime);
 const modelProxy = new ModelProxy({
   env,
   runs: sessions,

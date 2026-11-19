@@ -1,9 +1,11 @@
-// Saves model logs in batches, off the request path: a request is queued in memory and the proxy
-// moves on. The database being slow or down never holds up or fails a model request; what can't
-// be saved in time is dropped and recorded as a gap once the database answers again.
+// Saves model logs in batches, off the request path: model requests, Codex app-server messages and
+// run turns are queued in memory and their producer moves on. The database being slow or down never
+// holds up or fails a model request or a JSON-RPC message; what can't be saved in time is dropped
+// and recorded as a gap once the database answers again.
 import { EventEmitter } from "node:events";
 import {
   bots, // vocabulary: allow
+  codexEvents,
   type Db,
   errorFields,
   errorMessage,
@@ -11,6 +13,9 @@ import {
   modelLogGaps,
   modelRequestItems,
   modelRequests,
+  modelToolCalls,
+  runs,
+  runTurns,
 } from "@open-bot/db";
 import { inArray } from "drizzle-orm";
 import type { Logger } from "../../logger";
@@ -39,21 +44,49 @@ export const WRITER_DEFAULTS: ModelLogWriterOptions = {
   maxBackoffMs: 30_000,
 };
 
-/** Requests that were lost, waiting to be recorded as one `model_log_gaps` row. */
-interface PendingGap {
+/** A Codex app-server message as it is saved. */
+export type CodexEventRow = typeof codexEvents.$inferInsert;
+/** A run's turn as it is saved. */
+export type RunTurnRow = typeof runTurns.$inferInsert;
+
+/** One queued record: a model request, a Codex message or a run turn. */
+type QueuedRecord =
+  | { kind: "request"; record: ModelRequestRecord; at: number; bytes: number }
+  | { kind: "event"; row: CodexEventRow; at: number; bytes: number }
+  | { kind: "turn"; row: RunTurnRow; at: number; bytes: number };
+
+/** How many of each kind of record were lost. */
+interface LostCounts {
+  requests: number;
+  codexEvents: number;
+  runTurns: number;
+}
+
+/** Records that were lost, waiting to be recorded as one `model_log_gaps` row. */
+interface PendingGap extends LostCounts {
   firstAt: Date;
   lastAt: Date;
-  requests: number;
   reason: string;
 }
 
+/** What a run turn costs in the queue, beyond its strings. */
+const TURN_BYTES = 256;
+/** What a Codex event row costs in the queue besides its payload. */
+const EVENT_ROW_BYTES = 512;
+
 /** What the writer reports as it goes; tests wait on these instead of on time. */
 export type ModelLogWriterEvents = {
-  written: [requests: number];
+  /** Records saved: model requests, Codex messages and run turns together. */
+  written: [records: number];
   failed: [error: string];
-  dropped: [requests: number, reason: string];
-  gap: [requests: number];
+  dropped: [records: number, reason: string];
+  /** A gap row was saved for this many lost records. */
+  gap: [records: number];
 };
+
+function lostTotal(gap: LostCounts): number {
+  return gap.requests + gap.codexEvents + gap.runTurns;
+}
 
 /** Two sets of lost requests as one. */
 function mergeGaps(gap: PendingGap | null, more: PendingGap | null): PendingGap | null {
@@ -62,6 +95,8 @@ function mergeGaps(gap: PendingGap | null, more: PendingGap | null): PendingGap 
     firstAt: gap.firstAt < more.firstAt ? gap.firstAt : more.firstAt,
     lastAt: gap.lastAt > more.lastAt ? gap.lastAt : more.lastAt,
     requests: gap.requests + more.requests,
+    codexEvents: gap.codexEvents + more.codexEvents,
+    runTurns: gap.runTurns + more.runTurns,
     // Each distinct reason once, so a long outage doesn't grow it without end.
     reason:
       gap.reason.includes(more.reason) || gap.reason.length > 2_000
@@ -81,6 +116,16 @@ function slices<T>(rows: T[]): T[][] {
 }
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
+/** Which of these runs still exist. */
+async function existingRuns(tx: Tx, ids: string[]): Promise<Set<string>> {
+  if (!ids.length) return new Set();
+  const rows = await tx
+    .select({ id: runs.id })
+    .from(runs)
+    .where(inArray(runs.id, [...new Set(ids)]));
+  return new Set(rows.map((row) => row.id));
+}
 
 /** Which of these teammates still exist. */
 async function existingTeammates(tx: Tx, ids: string[]): Promise<Set<string>> {
@@ -111,8 +156,10 @@ function refusedRows(error: unknown): boolean {
 
 export class ModelLogWriter extends EventEmitter<ModelLogWriterEvents> {
   private readonly options: ModelLogWriterOptions;
-  private queue: ModelRequestRecord[] = [];
+  private queue: QueuedRecord[] = [];
   private queuedBytes = 0;
+  /** Room held for Codex messages still being redacted (`reserveEvent`). */
+  private reservedBytes = 0;
   private gap: PendingGap | null = null;
   private timer: NodeJS.Timeout | null = null;
   private timerAt = Infinity;
@@ -132,30 +179,87 @@ export class ModelLogWriter extends EventEmitter<ModelLogWriterEvents> {
     this.backoff = this.options.backoffMs;
   }
 
-  /** Queue one request. Never waits and never throws. */
+  /** Queue one model request. Never waits and never throws. */
   add(record: ModelRequestRecord): void {
+    this.enqueue({
+      kind: "request",
+      record,
+      at: new Date(record.row.startedAt).getTime(),
+      bytes: record.bytes,
+    });
+  }
+
+  /**
+   * Queue one Codex app-server message; `bytes` is roughly what its payload holds. Never waits
+   * and never throws. False when it was dropped (and counted as lost) instead.
+   */
+  addEvent(row: CodexEventRow, bytes: number): boolean {
+    return this.enqueue({
+      kind: "event",
+      row,
+      at: new Date(row.at).getTime(),
+      bytes: EVENT_ROW_BYTES + bytes,
+    });
+  }
+
+  /**
+   * Holds room in the queue for a Codex message of `bytes` whose payload is redacted later, so
+   * messages waiting for their redaction count toward the queue's limit as if queued. Null when
+   * held, else why not (the queue is full, or the writer stopped). Each hold is given back with
+   * `releaseEvent` right before its `addEvent`, so the room is there for it.
+   */
+  reserveEvent(bytes: number): string | null {
+    if (this.stopped) return "the worker was shutting down";
+    const need = EVENT_ROW_BYTES + bytes;
+    if (this.queuedBytes + this.reservedBytes + need > this.options.maxQueueBytes)
+      return "the log queue was full";
+    this.reservedBytes += need;
+    return null;
+  }
+
+  /** Gives back the room `reserveEvent` held for a message of `bytes`. */
+  releaseEvent(bytes: number): void {
+    this.reservedBytes = Math.max(0, this.reservedBytes - (EVENT_ROW_BYTES + bytes));
+  }
+
+  /** Queue one run turn. Never waits and never throws. */
+  addTurn(row: RunTurnRow): void {
+    this.enqueue({ kind: "turn", row, at: new Date(row.startedAt).getTime(), bytes: TURN_BYTES });
+  }
+
+  private enqueue(record: QueuedRecord): boolean {
     if (this.stopped) {
       this.drop([record], "the worker was shutting down");
-      return;
+      return false;
     }
-    if (this.queuedBytes + record.bytes > this.options.maxQueueBytes) {
+    if (this.queuedBytes + this.reservedBytes + record.bytes > this.options.maxQueueBytes) {
       this.drop([record], "the log queue was full");
-      return;
+      return false;
     }
     this.queue.push(record);
     this.queuedBytes += record.bytes;
     this.schedule(this.queue.length >= this.options.batchRows ? 0 : this.options.flushMs);
+    return true;
   }
 
   /** Records requests that never reached the queue, such as ones still running at shutdown. */
   lost(startedAt: Date[], reason: string): void {
     this.lose(
       startedAt.map((at) => at.getTime()),
+      { requests: startedAt.length, codexEvents: 0, runTurns: 0 },
       reason,
     );
   }
 
-  /** Requests waiting to be written. */
+  /**
+   * Records a Codex message whose payload couldn't be stored (too large, too deep, or its
+   * redaction failed); its row, if any, holds only a stub.
+   */
+  lostEvent(at: Date, reason: string): void {
+    this.lose([at.getTime()], { requests: 0, codexEvents: 1, runTurns: 0 }, reason);
+  }
+
+  /** Records waiting to be written. */
   get pending(): number {
     return this.queue.length;
   }
@@ -173,7 +277,7 @@ export class ModelLogWriter extends EventEmitter<ModelLogWriterEvents> {
     } catch (error) {
       this.log.warn("model logs were lost at shutdown", {
         ...errorFields(error),
-        requests: this.queue.length,
+        records: this.queue.length,
       });
     }
   }
@@ -217,7 +321,7 @@ export class ModelLogWriter extends EventEmitter<ModelLogWriterEvents> {
       if (this.failingSince === null)
         this.log.warn("model logs could not be saved, retrying", {
           ...errorFields(error),
-          requests: this.queue.length,
+          records: this.queue.length,
         });
       this.failingSince ??= now;
       if (this.queue.length && now - this.failingSince >= this.options.retryForMs) {
@@ -253,7 +357,7 @@ export class ModelLogWriter extends EventEmitter<ModelLogWriterEvents> {
       if (!refusedRows(error) || !batch.length) throw error;
       this.log.warn("the database refused a batch of model logs, saving them one at a time", {
         ...errorFields(error),
-        requests: batch.length,
+        records: batch.length,
       });
     }
     for (const record of batch) {
@@ -267,9 +371,12 @@ export class ModelLogWriter extends EventEmitter<ModelLogWriterEvents> {
     }
   }
 
-  /** Writes requests and a gap in one transaction, then takes the requests off the queue. */
-  private async save(records: ModelRequestRecord[], gap: PendingGap | null): Promise<void> {
-    if (!records.length && !gap) return;
+  /** Writes records and a gap in one transaction, then takes the records off the queue. */
+  private async save(queued: QueuedRecord[], gap: PendingGap | null): Promise<void> {
+    if (!queued.length && !gap) return;
+    const records = queued.flatMap((entry) => (entry.kind === "request" ? [entry.record] : []));
+    const events = queued.flatMap((entry) => (entry.kind === "event" ? [entry.row] : []));
+    const turns = queued.flatMap((entry) => (entry.kind === "turn" ? [entry.row] : []));
     await this.db.transaction(async (tx) => {
       const blobs = new Map(
         records.flatMap((record) => record.blobs.map((blob) => [blob.hash, blob])),
@@ -303,38 +410,64 @@ export class ModelLogWriter extends EventEmitter<ModelLogWriterEvents> {
         record.items.map((item) => ({ requestId: record.row.id, ...item })),
       );
       for (const rows of slices(items)) await tx.insert(modelRequestItems).values(rows);
+      const calls = records.flatMap((record) =>
+        record.toolCalls.map((call) => ({ requestId: record.row.id, ...call })),
+      );
+      for (const rows of slices(calls)) await tx.insert(modelToolCalls).values(rows);
+      // A run deleted since (its chat was deleted) takes its messages and turns with it.
+      const live = await existingRuns(tx, [
+        ...events.flatMap((row) => row.runId ?? []),
+        ...turns.map((row) => row.runId),
+      ]);
+      const keptEvents = events.filter((row) => !row.runId || live.has(row.runId));
+      for (const rows of slices(keptEvents)) await tx.insert(codexEvents).values(rows);
+      const keptTurns = turns.filter((row) => live.has(row.runId));
+      for (const rows of slices(keptTurns))
+        await tx.insert(runTurns).values(rows).onConflictDoNothing();
       if (gap) await tx.insert(modelLogGaps).values(gap);
     });
-    this.dequeue(records);
-    if (gap) this.emit("gap", gap.requests);
-    if (records.length) this.emit("written", records.length);
+    this.dequeue(queued);
+    if (gap) this.emit("gap", lostTotal(gap));
+    if (queued.length) this.emit("written", queued.length);
   }
 
-  private dequeue(records: ModelRequestRecord[]) {
+  private dequeue(records: QueuedRecord[]) {
     const done = new Set(records);
     this.queue = this.queue.filter((record) => !done.has(record));
     for (const record of records) this.queuedBytes -= record.bytes;
   }
 
-  /** Drops requests, to be recorded as a gap once the database answers. */
-  private drop(records: ModelRequestRecord[], reason: string) {
+  /** Drops records, to be recorded as a gap once the database answers. */
+  private drop(records: QueuedRecord[], reason: string) {
+    const counts: LostCounts = { requests: 0, codexEvents: 0, runTurns: 0 };
+    for (const record of records)
+      if (record.kind === "request") counts.requests += 1;
+      else if (record.kind === "event") counts.codexEvents += 1;
+      else counts.runTurns += 1;
     this.lose(
-      records.map((record) => new Date(record.row.startedAt).getTime()),
+      records.map((record) => record.at),
+      counts,
       reason,
     );
   }
 
-  /** Counts lost requests, by when each started, into the gap still to be written. */
-  private lose(starts: number[], reason: string) {
-    if (!starts.length) return;
-    this.log.warn("model logs were dropped", { requests: starts.length, reason });
+  /** Counts lost records, by when each was captured, into the gap still to be written. */
+  private lose(times: number[], counts: LostCounts, reason: string) {
+    if (!times.length) return;
+    this.log.warn("model logs were dropped", { ...counts, reason });
+    let first = times[0]!;
+    let last = first;
+    for (const at of times) {
+      if (at < first) first = at;
+      if (at > last) last = at;
+    }
     this.gap = mergeGaps(this.gap, {
-      firstAt: new Date(Math.min(...starts)),
-      lastAt: new Date(Math.max(...starts)),
-      requests: starts.length,
+      firstAt: new Date(first),
+      lastAt: new Date(last),
+      ...counts,
       reason,
     });
-    this.emit("dropped", starts.length, reason);
+    this.emit("dropped", times.length, reason);
     this.schedule(this.queue.length ? this.options.flushMs : this.backoff);
   }
 }

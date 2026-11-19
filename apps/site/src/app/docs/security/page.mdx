@@ -78,13 +78,45 @@ Plan requests go through the model proxy with that login in their headers: the w
 
 ## Model logs
 
-The worker logs every model request that goes through the model proxy, in the `model_*` tables (see [Data](/docs/architecture/data#model-logs)).
+The worker logs every model request that goes through the model proxy and every memory AI request, in the `model_*` tables.
+It also logs every message between itself and Codex, in `codex_events`, and the turns of each run, in `run_turns` (see [Data](/docs/architecture/data#model-logs)).
 
 - **What they hold.** Requests and responses are stored as sent: your messages, what teammates read and wrote, tool calls and their output, and the model's encrypted reasoning.
   Treat them like the rest of the database.
-- **What they never hold.** Headers that carry a credential (authorization, cookies, API keys, tokens, secrets) are dropped before anything is saved, so neither your API key nor the computer's ChatGPT token is in the logs.
+- **What they never hold.** Headers that carry a credential (authorization, cookies, API keys, tokens, secrets) are dropped before anything is saved, so neither your API key nor the computer's ChatGPT token reaches the logs on their way to the model.
+  They can still be in a request's content if a teammate read them and showed them to the model (see below).
   The same headers are dropped from the header objects the model sends back in its events and errors; exactly what that covers, and what it doesn't, is under [Data](/docs/architecture/data#model-logs).
   The `chatgpt-account-id` header, which names your ChatGPT account, is dropped the same way.
+  A memory AI request keeps only its `content-type` header, and its endpoint without credentials, query or fragment.
+- **What `codex_events` holds.** Each message's method, its thread, turn and item, and its payload: your messages and each turn's input, the items Codex streamed (commands with their output, file changes with their diffs, MCP and open-bot tool calls with their results), approvals, thread settings, and file contents' sizes.
+  Streaming deltas are only counted, since the completed item holds their content.
+- **What is redacted in `codex_events`.** Every payload is redacted before it is queued (`redactCodexPayload` in `@open-bot/domain`), by method, by key, by credentials file and by pattern:
+  - the sign-in messages (`account/login/start`, the `account/chatgptAuthTokens/refresh` request and the worker's answer to it, `getAuthStatus`) keep only their `type`, `reason` and plan type, so the ChatGPT tokens Codex is given or asks for are never stored;
+  - any key that names a credential (`authorization`, `token` or any key ending in token, `access_token`, `refresh_token`, `api_key`, `apiKey`, `secret`, `password`, `passwd`, `passphrase`, `bearer`, `cookie`, `credential`, `private_key`, `signature`, `account_id`, and `auth` or `pass` as whole keys) has its value redacted, at any depth;
+  - every value of an `env`, `headers`, `http_headers` or `env_http_headers` map is redacted, with its names kept, which covers MCP servers' and model providers' headers and environment in the `config` of `thread/start`, `thread/fork` and `thread/resume`;
+  - an MCP server's `url` keeps only its origin;
+  - a command, file read or file change that names a known credentials file (`.codex/auth.json`, `.netrc`, `.git-credentials`, `.pgpass`, `.npmrc`, `.pypirc`, `.aws/credentials` and `.aws/config`, `.config/gcloud/`, `.azure/`, `.docker/config.json`, `.kube/config`, `.config/gh/hosts.yml`, `.ssh/id_*`, `.gnupg/`, `.env` files) keeps only what it is and the files it names: its command text, output, diff and content are replaced whole, since a command can hold what it writes;
+  - in every string (`redactSecretText`), these are redacted:
+    - the model proxy's token, JWTs, PEM private keys (to their end line, or to the end of a cut string), and `Bearer` and `Basic` credentials;
+    - API keys and tokens with a known prefix: `sk-` (OpenAI, Anthropic), Stripe `sk_`/`rk_` live and test keys, GitHub `ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_` and `github_pat_`, GitLab `glpat-`, Slack `xox*-`, Google `AIza`, npm `npm_`, and AWS `AKIA`/`ASIA` access key ids;
+    - a URL's user and password (`https://alice:secret@host`, `postgres://...`, `https://token@github.com`), in any scheme written with `://`;
+    - the whole value of a header or `name: value` line whose name is like the keys above (`Authorization`, `Proxy-Authorization`, `Cookie`, `Set-Cookie`, `X-Api-Key`, `password:` in YAML): every cookie and an authorization's scheme and parameters, up to the quote the header was opened with (`-H "Cookie: a=1; b=2"`, also escaped in a JSON string) or the end of its line;
+    - `.netrc` entries' `login`, `password` and `account` values, whether the entry is on one line or spread over several, once the text has a `machine <host>` or `default` entry;
+    - a command-line flag named like the keys above (`--password x`, `--api-key=x`, `--token 'x'`), and a user with a password after `-u`, `--user` or `--proxy-user` (`curl -u alice:secret`);
+    - a credential written under a name like the keys above as JSON (`"refresh_token": "..."`, also escaped inside another JSON string), as `key=value` (env files, query strings, shell with any quoting: `'..'`, `".."`, `$'..'`, `$".."`, also when the string was cut inside the quote) or as `key: value`;
+  - file contents read or written through Codex (`dataBase64`) are stored only as their size, and any string past 1 MiB is cut.
+- **What is guaranteed.** No value is stored in `codex_events` under a key that names a credential, in a header or env map, in a sign-in message, or in the command, output or content of anything that names a credentials file above.
+  No string keeps a JWT, a PEM private key, a key or token with one of the prefixes above, URL userinfo, the value of a credential header, a `.netrc` login or password, or a credential assigned to such a name in one of the forms above.
+- **What is not covered.** Redaction errs on the side of removing more: text that only looks like a credential (`password: see the docs`, a `default login` in prose) loses its value too.
+  A credential written in none of these ways is stored as it came:
+  - an opaque token or password on its own, in prose, or as a command's output (`echo $TOKEN`, a password printed by a script);
+  - a value under a name that doesn't say what it is (`key=...`, `pwd=...`, `DATABASE=...`), or in a format other than those above, such as a `.pgpass` line (`host:port:db:user:password`) outside that file;
+  - a password given as a short flag other than `-u` (`mysql -pSECRET`, `sshpass -p secret`), or as a command's positional argument;
+  - a credential split across several strings, encoded (base64, hex), or inside a `.netrc` `macdef` body;
+  - a URL's userinfo with no `://` (`user:pass@host` on its own), and a password with an unescaped `/`, `?` or `#` in it;
+  - the contents of a credentials file not on the list above.
+- **What the model logs hold besides.** Model requests and their items (`model_requests`, `model_blobs`) are stored as Codex sent them, so whatever a teammate read and showed the model is there too, credentials included; only headers are stripped from them.
+  The ChatGPT and API key tokens the worker and Codex use are never in either table, since they travel only in headers and in the sign-in messages above.
 - **Who reaches the proxy.** Its URL carries a token derived from `ENCRYPTION_KEY`, which keeps the rest of the private network (web, pages) out.
   Teammates run as `bot`, the user Codex runs as, so they can read the URL from Codex's thread config; that grants nothing more.
   The proxy only forwards to fixed upstreams, chosen by route, and adds the API key only for a thread with a live run on the key, which already passed the monthly cap check.

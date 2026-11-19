@@ -2,7 +2,7 @@
 // (each input and output item, the instructions and the tool list), and the item order.
 import { promisify } from "node:util";
 import zlib from "node:zlib";
-import type { modelRequests } from "@open-bot/db";
+import type { modelRequests, modelToolCalls } from "@open-bot/db";
 import {
   type HeaderBag,
   type ModelItemSide,
@@ -17,6 +17,7 @@ import {
   requestCostMicros,
   sanitizeHeaders,
   splitRequestBody,
+  toolCallsOf,
   turnMetadata,
 } from "@open-bot/domain";
 import { type ModelBlob, modelBlob } from "@open-bot/domain/server";
@@ -64,6 +65,8 @@ export interface ModelRequestRecord {
   row: typeof modelRequests.$inferInsert & { id: string };
   blobs: ModelBlob[];
   items: { side: ModelItemSide; position: number; blobHash: string }[];
+  /** The tool calls among the response's output items. */
+  toolCalls: Omit<typeof modelToolCalls.$inferInsert, "requestId">[];
   /** Roughly what it holds in memory, for the writer's cap. */
   bytes: number;
 }
@@ -185,7 +188,7 @@ function rowOf(
 function basicRecord(exchange: Exchange, id: string, warning: string): ModelRequestRecord {
   const metadata = turnMetadata(exchange.requestHeaders, exchange.requestJson ?? null);
   const row = rowOf(exchange, id, metadata, [...exchange.warnings, warning]);
-  return { row, blobs: [], items: [], bytes: 1024 };
+  return { row, blobs: [], items: [], toolCalls: [], bytes: 1024 };
 }
 
 async function fullRecord(exchange: Exchange, id: string): Promise<ModelRequestRecord> {
@@ -254,8 +257,10 @@ async function fullRecord(exchange: Exchange, id: string): Promise<ModelRequestR
     reasoningSummary: response?.reasoningSummary || null,
     rawResponse,
   };
+  const toolCalls = toolCallsOf(response?.output ?? []);
   let bytes = 1024 + (rawResponse?.length ?? 0) + (params ? JSON.stringify(params).length : 0);
   for (const blob of blobs.values()) bytes += blob.content.length;
   bytes += (row.responseText?.length ?? 0) + (row.reasoningSummary?.length ?? 0);
-  return { row, blobs: [...blobs.values()], items, bytes };
+  for (const call of toolCalls) bytes += 128 + (call.arguments?.length ?? 0);
+  return { row, blobs: [...blobs.values()], items, toolCalls, bytes };
 }

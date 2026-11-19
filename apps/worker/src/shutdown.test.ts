@@ -142,6 +142,11 @@ describe("shutdown order", async () => {
       expect(at(consumer), consumer).toBeGreaterThan(at("account actions"));
   });
 
+  it("finishes the Codex messages the tap holds after Codex disconnects, before the writer", () => {
+    expect(at("codex")).toBeLessThan(at("codex event tap"));
+    expect(at("codex event tap")).toBeLessThan(at("model log writer"));
+  });
+
   it("drains the model proxy after its HTTP server, before its writer, before the database", () => {
     expect(at("http server")).toBeLessThan(at("model proxy"));
     expect(at("model proxy")).toBeLessThan(at("model log writer"));
