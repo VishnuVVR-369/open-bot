@@ -1,39 +1,7 @@
-// Usage, stored credentials and the owner's settings.
-import { type AuthMode, type ChatgptAuthSource } from "@open-bot/domain";
-import {
-  bigint,
-  index,
-  integer,
-  pgTable,
-  text,
-  timestamp,
-  uniqueIndex,
-  uuid,
-} from "drizzle-orm/pg-core";
+// Stored credentials and the owner's settings.
+import { type ChatgptAuthSource } from "@open-bot/domain";
+import { bigint, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 import { createdAt, updatedAt } from "./columns";
-import { runs } from "./runs";
-import { bots } from "./teammates";
-
-export const usageEntries = pgTable(
-  "usage_entries",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    runId: uuid("run_id").references(() => runs.id, { onDelete: "set null" }),
-    botId: uuid("bot_id").references(() => bots.id, { onDelete: "set null" }),
-    authMode: text("auth_mode").$type<AuthMode>().notNull(),
-    inputTokens: bigint("input_tokens", { mode: "number" }).notNull(),
-    cachedInputTokens: bigint("cached_input_tokens", { mode: "number" }).notNull(),
-    outputTokens: bigint("output_tokens", { mode: "number" }).notNull(),
-    /** Cost in millionths of a dollar. Zero on the ChatGPT plan. */
-    costMicros: bigint("cost_micros", { mode: "number" }).notNull(),
-    idempotencyKey: text("idempotency_key").notNull(),
-    createdAt: createdAt(),
-  },
-  (table) => [
-    uniqueIndex("usage_idempotency_unique").on(table.idempotencyKey),
-    index("usage_created_idx").on(table.createdAt),
-  ],
-);
 
 export const credentials = pgTable("credentials", {
   kind: text("kind")

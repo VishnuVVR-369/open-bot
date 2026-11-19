@@ -8,7 +8,8 @@ import { apiKeySpendMicros } from "./usage";
 // as legacy totals and keeps entries of deleted runs; from then on the cap counts those plus the
 // model requests a worker marks as counted (counts_usage), which only a worker that no longer
 // writes usage_entries does. These rows are written as the previous worker wrote them (it logged
-// model requests and wrote usage_entries both), before 0040, then migrated.
+// model requests and wrote usage_entries both), before 0040, then migrated through 0040 only:
+// 0041 copies again and drops usage_entries (drop-usage-entries.integration.test.ts).
 
 const url = testDatabaseServer();
 
@@ -232,7 +233,7 @@ describe.skipIf(!url)("usage on the model logs (migration 0040)", () => {
 
     before.october = (await oldSpend(OCTOBER)) - (await oldSpend(NOVEMBER));
     before.november = await oldSpend(NOVEMBER);
-    await database.migrate();
+    await database.migrate({ through: "0040_usage_on_model_logs" });
   });
   afterAll(async () => {
     await database.drop();

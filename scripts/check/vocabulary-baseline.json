@@ -1048,7 +1048,7 @@
     "bot": 9
   },
   "packages/db/src/schema/settings.ts": {
-    "bot": 5
+    "bot": 1
   },
   "packages/db/src/schema/tasks.ts": {
     "bot": 13

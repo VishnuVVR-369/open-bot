@@ -73,7 +73,7 @@ export const runs = pgTable(
     startedAt: timestamp("started_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     // Legacy usage: what `usage_entries` held for the run, per access mode, copied by migration
-    // 0040, by its trigger on each entry written since, and again by the one that drops
+    // 0040, by its trigger on each entry written since, and again by 0041, which then dropped
     // `usage_entries`. Code never writes these. They are the usage a worker that still wrote
     // `usage_entries` counted for the run; the model requests it logged leave `counts_usage`
     // false, so they never count again. Null for a mode the run had no entry for.

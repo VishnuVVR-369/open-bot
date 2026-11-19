@@ -80,7 +80,6 @@ export const TABLE_OWNERS = {
   bot_threads: { owner: `${WORKER}runs/` },
   chat_lane_threads: { owner: `${WORKER}runs/` },
   message_dispatches: { owner: `${WORKER}runs/` },
-  usage_entries: { owner: `${WORKER}runs/` },
   // Written only by migrations and the triggers they create: never by code.
   legacy_deleted_run_usage: { owner: "packages/db/drizzle/" },
   artifacts: { owner: `${WORKER}features/screens/tools.ts` },

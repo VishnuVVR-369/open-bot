@@ -288,6 +288,13 @@
       "when": 1795072337097,
       "tag": "0040_usage_on_model_logs",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1795072598497,
+      "tag": "0041_drop_usage_entries",
+      "breakpoints": true
     }
   ]
 }

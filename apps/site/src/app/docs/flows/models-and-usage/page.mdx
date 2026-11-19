@@ -169,8 +169,8 @@ Each reply's footer and Settings' usage per teammate count the same way (`runUsa
 
 **Runs in flight at a deploy.**
 Runs never move between workers: a starting worker marks every run that was starting, running or waiting as interrupted, and a run that resumes is a new run.
-A run the previous worker was running when it stopped counts what the old ledger counted for it, which is nothing: it wrote `usage_entries` only as a run finished, and its requests are unmarked.
-That is no worse than before, and deploying with no run in flight avoids it.
+A run a worker that wrote `usage_entries` was running when it stopped counted what the old ledger counted for it, which was nothing: it wrote `usage_entries` only as a run finished, and its requests are unmarked.
+That was no worse than before.
 A run the current worker is running when it stops is drained for 10 seconds, and what is still running then is counted from an estimate (see [When logs are lost](#when-logs-are-lost)).
 
 Each request is priced on its own, with the same `costMicros()` the old per-run total used.
@@ -180,21 +180,24 @@ A run that spans the first of the month counts each request in the month it star
 
 ### Legacy totals
 
-A worker that writes `usage_entries` writes one row per access mode as each run finishes.
-Migration 0040 copies them onto their runs as legacy totals: tokens (input, cached, output) and cost, per access mode, in the `legacy_*` columns of `runs`, timed by `legacy_usage_at`.
-It copies through `copy_legacy_usage()`, a database function that sums each run's totals again from all of its entries, so copying again adds nothing.
-Entries whose run had been deleted go to `legacy_deleted_run_usage`, keyed by the entry's own key (`run:<run id>:<mode>`), so they keep counting toward their month's cap as they did.
+A worker that wrote `usage_entries` wrote one row per access mode as each run finished.
+Migration 0040 copied them onto their runs as legacy totals: tokens (input, cached, output) and cost, per access mode, in the `legacy_*` columns of `runs`, timed by `legacy_usage_at`.
+It copied through `copy_legacy_usage()`, a database function that summed each run's totals again from all of its entries, so copying again added nothing.
+Entries whose run had been deleted went to `legacy_deleted_run_usage`, keyed by the entry's own key (`run:<run id>:<mode>`), so they keep counting toward their month's cap as they did.
 
-- The previous worker keeps writing `usage_entries` while the deploy runs, and a worker rolled back to writes them again.
-  A trigger on `usage_entries` copies each new entry as it is written, so the legacy totals always hold every entry, and the migration locks the table while it copies, so none is missed.
-- The migration takes every lock it needs (`usage_entries`, `model_requests`, `runs` and `model_log_gaps`) together before anything else, and never waits while holding one: a try that can't have them all gives back what it got and tries again 50 ms later.
-  The app takes those tables in different orders (writing an entry, then reading its run; deleting a run, then its entries), so a migration that waited while holding one could deadlock with them and fail the deploy.
+- The previous worker kept writing `usage_entries` while that deploy ran.
+  A trigger on `usage_entries` copied each new entry as it was written, and the migration locked the table while it copied, so none was missed.
+- Migration 0041 locked `usage_entries`, and `runs` and `bots`, which dropping its foreign keys needs, ran the copy once more, and then dropped the table with its trigger and the copy function.
+  Copies skip a key they already hold, so the entries counted once.
+  It shipped in a deploy after 0040's, once no running worker wrote `usage_entries`: one that still did would fail to write its entries (`42P01`, no such table), and so would a rollback to one.
+- Each migration takes every lock it needs together before anything else, and never waits while holding one: a try that can't have them all gives back what it got and tries again 50 ms later.
+  The app takes those tables in different orders (writing an entry, then reading its run; deleting a run, then its entries; deleting a teammate, then its runs; making a run, then reading its teammate), so a migration that waited while holding one could deadlock with them and fail the deploy.
   After two minutes without them all, it fails, and the deploy stays on the previous commit.
+  A database that applies 0040 and 0041 in one run still holds 0040's locks while 0041 tries, so a transaction holding a teammate and waiting for its runs can make 0041 fail that way; nothing deadlocks.
 - A run with legacy totals that is deleted later moves them to `legacy_deleted_run_usage` under its entries' keys, through the `runs_keep_legacy_usage` trigger, whether or not it has model logs.
   Its requests stay in the logs, unmarked, so it counts once either way.
 
-Only migrations and their triggers write the legacy columns and `legacy_deleted_run_usage`.
-`usage_entries` itself is dropped by a later migration, which first copies it once more under a lock.
+Only migrations and the `runs_keep_legacy_usage` trigger write the legacy columns and `legacy_deleted_run_usage`.
 
 Plan usage costs 0, because the plan is a flat subscription.
 API key usage is priced at the model's list prices:

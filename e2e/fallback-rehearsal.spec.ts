@@ -171,11 +171,6 @@ test("rehearsal: the plan hits its limit mid-run and the run finishes on the API
     "select coalesce(sum(cost_micros), 0)::int as spend from model_requests where route = 'api' and started_at > now() - interval '10 minutes'",
   );
   expect(rows[0].spend).toBeGreaterThanOrEqual(46_400);
-  // Usage lives in the model logs now: nothing writes usage_entries.
-  const ledger = await pool.query(
-    "select count(*)::int as entries from usage_entries where created_at > now() - interval '10 minutes'",
-  );
-  expect(ledger.rows[0].entries).toBe(0);
   // The month's total, as the cap counts it, also counts earlier API key spend.
   const now = new Date();
   const month = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
