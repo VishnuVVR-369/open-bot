@@ -1,4 +1,4 @@
-import { bots, purchases, vaultItems, type Queryable } from "@open-bot/db";
+import { teammates, purchases, vaultItems, type Queryable } from "@open-bot/db";
 import {
   type ApprovalDecision,
   budgetDecision,
@@ -127,7 +127,7 @@ export class VaultService {
         name: input.name,
         domain,
         hint,
-        botIds: input.teammateIds,
+        teammateIds: input.teammateIds,
         encrypted: encryptSecret(JSON.stringify(secret), this.ctx.env.ENCRYPTION_KEY),
       };
       const [row] = existing
@@ -153,7 +153,7 @@ export class VaultService {
     return this.ctx.db
       .select()
       .from(vaultItems)
-      .where(or(isNull(vaultItems.botIds), sql`${botId} = any(${vaultItems.botIds})`))
+      .where(or(isNull(vaultItems.teammateIds), sql`${botId} = any(${vaultItems.teammateIds})`))
       .orderBy(vaultItems.kind, vaultItems.name);
   }
 
@@ -171,7 +171,7 @@ export class VaultService {
       .from(purchases)
       .where(
         and(
-          eq(purchases.botId, botId),
+          eq(purchases.teammateId, botId),
           inArray(purchases.status, [...SPENDING_PURCHASE_STATUSES]),
           gte(purchases.createdAt, monthStart()),
         ),
@@ -182,7 +182,7 @@ export class VaultService {
   /** What the teammate reads from vault_list. No secrets, only what tells items apart. */
   async describe(botId: string): Promise<string> {
     const items = await this.itemsFor(botId);
-    const [bot] = await this.ctx.db.select().from(bots).where(eq(bots.id, botId));
+    const [bot] = await this.ctx.db.select().from(teammates).where(eq(teammates.id, botId));
     const lines: string[] = [];
     const logins = items.filter((item) => item.kind === "login");
     const cards = items.filter((item) => item.kind === "card");
@@ -227,7 +227,7 @@ export class VaultService {
         .from(purchases)
         .where(
           and(
-            eq(purchases.botId, session.bot.id),
+            eq(purchases.teammateId, session.bot.id),
             eq(purchases.cardId, item.id),
             eq(purchases.status, "approved"),
             gt(purchases.fillableUntil, new Date()),
@@ -287,7 +287,10 @@ export class VaultService {
     const description = input.description.trim().slice(0, 500);
     if (!merchant || !description) throw new VaultError("Say where you're buying, and what.");
 
-    const [bot] = await this.ctx.db.select().from(bots).where(eq(bots.id, session.bot.id));
+    const [bot] = await this.ctx.db
+      .select()
+      .from(teammates)
+      .where(eq(teammates.id, session.bot.id));
     const decision = budgetDecision({
       budgetCents: bot?.monthlyBudgetCents ?? null,
       autoApproveCents: bot?.autoApproveCents ?? 0,
@@ -299,7 +302,7 @@ export class VaultService {
     const [purchase] = await this.ctx.db
       .insert(purchases)
       .values({
-        botId: session.bot.id,
+        teammateId: session.bot.id,
         cardId: card.id,
         runId: session.run.id,
         chatId: session.chat.id,
@@ -367,7 +370,7 @@ export class VaultService {
       .where(
         and(
           eq(purchases.id, input.purchaseId),
-          eq(purchases.botId, session.bot.id),
+          eq(purchases.teammateId, session.bot.id),
           inArray(purchases.status, ["approved", "pending"]),
         ),
       )
@@ -382,7 +385,7 @@ export class VaultService {
     return this.ctx.db
       .select()
       .from(purchases)
-      .where(eq(purchases.botId, botId))
+      .where(eq(purchases.teammateId, botId))
       .orderBy(desc(purchases.createdAt))
       .limit(20);
   }

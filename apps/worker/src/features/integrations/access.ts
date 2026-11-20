@@ -67,7 +67,7 @@ export class AccountAccess {
         and(
           kind ? eq(connections.kind, kind) : ne(connections.kind, "mcp"),
           eq(connections.enabled, true),
-          or(isNull(connections.botIds), sql`${botId} = any(${connections.botIds})`),
+          or(isNull(connections.teammateIds), sql`${botId} = any(${connections.teammateIds})`),
         ),
       )
       .orderBy(asc(connections.createdAt));

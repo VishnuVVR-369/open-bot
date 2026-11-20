@@ -27,7 +27,7 @@ import { sql } from "drizzle-orm";
 import { chats } from "./chats";
 import { createdAt, updatedAt } from "./columns";
 import { runs } from "./runs";
-import { bots } from "./teammates";
+import { teammates } from "./teammates";
 
 /**
  * The OAuth clients accounts sign in through: one you made in a provider's console and pasted into
@@ -150,7 +150,7 @@ export const connections = pgTable(
       .notNull()
       .default(sql`'{}'::text[]`),
     /** The teammates that may use it, or null for every teammate. */
-    botIds: uuid("bot_ids").array(),
+    teammateIds: uuid("bot_ids").array(),
     enabled: boolean("enabled").notNull().default(true),
     /** For accounts: the signed-in account it uses. Removed only by revoking the account. */
     accountId: uuid("account_id").references(() => accounts.id, { onDelete: "restrict" }),
@@ -228,7 +228,7 @@ export const accountActions = pgTable(
     /** The account's grant and the connection's setup when it was made; both must still hold. */
     grantRevision: integer("grant_revision").notNull(),
     connectionRevision: integer("connection_revision").notNull(),
-    botId: uuid("bot_id").references(() => bots.id, { onDelete: "set null" }),
+    teammateId: uuid("bot_id").references(() => teammates.id, { onDelete: "set null" }),
     runId: uuid("run_id").references(() => runs.id, { onDelete: "set null" }),
     chatId: uuid("chat_id").references(() => chats.id, { onDelete: "set null" }),
     /** The tool call's timeline item, updated as the action moves on. */

@@ -28,7 +28,7 @@ export async function setCheckIn({
     .from(schedules)
     .where(
       and(
-        eq(schedules.botId, teammateId),
+        eq(schedules.teammateId, teammateId),
         eq(schedules.title, DAILY_CHECK_IN.title),
         eq(schedules.quiet, true),
       ),
@@ -44,7 +44,7 @@ export async function setCheckIn({
   }
   const timezone = await ownerTimeZone(db);
   await worker.schedules.create({
-    botId: teammateId,
+    teammateId,
     title: DAILY_CHECK_IN.title,
     prompt: DAILY_CHECK_IN.prompt,
     cron: DAILY_CHECK_IN.cron,
@@ -96,7 +96,7 @@ export async function listSchedules(): Promise<ScheduleView[]> {
     const last = lastRuns.find((run) => run.scheduleId === row.id);
     return {
       id: row.id,
-      botId: row.botId,
+      teammateId: row.teammateId,
       title: row.title,
       prompt: row.prompt,
       kind: row.kind,
@@ -146,7 +146,7 @@ export async function listTriggers(): Promise<TriggerView[]> {
     const last = lastRuns.find((run) => run.triggerId === row.id);
     return {
       id: row.id,
-      botId: row.botId,
+      teammateId: row.teammateId,
       kind: row.kind,
       title: row.title,
       prompt: row.prompt,

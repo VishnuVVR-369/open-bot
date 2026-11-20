@@ -43,7 +43,7 @@ export function EditDialog({
   const fields = integrationSettings(kind);
   const [open, setOpen] = useState(false);
   const [capabilities, setCapabilities] = useState<AccountCapability[]>(connection.capabilities);
-  const [access, setAccess] = useState<string[] | null>(connection.botIds);
+  const [access, setAccess] = useState<string[] | null>(connection.teammateIds);
   const [ask, setAsk] = useState(connection.askBeforeActing);
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [consent, setConsent] = useState(false);
@@ -53,7 +53,7 @@ export function EditDialog({
   useEffect(() => {
     if (!open) return;
     setCapabilities(connection.capabilities);
-    setAccess(connection.botIds);
+    setAccess(connection.teammateIds);
     setAsk(connection.askBeforeActing);
     setSettings(typedSettings(connection));
     setConsent(false);

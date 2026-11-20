@@ -14,7 +14,7 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
       service.create({ name: "Ada", role: "researcher" }),
       service.create({ name: "Ada", role: "researcher" }),
     ]);
-    const rows = await db.select().from(dbTables.bots);
+    const rows = await db.select().from(dbTables.teammates);
     expect(rows.map((bot) => bot.slug).sort()).toEqual(["ada", "ada-2"]);
     expect(rows.filter((bot) => bot.isLead)).toHaveLength(1);
     expect(await db.select().from(chats)).toHaveLength(2);
@@ -33,9 +33,11 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
       starter_ids: [template.starters[0]!.id],
     });
     expect(created.response.success).toBe(true);
-    const id = created.json().botId;
-    expect(await db.select().from(scheduleRows).where(eq(scheduleRows.botId, id))).toHaveLength(1);
-    expect(await db.select().from(skillRows).where(eq(skillRows.botId, id))).toHaveLength(
+    const id = created.json().teammateId;
+    expect(
+      await db.select().from(scheduleRows).where(eq(scheduleRows.teammateId, id)),
+    ).toHaveLength(1);
+    expect(await db.select().from(skillRows).where(eq(skillRows.teammateId, id))).toHaveLength(
       template.skills!.length,
     );
     expect((await service.get(id)).autonomy).toBe("risky");
@@ -66,7 +68,10 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
     expect(request.detail).toContain("Track competitors and brief me weekly.");
     expect(request.detail).toContain("/competitor-brief: Brief on a competitor");
     expect(request.detail).toContain("Weekly brief");
-    const rows = await db.select().from(scheduleRows).where(eq(scheduleRows.botId, result.botId));
+    const rows = await db
+      .select()
+      .from(scheduleRows)
+      .where(eq(scheduleRows.teammateId, result.teammateId));
     expect(rows.map((row) => row.timezone)).toEqual(["Asia/Kolkata", "Asia/Kolkata"]);
     expect((await call(session, "list_bots")).json()[1]).toMatchObject({
       name: "Rex",
@@ -91,7 +96,7 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
     const { session } = await fixture("risky");
     const target = await service.create({ name: "Iris", role: "researcher" });
     await call(session, "schedule_task", {
-      bot_id: target.botId,
+      bot_id: target.teammateId,
       title: "Morning brief",
       prompt: "Brief me",
       cron: "0 8 * * *",
@@ -104,7 +109,7 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
       }),
     );
     const [schedule] = await db.select().from(scheduleRows);
-    await call(session, "cancel_automation", { bot_id: target.botId, id: schedule!.id });
+    await call(session, "cancel_automation", { bot_id: target.teammateId, id: schedule!.id });
     expect(requestAction).toHaveBeenLastCalledWith(
       session,
       expect.objectContaining({ title: 'Delete "Morning brief" for Iris' }),
@@ -118,14 +123,14 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
       instructions: "Be concise",
       emoji: "🔎",
     });
-    const original = await service.get(created.botId);
+    const original = await service.get(created.teammateId);
     const results = await Promise.allSettled([
-      service.update(created.botId, { name: "Iris" }, original.revision),
-      service.update(created.botId, { name: "Rex" }, original.revision),
+      service.update(created.teammateId, { name: "Iris" }, original.revision),
+      service.update(created.teammateId, { name: "Rex" }, original.revision),
     ]);
     expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
     expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
-    const saved = await service.get(created.botId);
+    const saved = await service.get(created.teammateId);
     expect(saved.instructions).toBe("Be concise");
     expect(saved.emoji).toBe("🔎");
     expect(saved.role).toBe("researcher");

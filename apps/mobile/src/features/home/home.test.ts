@@ -1,8 +1,8 @@
-import type { ActivityItem, BotSummary, BriefingItem, ChatSummary, Home } from "@open-bot/api";
+import type { ActivityItem, TeammateSummary, BriefingItem, ChatSummary, Home } from "@open-bot/api";
 import { describe, expect, it } from "vitest";
 import { activityPlace, briefingGroups, elsewhere, rankTeammates, statusLine } from "./home";
 
-type Run = NonNullable<BotSummary["activeRun"]>;
+type Run = NonNullable<TeammateSummary["activeRun"]>;
 const teammate = (id: string, run?: Partial<Run>) =>
   ({
     id,
@@ -11,7 +11,7 @@ const teammate = (id: string, run?: Partial<Run>) =>
     activeRun: run
       ? { id: `${id}-run`, chatId: `${id}-chat`, status: "running", waitingFor: null, ...run }
       : null,
-  }) as BotSummary;
+  }) as TeammateSummary;
 const home = (pendingApprovals = 0, takeovers = 0) =>
   ({
     pendingApprovals,
@@ -23,7 +23,7 @@ const item = (runId: string, fields: Partial<BriefingItem> = {}) =>
     chatId: "chat",
     chatKind: "direct",
     chatTitle: "Chat",
-    botId: "ana",
+    teammateId: "ana",
     trigger: "chat",
     status: "completed",
     preview: null,
@@ -33,7 +33,7 @@ const item = (runId: string, fields: Partial<BriefingItem> = {}) =>
     ...fields,
   }) as BriefingItem;
 const chat = (teammateId: string, lastActivityAt: string) =>
-  ({ id: `${teammateId}-chat`, kind: "direct", botId: teammateId, lastActivityAt }) as ChatSummary;
+  ({ id: `${teammateId}-chat`, kind: "direct", teammateId, lastActivityAt }) as ChatSummary;
 
 describe("statusLine", () => {
   it("counts what needs you, approvals and takeovers together", () => {
@@ -66,7 +66,7 @@ describe("briefingGroups", () => {
   it("groups by teammate, puts failures first and counts both", () => {
     const { groups, done, failed } = briefingGroups([
       item("1"),
-      item("2", { botId: "ben" }),
+      item("2", { teammateId: "ben" }),
       item("3", { status: "failed" }),
     ]);
     expect(done).toBe(2);

@@ -5,13 +5,13 @@ type ApiIds = Record<
   string
 >;
 /** A row's teammate, under the column's legacy name. */
-export const owned = <T extends string | null>(teammateId: T) => ({ botId: teammateId });
+export const owned = <T extends string | null>(teammateId: T) => ({ teammateId });
 export async function seedApi(database: TestDatabase, ids: ApiIds) {
   const s = await import("@open-bot/db");
   const db = database.db;
   const now = new Date();
   await db.insert(s.settings).values({ id: 1, timezone: "Europe/Berlin" }).onConflictDoNothing();
-  await db.insert(s.bots).values({
+  await db.insert(s.teammates).values({
     id: ids.teammate,
     name: "Scout",
     slug: "scout",
@@ -101,7 +101,7 @@ export async function seedApi(database: TestDatabase, ids: ApiIds) {
       pinned: false,
       expiresAt: null,
     },
-    { kind: "bot", botId: ids.teammate, runId: ids.run, verified: true },
+    { kind: "teammate", teammateId: ids.teammate, runId: ids.run, verified: true },
   );
   ids.memory = saved.id;
   // A lesson is a memory; the lessons table is its projection.

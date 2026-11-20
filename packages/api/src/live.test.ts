@@ -36,11 +36,11 @@ describe("SseParser", () => {
 function run(id: string, text = ""): RunView {
   return {
     id,
-    botId: "b",
+    teammateId: "b",
     trigger: "user",
     messageId: null,
     parentRunId: null,
-    fromBotId: null,
+    fromTeammateId: null,
     authMode: null,
     scheduleTitle: null,
     triggerTitle: null,
@@ -71,7 +71,7 @@ const snapshot: ChatData = {
     id: "c",
     kind: "direct",
     title: "Rex",
-    botId: "b",
+    teammateId: "b",
     main: true,
     memberIds: ["b"],
     lastActivityAt: "2026-11-02T00:00:00.000Z",

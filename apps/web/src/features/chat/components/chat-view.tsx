@@ -30,7 +30,7 @@ export function ChatView({ chatId }: { chatId: string }) {
   const [panelOpen, setPanelOpen] = useState(true);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
-  const allBots = state?.bots ?? members;
+  const allBots = state?.teammates ?? members;
   const { online, state: computerState } = useComputer();
   // Known offline, not just unknown yet: the panel collapses to a chip in the header.
   const offline = Boolean(computerState) && !online;
@@ -45,7 +45,7 @@ export function ChatView({ chatId }: { chatId: string }) {
     const seen = new Set<string>();
     for (const entry of [...entries].reverse()) {
       if (entry.type !== "run") continue;
-      const key = `${entry.run.botId}:${entry.run.lane ?? "chat"}`;
+      const key = `${entry.run.teammateId}:${entry.run.lane ?? "chat"}`;
       superseded.set(entry.run.id, seen.has(key));
       seen.add(key);
     }
@@ -71,7 +71,7 @@ export function ChatView({ chatId }: { chatId: string }) {
     return {
       id: active.id,
       lane: active.lane,
-      botName: allBots.find((bot) => bot.id === active.botId)?.name ?? "Your teammate",
+      botName: allBots.find((bot) => bot.id === active.teammateId)?.name ?? "Your teammate",
       status: active.timeline.status,
       waitingFor: active.timeline.waitingFor ?? null,
     };
@@ -103,7 +103,7 @@ export function ChatView({ chatId }: { chatId: string }) {
   const status =
     liveBot && !isGroup && !helper
       ? chatStatus({
-          bot: liveBot,
+          teammate: liveBot,
           chatId,
           computerOnline: !offline,
           chatById: (id) => state?.chats.find((entry) => entry.id === id),
@@ -200,7 +200,7 @@ export function ChatView({ chatId }: { chatId: string }) {
                     chatId={chatId}
                     superseded={supersededRuns.get(run.id) ?? false}
                     latest={index === lastRunIndex}
-                    bot={allBots.find((b) => b.id === run.botId)}
+                    bot={allBots.find((b) => b.id === run.teammateId)}
                     bots={allBots}
                   />
                 );

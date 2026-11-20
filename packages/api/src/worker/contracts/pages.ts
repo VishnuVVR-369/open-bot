@@ -21,7 +21,7 @@ export const pagesContract = {
     .route({ method: "POST", path: "/internal/pages/publish" })
     .input(
       z.object({
-        botId: id,
+        teammateId: id,
         chatId: id.nullable().default(null),
         path: z
           .string()

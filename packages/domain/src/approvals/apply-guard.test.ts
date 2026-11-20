@@ -40,7 +40,7 @@ describe("blockedApplication", () => {
     });
   });
 
-  it("tells the bot where it was stopped", () => {
+  it("tells the teammate where it was stopped", () => {
     expect(applyBlockedMessage(["LinkedIn", "LinkedIn"])).toContain("on LinkedIn.");
   });
 });

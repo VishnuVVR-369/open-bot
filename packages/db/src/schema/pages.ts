@@ -13,7 +13,7 @@ import {
 import { chats } from "./chats";
 import { bytea, createdAt, updatedAt } from "./columns";
 import { runs } from "./runs";
-import { bots } from "./teammates";
+import { teammates } from "./teammates";
 
 /**
  * A page a teammate built for you: self-contained HTML, published as versions that never change.
@@ -24,7 +24,7 @@ export const pages = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     /** The teammate who made it. Pages stay when a teammate is removed. */
-    botId: uuid("bot_id").references(() => bots.id, { onDelete: "set null" }),
+    teammateId: uuid("bot_id").references(() => teammates.id, { onDelete: "set null" }),
     /** The chat it was made in, where questions about it go. */
     chatId: uuid("chat_id").references(() => chats.id, { onDelete: "set null" }),
     /** The latest version's title and summary. */
@@ -40,7 +40,7 @@ export const pages = pgTable(
   },
   (table) => [
     index("pages_updated_idx").on(table.updatedAt),
-    index("pages_source_idx").on(table.botId, table.sourcePath),
+    index("pages_source_idx").on(table.teammateId, table.sourcePath),
   ],
 );
 
@@ -53,7 +53,7 @@ export const pageVersions = pgTable(
       .references(() => pages.id, { onDelete: "cascade" }),
     /** 1 for the first version, then 2, 3… */
     number: integer("number").notNull(),
-    botId: uuid("bot_id").references(() => bots.id, { onDelete: "set null" }),
+    teammateId: uuid("bot_id").references(() => teammates.id, { onDelete: "set null" }),
     runId: uuid("run_id").references(() => runs.id, { onDelete: "set null" }),
     title: text("title").notNull(),
     summary: text("summary").notNull().default(""),

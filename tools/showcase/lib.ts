@@ -342,13 +342,13 @@ export class Seeder {
       title,
       titled,
       main,
-      botId: teammateId ?? null, // vocabulary: allow
+      teammateId: teammateId ?? null,
       createdAt,
       lastActivityAt: createdAt,
       readAt: createdAt,
     });
     for (const member of members)
-      await this.db.insert(chatMembers, { chatId: id, botId: member.id, createdAt });
+      await this.db.insert(chatMembers, { chatId: id, teammateId: member.id, createdAt });
     this.touch(id, createdAt);
     if (unread) this.unread.add(id);
     return { id, kind, title };
@@ -509,7 +509,7 @@ export class Seeder {
       ...legacy,
       id,
       chatId: chat.id,
-      botId: bot.id,
+      teammateId: bot.id,
       trigger,
       prompt,
       messageId: message?.id ?? null,
@@ -553,7 +553,7 @@ export class Seeder {
       await this.db.insert(approvals, {
         id: item.approvalId,
         runId: id,
-        botId: bot.id,
+        teammateId: bot.id,
         chatId: chat.id,
         kind: item.approvalKind,
         title: item.title,

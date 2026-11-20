@@ -1,4 +1,4 @@
-import { bots, ownerTimeZone, schedules, type Queryable, type Tx } from "@open-bot/db";
+import { teammates, ownerTimeZone, schedules, type Queryable, type Tx } from "@open-bot/db";
 import {
   type Creator,
   describeCron,
@@ -62,7 +62,7 @@ export class ScheduleService {
   }
 
   async create(input: {
-    botId: string;
+    teammateId: string;
     title: string;
     prompt: string;
     cron: string | null;
@@ -77,7 +77,7 @@ export class ScheduleService {
     const [row] = await this.ctx.db
       .insert(schedules)
       .values({
-        botId: input.botId,
+        teammateId: input.teammateId,
         title: input.title,
         prompt: input.prompt,
         quiet: input.quiet ?? false,
@@ -98,7 +98,7 @@ export class ScheduleService {
   async update(
     id: string,
     input: {
-      botId: string;
+      teammateId: string;
       title: string;
       prompt: string;
       cron: string | null;
@@ -116,7 +116,7 @@ export class ScheduleService {
     const [row] = await this.ctx.db
       .update(schedules)
       .set({
-        botId: input.botId,
+        teammateId: input.teammateId,
         title: input.title,
         prompt: input.prompt,
         ...(input.quiet === undefined ? {} : { quiet: input.quiet }),
@@ -164,7 +164,7 @@ export class ScheduleService {
     if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
     const [row] = await this.ctx.db
       .delete(schedules)
-      .where(and(eq(schedules.id, id), eq(schedules.botId, botId)))
+      .where(and(eq(schedules.id, id), eq(schedules.teammateId, botId)))
       .returning();
     if (row) await publishApp(this.ctx, { type: "schedules" });
     return row ?? null;
@@ -174,7 +174,7 @@ export class ScheduleService {
     const rows = await this.ctx.db
       .select()
       .from(schedules)
-      .where(eq(schedules.botId, botId))
+      .where(eq(schedules.teammateId, botId))
       .orderBy(asc(schedules.nextRunAt));
     if (rows.length === 0) return "You have no schedules.";
     return rows
@@ -202,9 +202,9 @@ export class ScheduleService {
 
   /** The chat a schedule's run goes to: its teammate's main chat, unless it's archived. */
   private async runChat(row: Schedule): Promise<string | null> {
-    const [bot] = await this.ctx.db.select().from(bots).where(eq(bots.id, row.botId));
+    const [bot] = await this.ctx.db.select().from(teammates).where(eq(teammates.id, row.teammateId));
     if (!bot || bot.archivedAt) return null;
-    return mainChat(this.ctx, row.botId);
+    return mainChat(this.ctx, row.teammateId);
   }
 
   start(): void {
@@ -320,7 +320,7 @@ export async function addPausedRoutines(
       const nextRunAt = nextCronRun(routine.cron, timezone);
       return [
         {
-          botId: teammateId, // vocabulary: allow
+          teammateId,
           ...routine,
           kind: "cron" as const,
           timezone,
@@ -345,12 +345,12 @@ export async function copyUpcomingReminders(
   const reminders = await tx
     .select()
     .from(schedules)
-    .where(and(eq(schedules.botId, fromTeammateId), eq(schedules.kind, "once")));
+    .where(and(eq(schedules.teammateId, fromTeammateId), eq(schedules.kind, "once")));
   const upcoming = reminders.filter((reminder) => (reminder.runAt?.getTime() ?? 0) > Date.now());
   if (upcoming.length === 0) return;
   await tx.insert(schedules).values(
     upcoming.map((reminder) => ({
-      botId: toTeammateId, // vocabulary: allow
+      teammateId: toTeammateId,
       title: reminder.title,
       prompt: reminder.prompt,
       kind: "once" as const,
@@ -365,5 +365,5 @@ export async function copyUpcomingReminders(
 
 /** Pauses every schedule a teammate has, in the caller's transaction (archiving it). */
 export async function pauseSchedulesOf(tx: Tx, teammateId: string): Promise<void> {
-  await tx.update(schedules).set({ enabled: false }).where(eq(schedules.botId, teammateId));
+  await tx.update(schedules).set({ enabled: false }).where(eq(schedules.teammateId, teammateId));
 }

@@ -16,17 +16,17 @@ export const MEMORY_EXPORT_LIMIT = 10_000;
  * names the teammate and chat that saved it, when a run did.
  */
 export async function listMemories(
-  { botId, query }: ApiInputs["memory"]["list"],
+  { teammateId: botId, query }: ApiInputs["memory"]["list"],
   limit = 200,
 ): Promise<MemoryItem[]> {
   const items = await memory.list(
-    { botId, candidates: true, includeExpired: true, limit, query },
+    { teammateId: botId, candidates: true, includeExpired: true, limit, query },
     { kind: "user" },
   );
   const runIds = [...new Set(items.flatMap((i) => (i.source.runId ? [i.source.runId] : [])))];
   const sources = runIds.length
     ? await db
-        .select({ id: runs.id, teammateId: runs.botId, chatId: runs.chatId })
+        .select({ id: runs.id, teammateId: runs.teammateId, chatId: runs.chatId })
         .from(runs)
         .where(inArray(runs.id, runIds))
     : [];

@@ -25,7 +25,7 @@ export async function getAppState(user: { name: string; email: string }): Promis
     ...attention,
     user,
     timezone,
-    bots: team,
+    teammates: team,
     chats: chatList,
     skills: skillList.map(({ instructions: _, ...summary }) => summary),
     computer: {

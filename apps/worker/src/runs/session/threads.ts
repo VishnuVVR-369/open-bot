@@ -1,7 +1,7 @@
 // The Codex thread a run continues: resume or fork the chat's thread, or start a fresh one when its
 // tools, instructions or memory generation changed.
 import type { CodexClient, v2 } from "@open-bot/agent";
-import { botThreads, chatLaneThreads, configurationRevision } from "@open-bot/db";
+import { teammateThreads, chatLaneThreads, configurationRevision } from "@open-bot/db";
 import { and, eq } from "drizzle-orm";
 import type { Context } from "../../context";
 import type { Bot, Run } from "../../core/db-types";
@@ -93,14 +93,14 @@ export async function ensureThread(session: ThreadSession, client: CodexClient):
     } else {
       // Keep the existing conversation key so an old worker can run during deployment.
       await ctx.db
-        .insert(botThreads)
+        .insert(teammateThreads)
         .values({
           ...values,
           chatId: run.chatId,
-          botId: teammate.id,
+          teammateId: teammate.id,
         })
         .onConflictDoUpdate({
-          target: [botThreads.chatId, botThreads.botId],
+          target: [teammateThreads.chatId, teammateThreads.teammateId],
           set: updated,
         });
     }
@@ -120,8 +120,8 @@ export async function ensureThread(session: ThreadSession, client: CodexClient):
         )
     : await ctx.db
         .select()
-        .from(botThreads)
-        .where(and(eq(botThreads.chatId, run.chatId), eq(botThreads.botId, teammate.id)));
+        .from(teammateThreads)
+        .where(and(eq(teammateThreads.chatId, run.chatId), eq(teammateThreads.teammateId, teammate.id)));
 
   if (
     existing &&

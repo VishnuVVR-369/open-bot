@@ -35,9 +35,13 @@ export function headerStatus({
   computerOnline: boolean;
   chatById: (id: string) => ChatNaming | null | undefined;
 }): ChatStatus {
-  const each = members.map((bot) => chatStatus({ bot, chatId, computerOnline, chatById }));
+  const each = members.map((bot) =>
+    chatStatus({ teammate: bot, chatId, computerOnline, chatById }),
+  );
   if (!group)
-    return each[0] ?? chatStatus({ bot: { activeRun: null }, chatId, computerOnline, chatById });
+    return (
+      each[0] ?? chatStatus({ teammate: { activeRun: null }, chatId, computerOnline, chatById })
+    );
   const top = [...each].sort((a, b) => RANK[a.activity] - RANK[b.activity])[0];
   // A group's header has no room to point at each member's other chats.
   return top

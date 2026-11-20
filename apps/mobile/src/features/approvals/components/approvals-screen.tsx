@@ -76,7 +76,7 @@ export default function Approvals() {
     };
   }, [approvals.data]);
   const botFor = (approval: ApprovalView) =>
-    bots.find((candidate) => candidate.id === approval.botId);
+    bots.find((candidate) => candidate.id === approval.teammateId);
 
   if (approvals.isLoading) return <Loading />;
   if (approvals.error && !approvals.data)

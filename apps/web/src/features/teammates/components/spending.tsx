@@ -88,7 +88,8 @@ export function Spending({ botId, name }: { botId: string; name: string }) {
   }
 
   const cards = (vault ?? []).filter(
-    (item) => item.kind === "card" && (item.botIds === null || item.botIds.includes(botId)),
+    (item) =>
+      item.kind === "card" && (item.teammateIds === null || item.teammateIds.includes(botId)),
   );
   const savedEnabled = data.budgetCents !== null;
   const dirty =
@@ -113,7 +114,7 @@ export function Spending({ botId, name }: { botId: string; name: string }) {
       }
       toast(enabled ? "Budget saved" : `${name} can't pay for things now`);
       await queryClient.invalidateQueries({
-        queryKey: orpc.teammates.spending.key({ input: { botId } }),
+        queryKey: orpc.teammates.spending.key({ input: { teammateId: botId } }),
       });
     });
   }

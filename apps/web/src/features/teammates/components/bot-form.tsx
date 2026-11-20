@@ -3,7 +3,7 @@
 import {
   type Autonomy,
   AUTONOMY_OPTIONS,
-  BOT_COLORS,
+  TEAMMATE_COLORS,
   type TeammateSetupKind,
   describeCron,
   TEAMMATE_TEMPLATES,
@@ -459,7 +459,7 @@ export function BotForm({
             role="radiogroup"
             aria-label="Color"
           >
-            {BOT_COLORS.map((color) => (
+            {TEAMMATE_COLORS.map((color) => (
               <button
                 type="button"
                 key={color}

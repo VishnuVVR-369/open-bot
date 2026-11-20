@@ -108,7 +108,7 @@ function watchable(
       connection.kind === TRIGGER_CONNECTION_KIND[kind] &&
       connection.account !== null &&
       connection.enabled &&
-      (connection.botIds === null || connection.botIds.includes(botId)),
+      (connection.teammateIds === null || connection.teammateIds.includes(botId)),
   );
 }
 
@@ -133,7 +133,7 @@ export function TriggerDialog({
   onOpenChange?: (open: boolean) => void;
 }) {
   const { data: state } = useAppState();
-  const bots = state?.bots ?? [];
+  const bots = state?.teammates ?? [];
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const open = controlledOpen ?? uncontrolledOpen;
   const setOpen = onOpenChange ?? setUncontrolledOpen;
@@ -156,7 +156,7 @@ export function TriggerDialog({
   // Start from the automation (or a blank one) each time the dialog opens.
   useEffect(() => {
     if (!open) return;
-    setSelectedBot(existing?.botId ?? botId ?? "");
+    setSelectedBot(existing?.teammateId ?? botId ?? "");
     setTitle(existing?.title ?? "");
     setPrompt(existing?.prompt ?? "");
     setUrl(existing?.url ?? "");
@@ -206,7 +206,7 @@ export function TriggerDialog({
     if (queryProblem) return;
     startTransition(async () => {
       const input = {
-        botId: botValue,
+        teammateId: botValue,
         kind,
         title: title.trim(),
         prompt: prompt.trim(),

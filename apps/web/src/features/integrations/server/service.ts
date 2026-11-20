@@ -1,6 +1,6 @@
 import "server-only";
 import type { ApiInputs, ApiOutputs } from "@open-bot/api";
-import { accounts, bots as teammates, connections } from "@open-bot/db";
+import { accounts, teammates, connections } from "@open-bot/db";
 import {
   ACCOUNT_PROVIDERS,
   authProvider,
@@ -128,7 +128,7 @@ export async function listConnections(): Promise<ConnectionView[]> {
     command: row.command,
     args: row.args,
     secretNames: row.secretNames,
-    botIds: row.botIds,
+    teammateIds: row.teammateIds,
     enabled: row.enabled,
     updatedAt: row.updatedAt.toISOString(),
     account: account ? toAccountView(account) : null,

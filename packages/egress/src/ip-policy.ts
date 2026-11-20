@@ -2,7 +2,7 @@ import { isIP } from "node:net";
 import { lookup } from "node:dns/promises";
 
 /**
- * Destinations the egress agent refuses, so a bot can never reach devices on your home network or
+ * Destinations the egress agent refuses, so a teammate can never reach devices on your home network or
  * your carrier's.
  *
  * Written over raw address bytes (not Node's BlockList) so the phone's Kotlin agent can implement

@@ -73,7 +73,7 @@ export const connectionViewSchema = z.object({
   args: z.array(z.string()),
   /** The header or variable names that are set, without their values. */
   secretNames: z.array(z.string()),
-  botIds: z.array(z.string()).nullable(),
+  teammateIds: z.array(z.string()).nullable(),
   enabled: z.boolean(),
   updatedAt: isoDate,
   /** Accounts only: the signed-in account, what teammates may do, and what you allowed. */
@@ -117,7 +117,7 @@ export const emailStatusViewSchema = z.object({
   /** A safe hint of the Postmark server token, when one is saved. */
   tokenHint: z.string().nullable(),
   lastReceivedAt: isoDate.nullable(),
-  addresses: z.array(z.object({ botId: z.string(), name: z.string(), address: z.string() })),
+  addresses: z.array(z.object({ teammateId: z.string(), name: z.string(), address: z.string() })),
 });
 export type EmailStatusView = z.infer<typeof emailStatusViewSchema>;
 

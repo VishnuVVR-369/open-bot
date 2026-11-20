@@ -55,7 +55,7 @@ const targets = [
   ["computer", "/computer"],
   ["settings", "/settings"],
   ["bot-new", "/bots/new"],
-  ...state.bots.map((bot) => [`bot-${bot.slug}`, `/bots/${bot.id}`]),
+  ...state.teammates.map((bot) => [`bot-${bot.slug}`, `/bots/${bot.id}`]),
   ["chat-launch-plan", chatByTitle("launch plan")],
   ["chat-flights-approval", chatByTitle("Book the Lisbon")],
   ["chat-lisbon-research", chatByTitle("Lisbon trip research")],
@@ -80,7 +80,7 @@ const targets = [
   .filter(([name, route]) => route && (!only || only.includes(name)));
 
 function bySlug2(chat) {
-  return state.bots.find((bot) => bot.id === chat.botId)?.slug ?? "bot";
+  return state.teammates.find((bot) => bot.id === chat.teammateId)?.slug ?? "bot";
 }
 
 let problems = 0;

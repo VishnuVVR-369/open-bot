@@ -162,7 +162,7 @@ function CommandMenu({
     if (!open) setQuery("");
   }, [open]);
 
-  const allBots = state?.bots ?? [];
+  const allBots = state?.teammates ?? [];
   const chats = state?.chats ?? [];
   const botOf = (id: string | null) => allBots.find((bot) => bot.id === id);
   const chatOf = (id: string) => chats.find((chat) => chat.id === id);
@@ -206,7 +206,7 @@ function CommandMenu({
 
   const directChat = (botId: string) =>
     chats
-      .filter((chat) => chat.kind === "direct" && chat.botId === botId)
+      .filter((chat) => chat.kind === "direct" && chat.teammateId === botId)
       .sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt))[0];
 
   return (
@@ -275,7 +275,7 @@ function CommandMenu({
           {pageResults.length > 0 && (
             <CommandGroup heading="Pages">
               {pageResults.map((result) => {
-                const bot = botOf(result.botId);
+                const bot = botOf(result.teammateId);
                 return (
                   <CommandItem
                     key={result.id}
@@ -298,7 +298,7 @@ function CommandMenu({
           {messageResults.length > 0 && (
             <CommandGroup heading="Messages">
               {messageResults.map((result) => {
-                const bot = botOf(result.botId);
+                const bot = botOf(result.teammateId);
                 const chat = chatOf(result.chatId);
                 return (
                   <CommandItem

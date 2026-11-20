@@ -9,7 +9,7 @@ export function toApprovalView(row: typeof approvals.$inferSelect): ApprovalView
   return {
     id: row.id,
     runId: row.runId,
-    botId: row.botId,
+    teammateId: row.teammateId,
     chatId: row.chatId,
     kind: row.kind,
     subject: typeof row.payload.subject === "string" ? row.payload.subject : null,

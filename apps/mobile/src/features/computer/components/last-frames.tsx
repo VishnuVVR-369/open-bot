@@ -64,7 +64,7 @@ function Frame({
         router.push(screenHref(screen.id, screen.requests[0]?.id));
       }}
       accessibilityRole="button"
-      accessibilityLabel={`${screen.bot.name}'s screen. ${seen}.`}
+      accessibilityLabel={`${screen.teammate.name}'s screen. ${seen}.`}
       style={[styles.cell, wide && styles.wide]}
       testID="last-frame"
     >
@@ -90,14 +90,14 @@ function Frame({
       </View>
       <View style={styles.caption}>
         <BotAvatar
-          name={screen.bot.name}
-          color={screen.bot.color}
-          emoji={screen.bot.emoji}
+          name={screen.teammate.name}
+          color={screen.teammate.color}
+          emoji={screen.teammate.emoji}
           size="xs"
         />
         <View style={{ flex: 1 }}>
           <Text variant="small" numberOfLines={1} style={{ fontWeight: "500" }}>
-            {screen.bot.name}
+            {screen.teammate.name}
           </Text>
           <Text variant="caption" muted numberOfLines={1}>
             {seen}

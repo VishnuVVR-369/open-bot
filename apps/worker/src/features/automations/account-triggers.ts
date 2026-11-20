@@ -214,7 +214,7 @@ export class AccountTriggers {
   private async connectionFor(trigger: Trigger): Promise<ResolvedConnection> {
     const kind = TRIGGER_CONNECTION_KIND[trigger.kind as AccountTriggerKind];
     const label = integration(kind).label;
-    const options = await this.access.forBot(trigger.botId, kind);
+    const options = await this.access.forBot(trigger.teammateId, kind);
     const resolved = options.find((option) => option.connection.id === trigger.connectionId);
     if (!resolved) {
       const [row] = await this.ctx.db

@@ -56,13 +56,13 @@ export const chatsContract = {
     .input(z.object({ chatId: id, before: z.string().datetime({ offset: true }).optional() }))
     .output(chatDataSchema),
   /** Start a new direct chat with a teammate. */
-  newDirect: base.input(z.object({ botId: id })).output(z.object({ chatId: z.string() })),
+  newDirect: base.input(z.object({ teammateId: id })).output(z.object({ chatId: z.string() })),
   /** Start a group chat with two or more teammates. */
   createGroup: base
     .input(
       z.object({
         title: z.string().trim().min(1, "Name the group.").max(60),
-        botIds: groupTeammatesSchema,
+        teammateIds: groupTeammatesSchema,
       }),
     )
     .output(z.object({ chatId: z.string() })),

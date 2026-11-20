@@ -1,4 +1,4 @@
-import type { ApprovalView, BotSummary, Home } from "@open-bot/api";
+import type { ApprovalView, TeammateSummary, Home } from "@open-bot/api";
 import { router } from "expo-router";
 import { Hand, Monitor, ShieldAlert, Sparkles } from "lucide-react-native";
 import { View, StyleSheet } from "react-native";
@@ -28,12 +28,12 @@ export function NeedsYou({
   home: Home;
   /** Pending approvals, or null until they've loaded (Home's count stands in until then). */
   approvals: ApprovalView[] | null;
-  teammates: BotSummary[];
+  teammates: TeammateSummary[];
   computerOffline: boolean;
 }) {
   const colors = useColors();
   const proposals = home.proposals.flatMap((proposal) => {
-    const bot = teammates.find((entry) => entry.id === proposal.botId);
+    const bot = teammates.find((entry) => entry.id === proposal.teammateId);
     return bot ? [{ ...proposal, bot }] : [];
   });
   const approvalCount = approvals?.length ?? home.pendingApprovals;
@@ -59,7 +59,7 @@ export function NeedsYou({
                 {index > 0 && <Separator />}
                 <ApprovalRow
                   approval={approval}
-                  bot={teammates.find((teammate) => teammate.id === approval.botId)}
+                  bot={teammates.find((teammate) => teammate.id === approval.teammateId)}
                   meta={ago(approval.createdAt)}
                   behind={pendingFill}
                   short
@@ -92,7 +92,7 @@ export function NeedsYou({
           </Callout>
         ) : null}
         {home.takeoverRequests.map((request) => {
-          const bot = teammates.find((entry) => entry.id === request.botId);
+          const bot = teammates.find((entry) => entry.id === request.teammateId);
           const open = () => router.push(screenHref(request.screenId, request.id));
           // The screen can't be driven while the computer is away: a lighter card, after what
           // you can decide now, that only says when you can.
@@ -113,7 +113,7 @@ export function NeedsYou({
               testID="takeover-request"
             >
               <Text variant="label">
-                {request.botName} {needsYouText("takeover").toLowerCase()}
+                {request.teammateName} {needsYouText("takeover").toLowerCase()}
               </Text>
               {request.reason ? (
                 <Text variant="small" muted numberOfLines={2} style={styles.calloutBody}>

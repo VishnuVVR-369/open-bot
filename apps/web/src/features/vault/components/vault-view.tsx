@@ -78,7 +78,7 @@ function Access({ botIds }: { botIds: string[] | null }) {
       </span>
     );
   const bots = botIds
-    .map((id) => state?.bots.find((bot) => bot.id === id))
+    .map((id) => state?.teammates.find((bot) => bot.id === id))
     .filter((bot) => bot !== undefined);
   if (bots.length === 0) return <span>No current teammate</span>;
   return (
@@ -168,7 +168,7 @@ function ItemRow({ item }: { item: VaultItemView }) {
           ) : (
             <span className="font-mono tabular-nums">{item.hint}</span>
           )}
-          <Access botIds={item.botIds} />
+          <Access botIds={item.teammateIds} />
           <span>
             {item.lastUsedAt ? (
               <>
@@ -287,7 +287,7 @@ export function VaultView() {
   const items = data ?? [];
   const logins = items.filter((item) => item.kind === "login");
   const cards = items.filter((item) => item.kind === "card");
-  const budgeted = state?.bots.length ?? 0;
+  const budgeted = state?.teammates.length ?? 0;
 
   if (isLoading) {
     return (

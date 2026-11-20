@@ -12,7 +12,7 @@ describe("repeated notifications", () => {
     kind: "cap_reached",
     title,
     body,
-    botId,
+    teammateId: botId,
   });
 
   it("folds back-to-back repeats into one row", () => {
@@ -62,7 +62,7 @@ describe("notification words", () => {
 });
 
 describe("notificationState", () => {
-  const base = { runId: "r1", botId: "iris", createdAt: "2026-11-06T10:00:00Z" };
+  const base = { runId: "r1", teammateId: "iris", createdAt: "2026-11-06T10:00:00Z" };
   it("finds how the approval a notification asked about was decided", () => {
     expect(
       notificationState(
@@ -78,8 +78,8 @@ describe("notificationState", () => {
   });
 
   it("says a takeover is pending only while it waits", () => {
-    const takeover = { ...base, kind: "takeover_request", botId: "juno" };
-    expect(notificationState(takeover, [], [{ botId: "juno" }])).toEqual({
+    const takeover = { ...base, kind: "takeover_request", teammateId: "juno" };
+    expect(notificationState(takeover, [], [{ teammateId: "juno" }])).toEqual({
       kind: "takeover",
       status: "pending",
     });

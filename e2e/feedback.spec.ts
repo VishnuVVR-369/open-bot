@@ -77,7 +77,7 @@ test("@agent rate a reply, teach a lesson, and see it used in a new chat", async
 
   const botId = await botIdOf(page, name);
   const state = await apiFor(page).app.state();
-  const slug = state.bots.find((bot) => bot.id === botId)!.slug;
+  const slug = state.teammates.find((bot) => bot.id === botId)!.slug;
   await page.goto(chatUrl);
   await page.getByRole("button", { name: "New chat" }).click();
   await expect(page.getByText(`Give ${name} something to do`)).toBeVisible();

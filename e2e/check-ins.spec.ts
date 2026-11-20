@@ -3,7 +3,7 @@ import { apiFor, botIdOf, createTeammate, uniqueName, waitForLastRun } from "./h
 
 async function notificationsFor(page: Page, botId: string) {
   const all = await apiFor(page).notifications.list();
-  return all.filter((entry) => entry.botId === botId && entry.kind === "run_finished");
+  return all.filter((entry) => entry.teammateId === botId && entry.kind === "run_finished");
 }
 
 test("turn a teammate's daily check-in on and off", async ({ page }) => {

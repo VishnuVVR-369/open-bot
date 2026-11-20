@@ -131,7 +131,7 @@ export function rpcHarness() {
       throw new Error("No attachments here.");
     }),
   });
-  vi.spyOn(email, "inbound").mockImplementation(async () => ({ botId: null }));
+  vi.spyOn(email, "inbound").mockImplementation(async () => ({ teammateId: null }));
   const accountStore = { revoke: vi.fn(async () => ({ warning: null })) };
   const accountActionLoop = { kick: vi.fn() };
   const connectionService = new ConnectionService(ctx, undefined, accountStore, accountActionLoop);
@@ -227,7 +227,7 @@ export function rpcHarness() {
   /** A new teammate, with `id` for its id. */
   async function newTeammate(name: string, role: string) {
     const created = await worker.teammates.create({ name, role });
-    return { ...created, id: created.botId };
+    return { ...created, id: created.teammateId };
   }
 
   /**
@@ -264,7 +264,7 @@ export function rpcHarness() {
     const [run] = await db
       .insert(runs)
       .values({
-        botId: created.id,
+        teammateId: created.id,
         chatId: created.chatId,
         trigger: "user",
         prompt: "Summarize the news",

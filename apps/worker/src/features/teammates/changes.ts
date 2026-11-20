@@ -1,12 +1,12 @@
 import { runs, schedules, triggers } from "@open-bot/db";
 import {
   AUTONOMY_OPTIONS,
-  createBotSchema,
+  createTeammateSchema,
   describeCron,
-  updateBotSchema,
+  updateTeammateSchema,
   type Autonomy,
-  type BotCreationPlan,
-  type BotProfile,
+  type TeammateCreationPlan,
+  type TeammateProfile,
 } from "@open-bot/domain";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
@@ -47,7 +47,7 @@ function block(label: string, text: string): string {
 }
 
 /** What the user reads before approving a new teammate: everything it will start with. */
-export function creationDetail(plan: BotCreationPlan): string {
+export function creationDetail(plan: TeammateCreationPlan): string {
   const { profile } = plan;
   // The short facts first, so they show without scrolling past long instructions.
   const parts = [
@@ -76,7 +76,7 @@ export function creationDetail(plan: BotCreationPlan): string {
   return parts.join("\n\n");
 }
 
-const PROFILE_LABELS: Record<keyof BotProfile, string> = {
+const PROFILE_LABELS: Record<keyof TeammateProfile, string> = {
   name: "Name",
   role: "Job",
   instructions: "Instructions",
@@ -86,10 +86,10 @@ const PROFILE_LABELS: Record<keyof BotProfile, string> = {
 };
 
 /** The fields an edit changes, old and new. */
-export function changesDetail(current: Bot, changes: Partial<BotProfile>): string {
+export function changesDetail(current: Bot, changes: Partial<TeammateProfile>): string {
   const lines: string[] = [];
   let instructions: string | null = null;
-  for (const [key, value] of Object.entries(changes) as [keyof BotProfile, string][]) {
+  for (const [key, value] of Object.entries(changes) as [keyof TeammateProfile, string][]) {
     if (key === "instructions") instructions = value;
     else if (key === "autonomy")
       lines.push(
@@ -204,17 +204,17 @@ export class BotTools implements TeammateTargets {
       ...(await this.ctx.db
         .select({ title: schedules.title })
         .from(schedules)
-        .where(and(eq(schedules.id, id), eq(schedules.botId, botId)))),
+        .where(and(eq(schedules.id, id), eq(schedules.teammateId, botId)))),
       ...(await this.ctx.db
         .select({ title: triggers.title })
         .from(triggers)
-        .where(and(eq(triggers.id, id), eq(triggers.botId, botId)))),
+        .where(and(eq(triggers.id, id), eq(triggers.teammateId, botId)))),
     ];
     return row ? `"${row.title}"` : "an automation";
   }
 
   async create(session: RunSession, callId: string, args: Record<string, unknown>) {
-    const input = createBotSchema.parse(args);
+    const input = createTeammateSchema.parse(args);
     const plan = await this.bots.plan(input);
     await this.bots.checkPlan(plan);
     // More autonomy than "ask before risky actions" is the user's call, every time.
@@ -231,7 +231,7 @@ export class BotTools implements TeammateTargets {
   }
 
   async update(session: RunSession, callId: string, args: Record<string, unknown>) {
-    const input = updateBotSchema.parse(args);
+    const input = updateTeammateSchema.parse(args);
     const current = await this.bots.requireBot(input.bot_id);
     if (BotService.revision(current) !== input.expected_revision)
       throw new BotError(409, "This teammate changed since you read it. Get it again, then retry.");

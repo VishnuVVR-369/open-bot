@@ -135,7 +135,7 @@ export function NewAutomationMenu({ botId }: { botId?: string }) {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button disabled={!state?.bots.length}>
+          <Button disabled={!state?.teammates.length}>
             <Plus />
             New automation
             <ChevronDown className="-mr-1 opacity-60" />
@@ -213,7 +213,8 @@ function CheckIn({ botId, name }: { botId: string; name: string }) {
   const queryClient = useQueryClient();
   const [pending, startTransition] = useTransition();
   const on = (schedules ?? []).some(
-    (row) => row.botId === botId && row.title === DAILY_CHECK_IN.title && row.quiet && row.enabled,
+    (row) =>
+      row.teammateId === botId && row.title === DAILY_CHECK_IN.title && row.quiet && row.enabled,
   );
   return (
     <label
@@ -265,9 +266,9 @@ export function AutomationsView({ botId }: { botId?: string }) {
   const queryClient = useQueryClient();
   const canRun = useCanRun();
   const [open, setOpen] = useState<Kind | null>(null);
-  const botOf = (id: string) => state?.bots.find((bot) => bot.id === id);
-  const mine = <T extends { botId: string }>(rows: T[] | undefined) =>
-    (rows ?? []).filter((row) => !botId || row.botId === botId);
+  const botOf = (id: string) => state?.teammates.find((bot) => bot.id === id);
+  const mine = <T extends { teammateId: string }>(rows: T[] | undefined) =>
+    (rows ?? []).filter((row) => !botId || row.teammateId === botId);
   const scheduleRows = mine(schedules);
   const watches = mine(triggers).filter((row) => row.kind === "watch");
   const webhooks = mine(triggers).filter((row) => row.kind === "webhook");
@@ -303,7 +304,7 @@ export function AutomationsView({ botId }: { botId?: string }) {
           <ScheduleRow
             key={schedule.id}
             schedule={schedule}
-            bot={botOf(schedule.botId)}
+            bot={botOf(schedule.teammateId)}
             refresh={refreshSchedules}
           />
         ))}
@@ -313,7 +314,7 @@ export function AutomationsView({ botId }: { botId?: string }) {
           <TriggerRow
             key={trigger.id}
             trigger={trigger}
-            bot={botOf(trigger.botId)}
+            bot={botOf(trigger.teammateId)}
             refresh={refreshTriggers}
           />
         ))}
@@ -323,7 +324,7 @@ export function AutomationsView({ botId }: { botId?: string }) {
           <TriggerRow
             key={trigger.id}
             trigger={trigger}
-            bot={botOf(trigger.botId)}
+            bot={botOf(trigger.teammateId)}
             refresh={refreshTriggers}
           />
         ))}
@@ -333,7 +334,7 @@ export function AutomationsView({ botId }: { botId?: string }) {
           <TriggerRow
             key={trigger.id}
             trigger={trigger}
-            bot={botOf(trigger.botId)}
+            bot={botOf(trigger.teammateId)}
             refresh={refreshTriggers}
           />
         ))}

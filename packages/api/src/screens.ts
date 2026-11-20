@@ -5,7 +5,7 @@ import {
   screenOperationSchema,
   typeOnScreenSchema,
 } from "@open-bot/domain";
-import { botSummarySchema } from "./views";
+import { teammateSummarySchema } from "./views";
 
 export { screenOperationSchema, typeOnScreenSchema };
 export const screenFrameSchema = z.object({ artifactId: z.string(), at: z.string() });
@@ -13,7 +13,7 @@ export type ScreenFrame = z.infer<typeof screenFrameSchema>;
 
 export const screenViewSchema = z.object({
   id: z.string(),
-  bot: botSummarySchema,
+  teammate: teammateSummarySchema,
   online: z.boolean(),
   lifecycle: computerLifecycleSchema.nullable().optional(),
   running: z.boolean(),

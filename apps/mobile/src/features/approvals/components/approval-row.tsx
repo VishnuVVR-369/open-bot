@@ -1,4 +1,4 @@
-import type { ApprovalView, BotSummary } from "@open-bot/api";
+import type { ApprovalView, TeammateSummary } from "@open-bot/api";
 import { approvalShortTitle, commandParts, commandSummary } from "@open-bot/domain";
 import { router } from "expo-router";
 import { ChevronRight } from "lucide-react-native";
@@ -30,7 +30,7 @@ export function ApprovalRow({
   short,
 }: {
   approval: ApprovalView;
-  bot: BotSummary | undefined;
+  bot: TeammateSummary | undefined;
   meta: string;
   /** The card's color, which the avatar's badge cuts into. */
   behind: string;

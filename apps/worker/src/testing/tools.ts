@@ -73,12 +73,12 @@ export function toolHarness() {
 
   async function fixture(autonomy: "full" | "risky" | "everything" = "full") {
     const created = await service.create({ name: "Lead", role: "assistant", autonomy });
-    const bot = await service.requireBot(created.botId);
+    const bot = await service.requireBot(created.teammateId);
     const [chat] = await db.select().from(chats).where(eq(chats.id, created.chatId));
     const [run] = await db
       .insert(runs)
       .values({
-        botId: bot.id,
+        teammateId: bot.id,
         chatId: created.chatId,
         trigger: "user",
         prompt: "Create and configure my teammates",

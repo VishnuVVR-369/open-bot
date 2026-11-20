@@ -17,9 +17,9 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
     }
     expect(await service.list()).toHaveLength(1);
     await db
-      .update(dbTables.bots)
+      .update(dbTables.teammates)
       .set({ autonomy: "full" })
-      .where(eq(dbTables.bots.id, session.bot.id));
+      .where(eq(dbTables.teammates.id, session.bot.id));
     const current = await service.get(session.bot.id);
     requestAction.mockResolvedValueOnce("denied");
     const result = await call(session, "update_bot", {
@@ -55,24 +55,24 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
     const { session } = await fixture("full");
     const target = await service.create({ name: "Researcher", role: "researcher" });
     await db
-      .update(dbTables.bots)
+      .update(dbTables.teammates)
       .set({ autonomy: "risky" })
-      .where(eq(dbTables.bots.id, session.bot.id));
+      .where(eq(dbTables.teammates.id, session.bot.id));
     requestAction.mockResolvedValueOnce("denied");
     expect(
       (await call(session, "create_bot", { name: "No", role: "assistant" })).response.success,
     ).toBe(false);
     requestAction.mockImplementationOnce(async () => {
       await db
-        .update(dbTables.bots)
+        .update(dbTables.teammates)
         .set({ archivedAt: new Date() })
-        .where(eq(dbTables.bots.id, target.botId));
+        .where(eq(dbTables.teammates.id, target.teammateId));
       return "approved";
     });
     expect(
       (
         await call(session, "schedule_task", {
-          bot_id: target.botId,
+          bot_id: target.teammateId,
           title: "No",
           prompt: "No",
           cron: "0 8 * * *",

@@ -128,7 +128,7 @@ describe("a turn's words", () => {
 
 describe("triggerLabel", () => {
   const run = (trigger: string, extra: object = {}) =>
-    ({ trigger, scheduleTitle: null, triggerTitle: null, fromBotId: null, ...extra }) as never;
+    ({ trigger, scheduleTitle: null, triggerTitle: null, fromTeammateId: null, ...extra }) as never;
   const teammates = [{ id: "t1", name: "Rex" }];
 
   it("names automations by their title, and marks them", () => {
@@ -141,12 +141,12 @@ describe("triggerLabel", () => {
   });
 
   it("says which teammate a handoff came from", () => {
-    expect(triggerLabel(run("answer", { fromBotId: "t1" }), teammates)).toEqual({
+    expect(triggerLabel(run("answer", { fromTeammateId: "t1" }), teammates)).toEqual({
       kind: "answer",
       text: "Rex answered",
       automation: false,
     });
-    expect(triggerLabel(run("handoff", { fromBotId: "gone" }), teammates)?.text).toBe(
+    expect(triggerLabel(run("handoff", { fromTeammateId: "gone" }), teammates)?.text).toBe(
       "Handed over",
     );
   });

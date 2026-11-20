@@ -65,7 +65,7 @@ async function chainOf(
   let depth = 0;
   while (parentId && depth < MAX_HANDOFF_DEPTH) {
     const [parent] = await deps.ctx.db
-      .select({ botId: runs.botId, parentRunId: runs.parentRunId })
+      .select({ botId: runs.teammateId, parentRunId: runs.parentRunId })
       .from(runs)
       .where(eq(runs.id, parentId));
     if (!parent) break;

@@ -36,19 +36,19 @@ function useMinute(): number | null {
  * moves, and the line says so rather than counting anyone as working.
  */
 export function teamSummary(
-  state: Pick<AppState, "bots" | "computer" | "pendingApprovals" | "takeoverRequests">,
+  state: Pick<AppState, "teammates" | "computer" | "pendingApprovals" | "takeoverRequests">,
 ): string {
   const online = isComputerOnline(state);
   const things = state.takeoverRequests.length + state.pendingApprovals;
   const needs = things > 0 ? `${plural(things, "thing needs", "things need")} you` : null;
   if (!online) {
-    const busy = state.bots.some((bot) => bot.activeRun);
+    const busy = state.teammates.some((bot) => bot.activeRun);
     const paused = busy
       ? "Work is paused until the computer is back."
       : "Your teammates pick up again when the computer is back.";
     return needs ? `${needs}. ${paused}` : paused;
   }
-  const working = state.bots.filter((bot) => botActivity(bot) === "working").length;
+  const working = state.teammates.filter((bot) => botActivity(bot) === "working").length;
   if (needs && working)
     return `${needs}, and ${plural(working, "teammate is", "teammates are")} working.`;
   if (needs) return `${needs}.`;
@@ -63,8 +63,8 @@ export function HomeView() {
   const offline = Boolean(state) && !online;
   const minute = useMinute();
   const now = minute === null ? null : new Date(minute * 60_000);
-  const botIds = state?.bots.map((bot) => bot.id) ?? [];
-  const botNames = state?.bots.map((bot) => bot.name) ?? [];
+  const botIds = state?.teammates.map((bot) => bot.id) ?? [];
+  const botNames = state?.teammates.map((bot) => bot.name) ?? [];
   return (
     <div className="h-full overflow-y-auto">
       <div

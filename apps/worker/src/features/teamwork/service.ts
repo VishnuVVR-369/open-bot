@@ -97,7 +97,7 @@ export class SwarmService {
     const [running] = await this.ctx.db
       .select({ id: swarms.id })
       .from(swarms)
-      .where(and(eq(swarms.botId, session.bot.id), eq(swarms.status, "running")))
+      .where(and(eq(swarms.teammateId, session.bot.id), eq(swarms.status, "running")))
       .limit(1);
     if (running)
       throw new SwarmError(
@@ -108,7 +108,7 @@ export class SwarmService {
       const [swarm] = await tx
         .insert(swarms)
         .values({
-          botId: session.bot.id,
+          teammateId: session.bot.id,
           chatId: session.chat.id,
           runId: session.run.id,
           itemId: input.itemId,
@@ -210,7 +210,7 @@ export class SwarmService {
       : [];
     await enqueueRun(this.ctx, {
       chatId: swarm.chatId,
-      botId: swarm.botId,
+      botId: swarm.teammateId,
       trigger: "swarm_results",
       readOutsideData: Boolean(tainted),
       prompt: `[Swarm results: "${swarm.title}"]\n\nYour ${tasks.length} helpers finished. Merge their results into one answer for the user: compare, dedupe and check them, say what's missing, and finish the job you split up.\n\n${parts}`,

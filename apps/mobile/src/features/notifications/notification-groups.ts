@@ -3,7 +3,7 @@
  * row with a count, so a reminder sent twice doesn't take up the screen twice.
  */
 export function collapseRepeats<
-  T extends { id: string; kind: string; title: string; body: string; botId: string | null },
+  T extends { id: string; kind: string; title: string; body: string; teammateId: string | null },
 >(notifications: T[]): { key: string; items: T[] }[] {
   const rows: { key: string; items: T[] }[] = [];
   for (const notification of notifications) {
@@ -11,7 +11,7 @@ export function collapseRepeats<
     if (
       last &&
       last.kind === notification.kind &&
-      last.botId === notification.botId &&
+      last.teammateId === notification.teammateId &&
       last.title === notification.title &&
       last.body === notification.body
     )
@@ -51,9 +51,14 @@ export type NotificationState =
  * everything else, and for a takeover that's over (how it ended isn't known here).
  */
 export function notificationState(
-  notification: { kind: string; runId: string | null; botId: string | null; createdAt: string },
+  notification: {
+    kind: string;
+    runId: string | null;
+    teammateId: string | null;
+    createdAt: string;
+  },
   approvals: { runId: string; status: string; createdAt: string }[],
-  takeovers: { botId: string | null }[],
+  takeovers: { teammateId: string | null }[],
 ): NotificationState | null {
   if (notification.kind === "approval" && notification.runId) {
     const at = new Date(notification.createdAt).getTime();
@@ -72,7 +77,9 @@ export function notificationState(
   }
   if (
     notification.kind === "takeover_request" &&
-    takeovers.some((request) => request.botId !== null && request.botId === notification.botId)
+    takeovers.some(
+      (request) => request.teammateId !== null && request.teammateId === notification.teammateId,
+    )
   )
     return { kind: "takeover", status: "pending" };
   return null;

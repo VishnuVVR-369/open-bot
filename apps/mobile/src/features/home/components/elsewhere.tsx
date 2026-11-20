@@ -1,4 +1,4 @@
-import type { ActivityItem, BotSummary } from "@open-bot/api";
+import type { ActivityItem, TeammateSummary } from "@open-bot/api";
 import { isRunActive, plainText } from "@open-bot/domain";
 import { router } from "expo-router";
 import { Users } from "lucide-react-native";
@@ -26,7 +26,7 @@ function ActivityRow({
   computerOffline,
 }: {
   item: ActivityItem;
-  bot?: BotSummary;
+  bot?: TeammateSummary;
   first: boolean;
   computerOffline: boolean;
 }) {
@@ -104,7 +104,7 @@ export function Elsewhere({
   computerOffline,
 }: {
   activity: ActivityItem[];
-  teammates: BotSummary[];
+  teammates: TeammateSummary[];
   computerOffline: boolean;
 }) {
   const recent = useMemo(() => elsewhere(activity), [activity]);
@@ -119,7 +119,7 @@ export function Elsewhere({
           <ActivityRow
             key={item.runId}
             item={item}
-            bot={teammates.find((teammate) => teammate.id === item.botId)}
+            bot={teammates.find((teammate) => teammate.id === item.teammateId)}
             first={index === 0}
             computerOffline={computerOffline}
           />

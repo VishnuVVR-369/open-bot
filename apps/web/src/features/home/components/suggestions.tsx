@@ -11,7 +11,7 @@ import { useAppState } from "@/features/app-shell";
 export function Suggestions() {
   const { data: state } = useAppState();
   const proposals = (state?.proposals ?? []).flatMap((proposal) => {
-    const teammate = state?.bots.find((entry) => entry.id === proposal.botId);
+    const teammate = state?.teammates.find((entry) => entry.id === proposal.teammateId);
     return teammate ? [{ ...proposal, teammate }] : [];
   });
   if (proposals.length === 0) return null;

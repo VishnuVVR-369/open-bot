@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
-import { bots, chats, messages, runs, uploads, LOCKS, lockUntilCommit } from "@open-bot/db";
+import { teammates, chats, messages, runs, uploads, LOCKS, lockUntilCommit } from "@open-bot/db";
 import {
   INCOMPLETE_TTL_MS,
   UNUSED_TTL_MS,
@@ -215,7 +215,7 @@ describe.skipIf(!url)("uploads with Postgres", () => {
   it("keeps a file a run uses, like an email's, and removes one nothing used", async () => {
     const [chat] = await db.insert(chats).values({ kind: "inbox", title: "Email" }).returning();
     const [bot] = await db
-      .insert(bots)
+      .insert(teammates)
       .values({ name: "Iris", slug: "iris", role: "assistant", color: "violet" })
       .returning();
     const emailed = await service.save({
@@ -231,7 +231,7 @@ describe.skipIf(!url)("uploads with Postgres", () => {
     });
     await db.insert(runs).values({
       chatId: chat!.id,
-      botId: bot!.id,
+      teammateId: bot!.id,
       trigger: "email",
       prompt: "An email",
       attachments: [emailed],

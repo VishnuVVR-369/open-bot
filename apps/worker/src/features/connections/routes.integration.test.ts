@@ -57,7 +57,7 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
           .insert(approvals)
           .values({
             runId: run.id,
-            botId: created.id, // vocabulary: allow
+            teammateId: created.id,
             chatId: created.chatId,
             kind: "account_outward",
             title: "Send it",
@@ -71,7 +71,7 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
             accountId: account!.id,
             grantRevision: current!.grantRevision,
             connectionRevision: (await connection(linked.connectionId))!.revision,
-            botId: created.id, // vocabulary: allow
+            teammateId: created.id,
             runId: run.id,
             chatId: created.chatId,
             itemId: `item-${randomUUID()}`,

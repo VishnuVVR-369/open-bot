@@ -144,11 +144,11 @@ export function PagesView() {
   const { data: state } = useAppState();
   const [query, setQuery] = useState("");
   const botOf = useMemo(() => {
-    const bots = new Map((state?.bots ?? []).map((bot) => [bot.id, bot]));
+    const bots = new Map((state?.teammates ?? []).map((bot) => [bot.id, bot]));
     return (id: string | null) => (id ? bots.get(id) : undefined);
-  }, [state?.bots]);
+  }, [state?.teammates]);
   const pages = data ?? [];
-  const shown = pages.filter((page) => matches(page, botOf(page.botId), query));
+  const shown = pages.filter((page) => matches(page, botOf(page.teammateId), query));
 
   if (isLoading) {
     return (
@@ -196,7 +196,7 @@ export function PagesView() {
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {shown.map((page) => (
-            <PageTile key={page.id} page={page} bot={botOf(page.botId)} />
+            <PageTile key={page.id} page={page} bot={botOf(page.teammateId)} />
           ))}
         </ul>
       )}

@@ -52,9 +52,9 @@ Paths are relative to the repo root; symbols are in parentheses.
 
 The field crosses every layer, from the database to web and mobile.
 
-1. `packages/db/src/schema/teammates.ts` (`bots`, with a default), then the migration recipe in `packages/db/AGENTS.md`.
-2. `packages/domain/src/teammates/management.ts` (`botProfileSchema`, `botCreation()`), `packages/domain/src/teammates/bundle.ts` (optional or defaulted so old exports import).
-3. `packages/api/src/views.ts` (`botSummarySchema`) if lists or mobile need it; `apps/web/src/features/teammates/server/queries.ts` (`listTeammates`).
+1. `packages/db/src/schema/teammates.ts` (`teammates`, with a default), then the migration recipe in `packages/db/AGENTS.md`.
+2. `packages/domain/src/teammates/management.ts` (`teammateProfileSchema`, `teammateCreation()`), `packages/domain/src/teammates/bundle.ts` (optional or defaulted so old exports import).
+3. `packages/api/src/views.ts` (`teammateSummarySchema`) if lists or mobile need it; `apps/web/src/features/teammates/server/queries.ts` (`listTeammates`).
 4. Worker: `apps/worker/src/features/teammates/service.ts` (`list`, `get`, `exportBundle`, `addTeammate`, which duplicate and import share), `apps/worker/src/features/teammates/tools.ts` (`profileFields`), `apps/worker/src/features/teammates/changes.ts` (`PROFILE_LABELS`).
 5. Web: `apps/web/src/features/teammates/components/bot-form.tsx` (`BotFormValues`), `apps/web/src/app/(app)/bots/new/page.tsx`, `apps/web/src/features/teammates/components/teammate-view.tsx`.
 6. Mobile (display only; the contract has no teammate edit procedure): `apps/mobile/src/app/teammates/[botId].tsx`.

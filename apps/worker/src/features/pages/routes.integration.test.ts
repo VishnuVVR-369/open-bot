@@ -10,7 +10,7 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
   it("pages and uploads: publish with warnings, and a missing upload is a 404", async () => {
     expect(
       await worker.pages.publish({
-        botId: ID,
+        teammateId: ID,
         path: "/home/bot/shared/report.html",
         title: "Report",
       }),
@@ -25,7 +25,7 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
       const { created } = await teammateWithRun();
       const [page] = await db
         .insert(pages)
-        .values({ title: "Trip plan", botId: created.id }) // vocabulary: allow
+        .values({ title: "Trip plan", teammateId: created.id })
         .returning();
       await worker.pages.pin({ pageId: page!.id, pinned: true });
       const reload = async () => (await db.select().from(pages).where(eq(pages.id, page!.id)))[0];

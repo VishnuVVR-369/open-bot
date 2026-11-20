@@ -30,8 +30,8 @@ export const AUTONOMY_OPTIONS: { value: Autonomy; label: string; description: st
   },
 ];
 
-/** A curated palette for bot avatars. Each bot gets one as its accent color. */
-export const BOT_COLORS = [
+/** A curated palette for teammate avatars. Each teammate gets one as its accent color. */
+export const TEAMMATE_COLORS = [
   "#7C5CFF",
   "#2E9BFF",
   "#14B8A6",
@@ -49,7 +49,7 @@ export function slugify(name: string): string {
       .normalize("NFKD")
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "")
-      .slice(0, 40) || "bot"
+      .slice(0, 40) || "teammate"
   );
 }
 
@@ -75,7 +75,7 @@ export function newTeammateSlot(
  */
 export function nextTeammateColor(usedColors: readonly string[]): string {
   const uses = (color: string) => usedColors.filter((used) => used === color).length;
-  return BOT_COLORS.reduce((best, color) => (uses(color) < uses(best) ? color : best));
+  return TEAMMATE_COLORS.reduce((best, color) => (uses(color) < uses(best) ? color : best));
 }
 
 /** The longest the "About you" profile every teammate reads can be. */
