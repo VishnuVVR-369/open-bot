@@ -82,7 +82,7 @@ export type PushStatus = z.infer<typeof pushStatusSchema>;
 export const telegramStatusSchema = z.object({
   connected: z.boolean(),
   /** Telegram's name for the account that sends your messages. */
-  botUsername: z.string().nullable(), // vocabulary: allow
+  botUsername: z.string().nullable(),
   tokenHint: z.string().nullable(),
   linked: z.boolean(),
   linkedName: z.string().nullable(),

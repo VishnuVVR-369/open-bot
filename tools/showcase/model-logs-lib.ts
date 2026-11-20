@@ -327,7 +327,7 @@ export class LogSeeder {
 /* ------------------------------------------------------------------ The story's shared parts */
 
 // Kit's folder on the computer, where Codex runs as its system user.
-export const KIT_HOME = "/home/bot/bots/kit"; // vocabulary: allow
+export const KIT_HOME = "/home/bot/bots/kit";
 export const SANDBOX = `<permissions instructions>Commands run in a sandbox. Ask before writing outside ${KIT_HOME}.</permissions instructions>`;
 
 export type RunRef = { id: string; at: Date; completedAt: Date | null };
