@@ -6,8 +6,6 @@ import {
   mentionedIds,
   mentionOptions,
   mentionQuery,
-  sendAttempt,
-  type SendAttempt,
 } from "@open-bot/chat-core";
 import { type RunStatus } from "@open-bot/domain";
 import {
@@ -44,7 +42,6 @@ import type { BotSummary, ChatSummary, MessageView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { skillOptions, skillQueryAt, type SkillOption } from "../skill-options";
 import { useDraft } from "../use-draft";
-import { useUploads } from "../use-uploads";
 import { MentionMenu } from "./mention-menu";
 import { SkillMenu } from "./skill-menu";
 
@@ -81,8 +78,8 @@ export function Composer({
   onSent: (message: MessageView) => void;
   ref?: Ref<ComposerHandle>;
 }) {
-  const [text, setText] = useDraft(chat.id);
-  const { uploads, addFiles, ready, remove, clear } = useUploads();
+  const { draft, text, uploads, ready } = useDraft(chat.id);
+  const { setText, addFiles, remove } = draft;
   const [mentioning, setMentioning] = useState<string | null>(null);
   const [skillQuery, setSkillQuery] = useState<string | null>(null);
   const [menuIndex, setMenuIndex] = useState(0);
@@ -91,7 +88,6 @@ export function Composer({
   const [stopping, startStopping] = useTransition();
   const textarea = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
-  const failedSend = useRef<SendAttempt | null>(null);
   const dictation = useDictation({
     onText: setText,
     onError: (message) => toast.error("Couldn't dictate", { description: message }),
@@ -111,8 +107,8 @@ export function Composer({
     () => ({
       addFiles,
       focus: () => textarea.current?.focus(),
-      setDraft: (draft: string) => {
-        setText(draft);
+      setDraft: (value: string) => {
+        setText(value);
         requestAnimationFrame(() => textarea.current?.focus());
       },
     }),
@@ -184,28 +180,17 @@ export function Composer({
 
   function submit() {
     if (!canSend) return;
-    const attachments = uploads.map((upload) => upload.attachment!).filter(Boolean);
-    const mentions = isGroup ? mentionedIds(text, members) : [];
-    const draft = text;
-    // Sending the same message again after a failure reuses its id, so it's never saved twice.
-    const thisSend = sendAttempt(failedSend.current, [chat.id, draft, attachments, mentions], () =>
-      crypto.randomUUID(),
-    );
-    const { clientId } = thisSend;
     dictation.cancel();
-    setText("");
-    clear();
+    // Empties the composer now; a send that fails puts the text and files back.
+    const sent = draft.send(chat.id, (draftText) =>
+      isGroup ? mentionedIds(draftText, members) : [],
+    );
     startSending(async () => {
-      const result = await attempt(
-        api.chats.send({ clientId, chatId: chat.id, text: draft, attachments, mentions }),
-      );
+      const result = await sent;
       if (!result.ok) {
-        failedSend.current = thisSend;
         toast.error("Couldn't send", { description: result.error });
-        setText(draft);
         return;
       }
-      failedSend.current = null;
       onSent(result.data);
     });
   }

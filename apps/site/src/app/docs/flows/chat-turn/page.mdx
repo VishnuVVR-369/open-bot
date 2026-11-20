@@ -63,9 +63,10 @@ x-worker-secret: <WORKER_SECRET>
 
 It saves the text, uploaded attachments and teammates you @-mentioned, then dispatches the message.
 The client-generated message id makes retries safe: the same request returns the saved message, while reusing its id for different content is a conflict.
+The saved attachments and mentions are compared as JSON values, because Postgres's `jsonb` doesn't keep the order of object keys (`sameJson()` in `packages/db/src/configuration.ts`).
 The service returns the saved message even if dispatch fails.
 The worker's reconciler picks up pending messages when it can, so retrying after a lost response does not send the message twice.
-If the worker can't be reached, nothing is saved: the composer keeps your text, and sending again reuses the same id.
+If the worker can't be reached, nothing is saved: the composer keeps your text and files, and sending again reuses the same id.
 
 Attachments are uploaded first through the worker's `UploadService` (`apps/worker/src/features/uploads/service.ts`), which writes them to `/home/bot/shared/uploads` through Codex's file API and verifies the stored bytes before accepting them.
 The browser and the phone both send raw bytes to `PUT /api/uploads/<id>`, which streams them to this service; the transport contract is on [Internal APIs](/docs/reference/http-api#writes).
@@ -211,7 +212,7 @@ Back in the executor, the session is removed and `pump()` claims the next queued
 
 | What happened                                 | What you see                                                                                            |
 | --------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| The worker isn't running                      | The message is saved and sent; the worker dispatches it when it's back.                                 |
+| The worker isn't running                      | Nothing is saved: the composer keeps your text and files, and you send again.                           |
 | Codex isn't signed in                         | The run fails with "Codex is not signed in to ChatGPT. Sign in on the Settings page."                   |
 | The connection to the computer drops mid-turn | The run fails with "Lost the connection to the computer."                                               |
 | The worker restarts mid-turn                  | On start, the run is marked `interrupted`: "The worker restarted while this was running."               |
