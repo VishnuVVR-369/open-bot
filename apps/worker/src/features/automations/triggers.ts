@@ -205,12 +205,12 @@ export class TriggerService {
       throw new TriggerError(`That ${label} account isn't connected any more.`);
     if (!row.enabled) throw new TriggerError(`${label} is turned off in Settings → Connections.`);
     if (row.teammateIds && !row.teammateIds.includes(input.teammateId)) {
-      const [bot] = await this.ctx.db
+      const [teammate] = await this.ctx.db
         .select({ name: teammates.name })
         .from(teammates)
         .where(eq(teammates.id, input.teammateId));
       throw new TriggerError(
-        `${bot?.name ?? "This teammate"} can't use ${label}. Give them access in Settings → Connections.`,
+        `${teammate?.name ?? "This teammate"} can't use ${label}. Give them access in Settings → Connections.`,
       );
     }
     return input.connectionId;
@@ -335,18 +335,18 @@ export class TriggerService {
     return row?.kind ?? null;
   }
 
-  async forBot(botId: string): Promise<Trigger[]> {
-    return this.ctx.db.select().from(triggers).where(eq(triggers.teammateId, botId));
+  async forTeammate(teammateId: string): Promise<Trigger[]> {
+    return this.ctx.db.select().from(triggers).where(eq(triggers.teammateId, teammateId));
   }
 
-  /** The bot's own watches, webhooks and Gmail and Calendar triggers, as it reads them. */
-  async describeForBot(botId: string): Promise<string | null> {
+  /** The teammate's own watches, webhooks and Gmail and Calendar triggers, as it reads them. */
+  async describeForTeammate(teammateId: string): Promise<string | null> {
     const rows = await this.ctx.db
       .select({ trigger: triggers, account: accounts.display })
       .from(triggers)
       .leftJoin(connections, eq(connections.id, triggers.connectionId))
       .leftJoin(accounts, eq(accounts.id, connections.accountId))
-      .where(eq(triggers.teammateId, botId));
+      .where(eq(triggers.teammateId, teammateId));
     if (rows.length === 0) return null;
     return rows
       .map(({ trigger: row, account }) => {
@@ -374,11 +374,11 @@ export class TriggerService {
     const [row] = await this.ctx.db.select().from(triggers).where(eq(triggers.token, token));
     if (!row || row.kind !== "webhook") return { error: "Unknown webhook", status: 404 };
     if (!row.enabled) return { error: "This webhook is paused", status: 409 };
-    const [bot] = await this.ctx.db
+    const [teammate] = await this.ctx.db
       .select()
       .from(teammates)
       .where(eq(teammates.id, row.teammateId));
-    if (!bot || bot.archivedAt)
+    if (!teammate || teammate.archivedAt)
       return { error: "This webhook's teammate is archived", status: 409 };
     const [recent] = await this.ctx.db
       .select({ value: count() })
@@ -623,11 +623,11 @@ export class TriggerService {
     prompt: string | FirePrompt,
     options: { readOutsideData?: boolean } = {},
   ): Promise<string | null> {
-    const [bot] = await this.ctx.db
+    const [teammate] = await this.ctx.db
       .select({ archivedAt: teammates.archivedAt })
       .from(teammates)
       .where(eq(teammates.id, row.teammateId));
-    if (!bot || bot.archivedAt) return null;
+    if (!teammate || teammate.archivedAt) return null;
     const chatId = await mainChat(this.ctx, row.teammateId);
     const runId = await this.ctx.db.transaction(async (tx) => {
       const id = randomUUID();
@@ -637,7 +637,7 @@ export class TriggerService {
         id,
         chatId,
         lane: `trigger:${row.id}`,
-        botId: row.teammateId,
+        teammateId: row.teammateId,
         trigger: row.kind,
         triggerId: row.id,
         prompt: text,

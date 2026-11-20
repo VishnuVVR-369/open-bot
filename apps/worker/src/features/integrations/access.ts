@@ -58,7 +58,10 @@ export class AccountAccess {
   }
 
   /** The account connections a teammate may use: enabled, and shared with it. */
-  async forBot(botId: string, kind?: AccountConnectionKind): Promise<ResolvedConnection[]> {
+  async forTeammate(
+    teammateId: string,
+    kind?: AccountConnectionKind,
+  ): Promise<ResolvedConnection[]> {
     const rows = await this.ctx.db
       .select({ connection: connections, account: accounts })
       .from(connections)
@@ -67,7 +70,7 @@ export class AccountAccess {
         and(
           kind ? eq(connections.kind, kind) : ne(connections.kind, "mcp"),
           eq(connections.enabled, true),
-          or(isNull(connections.teammateIds), sql`${botId} = any(${connections.teammateIds})`),
+          or(isNull(connections.teammateIds), sql`${teammateId} = any(${connections.teammateIds})`),
         ),
       )
       .orderBy(asc(connections.createdAt));
@@ -86,12 +89,12 @@ export class AccountAccess {
    * workspace's name or the connection's name, but only when exactly one matches.
    */
   async resolve(
-    botId: string,
+    teammateId: string,
     kind: AccountConnectionKind,
     account?: string,
   ): Promise<ResolvedConnection> {
     const label = integration(kind).label;
-    const options = await this.forBot(botId, kind);
+    const options = await this.forTeammate(teammateId, kind);
     if (options.length === 0)
       throw new AccountToolError(
         `You don't have ${label}. The user can connect it, and give you access, in Settings → Connections.`,
@@ -223,8 +226,8 @@ export class AccountAccess {
   }
 
   /** The accounts a teammate may use, for its AGENTS.md. */
-  async lines(botId: string): Promise<AccountAccessLine[]> {
-    const options = await this.forBot(botId);
+  async lines(teammateId: string): Promise<AccountAccessLine[]> {
+    const options = await this.forTeammate(teammateId);
     return options
       .filter((option) => option.account.status === "connected")
       .map((option) => {

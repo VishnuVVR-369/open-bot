@@ -239,10 +239,10 @@ export class AccountActions {
     prepared: PreparedAction,
     itemId: string,
   ): Promise<SubmitResult> {
-    const rules = await this.approvals.rulesFor(session.bot.id);
+    const rules = await this.approvals.rulesFor(session.teammate.id);
     const kind = approvalFor({
       effect: prepared.effect,
-      autonomy: session.bot.autonomy,
+      autonomy: session.teammate.autonomy,
       askBeforeActing: resolved.connection.askBeforeActing,
       readOutsideData: session.run.readOutsideData,
       coveredByRule: rulesCover(rules, "account_write", prepared.tool),
@@ -253,7 +253,7 @@ export class AccountActions {
       accountId: resolved.account.id,
       grantRevision: resolved.account.grantRevision,
       connectionRevision: resolved.connection.revision,
-      teammateId: session.bot.id,
+      teammateId: session.teammate.id,
       runId: session.run.id,
       chatId: session.chat.id,
       itemId,
@@ -767,14 +767,14 @@ export class AccountActions {
     }
 
     if (!NEEDS_FOLLOW_UP.has(claimed.status) || !claimed.teammateId) return;
-    const [bot] = await this.ctx.db
+    const [teammate] = await this.ctx.db
       .select({ archivedAt: teammates.archivedAt })
       .from(teammates)
       .where(eq(teammates.id, claimed.teammateId));
-    if (!bot || bot.archivedAt) return;
+    if (!teammate || teammate.archivedAt) return;
     await enqueueRun(this.ctx, {
       chatId: claimed.chatId,
-      botId: claimed.teammateId,
+      teammateId: claimed.teammateId,
       trigger: "approval",
       prompt: followUp(claimed),
       parentRunId: claimed.runId,

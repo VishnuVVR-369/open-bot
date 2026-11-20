@@ -17,12 +17,12 @@ export class SessionRegistry {
     return this.sessions.get(runId);
   }
 
-  /** The executing run of a bot in a chat, if any. */
-  find(chatId: string, botId: string, lane = "chat"): RunSession | undefined {
+  /** The executing run of a teammate in a chat, if any. */
+  find(chatId: string, teammateId: string, lane = "chat"): RunSession | undefined {
     for (const session of this.sessions.values()) {
       if (
         session.chat.id === chatId &&
-        session.bot.id === botId &&
+        session.teammate.id === teammateId &&
         (session.run.lane ?? "chat") === lane
       )
         return session;
@@ -38,7 +38,7 @@ export class SessionRegistry {
     for (const session of this.sessions.values()) {
       if (session.authMode !== "api_key" || !session.apiKey || !session.threadId) continue;
       if (threadIds.includes(session.threadId))
-        return { apiKey: session.apiKey, teammateId: session.bot.id }; // vocabulary: allow
+        return { apiKey: session.apiKey, teammateId: session.teammate.id };
     }
     return null;
   }
@@ -46,7 +46,7 @@ export class SessionRegistry {
   /** The teammate whose live run one of these Codex threads belongs to, on either access mode. */
   teammateFor(threadIds: readonly string[]): string | null {
     for (const session of this.sessions.values())
-      if (session.threadId && threadIds.includes(session.threadId)) return session.bot.id; // vocabulary: allow
+      if (session.threadId && threadIds.includes(session.threadId)) return session.teammate.id;
     return null;
   }
 

@@ -46,7 +46,7 @@ export const VAULT_TOOLS: ToolDefinition<z.ZodObject, VaultToolDeps>[] = [
       "List the logins and payment cards the user saved in the vault for you, and your spending budget. You never see the secrets themselves: vault_fill types them for you.",
     input: z.object({}),
     helpers: "allowed",
-    handle: async ({ session }, deps) => text(await deps.vault.describe(session.bot.id)),
+    handle: async ({ session }, deps) => text(await deps.vault.describe(session.teammate.id)),
   }),
   defineTool({
     name: "vault_fill",

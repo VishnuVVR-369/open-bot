@@ -15,19 +15,21 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
       service.create({ name: "Ada", role: "researcher" }),
     ]);
     const rows = await db.select().from(dbTables.teammates);
-    expect(rows.map((bot) => bot.slug).sort()).toEqual(["ada", "ada-2"]);
-    expect(rows.filter((bot) => bot.isLead)).toHaveLength(1);
+    expect(rows.map((teammate) => teammate.slug).sort()).toEqual(["ada", "ada-2"]);
+    expect(rows.filter((teammate) => teammate.isLead)).toHaveLength(1);
     expect(await db.select().from(chats)).toHaveLength(2);
-    expect(created.every((bot) => bot.chatPath === `/chats/${bot.chatId}`)).toBe(true);
+    expect(created.every((teammate) => teammate.chatPath === `/chats/${teammate.chatId}`)).toBe(
+      true,
+    );
     expect(sync).toHaveBeenCalledTimes(2);
   });
 
   it("discovers templates and installs only selected starter automations plus template skills", async () => {
     const { session } = await fixture();
-    const listed = await call(session, "list_bot_templates");
+    const listed = await call(session, "list_teammate_templates");
     expect(listed.json()).toHaveLength(TEAMMATE_TEMPLATES.length);
     const template = TEAMMATE_TEMPLATES.find((entry) => entry.skills?.length)!;
-    const created = await call(session, "create_bot", {
+    const created = await call(session, "create_teammate", {
       name: "Scout",
       template_id: template.id,
       starter_ids: [template.starters[0]!.id],
@@ -41,13 +43,13 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
       template.skills!.length,
     );
     expect((await service.get(id)).autonomy).toBe("risky");
-    const all = await call(session, "list_bots");
+    const all = await call(session, "list_teammates");
     expect(all.json()).toHaveLength(2);
   });
 
   it("creates a teammate with its own skills and schedules in one approval", async () => {
     const { session } = await fixture("risky");
-    const created = await call(session, "create_bot", {
+    const created = await call(session, "create_teammate", {
       name: "Rex",
       role: "market researcher",
       instructions: "Track competitors and brief me weekly.",
@@ -73,7 +75,7 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
       .from(scheduleRows)
       .where(eq(scheduleRows.teammateId, result.teammateId));
     expect(rows.map((row) => row.timezone)).toEqual(["Asia/Kolkata", "Asia/Kolkata"]);
-    expect((await call(session, "list_bots")).json()[1]).toMatchObject({
+    expect((await call(session, "list_teammates")).json()[1]).toMatchObject({
       name: "Rex",
       chatPath: result.chatPath,
     });
@@ -81,7 +83,7 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
 
   it("refuses an invalid schedule before asking the user anything", async () => {
     const { session } = await fixture("risky");
-    const result = await call(session, "create_bot", {
+    const result = await call(session, "create_teammate", {
       name: "Rex",
       role: "researcher",
       schedules: [{ title: "Broken", prompt: "Never", cron: "every monday" }],
@@ -96,7 +98,7 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
     const { session } = await fixture("risky");
     const target = await service.create({ name: "Iris", role: "researcher" });
     await call(session, "schedule_task", {
-      bot_id: target.teammateId,
+      teammate_id: target.teammateId,
       title: "Morning brief",
       prompt: "Brief me",
       cron: "0 8 * * *",
@@ -109,7 +111,7 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
       }),
     );
     const [schedule] = await db.select().from(scheduleRows);
-    await call(session, "cancel_automation", { bot_id: target.teammateId, id: schedule!.id });
+    await call(session, "cancel_automation", { teammate_id: target.teammateId, id: schedule!.id });
     expect(requestAction).toHaveBeenLastCalledWith(
       session,
       expect.objectContaining({ title: 'Delete "Morning brief" for Iris' }),
@@ -138,7 +140,7 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
     expect(chat!.title).toBe(saved.name);
   });
 
-  it("reports a saved bot when the computer is offline, without creating a duplicate", async () => {
+  it("reports a saved teammate when the computer is offline, without creating a duplicate", async () => {
     sync.mockRejectedValueOnce(new Error("Offline"));
     const created = await service.create({ name: "Ada", role: "researcher" });
     expect(created.workspaceSynced).toBe(false);

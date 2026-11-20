@@ -7,7 +7,7 @@ export interface RunInput {
   /** Stable id for durable continuation delivery. */
   id?: string;
   chatId: string;
-  botId: string;
+  teammateId: string;
   trigger: RunTrigger;
   /** Explicit lane, or inherit a continuation of the same teammate in the same chat. */
   lane?: RunLane;
@@ -30,9 +30,7 @@ export interface RunInput {
 function laneOf(input: RunInput) {
   if (input.lane) return input.lane;
   if (!input.parentRunId) return "chat";
-  const teammate = runs.teammateId;
-  const teammateId = input.botId; // vocabulary: allow
-  return sql<RunLane>`coalesce((select ${runs.lane} from ${runs} where ${runs.id} = ${input.parentRunId} and ${runs.chatId} = ${input.chatId} and ${teammate} = ${teammateId}), 'chat')`;
+  return sql<RunLane>`coalesce((select ${runs.lane} from ${runs} where ${runs.id} = ${input.parentRunId} and ${runs.chatId} = ${input.chatId} and ${runs.teammateId} = ${input.teammateId}), 'chat')`;
 }
 
 /**
@@ -45,7 +43,7 @@ export async function insertRun(db: Queryable, input: RunInput): Promise<string>
     .values({
       ...(input.id ? { id: input.id } : {}),
       chatId: input.chatId,
-      teammateId: input.botId,
+      teammateId: input.teammateId,
       trigger: input.trigger,
       lane: laneOf(input),
       prompt: input.prompt,

@@ -2,22 +2,22 @@
 // automations). It lives here, not in a feature, so those features don't import each other for it.
 import { z } from "zod";
 import type { RunSession } from "../runs/session";
-import type { Bot as Teammate } from "./db-types"; // vocabulary: allow
+import type { Teammate } from "./db-types";
 
 const TARGET_DESCRIPTION =
-  "A teammate's id from list_bots. Where optional, leave it out for yourself. Changing another teammate's setup may ask the user first."; // vocabulary: allow
+  "A teammate's id from list_teammates. Where optional, leave it out for yourself. Changing another teammate's setup may ask the user first.";
 
 /** The target argument: a teammate's id, required. */
 export const targetTeammate = z
   .string()
-  .uuid("Use a teammate id from list_bots.") // vocabulary: allow
+  .uuid("Use a teammate id from list_teammates.")
   .describe(TARGET_DESCRIPTION);
 
 /** The target argument where it may be left out for the caller. */
 export const optionalTarget = targetTeammate.optional();
 
 /** A tool's arguments that name its target teammate. */
-type TargetArgs = { bot_id?: string | undefined }; // vocabulary: allow
+type TargetArgs = { teammate_id?: string | undefined };
 
 /**
  * The approval title when a tool sets up another teammate: `teammate` is their name, and

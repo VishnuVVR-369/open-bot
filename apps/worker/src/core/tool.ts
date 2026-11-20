@@ -42,10 +42,9 @@ export function defineTool<Input extends z.ZodObject, Deps>(
 /**
  * Parses a call's arguments with the tool's input schema, which is the whole contract: a field
  * Codex sends as null is refused like any other wrong type, never read as left out, and an argument
- * the tool doesn't take is refused, never dropped. A dropped target id would make the call act on
- * the caller, so a misspelled or renamed one (such as `teammate_id` from a newer worker's stored
- * approval) must fail instead. An input made with `z.looseObject()` lets other arguments through
- * to a handler that reads them from `raw`.
+ * the tool doesn't take is refused, never dropped. A dropped `teammate_id` would make the call act
+ * on the caller, so an old or misspelled name (`bot_id`) must fail instead. An input made with
+ * `z.looseObject()` lets other arguments through to a handler that reads them from `raw`.
  */
 export function parseArgs(
   tool: Pick<ToolDefinition, "input">,

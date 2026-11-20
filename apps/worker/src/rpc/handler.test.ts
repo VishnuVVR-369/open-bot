@@ -7,7 +7,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import type { Context } from "../context";
 import { createHttpServer, type HttpDeps } from "../http";
 import { MAX_BODY_BYTES } from "./handler";
-import { BotError } from "../features/teammates";
+import { TeammateError } from "../features/teammates";
 import { EmailError } from "../features/email";
 import { ScreenBusy } from "../features/screens";
 import { TriggerError } from "../features/automations";
@@ -51,7 +51,7 @@ describe("worker internal API transport", () => {
     teammates: {
       findTeammate: vi.fn(async (id: string) => ({ id })),
       update: vi.fn(async () => {
-        throw new BotError(409, "This teammate was changed since it was loaded.");
+        throw new TeammateError(409, "This teammate was changed since it was loaded.");
       }),
     },
     egress: { status: OFFLINE_EGRESS_STATUS },

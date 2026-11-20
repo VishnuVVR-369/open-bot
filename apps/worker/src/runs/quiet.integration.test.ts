@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { notifications, runs } from "@open-bot/db"; // vocabulary: allow
+import { notifications, runs } from "@open-bot/db";
 import { describe, expect, it, vi } from "vitest";
 import { rpcEnabled, rpcHarness } from "../testing/rpc";
 import { complete, type FinalizeSession } from "./session/finalize";
@@ -15,7 +15,7 @@ describe.skipIf(!rpcEnabled)("quiet completion with Postgres", () => {
     const schedule = await h.schedules.create({
       teammateId: created.id,
       title: "Check",
-      prompt: "Check", // vocabulary: allow
+      prompt: "Check",
       cron: "0 9 * * *",
       at: null,
       timezone: "UTC",
@@ -35,8 +35,8 @@ describe.skipIf(!rpcEnabled)("quiet completion with Postgres", () => {
     const session = {
       ctx: { ...h.ctx, computer: { releaseRun: async () => {} } },
       run: row!,
-      bot: { id: created.id, name: "Scout" }, // vocabulary: allow
-      chat: { id: created.chatId }, // vocabulary: allow
+      teammate: { id: created.id, name: "Scout" },
+      chat: { id: created.chatId },
       finish: null,
       cancelled: false,
       items: new Map([

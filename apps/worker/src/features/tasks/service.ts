@@ -57,14 +57,14 @@ export class TaskService {
     return (row?.value ?? 0) + 1;
   }
 
-  private async checkOwner(ownerBotId: string | null): Promise<string | null> {
-    if (!ownerBotId) return null;
-    const [bot] = await this.ctx.db
+  private async checkOwner(ownerTeammateId: string | null): Promise<string | null> {
+    if (!ownerTeammateId) return null;
+    const [teammate] = await this.ctx.db
       .select({ id: teammates.id })
       .from(teammates)
-      .where(and(eq(teammates.id, ownerBotId), isNull(teammates.archivedAt)));
-    if (!bot) throw new TaskError("That teammate isn't on the team anymore.");
-    return bot.id;
+      .where(and(eq(teammates.id, ownerTeammateId), isNull(teammates.archivedAt)));
+    if (!teammate) throw new TaskError("That teammate isn't on the team anymore.");
+    return teammate.id;
   }
 
   async create(input: {
@@ -73,7 +73,7 @@ export class TaskService {
     ownerTeammateId?: string | null;
     dueOn?: string | null;
     createdBy: Creator;
-    createdByBotId?: string | null;
+    createdByTeammateId?: string | null;
   }): Promise<Task> {
     const [row] = await this.ctx.db
       .insert(tasks)
@@ -84,7 +84,7 @@ export class TaskService {
         dueOn: checkDue(input.dueOn ?? null),
         position: await this.endOf("todo"),
         createdBy: input.createdBy,
-        createdByTeammateId: input.createdByBotId ?? null,
+        createdByTeammateId: input.createdByTeammateId ?? null,
       })
       .returning();
     await publishApp(this.ctx, { type: "tasks" });
@@ -130,16 +130,16 @@ export class TaskService {
    * Asks the task's owner to work on it, in their main chat, and moves it to Doing. The run
    * carries the task's id, so the owner can mark it done.
    */
-  async start(id: string, by: { botName: string; runId: string } | null): Promise<Task> {
+  async start(id: string, by: { teammateName: string; runId: string } | null): Promise<Task> {
     const task = await this.get(id);
     if (!task) throw new TaskError("That task no longer exists.");
     if (!task.ownerTeammateId) throw new TaskError("Give the task to a teammate first.");
     if (task.status === "done") throw new TaskError("That task is already done.");
     const chatId = await mainChat(this.ctx, task.ownerTeammateId);
-    const from = by ? `${by.botName} asked you` : "The user asked you";
+    const from = by ? `${by.teammateName} asked you` : "The user asked you";
     await enqueueRun(this.ctx, {
       chatId,
-      botId: task.ownerTeammateId,
+      teammateId: task.ownerTeammateId,
       trigger: "task",
       prompt: [
         `[${from} to work on a task from the team's board (task id ${task.id}). When it's finished, mark it done with update_task, and say what you did.]`,
@@ -164,8 +164,8 @@ export class TaskService {
     return row!;
   }
 
-  /** The open tasks and the recently finished ones, as a bot reads them. */
-  async describe(forBotId: string): Promise<string> {
+  /** The open tasks and the recently finished ones, as a teammate reads them. */
+  async describe(forTeammateId: string): Promise<string> {
     const rows = await this.ctx.db
       .select({ task: tasks, owner: teammates.name })
       .from(tasks)
@@ -181,7 +181,7 @@ export class TaskService {
       .limit(10);
     const line = ({ task, owner }: { task: Task; owner: string | null }) =>
       `- [${task.status}] ${task.title} (id ${task.id}; ${
-        task.ownerTeammateId === forBotId ? "yours" : owner ? `owner ${owner}` : "no owner"
+        task.ownerTeammateId === forTeammateId ? "yours" : owner ? `owner ${owner}` : "no owner"
       }${task.dueOn ? `; due ${task.dueOn}` : ""})${task.notes ? `\n  ${task.notes.replace(/\n/g, "\n  ")}` : ""}`;
     if (rows.length === 0 && done.length === 0) return "The board is empty.";
     return [

@@ -41,7 +41,7 @@ function session(autonomy: Autonomy, decision: ApprovalDecision | "pending" = "a
   const requestActionApproval = vi.fn(async () => decision);
   const requestNativeApproval = vi.fn(async () => true);
   const s: Session = {
-    bot: { autonomy }, // vocabulary: allow
+    teammate: { autonomy },
     items: new Map([[RUNNING_CALL.id, RUNNING_CALL]]),
     services: {
       tools: { handle: vi.fn() },

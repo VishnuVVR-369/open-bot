@@ -1,13 +1,13 @@
 import { randomUUID } from "node:crypto";
-import type { CodexClient } from "@open-bot/agent"; // vocabulary: allow
+import type { CodexClient } from "@open-bot/agent";
 import {
   teammates,
   teammateThreads as conversationThreads,
   chatLaneThreads,
   chats,
   runs,
-} from "@open-bot/db"; // vocabulary: allow
-import { testDatabase, testDatabaseServer } from "@open-bot/db/testing"; // vocabulary: allow
+} from "@open-bot/db";
+import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Context } from "../context";
@@ -36,7 +36,7 @@ describe.skipIf(!url)("lane threads with Postgres", () => {
         kind: "direct",
         title: "Scout",
         teammateId: teammate!.id,
-        main: true, // vocabulary: allow
+        main: true,
       })
       .returning();
     const loaded = new Set<string>();
@@ -53,9 +53,9 @@ describe.skipIf(!url)("lane threads with Postgres", () => {
     const client = { request } as unknown as CodexClient;
     const base = {
       ctx,
-      bot: teammate!, // vocabulary: allow
+      teammate: teammate!,
       authMode: "plan",
-      apiKey: null, // vocabulary: allow
+      apiKey: null,
       agentsFile: "# Scout",
       memoryGeneration: "1:0:0",
       workspace: "/tmp/scout",
@@ -69,7 +69,7 @@ describe.skipIf(!url)("lane threads with Postgres", () => {
           teammateId: teammate!.id,
           trigger: "user",
           prompt: "Go",
-          lane, // vocabulary: allow
+          lane,
         })
         .returning();
       return { ...base, run: run! };

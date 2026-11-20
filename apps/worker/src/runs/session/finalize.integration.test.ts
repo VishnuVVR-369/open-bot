@@ -53,7 +53,7 @@ describe.skipIf(!url)("finishing a run", () => {
     const session: FinalizeSession = {
       ctx,
       run: run!,
-      bot: teammate!, // vocabulary: allow
+      teammate: teammate!,
       chat: chat!,
       finish: null,
       items: new Map(),

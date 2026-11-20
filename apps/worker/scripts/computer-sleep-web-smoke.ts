@@ -19,7 +19,7 @@ const response = await fetch(workerUrl + "/internal/teammates", {
   body: JSON.stringify({ name: "Web sleep fixture", role: "Lifecycle web verification" }),
 });
 assert(response.ok);
-const { teammateId: botId } = (await response.json()) as { teammateId: string };
+const { teammateId } = (await response.json()) as { teammateId: string };
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
 const page = await context.newPage();
@@ -47,7 +47,7 @@ try {
   await page.getByLabel("Password").fill(randomBytes(24).toString("base64url"));
   await page.getByRole("button", { name: "Create account", exact: true }).click();
   await expect(page).toHaveURL(appUrl + "/");
-  await page.goto(appUrl + "/computer?screen=" + botId);
+  await page.goto(appUrl + "/computer?screen=" + teammateId);
   await expect(page.getByText("Computer idle", { exact: true })).toBeVisible({ timeout: 15000 });
   const idleState = await api.app.state();
   assert.equal(idleState.computer.lifecycle?.phase, "idle");
@@ -59,7 +59,7 @@ try {
   await expect(page.getByText("Computer idle", { exact: true })).toBeVisible({ timeout: 30000 });
   await expect(page.getByTestId("computer-screen").locator("canvas")).toHaveCount(0);
   const screens = await api.screens.list();
-  const screen = screens.find((s) => s.id === botId);
+  const screen = screens.find((s) => s.id === teammateId);
   assert.equal(screen?.lifecycle?.phase, "idle");
   assert.equal(screen?.running, false);
   assert.equal(screen?.online, true, "mobile contract offers an explicit wake while idle");

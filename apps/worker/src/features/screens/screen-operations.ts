@@ -165,7 +165,7 @@ export class ScreenOperationService {
               "The computer refused it, so nothing was typed. If it is being updated, send it again in a few minutes.",
             );
           // botd may hold the screen for you now. Record the takeover so handing back reaches
-          // the bot; if you don't hold it, the reconciler ends it.
+          // the teammate; if you don't hold it, the reconciler ends it.
           await this.takeovers.recordTake(screenId, previous);
           return this.set(
             input.operationId,

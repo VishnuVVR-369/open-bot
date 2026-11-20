@@ -10,7 +10,7 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
     const { session } = await fixture("full");
     await db.insert(approvalRows).values({
       runId: session.run.id,
-      teammateId: session.bot.id,
+      teammateId: session.teammate.id,
       chatId: session.chat.id,
       kind: "action",
       title: "Delete /tmp/old.txt",

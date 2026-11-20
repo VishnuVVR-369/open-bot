@@ -15,7 +15,7 @@ export async function answerBack(
 ): Promise<void> {
   if (!question.parentRunId) return;
   const [asker] = await ctx.db
-    .select({ chatId: runs.chatId, botId: runs.teammateId, lane: runs.lane })
+    .select({ chatId: runs.chatId, teammateId: runs.teammateId, lane: runs.lane })
     .from(runs)
     .innerJoin(teammates, eq(teammates.id, runs.teammateId))
     .where(and(eq(runs.id, question.parentRunId), isNull(teammates.archivedAt)));
@@ -29,7 +29,7 @@ export async function answerBack(
         : `[The user stopped ${name} before they answered. Carry on without it, or ask the user.]`;
   await enqueueRun(ctx, {
     chatId: asker.chatId,
-    botId: asker.botId,
+    teammateId: asker.teammateId,
     trigger: "answer",
     lane: asker.lane,
     prompt: answer,

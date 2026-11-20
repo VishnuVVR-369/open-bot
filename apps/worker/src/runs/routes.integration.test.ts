@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { memoryItems, messages, runs } from "@open-bot/db"; // vocabulary: allow
+import { memoryItems, messages, runs } from "@open-bot/db";
 import { and, eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { REUSED_ID } from "../features/chat";
@@ -35,7 +35,7 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
       chatId: created.chatId,
       teammateId: created.id,
       trigger: "user",
-      prompt: "Hi", // vocabulary: allow
+      prompt: "Hi",
       lane: "chat",
       status: "completed",
     });
@@ -78,7 +78,7 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
         message: "That chat no longer exists.",
       });
       const attachment = {
-        path: "/home/bot/uploads/never/notes.txt", // vocabulary: allow
+        path: "/home/bot/uploads/never/notes.txt",
         name: "notes.txt",
         mime: "text/plain",
         size: 3,
