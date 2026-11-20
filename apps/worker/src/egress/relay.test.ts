@@ -536,7 +536,8 @@ describe("egress relay", () => {
     const raw = env.rawAgent({ kind: "desktop", id: "desktop", name: "Desktop app" });
     await until(() => env.relay.status.agentOnline, "the legacy agent");
     expect(env.relay.status.agents).toMatchObject([{ id: "desktop", role: "active" }]);
-    expect(raw.texts.some((m) => m.type === "role")).toBe(true);
+    // The relay counts the agent online when it sends the role; the agent reads it a moment later.
+    await until(() => raw.texts.some((m) => m.type === "role"), "the role message");
   });
 
   it("terminates an agent that stops answering pings", async () => {
