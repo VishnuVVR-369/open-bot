@@ -250,7 +250,7 @@ describe("stopping a screen to make room", () => {
         pages: {} as PageChecker,
       }),
     );
-    const ann = { botId: A, botName: "Ann" }; // The wire's field names. vocabulary: allow
+    const ann = { teammateId: A, teammateName: "Ann" };
     const first = { runId: "first", ...ann },
       second = { runId: "second", ...ann };
     const a = await manager.ensure(A);
