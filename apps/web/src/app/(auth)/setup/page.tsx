@@ -1,13 +1,16 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getSession, ownerExists } from "@/lib/server/session";
+import { NEXT_PARAM, safeNext, signInPath } from "@/lib/sign-in-return";
 import { AuthForm } from "../auth-form";
 
 export const metadata: Metadata = { title: "Set up" };
 
-export default async function SetupPage() {
-  if (await getSession()) redirect("/");
-  if (await ownerExists()) redirect("/login");
+export default async function SetupPage({ searchParams }: PageProps<"/setup">) {
+  const value = (await searchParams)[NEXT_PARAM];
+  const next = safeNext(typeof value === "string" ? value : null);
+  if (await getSession()) redirect(next);
+  if (await ownerExists()) redirect(signInPath(next));
   return (
     <>
       <div className="flex flex-col gap-2">
@@ -17,7 +20,7 @@ export default async function SetupPage() {
           <code className="font-mono text-[13px]">OWNER_EMAIL</code> can sign up, and only once.
         </p>
       </div>
-      <AuthForm mode="setup" />
+      <AuthForm mode="setup" next={next} />
     </>
   );
 }

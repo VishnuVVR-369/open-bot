@@ -8,6 +8,7 @@ import {
 } from "@open-bot/api";
 import { type Result } from "@/lib/client/mutate";
 import { api } from "@/lib/client/rpc";
+import { goToSignIn } from "@/lib/client/sign-in";
 
 /** What the upload says about a file the browser picked or pasted (a paste has no name). */
 export function describeFile(file: File): UploadFile {
@@ -61,7 +62,7 @@ export async function uploadAttachment(
     case "complete":
       return { ok: true, data: answer.attachment };
     case "signedOut":
-      window.location.assign("/login");
+      goToSignIn();
       return { ok: false, error: "Sign in first." };
     default:
       return { ok: false, error: answer.message };

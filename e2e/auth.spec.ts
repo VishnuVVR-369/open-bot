@@ -1,4 +1,13 @@
-import { expect, test } from "./fixtures";
+import { expect, test, type Page } from "./fixtures";
+import { owner } from "./helpers";
+
+/** Signs in on the sign-in page with the owner's password. */
+async function signIn(page: Page) {
+  await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
+  await page.getByLabel("Email").fill(owner.email);
+  await page.getByLabel("Password", { exact: true }).fill(owner.password);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+}
 
 test.describe("sign-in", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
@@ -8,6 +17,39 @@ test.describe("sign-in", () => {
     await expect(page).toHaveURL(/\/login/);
     await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
   });
+
+  test("returns to the page you asked for after signing in", async ({ page }) => {
+    await page.goto("/automations?from=e2e");
+    await expect(page).toHaveURL(/\/login/);
+    await signIn(page);
+    await page.waitForURL((url) => url.pathname === "/automations");
+    expect(new URL(page.url()).search).toBe("?from=e2e");
+  });
+
+  test("returns to the page you asked for when the session has ended", async ({ page }) => {
+    // A cookie whose session is gone (expired, or signed out elsewhere) gets past the cookie check,
+    // and the page itself sends you to sign in.
+    const base = new URL(test.info().project.use.baseURL!);
+    await page
+      .context()
+      .addCookies([
+        { name: "better-auth.session_token", value: "ended", domain: base.hostname, path: "/" },
+      ]);
+    await page.goto("/settings?from=e2e");
+    await expect(page).toHaveURL(/\/login/);
+    await signIn(page);
+    await page.waitForURL((url) => url.pathname === "/settings");
+    expect(new URL(page.url()).search).toBe("?from=e2e");
+  });
+
+  // `/.//example.com/` normalizes to `//example.com/`, another host, after passing a naive check.
+  for (const next of ["//example.com/", "/.//example.com/"])
+    test(`goes home instead of to another site (${next})`, async ({ page }) => {
+      await page.goto(`/login?${new URLSearchParams({ next })}`);
+      await signIn(page);
+      await page.waitForURL((url) => url.pathname === "/");
+      expect(new URL(page.url()).origin).toBe(new URL(test.info().project.use.baseURL!).origin);
+    });
 
   test("rejects a wrong password", async ({ page }) => {
     await page.goto("/login");

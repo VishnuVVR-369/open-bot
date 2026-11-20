@@ -20,7 +20,11 @@ import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 import { PASSWORD_MIN_LENGTH } from "@open-bot/domain";
 
-/** Where a passkey sign-in from "Forgot password?" lands: the form for a new password. */
+/**
+ * Where a passkey sign-in from "Forgot password?" lands: the form for a new password, instead of
+ * the page you asked for. Choosing a new password is why you signed in that way, and the passkey
+ * allows it for only 10 minutes; the page you asked for is a link away once you're signed in.
+ */
 const SET_PASSWORD = "/settings#set-password";
 
 /**
@@ -86,7 +90,8 @@ function ForgotPassword({
   );
 }
 
-export function AuthForm({ mode }: { mode: "login" | "setup" }) {
+/** `next` is where a sign-in lands: the page you asked for, already checked by `safeNext()`. */
+export function AuthForm({ mode, next }: { mode: "login" | "setup"; next: string }) {
   const router = useRouter();
   const [pending, setPending] = useState<"password" | "passkey" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -110,12 +115,12 @@ export function AuthForm({ mode }: { mode: "login" | "setup" }) {
       setPending(null);
       return;
     }
-    router.replace("/");
+    router.replace(next);
     router.refresh();
   }
 
-  /** Signs in with a passkey, then goes home, or to setting a new password. */
-  async function onPasskey(next = "/") {
+  /** Signs in with a passkey, then goes to `to`: the page you asked for, or setting a new password. */
+  async function onPasskey(to = next) {
     setPending("passkey");
     setError(null);
     const result = await authClient.signIn.passkey();
@@ -124,7 +129,7 @@ export function AuthForm({ mode }: { mode: "login" | "setup" }) {
       setPending(null);
       return;
     }
-    router.replace(next);
+    router.replace(to);
     router.refresh();
   }
 
