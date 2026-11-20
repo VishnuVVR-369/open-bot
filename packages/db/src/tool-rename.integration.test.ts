@@ -172,6 +172,18 @@ describe.skipIf(!server)("migration 0042: approvals for renamed tools", () => {
         arguments: { name: "No", role: "researcher" },
       }),
     );
+    // A connection's tool takes its own arguments: a bot_id there is that service's, not ours.
+    const mcpCall = (status: "pending" | "approved", chat: string) =>
+      save(
+        `mcp-${status}`,
+        status,
+        asked({
+          tool: "mcp:telegram.get_chat",
+          arguments: { bot_id: "external-bot-123", chat_id: chat }, // vocabulary: allow
+        }),
+      );
+    await mcpCall("pending", "1");
+    await mcpCall("approved", "2");
     await save("command", "pending", { subject: "ls -la" }, "command");
     await save(
       "unrelated",
@@ -270,6 +282,22 @@ describe.skipIf(!server)("migration 0042: approvals for renamed tools", () => {
       operation: unrelated,
       operationKey: configurationRevision(unrelated),
     });
+  });
+
+  it("leaves a connection's tool calls as they were, bot_id and all", async () => {
+    for (const [status, chat] of [
+      ["pending", "1"],
+      ["approved", "2"],
+    ] as const) {
+      const call = {
+        tool: "mcp:telegram.get_chat",
+        arguments: { bot_id: "external-bot-123", chat_id: chat }, // vocabulary: allow
+      };
+      expect(await payload(`mcp-${status}`)).toEqual({
+        operation: call,
+        operationKey: configurationRevision(call),
+      });
+    }
   });
 
   it("changes nothing when it runs again", async () => {

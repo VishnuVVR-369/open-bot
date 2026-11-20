@@ -4,7 +4,8 @@
 -- configurationRevision() (packages/db/src/configuration.ts) does: sha256 of JSON with sorted keys.
 -- This rewrites those calls to the new names and hashes them again, so the follow-up run asks for the
 -- renamed call and its repeat matches the approval. Approvals already used or decided against are
--- history and stay as they are. Running it again changes nothing.
+-- history and stay as they are, and so do calls to a connection's tools, whose arguments aren't
+-- ours to rename. Running it again changes nothing.
 CREATE FUNCTION pg_temp.canonical_json(value jsonb) RETURNS text
 LANGUAGE plpgsql IMMUTABLE AS $$
 BEGIN
@@ -50,6 +51,8 @@ WITH renamed AS (
     AND status IN ('pending', 'approved')
     AND coalesce(payload ->> 'consumed', 'false') = 'false'
     AND jsonb_typeof(payload #> '{operation,arguments}') = 'object'
+    -- A connection's tool (`mcp:server.tool`) is someone else's API: its bot_id stays bot_id.
+    AND payload #>> '{operation,tool}' NOT LIKE 'mcp:%'
     AND (
       payload #>> '{operation,tool}' IN ('create_bot', 'update_bot', 'set_bot_connection')
       OR (payload #> '{operation,arguments}') ? 'bot_id'
