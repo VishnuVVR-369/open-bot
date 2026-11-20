@@ -72,7 +72,7 @@ The header of `scripts/check/vocabulary.mjs` explains `--show <file>`, `--allow-
 | stand-in        | A test double for an outside service                                                 | mock, fake, fixture                                                                     |
 
 The guard checks code files for bot, primary (meaning the lead), desktop takeover, and `e2e/` files named mock or fake; the other terms are kept by review.
-The renames are done, the database included (migration `0035_rename_vocabulary`): `bots` and `bot_id` became `teammates` and `teammate_id`, `is_primary` became `is_lead`, `desktop_takeovers` became `screen_takeovers`, and the integrations `accounts` table became `account_connections`.
+The renames are done, the database included (migration `0043_rename_vocabulary`): `bots` and `bot_id` became `teammates` and `teammate_id`, `is_primary` became `is_lead`, `desktop_takeovers` became `screen_takeovers`, and the integrations `accounts` table became `account_connections`.
 Renamed web routes keep redirects for bookmarks and phone deep links.
 The teammates' folders on the computer stay at `/home/bot/bots/<slug>`: their absolute paths are written into Codex threads, memory, messages, published pages, and files teammates made (scripts, virtual environments, git worktrees), so moving them would break those.
 A later rename of anything stored uses `ALTER TABLE ... RENAME` and rewrites stored values in the same migration, with a plan for the window between migration and deploy.

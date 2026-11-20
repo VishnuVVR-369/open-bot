@@ -66,14 +66,14 @@ Lanes are `chat`, `schedule:<id>`, `trigger:<id>`, and `inbox`.
 Only runs in the same lane wait for one another. Your messages steer only the conversation lane.
 Each table records the same thread metadata:
 
-| Column              | Meaning                                                                     |
-| ------------------- | --------------------------------------------------------------------------- |
+| Column                   | Meaning                                                                     |
+| ------------------------ | --------------------------------------------------------------------------- |
 | `chat_id`, `teammate_id` | The pair the thread belongs to (unique)                                     |
-| `codex_thread_id`   | Codex's id for the thread                                                   |
-| `tools_revision`    | A hash of the tools and developer instructions it started with              |
-| `memory_generation` | The teammate's memory generation when the thread was made                   |
-| `auth_mode`         | `plan` or `api_key`: the model provider it was created with                 |
-| `configuration_key` | A hash of the MCP servers, the `AGENTS.md` and the model route it was given |
+| `codex_thread_id`        | Codex's id for the thread                                                   |
+| `tools_revision`         | A hash of the tools and developer instructions it started with              |
+| `memory_generation`      | The teammate's memory generation when the thread was made                   |
+| `auth_mode`              | `plan` or `api_key`: the model provider it was created with                 |
+| `configuration_key`      | A hash of the MCP servers, the `AGENTS.md` and the model route it was given |
 
 A thread is started with:
 
