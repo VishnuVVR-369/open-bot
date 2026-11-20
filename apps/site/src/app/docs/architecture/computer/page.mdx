@@ -133,9 +133,13 @@ Its id is the teammate's id, or a swarm task's id for a helper.
 
 - **Start.** `ScreenManager.ensure(id)` starts a screen the first time its teammate acts on the desktop, or when you take it over or wake it from the app. Watching never starts a screen, so an open tab doesn't keep one running. Concurrent starts of the same screen share one promise.
 - **Slots.** A screen takes the lowest free slot (0 to 31), which fixes its display number and VNC ports.
-- **Making room.** At most `MAX_SCREENS` run at once (default 4, or 2 when `COMPUTER_LIFECYCLE_ENABLED` lets the computer sleep). Starting another stops idle screens first: those nobody holds, preferring ones nobody watches, then the least recently used. A screen a run or you hold is never stopped.
+- **Making room.** At most `MAX_SCREENS` run at once (default 4, or 2 when `COMPUTER_LIFECYCLE_ENABLED` lets the computer sleep). Starting another stops idle screens first: those nobody holds and with no download in progress, preferring ones nobody watches, then the least recently used. A screen a run or you hold is never stopped. A start waits for a slot (up to 2 minutes) only when no running screen is idle, and goes ahead as soon as one becomes idle: a lease handed back, a claim ended, a download finished, or another screen finished starting (a screen nobody has claimed is idle once it runs).
+  A screen someone is about to use is not idle either: a run claims its screen from before it starts until the run holds its lease, even while it waits for another run to release it, and taking over claims it until you hold it.
 - **Idle stop.** A screen nobody has used for `SCREEN_IDLE_MINUTES` stops (default 20, or 3 when the computer may sleep).
 - **Stop.** The browser stops first, so it saves its tabs. Then everything that draws on the display.
+  Cookies are saved before anything stops: if that fails, or a download starts meanwhile, the screen keeps running. A start that needs room tries it again only once something may have made it stoppable (its download ended, its lease or claim was let go), so a stop that keeps failing isn't retried in a loop; otherwise the next start or the idle sweep tries again.
+  Once the processes begin to stop, the stop runs to the end; a browser that hasn't exited 10 seconds after closing is terminated.
+  Only a process that outlives `SIGKILL` keeps a stopping screen, and its slot, until the next start that needs room retries the stop.
 - **Forget.** Removing a teammate stops its screen and deletes its profile directory.
 
 Because the profile lives on the `/home` volume, a screen's tabs and history come back the next time it starts.

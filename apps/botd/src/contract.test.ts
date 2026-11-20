@@ -8,7 +8,8 @@ import type { EgressRouter } from "@open-bot/egress/router";
 import { DesktopLease } from "./lease";
 import { ComputeLifecycle } from "./lifecycle";
 import type { PageChecker } from "./pages";
-import type { Screen, ScreenManager } from "./screens";
+import type { ScreenManager } from "./screen-manager";
+import type { Screen } from "./screens";
 import { createServer } from "./server";
 
 // botd's HTTP API driven the way the worker drives it: through `createBotdClient`, which checks
@@ -70,6 +71,7 @@ async function start(
       return screen;
     }),
     forget: vi.fn(async (id: string) => void running.delete(id)),
+    claim: <T>(_id: string, use: () => Promise<T>) => use(),
     touch: () => {},
     releaseRun: vi.fn(() => false),
     codeAvailable: () => options.codeAvailable ?? true,
