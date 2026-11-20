@@ -68,7 +68,7 @@ function anyRequest(condition: SQL): SQL {
  */
 export function runFiltersSql(filters: Omit<ModelLogRunFilters, "q">): SQL {
   const parts: SQL[] = [sql`true`];
-  if (filters.teammateId) parts.push(sql`r.bot_id = ${filters.teammateId}::uuid`); // vocabulary: allow
+  if (filters.teammateId) parts.push(sql`r.teammate_id = ${filters.teammateId}::uuid`);
   if (filters.chatId) parts.push(sql`r.chat_id = ${filters.chatId}::uuid`);
   if (filters.from) parts.push(sql`r.created_at >= ${filters.from}::timestamptz`);
   if (filters.to) parts.push(sql`r.created_at < ${filters.to}::timestamptz`);
@@ -97,9 +97,9 @@ export const runSearchTerms = (filters: Pick<ModelLogRunFilters, "q">) => search
 export async function listFilterOptions(): Promise<ModelLogFilterOptions> {
   const [teammates, chats, models] = await Promise.all([
     db.execute<{ id: string; name: string }>(sql`
-      select t.id, t.name from bots t -- vocabulary: allow
+      select t.id, t.name from teammates t
       where exists (select 1 from runs r join run_turns rt on rt.run_id = r.id
-        where r.bot_id = t.id) -- vocabulary: allow
+        where r.teammate_id = t.id)
       order by lower(t.name)`),
     db.execute<{ id: string; title: string }>(sql`
       select c.id, c.title from chats c

@@ -479,10 +479,9 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
   it("duplicates all notes, in batches and beyond the UI page size, without copying shared memory", async () => {
     // Inserted directly: a thousand saves would make this test about saving. More than two of
     // copy's batches, and far more than the UI's page.
-    const owner = "bot_id"; // vocabulary: allow (the column keeps its name until it is renamed)
     const contents = Array.from({ length: 1050 }, (_, index) => `Copy note number ${index}`);
     await pool.query(
-      `insert into memory_items(${owner},content,fingerprint) select $1,content,fingerprint from unnest($2::text[],$3::text[]) as t(content,fingerprint)`,
+      `insert into memory_items(teammate_id,content,fingerprint) select $1,content,fingerprint from unnest($2::text[],$3::text[]) as t(content,fingerprint)`,
       [teammate, contents, contents.map(fingerprint)],
     );
     await memory.save(input("A shared fact", null), user);
@@ -493,9 +492,9 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
         await pool.query<{ notes: number; imported: number; revisions: number; jobs: number }>(
           `select count(*)::int as notes,
                   count(*) filter (where i.source->>'type' = 'import')::int as imported,
-                  (select count(*)::int from memory_revisions r join memory_items m on m.id = r.memory_id where m.${owner} = $1) as revisions,
-                  (select count(*)::int from memory_jobs j join memory_items m on m.id = j.memory_id where m.${owner} = $1 and j.kind = 'embed') as jobs
-             from memory_items i where i.${owner} = $1`,
+                  (select count(*)::int from memory_revisions r join memory_items m on m.id = r.memory_id where m.teammate_id = $1) as revisions,
+                  (select count(*)::int from memory_jobs j join memory_items m on m.id = j.memory_id where m.teammate_id = $1 and j.kind = 'embed') as jobs
+             from memory_items i where i.teammate_id = $1`,
           [peer],
         )
       ).rows[0];

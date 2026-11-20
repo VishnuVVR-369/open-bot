@@ -223,7 +223,7 @@ describe.skipIf(!url)("Telegram polling with Postgres", () => {
   });
   beforeEach(async () => {
     await pool.query(
-      "truncate bots, chats, telegram, telegram_messages, notifications restart identity cascade", // vocabulary: allow
+      "truncate teammates, chats, telegram, telegram_messages, notifications restart identity cascade",
     );
     standIn.reset();
     standIn.getFileFailures.length = 0;
@@ -242,7 +242,7 @@ describe.skipIf(!url)("Telegram polling with Postgres", () => {
   afterEach(async () => {
     for (const service of services.splice(0)) service.stop();
     // Put back what a test renamed, if it failed before doing so itself.
-    await pool.query("alter table if exists bots_gone rename to bots"); // vocabulary: allow
+    await pool.query("alter table if exists teammates_gone rename to teammates");
     await pool.query("alter table if exists dispatches_gone rename to message_dispatches");
     await pool.query("drop trigger if exists refuse_offsets on telegram");
   });
@@ -255,16 +255,16 @@ describe.skipIf(!url)("Telegram polling with Postgres", () => {
 
   it("keeps a message the database can't route yet, then handles it once", async () => {
     // As in a deploy whose migration renamed the teammates' table under the running worker.
-    await pool.query("alter table bots rename to bots_gone"); // vocabulary: allow
+    await pool.query("alter table teammates rename to teammates_gone");
     const service = polling(patient);
     const update = standIn.say("Check the build");
     await until(() => (standIn.deliveries.get(update) ?? 0) >= 3, "the update was retried");
     expect(standIn.acknowledged).toBeLessThan(update);
     expect(await offset()).toBeLessThanOrEqual(update);
     expect(await saved("Check the build")).toHaveLength(0);
-    expect(service.problem).toMatch(/couldn't be handled yet.*relation "bots" does not exist/); // vocabulary: allow
+    expect(service.problem).toMatch(/couldn't be handled yet.*relation "teammates" does not exist/);
 
-    await pool.query("alter table bots_gone rename to bots"); // vocabulary: allow
+    await pool.query("alter table teammates_gone rename to teammates");
     await until(() => standIn.acknowledged >= update, "the update was acknowledged");
     const [message] = await saved("Check the build");
     expect(message).toMatchObject({ via: "telegram" });

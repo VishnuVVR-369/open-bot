@@ -27,7 +27,7 @@ describe.skipIf(!url)("lane news with Postgres", () => {
     await database.create();
   });
   beforeEach(async () => {
-    await pool.query("truncate bots, chats restart identity cascade"); // vocabulary: allow
+    await pool.query("truncate teammates, chats restart identity cascade");
     const [teammate] = await db
       .insert(teammates)
       .values({ name: "Rex", slug: "rex", role: "assistant", color: "#4f46e5" })

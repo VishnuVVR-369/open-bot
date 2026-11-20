@@ -144,7 +144,7 @@ test("rehearsal: the plan hits its limit mid-run and the run finishes on the API
   // never the computer's ChatGPT login. They were on the plan's thread, which the run left for one
   // on the key, so they are found by the run's teammate.
   const planRows = await pool.query<{ status: number; error_type: string }>(
-    `select m.status, m.error_type from model_requests m join runs r on r.bot_id = m.teammate_id -- vocabulary: allow
+    `select m.status, m.error_type from model_requests m join runs r on r.teammate_id = m.teammate_id
      where m.route = 'plan' and r.id = (select id from runs order by created_at desc limit 1)
      order by m.started_at`,
   );
