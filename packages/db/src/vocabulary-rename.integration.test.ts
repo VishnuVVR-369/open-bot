@@ -1,5 +1,6 @@
-// Migration 0035 renames the database to the glossary's words: tables, columns, constraints and
-// indexes, and the values stored under the old words. The database is migrated up to 0034 and
+// Migration 0043 renames the database to the glossary's words: tables, columns, constraints and
+// indexes, the values stored under the old words, and the one function body that read an old
+// column. The database is migrated up to 0042 and
 // filled through raw SQL with the old names, then the real migrator applies the rest, as a deploy
 // does. Every row of every table must come out as the same row with only the renames applied, and
 // running the migration again must change nothing.
@@ -10,7 +11,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { testDatabase, testDatabaseServer } from "./testing";
 
 const MIGRATIONS = fileURLToPath(new URL("../drizzle", import.meta.url));
-const RENAME_TAG = "0035_rename_vocabulary";
+const RENAME_TAG = "0043_rename_vocabulary";
+const BEFORE_TAG = "0042_rename_teammate_tools_in_approvals";
 
 const server = testDatabaseServer();
 const database = testDatabase(server);
@@ -114,6 +116,8 @@ const CLIENT = "00000000-0000-4000-8000-0000000000f1";
 const ACCOUNT = "00000000-0000-4000-8000-0000000000f2";
 const CONNECTION = "00000000-0000-4000-8000-0000000000f3";
 const MEMORY = "00000000-0000-4000-8000-0000000000a1";
+/** A run with usage from before the model logs (migration 0040), which a deletion keeps. */
+const LEGACY_RUN = "00000000-0000-4000-8000-0000000000d2";
 
 /** Every value stored under an old word, and neighbours that look alike but must not change. */
 const SEED = [
@@ -124,6 +128,20 @@ const SEED = [
   `insert into chat_members (chat_id, bot_id) values ('${GROUP}', '${ADA}'), ('${GROUP}', '${REX}')`,
   `insert into bot_threads (chat_id, bot_id, codex_thread_id) values ('${GROUP}', '${ADA}', 'thread-ada')`,
   `insert into runs (id, chat_id, bot_id, trigger, prompt) values ('${RUN}', '${GROUP}', '${ADA}', 'user', 'Ask Rex')`,
+  `insert into runs (id, chat_id, bot_id, trigger, prompt, status, legacy_plan_input_tokens,
+       legacy_plan_cached_input_tokens, legacy_plan_output_tokens, legacy_plan_cost_micros, legacy_usage_at)
+     values ('${LEGACY_RUN}', '${GROUP}', '${REX}', 'user', 'Earlier', 'completed', 1200, 300, 80, 0,
+       '2026-11-02T10:00:00Z')`,
+  // An automation lane's thread, and a logged model request, both naming their teammate.
+  `insert into chat_lane_threads (chat_id, teammate_id, lane, codex_thread_id) values
+     ('${GROUP}', '${ADA}', 'schedule:daily', 'thread-ada-daily')`,
+  `insert into model_requests (id, source, route, transport, method, endpoint, codex_thread_id,
+       codex_turn_id, teammate_id, model, status, started_at, request_headers) values
+     ('00000000-0000-4000-8000-0000000000b1', 'codex', 'plan', 'websocket', 'response.create',
+       '/responses', 'thread-ada', 'turn-1', '${ADA}', 'gpt-6.1-sol', 200, '2026-11-02T10:00:00Z',
+       '{"x-codex-turn-metadata":"{}"}')`,
+  `insert into run_turns (codex_thread_id, codex_turn_id, run_id, access_mode, started_at) values
+     ('thread-ada', 'turn-1', '${RUN}', 'plan', '2026-11-02T10:00:00Z')`,
   // A handoff, another item that only quotes the old keys in its text, and an older handoff saved
   // with only one of them.
   `insert into run_events (run_id, chat_id, payload) values
@@ -176,12 +194,12 @@ const SEED = [
   `insert into memory_contexts (run_id, bot_id, generation) values ('${RUN}', '${ADA}', '7:4:0')`,
 ];
 
-describe.skipIf(!server)("migration 0035: the database in the glossary's words", () => {
+describe.skipIf(!server)("migration 0043: the database in the glossary's words", () => {
   let before: Dump = {};
   let after: Dump = {};
 
   beforeAll(async () => {
-    await database.createBefore(RENAME_TAG);
+    await database.create({ through: BEFORE_TAG });
     for (const statement of SEED) await pool.query(statement);
     before = await dump();
 
@@ -247,5 +265,73 @@ describe.skipIf(!server)("migration 0035: the database in the glossary's words",
     const again = await dump();
     for (const table of Object.keys(after))
       expect(again[table]!.map(canonical), table).toEqual(after[table]!.map(canonical));
+  });
+
+  it("leaves no function, trigger, view or constraint that reads an old name", async () => {
+    // Renaming a column doesn't reach text that names it: a function body is kept as written and
+    // read when it runs. Triggers, views and constraints are kept parsed, so they follow a rename;
+    // they are read back here to make sure.
+    const { rows } = await pool.query<{ what: string; text: string }>(`
+      select 'function ' || p.proname as what, p.prosrc as text from pg_proc p
+        where p.pronamespace = 'public'::regnamespace
+      union all select 'trigger ' || t.tgname, pg_get_triggerdef(t.oid) from pg_trigger t
+        join pg_class c on c.oid = t.tgrelid
+        where c.relnamespace = 'public'::regnamespace and not t.tgisinternal
+      union all select 'view ' || viewname, definition from pg_views where schemaname = 'public'
+      union all select 'constraint ' || conname, pg_get_constraintdef(oid) from pg_constraint
+        where connamespace = 'public'::regnamespace
+      union all select 'index ' || indexname, indexdef from pg_indexes where schemaname = 'public'`);
+    expect(rows.some((row) => row.what === "function runs_keep_legacy_usage")).toBe(true);
+    const old = rows
+      .filter((row) =>
+        /\b(bots?|bot_ids?|bot_threads|owner_bot_id|created_by_bot_id|requested_by_bot_id|is_primary|desktop_takeovers|accounts)\b/.test(
+          row.text,
+        ),
+      )
+      .map((row) => row.what);
+    expect(old).toEqual([]);
+  });
+
+  it("keeps a deleted run's legacy usage, under its teammate", async () => {
+    await pool.query("delete from runs where id = $1", [LEGACY_RUN]);
+    const { rows } = await pool.query(
+      "select source_key, run_id, teammate_id, access_mode, input_tokens::int, cached_input_tokens::int, output_tokens::int from legacy_deleted_run_usage",
+    );
+    expect(rows).toEqual([
+      {
+        source_key: `run:${LEGACY_RUN}:plan`,
+        run_id: LEGACY_RUN,
+        teammate_id: REX,
+        access_mode: "plan",
+        input_tokens: 1200,
+        cached_input_tokens: 300,
+        output_tokens: 80,
+      },
+    ]);
+  });
+
+  it("deletes a teammate whose runs have legacy usage, and keeps that usage", async () => {
+    const kit = "00000000-0000-4000-8000-00000000000c";
+    const run = "00000000-0000-4000-8000-0000000000d3";
+    await pool.query(
+      "insert into teammates (id, name, slug, role, color) values ($1, 'Kit', 'kit', 'engineer', '#0ea5e9')",
+      [kit],
+    );
+    await pool.query(
+      "insert into chats (id, kind, title, teammate_id) values ($1, 'direct', 'Kit', $1)",
+      [kit],
+    );
+    await pool.query(
+      `insert into runs (id, chat_id, teammate_id, trigger, prompt, status, legacy_api_key_input_tokens,
+         legacy_api_key_cached_input_tokens, legacy_api_key_output_tokens, legacy_api_key_cost_micros,
+         legacy_usage_at) values ($1, $2, $3, 'user', 'Fix it', 'completed', 500, 0, 40, 1650, now())`,
+      [run, kit, kit],
+    );
+    await pool.query("delete from teammates where id = $1", [kit]);
+    const { rows } = await pool.query(
+      "select teammate_id, access_mode, cost_micros::int from legacy_deleted_run_usage where run_id = $1",
+      [run],
+    );
+    expect(rows).toEqual([{ teammate_id: kit, access_mode: "api_key", cost_micros: 1650 }]);
   });
 });

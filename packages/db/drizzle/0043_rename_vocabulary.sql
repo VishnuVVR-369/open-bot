@@ -94,6 +94,7 @@ FROM (VALUES
   ('approvals', 'approvals_bot_id_bots_id_fk', 'approvals_teammate_id_teammates_id_fk'),
   ('chat_members', 'chat_members_bot_id_bots_id_fk', 'chat_members_teammate_id_teammates_id_fk'),
   ('chat_members', 'chat_members_chat_id_bot_id_pk', 'chat_members_chat_id_teammate_id_pk'),
+  ('chat_lane_threads', 'chat_lane_threads_teammate_id_bots_id_fk', 'chat_lane_threads_teammate_id_teammates_id_fk'),
   ('chats', 'chats_bot_id_bots_id_fk', 'chats_teammate_id_teammates_id_fk'),
   ('connections', 'connections_account_id_accounts_id_fk', 'connections_account_id_account_connections_id_fk'),
   ('emails', 'emails_bot_id_bots_id_fk', 'emails_teammate_id_teammates_id_fk'),
@@ -103,6 +104,7 @@ FROM (VALUES
   ('memory_items', 'memory_items_bot_id_bots_id_fk', 'memory_items_teammate_id_teammates_id_fk'),
   ('message_dispatches', 'message_dispatches_bot_id_bots_id_fk', 'message_dispatches_teammate_id_teammates_id_fk'),
   ('message_dispatches', 'message_dispatches_message_id_bot_id_pk', 'message_dispatches_message_id_teammate_id_pk'),
+  ('model_requests', 'model_requests_teammate_id_bots_id_fk', 'model_requests_teammate_id_teammates_id_fk'),
   ('notifications', 'notifications_bot_id_bots_id_fk', 'notifications_teammate_id_teammates_id_fk'),
   ('page_versions', 'page_versions_bot_id_bots_id_fk', 'page_versions_teammate_id_teammates_id_fk'),
   ('pages', 'pages_bot_id_bots_id_fk', 'pages_teammate_id_teammates_id_fk'),
@@ -142,6 +144,32 @@ FROM (VALUES
   ('skills_bot_name_unique', 'skills_teammate_name_unique'),
   ('swarms_bot_idx', 'swarms_teammate_idx')
 ) AS i(old_name, new_name);
+--> statement-breakpoint
+-- A function body is kept as text and reads columns by name when it runs, so renaming a column
+-- doesn't reach it: migration 0040's trigger function, which keeps a deleted run's legacy usage,
+-- is made again reading `teammate_id`, otherwise unchanged. Deleting a run with legacy usage, or a
+-- teammate with such runs, would fail without it.
+CREATE OR REPLACE FUNCTION runs_keep_legacy_usage() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  INSERT INTO legacy_deleted_run_usage (
+    source_key, run_id, teammate_id, access_mode,
+    input_tokens, cached_input_tokens, output_tokens, cost_micros, at
+  )
+  SELECT 'run:' || OLD.id || ':' || m.mode, OLD.id, OLD.teammate_id, m.mode,
+    m.input, coalesce(m.cached, 0), coalesce(m.output, 0), coalesce(m.cost, 0),
+    OLD.legacy_usage_at
+  FROM (VALUES
+    ('plan', OLD.legacy_plan_input_tokens, OLD.legacy_plan_cached_input_tokens,
+      OLD.legacy_plan_output_tokens, OLD.legacy_plan_cost_micros),
+    ('api_key', OLD.legacy_api_key_input_tokens, OLD.legacy_api_key_cached_input_tokens,
+      OLD.legacy_api_key_output_tokens, OLD.legacy_api_key_cost_micros)
+  ) AS m (mode, input, cached, output, cost)
+  WHERE m.input IS NOT NULL
+  ON CONFLICT (source_key) DO NOTHING;
+  RETURN OLD;
+END
+$$;
 --> statement-breakpoint
 -- Who made a skill, task, schedule or trigger: "bot" -> "teammate" (`CREATORS`).
 UPDATE skills SET created_by = 'teammate' WHERE created_by = 'bot';
