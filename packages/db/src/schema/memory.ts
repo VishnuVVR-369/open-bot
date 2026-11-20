@@ -28,13 +28,13 @@ import {
 import { sql } from "drizzle-orm";
 import { createdAt, oneOf, updatedAt, vector } from "./columns";
 import { runs } from "./runs";
-import { bots } from "./teammates";
+import { teammates } from "./teammates";
 
 export const memoryItems = pgTable(
   "memory_items",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    botId: uuid("bot_id").references(() => bots.id, { onDelete: "cascade" }),
+    teammateId: uuid("bot_id").references(() => teammates.id, { onDelete: "cascade" }),
     kind: text("kind").$type<MemoryKind>().notNull().default("fact"),
     content: text("content").notNull(),
     key: text("key"),
@@ -54,16 +54,16 @@ export const memoryItems = pgTable(
     updatedAt: updatedAt(),
   },
   (table) => [
-    index("memory_items_scope_state").on(table.botId, table.state),
+    index("memory_items_scope_state").on(table.teammateId, table.state),
     index("memory_items_search").using(
       "gin",
       sql`to_tsvector('english', ${table.content} || ' ' || regexp_replace(coalesce(${table.key}, ''),'[^[:alnum:]]+',' ','g'))`,
     ),
     uniqueIndex("memory_items_live_fingerprint")
-      .on(sql`coalesce(${table.botId}::text, 'shared')`, table.fingerprint)
+      .on(sql`coalesce(${table.teammateId}::text, 'shared')`, table.fingerprint)
       .where(sql`${table.state} <> 'deleted'`),
     uniqueIndex("memory_items_live_topic")
-      .on(sql`coalesce(${table.botId}::text, 'shared')`, table.key)
+      .on(sql`coalesce(${table.teammateId}::text, 'shared')`, table.key)
       .where(sql`${table.state} = 'active' and ${table.key} is not null`),
     check("memory_kind_check", oneOf(table.kind, MEMORY_KINDS)),
     check("memory_state_check", oneOf(table.state, MEMORY_STATES)),
@@ -147,9 +147,9 @@ export const memoryContexts = pgTable("memory_contexts", {
   runId: uuid("run_id")
     .primaryKey()
     .references(() => runs.id, { onDelete: "cascade" }),
-  botId: uuid("bot_id")
+  teammateId: uuid("bot_id")
     .notNull()
-    .references(() => bots.id, { onDelete: "cascade" }),
+    .references(() => teammates.id, { onDelete: "cascade" }),
   generation: text("generation").notNull(),
   refs: jsonb("refs").$type<MemoryRef[]>().notNull().default([]),
   createdAt: createdAt(),

@@ -6,7 +6,7 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { CodexClient } from "@open-bot/agent";
 import {
-  bots, // vocabulary: allow
+  teammates,
   chats,
   codexEvents,
   createDb,
@@ -93,13 +93,13 @@ describe.skipIf(!url)("Codex event tap", () => {
       tap.connection(),
     );
     const [teammate] = await db
-      .insert(bots) // vocabulary: allow
+      .insert(teammates)
       .values({ name: "Iris", slug: "iris", role: "assistant", color: "violet" })
       .returning();
     teammateId = teammate!.id;
     const [chat] = await db
       .insert(chats)
-      .values({ kind: "direct", title: "Tap", botId: teammateId }) // vocabulary: allow
+      .values({ kind: "direct", title: "Tap", teammateId })
       .returning();
     chatId = chat!.id;
   });
@@ -123,7 +123,7 @@ describe.skipIf(!url)("Codex event tap", () => {
       .insert(runs)
       .values({
         chatId,
-        botId: teammateId, // vocabulary: allow
+        teammateId,
         trigger: "user",
         prompt: "List files",
         status: "running",

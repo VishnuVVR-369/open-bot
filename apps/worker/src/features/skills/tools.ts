@@ -79,13 +79,13 @@ async function saveSkill(
   const skillId = args.skill_id;
   if (skillId) {
     const existing = (await deps.skills.forBot(target.id)).find((skill) => skill.id === skillId);
-    if (!existing || existing.botId !== (shared ? null : target.id))
+    if (!existing || existing.teammateId !== (shared ? null : target.id))
       return text(
         "That skill isn't in the selected scope. Get the teammate's skills first.",
         false,
       );
     // Rewriting a skill you didn't write is a change to the user's setup, so it asks like one.
-    if (target.id === session.bot.id && existing.createdByBotId !== session.bot.id)
+    if (target.id === session.bot.id && existing.createdByTeammateId !== session.bot.id)
       await deps.botTools.authorize(session, callId, {
         tool: "save_skill",
         args,
@@ -100,7 +100,7 @@ async function saveSkill(
         name: args.name,
         description: args.description,
         instructions: args.instructions,
-        botId: shared ? null : target.id,
+        teammateId: shared ? null : target.id,
       },
       { kind: "bot", botId: session.bot.id },
       skillId,

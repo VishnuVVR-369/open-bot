@@ -36,7 +36,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { createdAt, oneOf } from "./columns";
 import { runs } from "./runs";
-import { bots } from "./teammates"; // vocabulary: allow
+import { teammates } from "./teammates";
 
 /**
  * A distinct input or output item, instructions or tool list, stored once under its SHA-256.
@@ -83,7 +83,7 @@ export const modelRequests = pgTable(
     /** `turn`, `prewarm`, `compaction` or `memory`, as Codex names it. */
     requestKind: text("request_kind"),
     /** The teammate whose live run the request was made for, when the proxy knew it. */
-    teammateId: uuid("teammate_id").references(() => bots.id, { onDelete: "set null" }), // vocabulary: allow
+    teammateId: uuid("teammate_id").references(() => teammates.id, { onDelete: "set null" }),
     model: text("model"),
     responseId: text("response_id"),
     /** The HTTP status the client got; null when it never got one. */

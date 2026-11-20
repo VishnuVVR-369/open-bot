@@ -74,7 +74,7 @@ export interface WebSearchItem extends BaseItem {
 export interface ApprovalItem extends BaseItem {
   kind: "approval";
   approvalId: string;
-  /** What is being approved: a shell command, a file change, or an action the bot describes. */
+  /** What is being approved: a shell command, a file change, or an action the teammate describes. */
   approvalKind?: ApprovalKind;
   /**
    * What an "always allow" rule matches: the raw command for command approvals (by prefix), or
@@ -105,7 +105,7 @@ export interface HandoffItem extends BaseItem {
   message: string;
 }
 
-/** A message you sent while the bot was working, which joined its current turn. */
+/** A message you sent while the teammate was working, which joined its current turn. */
 export interface UserMessageItem extends BaseItem {
   kind: "user_message";
   text: string;

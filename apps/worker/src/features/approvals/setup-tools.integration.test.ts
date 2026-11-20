@@ -23,13 +23,13 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
     const { session } = await fixture();
     const target = await service.create({ name: "Old", role: "researcher" });
     await db
-      .update(dbTables.bots)
+      .update(dbTables.teammates)
       .set({ archivedAt: new Date() })
-      .where(eq(dbTables.bots.id, target.botId));
+      .where(eq(dbTables.teammates.id, target.teammateId));
     expect(
       (
         await call(session, "schedule_task", {
-          bot_id: target.botId,
+          bot_id: target.teammateId,
           title: "No",
           prompt: "No",
           cron: "0 8 * * *",
@@ -63,7 +63,7 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
     const [receipt] = await db
       .insert(approvalRows)
       .values({
-        botId: session.bot.id,
+        teammateId: session.bot.id,
         chatId: session.chat.id,
         runId: session.run.id,
         kind: "action",

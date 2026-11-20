@@ -1,4 +1,4 @@
-import type { BotSummary } from "@open-bot/api";
+import type { TeammateSummary } from "@open-bot/api";
 import { safe } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
 import * as Crypto from "expo-crypto";
@@ -131,7 +131,7 @@ export default function ShareScreen() {
         body="Create a teammate in open-bot on a computer, then share again."
       />
     );
-  const chosen: BotSummary =
+  const chosen: TeammateSummary =
     teammates.find((bot) => bot.id === botId) ??
     teammates.find((bot) => bot.isLead) ??
     teammates[0]!;
@@ -142,7 +142,7 @@ export default function ShareScreen() {
     setProblem(null);
     let chatId = chosen.directChatId;
     if (!chatId) {
-      const created = await safe(api.chats.newDirect({ botId: chosen.id }));
+      const created = await safe(api.chats.newDirect({ teammateId: chosen.id }));
       if (created.error) {
         setSending(false);
         setProblem(errorMessage(created.error));

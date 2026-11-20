@@ -125,7 +125,7 @@ export default function ScreenPage() {
     );
 
   const state = screenState(screen);
-  const name = screen.bot.name;
+  const name = screen.teammate.name;
   const live = screen.running && screen.online;
   // The software keyboard needs the room, and you're typing, not reaching for actions.
   const typing = keyboard > 0;

@@ -67,13 +67,13 @@ function OfflineRow({ screen, first }: { screen: ScreenView; first: boolean }) {
         onPress={() => router.push(screenHref(screen.id, request?.id))}
         leading={
           <BotAvatar
-            name={screen.bot.name}
-            color={screen.bot.color}
-            emoji={screen.bot.emoji}
+            name={screen.teammate.name}
+            color={screen.teammate.color}
+            emoji={screen.teammate.emoji}
             size="md"
           />
         }
-        title={screen.bot.name}
+        title={screen.teammate.name}
         subtitle={
           request ? (
             <StatusLine activity="waiting" waitingFor="takeover" testID="screen-needs-you" />

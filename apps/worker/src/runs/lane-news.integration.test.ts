@@ -2,12 +2,7 @@ import type { RunLane } from "@open-bot/domain";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
-import {
-  bots as teammates, // vocabulary: allow
-  chats,
-  runs,
-  schedules,
-} from "@open-bot/db";
+import { teammates, chats, runs, schedules } from "@open-bot/db";
 import {
   LANE_NEWS_LENGTH,
   LANE_NEWS_LIMIT,
@@ -40,13 +35,13 @@ describe.skipIf(!url)("lane news with Postgres", () => {
     teammateId = teammate!.id;
     const [chat] = await db
       .insert(chats)
-      .values({ kind: "direct", title: "Rex", botId: teammateId, main: true }) // vocabulary: allow
+      .values({ kind: "direct", title: "Rex", teammateId, main: true })
       .returning();
     chatId = chat!.id;
     const [schedule] = await db
       .insert(schedules)
       .values({
-        botId: teammateId, // vocabulary: allow
+        teammateId,
         title: "Morning briefing",
         prompt: "Brief me",
         kind: "cron",
@@ -76,7 +71,7 @@ describe.skipIf(!url)("lane news with Postgres", () => {
       .insert(runs)
       .values({
         chatId,
-        botId: teammateId, // vocabulary: allow
+        teammateId,
         trigger: values.lane === "chat" ? "user" : "schedule",
         prompt: "Go",
         status: "completed",
@@ -195,7 +190,7 @@ describe.skipIf(!url)("lane news with Postgres", () => {
     expect(await laneNews(db, next, time)).toBeNull();
     expect(await heardOutsideData(db, next)).toBe(true);
     expect(await heardOutsideData(db, { ...next, lane: "inbox" })).toBe(false);
-    expect(await heardOutsideData(db, { ...next, botId: crypto.randomUUID() })).toBe(false); // vocabulary: allow
+    expect(await heardOutsideData(db, { ...next, teammateId: crypto.randomUUID() })).toBe(false);
     expect(await heardOutsideData(db, { ...next, chatId: crypto.randomUUID() })).toBe(false);
   });
 });

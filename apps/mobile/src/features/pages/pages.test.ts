@@ -1,4 +1,4 @@
-import type { BotSummary, ChatSummary, PageDetail, PageSummary } from "@open-bot/api";
+import type { TeammateSummary, ChatSummary, PageDetail, PageSummary } from "@open-bot/api";
 import { describe, expect, it } from "vitest";
 import {
   isLinkFresh,
@@ -14,7 +14,7 @@ import {
   sortPages,
 } from "./pages";
 
-const iris = { id: "iris", name: "Iris", directChatId: "dm-iris" } as BotSummary;
+const iris = { id: "iris", name: "Iris", directChatId: "dm-iris" } as TeammateSummary;
 const chat = (id: string, kind: ChatSummary["kind"]) => ({ id, kind, title: id }) as ChatSummary;
 
 describe("page links", () => {
@@ -72,21 +72,31 @@ describe("where a question goes", () => {
   it("goes to the chat the page was made in", () => {
     const group = chat("g1", "group");
     expect(
-      questionTarget({ botId: "iris", chatId: "g1" }, [iris], [group, chat("dm-iris", "direct")]),
+      questionTarget(
+        { teammateId: "iris", chatId: "g1" },
+        [iris],
+        [group, chat("dm-iris", "direct")],
+      ),
     ).toEqual({ bot: iris, chat: group });
   });
 
   it("falls back to the teammate's own chat for a scheduled or missing one", () => {
     const direct = chat("dm-iris", "direct");
     expect(
-      questionTarget({ botId: "iris", chatId: "s1" }, [iris], [chat("s1", "scheduled"), direct]),
+      questionTarget(
+        { teammateId: "iris", chatId: "s1" },
+        [iris],
+        [chat("s1", "scheduled"), direct],
+      ),
     ).toEqual({ bot: iris, chat: direct });
-    expect(questionTarget({ botId: "iris", chatId: null }, [iris], [direct])?.chat).toBe(direct);
+    expect(questionTarget({ teammateId: "iris", chatId: null }, [iris], [direct])?.chat).toBe(
+      direct,
+    );
   });
 
   it("has nowhere to go once the teammate is gone", () => {
-    expect(questionTarget({ botId: null, chatId: "dm-iris" }, [iris], [])).toBeNull();
-    expect(questionTarget({ botId: "iris", chatId: null }, [iris], [])).toBeNull();
+    expect(questionTarget({ teammateId: null, chatId: "dm-iris" }, [iris], [])).toBeNull();
+    expect(questionTarget({ teammateId: "iris", chatId: null }, [iris], [])).toBeNull();
   });
 });
 

@@ -255,7 +255,7 @@ export function TaskBoard() {
   const [showAllDone, setShowAllDone] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
   const { data: approvals } = useApprovals();
-  const bots = state?.bots ?? [];
+  const bots = state?.teammates ?? [];
   /** A task whose chat waits on you says so on its card. */
   const online = !state || isComputerOnline(state);
   const blockerOf = (task: TaskView): Blocker | null => {
@@ -267,7 +267,7 @@ export function TaskBoard() {
         return "takeover";
     }
     // A teammate's task in progress can't move while the computer is offline.
-    if (!online && task.status === "doing" && task.ownerBotId) return "paused";
+    if (!online && task.status === "doing" && task.ownerTeammateId) return "paused";
     return null;
   };
   const refresh = () => void queryClient.invalidateQueries({ queryKey: orpc.tasks.key() });
@@ -292,7 +292,7 @@ export function TaskBoard() {
     );
 
   const blockers = new Map(tasks.map((task) => [task.id, blockerOf(task)]));
-  const mine = (task: TaskView) => task.ownerBotId === null;
+  const mine = (task: TaskView) => task.ownerTeammateId === null;
   const needsAttention = (task: TaskView) =>
     waitsOnYou(blockers.get(task.id) ?? null) || overdue(task);
   const counts = {
@@ -380,8 +380,8 @@ export function TaskBoard() {
                   <Card
                     key={task.id}
                     task={task}
-                    owner={bots.find((bot) => bot.id === task.ownerBotId)}
-                    you={task.ownerBotId ? null : (state?.user.name ?? "You")}
+                    owner={bots.find((bot) => bot.id === task.ownerTeammateId)}
+                    you={task.ownerTeammateId ? null : (state?.user.name ?? "You")}
                     blocker={blockerOf(task)}
                     onOpen={() => setEditing({ task, open: true })}
                     onDragStart={(event) => {
@@ -478,7 +478,7 @@ export function NewTaskButton() {
       <TaskDialog
         key={key}
         task={null}
-        bots={state?.bots ?? []}
+        bots={state?.teammates ?? []}
         open={open}
         onOpenChange={setOpen}
         onSaved={() => void queryClient.invalidateQueries({ queryKey: orpc.tasks.key() })}

@@ -29,7 +29,7 @@ export type ProposalView = z.infer<typeof proposalViewSchema>;
 
 export const purchaseViewSchema = z.object({
   id: z.string(),
-  botId: z.string(),
+  teammateId: z.string(),
   /** The card's name and hint, while the card is still in the vault. */
   card: z.string().nullable(),
   amountCents: z.number(),

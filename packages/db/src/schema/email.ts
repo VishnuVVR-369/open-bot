@@ -3,7 +3,7 @@ import { index, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-c
 import { chats } from "./chats";
 import { createdAt, updatedAt } from "./columns";
 import { runs } from "./runs";
-import { bots } from "./teammates";
+import { teammates } from "./teammates";
 
 /**
  * Email for teammates: each gets an address on your domain. Postmark delivers what arrives to a
@@ -27,9 +27,9 @@ export const emails = pgTable(
   "emails",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    botId: uuid("bot_id")
+    teammateId: uuid("bot_id")
       .notNull()
-      .references(() => bots.id, { onDelete: "cascade" }),
+      .references(() => teammates.id, { onDelete: "cascade" }),
     direction: text("direction").$type<"in" | "out">().notNull(),
     /**
      * For emails a teammate writes: waiting for you, being sent (claimed, so it goes once), sent,
@@ -56,5 +56,5 @@ export const emails = pgTable(
     runId: uuid("run_id").references(() => runs.id, { onDelete: "set null" }),
     createdAt: createdAt(),
   },
-  (table) => [index("emails_bot_idx").on(table.botId, table.createdAt)],
+  (table) => [index("emails_bot_idx").on(table.teammateId, table.createdAt)],
 );

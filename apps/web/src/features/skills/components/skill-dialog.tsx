@@ -58,7 +58,7 @@ export function SkillDialog({
   defaultBotId?: string;
 }) {
   const { data: state } = useAppState();
-  const bots = state?.bots ?? [];
+  const bots = state?.teammates ?? [];
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -73,7 +73,7 @@ export function SkillDialog({
     setName(skill?.name ?? "");
     setDescription(skill?.description ?? "");
     setInstructions(skill?.instructions ?? "");
-    setOwner(skill ? (skill.botId ?? EVERYONE) : (defaultBotId ?? EVERYONE));
+    setOwner(skill ? (skill.teammateId ?? EVERYONE) : (defaultBotId ?? EVERYONE));
   }, [open, skill, defaultBotId]);
 
   const canSave = name.length >= 2 && description.trim() && instructions.trim() && !pending;
@@ -86,7 +86,7 @@ export function SkillDialog({
           name,
           description: description.trim(),
           instructions: instructions.trim(),
-          botId: owner === EVERYONE ? null : owner,
+          teammateId: owner === EVERYONE ? null : owner,
         }),
       );
       if (!result.ok) {

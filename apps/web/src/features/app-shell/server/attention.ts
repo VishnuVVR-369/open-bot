@@ -1,5 +1,5 @@
 import "server-only";
-import { approvals, bots, instructionProposals, notifications } from "@open-bot/db";
+import { approvals, teammates, instructionProposals, notifications } from "@open-bot/db";
 import { and, count, desc, eq, isNull } from "drizzle-orm";
 import type { Attention } from "@open-bot/api";
 import { listTakeoverRequests } from "@/features/computer/server";
@@ -11,10 +11,10 @@ export async function getAttention(): Promise<Attention> {
     db.select({ value: count() }).from(approvals).where(eq(approvals.status, "pending")),
     listTakeoverRequests(),
     db
-      .select({ id: instructionProposals.id, botId: instructionProposals.botId })
+      .select({ id: instructionProposals.id, teammateId: instructionProposals.teammateId })
       .from(instructionProposals)
-      .innerJoin(bots, eq(bots.id, instructionProposals.botId))
-      .where(and(eq(instructionProposals.status, "pending"), isNull(bots.archivedAt)))
+      .innerJoin(teammates, eq(teammates.id, instructionProposals.teammateId))
+      .where(and(eq(instructionProposals.status, "pending"), isNull(teammates.archivedAt)))
       .orderBy(desc(instructionProposals.createdAt)),
     db.select({ value: count() }).from(notifications).where(isNull(notifications.readAt)),
   ]);

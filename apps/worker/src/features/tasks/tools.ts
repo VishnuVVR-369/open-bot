@@ -105,7 +105,7 @@ async function addTask(
     let task = await deps.tasks.create({
       title: args.title,
       notes: args.notes ?? "",
-      ownerBotId: owner?.id ?? null,
+      ownerTeammateId: owner?.id ?? null,
       dueOn: args.due ?? null,
       createdBy: "bot",
       createdByBotId: session.bot.id,
@@ -146,7 +146,7 @@ async function updateTask(
       ...(args.title !== undefined ? { title: args.title } : {}),
       ...(args.notes !== undefined ? { notes: args.notes } : {}),
       ...(status ? { status } : {}),
-      ...(owner !== undefined ? { ownerBotId: owner.id } : {}),
+      ...(owner !== undefined ? { ownerTeammateId: owner.id } : {}),
       ...(args.due !== undefined ? { dueOn: args.due || null } : {}),
     });
     session.putItem({

@@ -54,7 +54,7 @@ export function TaskDialog({
 }) {
   const [title, setTitle] = useState(task?.title ?? "");
   const [notes, setNotes] = useState(task?.notes ?? "");
-  const [owner, setOwner] = useState(task?.ownerBotId ?? NOBODY);
+  const [owner, setOwner] = useState(task?.ownerTeammateId ?? NOBODY);
   const [dueOn, setDueOn] = useState(task?.dueOn ?? "");
   const [status, setStatus] = useState<TaskView["status"]>(task?.status ?? "todo");
   const [pending, startTransition] = useTransition();
@@ -66,7 +66,7 @@ export function TaskDialog({
       const fields = {
         title,
         notes,
-        ownerBotId: owner === NOBODY ? null : owner,
+        ownerTeammateId: owner === NOBODY ? null : owner,
         dueOn: dueOn || null,
       };
       const result = task
@@ -127,7 +127,7 @@ export function TaskDialog({
             <DialogTitle>{task ? "Task" : "New task"}</DialogTitle>
             <DialogDescription>
               {task?.createdBy === "bot"
-                ? `Added by ${bots.find((bot) => bot.id === task.createdByBotId)?.name ?? "a teammate"}.`
+                ? `Added by ${bots.find((bot) => bot.id === task.createdByTeammateId)?.name ?? "a teammate"}.`
                 : "Give it to a teammate to have them do it, or keep it for yourself."}
             </DialogDescription>
           </DialogHeader>

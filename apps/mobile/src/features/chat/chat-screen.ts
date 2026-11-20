@@ -25,7 +25,7 @@ export function supersededRuns(entries: ChatEntry[]): Set<string> {
   const seen = new Set<string>();
   for (const entry of [...entries].reverse()) {
     if (entry.type !== "run") continue;
-    const key = `${entry.run.botId}:${entry.run.lane ?? "chat"}`;
+    const key = `${entry.run.teammateId}:${entry.run.lane ?? "chat"}`;
     if (seen.has(key)) result.add(entry.run.id);
     seen.add(key);
   }

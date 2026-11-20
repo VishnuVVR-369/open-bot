@@ -12,9 +12,9 @@ export async function listSkills(): Promise<SkillView[]> {
     name: row.name,
     description: row.description,
     instructions: row.instructions,
-    botId: row.botId,
+    teammateId: row.teammateId,
     createdBy: row.createdBy,
-    createdByBotId: row.createdByBotId,
+    createdByTeammateId: row.createdByTeammateId,
     updatedAt: row.updatedAt.toISOString(),
   }));
 }

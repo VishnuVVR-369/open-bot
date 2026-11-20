@@ -16,7 +16,10 @@ export const GET = authed(async (request: Request) => {
   if (!botId.success)
     return NextResponse.json({ error: "Invalid memory request." }, { status: 400 });
   try {
-    const items = await listMemories({ botId: botId.data, query: "" }, MEMORY_EXPORT_LIMIT + 1);
+    const items = await listMemories(
+      { teammateId: botId.data, query: "" },
+      MEMORY_EXPORT_LIMIT + 1,
+    );
     if (items.length > MEMORY_EXPORT_LIMIT)
       throw new MemoryError(413, "Export is limited to 10,000 memories. Export a narrower scope.");
     return new Response(memoryMarkdown(items.filter((i) => i.state === "active")), {

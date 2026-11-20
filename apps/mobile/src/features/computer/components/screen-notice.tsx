@@ -15,15 +15,15 @@ export function ScreenTitle({ screen }: { screen: ScreenView }) {
   return (
     <View style={styles.title}>
       <BotAvatar
-        name={screen.bot.name}
-        color={screen.bot.color}
-        emoji={screen.bot.emoji}
+        name={screen.teammate.name}
+        color={screen.teammate.color}
+        emoji={screen.teammate.emoji}
         size="sm"
-        activity={needsYou ? "waiting" : botActivity(screen.bot)}
+        activity={needsYou ? "waiting" : botActivity(screen.teammate)}
       />
       <View style={{ flexShrink: 1 }}>
         <Text variant="heading" numberOfLines={1}>
-          {`${screen.bot.name}'s screen`}
+          {`${screen.teammate.name}'s screen`}
         </Text>
         <Text
           variant="caption"

@@ -64,7 +64,7 @@ export function ScreenCard({
     <Pressable
       onPress={onOpen}
       accessibilityRole="button"
-      accessibilityLabel={`${screen.bot.name}'s screen. ${detail}`}
+      accessibilityLabel={`${screen.teammate.name}'s screen. ${detail}`}
       accessibilityHint="Opens the screen"
       testID={`screen-${screen.id}`}
       android_ripple={{ color: colors.muted, borderless: false }}
@@ -87,14 +87,14 @@ export function ScreenCard({
       </ScreenPanel>
       <View style={styles.footer}>
         <BotAvatar
-          name={screen.bot.name}
-          color={screen.bot.color}
-          emoji={screen.bot.emoji}
-          activity={needsYou ? "waiting" : botActivity(screen.bot)}
+          name={screen.teammate.name}
+          color={screen.teammate.color}
+          emoji={screen.teammate.emoji}
+          activity={needsYou ? "waiting" : botActivity(screen.teammate)}
         />
         <View style={styles.text}>
           <Text variant="label" numberOfLines={1}>
-            {screen.bot.name}
+            {screen.teammate.name}
           </Text>
           <Text
             variant="small"

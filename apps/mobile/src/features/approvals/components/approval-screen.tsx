@@ -144,7 +144,7 @@ export default function ApprovalScreen() {
   if (query.isLoading) return <Loading />;
   if (!query.data) return <LoadError error={query.error} onRetry={() => void query.refetch()} />;
   const approval = query.data;
-  const bot = bots.find((candidate) => candidate.id === approval.botId);
+  const bot = bots.find((candidate) => candidate.id === approval.teammateId);
   const botName = bot?.name ?? "A former teammate";
   const pending = approval.status === "pending";
   const risk = pending ? approvalRisk(approvalFacts(approval)) : null;

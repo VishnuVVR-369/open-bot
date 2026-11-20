@@ -24,7 +24,7 @@ export function ProfileNudge() {
     () => localStorage.getItem(NUDGE_KEY) === "1",
     () => true,
   );
-  if (dismissed || !profile || profile.aboutMe.trim() || !state?.bots.length) return null;
+  if (dismissed || !profile || profile.aboutMe.trim() || !state?.teammates.length) return null;
   return (
     <div className="relative flex items-center gap-3.5 rounded-xl bg-card px-4 py-3.5 shadow-raised">
       <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-subtle text-muted-foreground">

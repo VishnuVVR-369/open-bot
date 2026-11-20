@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { bots, messages, notifications, runs, telegram, telegramMessages } from "@open-bot/db"; // vocabulary: allow
+import { teammates, messages, notifications, runs, telegram, telegramMessages } from "@open-bot/db";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import { MemoryService } from "@open-bot/memory";
 import { eq } from "drizzle-orm";
@@ -236,7 +236,7 @@ describe.skipIf(!url)("Telegram polling with Postgres", () => {
       updateOffset: standIn.acknowledged + 1,
     });
     await db
-      .insert(bots) // vocabulary: allow
+      .insert(teammates)
       .values({ name: "Otto", slug: "otto", role: "assistant", color: "#4f46e5" });
   });
   afterEach(async () => {

@@ -1,6 +1,6 @@
 import "server-only";
 import type { ApiInputs, ApprovalRule, ApprovalView } from "@open-bot/api";
-import { approvalRules, approvals, bots } from "@open-bot/db";
+import { approvalRules, approvals, teammates } from "@open-bot/db";
 import type { ApprovalStatus } from "@open-bot/domain";
 import { asc, desc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/lib/server/db";
@@ -38,12 +38,12 @@ export async function listApprovalRules(): Promise<ApprovalRule[]> {
   const rows = await db
     .select({ rule: approvalRules })
     .from(approvalRules)
-    .innerJoin(bots, eq(bots.id, approvalRules.botId))
-    .where(isNull(bots.archivedAt))
+    .innerJoin(teammates, eq(teammates.id, approvalRules.teammateId))
+    .where(isNull(teammates.archivedAt))
     .orderBy(asc(approvalRules.createdAt));
   return rows.map(({ rule }) => ({
     id: rule.id,
-    botId: rule.botId,
+    teammateId: rule.teammateId,
     kind: rule.kind,
     pattern: rule.pattern,
     createdAt: rule.createdAt.toISOString(),

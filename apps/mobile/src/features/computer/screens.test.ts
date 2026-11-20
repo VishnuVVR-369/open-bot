@@ -42,12 +42,12 @@ const bot = {
   isLead: false,
   directChatId: null,
   activeRun: null,
-} as unknown as ScreenView["bot"];
+} as unknown as ScreenView["teammate"];
 
 function view(id: string, patch: Partial<ScreenView> = {}): ScreenView {
   return {
     id,
-    bot,
+    teammate: bot,
     online: true,
     running: false,
     lease: null,

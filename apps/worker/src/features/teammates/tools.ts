@@ -1,6 +1,6 @@
 // Teammate tools: list, read, create and change teammates, their connections, and proposing new
 // instructions for yourself. Creating and changing go through BotTools (./changes.ts), which asks.
-import { bots } from "@open-bot/db";
+import { teammates } from "@open-bot/db";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Context } from "../../context";
@@ -243,9 +243,9 @@ async function proposeInstructions(
 ): Promise<ToolResponse> {
   const { instructions: proposed, reason } = args;
   const [bot] = await deps.ctx.db
-    .select({ instructions: bots.instructions })
-    .from(bots)
-    .where(eq(bots.id, session.bot.id));
+    .select({ instructions: teammates.instructions })
+    .from(teammates)
+    .where(eq(teammates.id, session.bot.id));
   const current = bot?.instructions ?? "";
   if (proposed === current.trim()) return text("That's the same as your instructions now.", false);
   // A newer suggestion replaces one the user hasn't looked at yet.

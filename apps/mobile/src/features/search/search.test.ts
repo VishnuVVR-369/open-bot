@@ -1,10 +1,10 @@
-import type { BotSummary, ChatSummary, PageSummary, SearchResult } from "@open-bot/api";
+import type { TeammateSummary, ChatSummary, PageSummary, SearchResult } from "@open-bot/api";
 import { queryWords } from "@open-bot/chat-core";
 import { describe, expect, it } from "vitest";
 import { searchSections, type Scope } from "./search";
 
 const teammate = (id: string, name: string, role = "Assistant") =>
-  ({ id, name, role, directChatId: `dm-${id}` }) as BotSummary;
+  ({ id, name, role, directChatId: `dm-${id}` }) as TeammateSummary;
 const team = [
   teammate("rex", "Rex", "Researcher"),
   teammate("iris", "Iris", "Travel"),
@@ -20,12 +20,12 @@ const chat = (id: string, fields: Partial<ChatSummary>) =>
     ...fields,
   }) as ChatSummary;
 const chats = [
-  chat("dm-rex", { title: "Rex", botId: "rex", lastActivityAt: "2026-11-12T00:00:00Z" }),
-  chat("dm-iris", { title: "Iris", botId: "iris", lastActivityAt: "2026-11-13T00:00:00Z" }),
+  chat("dm-rex", { title: "Rex", teammateId: "rex", lastActivityAt: "2026-11-12T00:00:00Z" }),
+  chat("dm-iris", { title: "Iris", teammateId: "iris", lastActivityAt: "2026-11-13T00:00:00Z" }),
   chat("trip", { kind: "group", title: "Lisbon trip", memberIds: ["iris", "rex", "gone"] }),
 ];
 const pages = [
-  { id: "p1", title: "Lisbon itinerary", summary: "Day by day", botId: "iris" },
+  { id: "p1", title: "Lisbon itinerary", summary: "Day by day", teammateId: "iris" },
 ] as PageSummary[];
 const places = [
   { title: "Settings", keywords: "account lock" },
@@ -40,7 +40,7 @@ const result = (id: string, fields: Partial<SearchResult>) =>
   }) as SearchResult;
 
 /** What a search result says a teammate said; the API still calls it this. */
-const BY_TEAMMATE = "bot" as const; // vocabulary: allow
+const BY_TEAMMATE = "teammate" as const;
 
 type Data = Pick<Parameters<typeof searchSections>[0], "teammates" | "chats" | "pages">;
 const search = (
@@ -132,7 +132,7 @@ describe("searchSections", () => {
     const booked = chat("plans", {
       kind: "group",
       title: "Plans",
-      preview: { botId: null, text: "Booked the flights" } as ChatSummary["preview"], // vocabulary: allow
+      preview: { teammateId: null, text: "Booked the flights" } as ChatSummary["preview"],
     });
     expect(titles(search("travel", "teammates"))).toEqual(["Teammates: b:iris"]);
     expect(titles(search("booked", "all", [], { chats: [...chats, booked] }))).toEqual([
@@ -148,8 +148,8 @@ describe("searchSections", () => {
   it("says who said a message, and where when the chat's name doesn't", () => {
     const messages = [
       result("m1", { from: "you", chatId: "dm-rex" }),
-      result("m2", { from: BY_TEAMMATE, botId: "rex", chatId: "dm-rex" }),
-      result("m3", { from: BY_TEAMMATE, botId: "iris", chatId: "trip" }),
+      result("m2", { from: BY_TEAMMATE, teammateId: "rex", chatId: "dm-rex" }),
+      result("m3", { from: BY_TEAMMATE, teammateId: "iris", chatId: "trip" }),
       result("m4", { from: "you", chatId: "trip" }),
     ] as SearchResult[];
     const [section] = search("hotel", "messages", messages);

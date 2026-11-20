@@ -83,7 +83,7 @@ function ConnectionDialog({
     setCommand(connection?.command ?? "");
     setArgs((connection?.args ?? []).map((arg) => (/\s/.test(arg) ? `"${arg}"` : arg)).join(" "));
     setSecrets("");
-    setAccess(connection ? connection.botIds : null);
+    setAccess(connection ? connection.teammateIds : null);
   }, [open, connection]);
 
   const kept = connection && connection.transport === transport && connection.secretNames.length;
@@ -277,11 +277,11 @@ function ConnectionRow({
   const queryClient = useQueryClient();
   const refresh = () => refreshForAppEvent(queryClient, { type: "connections" });
   const people =
-    connection.botIds === null
+    connection.teammateIds === null
       ? "Every teammate"
-      : connection.botIds.length === 1
-        ? `Only ${state?.bots.find((bot) => bot.id === connection.botIds![0])?.name ?? "one teammate"}`
-        : `${connection.botIds.length} teammates`;
+      : connection.teammateIds.length === 1
+        ? `Only ${state?.teammates.find((bot) => bot.id === connection.teammateIds![0])?.name ?? "one teammate"}`
+        : `${connection.teammateIds.length} teammates`;
 
   return (
     <li className="flex flex-col gap-2.5 px-4 py-3" data-testid="connection">

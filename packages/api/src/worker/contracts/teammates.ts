@@ -1,8 +1,8 @@
 import { base, computer, id, ok } from "../base";
 import {
-  botProfileChangesSchema,
-  botProfileSchema as teammateProfileSchema,
-  createBotSchema,
+  teammateProfileChangesSchema,
+  teammateProfileSchema,
+  createTeammateSchema,
   createdTeammateSchema,
   type TeammateBundle,
   teammateBundleSchema,
@@ -14,16 +14,16 @@ import { budgetInputSchema } from "../../teammates";
 export const teammatesContract = {
   /** The same service that creates a teammate when another teammate asks to. */
   create: base
-    .route({ method: "POST", path: "/internal/bots" })
-    .input(createBotSchema)
+    .route({ method: "POST", path: "/internal/teammates" })
+    .input(createTeammateSchema)
     .output(createdTeammateSchema),
   /** Refused with 409 when `expected_revision` is not the teammate's revision now. */
   update: base
-    .route({ method: "POST", path: "/internal/bots/{teammateId}" })
+    .route({ method: "POST", path: "/internal/teammates/{teammateId}" })
     .input(
       z.object({
         teammateId: id,
-        changes: botProfileChangesSchema,
+        changes: teammateProfileChangesSchema,
         expected_revision: z.string().min(1).max(128),
       }),
     )
@@ -84,7 +84,7 @@ export const teammatesContract = {
     .output(ok),
   /** Write the teammate's workspace (AGENTS.md, skills) on the computer now. */
   sync: computer
-    .route({ method: "POST", path: "/internal/bots/{teammateId}/sync" })
+    .route({ method: "POST", path: "/internal/teammates/{teammateId}/sync" })
     .input(z.object({ teammateId: id }))
     .output(ok),
 };

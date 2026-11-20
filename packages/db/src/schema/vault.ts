@@ -5,7 +5,7 @@ import { approvals } from "./approvals";
 import { chats } from "./chats";
 import { createdAt, updatedAt } from "./columns";
 import { runs } from "./runs";
-import { bots } from "./teammates";
+import { teammates } from "./teammates";
 
 /**
  * Logins and payment cards teammates fill in on the computer without reading them. The secret is
@@ -22,7 +22,7 @@ export const vaultItems = pgTable("vault_items", {
   /** AES-256-GCM ciphertext of the fields, as JSON. */
   encrypted: text("encrypted").notNull(),
   /** The teammates that may use it, or null for every teammate. */
-  botIds: uuid("bot_ids").array(),
+  teammateIds: uuid("bot_ids").array(),
   lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
@@ -33,9 +33,9 @@ export const purchases = pgTable(
   "purchases",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    botId: uuid("bot_id")
+    teammateId: uuid("bot_id")
       .notNull()
-      .references(() => bots.id, { onDelete: "cascade" }),
+      .references(() => teammates.id, { onDelete: "cascade" }),
     cardId: uuid("card_id").references(() => vaultItems.id, { onDelete: "set null" }),
     runId: uuid("run_id").references(() => runs.id, { onDelete: "set null" }),
     chatId: uuid("chat_id").references(() => chats.id, { onDelete: "set null" }),
@@ -51,5 +51,5 @@ export const purchases = pgTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (table) => [index("purchases_bot_idx").on(table.botId, table.createdAt)],
+  (table) => [index("purchases_bot_idx").on(table.teammateId, table.createdAt)],
 );

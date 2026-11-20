@@ -3,7 +3,7 @@ import { EventEmitter } from "node:events";
 import { eq } from "drizzle-orm";
 import { beforeAll, beforeEach, afterAll, describe, expect, it, vi } from "vitest";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
-import { bots, screenTakeovers, screenOperations, takeoverDeliveries } from "@open-bot/db";
+import { teammates, screenTakeovers, screenOperations, takeoverDeliveries } from "@open-bot/db";
 import type { Context } from "../../context";
 import type { TakeoverService } from "./takeovers";
 import { withScreenLock } from "./screen-lock";
@@ -30,7 +30,7 @@ describe.skipIf(!url)("screen operations with Postgres", () => {
     await pool.query("truncate screen_operations");
     screenId = randomUUID();
     takeoverId = randomUUID();
-    await db.insert(bots).values({
+    await db.insert(teammates).values({
       id: screenId,
       name: "Screen test",
       slug: screenId,
@@ -238,7 +238,7 @@ describe.skipIf(!url)("takeover returns with Postgres", () => {
     events.removeAllListeners();
     screenId = randomUUID();
     health.screens = [];
-    await db.insert(bots).values({
+    await db.insert(teammates).values({
       id: screenId,
       name: "Rex",
       slug: screenId,

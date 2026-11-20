@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { CodexClient } from "@open-bot/agent"; // vocabulary: allow
 import {
-  bots as teammates, // vocabulary: allow
-  botThreads as conversationThreads, // vocabulary: allow
+  teammates,
+  teammateThreads as conversationThreads,
   chatLaneThreads,
   chats,
   runs,
@@ -35,7 +35,7 @@ describe.skipIf(!url)("lane threads with Postgres", () => {
       .values({
         kind: "direct",
         title: "Scout",
-        botId: teammate!.id, // vocabulary: allow
+        teammateId: teammate!.id,
         main: true, // vocabulary: allow
       })
       .returning();
@@ -66,7 +66,7 @@ describe.skipIf(!url)("lane threads with Postgres", () => {
         .insert(runs)
         .values({
           chatId: chat!.id,
-          botId: teammate!.id, // vocabulary: allow
+          teammateId: teammate!.id,
           trigger: "user",
           prompt: "Go",
           lane, // vocabulary: allow

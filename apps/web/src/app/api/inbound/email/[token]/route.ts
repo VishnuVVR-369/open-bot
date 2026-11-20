@@ -29,7 +29,7 @@ export async function POST(
       { params: { token }, body: payload },
       { context: { timeoutMs: 60_000 } },
     );
-    return NextResponse.json({ ok: true, delivered: result.botId !== null });
+    return NextResponse.json({ ok: true, delivered: result.teammateId !== null });
   } catch (error) {
     const status = error instanceof WorkerError ? error.status : 500;
     return NextResponse.json(

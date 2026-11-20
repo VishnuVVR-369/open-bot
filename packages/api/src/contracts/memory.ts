@@ -13,7 +13,7 @@ import { memoryRunRefSchema } from "../memory";
 export const memoryContract = {
   /** Memories you can see and edit, matching `query`: one teammate's, or everyone's with null. */
   list: base
-    .input(z.object({ botId: id.nullable(), query: z.string().max(200) }))
+    .input(z.object({ teammateId: id.nullable(), query: z.string().max(200) }))
     .output(z.array(memoryItemSchema)),
   /** Every revision of a memory, newest first. */
   history: base.input(z.object({ memoryId: id })).output(z.array(memoryRevisionSchema)),

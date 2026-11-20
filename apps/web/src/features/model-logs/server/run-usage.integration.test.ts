@@ -230,7 +230,7 @@ describe.skipIf(!apiTestUrl)("usage from the model logs, through the API", () =>
       deletedAfter[key];
     expect(rows).toEqual([
       {
-        botId: ids.teammate, // vocabulary: allow
+        teammateId: ids.teammate,
         // Three legacy runs, the two logged ones, the one deleted before 0040, and the one
         // deleted since, by its turn; not last month's.
         runs: 7,

@@ -30,7 +30,7 @@ export interface RunInput {
 function laneOf(input: RunInput) {
   if (input.lane) return input.lane;
   if (!input.parentRunId) return "chat";
-  const teammate = runs.botId; // vocabulary: allow
+  const teammate = runs.teammateId;
   const teammateId = input.botId; // vocabulary: allow
   return sql<RunLane>`coalesce((select ${runs.lane} from ${runs} where ${runs.id} = ${input.parentRunId} and ${runs.chatId} = ${input.chatId} and ${teammate} = ${teammateId}), 'chat')`;
 }
@@ -45,7 +45,7 @@ export async function insertRun(db: Queryable, input: RunInput): Promise<string>
     .values({
       ...(input.id ? { id: input.id } : {}),
       chatId: input.chatId,
-      botId: input.botId,
+      teammateId: input.botId,
       trigger: input.trigger,
       lane: laneOf(input),
       prompt: input.prompt,

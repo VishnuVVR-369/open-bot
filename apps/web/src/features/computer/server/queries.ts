@@ -1,5 +1,5 @@
 import "server-only";
-import { bots, screenTakeovers, runs } from "@open-bot/db";
+import { teammates, screenTakeovers, runs } from "@open-bot/db";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/lib/server/db";
 import type { TakeoverRequestSummary } from "@/lib/types";
@@ -10,26 +10,26 @@ export async function listTakeoverRequests(): Promise<TakeoverRequestSummary[]> 
     .select({
       id: screenTakeovers.id,
       screenId: screenTakeovers.screenId,
-      botId: screenTakeovers.requestedByBotId,
-      botName: bots.name,
+      teammateId: screenTakeovers.requestedByTeammateId,
+      teammateName: teammates.name,
       reason: screenTakeovers.reason,
       chatId: runs.chatId,
       createdAt: screenTakeovers.createdAt,
     })
     .from(screenTakeovers)
-    .leftJoin(bots, eq(bots.id, screenTakeovers.requestedByBotId))
+    .leftJoin(teammates, eq(teammates.id, screenTakeovers.requestedByTeammateId))
     .leftJoin(runs, eq(runs.id, screenTakeovers.requestedByRunId))
     .where(eq(screenTakeovers.status, "requested"))
     .orderBy(desc(screenTakeovers.createdAt));
   return rows.flatMap((row) => {
-    const screenId = row.screenId ?? row.botId;
+    const screenId = row.screenId ?? row.teammateId;
     if (!screenId) return [];
     return [
       {
         id: row.id,
         screenId,
-        botId: row.botId,
-        botName: row.botName ?? "A bot",
+        teammateId: row.teammateId,
+        teammateName: row.teammateName ?? "A bot",
         reason: row.reason ?? "",
         chatId: row.chatId,
         createdAt: row.createdAt.toISOString(),

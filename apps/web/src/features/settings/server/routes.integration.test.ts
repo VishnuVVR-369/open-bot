@@ -35,7 +35,7 @@ describe.skipIf(!apiTestUrl)("API reads, end to end", () => {
       ["/internal/email", () => api.email.save(email), email],
       ["/internal/email/token/delete", () => api.email.removeToken(), undefined],
     ];
-    const sync = `/internal/bots/${ids.teammate}/sync`; // vocabulary: allow
+    const sync = `/internal/teammates/${ids.teammate}/sync`;
     for (const [path] of calls) answers.set(path, ok);
     answers.set(sync, ok);
     try {

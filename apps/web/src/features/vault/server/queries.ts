@@ -13,7 +13,7 @@ export async function listVaultItems(): Promise<VaultItemView[]> {
       name: vaultItems.name,
       domain: vaultItems.domain,
       hint: vaultItems.hint,
-      botIds: vaultItems.botIds,
+      teammateIds: vaultItems.teammateIds,
       lastUsedAt: vaultItems.lastUsedAt,
       updatedAt: vaultItems.updatedAt,
     })

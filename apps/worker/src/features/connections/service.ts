@@ -58,7 +58,7 @@ export async function setConnectionTeammates(
   connectionId: string,
   botIds: string[] | null,
 ): Promise<void> {
-  await db.update(connections).set({ botIds }).where(eq(connections.id, connectionId));
+  await db.update(connections).set({ teammateIds: botIds }).where(eq(connections.id, connectionId));
 }
 
 /** "a b 'c d'" as arguments, keeping quoted ones together. */
@@ -174,7 +174,7 @@ export class ConnectionService {
         url: input.transport === "http" ? input.url : null,
         command: input.transport === "stdio" ? input.command : null,
         args: input.transport === "stdio" ? splitArgs(input.args) : [],
-        botIds: input.teammateIds,
+        teammateIds: input.teammateIds,
         ...(keep
           ? {}
           : {
@@ -283,13 +283,13 @@ export class ConnectionService {
     if (capabilities.some((capability) => !capabilityGranted(kind, capability, account.scopes)))
       return { needsConsent: true };
     const changed =
-      !sameList(row.capabilities, capabilities) || !sameList(row.botIds, input.teammateIds);
+      !sameList(row.capabilities, capabilities) || !sameList(row.teammateIds, input.teammateIds);
     await this.ctx.db.transaction(async (tx) => {
       await tx
         .update(connections)
         .set({
           capabilities,
-          botIds: input.teammateIds,
+          teammateIds: input.teammateIds,
           askBeforeActing: input.askBeforeActing,
           ...(settings ? { settings } : {}),
           ...(changed ? { revision: sql`${connections.revision} + 1` } : {}),
@@ -360,12 +360,12 @@ export class ConnectionService {
       .where(and(eq(connections.accountId, account.id), eq(connections.kind, kind)));
     if (existing) {
       // Signing in again changes nothing teammates asked for, unless what's allowed changed.
-      if (sameList(existing.capabilities, capabilities) && sameList(existing.botIds, botIds))
+      if (sameList(existing.capabilities, capabilities) && sameList(existing.teammateIds, botIds))
         return existing.id;
       await this.ctx.db.transaction(async (tx) => {
         await tx
           .update(connections)
-          .set({ capabilities, botIds, revision: sql`${connections.revision} + 1` })
+          .set({ capabilities, teammateIds: botIds, revision: sql`${connections.revision} + 1` })
           .where(eq(connections.id, existing.id));
         await cancelConnectionActions(
           tx,
@@ -390,7 +390,7 @@ export class ConnectionService {
           name,
           accountId: account.id,
           capabilities,
-          botIds,
+          teammateIds: botIds,
         })
         .returning({ id: connections.id });
       return row!.id;
@@ -440,7 +440,7 @@ export class ConnectionService {
           // serves their tools, so their tokens never reach it.
           eq(connections.kind, "mcp"),
           eq(connections.enabled, true),
-          or(isNull(connections.botIds), sql`${botId} = any(${connections.botIds})`),
+          or(isNull(connections.teammateIds), sql`${botId} = any(${connections.teammateIds})`),
         ),
       )
       .orderBy(asc(connections.name));

@@ -1,4 +1,4 @@
-import type { BotSummary } from "@open-bot/api";
+import type { TeammateSummary } from "@open-bot/api";
 import { Users } from "lucide-react-native";
 import { StyleSheet, View } from "react-native";
 import { BotAvatar } from "@/features/teammates/components/bot-avatar";
@@ -11,7 +11,7 @@ export function ChatEmpty({
   isGroup,
 }: {
   /** The teammate of a chat that isn't a group. */
-  teammate: BotSummary | undefined;
+  teammate: TeammateSummary | undefined;
   isGroup: boolean;
 }) {
   const colors = useColors();

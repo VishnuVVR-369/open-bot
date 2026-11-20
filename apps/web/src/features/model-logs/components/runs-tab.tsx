@@ -65,7 +65,7 @@ function Match({ snippet }: { snippet: string }) {
 
 function RunRow({ run }: { run: ModelLogRun }) {
   const { data: state } = useAppState();
-  const teammate = state?.bots.find((t) => t.id === run.teammateId); // vocabulary: allow
+  const teammate = state?.teammates.find((t) => t.id === run.teammateId);
   const name = run.teammateName ?? "Former teammate";
   const tokens = run.inputTokens + run.outputTokens;
   const onKey = run.accessModes.includes("api_key");

@@ -1,6 +1,6 @@
 // Writes a teammate's workspace on the computer: AGENTS.md from its profile, approval rules,
 // teammates, connections and accounts, then its memory pointer and skills.
-import { bots } from "@open-bot/db";
+import { teammates as teammateRows } from "@open-bot/db";
 import { COMPUTER_PATHS, emailAddress } from "@open-bot/domain";
 import { and, asc, eq, isNull, ne } from "drizzle-orm";
 import type { Context } from "../../context";
@@ -29,7 +29,10 @@ export async function syncWorkspace(
   bot: Pick<Bot, "id" | "slug" | "name" | "role" | "instructions" | "autonomy">,
 ): Promise<string> {
   // Configuration may have changed while the computer woke. Always project the latest revision.
-  const [latest] = await executor.ctx.db.select().from(bots).where(eq(bots.id, bot.id));
+  const [latest] = await executor.ctx.db
+    .select()
+    .from(teammateRows)
+    .where(eq(teammateRows.id, bot.id));
   if (!latest || latest.archivedAt) throw new Error("Teammate is no longer available");
   Object.assign(bot, latest);
   const client = await executor.ctx.codex.ready();
@@ -38,10 +41,10 @@ export async function syncWorkspace(
   const rules = await executor.approvals.rulesFor(bot.id);
 
   const teammates = await executor.ctx.db
-    .select({ name: bots.name, role: bots.role })
-    .from(bots)
-    .where(and(isNull(bots.archivedAt), ne(bots.id, bot.id)))
-    .orderBy(asc(bots.createdAt));
+    .select({ name: teammateRows.name, role: teammateRows.role })
+    .from(teammateRows)
+    .where(and(isNull(teammateRows.archivedAt), ne(teammateRows.id, bot.id)))
+    .orderBy(asc(teammateRows.createdAt));
   const { labels: services } = await executor.connections.forBot(bot.id);
   const { domain } = await emailSettingsRow(executor.ctx);
   const address = domain ? emailAddress(bot.slug, domain) : null;

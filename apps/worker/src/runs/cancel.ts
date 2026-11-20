@@ -10,7 +10,7 @@ export async function requestTeammateRunsCancel(tx: Tx, teammateId: string, at: 
   await tx
     .update(runs)
     .set({ cancelRequestedAt: at })
-    .where(and(eq(runs.botId, teammateId), inArray(runs.status, [...ACTIVE_RUN_STATUSES]))); // vocabulary: allow
+    .where(and(eq(runs.teammateId, teammateId), inArray(runs.status, [...ACTIVE_RUN_STATUSES])));
 }
 
 /**

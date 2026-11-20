@@ -110,8 +110,8 @@ export function FilesView() {
   const { data, isLoading, error } = useFolder(path, online !== false);
   const offline = online === false || isOffline(error);
   const parts = path.slice(ROOT.length).split("/").filter(Boolean);
-  const botBySlug = (slug: string) => state?.bots.find((bot) => bot.slug === slug);
-  const botSlugs = new Set(state?.bots.map((bot) => bot.slug) ?? []);
+  const botBySlug = (slug: string) => state?.teammates.find((bot) => bot.slug === slug);
+  const botSlugs = new Set(state?.teammates.map((bot) => bot.slug) ?? []);
   const queryClient = useQueryClient();
   const picker = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(0);

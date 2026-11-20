@@ -19,7 +19,7 @@ export const emailContract = {
       inputStructure: "detailed",
     })
     .input(z.object({ params: z.object({ token: z.string() }), body: z.unknown() }))
-    .output(z.object({ ok: z.literal(true), botId: z.string().nullable() })),
+    .output(z.object({ ok: z.literal(true), teammateId: z.string().nullable() })),
   /** The domain, the inbound address and each teammate's address (makes the email row once). */
   status: base.route({ method: "GET", path: "/internal/email" }).output(emailStatusViewSchema),
   /** The domain teammates' addresses are on, and Postmark's token (empty keeps the saved one). */

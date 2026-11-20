@@ -1,4 +1,4 @@
-import type { BotSummary, Home } from "@open-bot/api";
+import type { TeammateSummary, Home } from "@open-bot/api";
 import { CloudOff, Hand } from "lucide-react-native";
 import { Pressable, View, StyleSheet } from "react-native";
 import { BotAvatar, needsYouText } from "@/features/teammates/components/bot-avatar";
@@ -17,7 +17,7 @@ export function TakeoverLater({
   onOpen,
 }: {
   request: Home["takeoverRequests"][number];
-  bot: BotSummary | undefined;
+  bot: TeammateSummary | undefined;
   onOpen: () => void;
 }) {
   const colors = useColors();
@@ -34,7 +34,7 @@ export function TakeoverLater({
         )}
         <View style={{ flex: 1, gap: 2 }}>
           <Text variant="label" numberOfLines={1}>
-            {request.botName} {needsYouText("takeover").toLowerCase()}
+            {request.teammateName} {needsYouText("takeover").toLowerCase()}
           </Text>
           {request.reason ? (
             <Text variant="small" muted numberOfLines={1}>

@@ -30,7 +30,7 @@ export function ComingUp({ now }: { now: number | null }) {
       <SideHeading title="Coming up" href="/automations" label="Automations" />
       <ol className="divide-y divide-border/70 overflow-hidden rounded-xl bg-card shadow-raised">
         {next.map((schedule) => {
-          const bot = state.bots.find((entry) => entry.id === schedule.botId);
+          const bot = state.teammates.find((entry) => entry.id === schedule.teammateId);
           return (
             <li key={schedule.id} className="flex items-center gap-3 px-3.5 py-2.5">
               {bot ? (

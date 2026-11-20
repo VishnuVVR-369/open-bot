@@ -31,7 +31,7 @@ export function ComputerPanel({
   const { state, online } = useComputer(initial);
   const { screenId, pick } = useFollowedScreen(botIds, initial);
   if (state && !online && botIds.length > 0) {
-    const names = botIds.flatMap((id) => state.bots.find((bot) => bot.id === id)?.name ?? []);
+    const names = botIds.flatMap((id) => state.teammates.find((bot) => bot.id === id)?.name ?? []);
     return <ComputerOffline botNames={names} className={className} />;
   }
   if (!screenId) {

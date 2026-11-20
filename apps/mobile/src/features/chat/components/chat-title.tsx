@@ -1,4 +1,4 @@
-import type { BotSummary, ChatSummary } from "@open-bot/api";
+import type { TeammateSummary, ChatSummary } from "@open-bot/api";
 import type { TeammateActivity } from "@open-bot/domain";
 import { router } from "expo-router";
 import { Pressable, StyleSheet, View } from "react-native";
@@ -21,8 +21,8 @@ export function ChatTitle({
 }: {
   chat: ChatSummary;
   /** The teammate of a chat that isn't a group, as the roster has them now. */
-  teammate: BotSummary | undefined;
-  members: BotSummary[];
+  teammate: TeammateSummary | undefined;
+  members: TeammateSummary[];
   title: string;
   activity: TeammateActivity;
   /** The status words, or null for an idle group. */

@@ -3,7 +3,7 @@ import { type Autonomy } from "@open-bot/domain";
 import { boolean, integer, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { createdAt, updatedAt } from "./columns";
 
-export const bots = pgTable(
+export const teammates = pgTable(
   "bots",
   {
     id: uuid("id").primaryKey().defaultRandom(),
@@ -31,6 +31,6 @@ export const bots = pgTable(
 );
 
 /**
- * Helper chats hold a swarm helper's work; they don't show in your chat lists. A bot's inbox chat
+ * Helper chats hold a swarm helper's work; they don't show in your chat lists. A teammate's inbox chat
  * is where the emails it gets arrive.
  */

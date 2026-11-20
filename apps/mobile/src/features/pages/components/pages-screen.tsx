@@ -66,7 +66,7 @@ export default function PagesScreen() {
           >
             <PageRow
               page={page}
-              bot={bots.find((bot) => bot.id === page.botId)}
+              bot={bots.find((bot) => bot.id === page.teammateId)}
               first={index === 0}
               onMenu={() => setMenuFor(page)}
             />

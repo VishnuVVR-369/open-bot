@@ -1,7 +1,7 @@
 // Teammates and their conversations: direct chats, group chats, runs, approvals, swarm, takeover.
 import { randomUUID } from "node:crypto";
 import type { InferInsertModel } from "drizzle-orm";
-import { bots, screenTakeovers, swarmTasks, swarms } from "@open-bot/db";
+import { teammates, screenTakeovers, swarmTasks, swarms } from "@open-bot/db";
 import {
   ago,
   approval,
@@ -22,7 +22,7 @@ import {
   type SeedContext,
 } from "./lib";
 
-export const BOT_DEFS: (Omit<InferInsertModel<typeof bots>, "id" | "slug" | "createdAt"> & {
+export const BOT_DEFS: (Omit<InferInsertModel<typeof teammates>, "id" | "slug" | "createdAt"> & {
   key: string;
   created: Parameters<typeof ago>[0];
 })[] = [
@@ -150,7 +150,7 @@ export async function seedTeam(ctx: SeedContext) {
   for (const def of BOT_DEFS) {
     const id = randomUUID();
     const created = ago(def.created);
-    await db.insert(bots, {
+    await db.insert(teammates, {
       id,
       name: def.name,
       slug: def.name.toLowerCase(),
@@ -508,7 +508,7 @@ I put the plan together on a page: [Lisbon trip itinerary](/pages/${pageIds.itin
   R.scoutHotels = hotelsExchange.runs[0];
   await ctx.db.insert(swarms, {
     id: swarmId,
-    botId: scout.id,
+    teammateId: scout.id,
     chatId: scoutFlights.id,
     runId: hotelsRunId,
     itemId: R.scoutHotels.timeline.find((item) => item.kind === "swarm").id,
@@ -1063,7 +1063,7 @@ I also saved a note for myself: your intros should stay under three sentences.`)
     screenId: juno.id,
     status: "requested",
     requestedByRunId: R.junoCms.id,
-    requestedByBotId: juno.id,
+    requestedByTeammateId: juno.id,
     reason: takeover.reason,
     itemId: R.junoCms.timeline.find((item) => item.kind === "takeover_request").id,
     createdAt: plus(cmsExchange.message.at, 40_000),

@@ -1,9 +1,4 @@
-import {
-  bots as teammateRows, // vocabulary: allow
-  chats,
-  runs,
-  schedules as scheduleRows,
-} from "@open-bot/db";
+import { teammates as teammateRows, chats, runs, schedules as scheduleRows } from "@open-bot/db";
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { teammateRouteHarness } from "./testing-routes";
@@ -62,7 +57,7 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
       await db
         .update(scheduleRows)
         .set({ enabled: true })
-        .where(eq(scheduleRows.botId, teammateId)); // vocabulary: allow
+        .where(eq(scheduleRows.teammateId, teammateId));
       await worker.teammates.archive({ teammateId });
       expect(await row(teammateId)).toMatchObject({ archived: true, lead: false });
       const [chat] = await db.select().from(chats).where(eq(chats.id, chatId));
@@ -70,7 +65,7 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
       const routines = await db
         .select()
         .from(scheduleRows)
-        .where(eq(scheduleRows.botId, teammateId)); // vocabulary: allow
+        .where(eq(scheduleRows.teammateId, teammateId));
       expect(routines.map((r) => r.enabled)).toEqual([false]);
       const [stopped] = await db.select().from(runs).where(eq(runs.id, run!.id));
       expect(stopped!.cancelRequestedAt).not.toBeNull();

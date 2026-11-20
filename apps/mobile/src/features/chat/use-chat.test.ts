@@ -51,11 +51,11 @@ function entry(number: number): ChatEntry {
   const at = new Date(Date.UTC(2026, 10, 3, 0, 0, number)).toISOString();
   const run: RunView = {
     id: `r${number}`,
-    botId: "b",
+    teammateId: "b",
     trigger: "user",
     messageId: null,
     parentRunId: null,
-    fromBotId: null,
+    fromTeammateId: null,
     authMode: null,
     scheduleTitle: null,
     triggerTitle: null,
@@ -75,7 +75,7 @@ function page(first: number, last: number, hasMore = first > 1, chatId = "a"): C
       id: chatId,
       kind: "direct",
       title: "Rex",
-      botId: "b",
+      teammateId: "b",
       main: true,
       memberIds: ["b"],
       lastActivityAt: entry(last).at,

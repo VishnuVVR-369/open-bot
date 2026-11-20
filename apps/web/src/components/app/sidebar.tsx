@@ -222,7 +222,7 @@ export function Sidebar({
               title="Teammates"
               action={
                 <span className="flex min-w-0 items-center gap-1">
-                  {!computerOnline && state.bots.length > 0 && (
+                  {!computerOnline && state.teammates.length > 0 && (
                     // Said once, beside the heading, so each row below can just say "Paused".
                     <Link
                       href="/computer"
@@ -247,7 +247,7 @@ export function Sidebar({
                 </span>
               }
             />
-            {state.bots.length === 0 && (
+            {state.teammates.length === 0 && (
               <Link
                 href="/bots/new"
                 onClick={onNavigate}
@@ -256,10 +256,10 @@ export function Sidebar({
                 Create your first teammate
               </Link>
             )}
-            {state.bots.map((bot) => {
+            {state.teammates.map((bot) => {
               const href = bot.directChatId ? `/chats/${bot.directChatId}` : `/bots/${bot.id}`;
               const active =
-                (currentChat?.kind !== "group" && currentChat?.botId === bot.id) ||
+                (currentChat?.kind !== "group" && currentChat?.teammateId === bot.id) ||
                 pathname === `/bots/${bot.id}`;
               const status = teammateStatus(bot, computerOnline);
               return (
@@ -303,16 +303,19 @@ export function Sidebar({
             })}
           </div>
 
-          {(groups.length > 0 || state.bots.length >= 2) && (
+          {(groups.length > 0 || state.teammates.length >= 2) && (
             <div className="flex flex-col gap-0.5">
-              <SectionHeader title="Group chats" action={<NewGroupDialog bots={state.bots} />} />
+              <SectionHeader
+                title="Group chats"
+                action={<NewGroupDialog bots={state.teammates} />}
+              />
               {groups.length === 0 && (
                 <p className="px-2 py-1 text-[12.5px] text-muted-foreground">
                   Put teammates in one room and let them hand work to each other.
                 </p>
               )}
               {groups.map((chat) => {
-                const members = state.bots.filter((bot) => chat.memberIds.includes(bot.id));
+                const members = state.teammates.filter((bot) => chat.memberIds.includes(bot.id));
                 return (
                   <Link
                     key={chat.id}

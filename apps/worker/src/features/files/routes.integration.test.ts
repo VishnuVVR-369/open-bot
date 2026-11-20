@@ -1,6 +1,4 @@
-import {
-  bots as teammateRows, // vocabulary: allow
-} from "@open-bot/db";
+import { teammates as teammateRows } from "@open-bot/db";
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { rpcEnabled, rpcHarness, failure } from "../../testing/rpc";

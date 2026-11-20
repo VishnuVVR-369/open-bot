@@ -1,5 +1,5 @@
 import type { ApiInputs } from "@open-bot/api";
-import { bots as teammates, chats, messages, runs } from "@open-bot/db"; // vocabulary: allow
+import { teammates, chats, messages, runs } from "@open-bot/db";
 import type { MemoryService } from "@open-bot/memory";
 import { eq } from "drizzle-orm";
 import type { Context } from "../context";
@@ -63,12 +63,12 @@ export class RunRequests {
     const [run] = await this.ctx.db
       .select({
         id: runs.id,
-        teammateId: runs.botId, // vocabulary: allow
+        teammateId: runs.teammateId,
         chatId: runs.chatId,
         name: teammates.name,
       })
       .from(runs)
-      .innerJoin(teammates, eq(teammates.id, runs.botId)) // vocabulary: allow
+      .innerJoin(teammates, eq(teammates.id, runs.teammateId))
       .where(eq(runs.id, input.runId));
     if (!run) throw new RunError(404, GONE);
     // A redo's lesson is saved by its durable dispatcher before the teammate receives it.
@@ -78,7 +78,7 @@ export class RunRequests {
       if (input.remember)
         await this.memory.save(
           {
-            botId: run.teammateId,
+            teammateId: run.teammateId,
             kind: "lesson",
             content: input.text,
             key: null,

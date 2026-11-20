@@ -1,4 +1,4 @@
-import type { BotSummary, PageSummary } from "@open-bot/api";
+import type { TeammateSummary, PageSummary } from "@open-bot/api";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import { Card, Section } from "@/components/section";
@@ -10,7 +10,13 @@ import { SeeAll } from "./see-all";
 const PAGES_ON_HOME = 3;
 
 /** The latest pages teammates made, pinned ones first. */
-export function Pages({ pages, teammates }: { pages: PageSummary[]; teammates: BotSummary[] }) {
+export function Pages({
+  pages,
+  teammates,
+}: {
+  pages: PageSummary[];
+  teammates: TeammateSummary[];
+}) {
   const [menuFor, setMenuFor] = useState<PageSummary | null>(null);
   const shown = useMemo(() => sortPages(pages).slice(0, PAGES_ON_HOME), [pages]);
   if (shown.length === 0) return null;
@@ -30,7 +36,7 @@ export function Pages({ pages, teammates }: { pages: PageSummary[]; teammates: B
           <PageRow
             key={page.id}
             page={page}
-            bot={teammates.find((teammate) => teammate.id === page.botId)}
+            bot={teammates.find((teammate) => teammate.id === page.teammateId)}
             first={index === 0}
             onMenu={() => setMenuFor(page)}
           />

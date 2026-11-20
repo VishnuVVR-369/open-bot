@@ -4,7 +4,7 @@ import type { SkillSummary } from "@/lib/types";
 import { skillOptions, skillQueryAt } from "./skill-options";
 
 const skill = (name: string, teammateId: string | null): SkillSummary =>
-  ({ id: name, name, description: `${name} skill`, botId: teammateId }) as SkillSummary;
+  ({ id: name, name, description: `${name} skill`, teammateId }) as SkillSummary;
 
 describe("skillQueryAt", () => {
   it("reads the name after a slash that ends at the caret", () => {
@@ -53,6 +53,6 @@ describe("skillOptions", () => {
     const [first] = BUILT_IN_SKILLS;
     if (!first) return;
     const option = skillOptions(first.name, [], []).find((entry) => entry.name === first.name);
-    expect(option).toMatchObject({ id: `built-in:${first.name}`, botId: null, builtIn: true });
+    expect(option).toMatchObject({ id: `built-in:${first.name}`, teammateId: null, builtIn: true });
   });
 });

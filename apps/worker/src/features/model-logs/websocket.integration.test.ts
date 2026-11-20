@@ -2,7 +2,7 @@ import { once } from "node:events";
 import type http from "node:http";
 import type { AddressInfo } from "node:net";
 import {
-  bots, // vocabulary: allow
+  teammates,
   createDb,
   createPool,
   modelBlobs,
@@ -66,7 +66,7 @@ describe.skipIf(!url)("model proxy over WebSockets", () => {
   beforeAll(async () => {
     await database.create();
     const [teammate] = await db
-      .insert(bots) // vocabulary: allow
+      .insert(teammates)
       .values({ name: "Wren", slug: "wren", role: "assistant", color: "violet" })
       .returning();
     teammateId = teammate!.id;

@@ -125,7 +125,8 @@ function DecidedApproval({ approval, bot }: { approval: ApprovalView; bot?: BotS
 export function ApprovalsView() {
   const { data, isLoading } = useApprovals();
   const { data: state } = useAppState();
-  const botFor = (approval: ApprovalView) => state?.bots.find((b) => b.id === approval.botId);
+  const botFor = (approval: ApprovalView) =>
+    state?.teammates.find((b) => b.id === approval.teammateId);
   const pending = (data ?? []).filter((approval) => approval.status === "pending");
   // Most recently decided first, the way the phone lists them.
   const decided = (data ?? [])

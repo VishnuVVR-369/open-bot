@@ -140,7 +140,7 @@ export function VaultDialog({
     setCvc("");
     setHolder("");
     setZip("");
-    setAccess(item ? item.botIds : null);
+    setAccess(item ? item.teammateIds : null);
   }, [open, item]);
 
   const ready =

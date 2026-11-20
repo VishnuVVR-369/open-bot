@@ -25,7 +25,7 @@ import {
 import { sql } from "drizzle-orm";
 import { type Attachment, chats, messages } from "./chats";
 import { bytea, createdAt, oneOf } from "./columns";
-import { bots } from "./teammates";
+import { teammates } from "./teammates";
 
 export const runs = pgTable(
   "runs",
@@ -34,16 +34,16 @@ export const runs = pgTable(
     chatId: uuid("chat_id")
       .notNull()
       .references(() => chats.id, { onDelete: "cascade" }),
-    botId: uuid("bot_id")
+    teammateId: uuid("bot_id")
       .notNull()
-      .references(() => bots.id, { onDelete: "cascade" }),
+      .references(() => teammates.id, { onDelete: "cascade" }),
     trigger: text("trigger").$type<RunTrigger>().notNull(),
     lane: text("lane").$type<RunLane>().notNull().default("chat"),
     /** A quiet routine finished with nothing to report. */
     quiet: boolean("quiet").notNull().default(false),
     /** When the conversation received this other lane's result. */
     passedOnAt: timestamp("passed_on_at", { withTimezone: true }),
-    /** The text sent to the bot to start this run. */
+    /** The text sent to the teammate to start this run. */
     prompt: text("prompt").notNull(),
     attachments: jsonb("attachments").$type<Attachment[]>().notNull().default([]),
     messageId: uuid("message_id").references(() => messages.id, { onDelete: "set null" }),
@@ -51,7 +51,7 @@ export const runs = pgTable(
     /** The watch or webhook that started this run. */
     triggerId: uuid("trigger_id"),
     parentRunId: uuid("parent_run_id"),
-    /** The screen it works on when it isn't its bot's own, like a swarm helper's. */
+    /** The screen it works on when it isn't its teammate's own, like a swarm helper's. */
     screenId: uuid("screen_id"),
     status: text("status").$type<RunStatus>().notNull().default("queued"),
     waitingFor: text("waiting_for").$type<RunWait>(),
@@ -102,13 +102,13 @@ export const runs = pgTable(
     index("runs_status_idx").on(table.status),
     // Newest first, a page at a time, keyed by (created_at, id) (model logs' runs list).
     index("runs_created_idx").on(table.createdAt, table.id),
-    index("runs_bot_idx").on(table.botId, table.createdAt),
+    index("runs_bot_idx").on(table.teammateId, table.createdAt),
     index("runs_trigger_idx").on(table.triggerId, table.createdAt),
     // Upload cleanup asks which runs carry a file.
     index("runs_attachments_idx").using("gin", table.attachments.op("jsonb_path_ops")),
     // A message you sent starts at most one run per teammate.
     uniqueIndex("runs_user_message_unique")
-      .on(table.messageId, table.botId)
+      .on(table.messageId, table.teammateId)
       .where(sql`${table.trigger} = 'user' and ${table.messageId} is not null`),
   ],
 );
