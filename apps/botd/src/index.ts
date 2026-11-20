@@ -14,7 +14,7 @@ import { Supervisor, waitFor } from "./supervisor";
 import { lookupUser, runAs } from "./users";
 
 const PORTS = { botd: 7000, codex: 4500, socks: 1080 } as const;
-/** botd's own state, which no bot can read: the shared cookie jar. */
+/** botd's own state, which no teammate can read: the shared cookie jar. */
 const STATE_DIR = "/home/.botd";
 /** The dock's pins and look, named for its plugin id in xfce4-panel.xml. */
 const DOCK_PINS = "docklike-5.rc";
@@ -255,7 +255,7 @@ function health(): ComputerHealth {
 
 async function main() {
   log("botd starting");
-  // Files the bots and the browser create stay writable by the whole `bots` group, so shared folders stay shared.
+  // Files the teammates and the browser create stay writable by the whole `bots` group, so shared folders stay shared.
   process.umask(0o002);
   await prepareFilesystem();
   await codeScreens.load();
@@ -290,7 +290,7 @@ async function main() {
         sweeping = false;
       });
   }, 5_000).unref();
-  // Every bot's browser stays signed in to the same sites.
+  // Every teammate's browser stays signed in to the same sites.
   setInterval(
     () =>
       void cookies.sync().catch((error: unknown) => log(`[cookies] sync failed: ${String(error)}`)),
@@ -298,7 +298,7 @@ async function main() {
   ).unref();
   screens.on("lease", (screenId, { holder, reason }) =>
     log(
-      `[lease] ${screenId.slice(0, 8)}: ${holder ? (isOwnerLease(holder) ? "you" : holder.botName) : "free"} (${reason})`,
+      `[lease] ${screenId.slice(0, 8)}: ${holder ? (isOwnerLease(holder) ? "you" : holder.teammateName) : "free"} (${reason})`,
     ),
   );
   supervisor.on("state", (name, state) => {

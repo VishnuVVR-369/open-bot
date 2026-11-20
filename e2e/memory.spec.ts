@@ -10,7 +10,7 @@ test.describe("versioned memory in an isolated database", () => {
     "Use pnpm test:memory -- --e2e to create the isolated database.",
   );
   const pool = new pg.Pool({ connectionString: process.env.MEMORY_TEST_DATABASE_URL });
-  const botId = randomUUID(),
+  const teammateId = randomUUID(),
     peerId = randomUUID();
   const password = "Memory-test-password-only-2026";
   test.beforeAll(async ({ request, baseURL }) => {
@@ -30,7 +30,7 @@ test.describe("versioned memory in an isolated database", () => {
     }
     await pool.query(
       "insert into bots(id,name,slug,role,color) values($1,'Memory Tester',$3,'assistant','#7C5CFF'),($2,'Memory Peer',$4,'assistant','#2E9BFF')",
-      [botId, peerId, `memory-tester-${botId}`, `memory-peer-${peerId}`],
+      [teammateId, peerId, `memory-tester-${teammateId}`, `memory-peer-${peerId}`],
     );
   });
   test.afterAll(async () => {
@@ -44,8 +44,8 @@ test.describe("versioned memory in an isolated database", () => {
     await page.waitForURL("/");
   });
 
-  test("add, correct, inspect, restore, export and forget a bot memory", async ({ page }) => {
-    await page.goto(`/teammates/${botId}?tab=memory`);
+  test("add, correct, inspect, restore, export and forget a teammate memory", async ({ page }) => {
+    await page.goto(`/teammates/${teammateId}?tab=memory`);
     await expect(page.getByText("No saved memories yet.", { exact: false })).toBeVisible();
     await page.getByRole("button", { name: "Add memory" }).click();
     await page
@@ -97,7 +97,7 @@ test.describe("versioned memory in an isolated database", () => {
     await expect(item).toHaveCount(0);
     const revisions = await pool.query(
       "select r.content from memory_revisions r join memory_items m on m.id=r.memory_id where m.bot_id=$1",
-      [botId],
+      [teammateId],
     );
     expect(revisions.rowCount).toBe(0);
   });
@@ -108,7 +108,7 @@ test.describe("versioned memory in an isolated database", () => {
     const memory = new MemoryService(createDb(pool));
     const saved = await memory.save(
       {
-        teammateId: botId,
+        teammateId,
         content: "An existing memory must survive a duplicate save.",
         kind: "fact",
         key: null,
@@ -117,7 +117,7 @@ test.describe("versioned memory in an isolated database", () => {
       },
       { kind: "user" },
     );
-    await page.goto(`/teammates/${botId}?tab=memory`);
+    await page.goto(`/teammates/${teammateId}?tab=memory`);
     await page.getByRole("button", { name: "Add memory" }).click();
     await page.getByRole("textbox", { name: "Memory", exact: true }).fill(saved.content);
     await page.getByRole("button", { name: "Save memory", exact: true }).click();
@@ -142,14 +142,14 @@ test.describe("versioned memory in an isolated database", () => {
   });
 
   test("a stale browser edit cannot overwrite a newer revision", async ({ page, context }) => {
-    await page.goto(`/teammates/${botId}?tab=memory`);
+    await page.goto(`/teammates/${teammateId}?tab=memory`);
     await page.getByRole("button", { name: "Add memory" }).click();
     await page
       .getByRole("textbox", { name: "Memory", exact: true })
       .fill("My preferred airline is Example Air.");
     await page.getByRole("button", { name: "Save memory", exact: true }).click();
     const other = await context.newPage();
-    await other.goto(`/teammates/${botId}?tab=memory`);
+    await other.goto(`/teammates/${teammateId}?tab=memory`);
     const item = page.getByTestId("memory-item").filter({ hasText: "Example Air" });
     await item.getByRole("button", { name: "More actions" }).click();
     await page.getByRole("menuitem", { name: "Edit" }).click();
@@ -182,15 +182,15 @@ test.describe("versioned memory in an isolated database", () => {
     await other.close();
   });
 
-  test("confirm a sourced suggestion, manage shared preferences and preserve bot scopes on mobile", async ({
+  test("confirm a sourced suggestion, manage shared preferences and preserve teammate scopes on mobile", async ({
     page,
   }) => {
     const id = randomUUID();
     await pool.query(
       "insert into memory_items(id,bot_id,kind,content,fingerprint,state,source) values($1,$2,'preference','Prefers concise replies','e2e-suggestion','candidate',$3)",
-      [id, botId, { type: "extraction" }],
+      [id, teammateId, { type: "extraction" }],
     );
-    await page.goto(`/teammates/${botId}?tab=memory`);
+    await page.goto(`/teammates/${teammateId}?tab=memory`);
     const suggestion = page
       .getByTestId("memory-item")
       .filter({ hasText: "Prefers concise replies" });
@@ -209,7 +209,7 @@ test.describe("versioned memory in an isolated database", () => {
       (await pool.query("select about_me from settings where id=1")).rows[0].about_me,
     ).toContain("Lisbon");
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(`/teammates/${botId}?tab=memory`);
+    await page.goto(`/teammates/${teammateId}?tab=memory`);
     await expect(page.getByRole("button", { name: "Add memory" })).toBeVisible();
     await page.screenshot({ path: "test-results/memory-mobile.png", fullPage: true });
     expect(
@@ -223,7 +223,7 @@ test.describe("versioned memory in an isolated database", () => {
     const memory = new MemoryService(createDb(pool));
     const item = await memory.save(
       {
-        teammateId: botId,
+        teammateId,
         content: "E2E inspector: prefers remote roles",
         kind: "preference",
         key: null,
@@ -246,7 +246,7 @@ test.describe("versioned memory in an isolated database", () => {
       message = randomUUID();
     await pool.query(
       "insert into chats(id,kind,title,bot_id) values($1,'direct','Memory context check',$2)",
-      [chat, botId],
+      [chat, teammateId],
     );
     await pool.query(
       "insert into messages(id,chat_id,role,text) values($1,$2,'user','Find matching roles')",
@@ -254,13 +254,13 @@ test.describe("versioned memory in an isolated database", () => {
     );
     await pool.query(
       "insert into runs(id,chat_id,bot_id,trigger,prompt,message_id,status) values($1,$2,$3,'user','Find matching roles',$4,'completed')",
-      [run, chat, botId, message],
+      [run, chat, teammateId, message],
     );
     await pool.query(
       "insert into memory_contexts(run_id,bot_id,generation,refs) values($1,$2,'1:0:0',$3)",
       [
         run,
-        botId,
+        teammateId,
         JSON.stringify([
           { id: item.id, revision: item.revision },
           { id: revised.id, revision: revised.revision },

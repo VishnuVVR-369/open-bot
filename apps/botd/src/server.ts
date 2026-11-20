@@ -65,7 +65,7 @@ export function createServer(deps: ServerDeps): {
     // Control connections only live while you hold the screen.
     if (!isOwnerLease(holder) || screens.get(screenId)?.lease.inputBlocked) {
       for (const bridge of controlBridges.get(screenId) ?? [])
-        bridge.close(4001, "Control returned to the bot");
+        bridge.close(4001, "Control returned to the teammate");
       controlBridges.delete(screenId);
     }
   });

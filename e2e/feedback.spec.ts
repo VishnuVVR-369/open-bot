@@ -1,7 +1,7 @@
 import { expect, test } from "./fixtures";
 import {
   apiFor,
-  botIdOf,
+  teammateIdOf,
   createTeammate,
   sendMessage,
   uniqueName,
@@ -14,8 +14,8 @@ const LESSON = "Always end every reply with the word PINEAPPLE on its own line."
 test("a teammate's Memory tab explains lessons before there are any", async ({ page }) => {
   const name = uniqueName("Tess");
   await createTeammate(page, name);
-  const botId = await botIdOf(page, name);
-  await page.goto(`/teammates/${botId}?tab=memory`);
+  const teammateId = await teammateIdOf(page, name);
+  await page.goto(`/teammates/${teammateId}?tab=memory`);
   await expect(page.getByRole("tab", { name: "Memory" })).toHaveAttribute("data-state", "active");
   await expect(page.getByTestId("memory-manager")).toContainText(
     `${name}'s saved facts and lessons.`,
@@ -75,9 +75,9 @@ test("@agent rate a reply, teach a lesson, and see it used in a new chat", async
   );
   await page.keyboard.press("Escape");
 
-  const botId = await botIdOf(page, name);
+  const teammateId = await teammateIdOf(page, name);
   const state = await apiFor(page).app.state();
-  const slug = state.teammates.find((bot) => bot.id === botId)!.slug;
+  const slug = state.teammates.find((teammate) => teammate.id === teammateId)!.slug;
   await page.goto(chatUrl);
   await page.getByRole("button", { name: "New chat" }).click();
   await expect(page.getByText(`Give ${name} something to do`)).toBeVisible();
@@ -88,7 +88,7 @@ test("@agent rate a reply, teach a lesson, and see it used in a new chat", async
   await expect(page.getByTestId("run").last()).toContainText("PINEAPPLE");
 
   // Forgetting it takes it off the list.
-  await page.goto(`/teammates/${botId}?tab=memory`);
+  await page.goto(`/teammates/${teammateId}?tab=memory`);
   await page
     .getByTestId("memory-item")
     .filter({ hasText: LESSON })

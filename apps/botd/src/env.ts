@@ -14,7 +14,7 @@ const schema = z.object({
     .optional()
     .transform((value) => value === "true"),
   /** The group of the shared folders, set in the image. */
-  BOTS_GID: unsetIfEmpty(z.coerce.number().int().nonnegative()), // vocabulary: allow
+  BOTS_GID: unsetIfEmpty(z.coerce.number().int().nonnegative()),
   /** Extra sites the apply guard covers, besides the job portals: the e2e tests' stand-in portal. */
   APPLY_GUARD_EXTRA_DOMAINS: z.string().default(""),
   MAX_SCREENS: unsetIfEmpty(z.coerce.number().int().positive()),
@@ -46,7 +46,7 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): BotdEnv {
   return {
     token: env.BOTD_TOKEN,
     lifecycleEnabled,
-    sharedGid: env.BOTS_GID ?? null, // vocabulary: allow
+    sharedGid: env.BOTS_GID ?? null,
     applyGuardExtraDomains: env.APPLY_GUARD_EXTRA_DOMAINS.split(",")
       .map((domain) => domain.trim())
       .filter(Boolean),

@@ -74,8 +74,8 @@ describe("screen state", () => {
           lease: {
             kind: "run",
             runId: "r",
-            botId: "b1",
-            botName: "Rex",
+            teammateId: "b1",
+            teammateName: "Rex",
             since: "2026-11-04T10:00:00Z",
             lastActionAt: "2026-11-04T10:00:00Z",
           },

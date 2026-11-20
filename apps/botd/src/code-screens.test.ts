@@ -45,7 +45,11 @@ describe("code-protected screens", () => {
       expect(await readFile(join(dir, screen.id), "utf8")).toBe("");
       expect(screen.lease.holder?.kind).toBe("user-code");
       expect(
-        await screen.lease.acquireForRun({ runId: "run", botId: screen.id, botName: "Bot" }),
+        await screen.lease.acquireForRun({
+          runId: "run",
+          teammateId: screen.id,
+          teammateName: "Teammate",
+        }),
       ).toBe("user_has_control");
     });
     expect(await codes.type(screen, input)).toMatchObject({ status: "needs_owner" });
@@ -62,7 +66,7 @@ describe("code-protected screens", () => {
 
   it("reports the run it preempted, so that run can continue after the hand-back", async () => {
     const { codes, screen, input } = await fixture();
-    const run = { runId: "run", botId: screen.id, botName: "Bot" };
+    const run = { runId: "run", teammateId: screen.id, teammateName: "Teammate" };
     expect(await screen.lease.acquireForRun(run)).toBe("ok");
     expect(await codes.type(screen, input)).toMatchObject({
       status: "needs_owner",

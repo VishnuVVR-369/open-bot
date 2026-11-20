@@ -20,7 +20,7 @@ export function screenState(screen: ScreenView): ScreenState {
   const request = screen.requests[0];
   if (request) return { kind: "needs-you", reason: request.reason, requestId: request.id };
   if (!screen.running) return { kind: "asleep" };
-  if (screen.lease?.kind === "run") return { kind: "using", botName: screen.lease.botName };
+  if (screen.lease?.kind === "run") return { kind: "using", botName: screen.lease.teammateName };
   return { kind: "awake" };
 }
 

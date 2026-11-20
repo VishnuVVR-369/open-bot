@@ -247,7 +247,7 @@ async function light(
 
 export async function seedModelLogs(ctx: SeedContext) {
   const { R } = ctx;
-  const team = ctx.bots as Record<string, { id: string }>; // vocabulary: allow
+  const team = ctx.teammates as Record<string, { id: string }>;
   const log = new LogSeeder(ctx.db);
   await kitBug(
     log,

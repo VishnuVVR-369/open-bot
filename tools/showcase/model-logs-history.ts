@@ -245,7 +245,7 @@ async function tools(
 }
 
 export async function seedModelLogHistory(ctx: SeedContext, log: LogSeeder) {
-  const team = ctx.bots as Record<string, { id: string }>; // vocabulary: allow
+  const team = ctx.teammates as Record<string, { id: string }>;
   const rand = seeded(20_261_117);
   const expiredOn = ago({ d: 1, h: 3 });
   // Weekly plan use, reset each Monday, and the 5-hour window, by the hour it was read.

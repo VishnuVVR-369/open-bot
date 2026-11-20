@@ -77,13 +77,13 @@ async function rejection(promise: Promise<unknown>): Promise<BotdError> {
 describe("ComputerClient", () => {
   it("sends the token and the contract's body, and returns the validated answer", async () => {
     const botd = await standIn({
-      "POST /lease/user/release": { body: { released: true, extra: "dropped" } },
+      "POST /lease/owner/release": { body: { released: true, extra: "dropped" } },
     });
     const computer = new ComputerClient(botd.url, "secret", logger());
     expect(await computer.releaseByUser(SCREEN, "user_idle")).toEqual({ released: true });
     expect(botd.requests).toEqual([
       {
-        route: "POST /lease/user/release",
+        route: "POST /lease/owner/release",
         body: { screenId: SCREEN, reason: "user_idle", clearCode: false },
         authorization: "Bearer secret",
       },
@@ -93,7 +93,7 @@ describe("ComputerClient", () => {
   it("keeps botd's status and message, including `{ error }` from a botd older than the contract", async () => {
     const botd = await standIn({
       "POST /lifecycle/quiesce": { status: 409, body: { error: 'Computer busy: {"demand":1}' } },
-      "POST /lease/user/take": {
+      "POST /lease/owner/take": {
         status: 409,
         body: { error: "Code entry is in progress.", code: "CONFLICT" },
       },
@@ -125,7 +125,7 @@ describe("ComputerClient", () => {
 
   it("wakes the computer for work on it, but never for a status read or a lifecycle call", async () => {
     const botd = await standIn({
-      "POST /lease/user/touch": { body: { holder: null } },
+      "POST /lease/owner/touch": { body: { holder: null } },
       "GET /health": { body: HEALTH },
       "GET /healthz": { body: { ok: true } },
       "POST /lifecycle/lease": { body: { version: 1, enabled: true, phase: "awake" } },
@@ -150,7 +150,7 @@ describe("ComputerClient", () => {
     } as unknown as ComputerLifecycle;
     await computer.touchUser(SCREEN);
     expect(run).toHaveBeenCalledTimes(1);
-    expect(run.mock.calls[0]![0]).toBe("/lease/user/touch");
+    expect(run.mock.calls[0]![0]).toBe("/lease/owner/touch");
     await computer.botd.healthz();
     await computer.botd.lifecycle.lease({ owner: "worker", demand: 1 });
     await computer.botd.health();
@@ -159,6 +159,44 @@ describe("ComputerClient", () => {
     inScope = true;
     expect(await computer.fetchHealth()).toEqual(HEALTH);
     expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it("never reads a run's lease from a computer on the old names as free or as another holder", async () => {
+    // Computers before the rename named the run's teammate with the old keys. While the
+    // worker and the computer run different versions, such a lease must not change who the worker
+    // thinks holds the screen, and an answer carrying one must fail rather than half-apply.
+    const since = "2026-11-08T00:00:00.000Z";
+    const named = { botId: SCREEN, botName: "Ada" }; // vocabulary: allow (the old keys)
+    const old = { kind: "run", runId: "run-1", ...named, since, lastActionAt: since };
+    const owner = { kind: "user", since, lastInputAt: since };
+    const botd = await standIn({
+      "POST /lease/owner/take": { body: { previous: old, holder: owner } },
+    });
+    const log = logger();
+    const computer = new ComputerClient(botd.url, "secret", log);
+    cleanup.push(() => computer.stop());
+    computer.start();
+    await vi.waitFor(() => expect(botd.connected).toHaveLength(1));
+    const socket = botd.connected[0]!;
+    const leased = once(computer, "lease");
+    socket.send(
+      JSON.stringify({ type: "lease", screenId: SCREEN, holder: owner, reason: "acquired" }),
+    );
+    await leased;
+    const changes: unknown[] = [];
+    computer.on("lease", (...change) => changes.push(change));
+    socket.send(
+      JSON.stringify({ type: "lease", screenId: SCREEN, holder: old, reason: "acquired" }),
+    );
+    const screen = { id: SCREEN, state: "running", browser: "running", lease: old };
+    socket.send(JSON.stringify({ type: "health", health: { ...HEALTH, screens: [screen] } }));
+    await vi.waitFor(() => expect(log.warn).toHaveBeenCalledTimes(2));
+    expect(changes).toEqual([]);
+    expect(computer.lease(SCREEN)).toEqual(owner);
+    expect(computer.health).toBeNull();
+    const taking = await rejection(computer.takeByUser(SCREEN));
+    expect(taking.status).toBe(502);
+    expect(computer.lease(SCREEN)).toEqual(owner);
   });
 
   it("skips an event that doesn't fit the contract and keeps applying the ones that do", async () => {
