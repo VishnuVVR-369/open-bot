@@ -38,7 +38,7 @@ import { attempt } from "@/lib/client/mutate";
 import { api } from "@/lib/client/rpc";
 import { useDictation } from "@/lib/client/dictation";
 import { useAppState } from "@/features/app-shell";
-import type { BotSummary, ChatSummary, MessageView } from "@/lib/types";
+import type { TeammateSummary, ChatSummary, MessageView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { skillOptions, skillQueryAt, type SkillOption } from "../skill-options";
 import { useDraft } from "../use-draft";
@@ -58,7 +58,7 @@ export interface ComposerHandle {
 export interface ComposerRun {
   lane?: string;
   id: string;
-  botName: string;
+  teammateName: string;
   status: RunStatus;
   waitingFor: "approval" | "takeover" | null;
 }
@@ -72,7 +72,7 @@ export function Composer({
   ref,
 }: {
   chat: ChatSummary;
-  members: BotSummary[];
+  members: TeammateSummary[];
   activeRun: ComposerRun | null;
   computerOnline?: boolean;
   onSent: (message: MessageView) => void;
@@ -151,7 +151,7 @@ export function Composer({
     replaceText(text.slice(0, caret).replace(pattern, replacement), text.slice(caret));
   }
 
-  function pickMention(member: BotSummary) {
+  function pickMention(member: TeammateSummary) {
     const caret = textarea.current?.selectionStart ?? text.length;
     const next = insertMention(text, caret, member);
     replaceText(next.text.slice(0, next.caret), next.text.slice(next.caret));
@@ -201,8 +201,8 @@ export function Composer({
   const placeholder =
     activeRun && (activeRun.lane ?? "chat") === "chat"
       ? waiting || paused
-        ? `Add a note for ${activeRun.botName}…`
-        : `Add to what ${activeRun.botName} is doing…`
+        ? `Add a note for ${activeRun.teammateName}…`
+        : `Add to what ${activeRun.teammateName} is doing…`
       : isGroup
         ? "Message the group, or @ a teammate…"
         : `Message ${members[0]?.name ?? "your teammate"}…`;
@@ -251,9 +251,9 @@ export function Composer({
             <span className="min-w-0 flex-1 truncate">
               {waiting
                 ? activeRun.waitingFor === "takeover"
-                  ? `${activeRun.botName} is waiting for you to take over`
-                  : `${activeRun.botName} is waiting for your approval`
-                : `${activeRun.botName}'s work is paused until the computer is back`}
+                  ? `${activeRun.teammateName} is waiting for you to take over`
+                  : `${activeRun.teammateName} is waiting for your approval`
+                : `${activeRun.teammateName}'s work is paused until the computer is back`}
             </span>
           </div>
         )}
@@ -446,8 +446,8 @@ export function Composer({
               </TooltipTrigger>
               <TooltipContent>
                 {waiting
-                  ? `Cancel what ${activeRun.botName} is doing, instead of answering`
-                  : `Stop ${activeRun.botName}`}
+                  ? `Cancel what ${activeRun.teammateName} is doing, instead of answering`
+                  : `Stop ${activeRun.teammateName}`}
               </TooltipContent>
             </Tooltip>
           )}

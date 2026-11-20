@@ -12,7 +12,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus } from "lucide-react";
 import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
-import { BotAvatar } from "@/components/bot-avatar";
+import { TeammateAvatar } from "@/components/teammate-avatar";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -52,25 +52,25 @@ function defaultDateTime() {
  * with `open` and `onOpenChange`.
  */
 export function ScheduleDialog({
-  botId,
+  teammateId,
   schedule,
   trigger,
   open: controlledOpen,
   onOpenChange,
 }: {
-  botId?: string;
+  teammateId?: string;
   schedule?: ScheduleView;
   trigger?: ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }) {
   const { data: state } = useAppState();
-  const bots = state?.teammates ?? [];
+  const teammates = state?.teammates ?? [];
   const defaultTimezone = state?.timezone ?? "UTC";
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const open = controlledOpen ?? uncontrolledOpen;
   const setOpen = onOpenChange ?? setUncontrolledOpen;
-  const [selectedBot, setSelectedBot] = useState(botId ?? "");
+  const [selectedTeammate, setSelectedTeammate] = useState(teammateId ?? "");
   const [title, setTitle] = useState("");
   const [prompt, setPrompt] = useState("");
   const [kind, setKind] = useState<"cron" | "once">("cron");
@@ -88,7 +88,7 @@ export function ScheduleDialog({
   // Start from the schedule (or a blank one) each time the dialog opens.
   useEffect(() => {
     if (!open) return;
-    setSelectedBot(schedule?.teammateId ?? botId ?? "");
+    setSelectedTeammate(schedule?.teammateId ?? teammateId ?? "");
     setTitle(schedule?.title ?? "");
     setPrompt(schedule?.prompt ?? "");
     setKind(schedule?.kind ?? "cron");
@@ -105,16 +105,16 @@ export function ScheduleDialog({
         ? formatLocalDateTime(new Date(schedule.runAt), schedule.timezone)
         : defaultDateTime(),
     );
-  }, [open, schedule, botId]);
+  }, [open, schedule, teammateId]);
 
   const cron = cadenceCron(cadence, time, weekday, custom);
   const summary = useMemo(() => (kind === "cron" ? describeCron(cron) : null), [kind, cron]);
-  const botValue = selectedBot || bots[0]?.id || "";
+  const teammateValue = selectedTeammate || teammates[0]?.id || "";
 
   function submit() {
     startTransition(async () => {
       const input = {
-        teammateId: botValue,
+        teammateId: teammateValue,
         title: title.trim(),
         prompt: prompt.trim(),
         cron: kind === "cron" ? cron : null,
@@ -144,7 +144,7 @@ export function ScheduleDialog({
       {controlledOpen === undefined && (
         <DialogTrigger asChild>
           {trigger ?? (
-            <Button disabled={bots.length === 0}>
+            <Button disabled={teammates.length === 0}>
               <Plus />
               New schedule
             </Button>
@@ -160,18 +160,23 @@ export function ScheduleDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
-          {(!botId || schedule) && (
+          {(!teammateId || schedule) && (
             <div className="flex flex-col gap-2">
               <Label>Teammate</Label>
-              <Select value={botValue} onValueChange={setSelectedBot}>
+              <Select value={teammateValue} onValueChange={setSelectedTeammate}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Choose a teammate" />
                 </SelectTrigger>
                 <SelectContent>
-                  {bots.map((bot) => (
-                    <SelectItem key={bot.id} value={bot.id}>
-                      <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="xs" />
-                      {bot.name}
+                  {teammates.map((teammate) => (
+                    <SelectItem key={teammate.id} value={teammate.id}>
+                      <TeammateAvatar
+                        name={teammate.name}
+                        color={teammate.color}
+                        emoji={teammate.emoji}
+                        size="xs"
+                      />
+                      {teammate.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -298,7 +303,7 @@ export function ScheduleDialog({
           </Button>
           <Button
             onClick={submit}
-            disabled={pending || !title.trim() || !prompt.trim() || !botValue}
+            disabled={pending || !title.trim() || !prompt.trim() || !teammateValue}
           >
             {pending && <Loader2 className="animate-spin" />}
             {schedule ? "Save changes" : "Schedule"}

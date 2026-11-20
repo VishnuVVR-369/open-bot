@@ -4,19 +4,19 @@ import { isOwnerLease, type LeaseHolder, type ScreenStatus } from "@open-bot/dom
 import { useState } from "react";
 import { useAppState } from "@/features/app-shell";
 import { isComputerOnline } from "@/lib/status";
-import type { AppState, BotSummary, TakeoverRequestSummary } from "@/lib/types";
+import type { AppState, TeammateSummary, TakeoverRequestSummary } from "@/lib/types";
 
 export type ScreenActivity = "you" | "working" | "idle" | "asleep" | "offline";
 
 export interface ScreenInfo {
-  bot: BotSummary;
+  teammate: TeammateSummary;
   status: ScreenStatus | null;
   lease: LeaseHolder;
   activity: ScreenActivity;
   requests: TakeoverRequestSummary[];
 }
 
-/** The computer and every bot's screen on it. */
+/** The computer and every teammate's screen on it. */
 export function useComputer(initial?: AppState) {
   const { data } = useAppState(initial);
   const state = data ?? initial;
@@ -25,10 +25,10 @@ export function useComputer(initial?: AppState) {
   const screens = state?.computer.health?.screens ?? [];
   const requests = state?.takeoverRequests ?? [];
 
-  function screen(botId: string): ScreenInfo | null {
-    const bot = state?.teammates.find((b) => b.id === botId);
-    if (!bot) return null;
-    const status = screens.find((s) => s.id === botId) ?? null;
+  function screen(teammateId: string): ScreenInfo | null {
+    const teammate = state?.teammates.find((b) => b.id === teammateId);
+    if (!teammate) return null;
+    const status = screens.find((s) => s.id === teammateId) ?? null;
     const lease = status?.lease ?? null;
     const activity: ScreenActivity = !online
       ? "offline"
@@ -40,18 +40,18 @@ export function useComputer(initial?: AppState) {
             ? "idle"
             : "asleep";
     return {
-      bot,
+      teammate,
       status,
       lease,
       activity,
-      requests: requests.filter((request) => request.screenId === botId),
+      requests: requests.filter((request) => request.screenId === teammateId),
     };
   }
 
   const controlled = screens
     .filter((s) => isOwnerLease(s.lease))
     .map((s) => s.id)
-    .filter((id) => state?.teammates.some((bot) => bot.id === id));
+    .filter((id) => state?.teammates.some((teammate) => teammate.id === id));
 
   return {
     state,
@@ -68,14 +68,14 @@ export function useComputer(initial?: AppState) {
 }
 
 /**
- * Which of these bots' screens to show. It follows the action until you pick one:
- * a screen you control, then one a bot asks you to take over, then the one most recently busy.
+ * Which of these teammates' screens to show. It follows the action until you pick one:
+ * a screen you control, then one a teammate asks you to take over, then the one most recently busy.
  */
-export function useFollowedScreen(botIds: string[], initial?: AppState) {
+export function useFollowedScreen(teammateIds: string[], initial?: AppState) {
   const { screen } = useComputer(initial);
   const [picked, setPicked] = useState<string | null>(null);
-  const infos = botIds.map(screen).filter((info): info is ScreenInfo => info !== null);
-  const valid = picked && infos.some((info) => info.bot.id === picked) ? picked : null;
+  const infos = teammateIds.map(screen).filter((info): info is ScreenInfo => info !== null);
+  const valid = picked && infos.some((info) => info.teammate.id === picked) ? picked : null;
   const busiest = [...infos]
     .filter((info) => info.lease?.kind === "run")
     .sort((a, b) =>
@@ -87,11 +87,11 @@ export function useFollowedScreen(botIds: string[], initial?: AppState) {
     infos.find((info) => info.activity === "you") ??
     infos.find((info) => info.requests.length > 0) ??
     busiest ??
-    infos.find((info) => info.bot.activeRun && info.bot.activeRun.status !== "queued") ??
+    infos.find((info) => info.teammate.activeRun && info.teammate.activeRun.status !== "queued") ??
     infos.find((info) => info.activity === "idle") ??
     infos[0];
   return {
-    screenId: valid ?? followed?.bot.id ?? null,
+    screenId: valid ?? followed?.teammate.id ?? null,
     pick: setPicked,
     following: valid === null,
   };

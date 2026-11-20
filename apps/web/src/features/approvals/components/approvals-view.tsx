@@ -2,12 +2,12 @@
 
 import { ArrowRight, Check, CircleDashed, ShieldCheck, X } from "lucide-react";
 import Link from "next/link";
-import { BotAvatar } from "@/components/bot-avatar";
+import { TeammateAvatar } from "@/components/teammate-avatar";
 import { TimeAgo } from "@/components/time-ago";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAppState } from "@/features/app-shell";
 import { useApprovals } from "../hooks";
-import type { ApprovalView, BotSummary } from "@/lib/types";
+import type { ApprovalView, TeammateSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
   ApprovalReview,
@@ -42,9 +42,14 @@ function OpenChat({ chatId, className }: { chatId: string; className?: string })
   );
 }
 
-function Avatar({ bot, size }: { bot: BotSummary | undefined; size: "sm" | "md" }) {
-  return bot ? (
-    <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size={size} />
+function Avatar({ teammate, size }: { teammate: TeammateSummary | undefined; size: "sm" | "md" }) {
+  return teammate ? (
+    <TeammateAvatar
+      name={teammate.name}
+      color={teammate.color}
+      emoji={teammate.emoji}
+      size={size}
+    />
   ) : (
     <span
       className={cn(
@@ -56,18 +61,26 @@ function Avatar({ bot, size }: { bot: BotSummary | undefined; size: "sm" | "md" 
 }
 
 /** An approval waiting on you: what it does, what's at stake, and the decision. */
-function PendingApproval({ approval, bot }: { approval: ApprovalView; bot?: BotSummary }) {
+function PendingApproval({
+  approval,
+  teammate,
+}: {
+  approval: ApprovalView;
+  teammate?: TeammateSummary;
+}) {
   const risk = riskOf(approval);
   return (
     <li
       className={cn("flex gap-3.5 rounded-xl p-4 sm:p-5", NEEDS_YOU_SURFACE)}
       data-testid="approval-row"
     >
-      <Avatar bot={bot} size="md" />
+      <Avatar teammate={teammate} size="md" />
       <div className="flex min-w-0 flex-1 flex-col gap-3">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
-            <span className="font-medium text-foreground">{bot?.name ?? "Former teammate"}</span>
+            <span className="font-medium text-foreground">
+              {teammate?.name ?? "Former teammate"}
+            </span>
             {!risk && <span>{KIND_LABEL[approval.kind]}</span>}
             <TimeAgo date={approval.createdAt} />
             <span aria-hidden>·</span>
@@ -83,7 +96,7 @@ function PendingApproval({ approval, bot }: { approval: ApprovalView; bot?: BotS
         <ApprovalReview
           approvalId={approval.id}
           approval={approval}
-          botName={bot?.name ?? "your teammate"}
+          teammateName={teammate?.name ?? "your teammate"}
         />
       </div>
     </li>
@@ -91,10 +104,16 @@ function PendingApproval({ approval, bot }: { approval: ApprovalView; bot?: BotS
 }
 
 /** A decided approval, one line: who, what, how you decided, and when. */
-function DecidedApproval({ approval, bot }: { approval: ApprovalView; bot?: BotSummary }) {
+function DecidedApproval({
+  approval,
+  teammate,
+}: {
+  approval: ApprovalView;
+  teammate?: TeammateSummary;
+}) {
   return (
     <li className="flex items-center gap-3 px-4 py-3" data-testid="approval-row">
-      <Avatar bot={bot} size="sm" />
+      <Avatar teammate={teammate} size="sm" />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="truncate text-[14px]">
           <ApprovalTitle approval={approval} showCommand />
@@ -114,7 +133,7 @@ function DecidedApproval({ approval, bot }: { approval: ApprovalView; bot?: BotS
               : "Expired"}
           {approval.decidedAt && <TimeAgo date={approval.decidedAt} />}
           <span aria-hidden>·</span>
-          <span className="truncate">{bot?.name ?? "Former teammate"}</span>
+          <span className="truncate">{teammate?.name ?? "Former teammate"}</span>
         </span>
       </div>
       <OpenChat chatId={approval.chatId} />
@@ -125,7 +144,7 @@ function DecidedApproval({ approval, bot }: { approval: ApprovalView; bot?: BotS
 export function ApprovalsView() {
   const { data, isLoading } = useApprovals();
   const { data: state } = useAppState();
-  const botFor = (approval: ApprovalView) =>
+  const teammateFor = (approval: ApprovalView) =>
     state?.teammates.find((b) => b.id === approval.teammateId);
   const pending = (data ?? []).filter((approval) => approval.status === "pending");
   // Most recently decided first, the way the phone lists them.
@@ -148,7 +167,11 @@ export function ApprovalsView() {
       ) : (
         <ul className="flex flex-col gap-3">
           {pending.map((approval) => (
-            <PendingApproval key={approval.id} approval={approval} bot={botFor(approval)} />
+            <PendingApproval
+              key={approval.id}
+              approval={approval}
+              teammate={teammateFor(approval)}
+            />
           ))}
         </ul>
       )}
@@ -159,7 +182,11 @@ export function ApprovalsView() {
           </h2>
           <ul className="flex flex-col divide-y overflow-hidden rounded-xl border bg-card">
             {decided.map((approval) => (
-              <DecidedApproval key={approval.id} approval={approval} bot={botFor(approval)} />
+              <DecidedApproval
+                key={approval.id}
+                approval={approval}
+                teammate={teammateFor(approval)}
+              />
             ))}
           </ul>
         </section>

@@ -40,7 +40,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { BotAvatar } from "@/components/bot-avatar";
+import { TeammateAvatar } from "@/components/teammate-avatar";
 import {
   Command,
   CommandDialog,
@@ -162,19 +162,19 @@ function CommandMenu({
     if (!open) setQuery("");
   }, [open]);
 
-  const allBots = state?.teammates ?? [];
+  const allTeammates = state?.teammates ?? [];
   const chats = state?.chats ?? [];
-  const botOf = (id: string | null) => allBots.find((bot) => bot.id === id);
+  const teammateOf = (id: string | null) => allTeammates.find((teammate) => teammate.id === id);
   const chatOf = (id: string) => chats.find((chat) => chat.id === id);
   const searching = searchFor.length >= 2;
 
   // Every word you type has to start a word in the item: "lis" finds Lisbon, not Publish.
   const words = queryWords(query);
   const matches = (...texts: string[]) => matchScore(texts, words) !== null;
-  const bots = rankMatches(allBots, (bot) => [bot.name, bot.role], words);
+  const teammates = rankMatches(allTeammates, (teammate) => [teammate.name, teammate.role], words);
   const groups = rankMatches(
     chats.filter((chat) => chat.kind === "group"),
-    (chat) => [chat.title, ...chat.memberIds.map((id) => botOf(id)?.name ?? "")],
+    (chat) => [chat.title, ...chat.memberIds.map((id) => teammateOf(id)?.name ?? "")],
     words,
   );
   const pages = rankMatches(
@@ -183,7 +183,7 @@ function CommandMenu({
     words,
   );
   const themeLabel = resolvedTheme === "dark" ? "Light mode" : "Dark mode";
-  const showNewTeammate = matches("new teammate create bot");
+  const showNewTeammate = matches("new teammate create bot"); // vocabulary: allow (a word people search for)
   const showTheme = matches(themeLabel, "theme switch appearance");
   const searchWords = queryWords(searchFor);
   const messageResults =
@@ -195,7 +195,8 @@ function CommandMenu({
       ? rankFound(foundPages ?? [], (page) => page.title, searchWords)
       : [];
   const nothing =
-    bots.length + groups.length + pages.length + messageResults.length + pageResults.length === 0 &&
+    teammates.length + groups.length + pages.length + messageResults.length + pageResults.length ===
+      0 &&
     !showNewTeammate &&
     !showTheme;
 
@@ -204,9 +205,9 @@ function CommandMenu({
     router.push(href);
   }
 
-  const directChat = (botId: string) =>
+  const directChat = (teammateId: string) =>
     chats
-      .filter((chat) => chat.kind === "direct" && chat.teammateId === botId)
+      .filter((chat) => chat.kind === "direct" && chat.teammateId === teammateId)
       .sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt))[0];
 
   return (
@@ -230,22 +231,27 @@ function CommandMenu({
               {searching && isFetching ? "Searching…" : "Nothing matches that."}
             </div>
           )}
-          {bots.length > 0 && (
+          {teammates.length > 0 && (
             <CommandGroup heading="Teammates">
-              {bots.map((bot) => (
+              {teammates.map((teammate) => (
                 <CommandItem
-                  key={bot.id}
-                  value={`teammate-${bot.id}`}
+                  key={teammate.id}
+                  value={`teammate-${teammate.id}`}
                   onSelect={() => {
-                    const chat = directChat(bot.id);
-                    go(chat ? `/chats/${chat.id}` : `/bots/${bot.id}`);
+                    const chat = directChat(teammate.id);
+                    go(chat ? `/chats/${chat.id}` : `/teammates/${teammate.id}`);
                   }}
                 >
-                  <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="xs" />
+                  <TeammateAvatar
+                    name={teammate.name}
+                    color={teammate.color}
+                    emoji={teammate.emoji}
+                    size="xs"
+                  />
                   <span>
-                    <Highlighted text={bot.name} query={query} />
+                    <Highlighted text={teammate.name} query={query} />
                   </span>
-                  <span className="truncate text-muted-foreground">{bot.role}</span>
+                  <span className="truncate text-muted-foreground">{teammate.role}</span>
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -264,7 +270,7 @@ function CommandMenu({
                   </span>
                   <span className="truncate text-muted-foreground">
                     {chat.memberIds
-                      .map((id) => botOf(id)?.name)
+                      .map((id) => teammateOf(id)?.name)
                       .filter(Boolean)
                       .join(", ")}
                   </span>
@@ -275,7 +281,7 @@ function CommandMenu({
           {pageResults.length > 0 && (
             <CommandGroup heading="Pages">
               {pageResults.map((result) => {
-                const bot = botOf(result.teammateId);
+                const teammate = teammateOf(result.teammateId);
                 return (
                   <CommandItem
                     key={result.id}
@@ -288,7 +294,7 @@ function CommandMenu({
                       <Highlighted text={result.title} query={searchFor} />
                     </span>
                     <span className="ml-auto shrink-0 text-[12px] text-muted-foreground">
-                      {bot?.name ?? "Former teammate"}
+                      {teammate?.name ?? "Former teammate"}
                     </span>
                   </CommandItem>
                 );
@@ -298,7 +304,7 @@ function CommandMenu({
           {messageResults.length > 0 && (
             <CommandGroup heading="Messages">
               {messageResults.map((result) => {
-                const bot = botOf(result.teammateId);
+                const teammate = teammateOf(result.teammateId);
                 const chat = chatOf(result.chatId);
                 return (
                   <CommandItem
@@ -308,8 +314,13 @@ function CommandMenu({
                     className="items-start py-2"
                     data-testid="search-result"
                   >
-                    {bot ? (
-                      <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="xs" />
+                    {teammate ? (
+                      <TeammateAvatar
+                        name={teammate.name}
+                        color={teammate.color}
+                        emoji={teammate.emoji}
+                        size="xs"
+                      />
                     ) : result.from === "you" ? (
                       // You, as the account row shows you, in a tile the size of a teammate's.
                       <span
@@ -324,7 +335,7 @@ function CommandMenu({
                     <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                       <span className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
                         <span className="font-medium text-foreground">
-                          {result.from === "you" ? "You" : (bot?.name ?? "Former teammate")}
+                          {result.from === "you" ? "You" : (teammate?.name ?? "Former teammate")}
                         </span>
                         {chat && <span className="truncate">in {chat.title}</span>}
                         <span className="ml-auto shrink-0">
@@ -362,7 +373,7 @@ function CommandMenu({
           {(showNewTeammate || showTheme) && (
             <CommandGroup heading="Actions">
               {showNewTeammate && (
-                <CommandItem value="action-new-teammate" onSelect={() => go("/bots/new")}>
+                <CommandItem value="action-new-teammate" onSelect={() => go("/teammates/new")}>
                   <Plus />
                   New teammate
                 </CommandItem>

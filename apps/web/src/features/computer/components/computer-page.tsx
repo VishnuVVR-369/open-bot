@@ -7,7 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { CloudOff, Globe, Hand, Home } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { BotAvatar } from "@/components/bot-avatar";
+import { TeammateAvatar } from "@/components/teammate-avatar";
 import { orpc } from "@/lib/client/rpc";
 import { useAppState } from "@/features/app-shell";
 import { STATUS, teammateStatus, type TeammateStatus } from "@/lib/status";
@@ -38,7 +38,7 @@ function screenStatus(info: ScreenInfo): Pick<TeammateStatus, "activity" | "need
     return { label: STATUS.takeover, activity: "waiting", needsYou: true };
   if (info.activity === "working")
     return { label: STATUS.working, activity: "working", needsYou: false };
-  return teammateStatus(info.bot, info.activity !== "offline");
+  return teammateStatus(info.teammate, info.activity !== "offline");
 }
 
 type HealthSignal = "done" | "idle" | "failed";
@@ -105,7 +105,7 @@ function useScreenFrames(enabled: boolean) {
  * waits, on the page's own surface instead of a large black frame.
  */
 function ScreenAway({ info, frame }: { info: ScreenInfo; frame: LastFrame | null }) {
-  const name = info.bot.name;
+  const name = info.teammate.name;
   const status = screenStatus(info);
   const waiting =
     status.label === STATUS.takeover
@@ -132,10 +132,10 @@ function ScreenAway({ info, frame }: { info: ScreenInfo; frame: LastFrame | null
           Last seen {relativeTime(frame.at)}
         </span>
         <div className="absolute inset-x-0 bottom-0 flex items-center gap-3 p-5 text-white sm:p-6">
-          <BotAvatar
+          <TeammateAvatar
             name={name}
-            color={info.bot.color}
-            emoji={info.bot.emoji}
+            color={info.teammate.color}
+            emoji={info.teammate.emoji}
             size="md"
             activity={status.activity}
             className="[--avatar-ring:#000]"
@@ -155,10 +155,10 @@ function ScreenAway({ info, frame }: { info: ScreenInfo; frame: LastFrame | null
       className="flex items-center gap-4 rounded-2xl bg-card px-5 py-5 shadow-raised"
       data-testid="computer-offline"
     >
-      <BotAvatar
+      <TeammateAvatar
         name={name}
-        color={info.bot.color}
-        emoji={info.bot.emoji}
+        color={info.teammate.color}
+        emoji={info.teammate.emoji}
         size="lg"
         activity={status.activity}
         className="[--avatar-ring:var(--card)]"
@@ -181,10 +181,10 @@ export function ComputerPage({ initialScreen }: { initialScreen: string | null }
   const handleRef = useRef<ScreenHandle | null>(null);
   const { data: state } = useAppState();
   const { screen, egress, online } = useComputer();
-  const botIds = state?.teammates.map((bot) => bot.id) ?? [];
-  const followed = useFollowedScreen(botIds);
+  const teammateIds = state?.teammates.map((teammate) => teammate.id) ?? [];
+  const followed = useFollowedScreen(teammateIds);
   const [picked, setPicked] = useState<string | null>(initialScreen);
-  const screenId = picked && botIds.includes(picked) ? picked : followed.screenId;
+  const screenId = picked && teammateIds.includes(picked) ? picked : followed.screenId;
   const health = state?.computer.health;
   const home = egress && egress.mode !== "off" && egress.agentOnline;
   const running = health?.screens.filter((s) => s.state === "running").length ?? 0;
@@ -202,7 +202,7 @@ export function ComputerPage({ initialScreen }: { initialScreen: string | null }
     online,
     agent: online ? health?.agent : undefined,
     running: online ? running : 0,
-    screens: botIds.length,
+    screens: teammateIds.length,
   });
   const pill =
     rows[1]!.signal === "failed"
@@ -210,7 +210,7 @@ export function ComputerPage({ initialScreen }: { initialScreen: string | null }
       : online
         ? {
             signal: "done" as const,
-            label: `Online · ${running} of ${botIds.length} screens running`,
+            label: `Online · ${running} of ${teammateIds.length} screens running`,
           }
         : { signal: "idle" as const, label: "Offline" };
   const selected = screenId ? screen(screenId) : null;
@@ -229,8 +229,8 @@ export function ComputerPage({ initialScreen }: { initialScreen: string | null }
           {state && !online ? (
             selected && (
               <>
-                <ScreenAway info={selected} frame={frames?.[selected.bot.id] ?? null} />
-                <ScreenControls screenId={selected.bot.id} expand={false} />
+                <ScreenAway info={selected} frame={frames?.[selected.teammate.id] ?? null} />
+                <ScreenControls screenId={selected.teammate.id} expand={false} />
               </>
             )
           ) : screenId ? (
@@ -260,7 +260,7 @@ export function ComputerPage({ initialScreen }: { initialScreen: string | null }
           <section className="flex flex-col gap-2.5">
             <SectionTitle>Screens</SectionTitle>
             <ul className="flex flex-col gap-0.5" role="tablist" aria-label="Screens">
-              {botIds.map((id) => {
+              {teammateIds.map((id) => {
                 const info = screen(id);
                 if (!info) return null;
                 const isSelected = id === screenId;
@@ -277,13 +277,13 @@ export function ComputerPage({ initialScreen }: { initialScreen: string | null }
                           ? "border-foreground/15 bg-card shadow-xs"
                           : "border-transparent hover:bg-muted",
                       )}
-                      title={`${info.bot.name}, ${info.bot.role}`}
-                      data-testid={`screen-row-${info.bot.slug}`}
+                      title={`${info.teammate.name}, ${info.teammate.role}`}
+                      data-testid={`screen-row-${info.teammate.slug}`}
                     >
-                      <BotAvatar
-                        name={info.bot.name}
-                        color={info.bot.color}
-                        emoji={info.bot.emoji}
+                      <TeammateAvatar
+                        name={info.teammate.name}
+                        color={info.teammate.color}
+                        emoji={info.teammate.emoji}
                         size="sm"
                         activity={status.activity}
                         className={
@@ -294,7 +294,7 @@ export function ComputerPage({ initialScreen }: { initialScreen: string | null }
                       />
                       <span className="flex min-w-0 flex-1 flex-col">
                         <span className="truncate text-[13.5px] leading-tight font-medium">
-                          {info.bot.name}
+                          {info.teammate.name}
                         </span>
                         <span
                           className={cn(

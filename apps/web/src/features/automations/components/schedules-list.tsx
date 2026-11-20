@@ -5,13 +5,13 @@ import { format, formatDistanceToNowStrict } from "date-fns";
 import { Play } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { BotAvatar } from "@/components/bot-avatar";
+import { TeammateAvatar } from "@/components/teammate-avatar";
 import { Switch } from "@/components/ui/switch";
 import { attempt } from "@/lib/client/mutate";
 import { useScheduleRuns } from "../hooks";
 import { api } from "@/lib/client/rpc";
 import { runIsHeldBack, WAITING_FOR_COMPUTER } from "@/lib/status";
-import type { BotSummary, ScheduleView } from "@/lib/types";
+import type { TeammateSummary, ScheduleView } from "@/lib/types";
 import { ScheduleDialog } from "./schedule-dialog";
 import {
   DetailLabel,
@@ -51,11 +51,11 @@ function ScheduleDetails({ schedule }: { schedule: ScheduleView }) {
 
 export function ScheduleRow({
   schedule,
-  bot,
+  teammate,
   refresh,
 }: {
   schedule: ScheduleView;
-  bot: BotSummary | undefined;
+  teammate: TeammateSummary | undefined;
   refresh: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -66,7 +66,14 @@ export function ScheduleRow({
   return (
     <li data-testid="schedule">
       <div className="flex flex-wrap items-start gap-4 px-4 py-3.5 sm:items-center">
-        {bot && <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="md" />}
+        {teammate && (
+          <TeammateAvatar
+            name={teammate.name}
+            color={teammate.color}
+            emoji={teammate.emoji}
+            size="md"
+          />
+        )}
         <button
           type="button"
           className="group flex min-w-0 flex-1 basis-[calc(100%-3.5rem)] flex-col gap-0.5 text-left outline-none sm:basis-0"
@@ -81,7 +88,7 @@ export function ScheduleRow({
             {!schedule.enabled && <StateBadge>{done ? "Done" : "Off"}</StateBadge>}
             {schedule.createdBy === "bot" && (
               <span className="shrink-0 text-[12px] text-muted-foreground">
-                Set by {bot?.name ?? "a teammate"}
+                Set by {teammate?.name ?? "a teammate"}
               </span>
             )}
           </span>
@@ -111,7 +118,7 @@ export function ScheduleRow({
               if (!result.ok) toast.error(result.error);
               else
                 toast(`Started “${schedule.title}”`, {
-                  description: `${bot?.name ?? "The bot"} is on it.`,
+                  description: `${teammate?.name ?? "Your teammate"} is on it.`,
                 });
               refresh();
             }}

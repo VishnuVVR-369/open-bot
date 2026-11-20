@@ -3,7 +3,7 @@
 import { TEAMMATE_COLORS, TEAMMATE_TEMPLATES } from "@open-bot/domain";
 import { ArrowRight, Plus } from "lucide-react";
 import Link from "next/link";
-import { BotAvatar } from "@/components/bot-avatar";
+import { TeammateAvatar } from "@/components/teammate-avatar";
 import { Button } from "@/components/ui/button";
 import { useAppState } from "@/features/app-shell";
 import { isComputerOnline, teammateStatus } from "@/lib/status";
@@ -15,34 +15,34 @@ import { cn } from "@/lib/utils";
  */
 export function Teammates() {
   const { data: state } = useAppState();
-  const bots = state?.teammates ?? [];
+  const teammates = state?.teammates ?? [];
   const online = isComputerOnline(state);
   return (
     <section
-      className={cn("flex flex-col gap-3", bots.length > 0 && "lg:hidden")}
+      className={cn("flex flex-col gap-3", teammates.length > 0 && "lg:hidden")}
       aria-label="Teammates"
     >
       <div className="flex items-center justify-between">
         <h2 className="font-heading text-[15px] font-semibold tracking-[-0.01em] text-foreground">
           Teammates
         </h2>
-        {bots.length > 0 && (
+        {teammates.length > 0 && (
           <Button variant="ghost" size="sm" asChild>
-            <Link href="/bots/new">
+            <Link href="/teammates/new">
               <Plus />
               New teammate
             </Link>
           </Button>
         )}
       </div>
-      {bots.length === 0 ? (
+      {teammates.length === 0 ? (
         <Link
-          href="/bots/new"
+          href="/teammates/new"
           className="group flex flex-col gap-4 rounded-2xl border border-dashed bg-card px-6 py-8 transition-colors hover:border-foreground/30"
         >
           <div className="flex -space-x-2">
             {TEAMMATE_TEMPLATES.slice(0, 3).map((template, index) => (
-              <BotAvatar
+              <TeammateAvatar
                 key={template.id}
                 name={template.name}
                 emoji={template.emoji}
@@ -66,31 +66,35 @@ export function Teammates() {
         </Link>
       ) : (
         <div className="grid gap-2 sm:grid-cols-2">
-          {bots.map((bot) => {
-            const status = teammateStatus(bot, online);
+          {teammates.map((teammate) => {
+            const status = teammateStatus(teammate, online);
             return (
               <Link
-                key={bot.id}
-                href={bot.directChatId ? `/chats/${bot.directChatId}` : `/bots/${bot.id}`}
+                key={teammate.id}
+                href={
+                  teammate.directChatId
+                    ? `/chats/${teammate.directChatId}`
+                    : `/teammates/${teammate.id}`
+                }
                 className="group flex min-w-0 items-center gap-3 rounded-xl bg-card px-3 py-2.5 shadow-raised transition-shadow hover:shadow-float"
                 data-testid="teammate-card"
               >
-                <BotAvatar
-                  name={bot.name}
-                  color={bot.color}
-                  emoji={bot.emoji}
+                <TeammateAvatar
+                  name={teammate.name}
+                  color={teammate.color}
+                  emoji={teammate.emoji}
                   size="md"
                   activity={status.activity}
                   className="[--avatar-ring:var(--card)]"
                 />
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span className="flex min-w-0 items-baseline gap-1.5">
-                    <span className="shrink-0 text-[14px] font-semibold">{bot.name}</span>
+                    <span className="shrink-0 text-[14px] font-semibold">{teammate.name}</span>
                     {/* Their job, where there is room; the line below is only their status. */}
                     <span className="min-w-0 truncate text-[12.5px] text-muted-foreground">
-                      {bot.role}
+                      {teammate.role}
                     </span>
-                    {bot.isLead && (
+                    {teammate.isLead && (
                       <span className="shrink-0 self-center rounded-full bg-subtle px-1.5 py-px text-[11px] font-medium text-muted-foreground">
                         Lead
                       </span>

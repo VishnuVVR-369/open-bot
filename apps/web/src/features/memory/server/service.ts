@@ -12,15 +12,15 @@ import { memory } from "./store";
 export const MEMORY_EXPORT_LIMIT = 10_000;
 
 /**
- * Memories you can see, matching `query`: one teammate's, or everyone's with `botId` null. Each
+ * Memories you can see, matching `query`: one teammate's, or everyone's with `teammateId` null. Each
  * names the teammate and chat that saved it, when a run did.
  */
 export async function listMemories(
-  { teammateId: botId, query }: ApiInputs["memory"]["list"],
+  { teammateId, query }: ApiInputs["memory"]["list"],
   limit = 200,
 ): Promise<MemoryItem[]> {
   const items = await memory.list(
-    { teammateId: botId, candidates: true, includeExpired: true, limit, query },
+    { teammateId, candidates: true, includeExpired: true, limit, query },
     { kind: "user" },
   );
   const runIds = [...new Set(items.flatMap((i) => (i.source.runId ? [i.source.runId] : [])))];

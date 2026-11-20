@@ -6,7 +6,7 @@ test.describe("@agent teammates working together", () => {
 
   test("a teammate asks another one and finishes with the answer", async ({ page }) => {
     const librarian = uniqueName("Bob");
-    await page.goto("/bots/new");
+    await page.goto("/teammates/new");
     await page.getByLabel("Name").fill(librarian);
     await page.getByLabel("Job").fill("librarian");
     await page
@@ -47,7 +47,7 @@ test.describe("@agent teammates working together", () => {
       "Schedule a task titled 'Stretch break' every weekday at 15:00 that reminds me to stretch. Then pause it right away.",
     );
     await waitForLastRun(page, ["completed"]);
-    await page.goto(`/bots/${await botIdOf(page, name)}?tab=automations`);
+    await page.goto(`/teammates/${await botIdOf(page, name)}?tab=automations`);
     const schedule = page.getByTestId("schedule").filter({ hasText: "Stretch break" });
     await expect(schedule).toContainText("paused");
     await expect(schedule.getByRole("switch")).toHaveAttribute("aria-checked", "false");

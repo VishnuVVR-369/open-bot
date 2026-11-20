@@ -173,7 +173,7 @@ export function ScreenStrip({ items, live }: { items: ComputerItem[]; live: bool
   };
   const failed = items.filter((item) => item.status === "failed");
 
-  // Keep the newest frame in view while the bot works.
+  // Keep the newest frame in view while the teammate works.
   useEffect(() => {
     if (live && scroller.current)
       scroller.current.scrollTo({ left: scroller.current.scrollWidth, behavior: "smooth" });

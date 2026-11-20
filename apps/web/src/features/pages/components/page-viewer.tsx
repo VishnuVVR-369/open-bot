@@ -23,7 +23,7 @@ import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { BotAvatar } from "@/components/bot-avatar";
+import { TeammateAvatar } from "@/components/teammate-avatar";
 import { TimeAgo } from "@/components/time-ago";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,7 +41,7 @@ import { attempt } from "@/lib/client/mutate";
 import { useAppState } from "@/features/app-shell";
 import { usePage, usePageLink } from "../hooks";
 import { api } from "@/lib/client/rpc";
-import type { BotSummary, ChatSummary, PageDetail } from "@/lib/types";
+import type { TeammateSummary, ChatSummary, PageDetail } from "@/lib/types";
 import { chatHref, cn } from "@/lib/utils";
 import { DeletePageDialog, downloadPage, openPageInTab, usePinPage } from "./page-actions";
 
@@ -53,26 +53,26 @@ interface Question {
 /** Where a question about the page goes: the chat it was made in, else its teammate's own chat. */
 function questionTarget(
   page: PageDetail,
-  bot: BotSummary | undefined,
+  teammate: TeammateSummary | undefined,
   chats: ChatSummary[],
 ): ChatSummary | null {
-  if (!bot) return null;
+  if (!teammate) return null;
   const origin = chats.find((chat) => chat.id === page.chatId);
   if (origin && (origin.kind === "direct" || origin.kind === "group")) return origin;
-  return chats.find((chat) => chat.id === bot.directChatId) ?? null;
+  return chats.find((chat) => chat.id === teammate.directChatId) ?? null;
 }
 
 function AskPanel({
   page,
   version,
-  bot,
+  teammate,
   chat,
   question,
   onClose,
 }: {
   page: PageDetail;
   version: number;
-  bot: BotSummary;
+  teammate: TeammateSummary;
   chat: ChatSummary;
   question: Question;
   onClose: () => void;
@@ -104,7 +104,7 @@ function AskPanel({
             text: draft,
           }),
           attachments: [],
-          mentions: chat.kind === "group" ? [bot.id] : [],
+          mentions: chat.kind === "group" ? [teammate.id] : [],
         }),
       );
       if (!result.ok) {
@@ -112,7 +112,7 @@ function AskPanel({
         return;
       }
       clientId.current = crypto.randomUUID();
-      toast.success(`Sent to ${bot.name}`, {
+      toast.success(`Sent to ${teammate.name}`, {
         description:
           "Their answer shows in the chat. If they change the page, the new version shows here.",
         action: { label: "Open chat", onClick: () => router.push(chatHref(chat.id)) },
@@ -124,7 +124,7 @@ function AskPanel({
   return (
     <div
       role="dialog"
-      aria-label={`Ask ${bot.name} about this page`}
+      aria-label={`Ask ${teammate.name} about this page`}
       className="absolute inset-x-3 bottom-3 z-10 flex flex-col gap-3 rounded-xl border bg-popover p-3.5 text-popover-foreground shadow-[0_12px_40px_-8px_rgb(0_0_0/0.25)] sm:inset-x-auto sm:right-4 sm:bottom-4 sm:w-[380px]"
       onKeyDown={(event) => {
         if (event.key === "Escape") onClose();
@@ -132,8 +132,13 @@ function AskPanel({
       data-testid="page-ask"
     >
       <div className="flex items-center gap-2">
-        <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="xs" />
-        <span className="flex-1 truncate text-[13.5px] font-medium">Ask {bot.name}</span>
+        <TeammateAvatar
+          name={teammate.name}
+          color={teammate.color}
+          emoji={teammate.emoji}
+          size="xs"
+        />
+        <span className="flex-1 truncate text-[13.5px] font-medium">Ask {teammate.name}</span>
         <Button variant="ghost" size="icon-xs" aria-label="Close" onClick={onClose}>
           <X />
         </Button>
@@ -171,7 +176,7 @@ function AskPanel({
       />
       <div className="flex items-center gap-2">
         <span className="min-w-0 flex-1 truncate text-[12px] text-muted-foreground">
-          Goes to {chat.kind === "group" ? chat.title : `your chat with ${bot.name}`}
+          Goes to {chat.kind === "group" ? chat.title : `your chat with ${teammate.name}`}
         </span>
         <Button size="sm" onClick={send} disabled={!text.trim() || sending}>
           <Send />
@@ -266,9 +271,9 @@ export function PageViewer({ pageId, versionId }: { pageId: string; versionId: s
   const [question, setQuestion] = useState<Question | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const bot = state?.teammates.find((candidate) => candidate.id === page?.teammateId);
-  const chat = page ? questionTarget(page, bot, state?.chats ?? []) : null;
-  const canAsk = Boolean(bot && chat);
+  const teammate = state?.teammates.find((candidate) => candidate.id === page?.teammateId);
+  const chat = page ? questionTarget(page, teammate, state?.chats ?? []) : null;
+  const canAsk = Boolean(teammate && chat);
 
   // "Ask about this" from the page. Only the frame we made may ask, and only to prefill.
   useEffect(() => {
@@ -343,7 +348,7 @@ export function PageViewer({ pageId, versionId }: { pageId: string; versionId: s
               </h1>
               <span className="flex min-w-0 items-center gap-1.5 text-[12.5px] leading-tight text-muted-foreground">
                 {page.pinned && <Pin className="size-3 shrink-0" aria-label="Pinned" />}
-                <span className="truncate">{bot?.name ?? "Former teammate"}</span>
+                <span className="truncate">{teammate?.name ?? "Former teammate"}</span>
                 <span aria-hidden>·</span>
                 <VersionMenu page={page} shownId={shown.id} onPick={pick} />
               </span>
@@ -354,11 +359,11 @@ export function PageViewer({ pageId, versionId }: { pageId: string; versionId: s
                 size="sm"
                 className="h-8 shrink-0 max-sm:size-8 max-sm:p-0"
                 onClick={() => setQuestion({ quote: null, section: null })}
-                aria-label={`Ask ${bot!.name} about this page`}
+                aria-label={`Ask ${teammate!.name} about this page`}
                 data-testid="page-ask-open"
               >
                 <MessageSquare />
-                <span className="max-sm:hidden">Ask {bot!.name}</span>
+                <span className="max-sm:hidden">Ask {teammate!.name}</span>
               </Button>
             )}
             <Tooltip>
@@ -483,11 +488,11 @@ export function PageViewer({ pageId, versionId }: { pageId: string; versionId: s
             <Skeleton className="mt-4 h-48 w-full rounded-xl" />
           </div>
         )}
-        {question && page && shown && bot && chat && (
+        {question && page && shown && teammate && chat && (
           <AskPanel
             page={page}
             version={shown.number}
-            bot={bot}
+            teammate={teammate}
             chat={chat}
             question={question}
             onClose={() => setQuestion(null)}

@@ -5,7 +5,7 @@ import { Check, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { BotAvatar } from "@/components/bot-avatar";
+import { TeammateAvatar } from "@/components/teammate-avatar";
 import { COMPOSER_INPUT_ID } from "@/features/chat";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,10 +21,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { attempt } from "@/lib/client/mutate";
 import { api } from "@/lib/client/rpc";
-import type { BotSummary } from "@/lib/types";
+import type { TeammateSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-export function NewGroupDialog({ bots }: { bots: BotSummary[] }) {
+export function NewGroupDialog({ teammates }: { teammates: TeammateSummary[] }) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
@@ -107,25 +107,32 @@ export function NewGroupDialog({ bots }: { bots: BotSummary[] }) {
           <div className="flex flex-col gap-2">
             <Label>Teammates</Label>
             <div className="-mx-1 flex max-h-[min(40vh,320px)] flex-col gap-1 overflow-y-auto px-1 py-0.5">
-              {bots.map((bot) => {
-                const checked = selected.includes(bot.id);
+              {teammates.map((teammate) => {
+                const checked = selected.includes(teammate.id);
                 return (
                   <button
                     type="button"
-                    key={bot.id}
+                    key={teammate.id}
                     role="checkbox"
                     aria-checked={checked}
                     disabled={full && !checked}
-                    onClick={() => toggle(bot.id)}
+                    onClick={() => toggle(teammate.id)}
                     className={cn(
                       "flex items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-50",
                       checked && "border-foreground/40 bg-muted",
                     )}
                   >
-                    <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="sm" />
+                    <TeammateAvatar
+                      name={teammate.name}
+                      color={teammate.color}
+                      emoji={teammate.emoji}
+                      size="sm"
+                    />
                     <span className="flex min-w-0 flex-1 flex-col">
-                      <span className="text-sm font-medium">{bot.name}</span>
-                      <span className="truncate text-xs text-muted-foreground">{bot.role}</span>
+                      <span className="text-sm font-medium">{teammate.name}</span>
+                      <span className="truncate text-xs text-muted-foreground">
+                        {teammate.role}
+                      </span>
                     </span>
                     <span
                       className={cn(

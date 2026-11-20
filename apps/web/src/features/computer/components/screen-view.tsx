@@ -33,7 +33,7 @@ export interface ScreenHandle {
 const ACTIVITY_INTERVAL_MS = 30_000;
 
 /**
- * A bot's screen over VNC. `view` can only watch; `control` sends your mouse and keyboard.
+ * A teammate's screen over VNC. `view` can only watch; `control` sends your mouse and keyboard.
  * The worker enforces this: a control connection is refused unless you hold the screen.
  */
 export function ScreenView({

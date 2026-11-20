@@ -280,7 +280,7 @@ function ConnectionRow({
     connection.teammateIds === null
       ? "Every teammate"
       : connection.teammateIds.length === 1
-        ? `Only ${state?.teammates.find((bot) => bot.id === connection.teammateIds![0])?.name ?? "one teammate"}`
+        ? `Only ${state?.teammates.find((teammate) => teammate.id === connection.teammateIds![0])?.name ?? "one teammate"}`
         : `${connection.teammateIds.length} teammates`;
 
   return (

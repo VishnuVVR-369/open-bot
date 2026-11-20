@@ -6,7 +6,7 @@ import { format, isThisYear, isToday } from "date-fns";
 import { ChevronRight, Hourglass, KeyRound, ScrollText, SearchX } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
-import { BotAvatar as TeammateAvatar } from "@/components/bot-avatar"; // vocabulary: allow
+import { TeammateAvatar } from "@/components/teammate-avatar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";

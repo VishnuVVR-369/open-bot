@@ -21,12 +21,12 @@ function hasOwnToolbar(pathname: string) {
   return pathname.startsWith("/chats/");
 }
 
-/** A thin amber bar across the app while you hold a screen, so you never forget a bot is paused. */
+/** A thin amber bar across the app while you hold a screen, so you never forget a teammate is paused. */
 function ControlBanner({ initial }: { initial: AppState }) {
   const { controlled, screen } = useComputer(initial);
   const pathname = usePathname();
   if (controlled.length === 0 || pathname === "/computer") return null;
-  const names = controlled.map((id) => screen(id)?.bot.name).filter(Boolean) as string[];
+  const names = controlled.map((id) => screen(id)?.teammate.name).filter(Boolean) as string[];
   const text =
     names.length === 1
       ? `You have control of ${names[0]}'s screen. ${names[0]} won't use it until you hand it back.`

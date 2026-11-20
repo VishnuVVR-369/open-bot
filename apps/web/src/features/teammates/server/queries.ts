@@ -3,9 +3,9 @@ import { teammates, chats, runs } from "@open-bot/db";
 import { ACTIVE_RUN_STATUSES } from "@open-bot/domain";
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/lib/server/db";
-import type { BotSummary } from "@/lib/types";
+import type { TeammateSummary } from "@/lib/types";
 
-export async function listTeammates(): Promise<BotSummary[]> {
+export async function listTeammates(): Promise<TeammateSummary[]> {
   const rows = await db
     .select()
     .from(teammates)
@@ -23,7 +23,7 @@ export async function listTeammates(): Promise<BotSummary[]> {
   const active = await db
     .select({
       id: runs.id,
-      botId: runs.teammateId,
+      teammateId: runs.teammateId,
       chatId: runs.chatId,
       status: runs.status,
       waitingFor: runs.waitingFor,
@@ -34,28 +34,29 @@ export async function listTeammates(): Promise<BotSummary[]> {
   // Each teammate's newest run, read through runs_bot_idx: when it finished, or when it began.
   const latest = await db
     .selectDistinctOn([runs.teammateId], {
-      botId: runs.teammateId,
+      teammateId: runs.teammateId,
       at: sql<Date>`coalesce(${runs.completedAt}, ${runs.startedAt}, ${runs.createdAt})`.mapWith(
         runs.createdAt,
       ),
     })
     .from(runs)
     .orderBy(runs.teammateId, desc(runs.createdAt));
-  return rows.map((bot) => {
+  return rows.map((teammate) => {
     const run =
-      active.find((r) => r.botId === bot.id && r.status !== "queued") ??
-      active.find((r) => r.botId === bot.id);
+      active.find((r) => r.teammateId === teammate.id && r.status !== "queued") ??
+      active.find((r) => r.teammateId === teammate.id);
     return {
-      id: bot.id,
-      name: bot.name,
-      slug: bot.slug,
-      role: bot.role,
-      color: bot.color,
-      emoji: bot.emoji,
-      autonomy: bot.autonomy,
-      isLead: bot.isLead,
-      directChatId: mainChats.find((chat) => chat.teammateId === bot.id)?.id ?? null,
-      lastActiveAt: latest.find((entry) => entry.botId === bot.id)?.at.toISOString() ?? null,
+      id: teammate.id,
+      name: teammate.name,
+      slug: teammate.slug,
+      role: teammate.role,
+      color: teammate.color,
+      emoji: teammate.emoji,
+      autonomy: teammate.autonomy,
+      isLead: teammate.isLead,
+      directChatId: mainChats.find((chat) => chat.teammateId === teammate.id)?.id ?? null,
+      lastActiveAt:
+        latest.find((entry) => entry.teammateId === teammate.id)?.at.toISOString() ?? null,
       activeRun: run
         ? { id: run.id, chatId: run.chatId, status: run.status, waitingFor: run.waitingFor ?? null }
         : null,

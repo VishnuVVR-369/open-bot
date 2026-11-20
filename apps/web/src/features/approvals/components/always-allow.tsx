@@ -16,8 +16,8 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { InlineCode } from "@/components/inline-code";
 
-/** What a command rule would leave out of this request, so it's clear the bot will still ask. */
-function coverageNote(subject: string, pattern: string, botName: string): string | null {
+/** What a command rule would leave out of this request, so it's clear the teammate will still ask. */
+function coverageNote(subject: string, pattern: string, teammateName: string): string | null {
   const commands = simpleCommands(shellScript(subject));
   if (!commands)
     return `Commands that write to files or run other commands inside $( ) still ask first.`;
@@ -25,18 +25,18 @@ function coverageNote(subject: string, pattern: string, botName: string): string
     (command) => !rulesCover([{ kind: "command", pattern }], "command", command),
   );
   if (missed.length === 0) return null;
-  return `This doesn't cover ${missed.map((command) => `\`${command}\``).join(", ")}, so ${botName} will still ask about ${missed.length === 1 ? "it" : "them"}.`;
+  return `This doesn't cover ${missed.map((command) => `\`${command}\``).join(", ")}, so ${teammateName} will still ask about ${missed.length === 1 ? "it" : "them"}.`;
 }
 
 /** "Always allow `git push` for Kit…": what the rule would cover, before you open it. */
 function AlwaysAllowLabel({
   kind,
   subject,
-  botName,
+  teammateName,
 }: {
   kind: RuleKind;
   subject: string;
-  botName: string;
+  teammateName: string;
 }) {
   const prefix = kind === "command" ? suggestedRule(kind, subject) : "";
   return (
@@ -47,26 +47,26 @@ function AlwaysAllowLabel({
           {prefix}
         </code>
       )}
-      <span className="truncate">for {botName}…</span>
+      <span className="truncate">for {teammateName}…</span>
     </span>
   );
 }
 
 /**
- * Approve, and let the bot do things like this from now on without asking.
+ * Approve, and let the teammate do things like this from now on without asking.
  * Commands are allowed by how they start; actions by their wording, which you can edit.
  */
 export function AlwaysAllowButton({
   kind,
   subject,
-  botName,
+  teammateName,
   disabled,
   onConfirm,
 }: {
   kind: RuleKind;
   /** The raw command, or the action's title. */
   subject: string;
-  botName: string;
+  teammateName: string;
   disabled?: boolean;
   onConfirm: (pattern: string) => Promise<void>;
 }) {
@@ -74,7 +74,7 @@ export function AlwaysAllowButton({
   const [pattern, setPattern] = useState(() => suggestedRule(kind, subject));
   const [saving, setSaving] = useState(false);
   const problem = invalidRulePattern(kind, pattern);
-  const note = kind === "command" && !problem ? coverageNote(subject, pattern, botName) : null;
+  const note = kind === "command" && !problem ? coverageNote(subject, pattern, teammateName) : null;
 
   return (
     <Popover
@@ -92,7 +92,7 @@ export function AlwaysAllowButton({
           className="min-w-0 px-3 font-normal text-muted-foreground hover:text-foreground"
           data-testid="always-allow"
         >
-          <AlwaysAllowLabel kind={kind} subject={subject} botName={botName} />
+          <AlwaysAllowLabel kind={kind} subject={subject} teammateName={teammateName} />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80">
@@ -115,17 +115,18 @@ export function AlwaysAllowButton({
             <div className="flex flex-col gap-1">
               <span className="text-sm font-medium">
                 {kind === "command"
-                  ? `Let ${botName} run commands starting with`
+                  ? `Let ${teammateName} run commands starting with`
                   : kind === "file_change"
-                    ? `Let ${botName} change files without asking`
+                    ? `Let ${teammateName} change files without asking`
                     : kind === "account_write"
-                      ? `Let ${botName} ${(accountTool(subject)?.label ?? "do this").replace(/^./, (first) => first.toLowerCase())} without asking`
-                      : `Let ${botName} do this without asking`}
+                      ? `Let ${teammateName} ${(accountTool(subject)?.label ?? "do this").replace(/^./, (first) => first.toLowerCase())} without asking`
+                      : `Let ${teammateName} do this without asking`}
               </span>
               <span className="text-[12.5px] text-muted-foreground">
                 {kind === "account_write" &&
                   "Only for changes only you see: anything others see still asks. "}
-                This approves the request now. You can remove the rule on {botName}&apos;s profile.
+                This approves the request now. You can remove the rule on {teammateName}&apos;s
+                profile.
               </span>
             </div>
           </div>

@@ -14,7 +14,7 @@ import { Check, CircleCheck, Loader2, Upload } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { BotAvatar } from "@/components/bot-avatar";
+import { TeammateAvatar } from "@/components/teammate-avatar";
 import { MarkdownText } from "@/components/markdown-text";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,7 +26,7 @@ import { attempt } from "@/lib/client/mutate";
 import { api, orpc } from "@/lib/client/rpc";
 import { cn } from "@/lib/utils";
 
-export interface BotFormValues {
+export interface TeammateFormValues {
   name: string;
   role: string;
   instructions: string;
@@ -45,8 +45,8 @@ function lastGlyph(text: string) {
   return glyphs.at(-1)?.segment ?? "";
 }
 
-function sameValues(a: BotFormValues, b: BotFormValues) {
-  return (Object.keys(a) as (keyof BotFormValues)[]).every((key) => a[key] === b[key]);
+function sameValues(a: TeammateFormValues, b: TeammateFormValues) {
+  return (Object.keys(a) as (keyof TeammateFormValues)[]).every((key) => a[key] === b[key]);
 }
 
 /**
@@ -68,7 +68,7 @@ function InstructionsField({
       className="gap-2"
     >
       <div className="flex items-center justify-between gap-3">
-        <Label htmlFor="bot-instructions">What they&apos;re responsible for</Label>
+        <Label htmlFor="teammate-instructions">What they&apos;re responsible for</Label>
         <TabsList aria-label="Instructions view" className="h-7 group-data-horizontal/tabs:h-7">
           <TabsTrigger value="write" className="px-2.5 text-[12.5px]">
             Write
@@ -80,7 +80,7 @@ function InstructionsField({
       </div>
       <TabsContent value="write">
         <Textarea
-          id="bot-instructions"
+          id="teammate-instructions"
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder="Describe the job: what to do, how you like it done, and what to stay away from."
@@ -108,21 +108,21 @@ function InstructionsField({
   );
 }
 
-export function BotForm({
+export function TeammateForm({
   editing,
   initial,
   submitLabel,
 }: {
   /** The teammate being edited, at the revision the form loaded; none for a new one. */
-  editing?: { botId: string; revision: string };
-  initial: BotFormValues;
+  editing?: { teammateId: string; revision: string };
+  initial: TeammateFormValues;
   submitLabel: string;
 }) {
-  const [values, setValues] = useState<BotFormValues>(initial);
-  const [baseline, setBaseline] = useState<BotFormValues>(initial);
+  const [values, setValues] = useState<TeammateFormValues>(initial);
+  const [baseline, setBaseline] = useState<TeammateFormValues>(initial);
   const dirty = !sameValues(values, baseline);
   const [justSaved, setJustSaved] = useState(() => {
-    const at = editing ? savedAt.get(editing.botId) : undefined;
+    const at = editing ? savedAt.get(editing.teammateId) : undefined;
     return at !== undefined && Date.now() - at < SAVED_FOR_MS;
   });
   useEffect(() => {
@@ -167,7 +167,7 @@ export function BotForm({
   const [pending, startTransition] = useTransition();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const set = <K extends keyof BotFormValues>(key: K, value: BotFormValues[K]) =>
+  const set = <K extends keyof TeammateFormValues>(key: K, value: TeammateFormValues[K]) =>
     setValues((current) => ({ ...current, [key]: value }));
 
   const complete = Boolean(values.name.trim() && values.role.trim());
@@ -188,7 +188,7 @@ export function BotForm({
       if (editing) {
         const result = await attempt(
           api.teammates.update({
-            teammateId: editing.botId,
+            teammateId: editing.teammateId,
             profile: values,
             revision: editing.revision,
           }),
@@ -197,7 +197,7 @@ export function BotForm({
           toast.error(result.error);
           return;
         }
-        savedAt.set(editing.botId, Date.now());
+        savedAt.set(editing.teammateId, Date.now());
         setBaseline(values);
         setJustSaved(true);
         toast("Saved", {
@@ -313,9 +313,9 @@ export function BotForm({
 
         <div className="grid gap-5 sm:grid-cols-2">
           <div className="flex flex-col gap-2">
-            <Label htmlFor="bot-name">Name</Label>
+            <Label htmlFor="teammate-name">Name</Label>
             <Input
-              id="bot-name"
+              id="teammate-name"
               value={values.name}
               onChange={(e) => set("name", e.target.value)}
               placeholder="e.g. Nova"
@@ -324,9 +324,9 @@ export function BotForm({
             />
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="bot-role">Job</Label>
+            <Label htmlFor="teammate-role">Job</Label>
             <Input
-              id="bot-role"
+              id="teammate-role"
               value={values.role}
               onChange={(e) => set("role", e.target.value)}
               placeholder="e.g. Research assistant"
@@ -437,7 +437,7 @@ export function BotForm({
         data-testid="avatar-card"
       >
         <div className="flex flex-col items-center gap-3 pt-2 text-center">
-          <BotAvatar
+          <TeammateAvatar
             name={values.name || "?"}
             color={values.color}
             emoji={values.emoji}
@@ -482,16 +482,19 @@ export function BotForm({
           </div>
         </div>
         <div className="flex flex-col gap-2">
-          <Label htmlFor="bot-emoji">Emoji (optional)</Label>
+          <Label htmlFor="teammate-emoji">Emoji (optional)</Label>
           <div className="flex items-center gap-3">
             <Input
-              id="bot-emoji"
+              id="teammate-emoji"
               value={values.emoji}
               onChange={(e) => set("emoji", lastGlyph(e.target.value))}
-              aria-describedby="bot-emoji-hint"
+              aria-describedby="teammate-emoji-hint"
               className="size-11 shrink-0 px-0 text-center text-[20px] md:text-[20px]"
             />
-            <span id="bot-emoji-hint" className="text-[12.5px] leading-snug text-muted-foreground">
+            <span
+              id="teammate-emoji-hint"
+              className="text-[12.5px] leading-snug text-muted-foreground"
+            >
               {values.emoji ? (
                 <button
                   type="button"

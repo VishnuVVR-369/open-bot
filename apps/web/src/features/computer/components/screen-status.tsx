@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { BotAvatar } from "@/components/bot-avatar";
+import { TeammateAvatar } from "@/components/teammate-avatar";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { attempt } from "@/lib/client/mutate";
@@ -57,9 +57,14 @@ export function ScreenBadge({ info }: { info: ScreenInfo }) {
     info.activity === "working" && info.lease?.kind === "run" ? info.lease.runId : info.activity;
   return (
     <div className="flex min-w-0 items-center gap-2" aria-live="polite">
-      <BotAvatar name={info.bot.name} color={info.bot.color} emoji={info.bot.emoji} size="xs" />
+      <TeammateAvatar
+        name={info.teammate.name}
+        color={info.teammate.color}
+        emoji={info.teammate.emoji}
+        size="xs"
+      />
       <span className="truncate text-[12.5px] font-medium text-bezel-foreground">
-        {info.bot.name}&rsquo;s screen
+        {info.teammate.name}&rsquo;s screen
       </span>
       <div className="relative h-6 min-w-0 overflow-hidden">
         <AnimatePresence mode="popLayout" initial={false}>
@@ -119,11 +124,11 @@ export function EgressChip({ initial }: { initial?: AppState }) {
   );
 }
 
-/** The rim takes the bot's color while it works, amber while you have control. */
+/** The rim takes the teammate's color while it works, amber while you have control. */
 export function rimColor(info: ScreenInfo | null): string {
   if (!info) return "transparent";
   if (info.activity === "you") return "var(--attention)";
-  if (info.activity === "working") return info.bot.color;
+  if (info.activity === "working") return info.teammate.color;
   return "transparent";
 }
 
@@ -156,14 +161,14 @@ export function WakeButton({ screenId }: { screenId: string }) {
  * Takeover requests still show where you are asked for them (Home, the chat), not here.
  */
 export function ComputerOffline({
-  botNames,
+  teammateNames,
   className,
 }: {
   /** Whose screens these are, to say who is affected. */
-  botNames: string[];
+  teammateNames: string[];
   className?: string;
 }) {
-  const who = botNames.length === 1 ? `${botNames[0]} pauses` : "Teammates pause";
+  const who = teammateNames.length === 1 ? `${teammateNames[0]} pauses` : "Teammates pause";
   return (
     <section
       aria-label="Computer"
