@@ -33,7 +33,7 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
     await db.update(runs).set({ lane, readOutsideData: true }).where(eq(runs.id, run.id));
     await db.insert(runs).values({
       chatId: created.chatId,
-      botId: created.id, // vocabulary: allow
+      teammateId: created.id,
       trigger: "user",
       prompt: "Hi", // vocabulary: allow
       lane: "chat",

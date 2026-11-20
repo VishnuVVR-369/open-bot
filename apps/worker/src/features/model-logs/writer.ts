@@ -11,7 +11,6 @@
 // spend counts in the month its requests started.
 import { EventEmitter } from "node:events";
 import {
-  bots, // vocabulary: allow
   codexEvents,
   type Db,
   errorFields,
@@ -23,6 +22,7 @@ import {
   modelToolCalls,
   runs,
   runTurns,
+  teammates,
 } from "@open-bot/db";
 import type { FallbackOffReason } from "@open-bot/domain";
 import { inArray } from "drizzle-orm";
@@ -120,11 +120,10 @@ async function existingRuns(tx: Tx, ids: string[]): Promise<Set<string>> {
 /** Which of these teammates still exist. */
 async function existingTeammates(tx: Tx, ids: string[]): Promise<Set<string>> {
   if (!ids.length) return new Set();
-  const table = bots; // vocabulary: allow
   const rows = await tx
-    .select({ id: table.id })
-    .from(table)
-    .where(inArray(table.id, [...new Set(ids)]));
+    .select({ id: teammates.id })
+    .from(teammates)
+    .where(inArray(teammates.id, [...new Set(ids)]));
   return new Set(rows.map((row) => row.id));
 }
 

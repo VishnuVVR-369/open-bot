@@ -55,7 +55,7 @@ export function rpcHarness() {
   // The folders botd makes when the computer starts, and any the worker creates.
   const folders = new Set<string>([
     "/home/bot",
-    COMPUTER_PATHS.botsRoot, // vocabulary: allow
+    COMPUTER_PATHS.teammatesRoot,
     COMPUTER_PATHS.shared,
     COMPUTER_PATHS.downloads,
   ]);

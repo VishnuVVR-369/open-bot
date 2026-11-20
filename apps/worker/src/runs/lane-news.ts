@@ -39,12 +39,12 @@ interface Finished {
  */
 export async function laneNews(
   db: Queryable,
-  run: { chatId: string; botId: string; lane: RunLane }, // vocabulary: allow
+  run: { chatId: string; teammateId: string; lane: RunLane },
   formatTime: (at: Date) => string,
 ): Promise<LaneNews | null> {
   if (run.lane !== "chat") return null;
-  const teammateId = run.botId; // vocabulary: allow
-  const runTeammate = runs.botId; // vocabulary: allow
+  const teammateId = run.teammateId;
+  const runTeammate = runs.teammateId;
   const unheard = await db
     .select({ id: runs.id })
     .from(runs)
@@ -132,7 +132,7 @@ function indent(text: string): string {
 /** Account data already delivered remains in the conversation thread on later turns. */
 export async function heardOutsideData(
   db: Queryable,
-  run: { chatId: string; botId: string; lane: RunLane }, // vocabulary: allow
+  run: { chatId: string; teammateId: string; lane: RunLane },
 ): Promise<boolean> {
   if (run.lane !== "chat") return false;
   const [row] = await db
@@ -141,7 +141,7 @@ export async function heardOutsideData(
     .where(
       and(
         eq(runs.chatId, run.chatId),
-        eq(runs.botId, run.botId), // vocabulary: allow
+        eq(runs.teammateId, run.teammateId),
         ne(runs.lane, "chat"),
         eq(runs.readOutsideData, true),
         isNotNull(runs.passedOnAt),

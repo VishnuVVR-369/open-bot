@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
-  bots, // vocabulary: allow
+  teammates,
   chats,
   codexEvents,
   modelBlobs,
@@ -125,15 +125,13 @@ describe.skipIf(!url)("model log retention sweep", () => {
     const chatId = randomUUID();
     runId = randomUUID();
     await db
-      .insert(bots) // vocabulary: allow
+      .insert(teammates)
       .values({ id: teammateId, name: "Kit", slug: "kit", role: "engineer", color: "#000000" });
-    await db
-      .insert(chats)
-      .values({ id: chatId, kind: "direct", title: "Sweep", botId: teammateId }); // vocabulary: allow
+    await db.insert(chats).values({ id: chatId, kind: "direct", title: "Sweep", teammateId });
     await db.insert(runs).values({
       id: runId,
       chatId,
-      botId: teammateId, // vocabulary: allow
+      teammateId,
       trigger: "user",
       prompt: "p",
       status: "completed",

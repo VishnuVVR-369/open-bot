@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { bots, chats, runs } from "@open-bot/db"; // vocabulary: allow
+import { teammates, chats, runs } from "@open-bot/db";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Context } from "../../context";
@@ -29,7 +29,7 @@ describe.skipIf(!url)("finishing a run", () => {
 
   it("waits for the run's model logs before it says it's done", async () => {
     const [teammate] = await db
-      .insert(bots) // vocabulary: allow
+      .insert(teammates)
       .values({ name: "Kit", slug: "kit", role: "Engineer", color: "#0ea5e9" })
       .returning();
     const [chat] = await db.insert(chats).values({ kind: "direct", title: "Kit" }).returning();
@@ -37,7 +37,7 @@ describe.skipIf(!url)("finishing a run", () => {
       .insert(runs)
       .values({
         chatId: chat!.id,
-        botId: teammate!.id, // vocabulary: allow
+        teammateId: teammate!.id,
         trigger: "user",
         prompt: "Say hi.",
         status: "running",

@@ -31,8 +31,7 @@ export class LogSeed {
   async teammate(name: string) {
     const s = await this.s();
     const id = randomUUID();
-    const teammates = s.bots; // vocabulary: allow
-    await this.database.db.insert(teammates).values({
+    await this.database.db.insert(s.teammates).values({
       id,
       name,
       slug: `${name.toLowerCase()}-${id.slice(0, 6)}`,

@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { bots, runs, schedules, triggers } from "@open-bot/db"; // vocabulary: allow
+import { teammates, runs, schedules, triggers } from "@open-bot/db";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -56,7 +56,7 @@ describe.skipIf(!url)("watches and schedules with Postgres", () => {
   beforeEach(async () => {
     await pool.query("truncate bots, chats restart identity cascade"); // vocabulary: allow
     const [teammate] = await db
-      .insert(bots) // vocabulary: allow
+      .insert(teammates)
       .values({ name: "Otto", slug: "otto", role: "assistant", color: "#4f46e5" })
       .returning();
     teammateId = teammate!.id;
@@ -75,7 +75,7 @@ describe.skipIf(!url)("watches and schedules with Postgres", () => {
     const [watch] = await db
       .insert(triggers)
       .values({
-        botId: teammateId, // vocabulary: allow
+        teammateId,
         kind: "watch",
         title: "Status page",
         prompt: "Tell me what changed.",
@@ -113,7 +113,7 @@ describe.skipIf(!url)("watches and schedules with Postgres", () => {
     const [watch] = await db
       .insert(triggers)
       .values({
-        botId: teammateId, // vocabulary: allow
+        teammateId,
         kind: "watch",
         title: "Status page",
         prompt: "Tell me what changed.",
@@ -150,7 +150,7 @@ describe.skipIf(!url)("watches and schedules with Postgres", () => {
     const [reminder] = await db
       .insert(schedules)
       .values({
-        botId: teammateId, // vocabulary: allow
+        teammateId,
         title: "Pay rent",
         prompt: "Remind me to pay rent.",
         kind: "once",
@@ -163,7 +163,7 @@ describe.skipIf(!url)("watches and schedules with Postgres", () => {
     const [other] = await db
       .insert(schedules)
       .values({
-        botId: teammateId, // vocabulary: allow
+        teammateId,
         title: "Water plants",
         prompt: "Remind me to water the plants.",
         kind: "once",

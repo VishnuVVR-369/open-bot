@@ -24,9 +24,14 @@ import { TakeoverService } from "./takeovers";
 // to this computer is refused the same way after it saved your note: this worker, which may be the
 // one that sees the lease end, must keep that note and deliver it once.
 
-// This branch's name for the teammates table.
-const teammatesTable = schema.bots; // vocabulary: allow (renamed with the tables)
-const { chats, runs, screenOperations, screenTakeovers, takeoverDeliveries } = schema;
+const {
+  teammates: teammatesTable,
+  chats,
+  runs,
+  screenOperations,
+  screenTakeovers,
+  takeoverDeliveries,
+} = schema;
 
 const since = "2026-11-14T00:00:00.000Z";
 const OWNER = { kind: "user", since, lastInputAt: since } as const;
@@ -136,13 +141,13 @@ describe.skipIf(!url)("a computer that refuses a call before acting on it", () =
     const addRun = async (prompt: string) => {
       const [chat] = await db
         .insert(chats)
-        .values({ kind: "direct", title: "Rex", botId: screenId }) // vocabulary: allow (column)
+        .values({ kind: "direct", title: "Rex", teammateId: screenId })
         .returning();
       const [run] = await db
         .insert(runs)
         .values({
           chatId: chat!.id,
-          botId: screenId, // vocabulary: allow (column)
+          teammateId: screenId,
           trigger: "user",
           prompt,
           status: "completed",
@@ -224,7 +229,7 @@ describe.skipIf(!url)("a computer that refuses a call before acting on it", () =
         screenId,
         status: "requested",
         requestedByRunId: run.id,
-        requestedByBotId: screenId, // vocabulary: allow (column)
+        requestedByTeammateId: screenId,
         reason: "Enter the code the airline sent",
         itemId: randomUUID(),
       })
@@ -370,7 +375,7 @@ describe.skipIf(!url)("a computer that refuses a call before acting on it", () =
         status: "active",
         startedAt: new Date(),
         requestedByRunId: requester.id,
-        requestedByBotId: screenId, // vocabulary: allow (column)
+        requestedByTeammateId: screenId,
         reason: "Enter the code the airline sent",
         itemId: randomUUID(),
         createdAt: new Date(Date.parse(since) + 1000),

@@ -261,7 +261,7 @@ export async function seedModelLogHistory(ctx: SeedContext, log: LogSeeder) {
       title: who.chat,
       titled: true,
       main: false,
-      botId: teammateId, // vocabulary: allow
+      teammateId,
       createdAt: created,
       lastActivityAt: ago({ d: 3 }),
       archivedAt: ago({ d: 2 }),
@@ -290,7 +290,7 @@ export async function seedModelLogHistory(ctx: SeedContext, log: LogSeeder) {
       await ctx.db.insert(runs, {
         id: runId,
         chatId: ctx.chats[`${who.key}History`]!.id,
-        botId: teammateId, // vocabulary: allow
+        teammateId,
         trigger: "user",
         prompt,
         status: failedRun ? "failed" : "completed",

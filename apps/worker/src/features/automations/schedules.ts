@@ -202,7 +202,10 @@ export class ScheduleService {
 
   /** The chat a schedule's run goes to: its teammate's main chat, unless it's archived. */
   private async runChat(row: Schedule): Promise<string | null> {
-    const [bot] = await this.ctx.db.select().from(teammates).where(eq(teammates.id, row.teammateId));
+    const [bot] = await this.ctx.db
+      .select()
+      .from(teammates)
+      .where(eq(teammates.id, row.teammateId));
     if (!bot || bot.archivedAt) return null;
     return mainChat(this.ctx, row.teammateId);
   }
@@ -298,7 +301,7 @@ function runInput(row: Schedule, chatId: string): RunInput {
   return {
     chatId,
     lane: `schedule:${row.id}`,
-    botId: row.botId,
+    botId: row.teammateId,
     trigger: "schedule",
     scheduleId: row.id,
     prompt: `[Scheduled task: "${row.title}"]\n\n${row.prompt}${row.quiet ? `\n\n${QUIET_NOTE}` : ""}`,

@@ -3,7 +3,7 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 import zlib from "node:zlib";
 import {
-  bots, // vocabulary: allow
+  teammates,
   createDb,
   createPool,
   modelBlobs,
@@ -73,7 +73,7 @@ describe.skipIf(!url)("model proxy", () => {
   beforeAll(async () => {
     await database.create();
     const [teammate] = await db
-      .insert(bots) // vocabulary: allow
+      .insert(teammates)
       .values({ name: "Iris", slug: "iris", role: "assistant", color: "violet" })
       .returning();
     teammateId = teammate!.id;

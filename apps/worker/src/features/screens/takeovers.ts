@@ -545,7 +545,11 @@ export class TakeoverService {
         if (steered) continue;
       }
       const [run] = await this.ctx.db.select().from(runs).where(eq(runs.id, runId));
-      if (run && !isRunActive(run.status) && !this.sessions.find(run.chatId, run.teammateId, run.lane)) {
+      if (
+        run &&
+        !isRunActive(run.status) &&
+        !this.sessions.find(run.chatId, run.teammateId, run.lane)
+      ) {
         await enqueueRun(this.ctx, {
           id: continuationId(continuationRunId, run.id),
           chatId: run.chatId,

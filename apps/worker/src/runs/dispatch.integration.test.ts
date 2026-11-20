@@ -218,7 +218,7 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
     const sent = await message(chat.id);
     await db
       .insert(messageDispatches)
-      .values({ messageId: sent.id, botId: teammate.id, kind: "steer", status: "failed" }); // vocabulary: allow
+      .values({ messageId: sent.id, teammateId: teammate.id, kind: "steer", status: "failed" });
     await executor.recoverSteers();
     expect(await runsFor(sent.id)).toHaveLength(1);
   });
@@ -319,7 +319,7 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
         .insert(runs)
         .values({
           chatId: chat.id,
-          botId: teammate.id, // vocabulary: allow
+          teammateId: teammate.id,
           trigger: "user",
           prompt: "Go",
           lane,
@@ -376,7 +376,7 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
     const other = await bot("Bea"); // vocabulary: allow
     const [otherChat] = await db
       .insert(chats)
-      .values({ kind: "direct", title: other.name, botId: other.id }) // vocabulary: allow
+      .values({ kind: "direct", title: other.name, teammateId: other.id })
       .returning();
     // Rex's routine asks Bea; Bea's run is in her own chat, so its lane says nothing about Rex's.
     const teammateId = teammate.id;

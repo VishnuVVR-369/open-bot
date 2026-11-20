@@ -60,7 +60,7 @@ test("@agent a quiet routine stays quiet until there's news", async ({ page }) =
   // was in the list, and no notification.
   const api = apiFor(page);
   const mainChat = async () =>
-    (await api.chats.list()).find((chat) => chat.main && chat.botId === botId)!;
+    (await api.chats.list()).find((chat) => chat.main && chat.teammateId === botId)!;
   const before = await mainChat();
   await row.getByRole("button", { name: "Run now" }).click();
   await expect(row).toContainText(/Last run|Running|Finished/, { timeout: 30_000 });

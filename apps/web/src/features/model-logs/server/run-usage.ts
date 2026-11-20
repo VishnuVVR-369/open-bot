@@ -177,7 +177,7 @@ export async function monthlyUsage(since: Date): Promise<UsageView[]> {
     group by teammate_id
     order by sum(input_tokens + output_tokens) desc, teammate_id`);
   return result.rows.map((row) => ({
-    botId: row.teammate_id, // The API field keeps its name until the renames; vocabulary: allow
+    teammateId: row.teammate_id,
     runs: Number(row.runs),
     inputTokens: Number(row.input_tokens),
     cachedInputTokens: Number(row.cached_input_tokens),

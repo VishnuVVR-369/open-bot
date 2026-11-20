@@ -121,7 +121,9 @@ export async function ensureThread(session: ThreadSession, client: CodexClient):
     : await ctx.db
         .select()
         .from(teammateThreads)
-        .where(and(eq(teammateThreads.chatId, run.chatId), eq(teammateThreads.teammateId, teammate.id)));
+        .where(
+          and(eq(teammateThreads.chatId, run.chatId), eq(teammateThreads.teammateId, teammate.id)),
+        );
 
   if (
     existing &&

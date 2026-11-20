@@ -1,11 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { once } from "node:events";
-import {
-  bots, // vocabulary: allow
-  modelLogGaps,
-  modelRequestItems,
-  modelRequests,
-} from "@open-bot/db";
+import { teammates, modelLogGaps, modelRequestItems, modelRequests } from "@open-bot/db";
 import { modelBlob } from "@open-bot/domain/server";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import { asc, eq } from "drizzle-orm";
@@ -127,12 +122,12 @@ describe.skipIf(!url)("model log writer", () => {
 
   it("keeps the request of a teammate deleted since, without naming it", async () => {
     const [teammate] = await db
-      .insert(bots) // vocabulary: allow
+      .insert(teammates)
       .values({ name: "Gone", slug: `gone-${randomUUID()}`, role: "assistant", color: "violet" })
       .returning();
-    await db.delete(bots).where(eq(bots.id, teammate!.id)); // vocabulary: allow
+    await db.delete(teammates).where(eq(teammates.id, teammate!.id));
     const [present] = await db
-      .insert(bots) // vocabulary: allow
+      .insert(teammates)
       .values({ name: "Here", slug: `here-${randomUUID()}`, role: "assistant", color: "violet" })
       .returning();
 

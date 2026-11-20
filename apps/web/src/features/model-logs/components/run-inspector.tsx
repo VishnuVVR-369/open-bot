@@ -38,7 +38,7 @@ function Stat({ label, value, tone }: { label: string; value: ReactNode; tone?: 
 
 function Header({ logs, empty }: { logs: RunModelLogs; empty: boolean }) {
   const { data: state } = useAppState();
-  const teammate = state?.bots.find((t) => t.id === logs.run.teammateId); // vocabulary: allow
+  const teammate = state?.teammates.find((t) => t.id === logs.run.teammateId);
   const name = logs.run.teammateName ?? "Former teammate";
   const { run, totals } = logs;
   return (

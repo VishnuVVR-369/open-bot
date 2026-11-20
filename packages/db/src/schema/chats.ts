@@ -122,7 +122,7 @@ export const chatLaneThreads = pgTable(
       .references(() => chats.id, { onDelete: "cascade" }),
     teammateId: uuid("teammate_id")
       .notNull()
-      .references(() => bots.id, { onDelete: "cascade" }), // vocabulary: allow
+      .references(() => teammates.id, { onDelete: "cascade" }),
     lane: text("lane").$type<Exclude<RunLane, "chat">>().notNull(),
     codexThreadId: text("codex_thread_id").notNull(),
     memoryGeneration: text("memory_generation").notNull().default(""),

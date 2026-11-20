@@ -13,7 +13,7 @@ describe.skipIf(!rpcEnabled)("quiet completion with Postgres", () => {
   ] as const)("persists %s quiet=%s as quiet=%s", async (status, scheduleQuiet, expectedQuiet) => {
     const { created, run } = await h.teammateWithRun();
     const schedule = await h.schedules.create({
-      botId: created.id, // vocabulary: allow
+      teammateId: created.id,
       title: "Check",
       prompt: "Check", // vocabulary: allow
       cron: "0 9 * * *",
