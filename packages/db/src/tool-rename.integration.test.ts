@@ -172,7 +172,7 @@ describe.skipIf(!server)("migration 0042: approvals for renamed tools", () => {
         arguments: { name: "No", role: "researcher" },
       }),
     );
-    // A connection's tool takes its own arguments: a bot_id there is that service's, not ours.
+    // A connection's tool takes that service's own arguments, which aren't ours to rename.
     const mcpCall = (status: "pending" | "approved", chat: string) =>
       save(
         `mcp-${status}`,
@@ -284,7 +284,7 @@ describe.skipIf(!server)("migration 0042: approvals for renamed tools", () => {
     });
   });
 
-  it("leaves a connection's tool calls as they were, bot_id and all", async () => {
+  it("leaves a connection's tool calls as they were, arguments and all", async () => {
     for (const [status, chat] of [
       ["pending", "1"],
       ["approved", "2"],
