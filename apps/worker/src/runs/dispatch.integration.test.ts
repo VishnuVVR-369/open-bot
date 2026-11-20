@@ -81,7 +81,12 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
   }
 
   /** A teammate's running turn that the next message can join. */
-  function runningSession(chatId: string, teammateId: string, steers: boolean, lane: RunLane = "chat") {
+  function runningSession(
+    chatId: string,
+    teammateId: string,
+    steers: boolean,
+    lane: RunLane = "chat",
+  ) {
     const runId = crypto.randomUUID();
     const steer = vi.fn(async () => steers);
     sessions.add({
@@ -350,9 +355,9 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
 
   it("queues a continuation in its parent's lane, but only for the same teammate and chat", async () => {
     const { chat, teammate } = await directChat();
-    const other = await bot("Ada"); // vocabulary: allow
+    const other = await addTeammate("Ada");
     const teammateId = teammate.id;
-    const base = { chatId: chat.id, botId: teammateId, trigger: "user" as const, prompt: "Go" }; // vocabulary: allow
+    const base = { chatId: chat.id, teammateId, trigger: "user" as const, prompt: "Go" };
     const parent = await insertRun(db, { ...base, lane: `schedule:${dailyId}` });
     const laneOf = async (id: string) =>
       (await db.select({ lane: runs.lane }).from(runs).where(eq(runs.id, id)))[0]!.lane;
@@ -363,7 +368,7 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
     );
     // Another teammate answering in the same chat works in the conversation.
     expect(
-      await laneOf(await insertRun(db, { ...base, botId: other.id, parentRunId: parent })), // vocabulary: allow
+      await laneOf(await insertRun(db, { ...base, teammateId: other.id, parentRunId: parent })),
     ).toBe("chat");
     expect(await laneOf(await insertRun(db, { ...base, parentRunId: parent, lane: "chat" }))).toBe(
       "chat",
@@ -373,7 +378,7 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
 
   it("sends an answer back to the lane the question was asked from", async () => {
     const { teammate, chat } = await directChat();
-    const other = await bot("Bea"); // vocabulary: allow
+    const other = await addTeammate("Bea");
     const [otherChat] = await db
       .insert(chats)
       .values({ kind: "direct", title: other.name, teammateId: other.id })
@@ -382,14 +387,14 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
     const teammateId = teammate.id;
     const asked = await insertRun(db, {
       chatId: chat.id,
-      botId: teammateId, // vocabulary: allow
+      teammateId,
       trigger: "user",
       prompt: "Brief me",
       lane: `schedule:${dailyId}`,
     });
     const question = await insertRun(db, {
       chatId: otherChat!.id,
-      botId: other.id, // vocabulary: allow
+      teammateId: other.id,
       trigger: "question",
       prompt: "When is the launch?",
       parentRunId: asked,
@@ -411,7 +416,12 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
   });
   it("cancels queued work in one lane without stopping another lane", async () => {
     const { chat, teammate } = await directChat();
-    const base = { chatId: chat.id, botId: teammate.id, trigger: "user" as const, prompt: "Go" }; // vocabulary: allow
+    const base = {
+      chatId: chat.id,
+      teammateId: teammate.id,
+      trigger: "user" as const,
+      prompt: "Go",
+    };
     const cancelledId = await insertRun(db, { ...base, lane: `schedule:${dailyId}` });
     const conversationId = await insertRun(db, { ...base, lane: "chat" });
     await db.update(runs).set({ cancelRequestedAt: new Date() }).where(eq(runs.id, cancelledId));

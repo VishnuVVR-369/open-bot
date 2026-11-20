@@ -301,7 +301,7 @@ function runInput(row: Schedule, chatId: string): RunInput {
   return {
     chatId,
     lane: `schedule:${row.id}`,
-    botId: row.teammateId,
+    teammateId: row.teammateId,
     trigger: "schedule",
     scheduleId: row.id,
     prompt: `[Scheduled task: "${row.title}"]\n\n${row.prompt}${row.quiet ? `\n\n${QUIET_NOTE}` : ""}`,

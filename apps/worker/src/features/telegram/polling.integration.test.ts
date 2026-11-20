@@ -192,7 +192,7 @@ describe.skipIf(!url)("Telegram polling with Postgres", () => {
   const uploads = {
     save: vi.fn(async (file: { name: string; mime: string; data: Buffer }) => ({
       name: file.name,
-      path: `/home/bot/shared/uploads/${file.name}`, // vocabulary: allow
+      path: `/home/bot/shared/uploads/${file.name}`,
       mime: file.mime,
       size: file.data.length,
     })),

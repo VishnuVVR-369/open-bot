@@ -18,8 +18,7 @@ import {
 
 /** What answering a server request reads from the session `S`, which the services are handed. */
 export interface RequestSession<S> {
-  /** The session's teammate, under the legacy name `RunSession` still uses. */
-  readonly bot: { readonly autonomy: Autonomy }; // vocabulary: allow
+  readonly teammate: { readonly autonomy: Autonomy };
   readonly items: Map<string, TimelineItem>;
   readonly services: {
     tools: {
@@ -96,8 +95,7 @@ export async function onServerRequest<S extends RequestSession<S>>(
       const approval = mcpToolApproval(request.params, session.items);
       // A form an MCP server wants filled in: there is no way to show it to you yet.
       if (!approval) return { action: "decline", content: null, _meta: null };
-      const teammate = session.bot; // vocabulary: allow
-      if (!asksBeforeToolCalls(teammate.autonomy)) return toolCallAnswer("approved");
+      if (!asksBeforeToolCalls(session.teammate.autonomy)) return toolCallAnswer("approved");
       const decision = await session.services.requestActionApproval(session, {
         ...toolCallApprovalRequest(approval),
         itemId: `approval-${approval.callId ?? randomUUID()}`,

@@ -30,9 +30,7 @@ export interface RunInput {
 function laneOf(input: RunInput) {
   if (input.lane) return input.lane;
   if (!input.parentRunId) return "chat";
-  const teammate = runs.teammateId;
-  const teammateId = input.botId; // vocabulary: allow
-  return sql<RunLane>`coalesce((select ${runs.lane} from ${runs} where ${runs.id} = ${input.parentRunId} and ${runs.chatId} = ${input.chatId} and ${teammate} = ${teammateId}), 'chat')`;
+  return sql<RunLane>`coalesce((select ${runs.lane} from ${runs} where ${runs.id} = ${input.parentRunId} and ${runs.chatId} = ${input.chatId} and ${runs.teammateId} = ${input.teammateId}), 'chat')`;
 }
 
 /**
