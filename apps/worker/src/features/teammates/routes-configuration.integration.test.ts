@@ -97,7 +97,7 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
     it("lets only one of two teammates imported at once into an empty team lead", async () => {
       await db
         .update(teammateRows)
-        .set({ archivedAt: new Date(), isPrimary: false }) // vocabulary: allow
+        .set({ archivedAt: new Date(), isLead: false }) // vocabulary: allow
         .where(isNull(teammateRows.archivedAt)); // vocabulary: allow
       expect(await leads()).toEqual([]);
       await Promise.all(["Ada", "Bea"].map((name) => imported(name)));

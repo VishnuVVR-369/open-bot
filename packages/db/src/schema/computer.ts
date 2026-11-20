@@ -26,7 +26,7 @@ export type TakeoverStatus = "requested" | "active" | "ended" | "dismissed";
 /** How a takeover ended: the reasons botd gives for releasing your hold on a screen. */
 export type TakeoverEndReason = LeaseReleaseReason;
 
-export const desktopTakeovers = pgTable(
+export const screenTakeovers = pgTable(
   "desktop_takeovers",
   {
     id: uuid("id").primaryKey().defaultRandom(),
@@ -43,7 +43,7 @@ export const desktopTakeovers = pgTable(
     reason: text("reason"),
     /** Timeline item that shows the request. */
     itemId: text("item_id"),
-    /** The run that held the desktop when you took it. */
+    /** The run that held the screen when you took it. */
     interruptedRunId: uuid("interrupted_run_id").references(() => runs.id, {
       onDelete: "set null",
     }),
@@ -61,7 +61,7 @@ export const screenOperations = pgTable(
   "screen_operations",
   {
     id: uuid("id").primaryKey(),
-    takeoverId: uuid("takeover_id").references(() => desktopTakeovers.id, { onDelete: "set null" }),
+    takeoverId: uuid("takeover_id").references(() => screenTakeovers.id, { onDelete: "set null" }),
     screenId: uuid("screen_id").references(() => bots.id, { onDelete: "set null" }),
     status: text("status").$type<ScreenOperationStatus>().notNull(),
     reason: text("reason"),
@@ -75,7 +75,7 @@ export const screenOperations = pgTable(
 export const takeoverDeliveries = pgTable("takeover_deliveries", {
   id: uuid("id")
     .primaryKey()
-    .references(() => desktopTakeovers.id, { onDelete: "cascade" }),
+    .references(() => screenTakeovers.id, { onDelete: "cascade" }),
   continuationRunId: uuid("continuation_run_id").notNull().defaultRandom(),
   deliveredAt: timestamp("delivered_at", { withTimezone: true }),
   createdAt: createdAt(),

@@ -1,16 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DesktopLease, type LeaseChange } from "./lease";
+import { ScreenLease, type LeaseChange } from "./lease";
 
 const nova = { runId: "run-1", botId: "bot-1", botName: "Nova" };
 const atlas = { runId: "run-2", botId: "bot-2", botName: "Atlas" };
 
-describe("DesktopLease", () => {
+describe("ScreenLease", () => {
   beforeEach(() => vi.useFakeTimers({ now: new Date("2026-10-13T10:00:00Z") }));
   afterEach(() => vi.useRealTimers());
 
   it("does not disconnect a code lease without a viewer; idle release uses its safety guard", async () => {
     const guard = vi.fn(async () => false);
-    const lease = new DesktopLease({ userIdleMs: 600_000, userDisconnectMs: 90_000 });
+    const lease = new ScreenLease({ userIdleMs: 600_000, userDisconnectMs: 90_000 });
     lease.protectCode(guard);
     vi.advanceTimersByTime(91_000);
     lease.sweep();
@@ -23,23 +23,23 @@ describe("DesktopLease", () => {
     expect(lease.holder).toMatchObject({ pausedForSafety: true });
   });
 
-  it("gives a free desktop to the first run and keeps it for that run", async () => {
-    const lease = new DesktopLease();
+  it("gives a free screen to the first run and keeps it for that run", async () => {
+    const lease = new ScreenLease();
     expect(await lease.acquireForRun(nova)).toBe("ok");
     expect(await lease.acquireForRun(nova)).toBe("ok");
     expect(lease.holder).toMatchObject({ kind: "run", runId: "run-1" });
   });
 
-  it("makes another run wait, then reports the desktop as busy", async () => {
-    const lease = new DesktopLease({ waitMs: 30_000 });
+  it("makes another run wait, then reports the screen as busy", async () => {
+    const lease = new ScreenLease({ waitMs: 30_000 });
     await lease.acquireForRun(nova);
     const waiting = lease.acquireForRun(atlas);
     await vi.advanceTimersByTimeAsync(31_000);
     expect(await waiting).toBe("desktop_busy");
   });
 
-  it("hands the desktop to a waiting run once the holder releases it", async () => {
-    const lease = new DesktopLease();
+  it("hands the screen to a waiting run once the holder releases it", async () => {
+    const lease = new ScreenLease();
     await lease.acquireForRun(nova);
     const waiting = lease.acquireForRun(atlas);
     await vi.advanceTimersByTimeAsync(1_000);
@@ -50,7 +50,7 @@ describe("DesktopLease", () => {
   });
 
   it("lets you take over immediately and blocks every run", async () => {
-    const lease = new DesktopLease();
+    const lease = new ScreenLease();
     const preempted = vi.fn();
     lease.on("preempted", preempted);
     await lease.acquireForRun(nova);
@@ -62,7 +62,7 @@ describe("DesktopLease", () => {
   });
 
   it("returns control after you hand back", async () => {
-    const lease = new DesktopLease();
+    const lease = new ScreenLease();
     const changes: LeaseChange[] = [];
     lease.on("change", (change) => changes.push(change));
     lease.takeByUser();
@@ -74,7 +74,7 @@ describe("DesktopLease", () => {
   });
 
   it("releases idle runs and idle or disconnected users", async () => {
-    const lease = new DesktopLease({
+    const lease = new ScreenLease({
       runIdleMs: 120_000,
       userIdleMs: 600_000,
       userDisconnectMs: 90_000,
@@ -108,8 +108,8 @@ describe("DesktopLease", () => {
     expect(lease.holder).toBeNull();
   });
 
-  it("lets a run take the desktop from a run that went idle", async () => {
-    const lease = new DesktopLease({ runIdleMs: 120_000 });
+  it("lets a run take the screen from a run that went idle", async () => {
+    const lease = new ScreenLease({ runIdleMs: 120_000 });
     await lease.acquireForRun(nova);
     vi.advanceTimersByTime(125_000);
     expect(await lease.acquireForRun(atlas)).toBe("ok");

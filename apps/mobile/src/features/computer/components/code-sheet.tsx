@@ -14,7 +14,7 @@ import { ComputerAccess } from "@/features/computer/computer-access";
 import { errorMessage } from "@/lib/errors";
 import { queryClient, queryKeys } from "@/lib/query";
 import { recoverCodeOperation } from "@/features/computer/screens";
-import { DESKTOP_ASPECT_RATIO, DesktopView } from "./desktop-view";
+import { SCREEN_ASPECT_RATIO, ScreenView } from "./screen-view";
 
 const terminal = new Set(["handed_back", "cancelled", "failed", "needs_owner", "unknown"]);
 
@@ -163,12 +163,12 @@ export function CodeSheet({
       testID="code-sheet"
     >
       <View style={{ paddingHorizontal: 20, gap: 12 }}>
-        <DesktopView
+        <ScreenView
           screenId={screenId}
           mode="view"
           enabled={open && access}
           onConnectedChange={setPreviewConnected}
-          style={{ aspectRatio: DESKTOP_ASPECT_RATIO }}
+          style={{ aspectRatio: SCREEN_ASPECT_RATIO }}
         />
         <Text variant="small">
           {site ? `Focused site: ${site}` : "Focus the code field in the browser to continue."}

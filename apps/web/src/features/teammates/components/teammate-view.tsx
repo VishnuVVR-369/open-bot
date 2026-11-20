@@ -89,7 +89,7 @@ export function TeammateView({ teammate, tab }: { teammate: TeammatePage; tab?: 
             }}
           />
           <AllowedRules name={bot.name} rules={rules} />
-          <BotDangerZone botId={bot.id} name={bot.name} isPrimary={bot.isPrimary} />
+          <BotDangerZone botId={bot.id} name={bot.name} isLead={bot.isLead} />
         </TabsContent>
         <TabsContent value="memory" className="flex flex-col gap-8">
           <MemoryManager botId={bot.id} name={bot.name} />

@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { type ScreenInfo, useComputer, useFollowedScreen } from "../hooks";
 import { ScreenFrame } from "./screen-glass";
 import { ScreenControls } from "./screen-controls";
-import type { DesktopHandle } from "./desktop-view";
+import type { ScreenHandle } from "./screen-view";
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
@@ -178,7 +178,7 @@ function ScreenAway({ info, frame }: { info: ScreenInfo; frame: LastFrame | null
 }
 
 export function ComputerPage({ initialScreen }: { initialScreen: string | null }) {
-  const handleRef = useRef<DesktopHandle | null>(null);
+  const handleRef = useRef<ScreenHandle | null>(null);
   const { data: state } = useAppState();
   const { screen, egress, online } = useComputer();
   const botIds = state?.bots.map((bot) => bot.id) ?? [];

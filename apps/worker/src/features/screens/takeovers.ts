@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
   bots,
-  desktopTakeovers as screenTakeovers, // vocabulary: allow (the table is renamed with the stack)
+  screenTakeovers,
   runs,
   screenOperations,
   takeoverDeliveries,
@@ -43,8 +43,7 @@ export type TakeoverWaitResult =
 
 const AUTO_NOTES: Record<Exclude<TakeoverEndReason, "handed_back">, string> = {
   user_idle: "Control came back automatically after 10 minutes without input from the user.",
-  user_disconnected:
-    "Control came back automatically because the user's desktop view disconnected.",
+  user_disconnected: "Control came back automatically because the user's screen view disconnected.",
 };
 
 /**

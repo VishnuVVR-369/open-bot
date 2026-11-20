@@ -3,7 +3,7 @@ import { Eye, MousePointer2 } from "lucide-react-native";
 import type { Dispatch, ReactNode, RefObject } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { Button } from "@/components/button";
-import type { DesktopHandle } from "@/features/computer/components/desktop-view";
+import type { ScreenHandle } from "@/features/computer/components/screen-view";
 import { Text } from "@/components/text";
 import { TextField } from "@/components/text-field";
 import {
@@ -30,13 +30,13 @@ const keys = [
  * stay down until pressed again, pasting from the phone, and a field that types into the screen.
  */
 export function RemoteControls({
-  desktop,
+  screenHandle,
   connected,
   session,
   dispatch,
   fit,
 }: {
-  desktop: RefObject<DesktopHandle | null>;
+  screenHandle: RefObject<ScreenHandle | null>;
   connected: boolean;
   session: ScreenSession;
   dispatch: Dispatch<ScreenEvent>;
@@ -48,13 +48,13 @@ export function RemoteControls({
   function key(sym: number, code: string, modifier = false) {
     if (!connected) return;
     const down = !held.includes(code);
-    desktop.current?.send({ type: "key", keysym: sym, code, ...(modifier ? { down } : {}) });
+    screenHandle.current?.send({ type: "key", keysym: sym, code, ...(modifier ? { down } : {}) });
     if (modifier) dispatch({ type: "hold", code, down });
   }
   function type(value: string) {
     const { backspaces, text } = typedChange(draft, value);
     for (let i = 0; i < backspaces; i++) key(0xff08, "Backspace");
-    desktop.current?.send({ type: "text", text });
+    screenHandle.current?.send({ type: "text", text });
     dispatch({ type: "typed", draft: value });
   }
 
@@ -67,7 +67,7 @@ export function RemoteControls({
           icon={<MousePointer2 size={16} color={colors.foreground} />}
           onPress={() => {
             dispatch({ type: "toggle-trackpad" });
-            desktop.current?.send({ type: "pointerMode", trackpad: !trackpad });
+            screenHandle.current?.send({ type: "pointerMode", trackpad: !trackpad });
           }}
           testID="trackpad"
           disabled={!connected}
@@ -89,7 +89,7 @@ export function RemoteControls({
           disabled={!connected}
           onPress={() =>
             void Clipboard.getStringAsync().then((text) =>
-              desktop.current?.send({ type: "text", text: text.slice(0, 5000) }),
+              screenHandle.current?.send({ type: "text", text: text.slice(0, 5000) }),
             )
           }
         />

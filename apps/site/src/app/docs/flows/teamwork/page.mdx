@@ -20,7 +20,7 @@ The list is rewritten before every run, so a new teammate is known everywhere on
 
 A group chat has members (`chat_members`), and one of them leads.
 
-- A message goes to the teammates you @-mention, or else to the primary teammate if it is a member, or else to the first member.
+- A message goes to the teammates you @-mention, or else to the lead teammate if it is a member, or else to the first member.
 - Each answering teammate gets a prompt that says who else is in the chat, with their jobs, and what you and the others said since it last spoke there.
 - Each teammate keeps its own Codex thread for the group chat, so their conversations don't mix.
 
@@ -174,7 +174,7 @@ A new teammate asks before risky actions unless you asked for more, whatever its
 
 1. resolves the request into a plan, with the least used color when none is given;
 2. checks every schedule's timing, so you are never asked to approve one that can't be saved;
-3. in one transaction, under an advisory lock, picks a unique slug and creates the `bots` row and its direct chat, which is its main chat (the first teammate becomes the primary one);
+3. in one transaction, under an advisory lock, picks a unique slug and creates the `bots` row and its direct chat, which is its main chat (the first teammate becomes the lead);
 4. saves the skills and schedules, in your timezone, and reports any that failed by name, so the caller adds them later instead of creating the teammate twice;
 5. writes the teammate's workspace, or leaves that to its first run if the computer is away.
 

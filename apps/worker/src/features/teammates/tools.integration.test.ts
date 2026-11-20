@@ -9,14 +9,14 @@ import { toolsEnabled, toolHarness, toolSuiteName } from "../../testing/tools";
 describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
   const { db, sync, service, requestAction, fixture, call } = toolHarness();
 
-  it("creates permanent teammates with unique slugs and only one primary under concurrency", async () => {
+  it("creates permanent teammates with unique slugs and only one lead under concurrency", async () => {
     const created = await Promise.all([
       service.create({ name: "Ada", role: "researcher" }),
       service.create({ name: "Ada", role: "researcher" }),
     ]);
     const rows = await db.select().from(dbTables.bots);
     expect(rows.map((bot) => bot.slug).sort()).toEqual(["ada", "ada-2"]);
-    expect(rows.filter((bot) => bot.isPrimary)).toHaveLength(1);
+    expect(rows.filter((bot) => bot.isLead)).toHaveLength(1);
     expect(await db.select().from(chats)).toHaveLength(2);
     expect(created.every((bot) => bot.chatPath === `/chats/${bot.chatId}`)).toBe(true);
     expect(sync).toHaveBeenCalledTimes(2);

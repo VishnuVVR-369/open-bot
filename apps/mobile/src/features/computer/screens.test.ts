@@ -39,7 +39,7 @@ const bot = {
   color: "#3E7BFA",
   emoji: "🛠️",
   autonomy: "ask",
-  isPrimary: false,
+  isLead: false,
   directChatId: null,
   activeRun: null,
 } as unknown as ScreenView["bot"];

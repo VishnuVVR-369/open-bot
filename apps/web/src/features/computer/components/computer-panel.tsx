@@ -3,7 +3,7 @@
 import { useRef } from "react";
 import type { AppState } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { type DesktopHandle } from "./desktop-view";
+import { type ScreenHandle } from "./screen-view";
 import { useComputer, useFollowedScreen } from "../hooks";
 import { ComputerOffline } from "./screen-status";
 import { ScreenFrame } from "./screen-glass";
@@ -27,7 +27,7 @@ export function ComputerPanel({
   showRequests?: boolean;
   className?: string;
 }) {
-  const handleRef = useRef<DesktopHandle | null>(null);
+  const handleRef = useRef<ScreenHandle | null>(null);
   const { state, online } = useComputer(initial);
   const { screenId, pick } = useFollowedScreen(botIds, initial);
   if (state && !online && botIds.length > 0) {
