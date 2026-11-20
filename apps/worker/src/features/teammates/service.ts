@@ -35,7 +35,7 @@ import {
 import { and, asc, eq, gt, isNotNull, isNull, sql } from "drizzle-orm";
 import { publishApp, type Context } from "../../context";
 import { errorMessage } from "../../logger";
-import type { Bot } from "../../core/db-types";
+import type { Teammate } from "../../core/db-types";
 import { requestTeammateRunsCancel } from "../../runs/cancel";
 import { addApprovalRules } from "../approvals";
 import { addChat, archiveChatsOf, renameDirectChats, shownMainChats } from "../chat";
@@ -58,10 +58,7 @@ export type TeammateParts = Omit<TeammateBundle, "format" | "version" | "teammat
 /** The memory a new teammate can start with. */
 export type TeammateMemory = Pick<MemoryService, "copyTeammate" | "addLessons">;
 
-/** A teammate row, under the legacy type name. */
-type Teammate = Bot;
-
-export class BotError extends WorkerError {}
+export class TeammateError extends WorkerError {}
 
 /** A connection as teammates see it: no credentials, with a revision for safe edits. */
 export interface ConnectionSummary {
@@ -93,24 +90,24 @@ export async function activeTeammates(
     .orderBy(asc(teammates.createdAt));
 }
 
-export type CreatedBy = { kind: "user" } | { kind: "bot"; botId: string; runId: string };
+export type CreatedBy = { kind: "user" } | { kind: "bot"; teammateId: string; runId: string };
 
 /**
  * Creating and editing teammates, for the web app and for teammates' own tools alike. Edits use
  * an optimistic revision, so nobody silently overwrites a change made since they read it.
  */
-export class BotService {
+export class TeammateService {
   constructor(
     private readonly ctx: Context,
     private readonly schedules: ScheduleService,
     private readonly skills: SkillService,
     private readonly memory: TeammateMemory,
-    private readonly syncWorkspace: (bot: Bot) => Promise<void>,
+    private readonly syncWorkspace: (teammate: Teammate) => Promise<void>,
   ) {}
 
   /** A teammate's revision, from everything saved on it. */
-  static revision(bot: Bot): string {
-    return configurationRevision(bot);
+  static revision(teammate: Teammate): string {
+    return configurationRevision(teammate);
   }
 
   templates() {
@@ -118,19 +115,19 @@ export class BotService {
   }
 
   /** The teammate, unless it was deleted or archived. */
-  async requireBot(id: string): Promise<Bot> {
-    const [bot] = await this.ctx.db
+  async requireTeammate(id: string): Promise<Teammate> {
+    const [teammate] = await this.ctx.db
       .select()
       .from(teammates)
       .where(and(eq(teammates.id, id), isNull(teammates.archivedAt)));
-    if (!bot) throw new BotError(404, "That teammate no longer exists or is archived.");
-    return bot;
+    if (!teammate) throw new TeammateError(404, "That teammate no longer exists or is archived.");
+    return teammate;
   }
 
   /** A teammate, archived or not: an archived one's screen and workspace are still cleaned up. */
-  async findTeammate(id: string): Promise<Bot> {
+  async findTeammate(id: string): Promise<Teammate> {
     const [teammate] = await this.ctx.db.select().from(teammates).where(eq(teammates.id, id));
-    if (!teammate) throw new BotError(404, "No such teammate.");
+    if (!teammate) throw new TeammateError(404, "No such teammate.");
     return teammate;
   }
 
@@ -155,9 +152,9 @@ export class BotService {
 
   /** A teammate's whole setup: profile, skills, automations and the connections it can use. */
   async get(id: string) {
-    const bot = await this.requireBot(id);
+    const teammate = await this.requireTeammate(id);
     const [skills, routines, watches, services, mainChats] = await Promise.all([
-      this.skills.forBot(id),
+      this.skills.forTeammate(id),
       this.ctx.db
         .select({
           id: schedules.id,
@@ -191,21 +188,21 @@ export class BotService {
     ]);
     const mainChatId = mainChats.get(id);
     return {
-      id: bot.id,
-      name: bot.name,
-      role: bot.role,
-      instructions: bot.instructions,
-      color: bot.color,
-      emoji: bot.emoji,
-      autonomy: bot.autonomy,
-      revision: BotService.revision(bot),
+      id: teammate.id,
+      name: teammate.name,
+      role: teammate.role,
+      instructions: teammate.instructions,
+      color: teammate.color,
+      emoji: teammate.emoji,
+      autonomy: teammate.autonomy,
+      revision: TeammateService.revision(teammate),
       chatPath: mainChatId ? `/chats/${mainChatId}` : null,
-      skills: skills.map(({ id, name, description, instructions, teammateId: botId }) => ({
+      skills: skills.map(({ id, name, description, instructions, teammateId }) => ({
         id,
         name,
         description,
         instructions,
-        sharedWithEveryone: botId === null,
+        sharedWithEveryone: teammateId === null,
       })),
       schedules: routines,
       triggers: watches,
@@ -236,7 +233,7 @@ export class BotService {
       try {
         await this.schedules.check({ ...schedule, timezone: null });
       } catch (error) {
-        throw new BotError(400, `Schedule "${schedule.title}": ${errorMessage(error)}`);
+        throw new TeammateError(400, `Schedule "${schedule.title}": ${errorMessage(error)}`);
       }
     }
   }
@@ -257,25 +254,25 @@ export class BotService {
         .select({ slug: teammates.slug, archivedAt: teammates.archivedAt })
         .from(teammates);
       const { slug, first } = newTeammateSlot(team, profile.name);
-      const [bot] = await tx
+      const [teammate] = await tx
         .insert(teammates)
         .values({ ...profile, slug, isLead: first })
         .returning();
       const chatId = await addChat(tx, {
         kind: "direct",
         title: profile.name,
-        teammateId: bot!.id,
+        teammateId: teammate!.id,
         main: true,
       });
-      return { bot: bot!, chatId };
+      return { teammate: teammate!, chatId };
     });
-    const botId = created.bot.id;
+    const teammateId = created.teammate.id;
     const failed: CreatedTeammate["failed"] = [];
     const timezone = await ownerTimeZone(this.ctx.db);
     for (const schedule of plan.schedules) {
       await this.schedules
         .create({
-          teammateId: botId,
+          teammateId,
           ...schedule,
           timezone,
           createdBy: by.kind,
@@ -288,22 +285,22 @@ export class BotService {
     for (const skill of plan.skills) {
       await this.skills
         .save(
-          { ...skill, teammateId: botId },
-          by.kind === "bot" ? { kind: "bot", botId: by.botId } : by,
+          { ...skill, teammateId },
+          by.kind === "bot" ? { kind: "bot", teammateId: by.teammateId } : by,
         )
         .catch((error: unknown) =>
           failed.push({ kind: "skill", name: skill.name, error: errorMessage(error) }),
         );
     }
-    const workspaceSynced = await this.sync(created.bot);
+    const workspaceSynced = await this.sync(created.teammate);
     await publishApp(this.ctx, { type: "teammates" });
     await publishApp(this.ctx, { type: "chats" });
     return {
-      teammateId: botId,
-      name: created.bot.name,
+      teammateId,
+      name: created.teammate.name,
       chatId: created.chatId,
       chatPath: `/chats/${created.chatId}`,
-      revision: BotService.revision(created.bot),
+      revision: TeammateService.revision(created.teammate),
       skills: plan.skills.length - failed.filter((entry) => entry.kind === "skill").length,
       schedules: plan.schedules.length - failed.filter((entry) => entry.kind === "schedule").length,
       failed,
@@ -317,7 +314,7 @@ export class BotService {
    */
   async update(id: string, changes: Partial<TeammateProfile>, expectedRevision?: string) {
     const parsed = teammateProfileChangesSchema.safeParse(changes);
-    if (!parsed.success) throw new BotError(400, parsed.error.issues[0]!.message);
+    if (!parsed.success) throw new TeammateError(400, parsed.error.issues[0]!.message);
     const patch = parsed.data;
     const updated = await this.ctx.db.transaction(async (tx) => {
       const [current] = await tx
@@ -325,25 +322,29 @@ export class BotService {
         .from(teammates)
         .where(and(eq(teammates.id, id), isNull(teammates.archivedAt)))
         .for("update");
-      if (!current) throw new BotError(404, "That teammate no longer exists or is archived.");
-      if (expectedRevision && BotService.revision(current) !== expectedRevision)
-        throw new BotError(
+      if (!current) throw new TeammateError(404, "That teammate no longer exists or is archived.");
+      if (expectedRevision && TeammateService.revision(current) !== expectedRevision)
+        throw new TeammateError(
           409,
           "This teammate was changed since it was loaded. Reload it and try again.",
         );
-      const [bot] = await tx.update(teammates).set(patch).where(eq(teammates.id, id)).returning();
+      const [teammate] = await tx
+        .update(teammates)
+        .set(patch)
+        .where(eq(teammates.id, id))
+        .returning();
       if (patch.name !== undefined) await renameDirectChats(tx, id, patch.name);
-      return bot!;
+      return teammate!;
     });
     const workspaceSynced = await this.sync(updated);
     await publishApp(this.ctx, { type: "teammates" });
     if (patch.name !== undefined) await publishApp(this.ctx, { type: "chats" });
-    return { teammateId: id, revision: BotService.revision(updated), workspaceSynced };
+    return { teammateId: id, revision: TeammateService.revision(updated), workspaceSynced };
   }
 
   /** The teammate as a file: its profile and parts, to keep or import elsewhere. */
   async exportBundle(id: string): Promise<{ slug: string; bundle: TeammateBundle }> {
-    const teammate = await this.requireBot(id);
+    const teammate = await this.requireTeammate(id);
     const { name, role, instructions, emoji, color, autonomy } = teammate;
     return {
       slug: teammate.slug,
@@ -423,7 +424,7 @@ export class BotService {
         .from(teammates);
       // Archiving takes the team lock too, so the original is still on the team if it's here now.
       if (copiedFrom && !team.some((row) => row.id === copiedFrom && !row.archivedAt))
-        throw new BotError(404, "That teammate no longer exists.");
+        throw new TeammateError(404, "That teammate no longer exists.");
       const { slug, first } = newTeammateSlot(team, profile.name);
       const [teammate] = await tx
         .insert(teammates)
@@ -466,7 +467,7 @@ export class BotService {
    * paused. Memory and lessons come along with `copyMemory`.
    */
   async duplicate(id: string, name: string, copyMemory: boolean) {
-    const source = await this.requireBot(id);
+    const source = await this.requireTeammate(id);
     const { lessons: learned, ...parts } = await this.parts(id);
     const { role, instructions, color, emoji, autonomy } = source;
     const created = await this.addTeammate(
@@ -515,7 +516,7 @@ export class BotService {
         .select({ id: teammates.id })
         .from(teammates)
         .where(and(eq(teammates.id, id), isNull(teammates.archivedAt)));
-      if (!lead) throw new BotError(404, "That teammate no longer exists.");
+      if (!lead) throw new TeammateError(404, "That teammate no longer exists.");
       // Only the rows that change, so the other teammates keep their revisions.
       const leads = sql`(${teammates.id} = ${id})`;
       await tx
@@ -568,16 +569,19 @@ export class BotService {
   async setBudget(id: string, budget: number | null, autoApprove: number): Promise<void> {
     const budgetCents = budget === null ? null : toCents(budget);
     if (budget !== null && budgetCents === null)
-      throw new BotError(400, "Give the budget in dollars, like 100.");
+      throw new TeammateError(400, "Give the budget in dollars, like 100.");
     const autoApproveCents = toCents(autoApprove) ?? 0;
     if (budgetCents !== null && autoApproveCents > budgetCents)
-      throw new BotError(400, "The amount to approve on its own can't be more than the budget.");
+      throw new TeammateError(
+        400,
+        "The amount to approve on its own can't be more than the budget.",
+      );
     const [updated] = await this.ctx.db
       .update(teammates)
       .set({ monthlyBudgetCents: budgetCents, autoApproveCents })
       .where(and(eq(teammates.id, id), isNull(teammates.archivedAt)))
       .returning({ id: teammates.id });
-    if (!updated) throw new BotError(404, "That teammate no longer exists.");
+    if (!updated) throw new TeammateError(404, "That teammate no longer exists.");
     await publishApp(this.ctx, { type: "purchases" });
   }
 
@@ -630,14 +634,14 @@ export class BotService {
   }
 
   /** Writes the workspace now; if the computer is away, it is written before the next run. */
-  private async sync(bot: Bot): Promise<boolean> {
+  private async sync(teammate: Teammate): Promise<boolean> {
     if (this.ctx.lifecycle?.resting) return false;
     try {
-      await this.syncWorkspace(bot);
+      await this.syncWorkspace(teammate);
       return true;
     } catch (error) {
       this.ctx.log.warn("teammate saved; workspace will sync before its next run", {
-        teammateId: bot.id,
+        teammateId: teammate.id,
         error: errorMessage(error),
       });
       return false;
@@ -664,43 +668,43 @@ export class BotService {
    */
   static assignment(
     connection: ConnectionSummary,
-    botId: string,
+    teammateId: string,
     assigned: boolean,
     expectedRevision: string,
   ): { teammateIds: string[] } | "unchanged" {
     if (connection.revision !== expectedRevision)
-      throw new BotError(
+      throw new TeammateError(
         409,
         "That connection changed. List connections again before assigning it.",
       );
     if (assigned && !connection.enabled)
-      throw new BotError(
+      throw new TeammateError(
         400,
         "This connection is turned off. The user can turn it on in Settings.",
       );
     if (connection.teammateIds === null) {
       if (assigned) return "unchanged";
-      throw new BotError(
+      throw new TeammateError(
         400,
         "This connection is shared with every teammate. The user can limit it to some teammates in Settings.",
       );
     }
-    const has = connection.teammateIds.includes(botId);
+    const has = connection.teammateIds.includes(teammateId);
     if (has === assigned) return "unchanged";
     return {
       teammateIds: assigned
-        ? [...connection.teammateIds, botId]
-        : connection.teammateIds.filter((id) => id !== botId),
+        ? [...connection.teammateIds, teammateId]
+        : connection.teammateIds.filter((id) => id !== teammateId),
     };
   }
 
   async setConnection(
-    botId: string,
+    teammateId: string,
     connectionId: string,
     assigned: boolean,
     expectedRevision: string,
   ) {
-    await this.requireBot(botId);
+    await this.requireTeammate(teammateId);
     const changed = await this.ctx.db.transaction(async (tx) => {
       const [row] = await tx
         .select({
@@ -713,10 +717,10 @@ export class BotService {
         .from(connections)
         .where(eq(connections.id, connectionId))
         .for("update");
-      if (!row) throw new BotError(404, "That connection no longer exists.");
-      const change = BotService.assignment(
+      if (!row) throw new TeammateError(404, "That connection no longer exists.");
+      const change = TeammateService.assignment(
         connectionSummary(row),
-        botId,
+        teammateId,
         assigned,
         expectedRevision,
       );
@@ -725,7 +729,7 @@ export class BotService {
       return true;
     });
     if (changed) await publishApp(this.ctx, { type: "connections" });
-    return { botId, connectionId, assigned, effectiveFrom: "the teammate's next run" };
+    return { teammateId, connectionId, assigned, effectiveFrom: "the teammate's next run" };
   }
 }
 
@@ -762,7 +766,7 @@ async function decideProposal(tx: Tx, proposalId: string, status: "accepted" | "
     })
     .from(instructionProposals)
     .where(eq(instructionProposals.id, proposalId));
-  if (!decided) throw new BotError(404, "That suggestion is gone.");
+  if (!decided) throw new TeammateError(404, "That suggestion is gone.");
   if (decided.status === status) return null;
   // A teammate's newer suggestion dismisses the one waiting; that isn't something you did.
   const [newer] =
@@ -778,7 +782,7 @@ async function decideProposal(tx: Tx, proposalId: string, status: "accepted" | "
           )
           .limit(1)
       : [];
-  throw new BotError(
+  throw new TeammateError(
     409,
     newer ? "A newer suggestion replaced this one." : "That suggestion was already handled.",
   );

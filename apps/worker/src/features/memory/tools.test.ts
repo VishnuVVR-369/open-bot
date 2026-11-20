@@ -5,7 +5,7 @@ import { parseArgs } from "../../core/tool";
 import type { ToolDeps } from "../../tools/dependencies";
 
 const SESSION = {
-  bot: { id: "b1" }, // vocabulary: allow
+  teammate: { id: "b1" },
   now: () => "2026-11-13T00:00:00.000Z",
   putItem: vi.fn(),
 } as unknown as RunSession;

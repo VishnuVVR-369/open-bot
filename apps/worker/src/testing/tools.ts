@@ -6,7 +6,7 @@ import { chats, runs, settings } from "@open-bot/db";
 import type { v2 } from "@open-bot/agent";
 import type { Context } from "../context";
 import type { RunSession } from "../runs/session";
-import { BotService } from "../features/teammates";
+import { TeammateService } from "../features/teammates";
 import { ApprovalService } from "../features/approvals";
 import { APPROVAL_OUTCOMES } from "../approval-outcomes";
 import { SessionRegistry } from "../runs/registry";
@@ -18,7 +18,7 @@ import { MemoryService } from "@open-bot/memory";
 
 const url = testDatabaseServer();
 export const toolsEnabled = Boolean(url);
-export const toolSuiteName = "bot management with Postgres";
+export const toolSuiteName = "teammate management with Postgres";
 
 /** One disposable database and real tool dispatcher per feature suite. */
 export function toolHarness() {
@@ -39,7 +39,7 @@ export function toolHarness() {
   const skills = new SkillService(ctx);
   const triggers = new TriggerService(ctx);
   const sync = vi.fn(async () => {});
-  const service = new BotService(ctx, schedules, skills, new MemoryService(db), sync);
+  const service = new TeammateService(ctx, schedules, skills, new MemoryService(db), sync);
   const approvalService = new ApprovalService(ctx, new SessionRegistry(), APPROVAL_OUTCOMES);
   const requestAction = vi.spyOn(approvalService, "requestAction").mockResolvedValue("approved");
   // Only what the teammate tools use; the rest stay empty.
@@ -73,12 +73,12 @@ export function toolHarness() {
 
   async function fixture(autonomy: "full" | "risky" | "everything" = "full") {
     const created = await service.create({ name: "Lead", role: "assistant", autonomy });
-    const bot = await service.requireBot(created.teammateId);
+    const teammate = await service.requireTeammate(created.teammateId);
     const [chat] = await db.select().from(chats).where(eq(chats.id, created.chatId));
     const [run] = await db
       .insert(runs)
       .values({
-        teammateId: bot.id,
+        teammateId: teammate.id,
         chatId: created.chatId,
         trigger: "user",
         prompt: "Create and configure my teammates",
@@ -86,7 +86,7 @@ export function toolHarness() {
       })
       .returning();
     const session = {
-      bot,
+      teammate,
       chat,
       run,
       isHelper: false,

@@ -149,29 +149,31 @@ export class VaultService {
   }
 
   /** The items a teammate may use. */
-  private async itemsFor(botId: string): Promise<Item[]> {
+  private async itemsFor(teammateId: string): Promise<Item[]> {
     return this.ctx.db
       .select()
       .from(vaultItems)
-      .where(or(isNull(vaultItems.teammateIds), sql`${botId} = any(${vaultItems.teammateIds})`))
+      .where(
+        or(isNull(vaultItems.teammateIds), sql`${teammateId} = any(${vaultItems.teammateIds})`),
+      )
       .orderBy(vaultItems.kind, vaultItems.name);
   }
 
-  private async item(botId: string, id: string): Promise<Item> {
+  private async item(teammateId: string, id: string): Promise<Item> {
     if (!/^[0-9a-f-]{36}$/i.test(id)) throw new VaultError("No vault item with that id.");
-    const items = await this.itemsFor(botId);
+    const items = await this.itemsFor(teammateId);
     const item = items.find((entry) => entry.id === id);
     if (!item) throw new VaultError("No vault item with that id that you may use. See vault_list.");
     return item;
   }
 
-  async spentThisMonth(botId: string): Promise<number> {
+  async spentThisMonth(teammateId: string): Promise<number> {
     const [row] = await this.ctx.db
       .select({ total: sql<number>`coalesce(sum(${purchases.amountCents}), 0)::int` })
       .from(purchases)
       .where(
         and(
-          eq(purchases.teammateId, botId),
+          eq(purchases.teammateId, teammateId),
           inArray(purchases.status, [...SPENDING_PURCHASE_STATUSES]),
           gte(purchases.createdAt, monthStart()),
         ),
@@ -180,9 +182,12 @@ export class VaultService {
   }
 
   /** What the teammate reads from vault_list. No secrets, only what tells items apart. */
-  async describe(botId: string): Promise<string> {
-    const items = await this.itemsFor(botId);
-    const [bot] = await this.ctx.db.select().from(teammates).where(eq(teammates.id, botId));
+  async describe(teammateId: string): Promise<string> {
+    const items = await this.itemsFor(teammateId);
+    const [teammate] = await this.ctx.db
+      .select()
+      .from(teammates)
+      .where(eq(teammates.id, teammateId));
     const lines: string[] = [];
     const logins = items.filter((item) => item.kind === "login");
     const cards = items.filter((item) => item.kind === "card");
@@ -200,10 +205,10 @@ export class VaultService {
             .join("\n")}`
         : "Cards: none saved for you.",
     );
-    if (bot?.monthlyBudgetCents) {
-      const spent = await this.spentThisMonth(botId);
+    if (teammate?.monthlyBudgetCents) {
+      const spent = await this.spentThisMonth(teammateId);
       lines.push(
-        `Budget: ${formatMoney(Math.max(0, bot.monthlyBudgetCents - spent))} left of ${formatMoney(bot.monthlyBudgetCents)} this month. Purchases up to ${formatMoney(bot.autoApproveCents)} go ahead; larger ones ask the user.`,
+        `Budget: ${formatMoney(Math.max(0, teammate.monthlyBudgetCents - spent))} left of ${formatMoney(teammate.monthlyBudgetCents)} this month. Purchases up to ${formatMoney(teammate.autoApproveCents)} go ahead; larger ones ask the user.`,
       );
     } else {
       lines.push("Budget: none, so you can't pay for things.");
@@ -216,7 +221,7 @@ export class VaultService {
     session: RunSession,
     input: { itemId: string; field: string },
   ): Promise<{ label: string; site: string | null }> {
-    const item = await this.item(session.bot.id, input.itemId);
+    const item = await this.item(session.teammate.id, input.itemId);
     const fields: readonly string[] = VAULT_FIELDS[item.kind];
     if (!fields.includes(input.field))
       throw new VaultError(`A ${item.kind} has these fields: ${fields.join(", ")}.`);
@@ -227,7 +232,7 @@ export class VaultService {
         .from(purchases)
         .where(
           and(
-            eq(purchases.teammateId, session.bot.id),
+            eq(purchases.teammateId, session.teammate.id),
             eq(purchases.cardId, item.id),
             eq(purchases.status, "approved"),
             gt(purchases.fillableUntil, new Date()),
@@ -279,7 +284,7 @@ export class VaultService {
     asked: boolean;
     message: string;
   }> {
-    const card = await this.item(session.bot.id, input.cardId);
+    const card = await this.item(session.teammate.id, input.cardId);
     if (card.kind !== "card") throw new VaultError("That's a login, not a card.");
     const amountCents = toCents(input.amount);
     if (amountCents === null) throw new VaultError("Give the amount in dollars, like 42.50.");
@@ -287,14 +292,14 @@ export class VaultService {
     const description = input.description.trim().slice(0, 500);
     if (!merchant || !description) throw new VaultError("Say where you're buying, and what.");
 
-    const [bot] = await this.ctx.db
+    const [teammate] = await this.ctx.db
       .select()
       .from(teammates)
-      .where(eq(teammates.id, session.bot.id));
+      .where(eq(teammates.id, session.teammate.id));
     const decision = budgetDecision({
-      budgetCents: bot?.monthlyBudgetCents ?? null,
-      autoApproveCents: bot?.autoApproveCents ?? 0,
-      spentCents: await this.spentThisMonth(session.bot.id),
+      budgetCents: teammate?.monthlyBudgetCents ?? null,
+      autoApproveCents: teammate?.autoApproveCents ?? 0,
+      spentCents: await this.spentThisMonth(session.teammate.id),
       amountCents,
     });
     if (!decision.ok) throw new VaultError(decision.reason);
@@ -302,7 +307,7 @@ export class VaultService {
     const [purchase] = await this.ctx.db
       .insert(purchases)
       .values({
-        teammateId: session.bot.id,
+        teammateId: session.teammate.id,
         cardId: card.id,
         runId: session.run.id,
         chatId: session.chat.id,
@@ -370,7 +375,7 @@ export class VaultService {
       .where(
         and(
           eq(purchases.id, input.purchaseId),
-          eq(purchases.teammateId, session.bot.id),
+          eq(purchases.teammateId, session.teammate.id),
           inArray(purchases.status, ["approved", "pending"]),
         ),
       )
@@ -381,11 +386,11 @@ export class VaultService {
   }
 
   /** The teammate's recent purchases, newest first. */
-  recent(botId: string) {
+  recent(teammateId: string) {
     return this.ctx.db
       .select()
       .from(purchases)
-      .where(eq(purchases.teammateId, botId))
+      .where(eq(purchases.teammateId, teammateId))
       .orderBy(desc(purchases.createdAt))
       .limit(20);
   }

@@ -49,12 +49,12 @@ describe.skipIf(!url)("pages with Postgres", () => {
   const ctx = { db, pool, computer, events: new EventEmitter() } as unknown as Context;
   let files: ReturnType<typeof memoryFiles>;
   let service: PageService;
-  let botId: string;
+  let teammateId: string;
   const path = "/home/bot/bots/iris/pages/caching/index.html";
 
   function source(extra: Partial<Parameters<PageService["checkAndPublish"]>[0]> = {}) {
     return {
-      teammateId: botId,
+      teammateId,
       chatId: null,
       runId: null,
       path,
@@ -67,7 +67,7 @@ describe.skipIf(!url)("pages with Postgres", () => {
 
   function input(html: string, extra: Partial<Parameters<PageService["publish"]>[0]> = {}) {
     return {
-      teammateId: botId,
+      teammateId,
       chatId: null,
       runId: null,
       path,
@@ -85,9 +85,9 @@ describe.skipIf(!url)("pages with Postgres", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     await pool.query("truncate pages, notifications, bots restart identity cascade");
-    botId = randomUUID();
+    teammateId = randomUUID();
     await db.insert(teammates).values({
-      id: botId,
+      id: teammateId,
       name: "Iris",
       slug: "iris",
       role: "Research",

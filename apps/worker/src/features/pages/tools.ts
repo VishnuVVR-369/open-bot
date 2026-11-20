@@ -100,7 +100,7 @@ export const PAGE_TOOLS: ToolDefinition<z.ZodObject, PageToolDeps>[] = [
 function pagePath(session: RunSession, path: string): string {
   return path.startsWith("/")
     ? path
-    : `${COMPUTER_PATHS.workspace(session.bot.slug)}/${path.replace(/^\.\//, "")}`;
+    : `${COMPUTER_PATHS.workspace(session.teammate.slug)}/${path.replace(/^\.\//, "")}`;
 }
 
 /** The check's findings, as the teammate reads them. */
@@ -180,7 +180,7 @@ async function publishPage(
   let published;
   try {
     published = await deps.pages.checkAndPublish({
-      teammateId: session.bot.id,
+      teammateId: session.teammate.id,
       chatId: session.chat.id,
       runId: session.run.id,
       path,
@@ -227,6 +227,6 @@ async function getPage(
 ): Promise<ToolResponse> {
   const details = await deps.pages.describeOne(pageId);
   if (!restore) return text(details);
-  const restored = await deps.pages.restore(pageId, session.bot);
+  const restored = await deps.pages.restore(pageId, session.teammate);
   return text(`${restored}\n\n${details}`);
 }

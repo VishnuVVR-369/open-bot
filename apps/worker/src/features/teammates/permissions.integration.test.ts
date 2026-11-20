@@ -12,18 +12,19 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
     for (const decision of ["denied", "pending"] as const) {
       requestAction.mockResolvedValueOnce(decision);
       expect(
-        (await call(session, "create_bot", { name: "No", role: "assistant" })).response.success,
+        (await call(session, "create_teammate", { name: "No", role: "assistant" })).response
+          .success,
       ).toBe(false);
     }
     expect(await service.list()).toHaveLength(1);
     await db
       .update(dbTables.teammates)
       .set({ autonomy: "full" })
-      .where(eq(dbTables.teammates.id, session.bot.id));
-    const current = await service.get(session.bot.id);
+      .where(eq(dbTables.teammates.id, session.teammate.id));
+    const current = await service.get(session.teammate.id);
     requestAction.mockResolvedValueOnce("denied");
-    const result = await call(session, "update_bot", {
-      bot_id: session.bot.id,
+    const result = await call(session, "update_teammate", {
+      teammate_id: session.teammate.id,
       expected_revision: current.revision,
       changes: { autonomy: "risky" },
     });
@@ -32,23 +33,25 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
       session,
       expect.objectContaining({ askEveryTime: true }),
     );
-    expect((await service.get(session.bot.id)).autonomy).toBe("full");
+    expect((await service.get(session.teammate.id)).autonomy).toBe("full");
   });
 
   it("rechecks the revision after approval and does not overwrite a user edit made while waiting", async () => {
     const { session } = await fixture("risky");
-    const current = await service.get(session.bot.id);
+    const current = await service.get(session.teammate.id);
     requestAction.mockImplementationOnce(async () => {
-      await service.update(session.bot.id, { instructions: "The user's newer instructions" });
+      await service.update(session.teammate.id, { instructions: "The user's newer instructions" });
       return "approved";
     });
-    const result = await call(session, "update_bot", {
-      bot_id: session.bot.id,
+    const result = await call(session, "update_teammate", {
+      teammate_id: session.teammate.id,
       expected_revision: current.revision,
       changes: { instructions: "Stale" },
     });
     expect(result.response.success).toBe(false);
-    expect((await service.get(session.bot.id)).instructions).toBe("The user's newer instructions");
+    expect((await service.get(session.teammate.id)).instructions).toBe(
+      "The user's newer instructions",
+    );
   });
 
   it("honours a caller's newly restricted autonomy and rejects targets archived during approval", async () => {
@@ -57,10 +60,10 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
     await db
       .update(dbTables.teammates)
       .set({ autonomy: "risky" })
-      .where(eq(dbTables.teammates.id, session.bot.id));
+      .where(eq(dbTables.teammates.id, session.teammate.id));
     requestAction.mockResolvedValueOnce("denied");
     expect(
-      (await call(session, "create_bot", { name: "No", role: "assistant" })).response.success,
+      (await call(session, "create_teammate", { name: "No", role: "assistant" })).response.success,
     ).toBe(false);
     requestAction.mockImplementationOnce(async () => {
       await db
@@ -72,7 +75,7 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
     expect(
       (
         await call(session, "schedule_task", {
-          bot_id: target.teammateId,
+          teammate_id: target.teammateId,
           title: "No",
           prompt: "No",
           cron: "0 8 * * *",

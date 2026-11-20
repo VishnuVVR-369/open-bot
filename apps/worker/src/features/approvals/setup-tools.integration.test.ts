@@ -29,7 +29,7 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
     expect(
       (
         await call(session, "schedule_task", {
-          bot_id: target.teammateId,
+          teammate_id: target.teammateId,
           title: "No",
           prompt: "No",
           cron: "0 8 * * *",
@@ -38,9 +38,9 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
     ).toBe(false);
     const helper = { ...session, isHelper: true } as unknown as RunSession;
     for (const tool of [
-      "create_bot",
-      "update_bot",
-      "set_bot_connection",
+      "create_teammate",
+      "update_teammate",
+      "set_teammate_connection",
       "save_skill",
       "schedule_task",
       "watch_page",
@@ -52,18 +52,18 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
     }
     await db.update(runs).set({ cancelRequestedAt: new Date() }).where(eq(runs.id, session.run.id));
     expect(
-      (await call(session, "create_bot", { name: "No", role: "researcher" })).response.success,
+      (await call(session, "create_teammate", { name: "No", role: "researcher" })).response.success,
     ).toBe(false);
     expect(await service.list()).toHaveLength(1);
   });
 
   it("consumes exact late approval receipts once and rejects reuse for a different change", async () => {
     const { session } = await fixture("risky");
-    const operation = { tool: "create_bot", arguments: { name: "Ada", role: "researcher" } };
+    const operation = { tool: "create_teammate", arguments: { name: "Ada", role: "researcher" } };
     const [receipt] = await db
       .insert(approvalRows)
       .values({
-        teammateId: session.bot.id,
+        teammateId: session.teammate.id,
         chatId: session.chat.id,
         runId: session.run.id,
         kind: "action",
@@ -93,7 +93,7 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
     expect(
       await actual.requestAction(resumed, {
         ...input,
-        operation: { arguments: { role: "researcher", name: "Ada" }, tool: "create_bot" },
+        operation: { arguments: { role: "researcher", name: "Ada" }, tool: "create_teammate" },
       }),
     ).toBe("approved");
     expect(wait).not.toHaveBeenCalled();
@@ -140,7 +140,7 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
     const tools = new ToolHandlers({ ...services, approvals: actual });
     const create = (name: string) =>
       tools.handle(session, {
-        tool: "create_bot",
+        tool: "create_teammate",
         arguments: { name, role: "researcher" },
         callId: crypto.randomUUID(),
         threadId: "thread",
@@ -151,14 +151,14 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
     const [card] = await db.select().from(approvalRows);
     expect(card!.title).toBe("Create the teammate Ada");
     expect(card!.payload.subject).toBe(TEAMMATE_RULES.create);
-    await actual.addRule(session.bot.id, "action", card!.payload.subject as string);
+    await actual.addRule(session.teammate.id, "action", card!.payload.subject as string);
     expect((await create("Eve")).success).toBe(true);
     expect(wait).toHaveBeenCalledOnce();
     // More autonomy still asks, rule or not.
     expect(
       (
         await tools.handle(session, {
-          tool: "create_bot",
+          tool: "create_teammate",
           arguments: { name: "Max", role: "researcher", autonomy: "full" },
           callId: crypto.randomUUID(),
           threadId: "thread",

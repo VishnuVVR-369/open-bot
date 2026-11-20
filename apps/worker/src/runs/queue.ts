@@ -7,7 +7,7 @@ export interface RunInput {
   /** Stable id for durable continuation delivery. */
   id?: string;
   chatId: string;
-  botId: string;
+  teammateId: string;
   trigger: RunTrigger;
   /** Explicit lane, or inherit a continuation of the same teammate in the same chat. */
   lane?: RunLane;
@@ -45,7 +45,7 @@ export async function insertRun(db: Queryable, input: RunInput): Promise<string>
     .values({
       ...(input.id ? { id: input.id } : {}),
       chatId: input.chatId,
-      teammateId: input.botId,
+      teammateId: input.teammateId,
       trigger: input.trigger,
       lane: laneOf(input),
       prompt: input.prompt,

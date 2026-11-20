@@ -43,7 +43,7 @@ interface ApprovalInput {
 
 /**
  * Approval requests: Codex's own (commands and file changes, which wait as long as the turn lives)
- * and the bots' request_approval tool (which waits up to 10 minutes, then continues in a new run).
+ * and the teammates' request_approval tool (which waits up to 10 minutes, then continues in a new run).
  */
 /** An owner's decision that can't be recorded; the message says why. */
 export class ApprovalError extends WorkerError {}
@@ -103,7 +103,7 @@ export class ApprovalService {
       .insert(approvals)
       .values({
         runId: session.run.id,
-        teammateId: session.bot.id,
+        teammateId: session.teammate.id,
         chatId: session.chat.id,
         kind: input.kind,
         title: input.title,
@@ -141,9 +141,9 @@ export class ApprovalService {
     });
     await createNotification(this.ctx, {
       kind: "approval",
-      title: `${session.bot.name} needs your approval`,
+      title: `${session.teammate.name} needs your approval`,
       body: input.title,
-      botId: session.bot.id,
+      teammateId: session.teammate.id,
       chatId: session.chat.id,
       runId: session.run.id,
       approvalId,
@@ -218,13 +218,13 @@ export class ApprovalService {
       if (waiter.runId === runId) waiter.resolve("pending");
   }
 
-  /** The bot's "always allow" rules. */
-  rulesFor(botId: string): Promise<Rule[]> {
-    return this.ctx.db.select().from(approvalRules).where(eq(approvalRules.teammateId, botId));
+  /** The teammate's "always allow" rules. */
+  rulesFor(teammateId: string): Promise<Rule[]> {
+    return this.ctx.db.select().from(approvalRules).where(eq(approvalRules.teammateId, teammateId));
   }
 
-  private async allowedByRule(botId: string, kind: RuleKind, text: string) {
-    return rulesCover(await this.rulesFor(botId), kind, text);
+  private async allowedByRule(teammateId: string, kind: RuleKind, text: string) {
+    return rulesCover(await this.rulesFor(teammateId), kind, text);
   }
 
   async requestNative(
@@ -237,7 +237,7 @@ export class ApprovalService {
       subject?: string;
     },
   ): Promise<boolean> {
-    if (await this.allowedByRule(session.bot.id, input.kind, input.subject ?? input.title))
+    if (await this.allowedByRule(session.teammate.id, input.kind, input.subject ?? input.title))
       return true;
     if (
       input.kind === "command" &&
@@ -267,7 +267,7 @@ export class ApprovalService {
       .where(
         and(
           inArray(approvals.runId, runIds),
-          eq(approvals.teammateId, session.bot.id),
+          eq(approvals.teammateId, session.teammate.id),
           eq(approvals.kind, "action"),
           eq(approvals.status, "approved"),
         ),
@@ -276,11 +276,11 @@ export class ApprovalService {
   }
 
   /**
-   * Ask before an action the bot describes. An "always allow" rule for `subject` (or the title)
+   * Ask before an action the teammate describes. An "always allow" rule for `subject` (or the title)
    * skips the question, except with `askEveryTime`, which permission grants use.
    *
    * With `operation`, the approval belongs to that exact tool call. When it is decided after the
-   * bot stopped waiting, the follow-up run may repeat the call once without asking again.
+   * teammate stopped waiting, the follow-up run may repeat the call once without asking again.
    */
   async requestAction(
     session: RunSession,
@@ -298,7 +298,7 @@ export class ApprovalService {
     if (operationKey && (await this.consumeLateApproval(session, operationKey))) return "approved";
     if (
       !askEveryTime &&
-      (await this.allowedByRule(session.bot.id, "action", input.subject ?? input.title))
+      (await this.allowedByRule(session.teammate.id, "action", input.subject ?? input.title))
     )
       return "approved";
     const approvalId = await this.create(session, {
@@ -328,7 +328,7 @@ export class ApprovalService {
       .where(
         and(
           eq(approvals.runId, session.run.parentRunId),
-          eq(approvals.teammateId, session.bot.id),
+          eq(approvals.teammateId, session.teammate.id),
           eq(approvals.chatId, session.chat.id),
           eq(approvals.status, "approved"),
           sql`${approvals.payload}->>'operationKey' = ${operationKey}`,
@@ -382,8 +382,8 @@ export class ApprovalService {
   }
 
   /**
-   * Record your decision and deliver it to the bot. Returns false if it was already decided.
-   * With `alwaysAllow`, approving also saves a rule, so the bot won't ask about this again.
+   * Record your decision and deliver it to the teammate. Returns false if it was already decided.
+   * With `alwaysAllow`, approving also saves a rule, so the teammate won't ask about this again.
    */
   async decide(
     approvalId: string,
@@ -445,7 +445,7 @@ export class ApprovalService {
     if (waiter) {
       waiter.resolve(decision);
     } else if (row.kind === "action" || row.kind === "purchase") {
-      // The bot stopped waiting, so tell it in a new run.
+      // The teammate stopped waiting, so tell it in a new run.
       const approved = purchase
         ? `[Approval] The user approved the purchase: "${row.title}" (purchase ${purchase.id}, ${formatMoney(purchase.amountCents)}). Its card can be filled with vault_fill for the next 30 minutes. Go ahead, call finish_purchase when checkout is done, then report back.`
         : row.payload.operation
@@ -453,7 +453,7 @@ export class ApprovalService {
           : `[Approval] The user approved: "${row.title}". Go ahead and do it now, then report back.`;
       await enqueueRun(this.ctx, {
         chatId: row.chatId,
-        botId: row.teammateId,
+        teammateId: row.teammateId,
         trigger: "approval",
         prompt:
           decision === "approved"
@@ -497,8 +497,8 @@ export class ApprovalService {
     return row ? invalidRulePattern(row.kind, pattern) : null;
   }
 
-  async addRule(botId: string, kind: RuleKind, pattern: string): Promise<void> {
-    await addApprovalRules(this.ctx.db, botId, [{ kind, pattern }]);
+  async addRule(teammateId: string, kind: RuleKind, pattern: string): Promise<void> {
+    await addApprovalRules(this.ctx.db, teammateId, [{ kind, pattern }]);
     await publishApp(this.ctx, { type: "teammates" });
   }
 

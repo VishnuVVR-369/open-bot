@@ -4,7 +4,7 @@ import { runs } from "@open-bot/db";
 import { type RunStatus, type TimelineItem } from "@open-bot/domain";
 import { eq } from "drizzle-orm";
 import { publishApp, type Context } from "../../context";
-import type { Bot, Chat, Run } from "../../core/db-types";
+import type { Teammate, Chat, Run } from "../../core/db-types";
 import { createNotification } from "../../features/notifications";
 import { ModelAccess } from "../../features/model-access";
 import { errorMessage } from "../../logger";
@@ -31,7 +31,7 @@ export interface TokenUsage {
 export interface FinalizeSession {
   readonly ctx: Context;
   readonly run: Run;
-  readonly bot: Bot;
+  readonly teammate: Teammate;
   readonly chat: Chat;
   finish: ((outcome: Outcome) => void) | null;
   readonly items: Map<string, TimelineItem>;
@@ -54,7 +54,7 @@ export interface FinalizeSession {
 }
 
 export async function complete(session: FinalizeSession, outcome: Outcome) {
-  const { ctx, run, bot, chat } = session;
+  const { ctx, run, teammate, chat } = session;
   session.finish = null;
   const items = [...session.items.values()];
   const text = finalText(items);
@@ -119,15 +119,15 @@ export async function complete(session: FinalizeSession, outcome: Outcome) {
   session.writer.write({ type: "status", status, ...(error ? { error } : {}) });
   await session.writer.drain();
 
-  if (run.trigger === "question") await answerBack(ctx, run, bot, status, text, error);
+  if (run.trigger === "question") await answerBack(ctx, run, teammate, status, text, error);
   ctx.events.emit("runFinished", run, status, text, error);
 
   if (status === "failed" && run.trigger !== "swarm") {
     await createNotification(ctx, {
       kind: "run_failed",
-      title: `${bot.name} couldn't finish`,
+      title: `${teammate.name} couldn't finish`,
       body: error ?? "It stopped before it was done.",
-      botId: bot.id,
+      teammateId: teammate.id,
       chatId: chat.id,
       runId: run.id,
     });
@@ -145,14 +145,14 @@ export async function complete(session: FinalizeSession, outcome: Outcome) {
       kind: "run_finished",
       title:
         run.trigger === "schedule"
-          ? `${bot.name} finished a scheduled task`
+          ? `${teammate.name} finished a scheduled task`
           : run.trigger === "watch"
-            ? `${bot.name} looked into a page change`
+            ? `${teammate.name} looked into a page change`
             : run.trigger === "webhook"
-              ? `${bot.name} handled a webhook`
-              : `${bot.name} replied`,
+              ? `${teammate.name} handled a webhook`
+              : `${teammate.name} replied`,
       body: (text ?? "Done.").slice(0, 280),
-      botId: bot.id,
+      teammateId: teammate.id,
       chatId: chat.id,
       runId: run.id,
     });

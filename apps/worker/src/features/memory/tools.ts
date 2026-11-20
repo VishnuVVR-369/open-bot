@@ -123,7 +123,7 @@ async function recallMemory(
   query: string,
 ): Promise<ToolResponse> {
   const startedAt = session.now();
-  const items = await deps.memory.recall(session.bot.id, query);
+  const items = await deps.memory.recall(session.teammate.id, query);
   session.putItem({
     ...toolItem(callId, "recall_memory", `Recalled ${items.length} memories`, {}, startedAt),
     status: "completed",
@@ -164,7 +164,7 @@ async function memoryTool(
   let saved;
   if (name === "remember_memory") {
     const data = memoryInputSchema.parse({
-      teammateId: args.shared === true ? null : session.bot.id,
+      teammateId: args.shared === true ? null : session.teammate.id,
       content,
       kind: args.kind ?? "fact",
       key: args.key ?? null,
@@ -222,19 +222,22 @@ async function searchHistory(
   raw: Record<string, unknown>,
 ): Promise<ToolResponse> {
   const startedAt = session.now();
-  const botId = session.bot.id;
-  // Chats the bot is part of: its own, and the groups it's a member of.
+  const teammateId = session.teammate.id;
+  // Chats the teammate is part of: its own, and the groups it's a member of.
   const groupIds = (
     await deps.ctx.db
       .select({ chatId: chatMembers.chatId })
       .from(chatMembers)
-      .where(eq(chatMembers.teammateId, botId))
+      .where(eq(chatMembers.teammateId, teammateId))
   ).map((row) => row.chatId);
   const own = await deps.ctx.db
     .select({ id: chats.id })
     .from(chats)
     .where(
-      or(eq(chats.teammateId, botId), groupIds.length ? inArray(chats.id, groupIds) : undefined),
+      or(
+        eq(chats.teammateId, teammateId),
+        groupIds.length ? inArray(chats.id, groupIds) : undefined,
+      ),
     );
   const chatIds = own.map((row) => row.id);
   if (chatIds.length === 0) return text("Nothing found.");

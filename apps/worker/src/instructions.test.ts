@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { agentsMarkdown } from "./instructions";
 
-const bot = {
+const teammate = {
   name: "Rex",
   role: "software engineer",
   instructions: "",
@@ -10,7 +10,7 @@ const bot = {
 
 describe("agentsMarkdown", () => {
   it("leaves out empty sections", () => {
-    const text = agentsMarkdown(bot);
+    const text = agentsMarkdown(teammate);
     expect(text).not.toContain("## About the user");
     expect(text).not.toContain("## Lessons");
     expect(text).not.toContain("## Your teammates");
@@ -18,7 +18,7 @@ describe("agentsMarkdown", () => {
   });
 
   it("includes the profile and lessons, one per line", () => {
-    const text = agentsMarkdown(bot, [], "I live in Berlin.", [
+    const text = agentsMarkdown(teammate, [], "I live in Berlin.", [
       "Use metric units.",
       "Keep replies\nshort.",
     ]);
@@ -32,7 +32,7 @@ describe("agentsMarkdown", () => {
 });
 
 it("lists teammates to ask", () => {
-  const text = agentsMarkdown(bot, [], "", [], [{ name: "Iris", role: "research assistant" }]);
+  const text = agentsMarkdown(teammate, [], "", [], [{ name: "Iris", role: "research assistant" }]);
   expect(text).toContain("## Your teammates");
   expect(text).toContain("- Iris, research assistant");
   expect(text).not.toMatch(/\n{3,}/);

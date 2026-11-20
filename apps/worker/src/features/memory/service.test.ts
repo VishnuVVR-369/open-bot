@@ -18,7 +18,7 @@ function fixture() {
   } as unknown as Context;
   const session = {
     run: { id: runId, messageId },
-    bot: { id: teammateId }, // vocabulary: allow (the session's field)
+    teammate: { id: teammateId },
     chat: { id: "chat" },
     memoryGeneration: "1:0:0",
     interrupt: vi.fn(async () => {}),

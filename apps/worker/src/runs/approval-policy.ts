@@ -6,6 +6,6 @@ import type { Autonomy } from "@open-bot/domain";
  * when Codex judges a command dangerous (like `rm -f`); with "never" it would refuse those
  * outright, even after you approved them through request_approval.
  */
-export function approvalPolicy(bot: { autonomy: Autonomy }): v2.AskForApproval {
-  return bot.autonomy === "everything" ? "untrusted" : "on-request";
+export function approvalPolicy(teammate: { autonomy: Autonomy }): v2.AskForApproval {
+  return teammate.autonomy === "everything" ? "untrusted" : "on-request";
 }

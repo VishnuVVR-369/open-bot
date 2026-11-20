@@ -46,7 +46,7 @@ export async function dispatchMessage(
     message.redoOfRunId
   ) {
     const [source] = await executor.ctx.db
-      .select({ botId: runs.teammateId })
+      .select({ teammateId: runs.teammateId })
       .from(runs)
       .where(eq(runs.id, message.redoOfRunId));
     if (!source) throw new Error("The reply this feedback belongs to is gone.");
@@ -54,7 +54,7 @@ export async function dispatchMessage(
     // Keep the message pending until this succeeds so the reconciler can recover a crash.
     await executor.memory.store.save(
       {
-        teammateId: source.botId,
+        teammateId: source.teammateId,
         kind: "lesson",
         content: message.feedbackRequest.text,
         key: null,
@@ -172,7 +172,7 @@ async function queueRun(
     }
     const id = await insertRun(tx, {
       chatId: message.chatId,
-      botId: teammateId, // vocabulary: allow
+      teammateId,
       trigger: "user",
       prompt,
       attachments: message.attachments,

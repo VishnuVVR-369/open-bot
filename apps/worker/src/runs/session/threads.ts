@@ -4,7 +4,7 @@ import type { CodexClient, v2 } from "@open-bot/agent";
 import { teammateThreads, chatLaneThreads, configurationRevision } from "@open-bot/db";
 import { and, eq } from "drizzle-orm";
 import type { Context } from "../../context";
-import type { Bot, Run } from "../../core/db-types";
+import type { Teammate, Run } from "../../core/db-types";
 import { providerFor } from "../../features/model-access";
 import { DEVELOPER_INSTRUCTIONS } from "../../instructions";
 import { errorMessage } from "../../logger";
@@ -21,7 +21,7 @@ const REVISED_THREAD = 0;
 export interface ThreadSession {
   readonly ctx: Context;
   readonly run: Run;
-  readonly bot: Bot;
+  readonly teammate: Teammate;
   readonly authMode: "plan" | "api_key";
   readonly apiKey: string | null;
   /** The AGENTS.md written for this run. */
@@ -36,9 +36,9 @@ export interface ThreadSession {
   };
 }
 
-/** The thread for this bot and chat, on the access mode this run uses. */
+/** The thread for this teammate and chat, on the access mode this run uses. */
 export async function ensureThread(session: ThreadSession, client: CodexClient): Promise<string> {
-  const { ctx, run, bot: teammate } = session;
+  const { ctx, run, teammate } = session;
   const mode = session.authMode;
   // The services it may use through MCP come with the thread's config.
   const connected = await session.services.connections(teammate.id);

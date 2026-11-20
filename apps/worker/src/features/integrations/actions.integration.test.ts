@@ -90,7 +90,7 @@ describe.skipIf(!url)("account actions with Postgres", () => {
   );
 
   let fixture: {
-    botId: string;
+    teammateId: string;
     chatId: string;
     runId: string;
     connectionId: string;
@@ -107,19 +107,19 @@ describe.skipIf(!url)("account actions with Postgres", () => {
     );
     runner.execute.mockReset().mockResolvedValue(done);
     runner.reconcile.mockReset().mockResolvedValue(null);
-    const [bot] = await db
+    const [teammate] = await db
       .insert(teammates)
       .values({ name: "Iris", slug: "iris", role: "assistant", color: "#4f46e5" })
       .returning();
     const [chat] = await db
       .insert(chats)
-      .values({ kind: "direct", title: "Iris", teammateId: bot!.id })
+      .values({ kind: "direct", title: "Iris", teammateId: teammate!.id })
       .returning();
     const [run] = await db
       .insert(runs)
       .values({
         chatId: chat!.id,
-        teammateId: bot!.id,
+        teammateId: teammate!.id,
         trigger: "user",
         prompt: "Reply",
         status: "completed",
@@ -158,7 +158,7 @@ describe.skipIf(!url)("account actions with Postgres", () => {
       })
       .returning();
     fixture = {
-      botId: bot!.id,
+      teammateId: teammate!.id,
       chatId: chat!.id,
       runId: run!.id,
       connectionId: connection!.id,
@@ -183,7 +183,7 @@ describe.skipIf(!url)("account actions with Postgres", () => {
         accountId: fixture.accountId,
         grantRevision: 1,
         connectionRevision: connection!.revision,
-        teammateId: fixture.botId,
+        teammateId: fixture.teammateId,
         runId: fixture.runId,
         chatId: fixture.chatId,
         itemId: `item-${randomUUID()}`,
@@ -329,13 +329,17 @@ describe.skipIf(!url)("account actions with Postgres", () => {
         accountId: twin.id,
       })
       .returning();
-    await expect(access.resolve(fixture.botId, "gmail", "me@example.com")).rejects.toThrow(
+    await expect(access.resolve(fixture.teammateId, "gmail", "me@example.com")).rejects.toThrow(
       AccountToolError,
     );
-    await expect(access.resolve(fixture.botId, "gmail")).rejects.toThrow(/id of one/);
-    expect((await access.resolve(fixture.botId, "gmail", other!.id)).connection.id).toBe(other!.id);
-    expect((await access.resolve(fixture.botId, "gmail", "GMAIL_2")).connection.id).toBe(other!.id);
-    const lines = await access.lines(fixture.botId);
+    await expect(access.resolve(fixture.teammateId, "gmail")).rejects.toThrow(/id of one/);
+    expect((await access.resolve(fixture.teammateId, "gmail", other!.id)).connection.id).toBe(
+      other!.id,
+    );
+    expect((await access.resolve(fixture.teammateId, "gmail", "GMAIL_2")).connection.id).toBe(
+      other!.id,
+    );
+    const lines = await access.lines(fixture.teammateId);
     expect(lines.map((line) => line.account).sort()).toEqual(
       [fixture.connectionId, other!.id].sort(),
     );
@@ -417,7 +421,7 @@ describe.skipIf(!url)("account actions with Postgres", () => {
       .insert(approvals)
       .values({
         runId: fixture.runId,
-        teammateId: fixture.botId,
+        teammateId: fixture.teammateId,
         chatId: fixture.chatId,
         kind: "account_outward",
         title: "Send “Notes” to Priya",

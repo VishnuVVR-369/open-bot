@@ -123,8 +123,8 @@ describe.skipIf(!url)("screen operations with Postgres", () => {
     const run = {
       kind: "run",
       runId: randomUUID(),
-      botId: screenId,
-      botName: "Screen test",
+      teammateId: screenId,
+      teammateName: "Screen test",
       since: new Date().toISOString(),
       lastActionAt: new Date().toISOString(),
     };
@@ -137,7 +137,7 @@ describe.skipIf(!url)("screen operations with Postgres", () => {
     expect(takeovers.recordTake).toHaveBeenCalledWith(screenId, run);
   });
 
-  it("a lost botd response still records the takeover so a hand-back reaches the bot", async () => {
+  it("a lost botd response still records the takeover so a hand-back reaches the teammate", async () => {
     computer.typeOnScreen.mockRejectedValue(new Error("response lost"));
     expect((await service.type(input())).status).toBe("unknown");
     expect(takeovers.recordTake).toHaveBeenCalledWith(screenId, null);

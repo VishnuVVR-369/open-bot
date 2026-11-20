@@ -36,7 +36,7 @@ export class ComputerClient extends EventEmitter<{
 }> {
   private eventsSocket: WebSocket | null = null;
   private lastHealth: ComputerHealth | null = null;
-  /** Who holds each running screen, by screen (bot) id. */
+  /** Who holds each running screen, by screen (teammate) id. */
   private readonly leases = new Map<string, LeaseHolder>();
   private stopped = false;
   lifecycle?: ComputerLifecycle;
@@ -71,7 +71,7 @@ export class ComputerClient extends EventEmitter<{
     return this.lastHealth;
   }
 
-  /** Who holds a bot's screen. */
+  /** Who holds a teammate's screen. */
   lease(screenId: string): LeaseHolder {
     return this.leases.get(screenId) ?? null;
   }
@@ -191,12 +191,12 @@ export class ComputerClient extends EventEmitter<{
     return this.botd.computer.action({ run, action }, timeout(120_000));
   }
 
-  /** The readable content of the page in front on a bot's screen. */
+  /** The readable content of the page in front on a teammate's screen. */
   read(run: RunIdentity, selector?: string): Promise<ComputerReadResult | ComputerActionError> {
     return this.botd.computer.read({ run, ...(selector && { selector }) }, timeout(60_000));
   }
 
-  /** Type a vault secret on a bot's screen. botd checks the site first, for logins. */
+  /** Type a vault secret on a teammate's screen. botd checks the site first, for logins. */
   fill(request: ComputerFillRequest): Promise<ComputerFillResult | ComputerActionError> {
     return this.botd.computer.fill(request, timeout(60_000));
   }
@@ -209,12 +209,12 @@ export class ComputerClient extends EventEmitter<{
     return this.botd.pages.check({ path }, timeout(90_000));
   }
 
-  /** Start a bot's screen without using it, so you can watch it. */
+  /** Start a teammate's screen without using it, so you can watch it. */
   startScreen(screenId: string): Promise<ScreenStatus> {
     return this.botd.screens.start({ screenId }, timeout(180_000));
   }
 
-  /** A bot was removed: stop its screen and delete its browser profile. */
+  /** A teammate was removed: stop its screen and delete its browser profile. */
   async forgetScreen(screenId: string): Promise<void> {
     await this.botd.screens.forget({ screenId });
   }

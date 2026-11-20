@@ -38,7 +38,7 @@ describe("teammate management contracts", () => {
     });
     expect(
       updateTeammateSchema.safeParse({
-        bot_id: crypto.randomUUID(),
+        teammate_id: crypto.randomUUID(),
         expected_revision: "revision",
         changes: {},
       }).success,
@@ -51,7 +51,7 @@ describe("teammate management contracts", () => {
     ).toBe(false);
     expect(
       updateTeammateSchema.safeParse({
-        bot_id: crypto.randomUUID(),
+        teammate_id: crypto.randomUUID(),
         expected_revision: "revision",
         changes: { isLead: true },
       }).success,
