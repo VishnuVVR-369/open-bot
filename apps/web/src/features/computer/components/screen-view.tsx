@@ -23,9 +23,9 @@ type Rfb = {
   addEventListener(type: string, listener: (event: CustomEvent) => void): void;
 };
 
-export type DesktopConnection = "connecting" | "connected" | "offline";
+export type ScreenConnection = "connecting" | "connected" | "offline";
 
-export interface DesktopHandle {
+export interface ScreenHandle {
   pasteText: (text: string) => void;
   focus: () => void;
 }
@@ -36,7 +36,7 @@ const ACTIVITY_INTERVAL_MS = 30_000;
  * A bot's screen over VNC. `view` can only watch; `control` sends your mouse and keyboard.
  * The worker enforces this: a control connection is refused unless you hold the screen.
  */
-export function DesktopView({
+export function ScreenView({
   screenId,
   mode,
   className,
@@ -46,11 +46,11 @@ export function DesktopView({
   screenId: string;
   mode: ScreenViewMode;
   className?: string;
-  onStatus?: (status: DesktopConnection) => void;
-  handleRef?: React.RefObject<DesktopHandle | null>;
+  onStatus?: (status: ScreenConnection) => void;
+  handleRef?: React.RefObject<ScreenHandle | null>;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
-  const [status, setStatus] = useState<DesktopConnection>("connecting");
+  const [status, setStatus] = useState<ScreenConnection>("connecting");
   const [connection, setConnection] = useState(0);
   const onStatusRef = useRef(onStatus);
   onStatusRef.current = onStatus;
@@ -163,7 +163,7 @@ export function DesktopView({
       <div
         ref={hostRef}
         className={cn("novnc-host absolute inset-0", mode === "view" && "pointer-events-none")}
-        data-testid="desktop-canvas"
+        data-testid="screen-canvas"
       />
       {status !== "connected" && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-bezel-foreground/70">

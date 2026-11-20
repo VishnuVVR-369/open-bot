@@ -1,5 +1,5 @@
 import "server-only";
-import { bots, desktopTakeovers, runs } from "@open-bot/db";
+import { bots, screenTakeovers, runs } from "@open-bot/db";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/lib/server/db";
 import type { TakeoverRequestSummary } from "@/lib/types";
@@ -8,19 +8,19 @@ import type { TakeoverRequestSummary } from "@/lib/types";
 export async function listTakeoverRequests(): Promise<TakeoverRequestSummary[]> {
   const rows = await db
     .select({
-      id: desktopTakeovers.id,
-      screenId: desktopTakeovers.screenId,
-      botId: desktopTakeovers.requestedByBotId,
+      id: screenTakeovers.id,
+      screenId: screenTakeovers.screenId,
+      botId: screenTakeovers.requestedByBotId,
       botName: bots.name,
-      reason: desktopTakeovers.reason,
+      reason: screenTakeovers.reason,
       chatId: runs.chatId,
-      createdAt: desktopTakeovers.createdAt,
+      createdAt: screenTakeovers.createdAt,
     })
-    .from(desktopTakeovers)
-    .leftJoin(bots, eq(bots.id, desktopTakeovers.requestedByBotId))
-    .leftJoin(runs, eq(runs.id, desktopTakeovers.requestedByRunId))
-    .where(eq(desktopTakeovers.status, "requested"))
-    .orderBy(desc(desktopTakeovers.createdAt));
+    .from(screenTakeovers)
+    .leftJoin(bots, eq(bots.id, screenTakeovers.requestedByBotId))
+    .leftJoin(runs, eq(runs.id, screenTakeovers.requestedByRunId))
+    .where(eq(screenTakeovers.status, "requested"))
+    .orderBy(desc(screenTakeovers.createdAt));
   return rows.flatMap((row) => {
     const screenId = row.screenId ?? row.botId;
     if (!screenId) return [];
@@ -41,11 +41,11 @@ export async function listTakeoverRequests(): Promise<TakeoverRequestSummary[]> 
 export function listActiveTakeovers() {
   return db
     .select({
-      id: desktopTakeovers.id,
-      screenId: desktopTakeovers.screenId,
-      startedAt: desktopTakeovers.startedAt,
+      id: screenTakeovers.id,
+      screenId: screenTakeovers.screenId,
+      startedAt: screenTakeovers.startedAt,
     })
-    .from(desktopTakeovers)
-    .where(eq(desktopTakeovers.status, "active"))
-    .orderBy(desc(desktopTakeovers.createdAt));
+    .from(screenTakeovers)
+    .where(eq(screenTakeovers.status, "active"))
+    .orderBy(desc(screenTakeovers.createdAt));
 }

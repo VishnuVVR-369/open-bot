@@ -12,7 +12,7 @@ import {
 test.describe("@agent bots at work", () => {
   test.setTimeout(10 * 60_000);
 
-  test("a bot uses the desktop, you take over mid-task, and it carries on", async ({ page }) => {
+  test("a bot uses the screen, you take over mid-task, and it carries on", async ({ page }) => {
     await createTeammate(page, uniqueName("Ivy"), "research assistant");
     await sendMessage(
       page,

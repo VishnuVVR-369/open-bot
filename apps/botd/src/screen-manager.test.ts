@@ -1,7 +1,7 @@
 import type { EgressRouter } from "@open-bot/egress/router";
 import { createRouterClient } from "@orpc/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DesktopLease } from "./lease";
+import { ScreenLease } from "./lease";
 import type { PageChecker } from "./pages";
 import { createRouter } from "./router";
 import { ScreenManager } from "./screen-manager";
@@ -238,7 +238,7 @@ describe("stopping a screen to make room", () => {
       truncated: false,
       links: [],
     });
-    const acquiring = vi.spyOn(DesktopLease.prototype, "acquireForRun");
+    const acquiring = vi.spyOn(ScreenLease.prototype, "acquireForRun");
     const manager = new ScreenManager(deps(), { maxRunning: 2, admissionMs: 50 });
     const botd = createRouterClient(
       createRouter({

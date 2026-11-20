@@ -9,7 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { attempt } from "@/lib/client/mutate";
 import { api, orpc } from "@/lib/client/rpc";
 import type { AppState } from "@/lib/types";
-import { type DesktopHandle } from "./desktop-view";
+import { type ScreenHandle } from "./screen-view";
 import { useComputer } from "../hooks";
 import { HandBackButton, TakeOverButton } from "./takeover-buttons";
 
@@ -23,7 +23,7 @@ export function ScreenControls({
 }: {
   screenId: string;
   initial?: AppState;
-  handleRef?: React.RefObject<DesktopHandle | null>;
+  handleRef?: React.RefObject<ScreenHandle | null>;
   expand?: boolean;
   /** Show the teammate's takeover request here. Off where the page already lists it. */
   showRequests?: boolean;

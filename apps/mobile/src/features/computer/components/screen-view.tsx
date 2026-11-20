@@ -12,13 +12,13 @@ import { radius } from "@/theme";
 import { ScreenMessage, useScreenSurface } from "./screen-surface";
 
 /** Every screen is 1280x800, so a view this shape shows it edge to edge. */
-export const DESKTOP_ASPECT_RATIO = 1280 / 800;
+export const SCREEN_ASPECT_RATIO = 1280 / 800;
 
-export interface DesktopHandle {
+export interface ScreenHandle {
   send: (message: Record<string, unknown>) => void;
 }
 
-export function DesktopView({
+export function ScreenView({
   screenId,
   mode,
   enabled,
@@ -30,7 +30,7 @@ export function DesktopView({
   screenId: string;
   mode: ScreenViewMode;
   enabled: boolean;
-  handleRef?: React.RefObject<DesktopHandle | null>;
+  handleRef?: React.RefObject<ScreenHandle | null>;
   onConnectedChange?: (connected: boolean) => void;
   /** What to show while there's no stream, such as an asleep or offline screen. */
   placeholder?: React.ReactNode;
@@ -145,7 +145,7 @@ export function DesktopView({
         { backgroundColor: surface.background, borderColor: surface.border },
         style,
       ]}
-      testID="desktop-view"
+      testID="screen-view"
     >
       {alive && (
         <WebView<object>
@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: StyleSheet.hairlineWidth * 2,
   },
-  // The bundled viewer paints this behind the remote desktop, so the edges match while it loads.
+  // The bundled viewer paints this behind the remote screen, so the edges match while it loads.
   web: { flex: 1, backgroundColor: "#101117" },
   overlay: { ...StyleSheet.absoluteFill },
 });

@@ -1,6 +1,6 @@
 import "server-only";
 import type { ApiInputs, ScreenFrame, ScreenView } from "@open-bot/api";
-import { artifacts, desktopTakeovers, runs } from "@open-bot/db";
+import { artifacts, screenTakeovers, runs } from "@open-bot/db";
 import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/server/db";
 import { listTeammates } from "@/features/teammates/server";
@@ -33,8 +33,8 @@ export async function listScreens(): Promise<ScreenView[]> {
     workerStatus(),
     db
       .select()
-      .from(desktopTakeovers)
-      .where(inArray(desktopTakeovers.status, ["requested", "active"])),
+      .from(screenTakeovers)
+      .where(inArray(screenTakeovers.status, ["requested", "active"])),
     lastScreenFrames(),
   ]);
   return bots.map((bot) => {

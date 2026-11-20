@@ -69,14 +69,14 @@ export async function dispatchMessage(
   let targets: string[];
   if (chat.kind === "group") {
     const members = await executor.ctx.db
-      .select({ id: bots.id, isPrimary: bots.isPrimary })
+      .select({ id: bots.id, isLead: bots.isLead })
       .from(chatMembers)
       .innerJoin(bots, eq(bots.id, chatMembers.botId))
       .where(and(eq(chatMembers.chatId, chat.id), isNull(bots.archivedAt)))
       .orderBy(asc(chatMembers.createdAt));
     const memberIds = new Set(members.map((member) => member.id));
     const mentioned = message.mentions.filter((id) => memberIds.has(id));
-    const lead = members.find((member) => member.isPrimary) ?? members[0];
+    const lead = members.find((member) => member.isLead) ?? members[0];
     targets = mentioned.length ? mentioned : lead ? [lead.id] : [];
   } else {
     targets = chat.botId ? [chat.botId] : [];

@@ -56,11 +56,11 @@ The header of `scripts/check/vocabulary.mjs` explains `--show <file>`, `--allow-
 | Canonical term  | Meaning                                                                              | Do not use for it (legacy names in code)                                                       |
 | --------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
 | teammate        | One AI agent the owner works with                                                    | bot (`bots` table, `botId`, `BotSummary`, `/bots/[botId]`)                                     |
-| lead            | The teammate that answers group chats when nobody is mentioned                       | primary (`isPrimary`, `is_primary`, `setPrimaryBot`)                                           |
+| lead            | The teammate that answers group chats when nobody is mentioned                       | primary (only the database column `is_primary` is left)                                        |
 | computer        | The botd container on Railway, with a persistent `/home` volume                      | -                                                                                              |
 | browser         | Chromium run by botd inside the computer, never the owner's own browser              | -                                                                                              |
 | screen          | A desktop session on the computer, one per teammate                                  | desktop                                                                                        |
-| screen takeover | The owner controlling a screen; the teammate waits until it is handed back           | desktop takeover (`desktopTakeovers`, `desktop_takeovers`)                                     |
+| screen takeover | The owner controlling a screen; the teammate waits until it is handed back           | desktop takeover (only the database table `desktop_takeovers` is left)                         |
 | lease           | Who holds a screen's input right now (teammate, owner or nobody)                     | -                                                                                              |
 | desktop app     | The Electron app in `apps/desktop`; "desktop" means only this                        | -                                                                                              |
 | integration     | Umbrella for anything a teammate uses outside the computer: connections and accounts | -                                                                                              |

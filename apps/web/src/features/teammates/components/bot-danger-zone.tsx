@@ -23,11 +23,11 @@ import { api, orpc } from "@/lib/client/rpc";
 export function BotDangerZone({
   botId,
   name,
-  isPrimary,
+  isLead,
 }: {
   botId: string;
   name: string;
-  isPrimary: boolean;
+  isLead: boolean;
 }) {
   const [pending, startTransition] = useTransition();
   const router = useRouter();
@@ -39,14 +39,14 @@ export function BotDangerZone({
         <div className="flex flex-col gap-0.5">
           <span className="text-[14px] font-medium">Lead teammate</span>
           <span className="text-[13px] text-muted-foreground">
-            {isPrimary
+            {isLead
               ? `${name} answers group messages that don't @mention anyone, and hands work to others.`
               : "The lead answers group messages that don't @mention anyone."}
           </span>
         </div>
         <Button
           variant="outline"
-          disabled={isPrimary || pending}
+          disabled={isLead || pending}
           onClick={() =>
             startTransition(async () => {
               const result = await attempt(api.teammates.setLead({ teammateId: botId }));
@@ -57,7 +57,7 @@ export function BotDangerZone({
           }
         >
           <Crown />
-          {isPrimary ? `${name} is the lead` : `Make ${name} the lead`}
+          {isLead ? `${name} is the lead` : `Make ${name} the lead`}
         </Button>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-4">

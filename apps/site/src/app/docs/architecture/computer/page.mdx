@@ -127,7 +127,7 @@ Its id is the teammate's id, or a swarm task's id for a helper.
 | Desktop | `dbus-launch --exit-with-session xfce4-session`                                                                           |
 | VNC     | Two `x11vnc` servers: a view-only one on port `5910 + 2 * slot` and a control one on `5911 + 2 * slot`, both on localhost |
 | Browser | Chromium with its own profile at `/home/desktop/screens/<id>/chromium`, controlled through a DevTools pipe                |
-| Lease   | A `DesktopLease` object in botd (see [Screens and takeover](/docs/flows/screens-and-takeover#the-lease))                  |
+| Lease   | A `ScreenLease` object in botd (see [Screens and takeover](/docs/flows/screens-and-takeover#the-lease))                   |
 
 ### Lifecycle
 

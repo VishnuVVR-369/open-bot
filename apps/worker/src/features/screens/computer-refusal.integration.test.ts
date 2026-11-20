@@ -24,10 +24,9 @@ import { TakeoverService } from "./takeovers";
 // to this computer is refused the same way after it saved your note: this worker, which may be the
 // one that sees the lease end, must keep that note and deliver it once.
 
-// This branch's names for the teammate and screen takeover tables.
+// This branch's name for the teammates table.
 const teammatesTable = schema.bots; // vocabulary: allow (renamed with the tables)
-const screenTakeovers = schema.desktopTakeovers; // vocabulary: allow (renamed with the tables)
-const { chats, runs, screenOperations, takeoverDeliveries } = schema;
+const { chats, runs, screenOperations, screenTakeovers, takeoverDeliveries } = schema;
 
 const since = "2026-11-14T00:00:00.000Z";
 const OWNER = { kind: "user", since, lastInputAt: since } as const;

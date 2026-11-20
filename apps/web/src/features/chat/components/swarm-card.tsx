@@ -5,7 +5,7 @@ import { Check, Clock, Loader2, Network, Square, X } from "lucide-react";
 import Link from "next/link";
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { DesktopView, useComputer } from "@/features/computer";
+import { ScreenView, useComputer } from "@/features/computer";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -50,7 +50,7 @@ function LiveScreen({ screenId }: { screenId: string }) {
   const { screens } = useComputer();
   const up = screens.some((screen) => screen.id === screenId && screen.state === "running");
   return up ? (
-    <DesktopView screenId={screenId} mode="view" className="absolute inset-0" />
+    <ScreenView screenId={screenId} mode="view" className="absolute inset-0" />
   ) : (
     <span className="absolute inset-0 flex items-center justify-center bg-bezel text-[12px] text-bezel-foreground/60">
       Not on its screen yet
