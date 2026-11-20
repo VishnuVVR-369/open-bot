@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import type { TriggerCheck, TriggerInput as TriggerFormInput } from "@open-bot/api/worker";
 import { accounts, bots, connections, runs, triggers, type Queryable, type Tx } from "@open-bot/db";
@@ -24,9 +24,9 @@ import {
   WEBHOOK_PAYLOAD_NOTE,
   type TriggerKind,
 } from "@open-bot/domain";
-import { and, count, eq, gte, lte } from "drizzle-orm";
+import { and, count, eq, gte, lte, sql } from "drizzle-orm";
 import { publishApp, type Context } from "../../context";
-import { enqueueRun } from "../../runs/queue";
+import { announceRun, insertRun } from "../../runs/queue";
 import { errorMessage } from "../../logger";
 import { mainChat } from "../chat";
 import { WorkerError } from "../../core/errors";
@@ -67,6 +67,12 @@ interface TriggerFields {
 }
 
 export type CheckResult = TriggerCheck;
+
+/**
+ * A run's prompt, made in the transaction that saves the run: it records what the run is about
+ * and returns the prompt, or null to start nothing. `runId` is the run it will save.
+ */
+export type FirePrompt = (tx: Tx, runId: string) => Promise<string | null>;
 
 function newToken(): string {
   return randomBytes(24).toString("base64url");
@@ -475,25 +481,52 @@ export class TriggerService {
     }
     const change = watchChange(row.snapshot, text, row.lookFor);
     const now = new Date();
-    await this.ctx.db
-      .update(triggers)
-      .set({
-        snapshot: text,
-        lastCheckedAt: now,
-        lastError: null,
-        ...(change ? { lastFiredAt: now } : {}),
-      })
-      .where(eq(triggers.id, row.id));
+    // Saves what the page looks like now, only if no other check (Check now, or the timer) saved
+    // a newer look since this one read the snapshot: that check reports the change, once.
+    const see = async (db: Queryable) => {
+      const saved = await db
+        .update(triggers)
+        .set({ snapshot: text, lastCheckedAt: now, lastError: null })
+        .where(
+          and(
+            eq(triggers.id, row.id),
+            sql`${triggers.snapshot} is not distinct from ${row.snapshot}`,
+          ),
+        )
+        .returning({ id: triggers.id });
+      return saved.length > 0;
+    };
+    const overtaken = { ok: true, changed: false, summary: "Another check saw this first" };
     if (change) {
       const summary = summarizeWatchChange(change);
-      await this.fire(
-        row,
-        `[Watch: "${row.title}"]\n\n${row.prompt}\n\nThe page ${row.url} changed since the last check (${summary}). ${PAGE_TEXT_NOTE}\n\n${describeWatchChange(change)}`,
-      );
+      let raced = false;
+      try {
+        // The new snapshot is saved with the run, so a run that can't start leaves the change
+        // for the next check to find again.
+        const runId = await this.fire(row, async (tx) => {
+          if (!(await see(tx))) {
+            raced = true;
+            return null;
+          }
+          return `[Watch: "${row.title}"]\n\n${row.prompt}\n\nThe page ${row.url} changed since the last check (${summary}). ${PAGE_TEXT_NOTE}\n\n${describeWatchChange(change)}`;
+        });
+        // Its teammate is archived: nobody to wake, so the page as it is now is what's next.
+        if (!runId && !raced) await see(this.ctx.db);
+      } catch (error) {
+        const message = `The page changed, but its teammate couldn't start: ${errorMessage(error)}`;
+        await this.ctx.db
+          .update(triggers)
+          .set({ lastCheckedAt: now, lastError: message })
+          .where(eq(triggers.id, row.id));
+        await publishApp(this.ctx, { type: "triggers" });
+        return { ok: false, changed: true, summary: message };
+      }
       await publishApp(this.ctx, { type: "triggers" });
-      return { ok: true, changed: true, summary };
+      return raced ? overtaken : { ok: true, changed: true, summary };
     }
+    const saw = await see(this.ctx.db);
     await publishApp(this.ctx, { type: "triggers" });
+    if (!saw) return overtaken;
     return {
       ok: true,
       changed: false,
@@ -568,10 +601,15 @@ export class TriggerService {
   /**
    * Start the trigger's teammate in its main chat. `readOutsideData` starts the run as one
    * that read your accounts, so it asks before sending anything.
+   *
+   * The prompt can be a `FirePrompt`, which runs in the run's transaction before the run is saved:
+   * it records what the run is about (a page's snapshot, the mail it claimed) and gives the prompt,
+   * or null to start nothing. Both commit together, so a run that can't be saved leaves what caused
+   * it for the next check to find again. Returns the run, or null when nothing started.
    */
   async fire(
     row: Trigger,
-    prompt: string,
+    prompt: string | FirePrompt,
     options: { readOutsideData?: boolean } = {},
   ): Promise<string | null> {
     const [bot] = await this.ctx.db
@@ -580,19 +618,25 @@ export class TriggerService {
       .where(eq(bots.id, row.botId));
     if (!bot || bot.archivedAt) return null;
     const chatId = await mainChat(this.ctx, row.botId);
-    await this.ctx.db
-      .update(triggers)
-      .set({ lastFiredAt: new Date() })
-      .where(eq(triggers.id, row.id));
-    return enqueueRun(this.ctx, {
-      chatId,
-      lane: `trigger:${row.id}`,
-      botId: row.botId,
-      trigger: row.kind,
-      triggerId: row.id,
-      prompt,
-      readOutsideData: options.readOutsideData ?? false,
+    const runId = await this.ctx.db.transaction(async (tx) => {
+      const id = randomUUID();
+      const text = typeof prompt === "string" ? prompt : await prompt(tx, id);
+      if (text === null) return null;
+      await insertRun(tx, {
+        id,
+        chatId,
+        lane: `trigger:${row.id}`,
+        botId: row.botId,
+        trigger: row.kind,
+        triggerId: row.id,
+        prompt: text,
+        readOutsideData: options.readOutsideData ?? false,
+      });
+      await tx.update(triggers).set({ lastFiredAt: new Date() }).where(eq(triggers.id, row.id));
+      return id;
     });
+    if (runId) await announceRun(this.ctx, chatId);
+    return runId;
   }
 }
 

@@ -95,12 +95,14 @@ export async function download(service: TelegramClient, fileId: string): Promise
   const file = await call<{ file_path?: string; file_size?: number }>(service, "getFile", {
     file_id: fileId,
   });
-  if (!file.file_path) throw new TelegramError("Telegram didn't share that file.");
+  if (!file.file_path) throw new TelegramError("Telegram didn't share that file.", 400);
   const base = service.ctx.env.TELEGRAM_API_BASE_URL.replace(/\/+$/, "");
   const response = await fetch(`${base}/file/bot${service.token}/${file.file_path}`, {
     signal: AbortSignal.timeout(60_000),
   });
-  if (!response.ok) throw new TelegramError("Couldn't download the file from Telegram.");
+  // Its status, so a failure worth retrying (Telegram busy, an expired file path) can be told apart.
+  if (!response.ok)
+    throw new TelegramError("Couldn't download the file from Telegram.", response.status);
   return Buffer.from(await response.arrayBuffer());
 }
 

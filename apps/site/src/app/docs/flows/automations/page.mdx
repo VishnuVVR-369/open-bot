@@ -49,7 +49,7 @@ With it, the automation must belong to that teammate, and setting it up may ask 
 
 A schedule is a row in `schedules`:
 
-- `kind`: `cron` for a recurring routine, `at` for a one-time reminder;
+- `kind`: `cron` for a recurring routine, `once` for a one-time reminder;
 - `cron` and `timezone`, or a single time;
 - `prompt`, the instructions the teammate gets;
 - `next_run_at`, computed when the schedule is saved and after every run;
@@ -59,15 +59,15 @@ A schedule is a row in `schedules`:
 
 `ScheduleService` (`apps/worker/src/features/automations/schedules.ts`) ticks every 10 seconds, and right away when a schedule is created or changed (the web app sends `NOTIFY openbot_worker, 'schedules'`).
 
-Each tick runs in one transaction:
+Each tick lists the due schedules, then claims each one in its own transaction:
 
-```sql title="Claiming due schedules"
+```sql title="Claiming a due schedule"
 select * from schedules
-where enabled = true and next_run_at <= now()
+where id = $1 and enabled = true and next_run_at <= now()
 for update skip locked
 ```
 
-For each due row, it computes the next run time with `cron-parser` in the schedule's time zone (a reminder gets none and is disabled), saves it, and then queues a run:
+It computes the next run time with `cron-parser` in the schedule's time zone (a reminder gets none and is disabled), saves it, and queues the run in the same transaction:
 
 ```text title="The run's prompt"
 [Scheduled task: "Morning briefing"]
@@ -75,7 +75,7 @@ For each due row, it computes the next run time with `cron-parser` in the schedu
 Check my calendar and inbox, and tell me what needs me today.
 ```
 
-Computing the next time before queueing means a crash between the two can skip one occurrence, but can never fire one twice.
+The next run time and the run commit together, so an occurrence is never fired twice, and a run that can't be saved (the database is down, or a deploy is migrating it) leaves the schedule due for the next tick, while the other schedules go on.
 If the worker was down for a while, a schedule fires once when it comes back, not once per missed occurrence.
 
 Each schedule's recent runs are listed under it, and **Run now** fires it without changing its next run time.
@@ -113,9 +113,11 @@ It is a row in `triggers` with `kind = 'watch'`, the URL, the interval, optional
       { from: "worker", to: "site", label: "GET, as a signed-out visitor" },
       { from: "site", to: "worker", label: "HTML", reply: true },
       { self: "worker", label: "page text, one block per line" },
-      { from: "worker", to: "pg", label: "compare with the last text, save the new one" },
+      { self: "worker", label: "compare with the last text" },
       { section: "Only if it changed" },
-      { from: "worker", to: "bot", label: "queue a watch run with the added and removed lines" },
+      { from: "worker", to: "pg", label: "save the new text and a queued watch run, together" },
+      { section: "Otherwise" },
+      { from: "worker", to: "pg", label: "save the new text" },
     ]}
   />
 </Figure>
@@ -142,6 +144,8 @@ One block per line makes two versions easy to compare.
 - A watch **with** text to look for (like "In stock") fires only on the check where that text **appears**, not again while it stays.
 
 The run's prompt has your instructions, then up to 40 added and 40 removed lines (each cut at 300 characters), introduced as data from outside, not instructions.
+The new text is saved in the same transaction as the run, so a run that can't be saved leaves the change for the next check to find again, and the watch shows why it didn't start.
+It is saved only if the stored text is still the one the check started from, so when **Check now** and the timer check at the same moment, only the first to save fires; the other reports "Another check saw this first".
 
 ## Webhooks
 
@@ -159,6 +163,7 @@ https://<your-app>/api/hooks/<token>
 
 The public route is in the web app, which checks the size and forwards the request to the worker's `POST /internal/hooks/:token`.
 The response is `202 Accepted` with the run id.
+When the run can't be saved (the database is down, or a deploy is migrating it), nothing is saved and the call gets a `500`, so a sender that retries failed deliveries delivers it again later.
 
 ```sh title="Calling a webhook"
 curl -X POST https://<your-app>/api/hooks/<token> \
@@ -215,6 +220,7 @@ An event is due when its wake-up time is within half a check, and it didn't star
 
 - Each Gmail or Calendar trigger starts at most **30 runs an hour**. A check over the limit shows why on the trigger.
 - What woke a trigger is kept in `trigger_firings`, keyed by the message (`mail:<id>`) or the occurrence and its start (`event:<id>@<start>`), so it can't fire twice, even from two workers.
+  The key is claimed in the same transaction that saves the run, so a run that can't be saved claims nothing: the next check finds the same mail (a failed check leaves the Gmail cursor where it was) or the same event, while it's still coming up.
 - Their runs start as having read your accounts, so anything they would send out, like an email or a reply to an invitation, asks you first. See [Your accounts](/docs/flows/accounts#mail-events-and-pages-are-not-instructions).
 - If the account needs reconnecting, you're told once, and the trigger shows the problem until you reconnect it. **Check now** shows the reason too.
 

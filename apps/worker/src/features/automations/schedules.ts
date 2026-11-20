@@ -10,7 +10,7 @@ import {
 } from "@open-bot/domain";
 import { and, asc, eq, lte } from "drizzle-orm";
 import { publishApp, type Context } from "../../context";
-import { enqueueRun } from "../../runs/queue";
+import { announceRun, enqueueRun, insertRun, type RunInput } from "../../runs/queue";
 import { errorMessage } from "../../logger";
 import { mainChat } from "../chat";
 import { WorkerError } from "../../core/errors";
@@ -195,17 +195,16 @@ export class ScheduleService {
   }
 
   private async fire(row: Schedule) {
+    const chatId = await this.runChat(row);
+    if (!chatId) return;
+    await enqueueRun(this.ctx, runInput(row, chatId));
+  }
+
+  /** The chat a schedule's run goes to: its teammate's main chat, unless it's archived. */
+  private async runChat(row: Schedule): Promise<string | null> {
     const [bot] = await this.ctx.db.select().from(bots).where(eq(bots.id, row.botId));
-    if (!bot || bot.archivedAt) return;
-    const chatId = await mainChat(this.ctx, row.botId);
-    await enqueueRun(this.ctx, {
-      chatId,
-      lane: `schedule:${row.id}`,
-      botId: row.botId,
-      trigger: "schedule",
-      scheduleId: row.id,
-      prompt: `[Scheduled task: "${row.title}"]\n\n${row.prompt}${row.quiet ? `\n\n${QUIET_NOTE}` : ""}`,
-    });
+    if (!bot || bot.archivedAt) return null;
+    return mainChat(this.ctx, row.botId);
   }
 
   start(): void {
@@ -238,26 +237,72 @@ export class ScheduleService {
   }
 
   private async tick() {
-    const due = await this.ctx.db.transaction(async (tx) => {
-      const rows = await tx
+    const due = await this.ctx.db
+      .select({ id: schedules.id })
+      .from(schedules)
+      .where(and(eq(schedules.enabled, true), lte(schedules.nextRunAt, new Date())));
+    let started = false;
+    for (const { id } of due) {
+      try {
+        if (await this.fireDue(id)) started = true;
+      } catch (error) {
+        // Still due, so the next tick tries it again; the others go on.
+        this.ctx.log.error("a schedule couldn't start its run", {
+          scheduleId: id,
+          error: errorMessage(error),
+        });
+      }
+    }
+    if (started) await publishApp(this.ctx, { type: "schedules" });
+  }
+
+  /**
+   * Claim a due schedule by moving its next run forward, and queue its run in the same
+   * transaction, so a run that can't be saved leaves the schedule due and a slow tick never runs it
+   * twice. True when the schedule was claimed.
+   */
+  private async fireDue(id: string): Promise<boolean> {
+    let claimed = false;
+    const chatId = await this.ctx.db.transaction(async (tx) => {
+      const [row] = await tx
         .select()
         .from(schedules)
-        .where(and(eq(schedules.enabled, true), lte(schedules.nextRunAt, new Date())))
+        .where(
+          and(
+            eq(schedules.id, id),
+            eq(schedules.enabled, true),
+            lte(schedules.nextRunAt, new Date()),
+          ),
+        )
         .for("update", { skipLocked: true });
-      for (const row of rows) {
-        const now = new Date();
-        const nextRunAt =
-          row.kind === "cron" && row.cron ? nextCronRun(row.cron, row.timezone, now) : null;
-        await tx
-          .update(schedules)
-          .set({ lastRunAt: now, nextRunAt, enabled: row.kind === "cron" })
-          .where(eq(schedules.id, row.id));
-      }
-      return rows;
+      if (!row) return null;
+      claimed = true;
+      const now = new Date();
+      const nextRunAt =
+        row.kind === "cron" && row.cron ? nextCronRun(row.cron, row.timezone, now) : null;
+      await tx
+        .update(schedules)
+        .set({ lastRunAt: now, nextRunAt, enabled: row.kind === "cron" })
+        .where(eq(schedules.id, row.id));
+      const chat = await this.runChat(row);
+      if (chat) await insertRun(tx, runInput(row, chat));
+      return chat;
     });
-    for (const row of due) await this.fire(row);
-    if (due.length) await publishApp(this.ctx, { type: "schedules" });
+    if (chatId) await announceRun(this.ctx, chatId);
+    return claimed;
   }
+}
+
+/** The run a schedule starts. */
+function runInput(row: Schedule, chatId: string): RunInput {
+  return {
+    chatId,
+    lane: `schedule:${row.id}`,
+    botId: row.botId,
+    trigger: "schedule",
+    scheduleId: row.id,
+    prompt: `[Scheduled task: "${row.title}"]\n\n${row.prompt}${row.quiet ? `\n\n${QUIET_NOTE}` : ""}`,
+  };
 }
 
 /**

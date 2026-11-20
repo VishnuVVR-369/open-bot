@@ -11,6 +11,7 @@ import type { RunSession } from "./session";
 import type { RunLane } from "@open-bot/domain";
 import { insertRun } from "./queue";
 import { answerBack } from "./answer-back";
+import { allowRunsIn, refuseRunsIn } from "../testing/refuse-runs";
 
 const url = testDatabaseServer();
 const dailyId = crypto.randomUUID();
@@ -121,7 +122,11 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
   it("delivers a message that was saved but never dispatched, like after a crash", async () => {
     const { chat } = await directChat();
     const sent = await message(chat.id, { createdAt: new Date(Date.now() - 60_000) });
-    const fresh = await message(chat.id, { text: "Just sent" });
+    // Ages are explicit, well clear of each cutoff: the reconciler compares with a strict `<`.
+    const fresh = await message(chat.id, {
+      text: "Just sent",
+      createdAt: new Date(Date.now() - 5_000),
+    });
 
     await executor.reconcileDispatches();
 
@@ -173,6 +178,49 @@ describe.skipIf(!url)("message dispatch with Postgres", () => {
     expect(await dispatchRows(sent.id)).toEqual([
       expect.objectContaining({ kind: "run", status: "done" }),
     ]);
+  });
+
+  it("saves a refused steer's run on the next dispatch when it couldn't be saved at first", async () => {
+    const { chat, teammate } = await directChat();
+    const { steer } = runningSession(chat.id, teammate.id, false);
+    // Old enough for the reconciler below, whatever the clocks.
+    const sent = await message(chat.id, { createdAt: new Date(Date.now() - 60_000) });
+    await refuseRunsIn(pool);
+    try {
+      await expect(executor.dispatchMessage(sent.id)).rejects.toThrow(
+        /Failed query: insert into "runs"/,
+      );
+    } finally {
+      await allowRunsIn(pool);
+    }
+    expect(await runsFor(sent.id)).toHaveLength(0);
+    expect(await dispatchRows(sent.id)).toEqual([
+      expect.objectContaining({ kind: "steer", status: "failed" }),
+    ]);
+    const [waiting] = await db.select().from(messages).where(eq(messages.id, sent.id));
+    expect(waiting!.dispatchStatus).toBe("pending");
+
+    // Retried while the turn still runs (a Telegram retry), then again by the reconciler.
+    await executor.dispatchMessage(sent.id);
+    await executor.reconcileDispatches(0);
+    expect(steer).toHaveBeenCalledTimes(1);
+    const queued = await runsFor(sent.id);
+    expect(queued).toHaveLength(1);
+    expect(await dispatchRows(sent.id)).toEqual([
+      expect.objectContaining({ kind: "run", status: "done", runId: queued[0]!.id }),
+    ]);
+    const [after] = await db.select().from(messages).where(eq(messages.id, sent.id));
+    expect(after!.dispatchStatus).toBe("dispatched");
+  });
+
+  it("saves a refused steer's run at startup when no dispatch came back for it", async () => {
+    const { chat, teammate } = await directChat();
+    const sent = await message(chat.id);
+    await db
+      .insert(messageDispatches)
+      .values({ messageId: sent.id, botId: teammate.id, kind: "steer", status: "failed" }); // vocabulary: allow
+    await executor.recoverSteers();
+    expect(await runsFor(sent.id)).toHaveLength(1);
   });
 
   it("turns a steer the restart interrupted into a run, once", async () => {

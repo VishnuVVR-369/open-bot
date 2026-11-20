@@ -1,7 +1,7 @@
 // Routes a message you sent: steers it into a teammate's running turn or queues a run, exactly
 // once per teammate, and recovers dispatches and steers a restart interrupted.
 import { bots, chatMembers, chats, messageDispatches, messages, runs } from "@open-bot/db";
-import { and, asc, eq, isNull, lt } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, lt, type SQL } from "drizzle-orm";
 import { publishApp, type Context } from "../../context";
 import { markDispatched, markSteered, touchChat } from "../../features/chat";
 import type { MemoryCoordinator } from "../../features/memory";
@@ -23,7 +23,7 @@ export interface DispatchExecutor {
 }
 
 /**
- * Route a message you sent: join a bot's running turn, or start a run. Safe to call more than
+ * Route a message you sent: join a teammate's running turn, or start a run. Safe to call more than
  * once for the same message: each teammate is claimed in `message_dispatches` before it gets the
  * message, so it gets it once.
  */
@@ -84,33 +84,41 @@ export async function dispatchMessage(
   const prompt = message.redoOfRunId ? redoPrompt(message.text) : message.text;
 
   let delivered = false;
-  for (const botId of targets) {
-    const session = executor.sessions.find(chat.id, botId, "chat");
+  for (const teammateId of targets) {
+    const session = executor.sessions.find(chat.id, teammateId, "chat");
     if (session && message.attachments.length === 0) {
       // Claim the teammate before steering: a steer can't be undone or repeated safely.
       const [claimed] = await executor.ctx.db
         .insert(messageDispatches)
-        .values({ messageId: message.id, botId, kind: "steer", status: "sending" })
+        .values({ messageId: message.id, botId: teammateId, kind: "steer", status: "sending" }) // vocabulary: allow
         .onConflictDoNothing()
-        .returning({ botId: messageDispatches.botId });
-      if (!claimed) continue;
+        .returning({ messageId: messageDispatches.messageId });
+      if (!claimed) {
+        // Claimed before: delivered, being delivered, or a refused steer whose run is still owed.
+        if (await queueRun(executor, message, teammateId, prompt, { claimed: false }))
+          delivered = true;
+        continue;
+      }
       if (await session.steer(message.id, prompt)) {
         await markSteered(executor.ctx.db, message.id, session.run.id);
         await executor.ctx.db
           .update(messageDispatches)
           .set({ status: "done", runId: session.run.id })
-          .where(
-            and(eq(messageDispatches.messageId, message.id), eq(messageDispatches.botId, botId)),
-          );
+          .where(claimOf(message.id, teammateId));
         delivered = true;
         continue;
       }
-      // The turn ended or refused the steer: it becomes a run of its own.
-      await queueRun(executor, message, botId, prompt, { claimed: true });
+      // The turn ended or refused the steer: it becomes a run of its own. Recorded first, so if the
+      // run can't be saved now, the next dispatch of this message saves it, without steering again.
+      await executor.ctx.db
+        .update(messageDispatches)
+        .set({ status: "failed" })
+        .where(claimOf(message.id, teammateId, eq(messageDispatches.status, "sending")));
+      await queueRun(executor, message, teammateId, prompt, { claimed: true });
       delivered = true;
       continue;
     }
-    if (await queueRun(executor, message, botId, prompt, { claimed: false })) delivered = true;
+    if (await queueRun(executor, message, teammateId, prompt, { claimed: false })) delivered = true;
   }
   const first = await markDispatched(executor.ctx.db, message.id);
   if (delivered || first) {
@@ -120,51 +128,57 @@ export async function dispatchMessage(
   executor.pump();
 }
 
+/** A teammate's dispatch record for a message, optionally narrowed further. */
+function claimOf(messageId: string, teammateId: string, ...more: SQL[]): SQL | undefined {
+  return and(
+    eq(messageDispatches.messageId, messageId),
+    eq(messageDispatches.botId, teammateId), // vocabulary: allow
+    ...more,
+  );
+}
+
 /**
  * Queue the run that answers a message, in the same transaction as its dispatch record, so the
  * run exists if and only if the record does. False when another dispatch got there first.
+ * `claimed`: this dispatch holds the teammate's steer claim (`sending`, or `failed` when the turn
+ * refused it). Otherwise it claims the teammate now, or takes over a refused steer's claim, whose
+ * run couldn't be saved when it was refused.
  */
 async function queueRun(
   executor: DispatchExecutor,
   message: typeof messages.$inferSelect,
-  botId: string,
+  teammateId: string,
   prompt: string,
   { claimed }: { claimed: boolean },
 ): Promise<boolean> {
   const runId = await executor.ctx.db.transaction(async (tx) => {
-    if (claimed) {
-      const [row] = await tx
+    const takeOver = (...statuses: ("sending" | "failed")[]) =>
+      tx
         .update(messageDispatches)
         .set({ kind: "run", status: "done" })
-        .where(
-          and(
-            eq(messageDispatches.messageId, message.id),
-            eq(messageDispatches.botId, botId),
-            eq(messageDispatches.status, "sending"),
-          ),
-        )
-        .returning({ botId: messageDispatches.botId });
+        .where(claimOf(message.id, teammateId, inArray(messageDispatches.status, statuses)))
+        .returning({ messageId: messageDispatches.messageId });
+    if (claimed) {
+      const [row] = await takeOver("sending", "failed");
       if (!row) return null;
     } else {
       const [row] = await tx
         .insert(messageDispatches)
-        .values({ messageId: message.id, botId, kind: "run", status: "done" })
+        .values({ messageId: message.id, botId: teammateId, kind: "run", status: "done" }) // vocabulary: allow
         .onConflictDoNothing()
-        .returning({ botId: messageDispatches.botId });
-      if (!row) return null;
+        .returning({ messageId: messageDispatches.messageId });
+      const [refused] = row ? [row] : await takeOver("failed");
+      if (!refused) return null;
     }
     const id = await insertRun(tx, {
       chatId: message.chatId,
-      botId,
+      botId: teammateId, // vocabulary: allow
       trigger: "user",
       prompt,
       attachments: message.attachments,
       messageId: message.id,
     });
-    await tx
-      .update(messageDispatches)
-      .set({ runId: id })
-      .where(and(eq(messageDispatches.messageId, message.id), eq(messageDispatches.botId, botId)));
+    await tx.update(messageDispatches).set({ runId: id }).where(claimOf(message.id, teammateId));
     return id;
   });
   if (!runId) return false;
@@ -173,19 +187,25 @@ async function queueRun(
 }
 
 /**
- * Steers that were being delivered when the worker stopped. The turn they joined ended with
- * that worker, so the message can't have been answered: it becomes a run of its own.
+ * Steers that were being delivered when the worker stopped, and refused ones whose run wasn't
+ * saved. The turn they joined ended with that worker, so the message can't have been answered: it
+ * becomes a run of its own.
  * Call on startup, before anything can steer.
  */
 export async function recoverSteers(executor: DispatchExecutor): Promise<void> {
   const rows = await executor.ctx.db
-    .select({ message: messages, botId: messageDispatches.botId })
+    .select({ message: messages, teammateId: messageDispatches.botId }) // vocabulary: allow
     .from(messageDispatches)
     .innerJoin(messages, eq(messages.id, messageDispatches.messageId))
-    .where(and(eq(messageDispatches.kind, "steer"), eq(messageDispatches.status, "sending")));
-  for (const { message, botId } of rows) {
+    .where(
+      and(
+        eq(messageDispatches.kind, "steer"),
+        inArray(messageDispatches.status, ["sending", "failed"]),
+      ),
+    );
+  for (const { message, teammateId } of rows) {
     const prompt = message.redoOfRunId ? redoPrompt(message.text) : message.text;
-    await queueRun(executor, message, botId, prompt, { claimed: true });
+    await queueRun(executor, message, teammateId, prompt, { claimed: true });
   }
   if (rows.length)
     executor.ctx.log.warn(`queued ${rows.length} messages whose steer the restart interrupted`);
