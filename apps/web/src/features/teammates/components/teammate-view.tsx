@@ -1,5 +1,5 @@
 import { Copy, Download } from "lucide-react";
-import { BotAvatar } from "@/components/bot-avatar";
+import { TeammateAvatar } from "@/components/teammate-avatar";
 import { Page } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -8,28 +8,33 @@ import { MemoryManager } from "@/features/memory";
 import { SkillsList } from "@/features/skills";
 import type { TeammatePage } from "../server/service";
 import { AllowedRules } from "./allowed-rules";
-import { BotDangerZone } from "./bot-danger-zone";
-import { BotForm } from "./bot-form";
+import { TeammateDangerZone } from "./teammate-danger-zone";
+import { TeammateForm } from "./teammate-form";
 import { ChatList } from "./chat-list";
-import { DuplicateBotDialog } from "./duplicate-bot";
+import { DuplicateTeammateDialog } from "./duplicate-teammate";
 import { InstructionsProposal } from "./instructions-proposal";
 import { Spending } from "./spending";
 
 const TABS = ["profile", "memory", "skills", "automations", "spending", "chats"];
 
 /** A teammate's page: its profile, memory, skills, automations, spending and chats, one tab each. */
-export function TeammateView({ teammate, tab }: { teammate: TeammatePage; tab?: string }) {
-  const { bot, revision, chats: botChats, proposal, rules } = teammate;
+export function TeammateView({ teammate: page, tab }: { teammate: TeammatePage; tab?: string }) {
+  const { teammate, revision, chats: teammateChats, proposal, rules } = page;
 
   return (
     <Page
       title={
         <span className="flex items-center gap-3.5">
-          <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="lg" />
+          <TeammateAvatar
+            name={teammate.name}
+            color={teammate.color}
+            emoji={teammate.emoji}
+            size="lg"
+          />
           <span className="flex flex-col">
-            {bot.name}
+            {teammate.name}
             <span className="font-sans text-[14px] font-normal text-muted-foreground">
-              {bot.role}
+              {teammate.role}
             </span>
           </span>
         </span>
@@ -37,15 +42,15 @@ export function TeammateView({ teammate, tab }: { teammate: TeammatePage; tab?: 
       actions={
         <div className="flex items-center gap-2">
           <Button variant="outline" asChild>
-            <a href={`/api/bots/${bot.id}/export`} download data-testid="export-bot">
+            <a href={`/api/teammates/${teammate.id}/export`} download data-testid="export-teammate">
               <Download />
               Export
             </a>
           </Button>
-          <DuplicateBotDialog
-            bot={{ id: bot.id, name: bot.name }}
+          <DuplicateTeammateDialog
+            teammate={{ id: teammate.id, name: teammate.name }}
             trigger={
-              <Button variant="outline" data-testid="duplicate-bot">
+              <Button variant="outline" data-testid="duplicate-teammate">
                 <Copy />
                 Duplicate
               </Button>
@@ -70,41 +75,45 @@ export function TeammateView({ teammate, tab }: { teammate: TeammatePage; tab?: 
           {proposal && (
             <InstructionsProposal
               proposal={proposal}
-              name={bot.name}
-              instructionsNow={bot.instructions}
+              name={teammate.name}
+              instructionsNow={teammate.instructions}
             />
           )}
-          <BotForm
+          <TeammateForm
             // Accepting a suggestion changes the instructions under the form.
-            key={bot.updatedAt.toISOString()}
-            editing={{ botId: bot.id, revision }}
+            key={teammate.updatedAt.toISOString()}
+            editing={{ teammateId: teammate.id, revision }}
             submitLabel="Save changes"
             initial={{
-              name: bot.name,
-              role: bot.role,
-              instructions: bot.instructions,
-              color: bot.color,
-              emoji: bot.emoji,
-              autonomy: bot.autonomy,
+              name: teammate.name,
+              role: teammate.role,
+              instructions: teammate.instructions,
+              color: teammate.color,
+              emoji: teammate.emoji,
+              autonomy: teammate.autonomy,
             }}
           />
-          <AllowedRules name={bot.name} rules={rules} />
-          <BotDangerZone botId={bot.id} name={bot.name} isLead={bot.isLead} />
+          <AllowedRules name={teammate.name} rules={rules} />
+          <TeammateDangerZone
+            teammateId={teammate.id}
+            name={teammate.name}
+            isLead={teammate.isLead}
+          />
         </TabsContent>
         <TabsContent value="memory" className="flex flex-col gap-8">
-          <MemoryManager botId={bot.id} name={bot.name} />
+          <MemoryManager teammateId={teammate.id} name={teammate.name} />
         </TabsContent>
         <TabsContent value="skills">
-          <SkillsList botId={bot.id} />
+          <SkillsList teammateId={teammate.id} />
         </TabsContent>
         <TabsContent value="automations">
-          <AutomationsView botId={bot.id} />
+          <AutomationsView teammateId={teammate.id} />
         </TabsContent>
         <TabsContent value="spending">
-          <Spending botId={bot.id} name={bot.name} />
+          <Spending teammateId={teammate.id} name={teammate.name} />
         </TabsContent>
         <TabsContent value="chats">
-          <ChatList chats={botChats} botId={bot.id} botName={bot.name} />
+          <ChatList chats={teammateChats} teammateId={teammate.id} teammateName={teammate.name} />
         </TabsContent>
       </Tabs>
     </Page>

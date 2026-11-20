@@ -45,7 +45,7 @@ test.describe("versioned memory in an isolated database", () => {
   });
 
   test("add, correct, inspect, restore, export and forget a bot memory", async ({ page }) => {
-    await page.goto(`/bots/${botId}?tab=memory`);
+    await page.goto(`/teammates/${botId}?tab=memory`);
     await expect(page.getByText("No saved memories yet.", { exact: false })).toBeVisible();
     await page.getByRole("button", { name: "Add memory" }).click();
     await page
@@ -117,7 +117,7 @@ test.describe("versioned memory in an isolated database", () => {
       },
       { kind: "user" },
     );
-    await page.goto(`/bots/${botId}?tab=memory`);
+    await page.goto(`/teammates/${botId}?tab=memory`);
     await page.getByRole("button", { name: "Add memory" }).click();
     await page.getByRole("textbox", { name: "Memory", exact: true }).fill(saved.content);
     await page.getByRole("button", { name: "Save memory", exact: true }).click();
@@ -142,14 +142,14 @@ test.describe("versioned memory in an isolated database", () => {
   });
 
   test("a stale browser edit cannot overwrite a newer revision", async ({ page, context }) => {
-    await page.goto(`/bots/${botId}?tab=memory`);
+    await page.goto(`/teammates/${botId}?tab=memory`);
     await page.getByRole("button", { name: "Add memory" }).click();
     await page
       .getByRole("textbox", { name: "Memory", exact: true })
       .fill("My preferred airline is Example Air.");
     await page.getByRole("button", { name: "Save memory", exact: true }).click();
     const other = await context.newPage();
-    await other.goto(`/bots/${botId}?tab=memory`);
+    await other.goto(`/teammates/${botId}?tab=memory`);
     const item = page.getByTestId("memory-item").filter({ hasText: "Example Air" });
     await item.getByRole("button", { name: "More actions" }).click();
     await page.getByRole("menuitem", { name: "Edit" }).click();
@@ -190,14 +190,14 @@ test.describe("versioned memory in an isolated database", () => {
       "insert into memory_items(id,bot_id,kind,content,fingerprint,state,source) values($1,$2,'preference','Prefers concise replies','e2e-suggestion','candidate',$3)",
       [id, botId, { type: "extraction" }],
     );
-    await page.goto(`/bots/${botId}?tab=memory`);
+    await page.goto(`/teammates/${botId}?tab=memory`);
     const suggestion = page
       .getByTestId("memory-item")
       .filter({ hasText: "Prefers concise replies" });
     await expect(suggestion).toContainText("Suggestion");
     await suggestion.getByRole("button", { name: "Confirm", exact: true }).click();
     await expect(suggestion).not.toContainText("Suggestion");
-    await page.goto(`/bots/${peerId}?tab=memory`);
+    await page.goto(`/teammates/${peerId}?tab=memory`);
     await expect(page.getByText("Prefers concise replies")).toHaveCount(0);
     await page.goto("/settings#about");
     const manager = page.getByTestId("memory-manager");
@@ -209,7 +209,7 @@ test.describe("versioned memory in an isolated database", () => {
       (await pool.query("select about_me from settings where id=1")).rows[0].about_me,
     ).toContain("Lisbon");
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(`/bots/${botId}?tab=memory`);
+    await page.goto(`/teammates/${botId}?tab=memory`);
     await expect(page.getByRole("button", { name: "Add memory" })).toBeVisible();
     await page.screenshot({ path: "test-results/memory-mobile.png", fullPage: true });
     expect(

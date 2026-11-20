@@ -6,7 +6,7 @@ import { BUILT_IN_SKILLS } from "@open-bot/domain";
 import { ArrowRight, FileText, Pencil, Sparkles, Trash2, UserRound, Users } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { BotAvatar } from "@/components/bot-avatar";
+import { TeammateAvatar } from "@/components/teammate-avatar";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -114,13 +114,13 @@ function BuiltInSkill({ skill }: { skill: (typeof BUILT_IN_SKILLS)[number] }) {
 }
 
 /** Every saved skill, or the ones one teammate can use. */
-export function SkillsList({ botId }: { botId?: string }) {
+export function SkillsList({ teammateId }: { teammateId?: string }) {
   const { data, isLoading } = useSkills();
   const { data: state } = useAppState();
   const skills = (data ?? []).filter(
-    (skill) => !botId || skill.teammateId === null || skill.teammateId === botId,
+    (skill) => !teammateId || skill.teammateId === null || skill.teammateId === teammateId,
   );
-  const botOf = (id: string | null) => state?.teammates.find((bot) => bot.id === id);
+  const teammateOf = (id: string | null) => state?.teammates.find((teammate) => teammate.id === id);
 
   if (isLoading) {
     return (
@@ -146,9 +146,9 @@ export function SkillsList({ botId }: { botId?: string }) {
             Save the steps for a task once, then run it any time by typing / in a chat. Teammates
             can save skills too: after a task goes well, ask &ldquo;save that as a skill&rdquo;.
           </p>
-          {botId && (
+          {teammateId && (
             <div className="mt-2">
-              <SkillDialog defaultBotId={botId} />
+              <SkillDialog defaultTeammateId={teammateId} />
             </div>
           )}
         </div>
@@ -158,9 +158,9 @@ export function SkillsList({ botId }: { botId?: string }) {
 
   return (
     <div className="flex flex-col gap-4">
-      {botId && (
+      {teammateId && (
         <div className="flex justify-end">
-          <SkillDialog defaultBotId={botId} />
+          <SkillDialog defaultTeammateId={teammateId} />
         </div>
       )}
       <ul className="grid gap-3 md:grid-cols-2">
@@ -168,8 +168,8 @@ export function SkillsList({ botId }: { botId?: string }) {
           <BuiltInSkill key={skill.name} skill={skill} />
         ))}
         {skills.map((skill) => {
-          const owner = botOf(skill.teammateId);
-          const author = skill.createdBy === "bot" ? botOf(skill.createdByTeammateId) : null;
+          const owner = teammateOf(skill.teammateId);
+          const author = skill.createdBy === "bot" ? teammateOf(skill.createdByTeammateId) : null;
           return (
             <li
               key={skill.id}
@@ -179,7 +179,12 @@ export function SkillsList({ botId }: { botId?: string }) {
               <div className="flex items-start gap-3">
                 {/* A skill one teammate keeps wears their tile; a shared one stays neutral. */}
                 {owner ? (
-                  <BotAvatar name={owner.name} color={owner.color} emoji={owner.emoji} size="md" />
+                  <TeammateAvatar
+                    name={owner.name}
+                    color={owner.color}
+                    emoji={owner.emoji}
+                    size="md"
+                  />
                 ) : (
                   <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-subtle text-muted-foreground">
                     <Sparkles className="size-4" />

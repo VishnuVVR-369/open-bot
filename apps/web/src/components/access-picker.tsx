@@ -1,7 +1,7 @@
 "use client";
 
 import { Check } from "lucide-react";
-import { BotAvatar } from "@/components/bot-avatar";
+import { TeammateAvatar } from "@/components/teammate-avatar";
 import { Switch } from "@/components/ui/switch";
 import { useAppState } from "@/features/app-shell";
 import { cn } from "@/lib/utils";
@@ -15,7 +15,7 @@ export function AccessPicker({
   onChange: (value: string[] | null) => void;
 }) {
   const { data: state } = useAppState();
-  const bots = state?.teammates ?? [];
+  const teammates = state?.teammates ?? [];
   const everyone = value === null;
   return (
     <div className="flex flex-col gap-3">
@@ -34,15 +34,15 @@ export function AccessPicker({
       </label>
       {!everyone && (
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Teammates who can use it">
-          {bots.map((bot) => {
-            const on = value.includes(bot.id);
+          {teammates.map((teammate) => {
+            const on = value.includes(teammate.id);
             return (
               <button
-                key={bot.id}
+                key={teammate.id}
                 type="button"
                 aria-pressed={on}
                 onClick={() =>
-                  onChange(on ? value.filter((id) => id !== bot.id) : [...value, bot.id])
+                  onChange(on ? value.filter((id) => id !== teammate.id) : [...value, teammate.id])
                 }
                 className={cn(
                   "flex h-8 items-center gap-1.5 rounded-full border pr-3 pl-1 text-[13px] transition-colors",
@@ -51,8 +51,13 @@ export function AccessPicker({
                     : "text-muted-foreground hover:border-foreground/20 hover:text-foreground",
                 )}
               >
-                <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="xs" />
-                {bot.name}
+                <TeammateAvatar
+                  name={teammate.name}
+                  color={teammate.color}
+                  emoji={teammate.emoji}
+                  size="xs"
+                />
+                {teammate.name}
                 {on && <Check className="size-3.5" />}
               </button>
             );

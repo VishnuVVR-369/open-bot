@@ -1,7 +1,7 @@
 "use client";
 
 import { format, isToday, isTomorrow } from "date-fns";
-import { BotAvatar } from "@/components/bot-avatar";
+import { TeammateAvatar } from "@/components/teammate-avatar";
 import { useSchedules } from "@/features/automations";
 import { useAppState } from "@/features/app-shell";
 import { isComputerOnline, runIsHeldBack, WAITING_FOR_COMPUTER } from "@/lib/status";
@@ -30,18 +30,23 @@ export function ComingUp({ now }: { now: number | null }) {
       <SideHeading title="Coming up" href="/automations" label="Automations" />
       <ol className="divide-y divide-border/70 overflow-hidden rounded-xl bg-card shadow-raised">
         {next.map((schedule) => {
-          const bot = state.teammates.find((entry) => entry.id === schedule.teammateId);
+          const teammate = state.teammates.find((entry) => entry.id === schedule.teammateId);
           return (
             <li key={schedule.id} className="flex items-center gap-3 px-3.5 py-2.5">
-              {bot ? (
-                <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="sm" />
+              {teammate ? (
+                <TeammateAvatar
+                  name={teammate.name}
+                  color={teammate.color}
+                  emoji={teammate.emoji}
+                  size="sm"
+                />
               ) : (
                 <span className="size-7 shrink-0 rounded-[8px] bg-subtle" />
               )}
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-[13.5px] font-medium">{schedule.title}</span>
                 <span className="truncate text-[12.5px] text-muted-foreground">
-                  {bot?.name ?? "Former teammate"}
+                  {teammate?.name ?? "Former teammate"}
                 </span>
               </span>
               <span className="shrink-0 text-[12.5px] text-muted-foreground tabular-nums">

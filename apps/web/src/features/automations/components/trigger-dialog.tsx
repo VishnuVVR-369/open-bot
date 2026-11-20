@@ -20,7 +20,7 @@ import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
-import { BotAvatar } from "@/components/bot-avatar";
+import { TeammateAvatar } from "@/components/teammate-avatar";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -101,14 +101,14 @@ const CONNECTION_LABEL = { gmail: "Gmail", calendar: "Google Calendar" } as cons
 function watchable(
   connections: ConnectionView[] | undefined,
   kind: AccountTriggerKind,
-  botId: string,
+  teammateId: string,
 ): ConnectionView[] {
   return (connections ?? []).filter(
     (connection) =>
       connection.kind === TRIGGER_CONNECTION_KIND[kind] &&
       connection.account !== null &&
       connection.enabled &&
-      (connection.teammateIds === null || connection.teammateIds.includes(botId)),
+      (connection.teammateIds === null || connection.teammateIds.includes(teammateId)),
   );
 }
 
@@ -119,25 +119,25 @@ function watchable(
  */
 export function TriggerDialog({
   kind,
-  botId,
+  teammateId,
   existing,
   trigger,
   open: controlledOpen,
   onOpenChange,
 }: {
   kind: TriggerKind;
-  botId?: string;
+  teammateId?: string;
   existing?: TriggerView;
   trigger?: ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }) {
   const { data: state } = useAppState();
-  const bots = state?.teammates ?? [];
+  const teammates = state?.teammates ?? [];
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const open = controlledOpen ?? uncontrolledOpen;
   const setOpen = onOpenChange ?? setUncontrolledOpen;
-  const [selectedBot, setSelectedBot] = useState(botId ?? "");
+  const [selectedTeammate, setSelectedTeammate] = useState(teammateId ?? "");
   const [title, setTitle] = useState("");
   const [prompt, setPrompt] = useState("");
   const [url, setUrl] = useState("");
@@ -156,7 +156,7 @@ export function TriggerDialog({
   // Start from the automation (or a blank one) each time the dialog opens.
   useEffect(() => {
     if (!open) return;
-    setSelectedBot(existing?.teammateId ?? botId ?? "");
+    setSelectedTeammate(existing?.teammateId ?? teammateId ?? "");
     setTitle(existing?.title ?? "");
     setPrompt(existing?.prompt ?? "");
     setUrl(existing?.url ?? "");
@@ -171,13 +171,13 @@ export function TriggerDialog({
         ? existing.query
         : "all",
     );
-  }, [open, existing, botId]);
+  }, [open, existing, teammateId]);
 
-  const botValue = selectedBot || bots[0]?.id || "";
+  const teammateValue = selectedTeammate || teammates[0]?.id || "";
   const urlProblem = kind === "watch" ? invalidWatchUrl(url) : null;
   const queryProblem = kind === "gmail" ? invalidGmailQuery(query) : null;
   const account = isAccountTrigger(kind) ? kind : null;
-  const choices = account ? watchable(connections, account, botValue) : [];
+  const choices = account ? watchable(connections, account, teammateValue) : [];
   // Keep the one it watches in the menu, even when it's off or no longer the teammate's.
   if (account && existing?.connectionId && !choices.some((c) => c.id === existing.connectionId)) {
     const current = connections?.find((connection) => connection.id === existing.connectionId);
@@ -191,7 +191,7 @@ export function TriggerDialog({
   if (!leads.some((option) => String(option.minutes) === leadMinutes))
     leads.push({ minutes: Number(leadMinutes), label: describeLead(Number(leadMinutes)) });
   const intervals: { minutes: number; label: string }[] = [...WATCH_INTERVALS];
-  // A bot may have picked an interval the menu doesn't offer.
+  // A teammate may have picked an interval the menu doesn't offer.
   if (!intervals.some((option) => String(option.minutes) === intervalMinutes))
     intervals.push({
       minutes: Number(intervalMinutes),
@@ -206,7 +206,7 @@ export function TriggerDialog({
     if (queryProblem) return;
     startTransition(async () => {
       const input = {
-        teammateId: botValue,
+        teammateId: teammateValue,
         kind,
         title: title.trim(),
         prompt: prompt.trim(),
@@ -268,18 +268,23 @@ export function TriggerDialog({
             submit();
           }}
         >
-          {(!botId || existing) && (
+          {(!teammateId || existing) && (
             <div className="flex flex-col gap-2">
               <Label>Teammate</Label>
-              <Select value={botValue} onValueChange={setSelectedBot}>
+              <Select value={teammateValue} onValueChange={setSelectedTeammate}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Choose a teammate" />
                 </SelectTrigger>
                 <SelectContent>
-                  {bots.map((bot) => (
-                    <SelectItem key={bot.id} value={bot.id}>
-                      <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="xs" />
-                      {bot.name}
+                  {teammates.map((teammate) => (
+                    <SelectItem key={teammate.id} value={teammate.id}>
+                      <TeammateAvatar
+                        name={teammate.name}
+                        color={teammate.color}
+                        emoji={teammate.emoji}
+                        size="xs"
+                      />
+                      {teammate.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -465,7 +470,7 @@ export function TriggerDialog({
               pending ||
               !title.trim() ||
               !prompt.trim() ||
-              !botValue ||
+              !teammateValue ||
               (kind === "watch" && !url.trim()) ||
               Boolean(queryProblem) ||
               (account !== null && !connectionValue)

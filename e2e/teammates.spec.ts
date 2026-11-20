@@ -9,7 +9,7 @@ test("create, edit and archive a teammate", async ({ page }) => {
   await page.getByRole("button", { name: "Chat options" }).click();
   await page.getByRole("menuitem", { name: `${name}'s settings` }).click();
   // Until the settings open, the chat's own headings also name the teammate.
-  await page.waitForURL(/\/bots\/[0-9a-f-]{36}$/); // vocabulary: allow
+  await page.waitForURL(/\/teammates\/[0-9a-f-]{36}$/);
   await expect(page.getByRole("heading", { name: new RegExp(name) })).toBeVisible();
   await page.getByLabel("Job").fill("release manager");
   await page.getByRole("button", { name: "Save changes" }).click();
@@ -60,21 +60,21 @@ test("duplicate a teammate with their skills and memory", async ({ page }) => {
     instructions: "Reply with ok.",
     teammateId: id,
   });
-  await page.goto(`/bots/${id}`);
+  await page.goto(`/teammates/${id}`);
   await page.getByRole("tab", { name: "Memory" }).click();
   await page.getByRole("button", { name: "Add memory" }).click();
   await page.getByRole("textbox", { name: "Memory", exact: true }).fill("Likes short answers.");
   await page.getByRole("button", { name: "Save memory", exact: true }).click();
   await expect(page.getByText("Memory saved")).toBeVisible();
 
-  await page.getByTestId("duplicate-bot").click();
+  await page.getByTestId("duplicate-teammate").click();
   await expect(page.getByTestId("duplicate-name")).toHaveValue(`${name} 2`);
   await page.getByTestId("duplicate-confirm").click();
   await page.waitForURL(/\/chats\//);
   await expect(page.getByText(`Give ${name} 2 something to do`)).toBeVisible();
 
   const copyId = await botIdOf(page, `${name} 2`);
-  await page.goto(`/bots/${copyId}`);
+  await page.goto(`/teammates/${copyId}`);
   await expect(page.getByLabel("Job")).toHaveValue("qa assistant");
   await page.getByRole("tab", { name: "Memory" }).click();
   await expect(
@@ -87,7 +87,7 @@ test("duplicate a teammate with their skills and memory", async ({ page }) => {
 });
 
 test("start from a template with starter automations", async ({ page }) => {
-  await page.goto("/bots/new");
+  await page.goto("/teammates/new");
   await page.getByRole("button", { name: "Chief of staff" }).click();
   await expect(page.getByLabel("Job")).toHaveValue("chief of staff");
   const starters = page.getByTestId("starter-automations");
@@ -101,7 +101,7 @@ test("start from a template with starter automations", async ({ page }) => {
   await page.waitForURL(/\/chats\//);
   await expect(page.getByText(`${name} starts with 3 automations`)).toBeVisible();
 
-  await page.goto(`/bots/${await botIdOf(page, name)}?tab=automations`);
+  await page.goto(`/teammates/${await botIdOf(page, name)}?tab=automations`);
   const schedules = page.getByTestId("schedule");
   await expect(schedules).toHaveCount(3);
   await expect(schedules.filter({ hasText: "Plan my week" })).toHaveCount(1);
@@ -115,7 +115,7 @@ test("start from a template with starter automations", async ({ page }) => {
   ).toHaveAttribute("aria-checked", "true");
 
   // Every template checks in and looks back at its week; a developer has nothing else scheduled.
-  await page.goto("/bots/new");
+  await page.goto("/teammates/new");
   await page.getByRole("button", { name: "Developer" }).click();
   await expect(page.getByTestId("starter-automations").getByRole("switch")).toHaveCount(2);
   await expect(page.getByTestId("starter-automations")).toContainText(
@@ -126,9 +126,46 @@ test("start from a template with starter automations", async ({ page }) => {
   );
 });
 
+test("old teammate addresses keep working", async ({ page }) => {
+  const name = uniqueName("Ida");
+  await createTeammate(page, name);
+  const teammateId = await botIdOf(page, name);
+  // As bookmarks and notifications from before the rename have them.
+  const oldPages = "/bots"; // vocabulary: allow (an old URL)
+  const oldApi = "/api/bots"; // vocabulary: allow (an old URL)
+  const oldParam = "botId"; // vocabulary: allow (an old URL)
+
+  for (const [from, to] of [
+    [`${oldPages}/${teammateId}?tab=memory`, `/teammates/${teammateId}?tab=memory`],
+    [`${oldPages}/new`, "/teammates/new"],
+    [`${oldApi}/${teammateId}/export`, `/api/teammates/${teammateId}/export`],
+  ]) {
+    const response = await page.request.get(from!, { maxRedirects: 0 });
+    expect(response.status(), from).toBe(308);
+    expect(response.headers().location, from).toBe(to);
+  }
+
+  // An old bookmark opens the same tab of the same teammate.
+  await page.goto(`${oldPages}/${teammateId}?tab=memory`);
+  await expect(page).toHaveURL(`/teammates/${teammateId}?tab=memory`);
+  await expect(page.getByRole("heading", { name: new RegExp(name) })).toBeVisible();
+  await expect(page.getByTestId("memory-manager")).toBeVisible();
+
+  const file = await page.request.get(`${oldApi}/${teammateId}/export`);
+  expect(file.status()).toBe(200);
+  expect(((await file.json()) as { teammate: { name: string } }).teammate.name).toBe(name);
+
+  // The memory download still reads its old parameter.
+  const memory = await page.request.get(`/api/memory?${oldParam}=${teammateId}`);
+  expect(memory.status()).toBe(200);
+  expect(memory.headers()["content-type"]).toContain("text/markdown");
+  expect((await page.request.get("/api/memory?teammateId=nope")).status()).toBe(400);
+  expect((await page.request.get(`/api/memory?${oldParam}=nope`)).status()).toBe(400);
+});
+
 test("export a teammate to a file and import it as a new one", async ({ page }) => {
   // A teammate with routines, from a template.
-  await page.goto("/bots/new");
+  await page.goto("/teammates/new");
   await page.getByRole("button", { name: "Chief of staff" }).click();
   const original = uniqueName("Ava");
   await page.getByLabel("Name").fill(original);
@@ -136,9 +173,12 @@ test("export a teammate to a file and import it as a new one", async ({ page }) 
   await page.waitForURL(/\/chats\//);
   const botId = await botIdOf(page, original);
 
-  await page.goto(`/bots/${botId}`);
-  await expect(page.getByTestId("export-bot")).toHaveAttribute("href", `/api/bots/${botId}/export`);
-  const response = await page.request.get(`/api/bots/${botId}/export`);
+  await page.goto(`/teammates/${botId}`);
+  await expect(page.getByTestId("export-teammate")).toHaveAttribute(
+    "href",
+    `/api/teammates/${botId}/export`,
+  );
+  const response = await page.request.get(`/api/teammates/${botId}/export`);
   expect(response.headers()["content-disposition"]).toMatch(/\.openbot\.json"$/);
   const bundle = (await response.json()) as {
     format: string;
@@ -156,7 +196,7 @@ test("export a teammate to a file and import it as a new one", async ({ page }) 
 
   const copy = uniqueName("Ben");
   bundle.teammate.name = copy;
-  await page.goto("/bots/new");
+  await page.goto("/teammates/new");
   await page.getByTestId("import-teammate").setInputFiles({
     name: "teammate.openbot.json",
     mimeType: "application/json",
@@ -166,7 +206,7 @@ test("export a teammate to a file and import it as a new one", async ({ page }) 
   await expect(page.getByText(`${copy} joined the team`)).toBeVisible();
   await expect(page.getByText("Their 4 automations are off.", { exact: false })).toBeVisible();
 
-  await page.goto(`/bots/${await botIdOf(page, copy)}?tab=automations`);
+  await page.goto(`/teammates/${await botIdOf(page, copy)}?tab=automations`);
   const schedules = page.getByTestId("schedule");
   await expect(schedules).toHaveCount(4);
   await expect(schedules.first().getByTestId("automation-state")).toHaveText("Off");
@@ -175,7 +215,7 @@ test("export a teammate to a file and import it as a new one", async ({ page }) 
   );
 
   // A file that isn't a teammate says so.
-  await page.goto("/bots/new");
+  await page.goto("/teammates/new");
   await page.getByTestId("import-teammate").setInputFiles({
     name: "notes.json",
     mimeType: "application/json",

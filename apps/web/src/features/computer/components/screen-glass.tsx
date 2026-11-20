@@ -19,7 +19,7 @@ function GlassIcon({ children }: { children: ReactNode }) {
   );
 }
 
-/** The glass: the bot's live screen, or why it isn't showing. */
+/** The glass: the teammate's live screen, or why it isn't showing. */
 export function ScreenGlass({
   screenId,
   initial,
@@ -60,7 +60,7 @@ export function ScreenGlass({
         </span>
         <span className="max-w-80 text-[12.5px] leading-relaxed text-bezel-foreground/85">
           {info
-            ? `${info.bot.name} pauses computer work until it's back. It reconnects on its own.`
+            ? `${info.teammate.name} pauses computer work until it's back. It reconnects on its own.`
             : "It reconnects on its own."}
         </span>
       </>
@@ -114,12 +114,14 @@ export function ScreenGlass({
       <>
         <GlassIcon>{starting ? <Loader2 className="animate-spin" /> : <Moon />}</GlassIcon>
         <span className="text-[14px] font-medium text-bezel-foreground">
-          {starting ? `Starting ${info.bot.name}'s screen…` : `${info.bot.name}'s screen is asleep`}
+          {starting
+            ? `Starting ${info.teammate.name}'s screen…`
+            : `${info.teammate.name}'s screen is asleep`}
         </span>
         {!starting && (
           <>
             <span className="max-w-72 text-[12.5px] leading-relaxed">
-              It wakes up when {info.bot.name} uses the screen, or when you take over.
+              It wakes up when {info.teammate.name} uses the screen, or when you take over.
             </span>
             <div className="mt-2.5">
               <WakeButton screenId={screenId} />

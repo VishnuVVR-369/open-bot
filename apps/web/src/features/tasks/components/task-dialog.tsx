@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { BotAvatar } from "@/components/bot-avatar";
+import { TeammateAvatar } from "@/components/teammate-avatar";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -27,7 +27,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { attempt } from "@/lib/client/mutate";
 import { api } from "@/lib/client/rpc";
-import type { BotSummary, TaskView } from "@/lib/types";
+import type { TeammateSummary, TaskView } from "@/lib/types";
 
 export const STATUS_LABELS: Record<TaskView["status"], string> = {
   todo: "To do",
@@ -40,14 +40,14 @@ const NOBODY = "you";
 /** A new task, or one to edit, with who owns it and when it's due. */
 export function TaskDialog({
   task,
-  bots,
+  teammates,
   open,
   onOpenChange,
   onSaved,
 }: {
   /** Null for a new task. */
   task: TaskView | null;
-  bots: BotSummary[];
+  teammates: TeammateSummary[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
@@ -59,7 +59,7 @@ export function TaskDialog({
   const [status, setStatus] = useState<TaskView["status"]>(task?.status ?? "todo");
   const [pending, startTransition] = useTransition();
   const router = useRouter();
-  const ownerBot = bots.find((bot) => bot.id === owner);
+  const ownerTeammate = teammates.find((teammate) => teammate.id === owner);
 
   function save(then?: "start") {
     startTransition(async () => {
@@ -83,7 +83,7 @@ export function TaskDialog({
           toast.error("Couldn't start it", { description: started.error });
           return;
         }
-        toast(`${ownerBot?.name ?? "They"} started on it`, {
+        toast(`${ownerTeammate?.name ?? "They"} started on it`, {
           action: started.data.chatId
             ? {
                 label: "Watch",
@@ -107,7 +107,7 @@ export function TaskDialog({
     });
   }
 
-  const canStart = ownerBot && status !== "done";
+  const canStart = ownerTeammate && status !== "done";
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -127,7 +127,7 @@ export function TaskDialog({
             <DialogTitle>{task ? "Task" : "New task"}</DialogTitle>
             <DialogDescription>
               {task?.createdBy === "bot"
-                ? `Added by ${bots.find((bot) => bot.id === task.createdByTeammateId)?.name ?? "a teammate"}.`
+                ? `Added by ${teammates.find((teammate) => teammate.id === task.createdByTeammateId)?.name ?? "a teammate"}.`
                 : "Give it to a teammate to have them do it, or keep it for yourself."}
             </DialogDescription>
           </DialogHeader>
@@ -162,10 +162,15 @@ export function TaskDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NOBODY}>You</SelectItem>
-                  {bots.map((bot) => (
-                    <SelectItem key={bot.id} value={bot.id}>
-                      <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="xs" />
-                      {bot.name}
+                  {teammates.map((teammate) => (
+                    <SelectItem key={teammate.id} value={teammate.id}>
+                      <TeammateAvatar
+                        name={teammate.name}
+                        color={teammate.color}
+                        emoji={teammate.emoji}
+                        size="xs"
+                      />
+                      {teammate.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -216,11 +221,11 @@ export function TaskDialog({
                   Delete
                 </Button>
               )}
-              {task?.chatId && ownerBot && (
+              {task?.chatId && ownerTeammate && (
                 <Button type="button" variant="ghost" size="sm" asChild>
                   <Link href={`/chats/${task.chatId}`}>
                     <MessageSquare />
-                    {ownerBot.name}&apos;s chat
+                    {ownerTeammate.name}&apos;s chat
                   </Link>
                 </Button>
               )}
@@ -235,8 +240,8 @@ export function TaskDialog({
                 >
                   <Play className="fill-current" />
                   {task?.status === "doing"
-                    ? `Ask ${ownerBot.name} again`
-                    : `Ask ${ownerBot.name} to start`}
+                    ? `Ask ${ownerTeammate.name} again`
+                    : `Ask ${ownerTeammate.name} to start`}
                 </Button>
               )}
               <Button type="submit" disabled={pending || !title.trim()}>

@@ -30,13 +30,13 @@ function copyName(name: string, taken: string[]): string {
 }
 
 /** Make a new teammate set up like this one. Open it with `trigger`, or control it with `open`. */
-export function DuplicateBotDialog({
-  bot,
+export function DuplicateTeammateDialog({
+  teammate,
   trigger,
   open: controlledOpen,
   onOpenChange,
 }: {
-  bot: { id: string; name: string };
+  teammate: { id: string; name: string };
   trigger?: ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -53,16 +53,16 @@ export function DuplicateBotDialog({
 
   useEffect(() => {
     if (!open) return;
-    setName(copyName(bot.name, state?.teammates.map((b) => b.name) ?? []));
+    setName(copyName(teammate.name, state?.teammates.map((b) => b.name) ?? []));
     setCopyMemory(true);
     // Only when the dialog opens, so typing isn't undone by a state refresh.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, bot.name]);
+  }, [open, teammate.name]);
 
   function submit() {
     startTransition(async () => {
       const result = await attempt(
-        api.teammates.duplicate({ teammateId: bot.id, name, copyMemory }),
+        api.teammates.duplicate({ teammateId: teammate.id, name, copyMemory }),
       );
       if (!result.ok) {
         toast.error("Couldn't duplicate the teammate", { description: result.error });
@@ -72,10 +72,10 @@ export function DuplicateBotDialog({
       setOpen(false);
       if (result.data.memoryCopied) {
         toast(`${name.trim()} is ready`, {
-          description: `Set up like ${bot.name}. Their automations start off.`,
+          description: `Set up like ${teammate.name}. Their automations start off.`,
         });
       } else {
-        toast.warning(`${name.trim()} is ready, without ${bot.name}'s memory`, {
+        toast.warning(`${name.trim()} is ready, without ${teammate.name}'s memory`, {
           description: "The computer couldn't copy it. You can paste it into their Memory tab.",
         });
       }
@@ -88,11 +88,11 @@ export function DuplicateBotDialog({
       {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Duplicate {bot.name}</DialogTitle>
+          <DialogTitle>Duplicate {teammate.name}</DialogTitle>
           <DialogDescription>
-            The new teammate gets {bot.name}&apos;s job and instructions, their own skills, what
-            they may do without asking, and their schedules and page watches, turned off. Chats and
-            webhooks stay with {bot.name}.
+            The new teammate gets {teammate.name}&apos;s job and instructions, their own skills,
+            what they may do without asking, and their schedules and page watches, turned off. Chats
+            and webhooks stay with {teammate.name}.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -117,7 +117,7 @@ export function DuplicateBotDialog({
             <span className="flex flex-col gap-0.5">
               <span className="text-sm font-medium">Copy their memory</span>
               <span className="text-[13px] text-muted-foreground">
-                What {bot.name} has learned about you and how you like things done, including
+                What {teammate.name} has learned about you and how you like things done, including
                 lessons from your feedback.
               </span>
             </span>

@@ -27,7 +27,7 @@ test("@agent Home briefs you on what teammates did while you were away", async (
   await comeBack(page, 20);
   const briefing = page.getByTestId("briefing");
   await expect(briefing).toContainText("While you were away");
-  const row = briefing.getByTestId("briefing-bot").filter({ hasText: name });
+  const row = briefing.getByTestId("briefing-teammate").filter({ hasText: name });
   await expect(row).toContainText("1 task");
   await row.getByRole("link", { name: /kiwi/i }).click();
   await page.waitForURL(/\/chats\/.+#run-/);

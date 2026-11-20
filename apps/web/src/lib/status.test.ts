@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  botActivity,
-  botNeedsText,
+  teammateActivity,
+  teammateNeedsText,
   failureLine,
   isComputerOnline,
   runIsHeldBack,
@@ -10,19 +10,19 @@ import {
 } from "./status";
 
 type Waiting = "approval" | "takeover" | null;
-const bot = (status: "running" | "queued" | "waiting" | null, waitingFor: Waiting = null) => ({
+const teammate = (status: "running" | "queued" | "waiting" | null, waitingFor: Waiting = null) => ({
   activeRun: status ? { id: "r", chatId: "c", status, waitingFor } : null,
 });
 
 describe("teammateStatus", () => {
   it("says what they are doing while the computer is online", () => {
-    expect(teammateStatus(bot("running"))).toEqual({
+    expect(teammateStatus(teammate("running"))).toEqual({
       label: STATUS.working,
       activity: "working",
       needsYou: false,
     });
-    expect(teammateStatus(bot("queued")).label).toBe(STATUS.upNext);
-    expect(teammateStatus(bot(null))).toEqual({
+    expect(teammateStatus(teammate("queued")).label).toBe(STATUS.upNext);
+    expect(teammateStatus(teammate(null))).toEqual({
       label: STATUS.idle,
       activity: "idle",
       needsYou: false,
@@ -31,7 +31,7 @@ describe("teammateStatus", () => {
 
   it("pauses everyone who doesn't need you while the computer is offline", () => {
     for (const status of ["running", "queued", null] as const) {
-      expect(teammateStatus(bot(status), false)).toEqual({
+      expect(teammateStatus(teammate(status), false)).toEqual({
         label: STATUS.paused,
         activity: "paused",
         needsYou: false,
@@ -41,12 +41,12 @@ describe("teammateStatus", () => {
 
   it("still says a teammate needs you, online or not", () => {
     for (const online of [true, false]) {
-      expect(teammateStatus(bot("waiting", "approval"), online)).toEqual({
+      expect(teammateStatus(teammate("waiting", "approval"), online)).toEqual({
         label: STATUS.approval,
         activity: "waiting",
         needsYou: true,
       });
-      expect(teammateStatus(bot("waiting", "takeover"), online).label).toBe(STATUS.takeover);
+      expect(teammateStatus(teammate("waiting", "takeover"), online).label).toBe(STATUS.takeover);
     }
   });
 
@@ -55,17 +55,17 @@ describe("teammateStatus", () => {
     for (const status of ["running", "queued", "waiting", null] as const)
       for (const waitingFor of ["approval", "takeover", null] as const)
         for (const online of [true, false])
-          expect(words.has(teammateStatus(bot(status, waitingFor), online).label)).toBe(true);
+          expect(words.has(teammateStatus(teammate(status, waitingFor), online).label)).toBe(true);
   });
 });
 
-describe("botActivity and botNeedsText", () => {
+describe("teammateActivity and teammateNeedsText", () => {
   it("agree with the status line", () => {
-    expect(botActivity(bot("running"), false)).toBe("paused");
-    expect(botActivity(bot(null), false)).toBe("paused");
-    expect(botActivity(bot("waiting", "approval"), false)).toBe("waiting");
-    expect(botNeedsText(bot("waiting", "takeover"))).toBe(STATUS.takeover);
-    expect(botNeedsText(bot("running"))).toBeNull();
+    expect(teammateActivity(teammate("running"), false)).toBe("paused");
+    expect(teammateActivity(teammate(null), false)).toBe("paused");
+    expect(teammateActivity(teammate("waiting", "approval"), false)).toBe("waiting");
+    expect(teammateNeedsText(teammate("waiting", "takeover"))).toBe(STATUS.takeover);
+    expect(teammateNeedsText(teammate("running"))).toBeNull();
   });
 });
 

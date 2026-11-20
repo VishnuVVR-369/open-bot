@@ -28,7 +28,7 @@ export async function lastScreenFrames(): Promise<Record<string, ScreenFrame>> {
 }
 
 export async function listScreens(): Promise<ScreenView[]> {
-  const [bots, status, requests, frames] = await Promise.all([
+  const [teammates, status, requests, frames] = await Promise.all([
     listTeammates(),
     workerStatus(),
     db
@@ -37,19 +37,19 @@ export async function listScreens(): Promise<ScreenView[]> {
       .where(inArray(screenTakeovers.status, ["requested", "active"])),
     lastScreenFrames(),
   ]);
-  return bots.map((bot) => {
-    const screen = status?.computer.health?.screens.find((s) => s.id === bot.id);
+  return teammates.map((teammate) => {
+    const screen = status?.computer.health?.screens.find((s) => s.id === teammate.id);
     return {
-      id: bot.id,
-      teammate: bot,
+      id: teammate.id,
+      teammate,
       online: Boolean(status?.computer.online || status?.computer.lifecycle?.enabled),
       lifecycle: status?.computer.lifecycle ?? null,
       running: screen?.state === "running",
       lease: screen?.lease ?? null,
       requests: requests
-        .filter((r) => r.screenId === bot.id)
+        .filter((r) => r.screenId === teammate.id)
         .map((r) => ({ id: r.id, reason: r.reason, createdAt: r.createdAt.toISOString() })),
-      lastFrame: frames[bot.id] ?? null,
+      lastFrame: frames[teammate.id] ?? null,
     };
   });
 }

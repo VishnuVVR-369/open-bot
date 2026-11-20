@@ -3,10 +3,10 @@
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { orpc } from "@/lib/client/rpc";
 
-/** Memories that match `query`: one teammate's, or the shared ones when `botId` is null. */
-export function useMemories(botId: string | null, query: string) {
+/** Memories that match `query`: one teammate's, or the shared ones when `teammateId` is null. */
+export function useMemories(teammateId: string | null, query: string) {
   return useQuery(
-    orpc.memory.list.queryOptions({ input: { teammateId: botId, query: query.slice(0, 200) } }),
+    orpc.memory.list.queryOptions({ input: { teammateId, query: query.slice(0, 200) } }),
   );
 }
 

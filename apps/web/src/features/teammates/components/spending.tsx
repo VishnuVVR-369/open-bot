@@ -62,8 +62,8 @@ function MoneyInput({
 }
 
 /** What a teammate may spend from the vault's cards, and what it bought. */
-export function Spending({ botId, name }: { botId: string; name: string }) {
-  const { data, isLoading } = useSpending(botId);
+export function Spending({ teammateId, name }: { teammateId: string; name: string }) {
+  const { data, isLoading } = useSpending(teammateId);
   const { data: vault } = useVault();
   const queryClient = useQueryClient();
   const [enabled, setEnabled] = useState(false);
@@ -89,7 +89,7 @@ export function Spending({ botId, name }: { botId: string; name: string }) {
 
   const cards = (vault ?? []).filter(
     (item) =>
-      item.kind === "card" && (item.teammateIds === null || item.teammateIds.includes(botId)),
+      item.kind === "card" && (item.teammateIds === null || item.teammateIds.includes(teammateId)),
   );
   const savedEnabled = data.budgetCents !== null;
   const dirty =
@@ -103,7 +103,7 @@ export function Spending({ botId, name }: { botId: string; name: string }) {
     startSaving(async () => {
       const result = await attempt(
         api.teammates.setBudget({
-          teammateId: botId,
+          teammateId,
           budget: enabled ? Number(budget) : null,
           autoApprove: enabled ? Number(autoApprove || 0) : 0,
         }),
@@ -114,7 +114,7 @@ export function Spending({ botId, name }: { botId: string; name: string }) {
       }
       toast(enabled ? "Budget saved" : `${name} can't pay for things now`);
       await queryClient.invalidateQueries({
-        queryKey: orpc.teammates.spending.key({ input: { teammateId: botId } }),
+        queryKey: orpc.teammates.spending.key({ input: { teammateId } }),
       });
     });
   }

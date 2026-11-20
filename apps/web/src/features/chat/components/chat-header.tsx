@@ -21,7 +21,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useOpenMobileMenu } from "@/components/app/mobile-menu";
-import { BotAvatar } from "@/components/bot-avatar";
+import { TeammateAvatar } from "@/components/teammate-avatar";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -32,11 +32,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { DuplicateBotDialog } from "@/features/teammates";
+import { DuplicateTeammateDialog } from "@/features/teammates";
 import { attempt } from "@/lib/client/mutate";
 import { api, orpc } from "@/lib/client/rpc";
 import type { chatStatus } from "@/lib/status";
-import type { BotSummary, ChatData, ChatSummary } from "@/lib/types";
+import type { TeammateSummary, ChatData, ChatSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { RenameChatDialog } from "./rename-chat";
 
@@ -61,9 +61,9 @@ export function ChatHeader({
 }: {
   chat: ChatSummary | null;
   loading: boolean;
-  members: BotSummary[];
+  members: TeammateSummary[];
   /** The teammate of a chat that isn't a group. */
-  teammate: BotSummary | undefined;
+  teammate: TeammateSummary | undefined;
   helper: ChatData["helper"];
   title: string;
   status: ReturnType<typeof chatStatus> | null;
@@ -81,8 +81,8 @@ export function ChatHeader({
   const isGroup = chat?.kind === "group";
   const elsewhere = status?.elsewhere ?? null;
 
-  async function startNewChat(botId: string) {
-    const result = await attempt(api.chats.newDirect({ teammateId: botId }));
+  async function startNewChat(teammateId: string) {
+    const result = await attempt(api.chats.newDirect({ teammateId }));
     if (result.ok) router.push(`/chats/${result.data.chatId}`);
     else toast.error(result.error);
   }
@@ -117,7 +117,7 @@ export function ChatHeader({
             </span>
           ) : (
             teammate && (
-              <BotAvatar
+              <TeammateAvatar
                 name={teammate.name}
                 color={teammate.color}
                 emoji={teammate.emoji}
@@ -213,7 +213,7 @@ export function ChatHeader({
               )}
               {teammate && (
                 <DropdownMenuItem asChild>
-                  <Link href={`/bots/${teammate.id}`}>
+                  <Link href={`/teammates/${teammate.id}`}>
                     <Settings2 />
                     {teammate.name}&apos;s settings
                   </Link>
@@ -273,8 +273,8 @@ export function ChatHeader({
             onOpenChange={(open) => setDialog(open ? "rename" : null)}
           />
           {teammate && (
-            <DuplicateBotDialog
-              bot={teammate}
+            <DuplicateTeammateDialog
+              teammate={teammate}
               open={dialog === "duplicate"}
               onOpenChange={(open) => setDialog(open ? "duplicate" : null)}
             />

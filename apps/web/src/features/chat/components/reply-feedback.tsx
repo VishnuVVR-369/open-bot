@@ -61,11 +61,11 @@ function RateButton({
  */
 export function ReplyFeedback({
   run,
-  botName,
+  teammateName,
   chatId,
 }: {
   run: RunView;
-  botName: string;
+  teammateName: string;
   chatId: string;
 }) {
   const queryClient = useQueryClient();
@@ -120,11 +120,11 @@ export function ReplyFeedback({
       setText("");
       await refresh();
       if (remember)
-        toast(`${botName} will remember that`, {
+        toast(`${teammateName} will remember that`, {
           description: "It's a lesson they read before every task.",
           action: {
             label: "See lessons",
-            onClick: () => router.push(`/bots/${run.teammateId}?tab=memory`),
+            onClick: () => router.push(`/teammates/${run.teammateId}?tab=memory`),
           },
         });
     });
@@ -180,7 +180,7 @@ export function ReplyFeedback({
             }}
           >
             <Label htmlFor={`${switchId}-text`} className="text-[14px] font-medium">
-              What should {botName} do differently?
+              What should {teammateName} do differently?
             </Label>
             <Textarea
               id={`${switchId}-text`}

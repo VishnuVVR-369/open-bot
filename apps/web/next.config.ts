@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { RENAMED_ROUTES } from "./src/lib/renamed-routes";
 
 /**
  * The deploy this build belongs to. With it, Next.js reloads a tab whose code is older than the
@@ -24,6 +25,10 @@ const nextConfig: NextConfig = {
   ],
   serverExternalPackages: ["pg"],
   devIndicators: false,
+  // Renamed pages and downloads; their old addresses keep working.
+  async redirects() {
+    return RENAMED_ROUTES.map((route) => ({ ...route }));
+  },
   async headers() {
     return [
       {
