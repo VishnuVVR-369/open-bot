@@ -34,7 +34,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 ## Tests
 
 - `pnpm --filter @open-bot/page-kit test` builds first (see `packages/page-kit/turbo.json`) and then runs `packages/page-kit/src/kit.test.ts` against `dist/lib`.
-- Built-artifact check: `pnpm --filter @open-bot/pages build && node apps/pages/dist/pages.mjs`.
+- Built-artifact check: `pnpm test:artifacts` (builds and boots the pages and worker bundles).
 - `pnpm test:integration` includes `apps/worker/src/features/pages/service.integration.test.ts`; `e2e/pages.spec.ts` covers the full stack.
 
 ## Docs

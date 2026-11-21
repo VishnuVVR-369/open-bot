@@ -11,8 +11,8 @@ This is the checklist for following them.
 ## Before the PR
 
 - Run `pnpm verify:affected`, or `pnpm verify` when the change crosses many workspaces.
-- Changed deps, bundling, or a workspace import? Build and start the real artifact: `node apps/worker/dist/worker.mjs`, `node apps/pages/dist/pages.mjs`. Missing bundled modules (`ERR_MODULE_NOT_FOUND`) only show up here.
-- Start the worker artifact with `DATABASE_URL` and `BOTD_URL` set to throwaway targets (`scripts/test/pg.sh` gives a database). With neither set it uses the owner's development database and computer.
+- Changed deps, bundling, or a workspace import? Run `pnpm test:artifacts`: it builds the worker and pages bundles and boots each one, as CI does. Missing bundled modules (`ERR_MODULE_NOT_FOUND`) only show up there.
+- It starts each bundle with only an explicit environment, on a fresh migrated database from `scripts/test/pg.sh`, with every outside service at 127.0.0.1:1. Starting `apps/worker/dist/worker.mjs` by hand instead? Set `DATABASE_URL` and `BOTD_URL` to throwaway targets: with neither set it uses the owner's development database and computer.
 - Changed native Android code or config? Review [Android CI coverage](../../../apps/site/src/app/docs/development/page.mdx#android-ci), then run a release build or `./gradlew lintRelease` locally.
 
 ## Merge and deploy

@@ -21,6 +21,7 @@
     "computer:build": "docker compose build computer",
     "infra:up": "docker compose up -d --wait postgres computer",
     "test:integration": "bash scripts/test/integration.sh",
+    "test:artifacts": "bash scripts/test/artifacts.sh",
     "test:memory": "bash scripts/test/memory.sh",
     "test:owner-reset": "bash scripts/test/owner-reset.sh",
     "test:pocket-inbox": "bash scripts/test/pocket-inbox.sh",

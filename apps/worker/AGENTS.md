@@ -69,7 +69,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 - Shared tool test setup: `apps/worker/src/testing/tools.ts`, with a fresh database per feature suite and the same per-test reset.
 - Shared HTTP test setup: `apps/worker/src/testing/rpc.ts`; feature-local suites each get their own throwaway database and server.
 - Integration suites: the `*.integration.test.ts` files under `apps/worker/src` (`git ls-files 'apps/worker/**/*.integration.test.ts'`).
-- Built artifact: `pnpm --filter @open-bot/worker build && node apps/worker/dist/worker.mjs`.
+- Built artifact: `pnpm test:artifacts` builds `apps/worker/dist/worker.mjs` and boots it on a throwaway database (`scripts/ci/boot-artifacts.mjs`), as CI does.
 - Sleep and wake: `pnpm test:computer-sleep`.
 - E2E: `pnpm e2e` (for example `e2e/agent.spec.ts`, `e2e/computer.spec.ts`, `e2e/swarm.spec.ts`).
 

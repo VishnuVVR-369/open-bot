@@ -122,8 +122,8 @@ An environment variable has no single owner, so its recipe is here:
 | any TS                                     | `pnpm verify:affected`                                                                               |
 | `packages/db/src/schema/**`                | `pnpm db:generate`, review the SQL, `pnpm test:integration`                                          |
 | `packages/egress/**`                       | `pnpm --filter @open-bot/egress vectors`, then `./gradlew test` in `apps/mobile/modules/egress/core` |
-| `apps/worker/**` deps or bundling          | `pnpm --filter @open-bot/worker build && node apps/worker/dist/worker.mjs`                           |
-| `apps/pages/**`, `packages/page-kit/**`    | `pnpm --filter @open-bot/pages build && node apps/pages/dist/pages.mjs`                              |
+| `apps/worker/**` deps or bundling          | `pnpm test:artifacts` (builds and boots the worker and pages bundles)                                |
+| `apps/pages/**`, `packages/page-kit/**`    | `pnpm test:artifacts`                                                                                |
 | `apps/mobile/**` native or `app.config.ts` | prebuild and release lint (openbot-mobile skill)                                                     |
 | `apps/botd/**`, `images/computer/**`       | openbot-computer skill checklist, `pnpm computer:build`                                              |
 | `apps/site/**`                             | `pnpm --filter @open-bot/site typecheck`, `pnpm --filter @open-bot/site test:e2e`                    |

@@ -68,10 +68,12 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium
       # One throwaway Postgres from scripts/test/pg.sh, which holds the server settings the suites
       # need (a service container can't set them). Each suite creates and drops its own database
-      # on it, then the showcase seed inserts into it.
+      # on it, then the showcase seed inserts into it. Last, `pnpm test:artifacts` builds the worker
+      # and pages bundles and boots each one on a fresh migrated database on the same server: only
+      # the bundle shows a module left out of it (ERR_MODULE_NOT_FOUND).
       - run: >-
           bash scripts/test/pg.sh bash -c
-          'pnpm test:integration && SHOWCASE_DATABASE_URL="$TEST_DATABASE_URL" pnpm --filter @open-bot/showcase seed'
+          'pnpm test:integration && SHOWCASE_DATABASE_URL="$TEST_DATABASE_URL" pnpm --filter @open-bot/showcase seed && pnpm test:artifacts'
 
   egress-core:
     name: Phone egress core (Kotlin)
