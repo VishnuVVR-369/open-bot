@@ -4,6 +4,99 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+catalogs:
+  default:
+    '@better-auth/expo':
+      specifier: 1.7.7
+      version: 1.7.7
+    '@modelcontextprotocol/sdk':
+      specifier: 1.32.1
+      version: 1.32.1
+    '@novnc/novnc':
+      specifier: 1.7.0
+      version: 1.7.0
+    '@orpc/client':
+      specifier: ^1.16.1
+      version: 1.16.1
+    '@orpc/contract':
+      specifier: ^1.16.1
+      version: 1.16.1
+    '@orpc/openapi':
+      specifier: ^1.16.1
+      version: 1.16.1
+    '@orpc/server':
+      specifier: ^1.16.1
+      version: 1.16.1
+    '@playwright/test':
+      specifier: ^1.64.0
+      version: 1.64.0
+    '@tailwindcss/turbopack':
+      specifier: ^4
+      version: 4.3.3
+    '@tanstack/react-query':
+      specifier: ^5.104.2
+      version: 5.104.2
+    '@types/node':
+      specifier: ^24.19.2
+      version: 24.19.2
+    '@types/pg':
+      specifier: ^8.23.1
+      version: 8.23.1
+    '@types/react':
+      specifier: ~19.3.0
+      version: 19.3.0
+    '@types/react-dom':
+      specifier: ^19
+      version: 19.3.0
+    '@types/ws':
+      specifier: ^8.18.2
+      version: 8.18.2
+    better-auth:
+      specifier: 1.7.7
+      version: 1.7.7
+    cron-parser:
+      specifier: ^5.10.2
+      version: 5.10.2
+    drizzle-orm:
+      specifier: ^0.45.4
+      version: 0.45.4
+    esbuild:
+      specifier: ^0.28.2
+      version: 0.28.2
+    next:
+      specifier: 16.4.6
+      version: 16.4.6
+    pg:
+      specifier: ^8.23.1
+      version: 8.23.1
+    react:
+      specifier: 19.3.0
+      version: 19.3.0
+    react-dom:
+      specifier: 19.3.0
+      version: 19.3.0
+    remark-gfm:
+      specifier: ^4.0.1
+      version: 4.0.1
+    tailwindcss:
+      specifier: ^4
+      version: 4.3.3
+    tsx:
+      specifier: ^4.23.15
+      version: 4.23.15
+    typescript:
+      specifier: ~6.0.3
+      version: 6.0.3
+    vitest:
+      specifier: ^5.0.4
+      version: 5.0.4
+    ws:
+      specifier: ^8.22.0
+      version: 8.22.0
+    zod:
+      specifier: ^4.6.7
+      version: 4.6.7
+
 patchedDependencies:
   drizzle-orm@0.45.4:
     hash: ba2c0c2ebb7249a6e8b3ee3a7562cc7e86c026ca03d2c9215961a7f70265e865
@@ -17,7 +110,7 @@ importers:
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.12.0(jiti@2.7.0))
       '@modelcontextprotocol/sdk':
-        specifier: 1.32.1
+        specifier: 'catalog:'
         version: 1.32.1(zod@4.6.7)
       '@open-bot/api':
         specifier: workspace:*
@@ -29,16 +122,16 @@ importers:
         specifier: workspace:*
         version: link:packages/memory
       '@orpc/client':
-        specifier: ^1.16.1
+        specifier: 'catalog:'
         version: 1.16.1
       '@playwright/test':
-        specifier: ^1.64.0
+        specifier: 'catalog:'
         version: 1.64.0
       '@types/node':
-        specifier: ^24.19.2
+        specifier: 'catalog:'
         version: 24.19.2
       '@types/pg':
-        specifier: ^8.23.1
+        specifier: 'catalog:'
         version: 8.23.1
       eslint:
         specifier: ^10.12.0
@@ -65,7 +158,7 @@ importers:
         specifier: 3.0.0
         version: 3.0.0
       pg:
-        specifier: ^8.23.1
+        specifier: 'catalog:'
         version: 8.23.1
       prettier:
         specifier: ^3.9.10
@@ -77,13 +170,13 @@ importers:
         specifier: ^2.11.7
         version: 2.11.7
       typescript:
-        specifier: ~6.0.3
+        specifier: 'catalog:'
         version: 6.0.3
       typescript-eslint:
         specifier: ^8.71.2
         version: 8.71.2(eslint@10.12.0(jiti@2.7.0))(typescript@6.0.3)
       zod:
-        specifier: 4.6.7
+        specifier: 'catalog:'
         version: 4.6.7
 
   apps/botd:
@@ -101,32 +194,32 @@ importers:
         specifier: workspace:*
         version: link:../../packages/page-kit
       '@orpc/openapi':
-        specifier: ^1.16.1
+        specifier: 'catalog:'
         version: 1.16.1(ws@8.22.0)
       '@orpc/server':
-        specifier: ^1.16.1
+        specifier: 'catalog:'
         version: 1.16.1(ws@8.22.0)
       ws:
-        specifier: ^8.22.0
+        specifier: 'catalog:'
         version: 8.22.0
       zod:
-        specifier: ^4.6.7
+        specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
       '@types/node':
-        specifier: ^24.19.2
+        specifier: 'catalog:'
         version: 24.19.2
       '@types/ws':
-        specifier: ^8.18.2
+        specifier: 'catalog:'
         version: 8.18.2
       esbuild:
-        specifier: ^0.28.2
+        specifier: 'catalog:'
         version: 0.28.2
       typescript:
-        specifier: ~6.0.3
+        specifier: 'catalog:'
         version: 6.0.3
       vitest:
-        specifier: ^5.0.4
+        specifier: 'catalog:'
         version: 5.0.4(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15))
 
   apps/desktop:
@@ -138,7 +231,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/egress
       '@types/node':
-        specifier: ^24.19.2
+        specifier: 'catalog:'
         version: 24.19.2
       electron:
         specifier: ^44.7.0
@@ -147,16 +240,16 @@ importers:
         specifier: ^26.15.3
         version: 26.15.3(electron-builder-squirrel-windows@26.15.3)
       esbuild:
-        specifier: ^0.28.2
+        specifier: 'catalog:'
         version: 0.28.2
       typescript:
-        specifier: ~6.0.3
+        specifier: 'catalog:'
         version: 6.0.3
 
   apps/mobile:
     dependencies:
       '@better-auth/expo':
-        specifier: 1.7.7
+        specifier: 'catalog:'
         version: 1.7.7(@better-auth/core@1.7.7(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.2)(better-call@1.4.0(zod@4.6.7))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.5))(better-auth@1.7.7(drizzle-kit@0.31.11)(drizzle-orm@0.45.4(patch_hash=ba2c0c2ebb7249a6e8b3ee3a7562cc7e86c026ca03d2c9215961a7f70265e865)(@types/pg@8.23.1)(kysely@0.29.6)(pg@8.23.1))(next@16.4.6(@babel/core@7.29.7)(@playwright/test@1.64.0)(@types/node@24.19.2)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(pg@8.23.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(vitest@5.0.4(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15))))(expo-constants@58.0.14)(expo-linking@58.0.15)(expo-network@58.0.4(expo@58.0.22)(react@19.3.0))(expo-secure-store@58.0.2(expo@58.0.22))(expo-web-browser@58.0.7(expo@58.0.22)(react-native@0.88.1(@babel/core@7.29.7)(@react-native/metro-config@0.88.1(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.3.0)))
       '@expo-google-fonts/familjen-grotesk':
         specifier: ^0.4.2
@@ -171,7 +264,7 @@ importers:
         specifier: ^9.1.8
         version: 9.1.8(react-native@0.88.1(@babel/core@7.29.7)(@react-native/metro-config@0.88.1(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.3.0))
       '@novnc/novnc':
-        specifier: 1.7.0
+        specifier: 'catalog:'
         version: 1.7.0
       '@open-bot/api':
         specifier: workspace:*
@@ -183,7 +276,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/domain
       '@orpc/client':
-        specifier: ^1.16.1
+        specifier: 'catalog:'
         version: 1.16.1
       '@react-native-async-storage/async-storage':
         specifier: 2.2.0
@@ -195,10 +288,10 @@ importers:
         specifier: ^27.1.0
         version: 27.1.0(@react-native-firebase/app@27.1.0(@react-native-async-storage/async-storage@2.2.0(react-native@0.88.1(@babel/core@7.29.7)(@react-native/metro-config@0.88.1(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.3.0)))(expo@58.0.22)(react-native@0.88.1(@babel/core@7.29.7)(@react-native/metro-config@0.88.1(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.3.0))(react@19.3.0))(expo@58.0.22)
       '@tanstack/react-query':
-        specifier: ^5.104.2
+        specifier: 'catalog:'
         version: 5.104.2(react@19.3.0)
       better-auth:
-        specifier: 1.7.7
+        specifier: 'catalog:'
         version: 1.7.7(drizzle-kit@0.31.11)(drizzle-orm@0.45.4(patch_hash=ba2c0c2ebb7249a6e8b3ee3a7562cc7e86c026ca03d2c9215961a7f70265e865)(@types/pg@8.23.1)(kysely@0.29.6)(pg@8.23.1))(next@16.4.6(@babel/core@7.29.7)(@playwright/test@1.64.0)(@types/node@24.19.2)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(pg@8.23.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(vitest@5.0.4(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)))
       expo:
         specifier: ~58.0.22
@@ -282,7 +375,7 @@ importers:
         specifier: ^1.66.0
         version: 1.66.0(@types/react@19.3.0)(react-native-svg@15.16.0(react-native@0.88.1(@babel/core@7.29.7)(@react-native/metro-config@0.88.1(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.3.0))(react@19.3.0))(react-native@0.88.1(@babel/core@7.29.7)(@react-native/metro-config@0.88.1(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)
       react:
-        specifier: 19.3.0
+        specifier: 'catalog:'
         version: 19.3.0
       react-native:
         specifier: 0.88.1
@@ -306,17 +399,17 @@ importers:
         specifier: 14.0.1
         version: 14.0.1(react-native@0.88.1(@babel/core@7.29.7)(@react-native/metro-config@0.88.1(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)
       zod:
-        specifier: ^4.6.7
+        specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
       '@babel/plugin-transform-parameters':
         specifier: ^7.29.7
         version: 7.29.7(@babel/core@7.29.7)
       '@types/node':
-        specifier: ^24.19.2
+        specifier: 'catalog:'
         version: 24.19.2
       '@types/react':
-        specifier: ~19.3.0
+        specifier: 'catalog:'
         version: 19.3.0
       '@types/react-test-renderer':
         specifier: ^19.3.0
@@ -325,16 +418,16 @@ importers:
         specifier: ~58.0.23
         version: 58.0.23(@babel/core@7.29.7)(@babel/runtime@7.29.10)(expo@58.0.22)(react-refresh@0.14.2)
       esbuild:
-        specifier: ^0.28.2
+        specifier: 'catalog:'
         version: 0.28.2
       react-test-renderer:
         specifier: 19.3.0
         version: 19.3.0(react@19.3.0)
       typescript:
-        specifier: ~6.0.3
+        specifier: 'catalog:'
         version: 6.0.3
       vitest:
-        specifier: ^5.0.4
+        specifier: 'catalog:'
         version: 5.0.4(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15))
 
   apps/pages:
@@ -349,32 +442,32 @@ importers:
         specifier: workspace:*
         version: link:../../packages/page-kit
       drizzle-orm:
-        specifier: ^0.45.4
+        specifier: 'catalog:'
         version: 0.45.4(patch_hash=ba2c0c2ebb7249a6e8b3ee3a7562cc7e86c026ca03d2c9215961a7f70265e865)(@types/pg@8.23.1)(kysely@0.29.6)(pg@8.23.1)
       pg:
-        specifier: ^8.23.1
+        specifier: 'catalog:'
         version: 8.23.1
       zod:
-        specifier: ^4.6.7
+        specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
       '@types/node':
-        specifier: ^24.19.2
+        specifier: 'catalog:'
         version: 24.19.2
       '@types/pg':
-        specifier: ^8.15.6
+        specifier: 'catalog:'
         version: 8.23.1
       esbuild:
-        specifier: ^0.28.2
+        specifier: 'catalog:'
         version: 0.28.2
       tsx:
-        specifier: ^4.23.15
+        specifier: 'catalog:'
         version: 4.23.15
       typescript:
-        specifier: ~6.0.3
+        specifier: 'catalog:'
         version: 6.0.3
       vitest:
-        specifier: ^5.0.4
+        specifier: 'catalog:'
         version: 5.0.4(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15))
 
   apps/site:
@@ -395,13 +488,13 @@ importers:
         specifier: ^4.19.4
         version: 4.19.4(react@19.3.0)
       next:
-        specifier: 16.4.6
+        specifier: 'catalog:'
         version: 16.4.6(@babel/core@7.29.7)(@playwright/test@1.64.0)(@types/node@24.19.2)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       react:
-        specifier: 19.3.0
+        specifier: 'catalog:'
         version: 19.3.0
       react-dom:
-        specifier: 19.3.0
+        specifier: 'catalog:'
         version: 19.3.0(react@19.3.0)
       rehype-pretty-code:
         specifier: ^0.14.5
@@ -410,47 +503,47 @@ importers:
         specifier: ^6.0.0
         version: 6.0.0
       remark-gfm:
-        specifier: ^4.0.1
+        specifier: 'catalog:'
         version: 4.0.1
       shiki:
         specifier: ^4.5.0
         version: 4.5.0
     devDependencies:
       '@playwright/test':
-        specifier: ^1.64.0
+        specifier: 'catalog:'
         version: 1.64.0
       '@tailwindcss/turbopack':
-        specifier: ^4
+        specifier: 'catalog:'
         version: 4.3.3
       '@types/mdx':
         specifier: ^2.0.14
         version: 2.0.14
       '@types/node':
-        specifier: ^24.19.2
+        specifier: 'catalog:'
         version: 24.19.2
       '@types/react':
-        specifier: ^19
+        specifier: 'catalog:'
         version: 19.3.0
       '@types/react-dom':
-        specifier: ^19
+        specifier: 'catalog:'
         version: 19.3.0(@types/react@19.3.0)
       tailwindcss:
-        specifier: ^4
+        specifier: 'catalog:'
         version: 4.3.3
       typescript:
-        specifier: ~6.0.3
+        specifier: 'catalog:'
         version: 6.0.3
 
   apps/web:
     dependencies:
       '@better-auth/expo':
-        specifier: 1.7.7
+        specifier: 'catalog:'
         version: 1.7.7(@better-auth/core@1.7.7(@better-auth/utils@0.5.0)(@better-fetch/fetch@1.3.2)(better-call@1.4.0(zod@4.6.7))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.5))(better-auth@1.7.7(drizzle-kit@0.31.11)(drizzle-orm@0.45.4(patch_hash=ba2c0c2ebb7249a6e8b3ee3a7562cc7e86c026ca03d2c9215961a7f70265e865)(@types/pg@8.23.1)(kysely@0.29.6)(pg@8.23.1))(next@16.4.6(@babel/core@7.29.7)(@playwright/test@1.64.0)(@types/node@24.19.2)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(pg@8.23.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(vitest@5.0.4(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15))))(expo-constants@58.0.14)(expo-linking@58.0.15)(expo-network@58.0.4(expo@58.0.22)(react@19.3.0))(expo-secure-store@58.0.2(expo@58.0.22))(expo-web-browser@58.0.7(expo@58.0.22)(react-native@0.88.1(@babel/core@7.29.7)(@react-native/metro-config@0.88.1(@babel/core@7.29.7))(@types/react@19.3.0)(react@19.3.0)))
       '@better-auth/passkey':
         specifier: ^1.7.7
         version: 1.7.7(@better-auth/core@1.7.7(@better-auth/utils@0.5.0)(@better-fetch/fetch@1.3.2)(better-call@1.4.0(zod@4.6.7))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.5))(@better-auth/utils@0.5.0)(@better-fetch/fetch@1.3.2)(better-auth@1.7.7(drizzle-kit@0.31.11)(drizzle-orm@0.45.4(patch_hash=ba2c0c2ebb7249a6e8b3ee3a7562cc7e86c026ca03d2c9215961a7f70265e865)(@types/pg@8.23.1)(kysely@0.29.6)(pg@8.23.1))(next@16.4.6(@babel/core@7.29.7)(@playwright/test@1.64.0)(@types/node@24.19.2)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(pg@8.23.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(vitest@5.0.4(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15))))(better-call@1.4.0(zod@4.6.7))(nanostores@1.5.5)
       '@novnc/novnc':
-        specifier: ^1.7.0
+        specifier: 'catalog:'
         version: 1.7.0
       '@open-bot/api':
         specifier: workspace:*
@@ -471,19 +564,19 @@ importers:
         specifier: workspace:*
         version: link:../../packages/memory
       '@orpc/client':
-        specifier: ^1.16.1
+        specifier: 'catalog:'
         version: 1.16.1
       '@orpc/server':
-        specifier: ^1.16.1
+        specifier: 'catalog:'
         version: 1.16.1(ws@8.22.0)
       '@orpc/tanstack-query':
         specifier: ^1.16.1
         version: 1.16.1(@orpc/client@1.16.1)(@tanstack/query-core@5.104.2)
       '@tanstack/react-query':
-        specifier: ^5
+        specifier: 'catalog:'
         version: 5.104.2(react@19.3.0)
       better-auth:
-        specifier: ^1.7.7
+        specifier: 'catalog:'
         version: 1.7.7(drizzle-kit@0.31.11)(drizzle-orm@0.45.4(patch_hash=ba2c0c2ebb7249a6e8b3ee3a7562cc7e86c026ca03d2c9215961a7f70265e865)(@types/pg@8.23.1)(kysely@0.29.6)(pg@8.23.1))(next@16.4.6(@babel/core@7.29.7)(@playwright/test@1.64.0)(@types/node@24.19.2)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(pg@8.23.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(vitest@5.0.4(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)))
       class-variance-authority:
         specifier: ^0.7
@@ -498,7 +591,7 @@ importers:
         specifier: ^4
         version: 4.4.0
       drizzle-orm:
-        specifier: ^0.45.4
+        specifier: 'catalog:'
         version: 0.45.4(patch_hash=ba2c0c2ebb7249a6e8b3ee3a7562cc7e86c026ca03d2c9215961a7f70265e865)(@types/pg@8.23.1)(kysely@0.29.6)(pg@8.23.1)
       lucide-react:
         specifier: ^1.56.0
@@ -507,22 +600,22 @@ importers:
         specifier: ^14.2.0
         version: 14.2.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       next:
-        specifier: 16.4.6
+        specifier: 'catalog:'
         version: 16.4.6(@babel/core@7.29.7)(@playwright/test@1.64.0)(@types/node@24.19.2)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       next-themes:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       pg:
-        specifier: ^8.23.1
+        specifier: 'catalog:'
         version: 8.23.1
       radix-ui:
         specifier: ^1
         version: 1.8.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       react:
-        specifier: 19.3.0
+        specifier: 'catalog:'
         version: 19.3.0
       react-dom:
-        specifier: 19.3.0
+        specifier: 'catalog:'
         version: 19.3.0(react@19.3.0)
       react-markdown:
         specifier: ^10
@@ -534,7 +627,7 @@ importers:
         specifier: ^4.0.0
         version: 4.0.0
       remark-gfm:
-        specifier: ^4
+        specifier: 'catalog:'
         version: 4.0.1
       server-only:
         specifier: ^0.0.1
@@ -552,32 +645,32 @@ importers:
         specifier: ^1.4.0
         version: 1.4.0
       zod:
-        specifier: ^4.6.7
+        specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
       '@tailwindcss/turbopack':
-        specifier: ^4
+        specifier: 'catalog:'
         version: 4.3.3
       '@types/node':
-        specifier: ^24.19.2
+        specifier: 'catalog:'
         version: 24.19.2
       '@types/pg':
-        specifier: ^8.15.6
+        specifier: 'catalog:'
         version: 8.23.1
       '@types/react':
-        specifier: ^19
+        specifier: 'catalog:'
         version: 19.3.0
       '@types/react-dom':
-        specifier: ^19
+        specifier: 'catalog:'
         version: 19.3.0(@types/react@19.3.0)
       tailwindcss:
-        specifier: ^4
+        specifier: 'catalog:'
         version: 4.3.3
       typescript:
-        specifier: ~6.0.3
+        specifier: 'catalog:'
         version: 6.0.3
       vitest:
-        specifier: ^5.0.4
+        specifier: 'catalog:'
         version: 5.0.4(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15))
 
   apps/worker:
@@ -607,75 +700,75 @@ importers:
         specifier: workspace:*
         version: link:../../packages/page-kit
       '@orpc/contract':
-        specifier: ^1.16.1
+        specifier: 'catalog:'
         version: 1.16.1
       '@orpc/openapi':
-        specifier: ^1.16.1
+        specifier: 'catalog:'
         version: 1.16.1(ws@8.22.0)
       '@orpc/server':
-        specifier: ^1.16.1
+        specifier: 'catalog:'
         version: 1.16.1(ws@8.22.0)
       cron-parser:
-        specifier: ^5.10.2
+        specifier: 'catalog:'
         version: 5.10.2
       drizzle-orm:
-        specifier: ^0.45.4
+        specifier: 'catalog:'
         version: 0.45.4(patch_hash=ba2c0c2ebb7249a6e8b3ee3a7562cc7e86c026ca03d2c9215961a7f70265e865)(@types/pg@8.23.1)(kysely@0.29.6)(pg@8.23.1)
       pg:
-        specifier: ^8.23.1
+        specifier: 'catalog:'
         version: 8.23.1
       web-push:
         specifier: ^3.6.7
         version: 3.6.7
       ws:
-        specifier: ^8.22.0
+        specifier: 'catalog:'
         version: 8.22.0
       zod:
-        specifier: ^4.6.7
+        specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
       '@types/node':
-        specifier: ^24.19.2
+        specifier: 'catalog:'
         version: 24.19.2
       '@types/pg':
-        specifier: ^8.15.6
+        specifier: 'catalog:'
         version: 8.23.1
       '@types/web-push':
         specifier: ^3.6.4
         version: 3.6.4
       '@types/ws':
-        specifier: ^8.18.2
+        specifier: 'catalog:'
         version: 8.18.2
       esbuild:
-        specifier: ^0.28.2
+        specifier: 'catalog:'
         version: 0.28.2
       tsx:
-        specifier: ^4.23.15
+        specifier: 'catalog:'
         version: 4.23.15
       typescript:
-        specifier: ~6.0.3
+        specifier: 'catalog:'
         version: 6.0.3
       vitest:
-        specifier: ^5.0.4
+        specifier: 'catalog:'
         version: 5.0.4(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15))
 
   packages/agent:
     dependencies:
       ws:
-        specifier: ^8.22.0
+        specifier: 'catalog:'
         version: 8.22.0
     devDependencies:
       '@types/node':
-        specifier: ^24.19.2
+        specifier: 'catalog:'
         version: 24.19.2
       '@types/ws':
-        specifier: ^8.18.2
+        specifier: 'catalog:'
         version: 8.18.2
       typescript:
-        specifier: ~6.0.3
+        specifier: 'catalog:'
         version: 6.0.3
       vitest:
-        specifier: ^5.0.4
+        specifier: 'catalog:'
         version: 5.0.4(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15))
 
   packages/api:
@@ -684,23 +777,23 @@ importers:
         specifier: workspace:*
         version: link:../domain
       '@orpc/client':
-        specifier: ^1.16.1
+        specifier: 'catalog:'
         version: 1.16.1
       '@orpc/contract':
-        specifier: ^1.16.1
+        specifier: 'catalog:'
         version: 1.16.1
       '@orpc/openapi-client':
         specifier: ^1.16.1
         version: 1.16.1
       zod:
-        specifier: ^4.6.7
+        specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
       typescript:
-        specifier: ~6.0.3
+        specifier: 'catalog:'
         version: 6.0.3
       vitest:
-        specifier: ^5.0.4
+        specifier: 'catalog:'
         version: 5.0.4(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15))
 
   packages/chat-core:
@@ -713,13 +806,13 @@ importers:
         version: link:../domain
     devDependencies:
       '@types/node':
-        specifier: ^24.19.2
+        specifier: 'catalog:'
         version: 24.19.2
       typescript:
-        specifier: ~6.0.3
+        specifier: 'catalog:'
         version: 6.0.3
       vitest:
-        specifier: ^5.0.4
+        specifier: 'catalog:'
         version: 5.0.4(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15))
 
   packages/db:
@@ -728,48 +821,48 @@ importers:
         specifier: workspace:*
         version: link:../domain
       drizzle-orm:
-        specifier: ^0.45.4
+        specifier: 'catalog:'
         version: 0.45.4(patch_hash=ba2c0c2ebb7249a6e8b3ee3a7562cc7e86c026ca03d2c9215961a7f70265e865)(@types/pg@8.23.1)(kysely@0.29.6)(pg@8.23.1)
       pg:
-        specifier: ^8.23.1
+        specifier: 'catalog:'
         version: 8.23.1
     devDependencies:
       '@types/node':
-        specifier: ^24.19.2
+        specifier: 'catalog:'
         version: 24.19.2
       '@types/pg':
-        specifier: ^8.15.6
+        specifier: 'catalog:'
         version: 8.23.1
       drizzle-kit:
         specifier: ^0.31.11
         version: 0.31.11
       tsx:
-        specifier: ^4.23.15
+        specifier: 'catalog:'
         version: 4.23.15
       typescript:
-        specifier: ~6.0.3
+        specifier: 'catalog:'
         version: 6.0.3
       vitest:
-        specifier: ^5.0.4
+        specifier: 'catalog:'
         version: 5.0.4(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15))
 
   packages/domain:
     dependencies:
       cron-parser:
-        specifier: ^5.10.2
+        specifier: 'catalog:'
         version: 5.10.2
       zod:
-        specifier: ^4.6.7
+        specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
       '@types/node':
-        specifier: ^24.19.2
+        specifier: 'catalog:'
         version: 24.19.2
       typescript:
-        specifier: ~6.0.3
+        specifier: 'catalog:'
         version: 6.0.3
       vitest:
-        specifier: ^5.0.4
+        specifier: 'catalog:'
         version: 5.0.4(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15))
 
   packages/egress:
@@ -779,25 +872,25 @@ importers:
         version: link:../domain
     devDependencies:
       '@types/node':
-        specifier: ^24.19.2
+        specifier: 'catalog:'
         version: 24.19.2
       '@types/ws':
-        specifier: ^8.18.2
+        specifier: 'catalog:'
         version: 8.18.2
       typescript:
-        specifier: ~6.0.3
+        specifier: 'catalog:'
         version: 6.0.3
       vitest:
-        specifier: ^5.0.4
+        specifier: 'catalog:'
         version: 5.0.4(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15))
       ws:
-        specifier: ^8.22.0
+        specifier: 'catalog:'
         version: 8.22.0
 
   packages/integrations:
     dependencies:
       '@modelcontextprotocol/sdk':
-        specifier: 1.32.1
+        specifier: 'catalog:'
         version: 1.32.1(zod@4.6.7)
       '@open-bot/agent':
         specifier: workspace:*
@@ -809,26 +902,26 @@ importers:
         specifier: workspace:*
         version: link:../domain
       drizzle-orm:
-        specifier: ^0.45.4
+        specifier: 'catalog:'
         version: 0.45.4(patch_hash=ba2c0c2ebb7249a6e8b3ee3a7562cc7e86c026ca03d2c9215961a7f70265e865)(@types/pg@8.23.1)(kysely@0.29.6)(pg@8.23.1)
       zod:
-        specifier: ^4.6.7
+        specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
       '@types/node':
-        specifier: ^24.19.2
+        specifier: 'catalog:'
         version: 24.19.2
       '@types/pg':
-        specifier: ^8.15.6
+        specifier: 'catalog:'
         version: 8.23.1
       pg:
-        specifier: ^8.23.1
+        specifier: 'catalog:'
         version: 8.23.1
       typescript:
-        specifier: ~6.0.3
+        specifier: 'catalog:'
         version: 6.0.3
       vitest:
-        specifier: ^5.0.4
+        specifier: 'catalog:'
         version: 5.0.4(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15))
 
   packages/memory:
@@ -840,20 +933,20 @@ importers:
         specifier: workspace:*
         version: link:../domain
       drizzle-orm:
-        specifier: ^0.45.4
+        specifier: 'catalog:'
         version: 0.45.4(patch_hash=ba2c0c2ebb7249a6e8b3ee3a7562cc7e86c026ca03d2c9215961a7f70265e865)(@types/pg@8.23.1)(kysely@0.29.6)(pg@8.23.1)
       zod:
-        specifier: ^4.6.7
+        specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
       '@types/node':
-        specifier: ^24.19.2
+        specifier: 'catalog:'
         version: 24.19.2
       typescript:
-        specifier: ~6.0.3
+        specifier: 'catalog:'
         version: 6.0.3
       vitest:
-        specifier: ^5.0.4
+        specifier: 'catalog:'
         version: 5.0.4(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15))
 
   packages/page-kit:
@@ -871,7 +964,7 @@ importers:
         specifier: 11.12.0
         version: 11.12.0
       '@types/node':
-        specifier: ^24.19.2
+        specifier: 'catalog:'
         version: 24.19.2
       chart.js:
         specifier: 4.5.1
@@ -886,10 +979,10 @@ importers:
         specifier: 12.2.0
         version: 12.2.0
       typescript:
-        specifier: ~6.0.3
+        specifier: 'catalog:'
         version: 6.0.3
       vitest:
-        specifier: ^5.0.4
+        specifier: 'catalog:'
         version: 5.0.4(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15))
 
   tools/showcase:
@@ -901,23 +994,23 @@ importers:
         specifier: workspace:*
         version: link:../../packages/domain
       drizzle-orm:
-        specifier: ^0.45.4
+        specifier: 'catalog:'
         version: 0.45.4(patch_hash=ba2c0c2ebb7249a6e8b3ee3a7562cc7e86c026ca03d2c9215961a7f70265e865)(@types/pg@8.23.1)(kysely@0.29.6)(pg@8.23.1)
       pg:
-        specifier: ^8.23.1
+        specifier: 'catalog:'
         version: 8.23.1
     devDependencies:
       '@types/node':
-        specifier: ^24.19.2
+        specifier: 'catalog:'
         version: 24.19.2
       '@types/pg':
-        specifier: ^8.15.6
+        specifier: 'catalog:'
         version: 8.23.1
       tsx:
-        specifier: ^4.23.15
+        specifier: 'catalog:'
         version: 4.23.15
       typescript:
-        specifier: ~6.0.3
+        specifier: 'catalog:'
         version: 6.0.3
 
 packages:

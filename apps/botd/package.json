@@ -13,16 +13,16 @@
     "@open-bot/domain": "workspace:*",
     "@open-bot/egress": "workspace:*",
     "@open-bot/page-kit": "workspace:*",
-    "@orpc/openapi": "^1.16.1",
-    "@orpc/server": "^1.16.1",
-    "ws": "^8.22.0",
-    "zod": "^4.6.7"
+    "@orpc/openapi": "catalog:",
+    "@orpc/server": "catalog:",
+    "ws": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "^24.19.2",
-    "@types/ws": "^8.18.2",
-    "esbuild": "^0.28.2",
-    "typescript": "~6.0.3",
-    "vitest": "^5.0.4"
+    "@types/node": "catalog:",
+    "@types/ws": "catalog:",
+    "esbuild": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

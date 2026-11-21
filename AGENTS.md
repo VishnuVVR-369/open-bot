@@ -20,6 +20,7 @@ Each workspace has its own `AGENTS.md` with details, and the technical docs live
 Workspace packages are consumed as TypeScript source (`exports` point at `src/*.ts`).
 A new workspace dependency must also be added to the consumer's bundler config: `apps/worker/build.mjs`, `transpilePackages` in `apps/web/next.config.ts`, and the esbuild calls of botd and pages.
 For a deployed service it must also be added to that service's list in `.railway/watch-paths.ts`, or changes to it never redeploy the service (`pnpm test:railway` catches a missing folder).
+A third-party dependency that two or more workspaces declare (the root included) has one version, in the `catalog:` of `pnpm-workspace.yaml`, and every workspace declares it as `"catalog:"`; `pnpm check:catalog` fails otherwise.
 
 | Folder                  | Owns                                                                          | Test                                     |
 | ----------------------- | ----------------------------------------------------------------------------- | ---------------------------------------- |
@@ -110,7 +111,7 @@ An environment variable has no single owner, so its recipe is here:
 - Treat a flaky test as a possible real race first. Sync on observable events, never sleeps or reruns.
 - Every PR check must pass, including Cloudflare. Treat any red check as a real failure.
 - Skip tests that need >10 min of waiting or physical user action. List them as untested. Batch any phone action into one ask.
-- `pnpm check:fast` runs formatting, lint and the four repository guards quietly, printing only failures. Use it during edits; `pnpm verify` and `pnpm verify:affected` include it, then types and tests. Integration tests start their own Postgres in Docker unless `TEST_DATABASE_URL` is set.
+- `pnpm check:fast` runs formatting, lint and the repository guards quietly, printing only failures. Use it during edits; `pnpm verify` and `pnpm verify:affected` include it, then types and tests. Integration tests start their own Postgres in Docker unless `TEST_DATABASE_URL` is set.
 - Codex and Claude Code PostToolUse hooks format paths named by file-edit tools, respecting `.prettierignore` and `.gitignore`. Shell edits still need formatting before verification. Codex requires trusting repo hooks in `/hooks`; a harness that disables hooks still uses `pnpm check:fast`.
 - Structure guardrails, each with a baseline that may only shrink: `pnpm check:file-size` (a new code file stays under 600 lines of code; aim for 400), `pnpm check:imports` (no new import cycle, no app importing another app's source) and the `open-bot/workspace-imports` lint rule (a package is imported through its name and `exports`).
   After shrinking a file, breaking a cycle or moving a baselined file, run the check with `--update` and commit the baseline.

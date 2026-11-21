@@ -31,6 +31,7 @@
     "check:vocabulary": "node scripts/check/vocabulary.mjs",
     "check:file-size": "node scripts/check/file-size.mjs",
     "check:imports": "node scripts/check/imports.mjs",
+    "check:catalog": "node scripts/check/catalog.mjs",
     "test:scripts": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/check/*.test.mjs scripts/ci/*.test.mjs scripts/dev/*.test.mjs",
     "test:railway": "node --test .railway/watch-paths.test.ts",
     "verify": "pnpm check:fast && pnpm typecheck && pnpm test && pnpm test:scripts && pnpm test:railway && pnpm test:integration",
@@ -38,14 +39,14 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@modelcontextprotocol/sdk": "1.32.1",
+    "@modelcontextprotocol/sdk": "catalog:",
     "@open-bot/api": "workspace:*",
     "@open-bot/db": "workspace:*",
     "@open-bot/memory": "workspace:*",
-    "@orpc/client": "^1.16.1",
-    "@playwright/test": "^1.64.0",
-    "@types/node": "^24.19.2",
-    "@types/pg": "^8.23.1",
+    "@orpc/client": "catalog:",
+    "@playwright/test": "catalog:",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
     "eslint": "^10.12.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.13.0",
@@ -54,12 +55,12 @@
     "mdast-util-mdx": "3.0.0",
     "micromark-extension-gfm": "3.0.0",
     "micromark-extension-mdxjs": "3.0.0",
-    "pg": "^8.23.1",
+    "pg": "catalog:",
     "prettier": "^3.9.10",
     "railway": "3.16.0",
     "turbo": "^2.11.7",
-    "typescript": "~6.0.3",
+    "typescript": "catalog:",
     "typescript-eslint": "^8.71.2",
-    "zod": "4.6.7"
+    "zod": "catalog:"
   }
 }

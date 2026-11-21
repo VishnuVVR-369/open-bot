@@ -20,24 +20,24 @@
     "@open-bot/integrations": "workspace:*",
     "@open-bot/memory": "workspace:*",
     "@open-bot/page-kit": "workspace:*",
-    "@orpc/contract": "^1.16.1",
-    "@orpc/openapi": "^1.16.1",
-    "@orpc/server": "^1.16.1",
-    "cron-parser": "^5.10.2",
-    "drizzle-orm": "^0.45.4",
-    "pg": "^8.23.1",
+    "@orpc/contract": "catalog:",
+    "@orpc/openapi": "catalog:",
+    "@orpc/server": "catalog:",
+    "cron-parser": "catalog:",
+    "drizzle-orm": "catalog:",
+    "pg": "catalog:",
     "web-push": "^3.6.7",
-    "ws": "^8.22.0",
-    "zod": "^4.6.7"
+    "ws": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "^24.19.2",
-    "@types/pg": "^8.15.6",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
     "@types/web-push": "^3.6.4",
-    "@types/ws": "^8.18.2",
-    "esbuild": "^0.28.2",
-    "tsx": "^4.23.15",
-    "typescript": "~6.0.3",
-    "vitest": "^5.0.4"
+    "@types/ws": "catalog:",
+    "esbuild": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

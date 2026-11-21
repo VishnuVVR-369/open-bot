@@ -17,15 +17,15 @@
   },
   "dependencies": {
     "@open-bot/domain": "workspace:*",
-    "drizzle-orm": "^0.45.4",
-    "pg": "^8.23.1"
+    "drizzle-orm": "catalog:",
+    "pg": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "^24.19.2",
-    "@types/pg": "^8.15.6",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
     "drizzle-kit": "^0.31.11",
-    "tsx": "^4.23.15",
-    "typescript": "~6.0.3",
-    "vitest": "^5.0.4"
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

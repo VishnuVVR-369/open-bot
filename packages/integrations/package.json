@@ -13,18 +13,18 @@
     "test:integration": "vitest run .integration.test.ts"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.32.1",
+    "@modelcontextprotocol/sdk": "catalog:",
     "@open-bot/agent": "workspace:*",
     "@open-bot/db": "workspace:*",
     "@open-bot/domain": "workspace:*",
-    "drizzle-orm": "^0.45.4",
-    "zod": "^4.6.7"
+    "drizzle-orm": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "^24.19.2",
-    "@types/pg": "^8.15.6",
-    "pg": "^8.23.1",
-    "typescript": "~6.0.3",
-    "vitest": "^5.0.4"
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "pg": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

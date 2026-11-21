@@ -42,19 +42,19 @@ Every app and package has an `AGENTS.md` with its entry points, invariants and t
 
 ## Commands
 
-| Command                               | What it does                                                                |
-| ------------------------------------- | --------------------------------------------------------------------------- |
-| `pnpm dev`                            | The web app, the worker and the pages service, with reload                  |
-| `pnpm infra:up`                       | Postgres and the computer in Docker, waiting until healthy                  |
-| `pnpm computer:build`                 | Rebuilds the computer image (after changing botd or the image)              |
-| `pnpm db:migrate`, `pnpm db:generate` | Apply migrations, or generate one from the schema                           |
-| `pnpm lint`                           | ESLint over the repository, with no warnings allowed                        |
-| `pnpm format`, `pnpm format:check`    | Prettier                                                                    |
-| `pnpm check:fast`                     | Formatting, lint and the four repository guards; only failures print output |
-| `pnpm typecheck`                      | `tsc` in every package (and `next typegen` for the Next.js apps)            |
-| `pnpm test`                           | Vitest unit tests in every package                                          |
-| `pnpm verify`                         | Fast checks, typecheck, unit, script and integration tests                  |
-| `pnpm verify:affected`                | The same, limited to what changed since `main`                              |
+| Command                               | What it does                                                           |
+| ------------------------------------- | ---------------------------------------------------------------------- |
+| `pnpm dev`                            | The web app, the worker and the pages service, with reload             |
+| `pnpm infra:up`                       | Postgres and the computer in Docker, waiting until healthy             |
+| `pnpm computer:build`                 | Rebuilds the computer image (after changing botd or the image)         |
+| `pnpm db:migrate`, `pnpm db:generate` | Apply migrations, or generate one from the schema                      |
+| `pnpm lint`                           | ESLint over the repository, with no warnings allowed                   |
+| `pnpm format`, `pnpm format:check`    | Prettier                                                               |
+| `pnpm check:fast`                     | Formatting, lint and the repository guards; only failures print output |
+| `pnpm typecheck`                      | `tsc` in every package (and `next typegen` for the Next.js apps)       |
+| `pnpm test`                           | Vitest unit tests in every package                                     |
+| `pnpm verify`                         | Fast checks, typecheck, unit, script and integration tests             |
+| `pnpm verify:affected`                | The same, limited to what changed since `main`                         |
 
 ## Tests
 
@@ -75,6 +75,7 @@ CI runs every row marked "CI" on each pull request.
 | `pnpm check:vocabulary`                               | No file gains a use of a legacy name (bot, primary, desktop takeover); see the glossary in `AGENTS.md`                       | Nothing                         | CI  |
 | `pnpm check:file-size`                                | No new file over 600 lines of code, and no file in `scripts/check/file-size-baseline.json` growing; see Code structure below | Nothing                         | CI  |
 | `pnpm check:imports`                                  | No new import cycle, and no app importing another app's source; see Code structure below                                     | Nothing                         | CI  |
+| `pnpm check:catalog`                                  | A dependency two or more workspaces declare uses the `catalog:` in `pnpm-workspace.yaml`; see Code structure below           | Nothing                         | CI  |
 | `pnpm test:scripts`                                   | Unit tests for the repository checks in `scripts/check` and the CI helpers in `scripts/ci`                                   | Nothing                         | CI  |
 | `pnpm test:railway`                                   | Railway watch paths in `.railway/watch-paths.ts` match each service's dependencies and Dockerfile                            | Nothing                         | CI  |
 | `pnpm --filter @open-bot/mobile check:viewer`         | The generated noVNC viewer matches its source                                                                                | Nothing                         | CI  |
@@ -218,7 +219,7 @@ These are easy to miss and cost time when forgotten.
 
 ### Code structure
 
-Three guardrails keep the code easy to move and split.
+These guardrails keep the code easy to move and split.
 Each records today's debt in a baseline that may only shrink, like the vocabulary check.
 
 - **File size.** A code file in `apps/*` or `packages/*` aims for 400 lines of code and may not pass 600, counting neither blank lines nor comments.
@@ -230,6 +231,10 @@ Each records today's debt in a baseline that may only shrink, like the vocabular
   Break a cycle by moving what both files need into a module both import, or by passing it in as an argument.
 - **Workspace boundaries.** An app never imports another app's source; `pnpm check:imports` checks that too.
   Packages are imported by name, through the entry points in their `package.json` `exports`, never by a path into their files; the `open-bot/workspace-imports` lint rule (`scripts/lint/workspace-imports.mjs`) enforces that with no baseline.
+
+- **Shared dependency versions.** A third-party dependency that two or more workspaces declare (the root included) gets one version, in the `catalog:` of `pnpm-workspace.yaml`, and each workspace declares it as `"catalog:"`.
+  `pnpm check:catalog` (`scripts/check/catalog.mjs`) fails on a shared dependency declared with a version, and on a catalog entry no workspace uses; it has no baseline.
+  Expo reads the resolved versions, so `expo install --check` and `expo-doctor` work with catalog entries; keep `react` and `@types/react` at the versions the Expo SDK expects.
 
 When a file shrinks, a cycle is broken or a baselined file moves, the check fails until you run `pnpm check:file-size --update` or `pnpm check:imports --update` and commit the new baseline.
 `--update` refuses to let the debt grow: a file may not get bigger, and neither the number of files over the limit nor the number of imports in cycles or across apps may rise.

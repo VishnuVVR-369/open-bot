@@ -12,12 +12,12 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "ws": "^8.22.0"
+    "ws": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "^24.19.2",
-    "@types/ws": "^8.18.2",
-    "typescript": "~6.0.3",
-    "vitest": "^5.0.4"
+    "@types/node": "catalog:",
+    "@types/ws": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

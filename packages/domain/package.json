@@ -12,12 +12,12 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "zod": "^4.6.7",
-    "cron-parser": "^5.10.2"
+    "zod": "catalog:",
+    "cron-parser": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "^24.19.2",
-    "typescript": "~6.0.3",
-    "vitest": "^5.0.4"
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }
