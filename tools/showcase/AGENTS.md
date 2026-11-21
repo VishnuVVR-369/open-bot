@@ -9,7 +9,7 @@ The full guide (servers, sign-in, what is and isn't seeded) is `tools/showcase/R
 - `tools/showcase/seed.ts` (`pnpm --filter @open-bot/showcase seed`): drops and recreates `openbot_showcase`, runs the migrations, inserts everything.
 - `tools/showcase/content-chats.ts`, `content-rest.ts`, `content-model-logs.ts`: the story, one function per feature (`seedTeam`, `seedAutomations`, ...).
 - `tools/showcase/lib.ts`: relative dates (`ago`, `fromNow`), schedule occurrences, vault sealing and run-step builders (`msg`, `cmd`, `tool`, ...); `assets.ts` renders fake screenshots and page thumbnails with Playwright's Chromium.
-- `tools/showcase/auth.mjs` signs in on :3200 and saves a Playwright storage state; `shoot.mjs` screenshots every page in light or dark.
+- `tools/showcase/auth.mjs` signs in on :3200 and saves a Playwright storage state; `shoot.mjs` screenshots its list of routes (main pages, every teammate, the main chats) in light or dark; add a new screen to that list.
 
 ## Invariants
 
