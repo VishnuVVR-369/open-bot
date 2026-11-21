@@ -177,8 +177,8 @@ export default tseslint.config(
   },
   {
     // Workspace code is imported by package name, through the package's `exports`, never by path
-    // (scripts/lint/workspace-imports.mjs). That an app never imports another app is checked with
-    // a baseline by `pnpm check:imports`.
+    // (scripts/lint/workspace-imports.mjs). That an app never imports another app is checked by
+    // `pnpm check:imports`.
     files: [
       "apps/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
       "packages/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
