@@ -17,34 +17,35 @@ Each workspace has its own `AGENTS.md` with details, and the technical docs live
 
 ## Repo map
 
-Workspace packages are consumed as TypeScript source (`exports` point at `src/*.ts`).
+Workspace packages are consumed as TypeScript source (`exports` point at `src/*.ts`), so typecheck and tests build nothing first; a task that reads page-kit's `dist/lib`, the only build output tasks read, depends on `@open-bot/page-kit#build` in its package's `turbo.json`.
+A new cached turbo task that reads other workspaces' source must depend on `transit` (root `turbo.json`), or a change in a package it imports leaves it a cached pass.
 A new workspace dependency must also be added to the consumer's bundler config: `apps/worker/build.mjs`, `transpilePackages` in `apps/web/next.config.ts`, and the esbuild calls of botd and pages.
 For a deployed service it must also be added to that service's list in `.railway/watch-paths.ts`, or changes to it never redeploy the service (`pnpm test:railway` catches a missing folder).
 A third-party dependency that two or more workspaces declare (the root included) has one version, in the `catalog:` of `pnpm-workspace.yaml`, and every workspace declares it as `"catalog:"`; `pnpm check:catalog` fails otherwise.
 
-| Folder                  | Owns                                                                          | Test                                     |
-| ----------------------- | ----------------------------------------------------------------------------- | ---------------------------------------- |
-| `apps/web`              | Next.js app: UI, the oRPC API for browser and mobile, SSE                     | `pnpm --filter @open-bot/web test`       |
-| `apps/worker`           | Runs teammates: run queue, tools, services, internal HTTP API, egress relay   | `pnpm --filter @open-bot/worker test`    |
-| `apps/botd`             | Daemon inside the computer: screens, Chromium, VNC, Codex proxy, leases       | `pnpm --filter @open-bot/botd test`      |
-| `apps/pages`            | Serves published pages on their own origin                                    | `pnpm --filter @open-bot/pages test`     |
-| `apps/mobile`           | Expo Android app, native modules (egress, passkey, share intent, SMS consent) | `pnpm --filter @open-bot/mobile test`    |
-| `apps/desktop`          | Electron Mac app: egress agent and notifications                              | typecheck only                           |
-| `apps/site`             | Landing page and the technical docs (Cloudflare)                              | `pnpm --filter @open-bot/site test:e2e`  |
-| `packages/domain`       | Isomorphic types, zod schemas and pure logic; Node-only helpers in `/server`  | `pnpm --filter @open-bot/domain test`    |
-| `packages/api`          | oRPC contracts (web and mobile, worker internal, botd) and serializable views | `pnpm --filter @open-bot/api test`       |
-| `packages/chat-core`    | Chat logic web and mobile share: turns, mentions, search, formatting          | `pnpm --filter @open-bot/chat-core test` |
-| `packages/db`           | Drizzle schema, migrations, pool, NOTIFY channels and app events              | `pnpm test:integration`                  |
-| `packages/integrations` | Google and Notion: sign-in, the token store, and the integrations' adapters   | `pnpm test:integration`                  |
-| `packages/memory`       | Versioned memory and its background jobs                                      | `pnpm test:memory`                       |
-| `packages/egress`       | Tunnel framing, mux, IP policy, SOCKS; vectors shared with Kotlin             | `pnpm --filter @open-bot/egress test`    |
-| `packages/page-kit`     | Page CSS/JS, bundled libraries, page runtime and the `/page` skill            | `pnpm --filter @open-bot/page-kit test`  |
-| `packages/agent`        | Codex app-server client; `src/protocol` is generated, never edit it           | `pnpm --filter @open-bot/agent test`     |
-| `images/computer`       | The computer's Docker image and filesystem overlay                            | `pnpm computer:build`                    |
-| `e2e`                   | Playwright specs for the whole stack, plus stand-ins for outside services     | `pnpm e2e`                               |
-| `tools/showcase`        | Typed demo-data seed and screenshots for UI review                            | `pnpm --filter @open-bot/showcase seed`  |
-| `scripts/test`          | Test runners (`pg.sh` starts a throwaway Postgres)                            | -                                        |
-| `.railway`              | The Railway project as code: services, builds, watch paths                    | `pnpm test:railway`                      |
+| Folder                  | Owns                                                                          | Test                                              |
+| ----------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------- |
+| `apps/web`              | Next.js app: UI, the oRPC API for browser and mobile, SSE                     | `pnpm --filter @open-bot/web test`                |
+| `apps/worker`           | Runs teammates: run queue, tools, services, internal HTTP API, egress relay   | `pnpm --filter @open-bot/worker test`             |
+| `apps/botd`             | Daemon inside the computer: screens, Chromium, VNC, Codex proxy, leases       | `pnpm --filter @open-bot/botd test`               |
+| `apps/pages`            | Serves published pages on their own origin                                    | `pnpm turbo run test --filter=@open-bot/pages`    |
+| `apps/mobile`           | Expo Android app, native modules (egress, passkey, share intent, SMS consent) | `pnpm --filter @open-bot/mobile test`             |
+| `apps/desktop`          | Electron Mac app: egress agent and notifications                              | typecheck only                                    |
+| `apps/site`             | Landing page and the technical docs (Cloudflare)                              | `pnpm --filter @open-bot/site test:e2e`           |
+| `packages/domain`       | Isomorphic types, zod schemas and pure logic; Node-only helpers in `/server`  | `pnpm --filter @open-bot/domain test`             |
+| `packages/api`          | oRPC contracts (web and mobile, worker internal, botd) and serializable views | `pnpm --filter @open-bot/api test`                |
+| `packages/chat-core`    | Chat logic web and mobile share: turns, mentions, search, formatting          | `pnpm --filter @open-bot/chat-core test`          |
+| `packages/db`           | Drizzle schema, migrations, pool, NOTIFY channels and app events              | `pnpm test:integration`                           |
+| `packages/integrations` | Google and Notion: sign-in, the token store, and the integrations' adapters   | `pnpm test:integration`                           |
+| `packages/memory`       | Versioned memory and its background jobs                                      | `pnpm test:memory`                                |
+| `packages/egress`       | Tunnel framing, mux, IP policy, SOCKS; vectors shared with Kotlin             | `pnpm --filter @open-bot/egress test`             |
+| `packages/page-kit`     | Page CSS/JS, bundled libraries, page runtime and the `/page` skill            | `pnpm turbo run test --filter=@open-bot/page-kit` |
+| `packages/agent`        | Codex app-server client; `src/protocol` is generated, never edit it           | `pnpm --filter @open-bot/agent test`              |
+| `images/computer`       | The computer's Docker image and filesystem overlay                            | `pnpm computer:build`                             |
+| `e2e`                   | Playwright specs for the whole stack, plus stand-ins for outside services     | `pnpm e2e`                                        |
+| `tools/showcase`        | Typed demo-data seed and screenshots for UI review                            | `pnpm --filter @open-bot/showcase seed`           |
+| `scripts/test`          | Test runners (`pg.sh` starts a throwaway Postgres)                            | -                                                 |
+| `.railway`              | The Railway project as code: services, builds, watch paths                    | `pnpm test:railway`                               |
 
 ## Glossary
 

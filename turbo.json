@@ -6,15 +6,25 @@
       "dependsOn": ["^build"],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },
+    // A transit node: no package has a "transit" script, so it runs nothing. Tasks that depend
+    // on it get every workspace dependency's source in their hash, so a change in a package
+    // misses the cache of everything that imports it, without waiting on any build.
+    // A new cached task that reads other workspaces' source must depend on it too.
+    "transit": {
+      "dependsOn": ["^transit"]
+    },
+    // Workspace packages are consumed as TypeScript source, so typecheck and tests need no build.
+    // The one exception is page-kit's assembled dist/lib: the tasks that read it depend on
+    // @open-bot/page-kit#build in their package's turbo.json (packages/page-kit, apps/pages).
     "typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["transit"]
     },
     "test": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["transit"],
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/vitest.shared.mjs"]
     },
     "test:integration": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["transit"],
       "env": ["TEST_DATABASE_URL"],
       "passThroughEnv": ["CI"],
       "cache": false

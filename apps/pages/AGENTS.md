@@ -25,7 +25,7 @@ It does not render the app UI, publish pages or know who the owner is: publishin
 
 ## Tests
 
-- `pnpm --filter @open-bot/pages test` and `pnpm --filter @open-bot/pages typecheck`.
+- `pnpm turbo run test --filter=@open-bot/pages` (it builds page-kit first, see `apps/pages/turbo.json`) and `pnpm --filter @open-bot/pages typecheck`.
 - Unit suite: `apps/pages/src/server.test.ts`.
 - Built artifact: `pnpm test:artifacts` builds `apps/pages/dist/pages.mjs` and boots it on a throwaway database (`scripts/ci/boot-artifacts.mjs`), as CI does.
 - E2E: `e2e/pages.spec.ts`.

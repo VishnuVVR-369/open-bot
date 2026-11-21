@@ -1,0 +1,9 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "test": {
+      // src/server.test.ts serves the page kit's assembled dist/lib (@open-bot/page-kit/lib/*).
+      "dependsOn": ["$TURBO_EXTENDS$", "@open-bot/page-kit#build"]
+    }
+  }
+}
