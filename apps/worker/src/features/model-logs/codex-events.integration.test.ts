@@ -46,10 +46,11 @@ const MEMORY_KEY = "sk-memory-integration-secret-0123456789";
 const SAVED = { timeout: 10_000 };
 
 /**
- * Each test's own limit, with room for a full `SAVED` wait and the work around it: Vitest stops a
- * test after 5 s by default, which would cut a wait for rows that land after 6 s.
+ * Each test's own limit, with room for two full `SAVED` waits (one test makes two in a row) and
+ * the work around them: Vitest stops a test after 5 s by default, which would cut a wait for rows
+ * that land after 6 s.
  */
-const WAITS_FOR_ROWS = { timeout: 20_000 };
+const WAITS_FOR_ROWS = { timeout: 25_000 };
 
 describe.skipIf(!url)("Codex event tap", WAITS_FOR_ROWS, () => {
   const database = testDatabase(url);
