@@ -1,6 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { lookup } from "node:dns/promises";
-import type { TriggerCheck, TriggerInput as TriggerFormInput } from "@open-bot/api/worker";
+import type { TriggerCheck } from "@open-bot/api/worker";
 import {
   accountConnections,
   teammates,
@@ -14,19 +13,9 @@ import {
   describeGmailQuery,
   describeInterval,
   describeLead,
-  invalidGmailQuery,
-  integration,
-  invalidLead,
   isAccountTrigger,
-  isCalendarEventFilter,
-  TRIGGER_CONNECTION_KIND,
   describeWatchChange,
-  invalidWatchUrl,
-  isPrivateAddress,
-  MAX_WATCH_MINUTES,
-  MIN_WATCH_MINUTES,
   PAGE_TEXT_NOTE,
-  pageText,
   summarizeWatchChange,
   watchChange,
   WEBHOOK_PAYLOAD_NOTE,
@@ -37,14 +26,12 @@ import { publishApp, type Context } from "../../context";
 import { announceRun, insertRun } from "../../runs/queue";
 import { errorMessage } from "../../logger";
 import { mainChat } from "../chat";
-import { WorkerError } from "../../core/errors";
+import { fetchPage } from "./page-fetch";
+import { TriggerError, type TriggerInput, validateTrigger } from "./trigger-input";
 
 export type Trigger = typeof triggers.$inferSelect;
 
 const TICK_MS = 30_000;
-const FETCH_TIMEOUT_MS = 20_000;
-const MAX_PAGE_BYTES = 3 * 1024 * 1024;
-const MAX_REDIRECTS = 5;
 /** Checks running at once, so many watches due together don't flood the network. */
 const CHECK_CONCURRENCY = 4;
 /** A webhook can start at most this many runs an hour, so a noisy sender can't run up a bill. */
@@ -52,27 +39,6 @@ export const WEBHOOK_RUNS_PER_HOUR = 30;
 /** The same limit for Gmail and Calendar triggers, so a flood of mail can't either. */
 export const ACCOUNT_TRIGGER_RUNS_PER_HOUR = 30;
 const MAX_PAYLOAD_CHARS = 20_000;
-
-export class TriggerError extends WorkerError {
-  constructor(message: string) {
-    super(400, message);
-  }
-}
-
-/** A trigger as the owner or a teammate sets it up; see `triggerInputSchema`. */
-export type TriggerInput = TriggerFormInput;
-
-/** What a trigger saves, after its input is checked. */
-interface TriggerFields {
-  title: string;
-  prompt: string;
-  url: string | null;
-  intervalMinutes: number | null;
-  lookFor: string | null;
-  connectionId: string | null;
-  query: string | null;
-  leadMinutes: number | null;
-}
 
 export type CheckResult = TriggerCheck;
 
@@ -98,22 +64,6 @@ function payloadText(body: string, contentType: string): string {
   return text.length > MAX_PAYLOAD_CHARS
     ? `${text.slice(0, MAX_PAYLOAD_CHARS)}\n… (${text.length - MAX_PAYLOAD_CHARS} more characters)`
     : text;
-}
-
-/** Why a page couldn't be fetched, in plain words. */
-function fetchFailure(error: unknown, url: URL): string {
-  if (error instanceof DOMException && error.name === "TimeoutError")
-    return "The page took too long to answer.";
-  const cause = (error as { cause?: { code?: string; message?: string } }).cause;
-  const code = cause?.code ?? "";
-  if (code === "ENOTFOUND" || code === "EAI_AGAIN") return `Couldn't find ${url.hostname}.`;
-  if (code === "ECONNREFUSED") return `Nothing answered at ${url.host}.`;
-  if (code === "ECONNRESET" || code === "UND_ERR_SOCKET") return "The connection was cut off.";
-  if (code.startsWith("UND_ERR_CONNECT_TIMEOUT") || code === "ETIMEDOUT")
-    return "The page took too long to answer.";
-  if (/CERT|SSL|TLS/i.test(code)) return "The page's security certificate isn't valid.";
-  if (cause?.message === "bad port") return `Browsers don't allow port ${url.port}.`;
-  return "Couldn't reach the page.";
 }
 
 /**
@@ -144,83 +94,11 @@ export class TriggerService {
     return `${this.ctx.env.APP_URL.replace(/\/+$/, "")}/api/hooks/${token}`;
   }
 
-  private async validate(input: TriggerInput): Promise<TriggerFields> {
-    const title = input.title.trim();
-    const prompt = input.prompt.trim();
-    if (!title) throw new TriggerError("Give it a name.");
-    if (title.length > 80) throw new TriggerError("Keep the name under 80 characters.");
-    if (!prompt) throw new TriggerError("Say what the teammate should do when it fires.");
-    if (prompt.length > 4000)
-      throw new TriggerError("Keep the instructions under 4000 characters.");
-    const none = {
-      url: null,
-      intervalMinutes: null,
-      lookFor: null,
-      connectionId: null,
-      query: null,
-      leadMinutes: null,
-    };
-    if (input.kind === "webhook") return { title, prompt, ...none };
-    if (input.kind === "gmail") {
-      const connectionId = await this.checkConnection(input);
-      const query = input.query?.trim() ?? "";
-      const problem = invalidGmailQuery(query);
-      if (problem) throw new TriggerError(problem);
-      return { title, prompt, ...none, connectionId, query: query || null };
-    }
-    if (input.kind === "calendar") {
-      const connectionId = await this.checkConnection(input);
-      const query = input.query ?? "all";
-      if (!isCalendarEventFilter(query))
-        throw new TriggerError("Choose every event, or only events with other people.");
-      const leadMinutes = Math.round(input.leadMinutes ?? 30);
-      const problem = invalidLead(leadMinutes);
-      if (problem) throw new TriggerError(problem);
-      return { title, prompt, ...none, connectionId, query, leadMinutes };
-    }
-    const url = input.url?.trim() ?? "";
-    const problem = invalidWatchUrl(url);
-    if (problem) throw new TriggerError(problem);
-    const intervalMinutes = Math.round(input.intervalMinutes ?? 60);
-    if (intervalMinutes < MIN_WATCH_MINUTES || intervalMinutes > MAX_WATCH_MINUTES)
-      throw new TriggerError(`Check between every ${MIN_WATCH_MINUTES} minutes and once a week.`);
-    const lookFor = input.lookFor?.trim().slice(0, 200) || null;
-    return { ...none, title, prompt, url, intervalMinutes, lookFor };
-  }
-
-  /** The connection a Gmail or Calendar trigger watches: on, of its kind, and the teammate's. */
-  private async checkConnection(input: TriggerInput): Promise<string> {
-    const kind = TRIGGER_CONNECTION_KIND[input.kind as "gmail" | "calendar"];
-    const label = integration(kind).label;
-    if (!input.connectionId) throw new TriggerError(`Choose the ${label} account to watch.`);
-    const [row] = await this.ctx.db
-      .select({
-        kind: connections.kind,
-        enabled: connections.enabled,
-        teammateIds: connections.teammateIds,
-      })
-      .from(connections)
-      .where(eq(connections.id, input.connectionId));
-    if (!row || row.kind !== kind)
-      throw new TriggerError(`That ${label} account isn't connected any more.`);
-    if (!row.enabled) throw new TriggerError(`${label} is turned off in Settings → Connections.`);
-    if (row.teammateIds && !row.teammateIds.includes(input.teammateId)) {
-      const [teammate] = await this.ctx.db
-        .select({ name: teammates.name })
-        .from(teammates)
-        .where(eq(teammates.id, input.teammateId));
-      throw new TriggerError(
-        `${teammate?.name ?? "This teammate"} can't use ${label}. Give them access in Settings → Connections.`,
-      );
-    }
-    return input.connectionId;
-  }
-
   async create(
     input: TriggerInput,
     by: { kind: "user" } | { kind: "teammate"; runId: string },
   ): Promise<Trigger> {
-    const fields = await this.validate(input);
+    const fields = await validateTrigger(this.ctx.db, input);
     const [row] = await this.ctx.db
       .insert(triggers)
       .values({
@@ -244,7 +122,7 @@ export class TriggerService {
     if (!existing) throw new TriggerError("That automation no longer exists.");
     if (existing.kind !== input.kind)
       throw new TriggerError("An automation can't change its kind.");
-    const fields = await this.validate(input);
+    const fields = await validateTrigger(this.ctx.db, input);
     // A watch on a new page, or looking for new text, starts over from a fresh look at the page.
     const restart =
       existing.kind === "watch" &&
@@ -480,7 +358,7 @@ export class TriggerService {
   private async check(row: Trigger): Promise<CheckResult> {
     let text: string;
     try {
-      text = await this.fetchPage(row.url!);
+      text = await fetchPage(row.url!, this.ctx.env.WATCH_ALLOW_PRIVATE_URLS);
     } catch (error) {
       const message = errorMessage(error);
       await this.ctx.db
@@ -543,68 +421,6 @@ export class TriggerService {
       changed: false,
       summary: row.snapshot === null ? "Saw the page for the first time" : "No change",
     };
-  }
-
-  /** The page's text, following redirects and refusing private network addresses. */
-  private async fetchPage(start: string): Promise<string> {
-    let url = new URL(start);
-    for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
-      await this.assertPublic(url);
-      const response = await fetch(url, {
-        redirect: "manual",
-        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-        headers: {
-          "user-agent":
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36",
-          accept: "text/html,application/xhtml+xml,application/json,text/plain;q=0.9,*/*;q=0.8",
-          "accept-language": "en-US,en;q=0.9",
-        },
-      }).catch((error: unknown) => {
-        throw new Error(fetchFailure(error, url));
-      });
-      if (response.status >= 300 && response.status < 400) {
-        const location = response.headers.get("location");
-        if (!location)
-          throw new Error(`The page redirected (${response.status}) without saying where.`);
-        url = new URL(location, url);
-        continue;
-      }
-      if (!response.ok)
-        throw new Error(`The page answered ${response.status} ${response.statusText}.`);
-      const body = await this.readLimited(response);
-      return pageText(body, response.headers.get("content-type") ?? "");
-    }
-    throw new Error("The page redirected too many times.");
-  }
-
-  private async assertPublic(url: URL) {
-    if (url.protocol !== "http:" && url.protocol !== "https:")
-      throw new Error("Only http and https pages can be watched.");
-    if (this.ctx.env.WATCH_ALLOW_PRIVATE_URLS) return;
-    const host = url.hostname.replace(/^\[|\]$/g, "");
-    const addresses = await lookup(host, { all: true }).catch(() => {
-      throw new Error(`Couldn't find ${host}.`);
-    });
-    if (addresses.some((entry) => isPrivateAddress(entry.address)))
-      throw new Error("Pages on a private network can't be watched.");
-  }
-
-  private async readLimited(response: Response): Promise<string> {
-    const reader = response.body?.getReader();
-    if (!reader) return "";
-    const chunks: Uint8Array[] = [];
-    let size = 0;
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      size += value.byteLength;
-      if (size > MAX_PAGE_BYTES) {
-        await reader.cancel();
-        break;
-      }
-      chunks.push(value);
-    }
-    return new TextDecoder().decode(Buffer.concat(chunks));
   }
 
   /* -------------------------------------------------------------- Firing */

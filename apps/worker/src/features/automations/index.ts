@@ -11,4 +11,5 @@ export {
   ScheduleService,
 } from "./schedules";
 export { AUTOMATION_TOOLS } from "./tools";
-export { addPausedWatches, pauseTriggersOf, TriggerError, TriggerService } from "./triggers";
+export { TriggerError } from "./trigger-input";
+export { addPausedWatches, pauseTriggersOf, TriggerService } from "./triggers";

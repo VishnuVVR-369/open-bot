@@ -1,22 +1,9 @@
-import {
-  accountActions,
-  accountConnections,
-  approvals,
-  teammates,
-  connections,
-  type Queryable,
-} from "@open-bot/db";
+import { accountActions, approvals, teammates, type Queryable } from "@open-bot/db";
 import {
   type AccountActionStatus,
-  accountTool,
   ACTION_APPROVAL_TTL_MS,
   type ApprovalDecision,
-  capabilityGranted,
-  FINISHED_ACTION_STATUSES,
-  integration,
-  isAccountConnectionKind,
   rulesCover,
-  type ToolItem,
 } from "@open-bot/domain";
 import { and, asc, eq, inArray, isNotNull, isNull, lt, lte, sql, type SQL } from "drizzle-orm";
 import { publishApp, type Context } from "../../context";
@@ -38,7 +25,9 @@ import {
   type TokenSource,
 } from "@open-bot/integrations/adapters";
 import type { AccountAccess } from "./access";
+import { checkAction } from "./action-check";
 import { approvalFor } from "./effects";
+import { actionItem, actionMessage, followUp, isFinished, NEEDS_FOLLOW_UP } from "./outcomes";
 import { expireApprovals } from "../approvals";
 
 /** An action being run holds it this long; after that, the worker is taken to have stopped. */
@@ -58,67 +47,6 @@ export interface SubmitResult {
   message: string;
 }
 
-const FINISHED = new Set<string>(FINISHED_ACTION_STATUSES);
-const NEEDS_FOLLOW_UP = new Set<AccountActionStatus>([
-  "denied",
-  "failed",
-  "unknown",
-  "cancelled",
-  "expired",
-]);
-
-function isFinished(row: Pick<ActionRow, "status">): boolean {
-  return FINISHED.has(row.status);
-}
-
-/** What the teammate is told for an action in this state. */
-export function actionMessage(row: ActionRow): string {
-  const info = accountTool(row.tool);
-  const provider = info ? integration(info.kind).label : "the service";
-  switch (row.status) {
-    case "done":
-      return typeof row.result?.message === "string" ? row.result.message : "Done.";
-    case "failed":
-      return `It failed: ${row.error ?? "the provider refused it."}`;
-    case "unknown":
-      return `It may or may not have happened: ${row.error ?? "the answer was lost."} Don't do it again; tell the user, so they can check ${provider}.`;
-    case "denied":
-      return "The user didn't approve it, so it wasn't done. Don't do it, and don't ask again unless they bring it up.";
-    case "cancelled":
-      return `It was cancelled: ${row.error ?? "the connection changed."}`;
-    case "expired":
-      return "It wasn't approved within 7 days, so it won't happen.";
-    case "waiting_on_provider":
-      return `${provider} is still working on it, and it finishes by itself. Check the result later before relying on it.`;
-    default:
-      return "It's waiting for the user's approval, and happens by itself the moment they approve. Don't ask again or repeat it. End your turn and say it's ready for their approval.";
-  }
-}
-
-/** The follow-up run's prompt when an action ends after its teammate stopped waiting. */
-function followUp(row: ActionRow): string {
-  switch (row.status) {
-    case "denied":
-      return `[Not approved] The user didn't approve: ${row.summary}. It wasn't done. Don't do it. Briefly acknowledge, and continue with anything else that's left.`;
-    case "failed":
-      return `[Couldn't do it] ${row.summary} failed after the user approved it: ${row.error}. Tell the user briefly, and fix it if you can.`;
-    case "unknown":
-      return `[Unclear] ${row.summary} may or may not have happened: ${row.error}. Don't do it again. Tell the user, so they can check.`;
-    case "cancelled":
-      return `[Cancelled] ${row.summary} didn't happen: ${row.error}. Tell the user only if it still matters.`;
-    default:
-      return `[Expired] The user didn't approve ${row.summary} within 7 days, so it won't happen. Mention it only if it still matters.`;
-  }
-}
-
-/**
- * Every change to your accounts goes through here, whether it waited for you or not. It is
- * durable and at most once: an action is saved before anything happens, claimed atomically before
- * the provider is called, and checked again (connection, access, account, grant) whenever it is
- * about to run, including again after a recovery. An answer lost on the way back is looked up at
- * the provider, never blindly sent again. Integrations only supply how to run and look up their
- * own actions.
- */
 /**
  * Actions still waiting on a connection that changed or went away never run, and their approval
  * cards close. Call `AccountActions.kick()` after the transaction, so their runs hear about it.
@@ -177,6 +105,14 @@ export async function decideAccountAction(
     .where(and(eq(accountActions.approvalId, approvalId), eq(accountActions.status, "pending")));
 }
 
+/**
+ * Every change to your accounts goes through here, whether it waited for you or not. It is
+ * durable and at most once: an action is saved before anything happens, claimed atomically before
+ * the provider is called, and checked again (connection, access, account, grant) whenever it is
+ * about to run, including again after a recovery. An answer lost on the way back is looked up at
+ * the provider, never blindly sent again. Integrations only supply how to run and look up their
+ * own actions.
+ */
 export class AccountActions {
   /** Teammates waiting on an action's outcome, by action id. */
   private readonly waiters = new Map<
@@ -270,7 +206,7 @@ export class AccountActions {
       await this.ctx.db
         .insert(accountActions)
         .values({ ...values, status: "approved", decidedAt: new Date() });
-      session.putItem(this.item(values, "executing", session.now()));
+      session.putItem(actionItem(values, "executing", session.now()));
       const row = await this.execute(actionId);
       if (row && isFinished(row)) {
         this.release(actionId);
@@ -296,7 +232,7 @@ export class AccountActions {
         await tx.insert(accountActions).values({ ...values, approvalId });
       },
     );
-    session.putItem(this.item(values, "pending", session.now()));
+    session.putItem(actionItem(values, "pending", session.now()));
     const finished = await session.whileWaiting("approval", () =>
       Promise.race([outcome.promise, timeout(APPROVAL_WAIT_MS)]),
     );
@@ -336,46 +272,8 @@ export class AccountActions {
       .where(and(eq(accountActions.id, row.id), isNull(accountActions.reportedAt)))
       .returning();
     if (claimed)
-      session.putItem(this.item(claimed, claimed.status, claimed.createdAt.toISOString()));
+      session.putItem(actionItem(claimed, claimed.status, claimed.createdAt.toISOString()));
     return { status: row.status, message: actionMessage(claimed ?? row) };
-  }
-
-  /** The action's tool item in the timeline, as it stands. */
-  private item(
-    row: Pick<ActionRow, "itemId" | "tool" | "summary" | "labels" | "preview"> &
-      Partial<Pick<ActionRow, "error" | "result">>,
-    status: AccountActionStatus,
-    startedAt: string,
-  ): ToolItem {
-    const finished = FINISHED.has(status);
-    const label =
-      status === "done"
-        ? row.labels.done
-        : status === "pending"
-          ? row.labels.waiting
-          : status === "denied"
-            ? `Not approved: ${row.summary}`
-            : status === "unknown"
-              ? `${row.summary}: may or may not have happened`
-              : status === "cancelled" || status === "expired"
-                ? `Didn't happen: ${row.summary}`
-                : finished
-                  ? row.labels.failed
-                  : row.summary;
-    return {
-      id: row.itemId,
-      kind: "tool",
-      name: row.tool,
-      label: label.slice(0, 160),
-      args: row.preview ?? { summary: row.summary },
-      status: !finished ? "running" : status === "done" ? "completed" : "failed",
-      startedAt,
-      ...(finished ? { completedAt: new Date().toISOString() } : {}),
-      ...(status === "done" && typeof row.result?.message === "string"
-        ? { result: row.result.message }
-        : {}),
-      ...(finished && status !== "done" ? { error: row.error ?? label } : {}),
-    };
   }
 
   /** You decided: run the action, or let its teammate know you didn't approve it. */
@@ -413,58 +311,12 @@ export class AccountActions {
     return this.perform(claimed, "execute");
   }
 
-  /**
-   * The connection and account the action runs with, if it still may. Looking one up (`strict`
-   * false) only needs the same account, still signed in. Running it (`strict`) needs everything it
-   * was approved under to still hold: the connection on and unchanged, the teammate still allowed,
-   * the capability still allowed and granted, and the grant itself not narrowed or remade.
-   */
-  private async check(
-    action: ActionRow,
-    strict: boolean,
-  ): Promise<{ resolved: ResolvedConnection } | { reason: string }> {
-    if (!action.connectionId || !action.accountId)
-      return { reason: "The user removed the connection." };
-    const [row] = await this.ctx.db
-      .select({ connection: connections, account: accountConnections })
-      .from(connections)
-      .innerJoin(accountConnections, eq(accountConnections.id, connections.accountId))
-      .where(eq(connections.id, action.connectionId));
-    if (!row || !isAccountConnectionKind(row.connection.kind))
-      return { reason: "The user removed the connection." };
-    const kind = row.connection.kind;
-    const label = integration(kind).label;
-    if (row.account.id !== action.accountId)
-      return { reason: `${label} uses a different account now.` };
-    if (row.account.status !== "connected") return { reason: `${label} needs reconnecting.` };
-    if (strict) {
-      if (!row.connection.enabled) return { reason: `The user turned ${label} off.` };
-      if (row.connection.revision !== action.connectionRevision)
-        return { reason: `The user changed ${label}'s settings since it was asked for.` };
-      if (row.account.grantRevision !== action.grantRevision)
-        return { reason: `${label}'s sign-in changed since it was asked for.` };
-      if (
-        row.connection.teammateIds &&
-        (!action.teammateId || !row.connection.teammateIds.includes(action.teammateId))
-      )
-        return { reason: `The teammate no longer has ${label}.` };
-      const capability = accountTool(action.tool)?.capability;
-      if (
-        !capability ||
-        !row.connection.capabilities.includes(capability) ||
-        !capabilityGranted(kind, capability, row.account.scopes)
-      )
-        return { reason: `${label} no longer allows this.` };
-    }
-    return { resolved: { kind, connection: row.connection, account: row.account } };
-  }
-
   /** Run, look up, or poll an action at its provider, and record what happened. */
   private async perform(
     action: ActionRow,
     how: "execute" | "reconcile" | "poll",
   ): Promise<ActionRow> {
-    const checked = await this.check(action, how === "execute");
+    const checked = await checkAction(this.ctx.db, action, how === "execute");
     if ("reason" in checked) {
       return this.finish(
         action,
@@ -504,7 +356,7 @@ export class AccountActions {
   private async runAgain(
     action: ActionRow,
   ): Promise<ActionOutcome | { status: "cancelled"; error: string }> {
-    const checked = await this.check(action, true);
+    const checked = await checkAction(this.ctx.db, action, true);
     if ("reason" in checked) return { status: "cancelled", error: checked.reason };
     const { resolved } = checked;
     return this.integrations
@@ -732,7 +584,7 @@ export class AccountActions {
       .where(and(eq(accountActions.id, row.id), isNull(accountActions.reportedAt)))
       .returning();
     if (!claimed || !claimed.runId || !claimed.chatId) return;
-    const item = this.item(claimed, claimed.status, claimed.createdAt.toISOString());
+    const item = actionItem(claimed, claimed.status, claimed.createdAt.toISOString());
     const session = this.sessions.get(claimed.runId);
     if (session) session.putItem(item);
     else await appendRunEvent(this.ctx, claimed.runId, claimed.chatId, { type: "item", item });

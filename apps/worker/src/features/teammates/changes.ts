@@ -15,7 +15,9 @@ import type { Teammate } from "../../core/db-types";
 import type { SetupTitle, TeammateTargets } from "../../core/targets";
 import type { RunSession } from "../../runs/session";
 import type { ApprovalService } from "../approvals";
-import { TeammateError, TeammateService } from "./service";
+import { connectionAssignment } from "./connections";
+import { TeammateError } from "./errors";
+import { TeammateService } from "./service";
 
 const assignmentSchema = z
   .object({
@@ -280,7 +282,7 @@ export class TeammateTools implements TeammateTargets {
     );
     if (!connection) throw new TeammateError(404, "That connection no longer exists.");
     // Refuse before asking when it can't happen, and don't ask about a change that changes nothing.
-    const change = TeammateService.assignment(
+    const change = connectionAssignment(
       connection,
       input.teammate_id,
       input.assigned,

@@ -19,7 +19,8 @@ import type { RunSession } from "../../runs/session";
 import type { ApprovalService } from "../approvals";
 import type { ScheduleService } from "./schedules";
 import { ACCOUNT_WATCH_TOOLS } from "./account-watch-tools";
-import { TriggerError, type TriggerService } from "./triggers";
+import { TriggerError } from "./trigger-input";
+import type { TriggerService } from "./triggers";
 
 /** What the automation tools use. */
 interface AutomationToolDeps {
