@@ -14,9 +14,21 @@ import openBot from "./scripts/lint/plugin.mjs";
 const NODE_BUILTIN = `^(node:.*|(${builtinModules.filter((name) => !name.includes("/")).join("|")})(\\x2F.*)?)$`;
 
 /**
- * Bans import sources, in static imports and re-exports and in dynamic `import()` with a literal
- * source. Each ban is an exact `name` or a `regex`; a regex must not contain "/", which ends a
- * selector regex.
+ * The ways code loads a module by a fixed source that `no-restricted-imports` doesn't see: dynamic
+ * `import()` and `require()`, each with a string literal or a template literal with no `${}`.
+ * `value` is an esquery attribute test, `="name"` or `=/regex/`.
+ */
+const LOADS = (value) => [
+  `ImportExpression[source.value${value}]`,
+  `ImportExpression[source.type="TemplateLiteral"][source.expressions.length=0][source.quasis.0.value.cooked${value}]`,
+  `CallExpression[callee.type="Identifier"][callee.name="require"][arguments.0.value${value}]`,
+  `CallExpression[callee.type="Identifier"][callee.name="require"][arguments.0.type="TemplateLiteral"][arguments.0.expressions.length=0][arguments.0.quasis.0.value.cooked${value}]`,
+];
+
+/**
+ * Bans import sources: in static imports and re-exports, and in `import()` and `require()` with a
+ * fixed source (see LOADS). Each ban is an exact `name` or a `regex`; a regex must not contain
+ * "/", which ends a selector regex.
  */
 function forbidImports(bans) {
   const names = bans.filter((ban) => ban.name);
@@ -25,12 +37,12 @@ function forbidImports(bans) {
     "no-restricted-imports": ["error", { paths: names, patterns }],
     "no-restricted-syntax": [
       "error",
-      ...bans.map(({ name, regex, message }) => ({
-        selector: name
-          ? `ImportExpression[source.value=${JSON.stringify(name)}]`
-          : `ImportExpression[source.value=/${regex}/]`,
-        message,
-      })),
+      ...bans.flatMap(({ name, regex, message }) =>
+        LOADS(name ? `=${JSON.stringify(name)}` : `=/${regex}/`).map((selector) => ({
+          selector,
+          message,
+        })),
+      ),
     ],
   };
 }

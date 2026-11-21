@@ -15,9 +15,22 @@ async function boundaryErrors(filePath, code) {
     .map((m) => m.message);
 }
 
+/**
+ * Each way to import `source`: static, re-export, dynamic and `require()`, the last two also with a
+ * template literal, and a `require()` whose generic lint rule is turned off, as native modules do.
+ */
+const imported = (source) => [
+  `import * as x from "${source}";\nexport { x };\n`,
+  `export * from "${source}";\n`,
+  `export const x = () => import("${source}");\n`,
+  `export const x = () => import(\`${source}\`);\n`,
+  `export const x = require("${source}");\n`,
+  `export const x = require(\`${source}\`);\n`,
+  `// eslint-disable-next-line @typescript-eslint/no-require-imports\nexport const x = require("${source}");\n`,
+];
+
 const SERVER =
   'import { issueToken } from "@open-bot/domain/server";\nexport const x = issueToken;\n';
-const SERVER_DYNAMIC = 'export const x = () => import("@open-bot/domain/server");\n';
 
 test("the isomorphic domain folders can't import Node or the server folder", async () => {
   const file = "packages/domain/src/pages/probe.ts";
@@ -67,8 +80,8 @@ test("chat-core can't import Node, platform UI or server-only packages", async (
     const code = `import * as x from "${source}";\nexport { x };\n`;
     assert.equal((await boundaryErrors(file, code)).length, 1, source);
     assert.equal((await boundaryErrors(file, `export * from "${source}";\n`)).length, 1, source);
-    const dynamic = `export const x = () => import("${source}");\n`;
-    assert.equal((await boundaryErrors(file, dynamic)).length, 1, source);
+    for (const code of imported(source).slice(2))
+      assert.equal((await boundaryErrors(file, code)).length, 1, `${source}: ${code}`);
   }
   // A package whose name only starts with a Node module's is not Node.
   for (const source of ["path-to-regexp", "assert-never", "url-parse"]) {
@@ -90,8 +103,8 @@ test("mobile, the API contract and web client code can't import the server entry
     "apps/web/src/lib/auth-client.ts",
     "apps/web/src/app/(auth)/auth-form.tsx",
   ]) {
-    assert.equal((await boundaryErrors(file, SERVER)).length, 1, file);
-    assert.equal((await boundaryErrors(file, SERVER_DYNAMIC)).length, 1, file);
+    for (const code of imported("@open-bot/domain/server"))
+      assert.equal((await boundaryErrors(file, code)).length, 1, `${file}: ${code}`);
   }
 });
 
@@ -118,13 +131,6 @@ const NODE_ONLY = [
   "drizzle-orm",
   "drizzle-orm/pg-core",
   "ws",
-];
-
-/** Each way to import `source`: static, re-export and dynamic. */
-const imported = (source) => [
-  `import * as x from "${source}";\nexport { x };\n`,
-  `export * from "${source}";\n`,
-  `export const x = () => import("${source}");\n`,
 ];
 
 test("mobile, the API contract and web client code can't import Node or a Node-only package", async () => {
