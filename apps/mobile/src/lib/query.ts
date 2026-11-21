@@ -47,6 +47,9 @@ export const queryKeys = {
   file: (path: string) => ["file", path] as const,
   // A page push refreshes both the list and any open page.
   pages: ["pages", "list"] as const,
+  // The "computer" event refreshes everything under "egress": where traffic goes, paired phones.
+  egress: ["egress", "status"] as const,
+  egressDevices: ["egress", "devices"] as const,
   pageDetails: ["pages", "get"] as const,
   page: (pageId: string) => ["pages", "get", pageId] as const,
   /** Short-lived, so never shared with the lists the "pages" event refreshes. */

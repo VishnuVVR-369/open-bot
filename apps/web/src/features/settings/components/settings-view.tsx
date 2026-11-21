@@ -129,7 +129,7 @@ function GroupContent({ group, hash }: { group: GroupId; hash: string }) {
           <Section
             id="browsing"
             title="Browsing"
-            description="Websites often block cloud IPs. The desktop app can route the computer's browser through your home connection."
+            description="Websites often block cloud IPs. Your Mac's desktop app, or your phone, can carry the computer's browser over your own connection."
           >
             <BrowsingSection />
           </Section>

@@ -120,6 +120,8 @@ export function describeEgress(status: EgressStatusView): {
             ? "Your phone didn't answer. Open open-bot on it."
             : status.path === "blocked"
               ? "Neither your Mac nor your phone is connected."
-              : null;
+              : status.phones.length > 0 && status.phoneMode === "fallback"
+                ? "Your phone connects when teammates browse while your Mac is offline."
+                : null;
   return { label, detail };
 }

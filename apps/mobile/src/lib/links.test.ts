@@ -14,6 +14,12 @@ describe("where a notification goes", () => {
     ).toBe("/screens/t1");
   });
 
+  it("opens the phone connection when the phone didn't answer a wake", () => {
+    expect(
+      notificationHref({ kind: "egress_unanswered", chatId: null, runId: null, pageId: null }),
+    ).toBe("/phone-connection");
+  });
+
   it("otherwise opens the reply in its chat", () => {
     expect(
       notificationHref({ kind: "run_finished", chatId: "c1", runId: "r1", pageId: null }),

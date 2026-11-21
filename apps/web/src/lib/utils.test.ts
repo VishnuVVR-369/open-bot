@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { compactNumber, formatDuration, runClock } from "@/lib/utils";
+import { compactNumber, formatDuration, notificationHref, runClock } from "@/lib/utils";
 
 it("formatDuration reads like a person would say it", () => {
   expect(formatDuration(400)).toBe("0s");
@@ -23,4 +23,13 @@ it("runClock says which day a run was on, unless it was today", () => {
   expect(runClock(new Date(2026, 10, 9, 9, 0), now)).toBe("Mon 9:00 AM");
   expect(runClock(new Date(2026, 10, 2, 9, 0), now)).toBe("Nov 2, 9:00 AM");
   expect(runClock(new Date(2025, 11, 30, 9, 0), now)).toBe("Dec 30, 2025, 9:00 AM");
+});
+
+it("notificationHref sends a phone that didn't answer to Browsing settings", () => {
+  expect(
+    notificationHref({ kind: "egress_unanswered", chatId: null, runId: null, pageId: null }),
+  ).toBe("/settings#browsing");
+  expect(notificationHref({ kind: "run_finished", chatId: "c1", runId: null, pageId: null })).toBe(
+    "/chats/c1",
+  );
 });

@@ -15,6 +15,7 @@ export function notificationHref(notification: {
   if (notification.kind === "takeover_request" && notification.teammateId)
     return `/screens/${encodeURIComponent(notification.teammateId)}`;
   if (notification.kind === "approval") return "/approvals";
+  if (notification.kind === "egress_unanswered") return "/phone-connection";
   if (notification.pageId) return `/pages/${notification.pageId}`;
   if (notification.chatId) return chatHref(notification.chatId, notification.runId);
   return "/";

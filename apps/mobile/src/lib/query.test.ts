@@ -30,6 +30,18 @@ describe("live changes from another device", () => {
     client.clear();
   });
 
+  it("refreshes where browsing goes and the paired phones when the computer changes", async () => {
+    const client = new QueryClient();
+    client.setQueryData(queryKeys.egress, { path: "direct" });
+    client.setQueryData(queryKeys.egressDevices, []);
+    await Promise.all(
+      keysForAppEvent("computer").map((queryKey) => client.invalidateQueries({ queryKey })),
+    );
+    expect(client.getQueryState(queryKeys.egress)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(queryKeys.egressDevices)?.isInvalidated).toBe(true);
+    client.clear();
+  });
+
   it("refreshes the page list and an open page when a teammate publishes, but not its link", async () => {
     const client = new QueryClient();
     const list = queryKeys.pages;

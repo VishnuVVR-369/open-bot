@@ -19,12 +19,17 @@ export function chatHref(chatId: string, runId?: string | null): string {
   return runId ? `/chats/${chatId}#run-${runId}` : `/chats/${chatId}`;
 }
 
-/** Where a notification leads: the page a teammate published, else the chat it's about. */
+/**
+ * Where a notification leads: Browsing settings for a phone that didn't answer, the page a teammate
+ * published, else the chat it's about.
+ */
 export function notificationHref(notification: {
+  kind: string;
   chatId: string | null;
   runId: string | null;
   pageId: string | null;
 }): string | null {
+  if (notification.kind === "egress_unanswered") return "/settings#browsing";
   if (notification.pageId) return `/pages/${notification.pageId}`;
   return notification.chatId ? chatHref(notification.chatId, notification.runId) : null;
 }

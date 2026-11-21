@@ -3,6 +3,6 @@
 export { ComputerPage } from "./components/computer-page";
 export { ComputerPanel } from "./components/computer-panel";
 export { ScreenView } from "./components/screen-view";
-export { ComputerOffline } from "./components/screen-status";
+export { ComputerOffline, EgressPathIcon, egressPathTone } from "./components/screen-status";
 export { TakeOverButton } from "./components/takeover-buttons";
 export { useComputer } from "./hooks";

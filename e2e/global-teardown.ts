@@ -50,6 +50,8 @@ export default async function globalTeardown() {
     await pool.query("delete from uploads where name like $1", slug);
     await pool.query("delete from vault_items where name like $1", label);
     await pool.query("delete from connections where label like $1", label);
+    // Phones paired by a spec (Browsing settings); revoked ones stay as rows until now.
+    await pool.query("delete from egress_devices where name like $1", label);
     // Pages outlive their teammate, so the run's go first.
     await pool.query(`delete from pages where title like $2 or teammate_id in (${theirs})`, [
       ...teammates,
