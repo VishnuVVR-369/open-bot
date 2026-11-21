@@ -3,6 +3,5 @@
   "apps/worker/src/egress/relay.test.ts": 622,
   "apps/worker/src/features/automations/triggers.ts": 607,
   "apps/worker/src/features/integrations/actions.ts": 674,
-  "apps/worker/src/features/teammates/service.ts": 686,
-  "packages/memory/src/index.ts": 813
+  "apps/worker/src/features/teammates/service.ts": 686
 }
