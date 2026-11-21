@@ -22,4 +22,15 @@ describe("a phone notification", () => {
     const { data } = nativeNotification({ ...reply, kind: "cap_reached", teammateId: null });
     expect(data).not.toHaveProperty("teammateId");
   });
+
+  it("opens the phone connection when the phone didn't answer a wake", () => {
+    const { data } = nativeNotification({
+      ...reply,
+      kind: "egress_unanswered",
+      teammateId: null,
+      chatId: null,
+      runId: null,
+    });
+    expect(data.url).toBe("/phone-connection");
+  });
 });

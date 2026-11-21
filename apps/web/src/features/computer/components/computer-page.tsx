@@ -1,10 +1,10 @@
 "use client";
 
-import type { ScreenFrame as LastFrame } from "@open-bot/api";
+import { describeEgress, type ScreenFrame as LastFrame } from "@open-bot/api";
 import { fileSize } from "@open-bot/chat-core";
 import { relativeTime } from "@open-bot/domain";
 import { useQuery } from "@tanstack/react-query";
-import { CloudOff, Globe, Hand, Home } from "lucide-react";
+import { CloudOff, Hand } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { TeammateAvatar } from "@/components/teammate-avatar";
@@ -14,6 +14,7 @@ import { STATUS, teammateStatus, type TeammateStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
 import { type ScreenInfo, useComputer, useFollowedScreen } from "../hooks";
 import { ScreenFrame } from "./screen-glass";
+import { EgressPathIcon, egressHint, egressPathTone } from "./screen-status";
 import { ScreenControls } from "./screen-controls";
 import type { ScreenHandle } from "./screen-view";
 
@@ -186,7 +187,7 @@ export function ComputerPage({ initialScreen }: { initialScreen: string | null }
   const [picked, setPicked] = useState<string | null>(initialScreen);
   const screenId = picked && teammateIds.includes(picked) ? picked : followed.screenId;
   const health = state?.computer.health;
-  const home = egress && egress.mode !== "off" && egress.agentOnline;
+  const pathTone = egress ? egressPathTone(egress.path) : "off";
   const running = health?.screens.filter((s) => s.state === "running").length ?? 0;
 
   // Keep the address in step with the screen you're looking at, so it can be shared or reloaded.
@@ -323,23 +324,26 @@ export function ComputerPage({ initialScreen }: { initialScreen: string | null }
               href="/settings#browsing"
               className="flex items-start gap-3 rounded-xl bg-card shadow-raised px-3.5 py-3 transition-shadow hover:shadow-float"
             >
-              {home ? (
-                <Home className="mt-0.5 size-4 shrink-0 text-done" />
-              ) : (
-                <Globe className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-              )}
-              <span className="flex flex-col gap-0.5">
+              <EgressPathIcon
+                path={egress?.path ?? "direct"}
+                className={cn(
+                  "mt-0.5 size-4 shrink-0",
+                  pathTone === "on"
+                    ? "text-done"
+                    : pathTone === "attention"
+                      ? "text-attention"
+                      : "text-muted-foreground",
+                )}
+              />
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span className="text-[14px] font-medium">
-                  {home ? "Your home internet" : "The computer's own internet"}
+                  {egress ? describeEgress(egress).label : "Direct from the cloud"}
                 </span>
                 <span className="text-[12.5px] leading-snug text-pretty text-muted-foreground">
-                  {home && egress?.stats
-                    ? `Sites see your home connection. ${egress.stats.openStreams} open connections, ${fileSize(egress.stats.bytesIn + egress.stats.bytesOut)} passed through.`
-                    : home
-                      ? "Sites see your home connection, by way of your desktop app."
-                      : egress?.mode === "off"
-                        ? "Sites see the computer's internet. You can browse from your home connection instead in Settings."
-                        : "Sites see the computer's internet. Open the desktop app to browse from your home connection instead."}
+                  {egress ? egressHint(egress) : "Sites see the computer's own internet."}
+                  {pathTone === "on" && egress?.stats
+                    ? ` ${egress.stats.openStreams} open connections, ${fileSize(egress.stats.bytesIn + egress.stats.bytesOut)} passed through.`
+                    : ""}
                 </span>
               </span>
             </Link>

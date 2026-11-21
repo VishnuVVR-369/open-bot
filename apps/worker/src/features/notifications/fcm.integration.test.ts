@@ -177,7 +177,11 @@ describe.skipIf(!url)("FCM fan-out", () => {
       } satisfies NotificationEvent);
       await until(() => sent.length === 1);
       expect(sent[0]!.android.priority).toBe("HIGH");
-      expect(sent[0]!.data).toMatchObject({ url: "/chats/c1?run=r1", tag: "r1" });
+      // An unanswered phone opens the phone connection, never a chat.
+      expect(sent[0]!.data).toMatchObject({
+        url: kind === "egress_unanswered" ? "/phone-connection" : "/chats/c1?run=r1",
+        tag: "r1",
+      });
       expect(sent[0]!.data.body).toHaveLength(180);
       expect(sent[0]!.data).not.toHaveProperty("approvalId");
     },

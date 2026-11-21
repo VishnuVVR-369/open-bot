@@ -8,6 +8,7 @@ import { Button } from "@/components/button";
 import { LastFrames } from "@/features/computer/components/last-frames";
 import { ScreenCard, type ScreenAction } from "@/features/computer/components/screen-card";
 import { ConnectionNotice } from "@/features/computer/components/connection-notice";
+import { PathChip } from "@/features/computer/components/path-chip";
 import { ListRow, Separator } from "@/components/list-row";
 import { Card, Section } from "@/components/section";
 import { Empty, LoadError, Loading } from "@/components/states";
@@ -92,7 +93,9 @@ export default function Computer() {
   const colors = useColors();
   const bottom = useSafeBottom({ tabs: true });
   const screens = useScreens();
-  const { refreshing, onRefresh } = usePullToRefresh(screens.refetch);
+  const { refreshing, onRefresh } = usePullToRefresh(() =>
+    Promise.all([screens.refetch(), queryClient.invalidateQueries({ queryKey: queryKeys.egress })]),
+  );
   // What each screen is in the middle of, so waking one doesn't hold up the others.
   const [pending, setPending] = useState<Record<string, ScreenAction>>({});
   const { live, offline } = useMemo(() => {
@@ -154,6 +157,7 @@ export default function Computer() {
         />
       )}
       {allOffline && <OfflineBanner onRetry={() => void onRefresh()} retrying={refreshing} />}
+      {!allOffline && <PathChip />}
       {live.map((screen) => (
         <ScreenCard
           key={screen.id}

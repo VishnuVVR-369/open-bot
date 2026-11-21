@@ -6,6 +6,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import {
   BellOff,
   BellRing,
+  Cable,
   ChevronRight,
   Fingerprint,
   Globe,
@@ -40,6 +41,8 @@ import { haptics } from "@/lib/haptics";
 import { addPasskey } from "@/lib/passkey";
 import { setPreference, usePreferences, type Preferences } from "@/lib/preferences";
 import { useApprovalRules } from "@/features/approvals/hooks";
+import { useNativeEgress } from "@/features/settings/hooks";
+import { phoneState } from "@/features/settings/phone-connection";
 import { signOut } from "@/lib/session";
 import { hasFirebase } from "@/push/firebase";
 import { useSafeBottom } from "@/lib/use-safe-bottom";
@@ -83,6 +86,10 @@ export default function Settings() {
   const [passwordOpen, setPasswordOpen] = useState<false | "change" | "passkey">(
     password === "new" ? "change" : false,
   );
+  const phone = useNativeEgress();
+  const phoneConnectionSubtitle = phone.status.paired
+    ? phoneState(phone.status).label
+    : "Let teammates browse through this phone when your Mac is offline";
   const name = session?.user.name?.trim() || "You";
   const host = new URL(APP_URL).host;
 
@@ -216,6 +223,19 @@ export default function Settings() {
                 testID="test-notification"
               />
             )}
+          </Card>
+        </Section>
+
+        <Section title="Browsing">
+          <Card>
+            <SettingsRow
+              icon={(color) => <Cable size={18} color={color} />}
+              title="Phone connection"
+              subtitle={phoneConnectionSubtitle}
+              onPress={() => router.push("/phone-connection")}
+              aside={<ChevronRight size={18} color={colors.mutedForeground} />}
+              testID="settings-phone-connection"
+            />
           </Card>
         </Section>
 

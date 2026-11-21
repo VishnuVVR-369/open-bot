@@ -119,6 +119,13 @@ export function usePushNotifications(signedIn: boolean) {
   }, [signedIn]);
 }
 
+/** This phone's FCM token, for waking its phone connection; null without Firebase. */
+export async function currentPushToken(): Promise<string | null> {
+  const fcm = messaging();
+  if (!fcm) return null;
+  return fcm.getToken(fcm.getMessaging()).catch(() => null);
+}
+
 /** On sign-out: stop notifications to this phone, on the server and in Firebase. */
 export async function unregisterPushNotifications(): Promise<void> {
   const fcm = messaging();

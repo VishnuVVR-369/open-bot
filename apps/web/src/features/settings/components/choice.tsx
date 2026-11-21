@@ -29,7 +29,7 @@ export function Choice({
     >
       <span
         className={cn(
-          "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border",
+          "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border border-muted-foreground/45",
           checked && "border-foreground bg-foreground",
         )}
       >

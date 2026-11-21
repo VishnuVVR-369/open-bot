@@ -6,12 +6,13 @@ export const metadata = docMetadata("/docs/architecture/desktop-and-egress");
 
 The desktop app is a thin Electron shell around the web app, with one important extra: an **egress agent**.
 It carries the computer's browser traffic out through your own internet connection, so websites see your home IP instead of a datacenter's.
+The Android app can run the same agent, so your phone carries the traffic while your Mac is offline, or always (see [Your phone as a connection](#your-phone-as-a-connection)).
 
 ## Why egress exists
 
 Many websites block or challenge traffic from cloud providers' IP ranges, with CAPTCHAs, extra sign-in checks, or outright refusals.
 A teammate browsing from a cloud computer would hit those walls all day.
-Routing the browser through your Mac makes it look like you, browsing from home.
+Routing the browser through your Mac, or your phone, makes it look like you.
 
 Only browser traffic takes this path.
 Codex's model traffic, package installs and anything else the shell does go straight out from the computer, to stay fast.
@@ -49,18 +50,19 @@ The framing, the multiplexer and the SOCKS server are covered by contract tests 
 
 ## Egress modes
 
-The mode is set in Settings and stored in `computers.egress_mode`.
+The mode is set in Settings → Browsing and stored in `computers.egress_mode`.
 The worker sends it to botd as a `config` message whenever it changes or the tunnel reconnects.
+"A device" below is your Mac's desktop app or a paired phone, whichever the relay picks (see [Which device carries the traffic](#which-device-carries-the-traffic)).
 
-| Mode                         | Your Mac online  | Your Mac offline             |
-| ---------------------------- | ---------------- | ---------------------------- |
-| **Off**                      | Direct           | Direct                       |
-| **Prefer desktop** (default) | Through your Mac | Direct, until it reconnects  |
-| **Require desktop**          | Through your Mac | New browser connections fail |
+| Mode                                      | A device online     | No device online             |
+| ----------------------------------------- | ------------------- | ---------------------------- |
+| **Off**                                   | Direct              | Direct                       |
+| **Prefer my devices** (`prefer`, default) | Through that device | Direct, until one connects   |
+| **Only through my devices** (`require`)   | Through that device | New browser connections fail |
 
 Some sites challenge a session when its IP address changes.
-If your teammates use such sites, choose **Require desktop**, so the browser never silently switches to the computer's own address.
-The computer panel shows which path is in use.
+If your teammates use such sites, choose **Only through my devices**, so the browser never silently switches to the computer's own address.
+The computer page, the screen's toolbar chip and the phone's Computer tab show which path is in use: "Through your Mac", "Through your phone", "Direct from the cloud", "Waiting for your phone" or "Browsing paused", with the reason when it isn't one of yours.
 
 ## The egress agent
 
@@ -90,6 +92,79 @@ The agent refuses that:
 - It then connects to the resolved address, not the name, so a DNS answer can't change between the check and the connection (DNS rebinding).
 - Ports must be integers from 1 to 65535.
 
+## Your phone as a connection
+
+The Android app's phone connection (`apps/mobile/modules/egress`) is a second kind of agent.
+It speaks the same tunnel protocol, from a Kotlin core (`modules/egress/core`) that is tested against the same vectors as `@open-bot/egress`, and it runs in a native foreground service, without React Native.
+You turn it on in the phone app under Settings → Phone connection; the screen and its flows are in [The Android app](/docs/flows/android-app#phone-connection).
+
+### Phone modes
+
+The phone mode is one setting for every paired phone, stored in `computers.phone_egress` and changed from either app:
+
+| Phone mode                                       | What the phone does                                                          |
+| ------------------------------------------------ | ---------------------------------------------------------------------------- |
+| **When my Mac is offline** (`fallback`, default) | Woken only while your Mac's agent is offline and teammates need the browser. |
+| **Always, before my Mac** (`always`)             | Stays connected and carries the traffic first; the Mac stands by.            |
+| **Never** (`off`)                                | Never carries traffic, even when paired.                                     |
+
+The egress mode still applies on top: with egress **Off**, no device carries traffic at all.
+
+### Which device carries the traffic
+
+The worker's `EgressRelay` keeps every connected agent and picks one active agent: in `fallback` the newest Mac, else the newest phone; in `always` the newest phone, else the Mac.
+A newer connection from the same device replaces the older one.
+Every other agent gets `role: standby` and only finishes the streams it already carries; after two minutes the relay resets what a Mac still carries, and lets a phone go, which stops its service.
+The relay pings every agent every 15 seconds and drops one that stops answering.
+
+### Waking the phone
+
+A phone in `fallback` is not connected most of the time, so the worker's wake controller (`apps/worker/src/egress/wake.ts`) brings it in on demand:
+
+1. botd reports demand when a screen's browser opens a connection, and the worker counts leased screens as demand too.
+2. With demand, no active agent and a paired phone, the worker sends that phone a high-priority FCM data message, `egress-needed` with stage `wake` (`apps/worker/src/features/notifications/fcm.ts`).
+   The phone's native messaging service starts the foreground service without starting JavaScript, and ignores a wake more than two minutes old.
+3. No connection after 30 seconds: one more `wake`. After 60 seconds: `ask`, a notification you tap to start it, since a tap is one of Android's allowed background starts.
+4. Still nothing: the episode ends, the phone is marked as not answering, and you get "Your phone didn't answer" through your other channels (the web app, web push, Telegram) at most once an hour, since the phone's own push may be what failed.
+   A new episode can start 15 minutes later if there is still demand.
+
+In `always`, the worker wakes a disconnected phone with backoff (30 seconds, 2 minutes, 10 minutes, then every 30 minutes), and the phone restarts its service at boot.
+After the worker restarts it waits 60 seconds for agents to reconnect on their own before waking anything.
+In `fallback`, the phone is released when your Mac returns (after that two-minute grace) or after 10 minutes without demand, and its service stops.
+
+A phone that can't help says why (`POST /api/egress/device/unavailable`): on mobile data with Wi-Fi only on, over its monthly mobile data limit, low battery, Low Power Standby, or stopped by you.
+The worker doesn't wake it again for 15 minutes, and the reason shows in the status.
+
+### Holding connections while the phone wakes
+
+While a wake is pending, botd's `EgressRouter` holds new browser connections instead of going direct or failing, so a teammate's first page after a wake can go through the phone.
+If the phone isn't connected when the hold ends, the connection follows the mode: direct with **Prefer my devices**, refused with **Only through my devices**.
+Chromium gives a SOCKS connection about 30 seconds, so a hold ends at the latest 8 seconds before a 28-second deadline, leaving time to open the stream; a held connection then follows the mode as usual.
+
+### The device credential
+
+Pairing (`egress.registerDevice`, with your session) creates a row in `egress_devices` with a random 256-bit secret, of which the server keeps only a SHA-256 hash, and a generation number.
+The phone keeps the secret encrypted with an Android Keystore key, out of backups, and never hands it back to JavaScript.
+With it, the phone calls the device routes under `/api/egress/device` (token, unavailable, push token) with `Authorization: Bearer` and its device id; the token route returns a 120-second egress token naming the phone and its generation, and the phone mode.
+The credential can only get egress tokens: it never sees your session, and your session never sees it.
+
+Pairing again rotates the secret and bumps the generation, so tokens from the earlier pairing stop working.
+Revoking (Remove on the web, "Turn off for this phone", or signing out on the phone) marks the row revoked and tells the relay, which closes the phone's tunnel with code `4401`; a reconciler catches a revoke the relay missed.
+A revoke carries the generation it is meant for, so a revoke delayed by an offline sign-out can't undo a later pairing.
+A phone told `4401`, or `401` by a device route, for its current generation forgets the credential and says so in a notification.
+
+### The phone's rules
+
+The phone agent applies the same address rules as the desktop app: it resolves names itself, refuses private, loopback, link-local, carrier-grade NAT and other reserved ranges (including NAT64 prefixes), and connects to the address it checked.
+On top of that it follows rules you set on the phone:
+
+- **Wi-Fi only** (on by default): it relays only on an unmetered network, with its sockets bound to it, so traffic never moves to mobile data.
+- **Monthly mobile data limit** (2 GB by default): both legs count while on mobile data, and the count resets on the first of the month.
+- **Pause on low battery** (on by default): below 20% and not charging, until it is above 25% or charging.
+- **Low Power Standby** (Android 13 and later) cuts networking even for foreground services, so the phone pauses while it is on and the app isn't exempt.
+
+In `always`, a paused phone keeps its notification and resumes by itself when the rule clears; in `fallback`, it reports why and stops.
+
 ## The Electron shell
 
 `apps/desktop/src/main.ts` keeps the shell small:
@@ -97,7 +172,7 @@ The agent refuses that:
 - **The window** loads the web app (`OPEN_BOT_URL`, or `http://localhost:3000` in development) with `contextIsolation`, `sandbox` and no Node integration. The preload script exposes one value, `openBotDesktop.platform`, so the web app knows it runs inside the desktop app.
 - **Navigation** stays inside the app's origin. Any other link opens in your default browser.
 - **Permissions** are granted only to the app's own origin, and only for notifications, the clipboard and fullscreen.
-- **The tray** shows whether browsing goes through this Mac, with Reconnect, Open the computer, and Open at login.
+- **The tray** shows whether browsing goes through this Mac, or "Standing by" while a phone carries it, with Reconnect, Open the computer, and Open at login.
 - **Closing the window** hides it and keeps the app in the menu bar, so egress keeps working. Quitting stops the agent.
 - **Shortcuts and links.** `Cmd+Shift+Space` brings the window forward from anywhere. `openbot://chats/<id>` links open that chat. A single-instance lock routes a second launch to the first.
 
@@ -105,6 +180,7 @@ Notifications in the desktop app are the web app's own notifications, which Elec
 
 ## Limits
 
-- Egress works only while the desktop app runs and your Mac is awake and online. The tray keeps it running with the window closed. Sleep stops it.
-- With **Require desktop**, teammates can't browse at all while your Mac is offline.
+- Egress works only while the desktop app runs and your Mac is awake and online, or while a paired phone can carry it. The tray keeps the Mac's agent running with the window closed. Sleep stops it.
+- With **Only through my devices**, teammates can't browse at all while neither your Mac nor a phone is connected.
+- Byte counts are what the agents relay, not what the radio sends, so a phone's data use can be somewhat higher than its count.
 - The egress proxy is a browser setting, not a network rule. A process on the computer that ignores the proxy settings goes out directly. See [Security model](/docs/security#known-risks).

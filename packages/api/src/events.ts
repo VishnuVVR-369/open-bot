@@ -17,7 +17,8 @@ export type ProcedurePath = {
 export const APP_EVENT_REFRESHES: Record<AppEventType, readonly ProcedurePath[]> = {
   memory: [["memory"]],
   lease: [["screens", "list"]],
-  computer: [["screens", "list"]],
+  // The computer's health and where its browser traffic goes (the Mac, the phone, or direct).
+  computer: [["screens", "list"], ["egress"]],
   notification: [["notifications"]],
   approvals: [["approvals"]],
   takeovers: [["screens", "list"]],

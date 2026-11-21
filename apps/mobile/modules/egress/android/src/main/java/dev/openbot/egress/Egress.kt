@@ -165,12 +165,17 @@ object Egress {
     changed()
   }
 
-  /** Sign-out, or "Turn off for this phone": forget the pairing without telling the worker anything. */
-  fun forget(context: Context) {
-    CredentialStore.clear(context)
+  /**
+   * Sign-out, "Turn off for this phone", or undoing a pairing: forget the pairing without telling
+   * the worker anything. With [generation], only that pairing's, checked and cleared in one step,
+   * so a pairing stored meanwhile is never erased. Returns whether one was forgotten.
+   */
+  fun forget(context: Context, generation: Int? = null): Boolean {
+    if (!CredentialStore.clear(context, generation)) return false
     RunStateStore.write(context, RunPhase.OFF)
     DeviceWork.cancelAll(context)
     Notices.clearPairing(context)
     changed()
+    return true
   }
 }

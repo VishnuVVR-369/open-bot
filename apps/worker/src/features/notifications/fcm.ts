@@ -59,6 +59,7 @@ const MAX_BODY = 180;
 /** The phone's in-app route for a notification. */
 function nativeUrl(event: NotificationEvent): string {
   if (event.kind === "approval" && event.approvalId) return `/approvals/${event.approvalId}`;
+  if (event.kind === "egress_unanswered") return "/phone-connection";
   if (event.pageId) return `/pages/${event.pageId}`;
   if (event.chatId) return `/chats/${event.chatId}${event.runId ? `?run=${event.runId}` : ""}`;
   return "/";

@@ -16,6 +16,7 @@ import { LockScreen } from "@/components/lock-screen";
 import { ComputerAccess } from "@/features/computer/computer-access";
 import { authClient } from "@/lib/auth";
 import { useAppLock } from "@/lib/lock";
+import { usePendingRevokes } from "@/lib/phone-egress";
 import { loadPreferences } from "@/lib/preferences";
 import { useTrackPresence } from "@/lib/presence";
 import { queryClient, setUnauthorizedHandler } from "@/lib/query";
@@ -52,6 +53,8 @@ function App() {
   const lock = useAppLock(isPending ? "pending" : signedIn ? "signedIn" : "signedOut");
   usePushNotifications(signedIn);
   useTrackPresence(signedIn);
+  // A phone connection that an offline sign-out couldn't revoke is revoked once back.
+  usePendingRevokes(signedIn);
   // Something shared from another app opens once you're signed in and past the lock.
   useIncomingShares(signedIn && !lock.locked && !lock.checking);
 
@@ -104,6 +107,7 @@ function App() {
               <Stack.Screen name="search" options={{ title: "Search", animation: "fade" }} />
               <Stack.Screen name="file" options={{ title: "" }} />
               <Stack.Screen name="approval-rules" options={{ title: "Always allowed" }} />
+              <Stack.Screen name="phone-connection" options={{ title: "Phone connection" }} />
               <Stack.Screen name="pages/[pageId]" options={{ title: "" }} />
               <Stack.Screen name="share" options={{ title: "Share with a teammate" }} />
             </Stack.Protected>

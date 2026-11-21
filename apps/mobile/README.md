@@ -163,9 +163,12 @@ Debug builds use password sign-in unless their signing certificate is explicitly
 The phone can carry teammates' browsing when your Mac is offline (or always, if you choose), through a native foreground service in the local Expo module [`modules/egress`](modules/egress).
 A high-priority FCM data message wakes it without starting React Native; its protocol core is a plain Kotlin project in `modules/egress/core`, tested with `./gradlew test` there against the vectors in `packages/egress/test-vectors`.
 
+Turn it on in the app under Settings → Phone connection, which pairs the phone, shows where traffic goes, and sets when it helps and its rules.
+Signing out stops it and unpairs the phone first.
+
 Development builds have no Firebase, so a `DebugWakeReceiver` takes the same data from adb instead, and runs the same code.
 It exists only in the development variant, and only the shell can reach it.
-Pair a development build with the local stack without the app's screens, then send it a wake:
+Pair from the screen, or pair a development build with the local stack from the command line, then send it a wake:
 
 ```sh
 cd apps/mobile
@@ -176,7 +179,7 @@ adb shell am broadcast -f 0x20 -a dev.openbot.egress.DEBUG_WAKE -p dev.openbot.m
 
 ## How it fits together
 
-- `src/app`: thin Expo Router entries that re-export feature screens, plus the navigation layouts. The tabs in `src/app/(tabs)` are Home, Chats, Approvals, Computer and Pages; the stack adds a chat, a page, a screen, a teammate, an approval, search, notifications, file previews, approval rules, new chat, share and Settings.
+- `src/app`: thin Expo Router entries that re-export feature screens, plus the navigation layouts. The tabs in `src/app/(tabs)` are Home, Chats, Approvals, Computer and Pages; the stack adds a chat, a page, a screen, a teammate, an approval, search, notifications, file previews, approval rules, new chat, share, Settings and Phone connection.
 - `src/features/computer/components/computer-screen.tsx` and `src/features/computer/components/screen-page.tsx`: the screens list, live view, touch takeover, keyboard and hand-back.
 - `src/computer/viewer.ts`: the browser client; `pnpm build:viewer` bundles noVNC into the generated `src/computer/viewer-html.ts`, and `pnpm check:viewer` checks it is current.
 - `src/features/<feature>`: feature screens, query hooks, logic and co-located tests; presentation components live in each feature's `components/` folder. Features can compose other features directly, but never import routes.

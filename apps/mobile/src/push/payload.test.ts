@@ -43,6 +43,17 @@ describe("phone notifications", () => {
     });
   });
 
+  it("shows nothing for a phone connection wake, which the native service handles", () => {
+    const wake = parsePushData({
+      type: "egress-needed",
+      tag: "egress",
+      stage: "wake",
+      sentAt: "2026-11-21T10:00:00Z",
+    });
+    expect(wake?.type).toBe("egress-needed");
+    expect(planNotification(wake!)).toBeNull();
+  });
+
   it("opens a screen for takeover actions and keeps code submission in the foreground", () => {
     const asking = planNotification(
       parsePushData({

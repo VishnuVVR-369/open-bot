@@ -64,7 +64,7 @@ Silent dismissal messages use normal priority.
 
 ## Settings
 
-Settings, from your initial on Home, has Light, Dark or System appearance and a switch for haptics.
+Settings, from your initial on Home, has Light, Dark or System appearance, a switch for haptics, notifications, the [phone connection](#phone-connection), and security (app lock, password and passkeys, Always allowed rules).
 Animations follow Android's Remove animations setting.
 
 ## The computer on your phone
@@ -116,9 +116,43 @@ A notification about a published page opens the page.
 
 ## Phone connection
 
-The phone can carry teammates' browsing when your Mac is offline, or always, if you choose.
+Websites often block cloud computers, so teammates' browser can go online through your own devices instead.
+The phone can carry that traffic when your Mac is offline, or always, if you choose.
 A native foreground service runs the same egress agent as the desktop app, without starting React Native, and a high-priority push wakes it when the computer needs a connection.
-See [Desktop app and egress](/docs/architecture/desktop-and-egress) for the tunnel it carries.
+How it works underneath (modes, waking, the device credential) is in [Desktop app and egress](/docs/architecture/desktop-and-egress#your-phone-as-a-connection).
+
+### Turning it on
+
+Open Settings → Phone connection.
+While it's off, the screen explains what it costs: pages teammates load use the phone's data (Wi-Fi only unless you allow mobile data), it runs while teammates need it (or all the time, if you choose Always), and some sites ask teammates to sign in again when traffic moves between your Mac, your phone and the cloud.
+Use this phone's connection pairs the phone.
+It first checks that notifications are allowed, including the Phone connection channel, because without them you would never see "Tap to start" or why it paused; if either is off, it says so and opens Android's settings for it.
+If phones were set to Never, pairing sets them to When my Mac is offline.
+
+### While it's on
+
+The screen shows where teammates' browser goes online right now ("Through your Mac", "Through your phone", "Direct from the cloud", "Waiting for your phone" or "Browsing paused", with why), what this phone is doing (carrying traffic, standing by, ready, paused and why, or stopped by you), and the data it used today and this month, with how much of it was mobile data.
+Start now and Stop start or stop it by hand; after Stop, teammates can't wake it for 15 minutes, and in Always it stays off until you start it.
+
+- **When it helps**: When my Mac is offline, Always (before my Mac), or Never. This applies to every paired phone, and the web's Settings → Browsing changes the same setting.
+- **Rules for this phone**: Wi-Fi only, a monthly mobile data limit (2 GB unless you pick another), and pausing below 20% battery while not charging. Each pause posts a short notification saying why.
+- **Paired phones**: every phone with its last use; Remove unpairs another one.
+- **Turn off for this phone** stops the service, forgets its credential and unpairs it.
+
+If a wake goes unanswered and Android may be holding the app back to save battery, the screen offers Allow in background, and on Xiaomi phones also says to turn on Autostart.
+If Low Power Standby is on, it says that too, since Android cuts the connection while the screen is off.
+When browsing through your devices is off altogether, a notice offers to turn it on.
+A "Your phone didn't answer" notification opens this screen.
+
+The Computer tab shows the same path at the top, and tapping it opens Phone connection.
+
+### Signing out
+
+Signing out stops the phone connection first: the service stops and the phone forgets its credential before anything else is cleared.
+Then the app unpairs the phone while the session still works; if it can't reach the server, it remembers to, for that pairing only, and does it once you're signed in again.
+The same goes for Turn off for this phone while offline.
+A phone removed from the web or another phone forgets its pairing the next time its Phone connection screen loads the list, or when it next tries to connect.
+A session that ends elsewhere (a password change on the web, for example) signs the phone out the same way.
 
 ## Sharing to a teammate
 

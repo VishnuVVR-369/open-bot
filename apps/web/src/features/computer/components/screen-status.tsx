@@ -1,7 +1,18 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { CloudOff, Globe, Hand, Home, Loader2, Power } from "lucide-react";
+import { describeEgress, type EgressPath, type EgressStatusView } from "@open-bot/api";
+import {
+  CirclePause,
+  Cloud,
+  CloudOff,
+  Hand,
+  Hourglass,
+  Laptop,
+  Loader2,
+  Power,
+  Smartphone,
+} from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useTransition } from "react";
@@ -92,34 +103,62 @@ export function ScreenBadge({ info }: { info: ScreenInfo }) {
   );
 }
 
+/** How a path reads at a glance: ours (green), on its way, needing you, or plain cloud. */
+export function egressPathTone(path: EgressPath): "on" | "waiting" | "attention" | "off" {
+  if (path === "desktop" || path === "phone") return "on";
+  if (path === "waiting") return "waiting";
+  if (path === "blocked") return "attention";
+  return "off";
+}
+
+/** The icon for where the computer's browser goes online. */
+export function EgressPathIcon({ path, className }: { path: EgressPath; className?: string }) {
+  const Icon = {
+    desktop: Laptop,
+    phone: Smartphone,
+    direct: Cloud,
+    waiting: Hourglass,
+    blocked: CirclePause,
+  }[path];
+  return <Icon className={className} />;
+}
+
+/** What websites see a teammate's browser come from, with a line on why when it isn't yours. */
+export function egressHint(egress: EgressStatusView): string {
+  const { detail } = describeEgress(egress);
+  const lead = {
+    desktop: "Browsing through your Mac, so websites see your home connection.",
+    phone: "Browsing through your phone, so websites see your phone's connection.",
+    direct: "Browsing on the computer's own internet. Websites see the cloud computer.",
+    waiting: "Waking your phone to carry the browsing. New pages wait for it.",
+    blocked:
+      "Browsing only through your devices is on, and none is connected, so pages don't load.",
+  }[egress.path];
+  return detail ? `${lead} ${detail}` : lead;
+}
+
 export function EgressChip({ initial }: { initial?: AppState }) {
   const { egress } = useComputer(initial);
   if (!egress) return null;
-  const home = egress.mode !== "off" && egress.agentOnline;
-  const blocked = egress.mode === "require" && !egress.agentOnline;
-  const label = home ? "Home internet" : blocked ? "Browsing paused" : "Computer's internet";
-  const hint = home
-    ? "Browsing through your home internet, by way of your desktop app, so websites see your home."
-    : blocked
-      ? "Browsing only through your home internet is on, and the desktop app isn't open. Open it so pages load."
-      : egress.mode === "off"
-        ? "Browsing on the computer's own internet. Websites see the cloud computer, not your home."
-        : "Browsing on the computer's own internet, since the desktop app isn't open.";
+  const { label } = describeEgress(egress);
+  const tone = egressPathTone(egress.path);
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Link
           href="/settings#browsing"
+          aria-label={label}
+          data-testid="egress-chip"
           className={cn(
             "flex h-7 items-center gap-1.5 rounded-full px-2.5 text-[12px] font-medium text-bezel-foreground/70 transition-colors hover:bg-white/[0.06] hover:text-bezel-foreground",
-            blocked && "text-attention",
+            tone === "attention" && "text-attention",
           )}
         >
-          {home ? <Home className="size-3.5" /> : <Globe className="size-3.5" />}
+          <EgressPathIcon path={egress.path} className="size-3.5" />
           <span className="hidden 2xl:inline">{label}</span>
         </Link>
       </TooltipTrigger>
-      <TooltipContent className="max-w-64">{hint}</TooltipContent>
+      <TooltipContent className="max-w-64">{egressHint(egress)}</TooltipContent>
     </Tooltip>
   );
 }
