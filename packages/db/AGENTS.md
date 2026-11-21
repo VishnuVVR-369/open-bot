@@ -31,6 +31,8 @@ Better Auth's `account` table is sign-in and is unrelated to the integrations `a
 - `WorkerSignal` wakes the worker; a new value doesn't compile until the worker's `onSignal` (`apps/worker/src/index.ts`) handles it.
 - `testing.ts` only writes to and drops databases named `openbot_test_*`.
 - Upgrading `drizzle-orm` means remaking its patch (`pnpm patch drizzle-orm@<version>`); `pnpm install` fails while the patch names a version that is no longer installed.
+  The patch does two things, and both must carry over unless the new version does them itself: `DrizzleQueryError` keeps no parameters, and a node-postgres transaction runs `begin` inside its `try`, so a connection lost while it begins is still given back to the pool (`packages/db/src/pool.integration.test.ts`).
+  That second part also gives a connection whose `begin` or `rollback` failed back with that error, so the pool closes it instead of reusing it.
 
 ## One writer per table
 

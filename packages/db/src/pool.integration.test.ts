@@ -1,6 +1,9 @@
+import { once } from "node:events";
+import net, { type AddressInfo } from "node:net";
+import { sql } from "drizzle-orm";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createPool } from "./index";
+import { createDb, createPool } from "./index";
 import { testDatabase, testDatabaseServer } from "./testing";
 
 const server = testDatabaseServer();
@@ -21,6 +24,45 @@ async function endConnections(url: string, pids: number[]) {
   } finally {
     await admin.end();
   }
+}
+
+/**
+ * Forwards TCP to the database, and cuts the connection the moment the client sends a query whose
+ * text is `cutOn`: the database going away halfway through a transaction's statements.
+ */
+async function cuttingRelay(url: string) {
+  const target = new URL(url);
+  const sockets = new Set<net.Socket>();
+  const relay = {
+    cutOn: null as string | null,
+    url: "",
+    close() {
+      for (const socket of sockets) socket.destroy();
+      server.close();
+    },
+  };
+  const server = net.createServer((client) => {
+    const upstream = net.connect({ host: target.hostname, port: Number(target.port) });
+    for (const socket of [client, upstream]) {
+      sockets.add(socket);
+      socket.on("close", () => sockets.delete(socket));
+      socket.on("error", () => {});
+    }
+    client.on("data", (chunk: Buffer) => {
+      // A simple query is the byte "Q", a length, then its text ending in a zero byte.
+      if (relay.cutOn && chunk[0] === 0x51 && chunk.subarray(5, -1).toString() === relay.cutOn) {
+        client.destroy();
+        upstream.destroy();
+      } else upstream.write(chunk);
+    });
+    upstream.pipe(client);
+  });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const relayed = new URL(url);
+  relayed.host = `127.0.0.1:${(server.address() as AddressInfo).port}`;
+  relay.url = relayed.toString();
+  return relay;
 }
 
 describe.skipIf(!server)("a pool from createPool", () => {
@@ -76,6 +118,26 @@ describe.skipIf(!server)("a pool from createPool", () => {
       expect(rows).toEqual([{ one: 1 }]);
     } finally {
       await pool.end();
+    }
+  });
+
+  it("gets back a connection lost while a transaction begins, so it can still end", async () => {
+    const relay = await cuttingRelay(database.url);
+    const pool = createPool(relay.url, { onIdleError: () => {} });
+    const db = createDb(pool);
+    try {
+      relay.cutOn = "begin";
+      await expect(db.transaction(async () => {})).rejects.toThrow();
+      // Never given back, the connection would stay taken out forever: the pool keeps counting
+      // it, and `pool.end()` waits for it, as a worker shutting down would.
+      await expect.poll(() => pool.totalCount).toBe(0);
+      relay.cutOn = null;
+      const answered = await db.transaction((tx) => tx.execute(sql`select 1 as one`));
+      expect(answered.rows).toEqual([{ one: 1 }]);
+    } finally {
+      // A connection still taken out means the test failed already, and ending would hang.
+      if (pool.totalCount === pool.idleCount) await pool.end();
+      relay.close();
     }
   });
 });
