@@ -22,7 +22,8 @@ import type { Logger } from "../../logger";
 import { SessionRegistry } from "../../runs/registry";
 import { withScreenLock } from "./screen-lock";
 import { ScreenOperationService } from "./screen-operations";
-import { CODE_HANDED_BACK_NOTE, TakeoverService } from "./takeovers";
+import { CODE_HANDED_BACK_NOTE } from "./screen-operations";
+import { TakeoverService } from "./takeovers";
 
 // `TakeoverService` and `ScreenOperationService` with the real `ComputerClient` against a stand-in
 // computer that keeps its leases like botd does, on either side of the run lease's rename: `old`

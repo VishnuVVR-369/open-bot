@@ -74,7 +74,7 @@ CI runs every row marked "CI" on each pull request.
 | `pnpm check:doc-paths`                                | Every repo path in a code span (`apps/...`, `e2e/...`, `scripts/...`) and relative link or image in Markdown or MDX exists   | Nothing                         | CI  |
 | `pnpm check:vocabulary`                               | No file gains a use of a legacy name (bot, primary, desktop takeover); see the glossary in `AGENTS.md`                       | Nothing                         | CI  |
 | `pnpm check:file-size`                                | No new file over 600 lines of code, and no file in `scripts/check/file-size-baseline.json` growing; see Code structure below | Nothing                         | CI  |
-| `pnpm check:imports`                                  | No new import cycle, and no app importing another app's source; see Code structure below                                     | Nothing                         | CI  |
+| `pnpm check:imports`                                  | No import cycle, and no app importing another app's source; see Code structure below                                         | Nothing                         | CI  |
 | `pnpm check:catalog`                                  | A dependency two or more workspaces declare uses the `catalog:` in `pnpm-workspace.yaml`; see Code structure below           | Nothing                         | CI  |
 | `pnpm test:scripts`                                   | Unit tests for the repository checks in `scripts/check` and the CI helpers in `scripts/ci`                                   | Nothing                         | CI  |
 | `pnpm test:railway`                                   | Railway watch paths in `.railway/watch-paths.ts` match each service's dependencies and Dockerfile                            | Nothing                         | CI  |
@@ -220,13 +220,13 @@ These are easy to miss and cost time when forgotten.
 ### Code structure
 
 These guardrails keep the code easy to move and split.
-Each records today's debt in a baseline that may only shrink, like the vocabulary check.
+The file-size check records today's debt in a baseline that may only shrink, like the vocabulary check; the import rules and the catalog check have no baseline.
 
 - **File size.** A code file in `apps/*` or `packages/*` aims for 400 lines of code and may not pass 600, counting neither blank lines nor comments.
   `pnpm check:file-size` fails on a new file over 600, and on a file in `scripts/check/file-size-baseline.json` that grows.
   The fix is to split the file: move a part that stands on its own into a new file beside it.
   `pnpm check:file-size --report` lists every file over 400; that target is reported, never enforced.
-- **Import cycles.** `pnpm check:imports` builds the import graph the way the type checker resolves it, `import type` included, and fails on an import that closes a new cycle.
+- **Import cycles.** `pnpm check:imports` builds the import graph the way the type checker resolves it, `import type` included, and fails on any import cycle.
   It prints the way back, so you can see which import to cut.
   Break a cycle by moving what both files need into a module both import, or by passing it in as an argument.
 - **Workspace boundaries.** An app never imports another app's source; `pnpm check:imports` checks that too.
@@ -236,8 +236,8 @@ Each records today's debt in a baseline that may only shrink, like the vocabular
   `pnpm check:catalog` (`scripts/check/catalog.mjs`) fails on a shared dependency declared with a version, and on a catalog entry no workspace uses; it has no baseline.
   Expo reads the resolved versions, so `expo install --check` and `expo-doctor` work with catalog entries; keep `react` and `@types/react` at the versions the Expo SDK expects.
 
-When a file shrinks, a cycle is broken or a baselined file moves, the check fails until you run `pnpm check:file-size --update` or `pnpm check:imports --update` and commit the new baseline.
-`--update` refuses to let the debt grow: a file may not get bigger, and neither the number of files over the limit nor the number of imports in cycles or across apps may rise.
+When a baselined file shrinks or moves, the check fails until you run `pnpm check:file-size --update` and commit the new baseline.
+`--update` refuses to let the debt grow: a file may not get bigger, and the number of files over the limit may not rise.
 `--allow-growth` is only for a reviewed change.
 Generated code (`packages/agent/src/protocol`, `apps/mobile/src/computer/viewer-html.ts`, `apps/web/src/components/ui`, migrations and build output) is skipped.
 

@@ -1,6 +1,7 @@
 import { screenTakeovers, screenOperations, type Queryable } from "@open-bot/db";
 import {
   isOwnerLease,
+  type LeaseHolder,
   type ScreenOperation,
   type ScreenOperationStatus,
   type TypeOnScreen,
@@ -9,10 +10,21 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { BotdError } from "../../computer/client";
 import { publishApp, type Context } from "../../context";
 import { ScreenBusy, withScreenLock } from "./screen-lock";
-import { CODE_HANDED_BACK_NOTE, type TakeoverService } from "./takeovers";
 
 /** Statuses botd answers before a handler runs: bad input, no token, no such route. */
 const REFUSED_BEFORE_ACTING = [400, 401, 403, 404];
+
+/** The note a teammate gets after "Type the code" submitted the code and the screen was verified safe. */
+export const CODE_HANDED_BACK_NOTE = "Entered the code you sent and submitted it.";
+
+/**
+ * What typing a code needs from `TakeoverService`. The takeover reconciler updates operations
+ * through this file, so this file names what it calls instead of importing `takeovers.ts` back.
+ */
+export interface CodeTakeovers {
+  recordTake(screenId: string, previous: LeaseHolder): Promise<void>;
+  handBack(screenId: string, note: string): Promise<void>;
+}
 
 /** An operation's screen couldn't be handed back now: you need to look at it, for this reason. */
 export async function operationNeedsOwner(
@@ -42,7 +54,7 @@ export async function handBackEndedOperations(db: Queryable): Promise<void> {
 export class ScreenOperationService {
   constructor(
     private readonly ctx: Context,
-    private readonly takeovers: TakeoverService,
+    private readonly takeovers: CodeTakeovers,
   ) {}
 
   async recover(): Promise<void> {

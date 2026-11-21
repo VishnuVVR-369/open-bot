@@ -13,7 +13,6 @@ import {
 } from "@open-bot/domain";
 import { CdpPipe, type CdpEvent } from "./cdp";
 import { codeProbe } from "./code-probe";
-import type { CodeScreens } from "./code-screens";
 import { devtoolsCookieStore, type CookieSync } from "./cookies";
 import { Desktop } from "./desktop";
 import { ScreenLease } from "./lease";
@@ -29,8 +28,6 @@ const FIRST_VNC_PORT = 5910;
 export const MAX_SLOTS = 32;
 
 export interface ScreenDeps {
-  workActive?: () => boolean;
-  codeScreens?: CodeScreens;
   supervisor: Supervisor;
   cookies: CookieSync;
   desktopUser: SystemUser;
