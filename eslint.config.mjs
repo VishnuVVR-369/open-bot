@@ -70,10 +70,11 @@ const CLIENT_NODE_FILES = [
   "apps/mobile/app.config.ts",
 ];
 /**
- * Test code among CLIENT_FILES: `*.testing` helpers and `test` folders (the web app's API harness).
- * It may use Node (CLIENT_NODE_FILES), so code that ships must not import it, or Node would reach
- * the client through it. apps/mobile/src/testing is not test code: a development build loads it on
- * the phone, so it keeps the client bans.
+ * Code among CLIENT_FILES that may use Node (CLIENT_NODE_FILES) and that shipped code must not
+ * import, or Node would reach the client through it: `*.testing` helpers, `test` folders (the web
+ * app's API harness) and Expo's `app.config.ts`. apps/mobile/src/testing is not test code: a
+ * development build loads it on the phone, so it keeps the client bans. Static imports match these
+ * regexes without regard to case and `import()`/`require()` with it, so name files in lower case.
  */
 const TEST_CODE_BANS = [
   {
@@ -83,6 +84,10 @@ const TEST_CODE_BANS = [
   {
     regex: "(^|\\x2F)test(\\x2F.*)?$",
     message: "A test folder runs only in tests and may use Node. Import it from a test.",
+  },
+  {
+    regex: "(^|\\x2F)app\\.config(\\.ts)?$",
+    message: "app.config.ts runs in Node when Expo builds. Read its values with expo-constants.",
   },
 ];
 /** Packages, or parts of one, that hold server-only code. */

@@ -173,6 +173,8 @@ test("code that ships to a phone or a browser can't import test code", async () 
       "../relay.testing.ts",
       "@/test/api/harness",
       "./test",
+      "../../app.config",
+      "../app.config.ts",
     ])
       for (const code of imported(source))
         assert.equal((await boundaryErrors(file, code)).length, 1, `${file}: ${code}`);
