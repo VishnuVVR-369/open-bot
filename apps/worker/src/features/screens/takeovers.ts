@@ -263,10 +263,15 @@ export class TakeoverService {
     await publishApp(this.ctx, { type: "lease" });
   }
 
-  /** You hand a screen back, optionally with a note for its teammate. */
+  /**
+   * You hand a screen back, optionally with a note for its teammate. The caller holds the screen's
+   * lock. A screen botd holds for you that the reconciler hasn't adopted yet (a code entry the worker
+   * restarted during) is adopted first, so your note and the teammate's return aren't lost.
+   */
   async handBack(screenId: string, note: string | null, clearCode = false): Promise<void> {
     this.handingBack.add(screenId);
     try {
+      await this.adoptIfHeld(screenId);
       await this.ctx.db
         .update(screenTakeovers)
         .set({ note: note?.trim() || null, endReason: "handed_back" })
@@ -285,6 +290,9 @@ export class TakeoverService {
       )
         throw new ScreenBusy("The code may still be visible. Clear the code before handing back.");
       await this.finishActive(screenId, { note: note?.trim() || null, reason: "handed_back" });
+      // The screen passed the safety check on the way back: settle its code entries now, not on the
+      // reconciler's next pass, so the phone stops showing "Outcome unknown".
+      await handBackEndedOperations(this.ctx.db);
     } finally {
       this.handingBack.delete(screenId);
     }
@@ -430,23 +438,24 @@ export class TakeoverService {
     for (const { id: screenId } of known) {
       try {
         // Read both again under the lock: a take or hand-back may have finished in between.
-        await withScreenLock(this.ctx, screenId, async () => {
-          const [active] = await this.ctx.db
-            .select({ id: screenTakeovers.id })
-            .from(screenTakeovers)
-            .where(
-              and(eq(screenTakeovers.status, "active"), eq(screenTakeovers.screenId, screenId)),
-            )
-            .limit(1);
-          if (active) return;
-          const now = await this.ctx.computer.fetchHealth();
-          if (!isOwnerLease(now.screens.find((s) => s.id === screenId)?.lease ?? null)) return;
-          await this.recordTake(screenId, null);
-        });
+        await withScreenLock(this.ctx, screenId, () => this.adoptIfHeld(screenId));
       } catch (error) {
         if (!(error instanceof ScreenBusy)) throw error;
       }
     }
+  }
+
+  /** Records a takeover if botd holds the screen for you and none is active here. Caller holds the screen's lock. */
+  private async adoptIfHeld(screenId: string): Promise<void> {
+    const [active] = await this.ctx.db
+      .select({ id: screenTakeovers.id })
+      .from(screenTakeovers)
+      .where(and(eq(screenTakeovers.status, "active"), eq(screenTakeovers.screenId, screenId)))
+      .limit(1);
+    if (active) return;
+    const health = await this.ctx.computer.fetchHealth();
+    if (!isOwnerLease(health.screens.find((s) => s.id === screenId)?.lease ?? null)) return;
+    await this.recordTake(screenId, null);
   }
 
   /** Screens paused because your code may still be visible. You hear about each pause once. */

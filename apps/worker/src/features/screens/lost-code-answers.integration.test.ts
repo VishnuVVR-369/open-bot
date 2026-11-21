@@ -301,6 +301,31 @@ describe.skipIf(!url)("a Type-the-code answer the worker never got", () => {
     expect(await operations.get(operationId)).toMatchObject({ status: "handed_back" });
   });
 
+  it("handing back a screen the worker restarted during, before the reconciler runs, keeps your note and answers the request once", async () => {
+    const { screenId, request, botd, takeovers, operations, rows, deliveries, continuations } =
+      await setUp();
+    const operationId = randomUUID();
+    botd.state.holder = CODE_HOLDER;
+    await db
+      .insert(screenOperations)
+      .values({ id: operationId, takeoverId: request.id, screenId, status: "typing" });
+    await operations.recover();
+    expect(await rows()).toMatchObject([{ id: request.id, status: "requested" }]);
+    // You clear the code and hand back before the reconciler's first pass.
+    await takeovers.handBack(screenId, "Signed in, carry on", true);
+    expect(botd.state.holder).toBeNull();
+    expect(await rows()).toMatchObject([
+      { id: request.id, status: "ended", endReason: "handed_back", note: "Signed in, carry on" },
+    ]);
+    expect(await operations.get(operationId)).toMatchObject({ status: "handed_back" });
+    await vi.waitFor(async () => expect(await continuations()).toHaveLength(1), SETTLED);
+    expect((await continuations())[0]!.prompt).toContain("Signed in, carry on");
+    // A later pass finds nothing left to do and never answers twice.
+    await takeovers.reconcile();
+    expect(await deliveries()).toHaveLength(1);
+    expect(await continuations()).toHaveLength(1);
+  });
+
   it("with a computer that can't say what became of it, records a takeover only if botd holds the screen", async () => {
     const { botd, takeovers, operations, input, rows, deliveries } = await setUp();
     botd.state.answersOutcome = false;
