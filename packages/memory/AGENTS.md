@@ -6,6 +6,12 @@ Tool wiring and routes go in `apps/worker`, memory tables in `packages/db`, shar
 ## Entry points
 
 - `packages/memory/src/index.ts` (`.`): `MemoryService`, `MemoryError`, `MemoryActor`.
+  The service's single-memory writes (save, edit, approve, forget, restore) live there; the rest are split by concern:
+  - `packages/memory/src/model.ts`: the item view, `MemoryError`, `MemoryActor` and who may read or write what.
+  - `packages/memory/src/queries.ts`: the SQL fragments every query shares (scopes, visibility, expiry, the search document).
+  - `packages/memory/src/changes.ts`: the protocol every write follows: lock the scope, then the row, and rebuild the projections after the change.
+  - `packages/memory/src/search.ts`: `list`, `recall` and `generation`.
+  - `packages/memory/src/transfer.ts`: copying a teammate's memory and adding imported lessons.
 - `packages/memory/src/jobs.ts` (`./jobs`): the background jobs, `MemoryAIConfig` (embedding and extraction providers) and `MemoryAIObserver`, which the worker passes to `MemoryAI` to log each request without the key.
 
 ## Invariants
