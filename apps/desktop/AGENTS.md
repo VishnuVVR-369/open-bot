@@ -28,7 +28,7 @@ It has no UI of its own beyond the tray, and it does not hold app logic: screens
 
 - There are no automated tests; run `pnpm --filter @open-bot/desktop typecheck` and `pnpm --filter @open-bot/desktop build`.
 - Tunnel behavior is covered by `pnpm --filter @open-bot/egress test`.
-- The worker side of the tunnel is covered by `apps/worker/src/egress/relay.test.ts`.
+- The worker side of the tunnel is covered by `apps/worker/src/egress/relay.test.ts` and the `relay-*.test.ts` files next to it, which share their setup through `relay.testing.ts`.
 - Anything needing the real app, tray or notifications is a manual check on a Mac; list it as untested otherwise.
 
 ## Docs
