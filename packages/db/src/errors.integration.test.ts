@@ -13,6 +13,12 @@ function shown(error: unknown) {
   return { message, code, constraint, detail, where };
 }
 
+/**
+ * The value each failing query carries: if it shows up in a printed error, it leaked. Random, so no
+ * path, SQL or message holds it by chance (a fixed word like "private" is in macOS's /private/tmp).
+ */
+const SECRET = `secret-${randomUUID()}`;
+
 const server = testDatabaseServer();
 const database = testDatabase(server);
 const { db, pool } = database;
@@ -34,7 +40,10 @@ describe.skipIf(!server)("a failed query", () => {
 
   it("never shows a refused text value: a NUL byte, as Postgres refuses it (22021)", async () => {
     const { error, printed } = await logged(
-      db.select().from(tasks).where(eq(tasks.title, "a private\u0000phrase")),
+      db
+        .select()
+        .from(tasks)
+        .where(eq(tasks.title, `a ${SECRET}\u0000phrase`)),
     );
     expect(error.message).toMatch(
       /^Failed query: select .* from "tasks" where "tasks"\."title" = \$1$/,
@@ -47,16 +56,16 @@ describe.skipIf(!server)("a failed query", () => {
       detail: undefined,
       where: undefined,
     });
-    expect(printed).not.toContain("private");
+    expect(printed).not.toContain(SECRET);
     expect(errorMessage(error)).toBe("The database refused the query (SQLSTATE 22021).");
   });
 
   it("never shows a value Postgres quotes in its message (22P02)", async () => {
     const { error, printed } = await logged(
-      db.insert(tasks).values({ id: "private-id", title: "Plan", createdBy: "user" }),
+      db.insert(tasks).values({ id: SECRET, title: "Plan", createdBy: "user" }),
     );
     expect(error.cause).toMatchObject({ code: "22P02" });
-    expect(printed).not.toContain("private");
+    expect(printed).not.toContain(SECRET);
   });
 
   it("keeps a constraint's name but never the key in the detail (23505)", async () => {
@@ -78,18 +87,18 @@ describe.skipIf(!server)("a failed query", () => {
 
   it("is as safe in a transaction, in raw SQL and on the pool's own query", async () => {
     const failures = [
-      () => db.transaction((tx) => tx.execute(sql`select ${"a private value"}::int`)),
-      () => db.execute(sql`select ${"a private value"}::int`),
-      () => pool.query("select $1::int", ["a private value"]),
+      () => db.transaction((tx) => tx.execute(sql`select ${SECRET}::int`)),
+      () => db.execute(sql`select ${SECRET}::int`),
+      () => pool.query("select $1::int", [SECRET]),
       () =>
         new Promise((_resolve, reject) =>
-          pool.query("select $1::int", ["a private value"], (error) => reject(error)),
+          pool.query("select $1::int", [SECRET], (error) => reject(error)),
         ),
     ];
     for (const failure of failures) {
       const { error, printed } = await logged(failure());
       expect(errorMessage(error)).toBe("The database refused the query (SQLSTATE 22P02).");
-      expect(printed).not.toContain("private");
+      expect(printed).not.toContain(SECRET);
     }
   });
 
