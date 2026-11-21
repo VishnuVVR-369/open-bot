@@ -20,6 +20,8 @@ It has no UI of its own beyond the tray, and it does not hold app logic: screens
 - Permissions are granted only to the app's own origin, and only for notifications, the clipboard and fullscreen.
 - The egress agent signs in with the app's session cookie via `/api/desktop/egress-token`, so there is nothing to pair. Its answer is `desktopEgressTokenSchema` (`packages/api/src/desktop.ts`), which the web route produces and the app checks; installed apps call that path, so it stays.
 - Closing the window hides it and the tray keeps egress running; only an explicit quit stops it.
+- The esbuild `target` in `apps/desktop/build.mjs` is the Node version Electron embeds (Node 24.21 for Electron 44.7), not the repo's Node.
+  On an Electron upgrade, print it with `ELECTRON_RUN_AS_NODE=1 pnpm exec electron -e "console.log(process.versions.node)"` in `apps/desktop`, and set the target to the lowest Node in the `electron` range of `package.json` (the `node` field of each release in https://releases.electronjs.org/releases.json).
 - `@open-bot/egress` and `@open-bot/api` are devDependencies because esbuild bundles them into `dist/main.cjs`; import only `@open-bot/api/desktop`, which needs nothing but zod.
 
 ## Tests

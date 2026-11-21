@@ -3,7 +3,9 @@ import { build } from "esbuild";
 const common = {
   bundle: true,
   platform: "node",
-  target: "node22",
+  // The Node that Electron embeds, not the repo's: every Electron in package.json's range (^44.7.0)
+  // ships Node 24.21 or later. See "Invariants" in AGENTS.md for checking it on an upgrade.
+  target: "node24.21",
   external: ["electron"],
   sourcemap: true,
   logLevel: "info",
