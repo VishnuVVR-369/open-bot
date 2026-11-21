@@ -1,6 +1,10 @@
 import type { EgressRouter } from "@open-bot/egress/router";
 import { createRouterClient } from "@orpc/server";
+import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { CodeScreens } from "./code-screens";
 import { ScreenLease } from "./lease";
 import type { PageChecker } from "./pages";
 import { createRouter } from "./router";
@@ -486,5 +490,24 @@ describe("stopping a screen to make room", () => {
     flushes[2]!.resolve();
     await vi.waitFor(() => expect(b.done).toBe(true));
     expect(manager.list().map((screen) => screen.id)).toEqual([B]);
+  });
+
+  it("drops a forgotten screen's code protection, so it is never restored paused", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "openbot-forget-"));
+    try {
+      await writeFile(join(dir, "00000000-0000-4000-8000-000000000009"), "");
+      const codeScreens = new CodeScreens(dir);
+      await codeScreens.load();
+      vi.spyOn(Screen.prototype, "forget").mockResolvedValue();
+      const manager = new ScreenManager({ ...deps(), codeScreens }, { maxRunning: 1 });
+      expect(manager.list()).toMatchObject([
+        { id: "00000000-0000-4000-8000-000000000009", state: "paused" },
+      ]);
+      await manager.forget("00000000-0000-4000-8000-000000000009");
+      expect(manager.list()).toEqual([]);
+      expect(await readdir(dir)).toEqual([]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

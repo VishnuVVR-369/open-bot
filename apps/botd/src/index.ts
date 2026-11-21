@@ -4,6 +4,7 @@ import { backgroundProcess, type ProcessView } from "./background";
 import { ComputeLifecycle } from "./lifecycle";
 import { CodeScreens } from "./code-screens";
 import { CookieSync } from "./cookies";
+import { clearStaleDisplays } from "./displays";
 import { readEnv, type BotdEnv } from "./env";
 import { EgressRouter } from "@open-bot/egress/router";
 import { PageChecker, PagePreviewServer } from "./pages";
@@ -258,6 +259,9 @@ async function main() {
   // Files the teammates and the browser create stay writable by the whole `bots` group, so shared folders stay shared.
   process.umask(0o002);
   await prepareFilesystem();
+  const stale = await clearStaleDisplays();
+  if (stale.length)
+    log(`[screens] removed X display locks a previous boot left: ${stale.join(", ")}`);
   await codeScreens.load();
   await cookies.load();
 

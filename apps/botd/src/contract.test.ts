@@ -76,6 +76,10 @@ async function start(
     releaseRun: vi.fn(() => false),
     codeAvailable: () => options.codeAvailable ?? true,
     typeCode: vi.fn(async () => ({ status: "safe" as const, reason: null })),
+    codeOutcome: vi.fn(async () => ({
+      status: "failed" as const,
+      reason: "The computer never got the code, so nothing was typed. Send it again.",
+    })),
   }) as unknown as ScreenManager;
   const { server } = createServer({
     token: TOKEN,
@@ -305,6 +309,43 @@ describe("botd contract", () => {
     expect(screens.typeCode).not.toHaveBeenCalled();
     expect(lease.holder).toBeNull();
     expect(changed).not.toHaveBeenCalled();
+  });
+
+  it("answers what became of a lost code entry while the computer is stopping and refuses to type", async () => {
+    let stopped = () => {};
+    const lifecycle = new ComputeLifecycle(true, {
+      start: async () => {},
+      stop: () => new Promise<void>((resolve) => (stopped = resolve)),
+      busy: async () => false,
+    });
+    const { botd, screens } = await start({ lifecycle });
+    const screenId = randomUUID();
+    await botd.lifecycle.lease({ owner: "worker", demand: 0 });
+    await botd.lifecycle.ensure({ owner: "worker" });
+    const quiescing = botd.lifecycle.quiesce({ owner: "worker" });
+    await vi.waitFor(() => expect(lifecycle.admitting).toBe(false));
+    const operationId = randomUUID();
+    // botd refuses the entry before acting, but the worker only sees a 500 it can't tell apart
+    // from a failure while typing, so it asks.
+    const refused = await rejection(
+      botd.computer.type({
+        screenId,
+        takeoverId: randomUUID(),
+        operationId,
+        expectedSite: "github.com",
+        pressEnter: true,
+        text: "582913",
+      }),
+    );
+    expect(refused.status).toBe(500);
+    expect(screens.typeCode).not.toHaveBeenCalled();
+    expect(await botd.computer.codeOutcome({ screenId, operationId })).toEqual({
+      status: "failed",
+      reason: "The computer never got the code, so nothing was typed. Send it again.",
+    });
+    expect(screens.codeOutcome).toHaveBeenCalledWith(screenId, operationId);
+    stopped();
+    await quiescing;
   });
 
   it("never echoes or logs a one-time code", async () => {

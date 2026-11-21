@@ -67,11 +67,12 @@ Every desktop action has to go through a dynamic tool, the worker, and botd, whi
 1. Refuses to start unless `BOTD_TOKEN` is at least 16 characters.
 2. Prepares the filesystem: the workspaces root, the shared and downloads folders, `/home/bot/.codex` (mode `0700`) and `/home/.botd` (root only). It writes Codex's `config.toml` every time, so the computer's Codex settings can't drift.
 3. Tests whether Chromium's sandbox can work here, by running `unshare --user --pid --net` as `desktop`. If it can't, every browser starts with `--no-sandbox`, and a warning is logged.
-4. Loads the shared cookie jar.
-5. Starts `codex app-server --listen ws://127.0.0.1:4500` as `bot`, with `restart: "always"`, and waits for its `/readyz`.
-6. Starts the SOCKS5 egress proxy on `127.0.0.1:1080`.
-7. Listens on `0.0.0.0:7000`.
-8. Sweeps screens every 5 seconds (idle leases, idle screens) and syncs cookies every 2 seconds.
+4. Removes the X display locks and sockets (`/tmp/.X<n>-lock`, `/tmp/.X11-unix/X<n>`) a previous boot left behind. No X server runs before botd starts one, but a container restarted after a crash keeps its `/tmp`, and Xvfb refuses a display whose lock names a pid that now belongs to another process.
+5. Loads the screens a one-time code protects, and the shared cookie jar.
+6. Starts `codex app-server --listen ws://127.0.0.1:4500` as `bot`, with `restart: "always"`, and waits for its `/readyz`.
+7. Starts the SOCKS5 egress proxy on `127.0.0.1:1080`.
+8. Listens on `0.0.0.0:7000`.
+9. Sweeps screens every 5 seconds (idle leases, idle screens) and syncs cookies every 2 seconds.
 
 The Codex config it writes:
 
@@ -141,6 +142,7 @@ Its id is the teammate's id, or a swarm task's id for a helper.
   Once the processes begin to stop, the stop runs to the end; a browser that hasn't exited 10 seconds after closing is terminated.
   Only a process that outlives `SIGKILL` keeps a stopping screen, and its slot, until the next start that needs room retries the stop.
 - **Forget.** Removing a teammate stops its screen and deletes its profile directory.
+  A one-time code's protection on that screen goes with it, since no page of it is left to show the code.
 
 Because the profile lives on the `/home` volume, a screen's tabs and history come back the next time it starts.
 

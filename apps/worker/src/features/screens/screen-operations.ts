@@ -1,6 +1,7 @@
 import { screenTakeovers, screenOperations, type Queryable } from "@open-bot/db";
 import {
   isOwnerLease,
+  type CodeEntryResult,
   type LeaseHolder,
   type ScreenOperation,
   type ScreenOperationStatus,
@@ -165,7 +166,7 @@ export class ScreenOperationService {
             "The site or focused field changed. Nothing was typed.",
           );
         await this.set(input.operationId, "typing");
-        let result: Awaited<ReturnType<Context["computer"]["typeOnScreen"]>>;
+        let result: CodeEntryResult;
         try {
           result = await this.ctx.computer.typeOnScreen(screenId, input);
         } catch (error) {
@@ -176,36 +177,15 @@ export class ScreenOperationService {
               "failed",
               "The computer refused it, so nothing was typed. If it is being updated, send it again in a few minutes.",
             );
-          // botd may hold the screen for you now. Record the takeover so handing back reaches
-          // the teammate; if you don't hold it, the reconciler ends it.
-          await this.takeovers.recordTake(screenId, previous);
-          return this.set(
-            input.operationId,
-            "unknown",
-            "Outcome unknown. Check the screen before sending again.",
-          );
+          // The answer was lost, or botd refused without saying so (a 500 while it stops). Ask it
+          // what became of the entry: once it answers, one it never got can't type anymore.
+          const outcome = await this.ctx.computer
+            .codeOutcome(screenId, input.operationId)
+            .catch(() => null);
+          if (!outcome) return this.outcomeUnknown(input.operationId, screenId, previous);
+          result = outcome;
         }
-        // Refused: botd released anything it took and nothing was typed, so the request stays open.
-        if (result.status === "failed") return this.set(input.operationId, "failed", result.reason);
-        await this.takeovers.recordTake(screenId, result.previous ?? previous);
-        await this.set(input.operationId, "typed");
-        await this.set(input.operationId, "verifying");
-        await this.set(input.operationId, result.status, result.reason);
-        if (result.status === "safe") {
-          try {
-            await this.takeovers.handBack(screenId, CODE_HANDED_BACK_NOTE);
-            return this.set(input.operationId, "handed_back");
-          } catch (error) {
-            if (error instanceof ScreenBusy)
-              return this.set(input.operationId, "needs_owner", error.message);
-            return this.set(
-              input.operationId,
-              "safe",
-              "Control returned or is being checked; letting your teammate know.",
-            );
-          }
-        }
-        return (await this.get(input.operationId))!;
+        return this.settle(input.operationId, screenId, result, previous);
       });
     } catch (error) {
       // Never serialize an upstream error: it could contain the secret request body.
@@ -217,5 +197,57 @@ export class ScreenOperationService {
           : "Outcome unknown. Check the screen before sending again.",
       );
     }
+  }
+
+  /** What botd answered for a code entry, now or when asked after a lost answer. */
+  private async settle(
+    operationId: string,
+    screenId: string,
+    result: CodeEntryResult,
+    previous: LeaseHolder,
+  ): Promise<ScreenOperation> {
+    // Refused: botd released anything it took and nothing was typed, so the request stays open.
+    if (result.status === "failed") return this.set(operationId, "failed", result.reason);
+    await this.takeovers.recordTake(screenId, result.previous ?? previous);
+    await this.set(operationId, "typed");
+    await this.set(operationId, "verifying");
+    await this.set(operationId, result.status, result.reason);
+    if (result.status === "safe") {
+      try {
+        await this.takeovers.handBack(screenId, CODE_HANDED_BACK_NOTE);
+        return this.set(operationId, "handed_back");
+      } catch (error) {
+        if (error instanceof ScreenBusy) return this.set(operationId, "needs_owner", error.message);
+        return this.set(
+          operationId,
+          "safe",
+          "Control returned or is being checked; letting your teammate know.",
+        );
+      }
+    }
+    return (await this.get(operationId))!;
+  }
+
+  /**
+   * botd couldn't say what became of a code entry, as when the computer is unreachable. A takeover
+   * is recorded only if botd holds the screen for you now, so handing back reaches the teammate;
+   * otherwise the request stays open, and the reconciler records the takeover if botd takes the
+   * screen later.
+   */
+  private async outcomeUnknown(
+    operationId: string,
+    screenId: string,
+    previous: LeaseHolder,
+  ): Promise<ScreenOperation> {
+    const holder = await this.ctx.computer.fetchHealth().then(
+      (health) => health.screens.find((s) => s.id === screenId)?.lease ?? null,
+      () => null,
+    );
+    if (isOwnerLease(holder)) await this.takeovers.recordTake(screenId, previous);
+    return this.set(
+      operationId,
+      "unknown",
+      "Outcome unknown. Check the screen before sending again.",
+    );
   }
 }

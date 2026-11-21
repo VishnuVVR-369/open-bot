@@ -3,12 +3,16 @@ import { isOwnerLease, isScreenId, type CodeEntryResult } from "@open-bot/domain
 import type { ReleaseGuard } from "./lease";
 import type { Screen } from "./screens";
 
+/** How many code entries botd remembers the answer of, for a worker that lost one. */
+const REMEMBERED_OUTCOMES = 1_000;
+
 /** Only screen ids are durable. A crash always restores owner-only quarantine. */
 export class CodeScreens {
   private readonly protected = new Set<string>();
   private readonly secrets = new Map<string, string>();
   private readonly busy = new Set<string>();
-  private readonly operations = new Set<string>();
+  /** Every code entry botd got or refused to run, by operation id, with its answer. Never the code. */
+  private readonly outcomes = new Map<string, Promise<CodeEntryResult>>();
   constructor(private readonly directory: string) {}
   get ids(): readonly string[] {
     return [...this.protected];
@@ -64,12 +68,64 @@ export class CodeScreens {
     }
   }
 
-  async type(
+  /** Forget a screen whose browser profile was deleted: no page of it can show a code anymore. */
+  async forget(id: string): Promise<void> {
+    if (!this.protected.has(id)) return;
+    await unlink(`${this.directory}/${id}`).catch((error: NodeJS.ErrnoException) => {
+      if (error.code !== "ENOENT") throw error;
+    });
+    await this.syncDirectory();
+    this.protected.delete(id);
+    this.secrets.delete(id);
+  }
+
+  private remember(operationId: string, outcome: Promise<CodeEntryResult>): void {
+    this.outcomes.set(operationId, outcome);
+    // Maps iterate in insertion order, so this drops the oldest.
+    for (const id of this.outcomes.keys()) {
+      if (this.outcomes.size <= REMEMBERED_OUTCOMES) break;
+      this.outcomes.delete(id);
+    }
+  }
+
+  /**
+   * What became of a code entry whose answer the worker lost. One botd got answers as `type` did,
+   * once it finishes. One botd never got is refused from now on, so a request still on its way
+   * can't type later: nothing was typed for it, unless the screen is protected, where a restart
+   * may have forgotten that this entry typed there before it.
+   */
+  outcome(screenId: string, operationId: string): Promise<CodeEntryResult> {
+    const known = this.outcomes.get(operationId);
+    if (known) return known;
+    const answer: CodeEntryResult = this.protected.has(screenId)
+      ? { status: "unknown", reason: "Check the screen before sending again." }
+      : {
+          status: "failed",
+          reason: "The computer never got the code, so nothing was typed. Send it again.",
+        };
+    this.remember(operationId, Promise.resolve(answer));
+    return Promise.resolve(answer);
+  }
+
+  /** Type a one-time code, once per operation id: a repeated id never types again. */
+  type(
     screen: Screen,
     input: { operationId: string; expectedSite: string; text: string; pressEnter: boolean },
   ): Promise<CodeEntryResult> {
-    if (this.operations.has(input.operationId))
-      return { status: "unknown", reason: "Check the screen before sending again." };
+    if (this.outcomes.has(input.operationId))
+      return Promise.resolve({
+        status: "unknown",
+        reason: "Check the screen before sending again.",
+      });
+    const outcome = this.enter(screen, input);
+    this.remember(input.operationId, outcome);
+    return outcome;
+  }
+
+  private async enter(
+    screen: Screen,
+    input: { operationId: string; expectedSite: string; text: string; pressEnter: boolean },
+  ): Promise<CodeEntryResult> {
     if (
       this.busy.has(screen.id) ||
       this.protected.has(screen.id) ||
@@ -77,7 +133,6 @@ export class CodeScreens {
     )
       return { status: "failed", reason: "The screen is already in use by you." };
     this.busy.add(screen.id);
-    this.operations.add(input.operationId);
     let protectedInput = false;
     let previous: CodeEntryResult["previous"] = null;
     try {

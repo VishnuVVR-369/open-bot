@@ -264,6 +264,14 @@ export class ComputerClient extends EventEmitter<{
     return this.botd.computer.type({ screenId, ...input }, timeout(45_000));
   }
 
+  /**
+   * What became of a code entry whose answer was lost. Waits for one still typing; one botd never
+   * got can't type anymore once this answers.
+   */
+  codeOutcome(screenId: string, operationId: string): Promise<CodeEntryResult> {
+    return this.botd.computer.codeOutcome({ screenId, operationId }, timeout(45_000));
+  }
+
   async touchUser(screenId: string): Promise<void> {
     await this.botd.leases.touch({ screenId });
   }
