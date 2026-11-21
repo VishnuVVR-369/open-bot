@@ -1,20 +1,14 @@
 import {
-  approvalRules,
   teammates,
   chatMembers,
   configurationRevision,
-  connections,
-  instructionProposals,
-  lessons,
   LOCKS,
   lockUntilCommit,
   notify,
   ownerTimeZone,
   type Queryable,
   schedules,
-  skills,
   triggers,
-  type Tx,
 } from "@open-bot/db";
 import {
   teammateCreation,
@@ -32,7 +26,7 @@ import {
   type TeammateBundle,
   toCents,
 } from "@open-bot/domain";
-import { and, asc, eq, gt, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { publishApp, type Context } from "../../context";
 import { errorMessage } from "../../logger";
 import type { Teammate } from "../../core/db-types";
@@ -49,26 +43,13 @@ import {
 } from "../automations";
 import { addTeammateSkills, type SkillService } from "../skills";
 import { type MemoryService } from "@open-bot/memory";
-import { setConnectionTeammates } from "../connections";
-import { WorkerError } from "../../core/errors";
-
-/** What a teammate is made of besides its profile: what copying and exporting carry over. */
-export type TeammateParts = Omit<TeammateBundle, "format" | "version" | "teammate">;
+import { assignConnection, connectionSummaries, type ConnectionSummary } from "./connections";
+import { TeammateError } from "./errors";
+import { teammateParts, type TeammateParts } from "./parts";
+import { addProposal, decideProposal, type InstructionProposalInput } from "./proposals";
 
 /** The memory a new teammate can start with. */
 export type TeammateMemory = Pick<MemoryService, "copyTeammate" | "addLessons">;
-
-export class TeammateError extends WorkerError {}
-
-/** A connection as teammates see it: no credentials, with a revision for safe edits. */
-export interface ConnectionSummary {
-  id: string;
-  label: string;
-  enabled: boolean;
-  /** Teammates that may use it, or null for every teammate. */
-  teammateIds: string[] | null;
-  revision: string;
-}
 
 /** Teammates on the team now, oldest first; with `inChat`, only that group chat's members. */
 export async function activeTeammates(
@@ -352,56 +333,8 @@ export class TeammateService {
         format: BUNDLE_FORMAT,
         version: BUNDLE_VERSION,
         teammate: { name, role, instructions, emoji, color, autonomy },
-        ...(await this.parts(id)),
+        ...(await teammateParts(this.ctx.db, id)),
       },
-    };
-  }
-
-  /** A teammate's own skills, routines, page watches, approval rules and lessons. */
-  private async parts(id: string): Promise<TeammateParts> {
-    const db = this.ctx.db;
-    const [ownSkills, routines, watches, allowed, learned] = await Promise.all([
-      db.select().from(skills).where(eq(skills.teammateId, id)).orderBy(asc(skills.name)),
-      db
-        .select()
-        .from(schedules)
-        .where(
-          and(eq(schedules.teammateId, id), eq(schedules.kind, "cron"), isNotNull(schedules.cron)),
-        )
-        .orderBy(asc(schedules.createdAt)),
-      db
-        .select()
-        .from(triggers)
-        .where(and(eq(triggers.teammateId, id), eq(triggers.kind, "watch")))
-        .orderBy(asc(triggers.createdAt)),
-      db
-        .select()
-        .from(approvalRules)
-        .where(eq(approvalRules.teammateId, id))
-        .orderBy(asc(approvalRules.createdAt)),
-      db.select().from(lessons).where(eq(lessons.teammateId, id)).orderBy(asc(lessons.createdAt)),
-    ]);
-    return {
-      skills: ownSkills.map(({ name, description, instructions }) => ({
-        name,
-        description,
-        instructions,
-      })),
-      routines: routines.map((routine) => ({
-        title: routine.title,
-        prompt: routine.prompt,
-        cron: routine.cron!,
-        quiet: routine.quiet,
-      })),
-      watches: watches.map((watch) => ({
-        title: watch.title,
-        prompt: watch.prompt,
-        url: watch.url!,
-        intervalMinutes: watch.intervalMinutes!,
-        lookFor: watch.lookFor,
-      })),
-      allowed: allowed.map((rule) => ({ kind: rule.kind, pattern: rule.pattern })),
-      lessons: learned.map((lesson) => lesson.text),
     };
   }
 
@@ -468,7 +401,7 @@ export class TeammateService {
    */
   async duplicate(id: string, name: string, copyMemory: boolean) {
     const source = await this.requireTeammate(id);
-    const { lessons: learned, ...parts } = await this.parts(id);
+    const { lessons: learned, ...parts } = await teammateParts(this.ctx.db, id);
     const { role, instructions, color, emoji, autonomy } = source;
     const created = await this.addTeammate(
       { name, role, instructions, color, emoji, autonomy },
@@ -589,27 +522,8 @@ export class TeammateService {
    * A teammate suggests new instructions for itself; the owner decides. A newer suggestion
    * replaces one still waiting.
    */
-  async proposeInstructions(input: {
-    teammateId: string;
-    current: string;
-    proposed: string;
-    reason: string;
-    runId: string;
-  }): Promise<void> {
-    await this.ctx.db.transaction(async (tx) => {
-      await tx
-        .update(instructionProposals)
-        .set({ status: "dismissed", decidedAt: new Date() })
-        .where(and(eq(suggestedFor, input.teammateId), eq(instructionProposals.status, "pending")));
-      await tx.insert(instructionProposals).values({
-        teammateId: input.teammateId,
-        current: input.current,
-        proposed: input.proposed,
-        reason: input.reason,
-        runId: input.runId,
-      });
-    });
-    await publishApp(this.ctx, { type: "teammates" });
+  async proposeInstructions(input: InstructionProposalInput): Promise<void> {
+    await addProposal(this.ctx, input);
   }
 
   /** Takes a teammate's suggested instructions; they apply from its next message. */
@@ -649,53 +563,7 @@ export class TeammateService {
   }
 
   async listConnections(): Promise<ConnectionSummary[]> {
-    const rows = await this.ctx.db
-      .select({
-        id: connections.id,
-        label: connections.label,
-        enabled: connections.enabled,
-        teammateIds: connections.teammateIds,
-        updatedAt: connections.updatedAt,
-      })
-      .from(connections)
-      .orderBy(asc(connections.label));
-    return rows.map((row) => connectionSummary(row));
-  }
-
-  /**
-   * Why giving or taking a teammate's access to a connection can't happen, or what it would
-   * change. Checked before asking for approval and again inside the change.
-   */
-  static assignment(
-    connection: ConnectionSummary,
-    teammateId: string,
-    assigned: boolean,
-    expectedRevision: string,
-  ): { teammateIds: string[] } | "unchanged" {
-    if (connection.revision !== expectedRevision)
-      throw new TeammateError(
-        409,
-        "That connection changed. List connections again before assigning it.",
-      );
-    if (assigned && !connection.enabled)
-      throw new TeammateError(
-        400,
-        "This connection is turned off. The user can turn it on in Settings.",
-      );
-    if (connection.teammateIds === null) {
-      if (assigned) return "unchanged";
-      throw new TeammateError(
-        400,
-        "This connection is shared with every teammate. The user can limit it to some teammates in Settings.",
-      );
-    }
-    const has = connection.teammateIds.includes(teammateId);
-    if (has === assigned) return "unchanged";
-    return {
-      teammateIds: assigned
-        ? [...connection.teammateIds, teammateId]
-        : connection.teammateIds.filter((id) => id !== teammateId),
-    };
+    return connectionSummaries(this.ctx.db);
   }
 
   async setConnection(
@@ -705,85 +573,6 @@ export class TeammateService {
     expectedRevision: string,
   ) {
     await this.requireTeammate(teammateId);
-    const changed = await this.ctx.db.transaction(async (tx) => {
-      const [row] = await tx
-        .select({
-          id: connections.id,
-          label: connections.label,
-          enabled: connections.enabled,
-          teammateIds: connections.teammateIds,
-          updatedAt: connections.updatedAt,
-        })
-        .from(connections)
-        .where(eq(connections.id, connectionId))
-        .for("update");
-      if (!row) throw new TeammateError(404, "That connection no longer exists.");
-      const change = TeammateService.assignment(
-        connectionSummary(row),
-        teammateId,
-        assigned,
-        expectedRevision,
-      );
-      if (change === "unchanged") return false;
-      await setConnectionTeammates(tx, connectionId, change.teammateIds);
-      return true;
-    });
-    if (changed) await publishApp(this.ctx, { type: "connections" });
-    return { teammateId, connectionId, assigned, effectiveFrom: "the teammate's next run" };
+    return assignConnection(this.ctx, teammateId, connectionId, assigned, expectedRevision);
   }
-}
-
-function connectionSummary(row: {
-  id: string;
-  label: string;
-  enabled: boolean;
-  teammateIds: string[] | null;
-  updatedAt: Date;
-}): ConnectionSummary {
-  const { updatedAt, ...summary } = row;
-  return { ...summary, revision: configurationRevision({ ...summary, updatedAt }) };
-}
-
-/** The teammate a suggestion is for, under the column's legacy name. */
-const suggestedFor = instructionProposals.teammateId;
-
-/**
- * Decide a suggestion that's still waiting. Null when it was already decided the same way; one
- * decided the other way is a conflict.
- */
-async function decideProposal(tx: Tx, proposalId: string, status: "accepted" | "dismissed") {
-  const [proposal] = await tx
-    .update(instructionProposals)
-    .set({ status, decidedAt: new Date() })
-    .where(and(eq(instructionProposals.id, proposalId), eq(instructionProposals.status, "pending")))
-    .returning({ teammateId: suggestedFor, proposed: instructionProposals.proposed });
-  if (proposal) return proposal;
-  const [decided] = await tx
-    .select({
-      status: instructionProposals.status,
-      teammateId: suggestedFor,
-      createdAt: instructionProposals.createdAt,
-    })
-    .from(instructionProposals)
-    .where(eq(instructionProposals.id, proposalId));
-  if (!decided) throw new TeammateError(404, "That suggestion is gone.");
-  if (decided.status === status) return null;
-  // A teammate's newer suggestion dismisses the one waiting; that isn't something you did.
-  const [newer] =
-    decided.status === "dismissed"
-      ? await tx
-          .select({ id: instructionProposals.id })
-          .from(instructionProposals)
-          .where(
-            and(
-              eq(suggestedFor, decided.teammateId),
-              gt(instructionProposals.createdAt, decided.createdAt),
-            ),
-          )
-          .limit(1)
-      : [];
-  throw new TeammateError(
-    409,
-    newer ? "A newer suggestion replaced this one." : "That suggestion was already handled.",
-  );
 }

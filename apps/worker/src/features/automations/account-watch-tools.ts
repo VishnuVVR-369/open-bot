@@ -18,7 +18,8 @@ import {
   type ToolResponse,
 } from "../../core/tool";
 import type { RunSession } from "../../runs/session";
-import { TriggerError, type TriggerService } from "./triggers";
+import { TriggerError } from "./trigger-input";
+import type { TriggerService } from "./triggers";
 
 /** What the account watch tools use. */
 interface AccountWatchToolDeps {

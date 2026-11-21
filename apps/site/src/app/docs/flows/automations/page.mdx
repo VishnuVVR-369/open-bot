@@ -125,7 +125,7 @@ It is a row in `triggers` with `kind = 'watch'`, the URL, the interval, optional
 ### Checking
 
 `TriggerService` (`apps/worker/src/features/automations/triggers.ts`) ticks every 30 seconds and checks up to 4 watches at a time.
-A check:
+A check reads the page through `fetchPage()` (`apps/worker/src/features/automations/page-fetch.ts`), which:
 
 - fetches from the worker, without a browser, cookies or sign-ins, with a 20-second timeout;
 - follows at most 5 redirects, checking each one;

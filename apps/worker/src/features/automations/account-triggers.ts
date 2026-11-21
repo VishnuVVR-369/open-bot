@@ -42,11 +42,11 @@ import {
   ACCOUNT_TRIGGER_RUNS_PER_HOUR,
   recordTriggerCheck,
   setNextTriggerCheck,
-  TriggerError,
   type CheckResult,
   type Trigger,
   type TriggerService,
 } from "./triggers";
+import { TriggerError } from "./trigger-input";
 
 const TICK_MS = 30_000;
 /** A run is told about this many new messages in full; more are listed by subject. */
