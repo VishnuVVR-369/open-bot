@@ -277,7 +277,7 @@ A connection taken out of the pool, by a transaction say, fails its next query i
 One kept to `LISTEN` adds its own listener to replace it.
 A transaction gives its connection back to the pool however it ends, even when the connection is lost while `begin` is still running.
 Upstream Drizzle runs `begin` before its `try`, so such a connection stayed taken out forever: the pool kept counting it, and `pool.end()` never resolved, which hangs the worker's shutdown.
-The same patch (`patches/drizzle-orm@0.45.4.patch`) moves `begin` inside, and gives the connection back with its error so the pool closes it; `packages/db/src/pool.integration.test.ts` cuts a connection at `begin` to check it.
+The same patch (`patches/drizzle-orm@0.45.4.patch`) moves `begin` inside, and gives a connection whose `begin` or `rollback` failed back with that error, so the pool closes it; `packages/db/src/pool.integration.test.ts` cuts a connection at `begin` to check it.
 The worker's `SignalListener` (`apps/worker/src/signal-listener.ts`) drops a failed one, listens again on a new one (waiting from 1 s up to 30 s between tries), and then answers every signal once, since any sent in between were missed.
 
 ## The run queue
