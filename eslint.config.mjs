@@ -61,11 +61,11 @@ const WEB_SERVER_FILES = [
   "apps/web/src/features/*/server.ts",
   "apps/web/src/instrumentation-node.ts",
 ];
-/** Files among CLIENT_FILES that only ever run in Node. */
+/** Files among CLIENT_FILES that only ever run in Node: tests, their `*.testing` helpers and config. */
 const CLIENT_NODE_FILES = [
-  "apps/mobile/**/*.test.{ts,tsx}",
-  "packages/api/**/*.test.ts",
-  "apps/web/src/**/*.test.{ts,tsx}",
+  "apps/mobile/**/*.{test,testing}.{ts,tsx}",
+  "packages/api/**/*.{test,testing}.ts",
+  "apps/web/src/**/*.{test,testing}.{ts,tsx}",
   "apps/web/src/test/**",
   "apps/mobile/src/testing/**",
   "apps/mobile/app.config.ts",
