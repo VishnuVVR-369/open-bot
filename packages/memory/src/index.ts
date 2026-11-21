@@ -51,6 +51,7 @@ export {
   type MemoryActor,
   type MemorySaveResult,
 } from "./model";
+export type { MemoryListOptions, RecallOptions } from "./search";
 
 /** Canonical memory. Both web actions and agent tools use these transactions. */
 export class MemoryService {
