@@ -22,7 +22,7 @@ Shared types and pure logic go in `packages/domain`, and schema changes go in `p
 - A Codex thread keeps the tools and `DEVELOPER_INSTRUCTIONS` it started with, so `teammate_threads.tools_revision` hashes both (`apps/worker/src/runs/tools-revision.ts`), and a change starts fresh threads. There is nothing to bump.
 - `apps/worker/build.mjs` keeps only Node built-ins and the worker's own declared dependencies external, and bundles everything else.
 - A new import in a workspace package may need a dependency declared here or it is bundled, so run the built artifact.
-- Procedures that touch the computer must be marked `wakesComputer` (the `computer` builder) in `packages/api/src/worker/contract.ts`, or they will not wake it.
+- Procedures that touch the computer must be marked `wakesComputer` (built with `computer` from `packages/api/src/worker/base.ts`) in their `packages/api/src/worker/contracts/<feature>.ts`, or they will not wake it.
 - Internal API paths and input fields stay until no deployed web app calls them: the web app and the worker deploy separately.
 - The lifecycle does no idle polling of the computer, and reading status must not wake it.
 - A timer, listener or connection started in `apps/worker/src/index.ts` registers its stop with the `Runtime` (`apps/worker/src/core/runtime.ts`), which stops everything in reverse at shutdown.
@@ -42,7 +42,8 @@ Paths are relative to the repo root; symbols are in parentheses.
 1. One `defineTool({ name, description, input, helpers, handle })` in the feature's tools file: `apps/worker/src/features/<feature>/tools.ts`, using `defineTool()` from `apps/worker/src/core/tool.ts`.
    `input` is a zod object: Codex is offered its JSON schema, and a call is parsed with it before `handle` runs, so the handler gets typed `call.args` (`call.raw` is what Codex sent, for the timeline item).
    `helpers: "forbidden"` keeps swarm helpers from calling it.
-   `handle` records a timeline item with `session.putItem(toolItem(...))` and calls `publishApp` if the UI shows the change.
+   `handle` records a timeline item with `session.putItem(toolItem(...))`.
+   A change the UI shows publishes an app event with `publishApp`, usually in the feature's service, as `TaskService` (`apps/worker/src/features/tasks/service.ts`) does.
    A new feature's file adds its list to `TOOLS` in `apps/worker/src/tools/definitions.ts`.
 2. `pnpm --filter @open-bot/worker test -u` updates the tool list snapshot (`apps/worker/src/tools/__snapshots__/tools.json`); review its diff.
    Nothing to bump: threads started with other tools or instructions are replaced by fresh ones (`apps/worker/src/runs/tools-revision.ts`).
@@ -55,7 +56,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 ### Add a worker internal route (called by web)
 
 1. `packages/api/src/worker/contracts/<feature>.ts` (composed in `packages/api/src/worker/contract.ts`): add a procedure to `workerContract` with its `route` (`/internal/...`), input and output schemas.
-   Use `computer` instead of `base` if it touches the computer, or it will not wake it; never for a status read.
+   Build it with `computer` instead of `base` (both in `packages/api/src/worker/base.ts`) if it touches the computer, or it will not wake it; never for a status read.
 2. `apps/worker/src/features/<feature>/routes.ts`: implement it by calling the feature service; export the route builder from its `index.ts` and compose it in `apps/worker/src/rpc/router.ts`.
    Put rules in the service, and throw the service's own error class, which extends `WorkerError` (`apps/worker/src/core/errors.ts`) with a status; `apps/worker/src/rpc/errors.ts` turns it into the answer in one place.
    Auth (`x-worker-secret`) is automatic.

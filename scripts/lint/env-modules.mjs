@@ -1,5 +1,5 @@
 // The one module per app that reads the environment. ESLint refuses `process.env` everywhere else
-// in apps and packages (eslint.config.mjs), and scripts/check/env-docs.test.mjs checks that every
+// in apps and packages (eslint.config.mjs), and scripts/check/env.test.mjs checks that every
 // variable these modules read is documented.
 //
 // `dotenv`: the app reads the repository's root `.env` in development, so `.env.example` lists
