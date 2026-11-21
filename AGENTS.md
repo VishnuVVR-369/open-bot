@@ -18,6 +18,7 @@ Each workspace has its own `AGENTS.md` with details, and the technical docs live
 ## Repo map
 
 Workspace packages are consumed as TypeScript source (`exports` point at `src/*.ts`), so typecheck and tests build nothing first; a task that reads page-kit's `dist/lib`, the only build output tasks read, depends on `@open-bot/page-kit#build` in its package's `turbo.json`.
+A new cached turbo task that reads other workspaces' source must depend on `transit` (root `turbo.json`), or a change in a package it imports leaves it a cached pass.
 A new workspace dependency must also be added to the consumer's bundler config: `apps/worker/build.mjs`, `transpilePackages` in `apps/web/next.config.ts`, and the esbuild calls of botd and pages.
 For a deployed service it must also be added to that service's list in `.railway/watch-paths.ts`, or changes to it never redeploy the service (`pnpm test:railway` catches a missing folder).
 A third-party dependency that two or more workspaces declare (the root included) has one version, in the `catalog:` of `pnpm-workspace.yaml`, and every workspace declares it as `"catalog:"`; `pnpm check:catalog` fails otherwise.

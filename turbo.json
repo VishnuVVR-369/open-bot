@@ -9,6 +9,7 @@
     // A transit node: no package has a "transit" script, so it runs nothing. Tasks that depend
     // on it get every workspace dependency's source in their hash, so a change in a package
     // misses the cache of everything that imports it, without waiting on any build.
+    // A new cached task that reads other workspaces' source must depend on it too.
     "transit": {
       "dependsOn": ["^transit"]
     },
