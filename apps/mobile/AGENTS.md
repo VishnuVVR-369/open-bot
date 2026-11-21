@@ -47,7 +47,8 @@ Paths are relative to the repo root; symbols are in parentheses.
 ## Tests
 
 - Unit: `pnpm --filter @open-bot/mobile test` (vitest, Node, `src/**/*.test.ts`).
-- Types: `pnpm --filter @open-bot/mobile typecheck`; Expo health: `pnpm --filter @open-bot/mobile doctor`.
+- Types: `pnpm --filter @open-bot/mobile typecheck`; Expo versions: `pnpm exec expo install --check` in `apps/mobile`; Expo health: `pnpm --filter @open-bot/mobile doctor`.
+  Doctor's one expected failure is `@notifee/react-native` marked unmaintained (its repository is archived); the local modules are excluded from that check in `package.json`.
 - Kotlin core: `./gradlew test` in `apps/mobile/modules/egress/core`.
 - Device flows: `pnpm test:mobile-ui` and the Maestro flows in `apps/mobile/maestro`.
 - Pocket inbox: `pnpm test:pocket-inbox` and `pnpm test:integration` (`apps/worker/src/features/notifications/fcm.integration.test.ts`, `apps/worker/src/features/uploads/service.integration.test.ts`).
