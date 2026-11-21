@@ -219,8 +219,9 @@ These are easy to miss and cost time when forgotten.
 
 ### Code structure
 
-These guardrails keep the code easy to move and split.
-The file-size check records today's debt in a baseline that may only shrink, like the vocabulary check; the import rules and the catalog check have no baseline.
+These guardrails keep the code easy to find, move and split.
+Each one fails CI and names the file at fault; each entry below says what fails it and how to fix it.
+`pnpm check:fast` runs the lint rules and the repository checks, the boundary tests run in `pnpm test`, the env check in `pnpm test:scripts`, and `pnpm test:railway` and `pnpm test:artifacts` run on their own.
 
 - **File size.** A code file in `apps/*` or `packages/*` aims for 400 lines of code and may not pass 600, counting neither blank lines nor comments.
   `pnpm check:file-size` fails on a new file over 600, and on a file in `scripts/check/file-size-baseline.json` that grows.
@@ -229,20 +230,37 @@ The file-size check records today's debt in a baseline that may only shrink, lik
 - **Import cycles.** `pnpm check:imports` builds the import graph the way the type checker resolves it, `import type` included, and fails on any import cycle.
   It prints the way back, so you can see which import to cut.
   Break a cycle by moving what both files need into a module both import, or by passing it in as an argument.
-- **Workspace boundaries.** An app never imports another app's source; `pnpm check:imports` checks that too.
-  Packages are imported by name, through the entry points in their `package.json` `exports`, never by a path into their files; the `open-bot/workspace-imports` lint rule (`scripts/lint/workspace-imports.mjs`) enforces that with no baseline.
-- **Client code.** Code that can reach a phone or a browser (`apps/mobile`, `packages/api` and web code outside its server folders) never imports Node's modules, `@open-bot/domain/server`, `@open-bot/integrations` or a Node-only package (`@open-bot/db`, `@open-bot/memory`, `@open-bot/agent`, `@open-bot/egress`, `@open-bot/page-kit/serve`, `pg`, `drizzle-orm`, `ws`).
-  ESLint enforces it (`eslint.config.mjs`), and `scripts/check/import-boundaries.test.mjs` proves each ban fires; tests in those folders run in Node and may use Node and the database.
+- **Workspace imports.** An app never imports another app's source; `pnpm check:imports` checks that too.
+  Packages are imported by name, through the entry points in their `package.json` `exports`, never by a path into their files; the `open-bot/workspace-imports` lint rule (`scripts/lint/workspace-imports.mjs`) enforces that.
+- **Feature boundaries.** Each app's `src/features/boundaries.test.ts` runs with its unit tests and fails on any way of importing: static, type-only, re-export and `import()`.
+  In the worker (`apps/worker/src/features/boundaries.test.ts`), code outside a feature folder imports only its `index.ts`, and `core/` never imports a feature at all: features build on core.
+  In the web app (`apps/web/src/features/boundaries.test.ts`), code outside a feature imports only its `index.ts`, or `server.ts` for its server side, and nothing `index.ts` reaches may load the database or `server-only`, since that entry ends up in the browser.
+  In the phone app (`apps/mobile/src/features/boundaries.test.ts`), features may compose each other, but `lib/`, `components/`, `theme/` and `computer/` never import a feature or a route, features never import a route, and each route file only re-exports its feature's screen.
+- **Client imports.** Code that can reach a phone or a browser (`apps/mobile`, `packages/api` and web code outside its server folders) never imports Node's modules, `@open-bot/domain/server`, `@open-bot/integrations` or a Node-only package (`@open-bot/db`, `@open-bot/memory`, `@open-bot/agent`, `@open-bot/egress`, `@open-bot/page-kit/serve`, `pg`, `drizzle-orm`, `ws`), whether by `import`, re-export, `import()` or `require()`.
+  `packages/domain` outside its `server` folder and `packages/chat-core` may not use Node either, and `packages/chat-core` also imports no platform UI and no server-only `@open-bot` package.
+  ESLint enforces each ban (`eslint.config.mjs`), and `scripts/check/import-boundaries.test.mjs` proves it fires; tests in those folders run in Node and may use it.
   So may their `*.testing.ts` helpers and Expo's `app.config.ts`, which is why shipped client code can't import those or a `test/` folder; `apps/mobile/src/testing/` is loaded on the phone by development builds, so it keeps the bans.
-- **Feature folders.** In the worker, code outside a feature folder imports only its `index.ts`, and `core/` never imports a feature at all (`apps/worker/src/features/boundaries.test.ts`).
-  Web and mobile check their own feature rules in `apps/web/src/features/boundaries.test.ts` and `apps/mobile/src/features/boundaries.test.ts`.
-- **Shared dependency versions.** A third-party dependency that two or more workspaces declare (the root included) gets one version, in the `catalog:` of `pnpm-workspace.yaml`, and each workspace declares it as `"catalog:"`.
-  `pnpm check:catalog` (`scripts/check/catalog.mjs`) fails on a shared dependency declared with a version, and on a catalog entry no workspace uses; it has no baseline.
+- **Table owners.** Every table has one module that writes it, listed in `packages/db/src/owners.ts`.
+  The `open-bot/table-owners` lint rule (`scripts/lint/table-owners.mjs`) fails a Drizzle `insert`, `update` or `delete`, or SQL that writes the table, anywhere else.
+  Call the owner instead: over the worker's internal API from the web app, or through a function the owner exports that takes your transaction.
+- **Env modules.** Each app reads the environment in one module, listed in `scripts/lint/env-modules.mjs`; ESLint fails `process.env` anywhere else in apps and packages, and a package takes its settings as arguments.
+  `scripts/check/env.test.mjs` (`pnpm test:scripts`) fails when a variable one of those modules reads is missing from the [configuration reference](/docs/reference/configuration) or, for an app that reads the root `.env`, from `.env.example`.
+- **Vocabulary.** `pnpm check:vocabulary` fails when a file gains a legacy name from the glossary in the root `AGENTS.md` (bot, primary for the lead, desktop takeover).
+  Use the canonical term; a line that must keep an old name (a third-party API, say) ends with a `vocabulary: allow` comment.
+- **Doc paths.** `pnpm check:doc-paths` fails when a Markdown or MDX file names a repository path, in a code span or a relative link, that does not exist.
+  It checks only that the path exists: when you move code, also check that the docs still describe it.
+- **Dependency catalog.** A third-party dependency that two or more workspaces declare (the root included) gets one version, in the `catalog:` of `pnpm-workspace.yaml`, and each workspace declares it as `"catalog:"`.
+  `pnpm check:catalog` fails on a shared dependency declared with a version, and on a catalog entry no workspace uses.
   Expo reads the resolved versions, so `expo install --check` and `expo-doctor` work with catalog entries; keep `react` and `@types/react` at the versions the Expo SDK expects.
+- **Watch paths.** `pnpm test:railway` fails when a deployed service's watch paths (`.railway/watch-paths.ts`) miss a workspace it depends on, so a change there would never redeploy it.
+- **Built-artifact boot.** `pnpm test:artifacts` builds the worker and pages bundles and starts each one on a throwaway database, with only an explicit environment.
+  It fails when a bundle does not answer `/healthz`, does not exit cleanly on SIGTERM, or prints a module resolution error, which is how a dependency left out of a bundle (`ERR_MODULE_NOT_FOUND`) shows up before Railway does.
 
-When a baselined file shrinks or moves, the check fails until you run `pnpm check:file-size --update` and commit the new baseline.
-`--update` refuses to let the debt grow: a file may not get bigger, and the number of files over the limit may not rise.
+Only the file-size and vocabulary checks have a baseline, and it may only shrink.
+When a baselined file shrinks or moves, the check fails until you run it with `--update` and commit the new baseline.
+`--update` refuses to let the debt grow: a file may not get bigger, and neither the number of files over the limit nor a term's total may rise.
 `--allow-growth` is only for a reviewed change.
+Every other guardrail has no baseline: fix the code before you push.
 Generated code (`packages/agent/src/protocol`, `apps/mobile/src/computer/viewer-html.ts`, `apps/web/src/components/ui`, migrations and build output) is skipped.
 
 ### Agent and protocol

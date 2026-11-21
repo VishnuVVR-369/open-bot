@@ -86,6 +86,7 @@ It lives in the `AGENTS.md` of the workspace that owns the change, under "Recipe
 
 | To add                                  | Read                              |
 | --------------------------------------- | --------------------------------- |
+| a feature across layers, end to end     | the openbot-feature skill         |
 | an agent tool                           | `apps/worker/AGENTS.md`           |
 | a worker internal route (called by web) | `apps/worker/AGENTS.md`           |
 | a botd route (called by the worker)     | `apps/botd/AGENTS.md`             |
@@ -170,6 +171,7 @@ Read the matching page before changing a subsystem, and update it when behavior 
 
 ## Skills
 
+- openbot-feature: adding a feature across layers (types, table, worker, contracts, web, mobile), in order, with the recipe for each step.
 - openbot-ship: before PR, merge, deploy, or installing a phone build.
 - openbot-mobile: any Android, emulator, or phone work.
 - openbot-ui-review: UI changes, screenshots, council UI rounds.
