@@ -1,6 +1,8 @@
 // useChat with a link to a reply: it loads the history the reply is in, then scrolls to it once.
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+// The helper mocks the router, API and realtime modules when it loads, so import it before the
+// hook or anything it mocks: an import of "./use-chat" above this one loads the real modules.
 import {
   entry,
   hook,

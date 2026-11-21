@@ -2,6 +2,8 @@
 // older history loads, without missing or repeating any.
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+// The helper mocks the router, API and realtime modules when it loads, so import it before the
+// hook or anything it mocks: an import of "./use-chat" above this one loads the real modules.
 import {
   client,
   hook,
