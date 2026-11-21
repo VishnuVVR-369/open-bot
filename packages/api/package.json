@@ -15,13 +15,13 @@
   },
   "dependencies": {
     "@open-bot/domain": "workspace:*",
-    "@orpc/client": "^1.16.1",
-    "@orpc/contract": "^1.16.1",
+    "@orpc/client": "catalog:",
+    "@orpc/contract": "catalog:",
     "@orpc/openapi-client": "^1.16.1",
-    "zod": "^4.6.7"
+    "zod": "catalog:"
   },
   "devDependencies": {
-    "typescript": "~6.0.3",
-    "vitest": "^5.0.4"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

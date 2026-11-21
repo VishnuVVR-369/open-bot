@@ -10,6 +10,7 @@ export const CHECKS = [
   "check:vocabulary",
   "check:file-size",
   "check:imports",
+  "check:catalog",
 ];
 
 export function runChecks(commands, { cwd = process.cwd(), report = console.error } = {}) {

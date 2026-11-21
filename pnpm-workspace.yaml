@@ -11,3 +11,40 @@ onlyBuiltDependencies:
 
 patchedDependencies:
   drizzle-orm@0.45.4: patches/drizzle-orm@0.45.4.patch
+
+# One version for every dependency that two or more workspaces declare; they declare `catalog:`.
+# `pnpm check:catalog` fails when a shared dependency is declared outside it.
+catalog:
+  "@better-auth/expo": "1.7.7"
+  "@modelcontextprotocol/sdk": "1.32.1"
+  "@novnc/novnc": "1.7.0"
+  "@orpc/client": "^1.16.1"
+  "@orpc/contract": "^1.16.1"
+  "@orpc/openapi": "^1.16.1"
+  "@orpc/server": "^1.16.1"
+  "@playwright/test": "^1.64.0"
+  "@tailwindcss/turbopack": "^4"
+  "@tanstack/react-query": "^5.104.2"
+  "@types/node": "^24.19.2"
+  "@types/pg": "^8.23.1"
+  # react, react-dom and @types/react follow what the Expo SDK of apps/mobile expects
+  # (`npx expo install --check` there).
+  "@types/react": "~19.3.0"
+  "@types/react-dom": "^19"
+  "@types/ws": "^8.18.2"
+  # Exact, and the same as @better-auth/expo: the two are released together.
+  better-auth: "1.7.7"
+  cron-parser: "^5.10.2"
+  drizzle-orm: "^0.45.4"
+  esbuild: "^0.28.2"
+  next: "16.4.6"
+  pg: "^8.23.1"
+  react: "19.3.0"
+  react-dom: "19.3.0"
+  remark-gfm: "^4.0.1"
+  tailwindcss: "^4"
+  tsx: "^4.23.15"
+  typescript: "~6.0.3"
+  vitest: "^5.0.4"
+  ws: "^8.22.0"
+  zod: "^4.6.7"

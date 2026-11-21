@@ -12,13 +12,13 @@
   "dependencies": {
     "@open-bot/db": "workspace:*",
     "@open-bot/domain": "workspace:*",
-    "drizzle-orm": "^0.45.4",
-    "pg": "^8.23.1"
+    "drizzle-orm": "catalog:",
+    "pg": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "^24.19.2",
-    "@types/pg": "^8.15.6",
-    "tsx": "^4.23.15",
-    "typescript": "~6.0.3"
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
   }
 }

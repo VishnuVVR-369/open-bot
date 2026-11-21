@@ -14,11 +14,11 @@
   "devDependencies": {
     "@open-bot/api": "workspace:*",
     "@open-bot/egress": "workspace:*",
-    "@types/node": "^24.19.2",
+    "@types/node": "catalog:",
     "electron": "^44.7.0",
     "electron-builder": "^26.15.3",
-    "esbuild": "^0.28.2",
-    "typescript": "~6.0.3"
+    "esbuild": "catalog:",
+    "typescript": "catalog:"
   },
   "build": {
     "appId": "dev.openbot.desktop",

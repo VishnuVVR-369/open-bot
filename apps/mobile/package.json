@@ -15,21 +15,21 @@
     "check:viewer": "node scripts/build-viewer.mjs --check"
   },
   "dependencies": {
-    "@better-auth/expo": "1.7.7",
+    "@better-auth/expo": "catalog:",
     "@expo-google-fonts/familjen-grotesk": "^0.4.2",
     "@expo-google-fonts/jetbrains-mono": "^0.4.1",
     "@expo-google-fonts/onest": "^0.4.2",
     "@notifee/react-native": "^9.1.8",
-    "@novnc/novnc": "1.7.0",
+    "@novnc/novnc": "catalog:",
     "@open-bot/api": "workspace:*",
     "@open-bot/chat-core": "workspace:*",
     "@open-bot/domain": "workspace:*",
-    "@orpc/client": "^1.16.1",
+    "@orpc/client": "catalog:",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-firebase/app": "^27.1.0",
     "@react-native-firebase/messaging": "^27.1.0",
-    "@tanstack/react-query": "^5.104.2",
-    "better-auth": "1.7.7",
+    "@tanstack/react-query": "catalog:",
+    "better-auth": "catalog:",
     "expo": "~58.0.22",
     "expo-build-properties": "~58.0.12",
     "expo-clipboard": "~58.0.4",
@@ -57,7 +57,7 @@
     "expo-system-ui": "~58.0.7",
     "expo-web-browser": "~58.0.7",
     "lucide-react-native": "^1.66.0",
-    "react": "19.3.0",
+    "react": "catalog:",
     "react-native": "0.88.1",
     "react-native-gesture-handler": "~3.3.0",
     "react-native-marked": "^8.3.3",
@@ -65,17 +65,17 @@
     "react-native-screens": "~4.30.1",
     "react-native-svg": "15.16.0",
     "react-native-webview": "14.0.1",
-    "zod": "^4.6.7"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@babel/plugin-transform-parameters": "^7.29.7",
-    "@types/node": "^24.19.2",
-    "@types/react": "~19.3.0",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
     "@types/react-test-renderer": "^19.3.0",
     "babel-preset-expo": "~58.0.23",
-    "esbuild": "^0.28.2",
+    "esbuild": "catalog:",
     "react-test-renderer": "19.3.0",
-    "typescript": "~6.0.3",
-    "vitest": "^5.0.4"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }
