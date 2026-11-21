@@ -20,7 +20,7 @@ import {
   AvatarBadge,
   ON_ATTENTION,
 } from "@/features/approvals/components/approval-parts";
-import { BotAvatar } from "@/features/teammates/components/bot-avatar";
+import { TeammateAvatar } from "@/features/teammates/components/teammate-avatar";
 import { FilterChips } from "@/components/filter-chips";
 import { Separator } from "@/components/list-row";
 import { Empty, LoadError, Loading } from "@/components/states";
@@ -74,7 +74,13 @@ const FILTERS = [
  * Who it's from: the teammate's face, or a tile for the app itself. The badge says what kind of
  * event it was. It never shows what the teammate is doing now: the row is about then, not now.
  */
-function Leading({ notification, bot }: { notification: NotificationView; bot?: TeammateSummary }) {
+function Leading({
+  notification,
+  teammate,
+}: {
+  notification: NotificationView;
+  teammate?: TeammateSummary;
+}) {
   const colors = useColors();
   const Icon = ICONS[notification.kind] ?? Bell;
   const signal = NEEDS_YOU.has(notification.kind)
@@ -82,7 +88,7 @@ function Leading({ notification, bot }: { notification: NotificationView; bot?: 
     : FAILED.has(notification.kind)
       ? { fill: colors.destructive, ink: colors.destructive }
       : null;
-  if (!bot)
+  if (!teammate)
     return (
       <View
         style={[
@@ -93,7 +99,9 @@ function Leading({ notification, bot }: { notification: NotificationView; bot?: 
         <Icon size={20} color={signal ? signal.ink : colors.foreground} />
       </View>
     );
-  const avatar = <BotAvatar name={bot.name} color={bot.color} emoji={bot.emoji} size="md" />;
+  const avatar = (
+    <TeammateAvatar name={teammate.name} color={teammate.color} emoji={teammate.emoji} size="md" />
+  );
   if (!signal) return avatar;
   return (
     <AvatarBadge
@@ -114,7 +122,7 @@ export default function Notifications() {
   const colors = useColors();
   const queryClient = useQueryClient();
   const query = useNotifications();
-  const { data: bots = [] } = useTeammates();
+  const { data: teammates = [] } = useTeammates();
   const { refreshing, onRefresh } = usePullToRefresh(query.refetch);
   const notifications = useMemo(() => query.data ?? [], [query.data]);
   const unread = notifications.filter((notification) => !notification.readAt);
@@ -252,7 +260,7 @@ export default function Notifications() {
             section.title === "Yesterday"
               ? phoneClock(notification.createdAt)
               : ago(notification.createdAt);
-          const bot = bots.find((candidate) => candidate.id === notification.teammateId);
+          const teammate = teammates.find((candidate) => candidate.id === notification.teammateId);
           const unreadIds = row.items.filter((item) => !item.readAt).map((item) => item.id);
           const isUnread = unreadIds.length > 0;
           const { title, body: rawBody } = notificationText(notification);
@@ -290,7 +298,7 @@ export default function Notifications() {
                 .join(", ")}
               testID="notification"
             >
-              <Leading notification={notification} bot={bot} />
+              <Leading notification={notification} teammate={teammate} />
               <View style={{ flex: 1, gap: 2 }}>
                 <View style={styles.titleRow}>
                   <Text

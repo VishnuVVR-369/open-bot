@@ -1,7 +1,7 @@
 import type { ScreenView } from "@open-bot/api";
 import { Hand, ShieldAlert } from "lucide-react-native";
 import { StyleSheet, View } from "react-native";
-import { BotAvatar, botActivity } from "@/features/teammates/components/bot-avatar";
+import { TeammateAvatar, teammateActivity } from "@/features/teammates/components/teammate-avatar";
 import { Button } from "@/components/button";
 import { Text } from "@/components/text";
 import { screenState, screenStatus } from "@/features/computer/screens";
@@ -14,12 +14,12 @@ export function ScreenTitle({ screen }: { screen: ScreenView }) {
   const needsYou = screenState(screen).kind === "needs-you";
   return (
     <View style={styles.title}>
-      <BotAvatar
+      <TeammateAvatar
         name={screen.teammate.name}
         color={screen.teammate.color}
         emoji={screen.teammate.emoji}
         size="sm"
-        activity={needsYou ? "waiting" : botActivity(screen.teammate)}
+        activity={needsYou ? "waiting" : teammateActivity(screen.teammate)}
       />
       <View style={{ flexShrink: 1 }}>
         <Text variant="heading" numberOfLines={1}>

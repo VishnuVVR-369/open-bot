@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { isOnScreen, outcomeText, parsePushData, planNotification, replyText } from "./payload";
+import {
+  isOnScreen,
+  outcomeText,
+  parsePushData,
+  planNotification,
+  isUnsentReplyId,
+  replyChatUrl,
+  replyText,
+  unsentReplyId,
+} from "./payload";
 
 const approval = {
   type: "notification",
@@ -22,7 +31,7 @@ describe("phone notifications", () => {
       body: "Published “How Kafka works”",
       tag: "r1",
       url: "/pages/p1",
-      botId: "b1",
+      teammateId: "b1",
       chatId: "c1",
       runId: "r1",
       pageId: "p1",
@@ -30,7 +39,7 @@ describe("phone notifications", () => {
     expect(data.pageId).toBe("p1");
     expect(planNotification(data)).toMatchObject({
       url: "/pages/p1",
-      reply: { chatId: "c1", botId: "b1" },
+      reply: { chatId: "c1", teammateId: "b1" },
     });
   });
 
@@ -41,7 +50,7 @@ describe("phone notifications", () => {
         kind: "takeover_request",
         title: "Rex needs you",
         tag: "t1",
-        botId: "b1",
+        teammateId: "b1",
         takeoverId: "t1",
       })!,
     );
@@ -98,6 +107,28 @@ describe("phone notifications", () => {
     expect(reply?.actions).toEqual([]);
   });
 
+  it("offers no Reply when it doesn't say which teammate it's from", () => {
+    // A reply that mentions nobody goes to a group's lead, not to the teammate who wrote. The
+    // older key doesn't count: this build reads only `teammateId`.
+    const oldKey = { botId: "b1" }; // vocabulary: allow
+    for (const from of [{}, oldKey]) {
+      const plan = planNotification(
+        parsePushData({
+          type: "notification",
+          kind: "run_finished",
+          title: "Rex replied",
+          tag: "r1",
+          chatId: "c1",
+          url: "/chats/c1?run=r1",
+          ...from,
+        })!,
+      );
+      expect(plan?.reply).toBeUndefined();
+      expect(plan?.actions).toEqual([]);
+      expect(plan?.url).toBe("/chats/c1?run=r1");
+    }
+  });
+
   it("lets you reply to a teammate's reply, right from the notification", () => {
     const plan = planNotification(
       parsePushData({
@@ -106,14 +137,14 @@ describe("phone notifications", () => {
         title: "Rex replied",
         tag: "r1",
         chatId: "c1",
-        botId: "b1",
+        teammateId: "b1",
         url: "/chats/c1?run=r1",
       })!,
     );
     expect(plan?.actions).toEqual([
       { id: "reply", title: "Reply", opensApp: false, input: { placeholder: "Reply" } },
     ]);
-    expect(plan?.reply).toEqual({ chatId: "c1", botId: "b1" });
+    expect(plan?.reply).toEqual({ chatId: "c1", teammateId: "b1" });
     const failed = planNotification(
       parsePushData({
         type: "notification",
@@ -121,9 +152,10 @@ describe("phone notifications", () => {
         title: "x",
         tag: "f",
         chatId: "c1",
+        teammateId: "b1",
       })!,
     );
-    expect(failed?.reply).toEqual({ chatId: "c1", botId: null });
+    expect(failed?.reply).toEqual({ chatId: "c1", teammateId: "b1" });
     // Approvals and takeovers are decided, not replied to.
     expect(planNotification(parsePushData(approval)!)?.reply).toBeUndefined();
     const asking = planNotification(
@@ -138,9 +170,29 @@ describe("phone notifications", () => {
     expect(asking?.actions).toEqual([]);
   });
 
-  it("says whether a reply from a notification was sent", () => {
-    expect(replyText(true).title).toBe("Reply sent");
-    expect(replyText(false)).toEqual({ title: "Couldn't send your reply", body: "Open to reply." });
+  it("says whether a reply from a notification was sent, and shows an unsent one in full", () => {
+    expect(replyText(true, "Book it")).toEqual({ title: "Reply sent", body: "Book it" });
+    const long = "Book the 9am one. ".repeat(20).trim();
+    // Not "Open to reply.": nothing else keeps what you typed, so it isn't lost.
+    expect(replyText(false, ` ${long} `)).toEqual({ title: "Your reply wasn't sent", body: long });
+  });
+
+  it("gives an unsent reply a notification id of its own, the same for the same reply", () => {
+    const id = unsentReplyId("run-1", "Book it");
+    expect(id).not.toBe("run-1");
+    expect(isUnsentReplyId(id)).toBe(true);
+    expect(isUnsentReplyId("run-1")).toBe(false);
+    expect(unsentReplyId("run-1", " Book it\n")).toBe(id);
+    expect(unsentReplyId("run-1", "Book it!")).not.toBe(id);
+    expect(unsentReplyId("run-2", "Book it")).not.toBe(id);
+  });
+
+  it("opens an unsent reply's chat, even from a page's notification", () => {
+    expect(replyChatUrl("/chats/c1?run=r1", "c1")).toBe("/chats/c1?run=r1");
+    expect(replyChatUrl("/chats/c1", "c1")).toBe("/chats/c1");
+    expect(replyChatUrl("/pages/p1", "c1")).toBe("/chats/c1");
+    expect(replyChatUrl("/chats/c10", "c1")).toBe("/chats/c1");
+    expect(replyChatUrl(undefined, "c1")).toBe("/chats/c1");
   });
 
   it("ignores malformed messages", () => {

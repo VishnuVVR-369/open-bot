@@ -3,7 +3,7 @@ import { router } from "expo-router";
 import { ChevronRight, CloudOff, Monitor } from "lucide-react-native";
 import { useMemo, useState } from "react";
 import { Alert, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
-import { BotAvatar, StatusLine } from "@/features/teammates/components/bot-avatar";
+import { TeammateAvatar, StatusLine } from "@/features/teammates/components/teammate-avatar";
 import { Button } from "@/components/button";
 import { LastFrames } from "@/features/computer/components/last-frames";
 import { ScreenCard, type ScreenAction } from "@/features/computer/components/screen-card";
@@ -66,7 +66,7 @@ function OfflineRow({ screen, first }: { screen: ScreenView; first: boolean }) {
       <ListRow
         onPress={() => router.push(screenHref(screen.id, request?.id))}
         leading={
-          <BotAvatar
+          <TeammateAvatar
             name={screen.teammate.name}
             color={screen.teammate.color}
             emoji={screen.teammate.emoji}

@@ -17,7 +17,7 @@ import { TextField } from "@/components/text-field";
 import { space, useColors } from "@/theme";
 
 /** What a command rule would leave out of this request, so it's clear the teammate still asks. */
-function coverageNote(subject: string, pattern: string, botName: string): string | null {
+function coverageNote(subject: string, pattern: string, teammateName: string): string | null {
   const commands = simpleCommands(shellScript(subject));
   if (!commands)
     return "Commands that write to files or run other commands inside $( ) still ask first.";
@@ -25,7 +25,7 @@ function coverageNote(subject: string, pattern: string, botName: string): string
     (command) => !rulesCover([{ kind: "command", pattern }], "command", command),
   );
   if (missed.length === 0) return null;
-  return `This doesn't cover ${missed.join(", ")}, so ${botName} will still ask about ${missed.length === 1 ? "it" : "them"}.`;
+  return `This doesn't cover ${missed.join(", ")}, so ${teammateName} will still ask about ${missed.length === 1 ? "it" : "them"}.`;
 }
 
 /**
@@ -37,7 +37,7 @@ export function AlwaysAllowSheet({
   onClose,
   kind,
   subject,
-  botName,
+  teammateName,
   onConfirm,
 }: {
   open: boolean;
@@ -45,7 +45,7 @@ export function AlwaysAllowSheet({
   kind: RuleKind;
   /** The raw command, or the action's wording. */
   subject: string;
-  botName: string;
+  teammateName: string;
   onConfirm: (pattern: string) => Promise<void>;
 }) {
   const colors = useColors();
@@ -55,7 +55,7 @@ export function AlwaysAllowSheet({
     if (open) setPattern(suggestedRule(kind, subject));
   }, [open, kind, subject]);
   const problem = invalidRulePattern(kind, pattern);
-  const note = kind === "command" && !problem ? coverageNote(subject, pattern, botName) : null;
+  const note = kind === "command" && !problem ? coverageNote(subject, pattern, teammateName) : null;
 
   const confirm = async () => {
     if (problem) return;
@@ -75,12 +75,12 @@ export function AlwaysAllowSheet({
           <View style={{ flex: 1, gap: space(1) }}>
             <Text variant="label">
               {kind === "command"
-                ? `Let ${botName} run commands starting with`
+                ? `Let ${teammateName} run commands starting with`
                 : kind === "file_change"
-                  ? `Let ${botName} change files without asking`
+                  ? `Let ${teammateName} change files without asking`
                   : kind === "account_write"
-                    ? `Let ${botName} ${(accountTool(subject)?.label ?? "do this").replace(/^./, (first) => first.toLowerCase())} without asking`
-                    : `Let ${botName} do this without asking`}
+                    ? `Let ${teammateName} ${(accountTool(subject)?.label ?? "do this").replace(/^./, (first) => first.toLowerCase())} without asking`
+                    : `Let ${teammateName} do this without asking`}
             </Text>
             <Text variant="small" muted>
               {kind === "account_write" &&

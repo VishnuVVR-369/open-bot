@@ -22,7 +22,7 @@ export interface PushData {
   title?: string;
   body?: string;
   url?: string;
-  botId?: string;
+  teammateId?: string;
   chatId?: string;
   runId?: string;
   approvalId?: string;
@@ -47,7 +47,7 @@ export function parsePushData(raw: Record<string, unknown> | undefined): PushDat
     title: text("title"),
     body: text("body"),
     url: text("url"),
-    botId: text("botId"),
+    teammateId: text("teammateId"),
     chatId: text("chatId"),
     runId: text("runId"),
     approvalId: text("approvalId"),
@@ -77,7 +77,7 @@ export interface NotificationPlan {
   actions: { id: ActionId; title: string; opensApp: boolean; input?: { placeholder: string } }[];
   approvalId?: string;
   /** Where a Reply goes, and who it's for (they're mentioned, so in a group they get it). */
-  reply?: { chatId: string; botId: string | null };
+  reply?: { chatId: string; teammateId: string };
 }
 
 /**
@@ -92,9 +92,10 @@ export function planNotification(data: PushData): NotificationPlan | null {
     : data.kind === "takeover_request"
       ? "asking"
       : "messages";
+  // Only with the teammate it's from: a reply that mentions nobody goes to a group's lead.
   const reply =
-    !isApproval && data.chatId && data.kind && REPLYABLE_KINDS.has(data.kind)
-      ? { chatId: data.chatId, botId: data.botId ?? null }
+    !isApproval && data.chatId && data.teammateId && data.kind && REPLYABLE_KINDS.has(data.kind)
+      ? { chatId: data.chatId, teammateId: data.teammateId }
       : null;
   return {
     id: data.tag,
@@ -102,11 +103,11 @@ export function planNotification(data: PushData): NotificationPlan | null {
     title: data.title,
     body: data.body ?? "",
     url:
-      data.kind === "takeover_request" && data.botId
-        ? `/screens/${encodeURIComponent(data.botId)}${data.takeoverId ? `?takeover=${encodeURIComponent(data.takeoverId)}` : ""}`
+      data.kind === "takeover_request" && data.teammateId
+        ? `/screens/${encodeURIComponent(data.teammateId)}${data.takeoverId ? `?takeover=${encodeURIComponent(data.takeoverId)}` : ""}`
         : (data.url ?? "/"),
     actions:
-      data.kind === "takeover_request" && data.botId && data.takeoverId
+      data.kind === "takeover_request" && data.teammateId && data.takeoverId
         ? [
             { id: "take-over", title: "Take over", opensApp: true },
             { id: "type-code", title: "Type the code", opensApp: true },
@@ -126,12 +127,44 @@ export function planNotification(data: PushData): NotificationPlan | null {
   };
 }
 
-/** What a replied-to notification says once the reply was sent, or wasn't. */
-export function replyText(sent: boolean): { title: string; body: string } {
+/**
+ * What a replied-to notification says once the reply was sent, or wasn't. Unsent, it shows all
+ * you typed: it's the only copy, kept nowhere else.
+ */
+export function replyText(sent: boolean, text: string): { title: string; body: string } {
   return sent
-    ? { title: "Reply sent", body: "" }
-    : { title: "Couldn't send your reply", body: "Open to reply." };
+    ? { title: "Reply sent", body: text }
+    : { title: "Your reply wasn't sent", body: text.trim() };
 }
+
+/**
+ * Where an unsent reply's notification opens: the chat the reply was for, where you can send it,
+ * even when the notification was about a page.
+ */
+export function replyChatUrl(url: string | undefined, chatId: string): string {
+  const chat = `/chats/${chatId}`;
+  return url === chat || url?.startsWith(`${chat}?`) ? url : chat;
+}
+
+/** The start of an unsent reply's notification id. The phone ignores a push tagged with one. */
+const UNSENT_REPLY = "unsent-reply:";
+
+/**
+ * The id of an unsent reply's notification: its own, so a later push about the same run (which
+ * reuses the run's id) can't replace the only copy of what you typed. The same reply failing again
+ * replaces its notification; another reply gets its own.
+ */
+export function unsentReplyId(notificationId: string, text: string): string {
+  // FNV-1a over the text's code points.
+  let hash = 0x811c9dc5;
+  for (const char of text.trim()) {
+    hash ^= char.codePointAt(0)!;
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return `${UNSENT_REPLY}${notificationId}:${hash.toString(16).padStart(8, "0")}`;
+}
+
+export const isUnsentReplyId = (id: string) => id.startsWith(UNSENT_REPLY);
 
 /** Don't show a notification about the chat you're looking at; it's on screen already. */
 export function isOnScreen(data: PushData, visibleChatId: string | null, appActive: boolean) {

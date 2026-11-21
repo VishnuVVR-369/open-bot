@@ -1,7 +1,7 @@
 import type { TeammateSummary, Home } from "@open-bot/api";
 import { CloudOff, Hand } from "lucide-react-native";
 import { Pressable, View, StyleSheet } from "react-native";
-import { BotAvatar, needsYouText } from "@/features/teammates/components/bot-avatar";
+import { TeammateAvatar, needsYouText } from "@/features/teammates/components/teammate-avatar";
 import { Text } from "@/components/text";
 import { haptics } from "@/lib/haptics";
 import { useColors, radius, space } from "@/theme";
@@ -13,11 +13,11 @@ import { shared } from "./styles";
  */
 export function TakeoverLater({
   request,
-  bot,
+  teammate,
   onOpen,
 }: {
   request: Home["takeoverRequests"][number];
-  bot: TeammateSummary | undefined;
+  teammate: TeammateSummary | undefined;
   onOpen: () => void;
 }) {
   const colors = useColors();
@@ -27,8 +27,8 @@ export function TakeoverLater({
       testID="takeover-request"
     >
       <View style={styles.laterHead}>
-        {bot ? (
-          <BotAvatar {...bot} size="md" activity="waiting" />
+        {teammate ? (
+          <TeammateAvatar {...teammate} size="md" activity="waiting" />
         ) : (
           <Hand size={20} color={colors.attentionInk} />
         )}

@@ -66,7 +66,7 @@ export default function HomeScreen() {
       />
     );
   const data = home.data!;
-  const bots = teammates.data ?? [];
+  const allTeammates = teammates.data ?? [];
 
   return (
     <ScrollView
@@ -88,7 +88,7 @@ export default function HomeScreen() {
             {greeting(data.user.name, new Date().getHours())}
           </Text>
           <Text muted style={{ fontSize: 16, lineHeight: 22 }} testID="home-status">
-            {statusLine(data, bots, computerOffline, pending?.length)}
+            {statusLine(data, allTeammates, computerOffline, pending?.length)}
           </Text>
         </View>
         <ComputerOfflineNotice />
@@ -96,11 +96,11 @@ export default function HomeScreen() {
       <NeedsYou
         home={data}
         approvals={pending}
-        teammates={bots}
+        teammates={allTeammates}
         computerOffline={computerOffline}
       />
-      {awaySince && <Briefing items={data.briefing} teammates={bots} since={awaySince} />}
-      {bots.length === 0 ? (
+      {awaySince && <Briefing items={data.briefing} teammates={allTeammates} since={awaySince} />}
+      {allTeammates.length === 0 ? (
         <Empty
           icon={<Users size={28} color={colors.mutedForeground} />}
           title="No teammates yet"
@@ -108,9 +108,17 @@ export default function HomeScreen() {
         />
       ) : (
         <>
-          <Teammates teammates={bots} chats={chats.data ?? []} computerOffline={computerOffline} />
-          <Pages pages={pages.data ?? []} teammates={bots} />
-          <Elsewhere activity={data.activity} teammates={bots} computerOffline={computerOffline} />
+          <Teammates
+            teammates={allTeammates}
+            chats={chats.data ?? []}
+            computerOffline={computerOffline}
+          />
+          <Pages pages={pages.data ?? []} teammates={allTeammates} />
+          <Elsewhere
+            activity={data.activity}
+            teammates={allTeammates}
+            computerOffline={computerOffline}
+          />
         </>
       )}
     </ScrollView>

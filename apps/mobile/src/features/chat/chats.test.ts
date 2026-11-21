@@ -4,7 +4,7 @@ import { chatSubtitle, chatTitle, conversationWith } from "./chats";
 
 const rex = { id: "rex", name: "Rex", role: "software engineer" } as TeammateSummary;
 const iris = { id: "iris", name: "Iris", role: "research assistant" } as TeammateSummary;
-const bots = [rex, iris];
+const teammates = [rex, iris];
 
 function chat(overrides: Partial<ChatSummary>): ChatSummary {
   return {
@@ -28,19 +28,19 @@ describe("chat subtitles", () => {
       title: "Fix the login redirect",
       preview: { text: "Done.", teammateId: "rex" },
     });
-    expect(chatSubtitle(titled, rex, bots)).toBe("Rex: Done.");
+    expect(chatSubtitle(titled, rex, teammates)).toBe("Rex: Done.");
     expect(
-      chatSubtitle({ ...titled, preview: { text: "Thanks", teammateId: null } }, rex, bots),
+      chatSubtitle({ ...titled, preview: { text: "Thanks", teammateId: null } }, rex, teammates),
     ).toBe("You: Thanks");
   });
 
   it("shows what was said last, and says when you said it", () => {
-    expect(chatSubtitle(chat({ preview: { text: "Done.", teammateId: "rex" } }), rex, bots)).toBe(
-      "Done.",
-    );
-    expect(chatSubtitle(chat({ preview: { text: "Thanks", teammateId: null } }), rex, bots)).toBe(
-      "You: Thanks",
-    );
+    expect(
+      chatSubtitle(chat({ preview: { text: "Done.", teammateId: "rex" } }), rex, teammates),
+    ).toBe("Done.");
+    expect(
+      chatSubtitle(chat({ preview: { text: "Thanks", teammateId: null } }), rex, teammates),
+    ).toBe("You: Thanks");
   });
 
   it("says who spoke in a group", () => {
@@ -51,14 +51,18 @@ describe("chat subtitles", () => {
       memberIds: ["rex", "iris"],
     });
     expect(
-      chatSubtitle({ ...group, preview: { text: "On it", teammateId: "iris" } }, undefined, bots),
+      chatSubtitle(
+        { ...group, preview: { text: "On it", teammateId: "iris" } },
+        undefined,
+        teammates,
+      ),
     ).toBe("Iris: On it");
-    expect(chatSubtitle(group, undefined, bots)).toBe("Rex, Iris");
+    expect(chatSubtitle(group, undefined, teammates)).toBe("Rex, Iris");
   });
 
   it("says who the teammate is in a chat with nothing in it yet", () => {
-    expect(chatSubtitle(chat({}), rex, bots)).toBe("software engineer");
-    expect(chatSubtitle(chat({ kind: "scheduled" }), rex, bots)).toBe("Scheduled tasks");
+    expect(chatSubtitle(chat({}), rex, teammates)).toBe("software engineer");
+    expect(chatSubtitle(chat({ kind: "scheduled" }), rex, teammates)).toBe("Scheduled tasks");
   });
 });
 

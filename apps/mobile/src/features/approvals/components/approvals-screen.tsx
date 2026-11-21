@@ -57,7 +57,7 @@ function CaughtUp() {
 export default function Approvals() {
   const colors = useColors();
   const approvals = useApprovals();
-  const { data: bots = [] } = useTeammates();
+  const { data: teammates = [] } = useTeammates();
   const { data: rules = [] } = useApprovalRules();
   const online = useOnline();
   const { refreshing, onRefresh } = usePullToRefresh(approvals.refetch);
@@ -75,8 +75,8 @@ export default function Approvals() {
       ),
     };
   }, [approvals.data]);
-  const botFor = (approval: ApprovalView) =>
-    bots.find((candidate) => candidate.id === approval.teammateId);
+  const teammateFor = (approval: ApprovalView) =>
+    teammates.find((candidate) => candidate.id === approval.teammateId);
 
   if (approvals.isLoading) return <Loading />;
   if (approvals.error && !approvals.data)
@@ -130,7 +130,7 @@ export default function Approvals() {
                 {index > 0 && <Separator />}
                 <ApprovalRow
                   approval={approval}
-                  bot={botFor(approval)}
+                  teammate={teammateFor(approval)}
                   meta={recently(approval.createdAt) ?? ago(approval.createdAt)}
                   behind={pendingFill}
                 />
@@ -171,7 +171,7 @@ export default function Approvals() {
                 {index > 0 && <Separator />}
                 <ApprovalRow
                   approval={approval}
-                  bot={botFor(approval)}
+                  teammate={teammateFor(approval)}
                   meta={decidedWhen(approval.decidedAt ?? approval.createdAt, group.title)}
                   behind={colors.surface}
                 />

@@ -57,7 +57,7 @@ The field crosses every layer, from the database to web and mobile.
 3. `packages/api/src/views.ts` (`teammateSummarySchema`) if lists or mobile need it; `apps/web/src/features/teammates/server/queries.ts` (`listTeammates`).
 4. Worker: `apps/worker/src/features/teammates/service.ts` (`list`, `get`, `exportBundle`, `addTeammate`, which duplicate and import share), `apps/worker/src/features/teammates/tools.ts` (`profileFields`), `apps/worker/src/features/teammates/changes.ts` (`PROFILE_LABELS`).
 5. Web: `apps/web/src/features/teammates/components/teammate-form.tsx` (`TeammateFormValues`), `apps/web/src/app/(app)/teammates/new/page.tsx`, `apps/web/src/features/teammates/components/teammate-view.tsx`.
-6. Mobile (display only; the contract has no teammate edit procedure): `apps/mobile/src/app/teammates/[botId].tsx`.
+6. Mobile (display only; the contract has no teammate edit procedure): `apps/mobile/src/app/teammates/[teammateId].tsx`.
 7. Ship web and worker together: the worker's schemas are strict and reject unknown keys.
 
 ### Add a realtime event (UI refresh after a change)

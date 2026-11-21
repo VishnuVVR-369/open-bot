@@ -1,18 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { displayed, cancel, display, send, getApproval, decideApproval } = vi.hoisted(() => ({
-  displayed: vi.fn(),
-  cancel: vi.fn(),
-  display: vi.fn(),
-  send: vi.fn(),
-  getApproval: vi.fn(),
-  decideApproval: vi.fn(),
-}));
+const { displayed, cancel, cancelById, display, send, getApproval, decideApproval, tray } =
+  vi.hoisted(() => ({
+    /** What's shown, by notification id, as Notifee keeps it: showing an id again replaces it. */
+    tray: new Map<string, { id: string; title?: string; body?: string }>(),
+    displayed: vi.fn(),
+    cancel: vi.fn(),
+    cancelById: vi.fn(),
+    display: vi.fn(),
+    send: vi.fn(),
+    getApproval: vi.fn(),
+    decideApproval: vi.fn(),
+  }));
 
 vi.mock("@notifee/react-native", () => ({
   default: {
     getDisplayedNotifications: displayed,
     cancelDisplayedNotification: cancel,
+    cancelNotification: cancelById,
     displayNotification: display,
     createChannels: vi.fn(async () => {}),
   },
@@ -32,6 +37,7 @@ vi.mock("@/theme/colors", () => ({ palette: { light: { foreground: "#14161B" } }
 import type { Event } from "@notifee/react-native";
 import { ORPCError } from "@orpc/client";
 import { clearChatNotifications, handleNotificationEvent, handlePushData } from "./notifications";
+import { unsentReplyId } from "./payload";
 
 const shown = [
   { id: "reply-a", notification: { data: { chatId: "a" } } },
@@ -43,7 +49,13 @@ beforeEach(() => {
   vi.clearAllMocks();
   displayed.mockResolvedValue(shown);
   cancel.mockResolvedValue(undefined);
-  display.mockResolvedValue(undefined);
+  tray.clear();
+  display.mockImplementation(async (notification: { id: string }) => {
+    tray.set(notification.id, notification);
+  });
+  cancelById.mockImplementation(async (id: string) => {
+    tray.delete(id);
+  });
   getApproval.mockResolvedValue({ status: "pending" });
   decideApproval.mockResolvedValue({ status: "approved" });
 });
@@ -57,11 +69,13 @@ describe("native notification rendering and decisions", () => {
       title: "Rex replied",
       body: "All done",
       chatId: "chat",
-      botId: "rex",
+      teammateId: "rex",
       url: "/chats/chat",
     });
     expect(display).toHaveBeenCalledWith(
       expect.objectContaining({
+        // Kept as it is: notifications shown before an app update carry it and still reply with it.
+        data: expect.objectContaining({ replyChatId: "chat", replyBotId: "rex" }), // vocabulary: allow
         android: expect.objectContaining({
           category: "msg",
           style: expect.objectContaining({
@@ -132,6 +146,15 @@ describe("clearing displayed chat notifications", () => {
     expect(cancel.mock.calls).toEqual([["reply-a"]]);
   });
 
+  it("keeps an unsent reply: its notification is the only copy of what you typed", async () => {
+    displayed.mockResolvedValue([
+      ...shown,
+      { id: "unsent-a", notification: { data: { chatId: "a", unsentReply: "true" } } },
+    ]);
+    await clearChatNotifications("a", () => true);
+    expect(cancel.mock.calls).toEqual([["reply-a"]]);
+  });
+
   it("keeps notifications if focus is lost while fetching displayed notifications", async () => {
     let resolve!: (value: typeof shown) => void;
     displayed.mockReturnValue(new Promise((done) => (resolve = done)));
@@ -154,7 +177,7 @@ describe("replying from a notification", () => {
         notification: {
           id: "run-1",
           title: "Rex replied",
-          data: { url: "/chats/c1?run=run-1", chatId: "c1", replyChatId: "c1", replyBotId: "b1" },
+          data: { url: "/chats/c1?run=run-1", chatId: "c1", replyChatId: "c1", replyBotId: "b1" }, // vocabulary: allow
         },
       },
     }) as unknown as Event;
@@ -180,12 +203,86 @@ describe("replying from a notification", () => {
     );
   });
 
-  it("says so when the reply couldn't be sent, and stays until you open it", async () => {
+  /** The notification an unsent reply leaves: all of it, until you dismiss it. */
+  const unsent = (text: string, url = "/chats/c1?run=run-1") => ({
+    id: unsentReplyId("run-1", text),
+    title: "Your reply wasn't sent",
+    body: text,
+    data: { url, chatId: "c1", unsentReply: "true" },
+    android: expect.objectContaining({
+      autoCancel: false,
+      style: { type: 1, text },
+    }),
+  });
+
+  it("shows all of a reply that couldn't be sent, and keeps it until you dismiss it", async () => {
+    send.mockRejectedValue(new Error("offline"));
+    const long = "Book the 9am one, and the hotel near the venue. ".repeat(8).trim();
+    await handleNotificationEvent(reply(long));
+    const shown = display.mock.calls[0]![0];
+    expect(shown).toMatchObject(unsent(long));
+    expect(shown.android.timeoutAfter).toBeUndefined();
+    // Nothing else keeps it, so it doesn't say it's saved.
+    expect(JSON.stringify(shown)).not.toMatch(/saved/i);
+  });
+
+  it("opens the chat, not the page, when a reply to a page's notification isn't sent", async () => {
+    send.mockRejectedValue(new Error("offline"));
+    const event = reply("Book it");
+    event.detail.notification!.data!.url = "/pages/p1";
+    await handleNotificationEvent(event);
+    expect(display.mock.calls[0]![0]).toMatchObject(unsent("Book it", "/chats/c1"));
+  });
+
+  it("sends nothing when the notification doesn't say who it's from", async () => {
+    // Without a mention a group's lead would answer instead of the teammate who wrote.
+    const event = reply("Book it");
+    delete (event.detail.notification!.data as Record<string, unknown>).replyBotId; // vocabulary: allow
+    await handleNotificationEvent(event);
+    expect(send).not.toHaveBeenCalled();
+    expect(display.mock.calls[0]![0]).toMatchObject(unsent("Book it"));
+  });
+
+  it("keeps an unsent reply when a later push about the same run arrives, or is dismissed", async () => {
+    // Replied offline to a message while its run went on.
+    tray.set("run-1", { id: "run-1", title: "Rex" });
     send.mockRejectedValue(new Error("offline"));
     await handleNotificationEvent(reply("Book it"));
-    const shown = display.mock.calls[0]![0];
-    expect(shown).toMatchObject({ title: "Couldn't send your reply", body: "Open to reply." });
-    expect(shown.android.timeoutAfter).toBeUndefined();
+    const kept = [...tray.values()].find((shown) => shown.title === "Your reply wasn't sent")!;
+    expect(kept.id).not.toBe("run-1");
+    // The notification replied to goes; the reply has a notification of its own.
+    expect([...tray.keys()]).toEqual([kept.id]);
+
+    // The run finishes: its push reuses the run's id.
+    await handlePushData({
+      type: "notification",
+      tag: "run-1",
+      kind: "run_finished",
+      title: "Rex finished",
+      body: "Done",
+      chatId: "c1",
+      teammateId: "b1",
+      url: "/chats/c1?run=run-1",
+    });
+    await handlePushData({ type: "dismiss", tag: "run-1" });
+    expect(tray.get(kept.id)).toMatchObject({ body: "Book it" });
+
+    // No push can reach it, even one with its id.
+    await handlePushData({ type: "dismiss", tag: kept.id });
+    await handlePushData({ type: "notification", tag: kept.id, kind: "run_finished", title: "x" });
+    expect(tray.get(kept.id)).toMatchObject({ title: "Your reply wasn't sent", body: "Book it" });
+  });
+
+  it("shows the same reply failing again once, and each different reply", async () => {
+    send.mockRejectedValue(new Error("offline"));
+    await handleNotificationEvent(reply("Book it"));
+    await handleNotificationEvent(reply("Book it "));
+    expect(tray.size).toBe(1);
+    await handleNotificationEvent(reply("Book the 9am one"));
+    expect([...tray.values()].map((shown) => shown.body).sort()).toEqual([
+      "Book it",
+      "Book the 9am one",
+    ]);
   });
 
   it("sends nothing for an empty reply", async () => {

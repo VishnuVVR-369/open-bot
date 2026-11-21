@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, View } from "react-native";
-import { BotAvatar } from "@/features/teammates/components/bot-avatar";
+import { TeammateAvatar } from "@/features/teammates/components/teammate-avatar";
 import { Text } from "@/components/text";
 import { radius, space, useColors } from "@/theme";
 
@@ -34,7 +34,7 @@ export function MentionMenu<M extends Member>({
           accessibilityRole="button"
           testID="mention-option"
         >
-          <BotAvatar name={member.name} color={member.color} emoji={member.emoji} size="sm" />
+          <TeammateAvatar name={member.name} color={member.color} emoji={member.emoji} size="sm" />
           <Text variant="label" style={{ flex: 1 }} numberOfLines={1}>
             {member.name}
           </Text>

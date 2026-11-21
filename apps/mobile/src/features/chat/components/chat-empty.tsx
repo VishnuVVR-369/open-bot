@@ -1,7 +1,7 @@
 import type { TeammateSummary } from "@open-bot/api";
 import { Users } from "lucide-react-native";
 import { StyleSheet, View } from "react-native";
-import { BotAvatar } from "@/features/teammates/components/bot-avatar";
+import { TeammateAvatar } from "@/features/teammates/components/teammate-avatar";
 import { Empty } from "@/components/states";
 import { useColors } from "@/theme";
 
@@ -20,7 +20,7 @@ export function ChatEmpty({
       <Empty
         icon={
           teammate ? (
-            <BotAvatar
+            <TeammateAvatar
               name={teammate.name}
               color={teammate.color}
               emoji={teammate.emoji}

@@ -5,173 +5,14 @@
   "apps/botd/src/pages.test.ts": {
     "bot": 1
   },
-  "apps/mobile/src/app/_layout.tsx": {
-    "bot": 1
-  },
-  "apps/mobile/src/features/approvals/approval-text.ts": {
-    "bot": 1
-  },
-  "apps/mobile/src/features/approvals/components/always-allow-sheet.tsx": {
-    "bot": 9
-  },
-  "apps/mobile/src/features/approvals/components/approval-parts.tsx": {
-    "bot": 10
-  },
-  "apps/mobile/src/features/approvals/components/approval-row.tsx": {
-    "bot": 5
-  },
-  "apps/mobile/src/features/approvals/components/approval-rules-screen.tsx": {
-    "bot": 24
-  },
-  "apps/mobile/src/features/approvals/components/approval-screen.tsx": {
-    "bot": 11
-  },
-  "apps/mobile/src/features/approvals/components/approvals-screen.tsx": {
-    "bot": 7
-  },
-  "apps/mobile/src/features/chat/chat-status.ts": {
-    "bot": 2
-  },
-  "apps/mobile/src/features/chat/chats.test.ts": {
-    "bot": 9
-  },
-  "apps/mobile/src/features/chat/chats.ts": {
-    "bot": 14
-  },
-  "apps/mobile/src/features/chat/components/approval-card.tsx": {
-    "bot": 5
-  },
-  "apps/mobile/src/features/chat/components/chat-empty.tsx": {
-    "bot": 3
-  },
-  "apps/mobile/src/features/chat/components/chat-screen.tsx": {
-    "bot": 3
-  },
-  "apps/mobile/src/features/chat/components/chat-title.tsx": {
-    "bot": 3
-  },
-  "apps/mobile/src/features/chat/components/chats-screen.tsx": {
-    "bot": 29
-  },
-  "apps/mobile/src/features/chat/components/composer.test.ts": {
-    "bot": 3
-  },
-  "apps/mobile/src/features/chat/components/composer.tsx": {
-    "bot": 2
-  },
-  "apps/mobile/src/features/chat/components/mention-menu.tsx": {
-    "bot": 3
-  },
-  "apps/mobile/src/features/chat/components/new-chat-screen.tsx": {
-    "bot": 33
-  },
-  "apps/mobile/src/features/chat/components/run-actions.tsx": {
-    "bot": 9
-  },
-  "apps/mobile/src/features/chat/components/run-block.tsx": {
-    "bot": 15
-  },
-  "apps/mobile/src/features/chat/components/share-screen.tsx": {
-    "bot": 21
-  },
-  "apps/mobile/src/features/chat/components/swarm-card.tsx": {
-    "bot": 4
-  },
   "apps/mobile/src/features/chat/components/timeline-item.tsx": {
-    "bot": 3
-  },
-  "apps/mobile/src/features/chat/components/working-line.tsx": {
     "bot": 1
-  },
-  "apps/mobile/src/features/chat/hooks.ts": {
-    "bot": 2
-  },
-  "apps/mobile/src/features/computer/components/computer-screen.tsx": {
-    "bot": 3
-  },
-  "apps/mobile/src/features/computer/components/last-frames.tsx": {
-    "bot": 3
-  },
-  "apps/mobile/src/features/computer/components/screen-card.tsx": {
-    "bot": 5
-  },
-  "apps/mobile/src/features/computer/components/screen-notice.tsx": {
-    "bot": 5
-  },
-  "apps/mobile/src/features/computer/screens.test.ts": {
-    "bot": 2
-  },
-  "apps/mobile/src/features/computer/screens.ts": {
-    "bot": 3
-  },
-  "apps/mobile/src/features/home/components/briefing.tsx": {
-    "bot": 20
-  },
-  "apps/mobile/src/features/home/components/elsewhere.tsx": {
-    "bot": 14
-  },
-  "apps/mobile/src/features/home/components/home-screen.tsx": {
-    "bot": 8
-  },
-  "apps/mobile/src/features/home/components/needs-you.tsx": {
-    "bot": 14
-  },
-  "apps/mobile/src/features/home/components/pages.tsx": {
-    "bot": 1
-  },
-  "apps/mobile/src/features/home/components/takeover-later.tsx": {
-    "bot": 7
-  },
-  "apps/mobile/src/features/home/components/teammates.tsx": {
-    "bot": 30
   },
   "apps/mobile/src/features/notifications/components/notifications-screen.tsx": {
-    "bot": 15
-  },
-  "apps/mobile/src/features/notifications/notification-groups.test.ts": {
-    "bot": 2
-  },
-  "apps/mobile/src/features/pages/components/page-row.tsx": {
-    "bot": 8
-  },
-  "apps/mobile/src/features/pages/components/page-screen.tsx": {
-    "bot": 2
-  },
-  "apps/mobile/src/features/pages/components/pages-screen.tsx": {
-    "bot": 5
-  },
-  "apps/mobile/src/features/pages/pages.test.ts": {
-    "bot": 2
-  },
-  "apps/mobile/src/features/pages/pages.ts": {
-    "bot": 8
-  },
-  "apps/mobile/src/features/search/components/search-row.tsx": {
-    "bot": 5
-  },
-  "apps/mobile/src/features/teammates/components/bot-avatar.tsx": {
-    "bot": 15
-  },
-  "apps/mobile/src/features/teammates/components/teammate-screen.tsx": {
-    "bot": 40
-  },
-  "apps/mobile/src/lib/live-stream.test.ts": {
-    "bot": 6
-  },
-  "apps/mobile/src/lib/realtime.test.ts": {
     "bot": 1
   },
-  "apps/mobile/src/push/notifications.test.ts": {
-    "bot": 2
-  },
-  "apps/mobile/src/push/notifications.ts": {
-    "bot": 11
-  },
-  "apps/mobile/src/push/payload.test.ts": {
-    "bot": 6
-  },
   "apps/mobile/src/push/payload.ts": {
-    "bot": 10
+    "bot": 1
   },
   "apps/site/src/components/docs/diagrams.tsx": {
     "bot": 6
@@ -247,6 +88,9 @@
   },
   "apps/worker/src/features/integrations/actions.integration.test.ts": {
     "bot": 1
+  },
+  "apps/worker/src/features/notifications/fcm.test.ts": {
+    "bot": 2
   },
   "apps/worker/src/features/notifications/fcm.ts": {
     "bot": 1
@@ -409,6 +253,9 @@
   "packages/db/src/tool-rename.integration.test.ts": {
     "bot": 2
   },
+  "packages/domain/src/channels/push.ts": {
+    "bot": 1
+  },
   "packages/domain/src/computer/files.ts": {
     "bot": 1
   },
@@ -446,7 +293,7 @@
     "bot": 1
   },
   "scripts/test/mobile-ui.mjs": {
-    "bot": 11
+    "bot": 9
   },
   "tools/showcase/content-chats.ts": {
     "bot": 19

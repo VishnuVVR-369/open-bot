@@ -10,7 +10,7 @@ vi.mock("react-native", () => ({
   Pressable: "Pressable",
   View: "View",
 }));
-vi.mock("@/features/teammates/components/bot-avatar", () => ({})); // vocabulary: allow -- existing component path.
+vi.mock("@/features/teammates/components/teammate-avatar", () => ({}));
 vi.mock("@/features/pages/components/page-thumb", () => ({}));
 vi.mock("@/components/sheet", () => ({}));
 vi.mock("@/components/text", () => ({}));

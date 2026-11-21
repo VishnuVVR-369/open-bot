@@ -7,7 +7,7 @@ import { Check, Link2, Share2 } from "lucide-react-native";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { BotAvatar } from "@/features/teammates/components/bot-avatar";
+import { TeammateAvatar } from "@/features/teammates/components/teammate-avatar";
 import { Button } from "@/components/button";
 import { Card, Section } from "@/components/section";
 import { Empty, LoadError, Loading } from "@/components/states";
@@ -97,9 +97,9 @@ export default function ShareScreen() {
   const queryClient = useQueryClient();
   const shared = useLatestShare();
   const item = useMemo(() => (shared ? parseShared(shared) : null), [shared]);
-  const { data: bots, error, isLoading, refetch } = useTeammates();
+  const { data: allTeammates, error, isLoading, refetch } = useTeammates();
   const [preset, setPreset] = useState<SharePreset>("page");
-  const [botId, setBotId] = useState<string | null>(null);
+  const [teammateId, setTeammateId] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [sending, setSending] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -121,8 +121,8 @@ export default function ShareScreen() {
       />
     );
   if (isLoading) return <Loading />;
-  if (error && !bots) return <LoadError error={error} onRetry={() => void refetch()} />;
-  const teammates = bots ?? [];
+  if (error && !allTeammates) return <LoadError error={error} onRetry={() => void refetch()} />;
+  const teammates = allTeammates ?? [];
   if (teammates.length === 0)
     return (
       <Empty
@@ -132,8 +132,8 @@ export default function ShareScreen() {
       />
     );
   const chosen: TeammateSummary =
-    teammates.find((bot) => bot.id === botId) ??
-    teammates.find((bot) => bot.isLead) ??
+    teammates.find((teammate) => teammate.id === teammateId) ??
+    teammates.find((teammate) => teammate.isLead) ??
     teammates[0]!;
 
   const send = async () => {
@@ -220,15 +220,15 @@ export default function ShareScreen() {
 
         <Section title="Who">
           <Card>
-            {teammates.map((bot, index) => (
+            {teammates.map((teammate, index) => (
               <Choice
-                key={bot.id}
+                key={teammate.id}
                 first={index === 0}
-                selected={bot.id === chosen.id}
-                onPress={() => setBotId(bot.id)}
-                leading={<BotAvatar {...bot} size="sm" />}
-                title={bot.name}
-                subtitle={bot.role}
+                selected={teammate.id === chosen.id}
+                onPress={() => setTeammateId(teammate.id)}
+                leading={<TeammateAvatar {...teammate} size="sm" />}
+                title={teammate.name}
+                subtitle={teammate.role}
                 testID="share-teammate"
               />
             ))}

@@ -135,7 +135,7 @@ export default function ApprovalScreen() {
     queryKey: queryKeys.approval(approvalId),
     queryFn: () => api.approvals.get({ approvalId }),
   });
-  const { data: bots = [] } = useTeammates();
+  const { data: teammates = [] } = useTeammates();
   const { decide, deciding } = useDecideApproval();
   const [message, setMessage] = useState<string | null>(null);
   const [allowing, setAllowing] = useState(false);
@@ -144,8 +144,8 @@ export default function ApprovalScreen() {
   if (query.isLoading) return <Loading />;
   if (!query.data) return <LoadError error={query.error} onRetry={() => void query.refetch()} />;
   const approval = query.data;
-  const bot = bots.find((candidate) => candidate.id === approval.teammateId);
-  const botName = bot?.name ?? "A former teammate";
+  const teammate = teammates.find((candidate) => candidate.id === approval.teammateId);
+  const teammateName = teammate?.name ?? "A former teammate";
   const pending = approval.status === "pending";
   const risk = pending ? approvalRisk(approvalFacts(approval)) : null;
   const allowable = pending && canAlwaysAllow(approval);
@@ -179,14 +179,14 @@ export default function ApprovalScreen() {
       >
         <View style={styles.who}>
           <ApprovalAvatar
-            bot={bot}
+            teammate={teammate}
             approval={approval}
             pending={pending}
             behind={colors.background}
           />
           <View style={{ flex: 1, gap: 2 }}>
             <Text variant="label" numberOfLines={1}>
-              {botName} {pending ? "wants to" : "asked to"}{" "}
+              {teammateName} {pending ? "wants to" : "asked to"}{" "}
               {sendsEmail(approval) ? KIND_LABEL.email : KIND_LABEL[approval.kind]}
             </Text>
             <Text variant="small" muted>
@@ -251,7 +251,7 @@ export default function ApprovalScreen() {
               </View>
             }
             title="Open the chat"
-            subtitle={`See what ${bot?.name ?? "they"} ${pending ? "is" : "was"} working on`}
+            subtitle={`See what ${teammate?.name ?? "they"} ${pending ? "is" : "was"} working on`}
             aside={<ChevronRight size={18} color={colors.mutedForeground} />}
             testID="open-chat"
           />
@@ -263,7 +263,7 @@ export default function ApprovalScreen() {
           onClose={() => setAllowing(false)}
           kind={approval.kind}
           subject={approval.subject ?? ""}
-          botName={bot?.name ?? "This teammate"}
+          teammateName={teammate?.name ?? "This teammate"}
           onConfirm={(pattern) => onDecide("approved", pattern)}
         />
       )}

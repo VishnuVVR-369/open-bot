@@ -1,14 +1,13 @@
 import type { ActivityItem, TeammateSummary } from "@open-bot/api";
-import { isRunActive, plainText } from "@open-bot/domain";
+import { isRunActive, plainText, type TeammateActivity } from "@open-bot/domain";
 import { router } from "expo-router";
 import { Users } from "lucide-react-native";
 import { Pressable, StyleSheet, View } from "react-native";
 import {
   activityColor,
   activityText,
-  BotAvatar,
-  type BotActivity,
-} from "@/features/teammates/components/bot-avatar";
+  TeammateAvatar,
+} from "@/features/teammates/components/teammate-avatar";
 import { Text } from "@/components/text";
 import { chatHref } from "@/lib/links";
 import { ago } from "@/lib/time";
@@ -21,19 +20,19 @@ import { TRIGGER_ICONS } from "./trigger-icons";
 
 function ActivityRow({
   item,
-  bot,
+  teammate,
   first,
   computerOffline,
 }: {
   item: ActivityItem;
-  bot?: TeammateSummary;
+  teammate?: TeammateSummary;
   first: boolean;
   computerOffline: boolean;
 }) {
   const colors = useColors();
   const active = isRunActive(item.status);
   // A run that is still going reads like its teammate does: needs you, working, or paused.
-  const activity: BotActivity =
+  const activity: TeammateActivity =
     item.status === "waiting" ? "waiting" : computerOffline ? "paused" : "working";
   const Icon =
     item.chatKind === "group"
@@ -52,16 +51,16 @@ function ActivityRow({
         !first && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
       ]}
     >
-      <BotAvatar
-        name={bot?.name ?? "?"}
-        color={bot?.color ?? "#888888"}
-        emoji={bot?.emoji}
+      <TeammateAvatar
+        name={teammate?.name ?? "?"}
+        color={teammate?.color ?? "#888888"}
+        emoji={teammate?.emoji}
         size="sm"
       />
       <View style={{ flex: 1, gap: 2 }}>
         <View style={styles.activityMeta}>
           <Text variant="small" style={{ fontWeight: "600" }} numberOfLines={1}>
-            {bot?.name ?? "Former teammate"}
+            {teammate?.name ?? "Former teammate"}
           </Text>
           {Icon && <Icon size={12} color={colors.mutedForeground} />}
           {where && (
@@ -77,7 +76,7 @@ function ActivityRow({
           <Text variant="small" style={{ fontSize: 14, color: activityColor(activity, colors) }}>
             {activityText(
               activity,
-              bot?.activeRun?.id === item.runId ? bot.activeRun.waitingFor : null,
+              teammate?.activeRun?.id === item.runId ? teammate.activeRun.waitingFor : null,
             )}
           </Text>
         ) : (
@@ -119,7 +118,7 @@ export function Elsewhere({
           <ActivityRow
             key={item.runId}
             item={item}
-            bot={teammates.find((teammate) => teammate.id === item.teammateId)}
+            teammate={teammates.find((teammate) => teammate.id === item.teammateId)}
             first={index === 0}
             computerOffline={computerOffline}
           />

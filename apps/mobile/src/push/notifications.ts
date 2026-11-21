@@ -18,7 +18,10 @@ import {
   isOnScreen,
   outcomeText,
   planNotification,
+  isUnsentReplyId,
+  replyChatUrl,
   replyText,
+  unsentReplyId,
   type ActionId,
   type DecideOutcome,
   type PushData,
@@ -44,6 +47,8 @@ export async function ensureChannels(): Promise<void> {
 
 /** Show (or remove) what a data message from the worker describes. */
 export async function handlePushData(data: PushData): Promise<void> {
+  // Unsent replies' notifications are the phone's own: no push replaces or removes one.
+  if (isUnsentReplyId(data.tag)) return;
   if (data.type === "dismiss") {
     await notifee.cancelNotification(data.tag);
     return;
@@ -64,11 +69,13 @@ export async function handlePushData(data: PushData): Promise<void> {
     data: {
       url: plan.url,
       ...(data.takeoverId ? { takeoverId: data.takeoverId } : {}),
-      ...(data.botId ? { screenId: data.botId } : {}),
+      ...(data.teammateId ? { screenId: data.teammateId } : {}),
       ...(data.chatId ? { chatId: data.chatId } : {}),
       ...(plan.approvalId ? { approvalId: plan.approvalId } : {}),
       ...(plan.reply ? { replyChatId: plan.reply.chatId } : {}),
-      ...(plan.reply?.botId ? { replyBotId: plan.reply.botId } : {}),
+      // A key the phone keeps with each shown notification, so ones shown before an update
+      // still reply to their teammate.
+      ...(plan.reply ? { replyBotId: plan.reply.teammateId } : {}), // vocabulary: allow
     },
     android: {
       channelId: plan.channel,
@@ -87,7 +94,7 @@ export async function handlePushData(data: PushData): Promise<void> {
               {
                 text: plan.body,
                 timestamp: Date.now(),
-                person: { name: plan.title, id: data.botId, bot: true },
+                person: { name: plan.title, id: data.teammateId, bot: true }, // vocabulary: allow (Notifee's)
               },
             ],
           }
@@ -110,6 +117,7 @@ export async function handlePushData(data: PushData): Promise<void> {
 
 /**
  * Clear what was said in a chat once you're looking at it. Approvals stay: they still need you.
+ * So does a reply that wasn't sent: its notification is the only copy of what you typed.
  */
 export async function clearChatNotifications(
   chatId: string,
@@ -121,6 +129,7 @@ export async function clearChatNotifications(
     shown
       .filter(({ id, notification }) => id && notification.data?.chatId === chatId)
       .filter(({ notification }) => !notification.data?.approvalId)
+      .filter(({ notification }) => notification.data?.unsentReply !== "true")
       .map(({ id }) => notifee.cancelDisplayedNotification(id!)),
   );
 }
@@ -139,26 +148,38 @@ async function decide(approvalId: string, decision: ApprovalDecision): Promise<D
 /** Send what was typed into a notification's Reply, to the teammate the notification is from. */
 async function sendReply(notification: Notification, text: string): Promise<void> {
   const chatId = notification.data?.replyChatId;
-  const botId = notification.data?.replyBotId;
+  const teammateId = notification.data?.replyBotId; // vocabulary: allow (a stored key)
   // Nothing typed: the notification stays as it was.
   if (!notification.id || typeof chatId !== "string" || !text.trim()) return;
-  const result = await safe(
-    api.chats.send({
-      clientId: Crypto.randomUUID(),
-      chatId,
-      text,
-      attachments: [],
-      mentions: typeof botId === "string" ? [botId] : [],
-    }),
-  );
+  // Without its teammate the reply would mention nobody, and a group's lead would get it instead:
+  // it isn't sent.
+  const result =
+    typeof teammateId === "string" && teammateId
+      ? await safe(
+          api.chats.send({
+            clientId: Crypto.randomUUID(),
+            chatId,
+            text,
+            attachments: [],
+            mentions: [teammateId],
+          }),
+        )
+      : { error: new Error("The notification doesn't say who it's from.") };
   const sent = !result.error;
-  const outcome = replyText(sent);
+  const outcome = replyText(sent, text);
+  const url = typeof notification.data?.url === "string" ? notification.data.url : undefined;
   await notifee.displayNotification({
-    id: notification.id,
+    // Sent, it replaces the notification replied to. Unsent, it's a notification of its own (and
+    // the one replied to goes): a later push about the same run reuses that one's id.
+    id: sent ? notification.id : unsentReplyId(notification.id, text),
     title: outcome.title,
-    body: sent ? text : outcome.body,
+    body: outcome.body,
     // Without the reply fields: this one is about the reply, so it has no Reply of its own.
-    data: { url: notification.data?.url ?? "/", chatId },
+    // Unsent, it shows what you typed until you dismiss it, even once you open the chat, and opens
+    // that chat (not a page the notification was about).
+    data: sent
+      ? { url: url ?? "/", chatId }
+      : { url: replyChatUrl(url, chatId), chatId, unsentReply: "true" },
     android: {
       channelId: "messages",
       groupId: "messages",
@@ -167,9 +188,12 @@ async function sendReply(notification: Notification, text: string): Promise<void
       color: palette.light.foreground,
       pressAction: { id: "default", launchActivity: "default" },
       onlyAlertOnce: true,
-      ...(sent ? { timeoutAfter: 4_000 } : {}),
+      ...(sent
+        ? { timeoutAfter: 4_000 }
+        : { autoCancel: false, style: { type: AndroidStyle.BIGTEXT, text: outcome.body } }),
     },
   });
+  if (!sent) await notifee.cancelNotification(notification.id);
 }
 
 /**
