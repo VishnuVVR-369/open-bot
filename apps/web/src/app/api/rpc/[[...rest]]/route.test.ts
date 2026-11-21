@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+// Imported once while the file loads, not in each test: the first import compiles the whole API
+// (contract, router, oRPC), which under a full parallel run took longer than a test's timeout.
+// vi.mock is hoisted above it, so the route gets the mocks below.
+import { GET, POST } from "./route";
 
 const archived = vi.hoisted(() => [] as string[]);
 
@@ -41,7 +45,6 @@ describe("the API route", () => {
   });
 
   it("never runs a write for a GET, which any site can send with your cookies", async () => {
-    const { GET } = await import("./route");
     const data = encodeURIComponent(JSON.stringify({ json: { chatId } }));
     const response = await GET(
       new Request(`${url}?data=${data}`, { headers: { host: "app.test" } }),
@@ -51,21 +54,18 @@ describe("the API route", () => {
   });
 
   it("refuses a write sent from another site's page", async () => {
-    const { POST } = await import("./route");
     const response = await POST(post("https://evil.test"));
     expect(response.status).toBe(403);
     expect(archived).toEqual([]);
   });
 
   it("runs writes from the app's own pages and from the phone, which sends no Origin", async () => {
-    const { POST } = await import("./route");
     expect((await POST(post("https://app.test"))).status).toBe(200);
     expect((await POST(post(null))).status).toBe(200);
     expect(archived).toEqual([chatId, chatId]);
   });
 
   it("refuses a body over 8 MB without holding it, said or streamed", async () => {
-    const { POST } = await import("./route");
     const limit = 8 * 1024 * 1024;
     const said = new Request(url, {
       method: "POST",
