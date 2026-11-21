@@ -17,7 +17,8 @@ import {
   Square,
   Wifi,
 } from "lucide-react-native";
-import { useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import { Alert, Linking, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import NativeEgress from "../../../../modules/egress";
 import { Button } from "@/components/button";
@@ -47,12 +48,14 @@ import {
   notificationProblem,
   pairPhone,
   phoneState,
+  removedOnServer,
   turnOffThisPhone,
 } from "@/features/settings/phone-connection";
 import { api } from "@/lib/api";
 import { APP_URL } from "@/lib/config";
 import { errorMessage } from "@/lib/errors";
 import { haptics } from "@/lib/haptics";
+import { revokeOrRemember, sendPendingRevokes, signOutCount } from "@/lib/phone-egress";
 import { queryKeys } from "@/lib/query";
 import { ago } from "@/lib/time";
 import { usePullToRefresh } from "@/lib/use-pull-to-refresh";
@@ -84,9 +87,32 @@ export default function PhoneConnection() {
   });
   const [busy, setBusy] = useState<string | null>(null);
   const [capOpen, setCapOpen] = useState(false);
+  // Removed from the web or another phone while this one still held its credential.
+  const [removedElsewhere, setRemovedElsewhere] = useState(false);
   const deviceId = NativeEgress.deviceId();
-  const paired = native.status.paired;
+  const removed = removedOnServer(
+    { data: devices.data, updatedAt: devices.dataUpdatedAt },
+    deviceId,
+    native.status,
+  );
+  const paired = native.status.paired && !removed;
   const problem = notificationProblem(native.notifications);
+
+  // A revoke that couldn't reach the server earlier goes now, while you look.
+  useFocusEffect(
+    useCallback(() => {
+      void sendPendingRevokes().catch(() => {});
+    }, []),
+  );
+
+  // The server is the source of truth: a pairing it no longer has is forgotten here too, so the
+  // service stops and Settings stops calling it ready.
+  const { refresh: refreshNative } = native;
+  useEffect(() => {
+    if (!removed) return;
+    setRemovedElsewhere(true);
+    void NativeEgress.forget().finally(refreshNative);
+  }, [removed, refreshNative]);
 
   /** Runs one change at a time, says what went wrong, and refreshes what it may have changed. */
   async function act(name: string, work: () => Promise<unknown>) {
@@ -104,21 +130,26 @@ export default function PhoneConnection() {
     }
   }
 
-  function pair() {
+  function pair(serverPhoneMode: PhoneMode) {
+    const signedOutBefore = signOutCount();
     void act("pair", async () => {
       const result = await pairPhone({
         notifications: notificationAccess,
         deviceId: () => deviceId,
         deviceName: () => Device.modelName ?? "Android phone",
         pushToken: currentPushToken,
-        serverPhoneMode: () => status.data?.phoneMode ?? "fallback",
+        serverPhoneMode,
         register: (input) => api.egress.registerDevice(input),
         setServerPhoneMode: (mode) => api.egress.setPhoneMode({ mode }),
         pair: (options) => NativeEgress.pair({ ...options, appUrl: APP_URL }),
-        revoke: (input) => api.egress.revokeDevice(input),
+        forget: () => NativeEgress.forget(),
+        revokeOrRemember: (input) => revokeOrRemember(input),
+        stillSignedIn: () => signOutCount() === signedOutBefore,
       });
-      if (result.ok) haptics.success();
-      else haptics.warning();
+      if (result.ok) {
+        setRemovedElsewhere(false);
+        haptics.success();
+      } else haptics.warning();
     });
   }
 
@@ -146,14 +177,19 @@ export default function PhoneConnection() {
           text: "Turn off",
           style: "destructive",
           onPress: () =>
-            void act("off", () =>
-              turnOffThisPhone({
+            void act("off", async () => {
+              const sent = await turnOffThisPhone({
                 status: () => NativeEgress.status(),
                 deviceId: () => deviceId,
                 forget: () => NativeEgress.forget(),
-                revoke: (input) => api.egress.revokeDevice(input),
-              }),
-            ),
+                revokeOrRemember: (input) => revokeOrRemember(input),
+              });
+              if (sent === "remembered")
+                Alert.alert(
+                  "Turned off on this phone",
+                  "open-bot couldn't reach the server, so it removes this phone from your paired phones once it can.",
+                );
+            }),
         },
       ],
     );
@@ -218,7 +254,11 @@ export default function PhoneConnection() {
             Websites often block cloud computers. When your Mac is offline, teammates&apos; browser
             can go online through this phone instead, so sites see your phone&apos;s connection.
           </Text>
-          {state.tone === "attention" && state.detail ? (
+          {removedElsewhere ? (
+            <Text variant="small" style={{ color: colors.attentionInk }}>
+              This phone was removed from the web or another phone.
+            </Text>
+          ) : state.tone === "attention" && state.detail ? (
             <Text variant="small" style={{ color: colors.attentionInk }}>
               {state.detail}
             </Text>
@@ -234,7 +274,7 @@ export default function PhoneConnection() {
           <SettingsRow
             icon={(color) => <BatteryLow size={18} color={color} />}
             title="Battery"
-            subtitle="It runs only while teammates browse, shows a notification while it does, and pauses when the battery is low."
+            subtitle="It runs while teammates need it (or all the time, if you choose Always), shows a notification while it runs, and pauses when the battery is low."
           />
           <Separator inset={SETTINGS_INSET} />
           <SettingsRow
@@ -244,10 +284,17 @@ export default function PhoneConnection() {
           />
         </Card>
         {notificationsNotice}
+        {status.error && !status.data ? (
+          <Text variant="small" muted style={styles.footnote}>
+            {`Couldn't reach open-bot: ${errorMessage(status.error)}`}
+          </Text>
+        ) : null}
         <Button
           title="Use this phone's connection"
-          onPress={pair}
-          busy={busy === "pair"}
+          // The server's phone mode decides whether pairing turns phones on, so it waits for it.
+          onPress={() => status.data && pair(status.data.phoneMode)}
+          disabled={!status.data}
+          busy={busy === "pair" || (status.isLoading && !status.data)}
           testID="phone-pair"
         />
       </ScrollView>

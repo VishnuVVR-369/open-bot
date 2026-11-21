@@ -137,7 +137,8 @@ The worker doesn't wake it again for 15 minutes, and the reason shows in the sta
 
 ### Holding connections while the phone wakes
 
-While a wake is pending, botd's `EgressRouter` holds new browser connections instead of going direct or failing, so a teammate's first page after a wake goes through the phone.
+While a wake is pending, botd's `EgressRouter` holds new browser connections instead of going direct or failing, so a teammate's first page after a wake can go through the phone.
+If the phone isn't connected when the hold ends, the connection follows the mode: direct with **Prefer my devices**, refused with **Only through my devices**.
 Chromium gives a SOCKS connection about 30 seconds, so a hold ends at the latest 8 seconds before a 28-second deadline, leaving time to open the stream; a held connection then follows the mode as usual.
 
 ### The device credential

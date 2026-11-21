@@ -16,7 +16,7 @@ import { LockScreen } from "@/components/lock-screen";
 import { ComputerAccess } from "@/features/computer/computer-access";
 import { authClient } from "@/lib/auth";
 import { useAppLock } from "@/lib/lock";
-import { usePendingRevoke } from "@/lib/phone-egress";
+import { usePendingRevokes } from "@/lib/phone-egress";
 import { loadPreferences } from "@/lib/preferences";
 import { useTrackPresence } from "@/lib/presence";
 import { queryClient, setUnauthorizedHandler } from "@/lib/query";
@@ -54,7 +54,7 @@ function App() {
   usePushNotifications(signedIn);
   useTrackPresence(signedIn);
   // A phone connection that an offline sign-out couldn't revoke is revoked once back.
-  usePendingRevoke(signedIn);
+  usePendingRevokes(signedIn);
   // Something shared from another app opens once you're signed in and past the lock.
   useIncomingShares(signedIn && !lock.locked && !lock.checking);
 

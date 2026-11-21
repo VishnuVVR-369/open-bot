@@ -153,7 +153,8 @@ The origin, CSP and link signing are covered in [The pages service](/docs/archit
 JavaScript pairs the phone with `egress.registerDevice` and sets the mode and rules, from Settings → Phone connection (`src/features/settings/components/phone-connection-screen.tsx`, with its logic in `src/features/settings/phone-connection.ts`).
 After that the work runs in `EgressService`, a `specialUse` foreground service, without React Native.
 
-- Signing out releases the phone connection first (`src/lib/phone-egress.ts`): `NativeEgress.forget()` stops the service and waits, then the pairing is revoked with the session, for its generation. A revoke that fails is kept in AsyncStorage and sent after the next sign-in.
+- Signing out releases the phone connection first (`src/lib/phone-egress.ts`): `NativeEgress.forget()` stops the service and waits, then the pairing is revoked with the session, for its generation. A revoke that fails (here or from Turn off for this phone) is kept in AsyncStorage, one entry per generation, and sent when the app starts signed in or the screen opens.
+  Pairing undoes itself on both sides if any step after registration fails, or if a sign-out happened meanwhile.
 
 - `EgressMessagingService` and `EgressMessagingReceiver` take over FCM handling from React Native Firebase. They handle `egress-needed` natively, so a wake never starts JavaScript. All other messages pass through to the normal path.
 - A `wake` stage starts the service silently. An `ask` stage shows a notification to tap. `BootReceiver` restarts it at boot in `always` mode.

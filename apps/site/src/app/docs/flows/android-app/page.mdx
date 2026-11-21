@@ -124,7 +124,7 @@ How it works underneath (modes, waking, the device credential) is in [Desktop ap
 ### Turning it on
 
 Open Settings → Phone connection.
-While it's off, the screen explains what it costs: pages teammates load use the phone's data (Wi-Fi only unless you allow mobile data), it runs only while teammates browse, and some sites ask teammates to sign in again when traffic moves between your Mac, your phone and the cloud.
+While it's off, the screen explains what it costs: pages teammates load use the phone's data (Wi-Fi only unless you allow mobile data), it runs while teammates need it (or all the time, if you choose Always), and some sites ask teammates to sign in again when traffic moves between your Mac, your phone and the cloud.
 Use this phone's connection pairs the phone.
 It first checks that notifications are allowed, including the Phone connection channel, because without them you would never see "Tap to start" or why it paused; if either is off, it says so and opens Android's settings for it.
 If phones were set to Never, pairing sets them to When my Mac is offline.
@@ -149,7 +149,9 @@ The Computer tab shows the same path at the top, and tapping it opens Phone conn
 ### Signing out
 
 Signing out stops the phone connection first: the service stops and the phone forgets its credential before anything else is cleared.
-Then the app unpairs the phone while the session still works; if it can't reach the server, it unpairs it after you next sign in, for that pairing only.
+Then the app unpairs the phone while the session still works; if it can't reach the server, it remembers to, for that pairing only, and does it once you're signed in again.
+The same goes for Turn off for this phone while offline.
+A phone removed from the web or another phone forgets its pairing the next time its Phone connection screen loads the list, or when it next tries to connect.
 A session that ends elsewhere (a password change on the web, for example) signs the phone out the same way.
 
 ## Sharing to a teammate

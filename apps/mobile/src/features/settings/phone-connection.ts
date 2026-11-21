@@ -126,7 +126,7 @@ export interface PairDeps {
   deviceName: () => string;
   pushToken: () => Promise<string | null>;
   /** The phone mode on the server now. */
-  serverPhoneMode: () => PhoneMode;
+  serverPhoneMode: PhoneMode;
   register: (input: {
     deviceId: string;
     name: string;
@@ -134,16 +134,23 @@ export interface PairDeps {
   }) => Promise<{ secret: string; generation: number }>;
   setServerPhoneMode: (mode: PhoneMode) => Promise<unknown>;
   pair: (options: { secret: string; generation: number; phoneMode: PhoneMode }) => Promise<void>;
-  revoke: (input: { deviceId: string; generation: number }) => Promise<unknown>;
+  /** Stops the service and forgets the credential. */
+  forget: () => Promise<void>;
+  /** Revokes a pairing now, or remembers to once the server can be reached. */
+  revokeOrRemember: (input: { deviceId: string; generation: number }) => Promise<unknown>;
+  /** False once the owner signed out after pairing began. */
+  stillSignedIn: () => boolean;
 }
 
-export type PairResult = { ok: true } | { ok: false; problem: "permission" | "channel" };
+export type PairResult =
+  { ok: true } | { ok: false; problem: "permission" | "channel" | "signed-out" };
 
 /**
  * Pair this phone: notifications first (without them "Tap to start" and pause notices would be
- * invisible), then the server makes a credential, the phone mode becomes `fallback` if phones were
- * off, and the native side keeps the credential. If the native side refuses it, the new pairing
- * is revoked again, so the server never lists a phone that can't connect.
+ * invisible), then the server makes a credential, the native side keeps it, and the phone mode
+ * becomes `fallback` if phones were off. Anything that fails after the server made the credential
+ * undoes the pairing on both sides, so the server never lists a phone that can't connect. A
+ * sign-out while pairing wins: the credential mustn't outlive the session that made it.
  */
 export async function pairPhone(deps: PairDeps): Promise<PairResult> {
   const problem = notificationProblem(await deps.notifications());
@@ -154,34 +161,65 @@ export async function pairPhone(deps: PairDeps): Promise<PairResult> {
     name: deps.deviceName(),
     pushToken: await deps.pushToken().catch(() => null),
   });
-  let phoneMode = deps.serverPhoneMode();
-  if (phoneMode === "off") {
-    await deps.setServerPhoneMode("fallback");
-    phoneMode = "fallback";
+  const undo = async () => {
+    await deps.forget().catch(() => {});
+    await deps.revokeOrRemember({ deviceId, generation });
+  };
+  if (!deps.stillSignedIn()) {
+    await undo();
+    return { ok: false, problem: "signed-out" };
   }
+  const phoneMode = deps.serverPhoneMode === "off" ? "fallback" : deps.serverPhoneMode;
   try {
     await deps.pair({ secret, generation, phoneMode });
+    if (phoneMode !== deps.serverPhoneMode) await deps.setServerPhoneMode(phoneMode);
   } catch (error) {
-    await deps.revoke({ deviceId, generation }).catch(() => {});
+    await undo();
     throw error;
+  }
+  if (!deps.stillSignedIn()) {
+    await undo();
+    return { ok: false, problem: "signed-out" };
   }
   return { ok: true };
 }
 
 /**
  * "Turn off for this phone": the service stops and the credential goes first, so nothing keeps
- * running if the server can't be reached; then the server forgets this pairing.
+ * running if the server can't be reached; then the server forgets this pairing, now or, if it
+ * can't be reached, once it can.
  */
 export async function turnOffThisPhone(deps: {
   status: () => { generation: number | null };
   deviceId: () => string;
   forget: () => Promise<void>;
-  revoke: (input: { deviceId: string; generation?: number }) => Promise<unknown>;
-}): Promise<void> {
+  revokeOrRemember: (input: {
+    deviceId: string;
+    generation: number;
+  }) => Promise<"sent" | "remembered">;
+}): Promise<"sent" | "remembered" | null> {
   const { generation } = deps.status();
   const deviceId = deps.deviceId();
   await deps.forget();
-  await deps.revoke(generation === null ? { deviceId } : { deviceId, generation });
+  return generation === null ? null : deps.revokeOrRemember({ deviceId, generation });
+}
+
+/**
+ * The server no longer lists this phone (removed from the web or another phone) though it still
+ * holds a credential: true only for a list read after the phone last changed state, so a list from
+ * before a pairing never counts.
+ */
+export function removedOnServer(
+  devices: { data: Pick<EgressDeviceView, "id">[] | undefined; updatedAt: number },
+  deviceId: string,
+  native: Pick<EgressNativeStatus, "paired" | "run">,
+): boolean {
+  return Boolean(
+    native.paired &&
+    devices.data &&
+    devices.updatedAt > native.run.since &&
+    !devices.data.some((device) => device.id === deviceId),
+  );
 }
 
 /**
