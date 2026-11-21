@@ -7,7 +7,7 @@
 // - a relative path into another package (`../packages/db/src/index`).
 //
 // A relative path into another app is the other boundary, "an app never imports another app",
-// which scripts/check/imports.mjs checks with a baseline because old tests still do it.
+// which scripts/check/imports.mjs checks (`pnpm check:imports`, no baseline).
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

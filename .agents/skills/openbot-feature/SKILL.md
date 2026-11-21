@@ -16,7 +16,7 @@ Read its files in this order before you write yours:
 
 | Layer             | Tasks                                                                                                                                              |
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Types and schemas | `packages/domain/src/tasks/tasks.ts`, re-exported by `packages/domain/src/index.ts`                                                                |
+| Types and schemas | `packages/domain/src/tasks/tasks.ts`, exported through `packages/domain/src/tasks/index.ts`                                                        |
 | Table             | `packages/db/src/schema/tasks.ts`; its writer in `packages/db/src/owners.ts`                                                                       |
 | Worker feature    | `apps/worker/src/features/tasks/` (`service.ts`, `tools.ts`, `routes.ts`, `index.ts`)                                                              |
 | Worker wiring     | `apps/worker/src/index.ts` (builds the service), `apps/worker/src/tools/definitions.ts`, `apps/worker/src/rpc/router.ts`                           |
