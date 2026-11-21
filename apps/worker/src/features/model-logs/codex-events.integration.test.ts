@@ -38,7 +38,21 @@ const MCP_HEADER = "Bearer ghp_integrationSecretHeader01";
 const MCP_ENV = "ntn_integration_secret_env_value";
 const MEMORY_KEY = "sk-memory-integration-secret-0123456789";
 
-describe.skipIf(!url)("Codex event tap", () => {
+/**
+ * How long a test waits for the writer to save rows. `pnpm test:integration` runs every suite at
+ * once against one Postgres, where a batch can take seconds to land: Vitest's default of one
+ * second failed a test whose rows were on their way.
+ */
+const SAVED = { timeout: 10_000 };
+
+/**
+ * Each test's own limit, with room for two full `SAVED` waits (one test makes two in a row) and
+ * the work around them: Vitest stops a test after 5 s by default, which would cut a wait for rows
+ * that land after 6 s.
+ */
+const WAITS_FOR_ROWS = { timeout: 25_000 };
+
+describe.skipIf(!url)("Codex event tap", WAITS_FOR_ROWS, () => {
   const database = testDatabase(url);
   const { db } = database;
   const standIn = new AppServerStandIn();
@@ -218,7 +232,7 @@ describe.skipIf(!url)("Codex event tap", () => {
 
     // Everything of the run: thread/start both ways, thread/started, turn/start both ways,
     // turn/started, item/completed, the tool call both ways and turn/completed.
-    await expect.poll(() => saved(runId)).toBe(10);
+    await expect.poll(() => saved(runId), SAVED).toBe(10);
     const rows = await db
       .select()
       .from(codexEvents)
@@ -361,7 +375,7 @@ describe.skipIf(!url)("Codex event tap", () => {
          join codex_events e on e.codex_thread_id = r.codex_thread_id and e.item_id = c.call_id
          where e.method = 'item/completed'`,
       );
-    await expect.poll(async () => (await join()).rows).toHaveLength(1);
+    await expect.poll(async () => (await join()).rows, SAVED).toHaveLength(1);
     expect((await join()).rows[0]).toEqual({
       name: "exec_command",
       status: "completed",
@@ -440,7 +454,7 @@ describe.skipIf(!url)("Codex event tap", () => {
         },
       ),
     );
-    await expect.poll(async () => (await linksOf(database.pool, "thr-cell")).length).toBe(2);
+    await expect.poll(async () => (await linksOf(database.pool, "thr-cell")).length, SAVED).toBe(2);
     expect(await linksOf(database.pool, "thr-cell")).toEqual([
       expect.objectContaining({
         itemId: "exec-11111111",
@@ -473,7 +487,7 @@ describe.skipIf(!url)("Codex event tap", () => {
       await expect(client.request("account/read", {})).resolves.toEqual({ account: null });
     relay.up();
     // Once the database is back, what was queued is saved.
-    await expect.poll(() => saved(runId), { timeout: 10_000 }).toBeGreaterThanOrEqual(56);
+    await expect.poll(() => saved(runId), SAVED).toBeGreaterThanOrEqual(56);
     expect(await db.select().from(modelLogGaps)).toEqual([]);
   });
 
@@ -503,7 +517,7 @@ describe.skipIf(!url)("Codex event tap", () => {
         `select item_id, payload from codex_events
           where codex_thread_id = 'thr-big' and method = 'item/completed' order by sequence`,
       );
-    await expect.poll(async () => (await stubs()).rows.length).toBe(2);
+    await expect.poll(async () => (await stubs()).rows.length, SAVED).toBe(2);
     expect((await stubs()).rows).toEqual([
       {
         item_id: "call_big",
@@ -520,7 +534,7 @@ describe.skipIf(!url)("Codex event tap", () => {
           "select coalesce(sum(codex_events), 0)::int as events from model_log_gaps",
         )
       ).rows[0]!.events;
-    await expect.poll(lostEvents).toBe(2);
+    await expect.poll(lostEvents, SAVED).toBe(2);
   });
 
   it("saves a message observed right before shutdown, the tap drained before the writer stops", async () => {

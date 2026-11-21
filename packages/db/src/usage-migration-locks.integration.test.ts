@@ -12,6 +12,14 @@ import { type TestDatabase, testDatabase, testDatabaseServer } from "./testing";
 
 const url = testDatabaseServer();
 
+/**
+ * Each test creates and migrates its own database in its body. `pnpm test:integration` runs every
+ * suite at once against one Postgres, where those statements queue (see the hook timeout in
+ * `vitest.shared.mjs`), and Vitest's 5 s per test timed out a passing test. A deadlock still fails
+ * within a second: Postgres aborts one side of it, and the migration or the app's write rejects.
+ */
+const MIGRATES = { timeout: 30_000 };
+
 const MIGRATION_0040 = "0040_usage_on_model_logs";
 // The rest stays in the shape 0041 left, which these tests are about.
 const MIGRATION_0041 = "0041_drop_usage_entries";
@@ -41,7 +49,7 @@ async function waitingMigration(
   }
 }
 
-describe.skipIf(!url)("migration 0040 beside the previous worker's writes", () => {
+describe.skipIf(!url)("migration 0040 beside the previous worker's writes", MIGRATES, () => {
   let database: TestDatabase;
   afterEach(async () => {
     await database.drop();
@@ -161,7 +169,7 @@ describe.skipIf(!url)("migration 0040 beside the previous worker's writes", () =
   });
 });
 
-describe.skipIf(!url)("migration 0041 beside runs and teammates being deleted", () => {
+describe.skipIf(!url)("migration 0041 beside runs and teammates being deleted", MIGRATES, () => {
   let database: TestDatabase;
   afterEach(async () => {
     await database.drop();
