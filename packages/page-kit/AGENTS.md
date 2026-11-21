@@ -18,6 +18,7 @@ Serving pages and signing links go in `apps/pages` and `packages/domain/src/serv
 - Kit assets are versioned by path (`kit@1`); a breaking change needs a new path.
 - `./serve` imports Node modules; do not import it from the web client.
 - `apps/pages/build.mjs` copies the built libraries (`@open-bot/page-kit/lib/*`), so build page-kit first.
+- `dist/lib` is the repo's only build output another task reads. Typecheck and tests build nothing by default (`turbo.json`), so a task that reads `dist/lib` depends on `@open-bot/page-kit#build` in its package's `turbo.json`, as `packages/page-kit/turbo.json` and `apps/pages/turbo.json` do.
 - Libraries are the extension point; pages have no type.
 - The computer image bundles page-kit too, so a change here also redeploys the computer.
 
@@ -33,7 +34,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 
 ## Tests
 
-- `pnpm --filter @open-bot/page-kit test` builds first (see `packages/page-kit/turbo.json`) and then runs `packages/page-kit/src/kit.test.ts` against `dist/lib`.
+- `pnpm turbo run test --filter=@open-bot/page-kit` builds first (see `packages/page-kit/turbo.json`) and then runs `packages/page-kit/src/kit.test.ts` against `dist/lib`; `pnpm --filter @open-bot/page-kit test` runs only vitest and needs a build.
 - Built-artifact check: `pnpm test:artifacts` (builds and boots the pages and worker bundles).
 - `pnpm test:integration` includes `apps/worker/src/features/pages/service.integration.test.ts`; `e2e/pages.spec.ts` covers the full stack.
 

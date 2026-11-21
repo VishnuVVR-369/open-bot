@@ -6,15 +6,14 @@
       "dependsOn": ["^build"],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },
-    "typecheck": {
-      "dependsOn": ["^build"]
-    },
+    // Workspace packages are consumed as TypeScript source, so typecheck and tests need no build.
+    // The one exception is page-kit's assembled dist/lib: the tasks that read it depend on
+    // @open-bot/page-kit#build in their package's turbo.json (packages/page-kit, apps/pages).
+    "typecheck": {},
     "test": {
-      "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/vitest.shared.mjs"]
     },
     "test:integration": {
-      "dependsOn": ["^build"],
       "env": ["TEST_DATABASE_URL"],
       "passThroughEnv": ["CI"],
       "cache": false
