@@ -23,7 +23,7 @@ The technical documentation lives under `/docs`, as MDX pages in `src/app/docs/*
   The sidebar, previous and next links, page metadata and the sitemap all come from that list.
 - `src/app/docs/layout.tsx` is the frame: the header, the sidebar, the menu on phones and "On this page".
 - `src/mdx-components.tsx` maps Markdown to components, and makes the diagram components available in every page without imports.
-- `src/components/docs/diagrams.tsx` holds the architecture and state diagrams, drawn as SVG with the helpers in `svg.tsx`.
+- `src/components/docs/diagrams/` holds the architecture and state diagrams, one file each, drawn as SVG with the helpers in `svg.tsx`; its `index.ts` lists them for MDX.
   They are laid out for the 744px article column, so their text renders at its real size on desktop, and they scroll sideways on phones.
 - `src/components/docs/sequence.tsx` draws sequence diagrams from data, in HTML, so their labels wrap like normal text.
 - Code blocks are highlighted at build time by `rehype-pretty-code`, so pages ship no highlighter.
