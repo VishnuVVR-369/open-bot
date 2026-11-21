@@ -164,7 +164,7 @@ test("exported entry points, a workspace's own files and other apps' paths pass 
     ["packages/db/src/probe.ts", "./schema"],
     ["apps/web/src/probe.ts", "@/lib/utils"],
     ["apps/worker/src/probe.ts", "zod"],
-    // Another app's source by path is pnpm check:imports' boundary, with a baseline.
+    // Another app's source by path is pnpm check:imports' boundary.
     ["apps/worker/src/probe.ts", "../../web/src/lib/server/api/pages"],
   ]) {
     for (const code of forms(source)) {

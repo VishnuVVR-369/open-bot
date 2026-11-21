@@ -5,10 +5,9 @@ import { beforeAll, beforeEach, afterAll, describe, expect, it, vi } from "vites
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import { teammates, screenTakeovers, screenOperations, takeoverDeliveries } from "@open-bot/db";
 import type { Context } from "../../context";
-import type { TakeoverService } from "./takeovers";
 import { withScreenLock } from "./screen-lock";
-import { ScreenOperationService } from "./screen-operations";
-import { TakeoverService as RealTakeoverService } from "./takeovers";
+import { ScreenOperationService, type CodeTakeovers } from "./screen-operations";
+import { TakeoverService } from "./takeovers";
 import { SessionRegistry } from "../../runs/registry";
 
 const url = testDatabaseServer();
@@ -42,7 +41,7 @@ describe.skipIf(!url)("screen operations with Postgres", () => {
     computer.fetchHealth.mockResolvedValue({ screens: [{ id: screenId, lease: null }] });
     computer.codeContext.mockResolvedValue({ site: "example.com" });
     computer.typeOnScreen.mockResolvedValue({ status: "needs_owner", reason: "Check the screen." });
-    service = new ScreenOperationService(ctx, takeovers as unknown as TakeoverService);
+    service = new ScreenOperationService(ctx, takeovers as unknown as CodeTakeovers);
   });
   afterAll(async () => {
     await database.drop();
@@ -181,7 +180,7 @@ describe.skipIf(!url)("screen operations with Postgres", () => {
       online: true,
       fetchHealth: vi.fn(async () => ({ screens: [] })),
     });
-    const real = new RealTakeoverService(
+    const real = new TakeoverService(
       { ...ctx, computer: realComputer } as unknown as Context,
       new SessionRegistry(),
     );
@@ -252,7 +251,7 @@ describe.skipIf(!url)("takeover returns with Postgres", () => {
   });
 
   it("delivers takeovers that ended together as one return", async () => {
-    const service = new RealTakeoverService(ctx, new SessionRegistry());
+    const service = new TakeoverService(ctx, new SessionRegistry());
     const ids = [randomUUID(), randomUUID()];
     for (const id of ids)
       await db.insert(screenTakeovers).values({ id, screenId, status: "active" });
@@ -267,7 +266,7 @@ describe.skipIf(!url)("takeover returns with Postgres", () => {
   });
 
   it("tells you each time a screen is paused for safety, not on every check", async () => {
-    const service = new RealTakeoverService(ctx, new SessionRegistry());
+    const service = new TakeoverService(ctx, new SessionRegistry());
     const paused = {
       id: screenId,
       lease: {

@@ -1,7 +1,14 @@
 import { EventEmitter } from "node:events";
 import type { ScreenStatus } from "@open-bot/domain";
+import type { CodeScreens } from "./code-screens";
 import type { LeaseChange } from "./lease";
 import { MAX_SLOTS, Screen, type ScreenDeps } from "./screens";
+
+/** What the manager needs besides what it hands each screen. */
+export interface ScreenManagerDeps extends ScreenDeps {
+  workActive?: () => boolean;
+  codeScreens?: CodeScreens;
+}
 
 export interface ScreenManagerOptions {
   /** Screens running at once. Starting another stops the one unused the longest. */
@@ -35,7 +42,7 @@ export class ScreenManager extends EventEmitter<{
   private readonly freed = new Map<string, number>();
 
   constructor(
-    private readonly deps: ScreenDeps,
+    private readonly deps: ScreenManagerDeps,
     options: ScreenManagerOptions = {},
   ) {
     super();

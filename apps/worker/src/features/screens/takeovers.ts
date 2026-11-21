@@ -22,12 +22,13 @@ import { errorMessage } from "../../logger";
 import type { RunSession } from "../../runs/session";
 import type { SessionRegistry } from "../../runs/registry";
 import { ScreenBusy, withScreenLock } from "./screen-lock";
-import { handBackEndedOperations, operationNeedsOwner } from "./screen-operations";
+import {
+  CODE_HANDED_BACK_NOTE,
+  handBackEndedOperations,
+  operationNeedsOwner,
+} from "./screen-operations";
 
 const REQUEST_WAIT_MS = 10 * 60_000;
-
-/** The note a teammate gets after "Type the code" submitted the code and the screen was verified safe. */
-export const CODE_HANDED_BACK_NOTE = "Entered the code you sent and submitted it.";
 
 /** One continuation per interrupted run within the same return, even with several requests. */
 function continuationId(returnId: string, runId: string): string {
