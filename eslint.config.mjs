@@ -67,8 +67,23 @@ const CLIENT_NODE_FILES = [
   "packages/api/**/*.{test,testing}.ts",
   "apps/web/src/**/*.{test,testing}.{ts,tsx}",
   "apps/web/src/test/**",
-  "apps/mobile/src/testing/**",
   "apps/mobile/app.config.ts",
+];
+/**
+ * Test code among CLIENT_FILES: `*.testing` helpers and `test` folders (the web app's API harness).
+ * It may use Node (CLIENT_NODE_FILES), so code that ships must not import it, or Node would reach
+ * the client through it. apps/mobile/src/testing is not test code: a development build loads it on
+ * the phone, so it keeps the client bans.
+ */
+const TEST_CODE_BANS = [
+  {
+    regex: "(^|\\x2F)[^\\x2F]*\\.testing(\\.[cm]?[jt]sx?)?$",
+    message: "A *.testing helper runs only in tests and may use Node. Import it from a test.",
+  },
+  {
+    regex: "(^|\\x2F)test(\\x2F.*)?$",
+    message: "A test folder runs only in tests and may use Node. Import it from a test.",
+  },
 ];
 /** Packages, or parts of one, that hold server-only code. */
 const SERVER_PACKAGE_BANS = [
@@ -190,7 +205,7 @@ export default tseslint.config(
     // else may reach the client. packages/api is imported by the phone app too.
     files: CLIENT_FILES,
     ignores: [...WEB_SERVER_FILES, ...CLIENT_NODE_FILES],
-    rules: forbidImports([...SERVER_PACKAGE_BANS, ...NODE_ONLY_BANS]),
+    rules: forbidImports([...SERVER_PACKAGE_BANS, ...NODE_ONLY_BANS, ...TEST_CODE_BANS]),
   },
   {
     // Tests, the web app's API test harness and Expo's config run in Node, so they may use Node and

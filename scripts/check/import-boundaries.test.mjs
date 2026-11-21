@@ -156,6 +156,44 @@ test("mobile, the API contract and web client code can't import Node or a Node-o
   }
 });
 
+test("mobile's testing folder ships in development builds, so it keeps the client bans", async () => {
+  for (const code of imported("node:fs"))
+    assert.equal((await boundaryErrors("apps/mobile/src/testing/probe.ts", code)).length, 1, code);
+});
+
+test("code that ships to a phone or a browser can't import test code", async () => {
+  for (const file of [
+    "apps/mobile/src/lib/probe.ts",
+    "apps/mobile/src/features/chat/probe.tsx",
+    "packages/api/src/probe.ts",
+    "apps/web/src/features/chat/components/probe.tsx",
+  ]) {
+    for (const source of [
+      "./use-chat.testing",
+      "../relay.testing.ts",
+      "@/test/api/harness",
+      "./test",
+    ])
+      for (const code of imported(source))
+        assert.equal((await boundaryErrors(file, code)).length, 1, `${file}: ${code}`);
+    for (const source of [
+      "./latest",
+      "./testimonials",
+      "@testing-library/react",
+      "./contest/x",
+      "./src/testing/notifications",
+    ])
+      assert.deepEqual(await boundaryErrors(file, imported(source)[0]), [], `${file}: ${source}`);
+  }
+  // Tests and their helpers may import test code.
+  for (const file of [
+    "apps/mobile/src/features/chat/probe.test.ts",
+    "apps/mobile/src/features/chat/probe.testing.ts",
+    "apps/web/src/test/api/probe.ts",
+  ])
+    assert.deepEqual(await boundaryErrors(file, imported("./use-chat.testing")[0]), [], file);
+});
+
 test("server code, and client folders' tests and Node config, may use Node", async () => {
   for (const file of [
     "apps/web/src/lib/server/probe.ts",
@@ -167,7 +205,6 @@ test("server code, and client folders' tests and Node config, may use Node", asy
     "apps/mobile/src/features/chat/probe.testing.ts",
     "apps/web/src/features/chat/probe.testing.tsx",
     "packages/api/src/probe.testing.ts",
-    "apps/mobile/src/testing/probe.ts",
     "apps/mobile/app.config.ts",
     "packages/api/src/probe.test.ts",
     "apps/worker/src/probe.test.ts",
