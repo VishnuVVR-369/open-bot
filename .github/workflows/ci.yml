@@ -72,6 +72,9 @@ jobs:
       - run: >-
           bash scripts/test/pg.sh bash -c
           'pnpm test:integration && SHOWCASE_DATABASE_URL="$TEST_DATABASE_URL" pnpm --filter @open-bot/showcase seed'
+      # Builds the worker and pages bundles and boots each one on a migrated database in its own
+      # throwaway Postgres: only the bundle shows a module left out of it (ERR_MODULE_NOT_FOUND).
+      - run: pnpm test:artifacts
 
   egress-core:
     name: Phone egress core (Kotlin)

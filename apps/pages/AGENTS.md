@@ -27,7 +27,7 @@ It does not render the app UI, publish pages or know who the owner is: publishin
 
 - `pnpm --filter @open-bot/pages test` and `pnpm --filter @open-bot/pages typecheck`.
 - Unit suite: `apps/pages/src/server.test.ts`.
-- Built artifact: `pnpm --filter @open-bot/pages build && node apps/pages/dist/pages.mjs`.
+- Built artifact: `pnpm test:artifacts` builds `apps/pages/dist/pages.mjs` and boots it on a throwaway database (`scripts/ci/boot-artifacts.mjs`), as CI does.
 - E2E: `e2e/pages.spec.ts`.
 - Related integration suite: `apps/worker/src/features/pages/service.integration.test.ts`.
 
