@@ -14,9 +14,21 @@ import openBot from "./scripts/lint/plugin.mjs";
 const NODE_BUILTIN = `^(node:.*|(${builtinModules.filter((name) => !name.includes("/")).join("|")})(\\x2F.*)?)$`;
 
 /**
- * Bans import sources, in static imports and re-exports and in dynamic `import()` with a literal
- * source. Each ban is an exact `name` or a `regex`; a regex must not contain "/", which ends a
- * selector regex.
+ * The ways code loads a module by a fixed source that `no-restricted-imports` doesn't see: dynamic
+ * `import()` and `require()`, each with a string literal or a template literal with no `${}`.
+ * `value` is an esquery attribute test, `="name"` or `=/regex/`.
+ */
+const LOADS = (value) => [
+  `ImportExpression[source.value${value}]`,
+  `ImportExpression[source.type="TemplateLiteral"][source.expressions.length=0][source.quasis.0.value.cooked${value}]`,
+  `CallExpression[callee.type="Identifier"][callee.name="require"][arguments.0.value${value}]`,
+  `CallExpression[callee.type="Identifier"][callee.name="require"][arguments.0.type="TemplateLiteral"][arguments.0.expressions.length=0][arguments.0.quasis.0.value.cooked${value}]`,
+];
+
+/**
+ * Bans import sources: in static imports and re-exports, and in `import()` and `require()` with a
+ * fixed source (see LOADS). Each ban is an exact `name` or a `regex`; a regex must not contain
+ * "/", which ends a selector regex.
  */
 function forbidImports(bans) {
   const names = bans.filter((ban) => ban.name);
@@ -25,15 +37,87 @@ function forbidImports(bans) {
     "no-restricted-imports": ["error", { paths: names, patterns }],
     "no-restricted-syntax": [
       "error",
-      ...bans.map(({ name, regex, message }) => ({
-        selector: name
-          ? `ImportExpression[source.value=${JSON.stringify(name)}]`
-          : `ImportExpression[source.value=/${regex}/]`,
-        message,
-      })),
+      ...bans.flatMap(({ name, regex, message }) =>
+        LOADS(name ? `=${JSON.stringify(name)}` : `=/${regex}/`).map((selector) => ({
+          selector,
+          message,
+        })),
+      ),
     ],
   };
 }
+
+/** Code that can run on a phone or in the browser, besides the server files below. */
+const CLIENT_FILES = [
+  "apps/mobile/**/*.{ts,tsx}",
+  "packages/api/**/*.ts",
+  "apps/web/src/**/*.{ts,tsx}",
+];
+/** The web app's server code. */
+const WEB_SERVER_FILES = [
+  "apps/web/src/lib/server/**",
+  "apps/web/src/app/api/**",
+  "apps/web/src/features/*/server/**",
+  "apps/web/src/features/*/server.ts",
+  "apps/web/src/instrumentation-node.ts",
+];
+/** Files among CLIENT_FILES that only ever run in Node: tests, their `*.testing` helpers and config. */
+const CLIENT_NODE_FILES = [
+  "apps/mobile/**/*.{test,testing}.{ts,tsx}",
+  "packages/api/**/*.{test,testing}.ts",
+  "apps/web/src/**/*.{test,testing}.{ts,tsx}",
+  "apps/web/src/test/**",
+  "apps/mobile/app.config.ts",
+];
+/**
+ * Code among CLIENT_FILES that may use Node (CLIENT_NODE_FILES) and that shipped code must not
+ * import, or Node would reach the client through it: `*.testing` helpers, `test` folders (the web
+ * app's API harness) and Expo's `app.config.ts`. apps/mobile/src/testing is not test code: a
+ * development build loads it on the phone, so it keeps the client bans. Static imports match these
+ * regexes without regard to case and `import()`/`require()` with it, so name files in lower case.
+ */
+const TEST_CODE_BANS = [
+  {
+    regex: "(^|\\x2F)[^\\x2F]*\\.testing(\\.[cm]?[jt]sx?)?$",
+    message: "A *.testing helper runs only in tests and may use Node. Import it from a test.",
+  },
+  {
+    regex: "(^|\\x2F)test(\\x2F.*)?$",
+    message: "A test folder runs only in tests and may use Node. Import it from a test.",
+  },
+  {
+    regex: "(^|\\x2F)app\\.config(\\.ts)?$",
+    message: "app.config.ts runs in Node when Expo builds. Read its values with expo-constants.",
+  },
+];
+/** Packages, or parts of one, that hold server-only code. */
+const SERVER_PACKAGE_BANS = [
+  {
+    name: "@open-bot/domain/server",
+    message: "@open-bot/domain/server is Node-only. Use it from server code.",
+  },
+  {
+    regex: "^@open-bot.integrations(\\W.*)?$",
+    message: "@open-bot/integrations is Node-only. Use it from server code.",
+  },
+];
+/** Node itself and the packages that need it: none of them runs on a phone or in a browser. */
+const NODE_ONLY_BANS = [
+  {
+    regex: NODE_BUILTIN,
+    message: "Node's modules don't run on a phone or in the browser. Use them from server code.",
+  },
+  {
+    regex: "^@open-bot.(db|memory|agent|egress|page-kit.serve)(\\x2F.*)?$",
+    message:
+      "This package is Node-only (the database, memory, the Codex client, egress, page serving). " +
+      "Use it from server code, and reach it from the client through the API.",
+  },
+  {
+    regex: "^(pg|drizzle-orm|ws)(\\x2F.*)?$",
+    message: "This package is Node-only. Use it from server code.",
+  },
+];
 
 export default tseslint.config(
   {
@@ -121,26 +205,19 @@ export default tseslint.config(
     ]),
   },
   {
-    // Code that can run on a phone or in the browser can't load node:crypto. Web server code
-    // lives in lib/server, API routes and each feature's server side; everything else may reach the
-    // client.
-    files: ["apps/mobile/**/*.{ts,tsx}", "packages/api/**/*.ts", "apps/web/src/**/*.{ts,tsx}"],
-    ignores: [
-      "apps/web/src/lib/server/**",
-      "apps/web/src/app/api/**",
-      "apps/web/src/features/*/server/**",
-      "apps/web/src/features/*/server.ts",
-    ],
-    rules: forbidImports([
-      {
-        name: "@open-bot/domain/server",
-        message: "@open-bot/domain/server is Node-only. Use it from server code.",
-      },
-      {
-        regex: "^@open-bot.integrations(\\W.*)?$",
-        message: "@open-bot/integrations is Node-only. Use it from server code.",
-      },
-    ]),
+    // Code that can run on a phone or in the browser can't load Node or a server-only package.
+    // Web server code lives in lib/server, API routes and each feature's server side; everything
+    // else may reach the client. packages/api is imported by the phone app too.
+    files: CLIENT_FILES,
+    ignores: [...WEB_SERVER_FILES, ...CLIENT_NODE_FILES],
+    rules: forbidImports([...SERVER_PACKAGE_BANS, ...NODE_ONLY_BANS, ...TEST_CODE_BANS]),
+  },
+  {
+    // Tests, the web app's API test harness and Expo's config run in Node, so they may use Node and
+    // the database, but still not the server halves the client bans name.
+    files: CLIENT_NODE_FILES,
+    ignores: WEB_SERVER_FILES,
+    rules: forbidImports(SERVER_PACKAGE_BANS),
   },
   {
     // Each app reads the environment in one env module (scripts/lint/env-modules.mjs), and packages

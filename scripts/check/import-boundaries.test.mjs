@@ -15,9 +15,22 @@ async function boundaryErrors(filePath, code) {
     .map((m) => m.message);
 }
 
+/**
+ * Each way to import `source`: static, re-export, dynamic and `require()`, the last two also with a
+ * template literal, and a `require()` whose generic lint rule is turned off, as native modules do.
+ */
+const imported = (source) => [
+  `import * as x from "${source}";\nexport { x };\n`,
+  `export * from "${source}";\n`,
+  `export const x = () => import("${source}");\n`,
+  `export const x = () => import(\`${source}\`);\n`,
+  `export const x = require("${source}");\n`,
+  `export const x = require(\`${source}\`);\n`,
+  `// eslint-disable-next-line @typescript-eslint/no-require-imports\nexport const x = require("${source}");\n`,
+];
+
 const SERVER =
   'import { issueToken } from "@open-bot/domain/server";\nexport const x = issueToken;\n';
-const SERVER_DYNAMIC = 'export const x = () => import("@open-bot/domain/server");\n';
 
 test("the isomorphic domain folders can't import Node or the server folder", async () => {
   const file = "packages/domain/src/pages/probe.ts";
@@ -67,8 +80,8 @@ test("chat-core can't import Node, platform UI or server-only packages", async (
     const code = `import * as x from "${source}";\nexport { x };\n`;
     assert.equal((await boundaryErrors(file, code)).length, 1, source);
     assert.equal((await boundaryErrors(file, `export * from "${source}";\n`)).length, 1, source);
-    const dynamic = `export const x = () => import("${source}");\n`;
-    assert.equal((await boundaryErrors(file, dynamic)).length, 1, source);
+    for (const code of imported(source).slice(2))
+      assert.equal((await boundaryErrors(file, code)).length, 1, `${source}: ${code}`);
   }
   // A package whose name only starts with a Node module's is not Node.
   for (const source of ["path-to-regexp", "assert-never", "url-parse"]) {
@@ -90,8 +103,8 @@ test("mobile, the API contract and web client code can't import the server entry
     "apps/web/src/lib/auth-client.ts",
     "apps/web/src/app/(auth)/auth-form.tsx",
   ]) {
-    assert.equal((await boundaryErrors(file, SERVER)).length, 1, file);
-    assert.equal((await boundaryErrors(file, SERVER_DYNAMIC)).length, 1, file);
+    for (const code of imported("@open-bot/domain/server"))
+      assert.equal((await boundaryErrors(file, code)).length, 1, `${file}: ${code}`);
   }
 });
 
@@ -99,6 +112,116 @@ test("web server code may import the server entry", async () => {
   for (const file of ["apps/web/src/lib/server/probe.ts", "apps/web/src/app/api/probe/route.ts"]) {
     assert.deepEqual(await boundaryErrors(file, SERVER), [], file);
   }
+});
+
+/** Node and the packages that need it, which no phone or browser can load. */
+const NODE_ONLY = [
+  "node:crypto",
+  "fs/promises",
+  "net",
+  "@open-bot/db",
+  "@open-bot/db/schema",
+  "@open-bot/memory",
+  "@open-bot/memory/jobs",
+  "@open-bot/agent",
+  "@open-bot/egress",
+  "@open-bot/egress/router",
+  "@open-bot/page-kit/serve",
+  "pg",
+  "drizzle-orm",
+  "drizzle-orm/pg-core",
+  "ws",
+];
+
+test("mobile, the API contract and web client code can't import Node or a Node-only package", async () => {
+  for (const file of [
+    "apps/mobile/src/lib/probe.ts",
+    "apps/mobile/modules/egress/probe.ts",
+    "packages/api/src/probe.ts",
+    "apps/web/src/components/probe.tsx",
+    "apps/web/src/features/chat/components/probe.tsx",
+    "apps/web/src/proxy.ts",
+  ]) {
+    for (const source of NODE_ONLY)
+      for (const code of imported(source))
+        assert.equal((await boundaryErrors(file, code)).length, 1, `${file}: ${code}`);
+    for (const source of [
+      "@open-bot/page-kit",
+      "@open-bot/api",
+      "pg-format",
+      "wsx",
+      "path-to-regexp",
+    ])
+      assert.deepEqual(await boundaryErrors(file, imported(source)[0]), [], `${file}: ${source}`);
+  }
+});
+
+test("mobile's testing folder ships in development builds, so it keeps the client bans", async () => {
+  for (const code of imported("node:fs"))
+    assert.equal((await boundaryErrors("apps/mobile/src/testing/probe.ts", code)).length, 1, code);
+});
+
+test("code that ships to a phone or a browser can't import test code", async () => {
+  for (const file of [
+    "apps/mobile/src/lib/probe.ts",
+    "apps/mobile/src/features/chat/probe.tsx",
+    "packages/api/src/probe.ts",
+    "apps/web/src/features/chat/components/probe.tsx",
+  ]) {
+    for (const source of [
+      "./use-chat.testing",
+      "../relay.testing.ts",
+      "@/test/api/harness",
+      "./test",
+      "../../app.config",
+      "../app.config.ts",
+    ])
+      for (const code of imported(source))
+        assert.equal((await boundaryErrors(file, code)).length, 1, `${file}: ${code}`);
+    for (const source of [
+      "./latest",
+      "./testimonials",
+      "@testing-library/react",
+      "./contest/x",
+      "./src/testing/notifications",
+    ])
+      assert.deepEqual(await boundaryErrors(file, imported(source)[0]), [], `${file}: ${source}`);
+  }
+  // Tests and their helpers may import test code.
+  for (const file of [
+    "apps/mobile/src/features/chat/probe.test.ts",
+    "apps/mobile/src/features/chat/probe.testing.ts",
+    "apps/web/src/test/api/probe.ts",
+  ])
+    assert.deepEqual(await boundaryErrors(file, imported("./use-chat.testing")[0]), [], file);
+});
+
+test("server code, and client folders' tests and Node config, may use Node", async () => {
+  for (const file of [
+    "apps/web/src/lib/server/probe.ts",
+    "apps/web/src/features/chat/server/probe.ts",
+    "apps/web/src/instrumentation-node.ts",
+    "apps/web/src/test/api/probe.ts",
+    "apps/web/src/components/probe.test.tsx",
+    "apps/mobile/src/lib/probe.test.ts",
+    "apps/mobile/src/features/chat/probe.testing.ts",
+    "apps/web/src/features/chat/probe.testing.tsx",
+    "packages/api/src/probe.testing.ts",
+    "apps/mobile/app.config.ts",
+    "packages/api/src/probe.test.ts",
+    "apps/worker/src/probe.test.ts",
+  ])
+    for (const source of NODE_ONLY)
+      assert.deepEqual(await boundaryErrors(file, imported(source)[0]), [], `${file}: ${source}`);
+  // A client folder's test still can't load the server halves of the client packages.
+  for (const file of [
+    "apps/mobile/src/lib/probe.test.ts",
+    "apps/web/src/components/probe.test.tsx",
+  ])
+    assert.equal((await boundaryErrors(file, SERVER)).length, 1, file);
+  // Anywhere else, a test is untouched by the client bans.
+  const integrations = imported("@open-bot/integrations/server")[0];
+  assert.deepEqual(await boundaryErrors("apps/worker/src/probe.test.ts", integrations), []);
 });
 
 /** The open-bot/workspace-imports messages ESLint reports for `code` at `filePath`. */
