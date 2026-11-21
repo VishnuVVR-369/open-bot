@@ -138,7 +138,7 @@ export interface PairDeps {
    * Stops the service and forgets the credential, only if the phone still holds this generation's:
    * a pairing made meanwhile is never undone by an older one's rollback.
    */
-  forgetIfMine: (generation: number) => Promise<void>;
+  forgetIfMine: (generation: number) => Promise<unknown>;
   /** The server has made this pairing (for `removedOnServer`). */
   onRegistered: () => void;
   /** Revokes a pairing now, or remembers to once the server can be reached. */
@@ -201,7 +201,7 @@ export async function pairPhone(deps: PairDeps): Promise<PairResult> {
 export async function turnOffThisPhone(deps: {
   status: () => { generation: number | null };
   deviceId: () => string;
-  forget: () => Promise<void>;
+  forget: () => Promise<unknown>;
   revokeOrRemember: (input: {
     deviceId: string;
     generation: number;

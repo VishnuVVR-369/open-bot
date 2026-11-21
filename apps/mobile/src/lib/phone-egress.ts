@@ -137,7 +137,7 @@ export interface SignOutEgressDeps {
   status: () => { paired: boolean; generation: number | null };
   deviceId: () => string;
   /** Stops the service, waiting until it has, and forgets the credential. */
-  forget: () => Promise<void>;
+  forget: () => Promise<unknown>;
   revokeOrRemember: (revoke: PendingRevoke) => Promise<unknown>;
 }
 

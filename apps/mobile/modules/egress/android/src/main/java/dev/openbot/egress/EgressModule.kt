@@ -67,12 +67,17 @@ class EgressModule : Module() {
       Egress.pair(ctx, Pairing(DeviceCredential(CredentialStore.deviceId(ctx), options.secret, options.generation), options.appUrl), mode)
     }
 
-    /** Stop the service (waiting until it has), and forget the credential. */
-    AsyncFunction("forget") { promise: Promise ->
+    /**
+     * Stop the service (waiting until it has), and forget the credential. With a generation, only
+     * that pairing's: a pairing stored first, or while the service stops, stays, and so does its
+     * service. Resolves whether a credential was forgotten.
+     */
+    AsyncFunction("forget") { generation: Int?, promise: Promise ->
       val ctx = context
-      stopService(ctx) {
-        Egress.forget(ctx)
-        promise.resolve(null)
+      if (generation != null && CredentialStore.read(ctx)?.credential?.generation != generation) {
+        promise.resolve(false)
+      } else {
+        stopService(ctx) { promise.resolve(Egress.forget(ctx, generation)) }
       }
     }
 

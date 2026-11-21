@@ -43,8 +43,12 @@ interface NativeEgress {
     appUrl: string;
     phoneMode: PhoneMode;
   }): Promise<void>;
-  /** Stop the service (waiting for it) and forget the credential. */
-  forget(): Promise<void>;
+  /**
+   * Stop the service (waiting for it) and forget the credential. With a generation, only that
+   * pairing's: one stored first, or while the service stops, stays. Resolves whether one was
+   * forgotten.
+   */
+  forget(generation?: number): Promise<boolean>;
   start(): Promise<void>;
   /** The owner stops it: wakes are ignored for 15 minutes. */
   stop(): Promise<void>;

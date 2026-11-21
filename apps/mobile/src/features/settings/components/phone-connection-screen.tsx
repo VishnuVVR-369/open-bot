@@ -111,11 +111,12 @@ export default function PhoneConnection() {
   // The server is the source of truth: a pairing it no longer has is forgotten here too, so the
   // service stops and Settings stops calling it ready.
   const { refresh: refreshNative } = native;
+  const generation = native.status.generation;
   useEffect(() => {
     if (!removed) return;
     setRemovedElsewhere(true);
-    void NativeEgress.forget().finally(refreshNative);
-  }, [removed, refreshNative]);
+    void NativeEgress.forget(generation ?? undefined).finally(refreshNative);
+  }, [removed, generation, refreshNative]);
 
   /** Runs one change at a time, says what went wrong, and refreshes what it may have changed. */
   async function act(name: string, work: () => Promise<unknown>) {
@@ -145,9 +146,7 @@ export default function PhoneConnection() {
         register: (input) => api.egress.registerDevice(input),
         setServerPhoneMode: (mode) => api.egress.setPhoneMode({ mode }),
         pair: (options) => NativeEgress.pair({ ...options, appUrl: APP_URL }),
-        forgetIfMine: async (generation) => {
-          if (NativeEgress.status().generation === generation) await NativeEgress.forget();
-        },
+        forgetIfMine: (generation) => NativeEgress.forget(generation),
         onRegistered: () => noteRegistered(),
         revokeOrRemember: (input) => revokeOrRemember(input),
         stillSignedIn: () => sameSession(session),

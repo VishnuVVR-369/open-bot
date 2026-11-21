@@ -156,7 +156,7 @@ After that the work runs in `EgressService`, a `specialUse` foreground service, 
 - Signing out releases the phone connection first (`src/lib/phone-egress.ts`): `NativeEgress.forget()` stops the service and waits, then the pairing is revoked with the session, for its generation.
   A revoke that fails (here or from Turn off for this phone) is kept in AsyncStorage, one entry per generation, and sent when the app starts signed in or the screen opens.
   `signingOutDuring` brackets each sign-out, so a pairing can't start while one runs and knows if one began or ended while it ran.
-  Pairing undoes itself on both sides if any step after registration fails, or if a sign-out happened meanwhile; the undo forgets the phone's credential only if it is still this pairing's generation, so it never removes a newer pairing.
+  Pairing undoes itself on both sides if any step after registration fails, or if a sign-out happened meanwhile; the undo calls `NativeEgress.forget(generation)`, which checks and clears the credential in one step on the phone, so it never removes a newer pairing.
   The screen treats this phone as removed elsewhere only when a device list that was requested after this pairing registered leaves it out, so a slow answer from before never unpairs it.
 
 - `EgressMessagingService` and `EgressMessagingReceiver` take over FCM handling from React Native Firebase. They handle `egress-needed` natively, so a wake never starts JavaScript. All other messages pass through to the normal path.
