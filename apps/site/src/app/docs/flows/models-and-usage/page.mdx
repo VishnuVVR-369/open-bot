@@ -187,7 +187,7 @@ Entries whose run had been deleted went to `legacy_deleted_run_usage`, keyed by 
 
 - The previous worker kept writing `usage_entries` while that deploy ran.
   A trigger on `usage_entries` copied each new entry as it was written, and the migration locked the table while it copied, so none was missed.
-- Migration 0041 locked `usage_entries`, and `runs` and `bots`, which dropping its foreign keys needs, ran the copy once more, and then dropped the table with its trigger and the copy function.
+- Migration 0041 locked `usage_entries`, and `runs` and `bots` (now `teammates`), which dropping its foreign keys needs, ran the copy once more, and then dropped the table with its trigger and the copy function.
   Copies skip a key they already hold, so the entries counted once.
   It shipped in a deploy after 0040's, once no running worker wrote `usage_entries`: one that still did would fail to write its entries (`42P01`, no such table), and so would a rollback to one.
 - Each migration takes every lock it needs together before anything else, and never waits while holding one: a try that can't have them all gives back what it got and tries again 50 ms later.

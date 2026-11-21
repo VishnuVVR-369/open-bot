@@ -161,7 +161,8 @@ describe.skipIf(!url)("dropping usage_entries (migration 0041)", () => {
       [MONTH],
     );
     ledgerSpend = Number(rows[0].spend);
-    await database.migrate();
+    // Through 0041 only: the tests read the tables in the shape it left.
+    await database.migrate({ through: "0041_drop_usage_entries" });
   });
   afterAll(async () => {
     await database.drop();

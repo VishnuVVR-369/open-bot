@@ -132,7 +132,7 @@ export async function monthlyUsage(since: Date): Promise<UsageView[]> {
   const at = since.toISOString();
   const result = await db.execute<TeammateRow>(sql`
     with logged as (
-      select coalesce(q.bot_id, m.teammate_id) as teammate_id, -- vocabulary: allow
+      select coalesce(q.teammate_id, m.teammate_id) as teammate_id,
         coalesce(q.run_id::text, m.codex_thread_id || ':' || coalesce(m.codex_turn_id, q.turn))
           as run_key,
         coalesce(m.input_tokens, 0) as input_tokens,
@@ -140,7 +140,7 @@ export async function monthlyUsage(since: Date): Promise<UsageView[]> {
         coalesce(m.output_tokens, 0) as output_tokens
       from model_requests m
       left join lateral (
-        select rt.run_id, r.bot_id, rt.codex_turn_id as turn -- vocabulary: allow
+        select rt.run_id, r.teammate_id, rt.codex_turn_id as turn
         from run_turns rt join runs r on r.id = rt.run_id
         where rt.codex_thread_id = m.codex_thread_id
           and rt.codex_turn_id = coalesce(m.codex_turn_id, ${unturnedTurnSql("m")})
@@ -149,7 +149,7 @@ export async function monthlyUsage(since: Date): Promise<UsageView[]> {
       where m.source = 'codex' and m.counts_usage and m.started_at >= ${at}::timestamptz
     ),
     legacy as (
-      select r.bot_id as teammate_id, r.id::text as run_key, -- vocabulary: allow
+      select r.teammate_id, r.id::text as run_key,
         coalesce(r.legacy_plan_input_tokens, 0) + coalesce(r.legacy_api_key_input_tokens, 0)
           as input_tokens,
         coalesce(r.legacy_plan_cached_input_tokens, 0)
@@ -160,7 +160,7 @@ export async function monthlyUsage(since: Date): Promise<UsageView[]> {
       where r.legacy_usage_at >= ${at}::timestamptz
     ),
     deleted as (
-      select (select b.id from bots b where b.id = d.teammate_id) as teammate_id, -- vocabulary: allow
+      select (select b.id from teammates b where b.id = d.teammate_id) as teammate_id,
         coalesce(d.run_id::text, d.source_key) as run_key,
         d.input_tokens, d.cached_input_tokens, d.output_tokens
       from legacy_deleted_run_usage d

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Keeps legacy vocabulary from spreading (see the glossary in the root AGENTS.md). Code still uses
-// names like `botId` and `is_primary` that are renamed later; this check counts each banned term per
-// file and fails when a file uses one more often than `vocabulary-baseline.json` allows, or when the
+// Keeps legacy vocabulary out (see the glossary in the root AGENTS.md). The renames are done; the few
+// uses left name an old name on purpose (an old tool parameter a test refuses, say). This check
+// counts each banned term per file and fails when a file uses one more often than `vocabulary-baseline.json` allows, or when the
 // baseline is higher than the code (run `pnpm check:vocabulary --update` after removing uses).
 // `--update` refuses to raise a term's total across the repository, so moving a file works but a new
 // use does not; `--allow-growth` is for reviewed changes only, such as a stricter rule.
@@ -40,13 +40,23 @@ export const RULES = [
 
 /** Text that contains a banned word but means something else, removed before matching. */
 const NOT_VOCABULARY = [
-  /\/home\/bot\b/g, // The computer's Linux user.
-  /\bbot user\b/gi,
+  // The teammates' folders on the computer, kept on purpose (see the glossary in AGENTS.md).
+  // Also as a regex source (`\/home\/bot\/bots`), and in pages.ts's `(?:bots|shared)`.
+  /\\?\/home\\?\/bot\\?\/(bots\b|\(\?:bots\|)/g,
+  /(\\?\/)?\bhome\\?\/bot\b/g, // The computer's Linux user.
+  /\b(bot|user) (user|bot)\b/gi,
   /\bbot:bot\b/g,
   /\bbot(User|Group|Processes)\b/g, // botd's names for that user, its group and its processes.
   /`bots` group|\bBOTS_GID\b/g, // The Linux group both computer users share.
   /\bBotFather\b/g, // Telegram's own name.
+  // Telegram's bot: its Bot API, its username and token, and the users it marks as bots.
+  /\b(bot_?[uU]sername|BotUsername|telegram_bot_token|TELEGRAM_BOT_TOKEN|is_bot)\b/g,
+  /\bBot API\b/g,
+  /\bTelegram bots?\b/gi,
 ];
+
+/** Files about Telegram, where "bot" always means Telegram's bot: not counted for "bot". */
+export const TELEGRAM_FILE = /(^|\/)telegram([-./]|$)/;
 
 /** An identifier, or a hyphenated word like `open-bot` or `desktop-takeover`; Unicode-aware. */
 const TOKEN = /[\p{L}_$][\p{L}\p{N}_$]*(?:-[\p{L}\p{N}_$]+)*/gu;
@@ -56,10 +66,11 @@ const INCLUDE = ["*.ts", "*.tsx", "*.mts", "*.cts", "*.js", "*.mjs", "*.cjs", "*
 const EXCLUDE = [
   /^packages\/agent\/src\/protocol\//, // Generated.
   /^packages\/db\/drizzle\//, // Shipped migrations are never edited.
+  // The tests of the rename migrations save rows under the old names, to prove they are renamed.
+  /^packages\/db\/src\/(tool|vocabulary)-rename\.integration\.test\.ts$/,
   /^apps\/mobile\/src\/computer\/viewer-html\.ts$/, // Generated.
   /^apps\/web\/src\/components\/ui\//, // shadcn.
   /^scripts\/check\/vocabulary(\.test)?\.mjs$/, // Names the terms on purpose.
-  /^packages\/db\/src\/owners\.ts$/, // Names tables and files as they are named today.
 ];
 
 export const BASELINE = "scripts/check/vocabulary-baseline.json";
@@ -153,6 +164,7 @@ export function measure(root) {
   const result = {};
   for (const file of files(root)) {
     const counts = countTerms(readFileSync(path.join(root, file), "utf8"));
+    if (TELEGRAM_FILE.test(file)) delete counts.bot;
     if (standInName(file)) counts[STAND_IN.term] = 1;
     if (Object.keys(counts).length > 0) result[file] = counts;
   }

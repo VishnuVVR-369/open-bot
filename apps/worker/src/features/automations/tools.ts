@@ -208,7 +208,7 @@ async function scheduleTask(
     at: args.at ?? null,
     timezone: args.timezone ?? null,
     quiet: args.quiet,
-    createdBy: "bot",
+    createdBy: "teammate",
     createdByRunId: session.run.id,
   });
   const when = schedule.nextRunAt ? schedule.nextRunAt.toISOString() : "never";
@@ -261,7 +261,7 @@ async function watchPage(
         intervalMinutes: args.every_minutes,
         lookFor: args.look_for ?? null,
       },
-      { kind: "bot", runId: session.run.id },
+      { kind: "teammate", runId: session.run.id },
     );
   } catch (error) {
     if (error instanceof TriggerError) return text(error.message, false);
@@ -320,7 +320,7 @@ async function createWebhook(
         title: args.title,
         prompt: args.prompt,
       },
-      { kind: "bot", runId: session.run.id },
+      { kind: "teammate", runId: session.run.id },
     );
   } catch (error) {
     if (error instanceof TriggerError) return text(error.message, false);

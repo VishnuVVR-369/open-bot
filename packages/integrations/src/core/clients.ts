@@ -1,4 +1,4 @@
-import { accounts, LOCKS, lockUntilCommit, oauthClients, type Db } from "@open-bot/db";
+import { accountConnections, LOCKS, lockUntilCommit, oauthClients, type Db } from "@open-bot/db";
 import type { AccountProvider, OAuthClientSource } from "@open-bot/domain";
 import { decryptSecret, encryptSecret } from "@open-bot/domain/server";
 import { and, eq, isNotNull, isNull, notExists, sql } from "drizzle-orm";
@@ -119,9 +119,9 @@ export class OAuthClients {
           isNotNull(oauthClients.retiredAt),
           notExists(
             tx
-              .select({ id: accounts.id })
-              .from(accounts)
-              .where(eq(accounts.oauthClientId, oauthClients.id)),
+              .select({ id: accountConnections.id })
+              .from(accountConnections)
+              .where(eq(accountConnections.oauthClientId, oauthClients.id)),
           ),
         ),
       );

@@ -34,7 +34,7 @@ Working copies stay in teammates' workspaces on the computer.
 A version is never updated after it's written.
 Publishing adds a row and moves `pages.current_version_id`, and `(page_id, number)` is unique.
 Deleting a page cascades to its versions.
-Deleting a teammate or a chat keeps its pages, with `bot_id` or `chat_id` set to null.
+Deleting a teammate or a chat keeps its pages, with `teammate_id` or `chat_id` set to null.
 
 The text of a version (up to 200,000 characters) is extracted by the checker, with hidden tabs and steps included.
 It backs ⌘K search and lets a teammate read a page back with `get_page`.

@@ -61,7 +61,7 @@ export function toolHarness() {
     vi.spyOn(triggers, "kick").mockImplementation(() => {});
   });
   beforeEach(async () => {
-    await pool.query("truncate bots, connections restart identity cascade");
+    await pool.query("truncate teammates, connections restart identity cascade");
     requestAction.mockClear().mockResolvedValue("approved");
     sync.mockClear().mockResolvedValue();
   });

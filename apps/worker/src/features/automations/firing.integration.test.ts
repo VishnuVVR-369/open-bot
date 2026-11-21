@@ -54,7 +54,7 @@ describe.skipIf(!url)("watches and schedules with Postgres", () => {
     pageUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/status`;
   });
   beforeEach(async () => {
-    await pool.query("truncate bots, chats restart identity cascade"); // vocabulary: allow
+    await pool.query("truncate teammates, chats restart identity cascade");
     const [teammate] = await db
       .insert(teammates)
       .values({ name: "Otto", slug: "otto", role: "assistant", color: "#4f46e5" })

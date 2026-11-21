@@ -3,7 +3,7 @@
 The Drizzle schema, migrations, pool helpers, Postgres NOTIFY channels and app events.
 Queries and business rules do not belong here; they live in the web server code, the worker services and `packages/memory`.
 The exceptions are the settings accessor, so the single settings row reads the same everywhere, and `packages/db/src/usage.ts` (`apiKeySpendMicros()`), which says how usage is counted (legacy totals plus model requests with `counts_usage`), so the monthly cap, Settings and the reply footer count it the same way.
-Better Auth's `account` table is sign-in and is unrelated to the integrations `accounts` table.
+Better Auth's `account` table is sign-in and is unrelated to the integrations `account_connections` table.
 
 ## Entry points
 

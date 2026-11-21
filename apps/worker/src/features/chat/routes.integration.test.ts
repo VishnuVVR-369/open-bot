@@ -136,7 +136,7 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
           );
           expect(rows[0]!.waiting).toBe(1);
         });
-        const insert = `insert into chats (kind, title, bot_id, main) values ('direct', 'Ada', $1, true) returning id`; // vocabulary: allow
+        const insert = `insert into chats (kind, title, teammate_id, main) values ('direct', 'Ada', $1, true) returning id`;
         const { rows } = await making.query<{ id: string }>(insert, [ada.id]);
         await making.query("commit");
         await archiving;

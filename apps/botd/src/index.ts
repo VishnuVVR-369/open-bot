@@ -33,7 +33,7 @@ try {
 const { token, lifecycleEnabled } = env;
 
 const desktopUser = lookupUser("desktop");
-const botUser = lookupUser("bot");
+const botUser = lookupUser("bot"); // vocabulary: allow (the Linux user)
 const bootedAt = new Date().toISOString();
 
 async function ensureDir(path: string, owner: { uid: number; gid: number }, mode: number) {

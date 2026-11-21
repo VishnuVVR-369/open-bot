@@ -84,7 +84,7 @@ describe.skipIf(!url)("pages with Postgres", () => {
   });
   beforeEach(async () => {
     vi.clearAllMocks();
-    await pool.query("truncate pages, notifications, bots restart identity cascade");
+    await pool.query("truncate pages, notifications, teammates restart identity cascade");
     teammateId = randomUUID();
     await db.insert(teammates).values({
       id: teammateId,

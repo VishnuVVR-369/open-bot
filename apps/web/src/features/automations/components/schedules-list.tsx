@@ -86,7 +86,7 @@ export function ScheduleRow({
               {schedule.title}
             </span>
             {!schedule.enabled && <StateBadge>{done ? "Done" : "Off"}</StateBadge>}
-            {schedule.createdBy === "bot" && (
+            {schedule.createdBy === "teammate" && (
               <span className="shrink-0 text-[12px] text-muted-foreground">
                 Set by {teammate?.name ?? "a teammate"}
               </span>

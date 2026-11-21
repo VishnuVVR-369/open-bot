@@ -109,7 +109,7 @@ describe.skipIf(!url)("lane threads with Postgres", () => {
 
     // The old worker's exact conflict key remains valid after the additive migration.
     await pool.query(
-      "insert into bot_threads (chat_id, bot_id, codex_thread_id) values ($1, $2, $3) on conflict (chat_id, bot_id) do update set codex_thread_id = excluded.codex_thread_id", // vocabulary: allow
+      "insert into teammate_threads (chat_id, teammate_id, codex_thread_id) values ($1, $2, $3) on conflict (chat_id, teammate_id) do update set codex_thread_id = excluded.codex_thread_id",
       [chat!.id, teammate!.id, "older-worker"],
     );
     const [legacy] = await db

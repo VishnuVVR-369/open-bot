@@ -1,6 +1,6 @@
 import {
   accountActions,
-  accounts,
+  accountConnections,
   approvals,
   teammates,
   connections,
@@ -426,9 +426,9 @@ export class AccountActions {
     if (!action.connectionId || !action.accountId)
       return { reason: "The user removed the connection." };
     const [row] = await this.ctx.db
-      .select({ connection: connections, account: accounts })
+      .select({ connection: connections, account: accountConnections })
       .from(connections)
-      .innerJoin(accounts, eq(accounts.id, connections.accountId))
+      .innerJoin(accountConnections, eq(accountConnections.id, connections.accountId))
       .where(eq(connections.id, action.connectionId));
     if (!row || !isAccountConnectionKind(row.connection.kind))
       return { reason: "The user removed the connection." };

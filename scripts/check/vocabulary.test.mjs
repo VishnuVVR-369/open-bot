@@ -71,6 +71,24 @@ describe("findTerms", () => {
     assert.deepEqual(findTerms(text), []);
   });
 
+  it("ignores the teammates' folders on the computer, as a path and as a regex", () => {
+    const text = [
+      'const root = "/home/bot/bots"; // also /home/bot/bots/iris/notes.md',
+      "const workspace = /^\\/home\\/bot\\/bots\\/([^/]+)$/;",
+      "const page = /^\\/home\\/bot\\/(?:bots|shared)\\/x\\.html$/;",
+      '"home/bot/shared/a.html"; // runs as user bot, no display',
+    ].join("\n");
+    assert.deepEqual(findTerms(text), []);
+  });
+
+  it("ignores Telegram's bot: its API, username, token and users", () => {
+    const text = [
+      "telegram.botUsername; row.bot_username; secret = 'telegram_bot_token'; from.is_bot;",
+      "// The Telegram Bot API. A code to send your Telegram bot.",
+    ].join("\n");
+    assert.deepEqual(findTerms(text), []);
+  });
+
   it("still flags a teammate named like the Linux user's names", () => {
     const tokens = findTerms("botUsers botGrouping botProcess bots_gid the bots folder").map(
       (found) => found.token,
@@ -205,6 +223,18 @@ describe("measure and the command line", () => {
     write("e2e/telegram-mock.ts", "export {};\n");
   });
   after(() => rmSync(root, { recursive: true, force: true }));
+
+  it("doesn't count bot in files about Telegram, where it is Telegram's bot", () => {
+    write("apps/worker/src/features/telegram/service.ts", "const bot = me.username; isPrimary;\n");
+    write("apps/web/src/features/settings/components/telegram-section.tsx", "the bot;\n");
+    assert.deepEqual(measure(root)["apps/worker/src/features/telegram/service.ts"], {
+      "primary teammate": 1,
+    });
+    assert.equal(
+      measure(root)["apps/web/src/features/settings/components/telegram-section.tsx"],
+      undefined,
+    );
+  });
 
   it("measures tracked and untracked code, skipping ignored, excluded and non-code files", () => {
     assert.deepEqual(measure(root), {

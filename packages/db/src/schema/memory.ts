@@ -34,7 +34,7 @@ export const memoryItems = pgTable(
   "memory_items",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    teammateId: uuid("bot_id").references(() => teammates.id, { onDelete: "cascade" }),
+    teammateId: uuid("teammate_id").references(() => teammates.id, { onDelete: "cascade" }),
     kind: text("kind").$type<MemoryKind>().notNull().default("fact"),
     content: text("content").notNull(),
     key: text("key"),
@@ -147,7 +147,7 @@ export const memoryContexts = pgTable("memory_contexts", {
   runId: uuid("run_id")
     .primaryKey()
     .references(() => runs.id, { onDelete: "cascade" }),
-  teammateId: uuid("bot_id")
+  teammateId: uuid("teammate_id")
     .notNull()
     .references(() => teammates.id, { onDelete: "cascade" }),
   generation: text("generation").notNull(),

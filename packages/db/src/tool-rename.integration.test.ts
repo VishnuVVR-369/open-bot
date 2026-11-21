@@ -1,16 +1,14 @@
 // Migration 0042 renames the tool calls that open approvals cover (create_bot to create_teammate,
 // bot_id to teammate_id, ...) and hashes them again. The database is migrated up to 0041, old-shaped
 // approvals are saved, and then the real migrator applies the rest, as a deploy does.
-import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+// The rows are saved with raw SQL in the 0041 shape: the schema in code has the names of 0043.
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { eq } from "drizzle-orm";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
-import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { configurationRevision } from "./configuration";
-import { approvals, chats, runs, teammates } from "./schema";
+import { approvals } from "./schema";
 import { testDatabase, testDatabaseServer } from "./testing";
 
 const MIGRATIONS = fileURLToPath(new URL("../drizzle", import.meta.url));
@@ -20,71 +18,44 @@ const server = testDatabaseServer();
 const database = testDatabase(server);
 const { db, pool } = database;
 
-/** The migrations folder as it was before the rename: every migration up to 0041. */
-async function migrationsBefore(tag: string): Promise<string> {
-  const folder = await mkdtemp(path.join(tmpdir(), "openbot-migrations-"));
-  await mkdir(path.join(folder, "meta"));
-  const journal = JSON.parse(await readFile(path.join(MIGRATIONS, "meta/_journal.json"), "utf8"));
-  const index = journal.entries.findIndex((entry: { tag: string }) => entry.tag === tag);
-  expect(index).toBeGreaterThan(0);
-  journal.entries = journal.entries.slice(0, index);
-  await writeFile(path.join(folder, "meta/_journal.json"), JSON.stringify(journal));
-  for (const file of await readdir(MIGRATIONS))
-    if (file.endsWith(".sql")) await copyFile(path.join(MIGRATIONS, file), path.join(folder, file));
-  return folder;
-}
-
 type Operation = { tool: string; arguments: Record<string, unknown> };
 
 const TEAMMATE_ID = "00000000-0000-4000-8000-000000000001";
 const CONNECTION_ID = "00000000-0000-4000-8000-000000000002";
+const CHAT_ID = "00000000-0000-4000-8000-000000000003";
+const RUN_ID = "00000000-0000-4000-8000-000000000004";
 /** Text that JSON escapes, so the database's hash has to escape it as JSON.stringify does. */
 const AWKWARD = 'Line one\nLine "two"\ttabbed \\ back\u0001slash, café 🚀 /';
 
 describe.skipIf(!server)("migration 0042: approvals for renamed tools", () => {
-  let folder = "";
   const ids: Record<string, string> = {};
 
   beforeAll(async () => {
-    const admin = new pg.Client({ connectionString: server });
-    await admin.connect();
-    await admin.query(`create database ${new URL(database.url).pathname.slice(1)}`);
-    await admin.end();
-    folder = await migrationsBefore(RENAME_TAG);
-    await migrate(db, { migrationsFolder: folder });
-
-    const [teammate] = await db
-      .insert(teammates)
-      .values({ id: TEAMMATE_ID, name: "Ada", slug: "ada", role: "researcher", color: "#4f46e5" })
-      .returning();
-    const [chat] = await db
-      .insert(chats)
-      .values({ kind: "direct", title: "Ada", teammateId: teammate!.id })
-      .returning();
-    const [run] = await db
-      .insert(runs)
-      .values({ chatId: chat!.id, teammateId: teammate!.id, trigger: "user", prompt: "Set up" })
-      .returning();
+    await database.create({ through: "0041_drop_usage_entries" });
+    await pool.query(
+      `insert into bots (id, name, slug, role, color) values ($1, 'Ada', 'ada', 'researcher', '#4f46e5')`,
+      [TEAMMATE_ID],
+    );
+    await pool.query(
+      `insert into chats (id, kind, title, bot_id) values ($1, 'direct', 'Ada', $2)`,
+      [CHAT_ID, TEAMMATE_ID],
+    );
+    await pool.query(
+      `insert into runs (id, chat_id, bot_id, trigger, prompt) values ($1, $2, $3, 'user', 'Set up')`,
+      [RUN_ID, CHAT_ID, TEAMMATE_ID],
+    );
     const save = async (
       name: string,
       status: "pending" | "approved" | "denied",
       payload: Record<string, unknown>,
       kind: "action" | "command" = "action",
     ) => {
-      const [row] = await db
-        .insert(approvals)
-        .values({
-          runId: run!.id,
-          teammateId: teammate!.id,
-          chatId: chat!.id,
-          kind,
-          title: name,
-          status,
-          payload,
-          itemId: `${name}-approval`,
-        })
-        .returning({ id: approvals.id });
-      ids[name] = row!.id;
+      const { rows } = await pool.query<{ id: string }>(
+        `insert into approvals (run_id, bot_id, chat_id, kind, title, status, payload, item_id)
+         values ($1, $2, $3, $4, $5, $6, $7, $8) returning id`,
+        [RUN_ID, TEAMMATE_ID, CHAT_ID, kind, name, status, payload, `${name}-approval`],
+      );
+      ids[name] = rows[0]!.id;
     };
     const asked = (operation: Operation, extra: Record<string, unknown> = {}) => ({
       operation,
@@ -97,9 +68,9 @@ describe.skipIf(!server)("migration 0042: approvals for renamed tools", () => {
       "pending",
       asked(
         {
-          tool: "update_bot", // vocabulary: allow
+          tool: "update_bot",
           arguments: {
-            bot_id: TEAMMATE_ID, // vocabulary: allow
+            bot_id: TEAMMATE_ID,
             expected_revision: "r1",
             changes: { name: "Iris", instructions: AWKWARD, emoji: null },
           },
@@ -111,7 +82,7 @@ describe.skipIf(!server)("migration 0042: approvals for renamed tools", () => {
       "create",
       "approved",
       asked({
-        tool: "create_bot", // vocabulary: allow
+        tool: "create_bot",
         arguments: {
           name: "Rex",
           role: "researcher",
@@ -127,9 +98,9 @@ describe.skipIf(!server)("migration 0042: approvals for renamed tools", () => {
       "pending",
       asked(
         {
-          tool: "set_bot_connection", // vocabulary: allow
+          tool: "set_bot_connection",
           arguments: {
-            bot_id: TEAMMATE_ID, // vocabulary: allow
+            bot_id: TEAMMATE_ID,
             connection_id: CONNECTION_ID,
             assigned: true,
             expected_revision: "c1",
@@ -144,7 +115,7 @@ describe.skipIf(!server)("migration 0042: approvals for renamed tools", () => {
       asked({
         tool: "watch_calendar",
         arguments: {
-          bot_id: TEAMMATE_ID, // vocabulary: allow
+          bot_id: TEAMMATE_ID,
           title: "Before meetings",
           prompt: AWKWARD,
           lead_minutes: 30,
@@ -158,8 +129,8 @@ describe.skipIf(!server)("migration 0042: approvals for renamed tools", () => {
       "approved",
       asked(
         {
-          tool: "update_bot", // vocabulary: allow
-          arguments: { bot_id: TEAMMATE_ID, expected_revision: "r0", changes: { name: "Old" } }, // vocabulary: allow
+          tool: "update_bot",
+          arguments: { bot_id: TEAMMATE_ID, expected_revision: "r0", changes: { name: "Old" } },
         },
         { consumed: true },
       ),
@@ -168,7 +139,7 @@ describe.skipIf(!server)("migration 0042: approvals for renamed tools", () => {
       "denied",
       "denied",
       asked({
-        tool: "create_bot", // vocabulary: allow
+        tool: "create_bot",
         arguments: { name: "No", role: "researcher" },
       }),
     );
@@ -192,13 +163,10 @@ describe.skipIf(!server)("migration 0042: approvals for renamed tools", () => {
     );
 
     // The deploy: the real migrator applies what is left.
-    await migrate(db, { migrationsFolder: MIGRATIONS });
+    await database.migrate();
   });
 
-  afterAll(async () => {
-    await database.drop();
-    if (folder) await rm(folder, { recursive: true, force: true });
-  });
+  afterAll(() => database.drop());
 
   async function payload(name: string) {
     const [row] = await db
@@ -273,9 +241,9 @@ describe.skipIf(!server)("migration 0042: approvals for renamed tools", () => {
 
   it("leaves used, denied and unrelated approvals as they were", async () => {
     const consumed = await payload("consumed");
-    expect(consumed.operation?.tool).toBe("update_bot"); // vocabulary: allow
+    expect(consumed.operation?.tool).toBe("update_bot");
     expect(consumed.consumed).toBe(true);
-    expect((await payload("denied")).operation?.tool).toBe("create_bot"); // vocabulary: allow
+    expect((await payload("denied")).operation?.tool).toBe("create_bot");
     expect(await payload("command")).toEqual({ subject: "ls -la" });
     const unrelated = { tool: "schedule_task", arguments: { title: "Mine", prompt: "Check" } };
     expect(await payload("unrelated")).toEqual({

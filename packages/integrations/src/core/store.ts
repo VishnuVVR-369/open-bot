@@ -1,4 +1,4 @@
-import { accounts, connections, type AccountTokens, type Db } from "@open-bot/db";
+import { accountConnections, connections, type AccountTokens, type Db } from "@open-bot/db";
 import { authProvider, parseScopes, type AccountProvider } from "@open-bot/domain";
 import { decryptSecret, encryptSecret } from "@open-bot/domain/server";
 import { and, eq, isNull, sql } from "drizzle-orm";
@@ -8,7 +8,7 @@ import { providerAdapters, type ProviderAdapters } from "../provider-registry";
 import type { IntegrationEndpoints } from "./endpoints";
 import type { ProviderAdapter } from "./provider";
 
-type Account = typeof accounts.$inferSelect;
+type Account = typeof accountConnections.$inferSelect;
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 /** An access token this close to expiring is refreshed first. */
@@ -70,8 +70,8 @@ export class AccountStore {
     return this.db.transaction(async (tx) => {
       const [row] = await tx
         .select()
-        .from(accounts)
-        .where(eq(accounts.id, accountId))
+        .from(accountConnections)
+        .where(eq(accountConnections.id, accountId))
         .for("update");
       if (!row) throw new AccountUnavailableError(accountId, "missing", "That account is gone.");
       return fn(tx, row);
@@ -83,7 +83,10 @@ export class AccountStore {
    * callers in this process share one refresh; the row lock covers other processes.
    */
   async accessToken(accountId: string): Promise<string> {
-    const [row] = await this.db.select().from(accounts).where(eq(accounts.id, accountId));
+    const [row] = await this.db
+      .select()
+      .from(accountConnections)
+      .where(eq(accountConnections.id, accountId));
     if (!row) throw new AccountUnavailableError(accountId, "missing", "That account is gone.");
     this.ensureUsable(row);
     const tokens = this.tokens(row);
@@ -131,9 +134,9 @@ export class AccountStore {
       const loseGrant = async (reason: string) => {
         lost = { reason, provider: row.provider };
         await tx
-          .update(accounts)
+          .update(accountConnections)
           .set({ status: "needs_reconnect", lastError: reason })
-          .where(eq(accounts.id, row.id));
+          .where(eq(accountConnections.id, row.id));
         return null;
       };
       if (!tokens.refreshToken)
@@ -159,17 +162,17 @@ export class AccountStore {
       const scopes =
         adapter.scopesOnRefresh && next.scope ? parseScopes(row.provider, next.scope) : null;
       await tx
-        .update(accounts)
+        .update(accountConnections)
         .set({
           encrypted: this.seal(merged),
-          credentialVersion: sql`${accounts.credentialVersion} + 1`,
+          credentialVersion: sql`${accountConnections.credentialVersion} + 1`,
           lastRefreshedAt: new Date(),
           ...(scopes ? { scopes } : {}),
           ...(scopes && lostScope(row.scopes, scopes)
-            ? { grantRevision: sql`${accounts.grantRevision} + 1` }
+            ? { grantRevision: sql`${accountConnections.grantRevision} + 1` }
             : {}),
         })
-        .where(eq(accounts.id, row.id));
+        .where(eq(accountConnections.id, row.id));
       return merged.accessToken;
     });
     if (lost) {
@@ -204,9 +207,12 @@ export class AccountStore {
         return await this.db.transaction(async (tx) => {
           const [existing] = await tx
             .select()
-            .from(accounts)
+            .from(accountConnections)
             .where(
-              and(eq(accounts.provider, input.provider), eq(accounts.externalId, input.externalId)),
+              and(
+                eq(accountConnections.provider, input.provider),
+                eq(accountConnections.externalId, input.externalId),
+              ),
             )
             .for("update");
           if (input.expectedAccountId && existing?.id !== input.expectedAccountId)
@@ -231,26 +237,28 @@ export class AccountStore {
           if (existing) {
             const grantChanged = !sameClient || lostScope(existing.scopes, scopes);
             const [account] = await tx
-              .update(accounts)
+              .update(accountConnections)
               .set({
                 oauthClientId: input.oauthClientId,
                 display: input.display,
                 scopes,
                 encrypted,
-                credentialVersion: sql`${accounts.credentialVersion} + 1`,
-                ...(grantChanged ? { grantRevision: sql`${accounts.grantRevision} + 1` } : {}),
+                credentialVersion: sql`${accountConnections.credentialVersion} + 1`,
+                ...(grantChanged
+                  ? { grantRevision: sql`${accountConnections.grantRevision} + 1` }
+                  : {}),
                 status: "connected",
                 lastError: null,
                 notifiedAt: null,
                 lastRefreshedAt: new Date(),
                 ...(adapter.signInRenewsGrant || !sameClient ? { grantedAt: new Date() } : {}),
               })
-              .where(eq(accounts.id, existing.id))
+              .where(eq(accountConnections.id, existing.id))
               .returning();
             return { account: account!, created: false, grantChanged };
           }
           const [account] = await tx
-            .insert(accounts)
+            .insert(accountConnections)
             .values({
               provider: input.provider,
               externalId: input.externalId,
@@ -277,19 +285,19 @@ export class AccountStore {
    */
   async markNotified(accountId: string): Promise<boolean> {
     const marked = await this.db
-      .update(accounts)
+      .update(accountConnections)
       .set({ notifiedAt: new Date() })
-      .where(and(eq(accounts.id, accountId), isNull(accounts.notifiedAt)))
-      .returning({ id: accounts.id });
+      .where(and(eq(accountConnections.id, accountId), isNull(accountConnections.notifiedAt)))
+      .returning({ id: accountConnections.id });
     return marked.length > 0;
   }
 
   /** Record that the account was used, for Settings and for keeping idle grants alive. */
   async touch(accountId: string): Promise<void> {
     await this.db
-      .update(accounts)
+      .update(accountConnections)
       .set({ lastUsedAt: new Date() })
-      .where(eq(accounts.id, accountId));
+      .where(eq(accountConnections.id, accountId));
   }
 
   /**
@@ -325,7 +333,7 @@ export class AccountStore {
       } catch {
         warning = `${definition.label} couldn't be reached to revoke access. ${definition.revokeHint}`;
       }
-      await tx.delete(accounts).where(eq(accounts.id, row.id));
+      await tx.delete(accountConnections).where(eq(accountConnections.id, row.id));
     });
     if (provider) await this.clients.tidy(provider);
     return { warning };

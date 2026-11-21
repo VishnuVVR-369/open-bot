@@ -47,17 +47,17 @@ async function seedRun({
   const turnId = randomUUID();
   const name = uniqueName("Quill");
   await pool.query(
-    "insert into bots(id,name,slug,role,color) values($1,$2,$3,'test assistant','#7C5CFF')", // vocabulary: allow
+    "insert into teammates(id,name,slug,role,color) values($1,$2,$3,'test assistant','#7C5CFF')",
     [teammateId, name, name.toLowerCase()],
   );
   await pool.query(
-    "insert into chats(id,kind,title,bot_id) values($1,'direct','Model log browsing',$2)", // vocabulary: allow
+    "insert into chats(id,kind,title,teammate_id) values($1,'direct','Model log browsing',$2)",
     [chatId, teammateId],
   );
   const start = new Date(Date.now() - 10 * 60_000);
   const at = (seconds: number) => new Date(start.getTime() + seconds * 1000);
   await pool.query(
-    "insert into runs(id,chat_id,bot_id,trigger,prompt,status,final_text,created_at,started_at,completed_at) values($1,$2,$3,'user',$4,'completed',$5,$6,$6,$7)", // vocabulary: allow
+    "insert into runs(id,chat_id,teammate_id,trigger,prompt,status,final_text,created_at,started_at,completed_at) values($1,$2,$3,'user',$4,'completed',$5,$6,$6,$7)",
     [runId, chatId, teammateId, prompt, answer, start, at(30)],
   );
   await pool.query(

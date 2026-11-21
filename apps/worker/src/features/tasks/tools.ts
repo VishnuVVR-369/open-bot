@@ -107,7 +107,7 @@ async function addTask(
       notes: args.notes ?? "",
       ownerTeammateId: owner?.id ?? null,
       dueOn: args.due ?? null,
-      createdBy: "bot",
+      createdBy: "teammate",
       createdByTeammateId: session.teammate.id,
     });
     const start = args.start && owner?.id && owner.id !== session.teammate.id;

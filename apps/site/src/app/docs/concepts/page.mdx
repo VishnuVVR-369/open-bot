@@ -13,8 +13,7 @@ This page defines each one and shows how they fit together.
 
 ## Teammate
 
-A teammate is an AI worker with a job.
-In the database it is still called a **bot** (the `bots` table).
+A teammate is an AI worker with a job, a row in the `teammates` table.
 
 Each teammate has:
 
@@ -73,7 +72,7 @@ Others for the same lane wait in the queue.
 
 Teammates are powered by **Codex**, OpenAI's coding agent, running as an app-server on the computer.
 A Codex **thread** is a conversation with its full history.
-open-bot keeps one thread per teammate per lane of a chat, recorded in `bot_threads` for conversations and `chat_lane_threads` for automation and email lanes.
+open-bot keeps one thread per teammate per lane of a chat, recorded in `teammate_threads` for conversations and `chat_lane_threads` for automation and email lanes.
 Your conversation is the `chat` lane; each automation, and the teammate's email, works in a lane of its own.
 
 A Codex **turn** is one request on a thread: input in, then a stream of reasoning, messages, commands and tool calls, then a final status.

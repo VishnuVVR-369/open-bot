@@ -85,7 +85,7 @@ export async function listModelLogRuns(
   const { rows } = await db.execute<RunRow>(sql`
     with ${hits}
     page as (
-      select r.id, r.bot_id, r.chat_id, r.trigger, r.status, r.created_at, r.completed_at -- vocabulary: allow
+      select r.id, r.teammate_id, r.chat_id, r.trigger, r.status, r.created_at, r.completed_at
       from runs r
       where (exists (select 1 from run_turns rt where rt.run_id = r.id)
           or exists (select 1 from codex_events e where e.run_id = r.id))
@@ -103,7 +103,7 @@ export async function listModelLogRuns(
       join run_turns rt on rt.run_id = p.id
       join model_requests m on ${requestOfTurn("rt", "p", "m")}
     )
-    select p.id as run_id, p.bot_id as teammate_id, t.name as teammate_name, -- vocabulary: allow
+    select p.id as run_id, p.teammate_id, t.name as teammate_name,
       p.chat_id, c.title as chat_title, p.trigger, p.status, p.created_at,
       to_char(p.created_at at time zone 'UTC', ${EXACT_TIME_FORMAT}) as created_at_exact,
       count(l.id)::int as requests,
@@ -138,9 +138,9 @@ export async function listModelLogRuns(
         where rh.run_id = p.id) as match
     from page p
     join chats c on c.id = p.chat_id
-    left join bots t on t.id = p.bot_id -- vocabulary: allow
+    left join teammates t on t.id = p.teammate_id
     left join linked l on l.run_id = p.id
-    group by p.id, p.bot_id, t.name, p.chat_id, c.title, p.trigger, p.status, p.created_at -- vocabulary: allow
+    group by p.id, p.teammate_id, t.name, p.chat_id, c.title, p.trigger, p.status, p.created_at
     order by p.created_at desc, p.id desc
   `);
   const page = rows.slice(0, MODEL_LOG_RUNS_PAGE);

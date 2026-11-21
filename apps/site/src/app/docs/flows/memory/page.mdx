@@ -12,17 +12,17 @@ It needs no extra service, and works fully without any AI, with optional embeddi
 
 A memory item (`memory_items`) has:
 
-| Field        | Meaning                                                                                          |
-| ------------ | ------------------------------------------------------------------------------------------------ |
-| `bot_id`     | The teammate it belongs to, or `null` for **shared** memory every teammate can use               |
-| `kind`       | `fact`, `preference`, `lesson` or `note`                                                         |
-| `content`    | The text                                                                                         |
-| `key`        | An optional topic key, like `home-airport`, also searched                                        |
-| `pinned`     | Pinned items always go into a run's context first                                                |
-| `expires_at` | An optional expiry                                                                               |
-| `state`      | `active`, `candidate` (a suggestion waiting for you) or `deleted` (a tombstone)                  |
-| `revision`   | Increases with every change. Each one is kept in `memory_revisions`.                             |
-| source       | Where it came from: you, feedback, a teammate, an import or extraction, with message and run ids |
+| Field         | Meaning                                                                                          |
+| ------------- | ------------------------------------------------------------------------------------------------ |
+| `teammate_id` | The teammate it belongs to, or `null` for **shared** memory every teammate can use               |
+| `kind`        | `fact`, `preference`, `lesson` or `note`                                                         |
+| `content`     | The text                                                                                         |
+| `key`         | An optional topic key, like `home-airport`, also searched                                        |
+| `pinned`      | Pinned items always go into a run's context first                                                |
+| `expires_at`  | An optional expiry                                                                               |
+| `state`       | `active`, `candidate` (a suggestion waiting for you) or `deleted` (a tombstone)                  |
+| `revision`    | Increases with every change. Each one is kept in `memory_revisions`.                             |
+| source        | Where it came from: you, feedback, a teammate, an import or extraction, with message and run ids |
 
 ### Scopes
 
@@ -109,7 +109,7 @@ If you correct a fact, an old thread may still "know" the old one from earlier t
 Each scope has a counter in `memory_generations`, bumped by every change to active memory.
 A teammate's generation combines the shared counter, its own counter, and the number of its expired items: `shared:own:expired`.
 
-- `bot_threads` records the generation each thread was made with. A run whose generation differs starts a **fresh** thread, and never forks the old one, which would carry the stale facts over.
+- `teammate_threads` records the generation each thread was made with. A run whose generation differs starts a **fresh** thread, and never forks the old one, which would carry the stale facts over.
 - If the generation changes while a run starts, the run stops: "Memory changed while this task was starting."
 - Before every tool call, the handler checks the generation again. If it changed mid-turn, it interrupts the turn, so the teammate can't act on facts you just corrected.
 - When a teammate changes its own memory, it adopts the new generation only after checking that you haven't cancelled the run, so it can't absorb a correction you made at the same moment.

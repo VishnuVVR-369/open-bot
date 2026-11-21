@@ -72,7 +72,7 @@ async function notifyUser(
 ): Promise<ToolResponse> {
   const item = toolItem(callId, "notify_user", `Notified you: ${title}`, raw, session.now());
   await createNotification(deps.ctx, {
-    kind: "bot_message",
+    kind: "teammate_message",
     title: `${session.teammate.name}: ${title}`,
     body: message,
     teammateId: session.teammate.id,

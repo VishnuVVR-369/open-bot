@@ -8,7 +8,7 @@ import {
   randomToken,
   redirectUri,
 } from "@open-bot/integrations/server";
-import { accounts, connections, oauthStates, type OAuthPurpose } from "@open-bot/db";
+import { accountConnections, connections, oauthStates, type OAuthPurpose } from "@open-bot/db";
 import {
   authProvider,
   integration,
@@ -63,7 +63,9 @@ export async function startAuthorization(input: {
   const adapter = accountStore.provider(provider);
   const capabilities = normalizeCapabilities(input.kind, input.capabilities);
   const account = input.accountId
-    ? (await db.select().from(accounts).where(eq(accounts.id, input.accountId)))[0]
+    ? (
+        await db.select().from(accountConnections).where(eq(accountConnections.id, input.accountId))
+      )[0]
     : undefined;
   if (input.accountId && !account)
     throw new AccountConnectError("That account is gone.", "NOT_FOUND");
@@ -105,7 +107,7 @@ export async function startAuthorization(input: {
   const purpose: OAuthPurpose = {
     kind: input.kind,
     capabilities,
-    botIds: input.teammateIds,
+    teammateIds: input.teammateIds,
     oauthClientId: client.id,
     ...(account ? { accountId: account.id, expectedExternalId: account.externalId } : {}),
   };
@@ -175,10 +177,13 @@ export async function completeAuthorization(input: {
       // The grant just made is for someone else. Revoke it, unless that someone is another
       // account you connected (revoking at Google would end that account's access too).
       const [other] = await db
-        .select({ id: accounts.id })
-        .from(accounts)
+        .select({ id: accountConnections.id })
+        .from(accountConnections)
         .where(
-          and(eq(accounts.provider, input.provider), eq(accounts.externalId, identity.externalId)),
+          and(
+            eq(accountConnections.provider, input.provider),
+            eq(accountConnections.externalId, identity.externalId),
+          ),
         );
       if (!other)
         await adapter
@@ -202,7 +207,7 @@ export async function completeAuthorization(input: {
       accountId: account.id,
       kind: purpose.kind,
       capabilities: purpose.capabilities,
-      teammateIds: purpose.botIds,
+      teammateIds: purpose.teammateIds,
     });
     return {
       connectionId,

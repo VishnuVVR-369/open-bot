@@ -18,10 +18,10 @@ export const skills = pgTable(
     description: text("description").notNull(),
     instructions: text("instructions").notNull(),
     /** The teammate who can use it; null means every teammate. */
-    teammateId: uuid("bot_id").references(() => teammates.id, { onDelete: "cascade" }),
+    teammateId: uuid("teammate_id").references(() => teammates.id, { onDelete: "cascade" }),
     createdBy: text("created_by").$type<Creator>().notNull(),
     /** The teammate that wrote it, when a teammate saved it. */
-    createdByTeammateId: uuid("created_by_bot_id").references(() => teammates.id, {
+    createdByTeammateId: uuid("created_by_teammate_id").references(() => teammates.id, {
       onDelete: "set null",
     }),
     createdAt: createdAt(),
@@ -33,7 +33,7 @@ export const skills = pgTable(
     uniqueIndex("skills_shared_name_unique")
       .on(table.name)
       .where(sql`${table.teammateId} is null`),
-    uniqueIndex("skills_bot_name_unique")
+    uniqueIndex("skills_teammate_name_unique")
       .on(table.teammateId, table.name)
       .where(sql`${table.teammateId} is not null`),
   ],
@@ -44,7 +44,7 @@ export const lessons = pgTable(
   "lessons",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    teammateId: uuid("bot_id")
+    teammateId: uuid("teammate_id")
       .notNull()
       .references(() => teammates.id, { onDelete: "cascade" }),
     /** The reply the feedback was about. */
@@ -53,7 +53,7 @@ export const lessons = pgTable(
     createdAt: createdAt(),
   },
   (table) => [
-    index("lessons_bot_idx").on(table.teammateId, table.createdAt),
+    index("lessons_teammate_idx").on(table.teammateId, table.createdAt),
     index("lessons_run_idx").on(table.runId),
   ],
 );
@@ -63,7 +63,7 @@ export const instructionProposals = pgTable(
   "instruction_proposals",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    teammateId: uuid("bot_id")
+    teammateId: uuid("teammate_id")
       .notNull()
       .references(() => teammates.id, { onDelete: "cascade" }),
     /** The instructions when it was suggested, to show what changes. */
@@ -78,5 +78,5 @@ export const instructionProposals = pgTable(
     decidedAt: timestamp("decided_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
-  (table) => [index("instruction_proposals_bot_idx").on(table.teammateId, table.status)],
+  (table) => [index("instruction_proposals_teammate_idx").on(table.teammateId, table.status)],
 );

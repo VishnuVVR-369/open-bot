@@ -34,7 +34,7 @@ export async function handBackEndedOperations(db: Queryable): Promise<void> {
     .where(
       and(
         inArray(screenOperations.status, ["safe", "needs_owner", "unknown"]),
-        sql`${screenOperations.takeoverId} in (select id from desktop_takeovers where status = 'ended')`,
+        sql`${screenOperations.takeoverId} in (select id from screen_takeovers where status = 'ended')`,
       ),
     );
 }

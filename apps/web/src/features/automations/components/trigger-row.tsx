@@ -293,7 +293,7 @@ export function TriggerRow({
               {trigger.title}
             </span>
             {!trigger.enabled && <StateBadge>Off</StateBadge>}
-            {trigger.createdBy === "bot" && (
+            {trigger.createdBy === "teammate" && (
               <span className="shrink-0 text-[12px] text-muted-foreground">
                 Set by {teammate?.name ?? "a teammate"}
               </span>

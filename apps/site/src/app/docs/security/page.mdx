@@ -52,7 +52,7 @@ The web app issues them only to a signed-in session, and they say what they're f
 - the OpenAI API key, the Telegram bot token and the VAPID private key (`credentials`);
 - vault logins and cards (`vault_items`);
 - MCP connection headers and environment variables (`connections`);
-- your Google OAuth client's secret (`oauth_clients`), and the tokens of your Gmail, Calendar and Notion accounts (`accounts`).
+- your Google OAuth client's secret (`oauth_clients`), and the tokens of your Gmail, Calendar and Notion accounts (`account_connections`).
 
 The web app encrypts when you save, and the worker decrypts only at the moment of use.
 Losing `ENCRYPTION_KEY` makes these unreadable, so back it up with the database.

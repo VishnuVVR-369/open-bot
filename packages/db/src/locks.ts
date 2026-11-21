@@ -28,8 +28,13 @@ export const LOCKS = {
    * hashed with `hashtext`, so it stays that way.
    */
   oauthClients: (provider: string): LegacyKey => ({ hashtext: `oauth_clients:${provider}` }),
-  /** One teammate's memory, or the memory every teammate shares. Keys predate the glossary. */
-  memory: (scope: `bot:${string}` | "shared") => scope, // vocabulary: allow
+  /**
+   * One teammate's memory, or the memory every teammate shares. Its key changed once, with the
+   * teammate's scope name, in the migration (0035) that also renamed the column every memory write
+   * touches: a web app or worker still taking the old key can't write memory on a migrated database,
+   * and this one can't before it, so the two never write memory at the same time.
+   */
+  memory: (scope: `teammate:${string}` | "shared") => scope,
   /** One screen's input, held across botd calls (a session lock, see `withTryLock`). */
   screen: (screenId: string) => `screen:${screenId}`,
   /** One model log retention sweep at a time, across workers (a session lock). */

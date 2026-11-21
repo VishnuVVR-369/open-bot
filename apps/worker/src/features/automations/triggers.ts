@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import type { TriggerCheck, TriggerInput as TriggerFormInput } from "@open-bot/api/worker";
 import {
-  accounts,
+  accountConnections,
   teammates,
   connections,
   runs,
@@ -218,7 +218,7 @@ export class TriggerService {
 
   async create(
     input: TriggerInput,
-    by: { kind: "user" } | { kind: "bot"; runId: string },
+    by: { kind: "user" } | { kind: "teammate"; runId: string },
   ): Promise<Trigger> {
     const fields = await this.validate(input);
     const [row] = await this.ctx.db
@@ -231,7 +231,7 @@ export class TriggerService {
         // A new watch checks right away, to learn what the page (or the mailbox) looks like now.
         nextCheckAt: input.kind === "webhook" ? null : new Date(),
         createdBy: by.kind,
-        createdByRunId: by.kind === "bot" ? by.runId : null,
+        createdByRunId: by.kind === "teammate" ? by.runId : null,
       })
       .returning();
     await publishApp(this.ctx, { type: "triggers" });
@@ -342,10 +342,10 @@ export class TriggerService {
   /** The teammate's own watches, webhooks and Gmail and Calendar triggers, as it reads them. */
   async describeForTeammate(teammateId: string): Promise<string | null> {
     const rows = await this.ctx.db
-      .select({ trigger: triggers, account: accounts.display })
+      .select({ trigger: triggers, account: accountConnections.display })
       .from(triggers)
       .leftJoin(connections, eq(connections.id, triggers.connectionId))
-      .leftJoin(accounts, eq(accounts.id, connections.accountId))
+      .leftJoin(accountConnections, eq(accountConnections.id, connections.accountId))
       .where(eq(triggers.teammateId, teammateId));
     if (rows.length === 0) return null;
     return rows

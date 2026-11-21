@@ -21,11 +21,11 @@ async function seedChat(texts: string[]): Promise<string> {
   const chatId = randomUUID();
   const name = uniqueName("Tess");
   await pool.query(
-    "insert into bots(id,name,slug,role,color) values($1,$2,$3,'test assistant','#7C5CFF')", // vocabulary: allow
+    "insert into teammates(id,name,slug,role,color) values($1,$2,$3,'test assistant','#7C5CFF')",
     [teammateId, name, name.toLowerCase()],
   );
   await pool.query(
-    "insert into chats(id,kind,title,bot_id) values($1,'direct','Long message check',$2)", // vocabulary: allow
+    "insert into chats(id,kind,title,teammate_id) values($1,'direct','Long message check',$2)",
     [chatId, teammateId],
   );
   for (const [index, text] of texts.entries())

@@ -80,7 +80,7 @@ describe.skipIf(!url)("uploads with Postgres", () => {
     await database.create();
   });
   beforeEach(async () => {
-    await pool.query("truncate uploads, chats, bots restart identity cascade");
+    await pool.query("truncate uploads, chats, teammates restart identity cascade");
     files = memoryFiles();
     service = new UploadService(db, files.api, { warn: vi.fn() });
   });

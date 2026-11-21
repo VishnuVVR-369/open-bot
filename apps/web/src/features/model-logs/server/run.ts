@@ -91,12 +91,12 @@ type TotalsRow = {
 export async function getRunModelLogs(runId: string): Promise<RunModelLogs> {
   const run = (
     await db.execute<RunRow>(sql`
-      select r.id, r.bot_id as teammate_id, t.name as teammate_name, r.chat_id, -- vocabulary: allow
+      select r.id, r.teammate_id, t.name as teammate_name, r.chat_id,
         c.title as chat_title, r.prompt, r.trigger, r.status, r.error, r.created_at,
         r.started_at, r.completed_at
       from runs r
       join chats c on c.id = r.chat_id
-      left join bots t on t.id = r.bot_id -- vocabulary: allow
+      left join teammates t on t.id = r.teammate_id
       where r.id = ${runId}`)
   ).rows[0];
   if (!run) throw new ApiError("NOT_FOUND", "That run is gone.");

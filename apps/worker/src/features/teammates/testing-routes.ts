@@ -34,7 +34,7 @@ export function teammateRouteHarness({
   };
   async function team(): Promise<Row[]> {
     const { rows } = await db.execute<Row>(
-      sql`select id, name, slug, archived_at is not null as archived, is_primary as lead, updated_at::text as "updatedAt" from bots`, // vocabulary: allow
+      sql`select id, name, slug, archived_at is not null as archived, is_lead as lead, updated_at::text as "updatedAt" from teammates`,
     );
     return rows;
   }

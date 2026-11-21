@@ -60,7 +60,7 @@ export function usageRequestsSql(input: { from: string; to: string }, timeZone: 
       m.reasoning_tokens, m.cost_micros, ${requestFailedSql("m")} as failed,
       (m.started_at at time zone ${timeZone})::date as day,
       coalesce(
-        (select r.bot_id from run_turns rt join runs r on r.id = rt.run_id -- vocabulary: allow
+        (select r.teammate_id from run_turns rt join runs r on r.id = rt.run_id
           where rt.codex_thread_id = m.codex_thread_id
             and rt.codex_turn_id = coalesce(m.codex_turn_id, ${unturnedTurnSql("m")})
           limit 1),
@@ -105,7 +105,7 @@ export async function getModelLogUsage(input: {
       from (${requests}) q group by 1 order by 1`),
     db.execute<NumbersRow & { teammate_id: string | null; name: string | null }>(sql`
       select q.teammate_id, t.name, ${NUMBERS}
-      from (${requests}) q left join bots t on t.id = q.teammate_id -- vocabulary: allow
+      from (${requests}) q left join teammates t on t.id = q.teammate_id
       group by q.teammate_id, t.name
       order by sum(coalesce(q.input_tokens, 0) + coalesce(q.output_tokens, 0)) desc`),
     db.execute<NumbersRow & { model: string | null }>(sql`

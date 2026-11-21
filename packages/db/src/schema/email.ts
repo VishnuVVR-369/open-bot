@@ -27,7 +27,7 @@ export const emails = pgTable(
   "emails",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    teammateId: uuid("bot_id")
+    teammateId: uuid("teammate_id")
       .notNull()
       .references(() => teammates.id, { onDelete: "cascade" }),
     direction: text("direction").$type<"in" | "out">().notNull(),
@@ -56,5 +56,5 @@ export const emails = pgTable(
     runId: uuid("run_id").references(() => runs.id, { onDelete: "set null" }),
     createdAt: createdAt(),
   },
-  (table) => [index("emails_bot_idx").on(table.teammateId, table.createdAt)],
+  (table) => [index("emails_teammate_idx").on(table.teammateId, table.createdAt)],
 );

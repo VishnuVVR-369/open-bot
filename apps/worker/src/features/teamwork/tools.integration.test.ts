@@ -59,7 +59,11 @@ describe.skipIf(!toolsEnabled)(toolSuiteName, () => {
       expect.objectContaining({ trigger: "handoff", parentRunId: session.run.id }),
     ]);
     expect(inGroup.putItem).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: "handoff", toBotId: ada.teammateId, toBotName: "Ada" }), // vocabulary: allow
+      expect.objectContaining({
+        kind: "handoff",
+        toTeammateId: ada.teammateId,
+        toTeammateName: "Ada",
+      }),
     );
 
     // Outside a group chat there is nobody to hand to.

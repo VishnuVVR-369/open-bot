@@ -11,7 +11,7 @@ export type NotificationKind =
   | "run_failed"
   | "approval"
   | "takeover_request"
-  | "bot_message"
+  | "teammate_message"
   | "cap_reached"
   /** Your phone was woken to carry the computer's traffic and didn't answer. */
   | "egress_unanswered"
@@ -25,7 +25,7 @@ export const notifications = pgTable(
     kind: text("kind").$type<NotificationKind>().notNull(),
     title: text("title").notNull(),
     body: text("body").notNull().default(""),
-    teammateId: uuid("bot_id").references(() => teammates.id, { onDelete: "cascade" }),
+    teammateId: uuid("teammate_id").references(() => teammates.id, { onDelete: "cascade" }),
     chatId: uuid("chat_id").references(() => chats.id, { onDelete: "cascade" }),
     runId: uuid("run_id").references(() => runs.id, { onDelete: "cascade" }),
     /** A page the teammate published for this, which the notification opens. */

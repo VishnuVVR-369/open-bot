@@ -27,7 +27,7 @@ describe.skipIf(!url)("pages, as the apps read them", () => {
     schema = await import("@open-bot/db");
   });
   beforeEach(async () => {
-    await pool.query("truncate pages, bots restart identity cascade"); // vocabulary: allow
+    await pool.query("truncate pages, teammates restart identity cascade");
     teammateId = randomUUID();
     const teammates = schema.teammates;
     await db.insert(teammates).values({
@@ -52,7 +52,7 @@ describe.skipIf(!url)("pages, as the apps read them", () => {
     { updatedAt, pinned = false }: { updatedAt: Date; pinned?: boolean },
   ) {
     // Where the worker keeps a teammate's pages on the computer.
-    const sourcePath = `/home/bot/bots/iris/pages/${title.toLowerCase()}/index.html`; // vocabulary: allow
+    const sourcePath = `/home/bot/bots/iris/pages/${title.toLowerCase()}/index.html`;
     const [row] = await db
       .insert(schema.pages)
       .values({ title, summary: "", sourcePath, teammateId, pinned })

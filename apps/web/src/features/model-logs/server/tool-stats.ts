@@ -58,7 +58,7 @@ export function toolRangeSql(input: { from?: string; to?: string; teammateId?: s
   const parts: SQL[] = [sql`e.method = 'item/completed'`, sql`e.item_id is not null`];
   if (input.from) parts.push(sql`e.at >= ${input.from}::timestamptz`);
   if (input.to) parts.push(sql`e.at < ${input.to}::timestamptz`);
-  if (input.teammateId) parts.push(sql`r.bot_id = ${input.teammateId}::uuid`); // vocabulary: allow
+  if (input.teammateId) parts.push(sql`r.teammate_id = ${input.teammateId}::uuid`);
   return sql.join(parts, sql` and `);
 }
 
@@ -74,7 +74,7 @@ function completedItems(input: { from?: string; to?: string; teammateId?: string
       (not x.omitted and ${toolFailedSql(item)}) as failed
     from (
       select e.id, e.run_id, e.codex_thread_id, e.item_id, e.at, e.bodies_expired_at,
-        r.bot_id as teammate_id, r.chat_id, -- vocabulary: allow
+        r.teammate_id, r.chat_id,
         e.payload ? 'omitted' as omitted,
         coalesce(e.payload->'item', s.item) as item,
         coalesce(e.payload->'item'->>'type', s.item->>'type') as type,
@@ -185,7 +185,7 @@ export async function listToolFailures(input: {
       left(io.input, ${IO_CHARS}) as input, length(io.input) as input_chars,
       left(io.output, ${IO_CHARS}) as output, length(io.output) as output_chars
     from (${completedItems(input)}) f
-    left join bots t on t.id = f.teammate_id -- vocabulary: allow
+    left join teammates t on t.id = f.teammate_id
     left join chats c on c.id = f.chat_id
     cross join lateral (select
       coalesce(

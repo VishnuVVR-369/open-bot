@@ -34,7 +34,7 @@ export const runs = pgTable(
     chatId: uuid("chat_id")
       .notNull()
       .references(() => chats.id, { onDelete: "cascade" }),
-    teammateId: uuid("bot_id")
+    teammateId: uuid("teammate_id")
       .notNull()
       .references(() => teammates.id, { onDelete: "cascade" }),
     trigger: text("trigger").$type<RunTrigger>().notNull(),
@@ -102,7 +102,7 @@ export const runs = pgTable(
     index("runs_status_idx").on(table.status),
     // Newest first, a page at a time, keyed by (created_at, id) (model logs' runs list).
     index("runs_created_idx").on(table.createdAt, table.id),
-    index("runs_bot_idx").on(table.teammateId, table.createdAt),
+    index("runs_teammate_idx").on(table.teammateId, table.createdAt),
     index("runs_trigger_idx").on(table.triggerId, table.createdAt),
     // Upload cleanup asks which runs carry a file.
     index("runs_attachments_idx").using("gin", table.attachments.op("jsonb_path_ops")),

@@ -19,7 +19,7 @@ Shared types and pure logic go in `packages/domain`, and schema changes go in `p
 
 ## Invariants
 
-- A Codex thread keeps the tools and `DEVELOPER_INSTRUCTIONS` it started with, so `bot_threads.tools_revision` hashes both (`apps/worker/src/runs/tools-revision.ts`), and a change starts fresh threads. There is nothing to bump.
+- A Codex thread keeps the tools and `DEVELOPER_INSTRUCTIONS` it started with, so `teammate_threads.tools_revision` hashes both (`apps/worker/src/runs/tools-revision.ts`), and a change starts fresh threads. There is nothing to bump.
 - `apps/worker/build.mjs` keeps only Node built-ins and the worker's own declared dependencies external, and bundles everything else.
 - A new import in a workspace package may need a dependency declared here or it is bundled, so run the built artifact.
 - Procedures that touch the computer must be marked `wakesComputer` (the `computer` builder) in `packages/api/src/worker/contract.ts`, or they will not wake it.

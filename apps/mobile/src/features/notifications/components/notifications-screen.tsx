@@ -55,7 +55,8 @@ const ICONS: Record<string, LucideIcon> = {
   cap_reached: CircleDollarSign,
   egress_unanswered: Smartphone,
   telegram_skipped: AlertTriangle,
-  bot_message: MessageSquare,
+  teammate_message: MessageSquare,
+  bot_message: MessageSquare, // vocabulary: allow (an older server's kind, see REPLYABLE_KINDS)
   run_finished: MessageSquare,
 };
 

@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { accounts, oauthClients } from "@open-bot/db";
+import { accountConnections, oauthClients } from "@open-bot/db";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
@@ -81,7 +81,7 @@ describe.skipIf(!url)("account tokens with Postgres", () => {
   });
 
   beforeEach(async () => {
-    await db.delete(accounts);
+    await db.delete(accountConnections);
     await db.delete(oauthClients);
     current = await new AccountStore(db, key, endpoints).clients.makeCurrent({
       provider: "google",
@@ -135,7 +135,10 @@ describe.skipIf(!url)("account tokens with Postgres", () => {
     const store = new AccountStore(db, key, endpoints);
     const account = await saveAccount(store, grant({ expiresAt: Date.now() - 1000 }));
     expect(await store.accessToken(account.id)).toBe("access-2");
-    const [row] = await db.select().from(accounts).where(eq(accounts.id, account.id));
+    const [row] = await db
+      .select()
+      .from(accountConnections)
+      .where(eq(accountConnections.id, account.id));
     expect(store.tokens(row!).refreshToken).toBe("refresh-1");
     expect(endpoint.requests[0]?.get("refresh_token")).toBe("refresh-1");
   });
@@ -171,7 +174,10 @@ describe.skipIf(!url)("account tokens with Postgres", () => {
     const store = new AccountStore(db, key, endpoints);
     const account = await saveAccount(store, grant({ expiresAt: Date.now() - 1000 }));
     await expect(store.accessToken(account.id)).rejects.toBeInstanceOf(AccountUnavailableError);
-    const [row] = await db.select().from(accounts).where(eq(accounts.id, account.id));
+    const [row] = await db
+      .select()
+      .from(accountConnections)
+      .where(eq(accountConnections.id, account.id));
     expect(row?.status).toBe("needs_reconnect");
     expect(row?.lastError).toMatch(/invalid_grant/);
     await expect(store.accessToken(account.id)).rejects.toThrow(/needs reconnecting/);
@@ -183,7 +189,10 @@ describe.skipIf(!url)("account tokens with Postgres", () => {
     const store = new AccountStore(db, key, endpoints);
     const account = await saveAccount(store, grant({ expiresAt: Date.now() - 1000 }));
     await expect(store.accessToken(account.id)).rejects.not.toBeInstanceOf(AccountUnavailableError);
-    const [row] = await db.select().from(accounts).where(eq(accounts.id, account.id));
+    const [row] = await db
+      .select()
+      .from(accountConnections)
+      .where(eq(accountConnections.id, account.id));
     expect(row?.status).toBe("connected");
   });
 
@@ -276,7 +285,10 @@ describe.skipIf(!url)("account tokens with Postgres", () => {
     });
     expect(again.id).toBe(current.id);
     expect(again.clientSecret).toBe("rotated-secret-123");
-    const [row] = await db.select().from(accounts).where(eq(accounts.id, account.id));
+    const [row] = await db
+      .select()
+      .from(accountConnections)
+      .where(eq(accountConnections.id, account.id));
     expect(row?.oauthClientId).toBe(current.id);
   });
 
@@ -318,6 +330,6 @@ describe.skipIf(!url)("account tokens with Postgres", () => {
     const store = new AccountStore(db, key, endpoints);
     const results = await Promise.all([saveAccount(store), saveAccount(store)]);
     expect(new Set(results.map((account) => account.id)).size).toBe(1);
-    expect(await db.select().from(accounts)).toHaveLength(1);
+    expect(await db.select().from(accountConnections)).toHaveLength(1);
   });
 });

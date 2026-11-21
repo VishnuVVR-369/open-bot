@@ -26,7 +26,7 @@ describe.skipIf(!url)("screen operations with Postgres", () => {
   });
   beforeEach(async () => {
     vi.resetAllMocks();
-    await pool.query("truncate bots cascade");
+    await pool.query("truncate teammates cascade");
     await pool.query("truncate screen_operations");
     screenId = randomUUID();
     takeoverId = randomUUID();
@@ -233,7 +233,7 @@ describe.skipIf(!url)("takeover returns with Postgres", () => {
     await database.create();
   });
   beforeEach(async () => {
-    await pool.query("truncate bots cascade");
+    await pool.query("truncate teammates cascade");
     await pool.query("truncate notifications cascade");
     events.removeAllListeners();
     screenId = randomUUID();

@@ -18,7 +18,7 @@ async function cleanupFact(content: string) {
   });
   try {
     const { rows } = await pool.query<{ id: string; revision: number }>(
-      "select id,revision from memory_items where bot_id is null and content=$1 and state<>'deleted'",
+      "select id,revision from memory_items where teammate_id is null and content=$1 and state<>'deleted'",
       [content],
     );
     const memory = new MemoryService(createDb(pool));

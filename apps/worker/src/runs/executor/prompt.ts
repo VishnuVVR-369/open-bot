@@ -1,13 +1,6 @@
 // Builds the prompt of a run: the time, group chat context, memory, Always allow rules, the
 // request and its attachments.
-import {
-  teammates as teammateRows,
-  chatMembers,
-  chats,
-  messages,
-  ownerTimeZone,
-  runs,
-} from "@open-bot/db";
+import { teammates, chatMembers, chats, messages, ownerTimeZone, runs } from "@open-bot/db";
 import { and, asc, desc, eq, gt, isNotNull, isNull, ne } from "drizzle-orm";
 import type { Context } from "../../context";
 import type { Run } from "../../core/db-types";
@@ -40,13 +33,13 @@ export async function buildPrompt(executor: PromptExecutor, session: RunSession)
 
   if (chat.kind === "group") {
     const members = await executor.ctx.db
-      .select({ id: teammateRows.id, name: teammateRows.name, role: teammateRows.role })
+      .select({ id: teammates.id, name: teammates.name, role: teammates.role })
       .from(chatMembers)
-      .innerJoin(teammateRows, eq(teammateRows.id, chatMembers.teammateId))
-      .where(and(eq(chatMembers.chatId, chat.id), isNull(teammateRows.archivedAt)));
-    const teammates = members.filter((member) => member.id !== teammate.id);
+      .innerJoin(teammates, eq(teammates.id, chatMembers.teammateId))
+      .where(and(eq(chatMembers.chatId, chat.id), isNull(teammates.archivedAt)));
+    const others = members.filter((member) => member.id !== teammate.id);
     lines.push(
-      `[Group chat "${chat.title}". Teammates here: ${teammates.map((t) => `${t.name} (${t.role})`).join(", ") || "none"}. Use handoff_to_teammate when a teammate's job fits a request better.]`,
+      `[Group chat "${chat.title}". Teammates here: ${others.map((t) => `${t.name} (${t.role})`).join(", ") || "none"}. Use handoff_to_teammate when a teammate's job fits a request better.]`,
     );
     const recent = await recentGroupContext(executor, run, teammate.id);
     if (recent) lines.push(`[Since you last spoke in this chat:]\n${recent}`);
@@ -122,9 +115,9 @@ async function recentGroupContext(
       .orderBy(asc(messages.createdAt))
       .limit(10),
     executor.ctx.db
-      .select({ text: runs.finalText, createdAt: runs.completedAt, name: teammateRows.name })
+      .select({ text: runs.finalText, createdAt: runs.completedAt, name: teammates.name })
       .from(runs)
-      .innerJoin(teammateRows, eq(teammateRows.id, runs.teammateId))
+      .innerJoin(teammates, eq(teammates.id, runs.teammateId))
       .where(
         and(
           eq(runs.chatId, run.chatId),

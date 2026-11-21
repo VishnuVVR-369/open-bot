@@ -279,7 +279,7 @@ try {
     const schedule = randomUUID(),
       due = new Date(Date.now() + 2_000);
     await pool.query(
-      "insert into schedules (id,bot_id,title,prompt,kind,run_at,next_run_at,timezone,created_by) values ($1,$2,'Sleep schedule','Reply once for this test','once',$3,$3,'UTC','user')",
+      "insert into schedules (id,teammate_id,title,prompt,kind,run_at,next_run_at,timezone,created_by) values ($1,$2,'Sleep schedule','Reply once for this test','once',$3,$3,'UTC','user')",
       [schedule, teammateId, due],
     );
     await until(

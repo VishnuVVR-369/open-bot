@@ -228,7 +228,7 @@ export class TeammateTools implements TeammateTargets {
       askEveryTime: escalates,
     });
     return this.teammates.create(plan, {
-      kind: "bot",
+      kind: "teammate",
       teammateId: session.teammate.id,
       runId: session.run.id,
     });

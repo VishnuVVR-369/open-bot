@@ -1,6 +1,6 @@
 // Writes a teammate's workspace on the computer: AGENTS.md from its profile, approval rules,
 // teammates, connections and accounts, then its memory pointer and skills.
-import { teammates as teammateRows } from "@open-bot/db";
+import { teammates } from "@open-bot/db";
 import { COMPUTER_PATHS, emailAddress } from "@open-bot/domain";
 import { and, asc, eq, isNull, ne } from "drizzle-orm";
 import type { Context } from "../../context";
@@ -31,8 +31,8 @@ export async function syncWorkspace(
   // Configuration may have changed while the computer woke. Always project the latest revision.
   const [latest] = await executor.ctx.db
     .select()
-    .from(teammateRows)
-    .where(eq(teammateRows.id, teammate.id));
+    .from(teammates)
+    .where(eq(teammates.id, teammate.id));
   if (!latest || latest.archivedAt) throw new Error("Teammate is no longer available");
   Object.assign(teammate, latest);
   const client = await executor.ctx.codex.ready();
@@ -40,26 +40,17 @@ export async function syncWorkspace(
   const workspace = COMPUTER_PATHS.workspace(teammate.slug);
   const rules = await executor.approvals.rulesFor(teammate.id);
 
-  const teammates = await executor.ctx.db
-    .select({ name: teammateRows.name, role: teammateRows.role })
-    .from(teammateRows)
-    .where(and(isNull(teammateRows.archivedAt), ne(teammateRows.id, teammate.id)))
-    .orderBy(asc(teammateRows.createdAt));
+  const others = await executor.ctx.db
+    .select({ name: teammates.name, role: teammates.role })
+    .from(teammates)
+    .where(and(isNull(teammates.archivedAt), ne(teammates.id, teammate.id)))
+    .orderBy(asc(teammates.createdAt));
   const { labels: services } = await executor.connections.forTeammate(teammate.id);
   const { domain } = await emailSettingsRow(executor.ctx);
   const address = domain ? emailAddress(teammate.slug, domain) : null;
   await client.request("fs/createDirectory", { path: workspace, recursive: true });
   const accounts = await executor.accounts.lines(teammate.id);
-  const instructions = agentsMarkdown(
-    teammate,
-    rules,
-    "",
-    [],
-    teammates,
-    services,
-    address,
-    accounts,
-  );
+  const instructions = agentsMarkdown(teammate, rules, "", [], others, services, address, accounts);
   await client.request("fs/writeFile", {
     path: `${workspace}/AGENTS.md`,
     dataBase64: Buffer.from(instructions).toString("base64"),

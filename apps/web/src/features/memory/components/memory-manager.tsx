@@ -197,7 +197,7 @@ export function MemoryManager({ teammateId, name }: { teammateId: string | null;
   const refresh = () => queryClient.invalidateQueries({ queryKey: orpc.memory.key() });
   const { data: state } = useAppState();
   const savedBy = (item: MemoryItem) =>
-    state?.teammates.find((teammate) => teammate.id === item.source.botId)?.name ?? null;
+    state?.teammates.find((teammate) => teammate.id === item.source.teammateId)?.name ?? null;
   function edit(item: MemoryItem | null) {
     setProblem(null);
     setDraft({

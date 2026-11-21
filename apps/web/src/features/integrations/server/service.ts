@@ -1,6 +1,6 @@
 import "server-only";
 import type { ApiInputs, ApiOutputs } from "@open-bot/api";
-import { accounts, teammates, connections } from "@open-bot/db";
+import { accountConnections, teammates, connections } from "@open-bot/db";
 import {
   ACCOUNT_PROVIDERS,
   authProvider,
@@ -114,9 +114,9 @@ export async function saveAccountConnection(
 
 export async function listConnections(): Promise<ConnectionView[]> {
   const rows = await db
-    .select({ connection: connections, account: accounts })
+    .select({ connection: connections, account: accountConnections })
     .from(connections)
-    .leftJoin(accounts, eq(accounts.id, connections.accountId))
+    .leftJoin(accountConnections, eq(accountConnections.id, connections.accountId))
     .orderBy(asc(sql`lower(${connections.label})`));
   return rows.map(({ connection: row, account }) => ({
     id: row.id,
@@ -155,7 +155,10 @@ export async function listConnections(): Promise<ConnectionView[]> {
  * take one), and the redirect address to register. And the accounts signed in, to reuse.
  */
 export async function getAccountsSetup(): Promise<AccountsSetupView> {
-  const rows = await db.select().from(accounts).orderBy(asc(accounts.createdAt));
+  const rows = await db
+    .select()
+    .from(accountConnections)
+    .orderBy(asc(accountConnections.createdAt));
   const providers = await Promise.all(
     ACCOUNT_PROVIDERS.map(async (id) => {
       const definition = authProvider(id);
@@ -178,7 +181,7 @@ export async function getEmailStatus(): Promise<EmailStatusView> {
   return worker.email.status();
 }
 
-function toAccountView(row: typeof accounts.$inferSelect): AccountView {
+function toAccountView(row: typeof accountConnections.$inferSelect): AccountView {
   return {
     id: row.id,
     provider: row.provider,
@@ -191,7 +194,7 @@ function toAccountView(row: typeof accounts.$inferSelect): AccountView {
 }
 
 /** When the provider ends the grant however it's used, if it does. */
-function grantEnds(row: typeof accounts.$inferSelect): string | null {
+function grantEnds(row: typeof accountConnections.$inferSelect): string | null {
   const days = authProvider(row.provider).grantMaxDays;
   return days ? new Date(row.grantedAt.getTime() + days * 86_400_000).toISOString() : null;
 }

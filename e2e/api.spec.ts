@@ -105,7 +105,7 @@ test.describe("the phone's API", () => {
     const {
       rows: [run],
     } = await db.query(
-      `insert into runs (chat_id, bot_id, trigger, prompt, status, completed_at)
+      `insert into runs (chat_id, teammate_id, trigger, prompt, status, completed_at)
        values ($1, $2, 'user', 'Clean up', 'completed', now()) returning id`,
       [chatId, teammate.id],
     );
@@ -113,7 +113,7 @@ test.describe("the phone's API", () => {
       const {
         rows: [row],
       } = await db.query(
-        `insert into approvals (run_id, bot_id, chat_id, kind, title, detail, payload, item_id)
+        `insert into approvals (run_id, teammate_id, chat_id, kind, title, detail, payload, item_id)
          values ($1, $2, $3, 'command', $4, 'rm -rf build', '{}', $5) returning id`,
         [run.id, teammate.id, chatId, title, crypto.randomUUID()],
       );
@@ -163,7 +163,7 @@ test.describe("the phone's API", () => {
     const {
       rows: [run],
     } = await db.query(
-      `insert into runs (chat_id, bot_id, trigger, prompt, status, final_text, started_at, completed_at)
+      `insert into runs (chat_id, teammate_id, trigger, prompt, status, final_text, started_at, completed_at)
        values ($1, $2, 'user', 'Plan the trip', 'completed', $3, now() - interval '5 seconds', now())
        returning id`,
       [chatId, teammate.id, text],
@@ -344,7 +344,7 @@ test.describe("the phone's API", () => {
     const {
       rows: [row],
     } = await db.query(
-      `insert into notifications (kind, title, body, bot_id, chat_id, run_id)
+      `insert into notifications (kind, title, body, teammate_id, chat_id, run_id)
        values ('run_finished', $1, 'All done.', $2, $3, $4) returning id`,
       [`${teammate.name} replied`, teammate.id, chatId, runId],
     );
@@ -402,7 +402,7 @@ test.describe("the phone's API", () => {
     const {
       rows: [approval],
     } = await db.query(
-      `insert into approvals (run_id, bot_id, chat_id, kind, title, detail, payload, item_id)
+      `insert into approvals (run_id, teammate_id, chat_id, kind, title, detail, payload, item_id)
        values ($1, $2, $3, 'command', 'Run the tests', '$ pnpm test', $4, $5)
        returning id`,
       [runId, teammate.id, chatId, { subject: "pnpm test --run" }, crypto.randomUUID()],

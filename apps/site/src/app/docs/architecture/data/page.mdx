@@ -19,7 +19,7 @@ Here they are grouped by what they're for:
       title: "Teammates and chats",
       tables: [
         {
-          name: "bots",
+          name: "teammates",
           note: "Name, slug, role, instructions, autonomy, model, budget, lead flag",
         },
         {
@@ -42,7 +42,7 @@ Here they are grouped by what they're for:
         },
         { name: "run_events", note: "The ordered log of everything a run did, as jsonb payloads" },
         {
-          name: "bot_threads",
+          name: "teammate_threads",
           note: "The conversation thread for each teammate and chat, with what it was made with",
         },
         {
@@ -92,7 +92,7 @@ Here they are grouped by what they're for:
           note: "Always allow rules: a command prefix, an action, or file changes",
         },
         {
-          name: "desktop_takeovers",
+          name: "screen_takeovers",
           note: "Takeovers and teammate requests for help, with hand-back notes",
         },
         {
@@ -193,7 +193,7 @@ Here they are grouped by what they're for:
       title: "Your accounts",
       tables: [
         {
-          name: "accounts",
+          name: "account_connections",
           note: "A Google or Notion sign-in: identity, granted scopes, encrypted tokens, the client it was made with, status",
         },
         {
@@ -233,7 +233,7 @@ Here they are grouped by what they're for:
 - Primary keys are random UUIDs, except `run_events.id`, which is a `bigserial` so events have a global order.
 - Timestamps are `timestamptz`.
 - Structured values (attachments, timeline payloads, approval payloads) are `jsonb` with a TypeScript type attached with `$type<>()`.
-- Deleting a teammate archives it (`bots.archived_at`). Rows that belong to it cascade or set null as each foreign key says.
+- Deleting a teammate archives it (`teammates.archived_at`). Rows that belong to it cascade or set null as each foreign key says.
 - Secrets are never stored in plain text. `encryptSecret()` in `@open-bot/domain/server` uses AES-256-GCM with a random 12-byte IV, and stores `iv.tag.ciphertext` in base64url.
 - The settings row is read only through `ownerSettings()` and `ownerTimeZone()` in `packages/db/src/settings.ts`, so a missing row means the same defaults everywhere.
 
@@ -352,7 +352,7 @@ Every listener reads the rows itself, and the worker sweeps for queued runs and 
 Your Gmail, Google Calendar and Notion are three tables and two kinds of `connections` row.
 See [Your accounts](/docs/flows/accounts) for what you see.
 
-- An **`accounts`** row is one sign-in: Google's `sub`, or Notion's workspace and user, unique per provider, with the granted scopes and the token set encrypted as one value. One Google account serves both a Gmail and a Calendar connection.
+- An **`account_connections`** row is one sign-in: Google's `sub`, or Notion's workspace and user, unique per provider, with the granted scopes and the token set encrypted as one value. One Google account serves both a Gmail and a Calendar connection.
 - `credential_version` is bumped by every change to the tokens, which happen only inside a transaction holding the row with `FOR UPDATE`, so two workers never refresh at once or lose a rotated refresh token.
 - `status` is `connected`, `needs_reconnect` (the provider ended the grant) or `revoked`, and `notified_at` makes the "needs reconnecting" notification happen once.
 - A **connection** of kind `gmail`, `google_calendar` or `notion` points at its account (`on delete restrict`), with the `capabilities` you allowed, `ask_before_acting`, Notion's teammates' area in `settings`, and a `revision` bumped by every change to who may use it and how. A check constraint keeps MCP and account connections apart.

@@ -1,6 +1,11 @@
 "use client";
 
-import { MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL, undeletablePath } from "@open-bot/domain";
+import {
+  COMPUTER_PATHS,
+  MAX_UPLOAD_BYTES,
+  MAX_UPLOAD_LABEL,
+  undeletablePath,
+} from "@open-bot/domain";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNowStrict } from "date-fns";
 import {
@@ -44,6 +49,8 @@ import { fileKind, fileUrl } from "@/lib/files";
 import { cn } from "@/lib/utils";
 
 const ROOT = "/home/bot";
+/** The folder of teammates' workspaces, under `ROOT`. */
+const TEAMMATES_FOLDER = COMPUTER_PATHS.teammatesRoot.slice(ROOT.length + 1);
 
 function icon(name: string, isDirectory: boolean) {
   if (isDirectory) return <Folder className="size-4 text-muted-foreground" />;
@@ -172,7 +179,7 @@ export function FilesView() {
                   onClick={() => setPath(target)}
                   className="rounded-md px-1.5 py-0.5 hover:bg-muted"
                 >
-                  {index === 1 && parts[0] === "bots" && teammateBySlug(part)
+                  {index === 1 && parts[0] === TEAMMATES_FOLDER && teammateBySlug(part)
                     ? `${teammateBySlug(part)!.name}'s workspace`
                     : part}
                 </button>
@@ -245,7 +252,7 @@ export function FilesView() {
           <ul className="divide-y">
             {entries.map((entry) => {
               const teammate =
-                path === `${ROOT}/bots` && entry.isDirectory
+                path === COMPUTER_PATHS.teammatesRoot && entry.isDirectory
                   ? teammateBySlug(entry.name)
                   : undefined;
               return (
@@ -325,7 +332,7 @@ export function FilesView() {
         )}
       </div>
       <p className="text-[12.5px] text-muted-foreground">
-        Each teammate has a workspace under <code className="font-mono">bots</code>.{" "}
+        Each teammate has a workspace under <code className="font-mono">{TEAMMATES_FOLDER}</code>.{" "}
         <code className="font-mono">shared</code> is for everyone, and browser downloads land in{" "}
         <code className="font-mono">shared/downloads</code>.
       </p>

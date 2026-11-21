@@ -48,32 +48,34 @@ For a deployed service it must also be added to that service's list in `.railway
 ## Glossary
 
 Use the canonical term in new code, UI copy and docs.
-Older code still uses some legacy names; they are renamed in their own PRs, so don't add new uses and don't rename them in unrelated work.
+The legacy names below are renamed everywhere, the database included; the few uses left in code name an old name on purpose.
 `pnpm check:vocabulary` (run in CI) fails when a file gains a legacy name.
 After removing uses or moving a file, run `pnpm check:vocabulary --update` and commit the baseline.
 The header of `scripts/check/vocabulary.mjs` explains `--show <file>`, `--allow-growth` and the `vocabulary: allow` comment.
 
-| Canonical term  | Meaning                                                                              | Do not use for it (legacy names in code)                                                       |
-| --------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
-| teammate        | One AI agent the owner works with                                                    | bot (`bots` table, `botId`, `BotSummary`, `/bots/[botId]`)                                     |
-| lead            | The teammate that answers group chats when nobody is mentioned                       | primary (only the database column `is_primary` is left)                                        |
-| computer        | The botd container on Railway, with a persistent `/home` volume                      | -                                                                                              |
-| browser         | Chromium run by botd inside the computer, never the owner's own browser              | -                                                                                              |
-| screen          | A desktop session on the computer, one per teammate                                  | desktop                                                                                        |
-| screen takeover | The owner controlling a screen; the teammate waits until it is handed back           | desktop takeover (only the database table `desktop_takeovers` is left)                         |
-| lease           | Who holds a screen's input right now (teammate, owner or nobody)                     | -                                                                                              |
-| desktop app     | The Electron app in `apps/desktop`; "desktop" means only this                        | -                                                                                              |
-| integration     | Umbrella for anything a teammate uses outside the computer: connections and accounts | -                                                                                              |
-| connection      | An MCP server integration                                                            | -                                                                                              |
-| account         | An OAuth integration (Google, Notion)                                                | `accounts` table, planned `account_connections`; Better Auth's `account` is sign-in, unrelated |
-| automation      | Umbrella for schedules, page watches, webhooks and account triggers                  | schedule or trigger as the umbrella (`/schedules` only redirects)                              |
-| page            | An HTML page a teammate publishes, served by `apps/pages`                            | -                                                                                              |
-| run / turn      | One queued unit of teammate work / one Codex turn inside it                          | -                                                                                              |
-| stand-in        | A test double for an outside service                                                 | mock, fake, fixture                                                                            |
+| Canonical term  | Meaning                                                                              | Do not use for it (legacy names in code)                                                |
+| --------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| teammate        | One AI agent the owner works with                                                    | bot (the old `bots` table, `botId`, `/bots/[botId]`)                                    |
+| lead            | The teammate that answers group chats when nobody is mentioned                       | primary (the old `is_primary` column)                                                   |
+| computer        | The botd container on Railway, with a persistent `/home` volume                      | -                                                                                       |
+| browser         | Chromium run by botd inside the computer, never the owner's own browser              | -                                                                                       |
+| screen          | A desktop session on the computer, one per teammate                                  | desktop                                                                                 |
+| screen takeover | The owner controlling a screen; the teammate waits until it is handed back           | desktop takeover (the old `desktop_takeovers` table)                                    |
+| lease           | Who holds a screen's input right now (teammate, owner or nobody)                     | -                                                                                       |
+| desktop app     | The Electron app in `apps/desktop`; "desktop" means only this                        | -                                                                                       |
+| integration     | Umbrella for anything a teammate uses outside the computer: connections and accounts | -                                                                                       |
+| connection      | An MCP server integration                                                            | -                                                                                       |
+| account         | An OAuth integration (Google, Notion)                                                | `accounts` for its table, now `account_connections`; Better Auth's `account` is sign-in |
+| automation      | Umbrella for schedules, page watches, webhooks and account triggers                  | schedule or trigger as the umbrella (`/schedules` only redirects)                       |
+| page            | An HTML page a teammate publishes, served by `apps/pages`                            | -                                                                                       |
+| run / turn      | One queued unit of teammate work / one Codex turn inside it                          | -                                                                                       |
+| stand-in        | A test double for an outside service                                                 | mock, fake, fixture                                                                     |
 
 The guard checks code files for bot, primary (meaning the lead), desktop takeover, and `e2e/` files named mock or fake; the other terms are kept by review.
-The owner has approved the renames, which happen after feature slicing so files move once: `bots` and `bot_id` to teammates, `is_primary` to lead, `desktop_takeovers` to `screen_takeovers`, and the integrations `accounts` table to `account_connections`.
-Database renames use `ALTER TABLE ... RENAME` migrations with a plan for the window between migration and deploy, and renamed web routes keep redirects for bookmarks and phone deep links.
+The renames are done, the database included (migration `0043_rename_vocabulary`): `bots` and `bot_id` became `teammates` and `teammate_id`, `is_primary` became `is_lead`, `desktop_takeovers` became `screen_takeovers`, and the integrations `accounts` table became `account_connections`.
+Renamed web routes keep redirects for bookmarks and phone deep links.
+The teammates' folders on the computer stay at `/home/bot/bots/<slug>`: their absolute paths are written into Codex threads, memory, messages, published pages, and files teammates made (scripts, virtual environments, git worktrees), so moving them would break those.
+A later rename of anything stored uses `ALTER TABLE ... RENAME` and rewrites stored values in the same migration, with a plan for the window between migration and deploy.
 
 ## Where to make common changes
 

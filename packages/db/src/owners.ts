@@ -41,7 +41,7 @@ const BETTER_AUTH: TableOwner = { owner: `${WEB}lib/server/auth.ts` };
 const MEMORY_KEEPS = (columns: readonly string[], why: string) => [{ by: MEMORY, columns, why }];
 
 export const TABLE_OWNERS = {
-  // Sign-in (Better Auth). Unrelated to the integrations `accounts` table.
+  // Sign-in (Better Auth). Unrelated to the integrations `account_connections` table.
   user: BETTER_AUTH,
   session: BETTER_AUTH,
   account: BETTER_AUTH,
@@ -49,7 +49,7 @@ export const TABLE_OWNERS = {
   passkey: BETTER_AUTH,
 
   // Teammates and what they're set up with.
-  bots: {
+  teammates: {
     owner: `${WORKER}features/teammates/service.ts`,
     shared: MEMORY_KEEPS(
       ["lessons_changed_at"],
@@ -77,7 +77,7 @@ export const TABLE_OWNERS = {
     ),
   },
   run_events: { owner: `${WORKER}runs/` },
-  bot_threads: { owner: `${WORKER}runs/` },
+  teammate_threads: { owner: `${WORKER}runs/` },
   chat_lane_threads: { owner: `${WORKER}runs/` },
   message_dispatches: { owner: `${WORKER}runs/` },
   // Written only by migrations and the triggers they create: never by code.
@@ -98,7 +98,7 @@ export const TABLE_OWNERS = {
 
   // The computer, its screens and egress.
   computers: { owner: `${WORKER}egress/store.ts` },
-  desktop_takeovers: { owner: `${WORKER}features/screens/takeovers.ts` },
+  screen_takeovers: { owner: `${WORKER}features/screens/takeovers.ts` },
   takeover_deliveries: { owner: `${WORKER}features/screens/takeovers.ts` },
   screen_operations: { owner: `${WORKER}features/screens/screen-operations.ts` },
   egress_devices: { owner: `${WORKER}egress/devices.ts` },
@@ -121,7 +121,7 @@ export const TABLE_OWNERS = {
 
   // Integrations: connections (MCP servers) and accounts (OAuth).
   connections: { owner: `${WORKER}features/connections/service.ts` },
-  accounts: { owner: "packages/integrations/src/core/store.ts" },
+  account_connections: { owner: "packages/integrations/src/core/store.ts" },
   oauth_clients: { owner: "packages/integrations/src/core/clients.ts" },
   oauth_states: { owner: `${WEB}features/integrations/server/accounts.ts` },
   account_actions: { owner: `${WORKER}features/integrations/actions.ts` },

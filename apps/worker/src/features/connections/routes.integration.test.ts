@@ -1,5 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { accountActions, accounts, approvals, connections, oauthClients } from "@open-bot/db";
+import {
+  accountActions,
+  accountConnections,
+  approvals,
+  connections,
+  oauthClients,
+} from "@open-bot/db";
 import { decryptSecret } from "@open-bot/domain/server";
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
@@ -30,7 +36,7 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
         .values({ provider: "google", source: "owner", clientId: `client-${randomUUID()}` })
         .returning();
       const [account] = await db
-        .insert(accounts)
+        .insert(accountConnections)
         .values({
           provider: "google",
           externalId: `sub-${randomUUID()}`,
@@ -50,9 +56,9 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
       // Made like a teammate's action: under the account's grant and the connection's setup now.
       const waiting = async () => {
         const [current] = await db
-          .select({ grantRevision: accounts.grantRevision })
-          .from(accounts)
-          .where(eq(accounts.id, account!.id));
+          .select({ grantRevision: accountConnections.grantRevision })
+          .from(accountConnections)
+          .where(eq(accountConnections.id, account!.id));
         const [approval] = await db
           .insert(approvals)
           .values({
@@ -159,7 +165,10 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
       expect(await gmail.outcome(action)).toEqual({ action: "pending", approval: "pending" });
       // A sign-in that changed the grant (saveGrant moved its revision on), whose call here failed:
       // trying again still cancels what waits on the earlier grant, and only that.
-      await db.update(accounts).set({ grantRevision: 2 }).where(eq(accounts.id, gmail.account.id));
+      await db
+        .update(accountConnections)
+        .set({ grantRevision: 2 })
+        .where(eq(accountConnections.id, gmail.account.id));
       await worker.connections.linkAccount(again);
       expect(await gmail.outcome(action)).toEqual({ action: "cancelled", approval: "expired" });
       expect(accountActionLoop.kick).toHaveBeenCalled();

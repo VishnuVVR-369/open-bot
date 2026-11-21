@@ -3,7 +3,7 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { eq, inArray, sql, type InferInsertModel } from "drizzle-orm";
 import {
-  accounts,
+  accountConnections,
   teammates as teammatesTable,
   connections,
   credentials,
@@ -83,7 +83,7 @@ export async function seedConnections(ctx: SeedContext) {
       encryptionKey,
     );
   const googleAccount = randomUUID();
-  await db.insert(accounts, {
+  await db.insert(accountConnections, {
     id: googleAccount,
     provider: "google",
     externalId: "109834571290348172345",
@@ -105,7 +105,7 @@ export async function seedConnections(ctx: SeedContext) {
     createdAt: ago({ d: 20 }),
   });
   const notionAccount = randomUUID();
-  await db.insert(accounts, {
+  await db.insert(accountConnections, {
     id: notionAccount,
     provider: "notion",
     externalId: "ws_91ab3c:user_4d2e7f",
@@ -498,7 +498,7 @@ Neither ships to production. I can open a PR bumping both if you want it.`,
       kind: "once",
       cron: null,
       runAt: fromNow({ d: 1, h: 3 }),
-      createdBy: "bot",
+      createdBy: "teammate",
     },
     null,
     {
@@ -536,7 +536,7 @@ Neither ships to production. I can open a PR bumping both if you want it.`,
     nextCheckAt: fromNow({ h: 21 }),
     lastCheckedAt: ago({ h: 3 }),
     lastFiredAt: ago({ d: 2 }),
-    createdBy: "bot",
+    createdBy: "teammate",
     createdAt: ago({ d: 6 }),
   });
   await s.run(scoutSched, scout, {
@@ -796,7 +796,7 @@ export async function seedTasksAndSkills(ctx: SeedContext) {
     status: "todo",
     dueOn: day(2),
     createdByTeammateId: mira.id,
-    createdBy: "bot",
+    createdBy: "teammate",
   });
   await task({
     title: "Confirm the on-call rota for launch week",
@@ -804,7 +804,7 @@ export async function seedTasksAndSkills(ctx: SeedContext) {
     status: "todo",
     ownerTeammateId: kit.id,
     dueOn: isoDay(new Date(freeze.getTime() - 86_400_000)),
-    createdBy: "bot",
+    createdBy: "teammate",
     createdByTeammateId: iris.id,
   });
   await task({
@@ -819,14 +819,14 @@ export async function seedTasksAndSkills(ctx: SeedContext) {
     status: "todo",
     ownerTeammateId: mira.id,
     dueOn: day(3),
-    createdBy: "bot",
+    createdBy: "teammate",
     createdByTeammateId: iris.id,
   });
   await task({
     title: "File the Northhost invoice with expenses",
     status: "todo",
     ownerTeammateId: mira.id,
-    createdBy: "bot",
+    createdBy: "teammate",
     createdByTeammateId: mira.id,
   });
   // Doing
@@ -863,7 +863,7 @@ export async function seedTasksAndSkills(ctx: SeedContext) {
     status: "doing",
     ownerTeammateId: scout.id,
     chatId: chats.scoutFlights.id,
-    createdBy: "bot",
+    createdBy: "teammate",
     createdByTeammateId: iris.id,
   });
   // Done
@@ -926,7 +926,7 @@ Add each follow-up to the task board with the right owner.`,
     name: "expense-report",
     description: "Collect receipts and invoices into a monthly expense summary.",
     instructions: `Search the inbox and shared/invoices for this month's receipts. Make a table of date, vendor, amount and category, total it, and flag anything over $200 or without a receipt.`,
-    createdBy: "bot",
+    createdBy: "teammate",
     createdByTeammateId: mira.id,
   });
   await skill({
@@ -940,7 +940,7 @@ Add each follow-up to the task board with the right owner.`,
     description: "Rewrite engineering changelog entries for customers.",
     instructions: `Rewrite each change as the benefit to a customer, in one sentence. Group as New, Faster, Fixed. Drop internal terms and PR numbers unless asked.`,
     teammateId: juno.id,
-    createdBy: "bot",
+    createdBy: "teammate",
     createdByTeammateId: juno.id,
   });
   await skill({
@@ -948,7 +948,7 @@ Add each follow-up to the task board with the right owner.`,
     description: "Compare three or more options in a table with one recommendation.",
     instructions: `Put the options in a table with the criteria that matter to Alex (price, time, risk). Bold the recommendation, give the single strongest reason, then list what you could not verify.`,
     teammateId: scout.id,
-    createdBy: "bot",
+    createdBy: "teammate",
     createdByTeammateId: scout.id,
   });
 }
@@ -1135,7 +1135,7 @@ export async function seedMemory(ctx: SeedContext) {
       createdAt: created,
     });
   };
-  const bySource = (run) => ({ type: "bot" as const, runId: run.id });
+  const bySource = (run) => ({ type: "teammate" as const, runId: run.id });
 
   // Shared, confirmed
   await memory({
@@ -1537,7 +1537,7 @@ export async function seedNotifications(ctx: SeedContext) {
     createdAt: ago({ m: 16 }),
   });
   await n({
-    kind: "bot_message",
+    kind: "teammate_message",
     title: "Mira: 3 emails need your reply",
     body: "Marcus (Brightpath), Priya (Summit) and Sam (The Weekly Stack).",
     teammateId: mira.id,

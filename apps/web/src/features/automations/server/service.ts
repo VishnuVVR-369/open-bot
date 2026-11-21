@@ -1,7 +1,14 @@
 import { runColumns } from "@/lib/server/run-columns";
 import "server-only";
 import type { ApiInputs, ApiOutputs } from "@open-bot/api";
-import { accounts, connections, ownerTimeZone, runs, schedules, triggers } from "@open-bot/db";
+import {
+  accountConnections,
+  connections,
+  ownerTimeZone,
+  runs,
+  schedules,
+  triggers,
+} from "@open-bot/db";
 import { DAILY_CHECK_IN } from "@open-bot/domain";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { ApiError } from "@/lib/server/api/errors";
@@ -120,9 +127,13 @@ export async function listTriggers(): Promise<TriggerView[]> {
   ];
   const watched = connectionIds.length
     ? await db
-        .select({ id: connections.id, display: accounts.display, status: accounts.status })
+        .select({
+          id: connections.id,
+          display: accountConnections.display,
+          status: accountConnections.status,
+        })
         .from(connections)
-        .innerJoin(accounts, eq(accounts.id, connections.accountId))
+        .innerJoin(accountConnections, eq(accountConnections.id, connections.accountId))
         .where(inArray(connections.id, connectionIds))
     : [];
   const lastRuns = rows.length

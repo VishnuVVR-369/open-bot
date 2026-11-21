@@ -13,6 +13,8 @@ import { type TestDatabase, testDatabase, testDatabaseServer } from "./testing";
 const url = testDatabaseServer();
 
 const MIGRATION_0040 = "0040_usage_on_model_logs";
+// The rest stays in the shape 0041 left, which these tests are about.
+const MIGRATION_0041 = "0041_drop_usage_entries";
 
 /**
  * Resolves once `migration` waits for a lock the app's transaction holds (or sleeps before trying
@@ -213,7 +215,10 @@ describe.skipIf(!url)("migration 0041 beside runs and teammates being deleted", 
       await deleting.query("begin");
       // The run is locked first, as its deletion does, then its entries are written (set null).
       await deleting.query("select id from runs where id = $1 for update", [run]);
-      const { migration } = await waitingMigration(database, database.migrate());
+      const { migration } = await waitingMigration(
+        database,
+        database.migrate({ through: MIGRATION_0041 }),
+      );
       await deleting.query("delete from runs where id = $1", [run]);
       await deleting.query("commit");
       await migration;
@@ -230,7 +235,10 @@ describe.skipIf(!url)("migration 0041 beside runs and teammates being deleted", 
       await deleting.query("begin");
       // The teammate is locked first, as its deletion does, then its runs and their entries.
       await deleting.query("select id from bots where id = $1 for update", [teammate]); // vocabulary: allow
-      const { migration } = await waitingMigration(database, database.migrate());
+      const { migration } = await waitingMigration(
+        database,
+        database.migrate({ through: MIGRATION_0041 }),
+      );
       await deleting.query("delete from bots where id = $1", [teammate]); // vocabulary: allow
       await deleting.query("commit");
       await migration;

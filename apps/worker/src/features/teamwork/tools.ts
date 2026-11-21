@@ -161,8 +161,8 @@ async function handoff(
   session.putItem({
     id: callId,
     kind: "handoff",
-    toBotId: target.id,
-    toBotName: target.name,
+    toTeammateId: target.id,
+    toTeammateName: target.name,
     message,
     status: "completed",
     startedAt: session.now(),

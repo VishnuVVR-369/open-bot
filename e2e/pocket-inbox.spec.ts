@@ -26,11 +26,11 @@ async function seedChat(count: number) {
   const teammateId = randomUUID(),
     chatId = randomUUID();
   await db.query(
-    "insert into bots(id,name,slug,role,color) values($1,'Pocket Reviewer',$2,'assistant','#7C5CFF')",
+    "insert into teammates(id,name,slug,role,color) values($1,'Pocket Reviewer',$2,'assistant','#7C5CFF')",
     [teammateId, `pocket-${teammateId}`],
   );
   await db.query(
-    "insert into chats(id,kind,title,bot_id,read_at) values($1,'direct','Pocket inbox verification',$2,now()-interval '2 days')",
+    "insert into chats(id,kind,title,teammate_id,read_at) values($1,'direct','Pocket inbox verification',$2,now()-interval '2 days')",
     [chatId, teammateId],
   );
   const runs: string[] = [];
@@ -39,7 +39,7 @@ async function seedChat(count: number) {
     const at = new Date(Date.now() - (count - index + 5) * 60_000).toISOString();
     const text = `Pocket report ${index}: your inbox update is ready.`;
     await db.query(
-      "insert into runs(id,chat_id,bot_id,trigger,prompt,status,final_text,created_at,started_at,completed_at) values($1,$2,$3,'user','Summarize my inbox','completed',$4,$5,$5,$5)",
+      "insert into runs(id,chat_id,teammate_id,trigger,prompt,status,final_text,created_at,started_at,completed_at) values($1,$2,$3,'user','Summarize my inbox','completed',$4,$5,$5,$5)",
       [id, chatId, teammateId, text, at],
     );
     await db.query("insert into run_events(run_id,chat_id,payload) values($1,$2,$3)", [
@@ -100,7 +100,7 @@ test.describe("isolated pocket inbox regression", () => {
     const target = runs[0]!;
     const notification = (
       await db.query(
-        "insert into notifications(kind,title,body,bot_id,chat_id,run_id) values('run_finished','Pocket older reply','Your first report is ready',$1,$2,$3) returning id",
+        "insert into notifications(kind,title,body,teammate_id,chat_id,run_id) values('run_finished','Pocket older reply','Your first report is ready',$1,$2,$3) returning id",
         [teammateId, chatId, target],
       )
     ).rows[0];
@@ -205,7 +205,7 @@ test.describe("isolated pocket inbox regression", () => {
     const at = new Date(Math.max(Date.now(), previousRead + 1)).toISOString();
     const text = "New pocket inbox reply arrived: your latest report is ready.";
     await db.query(
-      "insert into runs(id,chat_id,bot_id,trigger,prompt,status,final_text,created_at,started_at,completed_at) values($1,$2,$3,'user','Latest inbox update','completed',$4,$5,$5,$5)",
+      "insert into runs(id,chat_id,teammate_id,trigger,prompt,status,final_text,created_at,started_at,completed_at) values($1,$2,$3,'user','Latest inbox update','completed',$4,$5,$5,$5)",
       [runId, chatId, teammateId, text, at],
     );
     await db.query("insert into run_events(run_id,chat_id,payload) values($1,$2,$3)", [

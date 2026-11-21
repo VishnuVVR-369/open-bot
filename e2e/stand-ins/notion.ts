@@ -24,7 +24,7 @@ export const NOTION_WORKSPACE = {
   id: "e2e00000-0000-4000-8000-00000000a001",
   name: "E2E Workspace",
   userId: "e2e00000-0000-4000-8000-00000000b001",
-  botId: "e2e00000-0000-4000-8000-00000000c001",
+  botId: "e2e00000-0000-4000-8000-00000000c001", // vocabulary: allow (Notion's integration bot)
 };
 
 /** How the app records the Notion account: workspace and user. */
@@ -272,7 +272,7 @@ export class NotionStandIn {
             workspace_id: NOTION_WORKSPACE.id,
             workspace_name: NOTION_WORKSPACE.name,
             workspace_icon: null,
-            bot_id: NOTION_WORKSPACE.botId,
+            bot_id: NOTION_WORKSPACE.botId, // vocabulary: allow (Notion's field)
             user_id: NOTION_WORKSPACE.userId,
             owner: { type: "user", user: { id: NOTION_WORKSPACE.userId } },
           }

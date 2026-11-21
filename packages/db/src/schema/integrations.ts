@@ -74,8 +74,8 @@ export interface AccountTokens {
  * Your accounts at auth providers (Google, Notion) that teammates use: who you are there, what you
  * granted, and the tokens, encrypted. Only the worker decrypts them; they never reach the computer.
  */
-export const accounts = pgTable(
-  "accounts",
+export const accountConnections = pgTable(
+  "account_connections",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     provider: text("provider").$type<AccountProvider>().notNull(),
@@ -115,7 +115,9 @@ export const accounts = pgTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (table) => [uniqueIndex("accounts_identity_unique").on(table.provider, table.externalId)],
+  (table) => [
+    uniqueIndex("account_connections_identity_unique").on(table.provider, table.externalId),
+  ],
 );
 
 /**
@@ -150,10 +152,10 @@ export const connections = pgTable(
       .notNull()
       .default(sql`'{}'::text[]`),
     /** The teammates that may use it, or null for every teammate. */
-    teammateIds: uuid("bot_ids").array(),
+    teammateIds: uuid("teammate_ids").array(),
     enabled: boolean("enabled").notNull().default(true),
     /** For accounts: the signed-in account it uses. Removed only by revoking the account. */
-    accountId: uuid("account_id").references(() => accounts.id, { onDelete: "restrict" }),
+    accountId: uuid("account_id").references(() => accountConnections.id, { onDelete: "restrict" }),
     /** For accounts: what teammates may do with it. */
     capabilities: text("capabilities")
       .array()
@@ -188,7 +190,7 @@ export const connections = pgTable(
 export interface OAuthPurpose {
   kind: Exclude<ConnectionKind, "mcp">;
   capabilities: AccountCapability[];
-  botIds: string[] | null;
+  teammateIds: string[] | null;
   /** The OAuth client the sign-in started with; the code is exchanged with the same one. */
   oauthClientId: string;
   /** Reconnecting or widening this account: the callback must sign in as the same identity. */
@@ -224,11 +226,11 @@ export const accountActions = pgTable(
     connectionId: uuid("connection_id").references(() => connections.id, {
       onDelete: "set null",
     }),
-    accountId: uuid("account_id").references(() => accounts.id, { onDelete: "set null" }),
+    accountId: uuid("account_id").references(() => accountConnections.id, { onDelete: "set null" }),
     /** The account's grant and the connection's setup when it was made; both must still hold. */
     grantRevision: integer("grant_revision").notNull(),
     connectionRevision: integer("connection_revision").notNull(),
-    teammateId: uuid("bot_id").references(() => teammates.id, { onDelete: "set null" }),
+    teammateId: uuid("teammate_id").references(() => teammates.id, { onDelete: "set null" }),
     runId: uuid("run_id").references(() => runs.id, { onDelete: "set null" }),
     chatId: uuid("chat_id").references(() => chats.id, { onDelete: "set null" }),
     /** The tool call's timeline item, updated as the action moves on. */

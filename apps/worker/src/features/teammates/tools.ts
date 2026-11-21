@@ -262,7 +262,7 @@ async function proposeInstructions(
     runId: session.run.id,
   });
   await createNotification(deps.ctx, {
-    kind: "bot_message",
+    kind: "teammate_message",
     title: `${session.teammate.name} suggests new instructions`,
     body: reason,
     teammateId: session.teammate.id,

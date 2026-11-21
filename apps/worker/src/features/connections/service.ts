@@ -4,7 +4,7 @@ import type { ConnectionInput } from "@open-bot/api";
 import type { ConnectionTest } from "@open-bot/api/worker";
 import type { v2 } from "@open-bot/agent";
 import {
-  accounts,
+  accountConnections,
   connections,
   LOCKS,
   lockUntilCommit,
@@ -277,8 +277,8 @@ export class ConnectionService {
     const settings = input.settings ? parseSettings(kind, row.settings, input.settings) : null;
     const [account] = await this.ctx.db
       .select()
-      .from(accounts)
-      .where(eq(accounts.id, row.accountId));
+      .from(accountConnections)
+      .where(eq(accountConnections.id, row.accountId));
     if (!account) throw new ConnectionError(404, "Its account is gone.");
     if (capabilities.some((capability) => !capabilityGranted(kind, capability, account.scopes)))
       return { needsConsent: true };
@@ -320,9 +320,13 @@ export class ConnectionService {
     teammateIds: string[] | null;
   }): Promise<{ connectionId: string }> {
     const [account] = await this.ctx.db
-      .select({ id: accounts.id, display: accounts.display, grantRevision: accounts.grantRevision })
-      .from(accounts)
-      .where(eq(accounts.id, input.accountId));
+      .select({
+        id: accountConnections.id,
+        display: accountConnections.display,
+        grantRevision: accountConnections.grantRevision,
+      })
+      .from(accountConnections)
+      .where(eq(accountConnections.id, input.accountId));
     if (!account) throw new ConnectionError(404, "That account is gone.");
     // Each kind keeps only its own (`normalizeCapabilities`), so unknown names drop out here.
     const capabilities = normalizeCapabilities(

@@ -82,8 +82,8 @@ test.describe("Telegram, against a stand-in", () => {
       if (standInUp) {
         // Only the stand-in's connection goes: one you made meanwhile is a different account.
         const status = await worker.telegram.status().catch(() => null);
-        const account = status?.connected ? status.botUsername : null; // vocabulary: allow
-        if (account === TELEGRAM_USERNAME) await worker.telegram.disconnect().catch(() => {}); // vocabulary: allow
+        const account = status?.connected ? status.botUsername : null;
+        if (account === TELEGRAM_USERNAME) await worker.telegram.disconnect().catch(() => {});
         await (page as Page | undefined)?.close();
         await telegram.stop();
       }
