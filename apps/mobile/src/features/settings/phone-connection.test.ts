@@ -101,7 +101,8 @@ function pairDeps(overrides: Partial<PairDeps> = {}) {
     setServerPhoneMode: async (mode) => void calls.push(`server mode ${mode}`),
     pair: async (options) =>
       void calls.push(`pair ${options.secret} ${options.generation} ${options.phoneMode}`),
-    forget: async () => void calls.push("forget"),
+    forgetIfMine: async (generation) => void calls.push(`forget ${generation}`),
+    onRegistered: () => void calls.push("registered"),
     revokeOrRemember: async (input) =>
       void calls.push(`revoke ${input.deviceId} ${input.generation}`),
     stillSignedIn: () => true,
@@ -120,6 +121,7 @@ describe("pairing this phone", () => {
     expect(await pairPhone(deps)).toEqual({ ok: true });
     expect(calls).toEqual([
       "register phone-1 Pixel fcm-token",
+      "registered",
       "pair s3cret 4 fallback",
       "server mode fallback",
     ]);
@@ -128,7 +130,11 @@ describe("pairing this phone", () => {
   it("keeps the phone mode the owner chose", async () => {
     const { deps, calls } = pairDeps({ serverPhoneMode: "always" });
     await pairPhone(deps);
-    expect(calls).toEqual(["register phone-1 Pixel fcm-token", "pair s3cret 4 always"]);
+    expect(calls).toEqual([
+      "register phone-1 Pixel fcm-token",
+      "registered",
+      "pair s3cret 4 always",
+    ]);
   });
 
   it("stops before registering when the notices would be invisible", async () => {
@@ -152,7 +158,7 @@ describe("pairing this phone", () => {
   it("undoes the pairing on both sides when the phone can't keep the credential", async () => {
     const { deps, calls } = pairDeps({ pair: fail("Keystore unavailable") });
     await expect(pairPhone(deps)).rejects.toThrow("Keystore unavailable");
-    expect(calls.slice(-2)).toEqual(["forget", "revoke phone-1 4"]);
+    expect(calls.slice(-2)).toEqual(["forget 4", "revoke phone-1 4"]);
   });
 
   it("undoes the pairing when phones can't be turned on, so none is left half paired", async () => {
@@ -160,23 +166,31 @@ describe("pairing this phone", () => {
     await expect(pairPhone(deps)).rejects.toThrow("offline");
     expect(calls).toEqual([
       "register phone-1 Pixel fcm-token",
+      "registered",
       "pair s3cret 4 fallback",
-      "forget",
+      "forget 4",
       "revoke phone-1 4",
     ]);
   });
 
-  it("never keeps a credential when you signed out while it registered", async () => {
+  it("doesn't start while a sign-out runs", async () => {
     const { deps, calls } = pairDeps({ stillSignedIn: () => false });
     expect(await pairPhone(deps)).toEqual({ ok: false, problem: "signed-out" });
-    expect(calls).toEqual(["register phone-1 Pixel fcm-token", "forget", "revoke phone-1 4"]);
+    expect(calls).toEqual([]);
   });
 
-  it("forgets the credential again when you signed out while it was stored", async () => {
+  it("only revokes on the server when you signed out while it registered", async () => {
     let checks = 0;
     const { deps, calls } = pairDeps({ stillSignedIn: () => ++checks === 1 });
     expect(await pairPhone(deps)).toEqual({ ok: false, problem: "signed-out" });
-    expect(calls.slice(-2)).toEqual(["forget", "revoke phone-1 4"]);
+    expect(calls).toEqual(["register phone-1 Pixel fcm-token", "registered", "revoke phone-1 4"]);
+  });
+
+  it("forgets its own credential again when you signed out while it was stored", async () => {
+    let checks = 0;
+    const { deps, calls } = pairDeps({ stillSignedIn: () => ++checks <= 2 });
+    expect(await pairPhone(deps)).toEqual({ ok: false, problem: "signed-out" });
+    expect(calls.slice(-2)).toEqual(["forget 4", "revoke phone-1 4"]);
   });
 });
 
@@ -198,21 +212,24 @@ describe("turning it off for this phone", () => {
 });
 
 describe("a pairing removed elsewhere", () => {
-  const paired = native({ run: { since: 1_000 } });
-
-  it("counts only when a list read after the phone's last change leaves it out", () => {
-    expect(removedOnServer({ data: [], updatedAt: 2_000 }, "phone-1", paired)).toBe(true);
+  it("counts only when a list asked for after the pairing leaves it out", () => {
+    expect(removedOnServer({ list: [], startedAt: 2_000 }, "phone-1", true, 1_000)).toBe(true);
     expect(
-      removedOnServer({ data: [{ id: "phone-1" }], updatedAt: 2_000 }, "phone-1", paired),
+      removedOnServer({ list: [{ id: "phone-1" }], startedAt: 2_000 }, "phone-1", true, 1_000),
     ).toBe(false);
   });
 
-  it("ignores a list from before the pairing, or no list at all", () => {
-    expect(removedOnServer({ data: [], updatedAt: 500 }, "phone-1", paired)).toBe(false);
-    expect(removedOnServer({ data: undefined, updatedAt: 2_000 }, "phone-1", paired)).toBe(false);
-    expect(
-      removedOnServer({ data: [], updatedAt: 2_000 }, "phone-1", native({ paired: false })),
-    ).toBe(false);
+  it("ignores a list asked for before the pairing, however late it arrives", () => {
+    expect(removedOnServer({ list: [], startedAt: 500 }, "phone-1", true, 1_000)).toBe(false);
+  });
+
+  it("trusts any list for a pairing made before the app started", () => {
+    expect(removedOnServer({ list: [], startedAt: 500 }, "phone-1", true, 0)).toBe(true);
+  });
+
+  it("ignores no list at all, or a phone that isn't paired", () => {
+    expect(removedOnServer(undefined, "phone-1", true, 0)).toBe(false);
+    expect(removedOnServer({ list: [], startedAt: 2_000 }, "phone-1", false, 0)).toBe(false);
   });
 });
 

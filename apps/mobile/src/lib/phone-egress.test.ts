@@ -10,7 +10,9 @@ import {
   rememberRevoke,
   revokeOrRemember,
   sendPendingRevokes,
-  signOutCount,
+  sameSession,
+  sessionToken,
+  signingOutDuring,
   type PendingRevoke,
   type RevokeStore,
   type SignOutEgressDeps,
@@ -50,13 +52,44 @@ describe("the phone connection at sign-out", () => {
     await releaseForSignOut(all);
     expect(calls).toEqual(["forget"]);
   });
+});
 
-  it("counts the sign-out first, so a pairing in progress knows not to finish", async () => {
-    const before = signOutCount();
-    let during = -1;
-    const { all } = deps({ forget: async () => void (during = signOutCount()) });
-    await releaseForSignOut(all);
-    expect(during).toBe(before + 1);
+describe("a pairing across a sign-out", () => {
+  it("can't start while a sign-out runs", async () => {
+    let during: number | null = 0;
+    await signingOutDuring(async () => void (during = sessionToken()));
+    expect(during).toBeNull();
+    expect(sameSession(null)).toBe(false);
+  });
+
+  it("knows a sign-out began while it ran, even one still running", async () => {
+    const token = sessionToken();
+    let duringSignOut = true;
+    await signingOutDuring(async () => void (duringSignOut = sameSession(token)));
+    expect(duringSignOut).toBe(false);
+    expect(sameSession(token)).toBe(false);
+  });
+
+  it("knows a sign-out ended while it ran, even one that began before it", async () => {
+    let release = () => {};
+    const signingOut = signingOutDuring(() => new Promise<void>((done) => (release = done)));
+    const token = sessionToken();
+    release();
+    await signingOut;
+    expect(token).toBeNull();
+    // A pairing started after the sign-out ended is in the new session.
+    const next = sessionToken();
+    expect(sameSession(next)).toBe(true);
+  });
+
+  it("counts overlapping sign-outs, so the session is new only once both end", async () => {
+    let releaseFirst = () => {};
+    const first = signingOutDuring(() => new Promise<void>((done) => (releaseFirst = done)));
+    await signingOutDuring(async () => {});
+    expect(sessionToken()).toBeNull();
+    releaseFirst();
+    await first;
+    expect(sessionToken()).not.toBeNull();
   });
 });
 

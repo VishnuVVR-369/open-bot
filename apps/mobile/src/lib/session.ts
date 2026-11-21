@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { unregisterPushNotifications } from "@/push/register";
 import { authClient } from "./auth";
-import { releasePhoneConnection } from "./phone-egress";
+import { releasePhoneConnection, signingOutDuring } from "./phone-egress";
 import { clearPresence } from "./presence";
 import { queryClient } from "./query";
 
@@ -11,14 +11,17 @@ import { queryClient } from "./query";
  * notifications to this phone stop (that needs the session too), the session ends, which clears
  * its cookie from SecureStore, and everything cached is forgotten.
  */
-export async function signOut(): Promise<void> {
-  await releasePhoneConnection().catch((error: unknown) =>
-    console.warn("couldn't stop the phone connection", error),
-  );
-  await unregisterPushNotifications().catch(() => {});
-  await authClient.signOut().catch(() => {});
-  queryClient.clear();
-  await clearPresence();
+export function signOut(): Promise<void> {
+  // No pairing may start, or finish, across a sign-out (lib/phone-egress.ts).
+  return signingOutDuring(async () => {
+    await releasePhoneConnection().catch((error: unknown) =>
+      console.warn("couldn't stop the phone connection", error),
+    );
+    await unregisterPushNotifications().catch(() => {});
+    await authClient.signOut().catch(() => {});
+    queryClient.clear();
+    await clearPresence();
+  });
 }
 
 export function useSignOut() {

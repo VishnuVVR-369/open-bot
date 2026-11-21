@@ -17,8 +17,18 @@ export const useEgressStatus = (live = false) =>
     refetchInterval: live ? 10_000 : false,
   });
 
+/**
+ * Paired phones, with when the request started: a list says nothing about a pairing made after
+ * its request began (see `removedOnServer`).
+ */
 export const useEgressDevices = () =>
-  useQuery({ queryKey: queryKeys.egressDevices, queryFn: () => api.egress.devices() });
+  useQuery({
+    queryKey: queryKeys.egressDevices,
+    queryFn: async () => {
+      const startedAt = Date.now();
+      return { list: await api.egress.devices(), startedAt };
+    },
+  });
 
 export interface NativeEgressState {
   status: EgressNativeStatus;

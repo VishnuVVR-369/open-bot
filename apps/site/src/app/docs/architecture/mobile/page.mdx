@@ -50,7 +50,7 @@ The session cookie is kept in SecureStore, which is backed by the Android Keysto
 
 Every request puts the cookie in a `cookie` header and sets `credentials: "omit"`, so `fetch` never adds a stale cookie of its own.
 A 401 on any query calls the unauthorized handler, which runs `signOut()`.
-Sign-out unregisters this phone's push token first (that needs the session), then ends the session, then clears the query cache and presence.
+Sign-out releases the phone connection first (below), then unregisters this phone's push token (that needs the session), then ends the session, then clears the query cache and presence.
 
 Passkeys use the local `modules/passkey` module over Android's Credential Manager (`src/lib/passkey.ts`).
 Passkeys only work in builds signed with a key whose fingerprint is listed in `ANDROID_CERT_SHA256` on the web service.
@@ -153,8 +153,11 @@ The origin, CSP and link signing are covered in [The pages service](/docs/archit
 JavaScript pairs the phone with `egress.registerDevice` and sets the mode and rules, from Settings → Phone connection (`src/features/settings/components/phone-connection-screen.tsx`, with its logic in `src/features/settings/phone-connection.ts`).
 After that the work runs in `EgressService`, a `specialUse` foreground service, without React Native.
 
-- Signing out releases the phone connection first (`src/lib/phone-egress.ts`): `NativeEgress.forget()` stops the service and waits, then the pairing is revoked with the session, for its generation. A revoke that fails (here or from Turn off for this phone) is kept in AsyncStorage, one entry per generation, and sent when the app starts signed in or the screen opens.
-  Pairing undoes itself on both sides if any step after registration fails, or if a sign-out happened meanwhile.
+- Signing out releases the phone connection first (`src/lib/phone-egress.ts`): `NativeEgress.forget()` stops the service and waits, then the pairing is revoked with the session, for its generation.
+  A revoke that fails (here or from Turn off for this phone) is kept in AsyncStorage, one entry per generation, and sent when the app starts signed in or the screen opens.
+  `signingOutDuring` brackets each sign-out, so a pairing can't start while one runs and knows if one began or ended while it ran.
+  Pairing undoes itself on both sides if any step after registration fails, or if a sign-out happened meanwhile; the undo forgets the phone's credential only if it is still this pairing's generation, so it never removes a newer pairing.
+  The screen treats this phone as removed elsewhere only when a device list that was requested after this pairing registered leaves it out, so a slow answer from before never unpairs it.
 
 - `EgressMessagingService` and `EgressMessagingReceiver` take over FCM handling from React Native Firebase. They handle `egress-needed` natively, so a wake never starts JavaScript. All other messages pass through to the normal path.
 - A `wake` stage starts the service silently. An `ask` stage shows a notification to tap. `BootReceiver` restarts it at boot in `always` mode.

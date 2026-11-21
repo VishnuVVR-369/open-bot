@@ -134,11 +134,16 @@ export interface PairDeps {
   }) => Promise<{ secret: string; generation: number }>;
   setServerPhoneMode: (mode: PhoneMode) => Promise<unknown>;
   pair: (options: { secret: string; generation: number; phoneMode: PhoneMode }) => Promise<void>;
-  /** Stops the service and forgets the credential. */
-  forget: () => Promise<void>;
+  /**
+   * Stops the service and forgets the credential, only if the phone still holds this generation's:
+   * a pairing made meanwhile is never undone by an older one's rollback.
+   */
+  forgetIfMine: (generation: number) => Promise<void>;
+  /** The server has made this pairing (for `removedOnServer`). */
+  onRegistered: () => void;
   /** Revokes a pairing now, or remembers to once the server can be reached. */
   revokeOrRemember: (input: { deviceId: string; generation: number }) => Promise<unknown>;
-  /** False once the owner signed out after pairing began. */
+  /** False once a sign-out began or ended since pairing began, or while one runs. */
   stillSignedIn: () => boolean;
 }
 
@@ -155,18 +160,22 @@ export type PairResult =
 export async function pairPhone(deps: PairDeps): Promise<PairResult> {
   const problem = notificationProblem(await deps.notifications());
   if (problem) return { ok: false, problem };
+  if (!deps.stillSignedIn()) return { ok: false, problem: "signed-out" };
   const deviceId = deps.deviceId();
   const { secret, generation } = await deps.register({
     deviceId,
     name: deps.deviceName(),
     pushToken: await deps.pushToken().catch(() => null),
   });
+  deps.onRegistered();
+  const revoke = () => deps.revokeOrRemember({ deviceId, generation });
   const undo = async () => {
-    await deps.forget().catch(() => {});
-    await deps.revokeOrRemember({ deviceId, generation });
+    await deps.forgetIfMine(generation).catch(() => {});
+    await revoke();
   };
+  // Nothing is on the phone yet: only the server has to forget it.
   if (!deps.stillSignedIn()) {
-    await undo();
+    await revoke();
     return { ok: false, problem: "signed-out" };
   }
   const phoneMode = deps.serverPhoneMode === "off" ? "fallback" : deps.serverPhoneMode;
@@ -206,20 +215,29 @@ export async function turnOffThisPhone(deps: {
 
 /**
  * The server no longer lists this phone (removed from the web or another phone) though it still
- * holds a credential: true only for a list read after the phone last changed state, so a list from
- * before a pairing never counts.
+ * holds a credential. Only a list whose request started after this pairing was registered counts,
+ * so a slow answer from before the pairing never unpairs it. `registeredAt` is 0 for a pairing
+ * made before the app started, which every list read since is newer than.
  */
 export function removedOnServer(
-  devices: { data: Pick<EgressDeviceView, "id">[] | undefined; updatedAt: number },
+  devices: { list: Pick<EgressDeviceView, "id">[]; startedAt: number } | undefined,
   deviceId: string,
-  native: Pick<EgressNativeStatus, "paired" | "run">,
+  paired: boolean,
+  registeredAt: number,
 ): boolean {
   return Boolean(
-    native.paired &&
-    devices.data &&
-    devices.updatedAt > native.run.since &&
-    !devices.data.some((device) => device.id === deviceId),
+    paired &&
+    devices &&
+    devices.startedAt > registeredAt &&
+    !devices.list.some((device) => device.id === deviceId),
   );
+}
+
+/** When this app last registered a pairing, for `removedOnServer`. */
+let lastRegisteredAt = 0;
+export const registeredAt = () => lastRegisteredAt;
+export function noteRegistered(now = Date.now()) {
+  lastRegisteredAt = now;
 }
 
 /**

@@ -47,7 +47,9 @@ import {
   needsBatteryHelp,
   notificationProblem,
   pairPhone,
+  noteRegistered,
   phoneState,
+  registeredAt,
   removedOnServer,
   turnOffThisPhone,
 } from "@/features/settings/phone-connection";
@@ -55,7 +57,12 @@ import { api } from "@/lib/api";
 import { APP_URL } from "@/lib/config";
 import { errorMessage } from "@/lib/errors";
 import { haptics } from "@/lib/haptics";
-import { revokeOrRemember, sendPendingRevokes, signOutCount } from "@/lib/phone-egress";
+import {
+  revokeOrRemember,
+  sameSession,
+  sendPendingRevokes,
+  sessionToken,
+} from "@/lib/phone-egress";
 import { queryKeys } from "@/lib/query";
 import { ago } from "@/lib/time";
 import { usePullToRefresh } from "@/lib/use-pull-to-refresh";
@@ -90,11 +97,7 @@ export default function PhoneConnection() {
   // Removed from the web or another phone while this one still held its credential.
   const [removedElsewhere, setRemovedElsewhere] = useState(false);
   const deviceId = NativeEgress.deviceId();
-  const removed = removedOnServer(
-    { data: devices.data, updatedAt: devices.dataUpdatedAt },
-    deviceId,
-    native.status,
-  );
+  const removed = removedOnServer(devices.data, deviceId, native.status.paired, registeredAt());
   const paired = native.status.paired && !removed;
   const problem = notificationProblem(native.notifications);
 
@@ -131,7 +134,7 @@ export default function PhoneConnection() {
   }
 
   function pair(serverPhoneMode: PhoneMode) {
-    const signedOutBefore = signOutCount();
+    const session = sessionToken();
     void act("pair", async () => {
       const result = await pairPhone({
         notifications: notificationAccess,
@@ -142,9 +145,12 @@ export default function PhoneConnection() {
         register: (input) => api.egress.registerDevice(input),
         setServerPhoneMode: (mode) => api.egress.setPhoneMode({ mode }),
         pair: (options) => NativeEgress.pair({ ...options, appUrl: APP_URL }),
-        forget: () => NativeEgress.forget(),
+        forgetIfMine: async (generation) => {
+          if (NativeEgress.status().generation === generation) await NativeEgress.forget();
+        },
+        onRegistered: () => noteRegistered(),
         revokeOrRemember: (input) => revokeOrRemember(input),
-        stillSignedIn: () => signOutCount() === signedOutBefore,
+        stillSignedIn: () => sameSession(session),
       });
       if (result.ok) {
         setRemovedElsewhere(false);
@@ -470,7 +476,7 @@ export default function PhoneConnection() {
 
       <Section title="Paired phones">
         <Card>
-          {(devices.data ?? []).map((device, index) => {
+          {(devices.data?.list ?? []).map((device, index) => {
             const self = device.id === deviceId;
             return (
               <View key={device.id}>
@@ -495,7 +501,7 @@ export default function PhoneConnection() {
               </View>
             );
           })}
-          {devices.data?.length ? <Separator inset={0} /> : null}
+          {devices.data?.list.length ? <Separator inset={0} /> : null}
           <SettingsRow
             icon={(color) => <Power size={18} color={color} />}
             title="Turn off for this phone"

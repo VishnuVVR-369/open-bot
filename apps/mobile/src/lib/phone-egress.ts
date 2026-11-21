@@ -19,11 +19,34 @@ export interface PendingRevoke {
 const PENDING_KEY = "openbot:egress-pending-revokes";
 
 /**
- * Counts sign-outs, so a pairing that started before one can tell it must not finish: its
- * credential would outlive the session that made it.
+ * Counts the starts and ends of sign-outs, so a pairing can tell one began or ended while it ran:
+ * its credential would outlive the session that made it. While one runs, no pairing may start.
  */
-let signOuts = 0;
-export const signOutCount = () => signOuts;
+let signOutEdges = 0;
+/** Sign-outs running now; two can overlap (a 401 from several reads at once). */
+let signingOut = 0;
+
+/** A token for "no sign-out began or ended since"; null while a sign-out runs. */
+export function sessionToken(): number | null {
+  return signingOut > 0 ? null : signOutEdges;
+}
+
+/** Whether the session a pairing started in (its `sessionToken()`) is still the current one. */
+export function sameSession(token: number | null): boolean {
+  return token !== null && signingOut === 0 && signOutEdges === token;
+}
+
+/** Brackets a sign-out (`lib/session.ts`). */
+export async function signingOutDuring(work: () => Promise<void>): Promise<void> {
+  signingOut += 1;
+  signOutEdges += 1;
+  try {
+    await work();
+  } finally {
+    signOutEdges += 1;
+    signingOut -= 1;
+  }
+}
 
 /** Reads the remembered revokes; anything malformed is dropped. */
 export function parsePendingRevokes(raw: string | null): PendingRevoke[] {
@@ -125,7 +148,6 @@ export interface SignOutEgressDeps {
  * only, so it can never undo a later pairing.
  */
 export async function releaseForSignOut(deps: SignOutEgressDeps): Promise<void> {
-  signOuts += 1;
   const { paired, generation } = deps.status();
   const revoke = paired && generation !== null ? { deviceId: deps.deviceId(), generation } : null;
   await deps.forget();
