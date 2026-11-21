@@ -101,6 +101,81 @@ test("web server code may import the server entry", async () => {
   }
 });
 
+/** Node and the packages that need it, which no phone or browser can load. */
+const NODE_ONLY = [
+  "node:crypto",
+  "fs/promises",
+  "net",
+  "@open-bot/db",
+  "@open-bot/db/schema",
+  "@open-bot/memory",
+  "@open-bot/memory/jobs",
+  "@open-bot/agent",
+  "@open-bot/egress",
+  "@open-bot/egress/router",
+  "@open-bot/page-kit/serve",
+  "pg",
+  "drizzle-orm",
+  "drizzle-orm/pg-core",
+  "ws",
+];
+
+/** Each way to import `source`: static, re-export and dynamic. */
+const imported = (source) => [
+  `import * as x from "${source}";\nexport { x };\n`,
+  `export * from "${source}";\n`,
+  `export const x = () => import("${source}");\n`,
+];
+
+test("mobile, the API contract and web client code can't import Node or a Node-only package", async () => {
+  for (const file of [
+    "apps/mobile/src/lib/probe.ts",
+    "apps/mobile/modules/egress/probe.ts",
+    "packages/api/src/probe.ts",
+    "apps/web/src/components/probe.tsx",
+    "apps/web/src/features/chat/components/probe.tsx",
+    "apps/web/src/proxy.ts",
+  ]) {
+    for (const source of NODE_ONLY)
+      for (const code of imported(source))
+        assert.equal((await boundaryErrors(file, code)).length, 1, `${file}: ${code}`);
+    for (const source of [
+      "@open-bot/page-kit",
+      "@open-bot/api",
+      "pg-format",
+      "wsx",
+      "path-to-regexp",
+    ])
+      assert.deepEqual(await boundaryErrors(file, imported(source)[0]), [], `${file}: ${source}`);
+  }
+});
+
+test("server code, and client folders' tests and Node config, may use Node", async () => {
+  for (const file of [
+    "apps/web/src/lib/server/probe.ts",
+    "apps/web/src/features/chat/server/probe.ts",
+    "apps/web/src/instrumentation-node.ts",
+    "apps/web/src/test/api/probe.ts",
+    "apps/web/src/components/probe.test.tsx",
+    "apps/mobile/src/lib/probe.test.ts",
+    "apps/mobile/src/testing/probe.ts",
+    "apps/mobile/app.config.ts",
+    "packages/api/src/probe.test.ts",
+    "apps/worker/src/probe.test.ts",
+  ])
+    for (const source of NODE_ONLY)
+      assert.deepEqual(await boundaryErrors(file, imported(source)[0]), [], `${file}: ${source}`);
+  // A client folder's test still can't load the server halves of the client packages.
+  for (const file of [
+    "apps/mobile/src/lib/probe.test.ts",
+    "apps/web/src/components/probe.test.tsx",
+  ])
+    assert.equal((await boundaryErrors(file, SERVER)).length, 1, file);
+  // Anywhere else, a test is untouched by the client bans.
+  const integrations = imported("@open-bot/integrations/server")[0];
+  assert.deepEqual(await boundaryErrors("apps/worker/src/probe.test.ts", integrations), []);
+});
+
 /** The open-bot/workspace-imports messages ESLint reports for `code` at `filePath`. */
 async function workspaceErrors(filePath, code) {
   const [result] = await eslint.lintText(code, { filePath });

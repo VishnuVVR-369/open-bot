@@ -26,7 +26,8 @@ Shared types and pure logic go in `packages/domain`, and schema changes go in `p
 - Internal API paths and input fields stay until no deployed web app calls them: the web app and the worker deploy separately.
 - The lifecycle does no idle polling of the computer, and reading status must not wake it.
 - A timer, listener or connection started in `apps/worker/src/index.ts` registers its stop with the `Runtime` (`apps/worker/src/core/runtime.ts`), which stops everything in reverse at shutdown.
-- A request the worker refuses throws a `WorkerError` subclass (`apps/worker/src/core/errors.ts`); `apps/worker/src/core/errors.test.ts` fails on a new error class that doesn't extend it.
+- A request the worker refuses throws a `WorkerError` subclass (`apps/worker/src/core/errors.ts`); `apps/worker/src/core/errors.test.ts` fails on a new error class that doesn't extend it, and `apps/worker/src/rpc/errors.test.ts` checks features' errors map to their status.
+- `core/` never imports a feature, not even its `index.ts`: features build on core (`apps/worker/src/features/boundaries.test.ts` checks it).
 - Row types shared across runs, services and tools (`Teammate`, `Chat`, `Run`) are in `apps/worker/src/core/db-types.ts`.
 - `RunEventWriter` is the only way a session writes run events.
 - Swarm helpers are refused tools defined with `helpers: "forbidden"`; `apps/worker/src/tools/catalog.test.ts` lists them.

@@ -98,6 +98,69 @@ function violations(root: string): string[] {
   return files(root).flatMap((file) => reachesIn(root, file));
 }
 
+/**
+ * The imports in `file` (under `root`) that reach a feature, its index.ts included, when `file`
+ * is in core/: core is what features build on, so it never depends on one. (A computed
+ * `import(…)` already fails `reachesIn` everywhere.)
+ */
+function coreReaches(root: string, file: string, source?: string): string[] {
+  const relative = path.relative(path.join(root, "core"), file);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) return [];
+  return imports(file, source)
+    .filter((target) => target !== COMPUTED && featureOf(root, target))
+    .map((target) => `${path.relative(root, file)} -> ${path.relative(root, target)}`);
+}
+
+/** Every import in core/ under `root` that reaches a feature. */
+function coreViolations(root: string): string[] {
+  return files(root).flatMap((file) => coreReaches(root, file));
+}
+
+describe("core", () => {
+  it("never imports a feature, not even its index.ts", () => {
+    expect(coreViolations(SOURCE)).toEqual([]);
+  });
+
+  it("is checked in every file and for every way of importing", () => {
+    const core = path.join(SOURCE, "core", "example.ts");
+    for (const source of [
+      `import { TaskService } from "../features/tasks";`,
+      `import type { TaskService } from "../features/tasks/index.js";`,
+      `export { TaskService } from "../features/tasks/service";`,
+      `const { TaskService } = await import("../features/tasks");`,
+      `type Service = import("../features/tasks").TaskService;`,
+      `import "./nested/../../features/tasks";`,
+    ])
+      expect(coreReaches(SOURCE, core, source), source).toHaveLength(1);
+    expect(coreReaches(SOURCE, core, `import { WorkerError } from "./errors";`)).toEqual([]);
+    expect(coreReaches(SOURCE, core, `import type { RunSession } from "../runs/session";`)).toEqual(
+      [],
+    );
+    // Outside core/, a feature's index.ts is the way in.
+    const runs = path.join(SOURCE, "runs", "example.ts");
+    expect(coreReaches(SOURCE, runs, `import { TaskService } from "../features/tasks";`)).toEqual(
+      [],
+    );
+    const root = mkdtempSync(path.join(tmpdir(), "open-bot-core-"));
+    try {
+      const write = (file: string, source: string) => {
+        mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
+        writeFileSync(path.join(root, file), source);
+      };
+      write("features/tasks/index.ts", `export class TaskService {}\n`);
+      write("core/errors.test.ts", `import { TaskService } from "../features/tasks";\n`);
+      write("core/nested/types.d.ts", `export type { TaskService } from "../../features/tasks";\n`);
+      write("core/fine.ts", `export const fine = 1;\n`);
+      expect(coreViolations(root).sort()).toEqual([
+        "core/errors.test.ts -> features/tasks",
+        "core/nested/types.d.ts -> features/tasks",
+      ]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("feature folders", () => {
   it("are reached from outside only through their index.ts", () => {
     expect(violations(SOURCE)).toEqual([]);
