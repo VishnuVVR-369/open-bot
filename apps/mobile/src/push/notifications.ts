@@ -44,6 +44,7 @@ export async function ensureChannels(): Promise<void> {
       name: channel.name,
       importance: IMPORTANCE[channel.importance],
       ...(channel.importance === "low" ? { vibration: false, sound: undefined } : {}),
+      ...(channel.badge === false ? { badge: false } : {}),
     })),
   );
 }

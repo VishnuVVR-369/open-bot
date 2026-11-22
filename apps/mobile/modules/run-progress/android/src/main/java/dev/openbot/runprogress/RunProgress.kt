@@ -175,6 +175,8 @@ object RunProgress {
     val channel = NotificationChannel(CHANNEL, "Running work", NotificationManager.IMPORTANCE_LOW)
     channel.enableVibration(false)
     channel.setSound(null, null)
+    // A run in progress is nothing to read: no dot on the app's icon (its result has one).
+    channel.setShowBadge(false)
     context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
   }
 

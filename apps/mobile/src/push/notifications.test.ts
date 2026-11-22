@@ -10,6 +10,7 @@ const {
   decideApproval,
   tray,
   progress,
+  createChannels,
 } = vi.hoisted(() => ({
   /** What's shown, by notification id, as Notifee keeps it: showing an id again replaces it. */
   tray: new Map<string, { id: string; title?: string; body?: string }>(),
@@ -21,6 +22,7 @@ const {
   getApproval: vi.fn(),
   decideApproval: vi.fn(),
   progress: { handle: vi.fn(), endRun: vi.fn() },
+  createChannels: vi.fn(async (_channels: { id: string; badge?: boolean }[]) => {}),
 }));
 vi.mock("../../modules/run-progress", () => ({ default: progress }));
 
@@ -30,7 +32,7 @@ vi.mock("@notifee/react-native", () => ({
     cancelDisplayedNotification: cancel,
     cancelNotification: cancelById,
     displayNotification: display,
-    createChannels: vi.fn(async () => {}),
+    createChannels,
   },
   AndroidImportance: { HIGH: 4, DEFAULT: 3, LOW: 2 },
   AndroidCategory: { MESSAGE: "msg" },
@@ -47,7 +49,12 @@ vi.mock("@/theme/colors", () => ({ palette: { light: { foreground: "#14161B" } }
 
 import type { Event } from "@notifee/react-native";
 import { ORPCError } from "@orpc/client";
-import { clearChatNotifications, handleNotificationEvent, handlePushData } from "./notifications";
+import {
+  clearChatNotifications,
+  ensureChannels,
+  handleNotificationEvent,
+  handlePushData,
+} from "./notifications";
 import { unsentReplyId } from "./payload";
 
 const shown = [
@@ -192,6 +199,17 @@ describe("native notification rendering and decisions", () => {
       approvalId: "a1",
     });
     expect(display).not.toHaveBeenCalled();
+  });
+});
+
+describe("notification channels", () => {
+  it("keeps running work silent and off the app's icon, where the other channels badge", async () => {
+    await ensureChannels();
+    const channels = createChannels.mock.calls[0]![0];
+    const running = channels.find((channel) => channel.id === "running");
+    expect(running).toMatchObject({ name: "Running work", importance: 2, vibration: false });
+    expect(running?.badge).toBe(false);
+    expect(channels.find((channel) => channel.id === "messages")).not.toHaveProperty("badge");
   });
 });
 

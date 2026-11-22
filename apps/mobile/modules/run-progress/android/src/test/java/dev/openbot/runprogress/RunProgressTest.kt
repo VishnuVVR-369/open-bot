@@ -244,6 +244,15 @@ class RunProgressTest {
   }
 
   @Test
+  fun aRunInProgressPutsNoDotOnTheAppsIcon() {
+    push("r1", "2026-11-22T10:00:20Z")
+    val channel = manager.getNotificationChannel(RunProgress.CHANNEL)
+    assertEquals("Running work", channel.name)
+    assertEquals(NotificationManager.IMPORTANCE_LOW, channel.importance)
+    assertFalse(channel.canShowBadge())
+  }
+
+  @Test
   fun canBeSweptAwayBeforeAndroid14() {
     push("r1", "2026-11-22T10:00:20Z")
     val flags = shown()["run-progress:r1"]!!.flags

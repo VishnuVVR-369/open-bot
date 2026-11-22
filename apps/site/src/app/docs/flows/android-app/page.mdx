@@ -71,6 +71,7 @@ If it goes because nothing refreshed it for 30 minutes, that is no swipe: the ru
 Signing out removes every run's progress notification, with what the phone kept to draw them again, and the phone then draws no progress sent for the account you left, even after you sign in again.
 On Android 14 and newer it is an ongoing notification, which you can still swipe away; on older versions, where an ongoing notification can't be swiped, it is a normal one.
 It has its own channel, Running work, so you can turn it off or tune it in Android's settings without changing approvals, replies or the phone connection.
+It puts no dot on the app's icon: a run in progress is nothing to read, and its result, which does, comes when it ends.
 
 Which messages are urgent follows one rule.
 Approvals, takeover requests, `egress-needed` and visible results (replies, automation results and failures) use high-priority FCM data messages, so Android starts the app's handler even while the app is closed.

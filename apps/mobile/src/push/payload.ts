@@ -12,11 +12,18 @@ import {
 
 export type ChannelId = "approvals" | "asking" | "messages" | "running" | "connection";
 
-export const CHANNELS: { id: ChannelId; name: string; importance: "high" | "default" | "low" }[] = [
+export const CHANNELS: {
+  id: ChannelId;
+  name: string;
+  importance: "high" | "default" | "low";
+  /** False: its notifications put no dot on the app's icon. */
+  badge?: false;
+}[] = [
   { id: "approvals", name: "Approvals", importance: "high" },
   { id: "asking", name: "Teammates asking for you", importance: "high" },
   { id: "messages", name: "Messages and results", importance: "default" },
-  { id: "running", name: "Running work", importance: "low" },
+  // A run in progress is nothing to read: its result, which badges, comes when it ends.
+  { id: "running", name: "Running work", importance: "low", badge: false },
   { id: "connection", name: "Phone connection", importance: "low" },
 ];
 
