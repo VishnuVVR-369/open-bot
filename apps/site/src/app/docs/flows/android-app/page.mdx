@@ -4,7 +4,7 @@ export const metadata = docMetadata("/docs/flows/android-app");
 
 # The Android app
 
-Your teammates on your phone: a home briefing, chats with live replies and attachments, search, the computer's screens, pages, and approvals you can decide from the notification shade.
+Your teammates on your phone: a home briefing, chats with live replies and attachments, search, the computer's screens, pages, the task board, and approvals you can decide from the notification shade.
 It is an Expo app (React Native) that talks to your open-bot deployment through the same RPC contract the web app serves (`packages/api`).
 It is installed over USB; there is no Play Store listing.
 Building, configuring and testing it is covered in `apps/mobile/README.md`.
@@ -14,7 +14,7 @@ Building, configuring and testing it is covered in `apps/mobile/README.md`.
 Home leads with what needs you, then your teammates, then a briefing of work finished while you were away.
 Each teammate's avatar shows what they're doing: a soft pulse while they work, an amber ring and mark while they wait for you, and a dashed ring while they're up next.
 Teammates who need you sort first; tap one to open your latest chat with them, or hold to open their profile.
-A teammate's profile has Message, New chat and Screen, how much they do on their own, their Always allow rules, and every conversation they're in.
+A teammate's profile has Message, New chat and Screen, their open tasks, how much they do on their own, their Always allow rules, and every conversation they're in.
 Use Computer to watch or take over a teammate's screen; suggested instructions are still reviewed on the web.
 
 ## Chats
@@ -115,6 +115,26 @@ When the worker loses the computer's answer, it asks botd what became of that op
 If botd typed and holds the screen for you, the takeover is recorded, and handing back answers the teammate's request; the screen is never reported handed back when nobody held it.
 After a computer restart, affected screens stay paused; "Clear the code and hand back" navigates every browser page to `about:blank`, waits for each navigation to commit, and returns control only once every page is provably blank.
 The submitted code is not stored in operation records, logs, or botd state.
+
+## Tasks
+
+The team's task board is the same one the web shows: To do, Doing and Done, shared by you and every teammate.
+Home has a Tasks section under your teammates with the three open tasks that matter most: what waits on you, then what's overdue or due soon, then what's in progress.
+A teammate's profile lists their open tasks, and Add a task there gives the new one to them.
+Board, or All open, opens the whole board; search finds it as Tasks.
+The tab bar already holds five tabs, so the board is a screen you open from these places rather than a sixth tab.
+
+On the phone the columns stack: To do, then Doing, then Done, with what waits on you (an approval or a take over in the task's chat) first in each, and the four most recently finished tasks before Show more.
+Filter by All, Mine (tasks without a teammate are yours) or Needs attention (waiting on you, or overdue).
+Each task shows what holds it up, its title and notes, its owner's face (your initial for your own) and when it's due, amber once it's late.
+The board refreshes on its own when you or a teammate changes a task, from the `tasks` app event.
+
+Tap a task to edit its title, notes, owner, due day and status.
+Only the fields you changed are sent, so a teammate's edit to another field meanwhile stays; leaving with unsaved changes asks first.
+Ask to start (Ask again for a task already in progress) saves, hands the task to its teammate in their main chat, moves it to Doing, and opens that chat.
+Hold a task, or use its menu button, to move it to another column or one place up or down in its own (the web's drag and drop), start it, open its chat, edit or delete it.
+Deleting asks first, since the board has no undo, and says when the teammate may still be working on it.
+While the phone is offline, everything that would change the board is disabled, and a task you're writing stays on screen until you're back.
 
 ## Pages
 

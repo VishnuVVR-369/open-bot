@@ -1,6 +1,6 @@
 # apps/mobile
 
-The Expo (React Native) Android app: a pocket inbox, chats, approvals, the computer viewer and the phone connection.
+The Expo (React Native) Android app: a pocket inbox, chats, approvals, the task board, the computer viewer and the phone connection.
 It talks to the deployment through the oRPC contract in `packages/api` and does not import web code.
 Setup, usage, release builds and device tests are in `apps/mobile/README.md`; this file does not repeat them.
 The native phone-egress code is here, but the tunnel protocol itself belongs in `packages/egress`.

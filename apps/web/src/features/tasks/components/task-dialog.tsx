@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  TASK_NOTES_MAX,
+  TASK_STATUS_LABELS,
+  TASK_STATUSES,
+  TASK_TITLE_MAX,
+} from "@open-bot/domain";
 import { Loader2, MessageSquare, Play, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -28,12 +34,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { attempt } from "@/lib/client/mutate";
 import { api } from "@/lib/client/rpc";
 import type { TeammateSummary, TaskView } from "@/lib/types";
-
-export const STATUS_LABELS: Record<TaskView["status"], string> = {
-  todo: "To do",
-  doing: "Doing",
-  done: "Done",
-};
 
 const NOBODY = "you";
 
@@ -137,7 +137,7 @@ export function TaskDialog({
               id="task-title"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
-              maxLength={200}
+              maxLength={TASK_TITLE_MAX}
               placeholder="Book flights to Tokyo"
               autoFocus={!task}
             />
@@ -148,7 +148,7 @@ export function TaskDialog({
               id="task-notes"
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
-              maxLength={8000}
+              maxLength={TASK_NOTES_MAX}
               placeholder="What done looks like, and anything they should know."
               className="min-h-24 text-[14px]"
             />
@@ -196,9 +196,9 @@ export function TaskDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {(["todo", "doing", "done"] as const).map((value) => (
+                    {TASK_STATUSES.map((value) => (
                       <SelectItem key={value} value={value}>
-                        {STATUS_LABELS[value]}
+                        {TASK_STATUS_LABELS[value]}
                       </SelectItem>
                     ))}
                   </SelectContent>

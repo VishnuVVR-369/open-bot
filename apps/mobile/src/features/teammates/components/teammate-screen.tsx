@@ -37,6 +37,9 @@ import { useHome } from "@/features/home/hooks";
 import { useTeammates } from "@/features/teammates/hooks";
 import { useChats, useNewDirectChat } from "@/features/chat/hooks";
 import { screenHref } from "@/features/computer/screens";
+import { TaskSection } from "@/features/tasks/components/task-section";
+import { useTasks } from "@/features/tasks/hooks";
+import { teammateTasks } from "@/features/tasks/tasks";
 import { ago, lastActive } from "@/lib/time";
 import { useSafeBottom } from "@/lib/use-safe-bottom";
 import { radius, space, useColors } from "@/theme";
@@ -186,6 +189,7 @@ export default function TeammateScreen() {
   const { data: rules = [] } = useApprovalRules();
   const { data: approvals = [] } = useApprovals();
   const { data: home } = useHome();
+  const { data: tasks } = useTasks();
   const newChat = useNewDirectChat();
   const computerOffline = useComputerOffline();
   const teammate = teammates.data?.find((candidate) => candidate.id === teammateId);
@@ -326,6 +330,18 @@ export default function TeammateScreen() {
             />
           </View>
         </View>
+
+        {tasks && (
+          <TaskSection
+            tasks={teammateTasks(tasks, teammate.id)}
+            teammates={allTeammates}
+            seeAllLabel="Board"
+            addLabel={`Add a task for ${teammate.name}`}
+            addFor={teammate.id}
+            emptyText={`Nothing on the board for ${teammate.name}.`}
+            testID="profile-tasks"
+          />
+        )}
 
         <Section title="How they work">
           <Card>

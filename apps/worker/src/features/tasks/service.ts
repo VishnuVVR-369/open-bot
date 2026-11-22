@@ -1,5 +1,5 @@
 import { teammates, tasks } from "@open-bot/db";
-import type { Creator, TaskStatus } from "@open-bot/domain";
+import { TASK_NOTES_MAX, TASK_TITLE_MAX, type Creator, type TaskStatus } from "@open-bot/domain";
 import { and, asc, desc, eq, isNull, max, ne } from "drizzle-orm";
 import { publishApp, type Context } from "../../context";
 import { WorkerError } from "../../core/errors";
@@ -29,12 +29,14 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 function checkTitle(title: string): string {
   const trimmed = title.trim();
   if (!trimmed) throw new TaskError("Give the task a title.");
-  if (trimmed.length > 200) throw new TaskError("Keep the title under 200 characters.");
+  if (trimmed.length > TASK_TITLE_MAX)
+    throw new TaskError(`Keep the title under ${TASK_TITLE_MAX} characters.`);
   return trimmed;
 }
 
 function checkNotes(notes: string): string {
-  if (notes.length > 8000) throw new TaskError("Keep the notes under 8000 characters.");
+  if (notes.length > TASK_NOTES_MAX)
+    throw new TaskError(`Keep the notes under ${TASK_NOTES_MAX} characters.`);
   return notes.trim();
 }
 

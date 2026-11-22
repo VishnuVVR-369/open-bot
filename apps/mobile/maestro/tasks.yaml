@@ -1,0 +1,106 @@
+appId: dev.openbot.mobile.dev
+name: Add, edit, start and delete a task on the board
+# Run against a signed-in development app, with a teammate's name to give the task to:
+#   maestro test -e TEAMMATE=<teammate name> maestro/tasks.yaml
+# Starting the task queues a run in that teammate's main chat; with the computer offline it waits.
+---
+- runFlow:
+    file: flows/open-link.yaml
+    env:
+      LINK: openbot://tasks
+- extendedWaitUntil:
+    visible:
+      id: new-task
+    timeout: 20000
+
+# Add a task for the teammate, due tomorrow.
+- tapOn:
+    id: new-task
+- extendedWaitUntil:
+    visible:
+      id: task-title-input
+    timeout: 5000
+- tapOn:
+    id: task-title-input
+- inputText: Book the Lisbon hotel (Maestro)
+- tapOn:
+    id: task-notes-input
+- inputText: Near the venue, under 180 euros a night.
+- hideKeyboard
+- tapOn:
+    id: task-owner
+- extendedWaitUntil:
+    visible:
+      id: owner-sheet
+    timeout: 5000
+- tapOn: ${TEAMMATE}
+- tapOn:
+    id: task-due-row
+- extendedWaitUntil:
+    visible:
+      id: due-sheet
+    timeout: 5000
+- tapOn: Tomorrow
+- assertVisible: Tomorrow
+- tapOn:
+    id: task-save
+- extendedWaitUntil:
+    visible: Book the Lisbon hotel \(Maestro\)
+    timeout: 10000
+
+# Edit it: a new title, and it's in progress.
+- tapOn: Book the Lisbon hotel \(Maestro\)
+- extendedWaitUntil:
+    visible:
+      id: task-title-input
+    timeout: 5000
+- tapOn:
+    id: task-title-input
+- eraseText: 40
+- inputText: Book the Lisbon flat (Maestro)
+- hideKeyboard
+- tapOn:
+    id: task-status-doing
+- tapOn:
+    id: task-save
+- extendedWaitUntil:
+    visible: Book the Lisbon flat \(Maestro\)
+    timeout: 10000
+- assertNotVisible: Book the Lisbon hotel \(Maestro\)
+
+# Hand it to the teammate: their chat opens.
+- tapOn: Book the Lisbon flat \(Maestro\)
+- extendedWaitUntil:
+    visible:
+      id: task-start
+    timeout: 5000
+- assertVisible: Ask ${TEAMMATE} again
+- tapOn:
+    id: task-start
+- extendedWaitUntil:
+    visible:
+      id: composer-input
+    timeout: 15000
+- back
+- extendedWaitUntil:
+    visible: Book the Lisbon flat \(Maestro\)
+    timeout: 10000
+
+# Delete it, after confirming.
+- tapOn: Book the Lisbon flat \(Maestro\)
+- extendedWaitUntil:
+    visible:
+      id: task-delete
+    timeout: 5000
+- scrollUntilVisible:
+    element:
+      id: task-delete
+- tapOn:
+    id: task-delete
+- extendedWaitUntil:
+    visible: Delete this task\?
+    timeout: 5000
+- tapOn: Delete
+- extendedWaitUntil:
+    notVisible: Book the Lisbon flat \(Maestro\)
+    timeout: 10000

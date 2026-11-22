@@ -6,6 +6,7 @@ import {
   Bell,
   FileText,
   House,
+  ListTodo,
   MessageSquare,
   MessagesSquare,
   SearchX,
@@ -55,6 +56,12 @@ const PAGES: AppPlace[] = [
     href: "/pages",
     icon: FileText,
     keywords: "html explainers reports documents dashboards",
+  },
+  {
+    title: "Tasks",
+    href: "/tasks",
+    icon: ListTodo,
+    keywords: "board todo to-do doing done plan assign",
   },
   {
     title: "Settings",

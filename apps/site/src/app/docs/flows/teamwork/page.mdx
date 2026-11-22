@@ -79,6 +79,9 @@ A task has a title, notes, a status (`todo`, `doing`, `done`), an owner, a due d
 | `add_task`    | Adds a task. With `start`, it also gets the owner going.                    |
 | `update_task` | Moves, reassigns or edits a task. Teammates mark their own tasks done.      |
 
+The web app shows it as three columns with drag and drop; the Android app stacks the same columns (see [The Android app](/docs/flows/android-app#tasks)).
+Both lay it out with the shared rules in `packages/domain/src/tasks/board.ts`: what waits on you first in each column, then board order, and finished tasks newest first.
+
 **Ask to start** (in the app, or `add_task` with `start`) queues a run for the owner in its main chat, with trigger `task`, and moves the task to Doing:
 
 ```text title="The run's prompt"

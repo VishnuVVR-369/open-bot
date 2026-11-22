@@ -52,6 +52,8 @@ export const queryKeys = {
   egressDevices: ["egress", "devices"] as const,
   pageDetails: ["pages", "get"] as const,
   page: (pageId: string) => ["pages", "get", pageId] as const,
+  // The "tasks" event, sent for every change on the board, refreshes it.
+  tasks: ["tasks", "list"] as const,
   /** Short-lived, so never shared with the lists the "pages" event refreshes. */
   pageLink: (versionId: string, theme: string) => ["page-link", versionId, theme] as const,
 };
