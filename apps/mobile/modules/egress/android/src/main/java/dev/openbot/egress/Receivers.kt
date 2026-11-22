@@ -7,19 +7,36 @@ import android.util.Log
 import com.google.firebase.messaging.RemoteMessage
 import dev.openbot.egress.core.DeviceCredential
 import dev.openbot.egress.core.PhoneMode
+import dev.openbot.runprogress.RunProgress
 import io.invertase.firebase.messaging.ReactNativeFirebaseMessagingReceiver
 import io.invertase.firebase.messaging.ReactNativeFirebaseMessagingService
 
 private const val EGRESS_NEEDED = "egress-needed"
+private const val RUN_PROGRESS = "run-progress"
+/** Pushes handled natively, which never start JavaScript. */
+private val NATIVE_TYPES = setOf(EGRESS_NEEDED, RUN_PROGRESS)
+/** Notifications that are a run's result: its progress notification goes when one arrives. */
+private val RESULT_KINDS = setOf("run_finished", "run_failed")
 
 /**
  * Takes FCM's service slot from React Native Firebase (whose own service does nothing with
- * messages) and handles `egress-needed` natively; everything else goes through RN Firebase.
+ * messages) and handles `egress-needed` and `run-progress` natively (the second arrives at normal
+ * priority, when Android may not start JavaScript); everything else goes through RN Firebase.
  */
 class EgressMessagingService : ReactNativeFirebaseMessagingService() {
   override fun onMessageReceived(message: RemoteMessage) {
-    if (message.data["type"] == EGRESS_NEEDED) Egress.onEgressNeeded(this, message.data)
-    else super.onMessageReceived(message)
+    val data = message.data
+    when (data["type"]) {
+      EGRESS_NEEDED -> Egress.onEgressNeeded(this, data)
+      RUN_PROGRESS -> RunProgress.onPush(this, data)
+      else -> {
+        // A result can overtake its run's last progress message (that one is normal priority).
+        val runId = data["runId"]
+        if (data["type"] == "notification" && data["kind"] in RESULT_KINDS && runId != null)
+          RunProgress.endRun(this, runId)
+        super.onMessageReceived(message)
+      }
+    }
   }
 
   override fun onNewToken(token: String) {
@@ -30,11 +47,11 @@ class EgressMessagingService : ReactNativeFirebaseMessagingService() {
 
 /**
  * Replaces React Native Firebase's receiver, which starts headless JavaScript for every message
- * the app gets in the background. Egress pushes never start JavaScript.
+ * the app gets in the background. Egress and run progress pushes never start JavaScript.
  */
 class EgressMessagingReceiver : ReactNativeFirebaseMessagingReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
-    if (intent.getStringExtra("type") == EGRESS_NEEDED) return
+    if (intent.getStringExtra("type") in NATIVE_TYPES) return
     super.onReceive(context, intent)
   }
 }

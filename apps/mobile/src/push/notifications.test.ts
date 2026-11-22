@@ -1,17 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { displayed, cancel, cancelById, display, send, getApproval, decideApproval, tray } =
-  vi.hoisted(() => ({
-    /** What's shown, by notification id, as Notifee keeps it: showing an id again replaces it. */
-    tray: new Map<string, { id: string; title?: string; body?: string }>(),
-    displayed: vi.fn(),
-    cancel: vi.fn(),
-    cancelById: vi.fn(),
-    display: vi.fn(),
-    send: vi.fn(),
-    getApproval: vi.fn(),
-    decideApproval: vi.fn(),
-  }));
+const {
+  displayed,
+  cancel,
+  cancelById,
+  display,
+  send,
+  getApproval,
+  decideApproval,
+  tray,
+  progress,
+} = vi.hoisted(() => ({
+  /** What's shown, by notification id, as Notifee keeps it: showing an id again replaces it. */
+  tray: new Map<string, { id: string; title?: string; body?: string }>(),
+  displayed: vi.fn(),
+  cancel: vi.fn(),
+  cancelById: vi.fn(),
+  display: vi.fn(),
+  send: vi.fn(),
+  getApproval: vi.fn(),
+  decideApproval: vi.fn(),
+  progress: { handle: vi.fn(), endRun: vi.fn() },
+}));
+vi.mock("../../modules/run-progress", () => ({ default: progress }));
 
 vi.mock("@notifee/react-native", () => ({
   default: {
@@ -125,6 +136,50 @@ describe("native notification rendering and decisions", () => {
       expect.objectContaining({ title: "Couldn't reach open-bot", body: "Open to decide." }),
     );
     expect(display.mock.calls[0]![0].android.timeoutAfter).toBeUndefined();
+  });
+
+  it("hands run progress to the native module, and ends it with the run's result", async () => {
+    await handlePushData({
+      type: "run-progress",
+      tag: "run-progress:r1",
+      runId: "r1",
+      runState: "waiting",
+      sentAt: "2026-11-22T10:00:20.000Z",
+      title: "Rex is waiting for you",
+      body: "Waiting for your approval",
+      chatId: "chat",
+    });
+    expect(progress.handle).toHaveBeenCalledWith({
+      type: "run-progress",
+      tag: "run-progress:r1",
+      runId: "r1",
+      runState: "waiting",
+      sentAt: "2026-11-22T10:00:20.000Z",
+      title: "Rex is waiting for you",
+      body: "Waiting for your approval",
+      chatId: "chat",
+    });
+    expect(display).not.toHaveBeenCalled();
+    // An approval along the way leaves the progress; the result removes it.
+    await handlePushData({
+      type: "notification",
+      tag: "a1",
+      kind: "approval",
+      title: "Approve?",
+      approvalId: "a1",
+      runId: "r1",
+    });
+    expect(progress.endRun).not.toHaveBeenCalled();
+    await handlePushData({
+      type: "notification",
+      tag: "r1",
+      kind: "run_finished",
+      title: "Rex replied",
+      body: "Booked",
+      runId: "r1",
+    });
+    expect(progress.endRun).toHaveBeenCalledWith("r1");
+    expect(tray.get("r1")?.title).toBe("Rex replied");
   });
 
   it("does not display an approval push that arrived after its decision", async () => {

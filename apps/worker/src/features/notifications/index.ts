@@ -4,5 +4,10 @@
 export { notificationsFeature } from "./feature";
 export { FcmService, nativeEgressPush, type PushResult } from "./fcm";
 export { PushService } from "./push";
+export {
+  RunProgressService,
+  type RunProgressSnapshot,
+  type RunProgressSource,
+} from "./run-progress";
 export { notificationRoutes } from "./routes";
 export { createNotification } from "./service";

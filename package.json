@@ -26,6 +26,7 @@
     "test:owner-reset": "bash scripts/test/owner-reset.sh",
     "test:pocket-inbox": "bash scripts/test/pocket-inbox.sh",
     "test:computer-sleep": "bash scripts/test/computer-sleep.sh",
+    "test:run-progress": "bash scripts/test/run-progress.sh",
     "test:mobile-ui": "node scripts/test/mobile-ui.mjs",
     "check:doc-paths": "node scripts/check/doc-paths.mjs",
     "check:vocabulary": "node scripts/check/vocabulary.mjs",

@@ -5,4 +5,5 @@
   <exclude domain="sharedpref" path="SecureStore" />
   <exclude domain="sharedpref" path="SecureStore.xml" />
   <exclude domain="sharedpref" path="openbot_egress.xml" />
+  <exclude domain="sharedpref" path="openbot_run_progress.xml" />
 </full-backup-content>

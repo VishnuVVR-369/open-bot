@@ -1,17 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Auto Backup for Android 12 and later: expo-secure-store's exclusions, and the phone
-     connection's preferences (a restored device id or credential would belong to another phone). -->
+     connection's preferences (a restored device id or credential would belong to another phone), and
+     run progress's (about this phone's notifications only). -->
 <data-extraction-rules>
   <cloud-backup>
     <include domain="sharedpref" path="." />
     <exclude domain="sharedpref" path="SecureStore" />
     <exclude domain="sharedpref" path="SecureStore.xml" />
     <exclude domain="sharedpref" path="openbot_egress.xml" />
+    <exclude domain="sharedpref" path="openbot_run_progress.xml" />
   </cloud-backup>
   <device-transfer>
     <include domain="sharedpref" path="." />
     <exclude domain="sharedpref" path="SecureStore" />
     <exclude domain="sharedpref" path="SecureStore.xml" />
     <exclude domain="sharedpref" path="openbot_egress.xml" />
+    <exclude domain="sharedpref" path="openbot_run_progress.xml" />
   </device-transfer>
 </data-extraction-rules>

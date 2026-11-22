@@ -15,7 +15,7 @@ import { eq } from "drizzle-orm";
 import type { Context } from "../../context";
 import type { Teammate, Chat, Run } from "../../core/db-types";
 import { inRunScope } from "../../core/run-scope";
-import { createNotification } from "../../features/notifications";
+import { createNotification, type RunProgressSnapshot } from "../../features/notifications";
 import { errorMessage } from "../../logger";
 import type { MemoryService } from "@open-bot/memory";
 import { ModelAccess } from "../../features/model-access";
@@ -167,17 +167,38 @@ export class RunSession {
     await this.ctx.db.update(runs).set({ readOutsideData: true }).where(eq(runs.id, this.run.id));
   }
 
+  /** Where the run is now, as last stored, and what it waits for while `waiting`. */
+  status: RunStatus = "starting";
+  waitingFor: RunWait | null = null;
+
+  /** What the phone's progress notification shows about this run (`RunProgressSource`). */
+  progress(): RunProgressSnapshot {
+    return {
+      teammateId: this.teammate.id,
+      teammateName: this.teammate.name,
+      chatId: this.chat.id,
+      chatTitle: this.chat.titled ? this.chat.title : null,
+      status: this.status,
+      waitingFor: this.waitingFor,
+      items: [...this.items.values()],
+    };
+  }
+
   /** Insert or replace a timeline item. */
   putItem(item: TimelineItem): void {
     this.items.set(item.id, item);
     this.writer.write({ type: "item", item });
+    this.ctx.events.emit("runProgress", this.run.id, "step");
   }
 
   private async setStatus(
     status: RunStatus,
     extra: { error?: string; waitingFor?: "approval" | "takeover" } = {},
   ) {
+    this.status = status;
+    this.waitingFor = extra.waitingFor ?? null;
     this.writer.write({ type: "status", status, ...extra });
+    this.ctx.events.emit("runProgress", this.run.id, "status");
     await this.ctx.db
       .update(runs)
       .set({ status, waitingFor: extra.waitingFor ?? null, error: extra.error ?? null })

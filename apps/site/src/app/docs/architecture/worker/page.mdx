@@ -163,30 +163,30 @@ Feature services live in `src/features/<feature>/`, alongside their tools and in
 Each service is a class built with the shared `Context`.
 Services talk to each other through constructor injection and the typed `ctx.events` emitter (`runStarted`, `runFinished`, `approvalDecided`, `notification`).
 
-| Service          | File                                       | Responsibility                                                                                            |
-| ---------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
-| Teammates        | `features/teammates/`                      | Creating and editing teammates, with revisions, for the web app and teammates' tools                      |
-| Chat             | `features/chat/`                           | Direct and group chats and their messages, from the app and Telegram                                      |
-| Approvals        | `features/approvals/`                      | Creating approvals, waiting for decisions, Always allow rules, expiring native approvals                  |
-| Screens          | `features/screens/`                        | The screen tools, takeovers and teammates' requests for help, hand-back notes, codes you type on a screen |
-| Schedules        | `features/automations/schedules.ts`        | Cron routines and reminders, the 10 s scheduler tick                                                      |
-| Triggers         | `features/automations/triggers.ts`         | Page watches (diff, fire) and webhooks (rate limit, fire); `page-fetch.ts` fetches the pages              |
-| Skills           | `features/skills/`                         | Writing skills to the computer as `SKILL.md`, expanding `/name`                                           |
-| Tasks            | `features/tasks/`                          | The shared task board                                                                                     |
-| Memory           | `features/memory/`                         | Preparing workspaces, recall, the memory packet, generations                                              |
-| Vault            | `features/vault/`                          | Filling secrets, budgets, purchases                                                                       |
-| Swarms           | `features/teamwork/`                       | Starting helpers, collecting results, merging back                                                        |
-| Connections      | `features/connections/`                    | MCP server config per teammate, connection tests                                                          |
-| Accounts         | `features/integrations/`                   | Your Gmail, Calendar and Notion: access, tokens, tools and the action executor (below)                    |
-| Account triggers | `features/automations/account-triggers.ts` | Gmail and Calendar triggers: polling, firing once, the hourly limit                                       |
-| Email            | `features/email/`                          | Inbound mail from Postmark, the outbox, sending, the email tools                                          |
-| Telegram         | `features/telegram/`                       | Long polling, linking, routing messages, approval buttons                                                 |
-| Notifications    | `features/notifications/`                  | Saving notifications, VAPID keys and Web Push, FCM to your phones, the devices that get them              |
-| Files            | `features/files/`                          | Reading, writing, naming and removing files on the computer                                               |
-| Uploads          | `features/uploads/`                        | Streamed attachments, retry verification and cleanup                                                      |
-| Model access     | `features/model-access/service.ts`         | Plan or API key, the cap, plan limits                                                                     |
-| Settings         | `features/settings/service.ts`             | Your settings row: time zone, the API key and its monthly cap, when the plan ran out                      |
-| Credentials      | `features/credentials/service.ts`          | Secrets, encrypted, one per kind; the only writer of `credentials`                                        |
+| Service          | File                                       | Responsibility                                                                                                              |
+| ---------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| Teammates        | `features/teammates/`                      | Creating and editing teammates, with revisions, for the web app and teammates' tools                                        |
+| Chat             | `features/chat/`                           | Direct and group chats and their messages, from the app and Telegram                                                        |
+| Approvals        | `features/approvals/`                      | Creating approvals, waiting for decisions, Always allow rules, expiring native approvals                                    |
+| Screens          | `features/screens/`                        | The screen tools, takeovers and teammates' requests for help, hand-back notes, codes you type on a screen                   |
+| Schedules        | `features/automations/schedules.ts`        | Cron routines and reminders, the 10 s scheduler tick                                                                        |
+| Triggers         | `features/automations/triggers.ts`         | Page watches (diff, fire) and webhooks (rate limit, fire); `page-fetch.ts` fetches the pages                                |
+| Skills           | `features/skills/`                         | Writing skills to the computer as `SKILL.md`, expanding `/name`                                                             |
+| Tasks            | `features/tasks/`                          | The shared task board                                                                                                       |
+| Memory           | `features/memory/`                         | Preparing workspaces, recall, the memory packet, generations                                                                |
+| Vault            | `features/vault/`                          | Filling secrets, budgets, purchases                                                                                         |
+| Swarms           | `features/teamwork/`                       | Starting helpers, collecting results, merging back                                                                          |
+| Connections      | `features/connections/`                    | MCP server config per teammate, connection tests                                                                            |
+| Accounts         | `features/integrations/`                   | Your Gmail, Calendar and Notion: access, tokens, tools and the action executor (below)                                      |
+| Account triggers | `features/automations/account-triggers.ts` | Gmail and Calendar triggers: polling, firing once, the hourly limit                                                         |
+| Email            | `features/email/`                          | Inbound mail from Postmark, the outbox, sending, the email tools                                                            |
+| Telegram         | `features/telegram/`                       | Long polling, linking, routing messages, approval buttons                                                                   |
+| Notifications    | `features/notifications/`                  | Saving notifications, VAPID keys and Web Push, FCM to your phones, long runs' progress on phones, the devices that get them |
+| Files            | `features/files/`                          | Reading, writing, naming and removing files on the computer                                                                 |
+| Uploads          | `features/uploads/`                        | Streamed attachments, retry verification and cleanup                                                                        |
+| Model access     | `features/model-access/service.ts`         | Plan or API key, the cap, plan limits                                                                                       |
+| Settings         | `features/settings/service.ts`             | Your settings row: time zone, the API key and its monthly cap, when the plan ran out                                        |
+| Credentials      | `features/credentials/service.ts`          | Secrets, encrypted, one per kind; the only writer of `credentials`                                                          |
 
 ## Accounts
 

@@ -36,7 +36,7 @@ const FEATURES: Record<string, Pick<Feature, "start">> = {
     async () => {},
     { start() {}, stop: async () => {} },
   ),
-  notifications: notificationsFeature({ push: loop, fcm: loop }),
+  notifications: notificationsFeature({ push: loop, fcm: loop, runProgress: loop }),
   telegramPolling: telegramFeature({ start: async () => {}, stop() {} }, { error() {} }),
 };
 

@@ -42,6 +42,8 @@ For browsers and web-manifest installs, Settings turns on Web Push per device.
 - **Showing.** The service worker skips the notification if open-bot is open, focused and visible, since the app already shows it. Tapping one opens the right chat, the [page](/docs/flows/pages) a run published, or Approvals.
 
 The native Android app uses FCM instead; setup and notification actions are documented in `apps/mobile/README.md`.
+Its delivery priority follows one rule: approvals, takeover requests, `egress-needed` and visible results are high priority, while `dismiss` and `run-progress` are normal priority, with each run's progress collapsed into its latest message.
+A message that only updates or removes a notification never uses high priority; the [Android app flow](/docs/flows/android-app) explains why and how the phone shows a run's progress.
 
 ## Telegram
 

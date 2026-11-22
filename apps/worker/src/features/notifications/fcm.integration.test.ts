@@ -7,6 +7,7 @@ import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import { egressDevices, nativePushDevices } from "@open-bot/db";
 import type { Context, NotificationEvent } from "../../context";
 import { FcmService, nativeEgressPush } from "./fcm";
+import { RunProgressService, type RunProgressSnapshot } from "./run-progress";
 
 const url = testDatabaseServer();
 
@@ -265,5 +266,66 @@ describe.skipIf(!url)("FCM fan-out", () => {
     expect(await db.select().from(nativePushDevices)).toEqual([]);
     const [phone] = await db.select().from(egressDevices);
     expect(phone!.pushToken).toBeNull();
+  });
+
+  it("sends a long run's progress at normal priority, collapsed per run, then ends it", async () => {
+    await fcm.register({ token: "phone-1", platform: "android", device: "Pixel 9" });
+    const snapshot: RunProgressSnapshot = {
+      teammateId: "b1",
+      teammateName: "Rex",
+      chatId: "c1",
+      chatTitle: null,
+      status: "running",
+      waitingFor: null,
+      items: [
+        {
+          id: "s1",
+          kind: "web_search",
+          query: "flights to Lisbon",
+          status: "running",
+          startedAt: new Date().toISOString(),
+        },
+      ],
+    };
+    const progress = new RunProgressService(
+      { events, log: { warn: vi.fn() } } as unknown as Context,
+      fcm,
+      (runId) => (runId === "r9" ? snapshot : null),
+      { showAfterMs: 30, stepEveryMs: 30, statusEveryMs: 10, keepAliveMs: 60_000 },
+    );
+    progress.start();
+    try {
+      events.emit("runStarted", { id: "r9", trigger: "user" });
+      await until(() => sent.length === 1);
+      events.emit("runFinished", { id: "r9", trigger: "user" }, "completed", "Booked");
+      await progress.idle();
+    } finally {
+      progress.stop();
+    }
+    expect(sent.map((message) => message.android)).toEqual([
+      { priority: "NORMAL", ttl: "600s", collapse_key: "run-progress-r9" },
+      { priority: "NORMAL", ttl: "86400s", collapse_key: "run-progress-r9" },
+    ]);
+    expect(sent[0]!.data).toEqual({
+      type: "run-progress",
+      tag: "run-progress:r9",
+      runId: "r9",
+      runState: "working",
+      sentAt: expect.any(String),
+      startedAt: expect.any(String),
+      chatId: "c1",
+      teammateId: "b1",
+      url: "/chats/c1?run=r9",
+      title: "Rex is working",
+      body: "Searching for “flights to Lisbon”",
+    });
+    expect(sent[1]!.data).toEqual({
+      type: "run-progress",
+      tag: "run-progress:r9",
+      runId: "r9",
+      runState: "ended",
+      sentAt: expect.any(String),
+    });
+    expect(sent[1]!.data.sentAt! > sent[0]!.data.sentAt!).toBe(true);
   });
 });

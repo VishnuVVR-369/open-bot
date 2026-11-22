@@ -5,6 +5,8 @@ import { useEffect } from "react";
 import { AppState } from "react-native";
 import { api } from "@/lib/api";
 import { keysForPush, queryClient, queryKeys } from "@/lib/query";
+import { visibleChat } from "@/lib/realtime";
+import RunProgress from "../../modules/run-progress";
 import { hasFirebase } from "./firebase";
 import { ensureChannels, handleNotificationEvent, handlePushData } from "./notifications";
 import { parsePushData } from "./payload";
@@ -60,6 +62,9 @@ export function usePushNotifications(signedIn: boolean) {
   useEffect(() => {
     if (!signedIn) return;
     const cleanups: (() => void)[] = [];
+    // A run's progress notification goes while its chat is on screen, where the run shows anyway.
+    RunProgress.setVisibleChat(visibleChat.get());
+    cleanups.push(visibleChat.subscribe((chatId) => RunProgress.setVisibleChat(chatId)));
     void (async () => {
       await ensureChannels();
       await notifee.requestPermission();

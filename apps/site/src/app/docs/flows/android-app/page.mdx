@@ -58,9 +58,20 @@ Notification approvals can be decided without opening the app; purchases use Rev
 Reply on a message notification sends directly to its teammate, including in a group chat.
 A reply that isn't sent stays in the notification in full, says it wasn't sent, and opens its chat; opening the chat doesn't clear it, so you dismiss it once you've sent it again.
 
-Visible notifications, including automation results and replies, use high-priority FCM data messages so Android can start the background handler that displays them while the app is closed.
+When a teammate's work takes longer than 20 seconds, a quiet notification shows it: for example "Rex: Book the flight", with the step it is on, such as "Searching for flights to Lisbon", and how long it has been going.
+The title names the step of the teammate's plan in progress, or the chat's title, or just that the teammate is working.
+When the teammate made a plan, a progress bar shows how many of its steps are done; on Android 16 and newer this is Android's progress-style notification, with one segment per step.
+While the teammate waits for you, the notification says so ("Waiting for your approval") and turns amber; the approval or takeover request still arrives as its own notification, with its buttons.
+It updates in place, at most every 15 seconds for new steps, without sound or vibration, and goes away when the work ends, replaced by the reply or failure notification when there is one.
+Tapping it opens the run in its chat, and while that chat is on screen it stays hidden.
+Swiping it away hides that run's progress until the run ends.
+It has its own channel, Running work, so you can turn it off or tune it in Android's settings without changing approvals, replies or the phone connection.
+
+Which messages are urgent follows one rule.
+Approvals, takeover requests, `egress-needed` and visible results (replies, automation results and failures) use high-priority FCM data messages, so Android starts the app's handler even while the app is closed.
+`dismiss` and `run-progress` messages use normal priority, and each run's progress messages collapse into the latest one at FCM (one collapse key per run).
+Android deprioritizes apps whose high-priority messages show nothing, so a message that only updates or removes a notification never uses high priority.
 Android's notification channels still control sound and alert prominence; delivery priority does not change those settings.
-Silent dismissal messages use normal priority.
 
 ## Settings
 

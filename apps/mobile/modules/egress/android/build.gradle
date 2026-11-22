@@ -10,6 +10,8 @@ android {
   sourceSets { main { java.srcDirs += ['../core/src/main/kotlin'] } }
 }
 dependencies {
+  // FCM's service, which this module owns, hands `run-progress` pushes to the run progress module.
+  implementation project(':run-progress')
   // React Native's own OkHttp, which the core is written and tested against.
   implementation "com.squareup.okhttp3:okhttp:4.9.2"
   implementation "androidx.work:work-runtime:2.10.1"

@@ -86,6 +86,7 @@
         "exclude": [
           "egress",
           "passkey",
+          "run-progress",
           "share-intent",
           "sms-consent"
         ]

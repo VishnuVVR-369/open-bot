@@ -6,6 +6,8 @@ const native = vi.hoisted(() => ({
   state: null as null | ((state: string) => void),
   cleanup: null as null | (() => void),
   remove: vi.fn(),
+  visibleChat: vi.fn(),
+  chatListener: null as null | ((chatId: string | null) => void),
 }));
 vi.mock("react", () => ({
   useEffect: (effect: () => () => void) => {
@@ -38,12 +40,38 @@ vi.mock("./notifications", () => ({
 }));
 vi.mock("@/lib/api", () => ({ api: {} }));
 vi.mock("@/lib/query", () => ({ queryClient: {}, queryKeys: {} }));
+vi.mock("@/lib/realtime", () => ({
+  visibleChat: {
+    get: () => "open-chat",
+    subscribe: (listener: (chatId: string | null) => void) => {
+      native.chatListener = listener;
+      return () => (native.chatListener = null);
+    },
+  },
+}));
+vi.mock("../../modules/run-progress", () => ({
+  default: { setVisibleChat: native.visibleChat },
+}));
 
 import { usePushNotifications } from "./register";
 
 afterEach(() => {
   native.cleanup?.();
   vi.clearAllMocks();
+});
+
+describe("run progress", () => {
+  it("tells the native module which chat is on screen while signed in", () => {
+    native.initial.mockResolvedValue(null);
+    usePushNotifications(true);
+    expect(native.visibleChat).toHaveBeenCalledWith("open-chat");
+    native.chatListener!(null);
+    native.chatListener!("other");
+    expect(native.visibleChat.mock.calls).toEqual([["open-chat"], [null], ["other"]]);
+    native.cleanup!();
+    native.cleanup = null;
+    expect(native.chatListener).toBeNull();
+  });
 });
 
 describe("notification navigation", () => {

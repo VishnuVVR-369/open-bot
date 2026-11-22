@@ -31,9 +31,19 @@ const Context = createContext<Realtime | null>(null);
 
 /** Which chat you're looking at, so a notification about it isn't shown. */
 let visibleChatId: string | null = null;
+const visibleChatListeners = new Set<(chatId: string | null) => void>();
 export const visibleChat = {
   get: () => visibleChatId,
-  set: (chatId: string | null) => (visibleChatId = chatId),
+  set: (chatId: string | null) => {
+    if (chatId === visibleChatId) return;
+    visibleChatId = chatId;
+    for (const listener of visibleChatListeners) listener(chatId);
+  },
+  /** Calls `listener` with each new chat on screen (or null); returns the unsubscribe. */
+  subscribe: (listener: (chatId: string | null) => void) => {
+    visibleChatListeners.add(listener);
+    return () => void visibleChatListeners.delete(listener);
+  },
 };
 
 /**

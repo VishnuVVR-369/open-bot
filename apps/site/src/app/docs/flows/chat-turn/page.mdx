@@ -145,6 +145,12 @@ After each insert, a `NOTIFY openbot_chat, '<chatId>'` follows within 30 ms.
 In the web app, the realtime listener receives the notification, and the SSE route for your tab reads every row after its cursor and sends them as `run` events.
 Your browser applies them with the same reducer the server used to render the page, and Milo's reply appears word by word.
 
+Your phone follows along too, without the app open.
+Once the turn has been going for 20 seconds, `RunProgressService` in the worker (`apps/worker/src/features/notifications/run-progress.ts`) sends each phone a normal-priority `run-progress` push with Milo's plan step and the step Milo is on, as `runProgressNotice()` in `packages/domain` words it.
+A status change (waiting on you, or running again) follows within 2 seconds, new steps at most every 15 seconds, coalesced to the latest, and an unchanged notification is sent again every 10 minutes.
+When the run ends, one last message with `runState: ended` removes it, sent after every update for the run, and nothing for the run is sent after it.
+After a worker restart, every run the restart interrupted gets that last message too.
+
 ## A tool call
 
 Milo decides to open Google Flights.
