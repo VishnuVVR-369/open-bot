@@ -179,7 +179,7 @@ These start their own throwaway containers and never touch your app database or 
 - `pnpm test:pocket-inbox` runs the pocket inbox Playwright spec against its own database and web server, with no worker, model or device.
 - `pnpm test:owner-reset` runs the owner password reset command (`scripts/ops/owner-reset-password.mjs`) end to end.
 - `pnpm test:computer-sleep` runs a real computer container, Postgres and the built worker in their own containers, and checks that the computer goes idle, keeps its browser state across sleep, and wakes for work. It needs the computer image (`pnpm computer:build`).
-- `pnpm test:run-progress` runs a real run on a real computer container with the built worker, a stand-in model and a stand-in FCM, and checks every push it sends: progress at normal priority and collapsed per run, nothing in the first 20 seconds, the wait next to the approval, and the end after the run's last update.
+- `pnpm test:run-progress` runs a real run on a real computer container with the built worker, a stand-in model and a stand-in FCM, and checks every push it sends: progress at normal priority, updates collapsed per run and the end uncollapsed, no command text, nothing in the first 20 seconds, the wait next to the approval, and the end stamped after the run's last update.
   With `RUN_PROGRESS_RELAY` set to an agent-device `open` command, each push is also shown on a development build of the phone app (`EXPO_PUBLIC_E2E_NOTIFICATIONS=1`); `PROGRESS_TEST_HOLD=<dir>` holds the stack before and after the run so a web server and a signed-in phone can join it.
 
 ### The Android app

@@ -132,7 +132,12 @@ JavaScript never draws it: these messages are normal priority, and Android may r
   Blue means working and amber waiting on you, as in the app, and a waiting run without a plan shows no bar.
 - Each run's notification has the tag `run-progress:<run>` and the id 4200, apart from Notifee's ids (hashes of a string id with no tag) and the phone connection's (4100 to 4104).
 - A small ledger per run in SharedPreferences (`ProgressRules` in `RunProgressLogic.kt`) keeps FCM's unordered delivery from going backwards: a message older than the last one handled is ignored, an ended run never shows again, and a run you swiped away (its delete intent) stays hidden until it ends.
+  The end has no collapse key while updates do, so either can arrive first; an end that arrives first is kept, and the later update is ignored.
+- The delete intent's receiver records the swipe and removes the run's notification in the same lock, so an update drawn between Android removing the card and the receiver running doesn't stay.
 - `usePushNotifications()` tells the module which chat is on screen (`visibleChat`); that chat's runs are hidden until you leave it.
+  The ledger keeps each live run's latest update, so when the chat leaves the screen (you open another, or press Home) the module draws it again at once, for the time it had left before timing out, without waiting for another push.
+  Ended, swiped-away and timed-out runs are not drawn again.
+- It is ongoing on Android 14 and newer, where you can still swipe an ongoing notification away; on Android 10 to 13 it isn't, so a swipe works there too.
 - A notification not refreshed for 30 minutes removes itself; the worker sends an unchanged one again every 10 minutes, so only a lost end leaves one behind, and not for long.
 - Tapping it opens `openbot://chats/<chat>?run=<run>` in the app.
 
@@ -199,11 +204,11 @@ After that the work runs in `EgressService`, a `specialUse` foreground service, 
 | Unit                | `pnpm --filter @open-bot/mobile test`                    | vitest over `src/**/*.test.ts`: live stream, history, links, push payloads, uploads, lock |
 | Types               | `pnpm --filter @open-bot/mobile typecheck`               | The app, with the shared contract                                                         |
 | Kotlin core         | `./gradlew test` in `modules/egress/core`                | Frames, mux, IP policy and the shared vectors                                             |
-| Run progress rules  | `./gradlew :run-progress:testDebugUnitTest` in `android` | Reading `run-progress` pushes, their ordering ledger, and how a run's notification looks  |
+| Run progress        | `./gradlew :run-progress:testDebugUnitTest` in `android` | The pushes' rules and ledger on the JVM, and the notification itself under Robolectric    |
 | Device flows        | `pnpm test:mobile-ui`                                    | Maestro flows in `apps/mobile/maestro`, against a local stack                             |
 | Worker side of push | `pnpm test:integration`                                  | FCM fan-out and retry-safe uploads against a disposable database                          |
 
 CI has two Android jobs in `.github/workflows/ci.yml`, one per variant.
-Each runs `expo prebuild`, builds a debug APK, runs the run progress rules' unit tests, and checks the merged manifest.
+Each runs `expo prebuild`, builds a debug APK, runs the run progress module's unit tests, and checks the merged manifest.
 The normal variant also runs `:app:lintVitalRelease`.
 A separate job runs the Kotlin core tests.
