@@ -11,6 +11,7 @@ import android.net.Uri
 import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
+import androidx.annotation.VisibleForTesting
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 
@@ -30,27 +31,24 @@ object RunProgress {
   private const val NOTIFICATION_ID = 4200
   private const val GROUP = "running"
   private const val PREFS = "openbot_run_progress"
-  /**
-   * A notification not refreshed for this long removes itself: the worker sends an unchanged one
-   * again every 10 minutes, so only a lost end (or a worker that never came back) leaves it.
-   */
-  private const val TIMEOUT_MS = 30 * 60 * 1000L
   const val ACTION_DISMISSED = "dev.openbot.runprogress.DISMISSED"
 
   /** The chat open on screen while the app is in front, set by the app's JavaScript. */
   @Volatile private var visibleChat: String? = null
   private val lock = Any()
+  /** The time, in ms; tests set their own. */
+  @VisibleForTesting internal var clock: () -> Long = System::currentTimeMillis
 
   /** Handles a `run-progress` push. Returns false for anything that isn't one. */
   fun onPush(context: Context, data: Map<String, String>): Boolean {
     val update = ProgressUpdate.parse(data) ?: return false
     synchronized(lock) {
-      val (action, entry) = ProgressRules.decide(read(context, update.runId), update, visibleChat, System.currentTimeMillis())
+      val (action, entry) = ProgressRules.decide(read(context, update.runId), update, visibleChat, clock())
       // Written at once: the process that got the push may be gone right after.
       if (entry != null) prefs(context).edit().putString(update.runId, entry.encode()).commit()
       forgetOld(context)
       when (action) {
-        Action.SHOW -> show(context, update)
+        Action.SHOW -> show(context, update, ProgressRules.TIMEOUT_MS)
         Action.REMOVE, Action.HIDE -> cancel(context, update.tag)
         Action.IGNORE -> {}
       }
@@ -61,29 +59,39 @@ object RunProgress {
   /** The run's result was shown: its progress goes, and stays gone. */
   fun endRun(context: Context, runId: String) {
     synchronized(lock) {
-      val entry = ProgressRules.ended(read(context, runId), System.currentTimeMillis())
+      val entry = ProgressRules.ended(read(context, runId), clock())
       prefs(context).edit().putString(runId, entry.encode()).commit()
       cancel(context, tagOf(runId))
     }
   }
 
-  /** You swiped a run's notification away: later updates don't bring it back. */
+  /**
+   * You swiped a run's notification away: later updates don't bring it back. Android removed the
+   * card before this runs, so an update drawn in between is removed here, in the same lock that
+   * records the swipe.
+   */
   fun dismissed(context: Context, runId: String) {
     synchronized(lock) {
-      val entry = ProgressRules.dismissed(read(context, runId), System.currentTimeMillis()) ?: return
-      prefs(context).edit().putString(runId, entry.encode()).commit()
+      ProgressRules.dismissed(read(context, runId), clock())?.let {
+        prefs(context).edit().putString(runId, it.encode()).commit()
+      }
+      cancel(context, tagOf(runId))
     }
   }
 
-  /** The chat on screen, or null. Its runs' notifications go while you look at it. */
+  /**
+   * The chat on screen, or null. Its runs' notifications go while you look at it, and come back,
+   * from their latest update, when it leaves the screen: you pressed Home or opened another one.
+   */
   fun setVisibleChat(context: Context, chatId: String?) {
     synchronized(lock) {
       visibleChat = chatId
-      if (chatId == null) return
-      for ((runId, value) in prefs(context).all) {
-        val entry = LedgerEntry.decode(value as? String) ?: continue
-        if (!entry.ended && entry.chatId == chatId) cancel(context, tagOf(runId))
-      }
+      val entries = entries(context)
+      if (chatId != null)
+        for ((runId, entry) in entries) if (!entry.ended && entry.chatId == chatId) cancel(context, tagOf(runId))
+      val active = activeTags(context)
+      for ((update, left) in ProgressRules.showing(entries, chatId, clock()).values)
+        if (update.tag !in active) show(context, update, left)
     }
   }
 
@@ -93,10 +101,20 @@ object RunProgress {
 
   private fun read(context: Context, runId: String) = LedgerEntry.decode(prefs(context).getString(runId, null))
 
+  private fun entries(context: Context): Map<String, LedgerEntry> =
+    prefs(context).all.mapNotNull { (key, value) -> LedgerEntry.decode(value as? String)?.let { key to it } }.toMap()
+
+  /** The progress notifications on screen now, by tag. */
+  private fun activeTags(context: Context): Set<String> =
+    context.getSystemService(NotificationManager::class.java).activeNotifications
+      .filter { it.id == NOTIFICATION_ID }
+      .mapNotNull { it.tag }
+      .toSet()
+
   private fun forgetOld(context: Context) {
     val prefs = prefs(context)
-    val entries = prefs.all.mapNotNull { (key, value) -> LedgerEntry.decode(value as? String)?.let { key to it } }.toMap()
-    val forget = ProgressRules.forget(entries, System.currentTimeMillis())
+    val entries = entries(context)
+    val forget = ProgressRules.forget(entries, clock())
     if (forget.isEmpty()) return
     val editor = prefs.edit()
     forget.forEach { editor.remove(it) }
@@ -120,12 +138,14 @@ object RunProgress {
       manager.getNotificationChannel(CHANNEL)?.importance != NotificationManager.IMPORTANCE_NONE
   }
 
-  private fun show(context: Context, update: ProgressUpdate) {
+  /** Draws the update; it removes itself after `timeoutMs` unless a newer one replaces it. */
+  private fun show(context: Context, update: ProgressUpdate, timeoutMs: Long) {
     ensureChannel(context)
     if (!allowed(context)) return
     val view = ProgressView.of(update)
     val notification =
-      if (Build.VERSION.SDK_INT >= 36) progressStyle(context, update, view) else compat(context, update, view)
+      if (Build.VERSION.SDK_INT >= 36) progressStyle(context, update, view, timeoutMs)
+      else compat(context, update, view, timeoutMs)
     try {
       NotificationManagerCompat.from(context).notify(update.tag, NOTIFICATION_ID, notification)
     } catch (error: SecurityException) {
@@ -161,18 +181,18 @@ object RunProgress {
     )
 
   @RequiresApi(36)
-  private fun progressStyle(context: Context, update: ProgressUpdate, view: ProgressView): Notification {
+  private fun progressStyle(context: Context, update: ProgressUpdate, view: ProgressView, timeoutMs: Long): Notification {
     val builder = Notification.Builder(context, CHANNEL)
     builder
       .setSmallIcon(icon(context))
       .setContentTitle(view.title)
       .setContentText(view.body.ifBlank { null })
       .setColor(view.color)
-      .setOngoing(true)
+      .setOngoing(ProgressView.ongoing(Build.VERSION.SDK_INT))
       .setOnlyAlertOnce(true)
       .setCategory(Notification.CATEGORY_PROGRESS)
       .setGroup(GROUP)
-      .setTimeoutAfter(TIMEOUT_MS)
+      .setTimeoutAfter(timeoutMs)
       .setContentIntent(openIntent(context, update, view))
       .setDeleteIntent(deleteIntent(context, update))
       .setLocalOnly(true)
@@ -191,20 +211,20 @@ object RunProgress {
     return builder.build()
   }
 
-  private fun compat(context: Context, update: ProgressUpdate, view: ProgressView): Notification {
+  private fun compat(context: Context, update: ProgressUpdate, view: ProgressView, timeoutMs: Long): Notification {
     val builder = NotificationCompat.Builder(context, CHANNEL)
     builder
       .setSmallIcon(icon(context))
       .setContentTitle(view.title)
       .setContentText(view.body.ifBlank { null })
       .setColor(view.color)
-      .setOngoing(true)
+      .setOngoing(ProgressView.ongoing(Build.VERSION.SDK_INT))
       .setOnlyAlertOnce(true)
       .setSilent(true)
       .setPriority(NotificationCompat.PRIORITY_LOW)
       .setCategory(NotificationCompat.CATEGORY_PROGRESS)
       .setGroup(GROUP)
-      .setTimeoutAfter(TIMEOUT_MS)
+      .setTimeoutAfter(timeoutMs)
       .setContentIntent(openIntent(context, update, view))
       .setDeleteIntent(deleteIntent(context, update))
       .setLocalOnly(true)

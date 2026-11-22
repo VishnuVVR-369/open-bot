@@ -104,16 +104,62 @@ class RunProgressLogicTest {
   }
 
   @Test
-  fun storesEntriesAndForgetsOldOnes() {
+  fun storesEntriesWithTheirLatestUpdateAndForgetsOldOnes() {
     val entry = LedgerEntry(5, ended = false, dismissed = true, chatId = "c1", writtenAt = now)
     assertEquals(entry, LedgerEntry.decode(entry.encode()))
     assertEquals(entry.copy(chatId = null), LedgerEntry.decode(entry.copy(chatId = null).encode()))
+    // Text with the separators in it, and every field of an update, come back as they were.
+    val latest =
+      update(
+        "waiting",
+        "2026-11-22T10:00:20Z",
+        mapOf(
+          "title" to "Rex: a=b & c|d%",
+          "chatId" to "c1",
+          "url" to "/chats/c1?run=r1&x=1",
+          "startedAt" to "2026-11-22T10:00:00Z",
+          "stepsDone" to "1",
+          "stepsTotal" to "3",
+        ),
+      )
+    val withLatest = entry.copy(dismissed = false, latest = latest, latestAt = now)
+    assertEquals(withLatest, LedgerEntry.decode(withLatest.encode()))
+    assertEquals(latest, ProgressUpdate.parse(latest.toData()))
     assertNull(LedgerEntry.decode("garbage"))
+    assertNull(LedgerEntry.decode("5|false|true|0|c1"))
     val entries =
       (0 until ProgressRules.MAX_ENTRIES + 2).associate { "r$it" to entry.copy(writtenAt = now - it) } +
         ("old" to entry.copy(writtenAt = now - ProgressRules.FORGET_AFTER_MS - 1))
     val oldest = "r${ProgressRules.MAX_ENTRIES + 1}"
     assertEquals(setOf("old", "r${ProgressRules.MAX_ENTRIES}", oldest), ProgressRules.forget(entries, now))
+  }
+
+  @Test
+  fun showsAgainWhatIsLiveWhenItsChatLeavesTheScreen() {
+    val chat = mapOf("chatId" to "c1")
+    val (hidden, entry) = ProgressRules.decide(null, update("working", "2026-11-22T10:00:20Z", chat), "c1", now)
+    assertEquals(Action.HIDE, hidden)
+    val entries = mapOf("r1" to entry!!)
+    assertEquals(emptyMap<String, Any>(), ProgressRules.showing(entries, "c1", now))
+    // What it would have shown, for the time it has left.
+    val (latest, left) = ProgressRules.showing(entries, null, now + 60_000)["r1"]!!
+    assertEquals("Rex: Book the flight", latest.title)
+    assertEquals(ProgressRules.TIMEOUT_MS - 60_000, left)
+    assertEquals(setOf("r1"), ProgressRules.showing(entries, "c2", now).keys)
+    // Not once it would have timed out, ended, or been swiped away.
+    assertEquals(emptyMap<String, Any>(), ProgressRules.showing(entries, null, now + ProgressRules.TIMEOUT_MS))
+    assertEquals(emptyMap<String, Any>(), ProgressRules.showing(mapOf("r1" to ProgressRules.ended(entry, now)), null, now))
+    assertEquals(emptyMap<String, Any>(), ProgressRules.showing(mapOf("r1" to ProgressRules.dismissed(entry, now)!!), null, now))
+    val (_, ended) = ProgressRules.decide(entry, update("ended", "2026-11-22T10:00:30Z"), null, now)
+    assertEquals(emptyMap<String, Any>(), ProgressRules.showing(mapOf("r1" to ended!!), null, now))
+  }
+
+  @Test
+  fun isOngoingOnlyWhereItCanBeSweptAway() {
+    assertEquals(false, ProgressView.ongoing(29))
+    assertEquals(false, ProgressView.ongoing(33))
+    assertEquals(true, ProgressView.ongoing(34))
+    assertEquals(true, ProgressView.ongoing(36))
   }
 
   @Test
