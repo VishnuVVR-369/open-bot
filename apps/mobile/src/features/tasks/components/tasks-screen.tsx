@@ -261,7 +261,9 @@ function Quiet({
       testID={testID}
     >
       {icon}
-      <Text variant="small" muted style={{ fontWeight: "500" }}>
+      {/* One line, like the button's label: Android measures it a little narrower than it draws
+          it, and the wrapped word ("Add a task") fell outside the row. */}
+      <Text variant="small" muted numberOfLines={1} style={{ fontWeight: "500" }}>
         {label}
       </Text>
     </Pressable>

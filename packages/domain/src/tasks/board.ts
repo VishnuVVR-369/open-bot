@@ -65,6 +65,19 @@ export function taskBlocker(task: BoardTask, facts: BlockerFacts): TaskBlocker |
   return null;
 }
 
+/**
+ * Whether the owner was already asked to work on the task (it has their chat), so asking is asking
+ * again. Moving a task to Doing by hand doesn't ask anyone, and a new owner hasn't been asked.
+ */
+export function wasAsked(
+  task: Pick<BoardTask, "chatId" | "ownerTeammateId"> | null,
+  ownerTeammateId: string | null,
+): boolean {
+  return (
+    Boolean(task?.chatId) && ownerTeammateId !== null && task!.ownerTeammateId === ownerTeammateId
+  );
+}
+
 /** A blocker that waits on you, rather than on the computer. */
 export function waitsOnYou(blocker: TaskBlocker | null): boolean {
   return blocker === "approval" || blocker === "takeover";

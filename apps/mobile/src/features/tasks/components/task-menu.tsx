@@ -4,6 +4,7 @@ import {
   stepTask,
   TASK_STATUS_LABELS,
   TASK_STATUSES,
+  wasAsked,
   type BoardColumn,
   type TaskBlocker,
   type TaskStatus,
@@ -86,7 +87,7 @@ export function TaskMenu({
       {task && owner && task.status !== "done" && (
         <SheetItem
           icon={icon(Play)}
-          label={startLabel(task.status, owner.name)}
+          label={startLabel(owner.name, wasAsked(task, task.ownerTeammateId))}
           disabled={!online}
           onPress={act(
             () =>

@@ -5,6 +5,7 @@ import {
   TASK_STATUS_LABELS,
   TASK_STATUSES,
   TASK_TITLE_MAX,
+  wasAsked,
 } from "@open-bot/domain";
 import { Loader2, MessageSquare, Play, Trash2 } from "lucide-react";
 import Link from "next/link";
@@ -239,7 +240,7 @@ export function TaskDialog({
                   onClick={() => save("start")}
                 >
                   <Play className="fill-current" />
-                  {task?.status === "doing"
+                  {wasAsked(task, owner)
                     ? `Ask ${ownerTeammate.name} again`
                     : `Ask ${ownerTeammate.name} to start`}
                 </Button>

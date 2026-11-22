@@ -65,7 +65,10 @@ export function Button({
       {/* The label keeps its place under the spinner, so the button doesn't change size. */}
       <View style={[styles.content, busy && { opacity: 0 }]}>
         {icon}
-        <Text variant="label" style={{ color: look.fg }}>
+        {/* One line: Android measures a medium-weight label a little narrower than it draws it,
+            so a two-word label in a stretched button ("Add task") broke onto a second line that
+            the button's height then hid. */}
+        <Text variant="label" numberOfLines={1} style={{ color: look.fg }}>
           {title}
         </Text>
       </View>

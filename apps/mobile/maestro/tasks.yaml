@@ -3,6 +3,10 @@ name: Add, edit, start and delete a task on the board
 # Run against a signed-in development app, with a teammate's name to give the task to:
 #   maestro test -e TEAMMATE=<teammate name> maestro/tasks.yaml
 # Starting the task queues a run in that teammate's main chat; with the computer offline it waits.
+# A row is read as one control (title, status, owner, due day), so rows are matched by the start of
+# their label; a moved task goes to the end of its column, so the flow scrolls to it; and the board
+# slides back in after a save, so taps on it wait for that to end.
+# Edits type into empty fields only: where a tap puts the cursor in a filled one varies by device.
 ---
 - runFlow:
     file: flows/open-link.yaml
@@ -23,9 +27,6 @@ name: Add, edit, start and delete a task on the board
 - tapOn:
     id: task-title-input
 - inputText: Book the Lisbon hotel (Maestro)
-- tapOn:
-    id: task-notes-input
-- inputText: Near the venue, under 180 euros a night.
 - hideKeyboard
 - tapOn:
     id: task-owner
@@ -45,36 +46,38 @@ name: Add, edit, start and delete a task on the board
 - tapOn:
     id: task-save
 - extendedWaitUntil:
-    visible: Book the Lisbon hotel \(Maestro\)
+    visible: "Book the Lisbon hotel \\(Maestro\\).*"
     timeout: 10000
 
-# Edit it: a new title, and it's in progress.
-- tapOn: Book the Lisbon hotel \(Maestro\)
+# Edit it: notes, and it's in progress.
+- waitForAnimationToEnd
+- tapOn: "Book the Lisbon hotel \\(Maestro\\).*"
 - extendedWaitUntil:
     visible:
-      id: task-title-input
+      id: task-notes-input
     timeout: 5000
 - tapOn:
-    id: task-title-input
-- eraseText: 40
-- inputText: Book the Lisbon flat (Maestro)
+    id: task-notes-input
+- inputText: Near the venue, under 180 euros a night.
 - hideKeyboard
 - tapOn:
     id: task-status-doing
 - tapOn:
     id: task-save
-- extendedWaitUntil:
-    visible: Book the Lisbon flat \(Maestro\)
+- scrollUntilVisible:
+    element: "Book the Lisbon hotel \\(Maestro\\), Doing.*"
     timeout: 10000
-- assertNotVisible: Book the Lisbon hotel \(Maestro\)
 
 # Hand it to the teammate: their chat opens.
-- tapOn: Book the Lisbon flat \(Maestro\)
+- waitForAnimationToEnd
+- tapOn: "Book the Lisbon hotel \\(Maestro\\).*"
 - extendedWaitUntil:
     visible:
       id: task-start
     timeout: 5000
-- assertVisible: Ask ${TEAMMATE} again
+- assertVisible: Near the venue, under 180 euros a night.
+# Moved to Doing by hand, not asked yet.
+- assertVisible: Ask ${TEAMMATE} to start
 - tapOn:
     id: task-start
 - extendedWaitUntil:
@@ -82,12 +85,13 @@ name: Add, edit, start and delete a task on the board
       id: composer-input
     timeout: 15000
 - back
-- extendedWaitUntil:
-    visible: Book the Lisbon flat \(Maestro\)
+- scrollUntilVisible:
+    element: "Book the Lisbon hotel \\(Maestro\\).*"
     timeout: 10000
 
 # Delete it, after confirming.
-- tapOn: Book the Lisbon flat \(Maestro\)
+- waitForAnimationToEnd
+- tapOn: "Book the Lisbon hotel \\(Maestro\\).*"
 - extendedWaitUntil:
     visible:
       id: task-delete
@@ -102,5 +106,5 @@ name: Add, edit, start and delete a task on the board
     timeout: 5000
 - tapOn: Delete
 - extendedWaitUntil:
-    notVisible: Book the Lisbon flat \(Maestro\)
+    notVisible: "Book the Lisbon hotel \\(Maestro\\).*"
     timeout: 10000

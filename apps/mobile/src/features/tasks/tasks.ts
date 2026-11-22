@@ -149,8 +149,8 @@ export function taskRowLabel(
 }
 
 /** The words on the button that hands a task to its teammate. */
-export const startLabel = (status: TaskStatus, name: string) =>
-  status === "doing" ? `Ask ${name} again` : `Ask ${name} to start`;
+export const startLabel = (name: string, asked: boolean) =>
+  asked ? `Ask ${name} again` : `Ask ${name} to start`;
 
 /**
  * What deleting a task means, for its confirmation. The board has no undo, and deleting a task a

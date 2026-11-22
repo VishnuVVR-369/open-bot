@@ -93,9 +93,9 @@ describe("the task form", () => {
     expect(newTaskHref(null)).toBe("/tasks/new");
   });
 
-  it("asks again for a task already in progress, like the web", () => {
-    expect(startLabel("todo", "Ivy")).toBe("Ask Ivy to start");
-    expect(startLabel("doing", "Ivy")).toBe("Ask Ivy again");
+  it("asks again only when the owner was already asked, like the web", () => {
+    expect(startLabel("Ivy", false)).toBe("Ask Ivy to start");
+    expect(startLabel("Ivy", true)).toBe("Ask Ivy again");
   });
 });
 

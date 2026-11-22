@@ -9,6 +9,7 @@ import {
   formatDay,
   stepTask,
   taskBlocker,
+  wasAsked,
   type BlockerFacts,
   type BoardTask,
 } from "./board";
@@ -218,5 +219,16 @@ describe("moving a task in its column", () => {
     expect(endPosition(column)).toBe(5);
     expect(endPosition(column, "c")).toBe(3);
     expect(endPosition([])).toBe(1);
+  });
+});
+
+describe("asking a task's owner", () => {
+  it("asks again only when this owner was already asked", () => {
+    expect(wasAsked(task({ id: "a", ownerTeammateId: "ivy", chatId: "c" }), "ivy")).toBe(true);
+    // Moved to Doing by hand: nobody was asked.
+    expect(wasAsked(task({ id: "a", ownerTeammateId: "ivy", status: "doing" }), "ivy")).toBe(false);
+    // Given to someone else since.
+    expect(wasAsked(task({ id: "a", ownerTeammateId: "ivy", chatId: "c" }), "kit")).toBe(false);
+    expect(wasAsked(null, "ivy")).toBe(false);
   });
 });

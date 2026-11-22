@@ -1,5 +1,5 @@
 import type { TaskView } from "@open-bot/api";
-import { dueLabel, TASK_NOTES_MAX, TASK_TITLE_MAX } from "@open-bot/domain";
+import { dueLabel, TASK_NOTES_MAX, TASK_TITLE_MAX, wasAsked } from "@open-bot/domain";
 import { safe } from "@orpc/client";
 import { router, Stack, useNavigation, usePreventRemove } from "expo-router";
 import { CloudOff, MessageSquare, Play, Trash2, X } from "lucide-react-native";
@@ -304,7 +304,7 @@ export function TaskEditor({
         <View style={styles.buttons}>
           {canStart && owner && (
             <Button
-              title={startLabel(form.status, owner.name)}
+              title={startLabel(owner.name, wasAsked(task, form.ownerTeammateId))}
               variant="outline"
               icon={<Play size={16} color={colors.foreground} fill={colors.foreground} />}
               onPress={() => void save("start")}
