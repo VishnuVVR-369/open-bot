@@ -6,11 +6,23 @@ import { useApprovals } from "@/features/approvals/hooks";
 import { useComputerOffline } from "@/features/computer/hooks";
 import { useHome } from "@/features/home/hooks";
 import { api } from "@/lib/api";
-import { queryKeys } from "@/lib/query";
+import { queryClient, queryKeys } from "@/lib/query";
 
 /** The team's board: open tasks in board order, and the 30 most recently finished. */
 export const useTasks = () =>
   useQuery({ queryKey: queryKeys.tasks, queryFn: () => api.tasks.list() });
+
+/**
+ * One task, by id, whatever its column: the board lists only the latest finished tasks. It opens
+ * at once from the board's copy, then reads the task itself.
+ */
+export const useTask = (taskId: string) =>
+  useQuery({
+    queryKey: queryKeys.task(taskId),
+    queryFn: () => api.tasks.get({ taskId }),
+    placeholderData: () =>
+      queryClient.getQueryData<TaskView[]>(queryKeys.tasks)?.find((task) => task.id === taskId),
+  });
 
 /**
  * What holds each task up, from what's waiting on you (approvals, take overs) and whether the

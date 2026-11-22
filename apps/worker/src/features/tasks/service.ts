@@ -1,9 +1,16 @@
-import { LOCKS, lockUntilCommit, teammates, tasks, type Queryable } from "@open-bot/db";
-import { TASK_NOTES_MAX, TASK_TITLE_MAX, type Creator, type TaskStatus } from "@open-bot/domain";
-import { and, asc, desc, eq, isNull, max, ne } from "drizzle-orm";
+import { LOCKS, lockUntilCommit, teammates, tasks, type Tx } from "@open-bot/db";
+import {
+  placeTask,
+  TASK_NOTES_MAX,
+  TASK_TITLE_MAX,
+  type Creator,
+  type TaskPlacement,
+  type TaskStatus,
+} from "@open-bot/domain";
+import { and, asc, desc, eq, isNull, ne } from "drizzle-orm";
 import { publishApp, type Context } from "../../context";
 import { WorkerError } from "../../core/errors";
-import { enqueueRun } from "../../runs/queue";
+import { announceRun, insertRun } from "../../runs/queue";
 import { mainChat } from "../chat";
 
 export class TaskError extends WorkerError {
@@ -17,10 +24,14 @@ type Task = typeof tasks.$inferSelect;
 export interface TaskPatch {
   title?: string;
   notes?: string;
+  /** A new column puts it at the end there. */
   status?: TaskStatus;
   ownerTeammateId?: string | null;
   dueOn?: string | null;
-  /** Where it goes in its column; the end when the status changes and this is left out. */
+  /**
+   * Deprecated: where a web app from before `move` dropped it. It goes before the first task past
+   * this position in its column.
+   */
   position?: number;
 }
 
@@ -47,24 +58,72 @@ function checkDue(dueOn: string | null): string | null {
   return dueOn;
 }
 
+/** When it was finished, for a task that changes column. */
+const completedAt = (from: TaskStatus, to: TaskStatus) =>
+  from === to ? {} : { completedAt: to === "done" ? new Date() : null };
+
+/** The placement a web app from before `move` meant by a raw position. */
+function placementAt(
+  column: readonly { id: string; position: number }[],
+  id: string,
+  position: number,
+): TaskPlacement {
+  const next = column
+    .filter((task) => task.id !== id && task.position > position)
+    .sort((a, b) => a.position - b.position || a.id.localeCompare(b.id))[0];
+  return next ? { kind: "before", taskId: next.id } : { kind: "end" };
+}
+
 /** The team's task board: you and the teammates add tasks, own them and move them along. */
 export class TaskService {
   constructor(private readonly ctx: Context) {}
 
   /**
-   * Writes a task that goes at the end of a column, one such write at a time: two tasks added or
-   * moved at once would otherwise read the same last place and share it, and then no move could
-   * come between them.
+   * Runs `write` holding the board's order: every write that sets a task's column or place goes
+   * through here, so two at once never read the same neighbours and share a place.
    */
-  private atEnd<T>(status: TaskStatus, write: (db: Queryable, end: number) => Promise<T>) {
+  private onBoard<T>(write: (tx: Tx) => Promise<T>): Promise<T> {
     return this.ctx.db.transaction(async (tx) => {
-      await lockUntilCommit(tx, LOCKS.taskEnds);
-      const [row] = await tx
-        .select({ value: max(tasks.position) })
-        .from(tasks)
-        .where(eq(tasks.status, status));
-      return write(tx, (row?.value ?? 0) + 1);
+      await lockUntilCommit(tx, LOCKS.taskBoard);
+      return write(tx);
     });
+  }
+
+  /** The task, locked until the transaction ends. */
+  private async lockTask(tx: Tx, id: string): Promise<Task> {
+    const [row] = /^[0-9a-f-]{36}$/i.test(id)
+      ? await tx.select().from(tasks).where(eq(tasks.id, id)).for("update")
+      : [];
+    if (!row) throw new TaskError("That task no longer exists.");
+    return row;
+  }
+
+  /**
+   * The task's position at `placement` in the `status` column, against every task there. When its
+   * neighbours leave no room, the rest of the column is numbered again here, in the same
+   * transaction.
+   */
+  private async place(
+    tx: Tx,
+    id: string,
+    status: TaskStatus,
+    placement: TaskPlacement | ((column: { id: string; position: number }[]) => TaskPlacement),
+  ): Promise<number> {
+    const column = await tx
+      .select({ id: tasks.id, position: tasks.position })
+      .from(tasks)
+      .where(eq(tasks.status, status));
+    const changes = placeTask(
+      column,
+      id,
+      typeof placement === "function" ? placement(column) : placement,
+    );
+    if (!changes)
+      throw new TaskError("The task it was moved next to isn't in that column anymore.");
+    const [own, ...others] = changes;
+    for (const change of others)
+      await tx.update(tasks).set({ position: change.position }).where(eq(tasks.id, change.id));
+    return own!.position;
   }
 
   private async checkOwner(ownerTeammateId: string | null): Promise<string | null> {
@@ -93,14 +152,17 @@ export class TaskService {
       createdBy: input.createdBy,
       createdByTeammateId: input.createdByTeammateId ?? null,
     };
-    const [row] = await this.atEnd("todo", (db, position) =>
-      db
+    const row = await this.onBoard(async (tx) => {
+      // A task not on the board yet: the end never needs the column numbered again.
+      const position = await this.place(tx, "", "todo", { kind: "end" });
+      const [row] = await tx
         .insert(tasks)
         .values({ ...values, position })
-        .returning(),
-    );
+        .returning();
+      return row!;
+    });
     await publishApp(this.ctx, { type: "tasks" });
-    return row!;
+    return row;
   }
 
   async get(id: string): Promise<Task | null> {
@@ -109,34 +171,65 @@ export class TaskService {
     return row ?? null;
   }
 
+  /**
+   * Changes what's given and keeps the rest. A new column puts it at the end there. A new owner
+   * hasn't been asked to work on it, so the chat the last owner was asked in goes.
+   */
   async update(id: string, patch: TaskPatch): Promise<Task> {
-    const existing = await this.get(id);
-    if (!existing) throw new TaskError("That task no longer exists.");
-    const status = patch.status ?? existing.status;
-    const moved = status !== existing.status;
-    const changes = {
+    const fields = {
       ...(patch.title !== undefined ? { title: checkTitle(patch.title) } : {}),
       ...(patch.notes !== undefined ? { notes: checkNotes(patch.notes) } : {}),
       ...(patch.ownerTeammateId !== undefined
         ? { ownerTeammateId: await this.checkOwner(patch.ownerTeammateId) }
         : {}),
       ...(patch.dueOn !== undefined ? { dueOn: checkDue(patch.dueOn) } : {}),
-      status,
-      ...(moved ? { completedAt: status === "done" ? new Date() : null } : {}),
     };
-    // A position is only written when it changes, so a move made meanwhile isn't undone.
-    const write = (db: Queryable, position?: number) =>
-      db
+    const row = await this.onBoard(async (tx) => {
+      const task = await this.lockTask(tx, id);
+      const status = patch.status ?? task.status;
+      const position =
+        patch.position !== undefined
+          ? await this.place(tx, id, status, (column) => placementAt(column, id, patch.position!))
+          : status !== task.status
+            ? await this.place(tx, id, status, { kind: "end" })
+            : undefined;
+      const reassigned =
+        fields.ownerTeammateId !== undefined && fields.ownerTeammateId !== task.ownerTeammateId;
+      const [row] = await tx
         .update(tasks)
-        .set({ ...changes, ...(position !== undefined ? { position } : {}) })
+        .set({
+          ...fields,
+          status,
+          ...completedAt(task.status, status),
+          ...(position !== undefined ? { position } : {}),
+          ...(reassigned ? { chatId: null } : {}),
+        })
         .where(eq(tasks.id, id))
         .returning();
-    const [row] =
-      patch.position === undefined && moved
-        ? await this.atEnd(status, write)
-        : await write(this.ctx.db, patch.position);
+      return row!;
+    });
     await publishApp(this.ctx, { type: "tasks" });
-    return row!;
+    return row;
+  }
+
+  /**
+   * Moves a task to a column, at its end or next to a task there, in one change: its position is
+   * worked out here against the whole column, so a filter on the board or a stale copy can't put it
+   * on top of another task.
+   */
+  async move(id: string, status: TaskStatus, placement: TaskPlacement): Promise<Task> {
+    const row = await this.onBoard(async (tx) => {
+      const task = await this.lockTask(tx, id);
+      const position = await this.place(tx, id, status, placement);
+      const [row] = await tx
+        .update(tasks)
+        .set({ status, position, ...completedAt(task.status, status) })
+        .where(eq(tasks.id, id))
+        .returning();
+      return row!;
+    });
+    await publishApp(this.ctx, { type: "tasks" });
+    return row;
   }
 
   async remove(id: string): Promise<void> {
@@ -146,39 +239,49 @@ export class TaskService {
 
   /**
    * Asks the task's owner to work on it, in their main chat, and moves it to Doing. The run
-   * carries the task's id, so the owner can mark it done.
+   * carries the task's id, so the owner can mark it done. The run and the task change are saved
+   * together, so a failed start queues nothing and trying again asks once.
    */
   async start(id: string, by: { teammateName: string; runId: string } | null): Promise<Task> {
-    const task = await this.get(id);
-    if (!task) throw new TaskError("That task no longer exists.");
-    if (!task.ownerTeammateId) throw new TaskError("Give the task to a teammate first.");
-    if (task.status === "done") throw new TaskError("That task is already done.");
-    const chatId = await mainChat(this.ctx, task.ownerTeammateId);
+    const seen = await this.get(id);
+    if (!seen) throw new TaskError("That task no longer exists.");
+    const ownerTeammateId = seen.ownerTeammateId;
+    if (!ownerTeammateId) throw new TaskError("Give the task to a teammate first.");
+    if (seen.status === "done") throw new TaskError("That task is already done.");
+    // Finding or making the main chat is its own change, and trying again finds the same one.
+    const chatId = await mainChat(this.ctx, ownerTeammateId);
     const from = by ? `${by.teammateName} asked you` : "The user asked you";
-    await enqueueRun(this.ctx, {
-      chatId,
-      teammateId: task.ownerTeammateId,
-      trigger: "task",
-      prompt: [
-        `[${from} to work on a task from the team's board (task id ${task.id}). When it's finished, mark it done with update_task, and say what you did.]`,
-        `Task: ${task.title}`,
-        task.dueOn ? `Due: ${task.dueOn}` : null,
-        task.notes ? `Notes:\n${task.notes}` : null,
-      ]
-        .filter(Boolean)
-        .join("\n"),
-      parentRunId: by?.runId ?? null,
-    });
-    const write = (db: Queryable, position?: number) =>
-      db
+    const row = await this.onBoard(async (tx) => {
+      const task = await this.lockTask(tx, id);
+      if (task.ownerTeammateId !== ownerTeammateId)
+        throw new TaskError("That task was just given to someone else. Try again.");
+      if (task.status === "done") throw new TaskError("That task is already done.");
+      await insertRun(tx, {
+        chatId,
+        teammateId: ownerTeammateId,
+        trigger: "task",
+        prompt: [
+          `[${from} to work on a task from the team's board (task id ${task.id}). When it's finished, mark it done with update_task, and say what you did.]`,
+          `Task: ${task.title}`,
+          task.dueOn ? `Due: ${task.dueOn}` : null,
+          task.notes ? `Notes:\n${task.notes}` : null,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        parentRunId: by?.runId ?? null,
+      });
+      const position =
+        task.status !== "doing" ? await this.place(tx, id, "doing", { kind: "end" }) : undefined;
+      const [row] = await tx
         .update(tasks)
         .set({ status: "doing", chatId, ...(position !== undefined ? { position } : {}) })
-        .where(eq(tasks.id, task.id))
+        .where(eq(tasks.id, id))
         .returning();
-    const [row] =
-      task.status !== "doing" ? await this.atEnd("doing", write) : await write(this.ctx.db);
+      return row!;
+    });
+    await announceRun(this.ctx, chatId);
     await publishApp(this.ctx, { type: "tasks" });
-    return row!;
+    return row;
   }
 
   /** The open tasks and the recently finished ones, as a teammate reads them. */
@@ -188,7 +291,7 @@ export class TaskService {
       .from(tasks)
       .leftJoin(teammates, eq(teammates.id, tasks.ownerTeammateId))
       .where(ne(tasks.status, "done"))
-      .orderBy(asc(tasks.status), asc(tasks.position));
+      .orderBy(asc(tasks.status), asc(tasks.position), asc(tasks.id));
     const done = await this.ctx.db
       .select({ task: tasks, owner: teammates.name })
       .from(tasks)

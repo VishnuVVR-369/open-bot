@@ -1,4 +1,4 @@
-import { creatorSchema, taskStatusSchema } from "@open-bot/domain";
+import { creatorSchema, taskPlacementSchema, taskStatusSchema } from "@open-bot/domain";
 import { z } from "zod";
 import { id } from "./base";
 
@@ -10,14 +10,23 @@ export const taskInputSchema = z.object({
   dueOn: z.string().nullable().optional(),
 });
 
-/** What can change about a task; left-out fields stay as they are. */
+/**
+ * What can change about a task; left-out fields stay as they are. A new status puts it at the end
+ * of that column; `move` puts it anywhere.
+ */
 export const taskChangesSchema = z.object({
   title: z.string().optional(),
   notes: z.string().optional(),
   status: taskStatusSchema.optional(),
   ownerTeammateId: id.nullable().optional(),
   dueOn: z.string().nullable().optional(),
-  position: z.number().finite().optional(),
+});
+
+/** A task moved to a column, at the end or next to a task there. The worker picks its position. */
+export const taskMoveSchema = z.object({
+  taskId: id,
+  status: taskStatusSchema,
+  placement: taskPlacementSchema,
 });
 
 /** A task on the team's board. */

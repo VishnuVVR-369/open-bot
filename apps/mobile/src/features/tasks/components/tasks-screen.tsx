@@ -226,7 +226,6 @@ export default function TasksScreen() {
       />
       <TaskMenu
         task={menuFor}
-        tasks={all}
         columns={columns}
         blockerOf={blockerOf}
         teammates={allTeammates}

@@ -25,15 +25,12 @@ import { confirmDeleteTask, startTask } from "../actions";
 import { useYourName } from "../hooks";
 import {
   emptyTaskForm,
-  newTask,
   ownerName,
   startLabel,
-  taskChanges,
   taskForm,
   taskFormChanged,
   taskFormProblem,
-  taskHref,
-  withAddedTask,
+  taskWrite,
   type TaskForm,
 } from "../tasks";
 import { DueSheet } from "./due-sheet";
@@ -70,7 +67,12 @@ export function TaskEditor({
     task ? taskForm(task) : emptyTaskForm(initialOwner),
   );
   const [form, setForm] = useState<TaskForm>(start);
+  // The task this screen saved: a new one gets its id once it's added, so trying to start it
+  // again updates that task instead of adding another.
+  const [savedId, setSavedId] = useState<string | null>(task?.id ?? null);
   const [busy, setBusy] = useState<"save" | "start" | null>(null);
+  // While a save is on its way the form is frozen, so nothing typed meanwhile is lost.
+  const locked = busy !== null;
   const [problem, setProblem] = useState<string | null>(null);
   const [sheet, setSheet] = useState<"owner" | "due" | null>(null);
   const [footer, setFooter] = useState(0);
@@ -82,10 +84,13 @@ export function TaskEditor({
   const gone = deleted && !leave;
 
   const owner = teammates.find((teammate) => teammate.id === form.ownerTeammateId);
+  // The chat is the saved owner's, whoever the form now names.
+  const chatOwner = teammates.find((teammate) => teammate.id === task?.ownerTeammateId);
   const changed = taskFormChanged(start, form);
   const canStart = Boolean(owner) && form.status !== "done" && !gone;
   const invalid = taskFormProblem(form);
   const set = (patch: Partial<TaskForm>) => {
+    if (locked) return;
     setProblem(null);
     setForm((current) => ({ ...current, ...patch }));
   };
@@ -105,33 +110,30 @@ export function TaskEditor({
     }
     setBusy(then ?? "save");
     setProblem(null);
-    let id = task?.id;
-    if (task) {
-      const changes = taskChanges(start, form);
-      if (Object.keys(changes).length > 0) {
-        const result = await safe(api.tasks.update({ taskId: task.id, ...changes }));
+    const write = taskWrite(savedId, start, form);
+    let id: string;
+    if (write.kind === "create") {
+      const result = await safe(api.tasks.create(write.input));
+      if (result.error) return failed(result.error);
+      id = result.data.id;
+      setSavedId(id);
+    } else {
+      id = write.taskId;
+      if (write.kind === "update") {
+        const result = await safe(api.tasks.update({ taskId: id, ...write.changes }));
         if (result.error) return failed(result.error);
       }
-    } else {
-      const result = await safe(api.tasks.create(newTask(form)));
-      if (result.error) return failed(result.error);
-      const created = result.data.id;
-      id = created;
-      // On the board at once, so the task screen can open on it before the board comes back.
-      queryClient.setQueryData<TaskView[]>(queryKeys.tasks, (board) =>
-        board ? withAddedTask(board, created, form) : board,
-      );
     }
     setStart(form);
-    void queryClient.invalidateQueries({ queryKey: queryKeys.tasks });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.allTasks });
     if (then !== "start") {
       haptics.success();
       return go(() => router.back());
     }
-    const started = await startTask({ id: id! });
+    const started = await startTask({ id });
     setBusy(null);
-    // Saved but not started: a new task opens as itself, so trying again doesn't add it twice.
-    if (!started) return task ? undefined : go(() => router.replace(taskHref(id!)));
+    // Saved but not started: the screen stays, now holding the saved task, to try again.
+    if (!started) return;
     go(() => (started.chatId ? router.replace(chatHref(started.chatId)) : router.back()));
   }
 
@@ -148,7 +150,7 @@ export function TaskEditor({
 
   return (
     <View style={{ flex: 1 }}>
-      <Stack.Screen options={{ title: task ? "Task" : "New task" }} />
+      <Stack.Screen options={{ title: savedId ? "Task" : "New task" }} />
       <ScrollView
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[styles.content, { paddingBottom: footer + space(6) }]}
@@ -170,6 +172,7 @@ export function TaskEditor({
           <TextField
             value={form.title}
             onChangeText={(title) => set({ title })}
+            editable={!locked}
             placeholder="Book flights to Tokyo"
             maxLength={TASK_TITLE_MAX}
             autoFocus={!task}
@@ -184,6 +187,7 @@ export function TaskEditor({
           <TextField
             value={form.notes}
             onChangeText={(notes) => set({ notes })}
+            editable={!locked}
             placeholder="What done looks like, and anything they should know."
             maxLength={TASK_NOTES_MAX}
             multiline
@@ -194,7 +198,7 @@ export function TaskEditor({
         <Card>
           <FormRow
             label="Owner"
-            onPress={() => setSheet("owner")}
+            onPress={() => !locked && setSheet("owner")}
             testID="task-owner"
             value={
               <View style={styles.value}>
@@ -212,7 +216,7 @@ export function TaskEditor({
           <FormRow
             label="Due"
             first={false}
-            onPress={() => setSheet("due")}
+            onPress={() => !locked && setSheet("due")}
             testID="task-due-row"
             value={
               <Text
@@ -248,7 +252,7 @@ export function TaskEditor({
             <StatusPicker value={form.status} onChange={(status) => set({ status })} />
           </Field>
         )}
-        {task?.chatId && owner && (
+        {task?.chatId && chatOwner && (
           <Card>
             <ListRow
               leading={
@@ -256,7 +260,7 @@ export function TaskEditor({
                   <MessageSquare size={18} color={colors.foreground} />
                 </View>
               }
-              title={`${owner.name}'s chat`}
+              title={`${chatOwner.name}'s chat`}
               subtitle="Where they were last asked to work on it"
               onPress={() => router.push(chatHref(task.chatId!))}
               testID="task-chat"
@@ -315,10 +319,10 @@ export function TaskEditor({
             />
           )}
           <Button
-            title={task ? "Save" : "Add task"}
+            title={savedId ? "Save" : "Add task"}
             onPress={() => void save()}
             disabled={
-              !online || busy !== null || Boolean(invalid) || gone || (task !== null && !changed)
+              !online || busy !== null || Boolean(invalid) || gone || (savedId !== null && !changed)
             }
             busy={busy === "save"}
             style={canStart ? styles.save : { flex: 1 }}

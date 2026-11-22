@@ -1,5 +1,5 @@
 import { STATUS } from "../teammates/status";
-import { TASK_STATUSES, type TaskStatus } from "./tasks";
+import { TASK_STATUSES, type TaskPlacement, type TaskStatus } from "./tasks";
 
 /**
  * How the team's board is laid out, the same on the web and the phone: which column a task is
@@ -182,53 +182,112 @@ export function filterCounts<T extends BoardTask>(
   };
 }
 
-/** The position that puts a task at the end of a column. */
-export function endPosition(column: readonly Pick<BoardTask, "id" | "position">[], id?: string) {
-  const others = column.filter((task) => task.id !== id);
-  return others.length ? Math.max(...others.map((task) => task.position)) + 1 : 1;
-}
-
 /** A task's new place in its column. */
 export interface PositionChange {
   id: string;
   position: number;
 }
 
+/** A column in the order the worker keeps it: by position, and by id where positions tie. */
+const byPlace = (a: Pick<BoardTask, "id" | "position">, b: Pick<BoardTask, "id" | "position">) =>
+  a.position - b.position || a.id.localeCompare(b.id);
+
 /**
- * Moves a task one place up or down in its column as the board draws it (`drawn`, from
- * `boardColumns` with the filter in use), among the tasks that share its standing: what waits on
- * you is always drawn first, so a task only trades places with one on the same side of that line.
- * Hidden tasks don't count, so every move shows.
+ * Where a task lands in a column (every task with its new status, hidden or not) for a placement.
+ * The task's own new position comes first. It lands halfway between its new neighbours, or one past
+ * the end; when there is no room between them (they share a position, or halving ran out), the
+ * column is numbered again in its new order and every task whose position changed follows.
+ * Null when the task it goes before or after isn't in the column.
  *
- * The task lands halfway between its new neighbours, or one past the end. When they share a
- * position (two tasks added at once, or halved too often) there is no room between them, so the
- * group is numbered again in its new order. Null when it can't move that way.
+ * The worker runs this under the board's lock on the whole column; clients run it on their copy
+ * to show the move at once, until the board comes back.
  */
-export function stepTask<T extends BoardTask>(
+export function placeTask(
+  column: readonly Pick<BoardTask, "id" | "position">[],
+  id: string,
+  placement: TaskPlacement,
+): PositionChange[] | null {
+  const others = column.filter((task) => task.id !== id).sort(byPlace);
+  let index = others.length;
+  if (placement.kind !== "end") {
+    const anchor = others.findIndex((task) => task.id === placement.taskId);
+    if (anchor < 0) return null;
+    index = placement.kind === "before" ? anchor : anchor + 1;
+  }
+  const before = others[index - 1]?.position;
+  const after = others[index]?.position;
+  const position =
+    before === undefined
+      ? after === undefined
+        ? 1
+        : after - 1
+      : after === undefined
+        ? before + 1
+        : (before + after) / 2;
+  if ((before === undefined || position > before) && (after === undefined || position < after))
+    return [{ id, position }];
+  const order = [...others.slice(0, index), { id, position: Number.NaN }, ...others.slice(index)];
+  const numbered = order.map((task, n) => ({ id: task.id, position: n + 1, was: task.position }));
+  return [
+    { id, position: index + 1 },
+    ...numbered
+      .filter((task) => task.id !== id && task.position !== task.was)
+      .map((task) => ({ id: task.id, position: task.position })),
+  ];
+}
+
+/**
+ * The board with a task moved to `status` at `placement`, as `placeTask` places it, to show at once
+ * while the worker makes the move. Null when the task, or the one it goes next to, isn't on it.
+ */
+export function withTaskMoved<T extends BoardTask>(
+  tasks: readonly T[],
+  id: string,
+  status: TaskStatus,
+  placement: TaskPlacement,
+  now = new Date(),
+): T[] | null {
+  const task = tasks.find((entry) => entry.id === id);
+  if (!task) return null;
+  const changes = placeTask(
+    tasks.filter((entry) => entry.status === status),
+    id,
+    placement,
+  );
+  if (!changes) return null;
+  const placed = new Map(changes.map((change) => [change.id, change.position]));
+  const moved = status !== task.status;
+  return tasks.map((entry) => {
+    const position = placed.get(entry.id) ?? entry.position;
+    if (entry.id !== id) return position === entry.position ? entry : { ...entry, position };
+    return {
+      ...entry,
+      status,
+      position,
+      completedAt: !moved ? entry.completedAt : status === "done" ? now.toISOString() : null,
+    };
+  });
+}
+
+/**
+ * Where a task goes to move one place up or down in its column as the board draws it (`drawn`,
+ * from `boardColumns` with the filter in use), among the tasks that share its standing: what waits
+ * on you is always drawn first, so a task only trades places with one on the same side of that
+ * line. It goes just before the task drawn above it, or just after the one drawn below, so the
+ * tasks a filter hides don't count and every move shows. Null when it can't move that way.
+ */
+export function stepPlacement<T extends BoardTask>(
   drawn: readonly T[],
   id: string,
   direction: "up" | "down",
   blockerOf: (task: T) => TaskBlocker | null,
-): PositionChange[] | null {
+): TaskPlacement | null {
   const task = drawn.find((entry) => entry.id === id);
   if (!task || task.status === "done") return null;
   const standing = waitsOnYou(blockerOf(task));
   const group = drawn.filter((entry) => waitsOnYou(blockerOf(entry)) === standing);
   const from = group.indexOf(task);
-  const to = direction === "up" ? from - 1 : from + 1;
-  if (to < 0 || to >= group.length) return null;
-  const order = [...group];
-  order.splice(from, 1);
-  order.splice(to, 0, task);
-  const before = order[to - 1]?.position;
-  const after = order[to + 1]?.position;
-  const position =
-    before === undefined ? after! - 1 : after === undefined ? before + 1 : (before + after) / 2;
-  if ((before === undefined || position > before) && (after === undefined || position < after))
-    return [{ id, position }];
-  const start = Math.min(...group.map((entry) => entry.position));
-  return order
-    .map((entry, index) => ({ id: entry.id, position: start + index, was: entry.position }))
-    .filter((change) => change.position !== change.was)
-    .map(({ id, position }) => ({ id, position }));
+  const neighbour = group[direction === "up" ? from - 1 : from + 1];
+  if (!neighbour) return null;
+  return { kind: direction === "up" ? "before" : "after", taskId: neighbour.id };
 }

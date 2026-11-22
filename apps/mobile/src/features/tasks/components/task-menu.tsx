@@ -1,7 +1,6 @@
 import type { TaskView, TeammateSummary } from "@open-bot/api";
 import {
-  endPosition,
-  stepTask,
+  stepPlacement,
   TASK_STATUS_LABELS,
   TASK_STATUSES,
   wasAsked,
@@ -38,15 +37,12 @@ const STATUS_ICONS = { todo: Circle, doing: CircleDot, done: CircleCheck } as co
  */
 export function TaskMenu({
   task: open,
-  tasks,
   columns,
   blockerOf,
   teammates,
   onClose,
 }: {
   task: TaskView | null;
-  /** The whole board, for the end of the column it moves to. */
-  tasks: readonly TaskView[];
   /** The columns as drawn, with the filter in use, for what's above and below it. */
   columns: readonly BoardColumn<TaskView>[];
   blockerOf: (task: TaskView) => TaskBlocker | null;
@@ -61,15 +57,9 @@ export function TaskMenu({
   const task = open ?? last.current;
   const owner = teammates.find((teammate) => teammate.id === task?.ownerTeammateId);
   const drawn = columns.find((column) => column.status === task?.status)?.tasks ?? [];
-  const up = task ? stepTask(drawn, task.id, "up", blockerOf) : null;
-  const down = task ? stepTask(drawn, task.id, "down", blockerOf) : null;
-  // To the end of the other column, where the worker would put it, so it doesn't jump after.
-  const toEnd = (status: TaskStatus) => [
-    {
-      id: task!.id,
-      position: endPosition(tasks.filter((entry) => entry.status === status)),
-    },
-  ];
+  // Before the task drawn above it, or after the one below: the worker places it among them all.
+  const up = task ? stepPlacement(drawn, task.id, "up", blockerOf) : null;
+  const down = task ? stepPlacement(drawn, task.id, "down", blockerOf) : null;
   const icon = (Icon: typeof Circle, color = colors.foreground) => <Icon size={20} color={color} />;
   const act = (run: () => void) => () => {
     onClose();
@@ -113,7 +103,7 @@ export function TaskMenu({
             icon={icon(STATUS_ICONS[status])}
             label={`Move to ${TASK_STATUS_LABELS[status]}`}
             disabled={!online}
-            onPress={act(() => void moveTask(task, status, toEnd(status)))}
+            onPress={act(() => void moveTask(task, status, { kind: "end" }))}
             testID={`task-menu-move-${status}`}
           />
         ))}

@@ -155,16 +155,16 @@ A path or input field is removed only once no deployed web app calls it.
 
 ### Automations, tasks and skills
 
-| Route                                                                 | Purpose                                               |
-| --------------------------------------------------------------------- | ----------------------------------------------------- |
-| `POST /internal/schedules`, `/internal/schedules/:id`                 | Create or update a schedule                           |
-| `POST /internal/schedules/:id/enabled`, `/run`, `/delete`             | Pause or resume, run now, delete                      |
-| `POST /internal/triggers`, `/internal/triggers/:id`                   | Create or update a watch or webhook                   |
-| `POST /internal/triggers/:id/enabled`, `/delete`, `/check`, `/rotate` | Pause, delete, check now, new webhook URL             |
-| `POST /internal/hooks/:token`                                         | Fire a webhook (called by the web app's public route) |
-| `POST /internal/tasks`, `/internal/tasks/:id`, `/delete`, `/start`    | The task board                                        |
-| `POST /internal/skills`, `/internal/skills/:id/delete`                | Save or delete a skill                                |
-| `POST /internal/swarms/:id/stop`                                      | Stop a swarm's helpers                                |
+| Route                                                                       | Purpose                                               |
+| --------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `POST /internal/schedules`, `/internal/schedules/:id`                       | Create or update a schedule                           |
+| `POST /internal/schedules/:id/enabled`, `/run`, `/delete`                   | Pause or resume, run now, delete                      |
+| `POST /internal/triggers`, `/internal/triggers/:id`                         | Create or update a watch or webhook                   |
+| `POST /internal/triggers/:id/enabled`, `/delete`, `/check`, `/rotate`       | Pause, delete, check now, new webhook URL             |
+| `POST /internal/hooks/:token`                                               | Fire a webhook (called by the web app's public route) |
+| `POST /internal/tasks`, `/internal/tasks/:id`, `/move`, `/delete`, `/start` | The task board                                        |
+| `POST /internal/skills`, `/internal/skills/:id/delete`                      | Save or delete a skill                                |
+| `POST /internal/swarms/:id/stop`                                            | Stop a swarm's helpers                                |
 
 ### Files
 

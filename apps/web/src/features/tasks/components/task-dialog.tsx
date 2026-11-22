@@ -61,6 +61,8 @@ export function TaskDialog({
   const [pending, startTransition] = useTransition();
   const router = useRouter();
   const ownerTeammate = teammates.find((teammate) => teammate.id === owner);
+  // The chat is the saved owner's, whoever the form now names.
+  const chatOwner = teammates.find((teammate) => teammate.id === task?.ownerTeammateId);
 
   function save(then?: "start") {
     startTransition(async () => {
@@ -222,11 +224,11 @@ export function TaskDialog({
                   Delete
                 </Button>
               )}
-              {task?.chatId && ownerTeammate && (
+              {task?.chatId && chatOwner && (
                 <Button type="button" variant="ghost" size="sm" asChild>
                   <Link href={`/chats/${task.chatId}`}>
                     <MessageSquare />
-                    {ownerTeammate.name}&apos;s chat
+                    {chatOwner.name}&apos;s chat
                   </Link>
                 </Button>
               )}

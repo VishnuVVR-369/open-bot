@@ -1,5 +1,6 @@
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
 import { tasks } from "@open-bot/db";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const url = testDatabaseServer();
@@ -7,11 +8,12 @@ const url = testDatabaseServer();
 describe.skipIf(!url)("the task board's read", () => {
   const database = testDatabase(url);
   let listTasks: typeof import("./queries").listTasks;
+  let getTask: typeof import("./queries").getTask;
 
   beforeAll(async () => {
     await database.create();
     process.env.DATABASE_URL = database.url;
-    ({ listTasks } = await import("./queries"));
+    ({ listTasks, getTask } = await import("./queries"));
   });
 
   afterAll(async () => {
@@ -42,5 +44,23 @@ describe.skipIf(!url)("the task board's read", () => {
     expect(done[0]).toMatchObject({ title: "Done 31", completedAt: day(31).toISOString() });
     expect(done.at(-1)?.title).toBe("Done 2");
     expect(board.every((task) => typeof task.createdAt === "string")).toBe(true);
+  });
+
+  it("finds one task by id, even one finished too long ago for the board", async () => {
+    const board = await listTasks();
+    const [oldest] = await database.db
+      .insert(tasks)
+      .values({
+        title: "Done long ago",
+        status: "done",
+        createdBy: "user",
+        completedAt: new Date(Date.UTC(2020, 0, 1)),
+      })
+      .returning();
+    expect((await listTasks()).map((task) => task.id)).not.toContain(oldest!.id);
+    expect(await getTask(oldest!.id)).toMatchObject({ title: "Done long ago", status: "done" });
+    expect(await getTask(board[0]!.id)).toEqual(board[0]);
+    await database.db.delete(tasks).where(eq(tasks.id, oldest!.id));
+    expect(await getTask(oldest!.id)).toBeNull();
   });
 });

@@ -35,6 +35,25 @@ test("plan work on the task board", async ({ page }) => {
     await todo.getByLabel("New task").press("Enter");
     const bags = page.getByTestId("task").filter({ hasText: `Pack bags ${marker}` });
     await expect(todo.getByTestId("task").filter({ hasText: `Pack bags ${marker}` })).toBeVisible();
+
+    // Dropped on a card, a task goes just before it, and stays there after a reload.
+    const order = () =>
+      todo
+        .getByTestId("task")
+        .filter({ hasText: marker })
+        .evaluateAll((cards) => cards.map((card) => card.textContent ?? ""));
+    await expect
+      .poll(async () => (await order()).map((text) => text.slice(0, 9)))
+      .toEqual(["Book flig", "Pack bags"]);
+    await bags.dragTo(flights);
+    await expect
+      .poll(async () => (await order()).map((text) => text.slice(0, 9)))
+      .toEqual(["Pack bags", "Book flig"]);
+    await page.reload();
+    await expect
+      .poll(async () => (await order()).map((text) => text.slice(0, 9)))
+      .toEqual(["Pack bags", "Book flig"]);
+
     await bags.dragTo(page.getByTestId("column-doing"));
     await expect(
       page

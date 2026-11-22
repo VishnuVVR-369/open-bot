@@ -15,10 +15,11 @@ import {
   taskFormChanged,
   taskFormProblem,
   taskRowLabel,
+  taskScreenState,
+  taskWrite,
   teammateTasks,
   weekdayNames,
   weekStartFrom,
-  withAddedTask,
 } from "./tasks";
 
 const task = (overrides: Partial<TaskView> & { id: string }): TaskView => ({
@@ -189,26 +190,60 @@ describe("the due date picker", () => {
   });
 });
 
-describe("a task just added", () => {
-  const form = { ...emptyTaskForm("ivy"), title: "  Book flights  ", dueOn: "2026-12-01" };
+describe("saving the task screen", () => {
+  const form = { ...emptyTaskForm("ivy"), title: "  Book flights  " };
 
-  it("joins the board at the end of To do, as the worker puts it", () => {
-    const board = [task({ id: "a", position: 3 }), task({ id: "b", position: 9, status: "doing" })];
-    const added = withAddedTask(board, "new", form, now).at(-1);
-    expect(added).toMatchObject({
-      id: "new",
-      title: "Book flights",
-      ownerTeammateId: "ivy",
-      dueOn: "2026-12-01",
-      status: "todo",
-      position: 4,
-      createdBy: "user",
+  it("adds a new task once, then only updates it", () => {
+    expect(taskWrite(null, emptyTaskForm("ivy"), form)).toEqual({
+      kind: "create",
+      input: { title: "Book flights", notes: "", ownerTeammateId: "ivy", dueOn: null },
+    });
+    // Added, but starting it failed: asking again uses the task it made, whatever the board holds.
+    expect(taskWrite("new", form, form)).toEqual({ kind: "none", taskId: "new" });
+    expect(taskWrite("new", form, { ...form, dueOn: "2026-12-01" })).toEqual({
+      kind: "update",
+      taskId: "new",
+      changes: { dueOn: "2026-12-01" },
+    });
+  });
+});
+
+describe("what the task screen shows", () => {
+  const open = task({ id: "a", status: "done" });
+  const gone = (error: unknown) => error === "not found";
+
+  it("shows the task, read on its own, even one the board no longer lists", () => {
+    expect(taskScreenState({ data: open, error: null }, open, gone)).toEqual({
+      kind: "task",
+      task: open,
+      gone: false,
     });
   });
 
-  it("isn't added twice once the board has it", () => {
-    const board = [task({ id: "new", title: "From the server" })];
-    expect(withAddedTask(board, "new", form, now)).toEqual(board);
+  it("says it was deleted only when the server says it's gone", () => {
+    expect(taskScreenState({ data: open, error: "not found" }, open, gone)).toEqual({
+      kind: "task",
+      task: open,
+      gone: true,
+    });
+    // Offline or failing: the last copy stays, with no deletion notice.
+    expect(taskScreenState({ data: undefined, error: "offline" }, open, gone)).toEqual({
+      kind: "task",
+      task: open,
+      gone: false,
+    });
+  });
+
+  it("says there's no such task, a failed read, or that it's loading", () => {
+    expect(taskScreenState({ data: undefined, error: "not found" }, undefined, gone)).toEqual({
+      kind: "missing",
+    });
+    expect(taskScreenState({ data: undefined, error: "offline" }, undefined, gone)).toEqual({
+      kind: "error",
+    });
+    expect(taskScreenState({ data: undefined, error: null }, undefined, gone)).toEqual({
+      kind: "loading",
+    });
   });
 });
 

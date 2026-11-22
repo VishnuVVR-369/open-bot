@@ -9,7 +9,9 @@ beforeAll(() => {
   process.env.TZ = "Europe/Berlin";
 });
 afterAll(() => {
-  process.env.TZ = zone;
+  // Assigning undefined would store the string "undefined".
+  if (zone === undefined) delete process.env.TZ;
+  else process.env.TZ = zone;
 });
 
 describe("due days across a clock change", () => {

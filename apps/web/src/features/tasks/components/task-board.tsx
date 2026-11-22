@@ -11,8 +11,10 @@ import {
   TASK_STATUSES,
   TASK_TITLE_MAX,
   taskBlocker,
+  withTaskMoved,
   type TaskBlocker,
   type TaskFilter,
+  type TaskPlacement,
 } from "@open-bot/domain";
 import { useQueryClient } from "@tanstack/react-query";
 import { CalendarDays, ChevronDown, CircleCheck, Plus } from "lucide-react";
@@ -244,12 +246,16 @@ export function TaskBoard() {
   const blockerOf = (task: TaskView) => taskBlocker(task, facts);
   const refresh = () => void queryClient.invalidateQueries({ queryKey: orpc.tasks.key() });
 
-  /** Moves a task, showing it in place right away. */
-  async function move(id: string, status: TaskView["status"], position: number) {
-    queryClient.setQueryData(orpc.tasks.list.queryKey(), (current) =>
-      current?.map((task) => (task.id === id ? { ...task, status, position } : task)),
+  /**
+   * Moves a task, showing it in place right away. The worker places it against the whole column,
+   * and the board that comes back afterwards settles it, refused or not.
+   */
+  async function move(id: string, status: TaskView["status"], placement: TaskPlacement) {
+    queryClient.setQueryData(
+      orpc.tasks.list.queryKey(),
+      (current) => current && (withTaskMoved(current, id, status, placement) ?? current),
     );
-    const result = await attempt(api.tasks.update({ taskId: id, status, position }));
+    const result = await attempt(api.tasks.move({ taskId: id, status, placement }));
     if (!result.ok) toast.error("Couldn't move it", { description: result.error });
     refresh();
   }
@@ -306,8 +312,7 @@ export function TaskBoard() {
                 setOverColumn(null);
                 const id = dragId(event);
                 if (!id || event.defaultPrevented) return;
-                const last = column.tasks.filter((task) => task.id !== id).at(-1);
-                void move(id, column.status, (last?.position ?? 0) + 1);
+                void move(id, column.status, { kind: "end" });
               }}
               className={cn(
                 "flex flex-col gap-2 rounded-[14px] bg-subtle p-2 transition-colors md:min-h-40 dark:bg-white/[0.025]",
@@ -349,16 +354,7 @@ export function TaskBoard() {
                       event.preventDefault();
                       setOverColumn(null);
                       if (!id || id === task.id) return;
-                      // The task just before it by position: blocked tasks are shown first, so
-                      // the one above it on screen may not be.
-                      const before = column.tasks.reduce(
-                        (best, other) =>
-                          other.id !== id && other.position < task.position && other.position > best
-                            ? other.position
-                            : best,
-                        task.position - 1,
-                      );
-                      void move(id, column.status, (before + task.position) / 2);
+                      void move(id, column.status, { kind: "before", taskId: task.id });
                     }}
                   />
                 ))}

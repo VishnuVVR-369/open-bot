@@ -81,9 +81,16 @@ A task has a title, notes, a status (`todo`, `doing`, `done`), an owner, a due d
 
 The web app shows it as three columns with drag and drop; the Android app stacks the same columns (see [The Android app](/docs/flows/android-app#tasks)).
 Both lay it out with the shared rules in `packages/domain/src/tasks/board.ts`: what waits on you first in each column, then board order, and finished tasks newest first.
-A task added, or moved to another column without a position, goes to the end of that column; the worker takes the `task_ends` lock while it reads the last place, so two tasks added at once never share one.
+Only the worker sets a task's place.
+A client moves a task with `tasks.move`, naming the column and where in it: at the end, or just before or after another task there.
+The worker works out the position against the whole column, so a filter on the board or a stale copy can't put it on top of a hidden task.
+It lands halfway between its new neighbours; when they share a position, or halving runs out of room, the worker numbers the column again in the same transaction.
+Every write that sets a column or a place (adding a task, `update` with a new status, `move`, and starting a task) takes the `task_board` lock first, so two at once never read the same neighbours, and each publishes one `tasks` event after it commits.
+A task added, or given a new status with `update`, goes to the end of that column.
+Giving a task to someone else clears the chat its last owner was asked in: the new owner hasn't been asked yet, so the apps offer "Ask to start", not "Ask again".
 
-**Ask to start** (in the app, or `add_task` with `start`) queues a run for the owner in its main chat, with trigger `task`, and moves the task to Doing:
+**Ask to start** (in the app, or `add_task` with `start`) queues a run for the owner in its main chat, with trigger `task`, and moves the task to Doing.
+The run and the task's change are saved in one transaction and the run is announced after it commits, so a start that fails queues nothing, and trying again asks once:
 
 ```text title="The run's prompt"
 [The user asked you to work on a task from the team's board (task id …). When it's

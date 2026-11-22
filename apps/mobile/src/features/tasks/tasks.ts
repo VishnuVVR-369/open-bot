@@ -3,7 +3,6 @@ import {
   daysUntil,
   dueLabel,
   dueState,
-  endPosition,
   formatDay,
   isOverdue,
   parseDay,
@@ -95,29 +94,46 @@ export function newTask(form: TaskForm) {
   };
 }
 
+/** What saving the task screen sends, given the task it has saved so far (none yet when new). */
+export type TaskWrite =
+  | { kind: "create"; input: ReturnType<typeof newTask> }
+  | { kind: "update"; taskId: string; changes: TaskChanges }
+  | { kind: "none"; taskId: string };
+
 /**
- * The board with a task the worker just added, as the worker placed it (at the end of To do), so
- * it shows at once: the task screen opens on it before the board comes back from the server.
+ * A task the screen hasn't saved yet is created; once it has an id (it was added here, then
+ * starting it failed, say) it's only ever updated, so trying again never adds it twice.
  */
-export function withAddedTask(
-  board: readonly TaskView[],
-  id: string,
-  form: TaskForm,
-  now = new Date(),
-): TaskView[] {
-  if (board.some((task) => task.id === id)) return [...board];
-  const added: TaskView = {
-    id,
-    ...newTask(form),
-    status: "todo",
-    position: endPosition(board.filter((task) => task.status === "todo")),
-    createdBy: "user",
-    createdByTeammateId: null,
-    chatId: null,
-    completedAt: null,
-    createdAt: now.toISOString(),
-  };
-  return [...board, added];
+export function taskWrite(savedId: string | null, start: TaskForm, form: TaskForm): TaskWrite {
+  if (!savedId) return { kind: "create", input: newTask(form) };
+  const changes = taskChanges(start, form);
+  return Object.keys(changes).length > 0
+    ? { kind: "update", taskId: savedId, changes }
+    : { kind: "none", taskId: savedId };
+}
+
+/**
+ * What the task screen shows: the task (the last copy seen, while a read fails for another
+ * reason), that it was deleted while open, or that there's no such task. Only the server saying
+ * it's gone counts as deleted, never the board leaving it out.
+ */
+export function taskScreenState<T>(
+  read: { data: T | undefined; error: unknown },
+  seen: T | undefined,
+  isGone: (error: unknown) => boolean,
+):
+  | { kind: "loading" }
+  | { kind: "task"; task: T; gone: boolean }
+  | { kind: "missing" }
+  | {
+      kind: "error";
+    } {
+  const gone = read.error !== null && read.error !== undefined && isGone(read.error);
+  const task = gone ? seen : (read.data ?? seen);
+  if (task) return { kind: "task", task, gone };
+  if (gone) return { kind: "missing" };
+  if (read.error) return { kind: "error" };
+  return { kind: "loading" };
 }
 
 /** Who owns a task, by name: you, a teammate, or one who has left the team. */

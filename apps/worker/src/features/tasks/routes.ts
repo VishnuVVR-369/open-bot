@@ -13,6 +13,10 @@ export function taskRoutes(tasks: TaskService) {
       await tasks.update(taskId, patch);
       return ok;
     }),
+    move: os.tasks.move.handler(async ({ input }) => {
+      await tasks.move(input.taskId, input.status, input.placement);
+      return ok;
+    }),
     remove: os.tasks.remove.handler(async ({ input }) => {
       await tasks.remove(input.taskId);
       return ok;

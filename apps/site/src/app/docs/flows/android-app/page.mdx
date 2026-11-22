@@ -130,10 +130,14 @@ Each task shows what holds it up, its title and notes, its owner's face (your in
 The board refreshes on its own when you or a teammate changes a task, from the `tasks` app event.
 
 Tap a task to edit its title, notes, owner, due day and status.
+The task screen reads the task itself (`tasks.get`), so a task finished too long ago for the board still opens, and it says the task was deleted only when the server says so.
 Only the fields you changed are sent, so a teammate's edit to another field meanwhile stays; leaving with unsaved changes asks first.
+While a save is on its way the form is frozen, so nothing typed meanwhile is lost.
 Ask to start (Ask again once the task was handed to that teammate) saves, hands the task to its teammate in their main chat, moves it to Doing, and opens that chat.
+If a new task was added but starting it failed, the screen stays on the saved task, so trying again starts it instead of adding it twice.
 Hold a task, or use its menu button, to move it to another column or one place up or down in its own (the web's drag and drop), start it, open its chat, edit or delete it.
-Move to another column puts it at the end of that column, where the worker would put it.
+A move is one `tasks.move` call that says where the task goes, not a position: at the end of another column, or just before the task drawn above it or after the one drawn below.
+The worker places it against the whole column, so the board shows it at once and the board that comes back settles it.
 Move up and Move down step past the next task you can see: tasks hidden by the filter don't count, and a task never crosses the line between what waits on you and the rest, since that line decides the order first.
 Deleting asks first, since the board has no undo, and says when the teammate may still be working on it.
 While the phone is offline, everything that would change the board is disabled, and a task you're writing stays on screen until you're back.

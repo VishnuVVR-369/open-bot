@@ -4,12 +4,13 @@ import {
   daysUntil,
   dueLabel,
   dueState,
-  endPosition,
   filterCounts,
   formatDay,
-  stepTask,
+  placeTask,
+  stepPlacement,
   taskBlocker,
   wasAsked,
+  withTaskMoved,
   type BlockerFacts,
   type BoardTask,
 } from "./board";
@@ -130,7 +131,78 @@ describe("the board's columns", () => {
   });
 });
 
-describe("moving a task in its column", () => {
+describe("placing a moved task", () => {
+  const column = [
+    task({ id: "a", position: 1 }),
+    task({ id: "b", position: 2 }),
+    task({ id: "c", position: 4 }),
+  ];
+
+  it("lands halfway between the two it goes between", () => {
+    expect(placeTask(column, "c", { kind: "before", taskId: "b" })).toEqual([
+      { id: "c", position: 1.5 },
+    ]);
+    expect(placeTask(column, "a", { kind: "after", taskId: "b" })).toEqual([
+      { id: "a", position: 3 },
+    ]);
+  });
+
+  it("goes one past an end, or first in an empty column", () => {
+    expect(placeTask(column, "b", { kind: "before", taskId: "a" })).toEqual([
+      { id: "b", position: 0 },
+    ]);
+    expect(placeTask(column, "b", { kind: "after", taskId: "c" })).toEqual([
+      { id: "b", position: 5 },
+    ]);
+    expect(placeTask(column, "x", { kind: "end" })).toEqual([{ id: "x", position: 5 }]);
+    expect(placeTask(column, "c", { kind: "end" })).toEqual([{ id: "c", position: 3 }]);
+    expect(placeTask([], "x", { kind: "end" })).toEqual([{ id: "x", position: 1 }]);
+  });
+
+  it("refuses a task to go next to that isn't in the column, or is the task itself", () => {
+    expect(placeTask(column, "x", { kind: "before", taskId: "y" })).toBeNull();
+    expect(placeTask(column, "a", { kind: "after", taskId: "a" })).toBeNull();
+  });
+
+  it("numbers the column again when its neighbours share a position", () => {
+    // A, B and C tied at 1, drawn A, B, C: moving A down puts it after B.
+    const tied = ["a", "b", "c"].map((id) => task({ id, position: 1 }));
+    expect(placeTask(tied, "a", { kind: "after", taskId: "b" })).toEqual([
+      { id: "a", position: 2 },
+      { id: "c", position: 3 },
+    ]);
+    // At an end, one past its neighbour is enough.
+    expect(placeTask(tied, "c", { kind: "before", taskId: "a" })).toEqual([
+      { id: "c", position: 0 },
+    ]);
+  });
+
+  it("numbers the column again when halving runs out of room", () => {
+    const close = [
+      task({ id: "a", position: 1 }),
+      task({ id: "b", position: 1 + Number.EPSILON }),
+      task({ id: "c", position: 2 }),
+    ];
+    expect(placeTask(close, "c", { kind: "after", taskId: "a" })).toEqual([
+      { id: "c", position: 2 },
+      { id: "b", position: 3 },
+    ]);
+  });
+
+  it("shows a move on the board at once, with its new status", () => {
+    const board = [...column, task({ id: "d", status: "doing", position: 7 })];
+    const moved = withTaskMoved(board, "a", "doing", { kind: "end" }, now)!;
+    expect(moved.find((t) => t.id === "a")).toMatchObject({ status: "doing", position: 8 });
+    // The others are the same objects, untouched.
+    expect(moved.filter((t) => t.id !== "a")).toEqual(board.filter((t) => t.id !== "a"));
+    const finished = withTaskMoved(board, "b", "done", { kind: "end" }, now)!;
+    expect(finished.find((t) => t.id === "b")?.completedAt).toBe(now.toISOString());
+    expect(withTaskMoved(board, "a", "doing", { kind: "before", taskId: "b" })).toBeNull();
+    expect(withTaskMoved(board, "x", "doing", { kind: "end" })).toBeNull();
+  });
+});
+
+describe("moving a task one step up or down", () => {
   const none = () => null;
   const column = [
     task({ id: "a", position: 1 }),
@@ -143,22 +215,17 @@ describe("moving a task in its column", () => {
     filter: "all" | "mine" = "all",
   ) => boardColumns(tasks, blockerOf, filter, now)[0]!.tasks;
 
-  it("lands halfway between the two it moves between", () => {
-    expect(stepTask(drawn(column), "c", "up", none)).toEqual([{ id: "c", position: 1.5 }]);
-    expect(stepTask(drawn(column), "a", "down", none)).toEqual([{ id: "a", position: 3 }]);
-  });
-
-  it("goes one past the end when it becomes first or last", () => {
-    expect(stepTask(drawn(column), "b", "up", none)).toEqual([{ id: "b", position: 0 }]);
-    expect(stepTask(drawn(column), "b", "down", none)).toEqual([{ id: "b", position: 5 }]);
+  it("goes before the task drawn above it, or after the one drawn below", () => {
+    expect(stepPlacement(drawn(column), "c", "up", none)).toEqual({ kind: "before", taskId: "b" });
+    expect(stepPlacement(drawn(column), "a", "down", none)).toEqual({ kind: "after", taskId: "b" });
   });
 
   it("can't move past the ends, out of Done, or a task that isn't there", () => {
-    expect(stepTask(drawn(column), "a", "up", none)).toBeNull();
-    expect(stepTask(drawn(column), "c", "down", none)).toBeNull();
-    expect(stepTask(drawn(column), "x", "up", none)).toBeNull();
+    expect(stepPlacement(drawn(column), "a", "up", none)).toBeNull();
+    expect(stepPlacement(drawn(column), "c", "down", none)).toBeNull();
+    expect(stepPlacement(drawn(column), "x", "up", none)).toBeNull();
     const done = [task({ id: "d", status: "done" }), task({ id: "e", status: "done" })];
-    expect(stepTask(done, "e", "up", none)).toBeNull();
+    expect(stepPlacement(done, "e", "up", none)).toBeNull();
   });
 
   it("trades places only with tasks on its side of what waits on you", () => {
@@ -167,58 +234,30 @@ describe("moving a task in its column", () => {
     const blockerOf = (t: BoardTask) => (t.chatId ? ("approval" as const) : null);
     const shown = drawn(blocked, blockerOf);
     expect(shown.map((t) => t.id)).toEqual(["c", "a", "b"]);
-    expect(stepTask(shown, "c", "up", blockerOf)).toBeNull();
-    expect(stepTask(shown, "c", "down", blockerOf)).toBeNull();
-    expect(stepTask(shown, "a", "up", blockerOf)).toBeNull();
-    expect(stepTask(shown, "a", "down", blockerOf)).toEqual([{ id: "a", position: 3 }]);
-    expect(stepTask(shown, "b", "up", blockerOf)).toEqual([{ id: "b", position: 0 }]);
-    expect(stepTask(shown, "b", "down", blockerOf)).toBeNull();
+    expect(stepPlacement(shown, "c", "up", blockerOf)).toBeNull();
+    expect(stepPlacement(shown, "c", "down", blockerOf)).toBeNull();
+    expect(stepPlacement(shown, "a", "up", blockerOf)).toBeNull();
+    expect(stepPlacement(shown, "a", "down", blockerOf)).toEqual({ kind: "after", taskId: "b" });
+    expect(stepPlacement(shown, "b", "up", blockerOf)).toEqual({ kind: "before", taskId: "a" });
+    expect(stepPlacement(shown, "b", "down", blockerOf)).toBeNull();
   });
 
-  it("steps over the tasks a filter hides, so one tap moves it", () => {
+  it("steps over the tasks a filter hides, and lands before the next hidden one", () => {
+    // Yours at 1 and 3, a teammate's at 2 and 4: Mine draws x, y.
     const tasks = [
       task({ id: "x", position: 1 }),
-      ...[2, 3, 4].map((position) =>
-        task({ id: `t${position}`, position, ownerTeammateId: "ivy" }),
-      ),
-      task({ id: "y", position: 5 }),
+      task({ id: "t2", position: 2, ownerTeammateId: "ivy" }),
+      task({ id: "y", position: 3 }),
+      task({ id: "t4", position: 4, ownerTeammateId: "ivy" }),
     ];
     const shown = drawn(tasks, none, "mine");
     expect(shown.map((t) => t.id)).toEqual(["x", "y"]);
-    expect(stepTask(shown, "x", "down", none)).toEqual([{ id: "x", position: 6 }]);
-    expect(stepTask(shown, "y", "up", none)).toEqual([{ id: "y", position: 0 }]);
-  });
-
-  it("numbers the column again when its neighbours share a position", () => {
-    const tied = ["a", "b", "c", "d"].map((id) => task({ id, position: 1 }));
-    const shown = drawn(tied);
-    expect(shown.map((t) => t.id)).toEqual(["a", "b", "c", "d"]);
-    // a, c, b, d: b lands between c and d, which share position 1.
-    expect(stepTask(shown, "b", "down", none)).toEqual([
-      { id: "c", position: 2 },
-      { id: "b", position: 3 },
-      { id: "d", position: 4 },
-    ]);
-    // At an end, one past its neighbour is enough.
-    expect(stepTask(shown, "b", "up", none)).toEqual([{ id: "b", position: 0 }]);
-  });
-
-  it("numbers the column again when halving runs out of room", () => {
-    const close = [
-      task({ id: "a", position: 1 }),
-      task({ id: "b", position: 1 + Number.EPSILON }),
-      task({ id: "c", position: 2 }),
-    ];
-    expect(stepTask(drawn(close), "c", "up", none)).toEqual([
-      // a and c keep 1 and 2; only b moves.
-      { id: "b", position: 3 },
-    ]);
-  });
-
-  it("puts a moved task after every other one", () => {
-    expect(endPosition(column)).toBe(5);
-    expect(endPosition(column, "c")).toBe(3);
-    expect(endPosition([])).toBe(1);
+    const down = stepPlacement(shown, "x", "down", none)!;
+    expect(down).toEqual({ kind: "after", taskId: "y" });
+    // Placed against the whole column, it goes between y and the hidden task at 4, not on it.
+    expect(placeTask(tasks, "x", down)).toEqual([{ id: "x", position: 3.5 }]);
+    const up = stepPlacement(shown, "y", "up", none)!;
+    expect(placeTask(tasks, "y", up)).toEqual([{ id: "y", position: 0 }]);
   });
 });
 
