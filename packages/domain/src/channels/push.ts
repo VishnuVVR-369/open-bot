@@ -52,6 +52,11 @@ export interface NativePushData {
   runState?: RunProgressState;
   /** `run-progress`: when the run started (ISO), for the time it has been going. */
   startedAt?: string;
+  /**
+   * The sign-in on the phone it was sent for (`native_push_devices.registration`), added per
+   * phone when it's sent. The phone drops a `run-progress` push for a sign-in it has left.
+   */
+  registration?: string;
   /** `run-progress`: how many steps of the teammate's plan are done, with `stepsTotal`. */
   stepsDone?: string;
   stepsTotal?: string;

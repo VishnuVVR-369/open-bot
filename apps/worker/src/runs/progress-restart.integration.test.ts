@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import { chats, runProgressNotifications, runs, teammates } from "@open-bot/db";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Context, WorkerEvents } from "../context";
 import type { Run } from "../core/db-types";
@@ -100,7 +100,9 @@ describe.skipIf(!url)("run progress across a worker restart", () => {
       await db
         .select()
         .from(runProgressNotifications)
-        .where(eq(runProgressNotifications.runId, runId))
+        .where(
+          and(eq(runProgressNotifications.runId, runId), isNull(runProgressNotifications.endedAt)),
+        )
     ).length > 0;
 
   beforeAll(async () => {
@@ -246,5 +248,69 @@ describe.skipIf(!url)("run progress across a worker restart", () => {
     expect(await store.owed(live.id)).toBe(false);
     await store.shown(live.id);
     expect(await store.owed(live.id)).toBe(true);
+  });
+
+  it("never makes an end owed again with a save that lands after it", async () => {
+    const store = runProgressStore(db);
+    const run = await newRun();
+    expect(await store.shown(run.id)).toBe(true);
+    await store.ended(run.id);
+    // The save of the run's last update was slow, and lands now.
+    expect(await store.shown(run.id)).toBe(false);
+    expect(await store.owed(run.id)).toBe(false);
+    await db.update(runs).set({ status: "completed" }).where(eq(runs.id, run.id));
+    expect(await store.overdue()).not.toContain(run.id);
+    // A run that ended before any save landed.
+    const early = await newRun();
+    await store.ended(early.id);
+    expect(await store.shown(early.id)).toBe(false);
+    expect(await owed(early.id)).toBe(false);
+  });
+
+  it("gives up a save that waits on a held row, instead of hanging", async () => {
+    const store = runProgressStore(db, { lockTimeoutMs: 200, statementTimeoutMs: 1_000 });
+    const run = await newRun();
+    await store.shown(run.id);
+    const holder = await pool.connect();
+    try {
+      await holder.query("begin");
+      await holder.query("select 1 from run_progress_notifications where run_id = $1 for update", [
+        run.id,
+      ]);
+      const started = Date.now();
+      await expect(store.shown(run.id)).rejects.toThrow();
+      expect(Date.now() - started).toBeLessThan(900);
+      await expect(store.ended(run.id)).rejects.toThrow();
+    } finally {
+      await holder.query("rollback");
+      holder.release();
+    }
+    await store.ended(run.id);
+    expect(await owed(run.id)).toBe(false);
+  });
+
+  it("forgets ended records once no save for them can still land", async () => {
+    const store = runProgressStore(db);
+    const run = await newRun();
+    await store.shown(run.id);
+    await store.ended(run.id);
+    await store.overdue();
+    expect(
+      await db
+        .select()
+        .from(runProgressNotifications)
+        .where(eq(runProgressNotifications.runId, run.id)),
+    ).toHaveLength(1);
+    await db
+      .update(runProgressNotifications)
+      .set({ endedAt: sql`now() - make_interval(secs => ${END_OWED_FOR_MS / 1000 + 60})` })
+      .where(eq(runProgressNotifications.runId, run.id));
+    await store.overdue();
+    expect(
+      await db
+        .select()
+        .from(runProgressNotifications)
+        .where(eq(runProgressNotifications.runId, run.id)),
+    ).toEqual([]);
   });
 });

@@ -125,7 +125,7 @@ async function until<T>(check: () => Promise<T | undefined>, label: string, time
 const report: Record<string, unknown> = { started: new Date().toISOString() };
 try {
   await pool.query(
-    "insert into native_push_devices (token, platform, device) values ('phone-1', 'android', 'Stand-in phone')",
+    "insert into native_push_devices (token, platform, device, registration) values ('phone-1', 'android', 'Stand-in phone', 'smoke-sign-in')",
   );
   const created = await fetch(`${worker}/internal/teammates`, {
     method: "POST",
@@ -212,6 +212,8 @@ try {
       push.data.runState === "ended" ? undefined : `run-progress-${run.id}`,
     );
     assert.equal(push.data.tag, `run-progress:${run.id}`);
+    // The phone's sign-in, so a phone that signed out drops it.
+    assert.equal(push.data.registration, "smoke-sign-in");
   }
   // The run's commands (`sleep 24; echo 3 nonstop flights`) never leave the worker, and nor does
   // the chat's title (the teammate wrote it): every word is fixed but the teammate's name.
@@ -246,7 +248,14 @@ try {
   const stamped = [...progress].sort((a, b) => a.data.sentAt!.localeCompare(b.data.sentAt!));
   const last = stamped.at(-1)!;
   assert.equal(last.data.runState, "ended");
-  assert.deepEqual(Object.keys(last.data).sort(), ["runId", "runState", "sentAt", "tag", "type"]);
+  assert.deepEqual(Object.keys(last.data).sort(), [
+    "registration",
+    "runId",
+    "runState",
+    "sentAt",
+    "tag",
+    "type",
+  ]);
   assert(last.at >= finished.completed_at!.getTime());
   assert.equal(progress.filter((push) => push.data.runState === "ended").length, 1);
   const sentAt = progress.map((push) => push.data.sentAt!);

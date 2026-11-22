@@ -174,4 +174,15 @@ class RunProgressLogicTest {
     assertEquals(ProgressView.ATTENTION, waiting.color)
     assertEquals("openbot://", waiting.link)
   }
+
+  @Test
+  fun tellsATimeoutFromASwipe() {
+    val expiresAt = now + ProgressRules.TIMEOUT_MS
+    assertEquals(false, ProgressRules.timedOut(expiresAt, now))
+    assertEquals(false, ProgressRules.timedOut(expiresAt, expiresAt - ProgressRules.TIMEOUT_SLACK_MS - 1))
+    assertEquals(true, ProgressRules.timedOut(expiresAt, expiresAt - ProgressRules.TIMEOUT_SLACK_MS))
+    assertEquals(true, ProgressRules.timedOut(expiresAt, expiresAt + 60_000))
+    // A delete intent from before cards carried their expiry: a swipe.
+    assertEquals(false, ProgressRules.timedOut(null, now))
+  }
 }

@@ -51,7 +51,7 @@ The session cookie is kept in SecureStore, which is backed by the Android Keysto
 
 Every request puts the cookie in a `cookie` header and sets `credentials: "omit"`, so `fetch` never adds a stale cookie of its own.
 A 401 on any query calls the unauthorized handler, which runs `signOut()`.
-Sign-out releases the phone connection first (below), then unregisters this phone's push token (that needs the session), then ends the session, then clears the query cache and presence.
+Sign-out releases the phone connection first (below), then forgets run progress and unregisters this phone's push token (that needs the session), then ends the session, then clears the query cache and presence.
 
 Passkeys use the local `modules/passkey` module over Android's Credential Manager (`src/lib/passkey.ts`).
 Passkeys only work in builds signed with a key whose fingerprint is listed in `ANDROID_CERT_SHA256` on the web service.
@@ -133,11 +133,20 @@ JavaScript never draws it: these messages are normal priority, and Android may r
 - Each run's notification has the tag `run-progress:<run>` and the id 4200, apart from Notifee's ids (hashes of a string id with no tag) and the phone connection's (4100 to 4104).
 - A small ledger per run in SharedPreferences (`ProgressRules` in `RunProgressLogic.kt`) keeps FCM's unordered delivery from going backwards: a message older than the last one handled is ignored, an ended run never shows again, and a run you swiped away (its delete intent) stays hidden until it ends.
   The end has no collapse key while updates do, so either can arrive first; an end that arrives first is kept, and the later update is ignored.
-- The delete intent's receiver records the swipe and removes the run's notification in the same lock, so an update drawn between Android removing the card and the receiver running doesn't stay.
+  Every write to the ledger, a result's included, forgets runs older than 2 days and all but the newest 200.
+- Android sends the delete intent when the notification times out as well as when you swipe it, and says nothing more, so each card's delete intent carries when that card times out.
+  A delete at or after that time (less a minute for the clock) is the timeout and records nothing, so the run's next update shows it again; any earlier one is your swipe.
+- The receiver records the swipe and removes the run's notification in the same lock, so an update drawn between Android removing the card and the receiver running doesn't stay.
 - `usePushNotifications()` tells the module which chat is on screen (`visibleChat`); that chat's runs are hidden until you leave it.
   The ledger keeps each live run's latest update, so when the chat leaves the screen (you open another, or press Home) the module draws it again at once, for the time it had left before timing out, without waiting for another push.
   Ended, swiped-away and timed-out runs are not drawn again.
-- Signing out (`unregisterPushNotifications()`) stops pushes to the phone first, then calls `RunProgress.reset()`, which removes every run's notification and clears the ledger in its lock, so signing in again draws nothing from the account you left.
+- Only pushes for this sign-in are drawn.
+  When you sign in, `usePushNotifications()` takes `RunProgress.registration()`, a random id the module makes and keeps in the ledger, and sends it with the FCM token (`push.registerDevice`); the worker stores it on the phone's `native_push_devices` row and adds it to each push it sends that phone.
+  The module drops a `run-progress` push whose `registration` isn't the one it keeps; pushes the app hands it itself (development builds' test pushes) need only that you're signed in.
+  The id is taken before the token is registered, so no push can carry it before the phone has it.
+- Signing out (`unregisterPushNotifications()`) first calls `RunProgress.reset()`, which removes every run's notification and clears the ledger, the registration with it, in one write in its lock.
+  A push for the account you left, even one FCM already handed the app, draws nothing then, and nothing after you sign in again, which makes a new registration.
+  Then it stops pushes to the phone (server unregister, token delete).
 - It is ongoing on Android 14 and newer, where you can still swipe an ongoing notification away; on Android 10 to 13 it isn't, so a swipe works there too.
 - A notification not refreshed for 30 minutes removes itself; the worker sends an unchanged one again every 10 minutes, so only a lost end leaves one behind, and not for long.
 - Tapping it opens `openbot://chats/<chat>?run=<run>` in the app.

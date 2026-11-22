@@ -24,8 +24,9 @@ export interface NativePush {
 
 /**
  * How a send to one token went. `gone` tokens have been forgotten everywhere. `rejected` means
- * FCM refused this message for good (a malformed token or message, or a project it can't send
- * for): sending it again wouldn't work. `failed` could work if tried again.
+ * FCM refused this message to this token for good (a malformed token or message): sending it
+ * again wouldn't work. `failed` could work if tried again, including a project that can't send
+ * right now (a lost permission, a bad credential, a quota).
  */
 export type PushResult = "sent" | "gone" | "rejected" | "failed";
 
@@ -108,14 +109,25 @@ const serviceAccountSchema = z.object({
 });
 type ServiceAccount = z.infer<typeof serviceAccountSchema>;
 
-/** FCM's error codes that mean the token will never work again. */
+/**
+ * FCM's error codes (`FcmError.errorCode` in an answer's `error.details`) that mean the token will
+ * never work again: https://firebase.google.com/docs/reference/fcm/rest/v1/ErrorCode
+ */
 const GONE_CODES = new Set(["UNREGISTERED", "SENDER_ID_MISMATCH"]);
 /**
- * Answers that won't change if the same message is sent again: an invalid token or message (400),
- * a project or token FCM won't send for (403, 404). A 401 (an expired access token), a 429 and a
- * 5xx can work later.
+ * Codes that won't change if the same message goes to the same token again: an invalid token or
+ * message, or a registration this sender may never send to. Only these codes count, never the
+ * HTTP status alone: a 403 without one (PERMISSION_DENIED, a service account that lost its role),
+ * a 404 (a project not found), a 401, THIRD_PARTY_AUTH_ERROR, QUOTA_EXCEEDED and a 5xx are the
+ * project's state, and can work once it's fixed.
  */
-const REJECTED_STATUSES = new Set([400, 403, 404]);
+const REJECTED_CODES = new Set(["INVALID_ARGUMENT", "THIRD_PARTY_PERMISSION_DENIED"]);
+
+/** A phone to send to, and its sign-in's registration when it has one (`nativePushDevices`). */
+interface Target {
+  token: string;
+  registration?: string | null;
+}
 
 /**
  * Push notifications to the Android app through Firebase Cloud Messaging (HTTP v1), with a
@@ -166,13 +178,27 @@ export class FcmService {
     );
   };
 
-  async register(input: { token: string; platform: "android"; device: string }): Promise<void> {
+  async register(input: {
+    token: string;
+    platform: "android";
+    device: string;
+    registration?: string;
+  }): Promise<void> {
     await this.ctx.db
       .insert(nativePushDevices)
-      .values({ token: input.token, platform: input.platform, device: input.device.slice(0, 80) })
+      .values({
+        token: input.token,
+        platform: input.platform,
+        device: input.device.slice(0, 80),
+        registration: input.registration ?? null,
+      })
       .onConflictDoUpdate({
         target: nativePushDevices.token,
-        set: { platform: input.platform, device: input.device.slice(0, 80) },
+        set: {
+          platform: input.platform,
+          device: input.device.slice(0, 80),
+          registration: input.registration ?? null,
+        },
       });
   }
 
@@ -188,19 +214,13 @@ export class FcmService {
   /**
    * Sends to every phone signed in for notifications: how many got it, and how many sends failed
    * and could work if tried again (a phone FCM says is gone, or one it refused for good, is
-   * neither).
+   * neither). Each push carries the phone's `registration`, so the phone can drop a push sent for
+   * a sign-in it has left.
    */
   async deliver(push: NativePush): Promise<{ sent: number; failed: number }> {
     if (!this.account) return { sent: 0, failed: 0 };
     const rows = await this.ctx.db.select().from(nativePushDevices);
-    const results = [
-      ...(
-        await this.sendToTokens(
-          rows.map((row) => row.token),
-          push,
-        )
-      ).values(),
-    ];
+    const results = [...(await this.sendTo(rows, push)).values()];
     return {
       sent: results.filter((result) => result === "sent").length,
       failed: results.filter((result) => result === "failed").length,
@@ -212,13 +232,24 @@ export class FcmService {
    * everywhere it's kept: as a notification device and as a paired phone's wake token.
    */
   async sendToTokens(tokens: string[], push: NativePush): Promise<Map<string, PushResult>> {
+    return this.sendTo(
+      tokens.map((token) => ({ token })),
+      push,
+    );
+  }
+
+  private async sendTo(targets: Target[], push: NativePush): Promise<Map<string, PushResult>> {
     const results = new Map<string, PushResult>();
-    if (!this.account || tokens.length === 0) return results;
+    if (!this.account || targets.length === 0) return results;
     const accessToken = await this.accessToken();
+    const unique = new Map(targets.map((target) => [target.token, target]));
     await Promise.all(
-      [...new Set(tokens)].map(async (token) => {
+      [...unique.values()].map(async ({ token, registration }) => {
         try {
-          const result = await this.send(accessToken, token, push);
+          const result = await this.send(accessToken, token, {
+            ...push,
+            data: { ...push.data, ...(registration ? { registration } : {}) },
+          });
           results.set(token, result);
           if (result === "gone") {
             await this.forget(token);
@@ -277,11 +308,9 @@ export class FcmService {
     };
     const codes = (body.error?.details ?? []).map((detail) => detail.errorCode);
     if (codes.some((code) => code && GONE_CODES.has(code))) return "gone";
-    if (REJECTED_STATUSES.has(response.status)) {
-      this.ctx.log.warn("FCM refused a push for good", {
-        status: response.status,
-        error: body.error?.status ?? null,
-      });
+    const refused = codes.find((code) => code && REJECTED_CODES.has(code));
+    if (refused) {
+      this.ctx.log.warn("FCM refused a push for good", { status: response.status, code: refused });
       return "rejected";
     }
     if (response.status === 401) this.token = null;

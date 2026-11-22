@@ -14,6 +14,8 @@ export const pushContract = {
           keys: z.object({ p256dh: z.string().max(200), auth: z.string().max(100) }),
         }),
         device: z.string().max(200).default(""),
+        /** The phone's sign-in, which its pushes carry (`pushContract.registerDevice`). */
+        registration: z.string().min(1).max(100).optional(),
       }),
     )
     .output(ok),

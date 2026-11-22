@@ -43,6 +43,12 @@ export const nativePushDevices = pgTable("native_push_devices", {
   platform: text("platform").$type<"android">().notNull(),
   /** Which device, in words, like "Pixel 9". */
   device: text("device").notNull().default(""),
+  /**
+   * The phone's sign-in its pushes are for: a random id the app makes when you sign in and forgets
+   * when you sign out. Pushes carry it, so the phone drops any sent for a sign-in it has left.
+   * Null for an app from before it had one.
+   */
+  registration: text("registration"),
   lastSentAt: timestamp("last_sent_at", { withTimezone: true }),
   createdAt: createdAt(),
 });
@@ -59,9 +65,10 @@ export const pushSubscriptions = pgTable("push_subscriptions", {
 
 /**
  * Runs whose progress notification phones may be showing (`run-progress` pushes). The row is
- * written (and its `shown_at` moved on) before each live push, and removed once the end has been
- * sent, so a run that is over with its row still here owes phones that end: the worker sends it
- * when it starts again, unless the phones' copy has timed out by then.
+ * written (and its `shown_at` moved on) before each live push, and marked `ended_at` once the end
+ * has been sent, so a run that is over with an unended row owes phones that end: the worker sends
+ * it when it starts again, unless the phones' copy has timed out by then. An ended row stays for a
+ * while so a save that lands late can't make the end owed again; then it is deleted.
  */
 export const runProgressNotifications = pgTable("run_progress_notifications", {
   runId: uuid("run_id")
@@ -72,4 +79,6 @@ export const runProgressNotifications = pgTable("run_progress_notifications", {
    * owed only for a while after (`END_OWED_FOR_MS` in the worker).
    */
   shownAt: timestamp("shown_at", { withTimezone: true }).notNull().defaultNow(),
+  /** When the end was sent (or the run ended before any push went): no later save moves it on. */
+  endedAt: timestamp("ended_at", { withTimezone: true }),
 });

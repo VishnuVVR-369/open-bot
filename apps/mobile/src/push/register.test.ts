@@ -35,7 +35,7 @@ vi.mock("@notifee/react-native", () => ({
   },
   EventType: { PRESS: 1, ACTION_PRESS: 2 },
 }));
-vi.mock("expo-device", () => ({}));
+vi.mock("expo-device", () => ({ modelName: "Pixel 9" }));
 vi.mock("expo-router", () => ({ router: { push: native.push } }));
 vi.mock("./firebase", () => ({ messaging: () => native.fcm }));
 vi.mock("./notifications", () => ({
@@ -48,6 +48,8 @@ vi.mock("@/lib/api", () => ({
     push: {
       unregisterDevice: async ({ token }: { token: string }) =>
         void native.calls.push(`unregister ${token}`),
+      registerDevice: async (input: { token: string; registration: string }) =>
+        void native.calls.push(`register ${input.token} ${input.registration}`),
     },
   },
 }));
@@ -64,6 +66,10 @@ vi.mock("@/lib/realtime", () => ({
 vi.mock("../../modules/run-progress", () => ({
   default: {
     setVisibleChat: native.visibleChat,
+    registration: () => {
+      native.calls.push("registration");
+      return "reg-1";
+    },
     reset: () => void native.calls.push("reset run progress"),
   },
 }));
@@ -92,7 +98,7 @@ describe("run progress", () => {
 });
 
 describe("sign-out", () => {
-  it("stops pushes before it removes run progress and what the phone kept to redraw it", async () => {
+  it("forgets this sign-in's run progress before anything else, then stops pushes", async () => {
     native.fcm = {
       getMessaging: () => "messaging",
       getToken: async () => "token-1",
@@ -100,16 +106,38 @@ describe("sign-out", () => {
     };
     await unregisterPushNotifications();
     expect(native.calls).toEqual([
+      "reset run progress",
       "unregister token-1",
       "delete token",
       "cancel notifications",
-      "reset run progress",
     ]);
   });
 
   it("removes run progress in a build without Firebase too", async () => {
     await unregisterPushNotifications();
-    expect(native.calls).toEqual(["cancel notifications", "reset run progress"]);
+    expect(native.calls).toEqual(["reset run progress", "cancel notifications"]);
+  });
+
+  it("registers the token with the sign-in it took when it started, before any push for it", async () => {
+    native.initial.mockResolvedValue(null);
+    let refresh!: (token: string) => void;
+    native.fcm = {
+      getMessaging: () => "messaging",
+      getToken: async () => "token-1",
+      onTokenRefresh: (_instance: unknown, listener: (token: string) => void) => {
+        refresh = listener;
+        return () => {};
+      },
+      onMessage: () => () => {},
+    };
+    usePushNotifications(true);
+    await vi.waitFor(() => expect(native.calls).toContain("register token-1 reg-1"));
+    expect(native.calls[0]).toBe("registration");
+    // A token that comes after sign-out still carries the registration the phone has forgotten.
+    await unregisterPushNotifications().catch(() => {});
+    native.calls.length = 0;
+    refresh("token-2");
+    await vi.waitFor(() => expect(native.calls).toEqual(["register token-2 reg-1"]));
   });
 });
 

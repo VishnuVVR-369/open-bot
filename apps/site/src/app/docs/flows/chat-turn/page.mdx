@@ -155,10 +155,15 @@ When the run ends, any update still waiting is dropped, and one last message wit
 
 That end is durable.
 Before each live progress push, the worker writes the run's row in `run_progress_notifications` (or moves its `shown_at` on), saying its end is owed, and sends the push only once that write succeeded.
+The push is built after the write, from the run as it is then, so a wait that began during the write goes out as the wait.
 A push whose write failed isn't sent: the run's next change tries again, or a timer 15 seconds later.
-The row goes once every phone got the end; a failed end is tried again after 30 seconds, 2 and 10 minutes.
-FCM answers of 400, 403 and 404 mean it refused that phone for good, so they don't count as failed and aren't tried again.
-A row is forgotten 45 minutes after the run's last live push: the push's TTL is 10 minutes, and a phone removes a notification nothing refreshed for 30, so by then no phone shows the run and its end is no use.
+Each of these queries gives up after 2 seconds waiting on a row and 5 seconds running, so a slow database holds no run's pushes for long.
+Once every phone got the end, the row is marked `ended_at`; a failed end is tried again after 30 seconds, 2 and 10 minutes.
+A run that already showed gets its end at once, even while the write for its last update is still going: a write that lands on an ended row changes nothing, so it can't make the end owed again.
+A run that ends before any push went sends no end, and its row is marked ended too.
+Only FCM's own error codes say it refused a phone for good: `UNREGISTERED` and `SENDER_ID_MISMATCH` (the token is forgotten), `INVALID_ARGUMENT` and `THIRD_PARTY_PERMISSION_DENIED` (that message to that token); those don't count as failed and aren't tried again.
+Any other answer, such as a 403 `PERMISSION_DENIED` from a service account that lost its role, a 401 or a 404 without one of those codes, is the project's state, so the end stays owed and is tried again.
+A row is forgotten 45 minutes after the run's last live push, or after its end: the push's TTL is 10 minutes, and a phone removes a notification nothing refreshed for 30, so by then no phone shows the run and its end is no use.
 When the worker starts, it sends the ends still owed by runs that are over: one stopped between storing a run's last status and sending its end, for example while waiting for the run's model logs.
 A run the restart interrupted gets its end when `executor.recover()` marks it interrupted, if it had shown progress.
 

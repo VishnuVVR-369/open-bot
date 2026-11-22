@@ -1,5 +1,5 @@
 {
-  "id": "383a3e9b-f7cb-4f15-84cc-95c479befe14",
+  "id": "e1e42206-a573-4f43-af27-76c8ec63e7cf",
   "prevId": "f4976804-0a91-49c5-a49c-5446b7f99112",
   "version": "7",
   "dialect": "postgresql",
@@ -4849,6 +4849,12 @@
           "notNull": true,
           "default": "''"
         },
+        "registration": {
+          "name": "registration",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "last_sent_at": {
           "name": "last_sent_at",
           "type": "timestamp with time zone",
@@ -5083,6 +5089,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "ended_at": {
+          "name": "ended_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},

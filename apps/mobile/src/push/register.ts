@@ -39,11 +39,12 @@ async function openInitialNotification() {
   }
 }
 
-async function register(token: string) {
+async function register(token: string, registration: string) {
   await api.push.registerDevice({
     token,
     platform: "android",
     device: Device.modelName ?? "Android phone",
+    registration,
   });
 }
 
@@ -55,6 +56,9 @@ export function usePushNotifications(signedIn: boolean) {
   useEffect(() => {
     if (!signedIn) return;
     const cleanups: (() => void)[] = [];
+    // This sign-in, which every push to this phone carries. Taken now, while signed in: a token
+    // that registers after you sign out registers this one, which the phone has forgotten by then.
+    const registration = RunProgress.registration();
     // A run's progress notification goes while its chat is on screen, where the run shows anyway.
     RunProgress.setVisibleChat(visibleChat.get());
     cleanups.push(visibleChat.subscribe((chatId) => RunProgress.setVisibleChat(chatId)));
@@ -99,9 +103,11 @@ export function usePushNotifications(signedIn: boolean) {
       const instance = fcm.getMessaging();
       void fcm
         .getToken(instance)
-        .then(register)
+        .then((token) => register(token, registration))
         .catch((error: unknown) => console.warn("couldn't register for notifications", error));
-      cleanups.push(fcm.onTokenRefresh(instance, (token) => void register(token).catch(() => {})));
+      cleanups.push(
+        fcm.onTokenRefresh(instance, (token) => void register(token, registration).catch(() => {})),
+      );
       cleanups.push(
         fcm.onMessage(instance, async (message) => {
           const data = parsePushData(message.data);
@@ -125,11 +131,12 @@ export async function currentPushToken(): Promise<string | null> {
 }
 
 /**
- * On sign-out: stop notifications to this phone, on the server and in Firebase, then remove the
- * ones it shows. Run progress goes last, with what the phone kept to draw it again, once no more
- * pushes come for the account you left.
+ * On sign-out: run progress goes first, with the registration its pushes must carry, so nothing
+ * for the account you left draws again, even a push already on its way. Then notifications to this
+ * phone stop, on the server and in Firebase, and the ones it shows are removed.
  */
 export async function unregisterPushNotifications(): Promise<void> {
+  RunProgress.reset();
   const fcm = messaging();
   if (fcm) {
     const instance = fcm.getMessaging();
@@ -138,5 +145,4 @@ export async function unregisterPushNotifications(): Promise<void> {
     await fcm.deleteToken(instance).catch(() => {});
   }
   await notifee.cancelAllNotifications().catch(() => {});
-  RunProgress.reset();
 }

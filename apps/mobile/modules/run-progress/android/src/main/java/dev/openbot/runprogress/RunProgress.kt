@@ -16,6 +16,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.edit
 import androidx.core.net.toUri
+import java.util.UUID
 
 private const val TAG = "RunProgress"
 
@@ -25,6 +26,11 @@ private const val TAG = "RunProgress"
  * Android 16 draws it with `Notification.ProgressStyle`; older versions get a standard progress
  * bar. The egress module's FCM service hands these pushes here; the app's JavaScript does too for
  * development builds, which have no FCM, and tells it which chat is on screen.
+ *
+ * Only pushes for this sign-in are drawn: the app makes a registration id when you sign in
+ * (`registration()`), sends it with its FCM token, and the worker puts it in every push. Signing
+ * out (`reset()`) forgets it in the same write that clears the ledger, so a push for the account
+ * you left, even one already handed to the app, draws nothing, then or after you sign in again.
  */
 object RunProgress {
   /** Same id, name and importance as the app's channel (`src/push/payload.ts`). */
@@ -34,6 +40,10 @@ object RunProgress {
   private const val GROUP = "running"
   private const val PREFS = "openbot_run_progress"
   const val ACTION_DISMISSED = "dev.openbot.runprogress.DISMISSED"
+  /** The delete intent's extra: when the card it belongs to times out, in ms. */
+  const val EXTRA_EXPIRES_AT = "expiresAt"
+  /** The ledger's key for this sign-in's registration; run ids never start with `@`. */
+  private const val REGISTRATION = "@registration"
 
   /** The chat open on screen while the app is in front, set by the app's JavaScript. */
   @Volatile private var visibleChat: String? = null
@@ -41,14 +51,30 @@ object RunProgress {
   /** The time, in ms; tests set their own. */
   @VisibleForTesting internal var clock: () -> Long = System::currentTimeMillis
 
-  /** Handles a `run-progress` push. Returns false for anything that isn't one. */
-  fun onPush(context: Context, data: Map<String, String>): Boolean {
+  /**
+   * This sign-in's registration id, which the app sends with its FCM token. Made on the first call
+   * after you sign in, and kept until you sign out.
+   */
+  fun registration(context: Context): String =
+    synchronized(lock) {
+      prefs(context).getString(REGISTRATION, null)
+        ?: UUID.randomUUID().toString().also { id -> prefs(context).edit(commit = true) { putString(REGISTRATION, id) } }
+    }
+
+  /**
+   * Handles a `run-progress` push. Returns false for anything that isn't one. Drawn only while
+   * you're signed in, and, from FCM, only when sent for this sign-in. `fromApp`: the app's
+   * JavaScript handed it over (development builds' test pushes), which it does only while you're
+   * signed in.
+   */
+  fun onPush(context: Context, data: Map<String, String>, fromApp: Boolean = false): Boolean {
     val update = ProgressUpdate.parse(data) ?: return false
     synchronized(lock) {
+      val registration = prefs(context).getString(REGISTRATION, null) ?: return true
+      if (!fromApp && data["registration"] != registration) return true
       val (action, entry) = ProgressRules.decide(read(context, update.runId), update, visibleChat, clock())
       // Written at once: the process that got the push may be gone right after.
-      if (entry != null) prefs(context).edit(commit = true) { putString(update.runId, entry.encode()) }
-      forgetOld(context)
+      if (entry != null) write(context, update.runId, entry)
       when (action) {
         Action.SHOW -> show(context, update, ProgressRules.TIMEOUT_MS)
         Action.REMOVE, Action.HIDE -> cancel(context, update.tag)
@@ -61,22 +87,24 @@ object RunProgress {
   /** The run's result was shown: its progress goes, and stays gone. */
   fun endRun(context: Context, runId: String) {
     synchronized(lock) {
-      val entry = ProgressRules.ended(read(context, runId), clock())
-      prefs(context).edit(commit = true) { putString(runId, entry.encode()) }
+      // Signed out: nothing shows, and nothing about the account you left is kept.
+      if (prefs(context).getString(REGISTRATION, null) == null) return
+      write(context, runId, ProgressRules.ended(read(context, runId), clock()))
       cancel(context, tagOf(runId))
     }
   }
 
   /**
-   * You swiped a run's notification away: later updates don't bring it back. Android removed the
-   * card before this runs, so an update drawn in between is removed here, in the same lock that
-   * records the swipe.
+   * A run's notification was removed by you, or by Android when it timed out: both send its
+   * delete intent, which carries when that card times out (`expiresAt`). A timeout records
+   * nothing, so the run's next update shows it again; the ledger's copy has timed out too.
+   * Your swipe keeps later updates from bringing it back. Android removed the card before this
+   * runs, so an update drawn in between is removed here, in the same lock that records the swipe.
    */
-  fun dismissed(context: Context, runId: String) {
+  fun dismissed(context: Context, runId: String, expiresAt: Long? = null) {
     synchronized(lock) {
-      ProgressRules.dismissed(read(context, runId), clock())?.let {
-        prefs(context).edit(commit = true) { putString(runId, it.encode()) }
-      }
+      if (ProgressRules.timedOut(expiresAt, clock())) return
+      ProgressRules.dismissed(read(context, runId), clock())?.let { write(context, runId, it) }
       cancel(context, tagOf(runId))
     }
   }
@@ -104,7 +132,9 @@ object RunProgress {
   fun reset(context: Context) {
     synchronized(lock) {
       visibleChat = null
-      val tags = activeTags(context) + prefs(context).all.keys.map(::tagOf)
+      val tags = activeTags(context) + entries(context).keys.map(::tagOf)
+      // One write: the registration goes with the ledger, so no push for the account you left
+      // draws anything once this returns.
       prefs(context).edit(commit = true) { clear() }
       tags.forEach { cancel(context, it) }
     }
@@ -117,7 +147,10 @@ object RunProgress {
   private fun read(context: Context, runId: String) = LedgerEntry.decode(prefs(context).getString(runId, null))
 
   private fun entries(context: Context): Map<String, LedgerEntry> =
-    prefs(context).all.mapNotNull { (key, value) -> LedgerEntry.decode(value as? String)?.let { key to it } }.toMap()
+    prefs(context).all
+      .filterKeys { !it.startsWith("@") }
+      .mapNotNull { (key, value) -> LedgerEntry.decode(value as? String)?.let { key to it } }
+      .toMap()
 
   /** The progress notifications on screen now, by tag. */
   private fun activeTags(context: Context): Set<String> =
@@ -126,12 +159,13 @@ object RunProgress {
       .mapNotNull { it.tag }
       .toSet()
 
-  private fun forgetOld(context: Context) {
-    val prefs = prefs(context)
-    val entries = entries(context)
-    val forget = ProgressRules.forget(entries, clock())
-    if (forget.isEmpty()) return
-    prefs.edit(commit = true) { forget.forEach { remove(it) } }
+  /** Every ledger write: the run's entry, and the old runs forgotten, in one commit. */
+  private fun write(context: Context, runId: String, entry: LedgerEntry) {
+    val forget = ProgressRules.forget(entries(context) + (runId to entry), clock())
+    prefs(context).edit(commit = true) {
+      putString(runId, entry.encode())
+      forget.forEach { remove(it) }
+    }
   }
 
   private fun cancel(context: Context, tag: String) = NotificationManagerCompat.from(context).cancel(tag, NOTIFICATION_ID)
@@ -158,9 +192,10 @@ object RunProgress {
     ensureChannel(context)
     if (!allowed(context)) return
     val view = ProgressView.of(update)
+    val expiresAt = clock() + timeoutMs
     val notification =
-      if (Build.VERSION.SDK_INT >= 36) progressStyle(context, update, view, timeoutMs)
-      else compat(context, update, view, timeoutMs)
+      if (Build.VERSION.SDK_INT >= 36) progressStyle(context, update, view, timeoutMs, expiresAt)
+      else compat(context, update, view, timeoutMs, expiresAt)
     try {
       NotificationManagerCompat.from(context).notify(update.tag, NOTIFICATION_ID, notification)
     } catch (error: SecurityException) {
@@ -187,18 +222,25 @@ object RunProgress {
       PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 
-  private fun deleteIntent(context: Context, update: ProgressUpdate): PendingIntent =
+  private fun deleteIntent(context: Context, update: ProgressUpdate, expiresAt: Long): PendingIntent =
     PendingIntent.getBroadcast(
       context,
       requestCode(update),
       Intent(context, RunProgressDismissReceiver::class.java)
         .setAction(ACTION_DISMISSED)
-        .putExtra("runId", update.runId),
+        .putExtra("runId", update.runId)
+        .putExtra(EXTRA_EXPIRES_AT, expiresAt),
       PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 
   @RequiresApi(36)
-  private fun progressStyle(context: Context, update: ProgressUpdate, view: ProgressView, timeoutMs: Long): Notification {
+  private fun progressStyle(
+    context: Context,
+    update: ProgressUpdate,
+    view: ProgressView,
+    timeoutMs: Long,
+    expiresAt: Long,
+  ): Notification {
     val builder = Notification.Builder(context, CHANNEL)
     builder
       .setSmallIcon(icon(context))
@@ -211,7 +253,7 @@ object RunProgress {
       .setGroup(GROUP)
       .setTimeoutAfter(timeoutMs)
       .setContentIntent(openIntent(context, update, view))
-      .setDeleteIntent(deleteIntent(context, update))
+      .setDeleteIntent(deleteIntent(context, update, expiresAt))
       .setLocalOnly(true)
     view.startedAt?.let { builder.setWhen(it).setShowWhen(true).setUsesChronometer(true) }
     view.bar?.let { bar ->
@@ -228,7 +270,13 @@ object RunProgress {
     return builder.build()
   }
 
-  private fun compat(context: Context, update: ProgressUpdate, view: ProgressView, timeoutMs: Long): Notification {
+  private fun compat(
+    context: Context,
+    update: ProgressUpdate,
+    view: ProgressView,
+    timeoutMs: Long,
+    expiresAt: Long,
+  ): Notification {
     val builder = NotificationCompat.Builder(context, CHANNEL)
     builder
       .setSmallIcon(icon(context))
@@ -243,7 +291,7 @@ object RunProgress {
       .setGroup(GROUP)
       .setTimeoutAfter(timeoutMs)
       .setContentIntent(openIntent(context, update, view))
-      .setDeleteIntent(deleteIntent(context, update))
+      .setDeleteIntent(deleteIntent(context, update, expiresAt))
       .setLocalOnly(true)
     view.startedAt?.let { builder.setWhen(it).setShowWhen(true).setUsesChronometer(true) }
     view.bar?.let { builder.setProgress(it.segments, it.done, it.indeterminate) }
@@ -251,11 +299,12 @@ object RunProgress {
   }
 }
 
-/** Your swipe on a run's notification (its delete intent; only the app can send it). */
+/** A run's notification removed by your swipe or its timeout (its delete intent; only the app can send it). */
 class RunProgressDismissReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
     if (intent.action != RunProgress.ACTION_DISMISSED) return
     val runId = intent.getStringExtra("runId") ?: return
-    RunProgress.dismissed(context, runId)
+    val expiresAt = intent.getLongExtra(RunProgress.EXTRA_EXPIRES_AT, -1).takeIf { it > 0 }
+    RunProgress.dismissed(context, runId, expiresAt)
   }
 }

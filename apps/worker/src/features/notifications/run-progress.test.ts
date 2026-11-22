@@ -54,6 +54,8 @@ describe("RunProgressService", () => {
   };
   /** Runs whose end is owed, as the database keeps them. */
   const owed = new Set<string>();
+  /** Runs whose end is recorded: a save that lands later changes nothing. */
+  const closed = new Set<string>();
   /** Runs that are over, for `overdue()`. */
   const over = new Set<string>();
   const store: RunProgressStore = {
@@ -64,8 +66,13 @@ describe("RunProgressService", () => {
         log.push(`shown-failed:${runId}`);
         throw new Error("database unavailable");
       }
+      if (closed.has(runId)) {
+        log.push(`shown-refused:${runId}`);
+        return false;
+      }
       log.push(`shown:${runId}`);
       owed.add(runId);
+      return true;
     },
     async owed(runId) {
       return owed.has(runId);
@@ -73,6 +80,7 @@ describe("RunProgressService", () => {
     async ended(runId) {
       log.push(`ended:${runId}`);
       owed.delete(runId);
+      closed.add(runId);
     },
     async overdue() {
       return [...owed].filter((runId) => over.has(runId));
@@ -145,6 +153,7 @@ describe("RunProgressService", () => {
     startedAt.length = 0;
     log.length = 0;
     owed.clear();
+    closed.clear();
     over.clear();
     snapshots.clear();
     service = create();
@@ -404,21 +413,63 @@ describe("RunProgressService", () => {
     expect(owed.has("r1")).toBe(false);
   });
 
-  it("sends nothing while the save is held, and ends a run that finishes meanwhile only if it was saved", async () => {
+  it("sends nothing while the save is held, and no end for a run that finishes before any update went", async () => {
     let release!: () => void;
     saveHold = new Promise((resolve) => (release = resolve));
     start("refused");
-    start("saved");
+    start("late");
     await vi.advanceTimersByTimeAsync(60_000);
     expect(sent).toEqual([]);
-    // Both runs end while their saves are held; the first save answered then fails.
+    // Both runs end while their first saves are held: no phone shows them, so their ends are
+    // recorded without a push, and the save that lands later can't make one owed.
     finish("refused");
-    finish("saved");
+    finish("late");
     saveFailures = 1;
     release();
     await service.idle();
-    expect(log).toEqual(["shown-failed:refused", "shown:saved", "push:saved:ended", "ended:saved"]);
-    expect(sent.map((push) => [push.data.runId, push.data.runState])).toEqual([["saved", "ended"]]);
+    expect(log).toEqual([
+      "ended:refused",
+      "ended:late",
+      "shown-failed:refused",
+      "shown-refused:late",
+    ]);
+    expect(sent).toEqual([]);
+    expect(owed.size).toBe(0);
+  });
+
+  it("sends the end at once while a keepalive's save is held, and the save landing later sends nothing", async () => {
+    start();
+    await vi.advanceTimersByTimeAsync(20_000);
+    let release!: () => void;
+    saveHold = new Promise((resolve) => (release = resolve));
+    // The keepalive's save hangs; the run ends meanwhile.
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    finish();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(states()).toEqual(["starting", "ended"]);
+    expect(log).toEqual(["shown:r1", "push:r1:starting", "push:r1:ended", "ended:r1"]);
+    release();
+    await service.idle();
+    await vi.advanceTimersByTimeAsync(30 * 60_000);
+    expect(log.at(-1)).toBe("shown-refused:r1");
+    expect(states()).toEqual(["starting", "ended"]);
+    expect(owed.has("r1")).toBe(false);
+  });
+
+  it("builds an update once its save is done, so a wait during the save goes as the wait", async () => {
+    let release!: () => void;
+    saveHold = new Promise((resolve) => (release = resolve));
+    start();
+    snapshot("r1", { status: "running" });
+    await vi.advanceTimersByTimeAsync(20_000);
+    // The save for the run's first update is going when the run starts waiting on you.
+    snapshot("r1", { status: "waiting", waitingFor: "approval" });
+    events.emit("runProgress", "r1", "status");
+    await vi.advanceTimersByTimeAsync(5_000);
+    release();
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(sent.map((push) => push.data.body)).toEqual(["Waiting for your approval"]);
+    expect(states()).toEqual(["waiting"]);
   });
 
   it("drops an update still waiting when the run ends", async () => {

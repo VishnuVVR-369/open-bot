@@ -194,6 +194,16 @@ object ProgressRules {
   fun ended(entry: LedgerEntry?, now: Long): LedgerEntry =
     LedgerEntry(entry?.sentAt ?: 0, true, false, entry?.chatId, now)
 
+  /**
+   * Android sends a notification's delete intent when it times out as well as when you swipe it,
+   * and tells the app nothing more. A delete at or after the card's own timeout is the timeout; the
+   * slack covers the wall clock moving a little against the clock Android times it with. A swipe
+   * in the card's last minute counts as a timeout too: the next update shows it again.
+   */
+  fun timedOut(expiresAt: Long?, now: Long): Boolean = expiresAt != null && now >= expiresAt - TIMEOUT_SLACK_MS
+
+  const val TIMEOUT_SLACK_MS = 60_000L
+
   /** You swiped it away. An unknown or ended run has nothing to remember. */
   fun dismissed(entry: LedgerEntry?, now: Long): LedgerEntry? =
     entry?.takeIf { !it.ended }?.copy(dismissed = true, writtenAt = now, latest = null, latestAt = null)

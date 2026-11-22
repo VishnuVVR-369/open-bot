@@ -29,6 +29,8 @@ describe.skipIf(!url)("FCM fan-out", () => {
   const unavailable = new Set<string>();
   /** Tokens the stand-in refuses as invalid, which no retry changes. */
   const invalid = new Set<string>();
+  /** Tokens the stand-in answers with exactly this error, as FCM v1 would. */
+  const errors = new Map<string, { status: number; error: Record<string, unknown> }>();
   let tokenRequests = 0;
 
   const server = http.createServer((request, response) => {
@@ -56,6 +58,11 @@ describe.skipIf(!url)("FCM fan-out", () => {
           return;
         }
         const { message } = JSON.parse(body) as { message: Sent };
+        const error = errors.get(message.token);
+        if (error) {
+          response.writeHead(error.status).end(JSON.stringify({ error: error.error }));
+          return;
+        }
         if (unavailable.has(message.token)) {
           response.writeHead(503).end(JSON.stringify({ error: { status: "UNAVAILABLE" } }));
           return;
@@ -132,6 +139,7 @@ describe.skipIf(!url)("FCM fan-out", () => {
     gone.clear();
     unavailable.clear();
     invalid.clear();
+    errors.clear();
   });
   afterAll(async () => {
     server.close();
@@ -338,7 +346,7 @@ describe.skipIf(!url)("FCM fan-out", () => {
       (runId) => (runId === "r9" ? snapshot : null),
       // The store's own suite is `runs/progress-restart.integration.test.ts`.
       {
-        shown: async () => {},
+        shown: async () => true,
         owed: async () => true,
         ended: async () => {},
         overdue: async () => [],
@@ -385,5 +393,90 @@ describe.skipIf(!url)("FCM fan-out", () => {
       sentAt: expect.any(String),
     });
     expect(sent[1]!.data.sentAt! > sent[0]!.data.sentAt!).toBe(true);
+  });
+
+  const fcmError = (errorCode: string) => ({
+    "@type": "type.googleapis.com/google.firebase.fcm.v1.FcmError",
+    errorCode,
+  });
+  it.each([
+    // The project's state: fixed by a person or by time, so the end stays owed.
+    ["a 403 PERMISSION_DENIED without a code", 403, { status: "PERMISSION_DENIED" }, "failed"],
+    ["a 404 NOT_FOUND without a code", 404, { status: "NOT_FOUND" }, "failed"],
+    [
+      "THIRD_PARTY_AUTH_ERROR",
+      401,
+      { status: "UNAUTHENTICATED", details: [fcmError("THIRD_PARTY_AUTH_ERROR")] },
+      "failed",
+    ],
+    [
+      "QUOTA_EXCEEDED",
+      429,
+      { status: "RESOURCE_EXHAUSTED", details: [fcmError("QUOTA_EXCEEDED")] },
+      "failed",
+    ],
+    ["INTERNAL", 500, { status: "INTERNAL", details: [fcmError("INTERNAL")] }, "failed"],
+    ["a 400 without a code", 400, { status: "FAILED_PRECONDITION" }, "failed"],
+    // This message to this token, for good.
+    [
+      "INVALID_ARGUMENT",
+      400,
+      { status: "INVALID_ARGUMENT", details: [fcmError("INVALID_ARGUMENT")] },
+      "rejected",
+    ],
+    [
+      "THIRD_PARTY_PERMISSION_DENIED",
+      403,
+      { status: "PERMISSION_DENIED", details: [fcmError("THIRD_PARTY_PERMISSION_DENIED")] },
+      "rejected",
+    ],
+    // The token, for good.
+    [
+      "SENDER_ID_MISMATCH",
+      403,
+      { status: "PERMISSION_DENIED", details: [fcmError("SENDER_ID_MISMATCH")] },
+      "gone",
+    ],
+    ["UNREGISTERED", 404, { status: "NOT_FOUND", details: [fcmError("UNREGISTERED")] }, "gone"],
+  ] as const)("counts %s (HTTP %i, %j) as %s", async (_name, status, error, expected) => {
+    await fcm.register({ token: "phone-1", platform: "android", device: "Pixel" });
+    errors.set("phone-1", { status, error });
+    const push = { data: { type: "dismiss" as const, tag: "x" }, priority: "normal" as const };
+    expect((await fcm.sendToTokens(["phone-1"], push)).get("phone-1")).toBe(expected);
+    const tokens = (await db.select().from(nativePushDevices)).map((row) => row.token);
+    expect(tokens).toEqual(expected === "gone" ? [] : ["phone-1"]);
+  });
+
+  it("stamps each phone's push with its sign-in's registration", async () => {
+    await fcm.register({
+      token: "phone-1",
+      platform: "android",
+      device: "Pixel 9",
+      registration: "reg-1",
+    });
+    await fcm.register({ token: "phone-2", platform: "android", device: "Old app" });
+    // Signing in again on the same phone moves its registration on.
+    await fcm.register({
+      token: "phone-3",
+      platform: "android",
+      device: "Pixel 8",
+      registration: "reg-old",
+    });
+    await fcm.register({
+      token: "phone-3",
+      platform: "android",
+      device: "Pixel 8",
+      registration: "reg-new",
+    });
+    await fcm.deliver({ data: { type: "dismiss", tag: "x" }, priority: "normal" });
+    const byToken = Object.fromEntries(sent.map((message) => [message.token, message.data]));
+    expect(byToken).toEqual({
+      "phone-1": { type: "dismiss", tag: "x", registration: "reg-1" },
+      "phone-2": { type: "dismiss", tag: "x" },
+      "phone-3": { type: "dismiss", tag: "x", registration: "reg-new" },
+    });
+    // A wake goes to a paired phone's wake token, which has no registration.
+    await fcm.sendToTokens(["phone-1"], nativeEgressPush("wake", new Date(), "always"));
+    expect(sent.at(-1)!.data).not.toHaveProperty("registration");
   });
 });

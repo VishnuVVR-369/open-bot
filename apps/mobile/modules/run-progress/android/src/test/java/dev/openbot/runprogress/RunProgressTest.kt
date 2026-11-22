@@ -14,7 +14,9 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowLooper
 import java.time.Instant
 
 /**
@@ -27,11 +29,21 @@ class RunProgressTest {
   private val context: Context = ApplicationProvider.getApplicationContext<Application>()
   private val manager = context.getSystemService(NotificationManager::class.java)
   private var now = Instant.parse("2026-11-22T10:00:20Z").toEpochMilli()
+  /** This sign-in's registration, which the worker puts in every push. */
+  private lateinit var registration: String
+  private val ledger get() = context.getSharedPreferences("openbot_run_progress", Context.MODE_PRIVATE)
 
-  private fun push(runId: String, sentAt: String, state: String = "working", chatId: String = "c1") =
+  private fun push(
+    runId: String,
+    sentAt: String,
+    state: String = "working",
+    chatId: String = "c1",
+    registration: String? = this.registration,
+  ) =
     RunProgress.onPush(
       context,
       buildMap {
+        registration?.let { put("registration", it) }
         put("type", "run-progress")
         put("tag", "run-progress:$runId")
         put("runId", runId)
@@ -47,9 +59,25 @@ class RunProgressTest {
   private fun shown(): Map<String, Notification> =
     manager.activeNotifications.filter { it.id == 4200 }.associate { it.tag to it.notification }
 
+  /** A run's notification's delete intent, as Android sends it on a swipe or a timeout. */
+  private fun deleted(runId: String, expiresAt: Long?) {
+    context.sendBroadcast(
+      Intent(context, RunProgressDismissReceiver::class.java)
+        .setAction(RunProgress.ACTION_DISMISSED)
+        .putExtra("runId", runId)
+        .apply { expiresAt?.let { putExtra(RunProgress.EXTRA_EXPIRES_AT, it) } },
+    )
+    ShadowLooper.idleMainLooper()
+  }
+
+  /** When the run's drawn card times out, from the delete intent it carries. */
+  private fun expiresAt(runId: String): Long =
+    shadowOf(shown()["run-progress:$runId"]!!.deleteIntent).savedIntent.getLongExtra(RunProgress.EXTRA_EXPIRES_AT, -1)
+
   @Before
   fun setUp() {
     RunProgress.clock = { now }
+    registration = RunProgress.registration(context)
     RunProgress.setVisibleChat(context, null)
   }
 
@@ -58,7 +86,7 @@ class RunProgressTest {
     RunProgress.setVisibleChat(context, null)
     RunProgress.clock = System::currentTimeMillis
     manager.cancelAll()
-    context.getSharedPreferences("openbot_run_progress", Context.MODE_PRIVATE).edit().clear().commit()
+    ledger.edit().clear().commit()
   }
 
   @Test
@@ -102,12 +130,7 @@ class RunProgressTest {
     manager.cancel("run-progress:r1", 4200)
     push("r1", "2026-11-22T10:00:35Z")
     assertEquals(setOf("run-progress:r1"), shown().keys)
-    context.sendBroadcast(
-      Intent(context, RunProgressDismissReceiver::class.java)
-        .setAction(RunProgress.ACTION_DISMISSED)
-        .putExtra("runId", "r1"),
-    )
-    org.robolectric.shadows.ShadowLooper.idleMainLooper()
+    deleted("r1", expiresAt("r1"))
     assertEquals(emptySet<String>(), shown().keys)
     // Later updates stay hidden, even when its chat leaves the screen.
     push("r1", "2026-11-22T10:00:50Z")
@@ -140,13 +163,84 @@ class RunProgressTest {
     assertEquals(setOf("run-progress:drawn"), shown().keys)
     RunProgress.reset(context)
     assertEquals(emptySet<String>(), shown().keys)
-    assertEquals(emptyMap<String, Any>(), context.getSharedPreferences("openbot_run_progress", Context.MODE_PRIVATE).all)
+    assertEquals(emptyMap<String, Any>(), ledger.all)
     // Signed in again, the chat leaves the screen: the run you can't see any more isn't drawn.
+    registration = RunProgress.registration(context)
     RunProgress.setVisibleChat(context, null)
     assertEquals(emptySet<String>(), shown().keys)
     // A new account's runs still show.
     push("next", "2026-11-22T10:00:40Z", chatId = "c3")
     assertEquals(setOf("run-progress:next"), shown().keys)
+  }
+
+  @Test
+  fun aPushForASignInThePhoneLeftDrawsNothingThenOrAfterTheNextSignIn() {
+    val old = registration
+    push("r1", "2026-11-22T10:00:20Z")
+    // You sign out while FCM already handed the app another of the old account's pushes.
+    RunProgress.reset(context)
+    assertTrue(push("r1", "2026-11-22T10:00:35Z", registration = old))
+    push("r2", "2026-11-22T10:00:35Z", registration = old)
+    RunProgress.endRun(context, "r3")
+    assertEquals(emptySet<String>(), shown().keys)
+    assertEquals(emptyMap<String, Any>(), ledger.all)
+    // You sign in again: a new registration, and the old one's pushes still draw nothing.
+    registration = RunProgress.registration(context)
+    assertTrue(registration != old)
+    assertEquals(registration, RunProgress.registration(context))
+    push("r1", "2026-11-22T10:00:50Z", registration = old)
+    push("r4", "2026-11-22T10:00:50Z", registration = null)
+    assertEquals(emptySet<String>(), shown().keys)
+    push("r5", "2026-11-22T10:00:50Z")
+    assertEquals(setOf("run-progress:r5"), shown().keys)
+    // The app's own pushes (development builds) need only that you're signed in.
+    RunProgress.onPush(context, mapOf("type" to "run-progress", "tag" to "run-progress:r6", "runId" to "r6", "runState" to "working", "sentAt" to "2026-11-22T10:00:50Z", "title" to "Rex is working"), fromApp = true)
+    assertEquals(setOf("run-progress:r5", "run-progress:r6"), shown().keys)
+  }
+
+  @Test
+  fun aTimeoutIsNoSwipeSoTheNextUpdateShowsItAgain() {
+    push("r1", "2026-11-22T10:00:20Z")
+    val expiry = expiresAt("r1")
+    assertEquals(now + ProgressRules.TIMEOUT_MS, expiry)
+    // No keepalive arrived for 30 minutes: Android removes it, and sends its delete intent.
+    now = expiry
+    manager.cancel("run-progress:r1", 4200)
+    deleted("r1", expiry)
+    push("r1", "2026-11-22T10:40:20Z")
+    assertEquals(setOf("run-progress:r1"), shown().keys)
+  }
+
+  @Test
+  fun aLateTimeoutLeavesTheUpdateThatCameAfterIt() {
+    push("r1", "2026-11-22T10:00:20Z")
+    val expiry = expiresAt("r1")
+    now = expiry
+    manager.cancel("run-progress:r1", 4200)
+    // A new update draws it again before the timeout's delete intent arrives.
+    push("r1", "2026-11-22T10:40:20Z")
+    deleted("r1", expiry)
+    assertEquals(setOf("run-progress:r1"), shown().keys)
+    // A swipe on the new card still counts.
+    deleted("r1", expiresAt("r1"))
+    push("r1", "2026-11-22T10:40:35Z")
+    assertEquals(emptySet<String>(), shown().keys)
+  }
+
+  @Test
+  fun resultsForgetOldRunsLikeUpdatesDo() {
+    RunProgress.endRun(context, "old")
+    now += ProgressRules.FORGET_AFTER_MS + 1
+    repeat(ProgressRules.MAX_ENTRIES + 20) {
+      now += 1
+      RunProgress.endRun(context, "r$it")
+    }
+    val runs = ledger.all.keys.filter { !it.startsWith("@") }
+    assertEquals(ProgressRules.MAX_ENTRIES, runs.size)
+    assertFalse("old" in runs)
+    assertTrue("r${ProgressRules.MAX_ENTRIES + 19}" in runs)
+    // Signing in is kept apart from the runs it forgets.
+    assertEquals(registration, RunProgress.registration(context))
   }
 
   @Test
