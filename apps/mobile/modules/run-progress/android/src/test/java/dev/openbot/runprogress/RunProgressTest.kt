@@ -5,6 +5,7 @@ import android.app.Notification
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
+import android.app.PendingIntent
 import androidx.test.core.app.ApplicationProvider
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -29,6 +30,8 @@ class RunProgressTest {
   private val context: Context = ApplicationProvider.getApplicationContext<Application>()
   private val manager = context.getSystemService(NotificationManager::class.java)
   private var now = Instant.parse("2026-11-22T10:00:20Z").toEpochMilli()
+  /** The time since boot, which Android times a card's timeout with; a clock change leaves it. */
+  private var elapsed = 5 * 60 * 60 * 1000L
   /** This sign-in's registration, which the worker puts in every push. */
   private lateinit var registration: String
   private val ledger get() = context.getSharedPreferences("openbot_run_progress", Context.MODE_PRIVATE)
@@ -74,10 +77,20 @@ class RunProgressTest {
   private fun expiresAt(runId: String): Long =
     shadowOf(shown()["run-progress:$runId"]!!.deleteIntent).savedIntent.getLongExtra(RunProgress.EXTRA_EXPIRES_AT, -1)
 
+  /** The drawn card's own delete intent, which Android sends when that card goes. */
+  private fun deleteIntentOf(runId: String): PendingIntent = shown()["run-progress:$runId"]!!.deleteIntent
+
+  /** Android sends the card's delete intent: you swiped it, or it timed out. */
+  private fun send(intent: PendingIntent) {
+    intent.send()
+    ShadowLooper.idleMainLooper()
+  }
+
   @Before
   fun setUp() {
     RunProgress.clock = { now }
-    registration = RunProgress.registration(context)
+    RunProgress.elapsed = { elapsed }
+    registration = RunProgress.registration(context, "session-1")
     RunProgress.setVisibleChat(context, null)
   }
 
@@ -85,6 +98,7 @@ class RunProgressTest {
   fun tearDown() {
     RunProgress.setVisibleChat(context, null)
     RunProgress.clock = System::currentTimeMillis
+    RunProgress.elapsed = android.os.SystemClock::elapsedRealtime
     manager.cancelAll()
     ledger.edit().clear().commit()
   }
@@ -165,7 +179,7 @@ class RunProgressTest {
     assertEquals(emptySet<String>(), shown().keys)
     assertEquals(emptyMap<String, Any>(), ledger.all)
     // Signed in again, the chat leaves the screen: the run you can't see any more isn't drawn.
-    registration = RunProgress.registration(context)
+    registration = RunProgress.registration(context, "session-2")
     RunProgress.setVisibleChat(context, null)
     assertEquals(emptySet<String>(), shown().keys)
     // A new account's runs still show.
@@ -185,9 +199,9 @@ class RunProgressTest {
     assertEquals(emptySet<String>(), shown().keys)
     assertEquals(emptyMap<String, Any>(), ledger.all)
     // You sign in again: a new registration, and the old one's pushes still draw nothing.
-    registration = RunProgress.registration(context)
+    registration = RunProgress.registration(context, "session-2")
     assertTrue(registration != old)
-    assertEquals(registration, RunProgress.registration(context))
+    assertEquals(registration, RunProgress.registration(context, "session-2"))
     push("r1", "2026-11-22T10:00:50Z", registration = old)
     push("r4", "2026-11-22T10:00:50Z", registration = null)
     assertEquals(emptySet<String>(), shown().keys)
@@ -202,9 +216,10 @@ class RunProgressTest {
   fun aTimeoutIsNoSwipeSoTheNextUpdateShowsItAgain() {
     push("r1", "2026-11-22T10:00:20Z")
     val expiry = expiresAt("r1")
-    assertEquals(now + ProgressRules.TIMEOUT_MS, expiry)
+    assertEquals(elapsed + ProgressRules.TIMEOUT_MS, expiry)
     // No keepalive arrived for 30 minutes: Android removes it, and sends its delete intent.
-    now = expiry
+    now += ProgressRules.TIMEOUT_MS
+    elapsed = expiry
     manager.cancel("run-progress:r1", 4200)
     deleted("r1", expiry)
     push("r1", "2026-11-22T10:40:20Z")
@@ -215,7 +230,8 @@ class RunProgressTest {
   fun aLateTimeoutLeavesTheUpdateThatCameAfterIt() {
     push("r1", "2026-11-22T10:00:20Z")
     val expiry = expiresAt("r1")
-    now = expiry
+    now += ProgressRules.TIMEOUT_MS
+    elapsed = expiry
     manager.cancel("run-progress:r1", 4200)
     // A new update draws it again before the timeout's delete intent arrives.
     push("r1", "2026-11-22T10:40:20Z")
@@ -240,7 +256,78 @@ class RunProgressTest {
     assertFalse("old" in runs)
     assertTrue("r${ProgressRules.MAX_ENTRIES + 19}" in runs)
     // Signing in is kept apart from the runs it forgets.
-    assertEquals(registration, RunProgress.registration(context))
+    assertEquals(registration, RunProgress.registration(context, "session-1"))
+  }
+
+  @Test
+  fun anOldCardsTimeoutAfterARepostIsNoSwipe() {
+    push("r1", "2026-11-22T10:00:20Z")
+    val first = deleteIntentOf("r1")
+    val firstExpiry = expiresAt("r1")
+    // A keepalive replaces the card just before it would time out.
+    now += ProgressRules.TIMEOUT_MS - 10_000
+    elapsed += ProgressRules.TIMEOUT_MS - 10_000
+    push("r1", "2026-11-22T10:30:10Z")
+    assertTrue(expiresAt("r1") > firstExpiry)
+    // The first card's own timeout still fires (it raced the repost): it says when that card
+    // expired, not the new one, so it's the timeout and records no swipe.
+    now += 10_000
+    elapsed = firstExpiry
+    assertEquals(firstExpiry, shadowOf(first).savedIntent.getLongExtra(RunProgress.EXTRA_EXPIRES_AT, -1))
+    send(first)
+    assertEquals(setOf("run-progress:r1"), shown().keys)
+    push("r1", "2026-11-22T10:30:25Z")
+    assertEquals(setOf("run-progress:r1"), shown().keys)
+    // The new card's swipe still counts.
+    send(deleteIntentOf("r1"))
+    push("r1", "2026-11-22T10:30:40Z")
+    assertEquals(emptySet<String>(), shown().keys)
+  }
+
+  @Test
+  fun aClockChangeNeitherMakesASwipeATimeoutNorATimeoutASwipe() {
+    push("swiped", "2026-11-22T10:00:20Z")
+    push("timedOut", "2026-11-22T10:00:20Z", chatId = "c2")
+    val timeout = deleteIntentOf("timedOut")
+    // The clock is set two hours on; a minute later you swipe the first card away.
+    now += 2 * 60 * 60 * 1000L
+    elapsed += 60_000
+    send(deleteIntentOf("swiped"))
+    push("swiped", "2026-11-22T12:01:35Z")
+    assertEquals(setOf("run-progress:timedOut"), shown().keys)
+    // The clock is set back four hours; the second card times out when its 30 minutes are up.
+    now -= 4 * 60 * 60 * 1000L
+    elapsed += ProgressRules.TIMEOUT_MS - 60_000
+    manager.cancel("run-progress:timedOut", 4200)
+    send(timeout)
+    push("timedOut", "2026-11-22T12:31:35Z", chatId = "c2")
+    assertEquals(setOf("run-progress:timedOut"), shown().keys)
+  }
+
+  @Test
+  fun aNewSessionNeverUsesTheRegistrationOfTheOneBefore() {
+    assertTrue(RunProgress.signedIn(context))
+    val first = registration
+    push("r1", "2026-11-22T10:00:20Z")
+    // The app starts again on the same session: the same registration, and its card stays.
+    assertEquals(first, RunProgress.registration(context, "session-1"))
+    assertEquals(setOf("run-progress:r1"), shown().keys)
+    // Another session, though the phone never saw the first one end: a new registration, and
+    // nothing of the sign-in before, drawn or kept.
+    registration = RunProgress.registration(context, "session-2")
+    assertTrue(registration != first)
+    assertEquals(emptySet<String>(), shown().keys)
+    assertEquals(setOf("@registration", "@session"), ledger.all.keys)
+    assertFalse("session-2" in ledger.all.values.map { it.toString() })
+    RunProgress.setVisibleChat(context, null)
+    assertEquals(emptySet<String>(), shown().keys)
+    push("r2", "2026-11-22T10:00:35Z", registration = first)
+    assertEquals(emptySet<String>(), shown().keys)
+    push("r3", "2026-11-22T10:00:35Z")
+    assertEquals(setOf("run-progress:r3"), shown().keys)
+    // Signed out: no sign-in left.
+    RunProgress.reset(context)
+    assertFalse(RunProgress.signedIn(context))
   }
 
   @Test

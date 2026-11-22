@@ -146,6 +146,8 @@ class RunProgressLogicTest {
     assertEquals("Rex: Book the flight", latest.title)
     assertEquals(ProgressRules.TIMEOUT_MS - 60_000, left)
     assertEquals(setOf("r1"), ProgressRules.showing(entries, "c2", now).keys)
+    // The clock was set back since: never longer than a card lasts.
+    assertEquals(ProgressRules.TIMEOUT_MS, ProgressRules.showing(entries, null, now - 60 * 60_000)["r1"]!!.second)
     // Not once it would have timed out, ended, or been swiped away.
     assertEquals(emptyMap<String, Any>(), ProgressRules.showing(entries, null, now + ProgressRules.TIMEOUT_MS))
     assertEquals(emptyMap<String, Any>(), ProgressRules.showing(mapOf("r1" to ProgressRules.ended(entry, now)), null, now))

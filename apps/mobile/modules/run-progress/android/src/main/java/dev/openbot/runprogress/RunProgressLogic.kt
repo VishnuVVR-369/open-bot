@@ -196,13 +196,15 @@ object ProgressRules {
 
   /**
    * Android sends a notification's delete intent when it times out as well as when you swipe it,
-   * and tells the app nothing more. A delete at or after the card's own timeout is the timeout; the
-   * slack covers the wall clock moving a little against the clock Android times it with. A swipe
-   * in the card's last minute counts as a timeout too: the next update shows it again.
+   * and tells the app nothing more. A delete at or after the card's own timeout is the timeout.
+   * Both times are on the clock Android times it with (`SystemClock.elapsedRealtime()`), which a
+   * clock change doesn't move. The card's expiry is stamped just before it is posted, so Android's
+   * timeout comes a little after it, never before; the slack only lets a swipe in the card's last
+   * second count as its timeout (the next update shows it again).
    */
   fun timedOut(expiresAt: Long?, now: Long): Boolean = expiresAt != null && now >= expiresAt - TIMEOUT_SLACK_MS
 
-  const val TIMEOUT_SLACK_MS = 60_000L
+  const val TIMEOUT_SLACK_MS = 1_000L
 
   /** You swiped it away. An unknown or ended run has nothing to remember. */
   fun dismissed(entry: LedgerEntry?, now: Long): LedgerEntry? =
@@ -216,7 +218,8 @@ object ProgressRules {
   fun showing(entries: Map<String, LedgerEntry>, visibleChat: String?, now: Long): Map<String, Pair<ProgressUpdate, Long>> =
     entries.mapNotNull { (runId, entry) ->
       val latest = entry.latest ?: return@mapNotNull null
-      val left = TIMEOUT_MS - (now - (entry.latestAt ?: return@mapNotNull null))
+      // Never longer than a card lasts, even when the clock was set back since.
+      val left = minOf(TIMEOUT_MS, TIMEOUT_MS - (now - (entry.latestAt ?: return@mapNotNull null)))
       if (entry.ended || entry.dismissed || left <= 0) return@mapNotNull null
       if (visibleChat != null && entry.chatId == visibleChat) return@mapNotNull null
       runId to (latest to left)

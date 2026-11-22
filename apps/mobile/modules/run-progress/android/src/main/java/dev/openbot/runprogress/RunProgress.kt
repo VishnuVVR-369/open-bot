@@ -9,6 +9,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.SystemClock
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.annotation.VisibleForTesting
@@ -16,6 +17,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.edit
 import androidx.core.net.toUri
+import java.security.MessageDigest
 import java.util.UUID
 
 private const val TAG = "RunProgress"
@@ -27,10 +29,11 @@ private const val TAG = "RunProgress"
  * bar. The egress module's FCM service hands these pushes here; the app's JavaScript does too for
  * development builds, which have no FCM, and tells it which chat is on screen.
  *
- * Only pushes for this sign-in are drawn: the app makes a registration id when you sign in
- * (`registration()`), sends it with its FCM token, and the worker puts it in every push. Signing
- * out (`reset()`) forgets it in the same write that clears the ledger, so a push for the account
- * you left, even one already handed to the app, draws nothing, then or after you sign in again.
+ * Only pushes for this sign-in are drawn: the app makes a registration id for its session when you
+ * sign in (`registration()`), sends it with its FCM token, and the worker puts it in every push.
+ * Signing out (`reset()`), or a registration for another session, forgets it in the same write
+ * that clears the ledger, so a push for the account you left, even one already handed to the app,
+ * draws nothing, then or after you sign in again.
  */
 object RunProgress {
   /** Same id, name and importance as the app's channel (`src/push/payload.ts`). */
@@ -40,26 +43,53 @@ object RunProgress {
   private const val GROUP = "running"
   private const val PREFS = "openbot_run_progress"
   const val ACTION_DISMISSED = "dev.openbot.runprogress.DISMISSED"
-  /** The delete intent's extra: when the card it belongs to times out, in ms. */
+  /**
+   * The delete intent's extra: when the card it belongs to times out, in ms of
+   * `SystemClock.elapsedRealtime()`, the clock Android times `timeoutAfter` with.
+   */
   const val EXTRA_EXPIRES_AT = "expiresAt"
   /** The ledger's key for this sign-in's registration; run ids never start with `@`. */
   private const val REGISTRATION = "@registration"
+  /** The ledger's key for the session the registration belongs to (its SHA-256, not the id). */
+  private const val SESSION = "@session"
 
   /** The chat open on screen while the app is in front, set by the app's JavaScript. */
   @Volatile private var visibleChat: String? = null
   private val lock = Any()
-  /** The time, in ms; tests set their own. */
+  /** The time, in ms; tests set their own. It orders and forgets the ledger's runs. */
   @VisibleForTesting internal var clock: () -> Long = System::currentTimeMillis
+  /**
+   * The time since boot, in ms, which a clock change doesn't move: Android times a card's
+   * `timeoutAfter` with it, so a card's expiry is on it too. Tests set their own.
+   */
+  @VisibleForTesting internal var elapsed: () -> Long = SystemClock::elapsedRealtime
 
   /**
-   * This sign-in's registration id, which the app sends with its FCM token. Made on the first call
-   * after you sign in, and kept until you sign out.
+   * The registration id of the session you're signed in with (`sessionId`), which the app sends
+   * with its FCM token. Made on the first call for that session, and kept until you sign out. A
+   * call for another session first forgets the one before, cards and ledger too, as `reset()`
+   * does: no sign-in ever uses another's registration, even one this phone never saw end.
    */
-  fun registration(context: Context): String =
+  fun registration(context: Context, sessionId: String): String =
     synchronized(lock) {
-      prefs(context).getString(REGISTRATION, null)
-        ?: UUID.randomUUID().toString().also { id -> prefs(context).edit(commit = true) { putString(REGISTRATION, id) } }
+      val prefs = prefs(context)
+      val session = sessionKey(sessionId)
+      val current = prefs.getString(REGISTRATION, null)
+      if (current != null && prefs.getString(SESSION, null) == session) return current
+      val tags = activeTags(context) + entries(context).keys.map(::tagOf)
+      val id = UUID.randomUUID().toString()
+      // One write: the sign-in before goes with its ledger as the new one is kept.
+      prefs.edit(commit = true) {
+        clear()
+        putString(REGISTRATION, id)
+        putString(SESSION, session)
+      }
+      tags.forEach { cancel(context, it) }
+      id
     }
+
+  /** Whether the phone holds a sign-in's registration: signed in, and not signed out since. */
+  fun signedIn(context: Context): Boolean = synchronized(lock) { prefs(context).getString(REGISTRATION, null) != null }
 
   /**
    * Handles a `run-progress` push. Returns false for anything that isn't one. Drawn only while
@@ -96,14 +126,15 @@ object RunProgress {
 
   /**
    * A run's notification was removed by you, or by Android when it timed out: both send its
-   * delete intent, which carries when that card times out (`expiresAt`). A timeout records
-   * nothing, so the run's next update shows it again; the ledger's copy has timed out too.
+   * delete intent, which carries when that card times out (`expiresAt`, on `elapsed`); each card
+   * has its own, so a card that was replaced still says when it would have timed out. A timeout
+   * records nothing, so the run's next update shows it again; the ledger's copy has timed out too.
    * Your swipe keeps later updates from bringing it back. Android removed the card before this
    * runs, so an update drawn in between is removed here, in the same lock that records the swipe.
    */
   fun dismissed(context: Context, runId: String, expiresAt: Long? = null) {
     synchronized(lock) {
-      if (ProgressRules.timedOut(expiresAt, clock())) return
+      if (ProgressRules.timedOut(expiresAt, elapsed())) return
       ProgressRules.dismissed(read(context, runId), clock())?.let { write(context, runId, it) }
       cancel(context, tagOf(runId))
     }
@@ -143,6 +174,9 @@ object RunProgress {
   private fun tagOf(runId: String) = "run-progress:$runId"
 
   private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+  private fun sessionKey(sessionId: String): String =
+    MessageDigest.getInstance("SHA-256").digest(sessionId.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
 
   private fun read(context: Context, runId: String) = LedgerEntry.decode(prefs(context).getString(runId, null))
 
@@ -194,7 +228,7 @@ object RunProgress {
     ensureChannel(context)
     if (!allowed(context)) return
     val view = ProgressView.of(update)
-    val expiresAt = clock() + timeoutMs
+    val expiresAt = elapsed() + timeoutMs
     val notification =
       if (Build.VERSION.SDK_INT >= 36) progressStyle(context, update, view, timeoutMs, expiresAt)
       else compat(context, update, view, timeoutMs, expiresAt)
@@ -224,15 +258,22 @@ object RunProgress {
       PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 
+  /**
+   * The card's own delete intent: its identifier is new for every post (random, so a new process
+   * can't repeat one either), so it is a new pending intent and never one an earlier card of the
+   * run still holds. Reusing one would rewrite that card's expiry with this one's, and its timeout
+   * would then look like a swipe.
+   */
   private fun deleteIntent(context: Context, update: ProgressUpdate, expiresAt: Long): PendingIntent =
     PendingIntent.getBroadcast(
       context,
       requestCode(update),
       Intent(context, RunProgressDismissReceiver::class.java)
         .setAction(ACTION_DISMISSED)
+        .setIdentifier("${update.runId}:${UUID.randomUUID()}")
         .putExtra("runId", update.runId)
         .putExtra(EXTRA_EXPIRES_AT, expiresAt),
-      PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+      PendingIntent.FLAG_IMMUTABLE,
     )
 
   @RequiresApi(36)

@@ -11,8 +11,10 @@ class RunProgressModule : Module() {
     Name("OpenBotRunProgress")
     /** A `run-progress` push the app received itself (development builds have no FCM service). */
     Function("handle") { data: Map<String, String> -> RunProgress.onPush(context, data, fromApp = true) }
-    /** This sign-in's registration id, sent with the FCM token; pushes for any other are dropped. */
-    Function("registration") { RunProgress.registration(context) }
+    /** The registration id of this session's sign-in, sent with the FCM token; pushes for any other are dropped. */
+    Function("registration") { sessionId: String -> RunProgress.registration(context, sessionId) }
+    /** Whether the phone holds a sign-in's registration (signed in, not signed out since). */
+    Function("signedIn") { RunProgress.signedIn(context) }
     Function("endRun") { runId: String -> RunProgress.endRun(context, runId) }
     Function("setVisibleChat") { chatId: String? -> RunProgress.setVisibleChat(context, chatId) }
     /** On sign-out: every progress notification goes, and what the phone kept to draw them. */
