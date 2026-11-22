@@ -50,59 +50,20 @@ describe.skipIf(!apiTestUrl)("the task board's writes, through the web app", () 
     ]);
   });
 
-  it("places a move itself for a worker from before move, and sends it as update", async () => {
+  it("refuses a move with nothing changed while the worker is from before move", async () => {
     const id = await seed([
       ["A", 1],
       ["B", 2],
-      ["C", 4],
     ]);
-    answers.set(`/internal/tasks/${id.C}/move`, noRoute);
-    answers.set(`/internal/tasks/${id.C}`, ok);
-    await api.tasks.move({
-      taskId: id.C!,
-      status: "todo",
-      placement: { kind: "before", taskId: id.B! },
-    });
-    expect(sent().slice(1)).toEqual([
-      { path: `/internal/tasks/${id.C}`, body: { status: "todo", position: 1.5 } },
-    ]);
-  });
-
-  it("renumbers tied tasks first for a worker from before move, which writes positions as given", async () => {
-    const id = await seed([
-      ["A", 1],
-      ["B", 1],
-      ["C", 1],
-    ]);
-    // The board's order where positions tie is by id.
-    const [first, last] = Object.entries(id)
-      .filter(([title]) => title !== "C")
-      .map(([, taskId]) => taskId)
-      .sort();
-    answers.set(`/internal/tasks/${id.C}/move`, noRoute);
-    for (const taskId of Object.values(id)) answers.set(`/internal/tasks/${taskId}`, ok);
-    await api.tasks.move({
-      taskId: id.C!,
-      status: "todo",
-      placement: { kind: "after", taskId: first! },
-    });
-    // The column is numbered again with C second: the one after it moves first, then C itself.
-    expect(sent().slice(1)).toEqual([
-      { path: `/internal/tasks/${last}`, body: { position: 3 } },
-      { path: `/internal/tasks/${id.C}`, body: { status: "todo", position: 2 } },
-    ]);
-  });
-
-  it("says why when the task it goes next to has left the column, for a worker from before move", async () => {
-    const id = await seed([["A", 1]]);
-    answers.set(`/internal/tasks/${id.A}/move`, noRoute);
+    answers.set(`/internal/tasks/${id.B}/move`, noRoute);
     const error = await api.tasks
-      .move({ taskId: id.A!, status: "todo", placement: { kind: "before", taskId: randomUUID() } })
+      .move({ taskId: id.B!, status: "todo", placement: { kind: "before", taskId: id.A! } })
       .catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(ORPCError);
     expect((error as ORPCError<string, unknown>).message).toBe(
-      "The task it was moved next to isn't in that column anymore.",
+      "open-bot is finishing an update, so nothing moved. Try again in a minute.",
     );
+    // Only the move was asked for: no update placed it with positions read outside the lock.
     expect(sent()).toHaveLength(1);
   });
 

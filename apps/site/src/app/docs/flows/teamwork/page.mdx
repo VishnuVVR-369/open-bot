@@ -99,7 +99,8 @@ During a deploy the web app and the worker can be different versions, in either 
 - A browser tab loaded before `move` still drags with `update` and a `position`.
   The app's `tasks.update` keeps accepting that `position` and passes it on; the worker places the task before the first task past that position, under the lock.
 - A web app newer than the worker gets `404` from the worker's `move` route.
-  It then places the task itself against the column and sends it the old way, as `update` with a `position` (any tasks a tie renumbers first), so drag and drop keeps working until the worker is deployed.
+  It refuses the move with nothing changed ("open-bot is finishing an update"), and the owner tries again once the worker is deployed.
+  Placing the task from the web app would take several writes outside the board's lock, which could undo a teammate's change made in between.
 - A worker older than `startId` and `expectedOwnerId` drops the fields it doesn't know, and starts as before.
   Until it's deployed, a retried start can still ask twice, and a start from a stale screen isn't refused.
 

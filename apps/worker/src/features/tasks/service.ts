@@ -278,7 +278,7 @@ export class TaskService {
     if (earlier) return earlier;
     const ownerTeammateId = seen.ownerTeammateId;
     if (expectedOwnerId && ownerTeammateId !== expectedOwnerId)
-      throw await this.givenToSomeoneElse(ownerTeammateId);
+      throw await this.givenToSomeoneElse(this.ctx.db, ownerTeammateId);
     if (!ownerTeammateId) throw new TaskError("Give the task to a teammate first.");
     if (seen.status === "done") throw new TaskError("That task is already done.");
     // Finding or making the main chat is its own change, and trying again finds the same one.
@@ -290,7 +290,8 @@ export class TaskService {
       if (twin) return { ...twin, queued: false };
       const task = await this.lockTask(tx, id);
       if (task.ownerTeammateId !== ownerTeammateId)
-        throw await this.givenToSomeoneElse(task.ownerTeammateId);
+        // Read on the board's own connection: it holds the lock other writes wait on.
+        throw await this.givenToSomeoneElse(tx, task.ownerTeammateId);
       if (task.status === "done") throw new TaskError("That task is already done.");
       await insertRun(tx, {
         id: startId,
@@ -349,14 +350,21 @@ export class TaskService {
     return { task, chatId: run.chatId };
   }
 
-  /** Why a start for the owner you saw is refused: the task is someone else's now, or nobody's. */
-  private async givenToSomeoneElse(ownerTeammateId: string | null): Promise<TaskError> {
+  /**
+   * Why a start for the owner you saw is refused: the task is someone else's now, or nobody's.
+   * Inside the board's transaction, `q` must be that transaction: a read from the pool there could
+   * wait for a connection the writes queued on the board's lock are holding.
+   */
+  private async givenToSomeoneElse(
+    q: Queryable,
+    ownerTeammateId: string | null,
+  ): Promise<TaskError> {
     if (!ownerTeammateId)
       return new TaskError(
         "That task isn't given to a teammate anymore, so nobody was asked.",
         409,
       );
-    const [owner] = await this.ctx.db
+    const [owner] = await q
       .select({ name: teammates.name })
       .from(teammates)
       .where(eq(teammates.id, ownerTeammateId));

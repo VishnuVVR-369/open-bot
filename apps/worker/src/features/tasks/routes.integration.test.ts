@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
 import type { AddressInfo } from "node:net";
-import { runs, tasks, teammates } from "@open-bot/db";
+import { createDb, runs, tasks, teammates } from "@open-bot/db";
 import type { TaskStatus } from "@open-bot/domain";
 import { asc, eq, inArray } from "drizzle-orm";
+import pg from "pg";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { rpcEnabled, rpcHarness, failure, SECRET } from "../../testing/rpc";
 import { TaskService } from "./service";
@@ -292,6 +293,49 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
     });
     expect(await runsFor(id)).toEqual([]);
     expect((await db.select().from(tasks).where(eq(tasks.id, id)))[0]!.status).toBe("todo");
+  });
+
+  it("tasks: refuses a start given away while it waited for the board, on the board's own connection", async () => {
+    const ada = await newTeammate("Ada", "Research");
+    const bea = await newTeammate("Bea", "Travel");
+    const { id } = await worker.tasks.create({ title: "Book the venue", ownerTeammateId: ada.id });
+    // One connection: a read from the pool inside the board's transaction would wait for the very
+    // connection that transaction holds, as every connection does when writes queue on the lock.
+    const single = new pg.Pool({ connectionString: pool.options.connectionString, max: 1 });
+    try {
+      const service = new TaskService({ ...ctx, pool: single, db: createDb(single) });
+      const holder = await pool.connect();
+      try {
+        await holder.query("begin");
+        await holder.query(BOARD_LOCK);
+        const starting = service.start(id, { startId: randomUUID(), expectedOwnerId: ada.id }).then(
+          () => "started",
+          (error: Error) => error.message,
+        );
+        await vi.waitFor(async () => {
+          const { rows } = await pool.query<{ waiting: number }>(
+            "select count(*)::int as waiting from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'",
+          );
+          expect(rows[0]!.waiting).toBe(1);
+        });
+        // Given to Bea after the start checked the owner, before it got the board.
+        await holder.query("update tasks set owner_teammate_id = $1 where id = $2", [bea.id, id]);
+        await holder.query("commit");
+        const outcome = await Promise.race([
+          starting,
+          new Promise((resolve) => setTimeout(() => resolve("stalled"), 5_000)),
+        ]);
+        expect(outcome).toBe(
+          "That task is Bea's now, so nobody was asked. Check it, then ask again.",
+        );
+      } finally {
+        await holder.query("rollback").catch(() => {});
+        holder.release();
+      }
+    } finally {
+      await single.end().catch(() => {});
+    }
+    expect(await runsFor(id)).toEqual([]);
   });
 
   it("tasks: a start whose announcement fails still answers, so a retry doesn't ask twice", async () => {
