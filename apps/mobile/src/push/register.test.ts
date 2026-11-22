@@ -8,6 +8,10 @@ const native = vi.hoisted(() => ({
   remove: vi.fn(),
   visibleChat: vi.fn(),
   chatListener: null as null | ((chatId: string | null) => void),
+  /** What sign-out did, in order. */
+  calls: [] as string[],
+  /** Firebase messaging, when the build has it. */
+  fcm: null as null | Record<string, unknown>,
 }));
 vi.mock("react", () => ({
   useEffect: (effect: () => () => void) => {
@@ -27,18 +31,26 @@ vi.mock("@notifee/react-native", () => ({
     requestPermission: async () => {},
     getInitialNotification: native.initial,
     onForegroundEvent: () => () => {},
+    cancelAllNotifications: async () => void native.calls.push("cancel notifications"),
   },
   EventType: { PRESS: 1, ACTION_PRESS: 2 },
 }));
 vi.mock("expo-device", () => ({}));
 vi.mock("expo-router", () => ({ router: { push: native.push } }));
-vi.mock("./firebase", () => ({ hasFirebase: false }));
+vi.mock("./firebase", () => ({ messaging: () => native.fcm }));
 vi.mock("./notifications", () => ({
   ensureChannels: async () => {},
   handleNotificationEvent: vi.fn(),
   handlePushData: vi.fn(),
 }));
-vi.mock("@/lib/api", () => ({ api: {} }));
+vi.mock("@/lib/api", () => ({
+  api: {
+    push: {
+      unregisterDevice: async ({ token }: { token: string }) =>
+        void native.calls.push(`unregister ${token}`),
+    },
+  },
+}));
 vi.mock("@/lib/query", () => ({ queryClient: {}, queryKeys: {} }));
 vi.mock("@/lib/realtime", () => ({
   visibleChat: {
@@ -50,13 +62,18 @@ vi.mock("@/lib/realtime", () => ({
   },
 }));
 vi.mock("../../modules/run-progress", () => ({
-  default: { setVisibleChat: native.visibleChat },
+  default: {
+    setVisibleChat: native.visibleChat,
+    reset: () => void native.calls.push("reset run progress"),
+  },
 }));
 
-import { usePushNotifications } from "./register";
+import { unregisterPushNotifications, usePushNotifications } from "./register";
 
 afterEach(() => {
   native.cleanup?.();
+  native.calls.length = 0;
+  native.fcm = null;
   vi.clearAllMocks();
 });
 
@@ -71,6 +88,28 @@ describe("run progress", () => {
     native.cleanup!();
     native.cleanup = null;
     expect(native.chatListener).toBeNull();
+  });
+});
+
+describe("sign-out", () => {
+  it("stops pushes before it removes run progress and what the phone kept to redraw it", async () => {
+    native.fcm = {
+      getMessaging: () => "messaging",
+      getToken: async () => "token-1",
+      deleteToken: async () => void native.calls.push("delete token"),
+    };
+    await unregisterPushNotifications();
+    expect(native.calls).toEqual([
+      "unregister token-1",
+      "delete token",
+      "cancel notifications",
+      "reset run progress",
+    ]);
+  });
+
+  it("removes run progress in a build without Firebase too", async () => {
+    await unregisterPushNotifications();
+    expect(native.calls).toEqual(["cancel notifications", "reset run progress"]);
   });
 });
 

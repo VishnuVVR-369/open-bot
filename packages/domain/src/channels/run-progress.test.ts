@@ -26,9 +26,9 @@ const plan = (steps: [string, "pending" | "inProgress" | "completed"][]) =>
 const search = { id: "w1", kind: "web_search", status: "running", startedAt: at, query: "flights" };
 
 describe("runProgressNotice", () => {
-  const base = { teammateName: "Rex", chatTitle: null, state: "working", items: [] } as const;
+  const base = { teammateName: "Rex", state: "working", items: [] } as const;
 
-  it("names the plan step in progress and counts the plan's steps", () => {
+  it("counts the plan's steps, and names only the teammate and its state", () => {
     const items = [
       plan([
         ["Find flights", "completed"],
@@ -37,17 +37,31 @@ describe("runProgressNotice", () => {
       ]),
       search as TimelineItem,
     ];
-    expect(runProgressNotice({ ...base, chatTitle: "Lisbon trip", items })).toEqual({
-      title: "Rex: Book the flight",
+    expect(runProgressNotice({ ...base, items })).toEqual({
+      title: "Rex is working",
       body: "Searching the web",
       steps: { done: 1, total: 3 },
     });
+    expect(runProgressNotice(base)).toEqual({ title: "Rex is working", body: "Working" });
+    expect(runProgressNotice({ ...base, state: "starting" })).toEqual({
+      title: "Rex is working",
+      body: "Getting ready",
+    });
   });
 
-  it("falls back to the chat's title, then to the teammate alone", () => {
-    expect(runProgressNotice({ ...base, chatTitle: "Lisbon trip" }).title).toBe("Rex: Lisbon trip");
-    expect(runProgressNotice(base)).toEqual({ title: "Rex is working", body: "Working" });
-    expect(runProgressNotice({ ...base, state: "starting" }).body).toBe("Getting ready");
+  it("never puts the teammate's plan in the text, since a step can quote a secret", () => {
+    const secret = "API_TOKEN=dummy123";
+    const items = [
+      plan([
+        [`Export ${secret}`, "completed"],
+        [`Run with ${secret}`, "inProgress"],
+      ]),
+    ];
+    for (const state of ["starting", "working", "waiting"] as const) {
+      const notice = runProgressNotice({ ...base, state, items });
+      expect(notice.title).toBe(state === "waiting" ? "Rex is waiting for you" : "Rex is working");
+      expect(JSON.stringify(notice)).not.toContain("dummy123");
+    }
   });
 
   it("says what a waiting run waits for, without repeating the request itself", () => {
@@ -119,10 +133,10 @@ describe("runProgressNotice", () => {
     expect(progressActivity([])).toBeNull();
   });
 
-  it("keeps long text to one short line", () => {
-    const notice = runProgressNotice({ ...base, chatTitle: `Plan\n${"a".repeat(200)}` });
+  it("keeps a long name to one short line", () => {
+    const notice = runProgressNotice({ ...base, teammateName: `Rex\n${"a".repeat(200)}` });
     expect(notice.title).toHaveLength(80);
-    expect(notice.title).toMatch(/^Rex: Plan a+…$/);
+    expect(notice.title).toMatch(/^Rex a+…$/);
   });
 
   it("tags a run's progress apart from its result", () => {

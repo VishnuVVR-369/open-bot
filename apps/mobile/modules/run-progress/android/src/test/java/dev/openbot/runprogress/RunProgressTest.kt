@@ -17,9 +17,12 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.time.Instant
 
-/** The notification itself, drawn and removed through Android's notification manager. */
+/**
+ * The notification itself, drawn and removed through Android's notification manager, on the
+ * oldest Android the app runs on (minSdk 29) and on Android 13.
+ */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [33])
+@Config(sdk = [29, 33])
 class RunProgressTest {
   private val context: Context = ApplicationProvider.getApplicationContext<Application>()
   private val manager = context.getSystemService(NotificationManager::class.java)
@@ -110,6 +113,40 @@ class RunProgressTest {
     push("r1", "2026-11-22T10:00:50Z")
     RunProgress.setVisibleChat(context, "c9")
     assertEquals(emptySet<String>(), shown().keys)
+  }
+
+  @Test
+  fun showsUpdatesThenGoesForGoodWithTheEndOrTheResult() {
+    push("r1", "2026-11-22T10:00:20Z", chatId = "c1")
+    push("r2", "2026-11-22T10:00:20Z", chatId = "c2")
+    push("r1", "2026-11-22T10:00:35Z", state = "waiting", chatId = "c1")
+    assertEquals(setOf("run-progress:r1", "run-progress:r2"), shown().keys)
+    // The end, and the result notification for a run whose end hasn't arrived.
+    push("r1", "2026-11-22T10:00:50Z", state = "ended")
+    RunProgress.endRun(context, "r2")
+    assertEquals(emptySet<String>(), shown().keys)
+    // The ledger read back: neither comes back, whatever arrives late.
+    push("r1", "2026-11-22T10:01:05Z")
+    push("r2", "2026-11-22T10:01:05Z", chatId = "c2")
+    RunProgress.setVisibleChat(context, "c9")
+    assertEquals(emptySet<String>(), shown().keys)
+  }
+
+  @Test
+  fun signingOutRemovesEveryRunAndWhatTheLedgerKeptToRedrawIt() {
+    RunProgress.setVisibleChat(context, "c1")
+    push("hidden", "2026-11-22T10:00:20Z", chatId = "c1")
+    push("drawn", "2026-11-22T10:00:20Z", chatId = "c2")
+    assertEquals(setOf("run-progress:drawn"), shown().keys)
+    RunProgress.reset(context)
+    assertEquals(emptySet<String>(), shown().keys)
+    assertEquals(emptyMap<String, Any>(), context.getSharedPreferences("openbot_run_progress", Context.MODE_PRIVATE).all)
+    // Signed in again, the chat leaves the screen: the run you can't see any more isn't drawn.
+    RunProgress.setVisibleChat(context, null)
+    assertEquals(emptySet<String>(), shown().keys)
+    // A new account's runs still show.
+    push("next", "2026-11-22T10:00:40Z", chatId = "c3")
+    assertEquals(setOf("run-progress:next"), shown().keys)
   }
 
   @Test

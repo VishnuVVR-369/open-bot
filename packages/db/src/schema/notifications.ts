@@ -58,13 +58,18 @@ export const pushSubscriptions = pgTable("push_subscriptions", {
 });
 
 /**
- * Runs whose progress notification phones may be showing (`run-progress` pushes). A row is written
- * before a run's first progress push and removed once its end has been sent, so a run that is over
- * with its row still here owes phones that end: the worker sends it when it starts again.
+ * Runs whose progress notification phones may be showing (`run-progress` pushes). The row is
+ * written (and its `shown_at` moved on) before each live push, and removed once the end has been
+ * sent, so a run that is over with its row still here owes phones that end: the worker sends it
+ * when it starts again, unless the phones' copy has timed out by then.
  */
 export const runProgressNotifications = pgTable("run_progress_notifications", {
   runId: uuid("run_id")
     .primaryKey()
     .references(() => runs.id, { onDelete: "cascade" }),
-  createdAt: createdAt(),
+  /**
+   * When the run's last live update was sent. Phones show it until it times out, so the end is
+   * owed only for a while after (`END_OWED_FOR_MS` in the worker).
+   */
+  shownAt: timestamp("shown_at", { withTimezone: true }).notNull().defaultNow(),
 });

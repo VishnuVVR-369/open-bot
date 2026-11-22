@@ -8,5 +8,7 @@ interface RunProgress {
   endRun(runId: string): void;
   /** The chat on screen while the app is in front, or null; its runs show no notification. */
   setVisibleChat(chatId: string | null): void;
+  /** On sign-out: every progress notification goes, with what the phone kept to draw them. */
+  reset(): void;
 }
 export default requireNativeModule<RunProgress>("OpenBotRunProgress");

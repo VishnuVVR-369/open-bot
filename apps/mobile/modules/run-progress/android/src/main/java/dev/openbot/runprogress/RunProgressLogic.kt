@@ -139,9 +139,10 @@ data class LedgerEntry(
       )
     }
 
-    private fun escape(value: String) = URLEncoder.encode(value, Charsets.UTF_8)
+    // The charset by name: the `Charset` overloads are API 33, and the app runs from API 29.
+    private fun escape(value: String) = URLEncoder.encode(value, "UTF-8")
 
-    private fun unescape(value: String) = URLDecoder.decode(value, Charsets.UTF_8)
+    private fun unescape(value: String) = URLDecoder.decode(value, "UTF-8")
   }
 }
 

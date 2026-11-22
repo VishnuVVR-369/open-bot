@@ -27,6 +27,8 @@ describe.skipIf(!url)("FCM fan-out", () => {
   const gone = new Set<string>();
   /** Tokens the stand-in can't deliver to right now. */
   const unavailable = new Set<string>();
+  /** Tokens the stand-in refuses as invalid, which no retry changes. */
+  const invalid = new Set<string>();
   let tokenRequests = 0;
 
   const server = http.createServer((request, response) => {
@@ -56,6 +58,22 @@ describe.skipIf(!url)("FCM fan-out", () => {
         const { message } = JSON.parse(body) as { message: Sent };
         if (unavailable.has(message.token)) {
           response.writeHead(503).end(JSON.stringify({ error: { status: "UNAVAILABLE" } }));
+          return;
+        }
+        if (invalid.has(message.token)) {
+          response.writeHead(400).end(
+            JSON.stringify({
+              error: {
+                status: "INVALID_ARGUMENT",
+                details: [
+                  {
+                    "@type": "type.googleapis.com/google.firebase.fcm.v1.FcmError",
+                    errorCode: "INVALID_ARGUMENT",
+                  },
+                ],
+              },
+            }),
+          );
           return;
         }
         if (gone.has(message.token)) {
@@ -113,6 +131,7 @@ describe.skipIf(!url)("FCM fan-out", () => {
     sent.length = 0;
     gone.clear();
     unavailable.clear();
+    invalid.clear();
   });
   afterAll(async () => {
     server.close();
@@ -275,16 +294,24 @@ describe.skipIf(!url)("FCM fan-out", () => {
     expect(phone!.pushToken).toBeNull();
   });
 
-  it("counts the sends that failed and could work if tried again, apart from gone phones", async () => {
-    for (const token of ["phone-1", "phone-2", "phone-3"])
+  it("counts the sends that failed and could work if tried again, apart from gone or refused phones", async () => {
+    for (const token of ["phone-1", "phone-2", "phone-3", "phone-4"])
       await fcm.register({ token, platform: "android", device: "Pixel" });
     unavailable.add("phone-2");
     gone.add("phone-3");
+    invalid.add("phone-4");
     const push = { data: { type: "dismiss" as const, tag: "x" }, priority: "normal" as const };
     expect(await fcm.deliver(push)).toEqual({ sent: 1, failed: 1 });
     expect(await fcm.deliver(push)).toEqual({ sent: 1, failed: 1 });
     unavailable.clear();
     expect(await fcm.deliver(push)).toEqual({ sent: 2, failed: 0 });
+    // Refused for good, but not gone: it stays signed in, and sending again changes nothing.
+    expect((await fcm.sendToTokens(["phone-4"], push)).get("phone-4")).toBe("rejected");
+    expect((await db.select().from(nativePushDevices)).map((row) => row.token).sort()).toEqual([
+      "phone-1",
+      "phone-2",
+      "phone-4",
+    ]);
   });
 
   it("sends a long run's progress at normal priority, collapsed per run, then its end uncollapsed", async () => {
@@ -293,7 +320,6 @@ describe.skipIf(!url)("FCM fan-out", () => {
       teammateId: "b1",
       teammateName: "Rex",
       chatId: "c1",
-      chatTitle: null,
       status: "running",
       waitingFor: null,
       items: [

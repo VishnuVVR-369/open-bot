@@ -13,5 +13,7 @@ class RunProgressModule : Module() {
     Function("handle") { data: Map<String, String> -> RunProgress.onPush(context, data) }
     Function("endRun") { runId: String -> RunProgress.endRun(context, runId) }
     Function("setVisibleChat") { chatId: String? -> RunProgress.setVisibleChat(context, chatId) }
+    /** On sign-out: every progress notification goes, and what the phone kept to draw them. */
+    Function("reset") { RunProgress.reset(context) }
   }
 }

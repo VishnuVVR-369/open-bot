@@ -1,11 +1,12 @@
 import { EventEmitter } from "node:events";
 import { chats, runProgressNotifications, runs, teammates } from "@open-bot/db";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Context, WorkerEvents } from "../context";
 import type { Run } from "../core/db-types";
 import {
+  END_OWED_FOR_MS,
   type NativePush,
   RunProgressService,
   runProgressStore,
@@ -54,7 +55,6 @@ describe.skipIf(!url)("run progress across a worker restart", () => {
       teammateId: "t",
       teammateName: "Kit",
       chatId: "c",
-      chatTitle: null,
       status: "running",
       waitingFor: null,
       items: [],
@@ -204,5 +204,47 @@ describe.skipIf(!url)("run progress across a worker restart", () => {
     second.progress.stop();
     expect(ends(quiet.id)).toEqual([]);
     expect(await owed(run.id)).toBe(false);
+  });
+
+  it("forgets an end no phone could use any more, and keeps the run's record fresh while it shows", async () => {
+    const store = runProgressStore(db);
+    const stale = await newRun();
+    const recent = await newRun();
+    const interrupted = await newRun();
+    for (const run of [stale, recent, interrupted]) await store.shown(run.id);
+    const shownAgo = (runId: string, ms: number) =>
+      db
+        .update(runProgressNotifications)
+        .set({ shownAt: sql`now() - make_interval(secs => ${ms / 1000})` })
+        .where(eq(runProgressNotifications.runId, runId));
+    // Each phone's copy timed out a minute ago, or will in a few minutes.
+    await shownAgo(stale.id, END_OWED_FOR_MS + 60_000);
+    await shownAgo(interrupted.id, END_OWED_FOR_MS + 60_000);
+    await shownAgo(recent.id, END_OWED_FOR_MS - 5 * 60_000);
+    await db.update(runs).set({ status: "completed" }).where(eq(runs.id, stale.id));
+    await db.update(runs).set({ status: "failed" }).where(eq(runs.id, recent.id));
+
+    // A start sends only the end a phone may still show, and forgets the other.
+    const next = worker();
+    next.progress.start();
+    await next.progress.idle();
+    expect(ends(stale.id)).toEqual([]);
+    expect(ends(recent.id)).toHaveLength(1);
+    expect(await owed(stale.id)).toBe(false);
+    expect(await owed(recent.id)).toBe(false);
+    // An interrupted run that recovery finishes long after it last showed gets no end.
+    expect(await owed(interrupted.id)).toBe(false);
+    next.events.emit("runFinished", { id: interrupted.id, trigger: "user" }, "interrupted", null);
+    await next.progress.idle();
+    next.progress.stop();
+    expect(ends(interrupted.id)).toEqual([]);
+
+    // Each update moves the record on, so a long wait never expires a run that still shows.
+    const live = await newRun();
+    await store.shown(live.id);
+    await shownAgo(live.id, END_OWED_FOR_MS + 60_000);
+    expect(await store.owed(live.id)).toBe(false);
+    await store.shown(live.id);
+    expect(await store.owed(live.id)).toBe(true);
   });
 });

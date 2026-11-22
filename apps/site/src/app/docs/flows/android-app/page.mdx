@@ -58,14 +58,16 @@ Notification approvals can be decided without opening the app; purchases use Rev
 Reply on a message notification sends directly to its teammate, including in a group chat.
 A reply that isn't sent stays in the notification in full, says it wasn't sent, and opens its chat; opening the chat doesn't clear it, so you dismiss it once you've sent it again.
 
-When a teammate's work takes longer than 20 seconds, a quiet notification shows it: for example "Rex: Book the flight", with the kind of step it is on, such as "Searching the web" or "Running a command", and how long it has been going.
-The title names the step of the teammate's plan in progress, or the chat's title, or just that the teammate is working.
-The text goes through Google's push service, so it never quotes a command, a file, a link, a search or what a tool was given: only the kind of step.
+When a teammate's work takes longer than 20 seconds, a quiet notification shows it: "Rex is working", with the kind of step it is on, such as "Searching the web" or "Running a command", and how long it has been going.
+The text goes through Google's push service, so every word is fixed but the teammate's name.
+It never quotes the teammate's plan, the chat's title, a command, a file, a link, a search or what a tool was given: only the kind of step.
+The chat shows the rest.
 When the teammate made a plan, a progress bar shows how many of its steps are done; on Android 16 and newer this is Android's progress-style notification, with one segment per step.
-While the teammate waits for you, the notification says so ("Waiting for your approval") and turns amber; the approval or takeover request still arrives as its own notification, with its buttons.
+While the teammate waits for you, the notification says so ("Rex is waiting for you", "Waiting for your approval") and turns amber; the approval or takeover request still arrives as its own notification, with its buttons.
 It updates in place, at most every 15 seconds for new steps, without sound or vibration, and goes away when the work ends, replaced by the reply or failure notification when there is one.
 Tapping it opens the run in its chat, and while that chat is on screen it stays hidden; it comes back, as it last was, when you leave the chat or press Home.
 Swiping it away hides that run's progress until the run ends.
+Signing out removes every run's progress notification, with what the phone kept to draw them again.
 On Android 14 and newer it is an ongoing notification, which you can still swipe away; on older versions, where an ongoing notification can't be swiped, it is a normal one.
 It has its own channel, Running work, so you can turn it off or tune it in Android's settings without changing approvals, replies or the phone connection.
 

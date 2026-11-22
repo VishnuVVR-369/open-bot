@@ -20,9 +20,11 @@ export function runProgressTag(runId: string): string {
 }
 
 export interface RunProgressInput {
+  /**
+   * The teammate's name, which changes only with your approval: it already titles every
+   * notification about the teammate.
+   */
   teammateName: string;
-  /** The chat's title, only when it says what the chat is about (`chats.titled`). */
-  chatTitle: string | null;
   state: LiveRunProgressState;
   waitingFor?: RunWait | null;
   items: readonly TimelineItem[];
@@ -36,7 +38,6 @@ export interface RunProgressNotice {
 }
 
 const MAX_TITLE = 80;
-const MAX_BODY = 120;
 
 function clip(text: string, max: number): string {
   const line = text.replace(/\s+/g, " ").trim();
@@ -104,24 +105,22 @@ export function progressActivity(items: readonly TimelineItem[]): string | null 
   return null;
 }
 
+const TITLE: Record<LiveRunProgressState, string> = {
+  starting: "is working",
+  working: "is working",
+  waiting: "is waiting for you",
+};
+
 /**
- * The title names the teammate and what it's working on: the plan step in progress, or the chat's
- * title, both written by the teammate as prose (as a result notification sends its reply). The
- * body is a fixed phrase: the kind of step it's on now (`progressActivity`), or what it's waiting
- * for. The text goes through Google's push service, so no tool's arguments or output reach it.
+ * Every word is fixed but the teammate's name: the title says only who and in which state ("Rex is
+ * working"), and the body the kind of step it's on now (`progressActivity`) or what it's waiting
+ * for. The text goes through Google's push service, so nothing a model or a tool wrote reaches it:
+ * not a plan step, not the chat's title, not a tool's arguments or output. The app shows those.
  */
 export function runProgressNotice(input: RunProgressInput): RunProgressNotice {
   const plan = input.items.findLast(
     (item): item is PlanItem => item.kind === "plan" && item.steps.length > 0,
   );
-  const step = plan?.steps.find((entry) => entry.status === "inProgress")?.step.trim();
-  const about = step || input.chatTitle?.trim();
-  const name = input.teammateName;
-  const title = about
-    ? `${name}: ${about}`
-    : input.state === "waiting"
-      ? `${name} is waiting for you`
-      : `${name} is working`;
   const body =
     input.state === "waiting"
       ? WAITING_BODY[input.waitingFor ?? "approval"]
@@ -129,8 +128,8 @@ export function runProgressNotice(input: RunProgressInput): RunProgressNotice {
         ? "Getting ready"
         : (progressActivity(input.items) ?? "Working");
   return {
-    title: clip(title, MAX_TITLE),
-    body: clip(body, MAX_BODY),
+    title: clip(`${input.teammateName} ${TITLE[input.state]}`, MAX_TITLE),
+    body,
     ...(plan
       ? {
           steps: {

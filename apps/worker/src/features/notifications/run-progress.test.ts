@@ -31,6 +31,10 @@ describe("RunProgressService", () => {
   let latency = 0;
   /** How many sends of an end fail before one works. */
   let endFailures = 0;
+  /** How many saves that a run shows fail before one works. */
+  let saveFailures = 0;
+  /** A save that hasn't been answered yet, when a test holds one back. */
+  let saveHold: Promise<void> | null = null;
   const fcm = {
     get configured() {
       return configured;
@@ -54,6 +58,12 @@ describe("RunProgressService", () => {
   const over = new Set<string>();
   const store: RunProgressStore = {
     async shown(runId) {
+      if (saveHold) await saveHold;
+      if (saveFailures > 0) {
+        saveFailures -= 1;
+        log.push(`shown-failed:${runId}`);
+        throw new Error("database unavailable");
+      }
       log.push(`shown:${runId}`);
       owed.add(runId);
     },
@@ -84,7 +94,6 @@ describe("RunProgressService", () => {
       teammateId: "t1",
       teammateName: "Rex",
       chatId: "c1",
-      chatTitle: "Lisbon trip",
       status: "running",
       waitingFor: null,
       items: [],
@@ -102,14 +111,17 @@ describe("RunProgressService", () => {
     snapshot(id, { status: "running", items });
     events.emit("runProgress", id, "step");
   };
-  /** A new step of the teammate's plan, which the notification's title names. */
-  const planStep = (id: string, label: string) => {
+  /** The teammate's plan moves on: `done` of its `total` steps are done. */
+  const planStep = (id: string, done: number, total = 30, label = "Book the flight") => {
     const plan: TimelineItem = {
       id: "plan",
       kind: "plan",
       status: "running",
       startedAt: at,
-      steps: [{ step: label, status: "inProgress" }],
+      steps: Array.from({ length: total }, (_, index) => ({
+        step: `${label} ${index}`,
+        status: index < done ? "completed" : index === done ? "inProgress" : "pending",
+      })),
     };
     snapshot(id, { status: "running", items: [plan] });
     events.emit("runProgress", id, "step");
@@ -127,6 +139,8 @@ describe("RunProgressService", () => {
     hold = null;
     latency = 0;
     endFailures = 0;
+    saveFailures = 0;
+    saveHold = null;
     sent.length = 0;
     startedAt.length = 0;
     log.length = 0;
@@ -167,7 +181,7 @@ describe("RunProgressService", () => {
         teammateId: "t1",
         url: "/chats/c1?run=r1",
         startedAt: at,
-        title: "Rex: Lisbon trip",
+        title: "Rex is working",
         body: "Using a tool",
       },
       priority: "normal",
@@ -180,15 +194,11 @@ describe("RunProgressService", () => {
     start();
     await vi.advanceTimersByTimeAsync(20_000);
     for (let i = 0; i < 30; i++) {
-      planStep("r1", `Step ${i}`);
+      planStep("r1", i);
       await vi.advanceTimersByTimeAsync(1_000);
     }
     // At 20s, then 35s and 50s: three messages for 30 steps.
-    expect(sent.map((push) => push.data.title)).toEqual([
-      "Rex: Lisbon trip",
-      "Rex: Step 14",
-      "Rex: Step 29",
-    ]);
+    expect(sent.map((push) => push.data.stepsDone)).toEqual([undefined, "14", "29"]);
     expect(sent.map((push) => push.data.sentAt)).toEqual([
       "2026-11-22T10:00:20.000Z",
       "2026-11-22T10:00:35.000Z",
@@ -206,7 +216,7 @@ describe("RunProgressService", () => {
     await vi.advanceTimersByTimeAsync(1_000);
     expect(sent.at(-1)?.data).toMatchObject({
       runState: "waiting",
-      title: "Rex: Lisbon trip",
+      title: "Rex is waiting for you",
       body: "Waiting for your approval",
     });
     expect(sent).toHaveLength(2);
@@ -226,7 +236,7 @@ describe("RunProgressService", () => {
     // An update is still being sent when the end arrives.
     let release!: () => void;
     hold = new Promise((resolve) => (release = resolve));
-    planStep("r1", "Book the flight");
+    planStep("r1", 1);
     await vi.advanceTimersByTimeAsync(15_000);
     finish();
     release();
@@ -344,7 +354,7 @@ describe("RunProgressService", () => {
     // The first update goes at 20s, and FCM answers it at 40s.
     await vi.advanceTimersByTimeAsync(21_000);
     // A new step's update is asked for at 35s, the wait's at 37s: both while the first is sent.
-    planStep("r1", "Book the flight");
+    planStep("r1", 1);
     await vi.advanceTimersByTimeAsync(15_000);
     snapshot("r1", { status: "waiting", waitingFor: "approval" });
     events.emit("runProgress", "r1", "status");
@@ -352,6 +362,63 @@ describe("RunProgressService", () => {
     // The wait replaced the step, and went as soon as the first send was answered.
     expect(states()).toEqual(["starting", "waiting"]);
     expect(startedAt).toEqual([20_000, 40_000]);
+  });
+
+  it("builds the update waiting behind a slow send when it goes, so a wait never follows an old step", async () => {
+    latency = 16_500;
+    start();
+    // The first update goes at 20s, and FCM answers it at 36.5s.
+    await vi.advanceTimersByTimeAsync(21_000);
+    // A step's update is due at 35s, while the first is being sent; the run waits at 36s.
+    planStep("r1", 1);
+    await vi.advanceTimersByTimeAsync(15_000);
+    snapshot("r1", { status: "waiting", waitingFor: "approval" });
+    events.emit("runProgress", "r1", "status");
+    await vi.advanceTimersByTimeAsync(30_000);
+    // The wait went as soon as the first send was answered, and the step it replaced never did.
+    expect(states()).toEqual(["starting", "waiting"]);
+    expect(startedAt).toEqual([20_000, 36_500]);
+    expect(sent[1]!.data).toMatchObject({ body: "Waiting for your approval", stepsDone: "1" });
+  });
+
+  it("sends no update until its end is saved as owed, and tries the save again later", async () => {
+    saveFailures = 2;
+    start();
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(sent).toEqual([]);
+    // The run's next change tries again, 2 seconds after the last try for a status.
+    await vi.advanceTimersByTimeAsync(1_000);
+    snapshot("r1", { status: "running" });
+    events.emit("runProgress", "r1", "status");
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(log).toEqual(["shown-failed:r1", "shown-failed:r1"]);
+    // Then a timer does, while nothing happens: 15 seconds later.
+    await vi.advanceTimersByTimeAsync(14_000);
+    expect(sent).toEqual([]);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(log).toEqual(["shown-failed:r1", "shown-failed:r1", "shown:r1", "push:r1:working"]);
+    expect(startedAt).toEqual([37_000]);
+    finish();
+    await service.idle();
+    expect(states()).toEqual(["working", "ended"]);
+    expect(owed.has("r1")).toBe(false);
+  });
+
+  it("sends nothing while the save is held, and ends a run that finishes meanwhile only if it was saved", async () => {
+    let release!: () => void;
+    saveHold = new Promise((resolve) => (release = resolve));
+    start("refused");
+    start("saved");
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(sent).toEqual([]);
+    // Both runs end while their saves are held; the first save answered then fails.
+    finish("refused");
+    finish("saved");
+    saveFailures = 1;
+    release();
+    await service.idle();
+    expect(log).toEqual(["shown-failed:refused", "shown:saved", "push:saved:ended", "ended:saved"]);
+    expect(sent.map((push) => [push.data.runId, push.data.runState])).toEqual([["saved", "ended"]]);
   });
 
   it("drops an update still waiting when the run ends", async () => {
@@ -366,12 +433,22 @@ describe("RunProgressService", () => {
     expect(states()).toEqual(["starting", "ended"]);
   });
 
-  it("never puts a command, a path, a URL or a query in a push", async () => {
+  it("never puts a command, a path, a URL, a query or a plan step in a push", async () => {
     const secret = "dummy123";
     start();
     snapshot("r1", {
       status: "running",
       items: [
+        {
+          id: "p1",
+          kind: "plan",
+          status: "running",
+          startedAt: at,
+          steps: [
+            { step: `Export API_TOKEN=${secret}`, status: "completed" },
+            { step: `Run API_TOKEN=${secret} sleep 25`, status: "inProgress" },
+          ],
+        },
         tool("t1", `Read https://example.com/?token=${secret}`),
         {
           id: "w1",
@@ -401,8 +478,23 @@ describe("RunProgressService", () => {
       ],
     });
     await vi.advanceTimersByTimeAsync(20_000);
-    expect(sent[0]!.data.body).toBe("Running a command");
-    for (const item of snapshots.get("r1")!.items.slice(0, -1)) {
+    // Every field: ids, times, the fixed words, the plan's counts.
+    expect(sent[0]!.data).toEqual({
+      type: "run-progress",
+      tag: "run-progress:r1",
+      runId: "r1",
+      runState: "working",
+      sentAt: "2026-11-22T10:00:20.000Z",
+      chatId: "c1",
+      teammateId: "t1",
+      url: "/chats/c1?run=r1",
+      startedAt: at,
+      title: "Rex is working",
+      body: "Running a command",
+      stepsDone: "1",
+      stepsTotal: "2",
+    });
+    for (const item of snapshots.get("r1")!.items.slice(1, -1)) {
       snapshot("r1", { items: [...snapshots.get("r1")!.items.filter((i) => i !== item), item] });
       events.emit("runProgress", "r1", "step");
       await vi.advanceTimersByTimeAsync(15_000);

@@ -22,8 +22,12 @@ export interface NativePush {
   ttlSeconds?: number;
 }
 
-/** How a send to one token went. `gone` tokens have been forgotten everywhere. */
-export type PushResult = "sent" | "gone" | "failed";
+/**
+ * How a send to one token went. `gone` tokens have been forgotten everywhere. `rejected` means
+ * FCM refused this message for good (a malformed token or message, or a project it can't send
+ * for): sending it again wouldn't work. `failed` could work if tried again.
+ */
+export type PushResult = "sent" | "gone" | "rejected" | "failed";
 
 /**
  * Ask a paired phone to carry the computer's traffic. A wake is silent and only useful for a
@@ -106,6 +110,12 @@ type ServiceAccount = z.infer<typeof serviceAccountSchema>;
 
 /** FCM's error codes that mean the token will never work again. */
 const GONE_CODES = new Set(["UNREGISTERED", "SENDER_ID_MISMATCH"]);
+/**
+ * Answers that won't change if the same message is sent again: an invalid token or message (400),
+ * a project or token FCM won't send for (403, 404). A 401 (an expired access token), a 429 and a
+ * 5xx can work later.
+ */
+const REJECTED_STATUSES = new Set([400, 403, 404]);
 
 /**
  * Push notifications to the Android app through Firebase Cloud Messaging (HTTP v1), with a
@@ -177,7 +187,8 @@ export class FcmService {
 
   /**
    * Sends to every phone signed in for notifications: how many got it, and how many sends failed
-   * and could work if tried again (a phone FCM says is gone is neither).
+   * and could work if tried again (a phone FCM says is gone, or one it refused for good, is
+   * neither).
    */
   async deliver(push: NativePush): Promise<{ sent: number; failed: number }> {
     if (!this.account) return { sent: 0, failed: 0 };
@@ -213,6 +224,7 @@ export class FcmService {
             await this.forget(token);
             return;
           }
+          if (result === "rejected") return;
           await this.ctx.db
             .update(nativePushDevices)
             .set({ lastSentAt: new Date() })
@@ -235,7 +247,7 @@ export class FcmService {
     accessToken: string,
     token: string,
     push: NativePush,
-  ): Promise<"sent" | "gone"> {
+  ): Promise<"sent" | "gone" | "rejected"> {
     const account = this.account!;
     const data = Object.fromEntries(
       Object.entries(push.data).filter((entry): entry is [string, string] => Boolean(entry[1])),
@@ -265,6 +277,13 @@ export class FcmService {
     };
     const codes = (body.error?.details ?? []).map((detail) => detail.errorCode);
     if (codes.some((code) => code && GONE_CODES.has(code))) return "gone";
+    if (REJECTED_STATUSES.has(response.status)) {
+      this.ctx.log.warn("FCM refused a push for good", {
+        status: response.status,
+        error: body.error?.status ?? null,
+      });
+      return "rejected";
+    }
     if (response.status === 401) this.token = null;
     throw new Error(
       `FCM answered ${response.status}: ${body.error?.message ?? body.error?.status ?? "no details"}`,

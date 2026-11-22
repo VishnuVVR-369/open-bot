@@ -7,16 +7,9 @@ import { api } from "@/lib/api";
 import { keysForPush, queryClient, queryKeys } from "@/lib/query";
 import { visibleChat } from "@/lib/realtime";
 import RunProgress from "../../modules/run-progress";
-import { hasFirebase } from "./firebase";
+import { messaging } from "./firebase";
 import { ensureChannels, handleNotificationEvent, handlePushData } from "./notifications";
 import { parsePushData } from "./payload";
-
-type MessagingModule = typeof import("@react-native-firebase/messaging");
-
-function messaging(): MessagingModule | null {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  return hasFirebase ? (require("@react-native-firebase/messaging") as MessagingModule) : null;
-}
 
 /**
  * The notification that opened the app stays the "initial" one for as long as the app runs, so
@@ -131,13 +124,19 @@ export async function currentPushToken(): Promise<string | null> {
   return fcm.getToken(fcm.getMessaging()).catch(() => null);
 }
 
-/** On sign-out: stop notifications to this phone, on the server and in Firebase. */
+/**
+ * On sign-out: stop notifications to this phone, on the server and in Firebase, then remove the
+ * ones it shows. Run progress goes last, with what the phone kept to draw it again, once no more
+ * pushes come for the account you left.
+ */
 export async function unregisterPushNotifications(): Promise<void> {
   const fcm = messaging();
-  if (!fcm) return;
-  const instance = fcm.getMessaging();
-  const token = await fcm.getToken(instance).catch(() => null);
-  if (token) await api.push.unregisterDevice({ token }).catch(() => {});
-  await fcm.deleteToken(instance).catch(() => {});
-  await notifee.cancelAllNotifications();
+  if (fcm) {
+    const instance = fcm.getMessaging();
+    const token = await fcm.getToken(instance).catch(() => null);
+    if (token) await api.push.unregisterDevice({ token }).catch(() => {});
+    await fcm.deleteToken(instance).catch(() => {});
+  }
+  await notifee.cancelAllNotifications().catch(() => {});
+  RunProgress.reset();
 }

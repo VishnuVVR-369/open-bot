@@ -48,36 +48,43 @@ export const RUN_PROGRESS_TIMING: RunProgressTiming = {
 interface Tracked {
   runId: string;
   startedAt: Date;
-  /** An update was asked for, so phones may show it: the run's end must be sent too. */
+  /**
+   * The database says the run's end is owed, so phones may show it: its end must be sent too.
+   * Set once a save succeeds, and no update goes before one does.
+   */
   shown: boolean;
-  /** Saving that the end is owed, done before the first update goes. Never fails. */
-  recorded: Promise<void> | null;
-  /** When the last update was asked for, in ms; 0 before the first. */
+  /** Saving that the end is owed, before an update goes. The end waits for it. */
+  saving: Promise<void> | null;
+  /** When the last update was sent (or its save was tried), in ms; 0 before the first. */
   lastSentAt: number;
-  /** The last update's content, to skip sending the same again. */
+  /** The last update's content, to skip sending the same again; null to send it anyway. */
   lastKey: string | null;
   /** The last `sentAt` given, so a run's messages are strictly ordered for the phone. */
   lastStamp: number;
   timer: NodeJS.Timeout | null;
   /** When the timer fires, in ms. */
   due: number;
-  /** The update being sent: a run has one at a time. */
-  inFlight: Promise<void> | null;
-  /** The newest update not sent yet, sent when `inFlight` is answered. The end drops it. */
-  pending: NativePush | null;
+  /** Saving, then sending, an update: a run has one at a time. */
+  busy: Promise<void> | null;
+  /**
+   * An update was asked for while one was busy. It goes once that one is answered, and is built
+   * then, from the run as it is by that time: a status change never waits behind an older step.
+   */
+  wanted: boolean;
 }
 
 /**
  * Pushes a running teammate's progress to your phones. Nothing is sent for a run that ends within
  * `showAfterMs`; after that a status change is asked for within `statusEveryMs`, new steps at most
- * every `stepEveryMs`, one at a time per run with only the newest waiting, and the run's end once.
+ * every `stepEveryMs`, one at a time per run, and the run's end once.
  * Helpers (swarm runs) show nothing: their teammate's own run does.
  *
- * The end is durable: before a run's first update, the database records that its end is owed
- * (`RunProgressStore`), and the record goes only once the end was sent to every phone. A failed end
- * is tried again, and a worker that starts sends the ends still owed by runs that are over, such
- * as one stopped between storing a run's last status and sending its end, or a run the restart
- * interrupted (`executor.recover()` finishes those).
+ * The end is durable: before each update, the database records that the run's end is owed
+ * (`RunProgressStore`), and an update whose record failed isn't sent (a later one tries again).
+ * The record goes once the end was sent to every phone. A failed end is tried again, and a worker
+ * that starts sends the ends still owed by runs that are over, such as one stopped between storing
+ * a run's last status and sending its end, or a run the restart interrupted (`executor.recover()`
+ * finishes those). An end no phone could use any more, past `END_OWED_FOR_MS`, is forgotten.
  */
 export class RunProgressService {
   private readonly runs = new Map<string, Tracked>();
@@ -132,14 +139,14 @@ export class RunProgressService {
       runId: run.id,
       startedAt: new Date(),
       shown: false,
-      recorded: null,
+      saving: null,
       lastSentAt: 0,
       lastKey: null,
       lastStamp: 0,
       timer: null,
       due: 0,
-      inFlight: null,
-      pending: null,
+      busy: null,
+      wanted: false,
     };
     this.runs.set(run.id, tracked);
     this.schedule(tracked, this.timing.showAfterMs);
@@ -148,7 +155,7 @@ export class RunProgressService {
   private readonly onProgress = (runId: string, change: "status" | "step") => {
     const run = this.runs.get(runId);
     // Before the first update, the timer that sends it reads the latest state anyway.
-    if (!run?.shown) return;
+    if (!run || run.lastSentAt === 0) return;
     const every = change === "status" ? this.timing.statusEveryMs : this.timing.stepEveryMs;
     this.schedule(run, Math.max(0, run.lastSentAt + every - Date.now()));
   };
@@ -159,8 +166,8 @@ export class RunProgressService {
       if (tracked.timer) clearTimeout(tracked.timer);
       this.runs.delete(run.id);
       // An update not sent yet is out of date now.
-      tracked.pending = null;
-      if (tracked.shown) this.end(run.id, tracked);
+      tracked.wanted = false;
+      if (tracked.shown || tracked.saving) this.end(run.id, tracked);
       return;
     }
     // Not seen start: a restart interrupted it. Its end is owed if it showed before.
@@ -179,8 +186,13 @@ export class RunProgressService {
     }, delay);
   }
 
+  /** Sends the run's progress as it is now, unless the phones have it already. */
   private update(run: Tracked) {
     if (this.runs.get(run.runId) !== run) return;
+    if (run.busy) {
+      run.wanted = true;
+      return;
+    }
     const snapshot = this.source(run.runId);
     const state = snapshot && liveState(snapshot.status);
     // Its session is gone or done: the run's end comes with `runFinished`.
@@ -194,50 +206,57 @@ export class RunProgressService {
     });
     const key = JSON.stringify(push.data);
     const now = Date.now();
-    if (key !== run.lastKey || now - run.lastSentAt >= this.timing.keepAliveMs) {
-      run.lastKey = key;
-      run.lastSentAt = now;
-      push.data.sentAt = new Date(this.stamp(run)).toISOString();
-      this.enqueue(run, push);
+    if (key === run.lastKey && now - run.lastSentAt < this.timing.keepAliveMs) {
+      this.schedule(run, run.lastSentAt + this.timing.keepAliveMs - now);
+      return;
     }
-    this.schedule(run, Math.max(0, run.lastSentAt + this.timing.keepAliveMs - now));
+    const busy = this.track(this.send(run, push, key), run.runId);
+    run.busy = busy;
+    void busy.then(() => {
+      run.busy = null;
+      if (!run.wanted) return;
+      run.wanted = false;
+      this.update(run);
+    });
+  }
+
+  /** Records that the end is owed, then sends the update; nothing goes if the record fails. */
+  private async send(run: Tracked, push: NativePush, key: string) {
+    run.lastSentAt = Date.now();
+    const saving = this.store.shown(run.runId);
+    // Settles before anything that waits for it, `end()` included, sees the outcome.
+    run.saving = saving.then(
+      () => {
+        run.shown = true;
+      },
+      () => {},
+    );
+    try {
+      await saving;
+    } catch (error) {
+      this.ctx.log.warn("couldn't save that a run's progress shows, so its update waits", {
+        runId: run.runId,
+        error: errorMessage(error),
+      });
+      // Tried again by the next update: the run's next step or status, or this timer.
+      run.lastKey = null;
+      if (this.runs.get(run.runId) === run) this.schedule(run, this.timing.stepEveryMs);
+      return;
+    } finally {
+      run.saving = null;
+    }
+    // It ended while saving: its end goes instead.
+    if (this.runs.get(run.runId) !== run) return;
+    run.lastKey = key;
+    push.data.sentAt = new Date(this.stamp(run)).toISOString();
+    this.schedule(run, this.timing.keepAliveMs);
+    await this.fcm.deliver(push);
   }
 
   /** A time after the run's previous message's, even when the clock steps back. */
   private stamp(run: Tracked): number {
     run.lastStamp = Math.max(Date.now(), run.lastStamp + 1);
     return run.lastStamp;
-  }
-
-  /** Sends a live update now, or after the one being sent, replacing any update still waiting. */
-  private enqueue(run: Tracked, push: NativePush) {
-    run.shown = true;
-    run.recorded ??= this.store.shown(run.runId).catch((error: unknown) =>
-      this.ctx.log.warn("couldn't save that a run's progress shows", {
-        runId: run.runId,
-        error: errorMessage(error),
-      }),
-    );
-    run.pending = push;
-    if (!run.inFlight) this.flush(run);
-  }
-
-  private flush(run: Tracked) {
-    const push = run.pending;
-    run.pending = null;
-    if (!push) return;
-    const sent = this.track(
-      (async () => {
-        await run.recorded;
-        await this.fcm.deliver(push);
-      })(),
-      run.runId,
-    );
-    run.inFlight = sent;
-    void sent.then(() => {
-      run.inFlight = null;
-      if (this.runs.get(run.runId) === run) this.flush(run);
-    });
   }
 
   /**
@@ -247,11 +266,14 @@ export class RunProgressService {
   private end(runId: string, tracked?: Tracked, attempt = 0) {
     if (this.ending.has(runId)) return;
     this.ending.add(runId);
-    const sentAt = tracked ? new Date(this.stamp(tracked)) : new Date();
     const ended = (async () => {
-      // Saved before it's removed, so a late save can't make the end owed again.
-      if (tracked) await tracked.recorded;
-      else if (!(await this.store.owed(runId))) return;
+      if (tracked) {
+        // A save still going decides whether phones may show it, and must not land after the
+        // record is removed, which would make the end owed again.
+        await tracked.saving;
+        if (!tracked.shown) return;
+      } else if (!(await this.store.owed(runId))) return;
+      const sentAt = tracked ? new Date(this.stamp(tracked)) : new Date();
       const result = await this.fcm.deliver(nativeRunProgress({ runId, sentAt, state: "ended" }));
       if (result.failed) throw new Error(`${result.failed} phones didn't get it`);
       await this.store.ended(runId);

@@ -1,5 +1,6 @@
 package dev.openbot.runprogress
 
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -7,13 +8,14 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.annotation.VisibleForTesting
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.edit
+import androidx.core.net.toUri
 
 private const val TAG = "RunProgress"
 
@@ -45,7 +47,7 @@ object RunProgress {
     synchronized(lock) {
       val (action, entry) = ProgressRules.decide(read(context, update.runId), update, visibleChat, clock())
       // Written at once: the process that got the push may be gone right after.
-      if (entry != null) prefs(context).edit().putString(update.runId, entry.encode()).commit()
+      if (entry != null) prefs(context).edit(commit = true) { putString(update.runId, entry.encode()) }
       forgetOld(context)
       when (action) {
         Action.SHOW -> show(context, update, ProgressRules.TIMEOUT_MS)
@@ -60,7 +62,7 @@ object RunProgress {
   fun endRun(context: Context, runId: String) {
     synchronized(lock) {
       val entry = ProgressRules.ended(read(context, runId), clock())
-      prefs(context).edit().putString(runId, entry.encode()).commit()
+      prefs(context).edit(commit = true) { putString(runId, entry.encode()) }
       cancel(context, tagOf(runId))
     }
   }
@@ -73,7 +75,7 @@ object RunProgress {
   fun dismissed(context: Context, runId: String) {
     synchronized(lock) {
       ProgressRules.dismissed(read(context, runId), clock())?.let {
-        prefs(context).edit().putString(runId, it.encode()).commit()
+        prefs(context).edit(commit = true) { putString(runId, it.encode()) }
       }
       cancel(context, tagOf(runId))
     }
@@ -92,6 +94,19 @@ object RunProgress {
       val active = activeTags(context)
       for ((update, left) in ProgressRules.showing(entries, chatId, clock()).values)
         if (update.tag !in active) show(context, update, left)
+    }
+  }
+
+  /**
+   * You signed out: every run's notification goes, and the ledger with it, so nothing about the
+   * account you left is drawn again (a chat leaving the screen redraws from the ledger).
+   */
+  fun reset(context: Context) {
+    synchronized(lock) {
+      visibleChat = null
+      val tags = activeTags(context) + prefs(context).all.keys.map(::tagOf)
+      prefs(context).edit(commit = true) { clear() }
+      tags.forEach { cancel(context, it) }
     }
   }
 
@@ -116,9 +131,7 @@ object RunProgress {
     val entries = entries(context)
     val forget = ProgressRules.forget(entries, clock())
     if (forget.isEmpty()) return
-    val editor = prefs.edit()
-    forget.forEach { editor.remove(it) }
-    editor.commit()
+    prefs.edit(commit = true) { forget.forEach { remove(it) } }
   }
 
   private fun cancel(context: Context, tag: String) = NotificationManagerCompat.from(context).cancel(tag, NOTIFICATION_ID)
@@ -139,6 +152,8 @@ object RunProgress {
   }
 
   /** Draws the update; it removes itself after `timeoutMs` unless a newer one replaces it. */
+  // `allowed()` checks the permission: from Android 13, notifications aren't enabled without it.
+  @SuppressLint("MissingPermission")
   private fun show(context: Context, update: ProgressUpdate, timeoutMs: Long) {
     ensureChannel(context)
     if (!allowed(context)) return
@@ -153,6 +168,8 @@ object RunProgress {
     }
   }
 
+  // The icon is the app's resource, which this library can only find by name.
+  @SuppressLint("DiscouragedApi")
   private fun icon(context: Context): Int =
     context.resources.getIdentifier("ic_notification", "drawable", context.packageName).takeIf { it != 0 }
       ?: context.applicationInfo.icon
@@ -164,7 +181,7 @@ object RunProgress {
     PendingIntent.getActivity(
       context,
       requestCode(update),
-      Intent(Intent.ACTION_VIEW, Uri.parse(view.link))
+      Intent(Intent.ACTION_VIEW, view.link.toUri())
         .setPackage(context.packageName)
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
       PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,

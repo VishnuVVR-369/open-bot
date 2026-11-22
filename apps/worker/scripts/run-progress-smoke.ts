@@ -213,19 +213,22 @@ try {
     );
     assert.equal(push.data.tag, `run-progress:${run.id}`);
   }
-  // The run's commands (`sleep 24; echo 3 nonstop flights`) never leave the worker.
+  // The run's commands (`sleep 24; echo 3 nonstop flights`) never leave the worker, and nor does
+  // the chat's title (the teammate wrote it): every word is fixed but the teammate's name.
   assert(!/sleep|nonstop|fares|booked/.test(JSON.stringify(progress)), "a command reached a push");
+  assert(!/Lisbon/.test(JSON.stringify(progress)), "the chat's title reached a push");
   // Nothing in the first 20 seconds, then the step the run is on.
   const [first] = progress;
   assert(first, "no progress was sent");
   assert(first.at - started >= 19_500, `first progress after ${first.at - started}ms`);
   assert.equal(first.data.runState, "working");
-  assert.equal(first.data.title, "Rex: Lisbon trip");
+  assert.equal(first.data.title, "Rex is working");
   assert.equal(first.data.body, "Running a command");
   assert.equal(first.data.url, `/chats/${teammate.chatId}?run=${run.id}`);
   // The wait, within a couple of seconds of the approval being asked, next to the approval itself.
   const waiting = progress.find((push) => push.data.runState === "waiting");
   assert(waiting, "the wait was not sent");
+  assert.equal(waiting.data.title, "Rex is waiting for you");
   assert.equal(waiting.data.body, "Waiting for your approval");
   assert(waiting.at - approval.created_at.getTime() < 4_000, "the wait came late");
   const asked = pushes.find((push) => push.data.kind === "approval");

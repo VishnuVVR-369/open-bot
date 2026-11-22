@@ -9,6 +9,7 @@ export {
   type RunProgressSnapshot,
   type RunProgressSource,
 } from "./run-progress";
+export { END_OWED_FOR_MS } from "./run-progress-push";
 export { runProgressStore } from "./run-progress-store";
 export { notificationRoutes } from "./routes";
 export { createNotification } from "./service";

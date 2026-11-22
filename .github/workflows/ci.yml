@@ -115,8 +115,9 @@ jobs:
           - variant: normal
             env: GOOGLE_SERVICES_JSON=$GITHUB_WORKSPACE/apps/mobile/scripts/ci-google-services.json
             checks: --firebase
-            # Release lint vets the manifest the signed app ships; debug builds skip it.
-            tasks: :app:lintVitalRelease
+            # Release lint vets the manifest the signed app ships; debug builds skip it. The run
+            # progress module's own lint fails on any warning, such as a call too new for minSdk.
+            tasks: :app:lintVitalRelease :run-progress:lintRelease
     defaults:
       run:
         working-directory: apps/mobile

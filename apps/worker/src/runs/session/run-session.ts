@@ -177,7 +177,6 @@ export class RunSession {
       teammateId: this.teammate.id,
       teammateName: this.teammate.name,
       chatId: this.chat.id,
-      chatTitle: this.chat.titled ? this.chat.title : null,
       status: this.status,
       waitingFor: this.waitingFor,
       items: [...this.items.values()],

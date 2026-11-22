@@ -51,7 +51,7 @@ Paths are relative to the repo root; symbols are in parentheses.
 - Types: `pnpm --filter @open-bot/mobile typecheck`; Expo versions: `pnpm exec expo install --check` in `apps/mobile`; Expo health: `pnpm --filter @open-bot/mobile doctor`.
   Doctor's one expected failure is `@notifee/react-native` marked unmaintained (its repository is archived); the local modules are excluded from that check in `package.json`.
 - Kotlin core: `./gradlew test` in `apps/mobile/modules/egress/core`.
-- Run progress (its rules on the JVM, and the notification under Robolectric): `./gradlew :run-progress:testDebugUnitTest` in `apps/mobile/android` after a prebuild; the worker's pushes end to end: `pnpm test:run-progress`.
+- Run progress (its rules on the JVM, and the notification under Robolectric on API 29 and 33): `./gradlew :run-progress:testDebugUnitTest` in `apps/mobile/android` after a prebuild; its lint, which fails on any warning (a call newer than minSdk 29 is `NewApi`): `./gradlew :run-progress:lintRelease`; the worker's pushes end to end: `pnpm test:run-progress`.
 - Device flows: `pnpm test:mobile-ui` and the Maestro flows in `apps/mobile/maestro`.
 - Pocket inbox: `pnpm test:pocket-inbox` and `pnpm test:integration` (`apps/worker/src/features/notifications/fcm.integration.test.ts`, `apps/worker/src/features/uploads/service.integration.test.ts`).
 - Built artifact: follow `apps/mobile/README.md` for local builds and release checks. CI coverage and skip rules are in [Android CI](../site/src/app/docs/development/page.mdx#android-ci).

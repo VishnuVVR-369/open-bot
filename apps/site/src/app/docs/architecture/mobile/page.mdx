@@ -137,6 +137,7 @@ JavaScript never draws it: these messages are normal priority, and Android may r
 - `usePushNotifications()` tells the module which chat is on screen (`visibleChat`); that chat's runs are hidden until you leave it.
   The ledger keeps each live run's latest update, so when the chat leaves the screen (you open another, or press Home) the module draws it again at once, for the time it had left before timing out, without waiting for another push.
   Ended, swiped-away and timed-out runs are not drawn again.
+- Signing out (`unregisterPushNotifications()`) stops pushes to the phone first, then calls `RunProgress.reset()`, which removes every run's notification and clears the ledger in its lock, so signing in again draws nothing from the account you left.
 - It is ongoing on Android 14 and newer, where you can still swipe an ongoing notification away; on Android 10 to 13 it isn't, so a swipe works there too.
 - A notification not refreshed for 30 minutes removes itself; the worker sends an unchanged one again every 10 minutes, so only a lost end leaves one behind, and not for long.
 - Tapping it opens `openbot://chats/<chat>?run=<run>` in the app.
@@ -205,10 +206,13 @@ After that the work runs in `EgressService`, a `specialUse` foreground service, 
 | Types               | `pnpm --filter @open-bot/mobile typecheck`               | The app, with the shared contract                                                         |
 | Kotlin core         | `./gradlew test` in `modules/egress/core`                | Frames, mux, IP policy and the shared vectors                                             |
 | Run progress        | `./gradlew :run-progress:testDebugUnitTest` in `android` | The pushes' rules and ledger on the JVM, and the notification itself under Robolectric    |
+| Run progress lint   | `./gradlew :run-progress:lintRelease` in `android`       | Any lint warning in the module, such as a call newer than minSdk                          |
 | Device flows        | `pnpm test:mobile-ui`                                    | Maestro flows in `apps/mobile/maestro`, against a local stack                             |
 | Worker side of push | `pnpm test:integration`                                  | FCM fan-out and retry-safe uploads against a disposable database                          |
 
 CI has two Android jobs in `.github/workflows/ci.yml`, one per variant.
 Each runs `expo prebuild`, builds a debug APK, runs the run progress module's unit tests, and checks the merged manifest.
-The normal variant also runs `:app:lintVitalRelease`.
+The normal variant also runs `:app:lintVitalRelease`, and `:run-progress:lintRelease`, which fails on any lint warning in the run progress module.
+Expo's module plugin turns lint's `abortOnError` off, so the module's `build.gradle` turns it back on: its code runs in the FCM service on every Android from minSdk 29, and a call newer than that (`NewApi`) would crash there.
+Its Robolectric tests run on API 29 and 33.
 A separate job runs the Kotlin core tests.

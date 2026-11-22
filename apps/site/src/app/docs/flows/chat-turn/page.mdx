@@ -146,13 +146,19 @@ In the web app, the realtime listener receives the notification, and the SSE rou
 Your browser applies them with the same reducer the server used to render the page, and Milo's reply appears word by word.
 
 Your phone follows along too, without the app open.
-Once the turn has been going for 20 seconds, `RunProgressService` in the worker (`apps/worker/src/features/notifications/run-progress.ts`) sends each phone a normal-priority `run-progress` push with Milo's plan step and the kind of step Milo is on ("Running a command", never the command), as `runProgressNotice()` in `packages/domain` words it.
+Once the turn has been going for 20 seconds, `RunProgressService` in the worker (`apps/worker/src/features/notifications/run-progress.ts`) sends each phone a normal-priority `run-progress` push titled "Milo is working", with the kind of step Milo is on ("Running a command", never the command), as `runProgressNotice()` in `packages/domain` words it.
+Every word in it is fixed but Milo's name: the push goes through Google, so neither Milo's plan nor the chat's title, both written by the model, is in it.
 A status change (waiting on you, or running again) is asked for within 2 seconds, new steps at most every 15 seconds, and an unchanged notification is sent again every 10 minutes.
-The 2 seconds is a scheduling target: a run has one send at a time, so an update waits until FCM answers the one before it, and only the newest update waits, replacing older ones.
+The 2 seconds is a scheduling target: a run has one send at a time, so an update asked for meanwhile waits until FCM answers the one before it.
+What waits is that an update is wanted, not its content: it is built from the run as it is when its turn comes, so a wait never goes out behind an older step.
 When the run ends, any update still waiting is dropped, and one last message with `runState: ended` removes the notification; nothing for the run is asked for after it, and the phone orders a run's messages by their `sentAt`.
 
 That end is durable.
-Before a run's first progress push, the worker records in `run_progress_notifications` that its end is owed, and removes the row only once every phone got the end; a failed end is tried again after 30 seconds, 2 and 10 minutes.
+Before each live progress push, the worker writes the run's row in `run_progress_notifications` (or moves its `shown_at` on), saying its end is owed, and sends the push only once that write succeeded.
+A push whose write failed isn't sent: the run's next change tries again, or a timer 15 seconds later.
+The row goes once every phone got the end; a failed end is tried again after 30 seconds, 2 and 10 minutes.
+FCM answers of 400, 403 and 404 mean it refused that phone for good, so they don't count as failed and aren't tried again.
+A row is forgotten 45 minutes after the run's last live push: the push's TTL is 10 minutes, and a phone removes a notification nothing refreshed for 30, so by then no phone shows the run and its end is no use.
 When the worker starts, it sends the ends still owed by runs that are over: one stopped between storing a run's last status and sending its end, for example while waiting for the run's model logs.
 A run the restart interrupted gets its end when `executor.recover()` marks it interrupted, if it had shown progress.
 
