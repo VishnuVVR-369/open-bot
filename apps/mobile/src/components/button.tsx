@@ -62,8 +62,12 @@ export function Button({
         style,
       ]}
     >
-      {/* The label keeps its place under the spinner, so the button doesn't change size. */}
-      <View style={[styles.content, busy && { opacity: 0 }]}>
+      {/* The label keeps its place under the spinner, so the button doesn't change size.
+          The row always stays a view of its own: with only layout styles React Native folds it
+          into the button, and with the busy opacity it can't. Going from busy back to idle as
+          the screen closed (saving a task) moved the label between parents mid-transition, and
+          Android stopped the app ("The specified child already has a parent"). */}
+      <View collapsable={false} style={[styles.content, busy && { opacity: 0 }]}>
         {icon}
         {/* One line: Android measures a medium-weight label a little narrower than it draws it,
             so a two-word label in a stretched button ("Add task") broke onto a second line that
