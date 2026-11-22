@@ -13,6 +13,8 @@ const native = vi.hoisted(() => ({
   /** Firebase messaging, when the build has it. */
   fcm: null as null | Record<string, unknown>,
   network: null as null | ((state: { isConnected: boolean; isInternetReachable: boolean }) => void),
+  /** The network when the app asks (`getNetworkStateAsync`); the listener only reports changes. */
+  networkNow: { isConnected: true, isInternetReachable: true },
   /** What the server answers a registration with: the registration it stored, or an error. */
   stored: (registration: string): Promise<string | undefined> => Promise.resolve(registration),
   /** The sign-outs running, for `signOutsSettled`. */
@@ -46,6 +48,7 @@ vi.mock("expo-network", () => ({
     native.network = listener;
     return { remove: () => (native.network = null) };
   },
+  getNetworkStateAsync: async () => native.networkNow,
 }));
 vi.mock("@/lib/phone-egress", () => ({ signOutsSettled: () => native.signOut }));
 vi.mock("expo-router", () => ({ router: { push: native.push } }));
@@ -96,6 +99,7 @@ afterEach(() => {
   native.fcm = null;
   native.stored = (registration) => Promise.resolve(registration);
   native.signOut = Promise.resolve();
+  native.networkNow = { isConnected: true, isInternetReachable: true };
   vi.clearAllMocks();
   vi.useRealTimers();
 });
@@ -209,6 +213,23 @@ describe("registration", () => {
     // Stored: back on screen, nothing to send.
     native.state!("active");
     await vi.advanceTimersByTimeAsync(60 * 60_000);
+    expect(registrations()).toHaveLength(5);
+  });
+
+  it("tries again when back online in an app that started offline", async () => {
+    vi.useFakeTimers();
+    native.initial.mockResolvedValue(null);
+    firebase();
+    // Opened in airplane mode: the listener never hears of going offline, only of coming back.
+    native.networkNow = { isConnected: false, isInternetReachable: false };
+    native.stored = () => Promise.reject(new Error("offline"));
+    usePushNotifications("s1");
+    // Every try fails while offline, until none is left.
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(registrations()).toHaveLength(4);
+    native.stored = (registration) => Promise.resolve(registration);
+    native.network!({ isConnected: true, isInternetReachable: true });
+    await vi.advanceTimersByTimeAsync(0);
     expect(registrations()).toHaveLength(5);
   });
 

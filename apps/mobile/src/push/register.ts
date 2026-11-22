@@ -110,14 +110,23 @@ export function usePushNotifications(sessionId: string | null) {
       registrar?.sync();
     });
     cleanups.push(() => appState.remove());
-    // Back online: a registration that failed offline goes now, with a fresh set of tries.
-    let online = true;
-    const network = Network.addNetworkStateListener(({ isConnected, isInternetReachable }) => {
-      const now = isConnected !== false && isInternetReachable !== false;
-      if (now && !online) registrar?.sync();
+    // Back online: a registration that failed offline goes now, with a fresh set of tries. The
+    // listener reports only changes, so an app started offline learns that from the state now,
+    // unless a change came first.
+    let online: boolean | null = null;
+    const reachable = ({ isConnected, isInternetReachable }: Network.NetworkState) =>
+      isConnected !== false && isInternetReachable !== false;
+    const network = Network.addNetworkStateListener((state) => {
+      const now = reachable(state);
+      if (now && online === false) registrar?.sync();
       online = now;
     });
     cleanups.push(() => network.remove());
+    void Network.getNetworkStateAsync()
+      .then((state) => {
+        if (online === null) online = reachable(state);
+      })
+      .catch(() => {});
 
     cleanups.push(
       notifee.onForegroundEvent(async (event) => {
