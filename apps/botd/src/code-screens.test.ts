@@ -146,4 +146,67 @@ describe("code-protected screens", () => {
     expect(await screen.lease.releaseSafely()).toBe(false);
     expect(screen.lease.holder).toMatchObject({ pausedForSafety: true });
   });
+
+  it("answers a lost entry's outcome as it answered the entry, without typing again", async () => {
+    const { codes, screen, input } = await fixture();
+    const run = { runId: "run", teammateId: screen.id, teammateName: "Teammate" };
+    expect(await screen.lease.acquireForRun(run)).toBe("ok");
+    const answer = await codes.type(screen, input);
+    expect(answer).toMatchObject({ status: "needs_owner", previous: { kind: "run" } });
+    expect(await codes.outcome(screen.id, input.operationId)).toEqual(answer);
+    expect(screen.desktop.typeSecret).toHaveBeenCalledTimes(1);
+  });
+
+  it("waits for an entry still typing before answering its outcome", async () => {
+    const { codes, screen, input } = await fixture();
+    let typed = () => {};
+    vi.mocked(screen.desktop.typeSecret).mockReturnValue(
+      new Promise<void>((resolve) => (typed = resolve)),
+    );
+    const typing = codes.type(screen, input);
+    await vi.waitFor(() => expect(screen.desktop.typeSecret).toHaveBeenCalled());
+    let settled = false;
+    const outcome = codes.outcome(screen.id, input.operationId).then((result) => {
+      settled = true;
+      return result;
+    });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    typed();
+    expect(await outcome).toEqual(await typing);
+    expect(await outcome).toMatchObject({ status: "needs_owner" });
+  });
+
+  it("refuses an entry it never got, so a request still on its way can't type later", async () => {
+    const { codes, screen, input } = await fixture();
+    expect(await codes.outcome(screen.id, input.operationId)).toEqual({
+      status: "failed",
+      reason: "The computer never got the code, so nothing was typed. Send it again.",
+    });
+    expect((await codes.type(screen, input)).status).toBe("unknown");
+    expect(screen.desktop.typeSecret).not.toHaveBeenCalled();
+    expect(screen.lease.holder).toBeNull();
+  });
+
+  it("can't rule out typing on a protected screen after a restart forgot which entry typed", async () => {
+    const { dir, codes, screen, input } = await fixture();
+    await codes.type(screen, input);
+    const restarted = new CodeScreens(dir);
+    await restarted.load();
+    expect(await restarted.outcome(screen.id, input.operationId)).toMatchObject({
+      status: "unknown",
+    });
+  });
+
+  it("drops protection when its screen is forgotten, so no restart brings it back", async () => {
+    const { dir, codes, screen, input } = await fixture();
+    await codes.type(screen, input);
+    expect(codes.ids).toEqual([screen.id]);
+    await codes.forget(screen.id);
+    expect(codes.ids).toEqual([]);
+    expect(await readdir(dir)).toEqual([]);
+    const restarted = new CodeScreens(dir);
+    await restarted.load();
+    expect(restarted.ids).toEqual([]);
+  });
 });

@@ -140,6 +140,19 @@ export const botdContract = {
       .route({ method: "POST", path: "/computer/type-code" })
       .input(typeOnScreenSchema.extend(screen.shape))
       .output(codeEntryResultSchema),
+    /**
+     * What became of a code entry whose answer the worker lost: the answer `type` gave or will give,
+     * waiting for one still running. An entry botd never got is refused from then on, so a request
+     * still on its way can't type later, and it answers `failed`; or `unknown` while the screen is
+     * protected, since a restart forgets which entry typed there.
+     *
+     * Not `work`: it touches no screen, and it must answer while the computer is stopping, when botd
+     * refuses `type` before acting.
+     */
+    codeOutcome: base
+      .route({ method: "POST", path: "/computer/code-outcome" })
+      .input(screen.extend({ operationId: z.string().uuid() }))
+      .output(codeEntryResultSchema),
   },
   screens: {
     /** Start a screen without using it, so you can watch it. */

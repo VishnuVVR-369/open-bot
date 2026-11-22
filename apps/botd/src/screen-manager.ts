@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import type { ScreenStatus } from "@open-bot/domain";
+import type { CodeEntryResult, ScreenStatus } from "@open-bot/domain";
 import type { CodeScreens } from "./code-screens";
 import type { LeaseChange } from "./lease";
 import { MAX_SLOTS, Screen, type ScreenDeps } from "./screens";
@@ -90,6 +90,13 @@ export class ScreenManager extends EventEmitter<{
     if (!screen || !this.deps.codeScreens)
       return { status: "failed" as const, reason: "The screen is offline." };
     return this.deps.codeScreens.type(screen, input);
+  }
+
+  /** What became of a code entry whose answer was lost; see `CodeScreens.outcome`. */
+  codeOutcome(id: string, operationId: string): Promise<CodeEntryResult> {
+    if (!this.deps.codeScreens)
+      return Promise.resolve({ status: "failed", reason: "The screen is offline." });
+    return this.deps.codeScreens.outcome(id, operationId);
   }
 
   touch(screen: Screen): void {
@@ -316,6 +323,8 @@ export class ScreenManager extends EventEmitter<{
     const screen = this.screens.get(id) ?? new Screen(id, -1, this.deps, this.now());
     if (this.screens.get(id) === screen) await this.stopScreen(screen);
     await screen.forget();
+    // Its browser profile is gone, and with it any page a code was typed on.
+    await this.deps.codeScreens?.forget(id);
   }
 
   releaseRun(runId: string): boolean {

@@ -17,7 +17,12 @@ describe.skipIf(!url)("screen operations with Postgres", () => {
   let service: ScreenOperationService;
   let screenId: string;
   let takeoverId: string;
-  const computer = { fetchHealth: vi.fn(), codeContext: vi.fn(), typeOnScreen: vi.fn() };
+  const computer = {
+    fetchHealth: vi.fn(),
+    codeContext: vi.fn(),
+    typeOnScreen: vi.fn(),
+    codeOutcome: vi.fn(),
+  };
   const takeovers = { recordTake: vi.fn(), handBack: vi.fn() };
   const ctx = { db, pool, computer, events: new EventEmitter() } as unknown as Context;
   beforeAll(async () => {
@@ -41,6 +46,7 @@ describe.skipIf(!url)("screen operations with Postgres", () => {
     computer.fetchHealth.mockResolvedValue({ screens: [{ id: screenId, lease: null }] });
     computer.codeContext.mockResolvedValue({ site: "example.com" });
     computer.typeOnScreen.mockResolvedValue({ status: "needs_owner", reason: "Check the screen." });
+    computer.codeOutcome.mockRejectedValue(new Error("the computer is unreachable"));
     service = new ScreenOperationService(ctx, takeovers as unknown as CodeTakeovers);
   });
   afterAll(async () => {
@@ -136,10 +142,51 @@ describe.skipIf(!url)("screen operations with Postgres", () => {
     expect(takeovers.recordTake).toHaveBeenCalledWith(screenId, run);
   });
 
-  it("a lost botd response still records the takeover so a hand-back reaches the teammate", async () => {
+  it("settles a lost botd answer with what botd says became of the entry", async () => {
+    const run = {
+      kind: "run",
+      runId: randomUUID(),
+      teammateId: screenId,
+      teammateName: "Screen test",
+      since: new Date().toISOString(),
+      lastActionAt: new Date().toISOString(),
+    };
+    const request = input();
+    computer.typeOnScreen.mockRejectedValue(new Error("response lost"));
+    computer.codeOutcome.mockResolvedValue({
+      status: "needs_owner",
+      reason: "Check the screen.",
+      previous: run,
+    });
+    expect(await service.type(request)).toMatchObject({
+      status: "needs_owner",
+      reason: "Check the screen.",
+    });
+    expect(computer.codeOutcome).toHaveBeenCalledExactlyOnceWith(screenId, request.operationId);
+    expect(takeovers.recordTake).toHaveBeenCalledWith(screenId, run);
+    expect(computer.typeOnScreen).toHaveBeenCalledTimes(1);
+  });
+
+  it("a lost entry botd never got fails without recording a takeover, so the request stays open", async () => {
+    computer.typeOnScreen.mockRejectedValue(new Error("socket hang up"));
+    computer.codeOutcome.mockResolvedValue({ status: "failed", reason: "Nothing was typed." });
+    expect(await service.type(input())).toMatchObject({
+      status: "failed",
+      reason: "Nothing was typed.",
+    });
+    expect(takeovers.recordTake).not.toHaveBeenCalled();
+  });
+
+  it("when botd can't say, records a takeover only if botd holds the screen for you", async () => {
     computer.typeOnScreen.mockRejectedValue(new Error("response lost"));
     expect((await service.type(input())).status).toBe("unknown");
-    expect(takeovers.recordTake).toHaveBeenCalledWith(screenId, null);
+    expect(takeovers.recordTake).not.toHaveBeenCalled();
+    const owner = { kind: "user-code", since: "", lastInputAt: "" };
+    computer.fetchHealth
+      .mockResolvedValueOnce({ screens: [{ id: screenId, lease: null }] })
+      .mockResolvedValueOnce({ screens: [{ id: screenId, lease: owner }] });
+    expect((await service.type(input())).status).toBe("unknown");
+    expect(takeovers.recordTake).toHaveBeenCalledExactlyOnceWith(screenId, null);
   });
 
   it("another worker holding the per-screen lock prevents concurrent input", async () => {
@@ -263,6 +310,34 @@ describe.skipIf(!url)("takeover returns with Postgres", () => {
     expect(new Set(deliveries.map((d) => d.continuationRunId)).size).toBe(1);
     expect(deliveries.every((d) => d.deliveredAt instanceof Date)).toBe(true);
     expect(ended.sort()).toEqual([...ids].sort());
+  });
+
+  it("reconciles past a paused screen whose teammate was removed", async () => {
+    const service = new TakeoverService(ctx, new SessionRegistry());
+    const lease = {
+      kind: "user-code",
+      since: new Date().toISOString(),
+      lastInputAt: new Date().toISOString(),
+      pausedForSafety: true,
+    };
+    // botd restored a removed teammate's code-protected screen; no teammate row names it.
+    health.screens = [{ id: randomUUID(), lease }];
+    const takeoverId = randomUUID();
+    const operationId = randomUUID();
+    await db.insert(screenTakeovers).values({ id: takeoverId, screenId, status: "active" });
+    await db
+      .insert(screenOperations)
+      .values({ id: operationId, takeoverId, screenId, status: "unknown" });
+    await service.reconcile();
+    // The whole pass ran: the free screen's takeover ended, and its code entry with it.
+    expect(
+      (await db.select().from(screenTakeovers).where(eq(screenTakeovers.id, takeoverId)))[0],
+    ).toMatchObject({ status: "ended" });
+    expect(
+      (await db.select().from(screenOperations).where(eq(screenOperations.id, operationId)))[0],
+    ).toMatchObject({ status: "handed_back" });
+    // Nobody to tell, and no takeover for a screen without a teammate.
+    expect(await db.select().from(screenTakeovers)).toHaveLength(1);
   });
 
   it("tells you each time a screen is paused for safety, not on every check", async () => {

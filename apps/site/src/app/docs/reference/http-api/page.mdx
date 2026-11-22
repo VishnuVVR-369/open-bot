@@ -237,6 +237,7 @@ Routes marked ☀ work on the computer: the worker wakes the computer for them, 
 | `POST /computer/fill` ☀         | `{ run, secret, site }`: type a vault secret, after checking the site                                        |
 | `POST /computer/code-context` ☀ | `{ screenId }`: the site of the focused field, before a one-time code is typed                               |
 | `POST /computer/type-code` ☀    | `{ screenId, takeoverId, operationId, expectedSite, pressEnter, text }`: type a one-time code                |
+| `POST /computer/code-outcome`   | `{ screenId, operationId }`: what became of a code entry whose answer was lost; refuses one botd never got   |
 | `POST /screens/start` ☀         | Start a screen without using it                                                                              |
 | `POST /screens/forget` ☀        | Stop a screen and delete its profile                                                                         |
 | `POST /lease/run/release` ☀     | Release a run's lease when it ends                                                                           |

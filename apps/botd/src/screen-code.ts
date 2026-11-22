@@ -1,7 +1,7 @@
 // The checks "Type the code" makes on a screen's browser, over its DevTools pipe: which site has
 // a focused field, whether the typed code is gone from every tab and frame, and blanking every
 // page when botd lost the code. `Screen` (screens.ts) calls these with its pipe.
-import type { CdpPipe } from "./cdp";
+import type { CdpEvent, CdpPipe } from "./cdp";
 import { codeProbe } from "./code-probe";
 
 /** Only a focused editable field on a visible browser tab is eligible for code entry. */
@@ -131,32 +131,96 @@ export async function checkCode(
   }
 }
 
-/** Recovery after botd lost its in-memory code: discard browser pages before releasing. */
-export async function clearRecoveredCode(cdp: CdpPipe | null): Promise<boolean> {
+/** How long one page may take to commit its navigation to about:blank. */
+export const BLANK_COMMIT_MS = 5_000;
+
+/**
+ * Recovery after botd lost its in-memory code: discard browser pages before releasing. True only
+ * when every page is provably blank: each committed the navigation botd started, its frame tree is
+ * a lone about:blank frame, and no page opened that wasn't blanked.
+ */
+export async function clearRecoveredCode(
+  cdp: CdpPipe | null,
+  commitMs = BLANK_COMMIT_MS,
+): Promise<boolean> {
   if (!cdp?.isOpen) return false;
   try {
     const pages = async () =>
       (
-        await cdp.send<{ targetInfos: { targetId: string; type: string; url: string }[] }>(
-          "Target.getTargets",
-        )
+        await cdp.send<{ targetInfos: { targetId: string; type: string }[] }>("Target.getTargets")
       ).targetInfos.filter((t) => t.type === "page");
     const targets = await pages();
     if (!targets.length) return false;
-    for (const target of targets) {
-      const { sessionId } = await cdp.send<{ sessionId: string }>("Target.attachToTarget", {
-        targetId: target.targetId,
-        flatten: true,
-      });
-      try {
-        await cdp.send("Page.navigate", { url: "about:blank" }, 3000, sessionId);
-      } finally {
-        await cdp.send("Target.detachFromTarget", { sessionId }).catch(() => {});
-      }
-    }
-    const after = await pages();
-    return after.length > 0 && after.every((t) => t.url === "about:blank");
+    for (const target of targets)
+      if (!(await blankPage(cdp, target.targetId, commitMs))) return false;
+    // `Target.getTargets` reports a page's URL only some time after its navigation commits, so the
+    // pages themselves were checked above; this only makes sure no page appeared in the meantime.
+    const blanked = new Set(targets.map((t) => t.targetId));
+    return (await pages()).every((t) => blanked.has(t.targetId));
   } catch {
     return false;
+  }
+}
+
+type FrameTree = { frame: { id: string; url: string; loaderId: string }; childFrames?: unknown[] };
+
+/** Navigates one page to about:blank and waits for that navigation to commit. */
+async function blankPage(cdp: CdpPipe, targetId: string, commitMs: number): Promise<boolean> {
+  const { sessionId } = await cdp.send<{ sessionId: string }>("Target.attachToTarget", {
+    targetId,
+    flatten: true,
+  });
+  // Main-frame commits on this page, recorded before navigating so none is missed.
+  const committed = new Set<string>();
+  let onCommit = () => {};
+  const listener = (event: CdpEvent) => {
+    if (event.sessionId !== sessionId || event.method !== "Page.frameNavigated") return;
+    const { frame } = event.params as { frame: { parentId?: string; loaderId: string } };
+    if (frame.parentId) return;
+    committed.add(frame.loaderId);
+    onCommit();
+  };
+  let onClose = () => {};
+  const closed = () => onClose();
+  cdp.on("event", listener);
+  cdp.on("close", closed);
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    await cdp.send("Page.enable", {}, 3000, sessionId);
+    const navigation = await cdp.send<{ loaderId?: string; errorText?: string }>(
+      "Page.navigate",
+      { url: "about:blank" },
+      3000,
+      sessionId,
+    );
+    if (navigation.errorText) return false;
+    // Without a loaderId the page was already on about:blank and nothing new commits.
+    const loaderId = navigation.loaderId;
+    if (loaderId && !committed.has(loaderId)) {
+      const arrived = await new Promise<boolean>((resolve) => {
+        timer = setTimeout(() => resolve(false), commitMs);
+        onCommit = () => {
+          if (committed.has(loaderId)) resolve(true);
+        };
+        onClose = () => resolve(false);
+      });
+      if (!arrived) return false;
+    }
+    const { frameTree } = await cdp.send<{ frameTree: FrameTree }>(
+      "Page.getFrameTree",
+      {},
+      3000,
+      sessionId,
+    );
+    return (
+      frameTree.frame.url === "about:blank" &&
+      !frameTree.childFrames?.length &&
+      (!loaderId || frameTree.frame.loaderId === loaderId)
+    );
+  } finally {
+    clearTimeout(timer);
+    cdp.off("event", listener);
+    cdp.off("close", closed);
+    await cdp.send("Target.detachFromTarget", { sessionId }).catch(() => {});
   }
 }

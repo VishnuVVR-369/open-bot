@@ -93,7 +93,9 @@ Code entry blocks the teammate's desktop tools, including screenshots, until bot
 If it is still visible, you keep control and can clear it before handing back.
 An uncertain response is recovered by its operation id; the app never blindly repeats typing.
 A code the computer refuses before acting (like while the worker and the computer run different versions during a deploy) fails with nothing typed, and the request stays open so you can send it again.
-After a computer restart, affected screens stay paused; explicit recovery discards their browser pages before returning control.
+When the worker loses the computer's answer, it asks botd what became of that operation: botd answers as it did, waits for one still typing, or, for one it never got, refuses it from then on and says nothing was typed, so you can send the code again.
+If botd typed and holds the screen for you, the takeover is recorded, and handing back answers the teammate's request; the screen is never reported handed back when nobody held it.
+After a computer restart, affected screens stay paused; "Clear the code and hand back" navigates every browser page to `about:blank`, waits for each navigation to commit, and returns control only once every page is provably blank.
 The submitted code is not stored in operation records, logs, or botd state.
 
 ## Pages

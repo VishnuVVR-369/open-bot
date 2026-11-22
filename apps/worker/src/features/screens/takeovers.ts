@@ -10,6 +10,7 @@ import {
 import {
   isOwnerLease,
   isRunActive,
+  type ComputerHealth,
   type LeaseHolder,
   type TakeoverRequestItem,
 } from "@open-bot/domain";
@@ -262,10 +263,15 @@ export class TakeoverService {
     await publishApp(this.ctx, { type: "lease" });
   }
 
-  /** You hand a screen back, optionally with a note for its teammate. */
+  /**
+   * You hand a screen back, optionally with a note for its teammate. The caller holds the screen's
+   * lock. A screen botd holds for you that the reconciler hasn't adopted yet (a code entry the worker
+   * restarted during) is adopted first, so your note and the teammate's return aren't lost.
+   */
   async handBack(screenId: string, note: string | null, clearCode = false): Promise<void> {
     this.handingBack.add(screenId);
     try {
+      await this.adoptIfHeld(screenId);
       await this.ctx.db
         .update(screenTakeovers)
         .set({ note: note?.trim() || null, endReason: "handed_back" })
@@ -284,6 +290,9 @@ export class TakeoverService {
       )
         throw new ScreenBusy("The code may still be visible. Clear the code before handing back.");
       await this.finishActive(screenId, { note: note?.trim() || null, reason: "handed_back" });
+      // The screen passed the safety check on the way back: settle its code entries now, not on the
+      // reconciler's next pass, so the phone stops showing "Outcome unknown".
+      await handBackEndedOperations(this.ctx.db);
     } finally {
       this.handingBack.delete(screenId);
     }
@@ -404,18 +413,55 @@ export class TakeoverService {
           if (!(error instanceof ScreenBusy)) throw error;
         }
       }
-      await this.notifyPausedScreens();
+      const health = await this.ctx.computer.fetchHealth();
+      await this.adoptHeldScreens(health);
+      await this.notifyPausedScreens(health);
     }
     // Once a takeover ended, its screen passed the safety check on the way back.
     await handBackEndedOperations(this.ctx.db);
     await this.deliverReturns();
   }
 
+  /**
+   * Records a takeover for each teammate's screen botd holds for you without an active one here, so
+   * handing it back reaches the teammate and answers its requests. A code entry whose answer was
+   * lost, or that was typing when the worker restarted, can leave botd holding a screen this
+   * worker never recorded.
+   */
+  private async adoptHeldScreens(health: ComputerHealth): Promise<void> {
+    const held = health.screens.filter((s) => isOwnerLease(s.lease)).map((s) => s.id);
+    if (!held.length) return;
+    const known = await this.ctx.db
+      .select({ id: teammates.id })
+      .from(teammates)
+      .where(inArray(teammates.id, held));
+    for (const { id: screenId } of known) {
+      try {
+        // Read both again under the lock: a take or hand-back may have finished in between.
+        await withScreenLock(this.ctx, screenId, () => this.adoptIfHeld(screenId));
+      } catch (error) {
+        if (!(error instanceof ScreenBusy)) throw error;
+      }
+    }
+  }
+
+  /** Records a takeover if botd holds the screen for you and none is active here. Caller holds the screen's lock. */
+  private async adoptIfHeld(screenId: string): Promise<void> {
+    const [active] = await this.ctx.db
+      .select({ id: screenTakeovers.id })
+      .from(screenTakeovers)
+      .where(and(eq(screenTakeovers.status, "active"), eq(screenTakeovers.screenId, screenId)))
+      .limit(1);
+    if (active) return;
+    const health = await this.ctx.computer.fetchHealth();
+    if (!isOwnerLease(health.screens.find((s) => s.id === screenId)?.lease ?? null)) return;
+    await this.recordTake(screenId, null);
+  }
+
   /** Screens paused because your code may still be visible. You hear about each pause once. */
   private readonly pausedScreens = new Set<string>();
 
-  private async notifyPausedScreens(): Promise<void> {
-    const health = await this.ctx.computer.fetchHealth();
+  private async notifyPausedScreens(health: ComputerHealth): Promise<void> {
     const paused = new Set(
       health.screens
         .filter((s) => isOwnerLease(s.lease) && s.lease.pausedForSafety)
@@ -428,9 +474,11 @@ export class TakeoverService {
         .select({ name: teammates.name })
         .from(teammates)
         .where(eq(teammates.id, id));
+      // A screen whose teammate was removed has nobody to open it for.
+      if (!teammate) continue;
       await createNotification(this.ctx, {
         kind: "takeover_request",
-        title: `${teammate?.name ?? "Your teammate"}'s screen is paused`,
+        title: `${teammate.name}'s screen is paused`,
         body: "Your code may still be visible. Open the computer to check.",
         teammateId: id,
         chatId: null,

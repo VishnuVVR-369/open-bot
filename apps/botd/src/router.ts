@@ -241,6 +241,9 @@ export function createRouter(deps: RouterDeps) {
       type: os.computer.type.handler(({ input: { screenId, ...code } }) =>
         screens.typeCode(screenId, code),
       ),
+      codeOutcome: os.computer.codeOutcome.handler(({ input }) =>
+        screens.codeOutcome(input.screenId, input.operationId),
+      ),
     },
     screens: {
       start: os.screens.start.handler(async ({ input, signal }) => {
