@@ -203,19 +203,25 @@ try {
     ...push.data,
   }));
 
-  // Every progress message: normal priority, one collapse key for the run, the run's tag.
+  // Every progress message: normal priority and the run's tag. Updates collapse into the run's
+  // latest; the end has no collapse key, so FCM never drops it for another.
   for (const push of progress) {
     assert.equal(push.android.priority, "NORMAL");
-    assert.equal(push.android.collapse_key, `run-progress-${run.id}`);
+    assert.equal(
+      push.android.collapse_key,
+      push.data.runState === "ended" ? undefined : `run-progress-${run.id}`,
+    );
     assert.equal(push.data.tag, `run-progress:${run.id}`);
   }
+  // The run's commands (`sleep 24; echo 3 nonstop flights`) never leave the worker.
+  assert(!/sleep|nonstop|fares|booked/.test(JSON.stringify(progress)), "a command reached a push");
   // Nothing in the first 20 seconds, then the step the run is on.
   const [first] = progress;
   assert(first, "no progress was sent");
   assert(first.at - started >= 19_500, `first progress after ${first.at - started}ms`);
   assert.equal(first.data.runState, "working");
   assert.equal(first.data.title, "Rex: Lisbon trip");
-  assert.equal(first.data.body, "Running sleep");
+  assert.equal(first.data.body, "Running a command");
   assert.equal(first.data.url, `/chats/${teammate.chatId}?run=${run.id}`);
   // The wait, within a couple of seconds of the approval being asked, next to the approval itself.
   const waiting = progress.find((push) => push.data.runState === "waiting");
@@ -232,15 +238,19 @@ try {
     progress.some((push) => push.data.runState === "working" && push.at > decidedAt),
     "no update after the decision",
   );
-  // The end is the run's last progress message, and the result is its own notification.
-  const last = progress.at(-1)!;
+  // The end is the run's last progress message, and the result is its own notification. An update
+  // already being sent when the run ends may reach FCM after it: the phone orders them by `sentAt`.
+  const stamped = [...progress].sort((a, b) => a.data.sentAt!.localeCompare(b.data.sentAt!));
+  const last = stamped.at(-1)!;
   assert.equal(last.data.runState, "ended");
   assert.deepEqual(Object.keys(last.data).sort(), ["runId", "runState", "sentAt", "tag", "type"]);
   assert(last.at >= finished.completed_at!.getTime());
   assert.equal(progress.filter((push) => push.data.runState === "ended").length, 1);
   const sentAt = progress.map((push) => push.data.sentAt!);
-  assert.deepEqual(sentAt, [...sentAt].sort(), "messages are stamped in order");
-  assert.equal(new Set(sentAt).size, sentAt.length);
+  assert.equal(new Set(sentAt).size, sentAt.length, "every message has its own time");
+  const updates = progress.filter((push) => push.data.runState !== "ended");
+  const updateTimes = updates.map((push) => push.data.sentAt!);
+  assert.deepEqual(updateTimes, [...updateTimes].sort(), "a run's updates are sent one at a time");
   const result = pushes.find((push) => push.data.kind === "run_finished");
   assert.equal(result?.data.tag, run.id);
   assert.equal(result?.android.priority, "HIGH");

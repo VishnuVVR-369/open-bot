@@ -56,3 +56,15 @@ export const pushSubscriptions = pgTable("push_subscriptions", {
   lastSentAt: timestamp("last_sent_at", { withTimezone: true }),
   createdAt: createdAt(),
 });
+
+/**
+ * Runs whose progress notification phones may be showing (`run-progress` pushes). A row is written
+ * before a run's first progress push and removed once its end has been sent, so a run that is over
+ * with its row still here owes phones that end: the worker sends it when it starts again.
+ */
+export const runProgressNotifications = pgTable("run_progress_notifications", {
+  runId: uuid("run_id")
+    .primaryKey()
+    .references(() => runs.id, { onDelete: "cascade" }),
+  createdAt: createdAt(),
+});

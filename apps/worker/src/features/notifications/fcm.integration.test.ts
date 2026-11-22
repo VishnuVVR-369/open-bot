@@ -25,6 +25,8 @@ describe.skipIf(!url)("FCM fan-out", () => {
   const sent: Sent[] = [];
   /** Tokens the stand-in says were unregistered. */
   const gone = new Set<string>();
+  /** Tokens the stand-in can't deliver to right now. */
+  const unavailable = new Set<string>();
   let tokenRequests = 0;
 
   const server = http.createServer((request, response) => {
@@ -52,6 +54,10 @@ describe.skipIf(!url)("FCM fan-out", () => {
           return;
         }
         const { message } = JSON.parse(body) as { message: Sent };
+        if (unavailable.has(message.token)) {
+          response.writeHead(503).end(JSON.stringify({ error: { status: "UNAVAILABLE" } }));
+          return;
+        }
         if (gone.has(message.token)) {
           response.writeHead(404).end(
             JSON.stringify({
@@ -106,6 +112,7 @@ describe.skipIf(!url)("FCM fan-out", () => {
     await db.delete(egressDevices);
     sent.length = 0;
     gone.clear();
+    unavailable.clear();
   });
   afterAll(async () => {
     server.close();
@@ -268,7 +275,19 @@ describe.skipIf(!url)("FCM fan-out", () => {
     expect(phone!.pushToken).toBeNull();
   });
 
-  it("sends a long run's progress at normal priority, collapsed per run, then ends it", async () => {
+  it("counts the sends that failed and could work if tried again, apart from gone phones", async () => {
+    for (const token of ["phone-1", "phone-2", "phone-3"])
+      await fcm.register({ token, platform: "android", device: "Pixel" });
+    unavailable.add("phone-2");
+    gone.add("phone-3");
+    const push = { data: { type: "dismiss" as const, tag: "x" }, priority: "normal" as const };
+    expect(await fcm.deliver(push)).toEqual({ sent: 1, failed: 1 });
+    expect(await fcm.deliver(push)).toEqual({ sent: 1, failed: 1 });
+    unavailable.clear();
+    expect(await fcm.deliver(push)).toEqual({ sent: 2, failed: 0 });
+  });
+
+  it("sends a long run's progress at normal priority, collapsed per run, then its end uncollapsed", async () => {
     await fcm.register({ token: "phone-1", platform: "android", device: "Pixel 9" });
     const snapshot: RunProgressSnapshot = {
       teammateId: "b1",
@@ -291,7 +310,20 @@ describe.skipIf(!url)("FCM fan-out", () => {
       { events, log: { warn: vi.fn() } } as unknown as Context,
       fcm,
       (runId) => (runId === "r9" ? snapshot : null),
-      { showAfterMs: 30, stepEveryMs: 30, statusEveryMs: 10, keepAliveMs: 60_000 },
+      // The store's own suite is `runs/progress-restart.integration.test.ts`.
+      {
+        shown: async () => {},
+        owed: async () => true,
+        ended: async () => {},
+        overdue: async () => [],
+      },
+      {
+        showAfterMs: 30,
+        stepEveryMs: 30,
+        statusEveryMs: 10,
+        keepAliveMs: 60_000,
+        endRetryMs: [],
+      },
     );
     progress.start();
     try {
@@ -304,7 +336,7 @@ describe.skipIf(!url)("FCM fan-out", () => {
     }
     expect(sent.map((message) => message.android)).toEqual([
       { priority: "NORMAL", ttl: "600s", collapse_key: "run-progress-r9" },
-      { priority: "NORMAL", ttl: "86400s", collapse_key: "run-progress-r9" },
+      { priority: "NORMAL", ttl: "86400s" },
     ]);
     expect(sent[0]!.data).toEqual({
       type: "run-progress",
@@ -317,7 +349,7 @@ describe.skipIf(!url)("FCM fan-out", () => {
       teammateId: "b1",
       url: "/chats/c1?run=r9",
       title: "Rex is working",
-      body: "Searching for “flights to Lisbon”",
+      body: "Searching the web",
     });
     expect(sent[1]!.data).toEqual({
       type: "run-progress",

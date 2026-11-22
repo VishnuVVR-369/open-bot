@@ -309,6 +309,13 @@
       "when": 1795198035966,
       "tag": "0043_rename_vocabulary",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1795338821918,
+      "tag": "0044_run_progress_notifications",
+      "breakpoints": true
     }
   ]
 }

@@ -172,13 +172,28 @@ export class FcmService {
 
   /** Sends to every phone signed in for notifications; returns how many got it. */
   async sendAll(push: NativePush): Promise<number> {
-    if (!this.account) return 0;
+    return (await this.deliver(push)).sent;
+  }
+
+  /**
+   * Sends to every phone signed in for notifications: how many got it, and how many sends failed
+   * and could work if tried again (a phone FCM says is gone is neither).
+   */
+  async deliver(push: NativePush): Promise<{ sent: number; failed: number }> {
+    if (!this.account) return { sent: 0, failed: 0 };
     const rows = await this.ctx.db.select().from(nativePushDevices);
-    const results = await this.sendToTokens(
-      rows.map((row) => row.token),
-      push,
-    );
-    return [...results.values()].filter((result) => result === "sent").length;
+    const results = [
+      ...(
+        await this.sendToTokens(
+          rows.map((row) => row.token),
+          push,
+        )
+      ).values(),
+    ];
+    return {
+      sent: results.filter((result) => result === "sent").length,
+      failed: results.filter((result) => result === "failed").length,
+    };
   }
 
   /**

@@ -116,6 +116,7 @@ export const TABLE_OWNERS = {
   telegram_messages: { owner: `${WORKER}features/telegram/` },
   push_subscriptions: { owner: `${WORKER}features/notifications/push.ts` },
   native_push_devices: { owner: `${WORKER}features/notifications/fcm.ts` },
+  run_progress_notifications: { owner: `${WORKER}features/notifications/run-progress-store.ts` },
   email_settings: { owner: `${WORKER}features/email/service.ts` },
   emails: { owner: `${WORKER}features/email/service.ts` },
 
