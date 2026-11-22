@@ -4,7 +4,6 @@
  */
 import type { RunView } from "@open-bot/api";
 import {
-  currentActivity,
   formatDuration,
   shellScript,
   toolDisplay,
@@ -12,9 +11,6 @@ import {
   type TimelineItem,
 } from "@open-bot/domain";
 import { plural } from "./format";
-
-/** Also used by the worker for phone notifications, so it lives in @open-bot/domain. */
-export { currentActivity };
 
 /** Items that stay visible when the steps are folded: the reply, and what needs you or failed. */
 export function isPinned(item: TimelineItem): boolean {
@@ -135,6 +131,32 @@ export function pendingRequest(items: readonly TimelineItem[]): TimelineItem | u
       (item.kind === "approval" && item.decision === "pending") ||
       (item.kind === "takeover_request" && item.resolution === "pending"),
   );
+}
+
+/** What the teammate is doing right now, in a few words, from their latest step. */
+export function currentActivity(items: readonly TimelineItem[]): string | null {
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index]!;
+    switch (item.kind) {
+      case "command":
+        return `Running ${shellScript(item.command).split("\n")[0]}`;
+      case "file_change":
+        return `Editing ${item.changes.map((change) => change.path.split("/").pop()).join(", ")}`;
+      case "web_search":
+        return item.query ? `Searching for “${item.query}”` : "Searching the web";
+      case "computer":
+        return "Using the computer";
+      case "tool":
+        return item.label;
+      case "reasoning":
+        return "Thinking";
+      case "message":
+        return item.phase === "final" ? "Writing" : null;
+      default:
+        continue;
+    }
+  }
+  return null;
 }
 
 /**

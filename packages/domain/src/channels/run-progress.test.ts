@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TimelineItem } from "../timeline/timeline";
-import { runProgressNotice, runProgressTag } from "./run-progress";
+import { progressActivity, runProgressNotice, runProgressTag } from "./run-progress";
 
 const at = "2026-11-22T10:00:00.000Z";
 const command = (script: string) =>
@@ -39,7 +39,7 @@ describe("runProgressNotice", () => {
     ];
     expect(runProgressNotice({ ...base, chatTitle: "Lisbon trip", items })).toEqual({
       title: "Rex: Book the flight",
-      body: "Searching for “flights”",
+      body: "Searching the web",
       steps: { done: 1, total: 3 },
     });
   });
@@ -60,12 +60,63 @@ describe("runProgressNotice", () => {
     );
   });
 
-  it("names only a command's program, since its arguments could be secrets", () => {
-    const items = [command("curl -H 'Authorization: Bearer sk-123' https://x\nls")];
-    expect(runProgressNotice({ ...base, items }).body).toBe("Running curl");
-    expect(runProgressNotice({ ...base, items: [command("/usr/bin/python3 a.py")] }).body).toBe(
-      "Running python3",
+  it("says only the kind of step, never what it holds, since that could be a secret", () => {
+    const secret = "dummy123";
+    const tool = (name: string, label: string) =>
+      ({
+        id: name,
+        kind: "tool",
+        name,
+        label,
+        args: { secret },
+        status: "running",
+        startedAt: at,
+      }) as TimelineItem;
+    const cases: [TimelineItem, string][] = [
+      [command(`API_TOKEN=${secret} sleep 25`), "Running a command"],
+      [command(`curl -H 'Authorization: Bearer ${secret}' https://x`), "Running a command"],
+      [{ ...search, query: secret } as TimelineItem, "Searching the web"],
+      [
+        {
+          id: "f1",
+          kind: "file_change",
+          status: "running",
+          startedAt: at,
+          changes: [{ path: `/home/bot/${secret}.env`, change: "update", diff: secret }],
+        } as TimelineItem,
+        "Editing a file",
+      ],
+      [
+        tool("browser_read_page", `Read https://example.com/?token=${secret}`),
+        "Using the computer",
+      ],
+      [tool("send_email", `Email to ${secret}@example.com`), "Working on email"],
+      [tool("gmail.search", `Used search ${secret}`), "Working on email"],
+      [tool("search_history", `Searched past chats for “${secret}”`), "Searching past chats"],
+      [tool("some_mcp.tool", `Used ${secret}`), "Using a tool"],
+    ];
+    for (const [item, body] of cases) {
+      const notice = runProgressNotice({ ...base, items: [item] });
+      expect(notice.body).toBe(body);
+      expect(JSON.stringify(notice)).not.toContain(secret);
+    }
+  });
+
+  it("looks past steps that say nothing to the latest one that does", () => {
+    const fallback = {
+      id: "m1",
+      kind: "tool",
+      name: "model_fallback",
+      label: "Switched to the API key",
+      args: {},
+      status: "completed",
+      startedAt: at,
+    } as TimelineItem;
+    expect(progressActivity([search as TimelineItem, fallback])).toBe("Searching the web");
+    expect(progressActivity([search as TimelineItem, plan([["Book", "inProgress"]])])).toBe(
+      "Searching the web",
     );
+    expect(progressActivity([])).toBeNull();
   });
 
   it("keeps long text to one short line", () => {

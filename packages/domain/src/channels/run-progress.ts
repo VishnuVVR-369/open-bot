@@ -2,8 +2,8 @@
  * What a phone's live notification for a running teammate says. The worker builds it from the
  * run's timeline and sends it as a `run-progress` push; the phone only draws it.
  */
-import { currentActivity } from "../timeline/activity";
 import type { PlanItem, RunWait, TimelineItem } from "../timeline/timeline";
+import { type ToolIcon, toolDisplay } from "../timeline/tool-display";
 
 /** Where a run is, as its progress notification shows it. `ended` removes the notification. */
 export const RUN_PROGRESS_STATES = ["starting", "working", "waiting", "ended"] as const;
@@ -48,10 +48,67 @@ const WAITING_BODY: Record<RunWait, string> = {
   takeover: "Waiting for you on the screen",
 };
 
+/** A tool step, said by what kind of tool it is (its icon's meaning), never by its label. */
+const TOOL_ACTIVITY: Record<ToolIcon, string> = {
+  tool: "Using a tool",
+  notification: "Sending you a notification",
+  email: "Working on email",
+  schedule: "Setting up an automation",
+  calendar: "Working on your calendar",
+  question: "Asking a teammate",
+  tasks: "Updating the task board",
+  suggestion: "Suggesting new instructions",
+  skill: "Saving a skill",
+  watch: "Setting up a page watch",
+  webhook: "Setting up a webhook",
+  history: "Searching past chats",
+  profile: "Remembering something about you",
+  key: "Using the vault",
+  payment: "Working on a purchase",
+  notes: "Working in Notion",
+};
+
+/** Tools that drive the computer's screen or browser, by name. */
+const COMPUTER_TOOL = /^(desktop|browser)_/;
+
+/**
+ * What the teammate is doing now, for text that leaves the app: said only by the kind of step,
+ * never with what the step holds. A command's line, a file's path, a search's query, a tool's
+ * label (which can quote a URL, an address or a value) all stay out, since they can hold secrets.
+ */
+export function progressActivity(items: readonly TimelineItem[]): string | null {
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index]!;
+    switch (item.kind) {
+      case "command":
+        return "Running a command";
+      case "file_change":
+        return item.changes.length > 1 ? `Editing ${item.changes.length} files` : "Editing a file";
+      case "web_search":
+        return "Searching the web";
+      case "computer":
+        return "Using the computer";
+      case "tool":
+        // The worker's note that it switched to the API key is not something the teammate does.
+        if (item.name === "model_fallback") continue;
+        if (COMPUTER_TOOL.test(item.name)) return "Using the computer";
+        return TOOL_ACTIVITY[toolDisplay(item.name).icon];
+      case "reasoning":
+        return "Thinking";
+      case "message":
+        return item.phase === "final" ? "Writing" : null;
+      default:
+        continue;
+    }
+  }
+  return null;
+}
+
 /**
  * The title names the teammate and what it's working on: the plan step in progress, or the chat's
- * title. The body is the step it's on now, or what it's waiting for. Commands name only their
- * program, since the text goes through Google's push service.
+ * title, both written by the teammate as prose (as a result notification sends its reply). The
+ * body is a fixed phrase: the kind of step it's on now (`progressActivity`), or what it's waiting
+ * for. The text goes through Google's push service, so no tool's arguments or output reach it.
  */
 export function runProgressNotice(input: RunProgressInput): RunProgressNotice {
   const plan = input.items.findLast(
@@ -70,7 +127,7 @@ export function runProgressNotice(input: RunProgressInput): RunProgressNotice {
       ? WAITING_BODY[input.waitingFor ?? "approval"]
       : input.state === "starting"
         ? "Getting ready"
-        : (currentActivity(input.items, { command: "program" }) ?? "Working");
+        : (progressActivity(input.items) ?? "Working");
   return {
     title: clip(title, MAX_TITLE),
     body: clip(body, MAX_BODY),
