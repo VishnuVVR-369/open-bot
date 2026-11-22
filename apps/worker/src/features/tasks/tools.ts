@@ -110,12 +110,14 @@ async function addTask(
       createdBy: "teammate",
       createdByTeammateId: session.teammate.id,
     });
-    const start = args.start && owner?.id && owner.id !== session.teammate.id;
-    if (start)
-      task = await deps.tasks.start(task.id, {
-        teammateName: session.teammate.name,
-        runId: session.run.id,
-      });
+    // Who's asked to start: another teammate it was given to.
+    const startFor = args.start && owner?.id && owner.id !== session.teammate.id ? owner.id : null;
+    const start = startFor !== null;
+    if (startFor)
+      ({ task } = await deps.tasks.start(task.id, {
+        by: { teammateName: session.teammate.name, runId: session.run.id },
+        expectedOwnerId: startFor,
+      }));
     session.putItem({
       ...toolItem(callId, "add_task", `Added “${task.title}” to the board`, raw, startedAt),
       status: "completed",

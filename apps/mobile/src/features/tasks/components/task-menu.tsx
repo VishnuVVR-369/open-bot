@@ -81,7 +81,7 @@ export function TaskMenu({
           disabled={!online}
           onPress={act(
             () =>
-              void startTask(task).then((started) => {
+              void startTask(task, owner.id).then((started) => {
                 if (started?.chatId) router.push(chatHref(started.chatId));
               }),
           )}

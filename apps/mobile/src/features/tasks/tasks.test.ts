@@ -1,6 +1,9 @@
 import type { TaskView } from "@open-bot/api";
+import { PendingMoves, sendMove, withPendingMoves } from "@open-bot/domain";
+import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 import {
+  afterSave,
   calendarWeeks,
   deleteQuestion,
   dueShortcuts,
@@ -9,7 +12,9 @@ import {
   monthOf,
   newTask,
   newTaskHref,
+  rebaseTaskForm,
   startLabel,
+  taskById,
   taskChanges,
   taskForm,
   taskFormChanged,
@@ -259,5 +264,135 @@ describe("a task row for TalkBack", () => {
       taskRowLabel(task({ id: "a", dueOn: "2026-11-20", status: "done" }), "Ivy", null, now),
     ).toBe("Book flights, Done, Ivy, Due Nov 20");
     expect(taskRowLabel(task({ id: "a" }), "You", null, now)).toBe("Book flights, To do, You");
+  });
+});
+
+describe("the task screen while the task changes elsewhere", () => {
+  const ada = "00000000-0000-4000-8000-00000000000a";
+  const bea = "00000000-0000-4000-8000-00000000000b";
+
+  it("follows what you haven't touched, so it never says Ask Ada for Bea's task", () => {
+    const opened = taskForm(task({ id: "t", ownerTeammateId: ada }));
+    const draft = { start: opened, form: { ...opened, title: "Book the flights" } };
+    // Reassigned to Bea on the web while the phone showed "Ask Ada".
+    const fresh = { ...opened, ownerTeammateId: bea, dueOn: "2026-12-01" };
+    const rebased = rebaseTaskForm(draft, fresh);
+    expect(rebased.form).toEqual({
+      ...fresh,
+      // Your own change stays yours.
+      title: "Book the flights",
+    });
+    // And only it is sent.
+    expect(taskChanges(rebased.start, rebased.form)).toEqual({ title: "Book the flights" });
+  });
+
+  it("keeps an owner you picked yourself, and comes back the same when nothing changed", () => {
+    const opened = taskForm(task({ id: "t", ownerTeammateId: ada }));
+    const draft = { start: opened, form: { ...opened, ownerTeammateId: null } };
+    expect(rebaseTaskForm(draft, { ...opened, ownerTeammateId: bea }).form.ownerTeammateId).toBe(
+      null,
+    );
+    expect(rebaseTaskForm(draft, { ...opened })).toBe(draft);
+  });
+
+  it("finds the held task as the board has it now, or none once it's gone", () => {
+    const board = [task({ id: "a", ownerTeammateId: bea })];
+    expect(taskById(board, "a")?.ownerTeammateId).toBe(bea);
+    expect(taskById(board, "gone")).toBeNull();
+    expect(taskById(board, null)).toBeNull();
+  });
+});
+
+describe("where the task screen goes after saving", () => {
+  const base = { focused: true, created: null, then: undefined } as const;
+
+  it("goes back after a save, or to the chat the owner was asked in", () => {
+    expect(afterSave(base)).toEqual({ kind: "back" });
+    expect(afterSave({ ...base, then: "start", started: { chatId: "c" } })).toEqual({
+      kind: "chat",
+      chatId: "c",
+    });
+  });
+
+  it("opens a task added here as itself when starting it failed, and stays on a saved one", () => {
+    expect(afterSave({ ...base, created: "t", then: "start", started: null })).toEqual({
+      kind: "task",
+      taskId: "t",
+    });
+    expect(afterSave({ ...base, then: "start", started: null })).toEqual({ kind: "stay" });
+  });
+
+  it("goes nowhere from a screen you left while it saved, so it never pops another one", () => {
+    expect(afterSave({ ...base, focused: false })).toEqual({ kind: "stay" });
+    expect(afterSave({ ...base, focused: false, then: "start", started: { chatId: "c" } })).toEqual(
+      { kind: "stay" },
+    );
+  });
+});
+
+describe("moving a task on the board, with TanStack Query", () => {
+  const board = [task({ id: "a", position: 1 }), task({ id: "b", position: 2 })];
+
+  /** A client holding the board, whose next reads fail if `failing` says so. */
+  async function client(failing: () => boolean) {
+    const queries = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const key = ["tasks"];
+    const options = {
+      queryKey: key,
+      queryFn: async () => {
+        if (failing()) throw new Error("offline");
+        return board;
+      },
+    };
+    await queries.fetchQuery(options);
+    // An observer, like the board on screen, so invalidating reads it again.
+    const { QueryObserver } = await import("@tanstack/react-query");
+    const observer = new QueryObserver(queries, options);
+    const stop = observer.subscribe(() => {});
+    const shown = (pending: PendingMoves) =>
+      withPendingMoves(
+        queries.getQueryData<TaskView[]>(key) ?? [],
+        pending.snapshot(),
+        queries.getQueryState(key)!.dataUpdatedAt,
+      )
+        .filter((entry) => entry.status === "doing")
+        .map((entry) => entry.id);
+    const reread = () => queries.invalidateQueries({ queryKey: key });
+    return { shown, reread, stop };
+  }
+
+  it("doesn't show a refused move, even when reading the board again fails too", async () => {
+    let failing = false;
+    const { shown, reread, stop } = await client(() => failing);
+    failing = true;
+    const pending = new PendingMoves();
+    const answer = await sendMove(
+      pending,
+      { taskId: "a", status: "doing", placement: { kind: "end" } },
+      async () => ({ error: new Error("That task no longer exists.") }),
+      (result) => !result.error,
+      reread,
+    );
+    await reread();
+    expect(answer.error).toBeInstanceOf(Error);
+    expect(shown(pending)).toEqual([]);
+    stop();
+  });
+
+  it("keeps showing a move that was made while the board can't be read", async () => {
+    let failing = false;
+    const { shown, reread, stop } = await client(() => failing);
+    failing = true;
+    const pending = new PendingMoves();
+    await sendMove(
+      pending,
+      { taskId: "a", status: "doing", placement: { kind: "end" } },
+      async () => ({ error: null }),
+      (result) => !result.error,
+      reread,
+    );
+    await reread();
+    expect(shown(pending)).toEqual(["a"]);
+    stop();
   });
 });

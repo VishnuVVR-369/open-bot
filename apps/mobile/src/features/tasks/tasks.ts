@@ -22,6 +22,10 @@ export const taskHref = (taskId: string): Href => `/tasks/${taskId}`;
 export const newTaskHref = (ownerTeammateId?: string | null): Href =>
   ownerTeammateId ? `/tasks/new?owner=${encodeURIComponent(ownerTeammateId)}` : "/tasks/new";
 
+/** The task with this id as the board has it now, or null (none asked for, or it's gone). */
+export const taskById = <T extends { id: string }>(tasks: readonly T[], id: string | null) =>
+  (id !== null && tasks.find((task) => task.id === id)) || null;
+
 /** What the task screen edits. */
 export interface TaskForm {
   title: string;
@@ -110,6 +114,56 @@ export function taskWrite(savedId: string | null, start: TaskForm, form: TaskFor
   return Object.keys(changes).length > 0
     ? { kind: "update", taskId: savedId, changes }
     : { kind: "none", taskId: savedId };
+}
+
+/** The task screen's form, and the task as it was when the form last matched it. */
+export interface TaskDraft {
+  /** What's sent is the difference from this. */
+  start: TaskForm;
+  form: TaskForm;
+}
+
+/**
+ * The draft against a fresher copy of the task: what you haven't touched takes the task's new
+ * value (a teammate reassigned it on the web, say), what you changed stays yours, and what's sent
+ * is now the difference from the fresh copy. The same draft comes back when nothing changed.
+ */
+export function rebaseTaskForm(draft: TaskDraft, fresh: TaskForm): TaskDraft {
+  if (!taskFormChanged(draft.start, fresh)) return draft;
+  const touched = taskChanges(draft.start, draft.form);
+  const form = { ...fresh };
+  for (const key of Object.keys(touched) as (keyof TaskForm)[])
+    (form as Record<keyof TaskForm, unknown>)[key] = draft.form[key];
+  return { start: fresh, form };
+}
+
+/** Where the task screen goes once a save (and a start, if asked) has finished. */
+export type AfterSave =
+  | { kind: "stay" }
+  | { kind: "back" }
+  | { kind: "chat"; chatId: string }
+  | { kind: "task"; taskId: string };
+
+/**
+ * Where to go after saving: back to where you came from, or to the chat the owner was asked in.
+ * A start that failed leaves you on the task to try again, and a task added here then opens as
+ * itself (its own screen reads it, has its Status and Delete, and says if it's deleted). A screen
+ * you've left meanwhile (you went to a chat, say) goes nowhere, so it never takes another screen
+ * with it.
+ */
+export function afterSave(outcome: {
+  focused: boolean;
+  /** The id of a task this screen just added; null when it was saved before. */
+  created: string | null;
+  then: "start" | undefined;
+  /** The start's answer; null when it failed. */
+  started?: { chatId: string | null } | null;
+}): AfterSave {
+  if (!outcome.focused) return { kind: "stay" };
+  if (outcome.then !== "start") return { kind: "back" };
+  if (outcome.started?.chatId) return { kind: "chat", chatId: outcome.started.chatId };
+  if (outcome.started) return { kind: "back" };
+  return outcome.created ? { kind: "task", taskId: outcome.created } : { kind: "stay" };
 }
 
 /**

@@ -162,9 +162,18 @@ A path or input field is removed only once no deployed web app calls it.
 | `POST /internal/triggers`, `/internal/triggers/:id`                         | Create or update a watch or webhook                   |
 | `POST /internal/triggers/:id/enabled`, `/delete`, `/check`, `/rotate`       | Pause, delete, check now, new webhook URL             |
 | `POST /internal/hooks/:token`                                               | Fire a webhook (called by the web app's public route) |
-| `POST /internal/tasks`, `/internal/tasks/:id`, `/move`, `/delete`, `/start` | The task board                                        |
+| `POST /internal/tasks`, `/internal/tasks/:id`, `/move`, `/delete`, `/start` | The task board; see below                             |
 | `POST /internal/skills`, `/internal/skills/:id/delete`                      | Save or delete a skill                                |
 | `POST /internal/swarms/:id/stop`                                            | Stop a swarm's helpers                                |
+
+The task routes:
+
+- `POST /internal/tasks/:id` changes what it's given.
+  Its `position` is deprecated: web apps from before `/move` send it, and the task goes before the first task past it.
+- `POST /internal/tasks/:id/move` takes `status` and `placement` (`end`, or `before` or `after` a task in that column) and places it against the whole column.
+  A web app that gets `404` here is talking to a worker from before `/move`, and sends `update` with a position instead.
+- `POST /internal/tasks/:id/start` takes an optional `startId`, the id of this ask (a retry with it answers the same and asks nobody again; `409` when it was used for another task or owner), and an optional `expectedOwnerId` (`409` when the task is someone else's now).
+  It answers with the chat the owner was asked in.
 
 ### Files
 

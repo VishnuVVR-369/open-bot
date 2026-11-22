@@ -1,16 +1,33 @@
 import type { TaskView } from "@open-bot/api";
-import { taskBlocker, type BlockerFacts } from "@open-bot/domain";
+import { PendingMoves, taskBlocker, withPendingMoves, type BlockerFacts } from "@open-bot/domain";
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import { useApprovals } from "@/features/approvals/hooks";
 import { useComputerOffline } from "@/features/computer/hooks";
 import { useHome } from "@/features/home/hooks";
 import { api } from "@/lib/api";
 import { queryClient, queryKeys } from "@/lib/query";
 
-/** The team's board: open tasks in board order, and the 30 most recently finished. */
-export const useTasks = () =>
-  useQuery({ queryKey: queryKeys.tasks, queryFn: () => api.tasks.list() });
+/** The moves this phone sent that the board it last read doesn't have yet. */
+export const pendingMoves = new PendingMoves();
+
+/**
+ * The team's board: open tasks in board order, and the 30 most recently finished, with the moves
+ * still on their way laid over the board the server last sent (`PendingMoves`).
+ */
+export function useTasks() {
+  const query = useQuery({ queryKey: queryKeys.tasks, queryFn: () => api.tasks.list() });
+  const moves = useSyncExternalStore(pendingMoves.subscribe, pendingMoves.snapshot);
+  const { data: board, dataUpdatedAt } = query;
+  useEffect(() => {
+    if (dataUpdatedAt) pendingMoves.confirmed(dataUpdatedAt);
+  }, [dataUpdatedAt]);
+  const data = useMemo(
+    () => board && withPendingMoves(board, moves, dataUpdatedAt),
+    [board, moves, dataUpdatedAt],
+  );
+  return { ...query, data };
+}
 
 /**
  * One task, by id, whatever its column: the board lists only the latest finished tasks. It opens

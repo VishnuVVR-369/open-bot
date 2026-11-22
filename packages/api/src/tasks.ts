@@ -22,12 +22,33 @@ export const taskChangesSchema = z.object({
   dueOn: z.string().nullable().optional(),
 });
 
+/**
+ * What a client from before `move` sends as `update`'s `position`: where it dropped the task. It
+ * stays accepted while such a client can still be open (a browser tab loaded before the deploy),
+ * and is forwarded to the worker, which places the task before the first one past it.
+ */
+export const legacyTaskPositionSchema = z.number().finite().optional();
+
+/**
+ * Asking a task's owner to start on it. `startId` is a fresh id for this ask, kept for retries:
+ * asking again with it, after an answer that never came, answers the same instead of asking
+ * twice. `expectedOwnerId` is the teammate the button named; if the task has gone to someone
+ * else meanwhile, it's refused rather than asking them. Both are optional for clients from
+ * before them.
+ */
+export const taskStartSchema = z.object({
+  taskId: id,
+  startId: id.optional(),
+  expectedOwnerId: id.optional(),
+});
+
 /** A task moved to a column, at the end or next to a task there. The worker picks its position. */
 export const taskMoveSchema = z.object({
   taskId: id,
   status: taskStatusSchema,
   placement: taskPlacementSchema,
 });
+export type TaskMoveInput = z.infer<typeof taskMoveSchema>;
 
 /** A task on the team's board. */
 export const taskViewSchema = z.object({

@@ -1,4 +1,12 @@
-import { LOCKS, lockUntilCommit, teammates, tasks, type Tx } from "@open-bot/db";
+import {
+  LOCKS,
+  lockUntilCommit,
+  runs,
+  teammates,
+  tasks,
+  type Queryable,
+  type Tx,
+} from "@open-bot/db";
 import {
   placeTask,
   TASK_NOTES_MAX,
@@ -14,9 +22,28 @@ import { announceRun, insertRun } from "../../runs/queue";
 import { mainChat } from "../chat";
 
 export class TaskError extends WorkerError {
-  constructor(message: string) {
-    super(400, message);
+  constructor(message: string, status: 400 | 409 = 400) {
+    super(status, message);
   }
+}
+
+/** Who asks a task's owner to start on it, and what they saw when they did. */
+export interface StartRequest {
+  /** A teammate asking from its run; null or left out is you. */
+  by?: { teammateName: string; runId: string } | null;
+  /**
+   * The id of this ask, which the run is saved with: a retry with it finds that run and answers
+   * the same, so an answer lost on the way asks nobody twice.
+   */
+  startId?: string;
+  /** The owner you saw on the button: a task given to someone else since is refused. */
+  expectedOwnerId?: string;
+}
+
+/** A start's answer: the task, and the chat its owner was asked in. */
+export interface Started {
+  task: Task;
+  chatId: string;
 }
 
 type Task = typeof tasks.$inferSelect;
@@ -240,26 +267,37 @@ export class TaskService {
   /**
    * Asks the task's owner to work on it, in their main chat, and moves it to Doing. The run
    * carries the task's id, so the owner can mark it done. The run and the task change are saved
-   * together, so a failed start queues nothing and trying again asks once.
+   * together, so a failed start queues nothing and trying again asks once; a retry with the same
+   * `startId` after one that went through answers the same and asks nobody again.
    */
-  async start(id: string, by: { teammateName: string; runId: string } | null): Promise<Task> {
+  async start(id: string, request: StartRequest = {}): Promise<Started> {
+    const { by = null, startId, expectedOwnerId } = request;
     const seen = await this.get(id);
     if (!seen) throw new TaskError("That task no longer exists.");
+    const earlier = startId && (await this.startedAs(this.ctx.db, id, request));
+    if (earlier) return earlier;
     const ownerTeammateId = seen.ownerTeammateId;
+    if (expectedOwnerId && ownerTeammateId !== expectedOwnerId)
+      throw await this.givenToSomeoneElse(ownerTeammateId);
     if (!ownerTeammateId) throw new TaskError("Give the task to a teammate first.");
     if (seen.status === "done") throw new TaskError("That task is already done.");
     // Finding or making the main chat is its own change, and trying again finds the same one.
     const chatId = await mainChat(this.ctx, ownerTeammateId);
     const from = by ? `${by.teammateName} asked you` : "The user asked you";
-    const row = await this.onBoard(async (tx) => {
+    const result = await this.onBoard(async (tx): Promise<Started & { queued: boolean }> => {
+      // The same ask, sent twice at once: every start holds the board, so the first is saved.
+      const twin = startId && (await this.startedAs(tx, id, request));
+      if (twin) return { ...twin, queued: false };
       const task = await this.lockTask(tx, id);
       if (task.ownerTeammateId !== ownerTeammateId)
-        throw new TaskError("That task was just given to someone else. Try again.");
+        throw await this.givenToSomeoneElse(task.ownerTeammateId);
       if (task.status === "done") throw new TaskError("That task is already done.");
       await insertRun(tx, {
+        id: startId,
         chatId,
         teammateId: ownerTeammateId,
         trigger: "task",
+        taskId: task.id,
         prompt: [
           `[${from} to work on a task from the team's board (task id ${task.id}). When it's finished, mark it done with update_task, and say what you did.]`,
           `Task: ${task.title}`,
@@ -277,11 +315,55 @@ export class TaskService {
         .set({ status: "doing", chatId, ...(position !== undefined ? { position } : {}) })
         .where(eq(tasks.id, id))
         .returning();
-      return row!;
+      return { task: row!, chatId, queued: true };
     });
+    if (!result.queued) return { task: result.task, chatId: result.chatId };
+    // Saved is what counts: announcing it never fails the start (see `announceRun`).
     await announceRun(this.ctx, chatId);
     await publishApp(this.ctx, { type: "tasks" });
-    return row;
+    return { task: result.task, chatId };
+  }
+
+  /**
+   * The start already saved under `request.startId`, as its answer: the task as it is now and the
+   * chat that run was queued in. Null when there's none. An id used for another task, or for
+   * asking someone other than `expectedOwnerId`, is refused: it isn't a retry of this ask.
+   */
+  private async startedAs(
+    q: Queryable,
+    id: string,
+    request: StartRequest,
+  ): Promise<Started | null> {
+    const [run] = await q
+      .select({ chatId: runs.chatId, taskId: runs.taskId, teammateId: runs.teammateId })
+      .from(runs)
+      .where(eq(runs.id, request.startId!));
+    if (!run) return null;
+    if (
+      run.taskId !== id ||
+      (request.expectedOwnerId !== undefined && run.teammateId !== request.expectedOwnerId)
+    )
+      throw new TaskError("That start id was already used for something else.", 409);
+    const [task] = await q.select().from(tasks).where(eq(tasks.id, id));
+    if (!task) throw new TaskError("That task no longer exists.");
+    return { task, chatId: run.chatId };
+  }
+
+  /** Why a start for the owner you saw is refused: the task is someone else's now, or nobody's. */
+  private async givenToSomeoneElse(ownerTeammateId: string | null): Promise<TaskError> {
+    if (!ownerTeammateId)
+      return new TaskError(
+        "That task isn't given to a teammate anymore, so nobody was asked.",
+        409,
+      );
+    const [owner] = await this.ctx.db
+      .select({ name: teammates.name })
+      .from(teammates)
+      .where(eq(teammates.id, ownerTeammateId));
+    return new TaskError(
+      `That task is ${owner ? `${owner.name}'s` : "someone else's"} now, so nobody was asked. Check it, then ask again.`,
+      409,
+    );
   }
 
   /** The open tasks and the recently finished ones, as a teammate reads them. */

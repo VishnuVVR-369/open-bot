@@ -1,4 +1,3 @@
-import type { TaskView } from "@open-bot/api";
 import {
   boardColumns,
   DONE_SHOWN,
@@ -24,7 +23,7 @@ import { usePullToRefresh } from "@/lib/use-pull-to-refresh";
 import { useSafeBottom } from "@/lib/use-safe-bottom";
 import { radius, space, useColors } from "@/theme";
 import { useTaskBlockers, useTasks, useYourName } from "../hooks";
-import { newTaskHref } from "../tasks";
+import { newTaskHref, taskById } from "../tasks";
 import { TaskMenu } from "./task-menu";
 import { statusColor } from "./task-parts";
 import { TaskRow } from "./task-row";
@@ -48,7 +47,9 @@ export default function TasksScreen() {
   const yourName = useYourName();
   const [filter, setFilter] = useState<TaskFilter>("all");
   const [showAllDone, setShowAllDone] = useState(false);
-  const [menuFor, setMenuFor] = useState<TaskView | null>(null);
+  // The held task's id: the menu shows that task as the board has it now, never a copy from when
+  // it opened, and closes if it's deleted meanwhile.
+  const [menuFor, setMenuFor] = useState<string | null>(null);
   const { refreshing, onRefresh } = usePullToRefresh(() =>
     Promise.all([tasks.refetch(), teammates.refetch()]),
   );
@@ -179,7 +180,7 @@ export default function TasksScreen() {
               yourName={yourName}
               blocker={blockerOf(task)}
               first={index === 0}
-              onMenu={() => setMenuFor(task)}
+              onMenu={() => setMenuFor(task.id)}
             />
           </View>
         )}
@@ -225,7 +226,7 @@ export default function TasksScreen() {
         testID="tasks"
       />
       <TaskMenu
-        task={menuFor}
+        task={taskById(all, menuFor)}
         columns={columns}
         blockerOf={blockerOf}
         teammates={allTeammates}

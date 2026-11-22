@@ -35,8 +35,27 @@ import { Textarea } from "@/components/ui/textarea";
 import { attempt } from "@/lib/client/mutate";
 import { api } from "@/lib/client/rpc";
 import type { TeammateSummary, TaskView } from "@/lib/types";
+import { startKeys } from "../pending";
 
 const NOBODY = "you";
+
+/** What the dialog edits, as it's sent. */
+type TaskFields = Pick<TaskView, "title" | "notes" | "ownerTeammateId" | "dueOn" | "status">;
+
+/**
+ * The fields that differ from what was last saved, so a field changed elsewhere meanwhile (a
+ * teammate reassigned the task, say) isn't written back over. Title and notes are trimmed by the
+ * worker, so whitespace alone isn't a change.
+ */
+function changedFields(saved: TaskFields, now: TaskFields): Partial<TaskFields> {
+  const changes: Partial<TaskFields> = {};
+  if (now.title.trim() !== saved.title.trim()) changes.title = now.title;
+  if (now.notes.trim() !== saved.notes.trim()) changes.notes = now.notes;
+  if (now.ownerTeammateId !== saved.ownerTeammateId) changes.ownerTeammateId = now.ownerTeammateId;
+  if (now.dueOn !== saved.dueOn) changes.dueOn = now.dueOn;
+  if (now.status !== saved.status) changes.status = now.status;
+  return changes;
+}
 
 /** A new task, or one to edit, with who owns it and when it's due. */
 export function TaskDialog({
@@ -59,6 +78,20 @@ export function TaskDialog({
   const [dueOn, setDueOn] = useState(task?.dueOn ?? "");
   const [status, setStatus] = useState<TaskView["status"]>(task?.status ?? "todo");
   const [pending, startTransition] = useTransition();
+  // The task this dialog saved, and its fields as saved: a new task gets its id once it's added,
+  // so trying to start it again (after a start that failed) updates it instead of adding another.
+  const [saved, setSaved] = useState<{ id: string; fields: TaskFields } | null>(
+    task && {
+      id: task.id,
+      fields: {
+        title: task.title,
+        notes: task.notes,
+        ownerTeammateId: task.ownerTeammateId,
+        dueOn: task.dueOn,
+        status: task.status,
+      },
+    },
+  );
   const router = useRouter();
   const ownerTeammate = teammates.find((teammate) => teammate.id === owner);
   // The chat is the saved owner's, whoever the form now names.
@@ -66,26 +99,51 @@ export function TaskDialog({
 
   function save(then?: "start") {
     startTransition(async () => {
-      const fields = {
+      const fields: TaskFields = {
         title,
         notes,
         ownerTeammateId: owner === NOBODY ? null : owner,
         dueOn: dueOn || null,
+        status,
       };
-      const result = task
-        ? await attempt(api.tasks.update({ taskId: task.id, ...fields, status }))
-        : await attempt(api.tasks.create(fields));
-      if (!result.ok) {
-        toast.error("Couldn't save the task", { description: result.error });
-        return;
+      let id: string;
+      if (!saved) {
+        const { status: _, ...input } = fields;
+        const result = await attempt(api.tasks.create(input));
+        if (!result.ok) {
+          toast.error("Couldn't save the task", { description: result.error });
+          return;
+        }
+        id = result.data.id;
+      } else {
+        id = saved.id;
+        const changes = changedFields(saved.fields, fields);
+        if (Object.keys(changes).length > 0) {
+          const result = await attempt(api.tasks.update({ taskId: id, ...changes }));
+          if (!result.ok) {
+            toast.error("Couldn't save the task", { description: result.error });
+            return;
+          }
+        }
       }
-      const id = task?.id ?? (result.data as { id: string }).id;
-      if (then === "start") {
-        const started = await attempt(api.tasks.start({ taskId: id }));
+      setSaved({ id, fields });
+      if (then === "start" && fields.ownerTeammateId) {
+        // The owner it asks is the one the button named: a task given to someone else meanwhile
+        // is refused. A retry sends the same start id, so a lost answer never asks twice.
+        const expectedOwnerId = fields.ownerTeammateId;
+        const started = await attempt(
+          api.tasks.start({
+            taskId: id,
+            startId: startKeys.for(id, expectedOwnerId),
+            expectedOwnerId,
+          }),
+        );
+        onSaved();
         if (!started.ok) {
           toast.error("Couldn't start it", { description: started.error });
           return;
         }
+        startKeys.done(id, expectedOwnerId);
         toast(`${ownerTeammate?.name ?? "They"} started on it`, {
           action: started.data.chatId
             ? {
@@ -127,7 +185,7 @@ export function TaskDialog({
           }}
         >
           <DialogHeader>
-            <DialogTitle>{task ? "Task" : "New task"}</DialogTitle>
+            <DialogTitle>{saved ? "Task" : "New task"}</DialogTitle>
             <DialogDescription>
               {task?.createdBy === "teammate"
                 ? `Added by ${teammates.find((teammate) => teammate.id === task.createdByTeammateId)?.name ?? "a teammate"}.`
@@ -249,7 +307,7 @@ export function TaskDialog({
               )}
               <Button type="submit" disabled={pending || !title.trim()}>
                 {pending && <Loader2 className="animate-spin" />}
-                {task ? "Save" : "Add task"}
+                {saved ? "Save" : "Add task"}
               </Button>
             </div>
           </DialogFooter>

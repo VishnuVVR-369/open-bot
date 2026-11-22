@@ -10,8 +10,8 @@ import {
   TASK_STATUS_LABELS,
   TASK_STATUSES,
   TASK_TITLE_MAX,
+  sendMove,
   taskBlocker,
-  withTaskMoved,
   type TaskBlocker,
   type TaskFilter,
   type TaskPlacement,
@@ -33,6 +33,7 @@ import type { TeammateSummary, TaskView } from "@/lib/types";
 import { isComputerOnline } from "@/lib/status";
 import { cn } from "@/lib/utils";
 import { useTasks } from "../hooks";
+import { pendingMoves } from "../pending";
 import { TaskDialog } from "./task-dialog";
 
 function Due({ dueOn, status }: { dueOn: string; status: TaskView["status"] }) {
@@ -247,17 +248,19 @@ export function TaskBoard() {
   const refresh = () => void queryClient.invalidateQueries({ queryKey: orpc.tasks.key() });
 
   /**
-   * Moves a task, showing it in place right away. The worker places it against the whole column,
-   * and the board that comes back afterwards settles it, refused or not.
+   * Moves a task, showing it in place right away. The worker places it against the whole column.
+   * The move is laid over the board the server last sent until a board read after it has it, so a
+   * refusal just stops showing it and undoes nothing else (`PendingMoves`).
    */
   async function move(id: string, status: TaskView["status"], placement: TaskPlacement) {
-    queryClient.setQueryData(
-      orpc.tasks.list.queryKey(),
-      (current) => current && (withTaskMoved(current, id, status, placement) ?? current),
+    const result = await sendMove(
+      pendingMoves,
+      { taskId: id, status, placement },
+      () => attempt(api.tasks.move({ taskId: id, status, placement })),
+      (answer) => answer.ok,
+      refresh,
     );
-    const result = await attempt(api.tasks.move({ taskId: id, status, placement }));
     if (!result.ok) toast.error("Couldn't move it", { description: result.error });
-    refresh();
   }
 
   if (isLoading || !tasks)

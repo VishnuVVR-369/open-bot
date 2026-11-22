@@ -1,12 +1,15 @@
+import { randomUUID } from "node:crypto";
+import type { AddressInfo } from "node:net";
 import { runs, tasks, teammates } from "@open-bot/db";
 import type { TaskStatus } from "@open-bot/domain";
 import { asc, eq, inArray } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { rpcEnabled, rpcHarness, failure } from "../../testing/rpc";
+import { rpcEnabled, rpcHarness, failure, SECRET } from "../../testing/rpc";
+import { TaskService } from "./service";
 
 describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
   const h = rpcHarness();
-  const { db, ctx, pool, worker, newTeammate, racedWhileLocked } = h;
+  const { db, ctx, pool, worker, server, newTeammate, racedWhileLocked } = h;
   const BOARD_LOCK = "select pg_advisory_xact_lock(hashtextextended('task_board', 0))";
 
   beforeEach(async () => {
@@ -23,6 +26,9 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
         .orderBy(asc(tasks.position), asc(tasks.id))
     ).map(({ title, position }) => `${title}@${position}`);
   }
+
+  /** The runs asking the task's owner to work on it. */
+  const runsFor = (taskId: string) => db.select().from(runs).where(eq(runs.taskId, taskId));
 
   /** Tasks with these titles in To do, at these positions (all 1 by default), by title. */
   async function seed(titles: string[], positions: number[] = titles.map(() => 1)) {
@@ -220,6 +226,114 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
     expect(await queued()).toEqual([]);
     await worker.tasks.start({ taskId: id });
     expect(await queued()).toHaveLength(1);
+  });
+
+  it("tasks: a retried start answers the same and asks once; a new start id asks again", async () => {
+    const ivy = await newTeammate("Ivy", "Travel");
+    const { id } = await worker.tasks.create({ title: "Book a hotel", ownerTeammateId: ivy.id });
+    const ask = { taskId: id, startId: randomUUID(), expectedOwnerId: ivy.id };
+    // The same ask twice at once (a retry sent while the first was still on its way).
+    expect(
+      await racedWhileLocked(BOARD_LOCK, () => [worker.tasks.start(ask), worker.tasks.start(ask)]),
+    ).toEqual([{ chatId: ivy.chatId }, { chatId: ivy.chatId }]);
+    // The answer was lost, so the same ask comes again later.
+    expect(await worker.tasks.start(ask)).toEqual({ chatId: ivy.chatId });
+    expect(await runsFor(id)).toMatchObject([{ id: ask.startId, teammateId: ivy.id }]);
+    // Done since, it still answers the ask that went through.
+    await worker.tasks.update({ taskId: id, status: "done" });
+    expect(await worker.tasks.start(ask)).toEqual({ chatId: ivy.chatId });
+    await worker.tasks.update({ taskId: id, status: "doing" });
+    // "Ask again" is a new ask.
+    await worker.tasks.start({ ...ask, startId: randomUUID() });
+    expect(await runsFor(id)).toHaveLength(2);
+  });
+
+  it("tasks: refuses a start id used for another task or another owner", async () => {
+    const ivy = await newTeammate("Ivy", "Travel");
+    const kit = await newTeammate("Kit", "Research");
+    const first = await worker.tasks.create({ title: "Renew visa", ownerTeammateId: ivy.id });
+    const second = await worker.tasks.create({ title: "Book trains", ownerTeammateId: ivy.id });
+    const startId = randomUUID();
+    await worker.tasks.start({ taskId: first.id, startId, expectedOwnerId: ivy.id });
+    const reused = "That start id was already used for something else.";
+    expect(await failure(worker.tasks.start({ taskId: second.id, startId }))).toEqual({
+      status: 409,
+      message: reused,
+    });
+    await worker.tasks.update({ taskId: first.id, ownerTeammateId: kit.id });
+    expect(
+      await failure(worker.tasks.start({ taskId: first.id, startId, expectedOwnerId: kit.id })),
+    ).toEqual({ status: 409, message: reused });
+    expect(await runsFor(second.id)).toEqual([]);
+    expect(await runsFor(first.id)).toHaveLength(1);
+  });
+
+  it("tasks: refuses to ask an owner other than the one you saw, and says who has it", async () => {
+    const ada = await newTeammate("Ada", "Research");
+    const bea = await newTeammate("Bea", "Travel");
+    const { id } = await worker.tasks.create({
+      title: "Plan the offsite",
+      ownerTeammateId: ada.id,
+    });
+    // Given to Bea on the web while the phone still showed "Ask Ada".
+    await worker.tasks.update({ taskId: id, ownerTeammateId: bea.id });
+    expect(
+      await failure(
+        worker.tasks.start({ taskId: id, startId: randomUUID(), expectedOwnerId: ada.id }),
+      ),
+    ).toEqual({
+      status: 409,
+      message: "That task is Bea's now, so nobody was asked. Check it, then ask again.",
+    });
+    await worker.tasks.update({ taskId: id, ownerTeammateId: null });
+    expect(await failure(worker.tasks.start({ taskId: id, expectedOwnerId: ada.id }))).toEqual({
+      status: 409,
+      message: "That task isn't given to a teammate anymore, so nobody was asked.",
+    });
+    expect(await runsFor(id)).toEqual([]);
+    expect((await db.select().from(tasks).where(eq(tasks.id, id)))[0]!.status).toBe("todo");
+  });
+
+  it("tasks: a start whose announcement fails still answers, so a retry doesn't ask twice", async () => {
+    const ivy = await newTeammate("Ivy", "Travel");
+    const { id } = await worker.tasks.create({ title: "Call the bank", ownerTeammateId: ivy.id });
+    // The database takes the run, but telling the executor about it fails.
+    const query = pool.query.bind(pool) as (...args: unknown[]) => Promise<unknown>;
+    const brokenNotify = new Proxy(pool, {
+      get: (target, key) =>
+        key === "query"
+          ? (...args: unknown[]) =>
+              typeof args[0] === "string" && args[0].includes("pg_notify")
+                ? Promise.reject(new Error("connection lost"))
+                : query(...args)
+          : Reflect.get(target, key),
+    });
+    const warn = vi.fn();
+    const service = new TaskService({ ...ctx, pool: brokenNotify, log: { ...ctx.log, warn } });
+    const started = await service.start(id, { startId: randomUUID(), expectedOwnerId: ivy.id });
+    expect(started.chatId).toBe(ivy.chatId);
+    expect(warn).toHaveBeenCalledWith(
+      "run announcement failed; the safety sweep starts it",
+      expect.objectContaining({ chatId: ivy.chatId }),
+    );
+    expect(await runsFor(id)).toMatchObject([{ status: "queued" }]);
+  });
+
+  it("tasks: ignores fields it doesn't know, as a worker from before start ids does", async () => {
+    // A web app newer than the worker sends fields the worker doesn't have yet: they're dropped,
+    // and the start goes through as before.
+    const ivy = await newTeammate("Ivy", "Travel");
+    const { id } = await worker.tasks.create({ title: "Order a cake", ownerTeammateId: ivy.id });
+    const response = await fetch(
+      `http://127.0.0.1:${(server.address() as AddressInfo).port}/internal/tasks/${id}/start`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-worker-secret": SECRET },
+        body: JSON.stringify({ fromTheFuture: true }),
+      },
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ chatId: ivy.chatId });
   });
 
   it("answers a failed query with the database's error, never its SQL or parameters", async () => {

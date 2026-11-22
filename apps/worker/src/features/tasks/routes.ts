@@ -21,8 +21,8 @@ export function taskRoutes(tasks: TaskService) {
       await tasks.remove(input.taskId);
       return ok;
     }),
-    start: os.tasks.start.handler(async ({ input }) => ({
-      chatId: (await tasks.start(input.taskId, null)).chatId,
+    start: os.tasks.start.handler(async ({ input: { taskId, startId, expectedOwnerId } }) => ({
+      chatId: (await tasks.start(taskId, { startId, expectedOwnerId })).chatId,
     })),
   };
 }

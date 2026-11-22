@@ -24,13 +24,18 @@ import { space, useColors } from "@/theme";
 import { confirmDeleteTask, startTask } from "../actions";
 import { useYourName } from "../hooks";
 import {
+  afterSave,
   emptyTaskForm,
   ownerName,
+  rebaseTaskForm,
   startLabel,
   taskForm,
   taskFormChanged,
   taskFormProblem,
+  taskHref,
   taskWrite,
+  type AfterSave,
+  type TaskDraft,
   type TaskForm,
 } from "../tasks";
 import { DueSheet } from "./due-sheet";
@@ -40,8 +45,9 @@ import { YouAvatar } from "./task-parts";
 
 /**
  * A new task, or one to edit: its title and notes, who owns it, when it's due and where it
- * stands. Only what you change is sent, so a teammate's edit meanwhile stays. Leaving with
- * changes asks first, and nothing is sent while the phone is offline: the draft stays here.
+ * stands. Only what you change is sent, so a teammate's edit meanwhile stays, and what you haven't
+ * touched follows the task as it changes elsewhere. Leaving with changes asks first, and nothing is
+ * sent while the phone is offline: the draft stays here.
  */
 export function TaskEditor({
   task,
@@ -62,14 +68,15 @@ export function TaskEditor({
   const navigation = useNavigation();
   const { data: teammates = [] } = useTeammates();
   const yourName = useYourName();
-  // Where the form started: what's sent is the difference from it.
-  const [start, setStart] = useState<TaskForm>(() =>
-    task ? taskForm(task) : emptyTaskForm(initialOwner),
-  );
-  const [form, setForm] = useState<TaskForm>(start);
-  // The task this screen saved: a new one gets its id once it's added, so trying to start it
-  // again updates that task instead of adding another.
+  // The form, and where it started: what's sent is the difference from it.
+  const [draft, setDraft] = useState<TaskDraft>(() => {
+    const start = task ? taskForm(task) : emptyTaskForm(initialOwner);
+    return { start, form: start };
+  });
+  const { start, form } = draft;
+  // The task this screen saved: a new one gets its id once it's added, and then opens as itself.
   const [savedId, setSavedId] = useState<string | null>(task?.id ?? null);
+  const created = task ? null : savedId;
   const [busy, setBusy] = useState<"save" | "start" | null>(null);
   // While a save is on its way the form is frozen, so nothing typed meanwhile is lost.
   const locked = busy !== null;
@@ -92,8 +99,30 @@ export function TaskEditor({
   const set = (patch: Partial<TaskForm>) => {
     if (locked) return;
     setProblem(null);
-    setForm((current) => ({ ...current, ...patch }));
+    setDraft((current) => ({ ...current, form: { ...current.form, ...patch } }));
   };
+
+  // A fresher copy of the task (it changed on the web, say): what you haven't touched follows it.
+  // Not while a save is on its way: the form is frozen, and the save's own answer comes next.
+  useEffect(() => {
+    if (task && !locked) setDraft((current) => rebaseTaskForm(current, taskForm(task)));
+  }, [task, locked]);
+
+  // A task added here opens as itself, on its own screen, once nothing else is on its way: at
+  // once, or when you come back to this screen if you'd left it meanwhile.
+  useEffect(() => {
+    if (!created || locked || leave) return;
+    const open = () => go(() => router.replace(taskHref(created)));
+    if (navigation.isFocused()) open();
+    return navigation.addListener("focus", open);
+  }, [created, locked, leave, navigation]);
+
+  /** Goes where a finished save leads, from this screen only. */
+  function finish(to: AfterSave) {
+    if (to.kind === "back") go(() => router.back());
+    else if (to.kind === "chat") go(() => router.replace(chatHref(to.chatId)));
+    else if (to.kind === "task") go(() => router.replace(taskHref(to.taskId)));
+  }
 
   usePreventRemove(changed && !leave && !gone, ({ data }) =>
     Alert.alert("Discard your changes?", "What you changed in this task isn't saved.", [
@@ -112,10 +141,11 @@ export function TaskEditor({
     setProblem(null);
     const write = taskWrite(savedId, start, form);
     let id: string;
+    let added: string | null = null;
     if (write.kind === "create") {
       const result = await safe(api.tasks.create(write.input));
       if (result.error) return failed(result.error);
-      id = result.data.id;
+      id = added = result.data.id;
       setSavedId(id);
     } else {
       id = write.taskId;
@@ -124,17 +154,18 @@ export function TaskEditor({
         if (result.error) return failed(result.error);
       }
     }
-    setStart(form);
+    // What was sent is saved: the form, frozen meanwhile, is where the task now starts.
+    setDraft((current) => ({ start: current.form, form: current.form }));
     void queryClient.invalidateQueries({ queryKey: queryKeys.allTasks });
-    if (then !== "start") {
-      haptics.success();
-      return go(() => router.back());
-    }
-    const started = await startTask({ id });
+    if (then !== "start") haptics.success();
+    // The owner it asks is the one the button named: if the task went to someone else
+    // meanwhile, the worker refuses rather than asking them.
+    const started =
+      then === "start" && form.ownerTeammateId
+        ? await startTask({ id }, form.ownerTeammateId)
+        : null;
     setBusy(null);
-    // Saved but not started: the screen stays, now holding the saved task, to try again.
-    if (!started) return;
-    go(() => (started.chatId ? router.replace(chatHref(started.chatId)) : router.back()));
+    finish(afterSave({ focused: navigation.isFocused(), created: added, then, started }));
   }
 
   function failed(error: unknown) {
@@ -263,6 +294,8 @@ export function TaskEditor({
               title={`${chatOwner.name}'s chat`}
               subtitle="Where they were last asked to work on it"
               onPress={() => router.push(chatHref(task.chatId!))}
+              // While a save is on its way, staying here keeps where it goes next to this screen.
+              disabled={locked}
               testID="task-chat"
             />
           </Card>

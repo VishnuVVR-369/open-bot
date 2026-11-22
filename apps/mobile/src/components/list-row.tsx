@@ -11,6 +11,7 @@ export function ListRow({
   subtitle,
   aside,
   onPress,
+  disabled = false,
   testID,
 }: {
   leading: ReactNode;
@@ -19,15 +20,23 @@ export function ListRow({
   subtitle?: ReactNode;
   aside?: ReactNode;
   onPress: () => void;
+  /** Shown faded and can't be pressed. */
+  disabled?: boolean;
   testID?: string;
 }) {
   const colors = useColors();
   return (
     <Pressable
       onPress={onPress}
-      android_ripple={{ color: colors.muted }}
-      style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.subtle }]}
+      disabled={disabled}
+      android_ripple={disabled ? undefined : { color: colors.muted }}
+      style={({ pressed }) => [
+        styles.row,
+        pressed && { backgroundColor: colors.subtle },
+        disabled && { opacity: 0.5 },
+      ]}
       accessibilityRole="button"
+      accessibilityState={{ disabled }}
       testID={testID}
     >
       {leading}

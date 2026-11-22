@@ -88,9 +88,34 @@ It lands halfway between its new neighbours; when they share a position, or halv
 Every write that sets a column or a place (adding a task, `update` with a new status, `move`, and starting a task) takes the `task_board` lock first, so two at once never read the same neighbours, and each publishes one `tasks` event after it commits.
 A task added, or given a new status with `update`, goes to the end of that column.
 Giving a task to someone else clears the chat its last owner was asked in: the new owner hasn't been asked yet, so the apps offer "Ask to start", not "Ask again".
+The apps send only the fields you changed, so a teammate's change to another field meanwhile isn't written back over.
+
+A move shows at once in the apps, but the board the server sent is never edited by hand.
+Each app keeps the moves it sent and lays them over the last board the server sent (`PendingMoves` in `packages/domain/src/tasks/pending.ts`).
+A refused move stops being laid over it at once, even when the board can't be read again, and nothing else that changed meanwhile is undone; a move that was made shows until a board read after it has it.
+
+During a deploy the web app and the worker can be different versions, in either order:
+
+- A browser tab loaded before `move` still drags with `update` and a `position`.
+  The app's `tasks.update` keeps accepting that `position` and passes it on; the worker places the task before the first task past that position, under the lock.
+- A web app newer than the worker gets `404` from the worker's `move` route.
+  It then places the task itself against the column and sends it the old way, as `update` with a `position` (any tasks a tie renumbers first), so drag and drop keeps working until the worker is deployed.
+- A worker older than `startId` and `expectedOwnerId` drops the fields it doesn't know, and starts as before.
+  Until it's deployed, a retried start can still ask twice, and a start from a stale screen isn't refused.
 
 **Ask to start** (in the app, or `add_task` with `start`) queues a run for the owner in its main chat, with trigger `task`, and moves the task to Doing.
-The run and the task's change are saved in one transaction and the run is announced after it commits, so a start that fails queues nothing, and trying again asks once:
+The run and the task's change are saved in one transaction, so a start that fails queues nothing, and trying again asks once.
+The run is announced after it commits, and announcing never fails the start: the run is saved, and the executor's safety sweep (every 15 seconds) starts a run nobody was told about.
+`tasks.start` takes two more fields from the apps:
+
+- `startId`, a new id for each ask, which the apps keep until the ask goes through.
+  The run is saved under that id, with the task's id in `runs.task_id`, so a retry after an answer that never came finds that run and answers with its chat instead of asking again.
+  An id already used for another task, or for asking someone else, is refused with `409`.
+  An ask that went through forgets its id, so "Ask again" is a new ask.
+- `expectedOwnerId`, the teammate the button named.
+  If the task was given to someone else since the app last read it, the start is refused with `409` and says who has it now ("That task is Bea's now, so nobody was asked."), so a stale screen never asks the wrong teammate.
+
+The run's prompt:
 
 ```text title="The run's prompt"
 [The user asked you to work on a task from the team's board (task id …). When it's
