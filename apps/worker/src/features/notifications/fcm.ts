@@ -1,7 +1,7 @@
 import { createSign } from "node:crypto";
-import { nativePushDevices } from "@open-bot/db";
+import { nativePushDevices, session } from "@open-bot/db";
 import type { CarryingPhoneMode, EgressPushStage, NativePushData } from "@open-bot/domain";
-import { eq } from "drizzle-orm";
+import { eq, gt, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Context, NotificationEvent } from "../../context";
 import { errorMessage } from "../../logger";
@@ -123,6 +123,33 @@ const GONE_CODES = new Set(["UNREGISTERED", "SENDER_ID_MISMATCH"]);
  */
 const REJECTED_CODES = new Set(["INVALID_ARGUMENT", "THIRD_PARTY_PERMISSION_DENIED"]);
 
+/** The detail FCM puts its own error code in; Google's other details may carry other codes. */
+const FCM_ERROR = "type.googleapis.com/google.firebase.fcm.v1.FcmError";
+const fcmErrorSchema = z.object({ "@type": z.literal(FCM_ERROR), errorCode: z.string() });
+/**
+ * An error answer (https://cloud.google.com/apis/design/errors), read field by field: whatever
+ * shape it has, a field that isn't as expected is left out rather than failing the read.
+ */
+const errorAnswerSchema = z.object({
+  error: z.object({
+    status: z.string().optional().catch(undefined),
+    message: z.string().optional().catch(undefined),
+    details: z.array(z.unknown()).catch([]),
+  }),
+});
+
+/** FCM's answer to a failed send: its error codes, and words for the log. */
+export function readFcmError(body: unknown): { codes: string[]; summary: string | undefined } {
+  const answer = errorAnswerSchema.safeParse(body);
+  if (!answer.success) return { codes: [], summary: undefined };
+  const { status, message, details } = answer.data.error;
+  const codes = details.flatMap((detail) => {
+    const parsed = fcmErrorSchema.safeParse(detail);
+    return parsed.success ? [parsed.data.errorCode] : [];
+  });
+  return { codes, summary: message ?? status };
+}
+
 /** A phone to send to, and its sign-in's registration when it has one (`nativePushDevices`). */
 interface Target {
   token: string;
@@ -178,28 +205,29 @@ export class FcmService {
     );
   };
 
+  /**
+   * Keeps the phone's token, with the sign-in its pushes are for (`registration`) and the session
+   * it registered with. Returns the registration stored, which the phone checks against its own.
+   */
   async register(input: {
     token: string;
     platform: "android";
     device: string;
     registration?: string;
-  }): Promise<void> {
-    await this.ctx.db
+    sessionId?: string;
+  }): Promise<string | null> {
+    const row = {
+      platform: input.platform,
+      device: input.device.slice(0, 80),
+      registration: input.registration ?? null,
+      sessionId: input.sessionId ?? null,
+    };
+    const [stored] = await this.ctx.db
       .insert(nativePushDevices)
-      .values({
-        token: input.token,
-        platform: input.platform,
-        device: input.device.slice(0, 80),
-        registration: input.registration ?? null,
-      })
-      .onConflictDoUpdate({
-        target: nativePushDevices.token,
-        set: {
-          platform: input.platform,
-          device: input.device.slice(0, 80),
-          registration: input.registration ?? null,
-        },
-      });
+      .values({ token: input.token, ...row })
+      .onConflictDoUpdate({ target: nativePushDevices.token, set: row })
+      .returning({ registration: nativePushDevices.registration });
+    return stored?.registration ?? null;
   }
 
   async unregister(token: string): Promise<void> {
@@ -215,11 +243,16 @@ export class FcmService {
    * Sends to every phone signed in for notifications: how many got it, and how many sends failed
    * and could work if tried again (a phone FCM says is gone, or one it refused for good, is
    * neither). Each push carries the phone's `registration`, so the phone can drop a push sent for
-   * a sign-in it has left.
+   * a sign-in it has left. A phone whose session has expired gets nothing: it is signed out, even
+   * if it hasn't noticed yet (an ended session takes its phone's row with it).
    */
   async deliver(push: NativePush): Promise<{ sent: number; failed: number }> {
     if (!this.account) return { sent: 0, failed: 0 };
-    const rows = await this.ctx.db.select().from(nativePushDevices);
+    const rows = await this.ctx.db
+      .select({ token: nativePushDevices.token, registration: nativePushDevices.registration })
+      .from(nativePushDevices)
+      .leftJoin(session, eq(session.id, nativePushDevices.sessionId))
+      .where(or(isNull(nativePushDevices.sessionId), gt(session.expiresAt, sql`now()`)));
     const results = [...(await this.sendTo(rows, push)).values()];
     return {
       sent: results.filter((result) => result === "sent").length,
@@ -303,20 +336,16 @@ export class FcmService {
       },
     );
     if (response.ok) return "sent";
-    const body = (await response.json().catch(() => ({}))) as {
-      error?: { status?: string; message?: string; details?: { errorCode?: string }[] };
-    };
-    const codes = (body.error?.details ?? []).map((detail) => detail.errorCode);
-    if (codes.some((code) => code && GONE_CODES.has(code))) return "gone";
-    const refused = codes.find((code) => code && REJECTED_CODES.has(code));
+    // Before reading the answer: a bad bearer token is never used again, whatever the body says.
+    if (response.status === 401) this.token = null;
+    const { codes, summary } = readFcmError(await response.json().catch(() => null));
+    if (codes.some((code) => GONE_CODES.has(code))) return "gone";
+    const refused = codes.find((code) => REJECTED_CODES.has(code));
     if (refused) {
       this.ctx.log.warn("FCM refused a push for good", { status: response.status, code: refused });
       return "rejected";
     }
-    if (response.status === 401) this.token = null;
-    throw new Error(
-      `FCM answered ${response.status}: ${body.error?.message ?? body.error?.status ?? "no details"}`,
-    );
+    throw new Error(`FCM answered ${response.status}: ${summary ?? "no details"}`);
   }
 
   /** An OAuth access token for FCM, from the service account (a signed JWT, exchanged once an hour). */

@@ -5,4 +5,6 @@ CREATE TABLE "run_progress_notifications" (
 );
 --> statement-breakpoint
 ALTER TABLE "native_push_devices" ADD COLUMN "registration" text;--> statement-breakpoint
-ALTER TABLE "run_progress_notifications" ADD CONSTRAINT "run_progress_notifications_run_id_runs_id_fk" FOREIGN KEY ("run_id") REFERENCES "public"."runs"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "native_push_devices" ADD COLUMN "session_id" text;--> statement-breakpoint
+ALTER TABLE "run_progress_notifications" ADD CONSTRAINT "run_progress_notifications_run_id_runs_id_fk" FOREIGN KEY ("run_id") REFERENCES "public"."runs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "native_push_devices" ADD CONSTRAINT "native_push_devices_session_id_session_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."session"("id") ON DELETE cascade ON UPDATE no action;

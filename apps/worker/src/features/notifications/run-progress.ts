@@ -33,8 +33,13 @@ export interface RunProgressTiming {
    * when it isn't refreshed) outlives a long wait but not a lost final message.
    */
   keepAliveMs: number;
-  /** After a failed end, the waits before each new try; past the last, the next start tries. */
+  /** After a failed end, the waits before each new try; past the last, the next sweep tries. */
   endRetryMs: readonly number[];
+  /**
+   * How often the worker sends the ends still owed by runs that are over, and forgets the records
+   * no one needs any more (`RunProgressStore.overdue()`); it does both when it starts, too.
+   */
+  sweepEveryMs: number;
 }
 
 export const RUN_PROGRESS_TIMING: RunProgressTiming = {
@@ -43,6 +48,7 @@ export const RUN_PROGRESS_TIMING: RunProgressTiming = {
   statusEveryMs: 2_000,
   keepAliveMs: 10 * 60_000,
   endRetryMs: [30_000, 2 * 60_000, 10 * 60_000],
+  sweepEveryMs: 15 * 60_000,
 };
 
 interface Tracked {
@@ -84,7 +90,8 @@ interface Tracked {
  * so the end never waits for a save still going. A failed end is tried again, and a worker
  * that starts sends the ends still owed by runs that are over, such as one stopped between storing
  * a run's last status and sending its end, or a run the restart interrupted (`executor.recover()`
- * finishes those). An end no phone could use any more, past `END_OWED_FOR_MS`, is forgotten.
+ * finishes those); it does so every `sweepEveryMs` too, for ends whose tries all failed. An end no
+ * phone could use any more, past `END_OWED_FOR_MS`, is forgotten.
  */
 export class RunProgressService {
   private readonly runs = new Map<string, Tracked>();
@@ -94,6 +101,7 @@ export class RunProgressService {
   private readonly ending = new Set<string>();
   /** Ends to try again, after a failure. */
   private readonly retries = new Map<string, NodeJS.Timeout>();
+  private sweeper: NodeJS.Timeout | null = null;
   private started = false;
 
   constructor(
@@ -110,10 +118,9 @@ export class RunProgressService {
     this.ctx.events.on("runStarted", this.onStarted);
     this.ctx.events.on("runProgress", this.onProgress);
     this.ctx.events.on("runFinished", this.onFinished);
-    this.track(
-      this.store.overdue().then((runIds) => runIds.forEach((runId) => this.end(runId))),
-      "owed ends",
-    );
+    this.sweep();
+    this.sweeper = setInterval(() => this.sweep(), this.timing.sweepEveryMs);
+    this.sweeper.unref();
   }
 
   /** Stops listening and sending updates. Messages already being sent finish. */
@@ -126,6 +133,8 @@ export class RunProgressService {
     this.runs.clear();
     for (const timer of this.retries.values()) clearTimeout(timer);
     this.retries.clear();
+    if (this.sweeper) clearInterval(this.sweeper);
+    this.sweeper = null;
   }
 
   /** Waits until every message asked for so far has been sent (or has failed). */
@@ -174,6 +183,21 @@ export class RunProgressService {
     // Not seen start: a restart interrupted it. Its end is owed if it showed before.
     if (run.trigger !== "swarm") this.end(run.id);
   };
+
+  /**
+   * Sends the ends still owed by runs that are over, and forgets old records. A run this worker
+   * tracks, or whose end waits for a retry, gets its end from that instead.
+   */
+  private sweep() {
+    this.track(
+      this.store.overdue().then((runIds) => {
+        if (!this.started) return;
+        for (const runId of runIds)
+          if (!this.runs.has(runId) && !this.retries.has(runId)) this.end(runId);
+      }),
+      "owed ends",
+    );
+  }
 
   /** Fires `update` in `delay` ms, unless it's already due sooner. */
   private schedule(run: Tracked, delay: number) {

@@ -56,6 +56,8 @@ describe("RunProgressService", () => {
   const owed = new Set<string>();
   /** Runs whose end is recorded: a save that lands later changes nothing. */
   const closed = new Set<string>();
+  /** How many times `overdue()` was asked: the worker's start and each sweep. */
+  let sweeps = 0;
   /** Runs that are over, for `overdue()`. */
   const over = new Set<string>();
   const store: RunProgressStore = {
@@ -83,6 +85,7 @@ describe("RunProgressService", () => {
       closed.add(runId);
     },
     async overdue() {
+      sweeps += 1;
       return [...owed].filter((runId) => over.has(runId));
     },
   };
@@ -149,6 +152,7 @@ describe("RunProgressService", () => {
     endFailures = 0;
     saveFailures = 0;
     saveHold = null;
+    sweeps = 0;
     sent.length = 0;
     startedAt.length = 0;
     log.length = 0;
@@ -355,6 +359,50 @@ describe("RunProgressService", () => {
       ["r1", "ended"],
     ]);
     expect([...owed]).toEqual(["r2"]);
+  });
+
+  it("sends an end whose every try failed at the next sweep, without waiting for a restart", async () => {
+    start();
+    await vi.advanceTimersByTimeAsync(20_000);
+    // The first send and its three retries (30 s, 2 min and 10 min later) all fail.
+    endFailures = 4;
+    finish();
+    await vi.advanceTimersByTimeAsync(13 * 60_000);
+    await service.idle();
+    expect(states()).toEqual(["starting", "ended", "ended", "ended", "ended"]);
+    expect(owed.has("r1")).toBe(true);
+    // The sweep, 15 minutes after the worker started, sends it again.
+    await vi.advanceTimersByTimeAsync(2 * 60_000);
+    await service.idle();
+    expect(states()).toHaveLength(6);
+    expect(owed.has("r1")).toBe(false);
+    expect(sweeps).toBe(2);
+    // A stopped service sweeps no more.
+    service.stop();
+    await vi.advanceTimersByTimeAsync(60 * 60_000);
+    expect(sweeps).toBe(2);
+  });
+
+  it("leaves a run it tracks, or one waiting for a retry, to that and not to the sweep", async () => {
+    start("live");
+    start("retrying");
+    await vi.advanceTimersByTimeAsync(14 * 60_000 + 50_000);
+    // Its end fails 10 s before the sweep, so its retry is due 20 s after it.
+    endFailures = 1;
+    finish("retrying");
+    await service.idle();
+    // The live run's last status is stored, but its `runFinished` hasn't come yet: the database
+    // says both are over and owe their end.
+    over.add("live");
+    await vi.advanceTimersByTimeAsync(10_000);
+    await service.idle();
+    expect(sweeps).toBe(2);
+    const ends = () => sent.filter((push) => push.data.runState === "ended");
+    expect(ends().map((push) => push.data.runId)).toEqual(["retrying"]);
+    await vi.advanceTimersByTimeAsync(20_000);
+    await service.idle();
+    expect(ends().map((push) => push.data.runId)).toEqual(["retrying", "retrying"]);
+    expect(owed.has("retrying")).toBe(false);
   });
 
   it("keeps only the newest update waiting behind a slow send, so a status change goes next", async () => {

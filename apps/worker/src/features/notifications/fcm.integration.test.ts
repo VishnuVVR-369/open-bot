@@ -4,7 +4,8 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
-import { egressDevices, nativePushDevices } from "@open-bot/db";
+import { egressDevices, nativePushDevices, session, user } from "@open-bot/db";
+import { eq, sql } from "drizzle-orm";
 import type { Context, NotificationEvent } from "../../context";
 import { FcmService, nativeEgressPush } from "./fcm";
 import { RunProgressService, type RunProgressSnapshot } from "./run-progress";
@@ -31,6 +32,8 @@ describe.skipIf(!url)("FCM fan-out", () => {
   const invalid = new Set<string>();
   /** Tokens the stand-in answers with exactly this error, as FCM v1 would. */
   const errors = new Map<string, { status: number; error: Record<string, unknown> }>();
+  /** Tokens the stand-in answers with exactly this status and body, however malformed. */
+  const answers = new Map<string, { status: number; body: string }>();
   let tokenRequests = 0;
 
   const server = http.createServer((request, response) => {
@@ -58,6 +61,11 @@ describe.skipIf(!url)("FCM fan-out", () => {
           return;
         }
         const { message } = JSON.parse(body) as { message: Sent };
+        const answer = answers.get(message.token);
+        if (answer) {
+          response.writeHead(answer.status).end(answer.body);
+          return;
+        }
         const error = errors.get(message.token);
         if (error) {
           response.writeHead(error.status).end(JSON.stringify({ error: error.error }));
@@ -140,6 +148,7 @@ describe.skipIf(!url)("FCM fan-out", () => {
     unavailable.clear();
     invalid.clear();
     errors.clear();
+    answers.clear();
   });
   afterAll(async () => {
     server.close();
@@ -357,6 +366,7 @@ describe.skipIf(!url)("FCM fan-out", () => {
         statusEveryMs: 10,
         keepAliveMs: 60_000,
         endRetryMs: [],
+        sweepEveryMs: 60_000,
       },
     );
     progress.start();
@@ -445,6 +455,102 @@ describe.skipIf(!url)("FCM fan-out", () => {
     expect((await fcm.sendToTokens(["phone-1"], push)).get("phone-1")).toBe(expected);
     const tokens = (await db.select().from(nativePushDevices)).map((row) => row.token);
     expect(tokens).toEqual(expected === "gone" ? [] : ["phone-1"]);
+  });
+
+  it.each([
+    ["a JSON null", "null"],
+    ["no JSON at all", "<html>Unauthorized</html>"],
+    ["details that aren't a list", JSON.stringify({ error: { details: "UNREGISTERED" } })],
+    ["a null detail", JSON.stringify({ error: { status: "UNAUTHENTICATED", details: [null] } })],
+  ])("asks for a new access token after a 401 with %s, and keeps the phone", async (_, body) => {
+    await fcm.register({ token: "phone-1", platform: "android", device: "Pixel" });
+    const push = { data: { type: "dismiss" as const, tag: "x" }, priority: "normal" as const };
+    // A working token is cached first.
+    expect((await fcm.sendToTokens(["phone-1"], push)).get("phone-1")).toBe("sent");
+    const before = tokenRequests;
+    answers.set("phone-1", { status: 401, body });
+    expect((await fcm.sendToTokens(["phone-1"], push)).get("phone-1")).toBe("failed");
+    answers.clear();
+    expect((await fcm.sendToTokens(["phone-1"], push)).get("phone-1")).toBe("sent");
+    expect(tokenRequests).toBe(before + 1);
+    expect((await db.select().from(nativePushDevices)).map((row) => row.token)).toEqual([
+      "phone-1",
+    ]);
+  });
+
+  it("reads FCM's error codes only from its own detail, never from another that has one", async () => {
+    await fcm.register({ token: "phone-1", platform: "android", device: "Pixel" });
+    const push = { data: { type: "dismiss" as const, tag: "x" }, priority: "normal" as const };
+    errors.set("phone-1", {
+      status: 400,
+      error: {
+        status: "INVALID_ARGUMENT",
+        details: [
+          { "@type": "type.googleapis.com/google.rpc.BadRequest", errorCode: "UNREGISTERED" },
+          { "@type": "type.googleapis.com/google.rpc.ErrorInfo", errorCode: "INVALID_ARGUMENT" },
+          { errorCode: "SENDER_ID_MISMATCH" },
+        ],
+      },
+    });
+    expect((await fcm.sendToTokens(["phone-1"], push)).get("phone-1")).toBe("failed");
+    expect((await db.select().from(nativePushDevices)).map((row) => row.token)).toEqual([
+      "phone-1",
+    ]);
+  });
+
+  it("says which registration it stored, so the phone knows its sign-in is on the server", async () => {
+    expect(
+      await fcm.register({
+        token: "phone-1",
+        platform: "android",
+        device: "Pixel 9",
+        registration: "reg-1",
+      }),
+    ).toBe("reg-1");
+    expect(await fcm.register({ token: "phone-1", platform: "android", device: "Pixel 9" })).toBe(
+      null,
+    );
+  });
+
+  it("gives a phone nothing once its session has expired, and forgets it when its session ends", async () => {
+    await db.insert(user).values({ id: "owner", name: "Owner", email: "owner@example.com" });
+    try {
+      const signIn = async (id: string, expiresAt: Date) =>
+        db.insert(session).values({ id, token: `token-${id}`, userId: "owner", expiresAt });
+      await signIn("live", new Date(Date.now() + 60_000));
+      await signIn("expired", new Date(Date.now() - 1_000));
+      await signIn("revoked", new Date(Date.now() + 60_000));
+      for (const [token, sessionId] of [
+        ["phone-live", "live"],
+        ["phone-expired", "expired"],
+        ["phone-revoked", "revoked"],
+      ] as const)
+        await fcm.register({ token, platform: "android", device: "Pixel", sessionId });
+      // An app or web app from before sessions were kept.
+      await fcm.register({ token: "phone-old", platform: "android", device: "Pixel" });
+      // Signed out on the web, or revoked: Better Auth deletes the session.
+      await db.delete(session).where(eq(session.id, "revoked"));
+      expect(await fcm.sendAll({ data: { type: "dismiss", tag: "x" }, priority: "normal" })).toBe(
+        2,
+      );
+      expect(sent.map((message) => message.token).sort()).toEqual(["phone-live", "phone-old"]);
+      expect((await db.select().from(nativePushDevices)).map((row) => row.token).sort()).toEqual([
+        "phone-expired",
+        "phone-live",
+        "phone-old",
+      ]);
+      // The session is refreshed (Better Auth moves its expiry on): the phone gets pushes again.
+      await db
+        .update(session)
+        .set({ expiresAt: sql`now() + interval '1 day'` })
+        .where(eq(session.id, "expired"));
+      sent.length = 0;
+      expect(await fcm.sendAll({ data: { type: "dismiss", tag: "x" }, priority: "normal" })).toBe(
+        3,
+      );
+    } finally {
+      await db.delete(user);
+    }
   });
 
   it("stamps each phone's push with its sign-in's registration", async () => {

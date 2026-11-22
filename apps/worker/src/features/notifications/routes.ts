@@ -55,10 +55,10 @@ export function notificationRoutes(
         ]);
         return { sent: browsers + phones };
       }),
-      registerNative: os.push.registerNative.handler(async ({ input }) => {
-        await fcm.register(input);
-        return ok;
-      }),
+      registerNative: os.push.registerNative.handler(async ({ input }) => ({
+        ok: true as const,
+        registration: await fcm.register(input),
+      })),
       unregisterNative: os.push.unregisterNative.handler(async ({ input }) => {
         await fcm.unregister(input.token);
         return ok;

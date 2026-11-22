@@ -18,8 +18,10 @@ export interface RunProgressStore {
   /** The run's end was sent, or the run ended before any push went: nothing is owed for it. */
   ended(runId: string): Promise<void>;
   /**
-   * Runs that are over and still owe their end: the worker stopped before sending it. Forgets
-   * the ends no phone could use any more, whose last update has timed out on every phone.
+   * Runs that are over and still owe their end: the worker stopped before sending it, or every
+   * try failed. First forgets the records no one needs any more: an owed end whose last update has
+   * timed out on every phone (`shown_at`), and an end sent long enough ago that no save for its run
+   * can still land (`ended_at`).
    */
   overdue(): Promise<string[]>;
 }
@@ -83,7 +85,10 @@ export function runProgressStore(
         await tx
           .delete(table)
           .where(
-            or(lt(table.shownAt, cutoff), and(isNotNull(table.endedAt), lt(table.endedAt, cutoff))),
+            or(
+              and(isNull(table.endedAt), lt(table.shownAt, cutoff)),
+              and(isNotNull(table.endedAt), lt(table.endedAt, cutoff)),
+            ),
           );
         const rows = await tx
           .select({ runId: table.runId })

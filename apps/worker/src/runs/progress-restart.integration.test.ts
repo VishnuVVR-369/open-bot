@@ -39,6 +39,7 @@ describe.skipIf(!url)("run progress across a worker restart", () => {
     statusEveryMs: 10,
     keepAliveMs: 60_000,
     endRetryMs: [],
+    sweepEveryMs: 60 * 60_000,
   };
 
   /** One worker process: its own events, and the progress service listening to them. */
@@ -286,6 +287,21 @@ describe.skipIf(!url)("run progress across a worker restart", () => {
       holder.release();
     }
     await store.ended(run.id);
+    expect(await owed(run.id)).toBe(false);
+  });
+
+  it("keeps an ended record for as long after its end, however long ago its run last showed", async () => {
+    const store = runProgressStore(db);
+    const run = await newRun();
+    await store.shown(run.id);
+    // Its last update went long ago, and its end went just now.
+    await db
+      .update(runProgressNotifications)
+      .set({ shownAt: sql`now() - make_interval(secs => ${END_OWED_FOR_MS / 1000 + 60})` })
+      .where(eq(runProgressNotifications.runId, run.id));
+    await store.ended(run.id);
+    await store.overdue();
+    expect(await store.shown(run.id)).toBe(false);
     expect(await owed(run.id)).toBe(false);
   });
 

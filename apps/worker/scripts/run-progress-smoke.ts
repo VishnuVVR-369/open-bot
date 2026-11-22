@@ -24,6 +24,7 @@ assert.equal(new URL(process.env.DATABASE_URL!).pathname, "/openbot_progress_tes
 
 interface Push {
   at: number;
+  token: string;
   data: Record<string, string>;
   android: { priority: string; ttl: string; collapse_key?: string };
 }
@@ -68,7 +69,12 @@ const fixture = http.createServer((request, response) => {
     }
     if (request.url === "/fcm/v1/projects/open-bot-progress-test/messages:send") {
       const { message } = JSON.parse(body.toString("utf8")) as { message: Push };
-      pushes.push({ at: Date.now(), data: message.data, android: message.android });
+      pushes.push({
+        at: Date.now(),
+        token: message.token,
+        data: message.data,
+        android: message.android,
+      });
       show(message.data);
       response.end(JSON.stringify({ name: "projects/open-bot-progress-test/messages/1" }));
       return;
@@ -124,9 +130,35 @@ async function until<T>(check: () => Promise<T | undefined>, label: string, time
 
 const report: Record<string, unknown> = { started: new Date().toISOString() };
 try {
+  // Two phones register as the web app registers them, each with its sign-in's session: one
+  // signed in, and one whose session has expired (the phone hasn't noticed yet).
   await pool.query(
-    "insert into native_push_devices (token, platform, device, registration) values ('phone-1', 'android', 'Stand-in phone', 'smoke-sign-in')",
+    "insert into \"user\" (id, name, email) values ('owner', 'Owner', 'owner@example.com')",
   );
+  await pool.query(
+    `insert into session (id, token, user_id, expires_at) values
+      ('live', 'smoke-live', 'owner', now() + interval '1 day'),
+      ('expired', 'smoke-expired', 'owner', now() - interval '1 minute')`,
+  );
+  for (const [token, registration, sessionId] of [
+    ["phone-1", "smoke-sign-in", "live"],
+    ["phone-expired", "smoke-expired-sign-in", "expired"],
+  ]) {
+    const registered = await fetch(`${worker}/internal/push/native/register`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        token,
+        platform: "android",
+        device: "Stand-in phone",
+        registration,
+        sessionId,
+      }),
+    });
+    assert(registered.ok, await registered.clone().text());
+    // The worker says it stored the phone's sign-in: the phone checks this before it counts on it.
+    assert.deepEqual(await registered.json(), { ok: true, registration });
+  }
   const created = await fetch(`${worker}/internal/teammates`, {
     method: "POST",
     headers,
@@ -194,6 +226,8 @@ try {
   await delay(5_000);
   await relaying;
 
+  // Nothing at all for the phone whose session has expired.
+  assert.deepEqual([...new Set(pushes.map((push) => push.token))], ["phone-1"]);
   const progress = pushes.filter((push) => push.data.type === "run-progress");
   const started = run.started_at!.getTime();
   report.pushes = pushes.map((push) => ({
